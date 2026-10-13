@@ -7,8 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 // Maintenance without a reload (proxy_maintenance_flag_v1). Gateway renders every managed route on this node with a
@@ -17,10 +18,10 @@ import (
 // running its configuration, and the idle keep-alive connections of every other route stay open (a reload closes
 // them). The directory is fixed because the configs Gateway renders name it, and it persists across restarts so a
 // route stays in maintenance while the daemon is down.
-const (
-	maintenanceFlagCapability = "proxy_maintenance_flag_v1"
-	maintenanceFlagDir        = "/etc/nginx/gateway/maintenance"
-)
+const maintenanceFlagCapability = "proxy_maintenance_flag_v1"
+
+// maintenanceFlagDir is the flag directory under the names in effect.
+func maintenanceFlagDir() string { return naming.Path(naming.EtcDir + "/maintenance") }
 
 // prepareMaintenanceFlagDir creates the flag directory; nginx workers only need to reach the files in it.
 func prepareMaintenanceFlagDir(dir string) error {

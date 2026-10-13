@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // logForwarder captures slog records and sends them as DaemonLogEntry

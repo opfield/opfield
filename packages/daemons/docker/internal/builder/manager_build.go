@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 func prepareJobDirectory(jobDir string) error {
@@ -36,7 +36,7 @@ func (m *Manager) checkout(ctx context.Context, command *pb.DockerBuildCommand, 
 	}
 	env := append(os.Environ(),
 		"GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS="+m.askpass,
-		"GATEWAY_GIT_USERNAME="+credential.Username, "GATEWAY_GIT_PASSWORD="+credential.Password,
+		"OPFIELD_GIT_USERNAME="+credential.Username, "OPFIELD_GIT_PASSWORD="+credential.Password,
 	)
 	for _, step := range [][]string{
 		{"git", "init", "--quiet", jobDir},
@@ -95,7 +95,7 @@ func (m *Manager) build(ctx context.Context, command *pb.DockerBuildCommand, job
 	}
 	secretDir := ""
 	if len(command.GetBuildSecrets()) > 0 {
-		secretDir, err = os.MkdirTemp(m.workspace, ".gateway-build-secrets-")
+		secretDir, err = os.MkdirTemp(m.workspace, ".opfield-build-secrets-")
 		if err != nil {
 			return fmt.Errorf("create Build Secret directory: %w", err)
 		}
@@ -121,7 +121,7 @@ func (m *Manager) build(ctx context.Context, command *pb.DockerBuildCommand, job
 }
 
 func (m *Manager) buildPages(ctx context.Context, command *pb.DockerBuildCommand, jobDir, metadataPath, imageRef string) error {
-	controlDir, err := os.MkdirTemp(m.workspace, ".gateway-pages-control-")
+	controlDir, err := os.MkdirTemp(m.workspace, ".opfield-pages-control-")
 	if err != nil {
 		return fmt.Errorf("create managed Pages build directory: %w", err)
 	}
@@ -154,7 +154,7 @@ func (m *Manager) buildPages(ctx context.Context, command *pb.DockerBuildCommand
 	}
 	secretDir := ""
 	if len(command.GetBuildSecrets()) > 0 {
-		secretDir, err = os.MkdirTemp(m.workspace, ".gateway-build-secrets-")
+		secretDir, err = os.MkdirTemp(m.workspace, ".opfield-build-secrets-")
 		if err != nil {
 			return fmt.Errorf("create Build Secret directory: %w", err)
 		}

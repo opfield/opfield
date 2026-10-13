@@ -5,6 +5,7 @@ import { users } from '@/db/schema/index.js';
 import { expandFolderScopes } from '@/lib/folder-scopes.js';
 import { canManageUser, hasScope } from '@/lib/permissions.js';
 import { canonicalizeScopes } from '@/lib/scopes.js';
+import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { SessionService } from '@/services/session.service.js';
 import type { SessionData, User } from '@/types.js';
 
@@ -13,7 +14,7 @@ export interface GroupScopeRecord {
   parentId: string | null;
   scopes: unknown;
   name?: string | null;
-  requireGateway2fa?: boolean;
+  require2fa?: boolean;
 }
 
 export function userGroupIds(groupId: string, additionalGroupIds: readonly string[] = []): string[] {
@@ -25,7 +26,7 @@ export function userBelongsToGroup(groupId: string) {
 }
 
 export function groupsRequireMfa(groupIds: readonly string[], groupMap: Map<string, GroupScopeRecord>): boolean {
-  return groupIds.some((id) => groupMap.get(id)?.requireGateway2fa === true);
+  return groupIds.some((id) => groupMap.get(id)?.require2fa === true);
 }
 
 export function computeEffectiveGroupAccess(groupId: string, groupMap: Map<string, GroupScopeRecord>) {
@@ -69,7 +70,7 @@ export function computeEffectiveUserAccess(
     groupName: groupNames[0],
     groupIds,
     groupNames,
-    requireGateway2fa: groupsRequireMfa(groupIds, groupMap),
+    require2fa: groupsRequireMfa(groupIds, groupMap),
     groupScopes,
     additionalScopes: normalizedAdditionalScopes,
     scopes: canonicalizeScopes([...groupScopes, ...normalizedAdditionalScopes]),
@@ -78,7 +79,7 @@ export function computeEffectiveUserAccess(
 
 export async function fetchGroupScopeMap(db: DrizzleClient): Promise<Map<string, GroupScopeRecord>> {
   const allGroups = await db.query.permissionGroups.findMany({
-    columns: { id: true, parentId: true, scopes: true, name: true, requireGateway2fa: true },
+    columns: { id: true, parentId: true, scopes: true, name: true, require2fa: true },
   });
   return new Map(allGroups.map((group) => [group.id, group]));
 }
@@ -105,7 +106,7 @@ export async function resolveLiveUser(db: DrizzleClient, userId: string): Promis
   if (!dbUser) return null;
 
   const groupMap = await fetchGroupScopeMap(db);
-  const { groupName, groupNames, groupIds, requireGateway2fa, groupScopes, additionalScopes, scopes } =
+  const { groupName, groupNames, groupIds, require2fa, groupScopes, additionalScopes, scopes } =
     computeEffectiveUserAccess(dbUser.groupId, groupMap, dbUser.additionalScopes, dbUser.additionalGroupIds);
   const effectiveScopes = dbUser.deletedAt ? [] : await expandFolderScopes(db, scopes);
   return {
@@ -119,7 +120,7 @@ export async function resolveLiveUser(db: DrizzleClient, userId: string): Promis
     groupName,
     groupNames,
     groupIds,
-    requireGateway2fa,
+    require2fa,
     groupScopes,
     additionalScopes,
     scopes: effectiveScopes,
@@ -142,7 +143,7 @@ export interface LiveSessionUser {
 }
 
 export function requiresSessionMfaReauthentication(user: User, session: SessionData): boolean {
-  if (!user.requireGateway2fa || user.authMethod === 'oidc' || session.mfaSatisfiedAt !== undefined) {
+  if (!user.require2fa || user.authMethod === 'oidc' || session.mfaSatisfiedAt !== undefined) {
     return false;
   }
 
@@ -158,7 +159,7 @@ export async function resolveLiveSessionUser(
   token: string,
   knownSession?: SessionData
 ): Promise<LiveSessionUser | null> {
-  if (!token || token.startsWith('gw_')) return null;
+  if (!token || hasTokenPrefix(token, 'api')) return null;
 
   const sessionService = container.resolve(SessionService);
   const session = knownSession ?? (await sessionService.getSession(token));

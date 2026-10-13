@@ -34,7 +34,7 @@ export function SetupUnlockStep({
         value={code}
         autoFocus
         autoComplete="off"
-        placeholder="gws_…"
+        placeholder="opfs_…"
         onChange={(event) => setCode(event.target.value)}
       />
       <Button type="submit" className="w-full" pending={busy} disabled={!code.trim()}>

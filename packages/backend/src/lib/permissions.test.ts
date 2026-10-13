@@ -77,7 +77,7 @@ describe('Scope-based permissions', () => {
     });
 
     it('lets write scopes satisfy matching read scopes', () => {
-      expect(hasScope(['settings:gateway:edit'], 'settings:gateway:view')).toBe(true);
+      expect(hasScope(['settings:opfield:edit'], 'settings:opfield:view')).toBe(true);
       expect(hasScope(['proxy:edit'], 'proxy:view')).toBe(true);
       expect(hasScope(['proxy:edit'], 'proxy:view')).toBe(true);
       expect(hasScope(['databases:query:admin'], 'databases:query:read')).toBe(true);

@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaylocal"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaylocal"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )

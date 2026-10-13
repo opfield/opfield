@@ -4,8 +4,14 @@ WORKDIR /src
 COPY packages/daemons/shared ./packages/daemons/shared
 COPY packages/relay ./packages/relay
 WORKDIR /src/packages/relay
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.buildVersion=${RELAY_BUILD_VERSION}" -o /gateway-relay ./cmd/gateway-relay
+# legacy-name: /gateway-relay entrypoint — remove once every node reports none.
+# Compose files written by Opfield 2.12.0 (kept until the app host moves) start the relay and run its healthcheck at
+# /gateway-relay; a symlink keeps them working without a second copy of the binary.
+RUN mkdir /out \
+  && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.buildVersion=${RELAY_BUILD_VERSION}" -o /out/opfield-relay ./cmd/opfield-relay \
+  && ln -s /opfield-relay /out/gateway-relay
 
 FROM scratch
-COPY --from=build /gateway-relay /gateway-relay
-ENTRYPOINT ["/gateway-relay"]
+# COPY keeps the symlink of the build stage as a symlink.
+COPY --from=build /out/ /
+ENTRYPOINT ["/opfield-relay"]

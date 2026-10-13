@@ -12,12 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 )
 
 const (
 	volumeImageMountOptions = "noatime,nodev,nosuid"
-	volumeImageBootService  = "gateway-volume-images"
+	volumeImageBootService  = "opfield-volume-images"
 )
 
 // MountVolumeImagesAtBoot is the `mount-volume-images` boot step, ordered
@@ -99,6 +100,9 @@ type volumeImageBootHost struct {
 	openrcDir  string
 	runlevels  string
 	run        func(name string, args ...string) error
+	// confirmed: this start is confirmed (lifecycle.OnStartConfirmed), so the
+	// pre-Opfield boot units go.
+	confirmed bool
 }
 
 func systemVolumeImageBootHost() volumeImageBootHost {
@@ -110,6 +114,7 @@ func systemVolumeImageBootHost() volumeImageBootHost {
 		systemdDir: "/etc/systemd/system",
 		openrcDir:  "/etc/init.d",
 		runlevels:  "/etc/runlevels",
+		confirmed:  lifecycle.StartConfirmed(),
 		run: func(name string, args ...string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -118,11 +123,12 @@ func systemVolumeImageBootHost() volumeImageBootHost {
 	}
 }
 
-func systemdVolumeImageUnit(executable, stateDir string) string {
+func systemdVolumeImageUnit(host volumeImageBootHost, executable, stateDir string) string {
 	return `[Unit]
 Description=Opfield disk-image volumes: mount before Docker starts containers
 After=local-fs.target
 Before=docker.service
+` + systemdLegacyGuard(host, legacyVolumeImageBootService) + `
 
 [Service]
 Type=oneshot
@@ -135,7 +141,7 @@ WantedBy=multi-user.target docker.service
 `
 }
 
-func openrcVolumeImageService(executable, stateDir string) string {
+func openrcVolumeImageService(host volumeImageBootHost, executable, stateDir string) string {
 	return `#!/sbin/openrc-run
 description="Opfield disk-image volumes: mount before Docker starts containers"
 
@@ -145,7 +151,7 @@ depend() {
 }
 
 start() {
-	ebegin "Mounting Opfield disk-image volumes"
+` + openrcLegacyGuard(host, legacyVolumeImageBootService) + `	ebegin "Mounting Opfield disk-image volumes"
 	` + shellQuote(executable) + ` mount-volume-images --state-dir ` + shellQuote(stateDir) + `
 	eend $?
 }
@@ -163,7 +169,7 @@ func installVolumeImageBootUnit(host volumeImageBootHost, executable, stateDir s
 	switch {
 	case host.systemd:
 		path := filepath.Join(host.systemdDir, volumeImageBootService+".service")
-		changed, err := writeFileIfChanged(path, systemdVolumeImageUnit(executable, stateDir), 0o644)
+		changed, err := writeFileIfChanged(path, systemdVolumeImageUnit(host, executable, stateDir), 0o644)
 		if err != nil {
 			return err
 		}
@@ -173,18 +179,22 @@ func installVolumeImageBootUnit(host volumeImageBootHost, executable, stateDir s
 			}
 		}
 		if changed || host.run("systemctl", "is-enabled", "--quiet", volumeImageBootService+".service") != nil {
-			return host.run("systemctl", "enable", "--quiet", volumeImageBootService+".service")
+			if err := host.run("systemctl", "enable", "--quiet", volumeImageBootService+".service"); err != nil {
+				return err
+			}
 		}
-		return nil
+		return retireLegacyBootUnit(host, legacyVolumeImageBootService)
 	case host.openrc:
 		path := filepath.Join(host.openrcDir, volumeImageBootService)
-		if _, err := writeFileIfChanged(path, openrcVolumeImageService(executable, stateDir), 0o755); err != nil {
+		if _, err := writeFileIfChanged(path, openrcVolumeImageService(host, executable, stateDir), 0o755); err != nil {
 			return err
 		}
 		if _, err := os.Lstat(filepath.Join(host.runlevels, "boot", volumeImageBootService)); err != nil {
-			return host.run("rc-update", "add", volumeImageBootService, "boot")
+			if err := host.run("rc-update", "add", volumeImageBootService, "boot"); err != nil {
+				return err
+			}
 		}
-		return nil
+		return retireLegacyBootUnit(host, legacyVolumeImageBootService)
 	default:
 		return errors.New("no systemd or OpenRC: disk-image volumes are mounted at boot only by their fstab entries")
 	}

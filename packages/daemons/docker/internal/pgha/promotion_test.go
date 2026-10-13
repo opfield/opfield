@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 func names(members ...string) string { return "pg:names:" + syncNames(members) }

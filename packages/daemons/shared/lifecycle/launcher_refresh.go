@@ -436,10 +436,10 @@ func fallBackFromLauncherTrial(spec LauncherSpec, trial *launcherRefreshTrial, l
 // once its update, if any, is committed. It runs after the gateway accepted
 // the daemon, so only a committed daemon that reached control is staged.
 func scheduleLauncherRefresh(version string, logger *slog.Logger) {
-	if os.Getenv(LauncherManagedEnv) != "1" || strings.TrimSpace(version) == "" {
+	if launcherManagedFromEnvironment() != "1" || strings.TrimSpace(version) == "" {
 		return
 	}
-	stateDir := strings.TrimSpace(os.Getenv(LauncherStateDirEnv))
+	stateDir := strings.TrimSpace(launcherEnv(LauncherStateDirEnv, legacyLauncherStateDirEnv))
 	if !filepath.IsAbs(stateDir) {
 		return
 	}

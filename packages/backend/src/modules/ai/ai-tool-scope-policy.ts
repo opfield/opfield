@@ -84,7 +84,7 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
     'storage:bind',
     'storage:credentials:reveal',
   ],
-  read_gateway_documentation: MCP_TOKEN_SCOPES,
+  read_opfield_documentation: MCP_TOKEN_SCOPES,
   // Every caller may read its own access summary: MCP grants hold only delegable scopes, the assistant the workspace.
   get_my_access: ['ai:workspace:use', ...MCP_TOKEN_SCOPES],
   manage_docker_compose: [
@@ -365,7 +365,7 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
   // The handlers enforce the exact per-node or admin:system scope of each route.
   manage_node: ['nodes:details', 'nodes:rename', 'nodes:create', 'nodes:logs', 'nodes:manage'],
   manage_user: ['admin:users', 'admin:system'],
-  manage_relay_pool: ['settings:gateway:view', 'admin:system'],
+  manage_relay_pool: ['settings:opfield:view', 'admin:system'],
   manage_node_file: ['nodes:files:read', 'nodes:files:write'],
 };
 

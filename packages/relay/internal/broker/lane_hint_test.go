@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/connector"
 )
 
 // A relay whose sending side of a lane collapsed says so in the tunnel's

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 )
 
 // A root → non-root switch: the egress socket the root process handed over does not fit the new mode (0600, or set

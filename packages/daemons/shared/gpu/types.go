@@ -4,7 +4,7 @@
 // selection has been resolved against this inventory.
 package gpu
 
-import pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+import pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 
 type Vendor string
 

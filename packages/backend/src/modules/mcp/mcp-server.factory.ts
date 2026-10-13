@@ -26,7 +26,7 @@ export interface CreateMcpServerOptions {
 
 export const MCP_SERVER_INSTRUCTIONS =
   `${OPFIELD_ABOUT_INSTRUCTIONS}\n\n` +
-  'Opfield MCP exposes scoped control-plane tools, curated read-only resources, operational prompts, and agent skills (gateway://skills; start with gateway://skills/using-opfield/SKILL.md). OAuth token scopes determine every listed and callable capability. Access limited to folders, nodes or resources is normal: when a list is empty or an action is refused at the root, call get_my_access (or read gateway://access) and work inside the granted folders, passing folderId (and nodeId) when creating.';
+  'Opfield MCP exposes scoped control-plane tools, curated read-only resources, operational prompts, and agent skills (opfield://skills; start with opfield://skills/using-opfield/SKILL.md). OAuth token scopes determine every listed and callable capability. Access limited to folders, nodes or resources is normal: when a list is empty or an action is refused at the root, call get_my_access (or read opfield://access) and work inside the granted folders, passing folderId (and nodeId) when creating.';
 
 export function createMcpServer(options: CreateMcpServerOptions) {
   const server = new McpServer(

@@ -8,13 +8,13 @@ import (
 	"sort"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaylane"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relaylane"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/grpc"
 )
 

@@ -1,12 +1,12 @@
-import type { NormalizedGatewayLogEvent } from './types.js';
+import type { NormalizedOpfieldLogEvent } from './types.js';
 
-export interface GatewayTransportOptions {
+export interface OpfieldTransportOptions {
   endpoint: string;
   token: string;
   fetch?: typeof fetch;
 }
 
-export type GatewayTransportResult =
+export type OpfieldTransportResult =
   | { ok: true; accepted: number; rejected: number }
   | {
       ok: false;
@@ -17,11 +17,11 @@ export type GatewayTransportResult =
       error?: unknown;
     };
 
-export interface GatewayTransport {
-  send(events: NormalizedGatewayLogEvent[]): Promise<GatewayTransportResult>;
+export interface OpfieldTransport {
+  send(events: NormalizedOpfieldLogEvent[]): Promise<OpfieldTransportResult>;
 }
 
-export function createGatewayTransport(options: GatewayTransportOptions): GatewayTransport {
+export function createOpfieldTransport(options: OpfieldTransportOptions): OpfieldTransport {
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const endpoint = options.endpoint.replace(/\/+$/, '');
 

@@ -25,19 +25,19 @@ export function LoggingConnectionInstructionsDialog({
     if (open) setMethod("sdk");
   }, [open]);
 
-  const gatewayUrl = window.location.origin;
-  const sdkExample = `import { GatewayLogger } from "@sqgateway/logger";
+  const opfieldUrl = window.location.origin;
+  const sdkExample = `import { OpfieldLogger } from "@opfield/logger";
 
-const logger = new GatewayLogger({
-  endpoint: "${gatewayUrl}",
-  token: process.env.GATEWAY_LOGGING_TOKEN!,
+const logger = new OpfieldLogger({
+  endpoint: "${opfieldUrl}",
+  token: process.env.OPFIELD_LOGGING_TOKEN!,
   service: "my-service",
   source: "application",
 });
 
 logger.info("Service started");
 await logger.flush();`;
-  const apiExample = `curl -X POST '${gatewayUrl}/api/logging/ingest' \\
+  const apiExample = `curl -X POST '${opfieldUrl}/api/logging/ingest' \\
   -H 'Authorization: Bearer <ingest-token>' \\
   -H 'Content-Type: application/json' \\
   --data '{
@@ -72,7 +72,7 @@ await logger.flush();`;
                 <p className="text-sm font-medium">Install</p>
                 <CopyCodeBlock
                   label="Install the Node.js SDK"
-                  value="pnpm add @sqgateway/logger"
+                  value="pnpm add @opfield/logger"
                   className="[&>p]:hidden"
                   codeClassName="min-h-0"
                 />

@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // TargetKey names a target session: the relay-vouched route and source of

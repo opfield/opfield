@@ -61,7 +61,7 @@ const STATS_INTERVAL_MS = 1_000;
 
 /** The connection a tunnel was meant for went away while it opened (code `slot_gone`: not a tunnel failure). */
 function connectionGone(): Error {
-  return Object.assign(new Error('Gateway tunnel connection is gone'), { code: 'slot_gone' });
+  return Object.assign(new Error('Opfield tunnel connection is gone'), { code: 'slot_gone' });
 }
 
 /**
@@ -216,11 +216,11 @@ export class RelayTunnelEngine {
     const address = server.address();
     if (!address || typeof address === 'string') {
       server.close();
-      throw new Error('Gateway tunnel listener did not expose a TCP endpoint');
+      throw new Error('Opfield tunnel listener did not expose a TCP endpoint');
     }
     if (this.endpoints.get(key) !== endpoint) {
       server.close();
-      throw new Error('Gateway tunnel listener was disposed before it became ready');
+      throw new Error('Opfield tunnel listener was disposed before it became ready');
     }
     return { port: address.port };
   }
@@ -233,7 +233,7 @@ export class RelayTunnelEngine {
     if (endpoint.server.listening) endpoint.server.close();
   }
 
-  // -- Bridge: a tunnel for the main thread (RelayPolicyService.openGatewayTunnel's Duplex) ------------------------
+  // -- Bridge: a tunnel for the main thread (RelayPolicyService.openOpfieldTunnel's Duplex) ------------------------
 
   private createBridgeSlot(): { slotId: string } {
     const slot: Slot = { id: randomBytes(BRIDGE_TOKEN_BYTES).toString('hex'), socket: null, tunnel: null, dead: false };
@@ -256,7 +256,7 @@ export class RelayTunnelEngine {
       server.listen(0, '127.0.0.1', () => {
         server.off('error', reject);
         const address = server.address();
-        if (!address || typeof address === 'string') reject(new Error('Gateway tunnel bridge has no TCP endpoint'));
+        if (!address || typeof address === 'string') reject(new Error('Opfield tunnel bridge has no TCP endpoint'));
         else resolve(address.port);
       });
     }).catch((error) => {
@@ -309,7 +309,7 @@ export class RelayTunnelEngine {
         : await this.client.openCandidateResumePath(candidateOf(open.candidate));
     if (this.stopped) {
       path.cancel();
-      throw new Error('Gateway tunnel worker stopped');
+      throw new Error('Opfield tunnel worker stopped');
     }
     const pathId = String(this.nextPathId++);
     const timer = setTimeout(() => {
@@ -355,7 +355,7 @@ export class RelayTunnelEngine {
           // Where Gateway's own streams go is checked in every Relay Pool update and relay outage: each move is logged.
           onEvent: (event, detail) => {
             if (event === 'migration')
-              this.log('info', 'Gateway relay stream moved', { routeId: config.routeId, ...detail });
+              this.log('info', 'Opfield relay stream moved', { routeId: config.routeId, ...detail });
           },
         },
         dial
@@ -421,7 +421,7 @@ export class RelayTunnelEngine {
     slot.dead = true;
     this.slots.delete(slotId);
     if (slot.timer) clearTimeout(slot.timer);
-    slot.socket?.destroy(new Error(message || 'Gateway tunnel failed'));
+    slot.socket?.destroy(new Error(message || 'Opfield tunnel failed'));
     slot.tunnel?.destroy();
   }
 
@@ -497,7 +497,7 @@ export class RelayTunnelEngine {
     try {
       this.client.close?.();
     } catch (error) {
-      this.log('debug', 'Gateway tunnel worker channels did not close cleanly', {
+      this.log('debug', 'Opfield tunnel worker channels did not close cleanly', {
         error: error instanceof Error ? error.message : String(error),
       });
     }

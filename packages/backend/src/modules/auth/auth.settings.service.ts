@@ -3,7 +3,7 @@ import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
 import { permissionGroups, settings, type UserAuthMethod, userPasskeys, users } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 
-const GATEWAY_SYSTEM_OIDC_SUBJECT = 'system:gateway-setup';
+const OPFIELD_SYSTEM_OIDC_SUBJECT = 'system:opfield-setup';
 
 const AUTH_SETTINGS_DEFAULTS = {
   'auth:oidc_auto_create_users': true,
@@ -141,13 +141,15 @@ export class AuthSettingsService {
           continue;
         }
         const authMethod: UserAuthMethod = method === 'emailOtp' ? 'email_otp' : (method as UserAuthMethod);
+        // Deleted accounts do not count: they cannot sign in, and a restore asks for their sign-in method again.
         const assignedUserCondition =
           authMethod === 'oidc'
             ? and(
                 eq(users.authMethod, authMethod),
-                or(isNull(users.oidcSubject), not(eq(users.oidcSubject, GATEWAY_SYSTEM_OIDC_SUBJECT)))
+                isNull(users.deletedAt),
+                or(isNull(users.oidcSubject), not(eq(users.oidcSubject, OPFIELD_SYSTEM_OIDC_SUBJECT)))
               )
-            : eq(users.authMethod, authMethod);
+            : and(eq(users.authMethod, authMethod), isNull(users.deletedAt));
         const [{ count: userCount }] = await this.db
           .select({ count: count() })
           .from(users)
@@ -217,6 +219,25 @@ export class AuthSettingsService {
   }
 
   /** Turns OIDC sign-in on in the caller's transaction (a managed installation's Opfield account sign-in). */
+  /**
+   * Turns OIDC sign-in off when its provider goes away with the cloud link. Unlike an administrator's change, users still
+   * bound to the provider do not block it: they cannot sign in through a provider that is gone anyway. Another primary
+   * method must remain (the caller checked an administrator can still sign in).
+   */
+  async disableOidcSignIn(executor: DrizzleExecutor = this.db): Promise<void> {
+    const [row] = await executor.select().from(settings).where(eq(settings.key, 'auth:methods')).limit(1);
+    const current = (row?.value ?? AUTH_SETTINGS_DEFAULTS['auth:methods']) as LocalAuthMethods;
+    if (!current.oidc) return;
+    const value = { ...current, oidc: false };
+    if (!value.password && !value.emailOtp) {
+      throw new AppError(409, 'AUTH_METHOD_REQUIRED', 'At least one primary authentication method must remain enabled');
+    }
+    await executor
+      .insert(settings)
+      .values({ key: 'auth:methods', value, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
+  }
+
   async enableOidcSignIn(executor: DrizzleExecutor): Promise<void> {
     const [row] = await executor.select().from(settings).where(eq(settings.key, 'auth:methods')).limit(1);
     const current = (row?.value ?? AUTH_SETTINGS_DEFAULTS['auth:methods']) as LocalAuthMethods;

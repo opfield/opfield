@@ -18,7 +18,6 @@ const PROGRAMMATIC_DENIED_SCOPE_VALUES = new Set<string>([
   "ai:sandbox:tier:high",
   "ai:sandbox:manage",
   "mcp:use",
-  "inference:setup",
   "admin:users:impersonate",
   "integrations:gitlab:sandbox:clone",
 ]);

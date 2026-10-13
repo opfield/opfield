@@ -16,7 +16,7 @@ import {
   INFERENCE_USAGE_CHANGED_CHANNEL,
   type InferenceUsageChangedEvent,
 } from '@/modules/inference/accounting/inference-usage-events.js';
-import { INFERENCE_SETUP_EVENT_CHANNEL } from '@/modules/inference/inference-setup-events.service.js';
+import { INFERENCE_CATALOG_CHANGED_CHANNEL } from '@/modules/inference/inference-catalog-events.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
 import type { User } from '@/types.js';
 import {
@@ -155,7 +155,7 @@ function canReceiveChannelPayload(scopes: string[], channel: string, payload: un
     if (hasScope(scopes, 'inference:usage:view') || hasScope(scopes, 'inference:limits:manage')) return true;
     return event?.targetUserId === null || event?.targetUserId === userId;
   }
-  if (channel === INFERENCE_SETUP_EVENT_CHANNEL) return hasChannelAccess(scopes, channel);
+  if (channel === INFERENCE_CATALOG_CHANGED_CHANNEL) return hasChannelAccess(scopes, channel);
   if (channel === 'docker.snapshot.changed') {
     const event = payload as { nodeId?: string; kind?: string } | undefined;
     if (!event?.nodeId || !event.kind) return false;

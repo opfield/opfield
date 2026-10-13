@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 type pipeStream struct {

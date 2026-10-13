@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/docker-daemon/internal/lease"
 )
 
 // identityKeys is the node's mTLS identity for the lease (ECDSA P-256, D3)

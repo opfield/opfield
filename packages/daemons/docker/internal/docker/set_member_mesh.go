@@ -18,7 +18,7 @@ import (
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/netaccept"
+	"github.com/opfield/opfield/daemon-shared/netaccept"
 )
 
 // Member mesh aliases of availability sets (decision 3 of the plan): how an
@@ -142,7 +142,7 @@ func (s *setMesh) Ensure(ctx context.Context, setID string) (string, error) {
 	defer linkNetworkCreate.Unlock()
 	cli := s.plugin.client.cli
 	if existing, err := cli.NetworkInspect(ctx, name, mobyclient.NetworkInspectOptions{}); err == nil {
-		if existing.Network.Labels["wiolett.gateway.managed"] != setMeshNetworkLabel || !existing.Network.Internal {
+		if existing.Network.Labels["net.opfield.managed"] != setMeshNetworkLabel || !existing.Network.Internal {
 			return "", fmt.Errorf("network %s exists and is not an Opfield availability set network", name)
 		}
 		s.kick()
@@ -172,7 +172,7 @@ func (s *setMesh) Ensure(ctx context.Context, setID string) (string, error) {
 		base[3]++
 		_, err = cli.NetworkCreate(ctx, name, mobyclient.NetworkCreateOptions{
 			Driver: "bridge", Internal: true,
-			Labels: map[string]string{"wiolett.gateway.managed": setMeshNetworkLabel, "wiolett.gateway.availability-set": setID},
+			Labels: map[string]string{"net.opfield.managed": setMeshNetworkLabel, "net.opfield.availability-set": setID},
 			IPAM: &network.IPAM{Driver: "default", Config: []network.IPAMConfig{{
 				Subnet: subnet, Gateway: netip.AddrFrom4(base),
 			}}},
@@ -322,7 +322,7 @@ func (s *setMesh) releaseOrphans(ctx context.Context, members func() []string) {
 		return
 	}
 	networks, err := s.plugin.client.cli.NetworkList(ctx, mobyclient.NetworkListOptions{
-		Filters: mobyclient.Filters{}.Add("label", "wiolett.gateway.managed="+setMeshNetworkLabel),
+		Filters: mobyclient.Filters{}.Add("label", "net.opfield.managed="+setMeshNetworkLabel),
 	})
 	if err != nil {
 		s.plugin.logger.Warn("availability set networks could not be listed", "error", err)
@@ -341,7 +341,7 @@ func (s *setMesh) releaseOrphans(ctx context.Context, members func() []string) {
 		keep[setMeshNetworkName(id)] = true
 	}
 	for _, item := range networks.Items {
-		setID := item.Labels["wiolett.gateway.availability-set"]
+		setID := item.Labels["net.opfield.availability-set"]
 		if keep[item.Name] || !uuidLike(setID) || setMeshNetworkName(setID) != item.Name {
 			continue
 		}

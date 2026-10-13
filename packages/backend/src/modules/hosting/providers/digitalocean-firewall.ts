@@ -61,7 +61,14 @@ function values(value: unknown): unknown[] {
   return Array.isArray(value) ? value : unsafe();
 }
 function ownedName(ownerKey: string, remoteId: string): string {
+  return `opfield-fw-${createHash('sha256').update(`${ownerKey}:${remoteId}`).digest('hex').slice(0, 20)}`;
+}
+// legacy-name: DigitalOcean firewall name "gateway-fw-<hash>" — remove once every hosting resource was reconciled by 2.12.1+
+function legacyOwnedName(ownerKey: string, remoteId: string): string {
   return `gateway-fw-${createHash('sha256').update(`${ownerKey}:${remoteId}`).digest('hex').slice(0, 20)}`;
+}
+function ownedNames(ownerKey: string, remoteId: string): string[] {
+  return [ownedName(ownerKey, remoteId), legacyOwnedName(ownerKey, remoteId)];
 }
 function normalizeRule(value: unknown, direction: 'in' | 'out'): FirewallRule {
   const rule = record(value);
@@ -82,7 +89,7 @@ function normalizeRule(value: unknown, direction: 'in' | 'out'): FirewallRule {
   const ports = ['0', '1-65535', 'all'].includes(rawPorts) ? 'all' : rawPorts;
   return { action, protocol, ports, addresses, unsupportedSelectors };
 }
-function parseFirewall(value: unknown, expectedName?: string): Firewall {
+function parseFirewall(value: unknown, expectedNames?: string[]): Firewall {
   const firewall = record(value);
   const pending = firewall.pending_changes === undefined ? [] : values(firewall.pending_changes);
   return {
@@ -93,11 +100,11 @@ function parseFirewall(value: unknown, expectedName?: string): Firewall {
       .sort(),
     tags: strings(firewall.tags ?? []),
     inbound:
-      expectedName && firewall.name !== expectedName
+      expectedNames && !expectedNames.includes(firewall.name as string)
         ? []
         : values(firewall.inbound_rules ?? []).map((rule) => normalizeRule(rule, 'in')),
     outbound:
-      expectedName && firewall.name !== expectedName
+      expectedNames && !expectedNames.includes(firewall.name as string)
         ? []
         : values(firewall.outbound_rules ?? []).map((rule) => normalizeRule(rule, 'out')),
     applying:
@@ -155,6 +162,8 @@ function compileDirection(config: HostingFirewallConfig, direction: 'in' | 'out'
 }
 
 export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
+  /** Owned firewalls, by droplet ID, that a read on this instance found under the legacy name. */
+  private readonly legacyNames = new Map<string, Firewall>();
   constructor(private readonly dependencies: DigitalOceanFirewallDependencies) {}
 
   async cleanup(
@@ -164,7 +173,7 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
     dispatched: boolean,
     beforeDelete: (remoteId: string) => Promise<void>
   ): Promise<{ status: 'absent' | 'deleted' | 'preserved'; remoteId: string | null; reason?: string }> {
-    const expectedName = ownedName(ownerKey, resource.remoteId);
+    const names = ownedNames(ownerKey, resource.remoteId);
     const assertVmAbsent = async () => {
       if ((await this.dependencies.getResource(resource.remoteId)) !== null)
         throw new HostingProviderError(409, false, 'The VM still exists; its firewall will not be deleted.');
@@ -172,7 +181,7 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
     await assertVmAbsent();
     if (!remoteId) {
       if (dispatched) return unsafe();
-      const owned = (await this.listFirewalls(expectedName)).filter((firewall) => firewall.name === expectedName);
+      const owned = (await this.listFirewalls(names)).filter((firewall) => names.includes(firewall.name));
       if (owned.length > 1)
         throw new HostingProviderError(409, false, 'Several firewalls have the ownership name; cleanup needs review.');
       remoteId = owned[0]?.id ?? null;
@@ -188,7 +197,7 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
         strings(firewall.tags);
         values(firewall.pending_changes);
         string(firewall.status);
-        const parsed = parseFirewall(firewall, expectedName);
+        const parsed = parseFirewall(firewall, names);
         if (parsed.id !== targetId) return unsafe();
         return parsed;
       } catch (error) {
@@ -199,7 +208,7 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
     const check = (firewall: Firewall | null) => {
       if (!firewall) return { status: 'absent' as const, remoteId: targetId };
       if (
-        firewall.name !== expectedName ||
+        !names.includes(firewall.name) ||
         firewall.tags.length ||
         firewall.dropletIds.some((id) => id !== resource.remoteId)
       )
@@ -229,13 +238,13 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
     return { status: 'deleted', remoteId: targetId };
   }
 
-  private async listFirewalls(expectedName: string): Promise<Firewall[]> {
+  private async listFirewalls(expectedNames: string[]): Promise<Firewall[]> {
     const result: Firewall[] = [];
     for (let page = 1; page <= MAX_PAGES; page += 1) {
       const root = record(
         await this.dependencies.request<unknown>('/v2/firewalls', { query: { page, per_page: PAGE_SIZE } })
       );
-      const firewalls = values(root.firewalls).map((value) => parseFirewall(value, expectedName));
+      const firewalls = values(root.firewalls).map((value) => parseFirewall(value, expectedNames));
       result.push(...firewalls);
       const next = record(root.links ?? {}).pages;
       if (next === undefined || next === null) return result;
@@ -245,16 +254,17 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
     throw new HostingProviderError(502, false, 'DigitalOcean firewall pagination was incomplete');
   }
 
-  private async attachedFirewalls(remoteId: string, expectedName: string): Promise<Firewall[]> {
+  private async attachedFirewalls(remoteId: string, expectedNames: string[]): Promise<Firewall[]> {
     const root = record(
       await this.dependencies.request<unknown>(`/v2/droplets/${encodeURIComponent(remoteId)}/firewalls`)
     );
-    return values(root.firewalls).map((value) => parseFirewall(value, expectedName));
+    return values(root.firewalls).map((value) => parseFirewall(value, expectedNames));
   }
 
   private async inspect(resource: HostingResourceSnapshot, ownerKey: string, desired: HostingFirewallConfig) {
     const fresh = await this.dependencies.getResource(resource.remoteId);
     const expectedName = ownedName(ownerKey, resource.remoteId);
+    const names = ownedNames(ownerKey, resource.remoteId);
     const blockers: string[] = [];
     if (!fresh) blockers.push('The selected DigitalOcean droplet no longer exists.');
     else if (resource.incarnation && fresh.incarnation && resource.incarnation !== fresh.incarnation)
@@ -263,11 +273,14 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
       );
 
     const [all, attached] = await Promise.all([
-      this.listFirewalls(expectedName),
-      this.attachedFirewalls(resource.remoteId, expectedName),
+      this.listFirewalls(names),
+      this.attachedFirewalls(resource.remoteId, names),
     ]);
-    const owned = all.filter((firewall) => firewall.name === expectedName);
+    const owned = all.filter((firewall) => names.includes(firewall.name));
     const firewall = owned[0] ?? null;
+    if (owned.length === 1 && firewall && firewall.name !== expectedName)
+      this.legacyNames.set(resource.remoteId, firewall);
+    else this.legacyNames.delete(resource.remoteId);
     const disableBlockers = [...blockers];
     if (this.dependencies.scopes) {
       const scopes = await this.dependencies.scopes();
@@ -283,7 +296,7 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
       if (disableMissing.length) disableBlockers.push(`DigitalOcean token needs ${disableMissing.join(', ')}.`);
     }
     const attachedIds = new Set(attached.map((item) => item.id));
-    const external = attached.filter((item) => item.name !== expectedName);
+    const external = attached.filter((item) => !names.includes(item.name));
     const ownershipBlockers = [];
     if (owned.length > 1)
       ownershipBlockers.push('Several DigitalOcean firewalls have Opfield’s deterministic ownership name.');
@@ -385,6 +398,35 @@ export class DigitalOceanFirewallAdapter implements HostingFirewallAdapter {
         observedAt: new Date().toISOString(),
       };
     }
+  }
+
+  /**
+   * Renames an owned firewall that still has the legacy name. Same ID, attachment and rules: the PUT
+   * resends exactly the rules just read. Shared, pending or not fully representable policies keep the
+   * legacy name, which stays recognized.
+   */
+  async migrateLegacyNames(resource: HostingResourceSnapshot, ownerKey: string): Promise<boolean> {
+    const firewall = this.legacyNames.get(resource.remoteId);
+    if (!firewall) return false;
+    this.legacyNames.delete(resource.remoteId);
+    if (
+      firewall.applying ||
+      firewall.tags.length ||
+      firewall.dropletIds.some((idValue) => idValue !== resource.remoteId) ||
+      [...firewall.inbound, ...firewall.outbound].some((rule) => Object.keys(rule.unsupportedSelectors).length)
+    )
+      return false;
+    await this.dependencies.request(`/v2/firewalls/${encodeURIComponent(firewall.id)}`, {
+      method: 'PUT',
+      body: {
+        name: ownedName(ownerKey, resource.remoteId),
+        droplet_ids: firewall.dropletIds.map(Number),
+        tags: [],
+        inbound_rules: firewall.inbound.map((rule) => rulePayload(rule, 'in')),
+        outbound_rules: firewall.outbound.map((rule) => rulePayload(rule, 'out')),
+      },
+    });
+    return true;
   }
 
   async apply(

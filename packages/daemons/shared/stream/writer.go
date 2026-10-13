@@ -3,7 +3,7 @@ package stream
 import (
 	"sync"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // Writer serializes concurrent Send calls on a gRPC client stream.

@@ -22,11 +22,11 @@ export function resetTestStores() {
 
   useAppStatusStore.setState({
     maintenanceActive: false,
-    gatewayUpdatingActive: false,
-    gatewayUpdatingTargetVersion: null,
-    gatewayRestartingActive: false,
-    gatewayRestartTargetUrl: null,
-    gatewayUpdateError: null,
+    opfieldUpdatingActive: false,
+    opfieldUpdatingTargetVersion: null,
+    opfieldRestartingActive: false,
+    opfieldRestartTargetUrl: null,
+    opfieldUpdateError: null,
     rateLimitedUntil: null,
   });
 

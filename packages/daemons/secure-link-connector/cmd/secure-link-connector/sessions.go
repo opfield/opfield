@@ -7,8 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 // Every session the connector carries is a pipe between two sockets (shared/handover): an ingress session between

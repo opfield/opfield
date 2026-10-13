@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -41,12 +42,12 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-// legacyGatewayV1 is the compiled gateway/v1/nginx-daemon.proto of v2.10.0,
+// legacyStateSchema is the compiled gateway/v1/nginx-daemon.proto of v2.10.0,
 // the oldest release a node may be rolled back to. Fields were only ever
 // added since, so what it decodes every later release decodes too.
 //
 //go:embed legacy/gateway-v1-v2.10.0.binpb
-var legacyGatewayV1 []byte
+var legacyStateSchema []byte
 
 // LegacyRelease names the release whose schema legacy copies follow.
 const LegacyRelease = "v2.10.0"
@@ -55,19 +56,36 @@ const fullFormat = "gateway-daemon-state/v1"
 
 var legacyFiles = sync.OnceValues(func() (*protoregistry.Files, error) {
 	set := &descriptorpb.FileDescriptorSet{}
-	if err := proto.Unmarshal(legacyGatewayV1, set); err != nil {
+	if err := proto.Unmarshal(legacyStateSchema, set); err != nil {
 		return nil, fmt.Errorf("decode the %s state schema: %w", LegacyRelease, err)
 	}
 	return protodesc.NewFiles(set)
 })
 
-// LegacyDescriptor returns the v2.10.0 schema of a gateway.v1 message.
+// legacy-name: the v2.10.0 schema names its package gateway.v1; the same messages are opfield.v1 now — remove once every node reports none
+const (
+	currentPackage = "opfield.v1."
+	legacyPackage  = "gateway.v1."
+)
+
+// LegacyName is the name of an opfield.v1 message in the schemas of released
+// versions (gateway.v1); other names are returned as they are.
+func LegacyName(name protoreflect.FullName) protoreflect.FullName {
+	if rest, ok := strings.CutPrefix(string(name), currentPackage); ok {
+		return protoreflect.FullName(legacyPackage + rest)
+	}
+	return name
+}
+
+// LegacyDescriptor returns the v2.10.0 schema of an opfield.v1 message (its
+// gateway.v1 name in that schema). Field numbers and names are the same, so
+// only the package part of the name differs.
 func LegacyDescriptor(name protoreflect.FullName) (protoreflect.MessageDescriptor, error) {
 	files, err := legacyFiles()
 	if err != nil {
 		return nil, err
 	}
-	descriptor, err := files.FindDescriptorByName(name)
+	descriptor, err := files.FindDescriptorByName(LegacyName(name))
 	if err != nil {
 		return nil, fmt.Errorf("%s has no %s schema: %w", name, LegacyRelease, err)
 	}

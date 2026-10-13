@@ -48,7 +48,7 @@ const RewriteRuleSchema = z.object({
 const TemplateVariablesSchema = z.record(z.union([z.string(), z.number(), z.boolean()])).transform((variables) => {
   const reserved = reservedTemplateVariableNames(variables);
   if (reserved.length === 0) return variables;
-  logger.info('Dropped Gateway-managed template variables from proxy host input', { reserved });
+  logger.info('Dropped Opfield-managed template variables from proxy host input', { reserved });
   return withoutReservedTemplateVariables(variables);
 });
 

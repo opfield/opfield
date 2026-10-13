@@ -279,7 +279,7 @@ func (m *Manager) Install(ctx context.Context) (Status, error) {
 	m.reportProgress(StepPreparing, "Preparing Secure Runtime setup", nil)
 
 	arch, _ := supportedArchitecture(runtime.GOARCH)
-	workDir, err := os.MkdirTemp("", "gateway-runsc-install-*")
+	workDir, err := os.MkdirTemp("", "opfield-runsc-install-*")
 	if err != nil {
 		return failedStatus("temporary_directory_failed", err), err
 	}
@@ -630,7 +630,7 @@ func (m *Manager) installBundleFiles(files map[string]string, workDir string) (f
 			_ = rollback()
 			return nil, err
 		}
-		staged := filepath.Join(m.InstallDir, ".gateway-"+name+"-new")
+		staged := filepath.Join(m.InstallDir, ".opfield-"+name+"-new")
 		if err := copyExecutable(files[name], staged); err != nil {
 			_ = rollback()
 			return nil, err

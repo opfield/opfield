@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/proto"
@@ -110,6 +110,22 @@ func (m *workerManager) ensureRunning() error {
 	return nil
 }
 
+// withUpdateLock runs fn while no update or identity renewal stops, starts or
+// replaces the worker.
+func (m *workerManager) withUpdateLock(fn func() error) error {
+	m.updateMu.Lock()
+	defer m.updateMu.Unlock()
+	return fn()
+}
+
+// setBinaryPath makes the next start and update of the worker use path. The
+// running worker is not touched. Call it under withUpdateLock.
+func (m *workerManager) setBinaryPath(path string) {
+	m.mu.Lock()
+	m.cfg.BinaryPath = path
+	m.mu.Unlock()
+}
+
 func (m *workerManager) connectAdmin(ctx context.Context) (relayv1.RelayAdminClient, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -170,9 +186,9 @@ func (m *workerManager) bootstrapTrust(ctx context.Context) error {
 }
 
 // ensurePolicyTrust pins the enrollment key only on a relay that trusts no
-// policy key yet. Once the relay holds signed trust, Gateway rotates keys
+// policy key yet. Once the relay holds signed trust, Opfield rotates keys
 // through signed snapshots and the enrollment key may have aged out of trust;
-// re-bootstrapping it then fails on older Gateways even though the relay is
+// re-bootstrapping it then fails on older Opfield releases even though the relay is
 // healthy, so it is skipped. A relay that does not report its trusted keys
 // (an older worker) is bootstrapped on every call, as before.
 func (m *workerManager) ensurePolicyTrust(ctx context.Context, health *relayv1.HealthResponse) error {
@@ -263,7 +279,7 @@ func (m *workerManager) update(
 }
 
 // staleWorkerVersionError reports a ready worker that runs another build than
-// the update installed. Gateway dispatches the update again on this message.
+// the update installed. Opfield dispatches the update again on this message.
 type staleWorkerVersionError struct {
 	reported string
 	expected string

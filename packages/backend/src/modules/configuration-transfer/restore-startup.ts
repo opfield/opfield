@@ -32,9 +32,8 @@ export async function completeConfigurationRestore(
   }
   const updates: GeneralSettingsUpdate = {};
   if (marker.address?.publicUrl) updates.publicUrl = marker.address.publicUrl;
-  if (marker.address?.grpcPublicTarget) updates.gatewayGrpcPublicTarget = marker.address.grpcPublicTarget;
-  if (marker.address && 'grpcLocalIp' in marker.address)
-    updates.gatewayGrpcLocalIp = marker.address.grpcLocalIp ?? null;
+  if (marker.address?.grpcPublicTarget) updates.grpcPublicTarget = marker.address.grpcPublicTarget;
+  if (marker.address && 'grpcLocalIp' in marker.address) updates.grpcLocalIp = marker.address.grpcLocalIp ?? null;
   if (Object.keys(updates).length > 0) {
     await generalSettings.updateConfig(updates);
     logger.info('Applied the address entered for the restored installation', { ...updates });
@@ -52,7 +51,7 @@ export async function completeConfigurationRestore(
       details: {
         exportCreatedAt: marker.exportCreatedAt,
         restoredAt: marker.restoredAt,
-        gatewayVersion: marker.gatewayVersion,
+        opfieldVersion: marker.opfieldVersion,
         sourcePublicUrl: marker.sourcePublicUrl,
         sourceGrpcPublicTarget: marker.sourceGrpcPublicTarget,
         includes: marker.includes,

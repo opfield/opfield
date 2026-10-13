@@ -1,0 +1,467 @@
+{
+  "description": "Old brand names kept on purpose (rebrand-rules.md \u00a75, legacy-name markers). The grep gate allows only these.",
+  "entries": [
+    {
+      "path": "packages/backend/src/modules/docker/**, packages/daemons/docker/**, docs/docker-container-archives.md",
+      "pattern": "GWCA / .gwca",
+      "reason": "Container archive format name: file magic GWCA\\r\\n\\x1a\\n and the .gwca extension; archives on customer disks must import. Only the media type became application/vnd.opfield.gwca.",
+      "removeIn": "never"
+    },
+    {
+      "path": "packages/backend/src/modules/inference/core/inference-core.contract.ts",
+      "pattern": "wiolett-core/v1",
+      "reason": "Wire contract id shared with the separately released inference core (frozen fixtures in both repos); changes only with a core release that accepts both.",
+      "removeIn": "core release with the opfield contract id"
+    },
+    {
+      "path": "packages/backend/src/modules/inference/core/inference-core.contract.ts, inference-core-context.ts, inference-core-internal.routes.ts",
+      "pattern": "x-wiolett-(contract|context|signature|timestamp)",
+      "reason": "legacy-name: sent next to x-opfield-* and accepted on callbacks for cores released before the Opfield header names.",
+      "removeIn": "once the minimum supported core reads x-opfield-*"
+    },
+    {
+      "path": "packages/backend/src/modules/inference/core/inference-core.client.ts",
+      "pattern": "/api/wiolett/(status|drain|resume)",
+      "reason": "Endpoints of the managed core (external fork).",
+      "removeIn": "core release with /api/opfield/*"
+    },
+    {
+      "path": "packages/backend/src/edition/manifest.ts, gwc scripts/build.mjs",
+      "pattern": "gateway-commercial",
+      "reason": "legacy-name: commercial core manifest kind; 2.12.0 prepare-update and the license server accept only this kind, so builds keep emitting it; the host accepts opfield-commercial too.",
+      "removeIn": "2.13.0 (emit opfield-commercial), 2.14.0 (drop from host)"
+    },
+    {
+      "path": "packages/backend/src/lib/token-prefixes.ts, lib/secret-patterns.ts, gwc logging-token.service.ts, gwc pages/*, modules/mcp/mcp-auth.middleware.ts",
+      "pattern": "gw_|gwo_|gwr_|gwi_|gwl_|gwp_",
+      "reason": "legacy-name: tokens issued before 2.12.1 stay valid until revoked/expired; new ones use opf_/opfo_/opfr_/opfi_/opfl_/opfp_.",
+      "removeIn": "once no stored token carries an old prefix"
+    },
+    {
+      "path": "packages/backend/src/modules/nodes/node-enrollment-token.ts, modules/hosting/hosting-ssh-install.ts, hosting-http-errors.ts",
+      "pattern": "gw_node",
+      "reason": "legacy-name: unused enrollment tokens issued before 2.12.1 (7-day TTL) and pre-v2 tokens without expiry.",
+      "removeIn": "release after 2.12.1"
+    },
+    {
+      "path": "packages/backend/src/modules/auth/session-cookie.ts",
+      "pattern": "gateway_session_",
+      "reason": "legacy-name: browser sessions signed in before 2.12.1.",
+      "removeIn": "release after 2.12.1"
+    },
+    {
+      "path": "packages/backend/src/modules/license/license.types.ts, license*.test.ts, fixtures/entitlements-legacy.json",
+      "pattern": "gateway-inference",
+      "reason": "legacy-name: license server still signs this feature key; Opfield names it inference.",
+      "removeIn": "once the license server issues inference"
+    },
+    {
+      "path": "packages/backend/src/modules/license/license-attestation.ts",
+      "pattern": "wiolett-gateway-license-state/v1, kind gateway-license-state",
+      "reason": "Signature domain of license states (license server); changes with the next license signing key rotation.",
+      "removeIn": "license key rotation"
+    },
+    {
+      "path": "packages/backend/src/modules/license/license.service.ts",
+      "pattern": "gatewayVersion",
+      "reason": "Field the license server requires (DisallowUnknownFields).",
+      "removeIn": "after the license server accepts opfieldVersion"
+    },
+    {
+      "path": "packages/backend/src/modules/domains/domain.service.shared.ts",
+      "pattern": "wiolett-gateway:domain:",
+      "reason": "legacy-name: Cloudflare record comment of records created before 2.12.1; reconcile rewrites it.",
+      "removeIn": "once no record carries it"
+    },
+    {
+      "path": "packages/backend/src/modules/hosting/**",
+      "pattern": "Gateway hosting | Gateway firewall | Managed by Gateway | gateway-marker | gateway-fw- | gateway-seed-",
+      "reason": "legacy-name: markers already written into customer clouds; reconcile rewrites what the provider API allows (CloudBlast cannot).",
+      "removeIn": "once every hosting resource was reconciled by 2.12.1+"
+    },
+    {
+      "path": "packages/backend/src/modules/hosting/**",
+      "pattern": "gw-<uuid>, gw-fw-*, gwfw*",
+      "reason": "Opaque ids in customer resources (identity).",
+      "removeIn": "never"
+    },
+    {
+      "path": "packages/backend/src/grpc/services/maintenance-access.ts",
+      "pattern": "x-gateway-maintenance-host",
+      "reason": "legacy-name: nginx daemons before 2.12.1 send it.",
+      "removeIn": "once every node reports none"
+    },
+    {
+      "path": "gwc backend/docker/docker-migration-dispatch.ts",
+      "pattern": "portable Gateway archive",
+      "reason": "legacy-name: error text of docker daemons before 2.12.1.",
+      "removeIn": "once every node reports none"
+    },
+    {
+      "path": "packages/frontend/src/pages/audit-log/audit-action-labels.ts",
+      "pattern": "system.gateway_move_*",
+      "reason": "legacy-name: audit rows written before 2.12.1.",
+      "removeIn": "after audit retention dropped them"
+    },
+    {
+      "path": "packages/frontend/src/lib/legacy-storage-keys.ts, lib/opfield-update-reload.ts, stores/app-status.ts, components/common/AppStatusGate.tsx, public/theme-init.js, App.tsx",
+      "pattern": "gateway-* / gateway:* browser storage keys",
+      "reason": "legacy-name: browser state written by 2.12.0 bundles, moved once.",
+      "removeIn": "once 2.12.0 is no longer an update source"
+    },
+    {
+      "path": "packages/backend/src/modules/ai/ai.skills.ts",
+      "pattern": "system:gateway-*",
+      "reason": "legacy-name: stored conversations load skills by old id.",
+      "removeIn": "after old conversations aged out"
+    },
+    {
+      "path": "packages/backend/src/db/migrations/0000-0246*.sql, meta/*_snapshot.json, src/db/fixtures/v2.10.1-scope-catalog.json, db/migrations.*test.ts",
+      "pattern": "gateway / wiolett",
+      "reason": "Historic migrations, snapshots and fixtures replaying older releases; never edited.",
+      "removeIn": "never"
+    },
+    {
+      "path": "packages/daemons/shared/lifecycle/launcher.go, launcher_features.go",
+      "pattern": "gateway-daemon-launcher %d",
+      "reason": "Launcher probe answer compared between launcher copies of different releases (protocol).",
+      "removeIn": "never (protocol)"
+    },
+    {
+      "path": "packages/daemons/shared/statecompat/**",
+      "pattern": "gateway-daemon-state/v1",
+      "reason": "State file format id read by daemons of every release.",
+      "removeIn": "never (format id)"
+    },
+    {
+      "path": "packages/daemons/shared/availabilitylease/**, shared/witnessactivation/**, docker/internal/memberha/**",
+      "pattern": "gateway-availability-(lease|holder|member)/",
+      "reason": "Signature domains nodes of different releases must agree on (rules \u00a75).",
+      "removeIn": "next signing key rotation"
+    },
+    {
+      "path": "packages/daemons/shared/lifecycle/next_address.go",
+      "pattern": "gateway_next_address_v1",
+      "reason": "Registration capability string (wire).",
+      "removeIn": "never (protocol)"
+    },
+    {
+      "path": "packages/daemons/docker/internal/docker/registry_proxy_handover.go, link_listener_handover.go",
+      "pattern": "gateway-registry-proxy/, gateway-db-listener/",
+      "reason": "Names of listeners handed between daemon processes of different releases across an update.",
+      "removeIn": "never (handover protocol)"
+    },
+    {
+      "path": "packages/daemons/docker/internal/docker/**, gwc storage/databases bindings",
+      "pattern": "gateway-db-*, gateway-storage-*, gateway-link-*, gateway-set-*, gateway-secure-links, gateway-secure-link-connector, gateway-secure-link-anchor, gateway-storage-connector-*, gateway-migration:",
+      "reason": "Docker network/container names of existing managed objects; stored in Opfield rows and looked up by both sides; Docker cannot rename a network in place without cutting connections.",
+      "removeIn": "planned recreate of each object (operator-run rename)"
+    },
+    {
+      "path": "packages/daemons/docker/internal/docker/managed_*.go, chha/**, kvha/**, swha/**, backup_runtime.go, storage_copy_runtime.go",
+      "pattern": "/run/gateway-(tls|config|storage|master|minio-certs|minio-sftp|backup), gateway-*.xml, zz-gateway-*.xml, gateway-pg_hba.conf, gateway-redis-*.conf, gateway_member, gateway_client, gateway-ha, gateway-root, gateway-managed-storage-root, CAs/gateway-ca.crt, /.gateway/hb/, seaweedfs policy \"gateway\", gateway-move",
+      "reason": "Inside managed database/storage containers and between members of an availability set: part of the container spec (renaming would recreate every managed database on update) or shared by set members of different releases.",
+      "removeIn": "with the next planned engine recreate / a two-user switch for set members"
+    },
+    {
+      "path": "packages/daemons/docker/internal/docker/deployment_router*.go",
+      "pattern": ".wiolett-gateway-router-config, # gateway:resolve|fallback|slot-address, wiolett-gateway deployment router config v4, @gateway_router_unavailable, gateway_deployment_",
+      "reason": "Config inside existing deployment router containers; a new marker or version would replace every router.",
+      "removeIn": "next router config version bump"
+    },
+    {
+      "path": "packages/daemons/docker/internal/builder/naming.go",
+      "pattern": "gateway-builds (containerd namespace)",
+      "reason": "Namespace inside the builder's private containerd; the build cache is filed under it.",
+      "removeIn": "never (internal)"
+    },
+    {
+      "path": "packages/daemons/docker/internal/**",
+      "pattern": "wiolett.gateway.*, com.wiolett.gateway.managed-volume*",
+      "reason": "legacy-name: labels of containers/networks/volumes created before 2.12.1, read until recreated; reserved prefixes forever.",
+      "removeIn": "once every node reports legacy_names empty"
+    },
+    {
+      "path": "packages/daemons/shared/lifecycle/**, shared/listenerkeep/**",
+      "pattern": "GATEWAY_DAEMON_(LAUNCHER_*|LISTENER_KEEP_FD|KEPT_LISTENERS)",
+      "reason": "legacy-name: set next to OPFIELD_* for a daemon the launcher rolls back to, read from an older launcher copy.",
+      "removeIn": "once every node reports legacy_names empty"
+    },
+    {
+      "path": "packages/daemons/shared/hostrename/**, shared/lifecycle/**, shared/leasefence/**, shared/leasewatchdog/**, lease-watchdog/**, docker/internal/docker/**, docker/internal/builder/**",
+      "pattern": "/var/lib/gateway, /run/gateway-lease-watchdog, gateway-lease-watchdog, gateway-volume-images, gateway-link-listeners, gateway-builder*, GATEWAY_BUILDER_*, gateway-builds0, .gateway-launcher, gateway-daemon (launcher fallback), /var/lib/gateway-relay-supervisor",
+      "reason": "legacy-name: pre-Opfield host paths and units moved on the first confirmed start (old names stay as links / guarded until removed).",
+      "removeIn": "once every node reports legacy_names empty"
+    },
+    {
+      "path": "packages/daemons/shared/lifecycle/config.go, control_session.go, docker/cmd, monitoring/cmd",
+      "pattern": "gateway: (config section), gateway-session.json, --gateway, --gateway-cert-sha256",
+      "reason": "legacy-name: config section of existing nodes (renamed after the confirmed start), session file installers wait on, install flags in customer automation.",
+      "removeIn": "config: once every node reports legacy_names empty; session file: once every setup-*.sh reads control-session.json; flags: with a changelog notice"
+    },
+    {
+      "path": "packages/daemons/docker/internal/docker/**, docker/internal/runtime/**",
+      "pattern": "GATEWAY_CONNECTOR_*, GATEWAY_SECURE_LINK_SOCKET, /run/gateway (connector mount), GATEWAY_CONNECTOR_CLEAN_DIR, X-Gateway-Deployment-Router, daemon.json.gateway-backup, gateway-volume-placeholder, gateway-volume-image (fstab), GATEWAY_DOCKER_DAEMON_CONFIG, GATEWAY_DOCKER_CERTS_DIR, Gateway Registry Proxy CA, .gateway-build-secrets-",
+      "reason": "legacy-name: env and mounts of connectors created before 2.12.1 or images that read only the old names; objects written by older daemons, recognised until replaced.",
+      "removeIn": "once every node reports legacy_names empty"
+    },
+    {
+      "path": "packages/backend/src/grpc/interceptors/auth.ts",
+      "pattern": "x-wiolett-relay-*",
+      "reason": "legacy-name: relays before 2.12.1 forward identity under these keys; when present only they count.",
+      "removeIn": "once every relay reports none"
+    },
+    {
+      "path": "packages/backend/src/services/relay-grant-signing.ts",
+      "pattern": "wiolett-relay",
+      "reason": "legacy-name: grant audience while any pool relay lacks grant_audience_opfield_v1.",
+      "removeIn": "once every relay reports grant_audience_opfield_v1"
+    },
+    {
+      "path": "packages/backend/src/services/relay-policy.service.ts",
+      "pattern": "gateway-internal-registry",
+      "reason": "Local-service id in relay policy and grants; both relay versions accept it, switching needs snapshot and grants changed together (and the DB endpoint identity, shared with the registry id of area A).",
+      "removeIn": "with the registry id rename"
+    },
+    {
+      "path": "packages/backend/src/modules/nodes/node-installer.ts, modules/hosting/hosting-bootstrap.ts",
+      "pattern": "--gateway, --gateway-cert-sha256",
+      "reason": "legacy-name: installers not yet taking --opfield, and the pinned hosting installer revision.",
+      "removeIn": "when every installer takes --opfield and the hosting pin is updated"
+    },
+    {
+      "path": "packages/backend/src/modules/hosting/hosting-management.service.ts",
+      "pattern": "gateway-relay-supervisor",
+      "reason": "legacy-name: relays installed before 2.12.1 run under the old unit until their next start.",
+      "removeIn": "once every relay reports none"
+    },
+    {
+      "path": "packages/frontend/src/lib/docker-managed-labels.ts",
+      "pattern": "wiolett.gateway.*",
+      "reason": "legacy-name: Docker objects created before 2.12.1 carry the old label keys until recreated.",
+      "removeIn": "once every node reports none"
+    },
+    {
+      "path": "gwc backend/storage/managed-storage-bindings.service.ts",
+      "pattern": "GATEWAY_CONNECTOR_*, /run/gateway",
+      "reason": "legacy-name: docker daemons and connector images before 2.12.1 read only these.",
+      "removeIn": "once every node reports none"
+    },
+    {
+      "path": "packages/backend/src/grpc/legacy-service-names.ts, legacy-service-names.test.ts, packages/relay/internal/proxy/**",
+      "pattern": "/gateway.v1.",
+      "reason": "legacy-name: gRPC service paths of 2.12.0 daemons (gateway.v1.NodeEnrollment/NodeControl/LogStream/MigrationTransfer/MaintenanceAccess). The app registers every opfield.v1 service under both names; relays forward both.",
+      "removeIn": "once every node reports none"
+    },
+    {
+      "path": "packages/daemons/shared/statecompat/**, packages/daemons/shared/securelink/state_test.go",
+      "pattern": "gateway.v1 / gateway-v1-*.binpb",
+      "reason": "Compiled schemas of released versions (v2.10.0, v2.11.0-rc.*) whose package is gateway.v1; state files must stay readable by the binaries a node can roll back to. LegacyDescriptor maps opfield.v1 names onto them.",
+      "removeIn": "when the oldest rollback target is 2.12.1 or later"
+    },
+    {
+      "path": "Dockerfile",
+      "pattern": "/gateway-relay",
+      "reason": "legacy-name: entrypoint pre-generic releases start from the signed app image during their first self-update.",
+      "removeIn": "once every install is past those releases"
+    },
+    {
+      "path": "proto/relay/v1/relay.proto, packages/daemons/shared/relayv1/**, packages/relay/internal/(grant|policy|broker)/**, packages/daemons/**",
+      "pattern": "gateway_instance_id / GatewayInstanceId / GatewayInstanceID / gatewayInstanceId, SubjectKind \"gateway\"",
+      "reason": "relay.v1 wire fields and signed grant claims that relays of every version in a pool must agree on (rules section 5: relay grant subject kinds).",
+      "removeIn": "with a relay protocol revision"
+    },
+    {
+      "path": "packages/daemons/shared/leasewatchdog/leasewatchdog.go",
+      "pattern": "https://get.opfield.dev/gateway",
+      "reason": "Permanent release feed alias; installs up to 2.12 are pinned to it.",
+      "removeIn": "never"
+    },
+    {
+      "path": "packages/daemons/shared/updateauth/updateauth.go",
+      "pattern": "wiolett-update-v1",
+      "reason": "Update signing keyId; changes with the next key rotation.",
+      "removeIn": "next update key rotation"
+    },
+    {
+      "path": "packages/daemons/shared/cmd/update-trust/main.go",
+      "pattern": "gateway-image, --min-gateway-version / minGatewayVersion",
+      "reason": "Signed update manifest kind and field that installed versions verify (contracts plan item 21).",
+      "removeIn": "per the manifest migration of item 21"
+    },
+    {
+      "path": "packages/daemons/docker/internal/docker/third_party_images.go, managed_storage_seaweedfs.go, secure_links.go",
+      "pattern": "ghcr.io/the-square-labs/gateway",
+      "reason": "Image mirror kept for at least a year; pinned digests of images already published there.",
+      "removeIn": "when the mirror is retired"
+    },
+    {
+      "path": "packages/backend/src/config/vendor-urls.ts, services/update.service.ts, scripts/install.sh, scripts/setup-*.sh, scripts/release/manifest-download-base.sh, packages/update-service/**, docs/**, skills/**, packages/backend/src/modules/ai/ai.docs.*.ts",
+      "pattern": "get.opfield.dev/gateway, updates.thesqlabs.com/gateway, /gateway/releases, /gateway/<package>/<tag>/<file>, /gateway/license-endpoints.json, component=gateway",
+      "reason": "Path namespace and component name of the release feed served by the update Worker (packages/update-service, deployed on its own) and the get.opfield.dev proxy Worker in another Cloudflare account. Every installed release and installer fetches these paths; new root paths need a Worker deploy first (contracts plan item 20).",
+      "removeIn": "after the Worker serves root paths and no supported release fetches /gateway/*"
+    },
+    {
+      "path": "packages/update-service/wrangler.jsonc, packages/update-service/src/index.ts",
+      "pattern": "gateway-updates (Worker name), PRODUCT_NAMESPACE = \"gateway\", TAG_PATTERNS.gateway / ARTIFACT_PATTERNS.gateway, release line wiolett",
+      "reason": "Worker name: a rename deploys a second Worker and moves the custom domain. The namespace, the gateway feed component and the wiolett inference-core release line are feed contracts of released installations.",
+      "removeIn": "with the feed root-path switch"
+    },
+    {
+      "path": "packages/update-service/src/index.ts, scripts/stage-installers.sh, scripts/setup-daemon.sh, scripts/setup-database-node.sh, scripts/setup-storage-node.sh, scripts/installers.test.mjs",
+      "pattern": "gateway-daemon-installers.sha256",
+      "reason": "legacy-name: release checksum list of installers before 2.12.1. 2.12.1+ publishes opfield-node-installers.sha256 and the same list under the old name; wrappers pinned to an older release (--version / OPFIELD_SETUP_VERSION) fall back to it.",
+      "removeIn": "once the installers no longer install a release before 2.12.1"
+    },
+    {
+      "path": "packages/backend/src/services/update.service.ts, lib/update-artifact-trust.ts, scripts/github-release.sh, .github/workflows/release.yml, scripts/install.sh, docs/verify-releases.md",
+      "pattern": "gateway-image (manifest kind), gateway-image.update.json, minGatewayVersion / maxGatewayVersion, config/relay/min-gateway-version, --min-gateway-version, update:relay:min_gateway_version",
+      "reason": "Signed update manifests and their asset name that the updater of the installed release (2.12.0 included) fetches and verifies (contracts plan item 21).",
+      "removeIn": "per the manifest migration of item 21"
+    },
+    {
+      "path": "packages/backend/src/services/update.service.ts, modules/diagnostics/diagnostics.service.ts",
+      "pattern": "update:gateway:attempt",
+      "reason": "Settings key the updater of the running release writes before the restart and the target release reads after it; both releases must use the same key.",
+      "removeIn": "with a dual-key read/write cycle over one release"
+    },
+    {
+      "path": "packages/backend/src/** and gwc backend/** (pg_advisory_xact_lock / set_config calls), migrations 0207+",
+      "pattern": "hashtext('gateway-\u2026'), gateway.proxy_domain_conflicts, gateway.host_port_conflicts, gateway.storage_copy_jobs, gateway.backup_restore_admission, gateway-pages-profile:default, gateway-pages-default-runtime-config:, gateway-system-admins, gateway-migrations, gateway-internal-registry-*",
+      "reason": "Lock keys and GUC names shared by the processes of two releases while an update hands over (and by SQL functions of earlier migrations); a different name would let both run the guarded section at once.",
+      "removeIn": "never (internal coordination names)"
+    },
+    {
+      "path": "packages/backend/src/config/env.ts, foundation/**, modules/configuration-transfer/**, modules/cloud-link/**, modules/diagnostics/diagnostics.service.ts, .env.example, docs/security.md, docs/installation.md",
+      "pattern": "/var/lib/gateway, /var/lib/gateway-relay, /var/lib/gateway-registry-auth, /var/lib/gateway/{tls,commercial,pages,ai-artifacts,hosting-operation,cloud-enroll.json}",
+      "reason": "Paths inside the app and relay containers (area A): volumes, .env values and the portal's cloud-init point into them; moving them needs an image symlink and a data move.",
+      "removeIn": "with a planned in-container path move"
+    },
+    {
+      "path": "packages/backend/src/modules/configuration-transfer/transfer-layout.ts, gwc .github/workflows/release.yml",
+      "pattern": "host/gateway-commercial.tar, gateway-commercial-<version>.tar.gz",
+      "reason": "Part name inside configuration exports (exports of earlier releases must restore) and the commercial core release asset the license server mirrors (contracts plan item 19).",
+      "removeIn": "with the license server accepting both asset names"
+    },
+    {
+      "path": "packages/backend/src/modules/docker/docker-internal-images.ts, docker-source-resource-creation.ts, gwc docker/docker-build-images.ts, gwc docker/compose/compose-policy.ts, packages/frontend/src/lib/docker-image-*.ts, pages/DockerDeploymentDetail.tsx",
+      "pattern": "127.0.0.1:5443/gateway/builds/, gateway/availability/, gateway.invalid/pending-source-build, gateway.invalid/compose-build/",
+      "reason": "Repository namespace of the internal registry and placeholder image references stored in deployments, sources and Compose revisions; garbage collection and readiness checks match them.",
+      "removeIn": "with a registry namespace move that rewrites stored references"
+    },
+    {
+      "path": "gwc backend/databases/managed-databases.service.core.ts, gwc storage/managed-storage-bindings.service.ts, gwc storage/storage-workload-dispatch.ts, packages/backend/src/sandbox-runner/**, modules/ai/ai.sandbox-*.ts, packages/backend/src/modules/docker/docker-reserved-labels.ts, gwc docker/availability/docker-availability.service.ts",
+      "pattern": "managed.gateway.internal, gateway.managed-storage.*, gateway.sandbox*, gateway-sandbox-* (internal repos, socket), __GATEWAY_AVAILABILITY_ENVIRONMENT_SNAPSHOT__",
+      "reason": "Names inside customers' running workloads and stored snapshots: the managed database host in consumers' connection strings, labels of existing containers, sandbox images in the internal registry, a sentinel stored in Availability environment snapshots.",
+      "removeIn": "with a planned recreate of the objects that carry them"
+    },
+    {
+      "path": "packages/backend/src/modules/inference/core/inference-core-runtime.service.ts, modules/inference/providers/inference-github-copilot.oauth.ts, inference-provider.registry.ts",
+      "pattern": "gatewayInternalUrl, User-Agent: gateway, x-grok-client-identifier: gateway",
+      "reason": "Field of credentials.json read by the separately released managed inference core, and client identifiers sent to upstream model providers.",
+      "removeIn": "core release reading opfieldInternalUrl; provider identifiers when re-registered"
+    },
+    {
+      "path": "packages/backend/src/services/relay-*.ts, relay-stream-resume.ts",
+      "pattern": "sourceKind 'gateway', stream report source 'gateway'",
+      "reason": "Relay route source kind and stream report source that relays of every version in a pool read (rules section 5).",
+      "removeIn": "with a relay protocol revision"
+    },
+    {
+      "path": "packages/backend/src/db/schema/pages.ts, modules/pages/profile/**, gwc pages/profile/**, packages/frontend/src/types/pages.ts",
+      "pattern": "gatewayHost, gatewayRegistrableDomain",
+      "reason": "Keys stored in pages.override_compared_hosts (jsonb) and the API fields built from it.",
+      "removeIn": "with a jsonb key migration"
+    },
+    {
+      "path": "packages/backend/src/modules/proxy/status-page-stale-cache.ts",
+      "pattern": "gateway_status_page_*, @gateway_status_page_unavailable_*",
+      "reason": "nginx cache zone and named location of the rendered status page config; a new name drops the cache that serves the last good page while Opfield is unreachable.",
+      "removeIn": "with the next status page cache layout change"
+    },
+    {
+      "path": "packages/backend/src/modules/hosting/hosting-images.ts",
+      "pattern": "gateway-<image>-<checksum>.qcow2",
+      "reason": "Image files already cached on customers' Proxmox storage, looked up by name; a new name downloads every image again.",
+      "removeIn": "with a cache migration"
+    },
+    {
+      "path": "packages/backend/src/**, packages/frontend/src/**, gwc backend/**, docs/**",
+      "pattern": "Docker IPAM Gateway / IPv6Gateway / network.gateway, hosting static network gateway (HOSTING_GATEWAY_*, profile.gateway, gw=), model gateway, API gateway, HTTP 502 Bad Gateway / 504 Gateway Timeout",
+      "reason": "The common networking word, not the product name.",
+      "removeIn": "never"
+    },
+    {
+      "path": "packages/frontend/scripts/design-screens/**",
+      "pattern": "gateway (canvas id), gateway.css, fixture data",
+      "reason": "Development tooling for the design canvas: the canvas id names the existing foss-design canvas folder; fixtures are sample data. Not shipped.",
+      "removeIn": "with the canvas rename"
+    },
+    {
+      "path": "package.json (dev:connector), packages/backend/src/config/env.ts, packages/daemons/docker/internal/docker/secure_links.go",
+      "pattern": "gateway-secure-link-connector:dev",
+      "reason": "Local development image tag the docker daemon looks for in development mode; not shipped.",
+      "removeIn": "with the Go side (G-go)"
+    },
+    {
+      "path": "scripts/sync-agent-skills.mjs",
+      "pattern": "../gateway-skills",
+      "reason": "legacy-name: the earlier name of a sibling opfield-skills checkout on developer machines.",
+      "removeIn": "once no checkout uses it"
+    },
+    {
+      "path": "packages/logging-sdk/src/index.ts, packages/logging-sdk/README.md",
+      "pattern": "Gateway* (GatewayLogger, GatewayLoggerHook, Gateway*Options \u2026)",
+      "reason": "legacy-name: deprecated aliases of @sqgateway/logger 1.x names in @opfield/logger 2.x, so customer code moves by changing the import path.",
+      "removeIn": "@opfield/logger 3.0"
+    },
+    {
+      "path": "scripts/setup-daemon.sh, scripts/installers.test.mjs",
+      "pattern": "GATEWAY_SETUP_SCRIPT_DIR, GATEWAY_SETUP_VERSION, GATEWAY_RELEASE_DOWNLOAD_BASE",
+      "reason": "legacy-name: installer environment of customer automation, read when the OPFIELD_* name is unset (same pattern as the other installers).",
+      "removeIn": "drop with a changelog notice"
+    },
+    {
+      "path": "scripts/release/image-repositories.sh, scripts/release/release-names.test.mjs, .github/workflows/image.yml, .github/workflows/release.yml, docs/development.md",
+      "pattern": "vars.GATEWAY_IMAGE, GATEWAY_IMAGE_MIRROR, GATEWAY_SIGNED_IMAGE",
+      "reason": "legacy-name: GitHub repository variables set before 2.12.1; read while the OPFIELD_* variables are unset.",
+      "removeIn": "once the owner renamed the repository variables"
+    },
+    {
+      "path": "packages/backend/src/services/housekeeping.service.ts, packages/frontend/src/pages/DockerVolumeDetail.tsx",
+      "pattern": "gateway.housekeeping.protected",
+      "reason": "legacy-name: cleanup protection label of volumes protected before 2.12.1 (Docker cannot relabel a volume); new protection writes opfield.housekeeping.protected.",
+      "removeIn": "once no protected volume carries it"
+    },
+    {
+      "path": "packages/backend/src/app.ts",
+      "pattern": "/gateway-restarting.js",
+      "reason": "legacy-name: restart page script path in error pages rendered into node configs before 2.12.1; served next to /opfield-restarting.js.",
+      "removeIn": "once every node config was re-rendered by 2.12.1+"
+    },
+    {
+      "path": "packages/backend/src/services/docker.service.ts",
+      "pattern": "gateway-registry-gc-",
+      "reason": "legacy-name: registry garbage collection containers an update from a release before 2.12.1 may have left; recovery removes both names.",
+      "removeIn": "once every installation runs 2.12.1+"
+    },
+    {
+      "path": "packages/backend/src/modules/integrations/external-ssh.service.ts",
+      "pattern": "gateway, gateway-backend, gateway-frontend, gateway-daemon, gateway-agent, gateway-proxy",
+      "reason": "legacy-name: host names of installations set up before 2.12.1 that must never be an external SSH target.",
+      "removeIn": "once every installation runs the Opfield layout"
+    },
+    {
+      "path": "packages/backend/src/modules/proxy/additional-route.validation.ts, packages/frontend/src/pages/proxy-detail/AdditionalRoutes.tsx, modules/proxy/nginx-template.service.ts, nginx-node-names.ts",
+      "pattern": "/_gateway",
+      "reason": "legacy-name: reserved path prefix nginx still answers (Pages config script, maintenance access) for pages and nodes of earlier releases; reserved next to /_opfield.",
+      "removeIn": "once no node config or page uses /_gateway"
+    },
+    {
+      "path": "packages/backend/src/config/vendor-urls.ts, docs/licensing.md",
+      "pattern": "license.wiolett.cloud",
+      "reason": "A live license service address that installations try (with license.opfield.dev and license.thesqlabs.com).",
+      "removeIn": "when that address is retired"
+    }
+  ]
+}

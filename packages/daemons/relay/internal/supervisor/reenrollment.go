@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -56,7 +56,7 @@ func RecoverInterruptedReenrollment(cfg *lifecycle.BaseConfig) error {
 // carries an enrollment token although the supervisor is already enrolled.
 // It returns nil when there is nothing to do.
 func BeginReenrollment(cfg *lifecycle.BaseConfig) (*Reenrollment, error) {
-	if strings.TrimSpace(cfg.Gateway.Token) == "" || !cfg.IsEnrolled() {
+	if strings.TrimSpace(cfg.Control.Token) == "" || !cfg.IsEnrolled() {
 		return nil, nil
 	}
 	paths := identityPaths(cfg)

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
 )
 
 // MemberState is what the runtime keeps about a member across restarts.

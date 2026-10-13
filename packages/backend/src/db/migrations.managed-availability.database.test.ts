@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ensureLeaseState } from '@/modules/docker/availability/lease/lease-store.js';
 import { disposableDatabase, migrateDatabase, pgError, rejection } from './migration-database.test-helpers.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const fixture = readFileSync(new URL('./fixtures/rc10-upgrade.sql', import.meta.url), 'utf8');
 
 /** The fixed ids of fixtures/rc10-upgrade.sql, plus this suite's own rows. */
@@ -19,7 +19,7 @@ const storage = id('202');
 const relay = id('3001');
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a 2.11.4 install (schema through 0236) with an Availability policy in
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a 2.11.4 install (schema through 0236) with an Availability policy in
  * lease mode upgraded through 0240_managed_availability.
  */
 describe.skipIf(!url)('0240 managed availability on disposable PostgreSQL', () => {

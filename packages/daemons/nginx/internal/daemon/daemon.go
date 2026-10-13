@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/nginx-daemon/internal/config"
 )
 
 // Version is set via -ldflags at build time; falls back to "dev".
@@ -19,7 +19,7 @@ var Version = "dev"
 // the next process starts only after this one exited: every connection waits
 // in the backlog meanwhile, on every Route. An idle session closes within
 // milliseconds; a slower close is cut by the exit, as a crash or an update cuts
-// it, and Gateway sees the next process register a moment later.
+// it, and Opfield sees the next process register a moment later.
 const stopSessionCloseWait = 100 * time.Millisecond
 
 // Daemon wraps the shared DaemonBase with nginx-specific behavior.
@@ -39,11 +39,17 @@ func New(cfg *config.Config, cfgPath string, logger *slog.Logger) (*Daemon, erro
 
 	// Build base config from the nginx config
 	baseCfg := &lifecycle.BaseConfig{
-		Gateway: lifecycle.GatewayConfig{
-			Address:     cfg.Gateway.Address,
-			Token:       cfg.Gateway.Token,
-			CertSHA256:  cfg.Gateway.CertSHA256,
-			NextAddress: cfg.Gateway.NextAddress,
+		Control: lifecycle.ControlConfig{
+			Address:     cfg.Control.Address,
+			Token:       cfg.Control.Token,
+			CertSHA256:  cfg.Control.CertSHA256,
+			NextAddress: cfg.Control.NextAddress,
+		},
+		Opfield: lifecycle.ControlConfig{
+			Address:     cfg.Opfield.Address,
+			Token:       cfg.Opfield.Token,
+			CertSHA256:  cfg.Opfield.CertSHA256,
+			NextAddress: cfg.Opfield.NextAddress,
 		},
 		TLS: lifecycle.TLSConfig{
 			CACert:     cfg.TLS.CACert,
@@ -67,6 +73,18 @@ func New(cfg *config.Config, cfgPath string, logger *slog.Logger) (*Daemon, erro
 
 	// Give the plugin access to the shared state
 	plugin.SetState(base.GetState())
+
+	if cfg.UsesLegacyControlSection() {
+		// The config file's control section takes its Opfield name once the launcher can no longer roll back to a
+		// daemon that reads only the pre-Opfield one.
+		lifecycle.OnStartConfirmed(func() {
+			if renamed, err := lifecycle.MigrateControlConfigKey(cfgPath); err != nil {
+				logger.Warn("daemon config keeps its pre-Opfield gateway: section", "path", cfgPath, "error", err)
+			} else if renamed {
+				logger.Info("renamed the daemon config section gateway: to opfield:", "path", cfgPath)
+			}
+		})
+	}
 
 	return &Daemon{
 		base:       base,
@@ -115,7 +133,7 @@ func runUntilHandedOver(ctx context.Context, run func(context.Context) error, ha
 
 // HandOverListeners runs once the daemon is asked to stop, before Run's
 // context is cancelled: the Secure Link sockets go to the next daemon process
-// while this one still reaches Gateway and the relays to finish its requests.
+// while this one still reaches Opfield and the relays to finish its requests.
 func (d *Daemon) HandOverListeners() {
 	d.plugin.HandOverSecureLinks()
 	d.handedOverOnce.Do(func() { close(d.handedOver) })

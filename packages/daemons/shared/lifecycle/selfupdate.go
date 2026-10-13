@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/updateauth"
+	"github.com/opfield/opfield/daemon-shared/updateauth"
 )
 
 type daemonManifestVerifier func(string, updateauth.DaemonExpectation) (*updateauth.DaemonManifestPayload, error)
@@ -24,7 +24,7 @@ type daemonManifestVerifier func(string, updateauth.DaemonExpectation) (*updatea
 // and atomically replaces the current binary. Restart is delegated to the
 // process supervisor and is not coupled to a particular init system.
 func SelfUpdate(downloadURL, targetVersion, expectedChecksum, signedManifest, daemonType string, logger *slog.Logger) error {
-	if os.Getenv(LauncherManagedEnv) != "1" {
+	if launcherManagedFromEnvironment() != "1" {
 		return fmt.Errorf("self-update requires launcher supervision")
 	}
 	if strings.TrimSpace(expectedChecksum) == "" {

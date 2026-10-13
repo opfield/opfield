@@ -422,8 +422,8 @@ export class NodesService {
       node,
       enrollmentToken: enrollmentToken.token,
       enrollmentTokenExpiresAt: enrollmentTokenExpiresAt.toISOString(),
-      gatewayCertSha256: await this.grpcIdentityService.getGatewayCertSha256(),
-      gatewayEnrollmentTargets: await this.getGatewayEnrollmentTargets(),
+      opfieldCertSha256: await this.grpcIdentityService.getOpfieldCertSha256(),
+      opfieldEnrollmentTargets: await this.getOpfieldEnrollmentTargets(),
     };
   }
 
@@ -465,8 +465,8 @@ export class NodesService {
       node: publicNode,
       enrollmentToken: enrollmentToken.token,
       enrollmentTokenExpiresAt: expiresAt.toISOString(),
-      gatewayCertSha256: await this.grpcIdentityService.getGatewayCertSha256(),
-      gatewayEnrollmentTargets: await this.getGatewayEnrollmentTargets(),
+      opfieldCertSha256: await this.grpcIdentityService.getOpfieldCertSha256(),
+      opfieldEnrollmentTargets: await this.getOpfieldEnrollmentTargets(),
     };
   }
 
@@ -1094,18 +1094,18 @@ export class NodesService {
     await moveNodeFile(this.nodeFileOperationContext(), nodeId, fromPath, toPath, userId);
   }
 
-  async getGatewayEnrollmentTargets() {
-    const settings = await this.generalSettingsService?.getGatewayEndpointSettings();
-    const publicTarget = this.formatGrpcTarget(settings?.gatewayGrpcPublicTarget ?? null);
-    const localTarget = this.formatGrpcTarget(settings?.gatewayGrpcLocalIp ?? null);
+  async getOpfieldEnrollmentTargets() {
+    const settings = await this.generalSettingsService?.getOpfieldEndpointSettings();
+    const publicTarget = this.formatGrpcTarget(settings?.grpcPublicTarget ?? null);
+    const localTarget = this.formatGrpcTarget(settings?.grpcLocalIp ?? null);
     return {
-      public: { label: 'Public node', gateway: publicTarget },
-      ...(localTarget ? { local: { label: 'Local node', gateway: localTarget } } : {}),
+      public: { label: 'Public node', address: publicTarget },
+      ...(localTarget ? { local: { label: 'Local node', address: localTarget } } : {}),
     };
   }
 
-  getGatewayEnrollmentCertificateFingerprint() {
-    return this.grpcIdentityService.getGatewayCertSha256();
+  getOpfieldEnrollmentCertificateFingerprint() {
+    return this.grpcIdentityService.getOpfieldCertSha256();
   }
 
   private formatGrpcTarget(value: string | null): string | null {

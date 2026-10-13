@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"io"
 	"strings"
 	"sync"

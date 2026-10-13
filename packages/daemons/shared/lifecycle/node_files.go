@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 type nodeFileEntry struct {
@@ -28,7 +28,7 @@ type nodeFileEntry struct {
 
 // handleNodeFile serves node filesystem commands. hostIdentityPath is the
 // daemon's configured host identity file; empty means the shared default.
-func handleNodeFile(_ context.Context, cmd *pb.GatewayCommand, hostIdentityPath string) *pb.CommandResult {
+func handleNodeFile(_ context.Context, cmd *pb.OpfieldCommand, hostIdentityPath string) *pb.CommandResult {
 	nodeFile := cmd.GetNodeFile()
 	result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 
@@ -423,7 +423,7 @@ func nodeUploadTempPath(uploadID string, targetPath string) (string, string, err
 		return "", "", err
 	}
 	parent := filepath.Dir(cleanTarget)
-	return filepath.Join(parent, ".gateway-upload-"+uploadID+".tmp"), cleanTarget, nil
+	return filepath.Join(parent, ".opfield-upload-"+uploadID+".tmp"), cleanTarget, nil
 }
 
 func ensureNodeWritableDirectory(path string) error {

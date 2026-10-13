@@ -230,7 +230,7 @@ export const APP_NAVIGATION_GROUPS: readonly AppNavigationGroup[] = [
         href: "/settings",
         icon: Settings,
         keywords: [
-          "gateway",
+          "opfield",
           "features",
           "integrations",
           "gitlab",
@@ -257,8 +257,8 @@ const NOTIFICATION_CORE_SCOPES = [
 const SIEM_NOTIFICATION_SCOPES = ["audit:siem:view", "audit:siem:manage"] as const;
 
 const SETTINGS_SCOPES = [
-  "settings:gateway:view",
-  "settings:gateway:edit",
+  "settings:opfield:view",
+  "settings:opfield:edit",
   "docker:registries:view",
   "admin:update",
   "license:view",

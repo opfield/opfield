@@ -4,9 +4,9 @@ import (
 	"errors"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
 var (

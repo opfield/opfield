@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // grantSyncWorker applies relay grant bundles off the session's receive loop, one at a time. A grant sync can take
@@ -23,7 +23,7 @@ type grantSyncWorker struct {
 	send   func(*pb.CommandResult)
 
 	mu      sync.Mutex
-	pending []*pb.GatewayCommand
+	pending []*pb.OpfieldCommand
 	running bool
 }
 
@@ -32,7 +32,7 @@ func newGrantSyncWorker(ctx context.Context, serial *sync.Mutex, run func(*pb.Sy
 }
 
 // submit queues a grant sync command and returns at once.
-func (w *grantSyncWorker) submit(command *pb.GatewayCommand) {
+func (w *grantSyncWorker) submit(command *pb.OpfieldCommand) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.pending = append(w.pending, command)
@@ -76,7 +76,7 @@ func (w *grantSyncWorker) loop() {
 
 // newestGrantBundle is the bundle of the batch with the highest policy revision and creation time, the latest one
 // on a tie: an older bundle arriving last must not replace a newer one (the grant store refuses it).
-func newestGrantBundle(batch []*pb.GatewayCommand) *pb.SyncRelayGrantsCommand {
+func newestGrantBundle(batch []*pb.OpfieldCommand) *pb.SyncRelayGrantsCommand {
 	var newest *pb.SyncRelayGrantsCommand
 	for _, command := range batch {
 		bundle := command.GetSyncRelayGrants()

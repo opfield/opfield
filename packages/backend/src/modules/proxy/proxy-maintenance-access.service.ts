@@ -48,7 +48,7 @@ export class ProxyMaintenanceAccessService {
       throw new AppError(
         409,
         'MAINTENANCE_ACCESS_UNAVAILABLE',
-        "This route's maintenance page has no team access: its config uses secure_link or the /_gateway/maintenance-access paths"
+        "This route's maintenance page has no team access: its config uses secure_link or the /_opfield/maintenance-access paths"
       );
     }
 

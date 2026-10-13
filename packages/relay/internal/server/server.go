@@ -9,16 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay/internal/admin"
-	"github.com/wiolett-industries/gateway/relay/internal/broker"
-	"github.com/wiolett-industries/gateway/relay/internal/codec"
-	"github.com/wiolett-industries/gateway/relay/internal/config"
-	"github.com/wiolett-industries/gateway/relay/internal/identity"
-	"github.com/wiolett-industries/gateway/relay/internal/lease"
-	"github.com/wiolett-industries/gateway/relay/internal/policy"
-	"github.com/wiolett-industries/gateway/relay/internal/proxy"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay/internal/admin"
+	"github.com/opfield/opfield/relay/internal/broker"
+	"github.com/opfield/opfield/relay/internal/codec"
+	"github.com/opfield/opfield/relay/internal/config"
+	"github.com/opfield/opfield/relay/internal/identity"
+	"github.com/opfield/opfield/relay/internal/lease"
+	"github.com/opfield/opfield/relay/internal/policy"
+	"github.com/opfield/opfield/relay/internal/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	maxGatewayMessageBytes = 512 * 1024 * 1024
+	maxOpfieldMessageBytes = 512 * 1024 * 1024
 	// A remote relay proxies no Gateway RPCs: it carries tunnel frames of at
 	// most 1 MiB and policy snapshots from its supervisor. A smaller limit keeps
 	// a peer from making it buffer huge messages.
@@ -73,7 +73,7 @@ func Start(cfg config.Config, buildVersion string) (*Runtime, error) {
 	var app *grpc.ClientConn
 	var proxyHandler *proxy.Handler
 	reloadUpstream := func() error { return nil }
-	maxMessageBytes := maxGatewayMessageBytes
+	maxMessageBytes := maxOpfieldMessageBytes
 	if cfg.Mode == config.ModeRemoteDataOnly {
 		maxMessageBytes = maxRemoteMessageBytes
 	}
@@ -105,7 +105,7 @@ func Start(cfg config.Config, buildVersion string) (*Runtime, error) {
 		connectApp := func() (*grpc.ClientConn, error) {
 			return grpc.NewClient(cfg.AppTarget,
 				grpc.WithTransportCredentials(credentials.NewTLS(identityStore.AppTLSConfig(serverName))),
-				grpc.WithDefaultCallOptions(grpc.ForceCodec(codec.Codec{}), grpc.MaxCallRecvMsgSize(maxGatewayMessageBytes), grpc.MaxCallSendMsgSize(maxGatewayMessageBytes)),
+				grpc.WithDefaultCallOptions(grpc.ForceCodec(codec.Codec{}), grpc.MaxCallRecvMsgSize(maxOpfieldMessageBytes), grpc.MaxCallSendMsgSize(maxOpfieldMessageBytes)),
 			)
 		}
 		app, err = connectApp()

@@ -524,13 +524,13 @@ export const CORE_TOKEN_SCOPES = [
   },
   // Gateway Settings
   {
-    value: "settings:gateway:view",
+    value: "settings:opfield:view",
     label: "View Opfield Settings",
     desc: "View sign-in provisioning and external control-plane settings",
     group: "Opfield Settings",
   },
   {
-    value: "settings:gateway:edit",
+    value: "settings:opfield:edit",
     label: "Edit Opfield Settings",
     desc: "Edit sign-in provisioning and external control-plane settings",
     group: "Opfield Settings",

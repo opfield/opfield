@@ -79,7 +79,7 @@ export const LOCAL_RELAY_DRAIN_UNSUPPORTED =
 export async function localRelayTakeoverBlocker(
   db: DrizzleClient,
   policy: Pick<RelayPolicyService, 'isRemoteInstanceConnected' | 'poolIncapableEndpointIds'>,
-  pool: { instances: RelayInstanceRow[]; gatewayHostOnlyEndpointIds: ReadonlySet<string> },
+  pool: { instances: RelayInstanceRow[]; opfieldHostOnlyEndpointIds: ReadonlySet<string> },
   localInstanceId: string,
   now = Date.now()
 ): Promise<string | null> {
@@ -101,7 +101,7 @@ export async function localRelayTakeoverBlocker(
   if (legacy.size) {
     return `${legacy.size} workload(s) have a daemon without Relay Pool support on their path, which only the local relay serves`;
   }
-  const hostOnly = endpointIds.filter((id) => pool.gatewayHostOnlyEndpointIds.has(id)).length;
+  const hostOnly = endpointIds.filter((id) => pool.opfieldHostOnlyEndpointIds.has(id)).length;
   if (hostOnly) return `${hostOnly} workload(s) reach no relay outside the Opfield host`;
   return null;
 }
@@ -169,7 +169,7 @@ export async function waitForLocalRelayEvacuation(
 interface LocalRelayDrainDeps {
   db: DrizzleClient;
   policy: Pick<RelayPolicyService, 'setLocalInstanceDrain' | 'reconcileAndSync'> &
-    Partial<Pick<RelayPolicyService, 'relayStreamReports' | 'migrateGatewayStreams'>>;
+    Partial<Pick<RelayPolicyService, 'relayStreamReports' | 'migrateOpfieldStreams'>>;
   audit: Pick<AuditService, 'log'>;
   events: Pick<EventBusService, 'publish'>;
 }
@@ -205,7 +205,7 @@ export async function setLocalRelayUpdateDrain(
     })
     .where(and(eq(relayInstances.id, instance.id), inArray(relayInstances.state, ['ready', 'draining'])));
   await deps.policy.reconcileAndSync();
-  if (enabled) deps.policy.migrateGatewayStreams?.(instance.id, drainDeadlineAt);
+  if (enabled) deps.policy.migrateOpfieldStreams?.(instance.id, drainDeadlineAt);
   await deps.audit.log({
     userId,
     action: enabled ? 'relay.instance.drain' : 'relay.instance.resume',

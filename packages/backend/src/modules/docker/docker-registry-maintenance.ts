@@ -80,7 +80,7 @@ export interface DockerRegistryMaintenanceExecutor {
 export function createDockerRegistryMaintenanceExecutor(
   docker: DockerService,
   tokenService: DockerRegistryTokenService,
-  registryUrl = process.env.GATEWAY_INTERNAL_REGISTRY_URL || 'http://registry:5000',
+  registryUrl = process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000',
   wait: (milliseconds: number) => Promise<void> = (milliseconds) =>
     new Promise((resolve) => setTimeout(resolve, milliseconds))
 ): DockerRegistryMaintenanceExecutor {
@@ -110,7 +110,7 @@ export function createDockerRegistryMaintenanceExecutor(
   const request = async (repository: string, digest: string, method: 'GET' | 'DELETE', action: 'pull' | 'delete') => {
     const grant = { repository, actions: [action] } satisfies DockerRegistryGrant;
     const issued = tokenService.issueToken({
-      subject: 'gateway:registry-maintenance',
+      subject: 'opfield:registry-maintenance',
       requested: [grant],
       allowed: [grant],
       ttlSeconds: 300,

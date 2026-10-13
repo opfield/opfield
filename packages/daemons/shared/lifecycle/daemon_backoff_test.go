@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/connector"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

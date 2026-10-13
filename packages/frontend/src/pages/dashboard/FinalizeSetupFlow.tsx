@@ -75,8 +75,8 @@ export function FinalizeSetupFlow({
       )}
       <ConfigureAIWorkspaceWizard
         open={open && activeWizard === "ai_workspace"}
-        allowGatewayInference={[
-          "settings:gateway:edit",
+        allowOpfieldInference={[
+          "settings:opfield:edit",
           "inference:providers:view",
           "inference:providers:manage",
           "inference:models:manage",

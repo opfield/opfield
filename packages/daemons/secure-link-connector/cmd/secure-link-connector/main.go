@@ -8,15 +8,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/netaccept"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/netaccept"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 func main() {
-	if directory := os.Getenv(cleanDirectoryEnv); directory != "" {
+	if directory := osSetting(connectorCleanDirEnv); directory != "" {
 		if err := emptyCleanDirectory(directory); err != nil {
 			log.Fatal(err)
 		}
@@ -41,9 +40,9 @@ func main() {
 		return
 	}
 
-	socketPath := strings.TrimSpace(os.Getenv("GATEWAY_SECURE_LINK_SOCKET"))
+	socketPath := osSetting(secureLinkSocketEnv)
 	if socketPath == "" || !filepath.IsAbs(socketPath) {
-		log.Fatal("GATEWAY_SECURE_LINK_SOCKET must be an absolute path")
+		log.Fatal(envPrefix + secureLinkSocketEnv + " must be an absolute path")
 	}
 	if err := os.MkdirAll(filepath.Dir(socketPath), 0o750); err != nil {
 		log.Fatalf("create control directory: %v", err)

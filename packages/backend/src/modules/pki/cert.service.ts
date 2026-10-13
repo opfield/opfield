@@ -78,8 +78,8 @@ interface IssueCertificateOptions {
       | 'node'
       | 'managed_database'
       | 'managed_storage'
-      | 'gateway_listener'
-      | 'gateway_service'
+      | 'opfield_listener'
+      | 'opfield_service'
       | 'relay_node_server';
     ownerId: string;
     state: 'unknown';

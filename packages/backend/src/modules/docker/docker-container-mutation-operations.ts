@@ -42,12 +42,13 @@ import {
 } from './docker-env-follow-ups.js';
 import { envListToMap, envMapToList, normalizeEnvRecord } from './docker-env-operations.js';
 import { dockerGpuAttachmentFromInspect, hasRequestedGpuChange } from './docker-gpu-attachment.js';
-import { isGatewayManagedDockerNetwork } from './docker-internal-networks.js';
+import { isOpfieldManagedDockerNetwork } from './docker-internal-networks.js';
 import type {
   ContainerAction,
   DockerTransitionOutcome,
   DockerTransitionTrackingHint,
 } from './docker-lifecycle-watch.js';
+import { labelString } from './docker-managed-labels.js';
 import { assertManagedMountMutation } from './docker-managed-mounts.js';
 import { noteNodeLoss, withNodeLossAnswer } from './docker-node-loss.js';
 import { hasRequestedSpecificPortBindIp } from './docker-port-bindings.js';
@@ -458,7 +459,7 @@ async function resolveCreateNetworks(
       continue;
     }
     const network = await resolveNetworkIdentity(networkContext, nodeId, name);
-    if (isGatewayManagedDockerNetwork(network.name)) {
+    if (isOpfieldManagedDockerNetwork(network.name)) {
       throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be connected manually');
     }
     if (network.name === 'host') {
@@ -1329,7 +1330,7 @@ async function updateContainerOnNode(
   if (hasImageChange) {
     const labels = (inspect?.Config?.Labels ?? {}) as Record<string, string>;
     const imageRef = imageRefWithTag(
-      labels['wiolett.gateway.archive.image.reference'] || inspect?.Config?.Image || inspect?.Image,
+      labelString(labels, 'archive.image.reference') || inspect?.Config?.Image || inspect?.Image,
       config.tag as string
     );
     ctx.imageCleanupService?.scheduleCleanupForContainer(nodeId, name, imageRef).catch(() => {});

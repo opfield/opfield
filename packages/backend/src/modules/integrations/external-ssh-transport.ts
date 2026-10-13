@@ -62,7 +62,7 @@ export function readHostFingerprint(host: string, port: number, sock?: Sock, sig
     client.connect({
       host,
       port,
-      username: 'gateway-host-key-probe',
+      username: 'opfield-host-key-probe',
       ...(sock ? { sock } : {}),
       hostVerifier: (key: Buffer) => {
         if (!settled) {

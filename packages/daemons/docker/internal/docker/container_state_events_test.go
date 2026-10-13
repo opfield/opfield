@@ -12,7 +12,7 @@ import (
 
 	"github.com/moby/moby/client"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // fakeStateDocker is a Docker Engine API with one container "app" whose state the test sets, and an event stream the

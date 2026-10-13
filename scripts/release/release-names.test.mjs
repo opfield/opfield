@@ -15,7 +15,7 @@ function resolve(env) {
     'bash',
     [
       '-c',
-      'source scripts/release/image-repositories.sh && printf "%s|%s|%s" "$GATEWAY_IMAGE" "$GATEWAY_IMAGE_MIRROR" "$GATEWAY_SIGNED_IMAGE"',
+      'source scripts/release/image-repositories.sh && printf "%s|%s|%s" "$OPFIELD_IMAGE" "$OPFIELD_IMAGE_MIRROR" "$OPFIELD_SIGNED_IMAGE"',
     ],
     { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH, ...env } }
   );
@@ -33,20 +33,27 @@ test('before the move everything stays on the earlier repository', () => {
 });
 
 test('a fork publishes and signs for its own repository', () => {
+  assert.deepEqual(resolve({ OPFIELD_IMAGE: 'ghcr.io/example/opfield' }), {
+    primary: 'ghcr.io/example/opfield',
+    mirror: '',
+    signed: 'ghcr.io/example/opfield',
+  });
+  // legacy-name: GATEWAY_IMAGE repository variable of forks set up before 2.12.1.
   assert.deepEqual(resolve({ GATEWAY_IMAGE: 'ghcr.io/example/gateway' }), {
     primary: 'ghcr.io/example/gateway',
     mirror: '',
     signed: 'ghcr.io/example/gateway',
   });
+  assert.equal(resolve({ OPFIELD_IMAGE: 'ghcr.io/example/opfield', GATEWAY_IMAGE: 'ghcr.io/example/gateway' }).primary, 'ghcr.io/example/opfield');
 });
 
 test('the signed repository can still be pinned to the mirror, never to a foreign one', () => {
-  assert.deepEqual(resolve({ OPFIELD_GHCR: 'true', GATEWAY_SIGNED_IMAGE: EARLIER }), {
+  assert.deepEqual(resolve({ OPFIELD_GHCR: 'true', OPFIELD_SIGNED_IMAGE: EARLIER }), {
     primary: OPFIELD,
     mirror: EARLIER,
     signed: EARLIER,
   });
-  assert.match(resolve({ OPFIELD_GHCR: 'true', GATEWAY_SIGNED_IMAGE: 'ghcr.io/example/x' }).error, /neither/);
+  assert.match(resolve({ OPFIELD_GHCR: 'true', OPFIELD_SIGNED_IMAGE: 'ghcr.io/example/x' }).error, /neither/);
 });
 
 test('signed daemon, relay and witness manifests name their artifact on get.opfield.dev', () => {

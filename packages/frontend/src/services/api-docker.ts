@@ -971,7 +971,7 @@ export function withDockerApi<TBase extends ApiClientBaseConstructor>(Base: TBas
         {},
         onProgress
       );
-      return new Blob([bytes], { type: "application/vnd.wiolett.gwca" });
+      return new Blob([bytes], { type: "application/vnd.opfield.gwca" });
     }
 
     async importContainerArchive(
@@ -996,7 +996,7 @@ export function withDockerApi<TBase extends ApiClientBaseConstructor>(Base: TBas
           data: { containerId: string; containerName: string; imageId: string };
         }>(`/docker/nodes/${nodeId}/containers/archive?${query}`, {
           method: "POST",
-          headers: { "Content-Type": "application/vnd.wiolett.gwca" },
+          headers: { "Content-Type": "application/vnd.opfield.gwca" },
           body: archive,
           onProgress,
         })

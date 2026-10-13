@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 const noDeadline = time.Duration(1<<62 - 1)

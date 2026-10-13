@@ -198,7 +198,7 @@ export function validateAdditionalRoutePath(
   const normalized = normalizeAdditionalRoutePath(path);
   if (!normalized) return "Enter a valid literal path prefix.";
   const lower = normalized.toLowerCase();
-  const reserved = ["/.well-known/acme-challenge", "/_gateway"];
+  const reserved = ["/.well-known/acme-challenge", "/_opfield", "/_gateway"];
   if (reserved.some((prefix) => lower === prefix || lower.startsWith(`${prefix}/`))) {
     return "This path is reserved by Opfield.";
   }

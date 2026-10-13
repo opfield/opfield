@@ -96,7 +96,8 @@ import { TOOL_STORE_INVALIDATION_CHANNEL_PREFIX } from "@/services/tool-store-in
 import { useAIStore } from "@/stores/ai";
 import {
   APP_STATUS_STORAGE_KEY,
-  syncGatewayOperationStatus,
+  LEGACY_APP_STATUS_STORAGE_KEY,
+  syncOpfieldOperationStatus,
   useAppStatusStore,
 } from "@/stores/app-status";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
@@ -998,8 +999,8 @@ export function RealtimeBridge() {
   const invalidateDashboardBootstrap = useDashboardBootstrapStore((s) => s.invalidate);
   const invalidateUIBootstrap = useUIBootstrapStore((s) => s.invalidate);
   const refreshAIProviderStatus = useAIStore((s) => s.refreshProviderStatus);
-  const setGatewayUpdatingActive = useAppStatusStore((s) => s.setGatewayUpdatingActive);
-  const clearGatewayUpdating = useAppStatusStore((s) => s.clearGatewayUpdating);
+  const setOpfieldUpdatingActive = useAppStatusStore((s) => s.setOpfieldUpdatingActive);
+  const clearOpfieldUpdating = useAppStatusStore((s) => s.clearOpfieldUpdating);
   const hydrateAIApprovalMode = useUIStore((s) => s.hydrateAIApprovalMode);
   const beginInterfacePreferenceLoad = useUIStore((s) => s.beginInterfacePreferenceLoad);
   const hydratePreferredInterface = useUIStore((s) => s.hydratePreferredInterface);
@@ -1304,7 +1305,7 @@ export function RealtimeBridge() {
       const ev = payload as
         | {
             updating?: boolean;
-            component?: "gateway" | "relay";
+            component?: "opfield" | "relay";
             targetVersion?: string | null;
             statusChanged?: boolean;
             /** Why a Gateway update ended without reaching its target. */
@@ -1317,18 +1318,18 @@ export function RealtimeBridge() {
           useUpdateStore.getState().setUpdating("relay", ev.updating, ev.targetVersion ?? null);
           void useUpdateStore.getState().fetchStatus();
         } else if (ev.updating) {
-          useUpdateStore.getState().setUpdating("gateway", true);
-          setGatewayUpdatingActive(true, ev.targetVersion ?? null);
+          useUpdateStore.getState().setUpdating("opfield", true);
+          setOpfieldUpdatingActive(true, ev.targetVersion ?? null);
         } else {
           useUpdateStore.getState().clearUpdating();
           const appStatus = useAppStatusStore.getState();
-          if (ev.error && appStatus.gatewayUpdatingActive) {
+          if (ev.error && appStatus.opfieldUpdatingActive) {
             // Sessions waiting for the update leave its screen with the reason.
-            appStatus.setGatewayUpdateError(ev.error, ev.targetVersion ?? null, {
+            appStatus.setOpfieldUpdateError(ev.error, ev.targetVersion ?? null, {
               rolledBack: ev.rolledBack === true,
             });
           } else {
-            clearGatewayUpdating();
+            clearOpfieldUpdating();
           }
         }
       }
@@ -1337,11 +1338,11 @@ export function RealtimeBridge() {
       invalidateUIBootstrap();
     });
   }, [
-    clearGatewayUpdating,
+    clearOpfieldUpdating,
     invalidateDashboardBootstrap,
     invalidateUIBootstrap,
     user,
-    setGatewayUpdatingActive,
+    setOpfieldUpdatingActive,
   ]);
 
   useEffect(() => {
@@ -1371,14 +1372,14 @@ export function RealtimeBridge() {
   return null;
 }
 
-function GatewayApp() {
+function OpfieldApp() {
   const [startupChecked, setStartupChecked] = useState(false);
   const [setupPending, setSetupPending] = useState(false);
   const user = useAuthStore((s) => s.user);
   const maintenanceActive = useAppStatusStore((s) => s.maintenanceActive);
   const setMaintenanceActive = useAppStatusStore((s) => s.setMaintenanceActive);
-  const setGatewayRestartingActive = useAppStatusStore((s) => s.setGatewayRestartingActive);
-  const clearGatewayRestarting = useAppStatusStore((s) => s.clearGatewayRestarting);
+  const setOpfieldRestartingActive = useAppStatusStore((s) => s.setOpfieldRestartingActive);
+  const clearOpfieldRestarting = useAppStatusStore((s) => s.clearOpfieldRestarting);
   // Keep navigation/chrome mounted for scope changes. DashboardLayout fences its protected content separately.
   const authRouteKey = user ? `${user.id}:${user.isBlocked ? "blocked" : "active"}` : "anonymous";
 
@@ -1389,6 +1390,7 @@ function GatewayApp() {
   }, [maintenanceActive]);
 
   useEffect(() => {
+    // legacy-name: auth key old releases wrote, removed on load — remove once 2.12.0 is no longer an update source
     localStorage.removeItem("gateway-auth");
 
     let cancelled = false;
@@ -1398,7 +1400,7 @@ function GatewayApp() {
         const [response, setupResponse] = await Promise.all([
           fetch("/health", {
             cache: "no-store",
-            headers: { "X-Gateway-Health-Probe": "startup" },
+            headers: { "X-Opfield-Health-Probe": "startup" },
           }),
           fetch("/api/setup/status", { cache: "no-store", credentials: "include" }),
         ]);
@@ -1411,9 +1413,9 @@ function GatewayApp() {
         if (!cancelled) {
           setMaintenanceActive(!response.ok);
           if (health?.lifecycleState && health.lifecycleState !== "running") {
-            setGatewayRestartingActive(true);
+            setOpfieldRestartingActive(true);
           } else if (health?.lifecycleState === "running") {
-            clearGatewayRestarting();
+            clearOpfieldRestarting();
           }
           setSetupPending(setup?.data?.state === "pending");
           setStartupChecked(true);
@@ -1431,7 +1433,7 @@ function GatewayApp() {
     return () => {
       cancelled = true;
     };
-  }, [clearGatewayRestarting, setGatewayRestartingActive, setMaintenanceActive]);
+  }, [clearOpfieldRestarting, setOpfieldRestartingActive, setMaintenanceActive]);
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
@@ -1440,28 +1442,33 @@ function GatewayApp() {
         return;
       }
 
-      if (event.key !== APP_STATUS_STORAGE_KEY || event.newValue == null) return;
+      if (
+        (event.key !== APP_STATUS_STORAGE_KEY && event.key !== LEGACY_APP_STATUS_STORAGE_KEY) ||
+        event.newValue == null
+      ) {
+        return;
+      }
 
       try {
         const parsed = JSON.parse(event.newValue) as {
           state?: {
-            gatewayUpdatingActive?: boolean;
-            gatewayUpdatingTargetVersion?: string | null;
-            gatewayRestartingActive?: boolean;
-            gatewayRestartTargetUrl?: string | null;
+            opfieldUpdatingActive?: boolean;
+            opfieldUpdatingTargetVersion?: string | null;
+            opfieldRestartingActive?: boolean;
+            opfieldRestartTargetUrl?: string | null;
           };
         };
-        const gatewayUpdatingActive = parsed.state?.gatewayUpdatingActive === true;
-        const gatewayRestartingActive =
-          !gatewayUpdatingActive && parsed.state?.gatewayRestartingActive === true;
-        syncGatewayOperationStatus({
-          gatewayUpdatingActive,
-          gatewayUpdatingTargetVersion: gatewayUpdatingActive
-            ? (parsed.state?.gatewayUpdatingTargetVersion ?? null)
+        const opfieldUpdatingActive = parsed.state?.opfieldUpdatingActive === true;
+        const opfieldRestartingActive =
+          !opfieldUpdatingActive && parsed.state?.opfieldRestartingActive === true;
+        syncOpfieldOperationStatus({
+          opfieldUpdatingActive,
+          opfieldUpdatingTargetVersion: opfieldUpdatingActive
+            ? (parsed.state?.opfieldUpdatingTargetVersion ?? null)
             : null,
-          gatewayRestartingActive,
-          gatewayRestartTargetUrl: gatewayRestartingActive
-            ? (parsed.state?.gatewayRestartTargetUrl ?? null)
+          opfieldRestartingActive,
+          opfieldRestartTargetUrl: opfieldRestartingActive
+            ? (parsed.state?.opfieldRestartTargetUrl ?? null)
             : null,
         });
       } catch {
@@ -1728,5 +1735,5 @@ function GatewayApp() {
 }
 
 export default function App() {
-  return <GatewayApp />;
+  return <OpfieldApp />;
 }

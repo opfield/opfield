@@ -250,7 +250,7 @@ export function CloudSection({ canManage }: CloudSectionProps) {
   return (
     <PanelShell
       icon={<Cloud className="h-4 w-4 text-info-text" />}
-      id="gateway-cloud"
+      id="opfield-cloud"
       title={<span className="text-info-text">Cloud</span>}
       description={
         managed

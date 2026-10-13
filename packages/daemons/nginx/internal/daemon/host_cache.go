@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 // hostCacheRoot holds the per-host proxy cache directories that proxy host

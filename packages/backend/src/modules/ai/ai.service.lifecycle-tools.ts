@@ -10,7 +10,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditExportSchema } from '@/modules/audit/audit.docs.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
-import { publicUrlFallbackGateway, relayReenrollmentInstallation } from '@/modules/nodes/node-installer.js';
+import { publicUrlFallbackOpfield, relayReenrollmentInstallation } from '@/modules/nodes/node-installer.js';
 import { dispatchNodeDaemonUpdate } from '@/services/daemon-node-update.js';
 import { DaemonUpdateService } from '@/services/daemon-update.service.js';
 import { DaemonUpdateRollout } from '@/services/daemon-update-rollout.service.js';
@@ -43,9 +43,9 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
         const operation = String(a.operation ?? '');
         const updateService = container.resolve(UpdateService);
         switch (operation) {
-          case 'get_gateway_status':
+          case 'get_opfield_status':
             return updateService.getCachedStatus();
-          case 'check_gateway': {
+          case 'check_opfield': {
             const status = await updateService.checkForUpdates();
             // Like POST /system/check-update: a manual check must not end the screens of a running update.
             const updateRunning = await updateService.isAnyUpdateRunning();
@@ -53,16 +53,16 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
               .resolve(EventBusService)
               .publish(
                 'system.update.changed',
-                updateRunning ? { statusChanged: true } : { updating: false, component: 'gateway', statusChanged: true }
+                updateRunning ? { statusChanged: true } : { updating: false, component: 'opfield', statusChanged: true }
               );
             return status;
           }
-          case 'get_gateway_release_notes': {
+          case 'get_opfield_release_notes': {
             const version = String(a.version ?? '');
             if (!/^v?\d+\.\d+\.\d+$/.test(version)) throw new Error('version must be a semantic version');
             return { version, notes: await updateService.getReleaseNotes(version) };
           }
-          case 'list_gateway_release_notes': {
+          case 'list_opfield_release_notes': {
             // GET /system/release-notes: every release between the running and the available version.
             const status = await updateService.getCachedStatus();
             if (!status.latestVersion || !status.updateAvailable) return [];
@@ -73,28 +73,28 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
             }
           }
           // The update operations mirror the /system update routes step for step.
-          case 'perform_gateway_update': {
+          case 'perform_opfield_update': {
             const version = releaseVersionArg(a.version);
-            if (updateService.isGatewayUpdateInProgress()) {
+            if (updateService.isOpfieldUpdateInProgress()) {
               throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
             }
             // A running Relay Pool update refuses the Gateway update.
-            await updateService.assertGatewayUpdateAllowed();
+            await updateService.assertOpfieldUpdateAllowed();
             const status = await updateService.getCachedStatus();
             if (!status.updateAvailable) throw new Error('No Opfield update is available');
             if (version !== status.latestVersion) throw new Error('Requested version does not match available update');
-            const artifact = await updateService.prepareGatewayUpdate(version);
+            const artifact = await updateService.prepareOpfieldUpdate(version);
             // A new attempt supersedes the report of a previous rolled-back one.
-            await updateService.acknowledgeGatewayUpdateFailure();
+            await updateService.acknowledgeOpfieldUpdateFailure();
             const eventBus = container.resolve(EventBusService);
-            eventBus.publish('system.update.changed', { updating: true, component: 'gateway', targetVersion: version });
+            eventBus.publish('system.update.changed', { updating: true, component: 'opfield', targetVersion: version });
             setTimeout(() => {
               updateService.performUpdate(version, artifact, user.id).catch((error) => {
                 // A concurrent request lost the race; the accepted update keeps running.
                 if (error instanceof AppError && error.code === 'UPDATE_IN_PROGRESS') return;
                 eventBus.publish('system.update.changed', {
                   updating: false,
-                  component: 'gateway',
+                  component: 'opfield',
                   targetVersion: version,
                   ...(error instanceof AppError ? { error: error.message } : {}),
                 });
@@ -106,21 +106,21 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
             }, 500);
             return { status: 'updating', targetVersion: version };
           }
-          case 'proceed_gateway_update': {
+          case 'proceed_opfield_update': {
             if (!updateService.proceedWithoutWaiting()) {
               throw new AppError(409, 'UPDATE_NOT_WAITING', 'No Opfield update is waiting for running operations');
             }
             logger.warn('Opfield update proceeds without waiting for running operations', { userId: user.id });
             return { status: 'updating' };
           }
-          case 'acknowledge_gateway_update_failure':
-            return { acknowledged: await updateService.acknowledgeGatewayUpdateFailure() };
+          case 'acknowledge_opfield_update_failure':
+            return { acknowledged: await updateService.acknowledgeOpfieldUpdateFailure() };
           case 'perform_relay_update': {
             const version = releaseVersionArg(a.version);
-            if (updateService.isGatewayUpdateInProgress()) {
+            if (updateService.isOpfieldUpdateInProgress()) {
               throw new AppError(
                 409,
-                'GATEWAY_UPDATE_IN_PROGRESS',
+                'OPFIELD_UPDATE_IN_PROGRESS',
                 'Opfield is updating. Update the Relay Pool after the Opfield update has finished.'
               );
             }
@@ -299,7 +299,7 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
       // ── Documentation ──
       case 'internal_documentation':
         return getInternalDocumentation(a.topic, user.scopes);
-      case 'read_gateway_documentation':
+      case 'read_opfield_documentation':
         return getInternalDocumentation(a.topic, [...user.scopes, 'mcp:use']);
 
       // ── Web Search ──
@@ -346,11 +346,11 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
     });
   }
 
-  /** Mirrors the /system/relay routes: reads need settings:gateway:view, every mutation admin:system. */
+  /** Mirrors the /system/relay routes: reads need settings:opfield:view, every mutation admin:system. */
   private async executeRelayPoolTool(user: User, a: Record<string, any>): Promise<unknown> {
     const operation = String(a.operation ?? '');
     if (operation === 'get') {
-      this.ensureToolScope(user, 'settings:gateway:view');
+      this.ensureToolScope(user, 'settings:opfield:view');
       const local = container.resolve(RelaySupervisorService).getSnapshot(true);
       const pool = container.isRegistered(RelayPoolService)
         ? await container.resolve(RelayPoolService).getSnapshot()
@@ -358,7 +358,7 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
       return pool ? { ...local, ...pool, local } : local;
     }
     if (operation === 'local_policy_trust_status') {
-      this.ensureToolScope(user, 'settings:gateway:view');
+      this.ensureToolScope(user, 'settings:opfield:view');
       // Registered only when Gateway runs a local relay.
       const status = container.isRegistered(RelayPolicyService)
         ? container.resolve(RelayPolicyService).getLocalPolicyTrustStatus()
@@ -408,17 +408,17 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
         const instanceId = z.string().uuid().parse(a.instanceId);
         z.object({ confirm: z.literal(true) }).parse({ confirm: a.confirm });
         const issued = await container.resolve(RelayPoolService).issueRelayReenrollment(instanceId, user.id);
-        const gatewayCertSha256 = await this.nodesService.getGatewayEnrollmentCertificateFingerprint();
-        const gatewayEnrollmentTargets = await this.nodesService.getGatewayEnrollmentTargets();
+        const opfieldCertSha256 = await this.nodesService.getOpfieldEnrollmentCertificateFingerprint();
+        const opfieldEnrollmentTargets = await this.nodesService.getOpfieldEnrollmentTargets();
         return {
           ...issued,
-          gatewayCertSha256,
-          gatewayEnrollmentTargets,
+          opfieldCertSha256,
+          opfieldEnrollmentTargets,
           ...(await relayReenrollmentInstallation(
             issued,
-            gatewayCertSha256,
-            gatewayEnrollmentTargets,
-            await publicUrlFallbackGateway()
+            opfieldCertSha256,
+            opfieldEnrollmentTargets,
+            await publicUrlFallbackOpfield()
           )),
         };
       }

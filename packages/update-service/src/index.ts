@@ -1,5 +1,5 @@
 const GITHUB_API_VERSION = "2022-11-28";
-const USER_AGENT = "gateway-update-facade";
+const USER_AGENT = "opfield-update-facade";
 const RELEASE_LIST_LIMIT_BYTES = 2 * 1024 * 1024;
 const RELEASE_PAGE_SIZE = 100;
 // GitHub lists releases newest first; a search that is still unsettled after this many pages
@@ -99,8 +99,10 @@ const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
 // Installers an Opfield release carries (scripts/stage-installers.sh), served in GitHub's release download layout:
 // /gateway/releases/download/<tag>/<file> and /gateway/releases/latest/download/<file>. "/" and "/install.sh" are the
 // server installer of the latest stable release.
+// legacy-name: gateway-daemon-installers.sha256, the checksum list setup commands and wrappers of releases before
+// 2.12.1 read — remove once no served release is older than 2.12.1.
 const INSTALLER_ASSET_PATTERN =
-	/^(install\.sh|setup-(daemon|node|docker-node|database-node|storage-node|monitoring-node|relay-node)\.sh|gateway-daemon-installers\.sha256)$/;
+	/^(install\.sh|setup-(daemon|node|docker-node|database-node|storage-node|monitoring-node|relay-node)\.sh|opfield-node-installers\.sha256|gateway-daemon-installers\.sha256)$/;
 const LATEST_INSTALLER_CACHE_CONTROL = "public, max-age=300";
 // The signed list of license service addresses Opfield installations fetch daily
 // (scripts/release/license-endpoints.mjs): an asset of the latest stable release, re-signed on a schedule.
@@ -150,9 +152,9 @@ function githubApiUrl(
 	return `https://api.github.com/repos/${encodeURIComponent(env.GITHUB_OWNER)}/${encodeURIComponent(repository.name)}${path}`;
 }
 
-function gatewayRepository(env: Env): GitHubRepository {
+function opfieldRepository(env: Env): GitHubRepository {
 	return {
-		name: env.GITHUB_GATEWAY_REPO,
+		name: env.GITHUB_OPFIELD_REPO,
 		token: env.GITHUB_INFERENCE_CORE_TOKEN,
 	};
 }
@@ -167,7 +169,7 @@ function inferenceCoreRepository(env: Env): GitHubRepository {
 function repositoryForPackage(env: Env, packageName: string): GitHubRepository {
 	return packageName === "inference-core"
 		? inferenceCoreRepository(env)
-		: gatewayRepository(env);
+		: opfieldRepository(env);
 }
 
 async function readBoundedJson<T>(response: Response): Promise<T> {
@@ -476,8 +478,8 @@ async function handleReleaseList(
 	}
 	// Each list reaches at least one release on the channel: a Gateway release from the Gateway
 	// repository, any stable build from the inference core repository.
-	const [gatewayReleases, coreReleases] = await Promise.all([
-		fetchReleases(env, gatewayRepository(env), fetcher, (read) =>
+	const [opfieldReleases, coreReleases] = await Promise.all([
+		fetchReleases(env, opfieldRepository(env), fetcher, (read) =>
 			read.some(
 				(release) =>
 					listedOnChannel(channel, release, false) &&
@@ -488,10 +490,10 @@ async function handleReleaseList(
 			read.some((release) => listedOnChannel(channel, release, true)),
 		),
 	]);
-	if (!gatewayReleases || !coreReleases)
+	if (!opfieldReleases || !coreReleases)
 		return jsonResponse({ error: "release_source_unavailable" }, 502);
 	const releases = [
-		...gatewayReleases.filter((release) =>
+		...opfieldReleases.filter((release) =>
 			listedOnChannel(channel, release, false),
 		),
 		...coreReleases.filter((release) =>
@@ -662,7 +664,7 @@ async function handleInstaller(
 	fetcher: Fetcher,
 	path: { tag: string | null; assetName: string },
 ): Promise<Response> {
-	const repository = gatewayRepository(env);
+	const repository = opfieldRepository(env);
 	const releaseResponse = await fetcher(
 		githubApiUrl(
 			env,
@@ -758,7 +760,7 @@ export async function handleRequest(
 	const pathname = new URL(request.url).pathname;
 	if (pathname === "/health")
 		return jsonResponse(
-			{ ok: true, service: "gateway-updates" },
+			{ ok: true, service: "opfield-updates" },
 			200,
 			"no-store",
 		);

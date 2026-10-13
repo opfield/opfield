@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // manualEngineConfig: a manual pair, A voter (primary at bootstrap), B learner.

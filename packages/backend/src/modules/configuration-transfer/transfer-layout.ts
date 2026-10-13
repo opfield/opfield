@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { parseDocument } from 'yaml';
 import { BUILT_IN_GITHUB_OAUTH_CLIENT_ID } from '@/config/env.js';
+import { isOpfieldComposeLayout, OPFIELD_VOLUME_KEYS } from '@/foundation/opfield-names.js';
 
 /**
  * What a configuration export carries and where each piece lives on a Compose installation. Shared
@@ -9,7 +11,10 @@ import { BUILT_IN_GITHUB_OAUTH_CLIENT_ID } from '@/config/env.js';
 
 export const CONFIGURATION_EXPORT_FORMAT = 1;
 
-/** Docker volumes of the Compose project, by their key in docker-compose.yml. */
+/**
+ * Docker volumes of an export, by their key in the docker-compose.yml of the earlier layout (the export format keeps
+ * these keys; composeVolumeKey maps them to the Opfield layout).
+ */
 export type TransferVolumeKey =
   | 'gateway_data'
   | 'gateway_relay_identity'
@@ -79,7 +84,7 @@ export const PORTABLE_ENV_KEYS = [
 export const HOST_SPECIFIC_VALUES = [
   'The public URL and the gRPC address nodes connect to (asked during the restore)',
   'Database and registry passwords (the new installation makes its own)',
-  'PUBLIC_IPV4, PUBLIC_IPV6, GATEWAY_LOCAL_HOSTS and GRPC_TLS_* overrides in .env',
+  'PUBLIC_IPV4, PUBLIC_IPV6, OPFIELD_LOCAL_HOSTS and GRPC_TLS_* overrides in .env',
   'The sandbox workspace directory and Docker logging of the new host',
   'Reverse proxy, firewall and DNS records in front of Opfield',
   'Sign-in sessions: everyone signs in again',
@@ -97,7 +102,7 @@ export interface TransferVolumeManifest {
 export interface ConfigurationExportManifest {
   format: number;
   createdAt: string;
-  gatewayVersion: string;
+  opfieldVersion: string;
   schemaMigration: string;
   installationId: string;
   source: {
@@ -107,11 +112,11 @@ export interface ConfigurationExportManifest {
     composeProject: string;
   };
   includes: { registry: boolean; logs: boolean };
-  /** GATEWAY_COMMERCIAL_DIR of the exporting app, when a commercial core is installed. */
+  /** OPFIELD_COMMERCIAL_DIR of the exporting app, when a commercial core is installed. */
   commercialDir: string | null;
   database: { part: string; file: string };
   volumes: TransferVolumeManifest[];
-  /** The `.gateway-commercial` directory of the install dir, as a tar part rooted at `root`. */
+  /** The commercial directory of the install dir (see commercialHostRoot), as a tar part rooted at `root`. */
   commercial: { part: string; root: string } | null;
   environmentPart: string;
 }
@@ -167,22 +172,43 @@ export function currentSchemaMigration(migrationsFolder = resolve('src/db/migrat
   return tag;
 }
 
-/** Compose names a project volume `<project>_<key>`; the managed ClickHouse volume follows the same pattern. */
-export function composeVolumeName(project: string, key: TransferVolumeKey): string {
+/** The key of an exported volume in docker-compose.yml: the Opfield layout renamed the earlier keys. */
+export function composeVolumeKey(key: TransferVolumeKey, compose?: string | null): string {
+  if (key === 'clickhouse_data' || !compose || !isOpfieldComposeLayout(compose)) return key;
+  return OPFIELD_VOLUME_KEYS[key] ?? key;
+}
+
+function declaredVolumeName(compose: string, composeKey: string): string | null {
+  try {
+    const volumes = (parseDocument(compose).toJS() as { volumes?: Record<string, { name?: unknown } | null> } | null)
+      ?.volumes;
+    const name = volumes?.[composeKey]?.name;
+    return typeof name === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name) ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compose names a project volume `<project>_<key>` unless docker-compose.yml names it (an installation moved to the
+ * Opfield layout keeps its earlier volumes by name); the managed ClickHouse volume follows the same pattern.
+ */
+export function composeVolumeName(project: string, key: TransferVolumeKey, compose?: string | null): string {
   if (key === 'clickhouse_data') return `${project.replace(/[^a-zA-Z0-9_.-]/g, '-')}_clickhouse_data`;
-  return `${project}_${key}`;
+  const composeKey = composeVolumeKey(key, compose);
+  return (compose ? declaredVolumeName(compose, composeKey) : null) ?? `${project}_${composeKey}`;
 }
 
 /** Same version only: an export restores into the Opfield release and schema it was made by. */
 export function versionMismatch(
-  exported: { gatewayVersion: string; schemaMigration: string },
-  current: { gatewayVersion: string; schemaMigration: string }
+  exported: { opfieldVersion: string; schemaMigration: string },
+  current: { opfieldVersion: string; schemaMigration: string }
 ): string | null {
-  if (exported.gatewayVersion !== current.gatewayVersion) {
-    return `This export was made by Opfield ${exported.gatewayVersion}, and this installation runs ${current.gatewayVersion}. Restore it into Opfield ${exported.gatewayVersion}: install that exact version, restore, then update.`;
+  if (exported.opfieldVersion !== current.opfieldVersion) {
+    return `This export was made by Opfield ${exported.opfieldVersion}, and this installation runs ${current.opfieldVersion}. Restore it into Opfield ${exported.opfieldVersion}: install that exact version, restore, then update.`;
   }
   if (exported.schemaMigration !== current.schemaMigration) {
-    return `This export was made by a build of Opfield ${exported.gatewayVersion} with another database schema (${exported.schemaMigration}, this build has ${current.schemaMigration}). Restore it into the build it was made by.`;
+    return `This export was made by a build of Opfield ${exported.opfieldVersion} with another database schema (${exported.schemaMigration}, this build has ${current.schemaMigration}). Restore it into the build it was made by.`;
   }
   return null;
 }

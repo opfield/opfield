@@ -8,7 +8,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const migrationsFolder = fileURLToPath(new URL('./migrations', import.meta.url));
 
 /** The migrations up to and including `lastTag`, in a folder drizzle's migrator can read. */
@@ -45,7 +45,7 @@ async function expectViolation(promise: Promise<unknown>, code: string | string[
 }
 
 /**
- * Opt-in: point GATEWAY_MIGRATION_TEST_DATABASE_URL at a disposable local database named gateway_migration_test_*.
+ * Opt-in: point OPFIELD_MIGRATION_TEST_DATABASE_URL at a disposable local database named opfield_migration_test_*.
  * The test drops and recreates its schema, migrates to 0206, seeds the collisions 0207 must survive, then migrates.
  */
 describe.skipIf(!url)('migration 0207 uniqueness guarantees on disposable PostgreSQL', () => {
@@ -174,9 +174,9 @@ describe.skipIf(!url)('migration 0207 uniqueness guarantees on disposable Postgr
     const target = new URL(url!);
     if (
       !['127.0.0.1', 'localhost'].includes(target.hostname) ||
-      !/^\/gateway_migration_test_[a-z0-9_]+$/.test(target.pathname)
+      !/^\/opfield_migration_test_[a-z0-9_]+$/.test(target.pathname)
     ) {
-      throw new Error('Migration DB tests require a local, dedicated gateway_migration_test_* database');
+      throw new Error('Migration DB tests require a local, dedicated opfield_migration_test_* database');
     }
     pool = new pg.Pool({ connectionString: url, max: 4 });
     await q('drop schema if exists drizzle cascade');

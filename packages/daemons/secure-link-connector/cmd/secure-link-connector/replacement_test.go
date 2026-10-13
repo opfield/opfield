@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 // A replacement connector in the anchor's network namespace binds the egress addresses the serving one listens on

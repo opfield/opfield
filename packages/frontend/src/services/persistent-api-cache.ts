@@ -1,4 +1,4 @@
-const DATABASE_NAME = "gateway-api-cache";
+const DATABASE_NAME = "opfield-api-cache";
 const DATABASE_VERSION = 1;
 const STORE_NAME = "entries";
 const SCOPE_INDEX = "scope";

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/exec"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/opfield/opfield/daemon-shared/exec"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // Host access switches live only in the daemon config file on the node, so
@@ -50,7 +50,7 @@ func (c *BaseConfig) hostAccessCapabilities() []string {
 // refuseDisabledNodeExec returns the refusal for a node console command when
 // the console is disabled, or nil when the command may run. Every node exec
 // action (create, resize, run) is refused.
-func refuseDisabledNodeExec(cfg *BaseConfig, cmd *pb.GatewayCommand) *pb.CommandResult {
+func refuseDisabledNodeExec(cfg *BaseConfig, cmd *pb.OpfieldCommand) *pb.CommandResult {
 	if cfg.Console.IsEnabled() {
 		return nil
 	}
@@ -61,7 +61,7 @@ func refuseDisabledNodeExec(cfg *BaseConfig, cmd *pb.GatewayCommand) *pb.Command
 // file access is disabled, or nil when the command may run. The fixed
 // ensure-host-identity operation is not host file access (callers choose no
 // path) and stays available.
-func refuseDisabledNodeFile(cfg *BaseConfig, cmd *pb.GatewayCommand) *pb.CommandResult {
+func refuseDisabledNodeFile(cfg *BaseConfig, cmd *pb.OpfieldCommand) *pb.CommandResult {
 	if cfg.Files.IsEnabled() || cmd.GetNodeFile().GetAction() == "ensure-host-identity" {
 		return nil
 	}
@@ -102,7 +102,7 @@ func checkConsoleUser(cfg *BaseConfig, logger *slog.Logger) string {
 
 // refuseUnavailableConsoleUser returns the refusal for a node console command
 // when console.user cannot be used, or nil when the command may run.
-func refuseUnavailableConsoleUser(refusal string, cmd *pb.GatewayCommand) *pb.CommandResult {
+func refuseUnavailableConsoleUser(refusal string, cmd *pb.OpfieldCommand) *pb.CommandResult {
 	if refusal == "" {
 		return nil
 	}

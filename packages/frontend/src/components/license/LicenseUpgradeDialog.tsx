@@ -37,7 +37,7 @@ export function LicenseUpgradeDialog() {
 
   const goToLicense = () => {
     close();
-    navigate("/settings/general", { state: { scrollTarget: "gateway-license" } });
+    navigate("/settings/general", { state: { scrollTarget: "opfield-license" } });
   };
 
   return (

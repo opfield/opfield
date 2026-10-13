@@ -4,18 +4,18 @@
   "sourceRoot": "packages/logging-sdk/src",
   "targets": {
     "build": {
-      "command": "pnpm --filter @sqgateway/logger build",
+      "command": "pnpm --filter @opfield/logger build",
       "inputs": ["{projectRoot}/src/**/*", "{projectRoot}/tsconfig.json", "{projectRoot}/package.json"],
       "outputs": ["{projectRoot}/dist"],
       "cache": true
     },
     "test": {
-      "command": "pnpm --filter @sqgateway/logger test",
+      "command": "pnpm --filter @opfield/logger test",
       "inputs": ["{projectRoot}/src/**/*", "{projectRoot}/vitest.config.*", "{projectRoot}/package.json"],
       "cache": true
     },
     "lint": {
-      "command": "pnpm --filter @sqgateway/logger lint",
+      "command": "pnpm --filter @opfield/logger lint",
       "inputs": [
         "{projectRoot}/src/**/*",
         "{projectRoot}/biome.json",
@@ -25,7 +25,7 @@
       "cache": true
     },
     "typecheck": {
-      "command": "pnpm --filter @sqgateway/logger typecheck",
+      "command": "pnpm --filter @opfield/logger typecheck",
       "inputs": ["{projectRoot}/src/**/*", "{projectRoot}/tsconfig.json"],
       "cache": true
     }

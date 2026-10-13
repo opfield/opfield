@@ -3,10 +3,10 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): deleting a database keeps its backup history (stand e2e 2.12: the
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): deleting a database keeps its backup history (stand e2e 2.12: the
  * backups of a deleted key-value store must stay restorable). The runs keep their files, name and manifest with the
  * database reference cleared; its policies go with it. A restore of such a backup belongs to no database either.
  */

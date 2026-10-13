@@ -163,7 +163,7 @@ export const usePinnedContainersStore = create<PinnedContainersState>()(
       invalidate: () => set((s) => ({ refreshTick: s.refreshTick + 1 })),
     }),
     {
-      name: "gateway-pinned-containers",
+      name: "opfield-pinned-containers",
       version: 1,
       // v1: builds can no longer be pinned (a build is one finished run, so its pin went stale).
       migrate: (persisted) => dropPinnedBuilds(persisted as PersistedPins),

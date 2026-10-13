@@ -11,7 +11,7 @@ export interface AlertRule {
     | "build"
     | "compose"
     | "proxy"
-    | "gateway"
+    | "opfield"
     | "logging"
     | "integration"
     | "certificate"
@@ -127,7 +127,7 @@ export interface SiemDestination {
 export interface SiemAuditEvent {
   id: string;
   source: string;
-  type: "com.wiolett.gateway.audit.v1";
+  type: "dev.opfield.audit.v1";
   time: string;
   data: {
     action: string;

@@ -254,11 +254,11 @@ class ApiClient extends withAppsApi(
       cache("logging:schemas", () => this.listLoggingSchemas())
     );
     add(
-      auth.hasScope("settings:gateway:view"),
-      "gateway-settings",
+      auth.hasScope("settings:opfield:view"),
+      "opfield-settings",
       cache("settings:auth-provisioning", () => this.getAuthProvisioningSettings())
     );
-    add(auth.hasScope("settings:gateway:view"), "relay", () => this.getRelayStatus());
+    add(auth.hasScope("settings:opfield:view"), "relay", () => this.getRelayStatus());
     add(
       auth.hasScope("docker:registries:view"),
       "docker-registries",
@@ -752,7 +752,7 @@ class ApiClient extends withAppsApi(
     description?: string;
     scopes: string[];
     parentId?: string | null;
-    requireGateway2fa?: boolean;
+    require2fa?: boolean;
   }): Promise<PermissionGroup> {
     return this.request<PermissionGroup>("/admin/groups", {
       method: "POST",
@@ -767,7 +767,7 @@ class ApiClient extends withAppsApi(
       description?: string | null;
       scopes?: string[];
       parentId?: string | null;
-      requireGateway2fa?: boolean;
+      require2fa?: boolean;
     }
   ): Promise<PermissionGroup> {
     return this.request<PermissionGroup>(`/admin/groups/${id}`, {

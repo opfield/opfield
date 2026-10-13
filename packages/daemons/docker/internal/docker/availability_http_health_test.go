@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 func healthCommand(t *testing.T, request availabilityHealthRequest) *pb.DockerAvailabilityCommand {
@@ -159,7 +159,7 @@ func TestAvailabilityHealthCountsFailuresPerInstanceAndHoldsTheCopyOut(t *testin
 	}
 }
 
-func TestAvailabilityHealthExpiresWithoutGateway(t *testing.T) {
+func TestAvailabilityHealthExpiresWithoutOpfield(t *testing.T) {
 	clock := &healthTestClock{now: time.Unix(1_800_000_000, 0)}
 	h := newAvailabilityHealth((&healthTestProbe{outcome: availabilityHealthOutcome{known: true, instance: "c1@t1"}}).probe)
 	h.now = clock.Now

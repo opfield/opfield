@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/swha"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/swha"
 )
 
 // SeaweedFS set members on a newly pinned image (P3-T07): imageMove is

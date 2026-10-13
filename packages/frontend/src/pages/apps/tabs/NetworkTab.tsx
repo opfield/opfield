@@ -13,7 +13,7 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
-import { isGatewayPublicRoute } from "@/lib/proxy-route-protection";
+import { isOpfieldPublicRoute } from "@/lib/proxy-route-protection";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { HEALTH_BADGE, HEALTH_LABEL, TYPE_BADGE } from "@/pages/proxy-detail/helpers";
 import { api } from "@/services/api";
@@ -57,7 +57,7 @@ export function NetworkTab({
   );
   const canViewCompose = useAuthStore((state) => state.hasScopedAccess("docker:compose:view"));
   const canViewRoutes = useAuthStore((state) => state.hasScopedAccess("proxy:view"));
-  const gatewayPublicUrl = useUIBootstrapStore(
+  const opfieldPublicUrl = useUIBootstrapStore(
     (state) => state.snapshot?.systemConfig.publicUrl ?? null
   );
   const { byId: nodesById } = useNodeIndex(version);
@@ -230,7 +230,7 @@ export function NetworkTab({
       width: "5.5rem",
       renderCell: (host) => {
         const locked =
-          host.isSystem || (isGatewayPublicRoute(host, gatewayPublicUrl) && host.enabled);
+          host.isSystem || (isOpfieldPublicRoute(host, opfieldPublicUrl) && host.enabled);
         return (
           <div onClick={(event) => event.stopPropagation()}>
             <Switch
@@ -264,7 +264,7 @@ export function NetworkTab({
             <DropdownMenuItem
               disabled={
                 toggling.has(host.id) ||
-                (isGatewayPublicRoute(host, gatewayPublicUrl) && !host.maintenanceEnabled) ||
+                (isOpfieldPublicRoute(host, opfieldPublicUrl) && !host.maintenanceEnabled) ||
                 (!host.maintenanceEnabled &&
                   (!host.enabled || host.type !== "proxy" || host.rawConfigEnabled))
               }

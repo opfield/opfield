@@ -119,7 +119,7 @@ export class PostgresProbe {
       const client = new pg.Client({
         connectionString: this.connectionString,
         connectionTimeoutMillis: PROBE_TIMEOUT_MS,
-        application_name: 'gateway-diagnostics',
+        application_name: 'opfield-diagnostics',
         keepAlive: true,
       });
       // An idle connection the server closed reports here; the next probe opens a new one.

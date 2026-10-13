@@ -57,7 +57,7 @@ const SETUP_AI_WORKSPACE_OUTCOME_KEY = 'setup:ai_workspace_outcome';
 export const FIRST_ADMIN_CLAIM_TTL_MS = 10 * 60 * 1000;
 const logger = createChildLogger('SetupWizard');
 /** General settings the setup wizard writes, and so the only ones its rollback restores. */
-const SETUP_GENERAL_SETTINGS_FIELDS = ['publicUrl', 'gatewayGrpcPublicTarget', 'gatewayGrpcLocalIp'] as const;
+const SETUP_GENERAL_SETTINGS_FIELDS = ['publicUrl', 'grpcPublicTarget', 'grpcLocalIp'] as const;
 
 /** Input the administrator can correct: 400 with the message the wizard shows. */
 function invalidSetup(message: string): AppError {
@@ -105,8 +105,8 @@ export class SetupWizardService {
   ) {
     const general = await this.generalSettings.updateConfig({
       publicUrl,
-      gatewayGrpcPublicTarget: network.grpcPublicTarget,
-      gatewayGrpcLocalIp: network.grpcLocalIp || null,
+      grpcPublicTarget: network.grpcPublicTarget,
+      grpcLocalIp: network.grpcLocalIp || null,
     });
     onApplied?.(general);
     await Promise.all([this.refreshGrpcIdentity?.(), this.refreshWebIdentity?.()]);
@@ -206,7 +206,7 @@ export class SetupWizardService {
   }
 
   async createAdministrator(input: SetupAdminInput) {
-    if (await this.policy.isGatewayConfigured()) {
+    if (await this.policy.isOpfieldConfigured()) {
       throw administratorExists('The first administrator has already been created');
     }
 
@@ -241,7 +241,7 @@ export class SetupWizardService {
     try {
       // Re-check after obtaining the database-backed singleton claim. This
       // closes the race between multiple app processes receiving setup calls.
-      if (await this.policy.isGatewayConfigured()) {
+      if (await this.policy.isOpfieldConfigured()) {
         throw administratorExists('The first administrator has already been created');
       }
 
@@ -288,12 +288,12 @@ export class SetupWizardService {
 
   async completeAIWorkspace(outcome: {
     status: 'configured' | 'skipped';
-    configuredVia?: 'direct' | 'gateway_inference';
+    configuredVia?: 'direct' | 'opfield_inference';
   }): Promise<void> {
     if (!(await this.generalSettings.getPublicUrl())) {
       throw configurationRequired('Opfield public URL has not been configured');
     }
-    if (!(await this.policy.isGatewayConfigured()))
+    if (!(await this.policy.isOpfieldConfigured()))
       throw configurationRequired('Create the first administrator before completing setup');
     if ((await this.getPhase()) !== 'ai_workspace')
       throw configurationRequired('Apply Opfield setup before configuring AI Workspace');
@@ -343,7 +343,7 @@ export class SetupWizardService {
       throw invalidSetup('At least one authentication method must be enabled');
     }
 
-    const administratorCreated = await this.policy.isGatewayConfigured();
+    const administratorCreated = await this.policy.isOpfieldConfigured();
     if (!administratorCreated) {
       if (!input.administrator) throw invalidSetup('First administrator details are required');
       const methodEnabled =

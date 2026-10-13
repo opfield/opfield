@@ -106,11 +106,11 @@ describe('GroupService MFA enforcement events', () => {
       isBuiltin: false,
       parentId: null,
       scopes: [],
-      requireGateway2fa: false,
+      require2fa: false,
       createdAt: new Date('2026-08-05T00:00:00.000Z'),
       updatedAt: new Date('2026-08-05T00:00:00.000Z'),
     };
-    const updated = { ...group, requireGateway2fa: true, updatedAt: new Date('2026-08-05T01:00:00.000Z') };
+    const updated = { ...group, require2fa: true, updatedAt: new Date('2026-08-05T01:00:00.000Z') };
     const db = {
       query: { permissionGroups: { findFirst: vi.fn().mockResolvedValue(group) } },
       update: vi.fn(() => ({
@@ -144,7 +144,7 @@ describe('GroupService MFA enforcement events', () => {
     const publish = vi.fn();
     service.setEventBus({ publish } as never);
 
-    await service.updateGroup('operators', { requireGateway2fa: true });
+    await service.updateGroup('operators', { require2fa: true });
 
     expect(setUserSessionsMfaGraceExpiresAt).toHaveBeenCalledWith('member-needs-mfa', expect.any(Number));
     expect(setUserSessionsMfaGraceExpiresAt).toHaveBeenCalledWith('member-has-totp', expect.any(Number));
@@ -158,23 +158,23 @@ describe('GroupService MFA enforcement events', () => {
     expect(publish).toHaveBeenCalledWith('mfa.required.member-needs-mfa', {
       groupId: 'operators',
       groupName: 'Operators',
-      requireGateway2fa: true,
+      require2fa: true,
     });
     expect(publish).toHaveBeenCalledWith('mfa.required.member-has-totp', {
       groupId: 'operators',
       groupName: 'Operators',
-      requireGateway2fa: true,
+      require2fa: true,
     });
     expect(publish).toHaveBeenCalledWith('mfa.required.member-has-passkey', {
       groupId: 'operators',
       groupName: 'Operators',
-      requireGateway2fa: true,
+      require2fa: true,
     });
     expect(publish).not.toHaveBeenCalledWith('mfa.required.member-oidc', expect.anything());
     expect(publish).toHaveBeenCalledWith('group.mfa.required', {
       groupId: 'operators',
       groupName: 'Operators',
-      requireGateway2fa: true,
+      require2fa: true,
       memberCount: 4,
     });
   });
@@ -187,11 +187,11 @@ describe('GroupService MFA enforcement events', () => {
       isBuiltin: false,
       parentId: null,
       scopes: [],
-      requireGateway2fa: true,
+      require2fa: true,
       createdAt: new Date('2026-08-05T00:00:00.000Z'),
       updatedAt: new Date('2026-08-05T00:00:00.000Z'),
     };
-    const updated = { ...group, requireGateway2fa: false, updatedAt: new Date('2026-08-05T01:00:00.000Z') };
+    const updated = { ...group, require2fa: false, updatedAt: new Date('2026-08-05T01:00:00.000Z') };
     const db = {
       query: { permissionGroups: { findFirst: vi.fn().mockResolvedValue(group) } },
       update: vi.fn(() => ({
@@ -219,7 +219,7 @@ describe('GroupService MFA enforcement events', () => {
       { getConfig: vi.fn() } as unknown as AuthSettingsService
     );
 
-    await service.updateGroup('operators', { requireGateway2fa: false });
+    await service.updateGroup('operators', { require2fa: false });
 
     expect(clearUserSessionsMfaGraceExpiresAt).toHaveBeenCalledWith('local-user');
     expect(clearUserSessionsMfaGraceExpiresAt).not.toHaveBeenCalledWith('oidc-user');
@@ -237,7 +237,7 @@ describe('GroupService MFA enforcement events', () => {
       isBuiltin: false,
       parentId: null,
       scopes: [],
-      requireGateway2fa: false,
+      require2fa: false,
       createdAt: new Date('2026-08-05T00:00:00.000Z'),
       updatedAt: new Date('2026-08-05T00:00:00.000Z'),
     };
@@ -252,9 +252,9 @@ describe('GroupService MFA enforcement events', () => {
       { getConfig: vi.fn() } as unknown as AuthSettingsService
     );
 
-    await expect(
-      service.updateGroup('operators', { parentId: 'operators', requireGateway2fa: true })
-    ).rejects.toMatchObject({ code: 'CYCLE_DETECTED' });
+    await expect(service.updateGroup('operators', { parentId: 'operators', require2fa: true })).rejects.toMatchObject({
+      code: 'CYCLE_DETECTED',
+    });
 
     expect(setUserSessionsMfaGraceExpiresAt).not.toHaveBeenCalled();
     expect(clearUserSessionsMfaGraceExpiresAt).not.toHaveBeenCalled();

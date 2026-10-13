@@ -3,10 +3,10 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { disposableDatabase, migrateDatabase, pgError, rejection } from './migration-database.test-helpers.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL, see migration-database.test-helpers): migration 0209 on its own
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL, see migration-database.test-helpers): migration 0209 on its own
  * database: reservation holds, Availability replica reservations, the reconcile, proxy domain record mode, and the
  * managed storage name suffix.
  */

@@ -3,7 +3,7 @@ import { CreateUserSchema, UpdateUserGroupSchema } from '../admin/admin.schemas.
 import { computeEffectiveUserAccess, groupsRequireMfa } from './live-session-user.js';
 
 const groupMap = new Map([
-  ['a', { id: 'a', name: 'A', parentId: null, scopes: ['pages:view:p1'], requireGateway2fa: true }],
+  ['a', { id: 'a', name: 'A', parentId: null, scopes: ['pages:view:p1'], require2fa: true }],
   ['b', { id: 'b', name: 'B', parentId: null, scopes: ['databases:view:d1'] }],
   ['c', { id: 'c', name: 'C', parentId: 'b', scopes: ['pages:edit:p1'] }],
 ]);
@@ -15,13 +15,13 @@ describe('multiple user groups', () => {
     expect(access.groupScopes).toEqual(expect.arrayContaining(['pages:view:p1', 'pages:edit:p1', 'databases:view:d1']));
     expect(access.additionalScopes).toEqual(['nodes:details:n1']);
     expect(access.scopes).toContain('nodes:details:n1');
-    expect(access.requireGateway2fa).toBe(true);
+    expect(access.require2fa).toBe(true);
   });
   it('removes permissions from a deselected group but keeps additional grants', () => {
     const access = computeEffectiveUserAccess('b', groupMap, ['pages:view:p1']);
     expect(access.groupScopes).toEqual(['databases:view:d1']);
     expect(access.scopes).toContain('pages:view:p1');
-    expect(access.requireGateway2fa).toBe(false);
+    expect(access.require2fa).toBe(false);
     expect(groupsRequireMfa(['b', 'a'], groupMap)).toBe(true);
   });
   it('accepts legacy single membership and validated nonempty multiple membership', () => {

@@ -416,12 +416,12 @@ export abstract class IntegrationsGitSupportService extends IntegrationsPersiste
     access: 'read' | 'write' = 'read'
   ): Promise<T> {
     const auth = await this.resolveGitRepository(user, 'git', input.connectorId, input.repositoryUrl, access);
-    const temporaryRoot = await mkdtemp(join(tmpdir(), 'gateway-git-'));
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'opfield-git-'));
     const checkoutDir = join(temporaryRoot, 'checkout');
     const askpassPath = join(temporaryRoot, 'askpass.sh');
     await writeFile(
       askpassPath,
-      '#!/bin/sh\ncase "$1" in *Username*) printf "%s\\n" "$GATEWAY_GIT_USERNAME" ;; *) printf "%s\\n" "$GATEWAY_GIT_SECRET" ;; esac\n',
+      '#!/bin/sh\ncase "$1" in *Username*) printf "%s\\n" "$OPFIELD_GIT_USERNAME" ;; *) printf "%s\\n" "$OPFIELD_GIT_SECRET" ;; esac\n',
       { mode: 0o700 }
     );
     await chmod(askpassPath, 0o700);
@@ -469,8 +469,8 @@ export abstract class IntegrationsGitSupportService extends IntegrationsPersiste
           GIT_CONFIG_NOSYSTEM: '1',
           GIT_TERMINAL_PROMPT: '0',
           GIT_ASKPASS: context.askpassPath,
-          GATEWAY_GIT_USERNAME: context.username,
-          GATEWAY_GIT_SECRET: context.token,
+          OPFIELD_GIT_USERNAME: context.username,
+          OPFIELD_GIT_SECRET: context.token,
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       });

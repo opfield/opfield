@@ -60,7 +60,7 @@ export const usePinnedProxiesStore = create<PinnedProxiesState>()(
       invalidate: () => set((s) => ({ refreshTick: s.refreshTick + 1 })),
     }),
     {
-      name: "gateway-pinned-proxy-hosts",
+      name: "opfield-pinned-proxy-hosts",
       partialize: (s) => ({
         dashboardProxyIds: s.dashboardProxyIds,
         sidebarProxyIds: s.sidebarProxyIds,

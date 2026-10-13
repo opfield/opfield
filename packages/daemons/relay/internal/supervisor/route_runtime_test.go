@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,7 +41,7 @@ func TestRouteRuntimeAnswersHeldRoutesAndListsMissingOnes(t *testing.T) {
 	admin := &runtimeAdmin{runtimes: map[string]*relayv1.RouteRuntimeResponse{
 		"route-1": {RouteId: "route-1", ActiveTunnels: 3, OpenedTotal: 9, FailedTotal: 1, SetupLatencyP95Microseconds: 4000, LastActivityUnixMilliseconds: 1787932800000},
 	}}
-	result := runtimePlugin(admin).HandleCommand(&pb.GatewayCommand{CommandId: "c1", Payload: &pb.GatewayCommand_GetRelayRouteRuntime{
+	result := runtimePlugin(admin).HandleCommand(&pb.OpfieldCommand{CommandId: "c1", Payload: &pb.OpfieldCommand_GetRelayRouteRuntime{
 		GetRelayRouteRuntime: &pb.GetRelayRouteRuntimeCommand{RouteIds: []string{"route-1", "route-2"}},
 	}})
 	if !result.GetSuccess() {
@@ -68,7 +68,7 @@ func TestRouteRuntimeAnswersHeldRoutesAndListsMissingOnes(t *testing.T) {
 
 func TestRouteRuntimeFailsWholeWhenTheWorkerDoesNotAnswer(t *testing.T) {
 	admin := &runtimeAdmin{err: status.Error(codes.Unavailable, "relay worker is not running")}
-	result := runtimePlugin(admin).HandleCommand(&pb.GatewayCommand{Payload: &pb.GatewayCommand_GetRelayRouteRuntime{
+	result := runtimePlugin(admin).HandleCommand(&pb.OpfieldCommand{Payload: &pb.OpfieldCommand_GetRelayRouteRuntime{
 		GetRelayRouteRuntime: &pb.GetRelayRouteRuntimeCommand{RouteIds: []string{"route-1"}},
 	}})
 	if result.GetSuccess() || result.GetDetail() != "" || !strings.Contains(result.GetError(), "not running") {

@@ -16,10 +16,14 @@ export async function restoreProxmoxFirewallBinding(
   previous: Rule,
   stagedGroup: string,
   request: Request,
-  readRules: (path: string) => Promise<Rule[]>
+  readRules: (path: string) => Promise<Rule[]>,
+  /** The binding PUT may have rewritten a legacy comment to the current one. */
+  bindingComment: string | number | undefined = previous.comment
 ) {
+  const ours = (rule: Rule) =>
+    rule.type === 'group' && (rule.comment === previous.comment || rule.comment === bindingComment);
   const rules = await readRules(`${base}/firewall/rules`);
-  const matches = rules.filter((rule) => rule.type === 'group' && rule.comment === previous.comment);
+  const matches = rules.filter(ours);
   const binding = matches[0];
   if (
     matches.length !== 1 ||
@@ -34,27 +38,29 @@ export async function restoreProxmoxFirewallBinding(
     body: { action: previous.action, enable: previous.enable ?? 1, digest: binding.digest },
   });
   const after = await readRules(`${base}/firewall/rules`);
-  if (
-    !after.some(
-      (rule) =>
-        rule.type === 'group' &&
-        rule.comment === previous.comment &&
-        rule.action === previous.action &&
-        enabled(rule) === enabled(previous)
-    )
-  )
+  if (!after.some((rule) => ours(rule) && rule.action === previous.action && enabled(rule) === enabled(previous)))
     conflict();
 }
 
 /** Inactive ownership anchors make interrupted disable recoverable without altering foreign rules. */
 export async function disableProxmoxFirewall(
-  current: { base: string; options: Options; vmRules: Rule[]; ownBindings: Rule[]; bindingComment: string },
+  current: {
+    base: string;
+    options: Options;
+    vmRules: Rule[];
+    ownBindings: Rule[];
+    bindingComment: string;
+    legacyBindingComment?: string;
+  },
   request: Request,
   readRules: (path: string) => Promise<Rule[]>
 ) {
   const path = `${current.base}/firewall/rules`;
   const optionsPath = `${current.base}/firewall/options`;
-  const owned = (rule: Rule) => rule.type === 'group' && rule.comment === current.bindingComment;
+  const owned = (rule: Rule) =>
+    rule.type === 'group' &&
+    (rule.comment === current.bindingComment ||
+      (current.legacyBindingComment !== undefined && rule.comment === current.legacyBindingComment));
   let rules = await readRules(path);
   if (firewallFingerprint(rules) !== firewallFingerprint(current.vmRules)) conflict();
   for (const binding of current.ownBindings.filter(enabled)) {

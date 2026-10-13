@@ -272,6 +272,11 @@ export interface HostingProviderAdapter {
   ): Promise<HostingProviderOperation | null>;
   /** Remove only the operation-owned bootstrap medium after verified enrollment. */
   cleanupBootstrap?(resource: HostingResourceSnapshot, request: HostingCreateRequest): Promise<void>;
+  /**
+   * Rewrites the marker metadata an older release wrote on a resource it created (description,
+   * label) to the current form. Metadata only, never recreates. Returns whether anything was written.
+   */
+  rewriteLegacyMarker?(resource: HostingResourceSnapshot): Promise<boolean>;
   /** Providers without user data: delete the one-time SSH install key registered for `marker`. Idempotent. */
   releaseInstallKey?(marker: string): Promise<{ deleted: number }>;
   action(

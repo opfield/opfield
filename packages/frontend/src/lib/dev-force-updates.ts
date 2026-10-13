@@ -1,8 +1,8 @@
 import type { NodeDetail, NodeType, UpdateStatus } from "@/types";
 
-export const DEV_FORCE_UPDATES_STORAGE_KEY = "gateway-dev-force-updates";
+export const DEV_FORCE_UPDATES_STORAGE_KEY = "opfield-dev-force-updates";
 
-const FORCED_GATEWAY_VERSION = "v9.9.9";
+const FORCED_OPFIELD_VERSION = "v9.9.9";
 const FORCED_RELAY_VERSION = "v9.9.9";
 const FORCED_DAEMON_VERSION = "9.9.9";
 const DAEMON_NODE_TYPES = new Set<NodeType>([
@@ -13,7 +13,7 @@ const DAEMON_NODE_TYPES = new Set<NodeType>([
   "monitoring",
 ]);
 
-export type DevForcedUpdateMode = "gateway" | "relay" | "both";
+export type DevForcedUpdateMode = "opfield" | "relay" | "both";
 
 export function setDevForcedUpdateMode(mode: DevForcedUpdateMode): void {
   if (!import.meta.env.DEV || typeof window === "undefined") return;
@@ -24,16 +24,16 @@ export function getDevForcedUpdateMode(): DevForcedUpdateMode | null {
   if (!import.meta.env.DEV || typeof window === "undefined") return null;
   const stored = window.localStorage.getItem(DEV_FORCE_UPDATES_STORAGE_KEY);
   if (stored === "0") return null;
-  if (stored === "relay" || stored === "both" || stored === "gateway") return stored;
-  if (stored === "1") return "gateway";
-  return import.meta.env.MODE === "development" ? "gateway" : null;
+  if (stored === "relay" || stored === "both" || stored === "opfield") return stored;
+  if (stored === "1") return "opfield";
+  return import.meta.env.MODE === "development" ? "opfield" : null;
 }
 
 export function isDevForceUpdatesEnabled(): boolean {
   return getDevForcedUpdateMode() !== null;
 }
 
-export function applyForcedGatewayUpdateStatus(status: UpdateStatus): UpdateStatus {
+export function applyForcedOpfieldUpdateStatus(status: UpdateStatus): UpdateStatus {
   const normalizedStatus: UpdateStatus = {
     ...status,
     relay: status.relay ?? {
@@ -47,13 +47,13 @@ export function applyForcedGatewayUpdateStatus(status: UpdateStatus): UpdateStat
   };
   const mode = getDevForcedUpdateMode();
   if (!mode) return normalizedStatus;
-  const gatewayUpdateAvailable = mode === "gateway" || mode === "both";
+  const opfieldUpdateAvailable = mode === "opfield" || mode === "both";
   const relayUpdateAvailable = mode === "relay" || mode === "both";
   return {
     ...normalizedStatus,
-    latestVersion: gatewayUpdateAvailable ? FORCED_GATEWAY_VERSION : null,
-    updateAvailable: gatewayUpdateAvailable,
-    releaseNotes: gatewayUpdateAvailable
+    latestVersion: opfieldUpdateAvailable ? FORCED_OPFIELD_VERSION : null,
+    updateAvailable: opfieldUpdateAvailable,
+    releaseNotes: opfieldUpdateAvailable
       ? (status.releaseNotes ?? "Local Opfield update preview.")
       : null,
     lastCheckedAt: status.lastCheckedAt ?? new Date().toISOString(),

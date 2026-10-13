@@ -7,11 +7,13 @@ import { Readable } from 'node:stream';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { OPFIELD_ACCOUNT_CLIENT_KEY } from '@/modules/auth/oidc-settings.service.js';
 import { RestoreError, singleFileTar, verifyExport } from './configuration-restore.js';
-import { withDefaultPort } from './gateway-move.service.js';
+import { withDefaultPort } from './opfield-move.service.js';
 import { ExportArchiveError, ExportArchiveWriter, MANIFEST_PART } from './transfer-archive.js';
-import { forgetCloudLink, RESTORE_FORGOTTEN_SETTINGS } from './transfer-docker.js';
+import { dumpDatabaseName, forgetCloudLink, RESTORE_FORGOTTEN_SETTINGS, restoreDatabase } from './transfer-docker.js';
 import {
   type ConfigurationExportManifest,
+  composeVolumeKey,
+  composeVolumeName,
   DATABASE_DUMP_FILE,
   DATABASE_PART,
   ENVIRONMENT_PART,
@@ -24,7 +26,7 @@ import {
 
 const FAST_KDF = { name: 'scrypt' as const, N: 16_384, r: 8, p: 1 };
 const PASSPHRASE = 'moving day passphrase';
-const CURRENT = { gatewayVersion: 'v2.12.0', schemaMigration: '0241_backup_run_source' };
+const CURRENT = { opfieldVersion: 'v2.12.0', schemaMigration: '0241_backup_run_source' };
 const MASTER_KEY = randomBytes(32).toString('hex');
 const work = mkdtempSync(join(tmpdir(), 'configuration-restore-'));
 
@@ -32,7 +34,7 @@ function manifest(overrides: Partial<ConfigurationExportManifest> = {}): Configu
   return {
     format: 1,
     createdAt: '2026-10-11T12:00:00.000Z',
-    gatewayVersion: CURRENT.gatewayVersion,
+    opfieldVersion: CURRENT.opfieldVersion,
     schemaMigration: CURRENT.schemaMigration,
     installationId: '7c1f6c2e-2a8f-4c62-9a43-0d8a2f2b1c11',
     source: {
@@ -119,7 +121,7 @@ describe('restoring a configuration export', () => {
   });
 
   it('refuses another Opfield version or schema with a clear message', async () => {
-    const path = await exportFile('older.opfield-export', { header: { gatewayVersion: 'v2.11.4' } });
+    const path = await exportFile('older.opfield-export', { header: { opfieldVersion: 'v2.11.4' } });
     const error = await verifyExport(path, PASSPHRASE, CURRENT).catch((caught: unknown) => caught as RestoreError);
     expect(error).toBeInstanceOf(RestoreError);
     expect((error as RestoreError).code).toBe('VERSION_MISMATCH');
@@ -189,7 +191,10 @@ describe('configuration export layout', () => {
 describe('a restored copy and the cloud link', () => {
   it('forgets the cloud link of the source installation in the restored database', async () => {
     const exec = vi.fn(async (_container: string, _command: string[]) => ({ exitCode: 0, output: 'DELETE 3' }));
-    await forgetCloudLink({ execInContainer: exec } as never, { postgres: 'pg-1' } as never);
+    await forgetCloudLink(
+      { execInContainer: exec } as never,
+      { postgres: 'pg-1', database: { role: 'opfield', name: 'opfield' } } as never
+    );
     expect(exec).toHaveBeenCalledOnce();
     const [container, command] = exec.mock.calls[0]!;
     expect(container).toBe('pg-1');
@@ -208,8 +213,66 @@ describe('a restored copy and the cloud link', () => {
 
   it('stops the restore when the link cannot be forgotten', async () => {
     const exec = vi.fn(async () => ({ exitCode: 1, output: 'relation "settings" does not exist' }));
-    await expect(forgetCloudLink({ execInContainer: exec } as never, { postgres: 'pg-1' } as never)).rejects.toThrow(
-      'Forgetting the cloud account link failed'
+    await expect(
+      forgetCloudLink(
+        { execInContainer: exec } as never,
+        { postgres: 'pg-1', database: { role: 'opfield', name: 'opfield' } } as never
+      )
+    ).rejects.toThrow('Forgetting the cloud account link failed');
+  });
+});
+
+describe('restoring into either layout', () => {
+  const opfieldCompose = `name: opfield
+services:
+  app:
+    image: x
+volumes:
+  app_data:
+  relay_state:
+  registry_data:
+    name: gateway_gateway_registry_data
+    external: true
+`;
+
+  it('maps the export volume keys to the volumes of the installation it restores into', () => {
+    expect(composeVolumeName('gateway', 'gateway_data', 'services: {}\n')).toBe('gateway_gateway_data');
+    expect(composeVolumeName('opfield', 'gateway_data', opfieldCompose)).toBe('opfield_app_data');
+    expect(composeVolumeName('opfield', 'gateway_relay_state', opfieldCompose)).toBe('opfield_relay_state');
+    // A moved installation keeps its volumes by name.
+    expect(composeVolumeName('opfield', 'gateway_registry_data', opfieldCompose)).toBe('gateway_gateway_registry_data');
+    expect(composeVolumeKey('gateway_data', opfieldCompose)).toBe('app_data');
+    expect(composeVolumeKey('gateway_data', null)).toBe('gateway_data');
+    expect(composeVolumeName('opfield', 'clickhouse_data', opfieldCompose)).toBe('opfield_clickhouse_data');
+  });
+
+  it('reads the database a dump recreates from its table of contents', () => {
+    const list = ';\n; Archive created at 2026-10-13\n;     dbname: gateway\n;     TOC Entries: 812\n';
+    expect(dumpDatabaseName(list)).toBe('gateway');
+    expect(dumpDatabaseName('; nothing')).toBeNull();
+  });
+
+  it('restores a dump of the other layout under this installation’s database and role', async () => {
+    const commands: string[][] = [];
+    const exec = vi.fn(async (_container: string, command: string[]) => {
+      commands.push(command);
+      return {
+        exitCode: 0,
+        output: command[0] === 'pg_restore' && command[1] === '--list' ? ';     dbname: gateway\n' : '',
+      };
+    });
+    const docker = { execInContainer: exec, putContainerArchiveStream: vi.fn(async () => undefined) };
+    await restoreDatabase(
+      docker as never,
+      { postgres: 'pg', database: { role: 'opfield', name: 'opfield' } } as never,
+      Readable.from([]),
+      'dump.file'
     );
+    const sql = commands.map((command) => command.join(' '));
+    expect(sql).toContainEqual(expect.stringContaining('DROP DATABASE IF EXISTS opfield WITH (FORCE)'));
+    expect(sql).toContainEqual(
+      expect.stringContaining('pg_restore --create --no-owner --exit-on-error --no-password -U opfield -d postgres')
+    );
+    expect(sql).toContainEqual(expect.stringContaining('ALTER DATABASE gateway RENAME TO opfield'));
   });
 });

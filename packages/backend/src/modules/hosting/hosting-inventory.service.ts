@@ -771,6 +771,7 @@ export class HostingInventoryService {
             )
           );
       });
+      await this.rewriteLegacyMarkers(connectorId, adapter, snapshots, settings.resourceIds);
       if (!skipAdoption) await this.adopt(connector, adapter);
       try {
         await this.refreshCatalog(connector, adapter);
@@ -808,6 +809,56 @@ export class HostingInventoryService {
       await this.refreshSnapshot(connectorId);
       this.connectors.changed(connectorId);
       throw error;
+    }
+  }
+
+  /**
+   * Marker metadata older releases wrote on VMs this installation created is rewritten in place. Only
+   * created resources (another installation sharing the account keeps its own VMs), inside the
+   * connector scope, with no operation in flight. A failed rewrite keeps the old form, which stays
+   * recognized.
+   */
+  private async rewriteLegacyMarkers(
+    connectorId: string,
+    adapter: HostingProviderAdapter,
+    snapshots: HostingResourceSnapshot[],
+    resourceIds: string[]
+  ) {
+    if (!adapter.rewriteLegacyMarker) return;
+    const created = await this.db
+      .select({ id: hostingResources.id, remoteId: hostingResources.remoteId, kind: hostingResources.kind })
+      .from(hostingResources)
+      .where(
+        and(
+          eq(hostingResources.connectorId, connectorId),
+          eq(hostingResources.origin, 'created'),
+          isNull(hostingResources.missingSince)
+        )
+      );
+    if (!created.length) return;
+    const active = await this.db
+      .select({ id: hostingOperations.id, resourceId: hostingOperations.resourceId })
+      .from(hostingOperations)
+      .where(
+        and(eq(hostingOperations.connectorId, connectorId), notInArray(hostingOperations.phase, ['ready', 'failed']))
+      );
+    const busyResources = new Set(active.map((operation) => operation.resourceId));
+    const busyMarkers = new Set(active.map((operation) => `gw-${operation.id}`));
+    for (const snapshot of snapshots) {
+      const resource = created.find((row) => row.remoteId === snapshot.remoteId && row.kind === snapshot.kind);
+      if (
+        !resource ||
+        !snapshot.marker ||
+        busyResources.has(resource.id) ||
+        busyMarkers.has(snapshot.marker) ||
+        (resourceIds.length && !resourceIds.includes(snapshot.remoteId))
+      )
+        continue;
+      try {
+        await adapter.rewriteLegacyMarker(snapshot);
+      } catch {
+        /* Missing write permission or a concurrent change: the next sync tries again. */
+      }
     }
   }
 

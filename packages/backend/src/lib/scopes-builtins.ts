@@ -108,7 +108,7 @@ export const ADMIN_SCOPES: readonly string[] = [
   'admin:details:certificates',
   'admin:update',
   'admin:alerts',
-  'settings:gateway:view',
+  'settings:opfield:view',
   'integrations:gitlab:view',
   'integrations:gitlab:manage',
   'integrations:gitlab:use',

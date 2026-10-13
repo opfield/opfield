@@ -196,7 +196,7 @@ export class ManagedLeftoverRepair {
             if (!result.success) throw new Error(result.error || 'the node did not remove it');
             this.firstSeen.delete(key);
             removed += 1;
-            logger.info('Removed what a managed instance Gateway no longer has left on its node', {
+            logger.info('Removed what a managed instance Opfield no longer has left on its node', {
               nodeId: node.id,
               kind,
               id: leftover.id,

@@ -39,7 +39,6 @@ import {
 import { isNodeNotConnectedError } from '@/services/node-connection-errors.js';
 import type { CryptoService } from './crypto.service.js';
 import type { EventBusService } from './event-bus.service.js';
-import { GatewayRelayPaths } from './gateway-relay-paths.js';
 import type { LocalRelayOutageSignal } from './local-relay-outage.js';
 import {
   type ManagedLinkConnections,
@@ -48,6 +47,7 @@ import {
 } from './managed-link-runtime.js';
 import type { NodeDispatchService } from './node-dispatch.service.js';
 import type { NodeRegistryService } from './node-registry.service.js';
+import { OpfieldRelayPaths } from './opfield-relay-paths.js';
 import { relayGrantBundleFingerprint } from './relay-grant-bundle-fingerprint.js';
 import {
   type RelayGrantBundle,
@@ -101,8 +101,8 @@ import {
 } from './relay-session-limits.js';
 import {
   candidateDrainDeadline,
-  GATEWAY_STREAM_REPORT_SOURCE,
-  gatewayStreamReport,
+  OPFIELD_STREAM_REPORT_SOURCE,
+  opfieldStreamReport,
   type RelayStreamReports,
   RelayStreamResumeService,
 } from './relay-stream-resume.js';
@@ -154,30 +154,30 @@ const logger = createChildLogger('RelayPolicyService');
  * One of Gateway's own connections opened on a relay after the nearer ones in its order did not open: where it went and
  * why, so a stream on a farther relay is accounted for (stand rc.10, F-1).
  */
-function logGatewayPathPastNearer(
+function logOpfieldPathPastNearer(
   routeId: string,
   relayId: string,
   passed: ReadonlyArray<{ relayId: string; error: string }>
 ): void {
-  logger.info('Gateway relay path opened past a nearer relay', { routeId, relayId, passed });
+  logger.info('Opfield relay path opened past a nearer relay', { routeId, relayId, passed });
 }
 
-/** What a loopback endpoint of Gateway's own tunnels leads to (see RelayPolicyService.gatewayTunnelEndpoint). */
-export type GatewayTunnelTarget =
+/** What a loopback endpoint of Gateway's own tunnels leads to (see RelayPolicyService.opfieldTunnelEndpoint). */
+export type OpfieldTunnelTarget =
   | { kind: 'database'; managedDatabaseId: string; lane?: 'interactive' | 'monitoring' }
   | { kind: 'storage'; clusterId: string };
 
-export interface GatewayTunnelEndpoint {
+export interface OpfieldTunnelEndpoint {
   host: '127.0.0.1';
   port: number;
 }
 
 /** The tunnel worker's connection for a tunnel closed while the tunnel opened. */
-function isGatewayConnectionGone(error: unknown): boolean {
+function isOpfieldConnectionGone(error: unknown): boolean {
   return (error as { code?: unknown } | null)?.code === 'slot_gone';
 }
 
-function gatewayTunnelKey(target: GatewayTunnelTarget): string {
+function opfieldTunnelKey(target: OpfieldTunnelTarget): string {
   if (target.kind === 'storage') return `storage:${target.clusterId}`;
   return target.lane ? `database:${target.managedDatabaseId}:${target.lane}` : `database:${target.managedDatabaseId}`;
 }
@@ -538,21 +538,21 @@ export class RelayPolicyService {
     routes: Array<{ id: string; ownerKind: string; ownerId: string }>
   ) => Promise<{ endpoints: Map<string, string>; routes: Map<string, string> }>;
   /** How Gateway's own relayed streams choose relays and return to the nearest (O-1); made on first use. */
-  private gatewayRelayPaths?: GatewayRelayPaths;
+  private opfieldRelayPaths?: OpfieldRelayPaths;
   /** The data plane of Gateway's own tunnels (the tunnel worker); set at start-up, made on this thread otherwise. */
-  private gatewayTunnelHost?: RelayTunnelHost;
+  private opfieldTunnelHost?: RelayTunnelHost;
   /** Loopback endpoints in the tunnel worker the database drivers and the S3 client connect to. */
-  private readonly gatewayEndpoints = new Map<
+  private readonly opfieldEndpoints = new Map<
     string,
     {
-      target: GatewayTunnelTarget;
+      target: OpfieldTunnelTarget;
       fingerprint: () => string | undefined;
-      endpoint: Promise<GatewayTunnelEndpoint>;
+      endpoint: Promise<OpfieldTunnelEndpoint>;
     }
   >();
-  private gatewayLocalRelay?: Pick<LocalRelayOutageSignal, 'latestOutage'>;
+  private opfieldLocalRelay?: Pick<LocalRelayOutageSignal, 'latestOutage'>;
   /** The client certificate each Gateway route was opened with, to look its candidates up again. */
-  private readonly gatewayRouteFingerprints = new Map<string, string>();
+  private readonly opfieldRouteFingerprints = new Map<string, string>();
   /** What the nodes running managed links' workloads report about the links' connections. */
   private managedLinkReports?: Pick<NodeRegistryService, 'managedLinkReport' | 'requestHealthReport'> &
     Partial<Pick<NodeRegistryService, 'relayStreamReports'>>;
@@ -582,43 +582,43 @@ export class RelayPolicyService {
 
   /** The local relay's outages (its supervisor): Gateway's own streams leave it meanwhile and return once it is stable. */
   setLocalRelayOutage(signal: Pick<LocalRelayOutageSignal, 'latestOutage'>): void {
-    this.gatewayLocalRelay = signal;
-    this.gatewayRelayPaths?.setLocalRelay(signal);
+    this.opfieldLocalRelay = signal;
+    this.opfieldRelayPaths?.setLocalRelay(signal);
   }
 
   /**
    * Starts measuring Gateway's round trip to every remote relay of the pool, at once and every interval, so its own
    * streams know each relay's distance whenever they move, however long they ran without a new path (F-3).
    */
-  measureGatewayRelayPaths(): void {
-    this.gatewayPaths().startMeasuring();
+  measureOpfieldRelayPaths(): void {
+    this.opfieldPaths().startMeasuring();
   }
 
   /** An assignment generation became active: Gateway's own streams judge their relays on it at once. */
-  gatewayAssignmentsChanged(): void {
-    this.gatewayRelayPaths?.assignmentsChanged();
+  opfieldAssignmentsChanged(): void {
+    this.opfieldRelayPaths?.assignmentsChanged();
   }
 
   /**
    * Hands Gateway's own tunnels to `host` (the tunnel worker). Called once at start-up, before any tunnel opens.
    */
-  setGatewayTunnels(host: RelayTunnelHost): void {
-    this.gatewayTunnelHost = host;
-    this.wireGatewayTunnels(host);
+  setOpfieldTunnels(host: RelayTunnelHost): void {
+    this.opfieldTunnelHost = host;
+    this.wireOpfieldTunnels(host);
   }
 
-  private gatewayTunnels(): RelayTunnelHost {
-    if (!this.gatewayTunnelHost) {
-      this.gatewayTunnelHost = RelayTunnelHost.inThread(this.relay);
-      this.wireGatewayTunnels(this.gatewayTunnelHost);
+  private opfieldTunnels(): RelayTunnelHost {
+    if (!this.opfieldTunnelHost) {
+      this.opfieldTunnelHost = RelayTunnelHost.inThread(this.relay);
+      this.wireOpfieldTunnels(this.opfieldTunnelHost);
     }
-    return this.gatewayTunnelHost;
+    return this.opfieldTunnelHost;
   }
 
-  private wireGatewayTunnels(host: RelayTunnelHost): void {
-    host.onAccept((key, slotId) => this.acceptGatewayConnection(key, slotId));
+  private wireOpfieldTunnels(host: RelayTunnelHost): void {
+    host.onAccept((key, slotId) => this.acceptOpfieldConnection(key, slotId));
     // A restarted worker has none of the endpoints: they are created again on their next use.
-    host.onReset(() => this.gatewayEndpoints.clear());
+    host.onReset(() => this.opfieldEndpoints.clear());
   }
 
   /**
@@ -626,53 +626,53 @@ export class RelayPolicyService {
    * runs through a Gateway relay tunnel opened for that connection, in the tunnel worker, so its bytes never pass this
    * thread. `fingerprint` names the client certificate Gateway presents at the time of each connection.
    */
-  gatewayTunnelEndpoint(
-    target: GatewayTunnelTarget,
+  opfieldTunnelEndpoint(
+    target: OpfieldTunnelTarget,
     fingerprint: () => string | undefined
-  ): Promise<GatewayTunnelEndpoint> {
-    const key = gatewayTunnelKey(target);
-    const existing = this.gatewayEndpoints.get(key);
+  ): Promise<OpfieldTunnelEndpoint> {
+    const key = opfieldTunnelKey(target);
+    const existing = this.opfieldEndpoints.get(key);
     if (existing) {
       existing.fingerprint = fingerprint;
       return existing.endpoint;
     }
-    const endpoint = this.gatewayTunnels()
+    const endpoint = this.opfieldTunnels()
       .createEndpoint(key)
-      .then((port): GatewayTunnelEndpoint => ({ host: '127.0.0.1', port }))
+      .then((port): OpfieldTunnelEndpoint => ({ host: '127.0.0.1', port }))
       .catch((error) => {
-        if (this.gatewayEndpoints.get(key)?.endpoint === endpoint) this.gatewayEndpoints.delete(key);
+        if (this.opfieldEndpoints.get(key)?.endpoint === endpoint) this.opfieldEndpoints.delete(key);
         throw error;
       });
     const entry = { target, fingerprint, endpoint };
-    this.gatewayEndpoints.set(key, entry);
+    this.opfieldEndpoints.set(key, entry);
     return entry.endpoint;
   }
 
   /** Closes the endpoint(s) of a managed database (every lane, unless one is named) or storage cluster. */
-  async disposeGatewayTunnelEndpoint(target: GatewayTunnelTarget): Promise<void> {
-    const key = gatewayTunnelKey(target);
+  async disposeOpfieldTunnelEndpoint(target: OpfieldTunnelTarget): Promise<void> {
+    const key = opfieldTunnelKey(target);
     const keys =
       target.kind === 'database' && !target.lane
-        ? [...this.gatewayEndpoints.keys()].filter((candidate) => candidate.startsWith(`${key}:`))
+        ? [...this.opfieldEndpoints.keys()].filter((candidate) => candidate.startsWith(`${key}:`))
         : [key];
     await Promise.all(
       keys.map(async (endpointKey) => {
-        if (!this.gatewayEndpoints.delete(endpointKey)) return;
-        await this.gatewayTunnelHost?.disposeEndpoint(endpointKey);
+        if (!this.opfieldEndpoints.delete(endpointKey)) return;
+        await this.opfieldTunnelHost?.disposeEndpoint(endpointKey);
       })
     );
   }
 
   /** Stops Gateway's tunnel worker (shutdown): endpoints close, connections and streams end. */
-  async closeGatewayTunnels(): Promise<void> {
-    this.gatewayEndpoints.clear();
-    await this.gatewayTunnelHost?.close();
+  async closeOpfieldTunnels(): Promise<void> {
+    this.opfieldEndpoints.clear();
+    await this.opfieldTunnelHost?.close();
   }
 
   /** A connection to one of the endpoints: open its tunnel, or end it. */
-  private acceptGatewayConnection(key: string, slotId: string): void {
-    const tunnels = this.gatewayTunnels();
-    const entry = this.gatewayEndpoints.get(key);
+  private acceptOpfieldConnection(key: string, slotId: string): void {
+    const tunnels = this.opfieldTunnels();
+    const entry = this.opfieldEndpoints.get(key);
     if (!entry) {
       tunnels.failSlot(slotId, 'Opfield tunnel endpoint is closed');
       return;
@@ -683,13 +683,13 @@ export class RelayPolicyService {
       if (!fingerprint) throw new Error('Opfield relay is unavailable');
       const routeId =
         target.kind === 'database'
-          ? await this.gatewayDatabaseRoute(target.managedDatabaseId, fingerprint)
-          : await this.gatewayStorageRoute(target.clusterId, fingerprint);
-      await this.openGatewayRouteTunnelInto(routeId, fingerprint, slotId);
+          ? await this.opfieldDatabaseRoute(target.managedDatabaseId, fingerprint)
+          : await this.opfieldStorageRoute(target.clusterId, fingerprint);
+      await this.openOpfieldRouteTunnelInto(routeId, fingerprint, slotId);
     })().catch((error) => {
       tunnels.failSlot(slotId, errorMessage(error));
       // The client went away while its tunnel opened: nothing failed.
-      if (isGatewayConnectionGone(error)) return;
+      if (isOpfieldConnectionGone(error)) return;
       // A failed open is a normal transient condition while a node reconnects; the connection just ends.
       if (target.kind === 'storage') {
         logger.warn('Managed storage tunnel failed', {
@@ -705,24 +705,24 @@ export class RelayPolicyService {
     });
   }
 
-  private gatewayPaths(): GatewayRelayPaths {
-    if (!this.gatewayRelayPaths) {
+  private opfieldPaths(): OpfieldRelayPaths {
+    if (!this.opfieldRelayPaths) {
       const topology = new RelayTopologyService(this.db);
-      this.gatewayRelayPaths = new GatewayRelayPaths(
-        this.gatewayTunnels().streams,
+      this.opfieldRelayPaths = new OpfieldRelayPaths(
+        this.opfieldTunnels().streams,
         async (routeId) => {
-          const fingerprint = this.gatewayRouteFingerprints.get(routeId);
+          const fingerprint = this.opfieldRouteFingerprints.get(routeId);
           if (!fingerprint) return [];
           const assignment = await this.withAcknowledgedPolicy(() =>
-            this.grantIssuer.issueGatewayConnectAssignment(routeId, fingerprint)
+            this.grantIssuer.issueOpfieldConnectAssignment(routeId, fingerprint)
           );
           return assignment.candidates;
         },
         { poolRelays: () => topology.remoteLatencyTargets() }
       );
-      if (this.gatewayLocalRelay) this.gatewayRelayPaths.setLocalRelay(this.gatewayLocalRelay);
+      if (this.opfieldLocalRelay) this.opfieldRelayPaths.setLocalRelay(this.opfieldLocalRelay);
     }
-    return this.gatewayRelayPaths;
+    return this.opfieldRelayPaths;
   }
 
   setManagedLinkReports(
@@ -736,15 +736,15 @@ export class RelayPolicyService {
   relayStreamReports(): RelayStreamReports {
     const reports = [...(this.managedLinkReports?.relayStreamReports?.() ?? [])];
     try {
-      const stats = this.gatewayTunnelHost?.relayResumeStats();
+      const stats = this.opfieldTunnelHost?.relayResumeStats();
       if (stats) {
         reports.push({
-          nodeId: GATEWAY_STREAM_REPORT_SOURCE,
-          report: gatewayStreamReport(stats, this.localRelayInstanceId),
+          nodeId: OPFIELD_STREAM_REPORT_SOURCE,
+          report: opfieldStreamReport(stats, this.localRelayInstanceId),
         });
       }
     } catch (error) {
-      logger.debug("Gateway's own relay stream counts are unavailable", { error: errorMessage(error) });
+      logger.debug("Opfield's own relay stream counts are unavailable", { error: errorMessage(error) });
     }
     return reports;
   }
@@ -753,12 +753,12 @@ export class RelayPolicyService {
    * Moves Gateway's own resumable streams (database tools, storage browser) off a relay that started draining, paced
    * to its drain deadline. Daemons learn the same from their grant bundles.
    */
-  migrateGatewayStreams(relayInstanceId: string, drainDeadlineAt: Date | null): void {
+  migrateOpfieldStreams(relayInstanceId: string, drainDeadlineAt: Date | null): void {
     try {
       const deadline = drainDeadlineAt ? Number(candidateDrainDeadline(drainDeadlineAt) ?? 0) : 0;
-      this.gatewayTunnelHost?.migrateResumableTunnels(relayInstanceId, deadline);
+      this.opfieldTunnelHost?.migrateResumableTunnels(relayInstanceId, deadline);
     } catch (error) {
-      logger.warn("Moving Gateway's own streams off a draining relay failed", {
+      logger.warn("Moving Opfield's own streams off a draining relay failed", {
         relayInstanceId,
         error: errorMessage(error),
       });
@@ -874,7 +874,7 @@ export class RelayPolicyService {
       // at the next periodic sync, so endpoint registrations are not refused for up to a minute (N-7). The same when
       // it serves again after an outage: grants issued meanwhile went out without its acknowledgement.
       const event = payload as { reason?: unknown; state?: unknown } | null;
-      const outage = this.gatewayLocalRelay?.latestOutage() ?? null;
+      const outage = this.opfieldLocalRelay?.latestOutage() ?? null;
       const servingAgain = event?.state === 'healthy' && (!outage || outage.servingAgainAt !== null);
       if (event?.reason !== 'policy_snapshot_required' && !servingAgain) return;
       this.syncLocalPolicyAfterLoss();
@@ -1389,7 +1389,7 @@ export class RelayPolicyService {
       if (!isRelayUnavailable(error) && !unimplemented) this.lastLocalPolicyTrustResetAt = now;
       if (unimplemented) {
         this.setLocalPolicyTrust('recovery_unsupported', LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE, trustedKeyIds);
-        logger.error('Local relay refuses Gateway policy and cannot reset its trust', { reason });
+        logger.error('Local relay refuses Opfield policy and cannot reset its trust', { reason });
         throw new Error(`${LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE} Relay refusal: ${reason}`);
       }
       this.setLocalPolicyTrust(
@@ -1399,7 +1399,7 @@ export class RelayPolicyService {
       );
       throw error;
     }
-    logger.warn('Local relay refused Gateway policy; re-pinned the active policy signing key', {
+    logger.warn('Local relay refused Opfield policy; re-pinned the active policy signing key', {
       activeKeyId: trust.keyId,
       replacedKeyIds,
       reason,
@@ -2392,7 +2392,7 @@ export class RelayPolicyService {
     return withManagedLinkConnections(relayRuntime, sumManagedLinkReports(reports));
   }
 
-  async ensureGatewayRoute(
+  async ensureOpfieldRoute(
     managedDatabaseId: string,
     targetNodeId: string,
     appCertificateFingerprint: string
@@ -2410,7 +2410,7 @@ export class RelayPolicyService {
     await this.syncSnapshot();
     // Gateway reads its route at every open: turned on at the target here, its streams are resumable from the first.
     await this.streamResume.enableBeforeSourceSync({ routeIds: [routeId] }).catch((error) => {
-      logger.warn('Resumable streams for a Gateway relay route deferred to the next reconcile', {
+      logger.warn('Resumable streams for a Opfield relay route deferred to the next reconcile', {
         routeId,
         error: errorMessage(error),
       });
@@ -2419,12 +2419,12 @@ export class RelayPolicyService {
     return routeId;
   }
 
-  /** A tunnel from Gateway to a managed database; its bytes cross from the tunnel worker (see gatewayTunnelEndpoint). */
-  async openGatewayTunnel(managedDatabaseId: string, appCertificateFingerprint: string): Promise<Duplex> {
-    const routeId = await this.gatewayDatabaseRoute(managedDatabaseId, appCertificateFingerprint);
+  /** A tunnel from Gateway to a managed database; its bytes cross from the tunnel worker (see opfieldTunnelEndpoint). */
+  async openOpfieldTunnel(managedDatabaseId: string, appCertificateFingerprint: string): Promise<Duplex> {
+    const routeId = await this.opfieldDatabaseRoute(managedDatabaseId, appCertificateFingerprint);
     const set = await setOfOwner(this.db, 'managed_database', managedDatabaseId);
     if (set) return this.openSetRouteTunnel(set, routeId, appCertificateFingerprint);
-    return this.openGatewayRouteTunnel(routeId, appCertificateFingerprint);
+    return this.openOpfieldRouteTunnel(routeId, appCertificateFingerprint);
   }
 
   /**
@@ -2436,8 +2436,8 @@ export class RelayPolicyService {
     const [set] = await loadSetRelayViews(this.db, { setIds: [setId] });
     if (!set) throw new Error('Availability set not found');
     return set.ownerKind === 'managed_database'
-      ? this.openGatewayTunnel(set.ownerId, appCertificateFingerprint)
-      : this.openStorageGatewayTunnel(set.ownerId, appCertificateFingerprint);
+      ? this.openOpfieldTunnel(set.ownerId, appCertificateFingerprint)
+      : this.openStorageOpfieldTunnel(set.ownerId, appCertificateFingerprint);
   }
 
   private async openSetRouteTunnel(
@@ -2449,9 +2449,9 @@ export class RelayPolicyService {
     let lastError: unknown = new Error('No member of the availability set is reachable');
     for (const { routeId } of routes) {
       try {
-        return await this.openGatewayRouteTunnel(routeId, appCertificateFingerprint);
+        return await this.openOpfieldRouteTunnel(routeId, appCertificateFingerprint);
       } catch (error) {
-        if (isGatewayConnectionGone(error)) throw error;
+        if (isOpfieldConnectionGone(error)) throw error;
         lastError = error;
       }
     }
@@ -2526,7 +2526,7 @@ export class RelayPolicyService {
   }
 
   /** The managed database's Gateway route, made on first use; throws while the database is not up. */
-  private async gatewayDatabaseRoute(managedDatabaseId: string, appCertificateFingerprint: string): Promise<string> {
+  private async opfieldDatabaseRoute(managedDatabaseId: string, appCertificateFingerprint: string): Promise<string> {
     const [database] = await this.db
       .select({ nodeId: managedDatabaseInstances.nodeId, status: managedDatabaseInstances.status })
       .from(managedDatabaseInstances)
@@ -2536,25 +2536,25 @@ export class RelayPolicyService {
       throw new Error('Managed database is unavailable');
     }
     const routeId =
-      (await this.currentGatewayRoute(
+      (await this.currentOpfieldRoute(
         'managed_database_gateway',
         'managed_database',
         managedDatabaseId,
         database.nodeId,
         appCertificateFingerprint
-      )) ?? (await this.ensureGatewayRoute(managedDatabaseId, database.nodeId, appCertificateFingerprint));
+      )) ?? (await this.ensureOpfieldRoute(managedDatabaseId, database.nodeId, appCertificateFingerprint));
     return routeId;
   }
 
   /**
    * A tunnel from Gateway on its route for a reader on this thread (the managed tunnel proxies of a commercial module
-   * from before gatewayTunnelEndpoint): the tunnel runs in the tunnel worker, this end is a loopback connection to it.
+   * from before opfieldTunnelEndpoint): the tunnel runs in the tunnel worker, this end is a loopback connection to it.
    */
-  private async openGatewayRouteTunnel(routeId: string, appCertificateFingerprint: string): Promise<Duplex> {
-    const tunnels = this.gatewayTunnels();
+  private async openOpfieldRouteTunnel(routeId: string, appCertificateFingerprint: string): Promise<Duplex> {
+    const tunnels = this.opfieldTunnels();
     const slotId = await tunnels.createSlot();
     try {
-      await this.openGatewayRouteTunnelInto(routeId, appCertificateFingerprint, slotId);
+      await this.openOpfieldRouteTunnelInto(routeId, appCertificateFingerprint, slotId);
     } catch (error) {
       tunnels.failSlot(slotId, errorMessage(error));
       throw error;
@@ -2568,16 +2568,16 @@ export class RelayPolicyService {
    * on drain, GOAWAY or path failure, reissuing the assignment for every new path. A target that turns out not to be
    * resume-aware latches the route raw for a while.
    */
-  private async openGatewayRouteTunnelInto(
+  private async openOpfieldRouteTunnelInto(
     routeId: string,
     appCertificateFingerprint: string,
     slotId: string
   ): Promise<void> {
-    this.gatewayRouteFingerprints.set(routeId, appCertificateFingerprint);
-    const tunnels = this.gatewayTunnels();
+    this.opfieldRouteFingerprints.set(routeId, appCertificateFingerprint);
+    const tunnels = this.opfieldTunnels();
     const issue = () =>
       this.withAcknowledgedPolicy(() =>
-        this.grantIssuer.issueGatewayConnectAssignment(routeId, appCertificateFingerprint)
+        this.grantIssuer.issueOpfieldConnectAssignment(routeId, appCertificateFingerprint)
       );
     const assignment = await issue();
     const resume = assignment.streamResume;
@@ -2586,7 +2586,7 @@ export class RelayPolicyService {
       const dial = async (avoidRelayId: string | null) => {
         const current = first ?? (await issue());
         first = null;
-        const path = await this.openGatewayResumePath(routeId, current, avoidRelayId);
+        const path = await this.openOpfieldResumePath(routeId, current, avoidRelayId);
         const key = current.streamResume;
         return key ? { path, keyId: key.keyId, key: Buffer.from(key.key) } : { path };
       };
@@ -2604,12 +2604,12 @@ export class RelayPolicyService {
         return;
       } catch (error) {
         if (!(error instanceof ResumeSessionError && error.code === 'legacy_peer')) throw error;
-        logger.warn('Gateway relay route target is not resume-aware; using raw streams', { routeId });
+        logger.warn('Opfield relay route target is not resume-aware; using raw streams', { routeId });
       }
     }
     const active = assignment.candidates.filter(({ assignmentState }) => assignmentState === 'active');
-    await this.gatewayPaths().measure(routeId, active);
-    const activeCandidates = this.gatewayPaths().order(routeId, active, null);
+    await this.opfieldPaths().measure(routeId, active);
+    const activeCandidates = this.opfieldPaths().order(routeId, active, null);
     let lastError: unknown;
     const passed: Array<{ relayId: string; error: string }> = [];
     for (const candidate of activeCandidates) {
@@ -2620,10 +2620,10 @@ export class RelayPolicyService {
             ? { kind: 'local', grant: candidate.grant, relayId: candidate.relayInstanceId }
             : { kind: 'candidate', candidate }
         );
-        if (passed.length) logGatewayPathPastNearer(routeId, candidate.relayInstanceId, passed);
+        if (passed.length) logOpfieldPathPastNearer(routeId, candidate.relayInstanceId, passed);
         return;
       } catch (error) {
-        if (isGatewayConnectionGone(error)) throw error;
+        if (isOpfieldConnectionGone(error)) throw error;
         lastError = error;
         passed.push({ relayId: candidate.relayInstanceId, error: errorMessage(error) });
       }
@@ -2639,20 +2639,20 @@ export class RelayPolicyService {
    * One relay path of a resumable Gateway stream: active and staging candidates (a staging one is registered on both
    * ends: when the only active relay drains or was force-disconnected the stream moves there instead of being cut),
    * the relay it leaves last; reachable relays first, then by role and measured distance, an active candidate before a
-   * staging one only among equally near ones (orderGatewayRelayCandidates; O-1, rc.10 F-1). The path opens in the
+   * staging one only among equally near ones (orderOpfieldRelayCandidates; O-1, rc.10 F-1). The path opens in the
    * tunnel worker, which hands it to the stream. A path that opens past a nearer relay is logged with the reason.
    */
-  private async openGatewayResumePath(
+  private async openOpfieldResumePath(
     routeId: string,
-    assignment: Awaited<ReturnType<RelayGrantIssuerService['issueGatewayConnectAssignment']>>,
+    assignment: Awaited<ReturnType<RelayGrantIssuerService['issueOpfieldConnectAssignment']>>,
     avoidRelayId: string | null
   ): Promise<RemotePath> {
-    const tunnels = this.gatewayTunnels();
+    const tunnels = this.opfieldTunnels();
     const usable = assignment.candidates.filter(
       ({ assignmentState }) => assignmentState === 'active' || assignmentState === 'staging'
     );
-    await this.gatewayPaths().measure(routeId, usable);
-    const candidates = this.gatewayPaths().order(routeId, usable, avoidRelayId);
+    await this.opfieldPaths().measure(routeId, usable);
+    const candidates = this.opfieldPaths().order(routeId, usable, avoidRelayId);
     // A pre-pool assignment has only the local relay: a recovering stream comes back to it.
     if (!candidates.length) return tunnels.openLocalResumePath(assignment.grant, LEGACY_RELAY_PATH_ID);
     let lastError: unknown;
@@ -2662,7 +2662,7 @@ export class RelayPolicyService {
         const path = candidate.local
           ? await tunnels.openLocalResumePath(candidate.grant, candidate.relayInstanceId)
           : await tunnels.openCandidateResumePath(candidate);
-        if (passed.length) logGatewayPathPastNearer(routeId, candidate.relayInstanceId, passed);
+        if (passed.length) logOpfieldPathPastNearer(routeId, candidate.relayInstanceId, passed);
         return path;
       } catch (error) {
         lastError = error;
@@ -2672,20 +2672,20 @@ export class RelayPolicyService {
     throw lastError instanceof Error ? lastError : new Error('No other relay is available');
   }
 
-  async probeGatewayRelayCandidate(
+  async probeOpfieldRelayCandidate(
     routeId: string,
     appCertificateFingerprint: string,
     relayInstanceId: string,
     assignmentGeneration: string
   ): Promise<void> {
     const assignment = await this.withAcknowledgedPolicy(() =>
-      this.grantIssuer.issueGatewayConnectAssignment(routeId, appCertificateFingerprint)
+      this.grantIssuer.issueOpfieldConnectAssignment(routeId, appCertificateFingerprint)
     );
     const candidate = assignment.candidates.find(
       (item) => item.relayInstanceId === relayInstanceId && item.assignmentGeneration === assignmentGeneration
     );
     if (!candidate) throw new Error('Opfield relay candidate grant is unavailable');
-    await this.gatewayTunnels().probe(
+    await this.opfieldTunnels().probe(
       candidate.local
         ? { kind: 'local', grant: candidate.grant, relayId: candidate.relayInstanceId }
         : { kind: 'candidate', candidate }
@@ -2848,7 +2848,7 @@ export class RelayPolicyService {
     await Promise.allSettled([...affectedNodes].map((nodeId) => this.syncNodeGrants(nodeId)));
   }
 
-  async ensureStorageGatewayRoute(
+  async ensureStorageOpfieldRoute(
     clusterId: string,
     targetNodeId: string,
     appCertificateFingerprint: string
@@ -2866,7 +2866,7 @@ export class RelayPolicyService {
     await this.syncSnapshot();
     // Gateway reads its route at every open: turned on at the target here, its streams are resumable from the first.
     await this.streamResume.enableBeforeSourceSync({ routeIds: [routeId] }).catch((error) => {
-      logger.warn('Resumable streams for a Gateway relay route deferred to the next reconcile', {
+      logger.warn('Resumable streams for a Opfield relay route deferred to the next reconcile', {
         routeId,
         error: errorMessage(error),
       });
@@ -2875,16 +2875,16 @@ export class RelayPolicyService {
     return routeId;
   }
 
-  /** A tunnel from Gateway to a managed storage cluster; its bytes cross from the tunnel worker (see gatewayTunnelEndpoint). */
-  async openStorageGatewayTunnel(clusterId: string, appCertificateFingerprint: string): Promise<Duplex> {
-    const routeId = await this.gatewayStorageRoute(clusterId, appCertificateFingerprint);
+  /** A tunnel from Gateway to a managed storage cluster; its bytes cross from the tunnel worker (see opfieldTunnelEndpoint). */
+  async openStorageOpfieldTunnel(clusterId: string, appCertificateFingerprint: string): Promise<Duplex> {
+    const routeId = await this.opfieldStorageRoute(clusterId, appCertificateFingerprint);
     const set = await setOfOwner(this.db, 'managed_storage', clusterId);
     if (set) return this.openSetRouteTunnel(set, routeId, appCertificateFingerprint);
-    return this.openGatewayRouteTunnel(routeId, appCertificateFingerprint);
+    return this.openOpfieldRouteTunnel(routeId, appCertificateFingerprint);
   }
 
   /** The storage cluster's Gateway route, made on first use; throws while the cluster is not up. */
-  private async gatewayStorageRoute(clusterId: string, appCertificateFingerprint: string): Promise<string> {
+  private async opfieldStorageRoute(clusterId: string, appCertificateFingerprint: string): Promise<string> {
     const [database] = await this.db
       .select({ nodeId: managedStorageClusters.nodeId, status: managedStorageClusters.status })
       .from(managedStorageClusters)
@@ -2894,13 +2894,13 @@ export class RelayPolicyService {
       throw new Error('Managed storage is unavailable');
     }
     const routeId =
-      (await this.currentGatewayRoute(
+      (await this.currentOpfieldRoute(
         'managed_storage_gateway',
         'managed_storage',
         clusterId,
         database.nodeId,
         appCertificateFingerprint
-      )) ?? (await this.ensureStorageGatewayRoute(clusterId, database.nodeId, appCertificateFingerprint));
+      )) ?? (await this.ensureStorageOpfieldRoute(clusterId, database.nodeId, appCertificateFingerprint));
     return routeId;
   }
 
@@ -3187,7 +3187,7 @@ export class RelayPolicyService {
       .update(relayPolicyState)
       .set({ revision: sql`greatest(${relayPolicyState.revision} + 1, ${floor + 1})`, updatedAt: new Date() })
       .where(eq(relayPolicyState.id, 'current'));
-    logger.warn('A daemon holds newer relay grants than Gateway; continued the policy revision above them', {
+    logger.warn('A daemon holds newer relay grants than Opfield; continued the policy revision above them', {
       nodeId,
       floor,
       refusal: message,
@@ -3232,9 +3232,9 @@ export class RelayPolicyService {
     return { ...bundle, dataLanes: config.relay.dataLanes, readChunkBytes: config.relay.readChunkBytes };
   }
 
-  async issueGatewayConnectGrant(routeId: string, appCertificateFingerprint: string) {
+  async issueOpfieldConnectGrant(routeId: string, appCertificateFingerprint: string) {
     return this.withAcknowledgedPolicy(() =>
-      this.grantIssuer.issueGatewayConnectGrant(routeId, appCertificateFingerprint)
+      this.grantIssuer.issueOpfieldConnectGrant(routeId, appCertificateFingerprint)
     );
   }
 
@@ -3276,7 +3276,7 @@ export class RelayPolicyService {
    * instead of re-ensuring the endpoint and route, pushing policy twice and re-sending the
    * target daemon's whole grant bundle every time.
    */
-  private async currentGatewayRoute(
+  private async currentOpfieldRoute(
     ownerKind: 'managed_database_gateway' | 'managed_storage_gateway',
     endpointOwnerKind: 'managed_database' | 'managed_storage',
     ownerId: string,

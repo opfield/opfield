@@ -16,6 +16,7 @@ import {
   withoutManualApprovalScopes,
 } from '@/lib/scopes.js';
 import { delegatedScopeIssue } from '@/lib/scopes-schemas.js';
+import { TOKEN_PREFIXES } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
@@ -60,8 +61,8 @@ function parseScopeString(scope: string | undefined): string[] {
   return [...new Set(scope.trim().split(/\s+/).filter(Boolean))];
 }
 
-function assertGrantableScopes(scopes: string[], setupResource: boolean): void {
-  const invalid = scopes.filter((scope) => (setupResource ? scope !== 'inference:setup' : !isApiTokenScope(scope)));
+function assertGrantableScopes(scopes: string[]): void {
+  const invalid = scopes.filter((scope) => !isApiTokenScope(scope));
   if (invalid.length > 0) {
     throw new AppError(400, 'INVALID_SCOPE', `Scopes are not grantable: ${invalid.join(', ')}`);
   }
@@ -157,10 +158,6 @@ export class OAuthService {
     return new URL('/api', this.publicUrl()).href;
   }
 
-  getInferenceSetupResourceUrl(): string {
-    return new URL('/api/inference/setup', this.publicUrl()).href;
-  }
-
   getProtectedResourceMetadataUrl(): string {
     return new URL('/.well-known/oauth-protected-resource/api/mcp', this.publicUrl()).href;
   }
@@ -170,11 +167,7 @@ export class OAuthService {
   }
 
   isSupportedResource(resource: string): boolean {
-    return (
-      resource === this.getApiResourceUrl() ||
-      resource === this.getMcpResourceUrl() ||
-      resource === this.getInferenceSetupResourceUrl()
-    );
+    return resource === this.getApiResourceUrl() || resource === this.getMcpResourceUrl();
   }
 
   private isMcpResource(resource: string): boolean {
@@ -185,21 +178,11 @@ export class OAuthService {
     if (this.isMcpResource(resource) && !hasScope(user.scopes, 'mcp:use')) {
       throw new AppError(403, 'MCP_NOT_ALLOWED', 'Your account is not allowed to use MCP');
     }
-    if (resource === this.getInferenceSetupResourceUrl() && !this.canUseInferenceSetup(user)) {
-      throw new AppError(403, 'INFERENCE_SETUP_NOT_ALLOWED', 'Your account is not allowed to set up inference clients');
-    }
   }
 
   grantScopes(user: User, resource: string, requestedScopes: string[]): string[] {
-    if (resource === this.getInferenceSetupResourceUrl()) {
-      return this.canUseInferenceSetup(user) && requestedScopes.includes('inference:setup') ? ['inference:setup'] : [];
-    }
     const granted = canonicalizeScopes(boundScopes(requestedScopes, user.scopes));
     return granted.filter((scope) => (this.isMcpResource(resource) ? isMcpTokenScope(scope) : isApiTokenScope(scope)));
-  }
-
-  private canUseInferenceSetup(user: User): boolean {
-    return hasScope(user.scopes, 'feat:ai:use');
   }
 
   async registerClient(input: OAuthClientRegistrationInput) {
@@ -336,7 +319,7 @@ export class OAuthService {
       selectedScopes === undefined
         ? canonicalizeScopes(withoutManualApprovalScopes(pending.grantableScopes))
         : canonicalizeInboundScopes(selectedScopes);
-    assertGrantableScopes(scopes, pending.resource === this.getInferenceSetupResourceUrl());
+    assertGrantableScopes(scopes);
     if (!isScopeSubset(scopes, pending.grantableScopes)) {
       throw new AppError(403, 'SCOPE_NOT_ALLOWED', 'Selected scopes exceed the current user permissions');
     }
@@ -346,7 +329,7 @@ export class OAuthService {
 
     await this.claimConsentRequest(requestId, pending);
 
-    const code = randomSecret('gwo_code_');
+    const code = randomSecret(TOKEN_PREFIXES.oauthCode);
     const [record] = await this.db
       .insert(oauthAuthorizationCodes)
       .values({

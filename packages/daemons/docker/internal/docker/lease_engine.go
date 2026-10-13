@@ -11,8 +11,8 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/docker-daemon/internal/lease"
 )
 
 // leaseEngine is the Docker side of the availability lease runtime. The

@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"

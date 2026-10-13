@@ -1,3 +1,8 @@
-export const DOCKER_MANAGED_VOLUME_LABEL = 'com.wiolett.gateway.managed-volume';
-export const DOCKER_MANAGED_VOLUME_ORIGIN_LABEL = 'com.wiolett.gateway.managed-volume-origin';
-export const DOCKER_MANAGED_VOLUME_LABELS = new Set([DOCKER_MANAGED_VOLUME_LABEL, DOCKER_MANAGED_VOLUME_ORIGIN_LABEL]);
+import { type DockerLabels, labelString, opfieldLabelKey } from './docker-managed-labels.js';
+
+export const DOCKER_MANAGED_VOLUME_LABEL = opfieldLabelKey('managed-volume');
+
+/** Whether the daemon labelled a volume as managed (either label namespace). */
+export function isDockerManagedVolumeLabelled(labels: DockerLabels): boolean {
+  return labelString(labels, 'managed-volume') === 'true';
+}

@@ -3,10 +3,10 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { disposableDatabase, migrateDatabase, rejection } from './migration-database.test-helpers.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): the ingress group migration. A route on an ingress group owns one
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): the ingress group migration. A route on an ingress group owns one
  * proxy_host_domains row per member, so a name is unique across every member; member changes rebuild the rows;
  * proxy Secure Link routes may have one relay route per source while every other owner keeps one route. Storage links
  * (one route per Availability placement node, a later migration) follow the Secure Link rule.

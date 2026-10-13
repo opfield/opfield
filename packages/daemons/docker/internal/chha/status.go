@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // statusQuery is one row of the member's state (TabSeparated).

@@ -6,7 +6,7 @@ import { userResourceChannelUserId } from '@/modules/auth/user-resource-events.j
 import { hasAnyDockerNodeRouteAccess } from '@/modules/docker/docker-route-resolvers.js';
 import { canViewHostingFinance } from '@/modules/hosting/hosting-permissions.js';
 import { INFERENCE_USAGE_CHANGED_CHANNEL } from '@/modules/inference/accounting/inference-usage-events.js';
-import { INFERENCE_SETUP_EVENT_CHANNEL } from '@/modules/inference/inference-setup-events.service.js';
+import { INFERENCE_CATALOG_CHANGED_CHANNEL } from '@/modules/inference/inference-catalog-events.service.js';
 import { gitConnectorVisibility } from '@/modules/integrations/integration-permissions.js';
 import { hasLoggingHealthAccess } from '@/modules/logging/logging-permissions.js';
 
@@ -98,7 +98,7 @@ export function requiredScopeFor(channel: string): string | null {
   if (channel === 'group.changed') return 'admin:groups';
   if (channel === 'notification.alert-rule.changed') return 'notifications:alerts:view';
   if (channel === 'notification.webhook.changed') return 'notifications:webhooks:view';
-  if (channel === INFERENCE_SETUP_EVENT_CHANNEL) return 'feat:ai:use';
+  if (channel === INFERENCE_CATALOG_CHANGED_CHANNEL) return 'feat:ai:use';
   if (channel === 'integration.connector.changed') return 'integrations:gitlab:view';
   if (channel === INFERENCE_USAGE_CHANGED_CHANNEL) return 'feat:ai:use';
   if (channel.startsWith('alert.')) return 'notifications:alerts:view';
@@ -279,7 +279,7 @@ export function hasChannelAccess(scopes: string[], channel: string): boolean {
   if (channel.startsWith('alert.')) {
     return hasScope(scopes, 'notifications:alerts:view') || hasScope(scopes, 'notifications:alerts:manage');
   }
-  if (channel === INFERENCE_SETUP_EVENT_CHANNEL) {
+  if (channel === INFERENCE_CATALOG_CHANGED_CHANNEL) {
     return (
       hasScope(scopes, 'ai:workspace:use') ||
       hasScope(scopes, 'feat:ai:use') ||

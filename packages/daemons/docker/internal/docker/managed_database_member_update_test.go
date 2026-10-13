@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // The member update rule (P3-T07) against a fake Docker Engine API: a copy's
@@ -416,7 +416,7 @@ func TestAMemberCopyIsRecreatedOnANewImageUnderTheHold(t *testing.T) {
 	if managedDatabaseImageDigest(created.Image) != managedDatabaseImageDigest(f.newImg) {
 		t.Fatalf("recreated on %s, want %s", created.Image, f.newImg)
 	}
-	if created.Labels[pgMemberLabel] != muMember || created.Labels["wiolett.gateway.availability.set"] != muSet {
+	if created.Labels[pgMemberLabel] != muMember || created.Labels["net.opfield.availability.set"] != muSet {
 		t.Fatalf("the recreated container keeps the member labels: %v", created.Labels)
 	}
 	if len(created.Networks) != 1 || created.Networks[0] != "gateway-set-test" || len(created.ExtraHosts) == 0 {

@@ -233,7 +233,7 @@ func (m *Manager) GetVersion() (string, error) {
 }
 
 // HasSecureLinkModule verifies that this nginx build did not explicitly omit
-// the built-in secure-link module required by Gateway maintenance admission.
+// the built-in secure-link module required by Opfield maintenance admission.
 func (m *Manager) HasSecureLinkModule() (bool, error) {
 	cmd := exec.Command(m.binary, "-V")
 	output, err := cmd.CombinedOutput()
@@ -317,6 +317,19 @@ func canonicalBinaryPath(binary string) (string, error) {
 		path = resolved
 	}
 	return filepath.Clean(path), nil
+}
+
+// EffectiveConfig returns what nginx -T prints: the global configuration and every file it includes.
+func (m *Manager) EffectiveConfig() ([]byte, error) {
+	args := []string{"-T"}
+	if m.globalCfg != "" {
+		args = append(args, "-c", m.globalCfg)
+	}
+	output, err := m.runNginx(args...)
+	if err != nil {
+		return nil, fmt.Errorf("print effective nginx configuration: %w: %s", err, nginxFailure(output))
+	}
+	return output, nil
 }
 
 func (m *Manager) authoritativePidFile() (string, error) {

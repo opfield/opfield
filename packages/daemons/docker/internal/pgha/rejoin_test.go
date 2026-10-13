@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 const divergedLine = "LOG:  new timeline 3 forked off current database system timeline 2 before current recovery point 0/4200000"

@@ -6,6 +6,13 @@ const logger = createChildLogger('GrpcAuth');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RELAY_METADATA = {
+  nodeId: 'x-opfield-relay-node-id',
+  certificateSerial: 'x-opfield-relay-cert-serial',
+  certificateFingerprint: 'x-opfield-relay-cert-sha256',
+} as const;
+// legacy-name: a relay before 2.12.1 sets x-wiolett-relay-* and passes client-supplied x-opfield-relay-* through, so
+// when any legacy key is present only the legacy keys count; remove once every relay reports none.
+const LEGACY_RELAY_METADATA = {
   nodeId: 'x-wiolett-relay-node-id',
   certificateSerial: 'x-wiolett-relay-cert-serial',
   certificateFingerprint: 'x-wiolett-relay-cert-sha256',
@@ -150,9 +157,11 @@ export function extractDaemonCertificateIdentity(
         const values = call.metadata.get(key);
         return values.length === 1 && typeof values[0] === 'string' ? values[0] : null;
       };
-      const nodeId = readOne(RELAY_METADATA.nodeId);
-      const serialNumber = readOne(RELAY_METADATA.certificateSerial);
-      const certificateFingerprint = readOne(RELAY_METADATA.certificateFingerprint);
+      const legacy = Object.values(LEGACY_RELAY_METADATA).some((key) => call.metadata.get(key).length > 0);
+      const keys = legacy ? LEGACY_RELAY_METADATA : RELAY_METADATA;
+      const nodeId = readOne(keys.nodeId);
+      const serialNumber = readOne(keys.certificateSerial);
+      const certificateFingerprint = readOne(keys.certificateFingerprint);
       if (
         !nodeId ||
         !UUID_RE.test(nodeId) ||

@@ -25,7 +25,7 @@ import (
 // when it is missing or its own small shape changes, never for another connector image.
 const (
 	secureLinkAnchorName      = "gateway-secure-link-anchor"
-	secureLinkRoleLabel       = "wiolett.gateway.secure-link.role"
+	secureLinkRoleLabel       = "net.opfield.secure-link.role"
 	secureLinkAnchorRole      = "anchor"
 	secureLinkAnchorMemory    = 32 * 1024 * 1024
 	secureLinkAnchorPidsLimit = int64(16)
@@ -37,7 +37,7 @@ var secureLinkAnchorCommand = []string{"pause"}
 // updated before Gateway, which then still sends the connector image of its own release: without the label the
 // connector runs in its own network namespace as before, serving ingress, and the egress waits for Gateway's update.
 const (
-	secureLinkAnchorImageLabel   = "wiolett.gateway.secure-link-connector.anchor"
+	secureLinkAnchorImageLabel   = "net.opfield.secure-link-connector.anchor"
 	secureLinkAnchorImageVersion = "v1"
 	connectorImageTooOld         = "the secure-link connector image is too old for links from this node; update Opfield"
 )
@@ -75,7 +75,8 @@ func (m *dockerSecureLinkManager) anchorSupported(ctx context.Context, image str
 	if err != nil {
 		return false, fmt.Errorf("inspect secure-link connector image: %w", err)
 	}
-	supported := inspected.Config != nil && inspected.Config.Labels[secureLinkAnchorImageLabel] == secureLinkAnchorImageVersion
+	// An image built before Opfield carries the label under its pre-Opfield key.
+	supported := inspected.Config != nil && labelValue(inspected.Config.Labels, secureLinkAnchorImageLabel) == secureLinkAnchorImageVersion
 	if image != developmentSecureLinkImage {
 		// A digest or release tag names one image for good; the development tag is rebuilt.
 		if m.anchorImages == nil {
@@ -164,7 +165,7 @@ func (m *dockerSecureLinkManager) createAnchor(ctx context.Context, image string
 		Config: &container.Config{
 			Image: image, User: "65532:65532", Cmd: secureLinkAnchorCommand,
 			// The connector's label keeps it among Gateway's internal containers.
-			Labels: map[string]string{"wiolett.gateway.managed": "secure-link-connector", secureLinkRoleLabel: secureLinkAnchorRole},
+			Labels: map[string]string{"net.opfield.managed": "secure-link-connector", secureLinkRoleLabel: secureLinkAnchorRole},
 		},
 		HostConfig: &container.HostConfig{
 			ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
@@ -194,7 +195,7 @@ func validSecureLinkAnchor(inspect container.InspectResponse) bool {
 	}
 	return allowedSecureLinkConnectorImage(config.Image) && config.User == "65532:65532" &&
 		slices.Equal([]string(config.Cmd), secureLinkAnchorCommand) &&
-		config.Labels["wiolett.gateway.managed"] == "secure-link-connector" && config.Labels[secureLinkRoleLabel] == secureLinkAnchorRole &&
+		config.Labels["net.opfield.managed"] == "secure-link-connector" && config.Labels[secureLinkRoleLabel] == secureLinkAnchorRole &&
 		len(config.ExposedPorts) == 0 && !host.Privileged && !host.PublishAllPorts && host.ReadonlyRootfs &&
 		len(host.CapAdd) == 0 && containsFold(host.CapDrop, "ALL") && len(host.Binds) == 0 && len(host.Mounts) == 0 &&
 		len(host.PortBindings) == 0 && string(host.NetworkMode) != "host" && host.RestartPolicy.Name == "unless-stopped" &&

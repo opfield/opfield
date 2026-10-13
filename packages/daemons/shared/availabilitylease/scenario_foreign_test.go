@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // foreignWorld runs p1 (candidates d1, d2) and p2 (candidates p2Candidates),

@@ -136,7 +136,7 @@ export class DockerArchiveTransferStore {
   private readonly busy = new Set<string>();
   private sweepTimer: ReturnType<typeof setInterval> | undefined;
 
-  constructor(private readonly root = join(tmpdir(), 'gateway-docker-archive-mcp')) {}
+  constructor(private readonly root = join(tmpdir(), 'opfield-docker-archive-mcp')) {}
 
   async upload(user: User, args: Record<string, unknown>) {
     const operation = z.enum(['begin', 'chunk', 'status', 'finalize', 'abort']).parse(args.operation);

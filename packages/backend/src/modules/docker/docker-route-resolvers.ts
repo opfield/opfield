@@ -4,7 +4,7 @@ import { dockerDeployments, nodes } from '@/db/schema/index.js';
 import { extractBaseScope } from '@/lib/scopes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { parseDockerChildScopeResourceId } from './docker-access-resource.service.js';
-import { DOCKER_DEPLOYMENT_MANAGED_LABEL } from './docker-deployment-labels.js';
+import { isDockerDeploymentManaged } from './docker-deployment-labels.js';
 
 const BROAD_DOCKER_NODE_SCOPES = [
   'docker:containers:view',
@@ -119,7 +119,7 @@ export async function resolveDockerContainerByName(service: ContainerInspector, 
   }
   const canonicalName = String(data?.Name ?? data?.name ?? '').replace(/^\/+/, '');
   const labels = data?.Config?.Labels ?? data?.config?.labels ?? {};
-  if (canonicalName !== name || labels[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true') {
+  if (canonicalName !== name || isDockerDeploymentManaged(labels)) {
     throw dockerResourceNotFound('Container');
   }
   return data;

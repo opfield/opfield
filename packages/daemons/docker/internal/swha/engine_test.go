@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 func newTestEngine(t *testing.T, cluster *fakeCluster) (*Engine, *fakeHost) {

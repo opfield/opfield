@@ -1,4 +1,4 @@
-import { escapeNginxReturnText, gatewayStatusPageUnavailableHtml } from '@/lib/gateway-error-pages.js';
+import { escapeNginxReturnText, opfieldStatusPageUnavailableHtml } from '@/lib/opfield-error-pages.js';
 
 /**
  * Status page routes (C-2). A status page must stay up exactly when things are down, but its upstream is Gateway
@@ -83,7 +83,7 @@ function ownLevel(body: string): string {
 
 function locationDirectives(hostId: string, indent: string): string {
   const lines = [
-    '# Gateway status page (C-2): serve the last good response while Gateway is unreachable.',
+    '# Opfield status page (C-2): serve the last good response while Opfield is unreachable.',
     `proxy_cache ${statusPageCacheZone(hostId)};`,
     'proxy_cache_key "$scheme$host$request_uri";',
     `proxy_cache_valid 200 ${STATUS_PAGE_CACHE_VALID_SECONDS}s;`,
@@ -104,7 +104,7 @@ function fallbackLocation(hostId: string, indent: string, hideExternalBranding: 
     `${inner}default_type text/html;`,
     `${inner}add_header Cache-Control "no-store" always;`,
     `${inner}add_header Retry-After 15 always;`,
-    `${inner}return 503 ${escapeNginxReturnText(gatewayStatusPageUnavailableHtml(hideExternalBranding))};`,
+    `${inner}return 503 ${escapeNginxReturnText(opfieldStatusPageUnavailableHtml(hideExternalBranding))};`,
     `${indent}}`,
   ].join('\n');
 }

@@ -83,7 +83,7 @@ for i = 1, 4 do
   if amount > 0 then
     local window = ARGV[14 + i]
     redis.call('ZADD', zkey, expiry, reservation)
-    -- Keep the existing window:amount format readable after Gateway rollback.
+    -- Keep the existing window:amount format readable after Opfield rollback.
     redis.call('HSET', hkey, reservation, window .. ':' .. (amount + overages[i]))
     redis.call('PEXPIRE', zkey, expiry - now + 60000)
     redis.call('PEXPIRE', hkey, expiry - now + 60000)

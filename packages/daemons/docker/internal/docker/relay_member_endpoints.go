@@ -12,7 +12,7 @@ import (
 	"time"
 
 	mobyclient "github.com/moby/moby/client"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // Availability member endpoints (D6, D7).
@@ -57,7 +57,9 @@ const (
 	memberReadinessMisses      = 2
 	// deploymentRouterUnavailableHeader marks a response the deployment router
 	// generated itself because it could not reach the active slot.
-	deploymentRouterUnavailableHeader = "X-Gateway-Deployment-Router"
+	deploymentRouterUnavailableHeader = "X-Opfield-Deployment-Router"
+	// legacy-name: X-Gateway-Deployment-Router of routers rendered before Opfield (re-rendered on their next deploy) — remove once every node reports none
+	legacyDeploymentRouterUnavailableHeader = "X-Gateway-Deployment-Router"
 )
 
 // memberProbeResult is one readiness probe of a policy's member links on this
@@ -379,7 +381,7 @@ func probeDeploymentRouter(ctx context.Context, address string) bool {
 	defer connection.Close()
 	deadline, _ := probeCtx.Deadline()
 	_ = connection.SetDeadline(deadline)
-	request := "GET / HTTP/1.1\r\nHost: gateway-readiness\r\nUser-Agent: wiolett-gateway-readiness\r\nAccept: */*\r\nConnection: close\r\n\r\n"
+	request := "GET / HTTP/1.1\r\nHost: opfield-readiness\r\nUser-Agent: opfield-readiness\r\nAccept: */*\r\nConnection: close\r\n\r\n"
 	if _, err := connection.Write([]byte(request)); err != nil {
 		return false
 	}
@@ -388,7 +390,7 @@ func probeDeploymentRouter(ctx context.Context, address string) bool {
 		return false
 	}
 	_ = response.Body.Close()
-	if response.Header.Get(deploymentRouterUnavailableHeader) != "" {
+	if response.Header.Get(deploymentRouterUnavailableHeader) != "" || response.Header.Get(legacyDeploymentRouterUnavailableHeader) != "" {
 		return false
 	}
 	return response.StatusCode != http.StatusBadGateway && response.StatusCode != http.StatusGatewayTimeout

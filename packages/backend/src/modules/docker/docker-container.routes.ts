@@ -103,8 +103,9 @@ import {
   containerUpdateRequiredScopes,
 } from './docker-container-scope-requirements.js';
 import { assertDockerCreationAccess } from './docker-creation-access.js';
-import { DOCKER_DEPLOYMENT_MANAGED_LABEL } from './docker-deployment-labels.js';
+import { isDockerDeploymentManaged } from './docker-deployment-labels.js';
 import { assertUserContainerAccessible } from './docker-internal-containers.js';
+import { labelString } from './docker-managed-labels.js';
 import { answerNodeLoss } from './docker-node-loss.middleware.js';
 import { resolveDockerContainerByName } from './docker-route-resolvers.js';
 import { DockerSecretService } from './docker-secret.service.js';
@@ -114,7 +115,6 @@ import { assertNotPendingSourceContainer } from './docker-source.service.js';
 
 const DOCKER_RESOURCE_LIST_MAX = 1000;
 const DOCKER_CONTAINER_PORT_PREVIEW_MAX = 64;
-const ARCHIVE_IMAGE_REFERENCE_LABEL = 'wiolett.gateway.archive.image.reference';
 
 /**
  * The cached inspect of a container. Right after a recreate the container list can name the new runtime before its
@@ -191,7 +191,7 @@ export function compactContainerListItem(container: Record<string, any>) {
   return {
     id: container.id ?? container.Id,
     name: ((container.name ?? container.Name ?? '') as string).replace(/^\//, ''),
-    image: labels[ARCHIVE_IMAGE_REFERENCE_LABEL] || container.image || container.Image || '',
+    image: labelString(labels, 'archive.image.reference') || container.image || container.Image || '',
     pendingSourceBuild: container.pendingSourceBuild === true,
     state: container.state ?? container.State,
     status: container.status ?? container.Status,
@@ -251,7 +251,7 @@ async function resolveContainerName(nodeId: string, containerId: string): Promis
   const dockerService = container.resolve(DockerManagementService);
   const inspect = await dockerService.inspectContainer(nodeId, containerId);
   const labels = inspect?.Config?.Labels ?? {};
-  if (labels?.[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true') {
+  if (isDockerDeploymentManaged(labels)) {
     throw new AppError(
       409,
       'MANAGED_DEPLOYMENT_CONTAINER',
@@ -660,7 +660,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
       });
       return new Response(archive.stream, {
         headers: {
-          'Content-Type': 'application/vnd.wiolett.gwca',
+          'Content-Type': 'application/vnd.opfield.gwca',
           'Content-Disposition': `attachment; filename="${archive.filename}"`,
           'Cache-Control': 'no-store',
           'X-Content-Type-Options': 'nosniff',
@@ -693,8 +693,8 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
         nodeId,
         query.folderId
       );
-      if (c.req.header('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/vnd.wiolett.gwca') {
-        throw new AppError(415, 'GWCA_MEDIA_TYPE_REQUIRED', 'Content-Type must be application/vnd.wiolett.gwca');
+      if (c.req.header('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/vnd.opfield.gwca') {
+        throw new AppError(415, 'GWCA_MEDIA_TYPE_REQUIRED', 'Content-Type must be application/vnd.opfield.gwca');
       }
       const body = c.req.raw.body;
       if (!body) throw new AppError(400, 'GWCA_EMPTY', 'Container archive body is required');

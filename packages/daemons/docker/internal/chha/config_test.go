@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 func TestRenderServerConfigPairWithWitness(t *testing.T) {
@@ -177,7 +177,7 @@ func TestRenderUsersAndRole(t *testing.T) {
 
 // The engine configuration Gateway builds (CORE engine-clickhouse.test.ts
 // "matches the daemon contract" pins the same document).
-func TestGatewayEngineConfigContract(t *testing.T) {
+func TestOpfieldEngineConfigContract(t *testing.T) {
 	document := `{"version":1,"loopbackHost":"127.48.54.1","keeperServerId":1,
 		"keeperServers":[{"id":1,"port":39501,"memberId":"11111111-1111-4111-8111-111111111111","role":"voter"},
 			{"id":2,"port":39502,"memberId":"22222222-2222-4222-8222-222222222222","role":"voter"},

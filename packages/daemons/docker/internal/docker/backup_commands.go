@@ -3,7 +3,7 @@ package docker
 import (
 	"encoding/json"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // handleBackupCommand is wired by the parent-owned plugin command switch once DockerBackupCommand is generated.

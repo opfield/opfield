@@ -32,7 +32,7 @@ log_format: "text"
 	}
 	data, _ := os.ReadFile(path)
 	var config struct {
-		Gateway struct {
+		Control struct {
 			Address    string `yaml:"address"`
 			Token      string `yaml:"token"`
 			CertSHA256 string `yaml:"cert_sha256"`
@@ -47,7 +47,7 @@ log_format: "text"
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		t.Fatal(err)
 	}
-	if config.Gateway.Address != "gw.test:9443" || config.Gateway.Token != "tok" || !strings.HasPrefix(config.Gateway.CertSHA256, "sha256:") ||
+	if config.Control.Address != "gw.test:9443" || config.Control.Token != "tok" || !strings.HasPrefix(config.Control.CertSHA256, "sha256:") ||
 		config.Nginx.ConfigDir != "/etc/nginx/conf.d/sites" || config.Nginx.HtpasswdDir != "/etc/nginx/htpasswd" ||
 		config.LogLevel != "debug" || config.LogFormat != "text" || !strings.Contains(string(data), "# operator settings") {
 		t.Fatalf("config after install:\n%s", data)

@@ -9,7 +9,7 @@ export interface ManagedDatabaseTunnelEndpoint {
 
 export class ManagedDatabaseTunnelProxy {
   // biome-ignore lint/complexity/noUselessConstructor: Stable commercial constructor contract.
-  constructor(_relayPolicy?: Pick<RelayPolicyService, 'openGatewayTunnel'>, _appCertificateFingerprint?: string) {}
+  constructor(_relayPolicy?: Pick<RelayPolicyService, 'openOpfieldTunnel'>, _appCertificateFingerprint?: string) {}
   setAppCertificateFingerprint(_fingerprint: string): void {}
   async getEndpoint(
     _managedDatabaseId: string,

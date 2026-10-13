@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // Protected mode is for a node installed on a machine the Gateway operator
@@ -32,7 +32,7 @@ type ProtectedModePlugin interface {
 	ProtectedMode() bool
 	// ProtectedCommandAllowed reports whether a daemon-specific command may
 	// run in protected mode. Commands not listed here are refused.
-	ProtectedCommandAllowed(cmd *pb.GatewayCommand) bool
+	ProtectedCommandAllowed(cmd *pb.OpfieldCommand) bool
 }
 
 // pluginProtected reports whether the plugin runs in protected mode.
@@ -48,17 +48,17 @@ func pluginProtected(plugin DaemonPlugin) bool {
 // address Opfield moves to (the daemon switches to it only when it presents a
 // certificate of the same System CA, so it stays the same Opfield). Everything
 // else must be allowed by the plugin.
-func protectedCommandAllowed(plugin DaemonPlugin, cmd *pb.GatewayCommand) bool {
+func protectedCommandAllowed(plugin DaemonPlugin, cmd *pb.OpfieldCommand) bool {
 	switch payload := cmd.GetPayload().(type) {
-	case *pb.GatewayCommand_RequestHealth,
-		*pb.GatewayCommand_RequestStats,
-		*pb.GatewayCommand_SetDaemonLogStream,
-		*pb.GatewayCommand_UpdateDaemon,
-		*pb.GatewayCommand_SetGatewayNextAddress:
+	case *pb.OpfieldCommand_RequestHealth,
+		*pb.OpfieldCommand_RequestStats,
+		*pb.OpfieldCommand_SetDaemonLogStream,
+		*pb.OpfieldCommand_UpdateDaemon,
+		*pb.OpfieldCommand_SetOpfieldNextAddress:
 		return true
-	case *pb.GatewayCommand_NodeFile:
+	case *pb.OpfieldCommand_NodeFile:
 		return payload.NodeFile.GetAction() == "ensure-host-identity"
-	case *pb.GatewayCommand_NodeExec, *pb.GatewayCommand_ExecInput:
+	case *pb.OpfieldCommand_NodeExec, *pb.OpfieldCommand_ExecInput:
 		return false
 	}
 	protected, ok := plugin.(ProtectedModePlugin)
@@ -67,7 +67,7 @@ func protectedCommandAllowed(plugin DaemonPlugin, cmd *pb.GatewayCommand) bool {
 
 // refuseProtectedCommand returns the refusal for a command a protected node
 // does not run, or nil when it may run (or the node is not protected).
-func refuseProtectedCommand(protected bool, plugin DaemonPlugin, cmd *pb.GatewayCommand) *pb.CommandResult {
+func refuseProtectedCommand(protected bool, plugin DaemonPlugin, cmd *pb.OpfieldCommand) *pb.CommandResult {
 	if !protected || protectedCommandAllowed(plugin, cmd) {
 		return nil
 	}
@@ -215,7 +215,7 @@ func (d *DaemonBase) protectedUpdateRefusal(target string) string {
 }
 
 // commandKind names the payload of a command for logs (node_exec, node_file, ...).
-func commandKind(cmd *pb.GatewayCommand) string {
+func commandKind(cmd *pb.OpfieldCommand) string {
 	message := cmd.ProtoReflect()
 	oneof := message.Descriptor().Oneofs().ByName("payload")
 	if oneof == nil {

@@ -157,8 +157,9 @@ describe('private core update preparation', () => {
       sandboxWorkspaceDir: join(hostDir, 'workspaces'),
     });
     expect(await readFile(join(hostDir, '.env'), 'utf8')).toContain(`/versions/${nextVersion}`);
+    // A fresh directory gets the Opfield commercial directory, and Compose mounts the directory the core went to.
     expect(await readFile(join(hostDir, 'docker-compose.yml'), 'utf8')).toContain(
-      './.gateway-commercial:/var/lib/gateway/commercial:ro'
+      './.opfield-commercial:/var/lib/gateway/commercial:ro'
     );
     await copyFile(join(result.backupDir!, '.env'), join(hostDir, '.env'));
     await copyFile(join(result.backupDir!, 'docker-compose.yml'), join(hostDir, 'docker-compose.yml'));

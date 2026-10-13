@@ -412,7 +412,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
       }
       await this.transition({ state: 'critical', reason: result.reason });
     } catch (error) {
-      logger.error('Gateway relay supervisor probe failed internally', {
+      logger.error('Opfield relay supervisor probe failed internally', {
         error: error instanceof Error ? error.message : String(error),
       });
       await this.transition({ state: 'degraded', reason: 'ownership_unverified' }).catch(() => {});
@@ -483,7 +483,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
         userId,
         action: 'relay.recovery.retry',
         resourceType: 'system',
-        resourceId: 'gateway-relay',
+        resourceId: 'opfield-relay',
         details: { maxAttempts: MAX_ATTEMPTS },
       });
       this.startRecoveryCycle(true);
@@ -608,8 +608,8 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
     this.state = { ...this.state, ...change };
     if (serving) this.reconnectChannels();
     await this.persistAndPublish();
-    if (serving) logger.info('Gateway relay serves again; nodes and relays get a reconnect grace');
-    else logger.warn('Gateway relay does not serve; node and relay control streams through it are reconnecting');
+    if (serving) logger.info('Opfield relay serves again; nodes and relays get a reconnect grace');
+    else logger.warn('Opfield relay does not serve; node and relay control streams through it are reconnecting');
   }
 
   /**
@@ -622,12 +622,12 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
     if (!this.relayClient?.reconnectIfDown) return;
     try {
       const replacedNow = this.relayClient.reconnectIfDown();
-      logger.info('Gateway reconnected its channels to the local relay', {
+      logger.info('Opfield reconnected its channels to the local relay', {
         replacedNow,
         ...(replacedNow ? {} : { detail: 'reconnected while the relay was down' }),
       });
     } catch (error) {
-      logger.warn('Gateway channels to the local relay were not reconnected', {
+      logger.warn('Opfield channels to the local relay were not reconnected', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -646,7 +646,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
   private startRecoveryCycle(manual: boolean): void {
     this.recoveryCycle = this.runRecoveryCycle(manual)
       .catch(async (error) => {
-        logger.error('Gateway relay recovery cycle failed internally', {
+        logger.error('Opfield relay recovery cycle failed internally', {
           error: error instanceof Error ? error.message : String(error),
         });
         await this.transition({
@@ -702,7 +702,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
         );
         if (outcome === 'superseded') {
           supersededRounds += 1;
-          logger.info('Gateway relay changed while recovery was about to act; judging it again', {
+          logger.info('Opfield relay changed while recovery was about to act; judging it again', {
             attempt,
             round: supersededRounds,
           });
@@ -720,7 +720,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
       } catch (error) {
         this.lastOwnActionAt = this.now();
         this.updateAttempt(attempt, { result: 'failed' });
-        logger.warn('Gateway relay recovery action failed', {
+        logger.warn('Opfield relay recovery action failed', {
           attempt,
           error: error instanceof Error ? error.message : String(error),
           cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
@@ -762,7 +762,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
           userId: null,
           action: 'relay.recovery.succeeded',
           resourceType: 'system',
-          resourceId: 'gateway-relay',
+          resourceId: 'opfield-relay',
           details: { attempt, action, manual },
         });
         return;
@@ -775,7 +775,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
       userId: null,
       action: 'relay.recovery.failed',
       resourceType: 'system',
-      resourceId: 'gateway-relay',
+      resourceId: 'opfield-relay',
       details: { attempts: MAX_ATTEMPTS, manual },
     });
   }
@@ -837,7 +837,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
         announced = wait.activity;
         // `since` is when this activity began (the exit a moment ago for `settling`), not the start of the run
         // before it, which can be hours old.
-        logger.info('Gateway relay is being handled outside the supervisor; waiting instead of restarting it', {
+        logger.info('Opfield relay is being handled outside the supervisor; waiting instead of restarting it', {
           activity: wait.activity,
           since: wait.sinceMs === null ? null : new Date(wait.sinceMs).toISOString(),
           waitMs: wait.waitMs,
@@ -1019,7 +1019,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
     this.state = { ...this.state, ...update };
     if (!changed) return;
     await this.persistAndPublish();
-    logger.info('Gateway relay supervisor state changed', {
+    logger.info('Opfield relay supervisor state changed', {
       state: this.state.state,
       reason: this.state.reason,
       attempt: this.state.attempt,

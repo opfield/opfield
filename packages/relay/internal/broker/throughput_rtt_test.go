@@ -30,9 +30,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 	"google.golang.org/grpc"
 )
 

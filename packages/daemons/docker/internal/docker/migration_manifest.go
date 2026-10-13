@@ -35,8 +35,8 @@ type createStoppedContainerRequest struct {
 	Env         []string                `json:"env"`
 }
 
-const migrationOwnershipLabel = "wiolett.gateway.migration.id"
-const archiveImageReferenceLabel = "wiolett.gateway.archive.image.reference"
+const migrationOwnershipLabel = "net.opfield.migration.id"
+const archiveImageReferenceLabel = "net.opfield.archive.image.reference"
 
 // migrationManifestSchemaVersion 2: EnvKeys name the container's own
 // environment, not the image defaults it runs unchanged (see
@@ -46,7 +46,7 @@ const archiveImageReferenceLabel = "wiolett.gateway.archive.image.reference"
 const migrationManifestSchemaVersion = 2
 
 func configuredArchiveImageReference(image string, labels map[string]string) string {
-	if archivedReference := strings.TrimSpace(labels[archiveImageReferenceLabel]); archivedReference != "" {
+	if archivedReference := strings.TrimSpace(labelValue(labels, archiveImageReferenceLabel)); archivedReference != "" {
 		return archivedReference
 	}
 	return strings.TrimSpace(image)
@@ -109,7 +109,7 @@ func (c *Client) captureMigrationManifest(ctx context.Context, id string, withSi
 
 	manifest.EnvKeys, manifest.Blockers = migrationOwnEnvKeys(config.Env, imageEnv, manifest.Blockers)
 	config.Env = nil
-	if len(hostConfig.LogConfig.Config) > 0 && !isGatewayDefaultLogConfig(hostConfig.LogConfig) {
+	if len(hostConfig.LogConfig.Config) > 0 && !isOpfieldDefaultLogConfig(hostConfig.LogConfig) {
 		manifest.Blockers = append(manifest.Blockers, "Docker log driver options may contain secrets and require explicit migration support")
 		for key := range hostConfig.LogConfig.Config {
 			hostConfig.LogConfig.Config[key] = ""

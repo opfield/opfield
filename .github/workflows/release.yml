@@ -24,23 +24,25 @@ concurrency:
 env:
   CI: 'true'
   # Image repositories (scripts/release/image-repositories.sh, docs/development.md). With the repository variable
-  # OPFIELD_GHCR=true ghcr.io/opfield/opfield is the primary and the one signed manifests name (GATEWAY_SIGNED_IMAGE),
+  # OPFIELD_GHCR=true ghcr.io/opfield/opfield is the primary and the one signed manifests name (OPFIELD_SIGNED_IMAGE),
   # and ghcr.io/the-square-labs/gateway, the earlier repository, receives every release tag with the same digest.
-  # GATEWAY_IMAGE, GATEWAY_IMAGE_MIRROR and GATEWAY_SIGNED_IMAGE (repository variables) override them for forks.
+  # OPFIELD_IMAGE, OPFIELD_IMAGE_MIRROR and OPFIELD_SIGNED_IMAGE (repository variables) override them for forks.
   # GHCR_PUSH_TOKEN (secret) is a token that can write packages in both organizations; without it the workflow
   # token is used. Keep these lines identical in image.yml.
   OPFIELD_GHCR: ${{ vars.OPFIELD_GHCR }}
-  GATEWAY_IMAGE: ${{ vars.GATEWAY_IMAGE || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/opfield/opfield' || 'ghcr.io/the-square-labs/gateway') }}
-  GATEWAY_IMAGE_MIRROR: ${{ vars.GATEWAY_IMAGE_MIRROR || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/the-square-labs/gateway' || '') }}
-  GATEWAY_SIGNED_IMAGE: ${{ vars.GATEWAY_SIGNED_IMAGE }}
+  # legacy-name: vars.GATEWAY_IMAGE, GATEWAY_IMAGE_MIRROR (and GATEWAY_SIGNED_IMAGE), the repository variable names before
+  # 2.12.1, read while the OPFIELD_* ones are unset — remove once the owner renamed the repository variables.
+  OPFIELD_IMAGE: ${{ vars.OPFIELD_IMAGE || vars.GATEWAY_IMAGE || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/opfield/opfield' || 'ghcr.io/the-square-labs/gateway') }}
+  OPFIELD_IMAGE_MIRROR: ${{ vars.OPFIELD_IMAGE_MIRROR || vars.GATEWAY_IMAGE_MIRROR || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/the-square-labs/gateway' || '') }}
+  OPFIELD_SIGNED_IMAGE: ${{ vars.OPFIELD_SIGNED_IMAGE || vars.GATEWAY_SIGNED_IMAGE }}
   # With the repository variable SIGN_IMAGES=true every image is signed keyless (Sigstore, GitHub OIDC) and carries an
   # SPDX SBOM attestation; the SBOMs are also release assets (docs/verify-releases.md). This is in addition to the
   # Ed25519-signed update manifests, which do not change. Keep this line identical in image.yml.
   SIGN_IMAGES: ${{ vars.SIGN_IMAGES }}
 
 jobs:
-  gateway:
-    name: Gateway release
+  opfield:
+    name: Opfield release
     if: >-
       ${{ !(endsWith(github.ref_name, '-relay') || endsWith(github.ref_name, '-nginx') ||
       endsWith(github.ref_name, '-docker') || endsWith(github.ref_name, '-monitoring') ||
@@ -63,16 +65,27 @@ jobs:
           echo "sha=$(git rev-parse "${GITHUB_REF_NAME}^{commit}")" >> "$GITHUB_OUTPUT"
           echo "runner_tree=$(git rev-parse "${GITHUB_REF_NAME}^{commit}:packages/daemons/backup-runner")" >> "$GITHUB_OUTPUT"
 
-      - name: Require a Gateway tag
+      - name: Require an Opfield tag
         env:
           RELEASE_KIND: ${{ steps.tag.outputs.kind }}
-        run: test "$RELEASE_KIND" = gateway
+        run: test "$RELEASE_KIND" = opfield
+
+      # Setup commands of this release download opfield-node-installers.sha256 through the update Worker, which serves
+      # only the installer names it knows: a Worker deployed before that name answers 404 for every node install.
+      # Workers that serve it report service opfield-updates on /health.
+      - name: Require an update Worker that serves the installer checksum list
+        run: |
+          health=$(curl -fsS --retry 3 --max-time 30 https://updates.thesqlabs.com/health || true)
+          if ! grep -q '"service":"opfield-updates"' <<<"$health"; then
+            echo '::error::Deploy packages/update-service (pnpm --filter @opfield/update-service deploy) before this release: the update Worker does not serve opfield-node-installers.sha256' >&2
+            exit 1
+          fi
 
       - name: Resolve image repositories
         run: |
           source scripts/release/image-repositories.sh
-          echo "GATEWAY_SIGNED_IMAGE=${GATEWAY_SIGNED_IMAGE}" >> "$GITHUB_ENV"
-          echo "Primary ${GATEWAY_IMAGE}, mirror ${GATEWAY_IMAGE_MIRROR:-none}, manifests name ${GATEWAY_SIGNED_IMAGE}"
+          echo "OPFIELD_SIGNED_IMAGE=${OPFIELD_SIGNED_IMAGE}" >> "$GITHUB_ENV"
+          echo "Primary ${OPFIELD_IMAGE}, mirror ${OPFIELD_IMAGE_MIRROR:-none}, manifests name ${OPFIELD_SIGNED_IMAGE}"
 
       - name: Verify product continuity grant
         run: node scripts/verify-continuity-grant.mjs
@@ -116,12 +129,12 @@ jobs:
           digest_of() {
             docker buildx imagetools inspect "$1" --format '{{json .Manifest}}' 2>/dev/null | jq -er '.digest'
           }
-          base="${GATEWAY_IMAGE}:main-${SHA}"
-          runner="${GATEWAY_IMAGE}/backup-runner:tree-${RUNNER_TREE}"
+          base="${OPFIELD_IMAGE}:main-${SHA}"
+          runner="${OPFIELD_IMAGE}/backup-runner:tree-${RUNNER_TREE}"
           for attempt in $(seq 1 120); do
             if base_digest=$(digest_of "$base") && runner_digest=$(digest_of "$runner"); then
-              echo "base=${GATEWAY_IMAGE}@${base_digest}" >> "$GITHUB_OUTPUT"
-              echo "runner=${GATEWAY_IMAGE}/backup-runner@${runner_digest}" >> "$GITHUB_OUTPUT"
+              echo "base=${OPFIELD_IMAGE}@${base_digest}" >> "$GITHUB_OUTPUT"
+              echo "runner=${OPFIELD_IMAGE}/backup-runner@${runner_digest}" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             failed=$(
@@ -156,23 +169,23 @@ jobs:
             --file docker/release.Dockerfile \
             --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
             --build-arg "APP_VERSION=${GITHUB_REF_NAME}" \
-            --tag "${GATEWAY_IMAGE}:${GITHUB_REF_NAME}" \
-            --tag "${GATEWAY_IMAGE}:${GITHUB_REF_NAME#v}" \
+            --tag "${OPFIELD_IMAGE}:${GITHUB_REF_NAME}" \
+            --tag "${OPFIELD_IMAGE}:${GITHUB_REF_NAME#v}" \
             --provenance=false \
             --sbom=false \
             --metadata-file "${RUNNER_TEMP}/image.metadata.json" \
             --push "$context"
           digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "${RUNNER_TEMP}/image.metadata.json")
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
-          docker buildx imagetools create --tag "${GATEWAY_IMAGE}/backup-runner:${GITHUB_REF_NAME}" "$RUNNER_IMAGE"
-          echo "Published ${GATEWAY_IMAGE}@${digest}"
-          if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
+          docker buildx imagetools create --tag "${OPFIELD_IMAGE}/backup-runner:${GITHUB_REF_NAME}" "$RUNNER_IMAGE"
+          echo "Published ${OPFIELD_IMAGE}@${digest}"
+          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
             # skopeo keeps the manifest, so the mirror tags carry the signed digest (imagetools create would re-wrap it).
             for t in "${GITHUB_REF_NAME}" "${GITHUB_REF_NAME#v}"; do
-              skopeo copy --all --preserve-digests "docker://${GATEWAY_IMAGE}@${digest}" "docker://${GATEWAY_IMAGE_MIRROR}:${t}"
+              skopeo copy --all --preserve-digests "docker://${OPFIELD_IMAGE}@${digest}" "docker://${OPFIELD_IMAGE_MIRROR}:${t}"
             done
-            docker buildx imagetools create --tag "${GATEWAY_IMAGE_MIRROR}/backup-runner:${GITHUB_REF_NAME}" "$RUNNER_IMAGE"
-            echo "Mirrored ${GATEWAY_IMAGE}@${digest} to ${GATEWAY_IMAGE_MIRROR}"
+            docker buildx imagetools create --tag "${OPFIELD_IMAGE_MIRROR}/backup-runner:${GITHUB_REF_NAME}" "$RUNNER_IMAGE"
+            echo "Mirrored ${OPFIELD_IMAGE}@${digest} to ${OPFIELD_IMAGE_MIRROR}"
           fi
 
       - name: Install cosign and syft
@@ -189,11 +202,11 @@ jobs:
           mkdir -p "$sboms"
           also=()
           runner_also=()
-          if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
-            also=(--also "$GATEWAY_IMAGE_MIRROR")
-            runner_also=(--also "${GATEWAY_IMAGE_MIRROR}/backup-runner")
+          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
+            also=(--also "$OPFIELD_IMAGE_MIRROR")
+            runner_also=(--also "${OPFIELD_IMAGE_MIRROR}/backup-runner")
           fi
-          scripts/release/supply-chain.sh sign "${GATEWAY_IMAGE}@${DIGEST}" \
+          scripts/release/supply-chain.sh sign "${OPFIELD_IMAGE}@${DIGEST}" \
             --sbom "${sboms}/opfield-${GITHUB_REF_NAME}.spdx.json" "${also[@]}"
           scripts/release/supply-chain.sh sign "$RUNNER_IMAGE" \
             --sbom "${sboms}/backup-runner-${GITHUB_REF_NAME}.spdx.json" "${runner_also[@]}"
@@ -203,7 +216,7 @@ jobs:
         env:
           DIGEST: ${{ steps.image.outputs.digest }}
           RUNNER_IMAGE: ${{ steps.images.outputs.runner }}
-        run: node scripts/test-backup-runner-release.mjs "${GATEWAY_IMAGE}@${DIGEST}" "$RUNNER_IMAGE"
+        run: node scripts/test-backup-runner-release.mjs "${OPFIELD_IMAGE}@${DIGEST}" "$RUNNER_IMAGE"
 
       - name: Sign update manifest
         env:
@@ -222,7 +235,7 @@ jobs:
               --kind gateway-image \
               --version "$GITHUB_REF_NAME" \
               --tag "$GITHUB_REF_NAME" \
-              --image "$GATEWAY_SIGNED_IMAGE" \
+              --image "$OPFIELD_SIGNED_IMAGE" \
               --digest "$DIGEST" \
               --git-commit-sha "$SHA" \
               --git-pipeline-id "$GITHUB_RUN_ID" \
@@ -293,7 +306,7 @@ jobs:
       - name: Package the commercial core
         env:
           GH_TOKEN: ${{ secrets.COMMERCIAL_CI_TOKEN }}
-          COMMERCIAL_REPOSITORY: ${{ vars.COMMERCIAL_REPOSITORY || (github.repository_owner == 'opfield' && 'opfield/opfield-commercial' || format('{0}/gateway-commercial', github.repository_owner)) }}
+          COMMERCIAL_REPOSITORY: ${{ vars.COMMERCIAL_REPOSITORY || (github.repository_owner == 'opfield' && 'opfield/opfield-commercial' || format('{0}/opfield-commercial', github.repository_owner)) }}
         run: |
           test -n "$GH_TOKEN" || { echo '::error::COMMERCIAL_CI_TOKEN is not set' >&2; exit 1; }
           title="Package commercial core ${GITHUB_REF_NAME}"
@@ -325,9 +338,9 @@ jobs:
           DIGEST: ${{ steps.image.outputs.digest }}
         run: |
           # latest is the signed release digest itself, in both repositories.
-          skopeo copy --all --preserve-digests "docker://${GATEWAY_IMAGE}@${DIGEST}" "docker://${GATEWAY_IMAGE}:latest"
-          if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
-            skopeo copy --all --preserve-digests "docker://${GATEWAY_IMAGE}@${DIGEST}" "docker://${GATEWAY_IMAGE_MIRROR}:latest"
+          skopeo copy --all --preserve-digests "docker://${OPFIELD_IMAGE}@${DIGEST}" "docker://${OPFIELD_IMAGE}:latest"
+          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
+            skopeo copy --all --preserve-digests "docker://${OPFIELD_IMAGE}@${DIGEST}" "docker://${OPFIELD_IMAGE_MIRROR}:latest"
           fi
 
       # A stable Gateway release is the repository's Latest: releases/latest/download serves its installers.

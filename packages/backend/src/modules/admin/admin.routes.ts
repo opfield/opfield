@@ -38,7 +38,7 @@ import {
   updateAdminUserGroups,
 } from '@/modules/admin/admin-user-actions.js';
 import { AdminUserFolderService } from '@/modules/admin/admin-user-folders.service.js';
-import { readGatewaySettings, updateGatewaySettings } from '@/modules/admin/gateway-settings.js';
+import { readOpfieldSettings, updateOpfieldSettings } from '@/modules/admin/opfield-settings.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import {
   authMiddleware,
@@ -274,9 +274,9 @@ adminRoutes.openapi(
   }
 );
 
-adminRoutes.openapi({ ...getAuthSettingsRoute, middleware: requireScope('settings:gateway:view') }, async (c) =>
+adminRoutes.openapi({ ...getAuthSettingsRoute, middleware: requireScope('settings:opfield:view') }, async (c) =>
   c.json(
-    await readGatewaySettings(
+    await readOpfieldSettings(
       { user: c.get('user')!, scopes: c.get('effectiveScopes') || [] },
       {
         currentRequestIp: (networkSecurity) => resolveClientIp(c.req.raw.headers, getRemoteAddress(c), networkSecurity),
@@ -285,10 +285,10 @@ adminRoutes.openapi({ ...getAuthSettingsRoute, middleware: requireScope('setting
   )
 );
 
-adminRoutes.openapi({ ...updateAuthSettingsRoute, middleware: requireScope('settings:gateway:edit') }, async (c) => {
+adminRoutes.openapi({ ...updateAuthSettingsRoute, middleware: requireScope('settings:opfield:edit') }, async (c) => {
   const input = UpdateAuthProvisioningSettingsSchema.parse(await c.req.json());
   return c.json(
-    await updateGatewaySettings(adminUserActor(c), input, {
+    await updateOpfieldSettings(adminUserActor(c), input, {
       host: c.req.header('host'),
       forwardedHost: c.req.header('x-forwarded-host'),
       currentRequestIp: (networkSecurity) => resolveClientIp(c.req.raw.headers, getRemoteAddress(c), networkSecurity),
@@ -296,7 +296,7 @@ adminRoutes.openapi({ ...updateAuthSettingsRoute, middleware: requireScope('sett
   );
 });
 
-export { generalSettingsRollbackFields, generalSettingsRollbackPatch } from './gateway-settings.js';
+export { generalSettingsRollbackFields, generalSettingsRollbackPatch } from './opfield-settings.js';
 
 // Create user before first login
 adminRoutes.openapi({ ...createAdminUserRoute, middleware: requireScopeBase('admin:users') }, async (c) => {

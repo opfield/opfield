@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
 // A pool like the one of the relay-placement incident: a local relay next to

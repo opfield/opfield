@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { relayInstances } from '@/db/schema/index.js';
-import { type GatewayRelayCandidate, orderGatewayRelayCandidates } from './gateway-relay-paths.js';
+import { type OpfieldRelayCandidate, orderOpfieldRelayCandidates } from './opfield-relay-paths.js';
 import { planRelays, RelayPoolService } from './relay-pool.service.js';
 import type { EndpointLatencyPath, PlannedRelayAssignment } from './relay-topology.js';
 
@@ -91,7 +91,7 @@ describe('Standbys are the nearest relays (stand rc.7, F-3)', () => {
     const instances = [relay('relay-local'), relay('relay-nl'), relay('relay-uk')];
     const rtt: Record<string, number> = { 'relay-uk': 60, 'relay-nl': 300 };
     for (const endpointId of endpoints) {
-      const candidates: GatewayRelayCandidate[] = planRelays(endpointId, instances, 2, false, netem, []).map(
+      const candidates: OpfieldRelayCandidate[] = planRelays(endpointId, instances, 2, false, netem, []).map(
         ({ instance, role }) => ({
           relayInstanceId: instance.id,
           assignmentState: 'active',
@@ -102,7 +102,7 @@ describe('Standbys are the nearest relays (stand rc.7, F-3)', () => {
         })
       );
       // A graceful stop of the local relay after a quiet period: every remote relay measured, the local one down.
-      const ordered = orderGatewayRelayCandidates(
+      const ordered = orderOpfieldRelayCandidates(
         candidates,
         (candidate) =>
           candidate.local

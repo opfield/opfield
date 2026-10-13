@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
 // Live handover (shared/handover): an update of this daemon hands the

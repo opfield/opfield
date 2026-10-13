@@ -67,7 +67,7 @@ const SYSTEM_SUBJECT_PREFIX = 'system:';
 const SYSTEM_ADMINS_LOCK = 'gateway-system-admins';
 /** Subject namespaces Gateway writes itself; an identity provider must never be able to claim them. */
 const RESERVED_SUBJECT_PREFIXES = [PRECREATED_SUBJECT_PREFIX, SYSTEM_SUBJECT_PREFIX] as const;
-const GATEWAY_SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+const OPFIELD_SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 export const AI_APPROVAL_MODES = ['always-ask', 'normal', 'bypass-non-destructive', 'bypass-everything'] as const;
 export type AIApprovalMode = (typeof AI_APPROVAL_MODES)[number];
@@ -864,7 +864,7 @@ export class AuthService {
       groupName: effective.groupName,
       groupIds: effective.groupIds,
       groupNames: effective.groupNames,
-      requireGateway2fa: effective.requireGateway2fa,
+      require2fa: effective.require2fa,
       groupScopes: isDeleted ? [] : effective.groupScopes,
       additionalScopes: effective.additionalScopes,
       scopes: effectiveScopes,
@@ -987,7 +987,7 @@ export class AuthService {
         groupName: effective.groupName,
         groupIds: effective.groupIds,
         groupNames: effective.groupNames,
-        requireGateway2fa: effective.requireGateway2fa,
+        require2fa: effective.require2fa,
         groupScopes: effective.groupScopes,
         additionalScopes: effective.additionalScopes,
         scopes: effective.scopes,
@@ -1026,14 +1026,14 @@ export class AuthService {
       throw new Error('User not found');
     }
 
-    const requireGateway2fa = groupsRequireMfa(groupIds, groupMap);
+    const require2fa = groupsRequireMfa(groupIds, groupMap);
     const previouslyRequired = groupsRequireMfa(
       userGroupIds(currentUser.groupId, currentUser.additionalGroupIds),
       groupMap
     );
-    const mfaPolicyChanged = currentUser.authMethod !== 'oidc' && previouslyRequired !== requireGateway2fa;
+    const mfaPolicyChanged = currentUser.authMethod !== 'oidc' && previouslyRequired !== require2fa;
 
-    if (mfaPolicyChanged && requireGateway2fa) {
+    if (mfaPolicyChanged && require2fa) {
       const { mfaExistingSessionGracePeriodDays } = await this.authSettingsService.getConfig();
       const gracePeriodDays =
         Number.isInteger(mfaExistingSessionGracePeriodDays) &&
@@ -1068,7 +1068,7 @@ export class AuthService {
       throw new Error('User not found');
     }
 
-    if (mfaPolicyChanged && !requireGateway2fa) {
+    if (mfaPolicyChanged && !require2fa) {
       await this.sessionService.clearUserSessionsMfaGraceExpiresAt(userId);
     }
 
@@ -1079,7 +1079,7 @@ export class AuthService {
       this.eventBus?.publish(mfaRequiredChannel(userId), {
         groupId: group.id,
         groupName: group.name,
-        requireGateway2fa,
+        require2fa,
       });
     }
     return mapped;
@@ -1452,7 +1452,7 @@ export class AuthService {
     const [result] = await executor
       .select({ count: count() })
       .from(users)
-      .where(and(isNull(users.deletedAt), ne(users.id, GATEWAY_SYSTEM_USER_ID)));
+      .where(and(isNull(users.deletedAt), ne(users.id, OPFIELD_SYSTEM_USER_ID)));
     return Number(result?.count ?? 0);
   }
 }

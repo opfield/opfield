@@ -14,7 +14,7 @@ import (
 const (
 	managedStorageEngineMinIO     = "minio"
 	managedStorageEngineSeaweedFS = "seaweedfs"
-	managedStorageEngineLabel     = "wiolett.gateway.managed-storage.engine"
+	managedStorageEngineLabel     = "net.opfield.managed-storage.engine"
 
 	// Stable error codes carried at the start of a failed command's error text.
 	// The backend maps them to typed API errors (see the SeaweedFS contract).

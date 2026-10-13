@@ -5,8 +5,8 @@ import (
 	"io"
 	"testing"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay/internal/codec"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay/internal/codec"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/mem"
 	"google.golang.org/grpc/status"

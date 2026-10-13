@@ -5,10 +5,14 @@ import (
 	"io"
 	"os"
 
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
+	"github.com/opfield/opfield/relay-supervisor/internal/hostnames"
 )
 
-const protectedUsage = `Usage: relay-supervisor protected <status|on|off> [--allow-database-witness]
+// protectedUsage names the service and configuration file of this node: the
+// Opfield ones, or the pre-Opfield ones until the node moved to them.
+func protectedUsage() string {
+	return `Usage: relay-supervisor protected <status|on|off> [--allow-database-witness]
   status                    Show whether protected mode is on in the relay configuration
   on                        Turn protected mode on: Opfield can no longer open a console, run commands,
                             read or write files or collect host diagnostics on this machine; it can
@@ -17,15 +21,21 @@ const protectedUsage = `Usage: relay-supervisor protected <status|on|off> [--all
                             Turn protected mode on and allow database availability witness processes
   off                       Turn protected mode off
 The change applies when the relay supervisor restarts:
-  systemctl restart gateway-relay-supervisor     (systemd)
-  rc-service gateway-relay-supervisor restart    (OpenRC)
-The configuration file is RELAY_SUPERVISOR_CONFIG, or /etc/gateway-relay-supervisor/config.yaml.`
+  ` + restartCommand() + `
+The configuration file is RELAY_SUPERVISOR_CONFIG, or ` + hostnames.DefaultConfigPath() + `.`
+}
+
+// restartCommand is how the machine owner restarts the relay supervisor.
+func restartCommand() string {
+	service := hostnames.RunningServiceName()
+	return "systemctl restart " + service + " (OpenRC: rc-service " + service + " restart)"
+}
 
 func supervisorConfigPath() string {
 	if path := os.Getenv("RELAY_SUPERVISOR_CONFIG"); path != "" {
 		return path
 	}
-	return "/etc/gateway-relay-supervisor/config.yaml"
+	return hostnames.DefaultConfigPath()
 }
 
 // runProtectedCommand runs `relay-supervisor protected ...` and returns the
@@ -34,7 +44,7 @@ func supervisorConfigPath() string {
 // next start.
 func runProtectedCommand(args []string, configPath string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, protectedUsage)
+		fmt.Fprintln(stderr, protectedUsage())
 		return 2
 	}
 	action, rest := args[0], args[1:]
@@ -44,7 +54,7 @@ func runProtectedCommand(args []string, configPath string, stdout, stderr io.Wri
 			allowWitness = true
 			continue
 		}
-		fmt.Fprintf(stderr, "unexpected argument %q\n%s\n", arg, protectedUsage)
+		fmt.Fprintf(stderr, "unexpected argument %q\n%s\n", arg, protectedUsage())
 		return 2
 	}
 	switch action {
@@ -67,13 +77,13 @@ func runProtectedCommand(args []string, configPath string, stdout, stderr io.Wri
 			return 1
 		}
 		fmt.Fprintf(stdout, "%s written to %s.\n", protectedStatus(config.ProtectedConfig{Enabled: enabled, AllowDatabaseWitness: enabled && allowWitness}), configPath)
-		fmt.Fprintln(stdout, "Restart the relay supervisor to apply it: systemctl restart gateway-relay-supervisor (OpenRC: rc-service gateway-relay-supervisor restart).")
+		fmt.Fprintln(stdout, "Restart the relay supervisor to apply it: "+restartCommand()+".")
 		return 0
 	case "-h", "--help", "help":
-		fmt.Fprintln(stdout, protectedUsage)
+		fmt.Fprintln(stdout, protectedUsage())
 		return 0
 	default:
-		fmt.Fprintf(stderr, "unknown action %q\n%s\n", action, protectedUsage)
+		fmt.Fprintf(stderr, "unknown action %q\n%s\n", action, protectedUsage())
 		return 2
 	}
 }

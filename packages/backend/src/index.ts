@@ -55,10 +55,10 @@ import { closeDataStoresAfterWrites } from '@/services/background-writes.js';
 import type { RedisClient } from '@/services/cache.service.js';
 import { createConsoleTlsService } from '@/services/console-tls/console-tls.runtime.js';
 import { CryptoService } from '@/services/crypto.service.js';
-import { GatewayLifecycleService } from '@/services/gateway-lifecycle.service.js';
 import { GrpcIdentityService } from '@/services/grpc-identity.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
+import { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import { waitForOrchestrationIdle } from '@/services/orchestration-activity.js';
 import { ReadModelCoordinator } from '@/services/read-model-coordinator.service.js';
 import { RelayIdentityProvisionerService } from '@/services/relay-identity-provisioner.service.js';
@@ -107,9 +107,9 @@ const SLOW_SHUTDOWN_WORK_MS = 2_000;
 /** A client that does not answer the close frame by then is cut. */
 const WEBSOCKET_CLOSE_WAIT_MS = 2_000;
 
-type GatewayWebSocketServer = ReturnType<typeof createApp>['wss'];
+type OpfieldWebSocketServer = ReturnType<typeof createApp>['wss'];
 
-function closeWebSocketServer(wss: GatewayWebSocketServer): Promise<void> {
+function closeWebSocketServer(wss: OpfieldWebSocketServer): Promise<void> {
   return new Promise((resolvePromise) => {
     wss.close(() => resolvePromise());
   });
@@ -164,7 +164,7 @@ async function main() {
   try {
     const env = getEnv();
 
-    logger.info('Starting Gateway API...', {
+    logger.info('Starting Opfield API...', {
       nodeEnv: env.NODE_ENV,
       port: env.PORT,
     });
@@ -182,7 +182,7 @@ async function main() {
     // during an outage, Gateway reports and handles it from its first answer, not after the relay startup.
     await container.resolve(RelaySupervisorService).restore();
 
-    // Console on its own domain (GATEWAY_CONSOLE_DOMAIN): the public URL follows it before any listener resolves
+    // Console on its own domain (OPFIELD_CONSOLE_DOMAIN): the public URL follows it before any listener resolves
     // its identity.
     const consoleTls = createConsoleTlsService(env, container);
     await consoleTls?.seedPublicUrl();
@@ -223,7 +223,7 @@ async function main() {
     // just the installer-managed Compose network can reach it.
     const coreInternalServer = await startInferenceCoreInternalServer();
     logger.info(`Inference core internal listener on 0.0.0.0:${INFERENCE_CORE_INTERNAL_PORT}`);
-    const lifecycle = container.resolve(GatewayLifecycleService);
+    const lifecycle = container.resolve(OpfieldLifecycleService);
     server.prependListener('request', (request, response) =>
       lifecycle.trackHttpRequest(request, response, statusPageService.isCachedStatusHost(request.headers.host))
     );
@@ -251,10 +251,10 @@ async function main() {
     const db = container.resolve(TOKENS.DrizzleClient) as any;
     const systemCA = container.resolve(SystemCAService);
     const grpcIdentity = await container.resolve(GrpcIdentityService).resolve();
-    const relayIdentity = env.GATEWAY_RELAY_REQUIRED
+    const relayIdentity = env.OPFIELD_RELAY_REQUIRED
       ? await container.resolve(RelayIdentityProvisionerService).ensure()
       : null;
-    const relayPolicy = env.GATEWAY_RELAY_REQUIRED ? container.resolve(RelayPolicyService) : undefined;
+    const relayPolicy = env.OPFIELD_RELAY_REQUIRED ? container.resolve(RelayPolicyService) : undefined;
 
     await startGrpcServer(
       env.GRPC_PORT,
@@ -278,9 +278,9 @@ async function main() {
     registry.startAcceptingConnections();
     const relayFinalization = await container.resolve(RelayStartupFinalizerService).finalize();
     if (relayFinalization.status === 'degraded') {
-      logger.error('Gateway relay startup finalization did not reach readiness', relayFinalization);
+      logger.error('Opfield relay startup finalization did not reach readiness', relayFinalization);
     } else if (relayFinalization.status === 'active') {
-      logger.info('Gateway relay startup finalization completed', relayFinalization);
+      logger.info('Opfield relay startup finalization completed', relayFinalization);
     }
     await container.resolve(RelaySupervisorService).start();
 
@@ -425,14 +425,14 @@ async function main() {
             settleShutdownTask(
               'relay_control_client',
               Promise.resolve().then(() => {
-                if (env.GATEWAY_RELAY_REQUIRED) container.resolve(RelayControlClient).close();
+                if (env.OPFIELD_RELAY_REQUIRED) container.resolve(RelayControlClient).close();
               })
             ),
             settleShutdownTask(
               'relay_tunnel_worker',
               // After the tunnel proxies let go of their endpoints: the worker's connections and streams end with it.
               Promise.allSettled([storageTunnelShutdown, databaseTunnelShutdown]).then(() =>
-                env.GATEWAY_RELAY_REQUIRED ? container.resolve(RelayPolicyService).closeGatewayTunnels() : undefined
+                env.OPFIELD_RELAY_REQUIRED ? container.resolve(RelayPolicyService).closeOpfieldTunnels() : undefined
               )
             ),
           ];

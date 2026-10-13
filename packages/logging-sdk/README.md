@@ -1,38 +1,46 @@
 # Opfield Logging SDK
 
-`@sqgateway/logger` is a Node-first TypeScript SDK for sending application logs into Opfield. It handles Opfield ingest tokens, context merging, batching, retries, rate-limit backoff, trace/span identifiers, and graceful shutdown flushing.
+`@opfield/logger` is a Node-first TypeScript SDK for sending application logs into Opfield. It handles Opfield ingest tokens, context merging, batching, retries, rate-limit backoff, trace/span identifiers, and graceful shutdown flushing.
 
 Use it when an external service, worker, script, or backend needs to write structured logs into Opfield without calling the ingest API manually.
 
 ## Installation
 
 ```sh
-pnpm add @sqgateway/logger
+pnpm add @opfield/logger
 ```
 
 ```sh
-npm install @sqgateway/logger
+npm install @opfield/logger
 ```
 
 The package is ESM-only and ships TypeScript declarations. It expects a runtime with `fetch`; modern Node.js versions provide it globally. For older runtimes, pass a custom `fetch` implementation in the logger options.
+
+### Moving from `@sqgateway/logger`
+
+`@opfield/logger` 2.0 is the same SDK under a new name. Replace the package and the import path; the classes and types are now named `Opfield*` (`OpfieldLogger`, `OpfieldLoggerHook`, `OpfieldLogOptions`, ...). The `Gateway*` names still work in 2.x as deprecated aliases, so a change of the import path is enough to start.
+
+```sh
+pnpm remove @sqgateway/logger && pnpm add @opfield/logger
+```
 
 ## Opfield Setup
 
 1. Open Opfield.
 2. Create a logging ingest token for the target schema/source.
-3. Store the token as a server-side secret, for example `GATEWAY_LOGGING_TOKEN`.
+3. Store the token as a server-side secret, for example `OPFIELD_LOGGING_TOKEN`.
 4. Configure the SDK with your Opfield URL and token.
 
-Logging ingest tokens use the `gwl_` prefix. Keep them server-side. Do not put them in browser bundles, public config, mobile apps, or any client-controlled code.
+Logging ingest tokens use the `opfl_` prefix. Keep them server-side. Do not put them in browser bundles, public config, mobile apps, or any client-controlled code.
 
 ## Quick Start
 
 ```ts
-import { GatewayLogger } from "@sqgateway/logger";
+import { OpfieldLogger } from "@opfield/logger";
 
-const logger = new GatewayLogger({
-  endpoint: "https://gateway.example.com",
-  token: process.env.GATEWAY_LOGGING_TOKEN!,
+const logger = new OpfieldLogger({
+  endpoint: "https://opfield.example.com",
+  token: process.env.OPFIELD_LOGGING_TOKEN!,
   service: "billing-api",
   source: "api",
   labels: {
@@ -62,9 +70,9 @@ await logger.close();
 ## Configuration
 
 ```ts
-const logger = new GatewayLogger({
-  endpoint: "https://gateway.example.com",
-  token: process.env.GATEWAY_LOGGING_TOKEN!,
+const logger = new OpfieldLogger({
+  endpoint: "https://opfield.example.com",
+  token: process.env.OPFIELD_LOGGING_TOKEN!,
   service: "billing-api",
   source: "api",
   traceId: "trace_123",
@@ -98,7 +106,7 @@ const logger = new GatewayLogger({
     console.warn("Opfield log dropped", reason, log.message);
   },
   onFallback: async (logs, failure) => {
-    await persistFailedGatewayLogs(logs, failure);
+    await persistFailedOpfieldLogs(logs, failure);
   },
 });
 ```
@@ -107,7 +115,7 @@ const logger = new GatewayLogger({
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `endpoint` | `string` | Base Opfield URL, for example `https://gateway.example.com`. Trailing slashes are removed automatically. |
+| `endpoint` | `string` | Base Opfield URL, for example `https://opfield.example.com`. Trailing slashes are removed automatically. |
 | `token` | `string` | Opfield logging ingest token. |
 | `service` | `string` | Logical service name attached to every log from this logger. |
 | `source` | `string` | Source/channel name, such as `api`, `worker`, `cron`, or `queue`. |
@@ -115,9 +123,9 @@ const logger = new GatewayLogger({
 | `spanId` | `string` | Default span identifier attached to every log. |
 | `requestId` | `string` | Default request/correlation identifier attached to every log. |
 | `labels` | `Record<string, string \| number \| boolean \| null \| undefined>` | Indexed dimensions. Values are normalized to strings; `null` and `undefined` values are dropped. |
-| `fields` | `Record<string, GatewayLogValue \| undefined>` | Structured event data. `Date` values are serialized to ISO strings; `undefined` values are dropped. |
-| `batching` | `GatewayBatchingOptions` | Queue and flush behavior. |
-| `retry` | `GatewayRetryOptions` | Retry and backoff behavior for transient delivery failures. |
+| `fields` | `Record<string, OpfieldLogValue \| undefined>` | Structured event data. `Date` values are serialized to ISO strings; `undefined` values are dropped. |
+| `batching` | `OpfieldBatchingOptions` | Queue and flush behavior. |
+| `retry` | `OpfieldRetryOptions` | Retry and backoff behavior for transient delivery failures. |
 | `fetch` | `typeof fetch` | Optional fetch implementation for custom runtimes or tests. |
 | `onError` | `(error, logs?, failure?) => void` | Called when delivery fails or a fallback handler throws. Failed logs and failure metadata are included when available. |
 | `onDrop` | `(log, reason) => void` | Called for each dropped log. |
@@ -155,9 +163,9 @@ logger.log({
 Context is inherited and merged from parent loggers, child loggers, and per-event options.
 
 ```ts
-const root = new GatewayLogger({
-  endpoint: "https://gateway.example.com",
-  token: process.env.GATEWAY_LOGGING_TOKEN!,
+const root = new OpfieldLogger({
+  endpoint: "https://opfield.example.com",
+  token: process.env.OPFIELD_LOGGING_TOKEN!,
   service: "api",
   labels: { app: "billing", region: "eu" },
 });
@@ -291,9 +299,9 @@ When a batch cannot be delivered, the SDK calls callbacks in this order:
 `onFallback` is intended for recovery paths where logs should not disappear after Opfield delivery fails:
 
 ```ts
-const logger = new GatewayLogger({
-  endpoint: "https://gateway.example.com",
-  token: process.env.GATEWAY_LOGGING_TOKEN!,
+const logger = new OpfieldLogger({
+  endpoint: "https://opfield.example.com",
+  token: process.env.OPFIELD_LOGGING_TOKEN!,
   async onFallback(logs, failure) {
     await backupLogSink.write({
       reason: failure.reason,
@@ -321,9 +329,9 @@ If `onFallback` throws, the SDK calls `onError` again with the fallback error.
 Example:
 
 ```ts
-const logger = new GatewayLogger({
-  endpoint: "https://gateway.example.com",
-  token: process.env.GATEWAY_LOGGING_TOKEN!,
+const logger = new OpfieldLogger({
+  endpoint: "https://opfield.example.com",
+  token: process.env.OPFIELD_LOGGING_TOKEN!,
   onDrop(log, reason) {
     console.warn(`Dropped Opfield log: ${reason}`, log);
   },
@@ -335,18 +343,18 @@ const logger = new GatewayLogger({
 For long-running Node processes, install the shutdown hook so queued logs are flushed on common process shutdown signals:
 
 ```ts
-import { GatewayLoggerHook } from "@sqgateway/logger";
+import { OpfieldLoggerHook } from "@opfield/logger";
 
-const uninstallHook = logger.hooks.install(GatewayLoggerHook.SHUTDOWN);
+const uninstallHook = logger.hooks.install(OpfieldLoggerHook.SHUTDOWN);
 
-logger.hooks.uninstall(GatewayLoggerHook.SHUTDOWN);
+logger.hooks.uninstall(OpfieldLoggerHook.SHUTDOWN);
 
 // Later, if the logger lifecycle ends before the process:
 uninstallHook();
 await logger.close();
 ```
 
-The shutdown hook listens for `SIGINT`, `SIGTERM`, and `beforeExit`. Hook installation is idempotent: calling `install(GatewayLoggerHook.SHUTDOWN)` more than once does not register duplicate process listeners. The hook registry is intentionally exposed as `logger.hooks` so future SDK versions can add more hook types without adding more top-level logger methods.
+The shutdown hook listens for `SIGINT`, `SIGTERM`, and `beforeExit`. Hook installation is idempotent: calling `install(OpfieldLoggerHook.SHUTDOWN)` more than once does not register duplicate process listeners. The hook registry is intentionally exposed as `logger.hooks` so future SDK versions can add more hook types without adding more top-level logger methods.
 
 ## Framework Examples
 
@@ -419,30 +427,30 @@ Avoid placing secrets, passwords, API keys, tokens, raw authorization headers, p
 
 ## API Reference
 
-### `new GatewayLogger(options)`
+### `new OpfieldLogger(options)`
 
 Creates an Opfield logger instance.
 
 ```ts
-import { GatewayLogger } from "@sqgateway/logger";
+import { OpfieldLogger } from "@opfield/logger";
 ```
 
-### `GatewayLogger` class
+### `OpfieldLogger` class
 
 ```ts
-class GatewayLogger {
-  readonly hooks: GatewayLoggerHooks;
-  constructor(options: GatewayLoggerOptions);
-  trace(message: string, options?: GatewayLogOptions): void;
-  debug(message: string, options?: GatewayLogOptions): void;
-  info(message: string, options?: GatewayLogOptions): void;
-  warn(message: string, options?: GatewayLogOptions): void;
-  error(message: string, options?: GatewayLogOptions): void;
-  fatal(message: string, options?: GatewayLogOptions): void;
-  log(event: GatewayLogEvent): void;
-  child(context: GatewayLogContext): GatewayLogger;
-  createTrace(context?: GatewayTraceContext): GatewayTraceLogger;
-  withContext<T>(context: GatewayLogContext, fn: (logger: GatewayLogger) => T | Promise<T>): Promise<T>;
+class OpfieldLogger {
+  readonly hooks: OpfieldLoggerHooks;
+  constructor(options: OpfieldLoggerOptions);
+  trace(message: string, options?: OpfieldLogOptions): void;
+  debug(message: string, options?: OpfieldLogOptions): void;
+  info(message: string, options?: OpfieldLogOptions): void;
+  warn(message: string, options?: OpfieldLogOptions): void;
+  error(message: string, options?: OpfieldLogOptions): void;
+  fatal(message: string, options?: OpfieldLogOptions): void;
+  log(event: OpfieldLogEvent): void;
+  child(context: OpfieldLogContext): OpfieldLogger;
+  createTrace(context?: OpfieldTraceContext): OpfieldTraceLogger;
+  withContext<T>(context: OpfieldLogContext, fn: (logger: OpfieldLogger) => T | Promise<T>): Promise<T>;
   flush(): Promise<void>;
   close(): Promise<void>;
 }
@@ -450,41 +458,41 @@ class GatewayLogger {
 
 ### Runtime Exports
 
-- `GatewayLogger`
-- `GatewayLoggerHook`
+- `OpfieldLogger`
+- `OpfieldLoggerHook`
 
 ### Exported Types
 
 The package exports these public types:
 
-- `GatewayBatchingOptions`
-- `GatewayLoggerMethods`
-- `GatewayLoggerHooks`
-- `GatewayLog`
-- `GatewayLogContext`
-- `GatewayLogDropReason`
-- `GatewayLogEvent`
-- `GatewayLogFailureInfo`
-- `GatewayLogFailureReason`
-- `GatewayLoggerOptions`
-- `GatewayLogOptions`
-- `GatewayLogSeverity`
-- `GatewayLogValue`
-- `GatewayRetryOptions`
-- `GatewaySpanContext`
-- `GatewaySpanLogger`
-- `GatewayTraceContext`
-- `GatewayTraceLogger`
+- `OpfieldBatchingOptions`
+- `OpfieldLoggerMethods`
+- `OpfieldLoggerHooks`
+- `OpfieldLog`
+- `OpfieldLogContext`
+- `OpfieldLogDropReason`
+- `OpfieldLogEvent`
+- `OpfieldLogFailureInfo`
+- `OpfieldLogFailureReason`
+- `OpfieldLoggerOptions`
+- `OpfieldLogOptions`
+- `OpfieldLogSeverity`
+- `OpfieldLogValue`
+- `OpfieldRetryOptions`
+- `OpfieldSpanContext`
+- `OpfieldSpanLogger`
+- `OpfieldTraceContext`
+- `OpfieldTraceLogger`
 
 ## Development
 
 From the repository root:
 
 ```sh
-pnpm --filter @sqgateway/logger test
-pnpm --filter @sqgateway/logger lint
-pnpm --filter @sqgateway/logger typecheck
-pnpm --filter @sqgateway/logger build
+pnpm --filter @opfield/logger test
+pnpm --filter @opfield/logger lint
+pnpm --filter @opfield/logger typecheck
+pnpm --filter @opfield/logger build
 ```
 
 The package publishes `dist` only.

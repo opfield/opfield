@@ -10,7 +10,7 @@ import (
 
 	cerrdefs "github.com/containerd/errdefs"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // The update rule of availability set members (rolling engine updates, P3-T07):

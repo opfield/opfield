@@ -3,14 +3,15 @@ package lifecycle
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
 )
 
-// GatewayConfig holds the gateway connection settings.
-type GatewayConfig struct {
+// ControlConfig holds the Opfield connection settings.
+type ControlConfig struct {
 	Address    string `yaml:"address"`
 	Token      string `yaml:"token"`
 	CertSHA256 string `yaml:"cert_sha256"`
@@ -44,13 +45,21 @@ type FilesConfig struct {
 
 // BaseConfig holds the configuration common to all daemons.
 type BaseConfig struct {
-	Gateway  GatewayConfig `yaml:"gateway"`
+	// Control is the control plane connection in effect: the opfield: section
+	// of the config file, else its pre-Opfield gateway: section
+	// (ResolveControlSection picks it after loading).
+	// legacy-name: gateway: config section of pre-Opfield installs — remove once every node reports none
+	Control ControlConfig `yaml:"gateway"`
+	// Opfield is the opfield: section as written in the file.
+	Opfield  ControlConfig `yaml:"opfield"`
 	TLS      TLSConfig     `yaml:"tls"`
 	Console  ConsoleConfig `yaml:"console"`
 	Files    FilesConfig   `yaml:"files"`
 	StateDir string        `yaml:"state_dir"`
 	// HostIdentityPath points at the one opaque identity shared by every
-	// installer-managed Gateway daemon on the physical host.
+	// installer-managed daemon on the physical host. Empty (or either default
+	// path) means the shared default, /var/lib/opfield/host-identity, or the
+	// pre-Opfield /var/lib/gateway/host-identity until that directory moved.
 	HostIdentityPath string `yaml:"host_identity_path"`
 	LogLevel         string `yaml:"log_level"`
 	LogFormat        string `yaml:"log_format"`
@@ -81,8 +90,10 @@ func ClearTokenFromFile(path string) error {
 		return err
 	}
 
-	if gw, ok := raw["gateway"].(map[string]interface{}); ok {
-		delete(gw, "token")
+	for _, section := range ControlSectionKeys {
+		if gw, ok := raw[section].(map[string]interface{}); ok {
+			delete(gw, "token")
+		}
 	}
 
 	out, err := yaml.Marshal(raw)
@@ -101,18 +112,37 @@ func LoadBaseConfig(path string) (*BaseConfig, error) {
 	}
 
 	cfg := &BaseConfig{
-		HostIdentityPath: "/var/lib/gateway/host-identity",
-		LogLevel:         "info",
-		LogFormat:        "json",
+		LogLevel:  "info",
+		LogFormat: "json",
 	}
 
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	cfg.ResolveControlSection()
 
-	if cfg.Gateway.Address == "" {
-		return nil, fmt.Errorf("gateway.address is required")
+	if cfg.Control.Address == "" {
+		return nil, fmt.Errorf("opfield.address is required")
 	}
 
 	return cfg, nil
+}
+
+// ControlSectionKeys are the config file keys of the control plane section:
+// the Opfield one first.
+// legacy-name: gateway: config section — remove once every node reports none
+var ControlSectionKeys = []string{"opfield", "gateway"}
+
+// ResolveControlSection makes Gateway the section in effect: opfield: when the
+// file has one with an address, else the pre-Opfield gateway: section.
+func (c *BaseConfig) ResolveControlSection() {
+	if strings.TrimSpace(c.Opfield.Address) != "" {
+		c.Control = c.Opfield
+	}
+}
+
+// UsesLegacyControlSection reports whether the file's control section is still
+// the pre-Opfield gateway: one.
+func (c *BaseConfig) UsesLegacyControlSection() bool {
+	return strings.TrimSpace(c.Opfield.Address) == "" && strings.TrimSpace(c.Control.Address) != ""
 }

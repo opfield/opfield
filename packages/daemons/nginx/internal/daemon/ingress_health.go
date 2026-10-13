@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
-// ingressGroupCapability tells Gateway this daemon answers the reserved ingress health endpoint and renders per
+// ingressGroupCapability tells Opfield this daemon answers the reserved ingress health endpoint and renders per
 // member, so the node may join an ingress group (decisions S10).
 const ingressGroupCapability = "ingress_group_v1"
 
@@ -28,9 +28,10 @@ const (
 	ingressHealthObservationTTL = 2 * time.Minute
 )
 
-// ingressHealthStatus is what /.well-known/gateway-ingress-health answers: serving only while nginx runs, runs the
-// configuration of the daemon's last successful reload, and — on a node that sources Secure Links — at least one
-// relay transport is up. Everything is local: it keeps answering while Gateway is unreachable.
+// ingressHealthStatus is what the reserved health paths (/.well-known/opfield-ingress-health and the pre-Opfield
+// /.well-known/gateway-ingress-health) answer: serving only while nginx runs, runs the configuration of the daemon's
+// last successful reload, and — on a node that sources Secure Links — at least one relay transport is up. Everything
+// is local: it keeps answering while Opfield is unreachable.
 type ingressHealthStatus struct {
 	Status                string    `json:"status"`
 	Serving               bool      `json:"serving"`
@@ -93,9 +94,11 @@ type ingressHealthResponder struct {
 	plugin   *NginxPlugin
 	logger   *slog.Logger
 	listener net.Listener
-	keptName string
-	server   *http.Server
-	cancel   context.CancelFunc
+	// socketPath is where the responder listens (the path it started with; see socket_names.go).
+	socketPath string
+	keptName   string
+	server     *http.Server
+	cancel     context.CancelFunc
 
 	// inputs gathers the local state a status is computed from (replaced in tests).
 	inputs func(now time.Time) ingressHealthInputs
@@ -110,17 +113,18 @@ type ingressHealthResponder struct {
 // startIngressHealthResponder listens on the responder socket nginx proxies the reserved path to, and starts the
 // self-probe (for the health report) and the certificate renewal of the reserved server.
 func startIngressHealthResponder(plugin *NginxPlugin, logger *slog.Logger) (*ingressHealthResponder, error) {
-	if err := os.MkdirAll(nginx.IngressHealthSocketDir, 0o755); err != nil {
+	if err := os.MkdirAll(nginx.IngressHealthSocketDir(), 0o755); err != nil {
 		return nil, err
 	}
 	// The endpoint only reports health; any local process (nginx workers run as another user) may read it. The
 	// socket the previous process kept is taken over (service_sockets.go).
-	listener, keptName, err := listenServiceSocket(nginx.IngressHealthSocketPath)
+	socketPath := nginx.IngressHealthSocketPath()
+	listener, keptName, err := listenServiceSocket(socketPath)
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	responder := &ingressHealthResponder{plugin: plugin, logger: logger, listener: listener, keptName: keptName, cancel: cancel}
+	responder := &ingressHealthResponder{plugin: plugin, logger: logger, listener: listener, socketPath: socketPath, keptName: keptName, cancel: cancel}
 	responder.inputs = responder.pluginInputs
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", responder.serveHealth)
@@ -140,7 +144,7 @@ func (r *ingressHealthResponder) close() {
 	}
 	r.cancel()
 	// Once the daemon handed its sockets to the next process, so does the responder.
-	remove := releaseServiceSocket(r.listener, nginx.IngressHealthSocketPath, r.keptName, r.plugin.socketsHandedOver())
+	remove := releaseServiceSocket(r.listener, r.socketPath, r.keptName, r.plugin.socketsHandedOver())
 	_ = r.server.Close()
 	_ = r.listener.Close()
 	remove()
@@ -163,7 +167,12 @@ func (r *ingressHealthResponder) serveHealth(w http.ResponseWriter, req *http.Re
 	}
 	now := time.Now()
 	in := r.inputs(now)
-	if value := req.Header.Get(nginx.IngressGenerationHeader); value != "" {
+	value := req.Header.Get(nginx.IngressGenerationHeader)
+	if value == "" {
+		// legacy-name: the generation header of configs rendered for the pre-Opfield names — remove once every node reports none
+		value = req.Header.Get(nginx.LegacyIngressGenerationHeader)
+	}
+	if value != "" {
 		if served, err := strconv.ParseUint(value, 10, 64); err == nil {
 			in.served, in.servedKnown = served, true
 			r.mu.Lock()
@@ -233,7 +242,7 @@ func (r *ingressHealthResponder) selfProbe(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	request.Host = nginx.IngressHealthHostname
+	request.Host = nginx.IngressHealthHost()
 	client := &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}

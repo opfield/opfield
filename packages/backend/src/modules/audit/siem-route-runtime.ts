@@ -2,7 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { requireGatewayFeature } from '@/middleware/feature-flags.js';
+import { requireOpfieldFeature } from '@/middleware/feature-flags.js';
 import { authMiddleware, requireAnyScope } from '@/modules/auth/auth.middleware.js';
 import {
   createSiemDestinationRoute,
@@ -28,7 +28,7 @@ export const siemRouteRuntime = {
   container,
   openApiValidationHook,
   AppError,
-  requireGatewayFeature,
+  requireOpfieldFeature,
   authMiddleware,
   requireAnyScope,
   createSiemDestinationRoute,

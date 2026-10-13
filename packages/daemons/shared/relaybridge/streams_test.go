@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // The pool of the incident this file guards against: a local relay next to

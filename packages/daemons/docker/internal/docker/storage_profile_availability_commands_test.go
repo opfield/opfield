@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 const storageProfileRefusal = "storage-profile daemon accepts only"
@@ -40,9 +40,9 @@ func TestStorageProfileRoutesAvailabilityCommands(t *testing.T) {
 		plugin.cfg.Docker.Mode = mode
 
 		// Without an enrolled node the lease runtime does not run: the handler answers, not the profile switch.
-		for name, cmd := range map[string]*pb.GatewayCommand{
-			"lease sync": {Payload: &pb.GatewayCommand_SyncAvailabilityLease{SyncAvailabilityLease: &pb.SyncAvailabilityLeaseCommand{Revision: 1}}},
-			"lease handoff": {Payload: &pb.GatewayCommand_AvailabilityLeaseHandoff{
+		for name, cmd := range map[string]*pb.OpfieldCommand{
+			"lease sync": {Payload: &pb.OpfieldCommand_SyncAvailabilityLease{SyncAvailabilityLease: &pb.SyncAvailabilityLeaseCommand{Revision: 1}}},
+			"lease handoff": {Payload: &pb.OpfieldCommand_AvailabilityLeaseHandoff{
 				AvailabilityLeaseHandoff: &pb.AvailabilityLeaseHandoffCommand{PolicyId: "policy-1"}}},
 		} {
 			if result := plugin.HandleCommand(cmd); result.Error != errLeaseRuntimeUnavailable {
@@ -50,13 +50,13 @@ func TestStorageProfileRoutesAvailabilityCommands(t *testing.T) {
 			}
 		}
 
-		witnesses := plugin.HandleCommand(&pb.GatewayCommand{Payload: &pb.GatewayCommand_ApplyWitnesses{
+		witnesses := plugin.HandleCommand(&pb.OpfieldCommand{Payload: &pb.OpfieldCommand_ApplyWitnesses{
 			ApplyWitnesses: &pb.ApplyWitnessesCommand{Revision: 1}}})
 		if !witnesses.Success || witnesses.Error != "" {
 			t.Fatalf("%s: witness set refused: %+v", mode, witnesses)
 		}
 
-		member := plugin.HandleCommand(&pb.GatewayCommand{Payload: &pb.GatewayCommand_AvailabilityMember{AvailabilityMember: &pb.AvailabilityMemberCommand{
+		member := plugin.HandleCommand(&pb.OpfieldCommand{Payload: &pb.OpfieldCommand_AvailabilityMember{AvailabilityMember: &pb.AvailabilityMemberCommand{
 			Action: &pb.AvailabilityMemberCommand_AckEvents{AckEvents: &pb.AvailabilityMemberEventsAck{SetId: testSetID, ThroughSequence: 1}},
 		}}})
 		if !member.Success || member.Error != "" {
@@ -64,15 +64,15 @@ func TestStorageProfileRoutesAvailabilityCommands(t *testing.T) {
 		}
 
 		// Every daemon profile takes the daemon log stream toggle (Gateway sends it on every connect).
-		logs := plugin.HandleCommand(&pb.GatewayCommand{Payload: &pb.GatewayCommand_SetDaemonLogStream{
+		logs := plugin.HandleCommand(&pb.OpfieldCommand{Payload: &pb.OpfieldCommand_SetDaemonLogStream{
 			SetDaemonLogStream: &pb.SetDaemonLogStreamCommand{Enabled: false, MinLevel: "info"}}})
 		if !logs.Success || logs.Error != "" {
 			t.Fatalf("%s: daemon log stream command refused: %+v", mode, logs)
 		}
 
-		for name, cmd := range map[string]*pb.GatewayCommand{
-			"container": {Payload: &pb.GatewayCommand_DockerContainer{DockerContainer: &pb.DockerContainerCommand{Action: "start", ContainerId: "c1"}}},
-			"availability": {Payload: &pb.GatewayCommand_DockerAvailability{
+		for name, cmd := range map[string]*pb.OpfieldCommand{
+			"container": {Payload: &pb.OpfieldCommand_DockerContainer{DockerContainer: &pb.DockerContainerCommand{Action: "start", ContainerId: "c1"}}},
+			"availability": {Payload: &pb.OpfieldCommand_DockerAvailability{
 				DockerAvailability: &pb.DockerAvailabilityCommand{Action: availabilityActionActivate}}},
 		} {
 			if result := plugin.HandleCommand(cmd); result.Success || !strings.Contains(result.Error, storageProfileRefusal) {

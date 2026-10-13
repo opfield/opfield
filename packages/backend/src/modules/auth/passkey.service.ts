@@ -106,7 +106,7 @@ export class PasskeyService {
       this.db
         .select({
           authMethod: users.authMethod,
-          requireGateway2fa: sql<boolean>`${permissionGroups.requireGateway2fa} OR EXISTS (SELECT 1 FROM permission_groups g WHERE g.id = ANY(${users.additionalGroupIds}) AND g.require_gateway_2fa)`,
+          require2fa: sql<boolean>`${permissionGroups.require2fa} OR EXISTS (SELECT 1 FROM permission_groups g WHERE g.id = ANY(${users.additionalGroupIds}) AND g.require_2fa)`,
         })
         .from(users)
         .innerJoin(permissionGroups, eq(permissionGroups.id, users.groupId))
@@ -115,7 +115,7 @@ export class PasskeyService {
       this.db.query.userTotpFactors.findFirst({ where: eq(userTotpFactors.userId, userId) }),
     ]);
     const account = accounts[0];
-    if (account?.requireGateway2fa && account.authMethod !== 'oidc' && !totp) {
+    if (account?.require2fa && account.authMethod !== 'oidc' && !totp) {
       const passkeys = await this.db
         .select({ id: userPasskeys.id })
         .from(userPasskeys)

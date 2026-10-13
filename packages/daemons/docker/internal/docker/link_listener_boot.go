@@ -13,10 +13,12 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 )
 
 // After a reboot Docker starts the workloads (their restart policy) before this daemon, which starts after Docker,
@@ -32,7 +34,7 @@ import (
 // one handover over a root-only Unix socket, and exits once the holder is ready, which is when Docker may start.
 
 const (
-	linkListenerBootService   = "gateway-link-listeners"
+	linkListenerBootService   = "opfield-link-listeners"
 	linkListenerBootDirectory = "link-listeners"
 	linkListenerSetFile       = "listeners.json"
 	linkListenerHandoverFile  = "handover.sock"
@@ -42,7 +44,7 @@ const (
 	linkListenerHandoverWait = 5 * time.Second
 	// linkListenerHandoverBatch is the most descriptors one handover message carries (Linux SCM_MAX_FD is 253).
 	linkListenerHandoverBatch = 200
-	linkListenerHolderEnv     = "GATEWAY_LINK_LISTENERS_HELD"
+	linkListenerHolderEnv     = "OPFIELD_LINK_LISTENERS_HELD"
 )
 
 type linkListenerAddress struct {
@@ -348,13 +350,18 @@ func (p *DockerPlugin) restoreDatabaseListeners(ctx context.Context) {
 	}
 	m.releaseAdopted(waiting)
 	go p.ensureLinkListenerBootUnit()
+	// Once the start is confirmed the pre-Opfield boot unit goes (renamed_boot_units.go).
+	linkListenerBootRenameOnce.Do(func() { lifecycle.OnStartConfirmed(p.ensureLinkListenerBootUnit) })
 }
 
-func systemdLinkListenerUnit(executable, stateDir string) string {
+var linkListenerBootRenameOnce sync.Once
+
+func systemdLinkListenerUnit(host volumeImageBootHost, executable, stateDir string) string {
 	return `[Unit]
 Description=Opfield database link listeners: listen before Docker starts containers
 After=local-fs.target
 Before=docker.service
+` + systemdLegacyGuard(host, legacyLinkListenerBootService) + `
 
 [Service]
 Type=forking
@@ -366,7 +373,7 @@ WantedBy=multi-user.target docker.service
 `
 }
 
-func openrcLinkListenerService(executable, stateDir string) string {
+func openrcLinkListenerService(host volumeImageBootHost, executable, stateDir string) string {
 	return `#!/sbin/openrc-run
 description="Opfield database link listeners: listen before Docker starts containers"
 
@@ -376,7 +383,7 @@ depend() {
 }
 
 start() {
-	ebegin "Opening Opfield database link listeners"
+` + openrcLegacyGuard(host, legacyLinkListenerBootService) + `	ebegin "Opening Opfield database link listeners"
 	` + shellQuote(executable) + ` hold-link-listeners --state-dir ` + shellQuote(stateDir) + `
 	eend $?
 }
@@ -388,7 +395,7 @@ func installLinkListenerBootUnit(host volumeImageBootHost, executable, stateDir 
 	switch {
 	case host.systemd:
 		path := filepath.Join(host.systemdDir, linkListenerBootService+".service")
-		changed, err := writeFileIfChanged(path, systemdLinkListenerUnit(executable, stateDir), 0o644)
+		changed, err := writeFileIfChanged(path, systemdLinkListenerUnit(host, executable, stateDir), 0o644)
 		if err != nil {
 			return err
 		}
@@ -398,18 +405,22 @@ func installLinkListenerBootUnit(host volumeImageBootHost, executable, stateDir 
 			}
 		}
 		if changed || host.run("systemctl", "is-enabled", "--quiet", linkListenerBootService+".service") != nil {
-			return host.run("systemctl", "enable", "--quiet", linkListenerBootService+".service")
+			if err := host.run("systemctl", "enable", "--quiet", linkListenerBootService+".service"); err != nil {
+				return err
+			}
 		}
-		return nil
+		return retireLegacyBootUnit(host, legacyLinkListenerBootService)
 	case host.openrc:
 		path := filepath.Join(host.openrcDir, linkListenerBootService)
-		if _, err := writeFileIfChanged(path, openrcLinkListenerService(executable, stateDir), 0o755); err != nil {
+		if _, err := writeFileIfChanged(path, openrcLinkListenerService(host, executable, stateDir), 0o755); err != nil {
 			return err
 		}
 		if _, err := os.Lstat(filepath.Join(host.runlevels, "boot", linkListenerBootService)); err != nil {
-			return host.run("rc-update", "add", linkListenerBootService, "boot")
+			if err := host.run("rc-update", "add", linkListenerBootService, "boot"); err != nil {
+				return err
+			}
 		}
-		return nil
+		return retireLegacyBootUnit(host, legacyLinkListenerBootService)
 	default:
 		return errors.New("no systemd or OpenRC: database link listeners open after Docker at boot")
 	}

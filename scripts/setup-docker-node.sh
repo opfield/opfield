@@ -2,15 +2,15 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# ── Gateway Docker Node Setup ────────────────────────────────────────
-# Installs docker-daemon on a host and enrolls it with the Gateway.
+# ── Opfield Docker Node Setup ────────────────────────────────────────
+# Installs docker-daemon on a host and enrolls it with Opfield.
 #
 # Usage:
 #   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-docker-node.sh | \
-#     sudo bash -s -- --gateway gateway.example.com:9443 --token <ENROLLMENT_TOKEN> --gateway-cert-sha256 sha256:<HEX>
+#     sudo bash -s -- --opfield opfield.example.com:9443 --token <ENROLLMENT_TOKEN> --opfield-cert-sha256 sha256:<HEX>
 #
 # Or download and run:
-#   bash setup-docker-node.sh --gateway gateway.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<HEX>
+#   bash setup-docker-node.sh --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<HEX>
 # ──────────────────────────────────────────────────────────────────────
 
 LOG_FILE="/dev/null"
@@ -30,40 +30,65 @@ ERROR_TAG='\033[48;2;96;61;43m\033[38;2;245;221;202m'
 SUCCESS_TAG='\033[42m\033[97m'
 
 # ── Defaults ─────────────────────────────────────────────────────────
-GATEWAY_HOST="${GATEWAY_NODE_HOST:-}"
-GATEWAY_PORT="${GATEWAY_NODE_PORT:-9443}"
-GATEWAY_ADDR="${GATEWAY_NODE_ADDRESS:-}"
-ENROLL_TOKEN="${GATEWAY_NODE_TOKEN:-}"
-GATEWAY_CERT_SHA256="${GATEWAY_NODE_CERT_SHA256:-}"
-DAEMON_VERSION="${GATEWAY_NODE_DAEMON_VERSION:-latest}"
-DISABLE_CONSOLE="${GATEWAY_NODE_DISABLE_CONSOLE:-0}"
-DISABLE_FILES="${GATEWAY_NODE_DISABLE_FILES:-0}"
-SECURE_RUNTIME="${GATEWAY_DOCKER_SECURE_RUNTIME:-0}"
-RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
-ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
+# legacy-name: GATEWAY_NODE_*, GATEWAY_DOCKER_*, GATEWAY_BUILDER_EGRESS_PROFILE, GATEWAY_DATABASE_STORAGE_ROOT,
+# GATEWAY_LEASE_WATCHDOG_VERSION, GATEWAY_RELEASES_API_URL, GATEWAY_ARTIFACT_BASE_URL,
+# GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS and GATEWAY_SETUP_NO_CLEAR installer environment — customer automation; drop
+# with a changelog notice. Each is read when its OPFIELD_* name is not set (the new name wins).
+for legacy_env in GATEWAY_NODE_HOST GATEWAY_NODE_PORT GATEWAY_NODE_ADDRESS GATEWAY_NODE_TOKEN GATEWAY_NODE_CERT_SHA256 \
+    GATEWAY_NODE_DAEMON_VERSION GATEWAY_NODE_DISABLE_CONSOLE GATEWAY_NODE_DISABLE_FILES \
+    GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS GATEWAY_DOCKER_SECURE_RUNTIME GATEWAY_DOCKER_MODE \
+    GATEWAY_BUILDER_EGRESS_PROFILE GATEWAY_DATABASE_STORAGE_ROOT GATEWAY_LEASE_WATCHDOG_VERSION \
+    GATEWAY_RELEASES_API_URL GATEWAY_ARTIFACT_BASE_URL GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS GATEWAY_SETUP_NO_CLEAR; do
+    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+    if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
+        printf -v "$opfield_env" '%s' "${!legacy_env}"
+    fi
+done
+unset legacy_env opfield_env
+OPFIELD_HOST="${OPFIELD_NODE_HOST:-}"
+OPFIELD_PORT="${OPFIELD_NODE_PORT:-9443}"
+OPFIELD_ADDR="${OPFIELD_NODE_ADDRESS:-}"
+ENROLL_TOKEN="${OPFIELD_NODE_TOKEN:-}"
+OPFIELD_CERT_SHA256="${OPFIELD_NODE_CERT_SHA256:-}"
+DAEMON_VERSION="${OPFIELD_NODE_DAEMON_VERSION:-latest}"
+DISABLE_CONSOLE="${OPFIELD_NODE_DISABLE_CONSOLE:-0}"
+DISABLE_FILES="${OPFIELD_NODE_DISABLE_FILES:-0}"
+SECURE_RUNTIME="${OPFIELD_DOCKER_SECURE_RUNTIME:-0}"
+RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 RUN_USER=""
 NON_INTERACTIVE=0
 NO_LOGO=0
 DRY_RUN=0
 GUIDE_ACTIVE=0
 APT_UPDATED=0
-MANUAL_LAUNCH_TIMEOUT_SECONDS="${GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS:-30}"
+MANUAL_LAUNCH_TIMEOUT_SECONDS="${OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS:-30}"
 OS_VERSION_CODENAME=""
 DOCKER_USE_SUDO=0
 DOCKER_SYSTEMD_UNIT=""
 DOCKER_SOCKET="unix:///var/run/docker.sock"
-DOCKER_MODE="${GATEWAY_DOCKER_MODE:-}"
-BUILDER_EGRESS_PROFILE="${GATEWAY_BUILDER_EGRESS_PROFILE:-internet}"
-BUILDER_RUNTIME_ROOT="/opt/gateway-builder"
+DOCKER_MODE="${OPFIELD_DOCKER_MODE:-}"
+BUILDER_EGRESS_PROFILE="${OPFIELD_BUILDER_EGRESS_PROFILE:-internet}"
+# The Build Worker runtime bundle (binaries, CNI plugins). A worker installed before 2.12.1 has it at
+# /opt/gateway-builder until its daemon moves it here on a start the launcher confirmed (the old name stays a link to
+# it); until then the bundle is updated where it is, and the new name is never created next to it.
+BUILDER_RUNTIME_ROOT="/opt/opfield-builder"
+# legacy-name: /opt/gateway-builder runtime bundle of builder workers installed before 2.12.1 — remove once every node
+# reports none
+LEGACY_BUILDER_RUNTIME_ROOT="/opt/gateway-builder"
+if [[ -e "$LEGACY_BUILDER_RUNTIME_ROOT" && ! -L "$LEGACY_BUILDER_RUNTIME_ROOT" ]]; then
+    BUILDER_RUNTIME_ROOT="$LEGACY_BUILDER_RUNTIME_ROOT"
+fi
 BUILDER_RUNTIME_BIN_DIR="${BUILDER_RUNTIME_ROOT}/bin"
+BUILDER_RUNTIME_CNI_DIR="${BUILDER_RUNTIME_ROOT}/cni/bin"
 BUILDER_RUNTIME_LEGACY_BIN_DIR="${BUILDER_RUNTIME_ROOT}/legacy-bin"
 BUILDER_RUNTIME_MANIFEST="${BUILDER_RUNTIME_ROOT}/runtime-manifest"
 BUILDER_RUNTIME_PATH="${BUILDER_RUNTIME_BIN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-DATABASE_STORAGE_ROOT="${GATEWAY_DATABASE_STORAGE_ROOT:-}"
+DATABASE_STORAGE_ROOT="${OPFIELD_DATABASE_STORAGE_ROOT:-}"
 RESOLVED_DAEMON_VERSION=""
 EXISTING_INSTALL=0
 EXISTING_VERSION=""
-EXISTING_GATEWAY_ADDR=""
+EXISTING_OPFIELD_ADDR=""
 EXISTING_ENROLLED=0
 MANUAL_FALLBACK_USED=0
 DATABASE_PREFLIGHT_DIR=""
@@ -220,8 +245,12 @@ database_storage_root_for_mount() {
     local mountpoint="$1"
     if [[ "$mountpoint" == "/" ]]; then
         echo "/var/lib/docker-daemon/databases"
+    # legacy-name: <mount>/gateway-databases storage root offered before 2.12.1 — a node that runs with it keeps it (its
+    # database images are there); remove once every node reports none
+    elif [[ "$DATABASE_STORAGE_ROOT" == "${mountpoint%/}/gateway-databases" ]]; then
+        echo "$DATABASE_STORAGE_ROOT"
     else
-        echo "${mountpoint%/}/gateway-databases"
+        echo "${mountpoint%/}/opfield-databases"
     fi
 }
 
@@ -358,7 +387,7 @@ preflight_database_storage() {
     fi
     [[ "$available_loop" == /dev/loop* && -b "$available_loop" ]] || die "losetup returned an unusable loop device. $(database_storage_capability_hint)"
 
-    DATABASE_PREFLIGHT_DIR=$(mktemp -d "$DATABASE_STORAGE_ROOT/.gateway-db-preflight.XXXXXX")
+    DATABASE_PREFLIGHT_DIR=$(mktemp -d "$DATABASE_STORAGE_ROOT/.opfield-db-preflight.XXXXXX")
     DATABASE_PREFLIGHT_MOUNT_DIR="$DATABASE_PREFLIGHT_DIR/mnt"
     image="$DATABASE_PREFLIGHT_DIR/test.img"
     mkdir "$DATABASE_PREFLIGHT_MOUNT_DIR"
@@ -378,7 +407,7 @@ preflight_database_storage() {
     [[ -n "$DATABASE_PREFLIGHT_LOOP_DEVICE" && -b "$DATABASE_PREFLIGHT_LOOP_DEVICE" ]] || die "losetup did not attach a usable loop device. $(database_storage_capability_hint)"
 
     mount -o noatime "$DATABASE_PREFLIGHT_LOOP_DEVICE" "$DATABASE_PREFLIGHT_MOUNT_DIR" >>"$LOG_FILE" 2>&1 || die "Could not mount the disposable ext4 database image. $(database_storage_capability_hint)"
-    printf 'gateway-db-preflight\n' > "$DATABASE_PREFLIGHT_MOUNT_DIR/.write-test" || die "Mounted database storage is not writable."
+    printf 'opfield-db-preflight\n' > "$DATABASE_PREFLIGHT_MOUNT_DIR/.write-test" || die "Mounted database storage is not writable."
 
     fallocate -l 128M "$image" >>"$LOG_FILE" 2>&1 || die "Could not grow the disposable database image."
     losetup -c "$DATABASE_PREFLIGHT_LOOP_DEVICE" >>"$LOG_FILE" 2>&1 || die "Loop device does not support capacity refresh."
@@ -466,7 +495,7 @@ preflight_builder_runtime() {
     if [[ "$BUILDER_EGRESS_PROFILE" == "internet" ]]; then
         local plugin
         for plugin in bridge host-local firewall loopback; do
-            [[ -x "/opt/gateway-builder/cni/bin/${plugin}" ]] || die "Builder internet egress requires CNI plugin ${plugin} in /opt/gateway-builder/cni/bin."
+            [[ -x "${BUILDER_RUNTIME_CNI_DIR}/${plugin}" ]] || die "Builder internet egress requires CNI plugin ${plugin} in ${BUILDER_RUNTIME_CNI_DIR}."
         done
     fi
     ok "Builder runtime preflight passed (BuildKit + dedicated containerd + runc)"
@@ -684,7 +713,12 @@ DOCKER_DAEMON_BIN_LINK="/usr/local/bin/docker-daemon"
 DOCKER_DAEMON_OWN_DIR="/usr/local/lib/docker-daemon"
 DOCKER_DAEMON_OWN_BINARY="${DOCKER_DAEMON_OWN_DIR}/bin/docker-daemon"
 DOCKER_DAEMON_OWN_HOST_IDENTITY="/var/lib/docker-daemon/host-identity"
-SHARED_HOST_IDENTITY="/var/lib/gateway/host-identity"
+# The identity root daemons of one host share. The daemons move /var/lib/gateway to /var/lib/opfield themselves (after
+# a start their launcher confirmed) and leave /var/lib/gateway as a link to it; the installer never moves it.
+SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
+# legacy-name: /var/lib/gateway shared host identity directory of daemons before 2.12.1 — remove once every node
+# reports none
+LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
 # Docker trusts the daemon's registry proxy through this directory; root creates it on demand.
 DOCKER_REGISTRY_PROXY_TRUST_DIR="/etc/docker/certs.d/127.0.0.1:5443"
 
@@ -703,10 +737,12 @@ daemon_binary_version() {
 
 # In non-root mode /usr/local/bin/<daemon> is a root-owned wrapper, not the binary: the binary belongs to the service
 # user, who replaces it on update, so root must never execute it. The wrapper switches a root caller to that user.
-DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
+DAEMON_WRAPPER_MARK="# opfield-daemon-wrapper: runs the service user's binary, never as root"
+# legacy-name: wrapper marker written by installers before 2.12.1 — remove once every node reports none
+LEGACY_DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
 write_daemon_wrapper() {
     local command_path="$1" binary="$2" temporary
-    temporary=$(mktemp "$(dirname "$command_path")/.gateway-daemon-wrapper.XXXXXX") || return 1
+    temporary=$(mktemp "$(dirname "$command_path")/.opfield-daemon-wrapper.XXXXXX") || return 1
     if ! cat >"$temporary" <<WRAPPER
 #!/bin/sh
 ${DAEMON_WRAPPER_MARK}
@@ -732,7 +768,7 @@ WRAPPER
 }
 
 is_daemon_wrapper() {
-    [[ -f "$1" && ! -L "$1" ]] && grep -Fqx "$DAEMON_WRAPPER_MARK" "$1" 2>/dev/null
+    [[ -f "$1" && ! -L "$1" ]] && grep -Fqx -e "$DAEMON_WRAPPER_MARK" -e "$LEGACY_DAEMON_WRAPPER_MARK" "$1" 2>/dev/null
 }
 
 run_as_run_user() {
@@ -758,7 +794,7 @@ prepare_root_daemon_binary() {
         return
     fi
     [[ -z "$ROOT_DAEMON_BINARY" ]] || return 0
-    ROOT_DAEMON_COPY=$(mktemp -d /tmp/gateway-docker-daemon-root.XXXXXX) || die "Could not stage the docker-daemon binary."
+    ROOT_DAEMON_COPY=$(mktemp -d /tmp/opfield-docker-daemon-root.XXXXXX) || die "Could not stage the docker-daemon binary."
     curl -fsSL "$DOWNLOAD_URL" -o "${ROOT_DAEMON_COPY}/docker-daemon" >>"$LOG_FILE" 2>&1 \
         || die "Could not download docker-daemon ${RESOLVED_DAEMON_VERSION} for the root-only setup steps."
     verify_checksum "${ROOT_DAEMON_COPY}/docker-daemon" "docker-daemon-linux-${ARCH}"
@@ -802,13 +838,21 @@ grant_daemon_paths_to_run_user() {
 # hands the directory and the records the previous daemon wrote to the new user before it starts, in both directions: a
 # daemon that cannot read them cannot recover its running Availability copies, and the watchdog fences them at their
 # deadline (a watchdog of an earlier release hands over only the directory). Only the directory and the singly linked
-# record files in it change owner.
-LEASE_RECORDS_DIR="/run/gateway-lease-watchdog/records"
+# record files in it change owner. The watchdog and the daemon keep them in /run/opfield-lease-watchdog with the old name
+# linked to it; a watchdog or daemon of an earlier release may have created the old one as the directory after a boot.
+# The installer only reads which one is there and never creates either.
+LEASE_RECORDS_DIR="/run/opfield-lease-watchdog/records"
+# legacy-name: /run/gateway-lease-watchdog lease fence directory of components before 2.12.1 — remove once every node
+# reports none
+LEGACY_LEASE_RECORDS_DIR="/run/gateway-lease-watchdog/records"
 hand_lease_records_to_run_user() {
-    [[ -d "$LEASE_RECORDS_DIR" && ! -L "$LEASE_RECORDS_DIR" ]] || return 0
-    chown -h "${RUN_USER}:${RUN_GROUP}" "$LEASE_RECORDS_DIR" 2>>"$LOG_FILE" || warn "Could not hand the lease watchdog records to ${RUN_USER}."
-    find "$LEASE_RECORDS_DIR" -mindepth 1 -maxdepth 1 -type f -links 1 -name '*.json' \
-        -exec chown -h "${RUN_USER}:${RUN_GROUP}" {} + 2>>"$LOG_FILE" || warn "Could not hand the lease watchdog records to ${RUN_USER}."
+    local records
+    for records in "$LEASE_RECORDS_DIR" "${LEGACY_LEASE_RECORDS_DIR:-}"; do
+        [[ -n "$records" && -d "$records" && ! -L "$records" ]] || continue
+        chown -h "${RUN_USER}:${RUN_GROUP}" "$records" 2>>"$LOG_FILE" || warn "Could not hand the lease watchdog records to ${RUN_USER}."
+        find "$records" -mindepth 1 -maxdepth 1 -type f -links 1 -name '*.json' \
+            -exec chown -h "${RUN_USER}:${RUN_GROUP}" {} + 2>>"$LOG_FILE" || warn "Could not hand the lease watchdog records to ${RUN_USER}."
+    done
 }
 
 # The user a previous install ran the daemon as: the first owner other than root of its configuration, state or own binary
@@ -905,8 +949,38 @@ new_host_identity() {
     printf '%s\n' "$value"
 }
 
+# The shared host identity: at /var/lib/opfield when it is there (a file, or through a linked directory), else at the
+# legacy /var/lib/gateway when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
+# at once more after a pause: a daemon moving the directory right then must not make the host look like a new one.
+shared_host_identity_path() {
+    local current="${SHARED_HOST_IDENTITY_DIR}/host-identity"
+    # legacy-name: /var/lib/gateway/host-identity of daemons before 2.12.1 — remove once every node reports none
+    local legacy="${LEGACY_SHARED_HOST_IDENTITY_DIR}/host-identity"
+    local attempt
+    for attempt in 1 2; do
+        if [[ -e "$current" || -L "$current" ]]; then
+            echo "$current"
+            return 0
+        fi
+        if [[ -e "$legacy" || -L "$legacy" ]]; then
+            echo "$legacy"
+            return 0
+        fi
+        [[ "$attempt" -eq 2 ]] || sleep 1
+    done
+    echo "$current"
+}
+
+# A shared identity directory created at /var/lib/opfield gets /var/lib/gateway as a link to it, the layout the daemons
+# leave after they move the directory, so a daemon of an earlier release on this host finds the same identity.
+link_legacy_host_identity_dir() {
+    [[ -d "$SHARED_HOST_IDENTITY_DIR" && ! -L "$SHARED_HOST_IDENTITY_DIR" ]] || return 0
+    [[ ! -e "$LEGACY_SHARED_HOST_IDENTITY_DIR" && ! -L "$LEGACY_SHARED_HOST_IDENTITY_DIR" ]] || return 0
+    ln -s "$(basename "$SHARED_HOST_IDENTITY_DIR")" "$LEGACY_SHARED_HOST_IDENTITY_DIR" 2>/dev/null || true
+}
+
 # A daemon running as its own user cannot read the host identity that root daemons share (root-owned, mode 0600). It
-# gets a copy of that same identity in its own state directory, so Gateway still sees one host and the shared file
+# gets a copy of that same identity in its own state directory, so Opfield still sees one host and the shared file
 # keeps its owner and mode. Without a shared identity yet, one is created there exactly as a root daemon would.
 seed_host_identity_copy() {
     local shared="$1" copy="$2" identity="" temporary
@@ -963,8 +1037,11 @@ prepare_run_user_identity() {
             || die "Could not point /etc/docker-daemon/config.yaml at the shared host identity."
         return 0
     fi
-    seed_host_identity_copy "$SHARED_HOST_IDENTITY" "$DOCKER_DAEMON_OWN_HOST_IDENTITY" \
+    local shared
+    shared=$(shared_host_identity_path)
+    seed_host_identity_copy "$shared" "$DOCKER_DAEMON_OWN_HOST_IDENTITY" \
         || die "Could not prepare the host identity for ${RUN_USER}."
+    link_legacy_host_identity_dir
     set_config_host_identity_path /etc/docker-daemon/config.yaml "$DOCKER_DAEMON_OWN_HOST_IDENTITY" \
         || die "Could not point /etc/docker-daemon/config.yaml at ${DOCKER_DAEMON_OWN_HOST_IDENTITY}."
     grant_daemon_paths_to_run_user
@@ -981,15 +1058,27 @@ clear_config_host_identity_path() {
     rm -f "$temporary"
 }
 
-# The daemon records each control session Gateway accepted in its state directory (from GATEWAY_SESSION_SINCE on).
+# The daemon records each control session Opfield accepted in its state directory (from CONTROL_SESSION_SINCE on).
 # The installer removes the record before it starts the daemon, so only a session of the daemon it started counts.
-GATEWAY_SESSION_SINCE="v2.11.1-rc.2"
-GATEWAY_SESSION_FILE="/var/lib/docker-daemon/gateway-session.json"
-GATEWAY_SESSION_STARTED=0
+CONTROL_SESSION_SINCE="v2.11.1-rc.2"
+CONTROL_SESSION_FILE="/var/lib/docker-daemon/control-session.json"
+# legacy-name: gateway-session.json session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
+# every node reports none
+LEGACY_CONTROL_SESSION_FILE="/var/lib/docker-daemon/gateway-session.json"
+CONTROL_SESSION_STARTED=0
 
-forget_gateway_session() {
-    rm -f "$GATEWAY_SESSION_FILE"
-    GATEWAY_SESSION_STARTED=$(date +%s)
+forget_control_session() {
+    rm -f "$CONTROL_SESSION_FILE" "$LEGACY_CONTROL_SESSION_FILE"
+    CONTROL_SESSION_STARTED=$(date +%s)
+}
+
+# The session record to read: the daemon's current one, else the one a daemon of an earlier release writes.
+control_session_file() {
+    if [[ -e "$CONTROL_SESSION_FILE" || -L "$CONTROL_SESSION_FILE" || ! -e "$LEGACY_CONTROL_SESSION_FILE" ]]; then
+        echo "$CONTROL_SESSION_FILE"
+    else
+        echo "$LEGACY_CONTROL_SESSION_FILE"
+    fi
 }
 
 # Orders vX.Y.Z and vX.Y.Z-rc.N; a release orders after its release candidates.
@@ -998,21 +1087,22 @@ release_order() {
     echo $(( ((BASH_REMATCH[1] * 1000 + BASH_REMATCH[2]) * 1000 + BASH_REMATCH[3]) * 100000 + ${BASH_REMATCH[5]:-99999} ))
 }
 
-# Daemons older than GATEWAY_SESSION_SINCE write no session record; development builds do.
-daemon_records_gateway_session() {
+# Daemons older than CONTROL_SESSION_SINCE write no session record; development builds do.
+daemon_records_control_session() {
     local order
     order=$(release_order "$1") || return 0
-    (( order >= $(release_order "$GATEWAY_SESSION_SINCE") ))
+    (( order >= $(release_order "$CONTROL_SESSION_SINCE") ))
 }
 
-# Gateway accepted a session of the daemon this run started, and that process still runs under its service manager.
-gateway_session_is_current() {
-    local pid connected_at
-    [[ -f "$GATEWAY_SESSION_FILE" && ! -L "$GATEWAY_SESSION_FILE" ]] || return 1
-    pid=$(sed -nE 's/.*"pid":([0-9]+).*/\1/p' "$GATEWAY_SESSION_FILE")
-    connected_at=$(sed -nE 's/.*"connected_at":([0-9]+).*/\1/p' "$GATEWAY_SESSION_FILE")
+# Opfield accepted a session of the daemon this run started, and that process still runs under its service manager.
+control_session_is_current() {
+    local pid connected_at session
+    session=$(control_session_file)
+    [[ -f "$session" && ! -L "$session" ]] || return 1
+    pid=$(sed -nE 's/.*"pid":([0-9]+).*/\1/p' "$session")
+    connected_at=$(sed -nE 's/.*"connected_at":([0-9]+).*/\1/p' "$session")
     [[ -n "$pid" && -n "$connected_at" ]] || return 1
-    (( connected_at >= GATEWAY_SESSION_STARTED )) || return 1
+    (( connected_at >= CONTROL_SESSION_STARTED )) || return 1
     kill -0 "$pid" 2>/dev/null || return 1
     if [[ "$MANUAL_FALLBACK_USED" -eq 0 ]] && has_systemd; then
         grep -q '/docker-daemon\.service$' "/proc/${pid}/cgroup" 2>/dev/null || return 1
@@ -1020,9 +1110,11 @@ gateway_session_is_current() {
 }
 
 # The enrollment error the daemon started by this run recorded instead of a session, if any.
-gateway_session_enrollment_error() {
-    [[ -f "$GATEWAY_SESSION_FILE" && ! -L "$GATEWAY_SESSION_FILE" ]] || return 1
-    sed -nE 's/.*"enrollment_error":"(([^"\\]|\\.)*)".*/\1/p' "$GATEWAY_SESSION_FILE" | grep .
+control_session_enrollment_error() {
+    local session
+    session=$(control_session_file)
+    [[ -f "$session" && ! -L "$session" ]] || return 1
+    sed -nE 's/.*"enrollment_error":"(([^"\\]|\\.)*)".*/\1/p' "$session" | grep .
 }
 
 daemon_service_running() {
@@ -1057,19 +1149,19 @@ fail_daemon_start() {
     die "docker-daemon is installed, but it is not running."
 }
 
-# An install is done once the daemon it started runs and Gateway accepted it. A daemon too old to record its session
+# An install is done once the daemon it started runs and Opfield accepted it. A daemon too old to record its session
 # must have enrolled and keep running for 10 s instead.
-await_gateway_connection() {
-    local waited=0 limit="${GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS:-90}" running=0
+await_opfield_connection() {
+    local waited=0 limit="${OPFIELD_NODE_ENROLLMENT_WAIT_SECONDS:-90}" running=0
     while (( waited < limit )); do
-        if daemon_records_gateway_session "$RESOLVED_DAEMON_VERSION"; then
-            if gateway_session_is_current; then
+        if daemon_records_control_session "$RESOLVED_DAEMON_VERSION"; then
+            if control_session_is_current; then
                 ok "docker-daemon is connected to Opfield"
                 return 0
             fi
-            # Gateway answered and refused the token: waiting cannot change that.
-            if grep -q '"enrollment_refused":true' "$GATEWAY_SESSION_FILE" 2>/dev/null; then
-                err "Opfield refused the enrollment token (already used, expired, or for another node): $(gateway_session_enrollment_error)"
+            # Opfield answered and refused the token: waiting cannot change that.
+            if grep -q '"enrollment_refused":true' "$(control_session_file)" 2>/dev/null; then
+                err "Opfield refused the enrollment token (already used, expired, or for another node): $(control_session_enrollment_error)"
                 err "Create a new setup command in Opfield and run it on this host."
                 show_daemon_log
                 return 1
@@ -1088,12 +1180,12 @@ await_gateway_connection() {
         waited=$((waited + 1))
     done
     local enrollment_error
-    if enrollment_error=$(gateway_session_enrollment_error); then
+    if enrollment_error=$(control_session_enrollment_error); then
         err "docker-daemon could not enroll with Opfield: ${enrollment_error}"
     elif ! daemon_service_running; then
         err "docker-daemon is not running; the service manager could not keep it up. The log below shows why."
     else
-        err "docker-daemon has not connected to Opfield within ${limit} s; check that Opfield at ${GATEWAY_ADDR} is reachable."
+        err "docker-daemon has not connected to Opfield within ${limit} s; check that Opfield at ${OPFIELD_ADDR} is reachable."
     fi
     show_daemon_log
     return 1
@@ -1332,7 +1424,7 @@ manual_launcher_fallback() {
         echo "Foreground command: $(launcher_foreground_command "$daemon_binary")"
         return 1
     fi
-    forget_gateway_session
+    forget_control_session
     if ! detach_manual_launcher "$daemon_binary" "$manual_log"; then
         err "Could not detach ${daemon_name}; installed files and launcher files were preserved."
         echo "Foreground command: $(launcher_foreground_command "$daemon_binary")"
@@ -1560,7 +1652,7 @@ remove_conflicting_docker_packages() {
 }
 
 # A Docker Engine this script installs starts with log rotation for every
-# container, including ones created outside Gateway. An existing daemon.json
+# container, including ones created outside Opfield. An existing daemon.json
 # belongs to the operator and is left alone.
 seed_docker_log_defaults() {
     local config=/etc/docker/daemon.json
@@ -1711,12 +1803,12 @@ remember_enrollment_token() {
 # used and the host keeps its node. An enrollment from an installer that kept no token digest (v2.11.0 and before)
 # cannot tell its own setup command, which operators re-run to update the daemon, from a new node's: the run goes on as
 # a re-run without a token and warns. With a digest, a different token is a new node's: the run fails before it changes
-# anything, so the new node (still pending in Gateway) does not go unnoticed.
+# anything, so the new node (still pending in Opfield) does not go unnoticed.
 refuse_token_for_enrolled_node() {
     [[ -n "$ENROLL_TOKEN" && "$EXISTING_ENROLLED" -eq 1 ]] || return 0
     local node_id node
     node_id=$(sed -nE 's/.*"node_id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' /var/lib/docker-daemon/state.json 2>/dev/null | head -n 1 || true)
-    node="docker node ${node_id:-(unknown id)}${EXISTING_GATEWAY_ADDR:+ of Opfield ${EXISTING_GATEWAY_ADDR}}"
+    node="docker node ${node_id:-(unknown id)}${EXISTING_OPFIELD_ADDR:+ of Opfield ${EXISTING_OPFIELD_ADDR}}"
     if [[ ! -f "$ENROLLMENT_TOKEN_DIGEST_FILE" ]]; then
         warn "This host is already enrolled as ${node}; the run keeps that enrollment and does not use the enrollment token."
         warn "If this is this node's own setup command (its token already used), nothing else is needed. If it is not, the"
@@ -1732,6 +1824,22 @@ refuse_token_for_enrolled_node() {
     die "The host is already enrolled; the new node stays pending in Opfield."
 }
 
+# The address: of a top-level section (opfield: or gateway:) of the daemon configuration, without quotes or comment.
+config_section_address() {
+    awk -v section="$2" '
+        $0 ~ ("^" section ":[[:space:]]*(#.*)?$") { in_section = 1; next }
+        in_section && /^[^[:space:]#]/ { in_section = 0 }
+        in_section && /^[[:space:]]+address:[[:space:]]*/ {
+            value = $0
+            sub(/^[[:space:]]+address:[[:space:]]*/, "", value)
+            if (value ~ /^"/) { sub(/^"/, "", value); sub(/".*$/, "", value) }
+            else { sub(/[[:space:]]+#.*$/, "", value); sub(/[[:space:]]+$/, "", value) }
+            print value
+            exit
+        }
+    ' "$1"
+}
+
 detect_existing_install() {
     local target="/usr/local/bin/docker-daemon"
     local config_path="/etc/docker-daemon/config.yaml"
@@ -1739,7 +1847,7 @@ detect_existing_install() {
     local cert_path="/etc/docker-daemon/certs/node.pem"
     EXISTING_INSTALL=0
     EXISTING_VERSION=""
-    EXISTING_GATEWAY_ADDR=""
+    EXISTING_OPFIELD_ADDR=""
     EXISTING_ENROLLED=0
 
     if [[ -x "$target" ]]; then
@@ -1748,9 +1856,15 @@ detect_existing_install() {
     fi
 
     if [[ -f "$config_path" ]]; then
-        EXISTING_GATEWAY_ADDR=$(awk -F'"' '/^[[:space:]]*address:[[:space:]]*"/ {print $2; exit}' "$config_path")
-        if [[ -z "$EXISTING_GATEWAY_ADDR" ]]; then
-            EXISTING_GATEWAY_ADDR=$(awk '/^[[:space:]]*address:[[:space:]]*/ {print $2; exit}' "$config_path")
+        EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" opfield)
+        # legacy-name: gateway: section of /etc/docker-daemon/config.yaml written before 2.12.1 — remove once every node
+        # reports none
+        [[ -n "$EXISTING_OPFIELD_ADDR" ]] || EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" gateway)
+        if [[ -z "$EXISTING_OPFIELD_ADDR" ]]; then
+            EXISTING_OPFIELD_ADDR=$(awk -F'"' '/^[[:space:]]*address:[[:space:]]*"/ {print $2; exit}' "$config_path")
+        fi
+        if [[ -z "$EXISTING_OPFIELD_ADDR" ]]; then
+            EXISTING_OPFIELD_ADDR=$(awk '/^[[:space:]]*address:[[:space:]]*/ {print $2; exit}' "$config_path")
         fi
     fi
 
@@ -1791,7 +1905,7 @@ daemon_version_older() {
 
 # A re-run without --version never moves a node to an older daemon than it runs: "latest" is the newest stable
 # release, so a node on a newer release or pre-release keeps its version. Only --version (or
-# GATEWAY_NODE_DAEMON_VERSION) naming the older release installs it.
+# OPFIELD_NODE_DAEMON_VERSION) naming the older release installs it.
 keep_installed_newer_daemon() {
     local daemon="$1"
     [[ "$DAEMON_VERSION" == "latest" && "$EXISTING_INSTALL" -eq 1 ]] || return 0
@@ -1838,11 +1952,11 @@ Usage:
   daemon version defaults to latest unless supplied.
 
 Options:
-  --gateway <addr>         Opfield gRPC address as host:port (e.g. gateway.example.com:9443)
-  --host <host>            Opfield hostname or IP (e.g. gateway.example.com)
+  --opfield <addr>         Opfield gRPC address as host:port (e.g. opfield.example.com:9443)
+  --host <host>            Opfield hostname or IP (e.g. opfield.example.com)
   --port <port>            Opfield gRPC port (default: 9443)
   --token <token>          Enrollment token from Opfield UI (Nodes > Add Node)
-  --gateway-cert-sha256 <fp>
+  --opfield-cert-sha256 <fp>
                            Opfield gRPC TLS leaf fingerprint from the generated setup command
   --version <ver>          Daemon version to install (default: latest; never older than an installed one)
   --mode <profile>         Node profile: docker, builder, databases, or storage (default: docker)
@@ -1859,41 +1973,49 @@ Options:
   -h, --help               Show this help
 
 Environment variables:
-  GATEWAY_NODE_HOST             Same as --host
-  GATEWAY_NODE_PORT             Same as --port (default: 9443)
-  GATEWAY_NODE_ADDRESS          Same as --gateway (host:port combined)
-  GATEWAY_NODE_TOKEN            Same as --token
-  GATEWAY_NODE_CERT_SHA256      Same as --gateway-cert-sha256
-  GATEWAY_NODE_DAEMON_VERSION   Same as --version
-  GATEWAY_LEASE_WATCHDOG_VERSION  Lease watchdog release (default: latest)
-  GATEWAY_DOCKER_MODE           Same as --mode
-  GATEWAY_BUILDER_EGRESS_PROFILE Same as --builder-egress (internet or offline; default: internet)
-  GATEWAY_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
-  GATEWAY_NODE_DISABLE_FILES    Set to 1 to disable host file access
-  GATEWAY_DOCKER_SECURE_RUNTIME Set to 1 for --secure-runtime
-  GATEWAY_RELEASES_API_URL      Override the Opfield release feed
-  GATEWAY_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
+  OPFIELD_NODE_HOST             Same as --host
+  OPFIELD_NODE_PORT             Same as --port (default: 9443)
+  OPFIELD_NODE_ADDRESS          Same as --opfield (host:port combined)
+  OPFIELD_NODE_TOKEN            Same as --token
+  OPFIELD_NODE_CERT_SHA256      Same as --opfield-cert-sha256
+  OPFIELD_NODE_DAEMON_VERSION   Same as --version
+  OPFIELD_LEASE_WATCHDOG_VERSION  Lease watchdog release (default: latest)
+  OPFIELD_DOCKER_MODE           Same as --mode
+  OPFIELD_BUILDER_EGRESS_PROFILE Same as --builder-egress (internet or offline; default: internet)
+  OPFIELD_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
+  OPFIELD_NODE_DISABLE_FILES    Set to 1 to disable host file access
+  OPFIELD_DOCKER_SECURE_RUNTIME Set to 1 for --secure-runtime
+  OPFIELD_RELEASES_API_URL      Override the Opfield release feed
+  OPFIELD_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
 
 Examples:
   # Interactive (prompts for everything):
   sudo bash setup-docker-node.sh
 
   # Fully non-interactive:
-  sudo bash setup-docker-node.sh -y --host gateway.example.com --token gw_node_abc123 --gateway-cert-sha256 sha256:<HEX>
+  sudo bash setup-docker-node.sh -y --host opfield.example.com --token opf_node_abc123 --opfield-cert-sha256 sha256:<HEX>
 
   # Custom daemon user:
-  sudo bash setup-docker-node.sh --user dockeruser --gateway gw:9443 --token TOKEN --gateway-cert-sha256 sha256:<HEX>
+  sudo bash setup-docker-node.sh --user dockeruser --opfield opfield.example.com:9443 --token TOKEN --opfield-cert-sha256 sha256:<HEX>
 HELP
     exit 0
 }
 
+LEGACY_ADDR_FLAG=""
+LEGACY_CERT_SHA256_FLAG=""
+OPFIELD_ADDR_FLAG=""
+OPFIELD_CERT_SHA256_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --gateway)        GATEWAY_ADDR="$2"; shift 2 ;;
-        --host)           GATEWAY_HOST="$2"; shift 2 ;;
-        --port)           GATEWAY_PORT="$2"; shift 2 ;;
+        --opfield)        OPFIELD_ADDR_FLAG="$2"; shift 2 ;;
+        # legacy-name: --gateway flag — customer automation; drop with a changelog notice
+        --gateway)        LEGACY_ADDR_FLAG="$2"; shift 2 ;;
+        --host)           OPFIELD_HOST="$2"; shift 2 ;;
+        --port)           OPFIELD_PORT="$2"; shift 2 ;;
         --token)          ENROLL_TOKEN="$2"; shift 2 ;;
-        --gateway-cert-sha256) GATEWAY_CERT_SHA256="$2"; shift 2 ;;
+        --opfield-cert-sha256) OPFIELD_CERT_SHA256_FLAG="$2"; shift 2 ;;
+        # legacy-name: --gateway-cert-sha256 flag — customer automation; drop with a changelog notice
+        --gateway-cert-sha256) LEGACY_CERT_SHA256_FLAG="$2"; shift 2 ;;
         --version)        DAEMON_VERSION="$2"; shift 2 ;;
         --mode)           DOCKER_MODE="$2"; shift 2 ;;
         --builder-egress) BUILDER_EGRESS_PROFILE="$2"; shift 2 ;;
@@ -1908,6 +2030,18 @@ while [[ $# -gt 0 ]]; do
         *) die "Unknown option: $1. Use --help for usage." ;;
     esac
 done
+# A new flag wins over its legacy synonym, and either over the environment.
+if [[ -n "$OPFIELD_ADDR_FLAG" ]]; then
+    OPFIELD_ADDR="$OPFIELD_ADDR_FLAG"
+elif [[ -n "$LEGACY_ADDR_FLAG" ]]; then
+    OPFIELD_ADDR="$LEGACY_ADDR_FLAG"
+fi
+if [[ -n "$OPFIELD_CERT_SHA256_FLAG" ]]; then
+    OPFIELD_CERT_SHA256="$OPFIELD_CERT_SHA256_FLAG"
+elif [[ -n "$LEGACY_CERT_SHA256_FLAG" ]]; then
+    OPFIELD_CERT_SHA256="$LEGACY_CERT_SHA256_FLAG"
+fi
+unset LEGACY_ADDR_FLAG LEGACY_CERT_SHA256_FLAG OPFIELD_ADDR_FLAG OPFIELD_CERT_SHA256_FLAG
 
 [[ -n "$DOCKER_MODE" ]] || DOCKER_MODE="docker"
 case "$DOCKER_MODE" in
@@ -1922,17 +2056,17 @@ if [[ "$SECURE_RUNTIME" == "1" && "$DOCKER_MODE" != "docker" ]]; then
     die "--secure-runtime applies to the docker profile only."
 fi
 
-# Resolve GATEWAY_ADDR from --host/--port if --gateway not given
-if [[ -n "$GATEWAY_HOST" && -z "$GATEWAY_ADDR" ]]; then
-    GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+# Resolve OPFIELD_ADDR from --host/--port if --opfield not given
+if [[ -n "$OPFIELD_HOST" && -z "$OPFIELD_ADDR" ]]; then
+    OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
 fi
-# If --gateway was given, extract host/port for display
-if [[ -n "$GATEWAY_ADDR" && -z "$GATEWAY_HOST" ]]; then
-    GATEWAY_HOST="${GATEWAY_ADDR%%:*}"
-    GATEWAY_PORT="${GATEWAY_ADDR##*:}"
-    if [[ "$GATEWAY_PORT" == "$GATEWAY_HOST" ]]; then
-        GATEWAY_PORT="9443"
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+# If --opfield was given, extract host/port for display
+if [[ -n "$OPFIELD_ADDR" && -z "$OPFIELD_HOST" ]]; then
+    OPFIELD_HOST="${OPFIELD_ADDR%%:*}"
+    OPFIELD_PORT="${OPFIELD_ADDR##*:}"
+    if [[ "$OPFIELD_PORT" == "$OPFIELD_HOST" ]]; then
+        OPFIELD_PORT="9443"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
     fi
 fi
 
@@ -1940,7 +2074,7 @@ fi
 need_root
 [[ "$DRY_RUN" -eq 1 ]] || preflight_builder_host
 if [[ "$DRY_RUN" -eq 0 ]]; then
-    LOG_FILE=$(mktemp /tmp/gateway_docker_setup.XXXXXX) || die "Could not create installer log file"
+    LOG_FILE=$(mktemp /tmp/opfield_docker_setup.XXXXXX) || die "Could not create installer log file"
     chmod 600 "$LOG_FILE" || die "Could not secure installer log file"
 fi
 detect_os
@@ -1950,13 +2084,13 @@ detect_existing_install
 keep_enrollment_of_used_token
 refuse_token_for_enrolled_node
 
-if [[ -z "$GATEWAY_ADDR" && -n "$EXISTING_GATEWAY_ADDR" ]]; then
-    GATEWAY_ADDR="$EXISTING_GATEWAY_ADDR"
-    GATEWAY_HOST="${GATEWAY_ADDR%%:*}"
-    GATEWAY_PORT="${GATEWAY_ADDR##*:}"
-    if [[ "$GATEWAY_PORT" == "$GATEWAY_HOST" ]]; then
-        GATEWAY_PORT="9443"
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+if [[ -z "$OPFIELD_ADDR" && -n "$EXISTING_OPFIELD_ADDR" ]]; then
+    OPFIELD_ADDR="$EXISTING_OPFIELD_ADDR"
+    OPFIELD_HOST="${OPFIELD_ADDR%%:*}"
+    OPFIELD_PORT="${OPFIELD_ADDR##*:}"
+    if [[ "$OPFIELD_PORT" == "$OPFIELD_HOST" ]]; then
+        OPFIELD_PORT="9443"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
     fi
 fi
 
@@ -1970,7 +2104,7 @@ fi
 
 # ── Logo ─────────────────────────────────────────────────────────────
 if [[ "$NO_LOGO" -eq 0 ]]; then
-    if [[ "${GATEWAY_SETUP_NO_CLEAR:-0}" != "1" ]] && [ -t 1 ] && command_exists clear; then
+    if [[ "${OPFIELD_SETUP_NO_CLEAR:-0}" != "1" ]] && [ -t 1 ] && command_exists clear; then
         clear
     fi
     show_logo
@@ -1985,18 +2119,18 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     guide "${GRAY}  Docker ${DOCKER_VER} detected.${NC}"
     guide_blank
 
-    if [[ "$EXISTING_ENROLLED" -eq 1 && -n "$EXISTING_GATEWAY_ADDR" && -z "$ENROLL_TOKEN" ]]; then
+    if [[ "$EXISTING_ENROLLED" -eq 1 && -n "$EXISTING_OPFIELD_ADDR" && -z "$ENROLL_TOKEN" ]]; then
         log "Existing enrolled docker node detected — reusing the current Opfield connection settings"
     else
-        # Gateway host
-        if [[ -z "$GATEWAY_HOST" ]]; then
-            GATEWAY_HOST=$(prompt_input "Opfield hostname or IP" "")
-            [[ -z "$GATEWAY_HOST" ]] && die "Opfield hostname is required"
+        # Opfield host
+        if [[ -z "$OPFIELD_HOST" ]]; then
+            OPFIELD_HOST=$(prompt_input "Opfield hostname or IP" "")
+            [[ -z "$OPFIELD_HOST" ]] && die "Opfield hostname is required"
         else
-            guide "${GRAY}Opfield host: ${BRAND_MINT}${GATEWAY_HOST}${NC}"
+            guide "${GRAY}Opfield host: ${BRAND_MINT}${OPFIELD_HOST}${NC}"
         fi
 
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
 
         guide_blank
 
@@ -2008,12 +2142,17 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
             guide "${GRAY}Token: ${ENROLL_TOKEN:0:12}...${ENROLL_TOKEN: -4}${NC}"
         fi
 
-        if [[ -z "$GATEWAY_CERT_SHA256" ]]; then
-            GATEWAY_CERT_SHA256=$(prompt_input "Opfield certificate SHA-256 fingerprint" "")
-            [[ -z "$GATEWAY_CERT_SHA256" ]] && die "Opfield certificate SHA-256 fingerprint is required"
+        guide_blank
+
+        if [[ -z "$OPFIELD_CERT_SHA256" ]]; then
+            OPFIELD_CERT_SHA256=$(prompt_input "Opfield certificate SHA-256 fingerprint" "")
+            [[ -z "$OPFIELD_CERT_SHA256" ]] && die "Opfield certificate SHA-256 fingerprint is required"
         else
-            guide "${GRAY}Opfield cert: ${GATEWAY_CERT_SHA256}${NC}"
+            guide "${GRAY}Opfield cert: ${OPFIELD_CERT_SHA256}${NC}"
         fi
+        # The daemon refuses any other form at enrollment, after the whole install.
+        [[ "$OPFIELD_CERT_SHA256" =~ ^[sS][hH][aA]256:[0-9a-fA-F]{64}$ ]] ||
+            die "Opfield certificate SHA-256 fingerprint must be sha256: followed by 64 hex characters (copy it from Nodes > Add Node)"
 
         guide_blank
     fi
@@ -2027,7 +2166,7 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     # User selection
     if [[ -z "$RUN_USER" ]]; then
         selector_title "Run daemon as:"
-        user_choice=$(prompt_choice "Choose" "1" "root  [default]" "Current user ($(logname 2>/dev/null || echo "$SUDO_USER"))" "Custom user")
+        user_choice=$(prompt_choice "Choose" "1" "root  [default]" "Current user ($(logname 2>/dev/null || echo "${SUDO_USER:-root}"))" "Custom user")
         case "$user_choice" in
             1|root)   RUN_USER="root" ;;
             2)        RUN_USER="$(logname 2>/dev/null || echo "${SUDO_USER:-root}")" ;;
@@ -2039,15 +2178,18 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     guide_end
 else
     # Non-interactive: validate required fields
-    if [[ -z "$GATEWAY_ADDR" && "$EXISTING_ENROLLED" -eq 0 ]]; then
-        die "--gateway or --host is required in non-interactive mode"
+    if [[ -z "$OPFIELD_ADDR" && "$EXISTING_ENROLLED" -eq 0 ]]; then
+        die "--opfield or --host is required in non-interactive mode"
     fi
     if [[ -z "$ENROLL_TOKEN" && "$EXISTING_ENROLLED" -eq 0 ]]; then
         die "--token is required in non-interactive mode"
     fi
-    if [[ -z "$GATEWAY_CERT_SHA256" && "$EXISTING_ENROLLED" -eq 0 ]]; then
-        die "--gateway-cert-sha256 is required in non-interactive mode"
+    if [[ -z "$OPFIELD_CERT_SHA256" && "$EXISTING_ENROLLED" -eq 0 ]]; then
+        die "--opfield-cert-sha256 is required in non-interactive mode"
     fi
+    # The daemon refuses any other form at enrollment, after the whole install.
+    [[ -z "$OPFIELD_CERT_SHA256" || "$OPFIELD_CERT_SHA256" =~ ^[sS][hH][aA]256:[0-9a-fA-F]{64}$ ]] ||
+        die "Opfield certificate SHA-256 fingerprint must be sha256: followed by 64 hex characters (copy it from Nodes > Add Node)"
     [[ -z "$RUN_USER" ]] && RUN_USER="root"
     select_database_storage
     preflight_database_storage
@@ -2084,14 +2226,14 @@ if [[ "$EXISTING_INSTALL" -eq 1 ]]; then
 fi
 
 summary_start
-summary_row "Opfield:     ${GATEWAY_ADDR}"
+summary_row "Opfield:     ${OPFIELD_ADDR}"
 if [[ -n "$ENROLL_TOKEN" ]]; then
     summary_row "Token:       ${ENROLL_TOKEN:0:12}..."
 else
     summary_row "Token:       existing enrollment"
 fi
-if [[ -n "$GATEWAY_CERT_SHA256" ]]; then
-    summary_row "Cert SHA256: ${GATEWAY_CERT_SHA256}"
+if [[ -n "$OPFIELD_CERT_SHA256" ]]; then
+    summary_row "Cert SHA256: ${OPFIELD_CERT_SHA256}"
 else
     summary_row "Cert SHA256: existing enrollment"
 fi
@@ -2229,6 +2371,11 @@ dry_run_preview() {
     ok "Directories created (dry run)"
     preview_daemon_binary
     if lease_watchdog_profile; then
+        # legacy-name: gateway-lease-watchdog service of nodes installed before 2.12.1 — remove once every node reports
+        # none
+        if [[ -e /etc/systemd/system/gateway-lease-watchdog.service || -e /etc/init.d/gateway-lease-watchdog ]]; then
+            log "Moving the lease watchdog from gateway-lease-watchdog to opfield-lease-watchdog (dry run)"
+        fi
         ok "Lease watchdog installed as its own service (dry run)"
     fi
     if [[ "$DOCKER_MODE" == "builder" ]]; then
@@ -2276,15 +2423,45 @@ fi
 preflight_run_user_docker_access
 
 # ── Step 1: Create directories ───────────────────────────────────────
+# A Build Worker directory: the pre-Opfield name while it is a real directory (a worker installed before 2.12.1, whose
+# daemon moves it once its start is confirmed), else the Opfield name. The same choice as the daemon's.
+builder_dir() {
+    local current="$1" legacy="$2"
+    if [[ -e "$legacy" && ! -L "$legacy" ]]; then
+        echo "$legacy"
+    else
+        echo "$current"
+    fi
+}
+
+# Makes a Build Worker directory exist. One created under the Opfield name gets the pre-Opfield name as a link to it, the
+# layout the daemon leaves after its move, so a daemon of an earlier release (a pinned --version) finds it too.
+ensure_builder_dir() {
+    local current="$1" legacy="$2" mode="$3" dir
+    dir=$(builder_dir "$current" "$legacy")
+    mkdir -p "$dir"
+    chmod "$mode" "$dir"
+    if [[ "$dir" == "$current" && ! -e "$legacy" && ! -L "$legacy" ]]; then
+        ln -s "$(basename "$current")" "$legacy" 2>/dev/null || true
+    fi
+}
+
 create_directories() {
     log "Creating required directories..."
     mkdir -p /etc/docker-daemon/certs
     mkdir -p /var/lib/docker-daemon
 
     if [[ "$DOCKER_MODE" == "builder" ]]; then
-        mkdir -p /etc/gateway-builder /usr/local/lib/gateway-builder
-        mkdir -p /var/lib/docker-daemon/builder /run/gateway-builder/buildkit /run/gateway-builder/containerd
-        chmod 700 /etc/gateway-builder /usr/local/lib/gateway-builder /var/lib/docker-daemon/builder
+        local run_dir
+        # legacy-name: gateway-builder directories of builder workers installed before 2.12.1 — remove once every node
+        # reports none
+        ensure_builder_dir /etc/opfield-builder /etc/gateway-builder 700
+        ensure_builder_dir /usr/local/lib/opfield-builder /usr/local/lib/gateway-builder 700
+        ensure_builder_dir /opt/opfield-builder "$LEGACY_BUILDER_RUNTIME_ROOT" 755
+        ensure_builder_dir /run/opfield-builder /run/gateway-builder 755
+        run_dir=$(builder_dir /run/opfield-builder /run/gateway-builder)
+        mkdir -p /var/lib/docker-daemon/builder "${run_dir}/buildkit" "${run_dir}/containerd"
+        chmod 700 /var/lib/docker-daemon/builder
     fi
 
     grant_daemon_paths_to_run_user
@@ -2299,7 +2476,7 @@ verify_checksum() {
     local binary_name="$2"
 
     log "Verifying checksum..."
-    local checksums_file="/tmp/gateway_checksums.txt"
+    local checksums_file="/tmp/opfield_checksums.txt"
     if curl -fsSL "${RELEASE_BASE}/checksums.txt" -o "$checksums_file" >> "$LOG_FILE" 2>&1; then
         local expected actual
         expected=$(grep "$binary_name" "$checksums_file" | awk '{print $1}')
@@ -2411,7 +2588,7 @@ install_builder_runtime() {
 
     if [[ -f "$installed_manifest" ]] \
         && grep -Fqx "format=3" "$installed_manifest" \
-        && grep -Fqx "bin_dir=${BUILDER_RUNTIME_BIN_DIR}" "$installed_manifest" \
+        && grep -Fqx -e "bin_dir=/opt/opfield-builder/bin" -e "bin_dir=${LEGACY_BUILDER_RUNTIME_ROOT}/bin" "$installed_manifest" \
         && grep -Fqx "architecture=${ARCH}" "$installed_manifest" \
         && grep -Fqx "containerd=${containerd_version}" "$installed_manifest" \
         && grep -Fqx "buildkit=${buildkit_version}" "$installed_manifest" \
@@ -2424,7 +2601,7 @@ install_builder_runtime() {
             [[ -f "${BUILDER_RUNTIME_BIN_DIR}/${binary}" && ! -L "${BUILDER_RUNTIME_BIN_DIR}/${binary}" && -x "${BUILDER_RUNTIME_BIN_DIR}/${binary}" ]] || complete=0
         done
         for plugin in bridge host-local firewall loopback; do
-            [[ -x "/opt/gateway-builder/cni/bin/${plugin}" ]] || complete=0
+            [[ -x "${BUILDER_RUNTIME_CNI_DIR}/${plugin}" ]] || complete=0
         done
         if [[ "$complete" -eq 1 ]]; then
             ok "Builder runtime already installed for ${RESOLVED_DAEMON_VERSION}"
@@ -2432,8 +2609,8 @@ install_builder_runtime() {
         fi
     fi
 
-    staging_dir=$(mktemp -d /tmp/gateway-builder-runtime.XXXXXX)
-    download_dir=$(mktemp -d /tmp/gateway-builder-downloads.XXXXXX)
+    staging_dir=$(mktemp -d /tmp/opfield-builder-runtime.XXXXXX)
+    download_dir=$(mktemp -d /tmp/opfield-builder-downloads.XXXXXX)
     trap 'rm -rf "$staging_dir" "$download_dir"' RETURN
     install -d -m 0755 "$staging_dir/bin" "$staging_dir/cni/bin" \
         "$download_dir/containerd" "$download_dir/buildkit" "$download_dir/cni" \
@@ -2514,12 +2691,12 @@ install_builder_runtime() {
         cp -p "$installed_manifest" "$legacy_manifest"
     fi
 
-    install -d -m 0755 "$BUILDER_RUNTIME_BIN_DIR" /opt/gateway-builder/cni/bin
+    install -d -m 0755 "$BUILDER_RUNTIME_BIN_DIR" "$BUILDER_RUNTIME_CNI_DIR"
     for binary in containerd ctr containerd-shim-runc-v2 buildkitd buildctl runc syft grype; do
         install -m 0755 "${staging_dir}/bin/${binary}" "${BUILDER_RUNTIME_BIN_DIR}/${binary}"
     done
     for plugin in bridge host-local firewall loopback; do
-        install -m 0755 "${staging_dir}/cni/bin/${plugin}" "/opt/gateway-builder/cni/bin/${plugin}"
+        install -m 0755 "${staging_dir}/cni/bin/${plugin}" "${BUILDER_RUNTIME_CNI_DIR}/${plugin}"
     done
     install -m 0644 "${staging_dir}/runtime-manifest" "$installed_manifest"
 
@@ -2726,7 +2903,7 @@ write_builder_profile_config() {
             next
         }
         rewriting {
-            # Remove the malformed top-level lines emitted by Gateway v2.9.6,
+            # Remove the malformed top-level lines emitted by v2.9.6,
             # as well as the previous nested docker section.
             if ($0 ~ /^builder:[[:space:]]*$/ || $0 ~ /^[[:space:]]*egress_profile:/) next
             if ($0 ~ /^[^[:space:]]/) {
@@ -2752,15 +2929,37 @@ write_builder_profile_config() {
 # own service unit, so a docker-daemon upgrade, downgrade or removal never
 # disarms it. Without it the node simply stays out of lease mode and never
 # holds a set's primary role. Docker nodes and storage nodes get it.
-LEASE_WATCHDOG_BIN="/usr/local/bin/gateway-lease-watchdog"
-LEASE_WATCHDOG_UNIT="gateway-lease-watchdog"
-LEASE_WATCHDOG_VERSION="${GATEWAY_LEASE_WATCHDOG_VERSION:-latest}"
+LEASE_WATCHDOG_BIN="/usr/local/bin/opfield-lease-watchdog"
+LEASE_WATCHDOG_UNIT="opfield-lease-watchdog"
+# A node installed before 2.12.1 runs the watchdog as gateway-lease-watchdog. The installer moves it to the Opfield
+# service in the order the watchdog uses when it moves itself (leasewatchdog.MigrateLegacyService), so either one may do
+# it first.
+# legacy-name: gateway-lease-watchdog service and binary of nodes installed before 2.12.1 — remove once every node
+# reports none
+LEGACY_LEASE_WATCHDOG_BIN="/usr/local/bin/gateway-lease-watchdog"
+LEGACY_LEASE_WATCHDOG_UNIT="gateway-lease-watchdog"
+LEASE_WATCHDOG_VERSION="${OPFIELD_LEASE_WATCHDOG_VERSION:-latest}"
 LEASE_WATCHDOG_INSTALLED=0
 
 # The release channel the watchdog follows: the daemon's (preview for a release candidate). A daemon without root cannot
 # set it on the watchdog's service later, so the installer does.
 lease_watchdog_channel() {
     if [[ "$RESOLVED_DAEMON_VERSION" == *-rc.* ]]; then echo preview; else echo stable; fi
+}
+
+# A node whose watchdog runs under its pre-Opfield name and gets no release now keeps that watchdog: its binary is copied
+# to the Opfield path, as the watchdog does when it moves itself, and its service moves with it. It updates itself from
+# there.
+adopt_legacy_lease_watchdog_binary() {
+    [[ ! -e "$LEASE_WATCHDOG_BIN" ]] || return 1
+    [[ -f "$LEGACY_LEASE_WATCHDOG_BIN" && ! -L "$LEGACY_LEASE_WATCHDOG_BIN" && -x "$LEGACY_LEASE_WATCHDOG_BIN" ]] || return 1
+    if ! cp "$LEGACY_LEASE_WATCHDOG_BIN" "${LEASE_WATCHDOG_BIN}.tmp" 2>>"$LOG_FILE" \
+        || ! chmod 0755 "${LEASE_WATCHDOG_BIN}.tmp" || ! mv -f "${LEASE_WATCHDOG_BIN}.tmp" "$LEASE_WATCHDOG_BIN"; then
+        rm -f "${LEASE_WATCHDOG_BIN}.tmp"
+        return 1
+    fi
+    LEASE_WATCHDOG_INSTALLED=1
+    ok "Lease watchdog kept (${LEASE_WATCHDOG_BIN})"
 }
 
 install_lease_watchdog() {
@@ -2775,6 +2974,7 @@ install_lease_watchdog() {
         tag="$(normalize_daemon_version "$LEASE_WATCHDOG_VERSION")-watchdog"
     fi
     if [[ -z "$tag" ]]; then
+        adopt_legacy_lease_watchdog_binary && return 0
         warn "No lease watchdog release found; lease mode (Availability, availability sets) stays unavailable on this node."
         return 0
     fi
@@ -2790,6 +2990,7 @@ install_lease_watchdog() {
     log "Downloading lease watchdog ${tag}..."
     if ! download_with_progress "${base}/${artifact}" "${LEASE_WATCHDOG_BIN}.tmp"; then
         rm -f "${LEASE_WATCHDOG_BIN}.tmp"
+        adopt_legacy_lease_watchdog_binary && return 0
         warn "Could not download the lease watchdog; lease mode (Availability, availability sets) stays unavailable on this node."
         return 0
     fi
@@ -2815,12 +3016,46 @@ start_lease_watchdog() {
     # directory is owned by the docker-daemon user, which writes the deadlines.
     local args="run --records-owner ${RUN_USER} --auto-update --releases-url ${RELEASES_API_URL} --artifact-base-url ${ARTIFACT_BASE_URL} --channel $(lease_watchdog_channel)"
     if has_systemd; then
-        cat > "/etc/systemd/system/${LEASE_WATCHDOG_UNIT}.service" <<UNIT
+        write_lease_watchdog_systemd_unit "$args"
+        systemctl daemon-reload >>"$LOG_FILE" 2>&1 || true
+        systemctl enable "$LEASE_WATCHDOG_UNIT" >>"$LOG_FILE" 2>&1 || true
+        if ! retire_legacy_lease_watchdog; then
+            warn "${LEGACY_LEASE_WATCHDOG_UNIT} could not be stopped and keeps running, so ${LEASE_WATCHDOG_UNIT} was not started; run the installer again."
+        elif systemctl restart "$LEASE_WATCHDOG_UNIT" >>"$LOG_FILE" 2>&1; then
+            remove_legacy_lease_watchdog_binary
+            ok "Lease watchdog is running"
+        else
+            warn "Lease watchdog did not start; lease mode (Availability, availability sets) stays unavailable on this node."
+        fi
+    elif has_openrc; then
+        write_lease_watchdog_openrc_script "$args"
+        rc-update add "$LEASE_WATCHDOG_UNIT" default >>"$LOG_FILE" 2>&1 || true
+        if ! retire_legacy_lease_watchdog; then
+            warn "${LEGACY_LEASE_WATCHDOG_UNIT} could not be stopped and keeps running, so ${LEASE_WATCHDOG_UNIT} was not started; run the installer again."
+        elif rc-service "$LEASE_WATCHDOG_UNIT" restart >>"$LOG_FILE" 2>&1 || rc-service "$LEASE_WATCHDOG_UNIT" start >>"$LOG_FILE" 2>&1; then
+            remove_legacy_lease_watchdog_binary
+            ok "Lease watchdog is running"
+        else
+            warn "Lease watchdog did not start; lease mode (Availability, availability sets) stays unavailable on this node."
+        fi
+    else
+        warn "No service manager for the lease watchdog; lease mode (Availability, availability sets) stays unavailable on this node."
+    fi
+}
+
+# The service files equal leasewatchdog.SystemdUnit and leasewatchdog.OpenRCScript (a Go test compares them). The
+# Opfield service never starts while the pre-Opfield one is installed, so two watchdogs never run.
+write_lease_watchdog_systemd_unit() {
+    local args=$1
+    cat > "/etc/systemd/system/${LEASE_WATCHDOG_UNIT}.service" <<UNIT
 [Unit]
 Description=Opfield Availability Lease Watchdog
 # Deliberately independent of docker-daemon and docker: it must keep
 # enforcing lease deadlines when either one is stopped, hung or removed.
 After=local-fs.target
+# Never next to the pre-Opfield unit of the same watchdog: that one runs
+# while it is installed and moves the node to this unit.
+ConditionPathExists=!/etc/systemd/system/gateway-lease-watchdog.service
 
 [Service]
 Type=simple
@@ -2832,15 +3067,11 @@ RestartSec=1
 [Install]
 WantedBy=multi-user.target
 UNIT
-        systemctl daemon-reload >>"$LOG_FILE" 2>&1 || true
-        systemctl enable "$LEASE_WATCHDOG_UNIT" >>"$LOG_FILE" 2>&1 || true
-        if systemctl restart "$LEASE_WATCHDOG_UNIT" >>"$LOG_FILE" 2>&1; then
-            ok "Lease watchdog is running"
-        else
-            warn "Lease watchdog did not start; lease mode (Availability, availability sets) stays unavailable on this node."
-        fi
-    elif has_openrc; then
-        cat > "/etc/init.d/${LEASE_WATCHDOG_UNIT}" <<UNIT
+}
+
+write_lease_watchdog_openrc_script() {
+    local args=$1
+    cat > "/etc/init.d/${LEASE_WATCHDOG_UNIT}" <<UNIT
 #!/sbin/openrc-run
 name="Opfield Availability Lease Watchdog"
 command="${LEASE_WATCHDOG_BIN}"
@@ -2854,23 +3085,70 @@ error_log="/var/log/${LEASE_WATCHDOG_UNIT}.err"
 depend() {
     need localmount
 }
-UNIT
-        chmod +x "/etc/init.d/${LEASE_WATCHDOG_UNIT}"
-        rc-update add "$LEASE_WATCHDOG_UNIT" default >>"$LOG_FILE" 2>&1 || true
-        if rc-service "$LEASE_WATCHDOG_UNIT" restart >>"$LOG_FILE" 2>&1 || rc-service "$LEASE_WATCHDOG_UNIT" start >>"$LOG_FILE" 2>&1; then
-            ok "Lease watchdog is running"
-        else
-            warn "Lease watchdog did not start; lease mode (Availability, availability sets) stays unavailable on this node."
-        fi
-    else
-        warn "No service manager for the lease watchdog; lease mode (Availability, availability sets) stays unavailable on this node."
+
+start_pre() {
+    # Never next to the pre-Opfield service of the same watchdog: that one runs
+    # while it is installed and moves the node to this service.
+    if [ -e /etc/init.d/gateway-lease-watchdog ]; then
+        eerror "gateway-lease-watchdog is installed and runs instead"
+        return 1
     fi
+}
+UNIT
+    chmod +x "/etc/init.d/${LEASE_WATCHDOG_UNIT}"
+}
+
+# Called once the Opfield service is written and enabled: stops the pre-Opfield service and removes it, so the Opfield
+# one can start next. The service file goes before its enablement links: a crash at any step leaves exactly one enabled
+# service that can start (the old one while its file exists, else the new one, whose guard then passes). Fails, changing
+# nothing more, while the old watchdog still runs.
+retire_legacy_lease_watchdog() {
+    if has_systemd; then
+        local unit="/etc/systemd/system/${LEGACY_LEASE_WATCHDOG_UNIT}.service"
+        [[ -e "$unit" || -L "$unit" ]] || return 0
+        log "Moving the lease watchdog from ${LEGACY_LEASE_WATCHDOG_UNIT} to ${LEASE_WATCHDOG_UNIT}..."
+        systemctl stop "${LEGACY_LEASE_WATCHDOG_UNIT}.service" >>"$LOG_FILE" 2>&1 || true
+        ! systemctl is-active --quiet "${LEGACY_LEASE_WATCHDOG_UNIT}.service" || return 1
+        rm -f "$unit"
+        # What systemctl disable removes; it cannot once the unit file is gone.
+        rm -f /etc/systemd/system/*.wants/"${LEGACY_LEASE_WATCHDOG_UNIT}.service"
+        systemctl daemon-reload >>"$LOG_FILE" 2>&1 || true
+    elif has_openrc; then
+        local script="/etc/init.d/${LEGACY_LEASE_WATCHDOG_UNIT}"
+        [[ -e "$script" || -L "$script" ]] || return 0
+        log "Moving the lease watchdog from ${LEGACY_LEASE_WATCHDOG_UNIT} to ${LEASE_WATCHDOG_UNIT}..."
+        rc-service --ifstarted "$LEGACY_LEASE_WATCHDOG_UNIT" stop >>"$LOG_FILE" 2>&1 || true
+        ! rc-service "$LEGACY_LEASE_WATCHDOG_UNIT" status >/dev/null 2>&1 || return 1
+        rm -f "$script"
+        # What rc-update del removes; it cannot once the service script is gone.
+        rm -f /etc/runlevels/*/"${LEGACY_LEASE_WATCHDOG_UNIT}"
+    fi
+}
+
+# The pre-Opfield binary goes once no service runs it.
+remove_legacy_lease_watchdog_binary() {
+    [[ ! -e "/etc/systemd/system/${LEGACY_LEASE_WATCHDOG_UNIT}.service" && ! -e "/etc/init.d/${LEGACY_LEASE_WATCHDOG_UNIT}" ]] || return 0
+    rm -f "$LEGACY_LEASE_WATCHDOG_BIN"
 }
 
 
 # ── Step 3: Install and enroll ───────────────────────────────────────
+# Whether the daemon's install command takes --opfield and --opfield-cert-sha256: install without arguments prints its
+# usage and exits without changing anything. A daemon of an earlier release (a pinned --version) knows only the
+# legacy flags. The builder profile runs it as root, like its install.
+daemon_install_takes_opfield_flags() {
+    local usage
+    if [[ "$DOCKER_MODE" == "builder" ]]; then
+        usage=$("$1" install 2>&1 || true)
+    else
+        usage=$(run_as_run_user "$1" install 2>&1 || true)
+    fi
+    [[ "$usage" == *--opfield* ]]
+}
+
 enroll_daemon() {
     local target="/usr/local/bin/docker-daemon"
+    local address_flag="--opfield" cert_flag="--opfield-cert-sha256"
 
     # Check if already enrolled (certs exist)
     if [[ -f /etc/docker-daemon/certs/node.pem && -f /var/lib/docker-daemon/state.json ]]; then
@@ -2880,11 +3158,17 @@ enroll_daemon() {
     fi
 
     log "Writing config and enrolling with Opfield..."
+    if ! daemon_install_takes_opfield_flags "$target"; then
+        # legacy-name: --gateway and --gateway-cert-sha256 install flags of docker-daemon before 2.12.1 — remove once the
+        # installer no longer installs a docker-daemon release before 2.12.1
+        address_flag="--gateway"
+        cert_flag="--gateway-cert-sha256"
+    fi
     if [[ "$DOCKER_MODE" == "builder" ]]; then
-        if ! "$target" install --gateway "$GATEWAY_ADDR" --token "$ENROLL_TOKEN" --gateway-cert-sha256 "$GATEWAY_CERT_SHA256" --mode builder >> "$LOG_FILE" 2>&1; then
+        if ! "$target" install "$address_flag" "$OPFIELD_ADDR" --token "$ENROLL_TOKEN" "$cert_flag" "$OPFIELD_CERT_SHA256" --mode builder >> "$LOG_FILE" 2>&1; then
             die "Failed to enroll builder docker-daemon. Check ${LOG_FILE} for details."
         fi
-    elif ! run_as_run_user "$target" install --gateway "$GATEWAY_ADDR" --token "$ENROLL_TOKEN" --gateway-cert-sha256 "$GATEWAY_CERT_SHA256" --docker-socket "$DOCKER_SOCKET" >> "$LOG_FILE" 2>&1; then
+    elif ! run_as_run_user "$target" install "$address_flag" "$OPFIELD_ADDR" --token "$ENROLL_TOKEN" "$cert_flag" "$OPFIELD_CERT_SHA256" --docker-socket "$DOCKER_SOCKET" >> "$LOG_FILE" 2>&1; then
         die "Failed to enroll docker-daemon. Check ${LOG_FILE} for details."
     fi
     prepare_run_user_identity
@@ -2943,7 +3227,7 @@ WantedBy=multi-user.target
 UNIT
         systemctl daemon-reload >> "$LOG_FILE" 2>&1 || die "systemd daemon-reload failed."
         systemctl enable docker-daemon >> "$LOG_FILE" 2>&1 || die "Could not enable docker-daemon."
-        forget_gateway_session
+        forget_control_session
         systemctl restart docker-daemon >> "$LOG_FILE" 2>&1 || { release_fd_store_hold; fail_daemon_start "Could not start docker-daemon."; }
         release_fd_store_hold
     elif has_openrc; then
@@ -2975,7 +3259,7 @@ start_pre() {
 UNIT
         chmod +x /etc/init.d/docker-daemon || die "Could not make the docker-daemon OpenRC service executable."
         rc-update add docker-daemon default >> "$LOG_FILE" 2>&1 || die "Could not enable docker-daemon in OpenRC."
-        forget_gateway_session
+        forget_control_session
         if ! rc-service docker-daemon restart >> "$LOG_FILE" 2>&1 && ! rc-service docker-daemon start >> "$LOG_FILE" 2>&1; then
             fail_daemon_start "Could not start docker-daemon in OpenRC."
         fi
@@ -3006,8 +3290,8 @@ finish_run_user_switch
 # the daemon starts (a non-root daemon cannot read records left to the previous user).
 start_lease_watchdog
 start_daemon
-# An install whose daemon does not run or did not connect to Gateway is not done.
-if ! await_gateway_connection; then
+# An install whose daemon does not run or did not connect to Opfield is not done.
+if ! await_opfield_connection; then
     die "docker-daemon is installed, but it did not connect to Opfield."
 fi
 # The daemon enrolls when it first runs, not at install: only now are its certificate and the token's use there.

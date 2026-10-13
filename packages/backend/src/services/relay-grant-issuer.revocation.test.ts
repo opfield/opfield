@@ -154,17 +154,17 @@ describe('RelayGrantIssuerService revocation fences', () => {
   });
 
   it('keeps the Gateway itself away from a stale relay for the revoked route', async () => {
-    const gatewayRoute = {
+    const opfieldRoute = {
       ...route('route-narrowed', 2),
       sourceKind: 'gateway',
       sourceCertificateSha256: 'sha256:app',
     };
     const service = issuer([
       staleRelays,
-      { table: relayRoutes, projected: false, filtered: true, rows: [gatewayRoute] },
+      { table: relayRoutes, projected: false, filtered: true, rows: [opfieldRoute] },
       { table: relayEndpoints, projected: false, filtered: true, rows: [endpoint] },
     ]);
-    const assignment = await service.issueGatewayConnectAssignment('route-narrowed', 'sha256:app');
+    const assignment = await service.issueOpfieldConnectAssignment('route-narrowed', 'sha256:app');
     expect(assignment.candidates.map(({ relayInstanceId }: { relayInstanceId: string }) => relayInstanceId)).toEqual([
       'relay-current',
     ]);

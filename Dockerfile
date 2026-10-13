@@ -13,7 +13,7 @@ COPY packages/daemons/shared ./packages/daemons/shared
 COPY packages/relay ./packages/relay
 WORKDIR /src/packages/relay
 # The bundled relay reports the image's APP_VERSION, so one build serves every tag of a commit.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /gateway-relay ./cmd/gateway-relay
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /gateway-relay ./cmd/opfield-relay
 
 FROM ${NODE_IMAGE} AS base
 
@@ -85,6 +85,7 @@ COPY --from=frontend-builder /app/packages/frontend/dist ./public
 COPY --from=status-page-builder /app/packages/status-page/dist ./status-public
 # Pre-generic Gateway releases pass the signed app image to the relay service
 # during the first self-update, so keep a one-hop relay binary in that image.
+# legacy-name: /gateway-relay is the entrypoint those releases start — remove once every install is past them
 COPY --from=relay-bridge-builder /gateway-relay /gateway-relay
 COPY scripts/healthcheck.mjs /app/healthcheck.mjs
 

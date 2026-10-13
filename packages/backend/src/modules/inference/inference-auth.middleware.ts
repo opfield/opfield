@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import { container } from '@/container.js';
+import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { assertDemoRequestAllowed } from '@/modules/demo/demo-mode.js';
 import type { AppEnv } from '@/types.js';
 import { inferenceErrorResponse } from './inference-error.js';
@@ -11,7 +12,7 @@ function extractInferenceToken(authorization?: string, apiKey?: string): string 
 
   if (bearer && headerKey && bearer !== headerKey) return null;
   const token = bearer || headerKey;
-  return token?.startsWith('gwi_') ? token : null;
+  return hasTokenPrefix(token, 'inference') ? (token as string) : null;
 }
 
 export const inferenceAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {

@@ -18,10 +18,10 @@ import {
   type InferenceCoreOperationProgress,
   type InferenceCoreState,
   type InferenceCoreStatus,
-  WIOLETT_CORE_CONTRACT_ID,
+  OPFIELD_CORE_CONTRACT_ID,
 } from './inference-core.contract.js';
 import {
-  checkOpenCodexGatewayCompatibility,
+  checkOpenCodexOpfieldCompatibility,
   compareOpenCodexVersions,
   fetchLatestOpenCodexTag,
   fetchOpenCodexImageManifest,
@@ -108,7 +108,7 @@ export interface InferenceCoreRuntimeOptions {
 interface CoreLayout {
   project: string;
   network: string;
-  gatewayAlias: string;
+  opfieldAlias: string;
   containerName: string;
   stateVolume: string;
   secretVolume: string;
@@ -507,9 +507,9 @@ export class InferenceCoreRuntimeService {
       tag.startsWith('v') ? tag : `v${tag}`,
       await this.trustedDistributionImages()
     );
-    const compatibility = checkOpenCodexGatewayCompatibility(artifact, this.env.APP_VERSION);
+    const compatibility = checkOpenCodexOpfieldCompatibility(artifact, this.env.APP_VERSION);
     if (!compatibility.compatible) {
-      throw new AppError(409, 'GATEWAY_UPDATE_REQUIRED', compatibility.reason ?? 'Opfield version is incompatible');
+      throw new AppError(409, 'OPFIELD_UPDATE_REQUIRED', compatibility.reason ?? 'Opfield version is incompatible');
     }
     await this.upsertStateRow({ targetVersion: artifact.version, targetDigest: artifact.digest });
     return artifact;
@@ -644,7 +644,7 @@ export class InferenceCoreRuntimeService {
       }
       if (probe.ready && probe.identity) {
         const identity = probe.identity;
-        if (identity.contractId !== WIOLETT_CORE_CONTRACT_ID) {
+        if (identity.contractId !== OPFIELD_CORE_CONTRACT_ID) {
           throw new Error('core readiness contract identity does not match Opfield');
         }
         if (identity.coreProtocolMajor !== INFERENCE_CORE_PROTOCOL_MAJOR) {
@@ -836,7 +836,7 @@ export class InferenceCoreRuntimeService {
         return {
           project,
           network: name,
-          gatewayAlias: service,
+          opfieldAlias: service,
           containerName: `${project}-inference-core`,
           stateVolume: `${project}-inference-core-state`,
           secretVolume: `${project}-inference-core-secrets`,
@@ -850,20 +850,22 @@ export class InferenceCoreRuntimeService {
     );
   }
 
-  private async expectedDistributionImage(): Promise<string> {
-    if (this.env.INFERENCE_CORE_DISTRIBUTION_IMAGE) return this.env.INFERENCE_CORE_DISTRIBUTION_IMAGE;
+  /** Core images published next to the running Opfield image (a mirror or a self-built registry), newest name first. */
+  private async siblingDistributionImages(): Promise<string[]> {
     const self = await this.docker.inspectSelf();
-    return `${imageRepositoryFromRef(self.Config.Image)}/opencodex`;
+    const repository = imageRepositoryFromRef(self.Config.Image);
+    // legacy-name: <repository>/opencodex — remove once every mirror publishes the core as <repository>/opfield-inference
+    return [`${repository}/opfield-inference`, `${repository}/opencodex`];
   }
 
   private async trustedDistributionImages(): Promise<string[]> {
     if (this.env.INFERENCE_CORE_DISTRIBUTION_IMAGE) return [this.env.INFERENCE_CORE_DISTRIBUTION_IMAGE];
-    const current = await this.expectedDistributionImage();
+    const siblings = await this.siblingDistributionImages();
     const configured = (this.env.INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES ?? '')
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
-    return [...new Set([current, ...configured])];
+    return [...new Set([...siblings, ...configured])];
   }
 
   private coreBaseUrl(): string {
@@ -897,7 +899,7 @@ export class InferenceCoreRuntimeService {
       dataCredential: credentials.dataCredential,
       managementCredential: credentials.managementCredential,
       callbackCredential: credentials.callbackCredential,
-      gatewayInternalUrl: `http://${layout.gatewayAlias}:${INFERENCE_CORE_INTERNAL_PORT}`,
+      gatewayInternalUrl: `http://${layout.opfieldAlias}:${INFERENCE_CORE_INTERNAL_PORT}`,
     });
     const tar = buildSingleFileTar('credentials.json', Buffer.from(payload, 'utf8'), 0o600, 10001, 10001);
     const helper = await this.docker.createContainer({
@@ -1159,7 +1161,7 @@ export class InferenceCoreRuntimeService {
     const healthy =
       probe.ready &&
       identity !== null &&
-      identity.contractId === WIOLETT_CORE_CONTRACT_ID &&
+      identity.contractId === OPFIELD_CORE_CONTRACT_ID &&
       identity.coreProtocolMajor === INFERENCE_CORE_PROTOCOL_MAJOR;
     // A health probe from a superseded installation must not describe its replacement.
     if ((await this.loadStateRow())?.installedDigest !== row.installedDigest) return;

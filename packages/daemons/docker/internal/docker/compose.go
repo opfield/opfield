@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/moby/moby/client"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 )
 
 const (
@@ -515,6 +515,7 @@ func (s *dockerComposeSidecar) run(ctx context.Context, request composeRequest) 
 	if request.action == "down" {
 		s.client.releaseSecureLinkConnectorFromProject(ctx, request.projectName)
 	}
+	request = s.client.withComposeLabelFamily(ctx, request)
 	stage, cleanup, err := stageComposeInput(request)
 	if err != nil {
 		return err
@@ -583,7 +584,7 @@ func composeSidecarCommands(request composeRequest) ([][]string, error) {
 func (s *dockerComposeSidecar) runCompose(ctx context.Context, request composeRequest, stage *composeStage, command string, args ...string) error {
 	commandArgs := []string{"--project-name", request.projectName}
 	if stage != nil {
-		commandArgs = append(commandArgs, "--file", "/gateway-compose/compose.yaml")
+		commandArgs = append(commandArgs, "--file", "/opfield-compose/compose.yaml")
 	}
 	commandArgs = append(commandArgs, command)
 	commandArgs = append(commandArgs, args...)

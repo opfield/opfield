@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -24,16 +24,16 @@ func TestRelayGrantBundleCarriesSetPathsIntoTheGrantStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	var vector struct {
-		GatewayCommandBase64 string `json:"gatewayCommandBase64"`
+		OpfieldCommandBase64 string `json:"opfieldCommandBase64"`
 	}
 	if err := json.Unmarshal(data, &vector); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := base64.StdEncoding.DecodeString(vector.GatewayCommandBase64)
+	raw, err := base64.StdEncoding.DecodeString(vector.OpfieldCommandBase64)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var command pb.GatewayCommand
+	var command pb.OpfieldCommand
 	if err := proto.Unmarshal(raw, &command); err != nil {
 		t.Fatal(err)
 	}

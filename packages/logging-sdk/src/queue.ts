@@ -1,42 +1,42 @@
 import { calculateRetryDelayMs, sleep } from './retry.js';
-import type { GatewayTransport } from './transport.js';
+import type { OpfieldTransport } from './transport.js';
 import type {
-  GatewayLog,
-  GatewayLogDropReason,
-  GatewayLogFailureInfo,
-  GatewayLogFailureReason,
-  GatewayRetryOptions,
-  NormalizedGatewayLogEvent,
+  NormalizedOpfieldLogEvent,
+  OpfieldLog,
+  OpfieldLogDropReason,
+  OpfieldLogFailureInfo,
+  OpfieldLogFailureReason,
+  OpfieldRetryOptions,
 } from './types.js';
 
-export interface GatewayLogQueueOptions {
-  transport: GatewayTransport;
+export interface OpfieldLogQueueOptions {
+  transport: OpfieldTransport;
   maxBatchSize: number;
   flushIntervalMs: number;
   flushDebounceMs: number;
   maxQueueSize: number;
   overflow: 'drop-oldest' | 'drop-newest';
-  retry: Required<GatewayRetryOptions>;
-  onError?: (error: unknown, logs?: readonly GatewayLog[], failure?: GatewayLogFailureInfo) => void;
-  onDrop?: (log: GatewayLog, reason: GatewayLogDropReason) => void;
-  onFallback?: (logs: readonly GatewayLog[], failure: GatewayLogFailureInfo) => void | Promise<void>;
+  retry: Required<OpfieldRetryOptions>;
+  onError?: (error: unknown, logs?: readonly OpfieldLog[], failure?: OpfieldLogFailureInfo) => void;
+  onDrop?: (log: OpfieldLog, reason: OpfieldLogDropReason) => void;
+  onFallback?: (logs: readonly OpfieldLog[], failure: OpfieldLogFailureInfo) => void | Promise<void>;
 }
 
-export class GatewayLogQueue {
-  private readonly events: NormalizedGatewayLogEvent[] = [];
+export class OpfieldLogQueue {
+  private readonly events: NormalizedOpfieldLogEvent[] = [];
   private debounceTimer: NodeJS.Timeout | undefined;
   private intervalTimer: NodeJS.Timeout | undefined;
   private flushInFlight: Promise<void> | undefined;
   private closed = false;
 
-  constructor(private readonly options: GatewayLogQueueOptions) {
+  constructor(private readonly options: OpfieldLogQueueOptions) {
     this.intervalTimer = setInterval(() => {
       void this.flush();
     }, options.flushIntervalMs);
     this.intervalTimer.unref?.();
   }
 
-  enqueue(event: NormalizedGatewayLogEvent): void {
+  enqueue(event: NormalizedOpfieldLogEvent): void {
     if (this.closed) {
       this.options.onDrop?.(event, 'closed');
       return;
@@ -99,7 +99,7 @@ export class GatewayLogQueue {
     }
   }
 
-  private async sendWithRetry(batch: NormalizedGatewayLogEvent[]): Promise<void> {
+  private async sendWithRetry(batch: NormalizedOpfieldLogEvent[]): Promise<void> {
     for (let attempt = 1; attempt <= this.options.retry.maxAttempts; attempt += 1) {
       const result = await this.options.transport.send(batch);
       if (result.ok) return;
@@ -126,18 +126,18 @@ export class GatewayLogQueue {
     }
   }
 
-  private dropBatch(batch: NormalizedGatewayLogEvent[], reason: GatewayLogDropReason): void {
+  private dropBatch(batch: NormalizedOpfieldLogEvent[], reason: OpfieldLogDropReason): void {
     for (const event of batch) this.options.onDrop?.(event, reason);
   }
 
   private async handleDeliveryFailure(
-    batch: NormalizedGatewayLogEvent[],
-    reason: GatewayLogFailureReason,
+    batch: NormalizedOpfieldLogEvent[],
+    reason: OpfieldLogFailureReason,
     error: unknown,
     status: number | undefined
   ): Promise<void> {
     const logs = [...batch];
-    const failure: GatewayLogFailureInfo = {
+    const failure: OpfieldLogFailureInfo = {
       reason,
       error,
       status,

@@ -31,10 +31,10 @@ import {
 } from "./setup-restore-model";
 import type { NetworkDraft } from "./setup-wizard-model";
 
-const UPLOAD_MARKER_KEY = "gateway:setup-restore-upload";
-const RESTORE_URL_KEY = "gateway:setup-restore-public-url";
+const UPLOAD_MARKER_KEY = "opfield:setup-restore-upload";
+const RESTORE_URL_KEY = "opfield:setup-restore-public-url";
 /** A secret of this browser: after a managed source's restore it fetches the owner's password link, once. */
-const OWNER_LINK_CLAIM_KEY = "gateway:setup-restore-owner-link-claim";
+const OWNER_LINK_CLAIM_KEY = "opfield:setup-restore-owner-link-claim";
 const OWNER_LINK_COMMAND = "docker compose exec app node dist/cli/owner-password-link.js";
 
 interface OwnerPasswordLink {
@@ -137,9 +137,9 @@ function ExportSummaryPanel({
         <DetailRow
           label="Version"
           value={
-            summary.gatewayVersion === currentVersion
-              ? summary.gatewayVersion
-              : `${summary.gatewayVersion} (this host runs ${currentVersion})`
+            summary.opfieldVersion === currentVersion
+              ? summary.opfieldVersion
+              : `${summary.opfieldVersion} (this host runs ${currentVersion})`
           }
         />
         <DetailRow

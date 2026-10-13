@@ -1,5 +1,5 @@
 /**
- * TypeScript types matching proto/gateway/v1/nginx-daemon.proto
+ * TypeScript types matching proto/opfield/v1/nginx-daemon.proto
  * These are used with @grpc/proto-loader for runtime loading.
  */
 
@@ -250,6 +250,8 @@ export interface HealthReport {
   updateConnections?: DaemonUpdateConnections | null;
   /** Nginx daemons: a problem of the host's nginx service only root can fix, with the command that fixes it (field 43). */
   nginxServiceProblem?: string;
+  /** Daemons of 2.12.1 and later: objects still under their pre-Opfield names, by kind (field 44). */
+  legacyNames?: Record<string, number>;
   /** Present when the daemon advertises ingress_group_v1 (field 195). */
   ingressHealth?: IngressHealthReport | null;
   /** Storage-profile docker daemons: their availability set members. */
@@ -368,7 +370,7 @@ export interface StatsReport {
 
 // ─── Gateway Commands (gateway → daemon) ────────────────────────────
 
-export interface GatewayCommand {
+export interface OpfieldCommand {
   commandId: string;
   /** Optional absolute dispatch deadline (Unix ms, int64 as string). Omitted or zero means no deadline. */
   expiresAtUnixMs?: string;
@@ -417,7 +419,7 @@ export interface GatewayCommand {
   syncAvailabilityLease?: SyncAvailabilityLeaseCommand;
   availabilityLeaseHandoff?: AvailabilityLeaseHandoffCommand;
   /** Daemons with gateway_next_address_v1: the address Opfield moves to. */
-  setGatewayNextAddress?: SetGatewayNextAddressCommand;
+  setOpfieldNextAddress?: SetOpfieldNextAddressCommand;
   syncDockerRegistryBindings?: SyncDockerRegistryBindingsCommand;
   dockerBuild?: DockerBuildCommand;
   dockerBuildCancel?: DockerBuildCancelCommand;
@@ -515,7 +517,7 @@ export interface UpdateRelayWorkerCommand {
 }
 
 /** The address Opfield moves to (host:port); empty clears it. */
-export interface SetGatewayNextAddressCommand {
+export interface SetOpfieldNextAddressCommand {
   address: string;
 }
 

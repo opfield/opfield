@@ -11,7 +11,7 @@ Opfield AI starts conversations with a small base tool surface. Domain-specific 
 - get_current_context: read the current UI route/resource when the user says "this page" or "current item".
 - wait: pause briefly when an operation is pending, then continue by re-checking status.
 - find_resource: globally search readable resources by name, ID, domain, image, etc.
-- internal_documentation: read workflow and argument docs before complex operations in AI Workspace. Remote MCP clients use read_gateway_documentation or the gateway://docs resource tree with the same subsystem scope filtering.
+- internal_documentation: read workflow and argument docs before complex operations in AI Workspace. Remote MCP clients use read_opfield_documentation or the opfield://docs resource tree with the same subsystem scope filtering.
 - ask_question: ask concise clarifying questions.
 - fetch: read a direct HTTP/HTTPS URL through Opfield when sandbox runner is enabled and the user has sandbox access.
 - web_search: available only when enabled by settings.
@@ -184,7 +184,7 @@ Each route generates an nginx server block on its selected ingress node. Changes
 Config templates can customize the generated config (see templates topic).
 
 ## Raw Config Mode
-When rawConfigEnabled is true and rawConfig is saved, template rendering is bypassed and rawConfig is used directly as the nginx server block. With rawConfigEnabled but no rawConfig yet, Opfield keeps rendering the managed config. A Route to a Docker container or deployment keeps its Secure Link in raw mode: keep its upstream (\`gateway_secure_link_<route id with - replaced by _>\`, as get_route_rendered_config shows it) in the raw config, or the Route loses its target. Use get_route_rendered_config to view the current config, toggle_route_raw_mode to enable/disable (disabling also returns a Route of type raw to proxy), and update_route_raw_config to write raw config.`,
+When rawConfigEnabled is true and rawConfig is saved, template rendering is bypassed and rawConfig is used directly as the nginx server block. With rawConfigEnabled but no rawConfig yet, Opfield keeps rendering the managed config. A Route to a Docker container or deployment keeps its Secure Link in raw mode: keep its upstream (\`opfield_secure_link_<route id with - replaced by _>\`, as get_route_rendered_config shows it) in the raw config, or the Route loses its target. Use get_route_rendered_config to view the current config, toggle_route_raw_mode to enable/disable (disabling also returns a Route of type raw to proxy), and update_route_raw_config to write raw config.`,
 
   domains: `# Domains
 
@@ -367,14 +367,14 @@ All significant actions are logged.
 When enabled in Opfield general settings, Opfield can export privacy-reduced audit events to up to five active HTTPS SIEM collectors. This is an outbound push integration: Opfield sends batches to the collector; it does not expose a webhook for the collector to call.
 
 ## Safe Event Contract
-Each event contains an id, a stable Opfield installation source identifier, type \`com.wiolett.gateway.audit.v1\`, ISO timestamp, action, optional actor id/email, resource type/id, and source IP. Never claim that full audit \`details\`, resource display names, user agents, secrets, credentials, raw request payloads, or collector response bodies are exported.
+Each event contains an id, a stable Opfield installation source identifier, type \`dev.opfield.audit.v1\`, ISO timestamp, action, optional actor id/email, resource type/id, and source IP. Never claim that full audit \`details\`, resource display names, user agents, secrets, credentials, raw request payloads, or collector response bodies are exported.
 
 ## Destination Security
 - Endpoint URLs must be HTTPS and must not include userinfo, query parameters, or fragments.
 - The existing outbound-webhook network policy validates and pins DNS addresses to protect against SSRF and rebinding. Redirects are not followed.
 - Every destination uses a bearer token, HMAC-SHA256, or one validated custom HTTP header. The secret or custom header value is encrypted at rest and is never returned by API, UI, tools, logs, audit entries, or assistant responses.
-- Custom headers cannot replace Opfield transport headers such as \`Host\`, \`Content-Type\`, or the \`X-Gateway-*\` headers. A custom Authorization header is allowed when a collector requires a non-Bearer scheme.
-- HMAC sends \`X-Gateway-Timestamp\` and \`X-Gateway-Signature-256\` for \`timestamp + "." + rawBody\`; bearer uses the standard Authorization header.
+- Custom headers cannot replace Opfield transport headers such as \`Host\`, \`Content-Type\`, or the \`X-Opfield-*\` headers. A custom Authorization header is allowed when a collector requires a non-Bearer scheme.
+- HMAC sends \`X-Opfield-Timestamp\` and \`X-Opfield-Signature-256\` for \`timestamp + "." + rawBody\`; bearer uses the standard Authorization header.
 
 ## Delivery Lifecycle
 - Audit writes and queued SIEM records are created in one database transaction; the request path never sends HTTP.
@@ -382,7 +382,7 @@ Each event contains an id, a stable Opfield installation source identifier, type
 - 2xx completes delivery. Network errors, 408, 429, and 5xx retry at 30s, 2m, 8m, 30m, 2h, 6h, and 12h, for at most eight attempts. Other 4xx responses fail terminally.
 - Disabling SIEM in Opfield general settings prevents new outbox rows and pauses delivery; destinations, history, and queued records stay intact until SIEM is enabled again.
 - Disabling a destination pauses outstanding work; enabling resumes it. Deleting a destination soft-deletes configuration and discards outstanding work. Only failed deliveries can be manually requeued.
-- A test sends a synthetic \`com.wiolett.gateway.audit.test.v1\` event only: it creates no audit row and no queued delivery.
+- A test sends a synthetic \`dev.opfield.audit.test.v1\` event only: it creates no audit row and no queued delivery.
 - Terminal delivery history follows Audit Log retention. Do not use notification-webhook delivery semantics for SIEM.
 
 ## AI Tools
@@ -455,15 +455,15 @@ Nodes are remote servers running Opfield daemons. Each daemon type manages diffe
 Go to **Nodes** page → click **Add Node** → select the node type (nginx, docker, builder, storage, databases, monitoring, or relay) → set a display name → click **Create Node**. Relay nodes also require the address advertised to participating hosts. This generates a **one-time enrollment token**, the Opfield gRPC certificate fingerprint, and setup commands. **Settings → Relay → Add relay node** opens the same flow with Relay preselected.
 
 ### Step 2: Run the setup script on the target server
-The UI shows ready-to-copy commands, one per enrollment target, with curl or wget; create_node and manage_node regenerate_enrollment_token return the same commands as installCommands. Give the user the command for the target the host can reach, unchanged, and run it on the target server. On a release build the command downloads the installer of that Opfield release from get.opfield.dev, runs it only when it matches the release's \`gateway-daemon-installers.sha256\`, and pins with \`--version\` the daemon release of Opfield's own minor line (a relay gets the release its pool runs). An unreleased build (version \`dev\`) runs the installer from the main branch instead. For Opfield v2.11.0 the nginx command looks like this:
+The UI shows ready-to-copy commands, one per enrollment target, with curl or wget; create_node and manage_node regenerate_enrollment_token return the same commands as installCommands. Give the user the command for the target the host can reach, unchanged, and run it on the target server. On a release build the command downloads the installer of that Opfield release from get.opfield.dev, runs it only when it matches the release's \`opfield-node-installers.sha256\`, and pins with \`--version\` the daemon release of Opfield's own minor line (a relay gets the release its pool runs). An unreleased build (version \`dev\`) runs the installer from the main branch instead. For Opfield v2.12.1 the nginx command looks like this:
 
 \`\`\`bash
 cd "$(mktemp -d)" && \\
-curl -fsSL -o setup-node.sh https://get.opfield.dev/gateway/releases/download/v2.11.0/setup-node.sh && \\
-curl -fsSL -o gateway-daemon-installers.sha256 https://get.opfield.dev/gateway/releases/download/v2.11.0/gateway-daemon-installers.sha256 && \\
-grep ' setup-node.sh$' gateway-daemon-installers.sha256 | sha256sum -c - && \\
+curl -fsSL -o setup-node.sh https://get.opfield.dev/gateway/releases/download/v2.12.1/setup-node.sh && \\
+curl -fsSL -o opfield-node-installers.sha256 https://get.opfield.dev/gateway/releases/download/v2.12.1/opfield-node-installers.sha256 && \\
+grep ' setup-node.sh$' opfield-node-installers.sha256 | sha256sum -c - && \\
 sudo bash setup-node.sh \\
-  --gateway <gateway-host>:9443 --token <enrollment-token> --gateway-cert-sha256 sha256:<gateway-cert-fingerprint> --version v2.11.0
+  --opfield <opfield-host>:9443 --token <enrollment-token> --opfield-cert-sha256 sha256:<opfield-cert-fingerprint> --version v2.12.1
 \`\`\`
 
 The installers by node type: **nginx** setup-node.sh, **docker** and **builder** setup-docker-node.sh, **storage** setup-storage-node.sh, legacy **databases** setup-database-node.sh, **monitoring** setup-monitoring-node.sh, **relay** setup-relay-node.sh (with \`--advertise-address\`).
@@ -493,7 +493,7 @@ The node status changes from **pending** to **online** in the Nodes list once th
 ### Alternative: Manual installation
 If you cannot use the setup script, you can install manually. Storage and database nodes are the stateful exceptions: they use the restricted docker-daemon profiles and require the verified storage preflight.
 1. Download the daemon binary and place it at \`/usr/local/bin/<type>-daemon\`
-2. Run: \`<type>-daemon install --gateway <host>:9443 --token <token> --gateway-cert-sha256 sha256:<gateway-cert-fingerprint>\`
+2. Run: \`<type>-daemon install --opfield <host>:9443 --token <token> --opfield-cert-sha256 sha256:<opfield-cert-fingerprint>\`
    This creates the config file and systemd service automatically.
 3. Enable and start: \`systemctl enable --now <type>-daemon\`
 

@@ -409,6 +409,10 @@ export function NodeMonitoringTab({
 
   const health = latest.health;
   const stats = latest.stats;
+  const legacyNameCount = Object.values(health?.legacyNames ?? {}).reduce(
+    (total, count) => total + count,
+    0
+  );
 
   // Build sparkline data
   const cpuHist = history.map((h) => h.health?.cpuPercent ?? 0);
@@ -450,6 +454,14 @@ export function NodeMonitoringTab({
           </Badge>
           <Badge variant="secondary">RSS {formatBytes(health.nginxRssBytes)}</Badge>
         </div>
+      )}
+      {legacyNameCount > 0 && (
+        <Notice
+          tone="info"
+          title={`${legacyNameCount} ${legacyNameCount === 1 ? "object" : "objects"} on this node still use the previous names`}
+        >
+          They are renamed when they are next recreated. Nothing needs to be done.
+        </Notice>
       )}
       {nodeType === "nginx" && health?.nginxServiceProblem && (
         <Notice tone="destructive" title="nginx needs a fix as root on the host">

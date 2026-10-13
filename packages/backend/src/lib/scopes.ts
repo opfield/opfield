@@ -81,7 +81,7 @@ export const MANUAL_APPROVAL_SCOPES = [
   'admin:system',
   'admin:users',
   'admin:groups',
-  'settings:gateway:edit',
+  'settings:opfield:edit',
   'storage:bind',
 ] as const;
 export const MANUAL_APPROVAL_SCOPE_SET = new Set<string>(MANUAL_APPROVAL_SCOPES);

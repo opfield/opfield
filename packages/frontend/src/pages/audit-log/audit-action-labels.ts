@@ -522,6 +522,9 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "system.configuration_export_failed": "Configuration export failed",
   "system.configuration_restored": "Restored configuration",
   "system.daemon_update.perform": "Started daemon update",
+  "system.opfield_move_announced": "Announced a new address to nodes",
+  "system.opfield_move_withdrawn": "Withdrew the new address",
+  // legacy-name: audit rows written before 2.12.1 keep these action names — remove once audit retention dropped them
   "system.gateway_move_announced": "Announced a new address to nodes",
   "system.gateway_move_withdrawn": "Withdrew the new address",
   "system.identity.renew": "Renewed Opfield identity",

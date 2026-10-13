@@ -28,9 +28,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
 )
 
 const (
@@ -98,7 +98,10 @@ func newDockerRegistryProxyManager(plugin *DockerPlugin) (*dockerRegistryProxyMa
 	if plugin.cfg.Docker.Mode == "builder" {
 		manager.trustRoot = filepath.Join(plugin.cfg.StateDir, "builder-registry-trust")
 	}
-	if value := strings.TrimSpace(os.Getenv("GATEWAY_DOCKER_CERTS_DIR")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("OPFIELD_DOCKER_CERTS_DIR")); value != "" {
+		manager.trustRoot = value
+		// legacy-name: GATEWAY_DOCKER_CERTS_DIR of pre-Opfield service environments — remove once every node reports none
+	} else if value := strings.TrimSpace(os.Getenv("GATEWAY_DOCKER_CERTS_DIR")); value != "" {
 		manager.trustRoot = value
 	}
 	if err := manager.loadOrCreateIdentity(); err != nil {
@@ -703,6 +706,10 @@ func loadOrRenewRegistryProxyIdentity(directory string, now time.Time) (*registr
 	}
 	pair, pairErr := tls.LoadX509KeyPair(paths.serverCert, paths.serverKey)
 	reason := registryProxyLeafRenewalReason(&pair, pairErr, caCert, now)
+	if reason == "" && caCert != nil && caCert.Subject.CommonName != registryProxyCAName {
+		// legacy-name: Gateway Registry Proxy CA of pre-Opfield nodes, replaced once — remove once every node reports none
+		reason = "CA carries its pre-Opfield name"
+	}
 	if reason == "" {
 		return &registryProxyIdentity{caPEM: caPEM, cert: &pair}, registryProxyIdentityUnchanged, "", nil
 	}
@@ -724,6 +731,7 @@ func loadOrRenewRegistryProxyIdentity(directory string, now time.Time) (*registr
 		reason += "; CA certificate missing or invalid"
 	case caKey == nil:
 		reason += "; CA key not stored"
+	case caCert.Subject.CommonName != registryProxyCAName:
 	default:
 		reason += "; CA expires within a year"
 	}
@@ -789,9 +797,15 @@ func registryProxyLeafRenewalReason(pair *tls.Certificate, pairErr error, caCert
 	return ""
 }
 
+// registryProxyCAName is the subject of the node's registry proxy CA. A CA
+// issued under the pre-Opfield name is replaced once (with its leaf); Docker
+// rereads the trusted CA file on every pull, and the builder's BuildKit is
+// restarted after the identity is ready.
+const registryProxyCAName = "Opfield Registry Proxy CA"
+
 func registryProxyCAReusable(caCert *x509.Certificate, now time.Time) bool {
 	return caCert != nil && caCert.IsCA && !now.Before(caCert.NotBefore) &&
-		caCert.NotAfter.Sub(now) > registryProxyCAMinRemaining
+		caCert.NotAfter.Sub(now) > registryProxyCAMinRemaining && caCert.Subject.CommonName == registryProxyCAName
 }
 
 func readRegistryProxyCA(path string) ([]byte, *x509.Certificate) {
@@ -841,7 +855,7 @@ func generateRegistryProxyCA(now time.Time) ([]byte, *x509.Certificate, *ecdsa.P
 		return nil, nil, nil, err
 	}
 	caTemplate := &x509.Certificate{
-		SerialNumber: randomSerial(), Subject: pkix.Name{CommonName: "Gateway Registry Proxy CA"},
+		SerialNumber: randomSerial(), Subject: pkix.Name{CommonName: registryProxyCAName},
 		NotBefore: now.Add(-time.Minute), NotAfter: now.AddDate(registryProxyCAValidityYears, 0, 0), IsCA: true,
 		BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
 	}

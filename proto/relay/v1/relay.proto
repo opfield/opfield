@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package relay.v1;
 
-option go_package = "github.com/wiolett-industries/gateway/daemon-shared/relayv1";
+option go_package = "github.com/opfield/opfield/daemon-shared/relayv1";
 
 // TunnelBroker is deliberately resource agnostic. Gateway is the only
 // component that maps endpoint and route identifiers to product resources.

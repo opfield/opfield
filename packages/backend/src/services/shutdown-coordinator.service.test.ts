@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GatewayLifecycleService } from './gateway-lifecycle.service.js';
+import { OpfieldLifecycleService } from './opfield-lifecycle.service.js';
 import { RESUMABLE_WORK_GRACE_MS, ShutdownCoordinator, type ShutdownHooks } from './shutdown-coordinator.service.js';
 
 const never = () => new Promise<never>(() => undefined);
 
 function stop(hooks: Partial<ShutdownHooks>, userRequestDrainSeconds = 30) {
-  const lifecycle = new GatewayLifecycleService();
+  const lifecycle = new OpfieldLifecycleService();
   // A synchronous deploy request in flight: it ends only when its orchestration does.
   vi.spyOn(lifecycle, 'getActiveCount').mockImplementation((trafficClass) => (trafficClass === 'user' ? 1 : 0));
   vi.spyOn(lifecycle, 'waitForZero').mockImplementation(async (trafficClass) =>

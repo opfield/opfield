@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // The harness runs the generic member runtime (memberha.Manager) with the
@@ -142,7 +142,7 @@ func (h *harness) newManager() *memberha.Manager {
 			return engine, err
 		},
 		Async:            func(fn func()) { h.mu.Lock(); h.queue = append(h.queue, fn); h.mu.Unlock() },
-		GatewayConnected: func() bool { return true },
+		OpfieldConnected: func() bool { return true },
 		VerifyAssignment: func(string, memberha.Assignment) error { return nil },
 	}, h.store)
 	if err != nil {

@@ -14,7 +14,7 @@ import {
 import { ImagePullSchema } from './docker.schemas.js';
 import { DockerManagementService } from './docker.service.js';
 import { assertDockerResourceScope, filterDockerResourcesForScope } from './docker-access.middleware.js';
-import { filterGatewayInternalImages } from './docker-internal-images.js';
+import { filterOpfieldInternalImages } from './docker-internal-images.js';
 import { DockerRegistryService } from './docker-registry.service.js';
 import { DockerSnapshotService } from './docker-snapshot.service.js';
 
@@ -101,7 +101,7 @@ export function registerImageRoutes(router: OpenAPIHono<AppEnv>) {
       ? await docker.decoratePublicImageSnapshot(nodeId, data)
       : data;
     const compacted = filterDockerResourcesForScope(
-      filterGatewayInternalImages(decorated)
+      filterOpfieldInternalImages(decorated)
         .filter((item) => matchesImageSearch(item, search))
         .map((item) => ({
           ...compactImageListItem(item),

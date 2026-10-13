@@ -38,7 +38,7 @@ export async function executeGroupTool(
           scopes: a.scopes,
           parentId: a.parentId,
           folderId: a.folderId,
-          requireGateway2fa: a.requireGateway2fa,
+          require2fa: a.require2fa,
         })
       );
       return createGroupForActor(actor, input, services);
@@ -50,7 +50,7 @@ export async function executeGroupTool(
           description: a.description,
           scopes: a.scopes,
           parentId: a.parentId,
-          requireGateway2fa: a.requireGateway2fa,
+          require2fa: a.require2fa,
         })
       );
       return updateGroupForActor(actor, String(a.groupId ?? ''), input, services);

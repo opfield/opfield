@@ -382,7 +382,7 @@ export abstract class AIServiceRuntimeSupport extends AIServiceCore {
     let config = storedConfig;
     let reasoningEffort: string = storedConfig.reasoningEffort;
     let contextLimits = directProviderContextLimits(storedConfig.maxContextTokens, storedConfig.maxCompletionTokens);
-    if (storedConfig.providerType === 'gateway_inference') {
+    if (storedConfig.providerType === 'opfield_inference') {
       const provider = await this.resolveProviderSession(user, {
         requestId: `context-estimate:${conversationId ?? 'new'}`,
         conversationId,

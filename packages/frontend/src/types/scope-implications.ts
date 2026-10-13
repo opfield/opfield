@@ -146,7 +146,7 @@ export const IMPLIED_SCOPES_BY_REQUIRED_SCOPE: Readonly<Record<string, readonly 
     "proxy:raw:write",
     "proxy:unrestricted",
   ],
-  "settings:gateway:view": ["settings:gateway:edit"],
+  "settings:opfield:view": ["settings:opfield:edit"],
   "ssl:cert:renew": ["ssl:cert:issue"],
   "ssl:cert:view": ["ssl:cert:delete", "ssl:cert:renew"],
   "status-page:view": [

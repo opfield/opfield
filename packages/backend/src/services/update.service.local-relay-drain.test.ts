@@ -13,7 +13,7 @@ vi.mock('./relay-local-takeover.js', () => ({
 const MIGRATED = {
   exitCode: 0,
   output:
-    '{"ok":true,"changedFiles":[],"backupDir":"/host/.gateway-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/gateway/sandbox-workspaces"}',
+    '{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/gateway/sandbox-workspaces"}',
 };
 const IN_FLIGHT = ['draining', 'updating', 'verifying', 'rolling_back'];
 
@@ -132,9 +132,9 @@ function localStepPool(
       APP_VERSION: 'v2.4.2',
       COMPOSE_PROJECT_DIR: '/srv/gateway',
       RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
-      GATEWAY_RELAY_IMAGE_REF: `registry.example.com/wiolett/gateway/relay@sha256:${'b'.repeat(64)}`,
-      GATEWAY_RELAY_BUILD_VERSION: 'v2.4.2',
-      GATEWAY_RELAY_PROTOCOL_MAJOR: 1,
+      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/wiolett/gateway/relay@sha256:${'b'.repeat(64)}`,
+      OPFIELD_RELAY_BUILD_VERSION: 'v2.4.2',
+      OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
     } as never,
     relayRuntime as never
   );

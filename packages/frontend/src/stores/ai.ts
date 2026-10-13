@@ -263,7 +263,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
         content,
         attachments,
         context,
-        ...(state.providerStatus?.providerType === "gateway_inference" && state.selectedModel
+        ...(state.providerStatus?.providerType === "opfield_inference" && state.selectedModel
           ? { model: state.selectedModel }
           : {}),
         ...(canSendSelectedReasoningEffort(state.providerStatus) && state.selectedReasoningEffort
@@ -342,7 +342,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
         clientCommandId,
         scenarioId: scenario.id,
         context,
-        ...(state.providerStatus?.providerType === "gateway_inference" && state.selectedModel
+        ...(state.providerStatus?.providerType === "opfield_inference" && state.selectedModel
           ? { model: state.selectedModel }
           : {}),
         ...(canSendSelectedReasoningEffort(state.providerStatus) && state.selectedReasoningEffort
@@ -606,7 +606,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
         conversationId: state.activeConversationId,
         clientCommandId,
         context: context ?? state.lastContext ?? undefined,
-        ...(state.providerStatus?.providerType === "gateway_inference" && state.selectedModel
+        ...(state.providerStatus?.providerType === "opfield_inference" && state.selectedModel
           ? { model: state.selectedModel }
           : {}),
         ...(canSendSelectedReasoningEffort(state.providerStatus) && state.selectedReasoningEffort
@@ -1193,7 +1193,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
           isEnabled: status.enabled,
         };
       }
-      const selectable = status.providerType === "gateway_inference" && status.models.length > 0;
+      const selectable = status.providerType === "opfield_inference" && status.models.length > 0;
       const hasLoadedConversation =
         Boolean(state.activeConversationId) && state.messages.length > 0;
       const currentAllowed =
@@ -1236,7 +1236,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
     const state = get();
     const status = state.providerStatus;
     if (
-      status?.providerType !== "gateway_inference" ||
+      status?.providerType !== "opfield_inference" ||
       !status.allowUserModelSelection ||
       !status.models.some((option) => option.id === model)
     ) {
@@ -1315,7 +1315,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
     }
     const option = providerStatus?.models.find((model) => model.id === selectedModel);
     if (
-      providerStatus?.providerType !== "gateway_inference" ||
+      providerStatus?.providerType !== "opfield_inference" ||
       !selectedModel ||
       !option?.reasoningEfforts.includes(effort)
     ) {
@@ -1420,7 +1420,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
           conversationId: activeConversationId,
           clientCommandId,
           context: lastContext ?? undefined,
-          ...(providerStatus?.providerType === "gateway_inference" && selectedModel
+          ...(providerStatus?.providerType === "opfield_inference" && selectedModel
             ? { model: selectedModel }
             : {}),
           ...(canSendSelectedReasoningEffort(providerStatus) && selectedReasoningEffort
@@ -1453,7 +1453,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
         messages,
         lastContext ?? undefined,
         activeConversationId,
-        providerStatus?.providerType === "gateway_inference" ? selectedModel : undefined,
+        providerStatus?.providerType === "opfield_inference" ? selectedModel : undefined,
         canSendSelectedReasoningEffort(providerStatus) ? selectedReasoningEffort : undefined
       );
       set({ contextUsageDialog: usage });

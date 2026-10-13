@@ -85,12 +85,12 @@ func applyMap(rules []mapRule, input string) string {
 // TestMaintenanceCookieMapsLeaveNoEmptyOrLeadingSeparator: the upstream gets the request's cookies without Gateway's
 // access cookies, wherever they stood, and never an empty name (a leading or doubled ";").
 func TestMaintenanceCookieMapsLeaveNoEmptyOrLeadingSeparator(t *testing.T) {
-	sig := cookieMapRules(t, "gateway_maintenance_cookie_sig")
-	exp := cookieMapRules(t, "gateway_maintenance_cookie_stripped")
+	sig := cookieMapRules(t, "opfield_maintenance_cookie_sig")
+	exp := cookieMapRules(t, "opfield_maintenance_cookie_stripped")
 	if len(sig) == 0 || len(exp) == 0 {
 		t.Fatal("the cookie maps have no rules")
 	}
-	const s, e = "gateway_maintenance_access_sig=S1g", "gateway_maintenance_access_exp=1700000000"
+	const s, e = "opfield_maintenance_access_sig=S1g", "opfield_maintenance_access_exp=1700000000"
 	for input, want := range map[string]string{
 		s + "; " + e + "; mine=1":             "mine=1",
 		s + "; mine=1; " + e:                  "mine=1",
@@ -101,7 +101,7 @@ func TestMaintenanceCookieMapsLeaveNoEmptyOrLeadingSeparator(t *testing.T) {
 		s + "; " + e:                          "",
 		s:                                     "",
 		"mine=1":                              "mine=1",
-		"xgateway_maintenance_access_sig=1; mine=1": "xgateway_maintenance_access_sig=1; mine=1",
+		"xopfield_maintenance_access_sig=1; mine=1": "xopfield_maintenance_access_sig=1; mine=1",
 		"": "",
 	} {
 		if got := applyMap(exp, applyMap(sig, input)); got != want {

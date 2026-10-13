@@ -5,14 +5,14 @@ import Handlebars from 'handlebars';
 import type { DrizzleClient } from '@/db/client.js';
 import { nginxTemplates } from '@/db/schema/nginx-templates.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
-import {
-  escapeNginxReturnText,
-  GATEWAY_NOT_FOUND_HTML,
-  gatewayMaintenanceHtml,
-  gatewayNotFoundHtml,
-} from '@/lib/gateway-error-pages.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { formatHostPort } from '@/lib/network-endpoint.js';
+import {
+  escapeNginxReturnText,
+  OPFIELD_NOT_FOUND_HTML,
+  opfieldMaintenanceHtml,
+  opfieldNotFoundHtml,
+} from '@/lib/opfield-error-pages.js';
 import { hasScope, scopeMatcher } from '@/lib/permissions.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -29,6 +29,7 @@ import {
 } from './additional-route-template.js';
 import { managedSecureLinkUpstreamBody, withAvailabilityNextUpstream } from './nginx-availability-upstream.js';
 import { renderMaintenanceFlagGuard } from './nginx-maintenance-flag-guard.js';
+import { toLegacyNginxNames } from './nginx-node-names.js';
 import type { CreateNginxTemplateInput, UpdateNginxTemplateInput } from './nginx-template.schemas.js';
 import { withoutReservedTemplateVariables } from './proxy-template-variables.js';
 import { withStatusPageStaleCache } from './status-page-stale-cache.js';
@@ -36,6 +37,13 @@ import { withStatusPageStaleCache } from './status-page-stale-cache.js';
 const logger = createChildLogger('NginxTemplateService');
 
 const NGINX_LOGS_PREFIX = '/var/log/nginx';
+/** The Pages runtime configuration script the rendered pages load (window.runtime.config). */
+export const PAGES_CONFIG_SCRIPT_PATH = '/_opfield/pages/config.js';
+/**
+ * The pre-Opfield path of the script, answered the same way: it is documented, and pages may load it themselves.
+ * legacy-name: Pages runtime configuration path customer pages may load directly — remove once no page loads it
+ */
+export const LEGACY_PAGES_CONFIG_SCRIPT_PATH = '/_gateway/pages/config.js';
 const DEFAULT_RATE_LIMIT_RPS = 1000;
 const DEFAULT_RATE_LIMIT_BURST = 3000;
 const DEFAULT_CONNECTIONS_PER_IP = 1000;
@@ -182,14 +190,14 @@ function safePagesFallbackUrl(value: string | null | undefined): string | null {
 function availabilityUpstreamNames(host: ProxyHostConfig, includeRoutes: boolean): string[] {
   return [
     ...(host.secureLinkUpstream && host.secureLinkSocketPaths?.length
-      ? [`gateway_secure_link_${host.id.replace(/-/g, '_')}`]
+      ? [`opfield_secure_link_${host.id.replace(/-/g, '_')}`]
       : []),
     ...(host.additionalSecureLinks ?? [])
       .filter((binding) => binding.socketPaths?.length)
-      .map((binding) => `gateway_additional_secure_link_${binding.id.replace(/-/g, '_')}`),
+      .map((binding) => `opfield_additional_secure_link_${binding.id.replace(/-/g, '_')}`),
     ...(includeRoutes ? (host.additionalRoutes ?? []) : [])
       .filter((route) => route.secureLinkUpstream && route.secureLinkSocketPaths?.length)
-      .map((route) => `gateway_additional_secure_link_${route.id.replace(/-/g, '_')}`),
+      .map((route) => `opfield_additional_secure_link_${route.id.replace(/-/g, '_')}`),
   ];
 }
 
@@ -202,7 +210,7 @@ function renderAdditionalRouteLocation(
   connectionsPerIp: number
 ): string {
   const path = routeNginxValue(route.path);
-  const upstreamName = `gateway_additional_secure_link_${route.id.replace(/-/g, '_')}`;
+  const upstreamName = `opfield_additional_secure_link_${route.id.replace(/-/g, '_')}`;
   const upstream = route.secureLinkUpstream
     ? `${route.forwardScheme}://${upstreamName}`
     : `${route.forwardScheme}://${routeNginxValue(route.forwardHost ?? '')}:${route.forwardPort ?? 0}`;
@@ -228,10 +236,12 @@ function renderAdditionalRouteLocation(
   }
   const advanced = route.advancedConfig ? route.advancedConfig.split(/\r?\n/).map((line) => `        ${line}`) : [];
   if (route.targetKind === 'pages') {
-    const scopedConfigPath = `${path}/_gateway/pages/config.js`;
+    const scopedConfigPath = `${path}${PAGES_CONFIG_SCRIPT_PATH}`;
+    // legacy-name: pages written before 2.12.1 may load the pre-Opfield script path themselves
+    const legacyScopedConfigPath = `${path}${LEGACY_PAGES_CONFIG_SCRIPT_PATH}`;
     const escaped = routeRegexPath(path);
-    const notFoundLocation = `gateway_pages_not_found_${route.id.replace(/-/g, '_')}`;
-    const spaLocation = `gateway_pages_spa_${route.id.replace(/-/g, '_')}`;
+    const notFoundLocation = `opfield_pages_not_found_${route.id.replace(/-/g, '_')}`;
+    const spaLocation = `opfield_pages_spa_${route.id.replace(/-/g, '_')}`;
     const fallbackUrl = safePagesFallbackUrl(route.pagesFallbackUrl);
     const errorPage = route.pagesSpaFallback
       ? `        error_page 404 = @${spaLocation};`
@@ -253,15 +263,16 @@ function renderAdditionalRouteLocation(
       '        sub_filter_once on;',
       `        sub_filter '</head>' '<script src="${scopedConfigPath}"></script></head>';`,
     ];
-    const configLocation = [
-      `    location = ${scopedConfigPath} {`,
+    const configLocation = [scopedConfigPath, legacyScopedConfigPath].flatMap((scriptPath, index) => [
+      ...(index > 0 ? [''] : []),
+      `    location = ${scriptPath} {`,
       ...common,
       '        limit_except GET HEAD { deny all; }',
       `        alias ${routeNginxValue(route.pagesRuntimeConfigPath ?? '')};`,
       '        default_type application/javascript;',
       '        add_header Cache-Control "no-store" always;',
       '    }',
-    ];
+    ]);
     const fallbackLocations = [
       ...(route.pagesSpaFallback
         ? [
@@ -280,7 +291,7 @@ function renderAdditionalRouteLocation(
         ? [
             `    location @${notFoundLocation} {`,
             '        default_type text/html;',
-            `        return 404 ${escapeNginxReturnText(GATEWAY_NOT_FOUND_HTML)};`,
+            `        return 404 ${escapeNginxReturnText(OPFIELD_NOT_FOUND_HTML)};`,
             '    }',
             '',
           ]
@@ -362,7 +373,7 @@ Handlebars.registerHelper(
 );
 
 function accessListPasswordFile(accessListId: string): string {
-  return `/etc/nginx/gateway/htpasswd/access-list-${accessListId.replace(DANGEROUS_CHARS, '')}`;
+  return `/etc/nginx/opfield/htpasswd/access-list-${accessListId.replace(DANGEROUS_CHARS, '')}`;
 }
 
 function buildAccessListDirectives(accessList: ProxyHostConfig['accessList']): string[] {
@@ -465,11 +476,11 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 {{#if pagesFallbackUrl}}
     error_page 404 =302 {{pagesFallbackUrl}};
 {{else}}
-    error_page 404 = @gateway_pages_not_found_{{id}};
+    error_page 404 = @opfield_pages_not_found_{{id}};
 {{/if}}
     location ~ /\\. { deny all; }
 
-    location = /_gateway/pages/config.js {
+    location = ${PAGES_CONFIG_SCRIPT_PATH} {
 {{#if accessList}}
 {{#each accessList.ipRules}}
         {{sanitize this.type}} {{sanitize this.value}};
@@ -479,7 +490,7 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 {{/if}}
 {{#if accessList.basicAuthEnabled}}
         auth_basic "Restricted Access";
-        auth_basic_user_file /etc/nginx/gateway/htpasswd/access-list-{{accessList.id}};
+        auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-{{accessList.id}};
 {{/if}}
 
 {{/if}}
@@ -490,7 +501,36 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
         limit_conn connlimit_{{id}} {{connectionsPerIp}};
 {{/if}}
         limit_except GET HEAD { deny all; }
-        alias $gateway_pages_runtime_config_path;
+        alias $opfield_pages_runtime_config_path;
+        default_type application/javascript;
+        add_header Cache-Control "no-store" always;
+{{#each customHeaders}}
+        add_header {{sanitize this.name}} "{{sanitize this.value}}" always;
+{{/each}}
+    }
+
+    location = ${LEGACY_PAGES_CONFIG_SCRIPT_PATH} {
+{{#if accessList}}
+{{#each accessList.ipRules}}
+        {{sanitize this.type}} {{sanitize this.value}};
+{{/each}}
+{{#if accessListHasIpRules}}
+        deny all;
+{{/if}}
+{{#if accessList.basicAuthEnabled}}
+        auth_basic "Restricted Access";
+        auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-{{accessList.id}};
+{{/if}}
+
+{{/if}}
+{{#if rateLimitEnabled}}
+        limit_req_status 429;
+        limit_req zone=ratelimit_{{id}} burst={{rateLimitBurst}} nodelay;
+        limit_conn_status 429;
+        limit_conn connlimit_{{id}} {{connectionsPerIp}};
+{{/if}}
+        limit_except GET HEAD { deny all; }
+        alias $opfield_pages_runtime_config_path;
         default_type application/javascript;
         add_header Cache-Control "no-store" always;
 {{#each customHeaders}}
@@ -509,7 +549,7 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 {{/if}}
 {{#if accessList.basicAuthEnabled}}
         auth_basic "Restricted Access";
-        auth_basic_user_file /etc/nginx/gateway/htpasswd/access-list-{{accessList.id}};
+        auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-{{accessList.id}};
 {{/if}}
 
 {{/if}}
@@ -534,7 +574,7 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 {{#if pagesRouteIncludePath}}
         limit_except GET HEAD { deny all; }
         sub_filter_once on;
-        sub_filter '</head>' '<script src="/_gateway/pages/config.js"></script></head>';
+        sub_filter '</head>' '<script src="${PAGES_CONFIG_SCRIPT_PATH}"></script></head>';
 {{#if pagesSpaFallback}}
         try_files $uri $uri/ /index.html;
 {{else}}
@@ -542,7 +582,7 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 {{/if}}
 {{else}}
 {{#if secureLinkUpstream}}
-        # gateway-managed-secure-link-upstream {{id}}
+        # opfield-managed-secure-link-upstream {{id}}
 {{/if}}
 {{#if registryAuthRealm}}
         proxy_hide_header WWW-Authenticate;
@@ -588,9 +628,9 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 
 {{#if pagesRouteIncludePath}}
 {{#unless pagesFallbackUrl}}
-    location @gateway_pages_not_found_{{id}} {
+    location @opfield_pages_not_found_{{id}} {
         default_type text/html;
-        return 404 ${escapeNginxReturnText(GATEWAY_NOT_FOUND_HTML)};
+        return 404 ${escapeNginxReturnText(OPFIELD_NOT_FOUND_HTML)};
     }
 {{/unless}}
 {{/if}}
@@ -677,7 +717,7 @@ const BUILTIN_DEAD_TEMPLATE = `server {
 
     location / {
         default_type text/html;
-        return 404 ${escapeNginxReturnText(GATEWAY_NOT_FOUND_HTML)};
+        return 404 ${escapeNginxReturnText(OPFIELD_NOT_FOUND_HTML)};
     }
 }
 {{#if sslEnabled}}
@@ -705,7 +745,7 @@ server {
 
     location / {
         default_type text/html;
-        return 404 ${escapeNginxReturnText(GATEWAY_NOT_FOUND_HTML)};
+        return 404 ${escapeNginxReturnText(OPFIELD_NOT_FOUND_HTML)};
     }
 }
 {{/if}}
@@ -724,14 +764,16 @@ function stripCookieRules(name: string) {
     "~^(.*?);\\s*${name}=[^;]*(.*)$" "$1$2";`;
 }
 
+// The reserved health paths (opfield and gateway) both bypass maintenance: monitors of customers probe the
+// pre-Opfield one (legacy-name: remove once no customer monitor probes it).
 function maintenanceMaps(hostId: string) {
   const suffix = maintenanceAccessVariable(hostId);
   return `map "$uri:$secure_link" $gm_block_${suffix} {
     default 1;
     ~^/\\.well-known/acme-challenge/ 0;
-    ~^/\\.well-known/gateway-ingress-health: 0;
-    ~^/_gateway/maintenance-access: 0;
-    ~^/_gateway/maintenance-access/status: 0;
+    ~^/\\.well-known/(?:opfield|gateway)-ingress-health: 0;
+    ~^/_opfield/maintenance-access: 0;
+    ~^/_opfield/maintenance-access/status: 0;
     ~:1$ 0;
 }
 
@@ -742,12 +784,12 @@ map $secure_link $gm_active_${suffix} {
 
 map $http_cookie $gms_${suffix} {
     default $http_cookie;
-    ${stripCookieRules('gateway_maintenance_access_sig')}
+    ${stripCookieRules('opfield_maintenance_access_sig')}
 }
 
 map $gms_${suffix} $gm_cookie_${suffix} {
     default $gms_${suffix};
-    ${stripCookieRules('gateway_maintenance_access_exp')}
+    ${stripCookieRules('opfield_maintenance_access_exp')}
 }
 `;
 }
@@ -755,18 +797,18 @@ map $gms_${suffix} $gm_cookie_${suffix} {
 function maintenanceAccessLocation(hostId: string) {
   const suffix = maintenanceAccessVariable(hostId);
   return `
-    location = /_gateway/maintenance-access {
+    location = /_opfield/maintenance-access {
         proxy_pass http://unix:/run/nginx-daemon/maintenance-access.sock:/redeem/${hostId};
         proxy_set_header Host $host;
-        proxy_set_header X-Gateway-Maintenance-Host $host;
-        proxy_set_header X-Gateway-Maintenance-Secure $https;
+        proxy_set_header X-Opfield-Maintenance-Host $host;
+        proxy_set_header X-Opfield-Maintenance-Secure $https;
         proxy_set_header Cookie "";
         proxy_connect_timeout 5s;
         proxy_send_timeout 5s;
         proxy_read_timeout 5s;
     }
 
-    location = /_gateway/maintenance-access/status {
+    location = /_opfield/maintenance-access/status {
         default_type application/json;
         add_header Cache-Control "no-store" always;
         add_header X-Content-Type-Options "nosniff" always;
@@ -783,14 +825,14 @@ function maintenanceAccessLocation(hostId: string) {
  * through the guard's rewrite. The page keeps the server-level add_header of the route and of the guard; default_type
  * is set here because a route may set its own on the server, where a second one fails nginx -t.
  */
-const MAINTENANCE_PAGE_LOCATION = 'gateway-maintenance';
+const MAINTENANCE_PAGE_LOCATION = 'opfield-maintenance';
 
 function maintenancePageLocation(hideExternalBranding: boolean, teamAccess: boolean) {
   return `
     location = ${MAINTENANCE_PAGE_LOCATION} {
         internal;
         default_type text/html;
-        return 503 ${escapeNginxReturnText(gatewayMaintenanceHtml(hideExternalBranding, teamAccess))};
+        return 503 ${escapeNginxReturnText(opfieldMaintenanceHtml(hideExternalBranding, teamAccess))};
     }
 `;
 }
@@ -798,10 +840,10 @@ function maintenancePageLocation(hideExternalBranding: boolean, teamAccess: bool
 function maintenanceServerGuard(hostId: string, accessSecret: string, hideExternalBranding: boolean) {
   const suffix = maintenanceAccessVariable(hostId);
   return `
-    # Gateway maintenance mode. Server-rewrite directives run before location
+    # Opfield maintenance mode. Server-rewrite directives run before location
     # selection, so upstream/access/cache/rewrite behavior is never reached.
     add_header Cache-Control "no-store" always;
-    secure_link "$cookie_gateway_maintenance_access_sig,$cookie_gateway_maintenance_access_exp";
+    secure_link "$cookie_opfield_maintenance_access_sig,$cookie_opfield_maintenance_access_exp";
     secure_link_md5 "\${secure_link_expires}\${host}${accessSecret}";
     if ($gm_block_${suffix}) {
         rewrite ^ ${MAINTENANCE_PAGE_LOCATION} last;
@@ -812,10 +854,10 @@ ${maintenancePageLocation(hideExternalBranding, true)}${maintenanceAccessLocatio
 /** The guard without the access-code bypass: every request but ACME and the ingress health check gets the page. */
 function plainMaintenanceServerGuard(hideExternalBranding: boolean) {
   return `
-    # Gateway maintenance mode. Server-rewrite directives run before location
+    # Opfield maintenance mode. Server-rewrite directives run before location
     # selection, so upstream/access/cache/rewrite behavior is never reached.
     add_header Cache-Control "no-store" always;
-    if ($uri !~ ^/\\.well-known/(acme-challenge/|gateway-ingress-health$)) {
+    if ($uri !~ ^/\\.well-known/(acme-challenge/|(?:opfield|gateway)-ingress-health$)) {
         rewrite ^ ${MAINTENANCE_PAGE_LOCATION} last;
     }
 ${maintenancePageLocation(hideExternalBranding, false)}`;
@@ -823,21 +865,23 @@ ${maintenancePageLocation(hideExternalBranding, false)}`;
 
 /**
  * Whether the access-code bypass fits the route's config. It sets secure_link on the server, defines the $gm_*
- * variables of maintenanceMaps and the /_gateway/maintenance-access locations. A route that sets secure_link itself
- * would get a second server-level secure_link (nginx -t fails) or, in its own locations, Gateway's $secure_link; such
+ * variables of maintenanceMaps and the /_opfield/maintenance-access locations. A route that sets secure_link itself
+ * would get a second server-level secure_link (nginx -t fails) or, in its own locations, Opfield's $secure_link; such
  * a config, or one that uses those variables or locations, gets the maintenance page without team access.
  */
 function maintenanceAccessFits(renderedConfig: string): boolean {
   return !(
     /(?:^|[\s;{}])secure_link(?:_md5|_secret)?[\s;]/m.test(renderedConfig) ||
     /\$\{?(?:secure_link|gms?_)/.test(renderedConfig) ||
-    /\blocation\s*=\s*\/_gateway\/maintenance-access(?:\/status)?[\s{]/.test(renderedConfig)
+    // legacy-name: /_gateway/maintenance-access of configs written before 2.12.1 — remove once every node reports none
+    /\blocation\s*=\s*\/_(?:opfield|gateway)\/maintenance-access(?:\/status)?[\s{]/.test(renderedConfig)
   );
 }
 
 /** A location named like the guard's page location would be a duplicate location in nginx -t. */
 function declaresMaintenancePageLocation(renderedConfig: string): boolean {
-  return /\blocation\s*=\s*gateway-maintenance[\s{]/.test(renderedConfig);
+  // legacy-name: gateway-maintenance of configs written before 2.12.1 — remove once every node reports none
+  return /\blocation\s*=\s*(?:opfield|gateway)-maintenance[\s{]/.test(renderedConfig);
 }
 
 const BUILTIN_TEMPLATES = [
@@ -1186,7 +1230,14 @@ export class NginxTemplateService {
     const validation = this.configValidator.validateRenderedTemplate(rendered, {
       statements: [
         ...includePaths.map((path) => ['include', path]),
-        ...(host.accessList ? [['auth_basic_user_file', accessListPasswordFile(host.accessList.id)]] : []),
+        ...(host.accessList
+          ? [
+              ['auth_basic_user_file', accessListPasswordFile(host.accessList.id)],
+              // legacy-name: custom templates saved before 2.12.1 name the pre-Opfield htpasswd directory — remove once
+              // every node reports none
+              ['auth_basic_user_file', toLegacyNginxNames(accessListPasswordFile(host.accessList.id))],
+            ]
+          : []),
       ],
       snippets: [
         ...(advancedConfig ? [advancedConfig] : []),
@@ -1237,8 +1288,8 @@ export class NginxTemplateService {
     const { rendered: renderedTemplate, advancedConfig } = this.renderTemplateWithAdvancedConfig(content, host);
     if (customTemplate) this.assertCustomTemplateRender(content, renderedTemplate, advancedConfig, host);
     const rendered = normalizeAcmeChallengeAlias(this.applyUpstreamIpFamily(renderedTemplate, host)).replaceAll(
-      escapeNginxReturnText(GATEWAY_NOT_FOUND_HTML),
-      escapeNginxReturnText(gatewayNotFoundHtml(hideExternalBranding))
+      escapeNginxReturnText(OPFIELD_NOT_FOUND_HTML),
+      escapeNginxReturnText(opfieldNotFoundHtml(hideExternalBranding))
     );
     const withSecureLinkUpstreams = this.ensureManagedAdditionalSecureLinkUpstreams(
       this.ensureManagedSecureLinkUpstream(rendered, host),
@@ -1360,7 +1411,7 @@ export class NginxTemplateService {
 
   private ensureManagedAdditionalSecureLinkUpstreams(rendered: string, host: ProxyHostConfig): string {
     const declarations = (host.additionalSecureLinks ?? []).flatMap((binding) => {
-      const upstreamName = `gateway_additional_secure_link_${binding.id.replace(/-/g, '_')}`;
+      const upstreamName = `opfield_additional_secure_link_${binding.id.replace(/-/g, '_')}`;
       const declaration = new RegExp(`(^|\\n)[\\t ]*upstream[\\t ]+${upstreamName}[\\t ]*\\{`, 'm');
       if (declaration.test(rendered)) return [];
       const socketPaths = binding.socketPaths?.length ? binding.socketPaths : [binding.socketPath];
@@ -1377,7 +1428,7 @@ export class NginxTemplateService {
         (route) => route.secureLinkUpstream && (route.secureLinkSocketPath || route.secureLinkSocketPaths?.length)
       )
       .flatMap((route) => {
-        const upstreamName = `gateway_additional_secure_link_${route.id.replace(/-/g, '_')}`;
+        const upstreamName = `opfield_additional_secure_link_${route.id.replace(/-/g, '_')}`;
         const declaration = new RegExp(`(^|\\n)[\\t ]*upstream[\\t ]+${upstreamName}[\\t ]*\\{`, 'm');
         if (declaration.test(rendered)) return [];
         const socketPaths = route.secureLinkSocketPaths?.length
@@ -1393,11 +1444,11 @@ export class NginxTemplateService {
   private ensureManagedSecureLinkUpstream(rendered: string, host: ProxyHostConfig): string {
     if (!host.secureLinkUpstream) return rendered;
 
-    const upstreamName = `gateway_secure_link_${host.id.replace(/-/g, '_')}`;
+    const upstreamName = `opfield_secure_link_${host.id.replace(/-/g, '_')}`;
     const upstreamDeclaration = new RegExp(`(^|\\n)[\\t ]*upstream[\\t ]+${upstreamName}[\\t ]*\\{`, 'm');
     const socketPaths = host.secureLinkSocketPaths?.length
       ? host.secureLinkSocketPaths
-      : [host.secureLinkSocketPath ?? `/run/gateway-secure-links/${host.id}.sock`];
+      : [host.secureLinkSocketPath ?? `/run/opfield-secure-links/${host.id}.sock`];
     const declaration = `upstream ${upstreamName} {
 ${managedSecureLinkUpstreamBody(socketPaths, Boolean(host.secureLinkSocketPaths?.length))}
 }`;
@@ -1420,7 +1471,7 @@ ${rendered}`;
   ): string | null {
     return renderMaintenanceFlagGuard(renderedConfig, {
       ...access,
-      pageText: escapeNginxReturnText(gatewayMaintenanceHtml(hideExternalBranding)),
+      pageText: escapeNginxReturnText(opfieldMaintenanceHtml(hideExternalBranding)),
     });
   }
 
@@ -1545,8 +1596,8 @@ ${rendered}`;
   private buildBaseContext(host: ProxyHostConfig): Record<string, unknown> {
     const serverNames = host.domainNames.map((d) => d.replace(DANGEROUS_CHARS, '')).join(' ');
     const sanitizedHost = host.forwardHost ? host.forwardHost.replace(DANGEROUS_CHARS, '') : '';
-    const secureLinkUpstreamName = `gateway_secure_link_${host.id.replace(/-/g, '_')}`;
-    const secureLinkSocketPath = host.secureLinkSocketPath ?? `/run/gateway-secure-links/${host.id}.sock`;
+    const secureLinkUpstreamName = `opfield_secure_link_${host.id.replace(/-/g, '_')}`;
+    const secureLinkSocketPath = host.secureLinkSocketPath ?? `/run/opfield-secure-links/${host.id}.sock`;
     const secureLinkSocketPaths = host.secureLinkSocketPaths?.length
       ? host.secureLinkSocketPaths
       : [secureLinkSocketPath];
@@ -1591,7 +1642,7 @@ ${rendered}`;
     const additionalSecureLinks = Object.fromEntries(
       (host.additionalSecureLinks ?? []).map((binding) => [
         binding.name,
-        `${binding.scheme}://gateway_additional_secure_link_${binding.id.replace(/-/g, '_')}`,
+        `${binding.scheme}://opfield_additional_secure_link_${binding.id.replace(/-/g, '_')}`,
       ])
     );
 

@@ -12,13 +12,18 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 const (
-	ingressHealthServerFilename = "00-gateway-ingress-health.conf"
-	ingressHealthCertDirName    = "gateway-ingress-health"
+	ingressHealthServerFilename = "00-opfield-ingress-health.conf"
+	ingressHealthCertDirName    = "opfield-ingress-health"
+	// legacy-name: certificate directory of the reserved server written before 2.12.1 — remove once every node reports none
+	legacyIngressHealthCertDirName = "gateway-ingress-health"
 	// The reserved server's self-signed certificate lives a year and is replaced 30 days before it expires, while
 	// the daemon runs (checked at start and every 12 hours).
 	ingressHealthCertLifetime    = 365 * 24 * time.Hour
@@ -27,7 +32,12 @@ const (
 
 // IngressHealthServerPath is the daemon-managed server block that answers the reserved hostname.
 func IngressHealthServerPath(configDir string) string {
-	return filepath.Join(configDir, ingressHealthServerFilename)
+	return filepath.Join(configDir, naming.File(ingressHealthServerFilename))
+}
+
+// LegacyIngressHealthCertDir is the certificate directory of the reserved server a daemon before 2.12.1 kept.
+func LegacyIngressHealthCertDir(certsDir string) string {
+	return filepath.Join(certsDir, legacyIngressHealthCertDirName)
 }
 
 func ingressHealthCertPaths(certsDir string) (cert, key string) {
@@ -35,12 +45,12 @@ func ingressHealthCertPaths(certsDir string) (cert, key string) {
 	return filepath.Join(dir, "fullchain.pem"), filepath.Join(dir, "privkey.pem")
 }
 
-// IngressHealthServerConfig answers the reserved hostname on :80 and :443 with only the health location. Probes that
+// IngressHealthServerConfig answers the reserved hostname on :80 and :443 with only the health locations. Probes that
 // address the node by IP use this hostname (SNI and Host); the TLS catch-all rejects every other unknown name.
 func IngressHealthServerConfig(certsDir string) string {
 	cert, key := ingressHealthCertPaths(certsDir)
-	return fmt.Sprintf(`# Gateway managed ingress health server (auto-generated).
-# Answers %s for probes that address this node by IP address.
+	return naming.Render(fmt.Sprintf(`# Managed by Opfield: ingress health server (auto-generated).
+# Answers %s and %s for probes that address this node by IP address.
 server {
     listen 80;
     listen [::]:80;
@@ -55,17 +65,20 @@ server {
         return 404;
     }
 }
-`, IngressHealthPath, IngressHealthHostname, cert, key, IngressHealthLocation())
+`, IngressHealthPath, LegacyIngressHealthPath, IngressHealthHostname, cert, key, IngressHealthLocation()))
 }
 
 // EnsureIngressHealthCertificate keeps a valid self-signed certificate for the reserved hostname: it is created when
-// missing, unreadable or for another name, and replaced when fewer than 30 days are left. Returns true when written.
+// missing, unreadable or for another name, and replaced when fewer than 30 days are left. It names the reserved
+// hostname under both schemes, so moving the node to the Opfield names needs no new certificate. Returns true when
+// written.
 func EnsureIngressHealthCertificate(certsDir string, now time.Time) (bool, error) {
 	certPath, keyPath := ingressHealthCertPaths(certsDir)
 	if current, err := os.ReadFile(certPath); err == nil {
 		if block, _ := pem.Decode(current); block != nil {
 			if parsed, err := x509.ParseCertificate(block.Bytes); err == nil &&
 				parsed.Subject.CommonName == IngressHealthHostname &&
+				slices.Contains(parsed.DNSNames, naming.ToLegacy(IngressHealthHostname)) &&
 				now.Add(ingressHealthCertRenewBefore).Before(parsed.NotAfter) {
 				if _, err := os.Stat(keyPath); err == nil {
 					return false, nil
@@ -84,7 +97,7 @@ func EnsureIngressHealthCertificate(certsDir string, now time.Time) (bool, error
 	template := &x509.Certificate{
 		SerialNumber:          serial,
 		Subject:               pkix.Name{CommonName: IngressHealthHostname},
-		DNSNames:              []string{IngressHealthHostname},
+		DNSNames:              []string{IngressHealthHostname, naming.ToLegacy(IngressHealthHostname)},
 		NotBefore:             now.Add(-time.Hour),
 		NotAfter:              now.Add(ingressHealthCertLifetime),
 		KeyUsage:              x509.KeyUsageDigitalSignature,
@@ -134,7 +147,7 @@ func defaultHTTPServerCandidates(globalConfig string) []string {
 	return []string{filepath.Join(base, "conf.d", "default.conf"), filepath.Join(base, "http.d", "default.conf")}
 }
 
-// isInstallerDefaultHTTPServer recognises the default server Gateway's installer writes in managed mode; files an
+// isInstallerDefaultHTTPServer recognises the default server the installer writes in managed mode; files an
 // operator owns (integrate mode) never match and are left alone.
 func isInstallerDefaultHTTPServer(content string) bool {
 	return strings.Contains(content, "listen 80 default_server;") &&
@@ -144,8 +157,8 @@ func isInstallerDefaultHTTPServer(content string) bool {
 }
 
 // DefaultHTTPServerHealthPatch returns the installer default server file (managed mode) with the reserved health
-// location added right after `server_name _;`, or ("", nil, false) when no such file needs the patch. The caller
-// validates the result with nginx -t and restores the original on failure.
+// locations it lacks added right after `server_name _;`, or ("", nil, false) when no such file needs the patch. The
+// caller validates the result with nginx -t and restores the original on failure.
 func DefaultHTTPServerHealthPatch(globalConfig string) (path string, original []byte, patched []byte, ok bool) {
 	for _, candidate := range defaultHTTPServerCandidates(globalConfig) {
 		content, err := ReadFile(candidate)
@@ -153,7 +166,11 @@ func DefaultHTTPServerHealthPatch(globalConfig string) (path string, original []
 			continue
 		}
 		text := string(content)
-		if !isInstallerDefaultHTTPServer(text) || strings.Contains(text, IngressHealthPath) {
+		if !isInstallerDefaultHTTPServer(text) {
+			continue
+		}
+		missing := missingIngressHealthLocations(text)
+		if missing == "" {
 			continue
 		}
 		marker := "server_name _;\n"
@@ -162,7 +179,7 @@ func DefaultHTTPServerHealthPatch(globalConfig string) (path string, original []
 			continue
 		}
 		index += len(marker)
-		next := text[:index] + "\n" + IngressHealthLocation() + text[index:]
+		next := text[:index] + "\n" + missing + text[index:]
 		return candidate, content, []byte(next), true
 	}
 	return "", nil, nil, false
@@ -195,4 +212,16 @@ func writePrivateAtomic(path string, content []byte) error {
 		return fmt.Errorf("rename temp key: %w", err)
 	}
 	return nil
+}
+
+// InstallerDefaultHTTPServers returns the installer-written HTTP default server files of a managed-mode node (the
+// files DefaultHTTPServerHealthPatch patches).
+func InstallerDefaultHTTPServers(globalConfig string) []string {
+	var found []string
+	for _, candidate := range defaultHTTPServerCandidates(globalConfig) {
+		if content, err := ReadFile(candidate); err == nil && content != nil && isInstallerDefaultHTTPServer(string(content)) {
+			found = append(found, candidate)
+		}
+	}
+	return found
 }

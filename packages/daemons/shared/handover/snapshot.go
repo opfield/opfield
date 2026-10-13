@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 

@@ -2,13 +2,13 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# ── Gateway Monitoring Node Setup ──────────────────────────────────
-# Installs monitoring-daemon on a host and enrolls it with the Gateway.
+# ── Opfield Monitoring Node Setup ──────────────────────────────────
+# Installs monitoring-daemon on a host and enrolls it with Opfield.
 # No nginx or Docker required — this agent reports system metrics only.
 #
 # Usage:
 #   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-monitoring-node.sh | \
-#     sudo bash -s -- --gateway gateway.example.com:9443 --token <ENROLLMENT_TOKEN> --gateway-cert-sha256 sha256:<HEX>
+#     sudo bash -s -- --opfield opfield.example.com:9443 --token <ENROLLMENT_TOKEN> --opfield-cert-sha256 sha256:<HEX>
 # ───────────────────────────────────────────────────────────────────
 
 LOG_FILE="/dev/null"
@@ -28,27 +28,40 @@ ERROR_TAG='\033[48;2;96;61;43m\033[38;2;245;221;202m'
 SUCCESS_TAG='\033[42m\033[97m'
 
 # ── Defaults ──────────────────────────────────────────────────────
-GATEWAY_HOST="${GATEWAY_NODE_HOST:-}"
-GATEWAY_PORT="${GATEWAY_NODE_PORT:-9443}"
-GATEWAY_ADDR="${GATEWAY_NODE_ADDRESS:-}"
-ENROLL_TOKEN="${GATEWAY_NODE_TOKEN:-}"
-GATEWAY_CERT_SHA256="${GATEWAY_NODE_CERT_SHA256:-}"
-DAEMON_VERSION="${GATEWAY_NODE_DAEMON_VERSION:-latest}"
-DISABLE_CONSOLE="${GATEWAY_NODE_DISABLE_CONSOLE:-0}"
-DISABLE_FILES="${GATEWAY_NODE_DISABLE_FILES:-0}"
-RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
-ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
+# legacy-name: GATEWAY_NODE_*, GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS, GATEWAY_RELEASES_API_URL,
+# GATEWAY_ARTIFACT_BASE_URL and GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS installer environment — customer automation; drop
+# with a changelog notice. Each is read when its OPFIELD_* name is not set (the new name wins).
+for legacy_env in GATEWAY_NODE_HOST GATEWAY_NODE_PORT GATEWAY_NODE_ADDRESS GATEWAY_NODE_TOKEN GATEWAY_NODE_CERT_SHA256 \
+    GATEWAY_NODE_DAEMON_VERSION GATEWAY_NODE_DISABLE_CONSOLE GATEWAY_NODE_DISABLE_FILES \
+    GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS GATEWAY_RELEASES_API_URL GATEWAY_ARTIFACT_BASE_URL \
+    GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS; do
+    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+    if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
+        printf -v "$opfield_env" '%s' "${!legacy_env}"
+    fi
+done
+unset legacy_env opfield_env
+OPFIELD_HOST="${OPFIELD_NODE_HOST:-}"
+OPFIELD_PORT="${OPFIELD_NODE_PORT:-9443}"
+OPFIELD_ADDR="${OPFIELD_NODE_ADDRESS:-}"
+ENROLL_TOKEN="${OPFIELD_NODE_TOKEN:-}"
+OPFIELD_CERT_SHA256="${OPFIELD_NODE_CERT_SHA256:-}"
+DAEMON_VERSION="${OPFIELD_NODE_DAEMON_VERSION:-latest}"
+DISABLE_CONSOLE="${OPFIELD_NODE_DISABLE_CONSOLE:-0}"
+DISABLE_FILES="${OPFIELD_NODE_DISABLE_FILES:-0}"
+RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 RUN_USER=""
 NON_INTERACTIVE=0
 NO_LOGO=0
 DRY_RUN=0
 GUIDE_ACTIVE=0
 APT_UPDATED=0
-MANUAL_LAUNCH_TIMEOUT_SECONDS="${GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS:-30}"
+MANUAL_LAUNCH_TIMEOUT_SECONDS="${OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS:-30}"
 RESOLVED_DAEMON_VERSION=""
 EXISTING_INSTALL=0
 EXISTING_VERSION=""
-EXISTING_GATEWAY_ADDR=""
+EXISTING_OPFIELD_ADDR=""
 EXISTING_ENROLLED=0
 MANUAL_FALLBACK_USED=0
 
@@ -204,7 +217,12 @@ MONITORING_BIN_LINK="/usr/local/bin/monitoring-daemon"
 MONITORING_OWN_DIR="/usr/local/lib/monitoring-daemon"
 MONITORING_OWN_BINARY="${MONITORING_OWN_DIR}/bin/monitoring-daemon"
 MONITORING_OWN_HOST_IDENTITY="/var/lib/monitoring-daemon/host-identity"
-SHARED_HOST_IDENTITY="/var/lib/gateway/host-identity"
+# The identity root daemons of one host share. The daemons move /var/lib/gateway to /var/lib/opfield themselves (after
+# a start their launcher confirmed) and leave /var/lib/gateway as a link to it; the installer never moves it.
+SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
+# legacy-name: /var/lib/gateway shared host identity directory of daemons before 2.12.1 — remove once every node
+# reports none
+LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
 
 # Reads an installed binary's version. A binary another user can replace is never run as root.
 daemon_binary_version() {
@@ -221,10 +239,12 @@ daemon_binary_version() {
 
 # In non-root mode /usr/local/bin/<daemon> is a root-owned wrapper, not the binary: the binary belongs to the service
 # user, who replaces it on update, so root must never execute it. The wrapper switches a root caller to that user.
-DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
+DAEMON_WRAPPER_MARK="# opfield-daemon-wrapper: runs the service user's binary, never as root"
+# legacy-name: wrapper marker written by installers before 2.12.1 — remove once every node reports none
+LEGACY_DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
 write_daemon_wrapper() {
     local command_path="$1" binary="$2" temporary
-    temporary=$(mktemp "$(dirname "$command_path")/.gateway-daemon-wrapper.XXXXXX") || return 1
+    temporary=$(mktemp "$(dirname "$command_path")/.opfield-daemon-wrapper.XXXXXX") || return 1
     if ! cat >"$temporary" <<WRAPPER
 #!/bin/sh
 ${DAEMON_WRAPPER_MARK}
@@ -250,7 +270,7 @@ WRAPPER
 }
 
 is_daemon_wrapper() {
-    [[ -f "$1" && ! -L "$1" ]] && grep -Fqx "$DAEMON_WRAPPER_MARK" "$1" 2>/dev/null
+    [[ -f "$1" && ! -L "$1" ]] && grep -Fqx -e "$DAEMON_WRAPPER_MARK" -e "$LEGACY_DAEMON_WRAPPER_MARK" "$1" 2>/dev/null
 }
 
 run_as_run_user() {
@@ -334,8 +354,38 @@ new_host_identity() {
     printf '%s\n' "$value"
 }
 
+# The shared host identity: at /var/lib/opfield when it is there (a file, or through a linked directory), else at the
+# legacy /var/lib/gateway when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
+# at once more after a pause: a daemon moving the directory right then must not make the host look like a new one.
+shared_host_identity_path() {
+    local current="${SHARED_HOST_IDENTITY_DIR}/host-identity"
+    # legacy-name: /var/lib/gateway/host-identity of daemons before 2.12.1 — remove once every node reports none
+    local legacy="${LEGACY_SHARED_HOST_IDENTITY_DIR}/host-identity"
+    local attempt
+    for attempt in 1 2; do
+        if [[ -e "$current" || -L "$current" ]]; then
+            echo "$current"
+            return 0
+        fi
+        if [[ -e "$legacy" || -L "$legacy" ]]; then
+            echo "$legacy"
+            return 0
+        fi
+        [[ "$attempt" -eq 2 ]] || sleep 1
+    done
+    echo "$current"
+}
+
+# A shared identity directory created at /var/lib/opfield gets /var/lib/gateway as a link to it, the layout the daemons
+# leave after they move the directory, so a daemon of an earlier release on this host finds the same identity.
+link_legacy_host_identity_dir() {
+    [[ -d "$SHARED_HOST_IDENTITY_DIR" && ! -L "$SHARED_HOST_IDENTITY_DIR" ]] || return 0
+    [[ ! -e "$LEGACY_SHARED_HOST_IDENTITY_DIR" && ! -L "$LEGACY_SHARED_HOST_IDENTITY_DIR" ]] || return 0
+    ln -s "$(basename "$SHARED_HOST_IDENTITY_DIR")" "$LEGACY_SHARED_HOST_IDENTITY_DIR" 2>/dev/null || true
+}
+
 # A daemon running as its own user cannot read the host identity that root daemons share (root-owned, mode 0600). It
-# gets a copy of that same identity in its own state directory, so Gateway still sees one host and the shared file
+# gets a copy of that same identity in its own state directory, so Opfield still sees one host and the shared file
 # keeps its owner and mode. Without a shared identity yet, one is created there exactly as a root daemon would.
 seed_host_identity_copy() {
     local shared="$1" copy="$2" identity="" temporary
@@ -396,15 +446,27 @@ clear_config_host_identity_path() {
     rm -f "$temporary"
 }
 
-# The daemon records each control session Gateway accepted in its state directory (from GATEWAY_SESSION_SINCE on).
+# The daemon records each control session Opfield accepted in its state directory (from CONTROL_SESSION_SINCE on).
 # The installer removes the record before it starts the daemon, so only a session of the daemon it started counts.
-GATEWAY_SESSION_SINCE="v2.11.1-rc.2"
-GATEWAY_SESSION_FILE="/var/lib/monitoring-daemon/gateway-session.json"
-GATEWAY_SESSION_STARTED=0
+CONTROL_SESSION_SINCE="v2.11.1-rc.2"
+CONTROL_SESSION_FILE="/var/lib/monitoring-daemon/control-session.json"
+# legacy-name: gateway-session.json session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
+# every node reports none
+LEGACY_CONTROL_SESSION_FILE="/var/lib/monitoring-daemon/gateway-session.json"
+CONTROL_SESSION_STARTED=0
 
-forget_gateway_session() {
-    rm -f "$GATEWAY_SESSION_FILE"
-    GATEWAY_SESSION_STARTED=$(date +%s)
+forget_control_session() {
+    rm -f "$CONTROL_SESSION_FILE" "$LEGACY_CONTROL_SESSION_FILE"
+    CONTROL_SESSION_STARTED=$(date +%s)
+}
+
+# The session record to read: the daemon's current one, else the one a daemon of an earlier release writes.
+control_session_file() {
+    if [[ -e "$CONTROL_SESSION_FILE" || -L "$CONTROL_SESSION_FILE" || ! -e "$LEGACY_CONTROL_SESSION_FILE" ]]; then
+        echo "$CONTROL_SESSION_FILE"
+    else
+        echo "$LEGACY_CONTROL_SESSION_FILE"
+    fi
 }
 
 # Orders vX.Y.Z and vX.Y.Z-rc.N; a release orders after its release candidates.
@@ -413,21 +475,22 @@ release_order() {
     echo $(( ((BASH_REMATCH[1] * 1000 + BASH_REMATCH[2]) * 1000 + BASH_REMATCH[3]) * 100000 + ${BASH_REMATCH[5]:-99999} ))
 }
 
-# Daemons older than GATEWAY_SESSION_SINCE write no session record; development builds do.
-daemon_records_gateway_session() {
+# Daemons older than CONTROL_SESSION_SINCE write no session record; development builds do.
+daemon_records_control_session() {
     local order
     order=$(release_order "$1") || return 0
-    (( order >= $(release_order "$GATEWAY_SESSION_SINCE") ))
+    (( order >= $(release_order "$CONTROL_SESSION_SINCE") ))
 }
 
-# Gateway accepted a session of the daemon this run started, and that process still runs under its service manager.
-gateway_session_is_current() {
-    local pid connected_at
-    [[ -f "$GATEWAY_SESSION_FILE" && ! -L "$GATEWAY_SESSION_FILE" ]] || return 1
-    pid=$(sed -nE 's/.*"pid":([0-9]+).*/\1/p' "$GATEWAY_SESSION_FILE")
-    connected_at=$(sed -nE 's/.*"connected_at":([0-9]+).*/\1/p' "$GATEWAY_SESSION_FILE")
+# Opfield accepted a session of the daemon this run started, and that process still runs under its service manager.
+control_session_is_current() {
+    local pid connected_at session
+    session=$(control_session_file)
+    [[ -f "$session" && ! -L "$session" ]] || return 1
+    pid=$(sed -nE 's/.*"pid":([0-9]+).*/\1/p' "$session")
+    connected_at=$(sed -nE 's/.*"connected_at":([0-9]+).*/\1/p' "$session")
     [[ -n "$pid" && -n "$connected_at" ]] || return 1
-    (( connected_at >= GATEWAY_SESSION_STARTED )) || return 1
+    (( connected_at >= CONTROL_SESSION_STARTED )) || return 1
     kill -0 "$pid" 2>/dev/null || return 1
     if [[ "$MANUAL_FALLBACK_USED" -eq 0 ]] && has_systemd; then
         grep -q '/monitoring-daemon\.service$' "/proc/${pid}/cgroup" 2>/dev/null || return 1
@@ -435,9 +498,11 @@ gateway_session_is_current() {
 }
 
 # The enrollment error the daemon started by this run recorded instead of a session, if any.
-gateway_session_enrollment_error() {
-    [[ -f "$GATEWAY_SESSION_FILE" && ! -L "$GATEWAY_SESSION_FILE" ]] || return 1
-    sed -nE 's/.*"enrollment_error":"(([^"\\]|\\.)*)".*/\1/p' "$GATEWAY_SESSION_FILE" | grep .
+control_session_enrollment_error() {
+    local session
+    session=$(control_session_file)
+    [[ -f "$session" && ! -L "$session" ]] || return 1
+    sed -nE 's/.*"enrollment_error":"(([^"\\]|\\.)*)".*/\1/p' "$session" | grep .
 }
 
 daemon_service_running() {
@@ -472,19 +537,19 @@ fail_daemon_start() {
     die "monitoring-daemon is installed, but it is not running."
 }
 
-# An install is done once the daemon it started runs and Gateway accepted it. A daemon too old to record its session
+# An install is done once the daemon it started runs and Opfield accepted it. A daemon too old to record its session
 # must have enrolled and keep running for 10 s instead.
-await_gateway_connection() {
-    local waited=0 limit="${GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS:-90}" running=0
+await_opfield_connection() {
+    local waited=0 limit="${OPFIELD_MONITORING_ENROLLMENT_WAIT_SECONDS:-90}" running=0
     while (( waited < limit )); do
-        if daemon_records_gateway_session "$RESOLVED_DAEMON_VERSION"; then
-            if gateway_session_is_current; then
+        if daemon_records_control_session "$RESOLVED_DAEMON_VERSION"; then
+            if control_session_is_current; then
                 ok "monitoring-daemon is connected to Opfield"
                 return 0
             fi
-            # Gateway answered and refused the token: waiting cannot change that.
-            if grep -q '"enrollment_refused":true' "$GATEWAY_SESSION_FILE" 2>/dev/null; then
-                err "Opfield refused the enrollment token (already used, expired, or for another node): $(gateway_session_enrollment_error)"
+            # Opfield answered and refused the token: waiting cannot change that.
+            if grep -q '"enrollment_refused":true' "$(control_session_file)" 2>/dev/null; then
+                err "Opfield refused the enrollment token (already used, expired, or for another node): $(control_session_enrollment_error)"
                 err "Create a new setup command in Opfield and run it on this host."
                 show_daemon_log
                 return 1
@@ -503,12 +568,12 @@ await_gateway_connection() {
         waited=$((waited + 1))
     done
     local enrollment_error
-    if enrollment_error=$(gateway_session_enrollment_error); then
+    if enrollment_error=$(control_session_enrollment_error); then
         err "monitoring-daemon could not enroll with Opfield: ${enrollment_error}"
     elif ! daemon_service_running; then
         err "monitoring-daemon is not running; the service manager could not keep it up. The log below shows why."
     else
-        err "monitoring-daemon has not connected to Opfield within ${limit} s; check that Opfield at ${GATEWAY_ADDR} is reachable."
+        err "monitoring-daemon has not connected to Opfield within ${limit} s; check that Opfield at ${OPFIELD_ADDR} is reachable."
     fi
     show_daemon_log
     return 1
@@ -744,7 +809,7 @@ manual_launcher_fallback() {
         echo "Foreground command: $(launcher_foreground_command "$daemon_binary")"
         return 1
     fi
-    forget_gateway_session
+    forget_control_session
     if ! detach_manual_launcher "$daemon_binary" "$manual_log"; then
         err "Could not detach ${daemon_name}; installed files and launcher files were preserved."
         echo "Foreground command: $(launcher_foreground_command "$daemon_binary")"
@@ -822,12 +887,12 @@ remember_enrollment_token() {
 # used and the host keeps its node. An enrollment from an installer that kept no token digest (v2.11.0 and before)
 # cannot tell its own setup command, which operators re-run to update the daemon, from a new node's: the run goes on as
 # a re-run without a token and warns. With a digest, a different token is a new node's: the run fails before it changes
-# anything, so the new node (still pending in Gateway) does not go unnoticed.
+# anything, so the new node (still pending in Opfield) does not go unnoticed.
 refuse_token_for_enrolled_node() {
     [[ -n "$ENROLL_TOKEN" && "$EXISTING_ENROLLED" -eq 1 ]] || return 0
     local node_id node
     node_id=$(sed -nE 's/.*"node_id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' /var/lib/monitoring-daemon/state.json 2>/dev/null | head -n 1 || true)
-    node="monitoring node ${node_id:-(unknown id)}${EXISTING_GATEWAY_ADDR:+ of Opfield ${EXISTING_GATEWAY_ADDR}}"
+    node="monitoring node ${node_id:-(unknown id)}${EXISTING_OPFIELD_ADDR:+ of Opfield ${EXISTING_OPFIELD_ADDR}}"
     if [[ ! -f "$ENROLLMENT_TOKEN_DIGEST_FILE" ]]; then
         warn "This host is already enrolled as ${node}; the run keeps that enrollment and does not use the enrollment token."
         warn "If this is this node's own setup command (its token already used), nothing else is needed. If it is not, the"
@@ -843,6 +908,22 @@ refuse_token_for_enrolled_node() {
     die "The host is already enrolled; the new node stays pending in Opfield."
 }
 
+# The address: of a top-level section (opfield: or gateway:) of the daemon configuration, without quotes or comment.
+config_section_address() {
+    awk -v section="$2" '
+        $0 ~ ("^" section ":[[:space:]]*(#.*)?$") { in_section = 1; next }
+        in_section && /^[^[:space:]#]/ { in_section = 0 }
+        in_section && /^[[:space:]]+address:[[:space:]]*/ {
+            value = $0
+            sub(/^[[:space:]]+address:[[:space:]]*/, "", value)
+            if (value ~ /^"/) { sub(/^"/, "", value); sub(/".*$/, "", value) }
+            else { sub(/[[:space:]]+#.*$/, "", value); sub(/[[:space:]]+$/, "", value) }
+            print value
+            exit
+        }
+    ' "$1"
+}
+
 detect_existing_install() {
     local target="/usr/local/bin/monitoring-daemon"
     local config_path="/etc/monitoring-daemon/config.yaml"
@@ -850,7 +931,7 @@ detect_existing_install() {
     local cert_path="/etc/monitoring-daemon/certs/node.pem"
     EXISTING_INSTALL=0
     EXISTING_VERSION=""
-    EXISTING_GATEWAY_ADDR=""
+    EXISTING_OPFIELD_ADDR=""
     EXISTING_ENROLLED=0
 
     if [[ -x "$target" ]]; then
@@ -859,9 +940,15 @@ detect_existing_install() {
     fi
 
     if [[ -f "$config_path" ]]; then
-        EXISTING_GATEWAY_ADDR=$(awk -F'"' '/^[[:space:]]*address:[[:space:]]*"/ {print $2; exit}' "$config_path")
-        if [[ -z "$EXISTING_GATEWAY_ADDR" ]]; then
-            EXISTING_GATEWAY_ADDR=$(awk '/^[[:space:]]*address:[[:space:]]*/ {print $2; exit}' "$config_path")
+        EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" opfield)
+        # legacy-name: gateway: section of /etc/monitoring-daemon/config.yaml written before 2.12.1 — remove once every
+        # node reports none
+        [[ -n "$EXISTING_OPFIELD_ADDR" ]] || EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" gateway)
+        if [[ -z "$EXISTING_OPFIELD_ADDR" ]]; then
+            EXISTING_OPFIELD_ADDR=$(awk -F'"' '/^[[:space:]]*address:[[:space:]]*"/ {print $2; exit}' "$config_path")
+        fi
+        if [[ -z "$EXISTING_OPFIELD_ADDR" ]]; then
+            EXISTING_OPFIELD_ADDR=$(awk '/^[[:space:]]*address:[[:space:]]*/ {print $2; exit}' "$config_path")
         fi
     fi
 
@@ -902,7 +989,7 @@ daemon_version_older() {
 
 # A re-run without --version never moves a node to an older daemon than it runs: "latest" is the newest stable
 # release, so a node on a newer release or pre-release keeps its version. Only --version (or
-# GATEWAY_NODE_DAEMON_VERSION) naming the older release installs it.
+# OPFIELD_NODE_DAEMON_VERSION) naming the older release installs it.
 keep_installed_newer_daemon() {
     local daemon="$1"
     [[ "$DAEMON_VERSION" == "latest" && "$EXISTING_INSTALL" -eq 1 ]] || return 0
@@ -1064,11 +1151,11 @@ Usage:
   daemon version defaults to latest unless supplied.
 
 Options:
-  --gateway <addr>         Opfield gRPC address as host:port (e.g. gateway.example.com:9443)
-  --host <host>            Opfield hostname or IP (e.g. gateway.example.com)
+  --opfield <addr>         Opfield gRPC address as host:port (e.g. opfield.example.com:9443)
+  --host <host>            Opfield hostname or IP (e.g. opfield.example.com)
   --port <port>            Opfield gRPC port (default: 9443)
   --token <token>          Enrollment token from Opfield UI (Nodes > Add Node)
-  --gateway-cert-sha256 <fp>
+  --opfield-cert-sha256 <fp>
                            Opfield gRPC TLS leaf fingerprint from the generated setup command
   --version <ver>          Daemon version to install (default: latest; never older than an installed one)
   --user <user>            Run daemon as this user (default: root)
@@ -1080,40 +1167,48 @@ Options:
   -h, --help               Show this help
 
 Environment variables:
-  GATEWAY_NODE_HOST             Same as --host
-  GATEWAY_NODE_PORT             Same as --port (default: 9443)
-  GATEWAY_NODE_ADDRESS          Same as --gateway (host:port combined)
-  GATEWAY_NODE_TOKEN            Same as --token
-  GATEWAY_NODE_CERT_SHA256      Same as --gateway-cert-sha256
-  GATEWAY_NODE_DAEMON_VERSION   Same as --version
-  GATEWAY_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
-  GATEWAY_NODE_DISABLE_FILES    Set to 1 to disable host file access
-  GATEWAY_RELEASES_API_URL      Override the Opfield release feed
-  GATEWAY_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
+  OPFIELD_NODE_HOST             Same as --host
+  OPFIELD_NODE_PORT             Same as --port (default: 9443)
+  OPFIELD_NODE_ADDRESS          Same as --opfield (host:port combined)
+  OPFIELD_NODE_TOKEN            Same as --token
+  OPFIELD_NODE_CERT_SHA256      Same as --opfield-cert-sha256
+  OPFIELD_NODE_DAEMON_VERSION   Same as --version
+  OPFIELD_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
+  OPFIELD_NODE_DISABLE_FILES    Set to 1 to disable host file access
+  OPFIELD_RELEASES_API_URL      Override the Opfield release feed
+  OPFIELD_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
 
 Examples:
   # Interactive (prompts for everything):
   sudo bash setup-monitoring-node.sh
 
   # Partially interactive (pre-fill host, prompt for token):
-  sudo bash setup-monitoring-node.sh --host gateway.example.com
+  sudo bash setup-monitoring-node.sh --host opfield.example.com
 
   # Fully non-interactive:
-  sudo bash setup-monitoring-node.sh -y --host gateway.example.com --token gw_node_abc123 --gateway-cert-sha256 sha256:<HEX>
+  sudo bash setup-monitoring-node.sh -y --host opfield.example.com --token opf_node_abc123 --opfield-cert-sha256 sha256:<HEX>
 
   # Custom daemon user:
-  sudo bash setup-monitoring-node.sh --user monitor --gateway gw:9443 --token TOKEN --gateway-cert-sha256 sha256:<HEX>
+  sudo bash setup-monitoring-node.sh --user monitor --opfield opfield.example.com:9443 --token TOKEN --opfield-cert-sha256 sha256:<HEX>
 HELP
     exit 0
 }
 
+LEGACY_ADDR_FLAG=""
+LEGACY_CERT_SHA256_FLAG=""
+OPFIELD_ADDR_FLAG=""
+OPFIELD_CERT_SHA256_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --gateway)        GATEWAY_ADDR="$2"; shift 2 ;;
-        --host)           GATEWAY_HOST="$2"; shift 2 ;;
-        --port)           GATEWAY_PORT="$2"; shift 2 ;;
+        --opfield)        OPFIELD_ADDR_FLAG="$2"; shift 2 ;;
+        # legacy-name: --gateway flag — customer automation; drop with a changelog notice
+        --gateway)        LEGACY_ADDR_FLAG="$2"; shift 2 ;;
+        --host)           OPFIELD_HOST="$2"; shift 2 ;;
+        --port)           OPFIELD_PORT="$2"; shift 2 ;;
         --token)          ENROLL_TOKEN="$2"; shift 2 ;;
-        --gateway-cert-sha256) GATEWAY_CERT_SHA256="$2"; shift 2 ;;
+        --opfield-cert-sha256) OPFIELD_CERT_SHA256_FLAG="$2"; shift 2 ;;
+        # legacy-name: --gateway-cert-sha256 flag — customer automation; drop with a changelog notice
+        --gateway-cert-sha256) LEGACY_CERT_SHA256_FLAG="$2"; shift 2 ;;
         --version)        DAEMON_VERSION="$2"; shift 2 ;;
         --user)           RUN_USER="$2"; shift 2 ;;
         --disable-console) DISABLE_CONSOLE=1; shift ;;
@@ -1125,25 +1220,37 @@ while [[ $# -gt 0 ]]; do
         *) die "Unknown option: $1. Use --help for usage." ;;
     esac
 done
-
-# Resolve GATEWAY_ADDR from --host/--port if --gateway not given
-if [[ -n "$GATEWAY_HOST" && -z "$GATEWAY_ADDR" ]]; then
-    GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+# A new flag wins over its legacy synonym, and either over the environment.
+if [[ -n "$OPFIELD_ADDR_FLAG" ]]; then
+    OPFIELD_ADDR="$OPFIELD_ADDR_FLAG"
+elif [[ -n "$LEGACY_ADDR_FLAG" ]]; then
+    OPFIELD_ADDR="$LEGACY_ADDR_FLAG"
 fi
-# If --gateway was given, extract host/port for display
-if [[ -n "$GATEWAY_ADDR" && -z "$GATEWAY_HOST" ]]; then
-    GATEWAY_HOST="${GATEWAY_ADDR%%:*}"
-    GATEWAY_PORT="${GATEWAY_ADDR##*:}"
-    if [[ "$GATEWAY_PORT" == "$GATEWAY_HOST" ]]; then
-        GATEWAY_PORT="9443"
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+if [[ -n "$OPFIELD_CERT_SHA256_FLAG" ]]; then
+    OPFIELD_CERT_SHA256="$OPFIELD_CERT_SHA256_FLAG"
+elif [[ -n "$LEGACY_CERT_SHA256_FLAG" ]]; then
+    OPFIELD_CERT_SHA256="$LEGACY_CERT_SHA256_FLAG"
+fi
+unset LEGACY_ADDR_FLAG LEGACY_CERT_SHA256_FLAG OPFIELD_ADDR_FLAG OPFIELD_CERT_SHA256_FLAG
+
+# Resolve OPFIELD_ADDR from --host/--port if --opfield not given
+if [[ -n "$OPFIELD_HOST" && -z "$OPFIELD_ADDR" ]]; then
+    OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
+fi
+# If --opfield was given, extract host/port for display
+if [[ -n "$OPFIELD_ADDR" && -z "$OPFIELD_HOST" ]]; then
+    OPFIELD_HOST="${OPFIELD_ADDR%%:*}"
+    OPFIELD_PORT="${OPFIELD_ADDR##*:}"
+    if [[ "$OPFIELD_PORT" == "$OPFIELD_HOST" ]]; then
+        OPFIELD_PORT="9443"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
     fi
 fi
 
 # ── Validate ──────────────────────────────────────────────────────
 need_root
 if [[ "$DRY_RUN" -eq 0 ]]; then
-    LOG_FILE=$(mktemp /tmp/gateway_monitoring_setup.XXXXXX) || die "Could not create installer log file"
+    LOG_FILE=$(mktemp /tmp/opfield_monitoring_setup.XXXXXX) || die "Could not create installer log file"
     chmod 600 "$LOG_FILE" || die "Could not secure installer log file"
 fi
 detect_os
@@ -1153,13 +1260,13 @@ detect_existing_install
 keep_enrollment_of_used_token
 refuse_token_for_enrolled_node
 
-if [[ -z "$GATEWAY_ADDR" && -n "$EXISTING_GATEWAY_ADDR" ]]; then
-    GATEWAY_ADDR="$EXISTING_GATEWAY_ADDR"
-    GATEWAY_HOST="${GATEWAY_ADDR%%:*}"
-    GATEWAY_PORT="${GATEWAY_ADDR##*:}"
-    if [[ "$GATEWAY_PORT" == "$GATEWAY_HOST" ]]; then
-        GATEWAY_PORT="9443"
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+if [[ -z "$OPFIELD_ADDR" && -n "$EXISTING_OPFIELD_ADDR" ]]; then
+    OPFIELD_ADDR="$EXISTING_OPFIELD_ADDR"
+    OPFIELD_HOST="${OPFIELD_ADDR%%:*}"
+    OPFIELD_PORT="${OPFIELD_ADDR##*:}"
+    if [[ "$OPFIELD_PORT" == "$OPFIELD_HOST" ]]; then
+        OPFIELD_PORT="9443"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
     fi
 fi
 
@@ -1180,18 +1287,18 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     guide "${GRAY}  No nginx or other software is required.${NC}"
     guide_blank
 
-    if [[ "$EXISTING_ENROLLED" -eq 1 && -n "$EXISTING_GATEWAY_ADDR" && -z "$ENROLL_TOKEN" ]]; then
+    if [[ "$EXISTING_ENROLLED" -eq 1 && -n "$EXISTING_OPFIELD_ADDR" && -z "$ENROLL_TOKEN" ]]; then
         log "Existing enrolled monitoring node detected — reusing the current Opfield connection settings"
     else
-        # Gateway host
-        if [[ -z "$GATEWAY_HOST" ]]; then
-            GATEWAY_HOST=$(prompt_input "Opfield hostname or IP" "")
-            [[ -z "$GATEWAY_HOST" ]] && die "Opfield hostname is required"
+        # Opfield host
+        if [[ -z "$OPFIELD_HOST" ]]; then
+            OPFIELD_HOST=$(prompt_input "Opfield hostname or IP" "")
+            [[ -z "$OPFIELD_HOST" ]] && die "Opfield hostname is required"
         else
-            guide "${GRAY}Opfield host: ${BRAND_MINT}${GATEWAY_HOST}${NC}"
+            guide "${GRAY}Opfield host: ${BRAND_MINT}${OPFIELD_HOST}${NC}"
         fi
 
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
 
         guide_blank
 
@@ -1203,12 +1310,17 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
             guide "${GRAY}Token: ${ENROLL_TOKEN:0:12}...${ENROLL_TOKEN: -4}${NC}"
         fi
 
-        if [[ -z "$GATEWAY_CERT_SHA256" ]]; then
-            GATEWAY_CERT_SHA256=$(prompt_input "Opfield certificate SHA-256 fingerprint" "")
-            [[ -z "$GATEWAY_CERT_SHA256" ]] && die "Opfield certificate SHA-256 fingerprint is required"
+        guide_blank
+
+        if [[ -z "$OPFIELD_CERT_SHA256" ]]; then
+            OPFIELD_CERT_SHA256=$(prompt_input "Opfield certificate SHA-256 fingerprint" "")
+            [[ -z "$OPFIELD_CERT_SHA256" ]] && die "Opfield certificate SHA-256 fingerprint is required"
         else
-            guide "${GRAY}Opfield cert: ${GATEWAY_CERT_SHA256}${NC}"
+            guide "${GRAY}Opfield cert: ${OPFIELD_CERT_SHA256}${NC}"
         fi
+        # The daemon refuses any other form at enrollment, after the whole install.
+        [[ "$OPFIELD_CERT_SHA256" =~ ^[sS][hH][aA]256:[0-9a-fA-F]{64}$ ]] ||
+            die "Opfield certificate SHA-256 fingerprint must be sha256: followed by 64 hex characters (copy it from Nodes > Add Node)"
 
         guide_blank
     fi
@@ -1218,7 +1330,7 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     # User selection
     if [[ -z "$RUN_USER" ]]; then
         selector_title "Run daemon as:"
-        user_choice=$(prompt_choice "Choose" "1" "root  [default]" "Current user ($(logname 2>/dev/null || echo "$SUDO_USER"))" "Custom user")
+        user_choice=$(prompt_choice "Choose" "1" "root  [default]" "Current user ($(logname 2>/dev/null || echo "${SUDO_USER:-root}"))" "Custom user")
         case "$user_choice" in
             1|root)   RUN_USER="root" ;;
             2)        RUN_USER="$(logname 2>/dev/null || echo "${SUDO_USER:-root}")" ;;
@@ -1231,15 +1343,18 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     refuse_token_for_enrolled_node
 else
     # Non-interactive: validate required fields
-    if [[ -z "$GATEWAY_ADDR" && "$EXISTING_ENROLLED" -eq 0 ]]; then
-        die "--gateway or --host is required in non-interactive mode"
+    if [[ -z "$OPFIELD_ADDR" && "$EXISTING_ENROLLED" -eq 0 ]]; then
+        die "--opfield or --host is required in non-interactive mode"
     fi
     if [[ -z "$ENROLL_TOKEN" && "$EXISTING_ENROLLED" -eq 0 ]]; then
         die "--token is required in non-interactive mode"
     fi
-    if [[ -z "$GATEWAY_CERT_SHA256" && "$EXISTING_ENROLLED" -eq 0 ]]; then
-        die "--gateway-cert-sha256 is required in non-interactive mode"
+    if [[ -z "$OPFIELD_CERT_SHA256" && "$EXISTING_ENROLLED" -eq 0 ]]; then
+        die "--opfield-cert-sha256 is required in non-interactive mode"
     fi
+    # The daemon refuses any other form at enrollment, after the whole install.
+    [[ -z "$OPFIELD_CERT_SHA256" || "$OPFIELD_CERT_SHA256" =~ ^[sS][hH][aA]256:[0-9a-fA-F]{64}$ ]] ||
+        die "Opfield certificate SHA-256 fingerprint must be sha256: followed by 64 hex characters (copy it from Nodes > Add Node)"
     [[ -z "$RUN_USER" ]] && RUN_USER="root"
 fi
 
@@ -1267,14 +1382,14 @@ if [[ "$EXISTING_INSTALL" -eq 1 ]]; then
 fi
 
 summary_start
-summary_row "Opfield:     ${GATEWAY_ADDR}"
+summary_row "Opfield:     ${OPFIELD_ADDR}"
 if [[ -n "$ENROLL_TOKEN" ]]; then
     summary_row "Token:       ${ENROLL_TOKEN:0:12}..."
 else
     summary_row "Token:       existing enrollment"
 fi
-if [[ -n "$GATEWAY_CERT_SHA256" ]]; then
-    summary_row "Cert SHA256: ${GATEWAY_CERT_SHA256}"
+if [[ -n "$OPFIELD_CERT_SHA256" ]]; then
+    summary_row "Cert SHA256: ${OPFIELD_CERT_SHA256}"
 else
     summary_row "Cert SHA256: existing enrollment"
 fi
@@ -1427,7 +1542,7 @@ verify_checksum() {
     local binary_name="$2"
 
     log "Verifying checksum..."
-    local checksums_file="/tmp/gateway_checksums.txt"
+    local checksums_file="/tmp/opfield_checksums.txt"
     if curl -fsSL "${RELEASE_BASE}/checksums.txt" -o "$checksums_file" >> "$LOG_FILE" 2>&1; then
         local expected actual
         expected=$(grep "$binary_name" "$checksums_file" | awk '{print $1}')
@@ -1507,8 +1622,18 @@ install_daemon_binary() {
 
 
 # ── Step 3: Install and enroll ────────────────────────────────────
+# Whether the daemon's install command takes --opfield and --opfield-cert-sha256: install without arguments prints its
+# usage and exits without changing anything. A daemon of an earlier release (a pinned --version) knows only the
+# legacy flags.
+daemon_install_takes_opfield_flags() {
+    local usage
+    usage=$(run_as_run_user "$1" install 2>&1 || true)
+    [[ "$usage" == *--opfield* ]]
+}
+
 enroll_daemon() {
     local target="/usr/local/bin/monitoring-daemon"
+    local address_flag="--opfield" cert_flag="--opfield-cert-sha256"
 
     # Check if already enrolled (certs exist)
     if [[ -f /etc/monitoring-daemon/certs/node.pem && -f /var/lib/monitoring-daemon/state.json ]]; then
@@ -1518,7 +1643,13 @@ enroll_daemon() {
     fi
 
     log "Writing config and enrolling with Opfield..."
-    if ! run_as_run_user "$target" install --gateway "$GATEWAY_ADDR" --token "$ENROLL_TOKEN" --gateway-cert-sha256 "$GATEWAY_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
+    if ! daemon_install_takes_opfield_flags "$target"; then
+        # legacy-name: --gateway and --gateway-cert-sha256 install flags of monitoring-daemon before 2.12.1 — remove once
+        # the installer no longer installs a monitoring-daemon release before 2.12.1
+        address_flag="--gateway"
+        cert_flag="--gateway-cert-sha256"
+    fi
+    if ! run_as_run_user "$target" install "$address_flag" "$OPFIELD_ADDR" --token "$ENROLL_TOKEN" "$cert_flag" "$OPFIELD_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
         die "Failed to enroll monitoring-daemon. Check ${LOG_FILE} for details."
     fi
     prepare_run_user_identity
@@ -1532,8 +1663,11 @@ prepare_run_user_identity() {
             || die "Could not point /etc/monitoring-daemon/config.yaml at the shared host identity."
         return 0
     fi
-    seed_host_identity_copy "$SHARED_HOST_IDENTITY" "$MONITORING_OWN_HOST_IDENTITY" \
+    local shared
+    shared=$(shared_host_identity_path)
+    seed_host_identity_copy "$shared" "$MONITORING_OWN_HOST_IDENTITY" \
         || die "Could not prepare the host identity for ${RUN_USER}."
+    link_legacy_host_identity_dir
     set_config_host_identity_path /etc/monitoring-daemon/config.yaml "$MONITORING_OWN_HOST_IDENTITY" \
         || die "Could not point /etc/monitoring-daemon/config.yaml at ${MONITORING_OWN_HOST_IDENTITY}."
     grant_daemon_paths_to_run_user
@@ -1567,7 +1701,7 @@ WantedBy=multi-user.target
 UNIT
         systemctl daemon-reload >> "$LOG_FILE" 2>&1 || die "systemd daemon-reload failed."
         systemctl enable monitoring-daemon >> "$LOG_FILE" 2>&1 || die "Could not enable monitoring-daemon."
-        forget_gateway_session
+        forget_control_session
         systemctl restart monitoring-daemon >> "$LOG_FILE" 2>&1 || fail_daemon_start "Could not start monitoring-daemon."
     elif has_openrc; then
         cat > /etc/init.d/monitoring-daemon <<UNIT || die "Could not write the monitoring-daemon OpenRC service."
@@ -1596,7 +1730,7 @@ start_pre() {
 UNIT
         chmod +x /etc/init.d/monitoring-daemon || die "Could not make the monitoring-daemon OpenRC service executable."
         rc-update add monitoring-daemon default >> "$LOG_FILE" 2>&1 || die "Could not enable monitoring-daemon in OpenRC."
-        forget_gateway_session
+        forget_control_session
         if ! rc-service monitoring-daemon restart >> "$LOG_FILE" 2>&1 && ! rc-service monitoring-daemon start >> "$LOG_FILE" 2>&1; then
             fail_daemon_start "Could not start monitoring-daemon in OpenRC."
         fi
@@ -1622,8 +1756,8 @@ remember_host_access_config /etc/monitoring-daemon/config.yaml
 enroll_daemon
 apply_host_access_config /etc/monitoring-daemon/config.yaml
 start_daemon
-# An install whose daemon does not run or did not connect to Gateway is not done.
-if ! await_gateway_connection; then
+# An install whose daemon does not run or did not connect to Opfield is not done.
+if ! await_opfield_connection; then
     die "monitoring-daemon is installed, but it did not connect to Opfield."
 fi
 # The daemon enrolls when it first runs, not at install: only now are its certificate and the token's use there.

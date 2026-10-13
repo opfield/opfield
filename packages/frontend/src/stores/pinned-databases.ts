@@ -105,7 +105,7 @@ export const usePinnedDatabasesStore = create<PinnedDatabasesState>()(
       invalidate: () => set((s) => ({ refreshTick: s.refreshTick + 1 })),
     }),
     {
-      name: "gateway-pinned-databases",
+      name: "opfield-pinned-databases",
       partialize: (s) => ({
         dashboardDatabaseIds: s.dashboardDatabaseIds,
         sidebarDatabaseIds: s.sidebarDatabaseIds,

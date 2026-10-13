@@ -22,7 +22,7 @@ func stageComposeInput(request composeRequest) (*composeStage, func(), error) {
 	if len(request.composeYAML) == 0 {
 		return nil, func() {}, nil
 	}
-	directory, err := os.MkdirTemp("", "gateway-compose-")
+	directory, err := os.MkdirTemp("", "opfield-compose-")
 	if err != nil {
 		return nil, nil, fmt.Errorf("create private compose staging directory: %w", err)
 	}
@@ -41,7 +41,7 @@ func stageComposeInput(request composeRequest) (*composeStage, func(), error) {
 func (c *Client) runComposeSidecar(ctx context.Context, image, socketPath string, stage *composeStage, args, env []string) error {
 	binds := []string{socketPath + ":/var/run/docker.sock"}
 	if stage != nil {
-		binds = append(binds, stage.directory+":/gateway-compose:ro")
+		binds = append(binds, stage.directory+":/opfield-compose:ro")
 	}
 	created, err := c.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Config: &container.Config{
@@ -50,7 +50,7 @@ func (c *Client) runComposeSidecar(ctx context.Context, image, socketPath string
 			Cmd:        args,
 			Env:        env,
 			Labels: map[string]string{
-				"wiolett.gateway.compose.sidecar": "true",
+				"net.opfield.compose.sidecar": "true",
 			},
 		},
 		HostConfig: &container.HostConfig{Binds: binds, AutoRemove: false},

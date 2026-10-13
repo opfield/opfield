@@ -30,7 +30,7 @@ func (p *DockerPlugin) createStorageBindingNetwork(ctx context.Context, name, dr
 	}
 	created, err := p.client.cli.NetworkCreate(ctx, name, mobyclient.NetworkCreateOptions{
 		Driver: "bridge", Internal: true,
-		Labels: map[string]string{"wiolett.gateway.managed": managedStorageConnectorWorkload},
+		Labels: map[string]string{"net.opfield.managed": managedStorageConnectorWorkload},
 	})
 	if err != nil {
 		return "", fmt.Errorf("create managed storage binding network: %w", err)

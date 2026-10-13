@@ -245,8 +245,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const resolvedPageStatus = useResolvedPageContext((state) => state.status);
   const resolvedPageRouteKey = useResolvedPageContext((state) => state.routeKey);
   const resolvedPageResource = useResolvedPageContext((state) => state.resource);
-  const gatewayInferenceMode = useAIStore(
-    (state) => state.providerStatus?.providerType === "gateway_inference"
+  const opfieldInferenceMode = useAIStore(
+    (state) => state.providerStatus?.providerType === "opfield_inference"
   );
   const inferenceStreaming = useAIStore((state) => state.isStreaming);
   const aiEnabled = useAIStore((state) => state.isEnabled);
@@ -260,7 +260,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   );
   const waitForDashboardBootstrap = !dashboardBootstrapStarted || dashboardBootstrapLoading;
   const inferenceQuota = useInferenceQuotaSnapshot(
-    gatewayInferenceMode &&
+    opfieldInferenceMode &&
       canViewInferenceUsage &&
       inferenceEnabled &&
       hasScope("feat:ai:use") &&
@@ -344,11 +344,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [hasScopedAccess, isCommandMode, open]);
 
   useEffect(() => {
-    if (!open || !gatewayInferenceMode || !canViewInferenceUsage || inferenceStreaming) return;
+    if (!open || !opfieldInferenceMode || !canViewInferenceUsage || inferenceStreaming) return;
     void api.getInferenceSelfUsage().catch(() => {
       // The command palette remains usable when quota visibility is temporarily unavailable.
     });
-  }, [canViewInferenceUsage, gatewayInferenceMode, inferenceStreaming, open]);
+  }, [canViewInferenceUsage, opfieldInferenceMode, inferenceStreaming, open]);
 
   useEffect(() => {
     const sequence = ++resourceSearchSequence.current;
@@ -426,7 +426,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const handleAskAI = (query: string) => {
     if (aiEnabled === false) {
-      window.dispatchEvent(new CustomEvent("gateway:open-ai-workspace"));
+      window.dispatchEvent(new CustomEvent("opfield:open-ai-workspace"));
       return;
     }
     askAI(query);
@@ -655,8 +655,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         icon: Settings,
         parentId: "settings",
         visible: hasAnyScope(
-          "settings:gateway:view",
-          "settings:gateway:edit",
+          "settings:opfield:view",
+          "settings:opfield:edit",
           "admin:update",
           "license:view",
           "license:manage"
@@ -668,7 +668,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/settings/authentication",
         icon: Settings,
         parentId: "settings",
-        visible: hasAnyScope("settings:gateway:view", "settings:gateway:edit"),
+        visible: hasAnyScope("settings:opfield:view", "settings:opfield:edit"),
       },
       {
         id: "settings-advanced",
@@ -677,8 +677,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         icon: Settings,
         parentId: "settings",
         visible: hasAnyScope(
-          "settings:gateway:view",
-          "settings:gateway:edit",
+          "settings:opfield:view",
+          "settings:opfield:edit",
           "docker:registries:view"
         ),
       },
@@ -927,7 +927,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       label: "Open AI Workspace",
       icon: Sparkles,
       action: () => {
-        window.dispatchEvent(new CustomEvent("gateway:open-ai-workspace"));
+        window.dispatchEvent(new CustomEvent("opfield:open-ai-workspace"));
       },
     });
     return actions;
@@ -1024,7 +1024,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const entityCommands = useMemo<PaletteEntry[]>(() => {
     const entries: PaletteEntry[] = [];
     if (import.meta.env.DEV && hasScope("admin:update")) {
-      const addUpdatePreview = (id: string, label: string, mode: "gateway" | "relay" | "both") => {
+      const addUpdatePreview = (id: string, label: string, mode: "opfield" | "relay" | "both") => {
         entries.push({
           id,
           label,
@@ -1038,7 +1038,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           },
         });
       };
-      addUpdatePreview("command:dev-update-gateway", "Show Opfield update only", "gateway");
+      addUpdatePreview("command:dev-update-opfield", "Show Opfield update only", "opfield");
       addUpdatePreview("command:dev-update-relay", "Show Relay update only", "relay");
       addUpdatePreview("command:dev-update-both", "Show Opfield and Relay updates", "both");
     }

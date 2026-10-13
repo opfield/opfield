@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
 )
 
 // The registry proxy's listening socket goes to the next daemon process on a restart or update (listenerkeep), like

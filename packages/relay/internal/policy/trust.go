@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	bolt "go.etcd.io/bbolt"
 	"google.golang.org/protobuf/proto"
 )

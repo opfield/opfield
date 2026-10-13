@@ -9,7 +9,7 @@ interface CapabilitySourceRow {
 }
 
 export function detectedCapabilityState(configured: Record<string, boolean>, rows: CapabilitySourceRow[]) {
-  const sources = rows.filter(({ source }) => source.enabled && sourceRole(source) === 'primary');
+  const sources = rows.filter(({ source }) => source.enabled);
   if (!sources.length) return { effective: configured, limitations: {} as Record<string, string[]> };
   const keys = new Set(Object.keys(configured));
   for (const source of sources) {
@@ -37,7 +37,7 @@ export function effectiveSourceContract(row: CapabilitySourceRow) {
 }
 
 export function supportsFastServiceTier(rows: CapabilitySourceRow[]): boolean {
-  const sources = rows.filter(({ source }) => source.enabled && sourceRole(source) === 'primary');
+  const sources = rows.filter(({ source }) => source.enabled);
   return (
     sources.length > 0 &&
     sources.every(({ source, connection, discovered }) => {
@@ -56,14 +56,6 @@ export function supportsFastServiceTier(rows: CapabilitySourceRow[]): boolean {
       );
     })
   );
-}
-
-export function sourceRole(source: InferenceModelSource): 'primary' | 'vision_sidecar' {
-  const composition = source.metadata.composition;
-  if (composition && typeof composition === 'object' && !Array.isArray(composition)) {
-    return (composition as { role?: unknown }).role === 'vision_sidecar' ? 'vision_sidecar' : 'primary';
-  }
-  return 'primary';
 }
 
 export function sourceOriginMetadata(

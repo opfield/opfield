@@ -109,8 +109,8 @@ export class AIServiceCore {
     if (this.providerRuntimeService) return this.providerRuntimeService.resolveSession(user, options);
 
     const config = await this.settingsService.getConfig();
-    if (config.providerType === 'gateway_inference') {
-      throw new AppError(503, 'AI_GATEWAY_INFERENCE_UNAVAILABLE', 'Opfield Inference runtime is unavailable');
+    if (config.providerType === 'opfield_inference') {
+      throw new AppError(503, 'AI_INFERENCE_UNAVAILABLE', 'Opfield Inference runtime is unavailable');
     }
     const apiKey = await this.settingsService.getDecryptedApiKey();
     if (!apiKey)

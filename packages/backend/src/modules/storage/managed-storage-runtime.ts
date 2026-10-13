@@ -22,7 +22,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
-import { isGatewayInternalContainer } from '@/modules/docker/docker-internal-containers.js';
+import { isOpfieldInternalContainer } from '@/modules/docker/docker-internal-containers.js';
 import { requireConfiguredLicensePolicy } from '@/modules/license/license-policy.service.js';
 import {
   assertStorageHasNoBackupReferences,
@@ -84,7 +84,7 @@ export const managedStorageRuntime = {
   DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE,
   managedDatabaseBindings,
   managedStorageBindings,
-  isGatewayInternalContainer,
+  isOpfieldInternalContainer,
   loggerManagedStorageBindings,
   grantCreatedResourcePermissions,
   transactionWithScopeCleanup,

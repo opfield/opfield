@@ -9,15 +9,16 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/netaccept"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/netaccept"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 const (
 	storageConnectorSocketDirectory = "storage-connector"
 	storageConnectorSocketName      = "storage-relay.sock"
-	storageConnectorSocketPath      = "/run/gateway/storage-relay.sock"
+	storageConnectorMount           = "/run/opfield"
+	legacyStorageConnectorMount     = "/run/gateway"
 	storageBindingOwnerKind         = "managed_storage_binding"
 	// managedStorageLinkCapability: the node hosts managed storage link connectors (this socket). Availability
 	// projects a workload's storage links only to Docker nodes that advertise it.
@@ -192,43 +193,87 @@ func storageConnectorRelayRefusal(reason string, err error) string {
 }
 
 // validStorageConnectorInternalWorkload is used by the internal-workload
-// dispatcher before it creates the dedicated managed-storage connector.
+// dispatcher before it creates the dedicated managed-storage connector. Opfield
+// sends OPFIELD_CONNECTOR_* with the socket directory at /run/opfield; a
+// control plane or connector of an earlier release uses the GATEWAY_CONNECTOR_*
+// names and /run/gateway, which stay valid (legacy-name below). A variable may
+// come under both names when the values agree.
 func validStorageConnectorInternalWorkload(env []string, binds []string, socketHostPath string) bool {
-	if len(binds) != 1 || binds[0] != socketHostPath+":/run/gateway:ro" {
+	mount := ""
+	switch {
+	case len(binds) != 1:
+		return false
+	case binds[0] == socketHostPath+":"+storageConnectorMount+":ro":
+		mount = storageConnectorMount
+	// legacy-name: /run/gateway socket mount of storage connectors before Opfield — remove once every node reports none
+	case binds[0] == socketHostPath+":"+legacyStorageConnectorMount+":ro":
+		mount = legacyStorageConnectorMount
+	default:
 		return false
 	}
-	seenBinding, seenSocket, seenListen := false, false, false
-	seenCA, seenServerName := false, false
-	for _, value := range env {
-		switch {
-		case strings.HasPrefix(value, "GATEWAY_CONNECTOR_BINDING_ID="):
-			if seenBinding || !proxySecureLinkIDPattern.MatchString(strings.TrimPrefix(value, "GATEWAY_CONNECTOR_BINDING_ID=")) {
-				return false
-			}
-			seenBinding = true
-		case value == "GATEWAY_CONNECTOR_SOCKET="+storageConnectorSocketPath:
-			if seenSocket {
-				return false
-			}
-			seenSocket = true
-		case value == "GATEWAY_CONNECTOR_LISTEN=:9000":
-			if seenListen {
-				return false
-			}
-			seenListen = true
-		case strings.HasPrefix(value, "GATEWAY_CONNECTOR_CA_PEM=") && strings.TrimPrefix(value, "GATEWAY_CONNECTOR_CA_PEM=") != "":
-			if seenCA {
-				return false
-			}
-			seenCA = true
-		case strings.HasPrefix(value, "GATEWAY_CONNECTOR_SERVER_NAME=") && strings.TrimPrefix(value, "GATEWAY_CONNECTOR_SERVER_NAME=") != "":
-			if seenServerName {
-				return false
-			}
-			seenServerName = true
+	values := map[string]string{}
+	for _, entry := range env {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			return false
+		}
+		key, known := connectorEnvKey(name)
+		if !known {
+			return false
+		}
+		if previous, seen := values[key]; seen && previous != value {
+			return false
+		}
+		values[key] = value
+	}
+	for key := range values {
+		switch key {
+		case "BINDING_ID", "SOCKET", "LISTEN", "CA_PEM", "SERVER_NAME":
 		default:
 			return false
 		}
 	}
-	return seenBinding && seenSocket && seenListen && seenCA == seenServerName
+	if !proxySecureLinkIDPattern.MatchString(values["BINDING_ID"]) || values["SOCKET"] != mount+"/"+storageConnectorSocketName || values["LISTEN"] != ":9000" {
+		return false
+	}
+	_, hasCA := values["CA_PEM"]
+	_, hasServerName := values["SERVER_NAME"]
+	if (hasCA && values["CA_PEM"] == "") || (hasServerName && values["SERVER_NAME"] == "") {
+		return false
+	}
+	return hasCA == hasServerName
+}
+
+// connectorEnvKey is the variable name of a connector environment entry
+// without its OPFIELD_CONNECTOR_ (or pre-Opfield GATEWAY_CONNECTOR_) prefix.
+func connectorEnvKey(name string) (string, bool) {
+	if key, ok := strings.CutPrefix(name, "OPFIELD_CONNECTOR_"); ok && key != "" {
+		return key, true
+	}
+	// legacy-name: GATEWAY_CONNECTOR_* environment of connectors before Opfield — remove once every node reports none
+	if key, ok := strings.CutPrefix(name, "GATEWAY_CONNECTOR_"); ok && key != "" {
+		return key, true
+	}
+	return "", false
+}
+
+// isConnectorEnv reports a connector variable under either name.
+func isConnectorEnv(entry string) bool {
+	name, _, _ := strings.Cut(entry, "=")
+	_, ok := connectorEnvKey(name)
+	return ok
+}
+
+// connectorEnvValue reads a connector variable under either name.
+func connectorEnvValue(env []string, key string) string {
+	for _, entry := range env {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		if found, known := connectorEnvKey(name); known && found == key {
+			return value
+		}
+	}
+	return ""
 }

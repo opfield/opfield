@@ -11,7 +11,7 @@ import type { ChatMessage, WSServerMessage } from './ai.types.js';
 import { AIConversationService } from './ai-conversation.service.js';
 import { AIRunExecutor } from './ai-run-executor.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const noop = () => undefined;
 
 interface ExecutorInternals {
@@ -31,7 +31,7 @@ interface ExecutorInternals {
 }
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a steer accepted mid-run is persisted where the run accepted it.
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a steer accepted mid-run is persisted where the run accepted it.
  * Tool calls and text from later rounds land below it in a new group, in storage and in the conversation read API.
  */
 describe.skipIf(!url)('AI run steering on disposable PostgreSQL', () => {

@@ -46,5 +46,5 @@ export function resolvePageStorageDir(
   temporaryDirectory = os.tmpdir()
 ): string {
   if (nodeEnvironment === 'production' || configuredDirectory !== PRODUCTION_STORAGE_DIR) return configuredDirectory;
-  return join(temporaryDirectory, 'gateway-pages');
+  return join(temporaryDirectory, 'opfield-pages');
 }

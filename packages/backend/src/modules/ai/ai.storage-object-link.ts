@@ -19,7 +19,7 @@ import type { User } from '@/types.js';
 export const STORAGE_OBJECT_LINK_PATH = '/api/storage-object-link';
 const DOWNLOAD_LINK: OneTimeLinkKind = {
   path: STORAGE_OBJECT_LINK_PATH,
-  tokenPrefix: 'gwsd_',
+  tokenPrefix: 'opfsd_',
   cachePrefix: 'storage:object-download-link:',
   ttlSeconds: 15 * 60,
   label: 'storage download links',

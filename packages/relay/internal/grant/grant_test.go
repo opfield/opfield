@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay/internal/peer"
-	"github.com/wiolett-industries/gateway/relay/internal/policy"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay/internal/peer"
+	"github.com/opfield/opfield/relay/internal/policy"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -193,4 +193,35 @@ func sign(t *testing.T, key ed25519.PrivateKey, claims Claims) *relayv1.SignedGr
 
 func snapshot(key ed25519.PublicKey) *relayv1.ApplySnapshotRequest {
 	return &relayv1.ApplySnapshotRequest{Revision: 1, GatewayInstanceId: "gateway-1", PublicKeys: []*relayv1.PublicKey{{KeyId: "key-1", PublicKey: key}}, Endpoints: []*relayv1.EndpointPolicy{{EndpointId: "endpoint-1", Generation: 1, SubjectKind: "daemon", SubjectId: "node-target", CertificateSha256: "sha256:target"}}, Routes: []*relayv1.RoutePolicy{{RouteId: "route-1", Generation: 1, SourceKind: "daemon", SourceId: "node-source", SourceCertificateSha256: "sha256:source", TargetEndpointId: "endpoint-1"}}}
+}
+
+// Opfield 2.12.0 issues grants for the legacy audience, and a newer Opfield
+// keeps doing so while any relay of the pool predates the new one: this relay
+// accepts both, and nothing else.
+func TestVerifyAcceptsTheOpfieldAndTheLegacyAudience(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := policy.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, _, err := store.Apply(snapshot(publicKey)); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1_800_000_000, 0)
+	verifier := Verifier{Store: store, Now: func() time.Time { return now }}
+	identity := peer.Identity{SubjectID: "node-source", CertificateFingerprint: "sha256:source"}
+	for audience, accepted := range map[string]bool{"opfield-relay": true, "wiolett-relay": true, "gateway-relay": false, "": false} {
+		claims := Claims{SchemaVersion: 1, Audience: audience, GrantID: "grant-1", GatewayInstanceID: "gateway-1", Kind: "connect", SubjectKind: "daemon", SubjectID: "node-source", CertificateSHA256: "sha256:source", RouteID: "route-1", RouteGeneration: 1, IssuedAt: now.Unix(), NotBefore: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix()}
+		_, err := verifier.Verify(sign(t, privateKey, claims), "connect", identity)
+		if accepted && err != nil {
+			t.Fatalf("audience %q rejected: %v", audience, err)
+		}
+		if !accepted && err == nil {
+			t.Fatalf("audience %q accepted", audience)
+		}
+	}
 }

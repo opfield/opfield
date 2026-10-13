@@ -1716,6 +1716,27 @@
       "when": 1792775837000,
       "tag": "0244_user_blocked_by",
       "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1792862237000,
+      "tag": "0245_remove_inference_companion",
+      "breakpoints": true
+    },
+    {
+      "idx": 246,
+      "version": "7",
+      "when": 1792948637000,
+      "tag": "0246_opfield_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 247,
+      "version": "7",
+      "when": 1793035037000,
+      "tag": "0247_opfield_certificate_owners",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 )
 
 // F-R1: the daemon reports the local Secure Runtime command without its version, whatever that is, so older Gateways

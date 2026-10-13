@@ -11,7 +11,7 @@ export const OPENCODEX_SIGNING_PUBLIC_KEY_PEM = loadSigningPublicKey('opencodex-
 const UPDATE_SCHEMA_VERSION = 1;
 const SHA256_RE = /^[a-f0-9]{64}$/;
 const DIGEST_RE = /^sha256:[a-f0-9]{64}$/;
-const GATEWAY_COMPONENT_VERSION_RE = /^v?\d+\.\d+\.\d+(?:-rc\.\d+)?$/;
+const OPFIELD_COMPONENT_VERSION_RE = /^v?\d+\.\d+\.\d+(?:-rc\.\d+)?$/;
 
 export class UpdateArtifactTrustError extends Error {
   constructor(message: string) {
@@ -41,7 +41,7 @@ export interface DaemonUpdateManifestPayload {
   gitPipelineId?: string;
 }
 
-export interface GatewayImageManifestPayload {
+export interface OpfieldImageManifestPayload {
   kind: 'gateway-image';
   version: string;
   tag: string;
@@ -72,8 +72,13 @@ export interface RelayImageManifestPayload {
   gitPipelineId?: string;
 }
 
+/** Manifest kind of the managed inference core (opfield-inference). */
+export const OPFIELD_INFERENCE_MANIFEST_KIND = 'opfield-inference-image';
+// legacy-name: opencodex-image — remove once every published core release also carries the opfield-inference-image manifest and no supported Opfield reads the old one
+export const LEGACY_INFERENCE_CORE_MANIFEST_KIND = 'opencodex-image';
+
 export interface OpenCodexImageManifestPayload {
-  kind: 'opencodex-image';
+  kind: typeof OPFIELD_INFERENCE_MANIFEST_KIND | typeof LEGACY_INFERENCE_CORE_MANIFEST_KIND;
   version: string;
   tag: string;
   image: string;
@@ -82,6 +87,9 @@ export interface OpenCodexImageManifestPayload {
   sizeBytes: number;
   coreProtocolMajor: number;
   stateSchemaVersion: number;
+  minOpfieldVersion?: string;
+  maxOpfieldVersion?: string;
+  // legacy-name: minGatewayVersion/maxGatewayVersion — remove once every core manifest carries minOpfieldVersion/maxOpfieldVersion
   minGatewayVersion?: string;
   maxGatewayVersion?: string;
   releaseNotesUrl?: string;
@@ -98,8 +106,8 @@ export interface TrustedDaemonUpdateArtifact {
   checksum: string;
 }
 
-export interface TrustedGatewayUpdateArtifact {
-  payload: GatewayImageManifestPayload;
+export interface TrustedOpfieldUpdateArtifact {
+  payload: OpfieldImageManifestPayload;
   signedManifest: string;
   imageRef: string;
   digest: string;
@@ -126,8 +134,8 @@ export interface TrustedOpenCodexImageArtifact {
   sizeBytes: number;
   coreProtocolMajor: number;
   stateSchemaVersion: number;
-  minGatewayVersion?: string;
-  maxGatewayVersion?: string;
+  minOpfieldVersion?: string;
+  maxOpfieldVersion?: string;
   releaseNotesUrl?: string;
 }
 
@@ -143,7 +151,7 @@ export interface DaemonUpdateManifestExpectation {
   acceptedDownloadUrls?: readonly string[];
 }
 
-export interface GatewayImageManifestExpectation {
+export interface OpfieldImageManifestExpectation {
   version: string;
   tag: string;
   image: string;
@@ -195,12 +203,12 @@ export function verifyDaemonUpdateManifest(
   };
 }
 
-export function verifyGatewayImageManifest(
+export function verifyOpfieldImageManifest(
   signedManifest: string,
-  expected: GatewayImageManifestExpectation,
+  expected: OpfieldImageManifestExpectation,
   publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
-): TrustedGatewayUpdateArtifact {
-  const payload = verifySignedPayload<GatewayImageManifestPayload>(signedManifest, publicKey);
+): TrustedOpfieldUpdateArtifact {
+  const payload = verifySignedPayload<OpfieldImageManifestPayload>(signedManifest, publicKey);
   if (payload.kind !== 'gateway-image') throw new UpdateArtifactTrustError('Update manifest kind is not gateway-image');
   if (payload.version !== expected.version) throw new UpdateArtifactTrustError('Opfield update version mismatch');
   if (payload.tag !== expected.tag) throw new UpdateArtifactTrustError('Opfield update tag mismatch');
@@ -247,28 +255,28 @@ export function verifyRelayImageManifest(
   if (payload.imageRef !== `${payload.image}@${payload.digest}`) {
     throw new UpdateArtifactTrustError('Relay update image reference is not digest pinned');
   }
-  if (!GATEWAY_COMPONENT_VERSION_RE.test(payload.version)) {
+  if (!OPFIELD_COMPONENT_VERSION_RE.test(payload.version)) {
     throw new UpdateArtifactTrustError('Relay update build version is invalid');
   }
   if (!Number.isInteger(payload.protocolMajor) || payload.protocolMajor !== expected.protocolMajor) {
     throw new UpdateArtifactTrustError('Relay update protocol major is incompatible');
   }
-  if (payload.minGatewayVersion !== undefined && !GATEWAY_COMPONENT_VERSION_RE.test(payload.minGatewayVersion)) {
+  if (payload.minGatewayVersion !== undefined && !OPFIELD_COMPONENT_VERSION_RE.test(payload.minGatewayVersion)) {
     throw new UpdateArtifactTrustError('Relay update minimum Opfield version is invalid');
   }
-  const gatewayRepository = payload.image.endsWith('/relay') ? payload.image.slice(0, -'/relay'.length) : '';
+  const opfieldRepository = payload.image.endsWith('/relay') ? payload.image.slice(0, -'/relay'.length) : '';
   if (
     payload.databaseConnectorImage !== undefined &&
     (typeof payload.databaseConnectorImage !== 'string' ||
-      !gatewayRepository ||
-      !isDigestPinnedImageRef(payload.databaseConnectorImage, `${gatewayRepository}/database-connector`))
+      !opfieldRepository ||
+      !isDigestPinnedImageRef(payload.databaseConnectorImage, `${opfieldRepository}/database-connector`))
   ) {
     throw new UpdateArtifactTrustError('Relay update database connector image reference is not digest pinned');
   }
   if (
     typeof payload.secureLinkConnectorImage !== 'string' ||
-    !gatewayRepository ||
-    !isDigestPinnedImageRef(payload.secureLinkConnectorImage, `${gatewayRepository}/secure-link-connector`)
+    !opfieldRepository ||
+    !isDigestPinnedImageRef(payload.secureLinkConnectorImage, `${opfieldRepository}/secure-link-connector`)
   ) {
     throw new UpdateArtifactTrustError('Relay update secure-link connector image reference is not digest pinned');
   }
@@ -291,8 +299,8 @@ export function verifyOpenCodexImageManifest(
   publicKey: string | Buffer = OPENCODEX_SIGNING_PUBLIC_KEY_PEM
 ): TrustedOpenCodexImageArtifact {
   const payload = verifySignedPayload<OpenCodexImageManifestPayload>(signedManifest, publicKey);
-  if (payload.kind !== 'opencodex-image')
-    throw new UpdateArtifactTrustError('Update manifest kind is not opencodex-image');
+  if (payload.kind !== OPFIELD_INFERENCE_MANIFEST_KIND && payload.kind !== LEGACY_INFERENCE_CORE_MANIFEST_KIND)
+    throw new UpdateArtifactTrustError(`Update manifest kind is not ${OPFIELD_INFERENCE_MANIFEST_KIND}`);
   if (expected.version !== undefined && payload.version !== expected.version) {
     throw new UpdateArtifactTrustError('OpenCodex update version mismatch');
   }
@@ -316,11 +324,23 @@ export function verifyOpenCodexImageManifest(
   if (!Number.isInteger(payload.stateSchemaVersion) || payload.stateSchemaVersion <= 0) {
     throw new UpdateArtifactTrustError('OpenCodex state schema version is invalid');
   }
-  if (payload.minGatewayVersion !== undefined && !/^v?\d+\.\d+\.\d+$/.test(payload.minGatewayVersion)) {
-    throw new UpdateArtifactTrustError('OpenCodex minimum Opfield version is invalid');
+  const minOpfieldVersion = payload.minOpfieldVersion ?? payload.minGatewayVersion;
+  const maxOpfieldVersion = payload.maxOpfieldVersion ?? payload.maxGatewayVersion;
+  for (const [field, value] of [
+    ['minOpfieldVersion', payload.minOpfieldVersion],
+    ['minGatewayVersion', payload.minGatewayVersion],
+  ] as const) {
+    if (value !== undefined && !/^v?\d+\.\d+\.\d+$/.test(value)) {
+      throw new UpdateArtifactTrustError(`OpenCodex minimum Opfield version is invalid (${field})`);
+    }
   }
-  if (payload.maxGatewayVersion !== undefined && !/^v?\d+\.\d+\.\d+$/.test(payload.maxGatewayVersion)) {
-    throw new UpdateArtifactTrustError('OpenCodex maximum Opfield version is invalid');
+  for (const [field, value] of [
+    ['maxOpfieldVersion', payload.maxOpfieldVersion],
+    ['maxGatewayVersion', payload.maxGatewayVersion],
+  ] as const) {
+    if (value !== undefined && !/^v?\d+\.\d+\.\d+$/.test(value)) {
+      throw new UpdateArtifactTrustError(`OpenCodex maximum Opfield version is invalid (${field})`);
+    }
   }
   if (
     payload.releaseNotesUrl !== undefined &&
@@ -341,8 +361,8 @@ export function verifyOpenCodexImageManifest(
     sizeBytes: payload.sizeBytes,
     coreProtocolMajor: payload.coreProtocolMajor,
     stateSchemaVersion: payload.stateSchemaVersion,
-    ...(payload.minGatewayVersion ? { minGatewayVersion: payload.minGatewayVersion } : {}),
-    ...(payload.maxGatewayVersion ? { maxGatewayVersion: payload.maxGatewayVersion } : {}),
+    ...(minOpfieldVersion ? { minOpfieldVersion } : {}),
+    ...(maxOpfieldVersion ? { maxOpfieldVersion } : {}),
     ...(payload.releaseNotesUrl ? { releaseNotesUrl: payload.releaseNotesUrl } : {}),
   };
 }

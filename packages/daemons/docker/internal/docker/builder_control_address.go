@@ -3,7 +3,7 @@ package docker
 import (
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 )
 
 // builderFenceRetry spaces the attempts to apply the builder egress policy

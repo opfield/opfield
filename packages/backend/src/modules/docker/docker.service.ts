@@ -61,7 +61,7 @@ import {
 import { assertDockerCreationAccess, placeCreatedDockerResource } from './docker-creation-access.js';
 import { dockerDaemonUserError } from './docker-daemon-errors.js';
 import type { DockerDeploymentService } from './docker-deployment.service.js';
-import { DOCKER_DEPLOYMENT_ID_LABEL, DOCKER_DEPLOYMENT_MANAGED_LABEL } from './docker-deployment-labels.js';
+import { dockerDeploymentIdLabel, isDockerDeploymentManaged } from './docker-deployment-labels.js';
 import { runKeptEnvFollowUps } from './docker-env-follow-ups.js';
 import { getContainerEnv as getDockerContainerEnv } from './docker-env-operations.js';
 import type { DockerEnvironmentService } from './docker-environment.service.js';
@@ -78,13 +78,13 @@ import {
 } from './docker-image-operations.js';
 import {
   assertUserContainerAccessible,
-  filterGatewayInternalContainers,
+  filterOpfieldInternalContainers,
   inspectUserContainer as inspectUserSelectedContainer,
-  isGatewayInternalContainer,
+  isOpfieldInternalContainer,
 } from './docker-internal-containers.js';
 import {
   dockerImageId,
-  findGatewayInternalImage,
+  findOpfieldInternalImage,
   resolveDockerImageByIdentifier,
   resolvePulledDockerImage,
 } from './docker-internal-images.js';
@@ -97,7 +97,7 @@ import {
   watchDockerTransition,
 } from './docker-lifecycle-watch.js';
 import { assertManagedMountMutation } from './docker-managed-mounts.js';
-import { DOCKER_MANAGED_VOLUME_LABEL } from './docker-managed-volume.constants.js';
+import { isDockerManagedVolumeLabelled } from './docker-managed-volume.constants.js';
 import type { DockerMigrationGuard } from './docker-migration-guard.js';
 import type { DockerNetworkAccessResourceService } from './docker-network-access-resource.service.js';
 import { hasDockerPortBindIpV1Capability } from './docker-port-bindings.js';
@@ -142,7 +142,6 @@ import {
   deleteVolumeFile as deleteDockerVolumeFile,
   disconnectContainerFromNetwork as disconnectDockerContainerFromNetwork,
   exportVolume as exportDockerVolume,
-  gatewayManagedVolumeNames,
   initVolumeFileUpload as initDockerVolumeFileUpload,
   inspectVolume as inspectDockerVolume,
   listAllVolumes as listAllDockerVolumes,
@@ -150,6 +149,7 @@ import {
   listVolumeFiles as listDockerVolumeFiles,
   listVolumes as listDockerVolumes,
   moveVolumeFile as moveDockerVolumeFile,
+  opfieldManagedVolumeNames,
   readVolumeFile as readDockerVolumeFile,
   removeNetwork as removeDockerNetwork,
   removeVolume as removeDockerVolume,
@@ -795,18 +795,17 @@ export class DockerManagementService {
   }
 
   private isManagedDeploymentInternal(data: any): boolean {
-    const labels = data?.Config?.Labels ?? data?.Labels ?? data?.labels ?? {};
-    return labels?.[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true';
+    return isDockerDeploymentManaged(data?.Config?.Labels ?? data?.Labels ?? data?.labels);
   }
 
   async assertContainerMutationAllowed(nodeId: string, containerId: string) {
     if ((await this.workloadResolver?.resolveContainerRuntimeTarget(nodeId, containerId)) != null) return;
     const result = await this.nodeDispatch.sendDockerContainerCommand(nodeId, 'inspect', { containerId });
     const data = this.parseResult(result);
-    if (isGatewayInternalContainer(data)) {
+    if (isOpfieldInternalContainer(data)) {
       throw new AppError(
         409,
-        'GATEWAY_INTERNAL_CONTAINER',
+        'OPFIELD_INTERNAL_CONTAINER',
         'This container is managed by Opfield and cannot be modified directly.'
       );
     }
@@ -1085,16 +1084,14 @@ export class DockerManagementService {
     );
     const visibleContainers = containers.flatMap((item) => {
       const container = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
-      if (isGatewayInternalContainer(container)) return [];
+      if (isOpfieldInternalContainer(container)) return [];
       const containerId = String(container.id ?? container.Id ?? '');
       if (!containerId) return [];
       const name = String(container.name ?? container.Name ?? '').replace(/^\/+/, '');
       const labels = (container.labels ?? container.Labels ?? {}) as Record<string, unknown>;
-      const deploymentId = String(labels[DOCKER_DEPLOYMENT_ID_LABEL] ?? '');
+      const deploymentId = dockerDeploymentIdLabel(labels);
       const scopeResourceId =
-        labels[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true' && deploymentId
-          ? deploymentId
-          : (resourceIdByRuntime.get(containerId) ?? resourceIdByName.get(name) ?? null);
+        deploymentId || (resourceIdByRuntime.get(containerId) ?? resourceIdByName.get(name) ?? null);
       if (!hasDockerResourceScope(actorScopes, 'docker:containers:view', nodeId, scopeResourceId ?? '')) {
         return [];
       }
@@ -1243,7 +1240,7 @@ export class DockerManagementService {
 
   /** User-facing decoration that keeps Gateway implementation containers private. */
   async decoratePublicContainerSnapshot(nodeId: string, containers: any) {
-    const publicContainers = Array.isArray(containers) ? filterGatewayInternalContainers(containers) : containers;
+    const publicContainers = Array.isArray(containers) ? filterOpfieldInternalContainers(containers) : containers;
     const decorated = await this.decorateContainerSnapshot(nodeId, publicContainers);
     if (!Array.isArray(decorated)) return decorated;
     const names = new Set(
@@ -1379,8 +1376,8 @@ export class DockerManagementService {
     else delete data._buildRollout;
     data.gpuAttachment = deriveDockerGpuAttachment(data, gpuInventory ?? (await this.gpuInventoryForNode(nodeId)));
     const labels = (data.Config?.Labels ?? data.config?.labels ?? {}) as Record<string, string>;
-    const deploymentId = labels[DOCKER_DEPLOYMENT_ID_LABEL];
-    if (labels[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true' && deploymentId) {
+    const deploymentId = dockerDeploymentIdLabel(labels);
+    if (deploymentId) {
       data.scopeResourceId = deploymentId;
     } else if (this.accessResourceService && cName && runtimeId) {
       data.scopeResourceId = await this.accessResourceService.ensureContainer(
@@ -1967,8 +1964,8 @@ export class DockerManagementService {
     if (!image) {
       throw new AppError(404, 'DOCKER_IMAGE_NOT_FOUND', 'Docker image was not found');
     }
-    if (findGatewayInternalImage(imageList, imageId)) {
-      throw new AppError(409, 'GATEWAY_INTERNAL_IMAGE', 'Opfield-owned images cannot be removed manually');
+    if (findOpfieldInternalImage(imageList, imageId)) {
+      throw new AppError(409, 'OPFIELD_INTERNAL_IMAGE', 'Opfield-owned images cannot be removed manually');
     }
     const canonicalImageId = dockerImageId(image);
     if (!canonicalImageId) {
@@ -1977,16 +1974,16 @@ export class DockerManagementService {
     await removeDockerImage(this.imageOperationContext(), nodeId, canonicalImageId, force, userId);
   }
 
-  async removeGatewayInternalImage(nodeId: string, imageId: string) {
+  async removeOpfieldInternalImage(nodeId: string, imageId: string) {
     await this.validateDockerNode(nodeId);
     const images = await listAllDockerImages(this.imageOperationContext(), nodeId);
-    const image = findGatewayInternalImage(Array.isArray(images) ? images : [], imageId);
+    const image = findOpfieldInternalImage(Array.isArray(images) ? images : [], imageId);
     if (!image) {
-      throw new AppError(404, 'GATEWAY_INTERNAL_IMAGE_NOT_FOUND', 'Opfield-owned image was not found');
+      throw new AppError(404, 'OPFIELD_INTERNAL_IMAGE_NOT_FOUND', 'Opfield-owned image was not found');
     }
     const canonicalImageId = dockerImageId(image);
     if (!canonicalImageId) {
-      throw new AppError(404, 'GATEWAY_INTERNAL_IMAGE_NOT_FOUND', 'Opfield-owned image was not found');
+      throw new AppError(404, 'OPFIELD_INTERNAL_IMAGE_NOT_FOUND', 'Opfield-owned image was not found');
     }
     await removeDockerImage(this.imageOperationContext(), nodeId, canonicalImageId, false, null);
   }
@@ -2168,7 +2165,7 @@ export class DockerManagementService {
     const placementByName = new Map(placements.map((placement) => [placement.resourceKey, placement]));
     const publicContainerNames = new Set(
       containers
-        .filter((entry) => !isGatewayInternalContainer(entry))
+        .filter((entry) => !isOpfieldInternalContainer(entry))
         .flatMap((entry) => {
           const names = Array.isArray(entry.Names ?? entry.names) ? (entry.Names ?? entry.names) : [];
           const primary = String(entry.Name ?? entry.name ?? names[0] ?? '').replace(/^\//, '');
@@ -2273,7 +2270,7 @@ export class DockerManagementService {
       next: [...new Set(volumeNames)].map((source, index) => ({
         type: 'volume' as const,
         source,
-        target: `/__gateway_archive_mount_${index}`,
+        target: `/__opfield_archive_mount_${index}`,
         readOnly: false,
       })),
     });
@@ -2294,11 +2291,11 @@ export class DockerManagementService {
     const volumes = await listAllDockerVolumes(this.volumeNetworkOperationContext(), nodeId);
     if (!Array.isArray(volumes)) return volumes;
     // Managed volumes (created or adopted, anonymous ones included) are never orphan candidates.
-    const managed = await gatewayManagedVolumeNames(this.db, nodeId);
+    const managed = await opfieldManagedVolumeNames(this.db, nodeId);
     return volumes.filter((volume: Record<string, any>) => {
       const name = String(volume?.Name ?? volume?.name ?? '');
       const labels = volume?.Labels ?? volume?.labels;
-      return !managed.has(name) && labels?.[DOCKER_MANAGED_VOLUME_LABEL] !== 'true';
+      return !managed.has(name) && !isDockerManagedVolumeLabelled(labels);
     });
   }
 

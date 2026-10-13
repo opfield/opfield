@@ -41,23 +41,23 @@ const envSchema = z.object({
   // App
   APP_URL: z.string().url().default('http://localhost:3000'),
   APP_VERSION: z.string().default('dev'),
-  GATEWAY_COMMERCIAL_DIR: z.string().min(1).default('/var/lib/gateway/commercial'),
-  GATEWAY_DEPLOYMENT_MODE: deploymentModeSchema,
+  OPFIELD_COMMERCIAL_DIR: z.string().min(1).default('/var/lib/gateway/commercial'),
+  OPFIELD_DEPLOYMENT_MODE: deploymentModeSchema,
   BIND_HOST: z.string().default('0.0.0.0'),
-  GATEWAY_LOCAL_HOSTS: z.string().optional(),
+  OPFIELD_LOCAL_HOSTS: z.string().optional(),
   WEB_TLS_BOOTSTRAP_MODE: z.enum(['http', 'https']).optional(),
   WEB_TLS_AUTO_DIR: nonEmptyStringWithDefault('/var/lib/gateway/tls'),
   PAGES_STORAGE_DIR: nonEmptyStringWithDefault('/var/lib/gateway/pages'),
 
   // Console on its own domain (managed cloud VMs, installer --domain/--acme-email): HTTPS with a Let's Encrypt
   // certificate the app obtains over HTTP-01 and renews itself. Unset keeps only the PORT listener.
-  GATEWAY_CONSOLE_DOMAIN: optionalNonEmptyString,
-  GATEWAY_ACME_EMAIL: optionalNonEmptyString,
+  OPFIELD_CONSOLE_DOMAIN: optionalNonEmptyString,
+  OPFIELD_ACME_EMAIL: optionalNonEmptyString,
   // ACME directory override for tests: a directory URL, or "staging" for the Let's Encrypt staging CA.
-  GATEWAY_ACME_DIRECTORY_URL: optionalNonEmptyString,
+  OPFIELD_ACME_DIRECTORY_URL: optionalNonEmptyString,
   // Container ports of the console listeners; the installer publishes them as 443 and 80.
-  GATEWAY_CONSOLE_HTTPS_PORT: z.coerce.number().int().min(1).max(65535).default(3443),
-  GATEWAY_CONSOLE_HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(3080),
+  OPFIELD_CONSOLE_HTTPS_PORT: z.coerce.number().int().min(1).max(65535).default(3443),
+  OPFIELD_CONSOLE_HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(3080),
 
   // Node-level transport for Docker Route Secure Links. Production accepts
   // either the digest-pinned release image or the official GHCR Relay release tag.
@@ -70,7 +70,7 @@ const envSchema = z.object({
   RELEASES_API_URL: z.string().url().default(`${UPDATES_BASE_URL}/releases`),
   ARTIFACT_BASE_URL: z.string().url().default(UPDATES_BASE_URL),
   // Signed update images are accepted from the installation's own repository and these (comma-separated).
-  GATEWAY_UPDATE_IMAGE_REPOSITORIES: z.string().default(OFFICIAL_IMAGE_REPOSITORIES.join(',')),
+  OPFIELD_UPDATE_IMAGE_REPOSITORIES: z.string().default(OFFICIAL_IMAGE_REPOSITORIES.join(',')),
   INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES: z.string().default(OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES.join(',')),
   UPDATE_CHECK_INTERVAL_HOURS: z.coerce.number().default(4),
 
@@ -130,20 +130,20 @@ const envSchema = z.object({
   GRPC_TLS_CERT: optionalNonEmptyString,
   GRPC_TLS_KEY: optionalNonEmptyString,
   GRPC_TLS_AUTO_DIR: nonEmptyStringWithDefault('/var/lib/gateway/tls'),
-  GATEWAY_RELAY_IDENTITY_DIR: nonEmptyStringWithDefault('/var/lib/gateway-relay'),
-  GATEWAY_RELAY_TARGET: nonEmptyStringWithDefault('relay:9443'),
-  GATEWAY_RELAY_REQUIRED: z
+  OPFIELD_RELAY_IDENTITY_DIR: nonEmptyStringWithDefault('/var/lib/gateway-relay'),
+  OPFIELD_RELAY_TARGET: nonEmptyStringWithDefault('relay:9443'),
+  OPFIELD_RELAY_REQUIRED: z
     .string()
     .default('false')
     .transform((v) => v === 'true' || v === '1'),
-  GATEWAY_RELAY_MANAGED: z
+  OPFIELD_RELAY_MANAGED: z
     .string()
     .default('false')
     .transform((v) => v === 'true' || v === '1'),
-  GATEWAY_RELAY_IMAGE_REF: optionalNonEmptyString,
-  GATEWAY_RELAY_SERVICE_NAME: nonEmptyStringWithDefault('relay'),
-  GATEWAY_RELAY_BUILD_VERSION: optionalNonEmptyString,
-  GATEWAY_RELAY_PROTOCOL_MAJOR: z.coerce.number().int().positive().default(1),
+  OPFIELD_RELAY_IMAGE_REF: optionalNonEmptyString,
+  OPFIELD_RELAY_SERVICE_NAME: nonEmptyStringWithDefault('relay'),
+  OPFIELD_RELAY_BUILD_VERSION: optionalNonEmptyString,
+  OPFIELD_RELAY_PROTOCOL_MAJOR: z.coerce.number().int().positive().default(1),
 
   BACKUP_RUNNER_IMAGE: optionalNonEmptyString,
 
@@ -153,6 +153,37 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+/** Prefix of every Opfield environment variable. */
+export const ENV_PREFIX = 'OPFIELD_';
+// legacy-name: GATEWAY_* environment names of .env and docker-compose.yml files written before 2.12.1 — remove once
+// every installation's files were rewritten by the 2.12.1 foundation migrator, which renames them to OPFIELD_*.
+export const LEGACY_ENV_PREFIX = 'GATEWAY_';
+
+/** The OPFIELD_* name of a legacy GATEWAY_* environment variable; null for any other name. */
+export function opfieldEnvName(legacyName: string): string | null {
+  if (!legacyName.startsWith(LEGACY_ENV_PREFIX) || legacyName.length === LEGACY_ENV_PREFIX.length) return null;
+  return `${ENV_PREFIX}${legacyName.slice(LEGACY_ENV_PREFIX.length)}`;
+}
+
+/**
+ * Gives every legacy GATEWAY_* variable its OPFIELD_* name, unless the OPFIELD_* one is set: an installation whose
+ * files still carry the old names runs as if it had the new ones. Mutates and returns `env`.
+ */
+export function applyLegacyEnvNames(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  for (const [name, value] of Object.entries(env)) {
+    const current = opfieldEnvName(name);
+    if (!current || value === undefined || env[current] !== undefined) continue;
+    env[current] = value;
+  }
+  return env;
+}
+
+/** The OPFIELD_<suffix> variable, or its legacy GATEWAY_<suffix> name when only that is set. */
+export function readOpfieldEnv(suffix: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
+  // legacy-name: GATEWAY_<suffix> — see LEGACY_ENV_PREFIX.
+  return env[`${ENV_PREFIX}${suffix}`] ?? env[`${LEGACY_ENV_PREFIX}${suffix}`];
+}
+
 let cachedEnv: Env | null = null;
 
 export function getEnv(): Env {
@@ -160,6 +191,8 @@ export function getEnv(): Env {
     return cachedEnv;
   }
 
+  // Code that reads process.env directly sees the OPFIELD_* names too.
+  applyLegacyEnvNames(process.env);
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
@@ -186,9 +219,9 @@ export function getEnv(): Env {
   return cachedEnv;
 }
 
-export function getDeploymentMode(): Env['GATEWAY_DEPLOYMENT_MODE'] {
-  const result = deploymentModeSchema.safeParse(process.env.GATEWAY_DEPLOYMENT_MODE);
-  if (!result.success) throw new Error('Invalid GATEWAY_DEPLOYMENT_MODE');
+export function getDeploymentMode(): Env['OPFIELD_DEPLOYMENT_MODE'] {
+  const result = deploymentModeSchema.safeParse(readOpfieldEnv('DEPLOYMENT_MODE'));
+  if (!result.success) throw new Error('Invalid OPFIELD_DEPLOYMENT_MODE');
   return result.data;
 }
 

@@ -7,7 +7,7 @@ import type {
   ApplyWitnessesCommand,
   AvailabilityMemberCommand,
   CommandResult,
-  GatewayCommand,
+  OpfieldCommand,
   ProxyMaintenanceFlag,
   RelayGrantAssignment as WireRelayGrantAssignment,
 } from '@/grpc/generated/types.js';
@@ -215,7 +215,7 @@ export class NodeDispatchService {
 
   async sendDockerBuildCommand(
     nodeId: string,
-    command: NonNullable<GatewayCommand['dockerBuild']>
+    command: NonNullable<OpfieldCommand['dockerBuild']>
   ): Promise<CommandResult> {
     const dispatched = await this.dispatchDockerBuildCommand(nodeId, command);
     void dispatched.accepted.catch(() => {});
@@ -224,7 +224,7 @@ export class NodeDispatchService {
 
   async dispatchDockerBuildCommand(
     nodeId: string,
-    command: NonNullable<GatewayCommand['dockerBuild']>
+    command: NonNullable<OpfieldCommand['dockerBuild']>
   ): Promise<DispatchedCommand> {
     await this.assertNodeMutable(nodeId);
     await this.assertBuilderNode(nodeId);
@@ -503,7 +503,7 @@ export class NodeDispatchService {
 
   async sendDockerAvailabilityCommand(
     nodeId: string,
-    command: Omit<NonNullable<GatewayCommand['dockerAvailability']>, 'generation'> & {
+    command: Omit<NonNullable<OpfieldCommand['dockerAvailability']>, 'generation'> & {
       generation: number | string;
     },
     timeoutMs?: number
@@ -1142,7 +1142,7 @@ export class NodeDispatchService {
 
   async sendPagesCommand<T extends Record<string, unknown> = Record<string, unknown>>(
     nodeId: string,
-    command: Partial<GatewayCommand>,
+    command: Partial<OpfieldCommand>,
     timeoutMs = 120_000
   ): Promise<T> {
     await this.assertNodeMutable(nodeId);
@@ -1161,7 +1161,7 @@ export class NodeDispatchService {
 
   async sendPagesRuntimeConfigCommand<T extends Record<string, unknown> = Record<string, unknown>>(
     nodeId: string,
-    command: Partial<GatewayCommand>,
+    command: Partial<OpfieldCommand>,
     timeoutMs = 120_000
   ): Promise<T> {
     await this.assertNodeMutable(nodeId);

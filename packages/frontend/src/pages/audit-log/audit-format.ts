@@ -91,7 +91,7 @@ export function getAuditDescription(entry: AuditLogEntry): string | null {
 
 export function buildAuditExportFilename(format: AuditExportFormat): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `gateway-audit-log-${timestamp}.${format}`;
+  return `opfield-audit-log-${timestamp}.${format}`;
 }
 
 export function downloadTextFile(content: string, filename: string, type: string) {

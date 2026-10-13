@@ -37,7 +37,7 @@ export type AlertCategory =
   | 'compose'
   | 'proxy'
   | 'pages'
-  | 'gateway'
+  | 'opfield'
   | 'logging'
   | 'integration'
   | 'certificate'
@@ -462,7 +462,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     ],
   },
   {
-    id: 'gateway',
+    id: 'opfield',
     label: 'Opfield',
     // Gateway's own host, process and dependencies, sampled once a minute by Gateway diagnostics.
     metrics: [

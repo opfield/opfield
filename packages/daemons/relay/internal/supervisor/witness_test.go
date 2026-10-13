@@ -17,11 +17,11 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/updateauth"
-	"github.com/wiolett-industries/gateway/daemon-shared/witnessactivation"
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/updateauth"
+	"github.com/opfield/opfield/daemon-shared/witnessactivation"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -642,7 +642,7 @@ func TestApplyWitnessesCommandAndProtectedGate(t *testing.T) {
 	}
 	protected := &Plugin{cfg: &config.Config{Protected: config.ProtectedConfig{Enabled: true}}}
 	optedIn := &Plugin{cfg: &config.Config{Protected: config.ProtectedConfig{Enabled: true, AllowDatabaseWitness: true}}}
-	command := &pb.GatewayCommand{Payload: &pb.GatewayCommand_ApplyWitnesses{ApplyWitnesses: &pb.ApplyWitnessesCommand{}}}
+	command := &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_ApplyWitnesses{ApplyWitnesses: &pb.ApplyWitnessesCommand{}}}
 	if protected.ProtectedCommandAllowed(command) {
 		t.Fatal("a protected relay without the opt-in accepts witnesses")
 	}

@@ -1,10 +1,29 @@
 import type { KeyObject } from 'node:crypto';
 
+/** Relay capability: the relay accepts grants with audience `opfield-relay`. */
+export const GRANT_AUDIENCE_OPFIELD_CAPABILITY = 'grant_audience_opfield_v1';
+
+// legacy-name: `wiolett-relay` grant audience — relays before 2.12.1 accept only it; remove once every relay reports
+// GRANT_AUDIENCE_OPFIELD_CAPABILITY.
+export type RelayGrantAudience = 'opfield-relay' | 'wiolett-relay';
+
+/** `opfield-relay` only when every relay of the pool accepts it; one older relay keeps the whole pool on the old one. */
+export function relayGrantAudience(
+  relayFeatures: ReadonlyArray<readonly string[] | null | undefined>
+): RelayGrantAudience {
+  return relayFeatures.length > 0 &&
+    relayFeatures.every((features) => Array.isArray(features) && features.includes(GRANT_AUDIENCE_OPFIELD_CAPABILITY))
+    ? 'opfield-relay'
+    : 'wiolett-relay';
+}
+
 /** What signing a grant needs: the policy state, settings and the active key, decrypted once. */
 export interface RelayGrantSigningKey {
   state: { revision: number; gatewayInstanceId: string };
   settings: { relayGrantTtlHours: number; relayPolicyLeaseHours: number };
   keyId: string;
+  /** Grant audience every relay of the pool accepts (see relayGrantAudience). */
+  audience: RelayGrantAudience;
   /** Null for an unsigned build (see RelayGrantSigningContext.unsigned). */
   privateKey: KeyObject | null;
 }

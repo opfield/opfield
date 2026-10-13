@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 func TestEnsureHostIdentityAnswersFromConfiguredPath(t *testing.T) {
@@ -19,9 +19,9 @@ func TestEnsureHostIdentityAnswersFromConfiguredPath(t *testing.T) {
 	if err := os.WriteFile(path, []byte(identity+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := &pb.GatewayCommand{
+	cmd := &pb.OpfieldCommand{
 		CommandId: "ensure-1",
-		Payload:   &pb.GatewayCommand_NodeFile{NodeFile: &pb.NodeFileCommand{Action: "ensure-host-identity"}},
+		Payload:   &pb.OpfieldCommand_NodeFile{NodeFile: &pb.NodeFileCommand{Action: "ensure-host-identity"}},
 	}
 
 	result := handleNodeFile(context.Background(), cmd, path)

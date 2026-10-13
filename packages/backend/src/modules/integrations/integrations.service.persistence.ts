@@ -315,8 +315,8 @@ export abstract class IntegrationsPersistenceService extends IntegrationsCoreSer
       try {
         probeRecord = await client.createDnsRecord(probeZone.id, {
           type: 'TXT',
-          name: `_gateway-permission-check.${probeZone.name}`,
-          content: `gateway-${Date.now()}`,
+          name: `_opfield-permission-check.${probeZone.name}`,
+          content: `opfield-${Date.now()}`,
           ttl: 60,
           comment: 'Opfield permission check',
         });

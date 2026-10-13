@@ -69,7 +69,7 @@ export interface PermissionGroup {
   folderId?: string | null;
   sortOrder?: number;
   scopes: string[];
-  requireGateway2fa?: boolean;
+  require2fa?: boolean;
   inheritedScopes?: string[];
   memberCount?: number;
   createdAt: string;
@@ -150,8 +150,8 @@ export interface AuthProvisioningSettings {
     sendInvitationOnUserCreate?: boolean;
     fileUploadMaxBytes: number;
     fileOpenMaxBytes: number;
-    gatewayGrpcPublicTarget: string | null;
-    gatewayGrpcLocalIp: string | null;
+    grpcPublicTarget: string | null;
+    grpcLocalIp: string | null;
     relayAutoRecovery: boolean;
     relay?: {
       dataLanes: number;

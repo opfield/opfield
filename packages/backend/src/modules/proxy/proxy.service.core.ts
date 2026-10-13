@@ -26,6 +26,7 @@ import type { AdditionalRouteService } from './additional-route.service.js';
 import { supportsPagesRouteTemplate } from './additional-route-template.js';
 import { effectiveMaintenance } from './effective-maintenance.js';
 import { MAINTENANCE_FLAG_CAPABILITY } from './nginx-maintenance-flag-guard.js';
+import { NGINX_OPFIELD_NAMES_CAPABILITY, nginxNamesForNode } from './nginx-node-names.js';
 import type { NginxTemplateService } from './nginx-template.service.js';
 import type { CreateProxyHostInput, UpdateProxyHostInput } from './proxy.schemas.js';
 import {
@@ -350,7 +351,7 @@ export abstract class ProxyServiceCore {
     runOutsideProxyLocks(() => this.eventBus?.publish('proxy.host.changed', { id, action, domain, ...extra }));
   }
 
-  protected async isGatewayPublicRoute(host: Pick<ProxyHostRow, 'domainNames'>): Promise<boolean> {
+  protected async isOpfieldPublicRoute(host: Pick<ProxyHostRow, 'domainNames'>): Promise<boolean> {
     const publicUrl = await this.generalSettings?.getPublicUrl();
     if (!publicUrl) return false;
     let publicHostname: string;
@@ -711,8 +712,11 @@ export abstract class ProxyServiceCore {
     accessList: ProxyHostConfig['accessList'],
     pagesRouteIncludePathOverride?: string
   ): Promise<string> {
-    // Raw mode is an explicit user-owned escape hatch and is never rewritten.
-    if ((host.type === 'raw' || host.rawConfigEnabled) && host.rawConfig) return host.rawConfig;
+    // Raw mode is an explicit user-owned escape hatch: only the node's file and nginx names in it follow the node
+    // (nginx-node-names.ts).
+    if ((host.type === 'raw' || host.rawConfigEnabled) && host.rawConfig) {
+      return this.withNodeNginxNames(host.nodeId, host.rawConfig);
+    }
 
     const usesSecureLink =
       isDockerUpstream(host.upstreamKind) && host.secureLinkGeneration > 0 && host.secureLinkMigratedAt != null;
@@ -746,14 +750,14 @@ export abstract class ProxyServiceCore {
       upstreamIpv6Enabled: host.upstreamIpv6Enabled,
       secureLinkUpstream: usesSecureLink || usesAvailabilityMembers || usesRegistryIngress,
       secureLinkSocketPath: usesSecureLink
-        ? `/run/gateway-secure-links/${host.id}.sock`
+        ? `/run/opfield-secure-links/${host.id}.sock`
         : usesAvailabilityMembers
-          ? `/run/gateway-secure-links/${availabilityMembers[0]!.id}.sock`
+          ? `/run/opfield-secure-links/${availabilityMembers[0]!.id}.sock`
           : usesRegistryIngress
-            ? `/run/gateway-registry-links/${host.id}.sock`
+            ? `/run/opfield-registry-links/${host.id}.sock`
             : undefined,
       secureLinkSocketPaths: usesAvailabilityMembers
-        ? availabilityMembers.map((binding) => `/run/gateway-secure-links/${binding.id}.sock`)
+        ? availabilityMembers.map((binding) => `/run/opfield-secure-links/${binding.id}.sock`)
         : undefined,
       registryAuthRealm,
       additionalSecureLinks: await Promise.all(
@@ -765,9 +769,9 @@ export abstract class ProxyServiceCore {
             id: binding.id,
             name: binding.name,
             scheme: binding.forwardScheme,
-            socketPath: `/run/gateway-secure-links/${binding.id}.sock`,
+            socketPath: `/run/opfield-secure-links/${binding.id}.sock`,
             socketPaths:
-              members.length > 0 ? members.map((member) => `/run/gateway-secure-links/${member.id}.sock`) : undefined,
+              members.length > 0 ? members.map((member) => `/run/opfield-secure-links/${member.id}.sock`) : undefined,
           };
         })
       ),
@@ -833,7 +837,17 @@ export abstract class ProxyServiceCore {
     }
     // Every server block on a node with the ingress health responder answers the reserved health path (rendered
     // per node: an older daemon lacks the generation variable the location uses).
-    return (await this.nodeServesIngressHealth(host.nodeId)) ? withIngressHealthLocation(result) : result;
+    if (await this.nodeServesIngressHealth(host.nodeId)) result = withIngressHealthLocation(result);
+    return this.withNodeNginxNames(host.nodeId, result);
+  }
+
+  /**
+   * A config with the names the node runs with: the Opfield ones once its daemon reports them, else the pre-Opfield
+   * ones (a 2.12.0 daemon, or a newer one the launcher has not committed yet). See nginx-node-names.ts.
+   */
+  protected async withNodeNginxNames(nodeId: string | null, config: string): Promise<string> {
+    const opfieldNames = !nodeId || (await this.nodeReports(nodeId, NGINX_OPFIELD_NAMES_CAPABILITY));
+    return nginxNamesForNode(config, opfieldNames);
   }
 
   protected async nodeServesIngressHealth(nodeId: string | null): Promise<boolean> {

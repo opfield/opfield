@@ -39,11 +39,11 @@ const SESSION: SessionData = {
 
 function createDb({
   isBlocked = false,
-  requireGateway2fa = false,
+  require2fa = false,
   authMethod = USER.authMethod,
 }: {
   isBlocked?: boolean;
-  requireGateway2fa?: boolean;
+  require2fa?: boolean;
   authMethod?: User['authMethod'];
 } = {}): DrizzleClient {
   return {
@@ -67,7 +67,7 @@ function createDb({
             parentId: null,
             name: USER.groupName,
             scopes: USER.scopes,
-            requireGateway2fa,
+            require2fa,
           },
         ]),
       },
@@ -103,13 +103,13 @@ function createOptionalApp() {
 function registerSession({
   csrfValid = true,
   isBlocked = false,
-  requireGateway2fa = false,
+  require2fa = false,
   authMethod = USER.authMethod,
   session = SESSION,
 }: {
   csrfValid?: boolean;
   isBlocked?: boolean;
-  requireGateway2fa?: boolean;
+  require2fa?: boolean;
   authMethod?: User['authMethod'];
   session?: SessionData;
 } = {}) {
@@ -121,7 +121,7 @@ function registerSession({
     destroySession: vi.fn().mockResolvedValue(undefined),
   };
   container.registerInstance(SessionService, sessionService as unknown as SessionService);
-  container.registerInstance(TOKENS.DrizzleClient, createDb({ isBlocked, requireGateway2fa, authMethod }));
+  container.registerInstance(TOKENS.DrizzleClient, createDb({ isBlocked, require2fa, authMethod }));
   return sessionService;
 }
 
@@ -347,24 +347,27 @@ describe('authMiddleware browser session credentials', () => {
     expect(queryResponse.status).toBe(401);
   });
 
-  it('keeps API-token mutations independent of CSRF', async () => {
-    container.registerInstance(TokensService, {
-      validateToken: vi.fn().mockResolvedValue({ user: USER, scopes: USER.scopes }),
-    } as unknown as TokensService);
+  it.each([
+    ['opf_test_token'],
+    ['gw_test_token'],
+  ])('keeps API-token mutations independent of CSRF (%s)', async (token) => {
+    const validateToken = vi.fn().mockResolvedValue({ user: USER, scopes: USER.scopes });
+    container.registerInstance(TokensService, { validateToken } as unknown as TokensService);
 
     const response = await createApp().request('/mutate', {
       method: 'POST',
-      headers: { Authorization: 'Bearer gw_test_token' },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ userId: USER.id });
+    expect(validateToken).toHaveBeenCalledWith(token);
   });
 
   it('allows an unsatisfied local session until its MFA grace deadline', async () => {
     registerSession({
       authMethod: 'password',
-      requireGateway2fa: true,
+      require2fa: true,
       session: { ...SESSION, mfaGraceExpiresAt: Date.now() + 60_000 },
     });
 
@@ -378,7 +381,7 @@ describe('authMiddleware browser session credentials', () => {
   it('drops an unsatisfied local session after its MFA grace deadline', async () => {
     const sessionService = registerSession({
       authMethod: 'password',
-      requireGateway2fa: true,
+      require2fa: true,
       session: { ...SESSION, mfaGraceExpiresAt: Date.now() - 1 },
     });
 
@@ -394,7 +397,7 @@ describe('authMiddleware browser session credentials', () => {
   it('keeps an MFA-satisfied local session after its grace deadline', async () => {
     registerSession({
       authMethod: 'password',
-      requireGateway2fa: true,
+      require2fa: true,
       session: {
         ...SESSION,
         mfaSatisfiedAt: Date.now() - 60_000,
@@ -425,7 +428,7 @@ describe('authMiddleware browser session credentials', () => {
   it('keeps OIDC browser sessions outside Gateway MFA grace enforcement', async () => {
     registerSession({
       authMethod: 'oidc',
-      requireGateway2fa: true,
+      require2fa: true,
       session: { ...SESSION, mfaGraceExpiresAt: Date.now() - 1 },
     });
 
@@ -439,7 +442,7 @@ describe('authMiddleware browser session credentials', () => {
   it('treats an expired MFA grace session as anonymous under optional authentication', async () => {
     const sessionService = registerSession({
       authMethod: 'password',
-      requireGateway2fa: true,
+      require2fa: true,
       session: { ...SESSION, mfaGraceExpiresAt: Date.now() - 1 },
     });
 

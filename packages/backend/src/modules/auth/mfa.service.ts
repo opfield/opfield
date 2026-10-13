@@ -89,17 +89,17 @@ export class MfaService {
     private readonly cryptoService: CryptoService
   ) {}
 
-  async isGatewayMfaRequired(userId: string): Promise<boolean> {
+  async isOpfieldMfaRequired(userId: string): Promise<boolean> {
     const [row] = await this.db
       .select({
         authMethod: users.authMethod,
-        requireGateway2fa: sql<boolean>`${permissionGroups.requireGateway2fa} OR EXISTS (SELECT 1 FROM permission_groups g WHERE g.id = ANY(${users.additionalGroupIds}) AND g.require_gateway_2fa)`,
+        require2fa: sql<boolean>`${permissionGroups.require2fa} OR EXISTS (SELECT 1 FROM permission_groups g WHERE g.id = ANY(${users.additionalGroupIds}) AND g.require_2fa)`,
       })
       .from(users)
       .innerJoin(permissionGroups, eq(permissionGroups.id, users.groupId))
       .where(eq(users.id, userId))
       .limit(1);
-    return Boolean(row?.requireGateway2fa && row.authMethod !== 'oidc');
+    return Boolean(row?.require2fa && row.authMethod !== 'oidc');
   }
 
   async getStatus(

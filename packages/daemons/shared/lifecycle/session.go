@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	"github.com/wiolett-industries/gateway/daemon-shared/exec"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/exec"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
 	"google.golang.org/grpc"
 )
 
@@ -87,7 +87,7 @@ func (c *commandClock) localUnixMs(now time.Time) int64 {
 
 // observe records a received command. Call it for every command, before its
 // deadline is checked, with the time it was received.
-func (c *commandClock) observe(cmd *pb.GatewayCommand, receivedAt time.Time) {
+func (c *commandClock) observe(cmd *pb.OpfieldCommand, receivedAt time.Time) {
 	sentAt := cmd.GetSentAtUnixMs()
 	if sentAt <= 0 {
 		return
@@ -105,7 +105,7 @@ func (c *commandClock) observe(cmd *pb.GatewayCommand, receivedAt time.Time) {
 // the tolerance. It is false when the command has no deadline or no send
 // time: an older gateway's deadline can only be compared against this host's
 // clock, which is unsafe, so such commands never expire.
-func (c *commandClock) remaining(cmd *pb.GatewayCommand, now time.Time) (time.Duration, bool) {
+func (c *commandClock) remaining(cmd *pb.OpfieldCommand, now time.Time) (time.Duration, bool) {
 	expiresAt, sentAt := cmd.GetExpiresAtUnixMs(), cmd.GetSentAtUnixMs()
 	if expiresAt <= 0 || sentAt <= 0 {
 		return 0, false
@@ -116,11 +116,11 @@ func (c *commandClock) remaining(cmd *pb.GatewayCommand, now time.Time) (time.Du
 	if !seen {
 		return 0, false
 	}
-	gatewayNow := c.localUnixMs(now) - minDelta
-	return time.Duration(expiresAt-gatewayNow)*time.Millisecond + commandExpiryTolerance, true
+	opfieldNow := c.localUnixMs(now) - minDelta
+	return time.Duration(expiresAt-opfieldNow)*time.Millisecond + commandExpiryTolerance, true
 }
 
-func (c *commandClock) expired(cmd *pb.GatewayCommand, now time.Time) bool {
+func (c *commandClock) expired(cmd *pb.OpfieldCommand, now time.Time) bool {
 	remaining, ok := c.remaining(cmd, now)
 	return ok && remaining < 0
 }
@@ -138,7 +138,7 @@ func (d *DaemonBase) buildRegistration() *pb.RegisterMessage {
 	if d.consoleUserRefusal != "" {
 		regMsg.Capabilities = append(regMsg.Capabilities, NodeConsoleUserUnavailableCapability)
 	}
-	regMsg.Capabilities = append(regMsg.Capabilities, CommandResultsResentCapability, GatewayNextAddressCapability)
+	regMsg.Capabilities = append(regMsg.Capabilities, CommandResultsResentCapability, OpfieldNextAddressCapability)
 	launcher := LauncherFeatures()
 	regMsg.Capabilities = append(regMsg.Capabilities, launcher.Capabilities()...)
 	regMsg.Capabilities = uniqueCapabilities(regMsg.Capabilities)
@@ -182,7 +182,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 		return err
 	}
 
-	d.logger.Info("connected to gateway", "node_id", d.state.NodeID)
+	d.logger.Info("connected to Opfield", "node_id", d.state.NodeID)
 
 	// Install gRPC log forwarder so daemon logs are streamed to the gateway
 	sessionLogger := slog.New(stream.NewGrpcLogHandlerWithWriter(writer, d.baseHandler))
@@ -253,7 +253,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 	backupPool := newAsyncCommandPool(maxAsyncBackupHandlers, true)
 	// dispatchAsync runs handle off the receive loop. A nil pool runs it
 	// immediately without a slot (reserved for short, urgent commands).
-	dispatchAsync := func(pool *asyncCommandPool, c *pb.GatewayCommand, handle func(*pb.GatewayCommand) *pb.CommandResult) {
+	dispatchAsync := func(pool *asyncCommandPool, c *pb.OpfieldCommand, handle func(*pb.OpfieldCommand) *pb.CommandResult) {
 		if pool != nil && !pool.wait {
 			select {
 			case pool.slots <- struct{}{}:
@@ -299,7 +299,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			sendAsyncResult(handle(c), "async command result")
 		}()
 	}
-	sendAsyncCommandResult := func(c *pb.GatewayCommand, handle func(*pb.GatewayCommand) *pb.CommandResult) {
+	sendAsyncCommandResult := func(c *pb.OpfieldCommand, handle func(*pb.OpfieldCommand) *pb.CommandResult) {
 		dispatchAsync(genericPool, c, handle)
 	}
 	var grantSyncs *grantSyncWorker
@@ -324,13 +324,13 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 		}
 		receivedAt := time.Now()
 		clock.observe(cmd, receivedAt)
-		if contact, ok := d.plugin.(GatewayContactPlugin); ok {
-			contact.NoteGatewayContact()
+		if contact, ok := d.plugin.(OpfieldContactPlugin); ok {
+			contact.NoteOpfieldContact()
 		}
 
 		// Terminal registration rejection: stop this session and back off.
 		if cmd.CommandId == registrationRejectedCommandID {
-			if ac, ok := cmd.Payload.(*pb.GatewayCommand_ApplyConfig); ok && ac.ApplyConfig != nil && ac.ApplyConfig.ConfigContent != "" {
+			if ac, ok := cmd.Payload.(*pb.OpfieldCommand_ApplyConfig); ok && ac.ApplyConfig != nil && ac.ApplyConfig.ConfigContent != "" {
 				return &RegistrationRejectedError{Message: ac.ApplyConfig.ConfigContent}
 			}
 			return &RegistrationRejectedError{Message: "no reason given"}
@@ -344,7 +344,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			d.sessionReceivedCommand = true
 			d.move.sessionStarted()
 			notifyLauncherControlReady(d.logger)
-			if err := recordGatewaySession(d.cfg.StateDir, receivedAt); err != nil {
+			if err := recordControlSession(d.cfg.StateDir, receivedAt); err != nil {
 				d.logger.Warn("could not record the Opfield session for the installer", "error", err)
 			}
 			if d.tunnelIdentityPending.CompareAndSwap(true, false) {
@@ -378,7 +378,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 
 		// Protected mode: refuse everything that is not known to be safe, before any handler sees it.
 		if refused := refuseProtectedCommand(d.protected, d.plugin, cmd); refused != nil {
-			if _, input := cmd.Payload.(*pb.GatewayCommand_ExecInput); input || cmd.CommandId == "" {
+			if _, input := cmd.Payload.(*pb.OpfieldCommand_ExecInput); input || cmd.CommandId == "" {
 				// Console input is fire-and-forget: there is no session to answer for.
 				continue
 			}
@@ -391,13 +391,13 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 
 		// Handle RequestHealth and RequestStats inline
 		switch cmd.Payload.(type) {
-		case *pb.GatewayCommand_RequestHealth:
+		case *pb.OpfieldCommand_RequestHealth:
 			report := collectFullHealth(d)
 			writer.Send(&pb.DaemonMessage{
 				Payload: &pb.DaemonMessage_HealthReport{HealthReport: report},
 			})
 			continue
-		case *pb.GatewayCommand_RequestStats:
+		case *pb.OpfieldCommand_RequestStats:
 			report := d.plugin.CollectStats()
 			if report != nil {
 				writer.Send(&pb.DaemonMessage{
@@ -405,7 +405,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				})
 			}
 			continue
-		case *pb.GatewayCommand_ExecInput:
+		case *pb.OpfieldCommand_ExecInput:
 			// Fire-and-forget: try shared node exec manager first, then fall through to plugin
 			if input := cmd.GetExecInput(); input != nil && nodeExecMgr.HasSession(input.ExecId) {
 				nodeExecMgr.HandleInput(input.ExecId, input.Data)
@@ -413,9 +413,9 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				d.plugin.HandleCommand(cmd)
 			}
 			continue
-		case *pb.GatewayCommand_NodeExec:
+		case *pb.OpfieldCommand_NodeExec:
 			// Handle node-level console exec (create/resize)
-			sendAsyncCommandResult(cmd, func(c *pb.GatewayCommand) *pb.CommandResult {
+			sendAsyncCommandResult(cmd, func(c *pb.OpfieldCommand) *pb.CommandResult {
 				if refused := refuseDisabledNodeExec(d.cfg, c); refused != nil {
 					return refused
 				}
@@ -425,27 +425,27 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				return handleNodeExec(sessionCtx, nodeExecMgr, c, d.cfg.Console.User)
 			})
 			continue
-		case *pb.GatewayCommand_NodeFile:
+		case *pb.OpfieldCommand_NodeFile:
 			// Handle node-level filesystem operations in shared lifecycle so all daemon types support them.
-			sendAsyncCommandResult(cmd, func(c *pb.GatewayCommand) *pb.CommandResult {
+			sendAsyncCommandResult(cmd, func(c *pb.OpfieldCommand) *pb.CommandResult {
 				if refused := refuseDisabledNodeFile(d.cfg, c); refused != nil {
 					return refused
 				}
 				return handleNodeFile(sessionCtx, c, d.cfg.HostIdentityPath)
 			})
 			continue
-		case *pb.GatewayCommand_DockerImage,
-			*pb.GatewayCommand_DockerLogs,
-			*pb.GatewayCommand_DockerDeployment,
-			*pb.GatewayCommand_DockerVolume,
-			*pb.GatewayCommand_DockerFile,
-			*pb.GatewayCommand_DockerExec,
-			*pb.GatewayCommand_DockerMigration,
-			*pb.GatewayCommand_DockerDatabase:
+		case *pb.OpfieldCommand_DockerImage,
+			*pb.OpfieldCommand_DockerLogs,
+			*pb.OpfieldCommand_DockerDeployment,
+			*pb.OpfieldCommand_DockerVolume,
+			*pb.OpfieldCommand_DockerFile,
+			*pb.OpfieldCommand_DockerExec,
+			*pb.OpfieldCommand_DockerMigration,
+			*pb.OpfieldCommand_DockerDatabase:
 			// Long-running Docker I/O must not block the command receive loop.
 			sendAsyncCommandResult(cmd, d.plugin.HandleCommand)
 			continue
-		case *pb.GatewayCommand_DockerCompose:
+		case *pb.OpfieldCommand_DockerCompose:
 			if cmd.GetDockerCompose().GetAction() == "cancel" {
 				// Cancellation must reach the executor while the operation it
 				// cancels still holds a compose slot.
@@ -454,13 +454,13 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				dispatchAsync(composePool, cmd, d.plugin.HandleCommand)
 			}
 			continue
-		case *pb.GatewayCommand_DockerStorage:
+		case *pb.OpfieldCommand_DockerStorage:
 			dispatchAsync(storagePool, cmd, d.plugin.HandleCommand)
 			continue
-		case *pb.GatewayCommand_DockerBackup:
+		case *pb.OpfieldCommand_DockerBackup:
 			dispatchAsync(backupPool, cmd, d.plugin.HandleCommand)
 			continue
-		case *pb.GatewayCommand_SyncRelayGrants:
+		case *pb.OpfieldCommand_SyncRelayGrants:
 			if grantSyncs == nil {
 				if err := writer.Send(&pb.DaemonMessage{Payload: &pb.DaemonMessage_CommandResult{CommandResult: &pb.CommandResult{
 					CommandId: cmd.CommandId, Success: false, Error: "daemon does not support relay grants",
@@ -472,8 +472,8 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			// Applied in order on its own worker: the commands behind it are served meanwhile (S6).
 			grantSyncs.submit(cmd)
 			continue
-		case *pb.GatewayCommand_SyncProxySecureLinks:
-			sendAsyncCommandResult(cmd, func(c *pb.GatewayCommand) *pb.CommandResult {
+		case *pb.OpfieldCommand_SyncProxySecureLinks:
+			sendAsyncCommandResult(cmd, func(c *pb.OpfieldCommand) *pb.CommandResult {
 				result := &pb.CommandResult{CommandId: c.CommandId, Success: true}
 				secureLinkPlugin, ok := d.plugin.(ProxySecureLinkPlugin)
 				if !ok {
@@ -488,8 +488,8 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				return result
 			})
 			continue
-		case *pb.GatewayCommand_ProbeProxySecureLink:
-			sendAsyncCommandResult(cmd, func(c *pb.GatewayCommand) *pb.CommandResult {
+		case *pb.OpfieldCommand_ProbeProxySecureLink:
+			sendAsyncCommandResult(cmd, func(c *pb.OpfieldCommand) *pb.CommandResult {
 				result := &pb.CommandResult{CommandId: c.CommandId, Success: true}
 				secureLinkPlugin, ok := d.plugin.(ProxySecureLinkProbePlugin)
 				if !ok {
@@ -504,8 +504,8 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				return result
 			})
 			continue
-		case *pb.GatewayCommand_ProbePagesRoute:
-			sendAsyncCommandResult(cmd, func(c *pb.GatewayCommand) *pb.CommandResult {
+		case *pb.OpfieldCommand_ProbePagesRoute:
+			sendAsyncCommandResult(cmd, func(c *pb.OpfieldCommand) *pb.CommandResult {
 				result := &pb.CommandResult{CommandId: c.CommandId, Success: true}
 				pagesPlugin, ok := d.plugin.(PagesRouteProbePlugin)
 				if !ok {
@@ -520,14 +520,14 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				return result
 			})
 			continue
-		case *pb.GatewayCommand_RenewRelayIdentity, *pb.GatewayCommand_UpdateRelayWorker:
+		case *pb.OpfieldCommand_RenewRelayIdentity, *pb.OpfieldCommand_UpdateRelayWorker:
 			// Relay supervisor work that takes tens of seconds. Handled off the
 			// receive loop, so policy pushes and drains for the relay are not
 			// queued behind it until they time out.
 			sendAsyncCommandResult(cmd, d.plugin.HandleCommand)
 			continue
-		case *pb.GatewayCommand_ProbeRelayCandidate:
-			sendAsyncCommandResult(cmd, func(c *pb.GatewayCommand) *pb.CommandResult {
+		case *pb.OpfieldCommand_ProbeRelayCandidate:
+			sendAsyncCommandResult(cmd, func(c *pb.OpfieldCommand) *pb.CommandResult {
 				result := &pb.CommandResult{CommandId: c.CommandId, Success: true}
 				probePlugin, ok := d.plugin.(RelayCandidateProbePlugin)
 				if !ok {
@@ -542,13 +542,13 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				return result
 			})
 			continue
-		case *pb.GatewayCommand_SetGatewayNextAddress:
+		case *pb.OpfieldCommand_SetOpfieldNextAddress:
 			// A small config file edit: answered inline.
-			if failed, _, err := d.results.send(d.handleSetGatewayNextAddress(cmd), time.Now()); failed != nil {
+			if failed, _, err := d.results.send(d.handleSetOpfieldNextAddress(cmd), time.Now()); failed != nil {
 				return err
 			}
 			continue
-		case *pb.GatewayCommand_UpdateDaemon:
+		case *pb.OpfieldCommand_UpdateDaemon:
 			// Self-update: download new binary, replace it on disk, acknowledge the
 			// command to the gateway, then exit so systemd restarts the daemon.
 			updateCmd := cmd.GetUpdateDaemon()
@@ -640,8 +640,29 @@ func collectFullHealth(d *DaemonBase) *pb.HealthReport {
 	report := d.plugin.CollectHealth(system)
 	if report != nil {
 		report.RelayLatencies = relaybridge.Latency.Samples()
+		addLegacyNames(report, "paths", LegacyHostPaths())
+		if d.cfg.UsesLegacyControlSection() {
+			addLegacyNames(report, "config", 1)
+		}
 	}
 	return report
+}
+
+// addLegacyNames adds count objects of kind still under their pre-Opfield
+// names to report.
+func addLegacyNames(report *pb.HealthReport, kind string, count uint32) {
+	if count == 0 {
+		return
+	}
+	if report.LegacyNames == nil {
+		report.LegacyNames = map[string]uint32{}
+	}
+	report.LegacyNames[kind] += count
+}
+
+// AddLegacyNames is addLegacyNames for plugins.
+func AddLegacyNames(report *pb.HealthReport, kind string, count uint32) {
+	addLegacyNames(report, kind, count)
 }
 
 // Client certificate renewal timing. The node renews once a third of the
@@ -850,7 +871,7 @@ func (d *DaemonBase) installRenewedClientCert(expiresAt int64) error {
 }
 
 // handleNodeExec handles node-level console create/resize commands.
-func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.GatewayCommand, consoleUser string) *pb.CommandResult {
+func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.OpfieldCommand, consoleUser string) *pb.CommandResult {
 	nodeExec := cmd.GetNodeExec()
 	result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 	sessionKey := nodeConsoleSessionKey(nodeExec.GetSessionKey())

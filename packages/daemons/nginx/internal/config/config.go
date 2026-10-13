@@ -3,19 +3,26 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 const (
-	canonicalHtpasswdDir = "/etc/nginx/gateway/htpasswd"
+	canonicalHtpasswdDir = naming.EtcDir + "/htpasswd"
 	legacyHtpasswdDir    = "/etc/nginx/htpasswd"
 )
 
 type Config struct {
-	Gateway GatewayConfig `yaml:"gateway"`
+	// Control is the control plane connection in effect: the opfield: section of the file, else its pre-Opfield
+	// gateway: section (see Load).
+	// legacy-name: gateway: config section of pre-Opfield installs — remove once every node reports none
+	Control ControlConfig `yaml:"gateway"`
+	// Opfield is the opfield: section as written in the file.
+	Opfield ControlConfig `yaml:"opfield"`
 	TLS     TLSConfig     `yaml:"tls"`
 	Nginx   NginxConfig   `yaml:"nginx"`
 	// Host console and file access settings shared by every daemon type.
@@ -29,12 +36,12 @@ type Config struct {
 	LogFormat        string `yaml:"log_format"`
 }
 
-type GatewayConfig struct {
+type ControlConfig struct {
 	Address    string `yaml:"address"`
 	Token      string `yaml:"token"`
 	CertSHA256 string `yaml:"cert_sha256"`
 	// NextAddress is the address Opfield announced it moves to
-	// (lifecycle.GatewayConfig.NextAddress).
+	// (lifecycle.ControlConfig.NextAddress).
 	NextAddress string `yaml:"next_address,omitempty"`
 }
 
@@ -53,7 +60,7 @@ type NginxConfig struct {
 	StubStatusURL    string `yaml:"stub_status_url"`
 	HtpasswdDir      string `yaml:"htpasswd_dir"`
 	AcmeChallengeDir string `yaml:"acme_challenge_dir"`
-	// PagesRoot is owned exclusively by nginx-daemon. Gateway Pages commands
+	// PagesRoot is owned exclusively by nginx-daemon. Opfield Pages commands
 	// carry opaque IDs, never filesystem paths, and all release data is derived
 	// below this directory.
 	PagesRoot string `yaml:"pages_root"`
@@ -71,7 +78,7 @@ func Load(path string) (*Config, error) {
 		LogFormat: "json",
 	}
 	cfg.Nginx.Binary = "/usr/sbin/nginx"
-	cfg.Nginx.ConfigDir = "/etc/nginx/gateway/conf.d"
+	cfg.Nginx.ConfigDir = naming.EtcDir + "/conf.d"
 	cfg.Nginx.CertsDir = "/etc/nginx/certs"
 	cfg.Nginx.LogsDir = "/var/log/nginx"
 	cfg.Nginx.GlobalConfig = "/etc/nginx/nginx.conf"
@@ -83,11 +90,14 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
-	// Gateway-generated host configs always reference the canonical directory.
+	// Opfield-generated host configs always reference the canonical directory.
 	// Normalize the legacy installer value so daemon updates cannot keep writing
 	// valid credentials to a path nginx never reads.
 	if cfg.Nginx.HtpasswdDir == legacyHtpasswdDir {
 		cfg.Nginx.HtpasswdDir = canonicalHtpasswdDir
+	}
+	if strings.TrimSpace(cfg.Opfield.Address) != "" {
+		cfg.Control = cfg.Opfield
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -98,8 +108,8 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if c.Gateway.Address == "" {
-		return fmt.Errorf("gateway.address is required")
+	if c.Control.Address == "" {
+		return fmt.Errorf("opfield.address is required")
 	}
 	if c.Nginx.Binary == "" {
 		return fmt.Errorf("nginx.binary is required")
@@ -111,4 +121,9 @@ func (c *Config) validate() error {
 		return fmt.Errorf("nginx.certs_dir is required")
 	}
 	return nil
+}
+
+// UsesLegacyControlSection reports whether the file's control section is still the pre-Opfield gateway: one.
+func (c *Config) UsesLegacyControlSection() bool {
+	return strings.TrimSpace(c.Opfield.Address) == "" && strings.TrimSpace(c.Control.Address) != ""
 }

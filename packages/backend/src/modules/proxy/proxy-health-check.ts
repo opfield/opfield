@@ -119,13 +119,13 @@ function stripBrackets(hostname: string): string {
 }
 
 /** Hostnames of the Gateway's own compose services (database, cache, relay, registry, local ClickHouse). */
-function gatewayInternalServiceNames(env: Partial<Env>): Set<string> {
+function opfieldInternalServiceNames(env: Partial<Env>): Set<string> {
   const names = [
     urlHostname(env.DATABASE_URL),
     urlHostname(env.REDIS_URL),
-    urlHostname(env.GATEWAY_RELAY_TARGET),
-    env.GATEWAY_RELAY_SERVICE_NAME?.toLowerCase(),
-    urlHostname(process.env.GATEWAY_INTERNAL_REGISTRY_URL || 'http://registry:5000'),
+    urlHostname(env.OPFIELD_RELAY_TARGET),
+    env.OPFIELD_RELAY_SERVICE_NAME?.toLowerCase(),
+    urlHostname(process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000'),
     'gateway-clickhouse',
   ];
   // Compose service names are single-label; a dotted or literal-IP host may be a shared server
@@ -146,23 +146,23 @@ function urlPort(raw: string | undefined, fallback: number): number | null {
 }
 
 /** Ports the Gateway's own services listen on (API, gRPC, database, cache, relay, registry). */
-export function gatewayServicePorts(env: Partial<Env>): Set<number> {
-  const registryUrl = process.env.GATEWAY_INTERNAL_REGISTRY_URL || 'http://registry:5000';
+export function opfieldServicePorts(env: Partial<Env>): Set<number> {
+  const registryUrl = process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000';
   const ports = [
     env.PORT ?? 3000,
     env.GRPC_PORT ?? 9443,
     urlPort(env.DATABASE_URL, 5432),
     urlPort(env.REDIS_URL, 6379),
-    urlPort(env.GATEWAY_RELAY_TARGET, 9443),
+    urlPort(env.OPFIELD_RELAY_TARGET, 9443),
     urlPort(registryUrl, registryUrl.startsWith('https:') ? 443 : 80),
   ];
   return new Set(ports.filter((port): port is number => Number.isInteger(port) && (port as number) > 0));
 }
 
-async function gatewayInternalServices(env: Partial<Env>): Promise<{ names: Set<string>; addresses: Set<string> }> {
+async function opfieldInternalServices(env: Partial<Env>): Promise<{ names: Set<string>; addresses: Set<string> }> {
   const now = Date.now();
   if (internalServiceCache && internalServiceCache.expiresAt > now) return internalServiceCache;
-  const names = gatewayInternalServiceNames(env);
+  const names = opfieldInternalServiceNames(env);
   const addresses = new Set<string>();
   await Promise.all(
     [...names].map(async (name) => {
@@ -213,11 +213,11 @@ export async function checkProxyHealthTarget(
   publicUrl?: string | null
 ): Promise<OutboundWebhookTargetCheck> {
   const result = await checkOutboundWebhookTarget(url, PROXY_HEALTH_CHECK_POLICY, env, publicUrl, {
-    selfAddressBlockedPorts: gatewayServicePorts(env),
+    selfAddressBlockedPorts: opfieldServicePorts(env),
   });
   if (!result.allowed) return result;
   const hostname = urlHostname(url);
-  const internal = await gatewayInternalServices(env);
+  const internal = await opfieldInternalServices(env);
   if (hostname && internal.names.has(hostname)) {
     return { ...result, allowed: false, reason: `Health check target ${hostname} is an Opfield internal service` };
   }

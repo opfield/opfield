@@ -38,7 +38,7 @@ import type {
   DockerFolderTreeNode,
   DockerNetwork,
   DockerVolume,
-  Node as GatewayNode,
+  Node as OpfieldNode,
 } from "@/types";
 
 const BRIDGE_NETWORK: DockerNetwork = {
@@ -105,7 +105,7 @@ const DEV_PREVIEW_VOLUMES: DockerVolume[] = [
 interface GwcaImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  nodes: GatewayNode[];
+  nodes: OpfieldNode[];
   onImported: () => void | Promise<void>;
   devPreview?: boolean;
 }
@@ -208,7 +208,7 @@ export function GwcaImportDialog({
     if (devPreview) {
       setFile(
         new File(["Opfield container archive development preview"], "payments-api-full.gwca", {
-          type: "application/vnd.wiolett.gwca",
+          type: "application/vnd.opfield.gwca",
         })
       );
       setMetadata(DEV_PREVIEW_METADATA);
@@ -443,7 +443,7 @@ export function GwcaImportDialog({
                   id="gwca-file"
                   type="file"
                   className="hidden"
-                  accept=".gwca,application/vnd.wiolett.gwca"
+                  accept=".gwca,application/vnd.opfield.gwca"
                   onChange={(event) => {
                     const selected = event.target.files?.[0] ?? null;
                     setFile(selected);

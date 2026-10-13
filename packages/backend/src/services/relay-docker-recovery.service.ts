@@ -1,4 +1,5 @@
 import type { Env } from '@/config/env.js';
+import { LEGACY_MANAGED_SERVICE_LABEL, MANAGED_SERVICE_LABEL } from '@/foundation/opfield-names.js';
 import type { DockerContainerEvent, DockerContainerFullInspect, DockerService } from './docker.service.js';
 import { DOCKER_COMPOSE_CLI_IMAGE_REF } from './update.service.js';
 
@@ -66,12 +67,12 @@ export class RelayDockerRecoveryService {
     >,
     private readonly env: Pick<
       Env,
-      'COMPOSE_PROJECT_DIR' | 'GATEWAY_RELAY_MANAGED' | 'GATEWAY_RELAY_IMAGE_REF' | 'GATEWAY_RELAY_SERVICE_NAME'
+      'COMPOSE_PROJECT_DIR' | 'OPFIELD_RELAY_MANAGED' | 'OPFIELD_RELAY_IMAGE_REF' | 'OPFIELD_RELAY_SERVICE_NAME'
     >
   ) {}
 
   setExpectedImage(imageRef: string): void {
-    this.env.GATEWAY_RELAY_IMAGE_REF = imageRef;
+    this.env.OPFIELD_RELAY_IMAGE_REF = imageRef;
   }
 
   /**
@@ -154,10 +155,10 @@ export class RelayDockerRecoveryService {
   }
 
   private expectedImage(): string {
-    if (!this.env.GATEWAY_RELAY_MANAGED) {
+    if (!this.env.OPFIELD_RELAY_MANAGED) {
       throw new RelayRecoverySafetyError('ownership_unverified', 'Relay is not installer-managed');
     }
-    const expectedImage = this.env.GATEWAY_RELAY_IMAGE_REF;
+    const expectedImage = this.env.OPFIELD_RELAY_IMAGE_REF;
     if (!expectedImage || !/@sha256:[a-f0-9]{64}$/.test(expectedImage)) {
       throw new RelayRecoverySafetyError('unexpected_image', 'Expected relay image digest is unavailable');
     }
@@ -172,12 +173,17 @@ export class RelayDockerRecoveryService {
       throw new RelayRecoverySafetyError('ownership_unverified', 'Configured Compose project directory is invalid');
     }
     const composeWorkingDir = configuredWorkingDir ?? appOwnership.composeWorkingDir;
-    const marker = `com.wiolett.gateway.managed-service=${this.env.GATEWAY_RELAY_SERVICE_NAME}`;
-    const matches = await this.docker.listContainersByLabel(marker);
+    const matches = new Map<string, { Id: string }>();
+    // legacy-name: a relay created before 2.12.1 keeps its label until it is recreated.
+    for (const label of [MANAGED_SERVICE_LABEL, LEGACY_MANAGED_SERVICE_LABEL]) {
+      for (const item of await this.docker.listContainersByLabel(`${label}=${this.env.OPFIELD_RELAY_SERVICE_NAME}`)) {
+        matches.set(item.Id, item);
+      }
+    }
     const owned: Array<{ container: DockerContainerFullInspect; ownership: Omit<RelayOwnership, 'container'> }> = [];
-    for (const match of matches) {
+    for (const match of matches.values()) {
       const container = (await this.docker.inspectContainer(match.Id)) as DockerContainerFullInspect;
-      const ownership = this.validateLabels(container, this.env.GATEWAY_RELAY_SERVICE_NAME);
+      const ownership = this.validateLabels(container, this.env.OPFIELD_RELAY_SERVICE_NAME);
       if (
         ownership.composeProject === appOwnership.composeProject &&
         (configuredWorkingDir || ownership.composeWorkingDir === appOwnership.composeWorkingDir)
@@ -247,7 +253,7 @@ export class RelayDockerRecoveryService {
             'up',
             '-d',
             ...(forceRecreate ? ['--force-recreate'] : []),
-            this.env.GATEWAY_RELAY_SERVICE_NAME,
+            this.env.OPFIELD_RELAY_SERVICE_NAME,
           ],
           HostConfig: {
             // Compose persists its working directory in container ownership
@@ -271,7 +277,7 @@ export class RelayDockerRecoveryService {
     const composeService = labels['com.docker.compose.service'];
     const composeProject = labels['com.docker.compose.project'];
     const composeWorkingDir = labels['com.docker.compose.project.working_dir'];
-    const managedService = labels['com.wiolett.gateway.managed-service'];
+    const managedService = labels[MANAGED_SERVICE_LABEL] ?? labels[LEGACY_MANAGED_SERVICE_LABEL];
     if (
       composeService !== service ||
       managedService !== service ||

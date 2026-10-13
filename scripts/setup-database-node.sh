@@ -2,7 +2,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Gateway managed-database node setup.
+# Opfield managed-database node setup.
 #
 # This is intentionally a thin, root-only wrapper around setup-docker-node.sh:
 # the existing docker-daemon remains the only daemon binary. Storage selection
@@ -71,11 +71,22 @@ prompt_choice() {
     echo "${reply:-$default}"
 }
 
+# legacy-name: GATEWAY_SETUP_VERSION, GATEWAY_RELEASE_DOWNLOAD_BASE, GATEWAY_DATABASE_STORAGE_ROOT and GATEWAY_DOCKER_MODE
+# installer environment — customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is not
+# set (the new name wins).
+for legacy_env in GATEWAY_SETUP_VERSION GATEWAY_RELEASE_DOWNLOAD_BASE GATEWAY_DATABASE_STORAGE_ROOT GATEWAY_DOCKER_MODE; do
+    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+    if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
+        printf -v "$opfield_env" '%s' "${!legacy_env}"
+    fi
+done
+unset legacy_env opfield_env
+
 # A release publishes this file with its own tag here, so setup-docker-node.sh comes from the same release.
 INSTALLER_RELEASE=latest
-SETUP_VERSION="${GATEWAY_SETUP_VERSION:-$INSTALLER_RELEASE}"
-RELEASE_DOWNLOAD_BASE="${GATEWAY_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/gateway/releases}"
-STORAGE_ROOT="${GATEWAY_DATABASE_STORAGE_ROOT:-}"
+SETUP_VERSION="${OPFIELD_SETUP_VERSION:-$INSTALLER_RELEASE}"
+RELEASE_DOWNLOAD_BASE="${OPFIELD_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/gateway/releases}"
+STORAGE_ROOT="${OPFIELD_DATABASE_STORAGE_ROOT:-}"
 RUN_USER="root"
 DRY_RUN=0
 NON_INTERACTIVE=0
@@ -142,7 +153,7 @@ while [[ $# -gt 0 ]]; do
             [[ $# -ge 2 ]] || die "--user requires a value"
             # setup-storage-node.sh runs this installer for storage nodes.
             if [[ "$2" != "root" ]]; then
-                [[ "${GATEWAY_DOCKER_MODE:-databases}" == "storage" ]] && die "Storage nodes must run docker-daemon as root."
+                [[ "${OPFIELD_DOCKER_MODE:-databases}" == "storage" ]] && die "Storage nodes must run docker-daemon as root."
                 die "Database nodes must run docker-daemon as root."
             fi
             shift 2
@@ -156,6 +167,16 @@ while [[ $# -gt 0 ]]; do
             NON_INTERACTIVE=1
             PASSTHROUGH+=("$1")
             shift
+            ;;
+        --opfield)
+            [[ $# -ge 2 ]] || die "--opfield requires a value"
+            PASSTHROUGH+=("$1" "$2")
+            shift 2
+            ;;
+        --opfield-cert-sha256)
+            [[ $# -ge 2 ]] || die "--opfield-cert-sha256 requires a value"
+            PASSTHROUGH+=("$1" "$2")
+            shift 2
             ;;
         -h|--help) usage ;;
         *) PASSTHROUGH+=("$1"); shift ;;
@@ -174,9 +195,12 @@ else
         [[ "$SETUP_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]] || die "Invalid release tag: ${SETUP_VERSION}"
         release_url="${RELEASE_DOWNLOAD_BASE%/}/download/${SETUP_VERSION}"
     fi
-    DOWNLOADED_DOCKER_SCRIPT=$(mktemp /tmp/gateway-setup-docker.XXXXXX)
-    checksums=$(mktemp /tmp/gateway-setup-checksums.XXXXXX)
-    curl -fsSL "${release_url}/gateway-daemon-installers.sha256" -o "$checksums" ||
+    DOWNLOADED_DOCKER_SCRIPT=$(mktemp /tmp/opfield-setup-docker.XXXXXX)
+    checksums=$(mktemp /tmp/opfield-setup-checksums.XXXXXX)
+    # legacy-name: gateway-daemon-installers.sha256, the only checksum list of releases before 2.12.1 (a pinned
+    # OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
+    curl -fsSL "${release_url}/opfield-node-installers.sha256" -o "$checksums" 2>/dev/null ||
+        curl -fsSL "${release_url}/gateway-daemon-installers.sha256" -o "$checksums" ||
         die "Could not download installer checksums."
     curl -fsSL "${release_url}/setup-docker-node.sh" -o "$DOWNLOADED_DOCKER_SCRIPT" ||
         die "Could not download setup-docker-node.sh."
@@ -191,10 +215,23 @@ fi
 
 # setup-docker-node performs the actual docker installation and enrollment.
 # Force the restricted node's service identity and preserve the caller's flags.
-export GATEWAY_DATABASE_STORAGE_ROOT="$STORAGE_ROOT"
-GATEWAY_DOCKER_MODE="${GATEWAY_DOCKER_MODE:-databases}"
-case "$GATEWAY_DOCKER_MODE" in
-    databases|storage) export GATEWAY_DOCKER_MODE ;;
-    *) die "Invalid restricted Docker mode '${GATEWAY_DOCKER_MODE}'" ;;
+export OPFIELD_DATABASE_STORAGE_ROOT="$STORAGE_ROOT"
+OPFIELD_DOCKER_MODE="${OPFIELD_DOCKER_MODE:-databases}"
+case "$OPFIELD_DOCKER_MODE" in
+    databases|storage) export OPFIELD_DOCKER_MODE ;;
+    *) die "Invalid restricted Docker mode '${OPFIELD_DOCKER_MODE}'" ;;
 esac
+# legacy-name: GATEWAY_DATABASE_STORAGE_ROOT and GATEWAY_DOCKER_MODE for a setup-docker-node.sh of a release before
+# 2.12.1 (a pinned OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
+export GATEWAY_DATABASE_STORAGE_ROOT="$OPFIELD_DATABASE_STORAGE_ROOT" GATEWAY_DOCKER_MODE="$OPFIELD_DOCKER_MODE"
+if ! grep -Eq '^[[:space:]]*--opfield\)' "$DOCKER_SCRIPT"; then
+    # legacy-name: --gateway flags for a setup-docker-node.sh of a release before 2.12.1 (a pinned
+    # OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
+    for i in "${!PASSTHROUGH[@]}"; do
+        case "${PASSTHROUGH[$i]}" in
+            --opfield) PASSTHROUGH[$i]="--gateway" ;;
+            --opfield-cert-sha256) PASSTHROUGH[$i]="--gateway-cert-sha256" ;;
+        esac
+    done
+fi
 bash "$DOCKER_SCRIPT" "${PASSTHROUGH[@]}" --user "$RUN_USER"

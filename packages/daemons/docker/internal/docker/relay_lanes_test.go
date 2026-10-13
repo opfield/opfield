@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaylane"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/relaylane"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

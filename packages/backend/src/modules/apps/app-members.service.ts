@@ -687,7 +687,7 @@ export class AppMembersService {
             resolved.refusal = { code: 'ROUTE_NOT_PLACEABLE', message: 'System routes cannot join an app' };
           } else if (
             container.isRegistered(ProxyService) &&
-            (await container.resolve(ProxyService).servesGatewayPublicUrl({ domainNames: row.domainNames ?? [] }))
+            (await container.resolve(ProxyService).servesOpfieldPublicUrl({ domainNames: row.domainNames ?? [] }))
           ) {
             resolved.refusal = {
               code: 'ROUTE_NOT_PLACEABLE',

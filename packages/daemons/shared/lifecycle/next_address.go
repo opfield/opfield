@@ -17,12 +17,12 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
-// GatewayNextAddressCapability marks a daemon that takes the address Opfield
-// moves to (SetGatewayNextAddressCommand): an installation exported and
+// OpfieldNextAddressCapability marks a daemon that takes the address Opfield
+// moves to (SetOpfieldNextAddressCommand): an installation exported and
 // restored on another host tells every node its new address before the old
 // host is shut down.
 //
@@ -35,7 +35,7 @@ import (
 // ready the next address becomes gateway.address, on disk and in the running
 // process: the control session dials it on its next attempt. Relay lanes and
 // tunnel connections that are up are not touched, and no daemon restarts.
-const GatewayNextAddressCapability = "gateway_next_address_v1"
+const OpfieldNextAddressCapability = "gateway_next_address_v1"
 
 const (
 	// nextAddressAfter is how long the control session must have failed
@@ -102,10 +102,10 @@ func notifyControlAddressChanged(address string) <-chan struct{} {
 	return done
 }
 
-// normalizeGatewayAddress checks that value is host:port the way the control
+// normalizeOpfieldAddress checks that value is host:port the way the control
 // session dials it: a hostname, an IPv4 address or a bracketed IPv6 address,
 // and a port from 1 to 65535, without a scheme, path or spaces.
-func normalizeGatewayAddress(value string) (string, error) {
+func normalizeOpfieldAddress(value string) (string, error) {
 	if value == "" {
 		return "", errors.New("address is empty")
 	}
@@ -172,28 +172,28 @@ func validHostname(host string) bool {
 	return numeric != nil
 }
 
-// sameGatewayAddress compares two addresses as the control session dials
+// sameOpfieldAddress compares two addresses as the control session dials
 // them (hostnames are case-insensitive, IP addresses in their usual form).
-func sameGatewayAddress(left, right string) bool {
-	if normalized, err := normalizeGatewayAddress(left); err == nil {
+func sameOpfieldAddress(left, right string) bool {
+	if normalized, err := normalizeOpfieldAddress(left); err == nil {
 		left = normalized
 	}
-	if normalized, err := normalizeGatewayAddress(right); err == nil {
+	if normalized, err := normalizeOpfieldAddress(right); err == nil {
 		right = normalized
 	}
 	return strings.EqualFold(left, right)
 }
 
-// gatewayConfigFileMu serializes the edits of the daemon config file.
-var gatewayConfigFileMu sync.Mutex
+// controlConfigFileMu serializes the edits of the daemon config file.
+var controlConfigFileMu sync.Mutex
 
-// editGatewayConfigFile changes keys of the gateway section of the config
+// editControlConfigFile changes keys of the gateway section of the config
 // file at path: every key in set gets its value, every key in remove goes.
 // Everything else in the file (other keys, their order and comments) stays,
 // and the file keeps its permissions. The file is replaced atomically.
-func editGatewayConfigFile(path string, set map[string]string, remove ...string) error {
-	gatewayConfigFileMu.Lock()
-	defer gatewayConfigFileMu.Unlock()
+func editControlConfigFile(path string, set map[string]string, remove ...string) error {
+	controlConfigFileMu.Lock()
+	defer controlConfigFileMu.Unlock()
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -210,13 +210,19 @@ func editGatewayConfigFile(path string, set map[string]string, remove ...string)
 		return errors.New("config file is not a YAML mapping")
 	}
 	root := document.Content[0]
-	gateway := yamlMappingValue(root, "gateway")
+	// The section the daemon loaded: opfield:, else the pre-Opfield gateway:.
+	var gateway *yaml.Node
+	for _, key := range ControlSectionKeys {
+		if gateway = yamlMappingValue(root, key); gateway != nil {
+			break
+		}
+	}
 	if gateway == nil {
 		gateway = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		root.Content = append(root.Content, yamlString("gateway"), gateway)
+		root.Content = append(root.Content, yamlString(ControlSectionKeys[0]), gateway)
 	}
 	if gateway.Kind != yaml.MappingNode {
-		return errors.New("config file has no gateway mapping")
+		return errors.New("config file has no opfield mapping")
 	}
 	for _, key := range remove {
 		yamlMappingDelete(gateway, key)
@@ -265,9 +271,9 @@ func yamlMappingDelete(mapping *yaml.Node, key string) {
 	}
 }
 
-// gatewayMove holds the address Opfield moves to and switches the control
-// connection to it (GatewayNextAddressCapability).
-type gatewayMove struct {
+// opfieldMove holds the address Opfield moves to and switches the control
+// connection to it (OpfieldNextAddressCapability).
+type opfieldMove struct {
 	cfgPath string
 	logger  *slog.Logger
 	now     func() time.Time
@@ -288,8 +294,8 @@ type gatewayMove struct {
 	unsaved bool
 }
 
-func newGatewayMove(cfgPath, current, next string, now func() time.Time, logger *slog.Logger, probe func(context.Context, string) error, apply func(string)) *gatewayMove {
-	m := &gatewayMove{
+func newOpfieldMove(cfgPath, current, next string, now func() time.Time, logger *slog.Logger, probe func(context.Context, string) error, apply func(string)) *opfieldMove {
+	m := &opfieldMove{
 		cfgPath:      cfgPath,
 		logger:       logger,
 		now:          now,
@@ -299,11 +305,11 @@ func newGatewayMove(cfgPath, current, next string, now func() time.Time, logger 
 		failingSince: now(),
 	}
 	if next != "" {
-		normalized, err := normalizeGatewayAddress(next)
+		normalized, err := normalizeOpfieldAddress(next)
 		switch {
 		case err != nil:
 			logger.Warn("ignoring the invalid Opfield next address in the config file", "next_address", next, "error", err)
-		case sameGatewayAddress(normalized, current):
+		case sameOpfieldAddress(normalized, current):
 		default:
 			m.next = normalized
 			logger.Info("Opfield announced a move; switching to its next address if the current one stays unreachable",
@@ -315,11 +321,11 @@ func newGatewayMove(cfgPath, current, next string, now func() time.Time, logger 
 
 // set stores the next address (empty, or the current address, clears it).
 // It returns the stored address. An invalid address changes nothing.
-func (m *gatewayMove) set(value string) (string, error) {
+func (m *opfieldMove) set(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	address := ""
 	if value != "" {
-		normalized, err := normalizeGatewayAddress(value)
+		normalized, err := normalizeOpfieldAddress(value)
 		if err != nil {
 			return "", err
 		}
@@ -327,7 +333,7 @@ func (m *gatewayMove) set(value string) (string, error) {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if address != "" && sameGatewayAddress(address, m.current) {
+	if address != "" && sameOpfieldAddress(address, m.current) {
 		address = ""
 	}
 	if address == m.next && !m.unsaved {
@@ -339,9 +345,9 @@ func (m *gatewayMove) set(value string) (string, error) {
 	}
 	var err error
 	if address == "" {
-		err = editGatewayConfigFile(m.cfgPath, nil, "next_address")
+		err = editControlConfigFile(m.cfgPath, nil, "next_address")
 	} else {
-		err = editGatewayConfigFile(m.cfgPath, map[string]string{"next_address": address})
+		err = editControlConfigFile(m.cfgPath, map[string]string{"next_address": address})
 	}
 	m.unsaved = err != nil
 	if err != nil {
@@ -350,7 +356,7 @@ func (m *gatewayMove) set(value string) (string, error) {
 	return address, nil
 }
 
-func (m *gatewayMove) sessionStarted() {
+func (m *opfieldMove) sessionStarted() {
 	if m == nil {
 		return
 	}
@@ -359,7 +365,7 @@ func (m *gatewayMove) sessionStarted() {
 	m.mu.Unlock()
 }
 
-func (m *gatewayMove) sessionEnded() {
+func (m *opfieldMove) sessionEnded() {
 	if m == nil {
 		return
 	}
@@ -373,7 +379,7 @@ func (m *gatewayMove) sessionEnded() {
 
 // tick tries the next address when it is due and switches to it when it
 // answers. It reports whether it switched.
-func (m *gatewayMove) tick(ctx context.Context) bool {
+func (m *opfieldMove) tick(ctx context.Context) bool {
 	m.mu.Lock()
 	now := m.now()
 	next := m.next
@@ -401,7 +407,7 @@ func (m *gatewayMove) tick(ctx context.Context) bool {
 		return false
 	}
 	previous := m.current
-	persistErr := editGatewayConfigFile(m.cfgPath, map[string]string{"address": next}, "next_address")
+	persistErr := editControlConfigFile(m.cfgPath, map[string]string{"address": next}, "next_address")
 	m.current = next
 	m.next = ""
 	m.failingSince = m.now()
@@ -415,7 +421,7 @@ func (m *gatewayMove) tick(ctx context.Context) bool {
 	return true
 }
 
-func (m *gatewayMove) run(ctx context.Context) {
+func (m *opfieldMove) run(ctx context.Context) {
 	ticker := time.NewTicker(nextAddressTick)
 	defer ticker.Stop()
 	for {
@@ -428,14 +434,14 @@ func (m *gatewayMove) run(ctx context.Context) {
 	}
 }
 
-// startGatewayMove sets the daemon up to follow a move of Opfield: called
+// startOpfieldMove sets the daemon up to follow a move of Opfield: called
 // once the connector exists.
-func (d *DaemonBase) startGatewayMove(ctx context.Context) {
+func (d *DaemonBase) startOpfieldMove(ctx context.Context) {
 	setActiveControlAddress(d.connector.Address())
-	d.move = newGatewayMove(
+	d.move = newOpfieldMove(
 		d.cfgPath,
 		d.connector.Address(),
-		d.cfg.Gateway.NextAddress,
+		d.cfg.Control.NextAddress,
 		time.Now,
 		slog.New(d.baseHandler),
 		func(ctx context.Context, address string) error {
@@ -455,15 +461,15 @@ func (d *DaemonBase) switchControlAddress(address string) {
 	notifyControlAddressChanged(address)
 }
 
-// handleSetGatewayNextAddress stores the address Opfield moves to.
-func (d *DaemonBase) handleSetGatewayNextAddress(cmd *pb.GatewayCommand) *pb.CommandResult {
+// handleSetOpfieldNextAddress stores the address Opfield moves to.
+func (d *DaemonBase) handleSetOpfieldNextAddress(cmd *pb.OpfieldCommand) *pb.CommandResult {
 	result := &pb.CommandResult{CommandId: cmd.GetCommandId(), Success: true}
 	if d.move == nil {
 		result.Success = false
 		result.Error = "daemon is not connected to Opfield yet"
 		return result
 	}
-	address, err := d.move.set(cmd.GetSetGatewayNextAddress().GetAddress())
+	address, err := d.move.set(cmd.GetSetOpfieldNextAddress().GetAddress())
 	if err != nil {
 		result.Success = false
 		result.Error = err.Error()

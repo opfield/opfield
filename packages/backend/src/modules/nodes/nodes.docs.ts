@@ -61,22 +61,22 @@ const CreateNodeResponseSchema = dataResponseSchema(
       .catchall(z.any()),
     enrollmentToken: z.string().openapi({
       description: 'One-time enrollment token. Returned only once.',
-      example: 'gw_node_v2_0123456789abcdef_0123456789abcdef0123456789abcdef0123456789abcdef',
+      example: 'opf_node_v2_0123456789abcdef_0123456789abcdef0123456789abcdef0123456789abcdef',
     }),
     enrollmentTokenExpiresAt: z.string().datetime().optional().openapi({
       description: 'Time after which the unused enrollment token is rejected.',
     }),
-    gatewayCertSha256: z
+    opfieldCertSha256: z
       .string()
       .regex(/^sha256:[0-9a-f]{64}$/)
       .openapi({
         description: 'SHA-256 fingerprint of the active Opfield gRPC TLS leaf certificate.',
         example: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       }),
-    gatewayEnrollmentTargets: z
+    opfieldEnrollmentTargets: z
       .object({
-        public: z.object({ label: z.string(), gateway: z.string().nullable() }),
-        local: z.object({ label: z.string(), gateway: z.string() }).optional(),
+        public: z.object({ label: z.string(), address: z.string().nullable() }),
+        local: z.object({ label: z.string(), address: z.string() }).optional(),
       })
       .openapi({
         description:
@@ -92,14 +92,14 @@ const CreateNodeResponseSchema = dataResponseSchema(
         z.object({
           target: z.enum(['public', 'local']),
           label: z.string(),
-          gateway: z.string(),
+          address: z.string(),
           curl: z.string(),
           wget: z.string(),
         })
       )
       .openapi({
         description:
-          'Setup command for each enrollment target, using curl or wget. A release build downloads the installer of its own release, checks it against gateway-daemon-installers.sha256 and pins the daemon release that matches this Opfield installation.',
+          'Setup command for each enrollment target, using curl or wget. A release build downloads the installer of its own release, checks it against opfield-node-installers.sha256 and pins the daemon release that matches this Opfield installation.',
       }),
   })
 );

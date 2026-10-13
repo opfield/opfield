@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/handover"
 )
 
 // A restart or update of the nginx daemon hands its Secure Link sockets over

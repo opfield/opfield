@@ -8,10 +8,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 
-const [gatewayImage, expectedRunner] = process.argv.slice(2);
-if (!gatewayImage || !expectedRunner) throw new Error('Usage: test-backup-runner-release.mjs GATEWAY_IMAGE RUNNER_DIGEST');
+const [opfieldImage, expectedRunner] = process.argv.slice(2);
+if (!opfieldImage || !expectedRunner) throw new Error('Usage: test-backup-runner-release.mjs OPFIELD_IMAGE RUNNER_DIGEST');
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', timeout: 180_000 }).trim();
-const runner = docker('run', '--rm', '-e', 'BACKUP_RUNNER_IMAGE=', '--entrypoint', 'node', gatewayImage,
+const runner = docker('run', '--rm', '-e', 'BACKUP_RUNNER_IMAGE=', '--entrypoint', 'node', opfieldImage,
   '--input-type=module', '-e', "import { resolveBackupRunnerImage } from './dist/config/backup-runner-image.js'; console.log(resolveBackupRunnerImage(process.env.BACKUP_RUNNER_IMAGE));");
 assert.equal(runner, expectedRunner, 'empty legacy Compose override must resolve the bundled runner');
 assert.match(runner, /^[^\s@]+@sha256:[0-9a-f]{64}$/);

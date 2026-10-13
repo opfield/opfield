@@ -70,6 +70,7 @@ import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
 import { projectComposeServicePolicy } from "@/lib/compose-service-availability";
 import { resolveContainerImageReference } from "@/lib/docker-image-ref";
+import { managedLabel } from "@/lib/docker-managed-labels";
 import {
   isDockerMigrationOwnedByTab,
   resolveMigrationTarget,
@@ -355,9 +356,9 @@ export function DockerContainerDetail({
   >;
   const sourceOwnerComposeId =
     parentAvailabilityPolicy?.composeProjectId ||
-    sourceOwnerLabels["wiolett.gateway.compose.project-id"];
+    managedLabel(sourceOwnerLabels, "compose.project-id");
   const sourceOwnerDeploymentId =
-    parentAvailabilityPolicy?.deploymentId || sourceOwnerLabels["wiolett.gateway.deployment.id"];
+    parentAvailabilityPolicy?.deploymentId || managedLabel(sourceOwnerLabels, "deployment.id");
   const serviceAvailabilityPolicy = useMemo(
     () =>
       projectComposeServicePolicy(
@@ -466,7 +467,7 @@ export function DockerContainerDetail({
 
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
-    const gatewayDev = (window.gatewayDev ??= {});
+    const opfieldDev = (window.opfieldDev ??= {});
     const openGwcaExportModal = () => {
       setArchiveDevPreview(true);
       setArchiveImageMode("portable");
@@ -475,10 +476,10 @@ export function DockerContainerDetail({
       setArchiveIncludeSecrets(true);
       setArchiveOpen(true);
     };
-    gatewayDev.openGwcaExportModal = openGwcaExportModal;
+    opfieldDev.openGwcaExportModal = openGwcaExportModal;
     return () => {
-      if (gatewayDev.openGwcaExportModal === openGwcaExportModal) {
-        delete gatewayDev.openGwcaExportModal;
+      if (opfieldDev.openGwcaExportModal === openGwcaExportModal) {
+        delete opfieldDev.openGwcaExportModal;
       }
     };
   }, []);
@@ -1366,8 +1367,8 @@ export function DockerContainerDetail({
   const composeManaged = Boolean(labels["com.docker.compose.project"]);
   const composeProjectName = resolveComposeOwnerName(parentAvailabilityPolicy, labels);
   const composeProjectId =
-    parentAvailabilityPolicy?.composeProjectId || labels["wiolett.gateway.compose.project-id"];
-  const parentDeploymentId = labels["wiolett.gateway.deployment.id"];
+    parentAvailabilityPolicy?.composeProjectId || managedLabel(labels, "compose.project-id");
+  const parentDeploymentId = managedLabel(labels, "deployment.id");
   const refreshParentAvailability = useCallback(async () => {
     const resource = composeProjectId
       ? { type: "compose" as const, composeProjectId }
@@ -1427,7 +1428,7 @@ export function DockerContainerDetail({
     (stopping
       ? unavailable || composeManaged || !!buildRolloutReason || pendingHeaderAction === "Remove"
       : actionDisabled);
-  const deploymentManaged = labels["wiolett.gateway.deployment.managed"] === "true";
+  const deploymentManaged = managedLabel(labels, "deployment.managed") === "true";
   const gpuMapped =
     container?.gpuAttachment?.mode === "managed" || container?.gpuAttachment?.mode === "external";
   const gpuPortabilityReason =

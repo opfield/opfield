@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/slowstart"
-	"github.com/wiolett-industries/gateway/daemon-shared/tlsbatch"
+	"github.com/opfield/opfield/daemon-shared/slowstart"
+	"github.com/opfield/opfield/daemon-shared/tlsbatch"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )

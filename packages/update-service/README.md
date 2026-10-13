@@ -24,7 +24,7 @@ GitHub lists releases newest first, 100 per page. The Worker reads further pages
 
 The Worker aggregates GitHub Releases from the public
 `opfield/opfield` repository and the private
-`opfield/inference-core` repository (`GITHUB_OWNER`, `GITHUB_GATEWAY_REPO` and `GITHUB_INFERENCE_CORE_REPO` in
+`opfield/inference-core` repository (`GITHUB_OWNER`, `GITHUB_OPFIELD_REPO` and `GITHUB_INFERENCE_CORE_REPO` in
 `wrangler.jsonc`; deploy them only after both repositories moved to the opfield organization, GitHub redirects the
 old names but not the new ones before the move). It keeps the GitHub token only in
 the `GITHUB_INFERENCE_CORE_TOKEN` Worker secret. The token provides private core
@@ -33,13 +33,13 @@ rate limits. The service does not use R2. Release metadata is cached briefly,
 while immutable release assets use long-lived edge caching.
 
 ```bash
-pnpm --filter @sqgateway/update-service test
-pnpm --filter @sqgateway/update-service typecheck
-pnpm --filter @sqgateway/update-service build
+pnpm --filter @opfield/update-service test
+pnpm --filter @opfield/update-service typecheck
+pnpm --filter @opfield/update-service build
 ```
 
 Deployment uses the custom domain and the `get.opfield.dev` routes declared in `wrangler.jsonc`:
 
 ```bash
-pnpm --filter @sqgateway/update-service deploy
+pnpm --filter @opfield/update-service deploy
 ```

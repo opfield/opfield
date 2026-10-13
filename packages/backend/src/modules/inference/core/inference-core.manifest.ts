@@ -5,10 +5,23 @@ import { AppError } from '@/middleware/error-handler.js';
 import { INFERENCE_CORE_PROTOCOL_MAJOR } from './inference-core.contract.js';
 
 /**
- * Release channel for the managed OpenCodex core. Releases are published by the
- * OpenCodex pipeline into GitHub Releases. The signed manifest is always
- * signature-verified before any Docker mutation is considered.
+ * Release channel for the managed inference core (opfield-inference, built from OpenCodex). Releases are published
+ * by the core's pipeline into GitHub Releases. The signed manifest is always signature-verified before any Docker
+ * mutation is considered.
  */
+
+/** Update-feed component and artifact package of the managed inference core. */
+export const OPFIELD_INFERENCE_COMPONENT = 'opfield-inference';
+export const OPFIELD_INFERENCE_MANIFEST_FILE = 'opfield-inference-image.update.json';
+// legacy-name: inference-core component and opencodex-image.update.json — remove once every core release is listed under opfield-inference and carries the new manifest
+export const LEGACY_INFERENCE_CORE_COMPONENT = 'inference-core';
+export const LEGACY_INFERENCE_CORE_MANIFEST_FILE = 'opencodex-image.update.json';
+
+/** Where a core manifest is looked up, newest name first. */
+const CORE_MANIFEST_SOURCES: readonly { packageName: string; fileName: string }[] = [
+  { packageName: OPFIELD_INFERENCE_COMPONENT, fileName: OPFIELD_INFERENCE_MANIFEST_FILE },
+  { packageName: LEGACY_INFERENCE_CORE_COMPONENT, fileName: LEGACY_INFERENCE_CORE_MANIFEST_FILE },
+];
 
 // Release lines in the order they replaced each other: `-wiolett.N` up to 2.25.0, then `-thesqlabs.N`, and
 // `-opfield.N` from the repository's move to the opfield organization. Installed versions of every line must
@@ -19,10 +32,29 @@ export type OpenCodexReleaseLine = (typeof OPENCODEX_RELEASE_LINES)[number];
 export const OPENCODEX_VERSION_RE = /^\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/;
 export const OPENCODEX_RELEASE_TAG_RE = /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/;
 
-/** Fetch the newest published OpenCodex core tag, or null when none exist yet. */
+/**
+ * Fetch the newest published core tag, or null when none exist yet. The feed is asked for the opfield-inference
+ * component first; a feed that does not know it yet, or lists nothing under it, is asked for the earlier
+ * inference-core component, and the newer of the two answers wins.
+ */
 export async function fetchLatestOpenCodexTag(releasesApiUrl: string): Promise<string | null> {
+  const current = await fetchLatestComponentTag(releasesApiUrl, OPFIELD_INFERENCE_COMPONENT).catch(() => null);
+  let legacy: string | null;
+  try {
+    // legacy-name: inference-core feed component — remove once the feed lists every core release under opfield-inference
+    legacy = await fetchLatestComponentTag(releasesApiUrl, LEGACY_INFERENCE_CORE_COMPONENT);
+  } catch (error) {
+    if (current) return current;
+    throw error;
+  }
+  if (!current) return legacy;
+  if (!legacy) return current;
+  return compareOpenCodexVersions(current, legacy) >= 0 ? current : legacy;
+}
+
+async function fetchLatestComponentTag(releasesApiUrl: string, component: string): Promise<string | null> {
   const url = new URL(releasesApiUrl);
-  url.searchParams.set('component', 'inference-core');
+  url.searchParams.set('component', component);
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(10_000),
@@ -73,57 +105,71 @@ export async function fetchOpenCodexImageManifest(
   if (!OPENCODEX_RELEASE_TAG_RE.test(tag)) {
     throw new AppError(400, 'INVALID_CORE_VERSION', `Core release tag must match vX.Y.Z-opfield.N, got "${tag}"`);
   }
-  const source = releaseFileSource(artifactBaseUrl, 'inference-core', tag, 'opencodex-image.update.json');
-  const response = await fetch(source.url, {
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) {
-    throw new AppError(502, 'CORE_RELEASE_UNAVAILABLE', `Failed to fetch core release manifest: ${response.status}`);
-  }
-  const signedManifest = await response.text();
   const imageRepositories = typeof expectedImages === 'string' ? [expectedImages] : expectedImages;
-  for (const image of imageRepositories) {
-    try {
-      return verifyOpenCodexImageManifest(
-        signedManifest,
-        {
-          image,
-          coreProtocolMajor: INFERENCE_CORE_PROTOCOL_MAJOR,
-          version: tag.slice(1),
-          tag,
-        },
-        publicKey
-      );
-    } catch {
-      // Try the next explicitly trusted repository during the registry bridge.
+  let lastStatus: number | null = null;
+  let fetched = false;
+  // Releases from the opfield-inference rename on carry both manifests; earlier ones only the legacy file.
+  for (const candidate of CORE_MANIFEST_SOURCES) {
+    const source = releaseFileSource(artifactBaseUrl, candidate.packageName, tag, candidate.fileName);
+    const response = await fetch(source.url, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => null);
+    if (!response?.ok) {
+      lastStatus = response?.status ?? lastStatus;
+      continue;
     }
+    fetched = true;
+    const signedManifest = await response.text();
+    for (const image of imageRepositories) {
+      try {
+        return verifyOpenCodexImageManifest(
+          signedManifest,
+          {
+            image,
+            coreProtocolMajor: INFERENCE_CORE_PROTOCOL_MAJOR,
+            version: tag.slice(1),
+            tag,
+          },
+          publicKey
+        );
+      } catch {
+        // Try the next explicitly trusted repository during the registry bridge.
+      }
+    }
+  }
+  if (!fetched) {
+    throw new AppError(
+      502,
+      'CORE_RELEASE_UNAVAILABLE',
+      `Failed to fetch core release manifest: ${lastStatus ?? 'unreachable'}`
+    );
   }
   throw new AppError(502, 'UNTRUSTED_UPDATE_ARTIFACT', 'Core release artifact is not trusted');
 }
 
 /**
- * Gateway compatibility gate from the verified manifest: the installed Gateway
+ * Opfield compatibility gate from the verified manifest: the installed Opfield
  * must satisfy the release's min/max bounds before an install/update proceeds.
  */
-export function checkOpenCodexGatewayCompatibility(
+export function checkOpenCodexOpfieldCompatibility(
   artifact: TrustedOpenCodexImageArtifact,
-  currentGatewayVersion: string
+  currentOpfieldVersion: string
 ): { compatible: boolean; reason: string | null } {
   // Development builds carry no trustworthy version number; never block them.
-  if (currentGatewayVersion === 'dev') return { compatible: true, reason: null };
-  const current = parseSemver(currentGatewayVersion);
+  if (currentOpfieldVersion === 'dev') return { compatible: true, reason: null };
+  const current = parseSemver(currentOpfieldVersion);
   if (!current) return { compatible: true, reason: null };
-  if (artifact.minGatewayVersion && compareSemver(currentGatewayVersion, artifact.minGatewayVersion) < 0) {
+  if (artifact.minOpfieldVersion && compareSemver(currentOpfieldVersion, artifact.minOpfieldVersion) < 0) {
     return {
       compatible: false,
-      reason: `Core ${artifact.version} requires Opfield ${artifact.minGatewayVersion} or newer`,
+      reason: `Core ${artifact.version} requires Opfield ${artifact.minOpfieldVersion} or newer`,
     };
   }
-  if (artifact.maxGatewayVersion && compareSemver(currentGatewayVersion, artifact.maxGatewayVersion) > 0) {
+  if (artifact.maxOpfieldVersion && compareSemver(currentOpfieldVersion, artifact.maxOpfieldVersion) > 0) {
     return {
       compatible: false,
-      reason: `Core ${artifact.version} supports Opfield up to ${artifact.maxGatewayVersion}`,
+      reason: `Core ${artifact.version} supports Opfield up to ${artifact.maxOpfieldVersion}`,
     };
   }
   return { compatible: true, reason: null };

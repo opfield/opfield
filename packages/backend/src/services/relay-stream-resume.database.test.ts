@@ -23,7 +23,7 @@ import {
   relayInstanceFullyResumable,
 } from './relay-stream-resume.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /** Envelope encryption stand-in: the tests only need the secret to round-trip. */
 const crypto = {
@@ -38,15 +38,15 @@ const crypto = {
 
 /**
  * RSv1 state in the database: the migration, the ordered enable/rotate/disable sequence and the drain grace rule.
- * Opt-in: point GATEWAY_MIGRATION_TEST_DATABASE_URL at a disposable gateway_migration_test_* database.
+ * Opt-in: point OPFIELD_MIGRATION_TEST_DATABASE_URL at a disposable opfield_migration_test_* database.
  */
 describe.skipIf(!url)('resumable relay streams', () => {
   let pool: pg.Pool;
   let db: DrizzleClient;
 
   beforeAll(async () => {
-    if (!new URL(url!).pathname.startsWith('/gateway_migration_test_')) {
-      throw new Error('GATEWAY_MIGRATION_TEST_DATABASE_URL must name a disposable gateway_migration_test_* database');
+    if (!new URL(url!).pathname.startsWith('/opfield_migration_test_')) {
+      throw new Error('OPFIELD_MIGRATION_TEST_DATABASE_URL must name a disposable opfield_migration_test_* database');
     }
     pool = tolerateDatabaseDrop(new pg.Pool({ connectionString: url }));
     // A database at the release before resumable streams, with a route, then upgraded: what the migration test checks

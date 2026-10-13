@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
 )
 
 // FileStore is the durable availabilitylease.Store of a docker daemon: one

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 func (h *Handler) handleRequestTrafficStats(cmd *pb.RequestTrafficStatsCommand, result *pb.CommandResult) {

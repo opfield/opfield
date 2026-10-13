@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
 )
 
 // Loopback TCP endpoints (2.11.4). nginx reaches a Secure Link source over a
@@ -76,8 +76,8 @@ func (m *sourceLinkManager) listenLoopback(id, address string) (net.Listener, st
 	if m.suspended.Load() {
 		return nil, "", errors.New("secure-link sockets are being handed over to the next daemon process")
 	}
-	name := m.loopbackKeepName(id, address)
-	if file, ok := listenerkeep.Take(name); ok {
+	current := m.loopbackKeepName(id, address)
+	if file, name, ok := takeKept(current); ok {
 		listener, err := net.FileListener(file)
 		_ = file.Close()
 		if err == nil {
@@ -88,13 +88,13 @@ func (m *sourceLinkManager) listenLoopback(id, address string) (net.Listener, st
 		}
 		_ = listenerkeep.Drop(name)
 	} else {
-		_ = listenerkeep.DropStale(name)
+		dropStaleKept(current)
 	}
 	listener, err := net.Listen("tcp4", address)
 	if err != nil {
 		return nil, "", fmt.Errorf("listen on proxy secure-link loopback address %s: %w", address, err)
 	}
-	return listener, keepLoopbackListener(listener, name), nil
+	return listener, keepLoopbackListener(listener, current), nil
 }
 
 // keepLoopbackListener hands a copy of a loopback listener to the listener

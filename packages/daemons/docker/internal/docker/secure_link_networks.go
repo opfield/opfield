@@ -91,7 +91,7 @@ func (p *DockerPlugin) createLinkNetwork(ctx context.Context, name string) (link
 		}
 		created, err := p.client.cli.NetworkCreate(ctx, name, mobyclient.NetworkCreateOptions{
 			Driver: "bridge", Internal: true,
-			Labels: map[string]string{"wiolett.gateway.managed": linkNetworkLabel},
+			Labels: map[string]string{"net.opfield.managed": linkNetworkLabel},
 			IPAM:   &network.IPAM{Driver: "default", Config: []network.IPAMConfig{ipam}},
 		})
 		if err != nil && strings.Contains(strings.ToLower(err.Error()), "overlap") {
@@ -124,7 +124,7 @@ func linkNetworkResultOf(inspected network.Inspect) (linkNetworkResult, error) {
 // linkNetworkReservedAddress returns the connector's static address on a network of createLinkNetwork: its label,
 // and an IPv4 subnet whose dynamic range leaves the reserved address out. Networks created before have none.
 func linkNetworkReservedAddress(inspected network.Inspect) (netip.Addr, bool) {
-	if inspected.Labels["wiolett.gateway.managed"] != linkNetworkLabel || !linkNetworkNamePattern.MatchString(inspected.Name) {
+	if inspected.Labels["net.opfield.managed"] != linkNetworkLabel || !linkNetworkNamePattern.MatchString(inspected.Name) {
 		return netip.Addr{}, false
 	}
 	for _, config := range inspected.IPAM.Config {

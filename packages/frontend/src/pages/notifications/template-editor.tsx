@@ -61,7 +61,7 @@ export const UNIVERSAL_VARIABLES = [
   { name: "{{fired.duration}}", description: "How long the alert lasted, such as 3m 37s" },
   { name: "{{fired.duration.seconds}}", description: "How long the alert lasted, in seconds" },
   { name: "{{resolution.reason}}", description: "Resolve reason when known" },
-  { name: "{{gateway.url}}", description: "Opfield URL" },
+  { name: "{{opfield.url}}", description: "Opfield URL" },
 ];
 
 export { AnimatedHeight };

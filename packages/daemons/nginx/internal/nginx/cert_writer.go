@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 // DeployCert writes cert, key, and optional chain to the cert directory.
@@ -136,7 +138,7 @@ func DeployVersionedCert(certsDir, certID, version, replicaGeneration string, ce
 			return CertPointer{}, fmt.Errorf("write staged chain: %w", err)
 		}
 	}
-	if err := WriteAtomic(filepath.Join(stage, ".gateway-version"), []byte(version)); err != nil {
+	if err := WriteAtomic(filepath.Join(stage, naming.File(certVersionFile)), []byte(version)); err != nil {
 		return CertPointer{}, fmt.Errorf("write certificate version: %w", err)
 	}
 
@@ -177,7 +179,7 @@ func CurrentCertPointer(certsDir, certID string) (CertPointer, error) {
 	} else if !os.IsNotExist(err) {
 		return CertPointer{}, fmt.Errorf("read current certificate pointer: %w", err)
 	}
-	generation, err := os.ReadFile(filepath.Join(root, ".gateway-replica-generation"))
+	generation, err := readCertMeta(root, replicaGenerationFile)
 	if err == nil {
 		pointer.ReplicaGenerationExists = true
 		pointer.ReplicaGeneration = string(generation)
@@ -197,24 +199,64 @@ func RestoreCertPointer(certsDir, certID string, pointer CertPointer) error {
 	} else if err := switchCurrentPointerTarget(root, pointer.Target); err != nil {
 		return err
 	}
-	generationPath := filepath.Join(root, ".gateway-replica-generation")
 	if !pointer.ReplicaGenerationExists {
-		if err := os.Remove(generationPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("remove certificate replica generation: %w", err)
+		for _, name := range certMetaNames(replicaGenerationFile) {
+			if err := os.Remove(filepath.Join(root, name)); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("remove certificate replica generation: %w", err)
+			}
 		}
 		return nil
 	}
-	if err := WriteAtomic(generationPath, []byte(pointer.ReplicaGeneration)); err != nil {
+	if err := writeReplicaGeneration(root, pointer.ReplicaGeneration); err != nil {
 		return fmt.Errorf("restore certificate replica generation: %w", err)
 	}
 	return nil
 }
 
 func writeReplicaGeneration(root, generation string) error {
-	if err := WriteAtomic(filepath.Join(root, ".gateway-replica-generation"), []byte(generation)); err != nil {
+	name := naming.File(replicaGenerationFile)
+	if err := WriteAtomic(filepath.Join(root, name), []byte(generation)); err != nil {
 		return fmt.Errorf("write certificate replica generation: %w", err)
 	}
+	// The other name would be read first by a daemon of the other scheme.
+	for _, other := range certMetaNames(replicaGenerationFile) {
+		if other != name {
+			_ = os.Remove(filepath.Join(root, other))
+		}
+	}
 	return nil
+}
+
+// Metadata files the daemon keeps next to a certificate.
+const (
+	certVersionFile       = ".opfield-version"
+	replicaGenerationFile = ".opfield-replica-generation"
+)
+
+// certMetaNames are the names of a metadata file: the one of the names in effect first, then the other.
+// legacy-name: .gateway-version and .gateway-replica-generation of certificates written before 2.12.1 — remove once
+// every node reports none
+func certMetaNames(name string) []string {
+	current := naming.File(name)
+	if current == name {
+		return []string{name, naming.LegacyFile(name)}
+	}
+	return []string{current, name}
+}
+
+// readCertMeta reads a metadata file under either name.
+func readCertMeta(dir, name string) ([]byte, error) {
+	var firstErr error
+	for _, candidate := range certMetaNames(name) {
+		content, err := os.ReadFile(filepath.Join(dir, candidate))
+		if err == nil {
+			return content, nil
+		}
+		if firstErr == nil || !os.IsNotExist(err) {
+			firstErr = err
+		}
+	}
+	return nil, firstErr
 }
 
 func switchCurrentPointer(root, version string) error {
@@ -264,7 +306,7 @@ func InspectCertificate(certsDir, certID string) (CertificateSnapshot, error) {
 	if err != nil && !os.IsNotExist(err) {
 		return CertificateSnapshot{}, fmt.Errorf("read certificate chain: %w", err)
 	}
-	versionRaw, err := os.ReadFile(filepath.Join(base, ".gateway-version"))
+	versionRaw, err := readCertMeta(base, certVersionFile)
 	if err != nil && !os.IsNotExist(err) {
 		return CertificateSnapshot{}, fmt.Errorf("read certificate version: %w", err)
 	}
@@ -309,7 +351,7 @@ func ReadCertificateForExport(certsDir, certID string) (certPem, keyPem, chainPe
 	}
 	// Legacy DeployCert wrote fullchain.pem as leaf + chain and retained a
 	// separate chain.pem. Export the original leaf when this known layout is
-	// present so Gateway does not append the chain twice when it builds v2.
+	// present so Opfield does not append the chain twice when it builds v2.
 	if leaf := bytes.TrimSuffix(certPem, chainPem); len(leaf) != len(certPem) {
 		certPem = bytes.TrimSuffix(leaf, []byte("\n"))
 	}

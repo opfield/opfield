@@ -8,7 +8,7 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 // A connector slot (secureLinkConnectorSlots) is free for a new connector when it is empty or holds a connector that

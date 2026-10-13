@@ -15,7 +15,7 @@ import {
   dockerScopedNodeIds,
   hasDockerResourceScope,
 } from '@/modules/docker/docker-access-resource.service.js';
-import { DOCKER_DEPLOYMENT_MANAGED_LABEL } from '@/modules/docker/docker-deployment-labels.js';
+import { isDockerDeploymentManaged } from '@/modules/docker/docker-deployment-labels.js';
 import type { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
 import type { DockerSnapshotReconciler } from '@/modules/docker/docker-snapshot-reconciler.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
@@ -107,13 +107,7 @@ function readLabels(container: Record<string, unknown>): Record<string, unknown>
 }
 
 function isDeploymentInternal(container: Record<string, unknown>): boolean {
-  const labels = container.labels ?? container.Labels;
-  return (
-    !!labels &&
-    typeof labels === 'object' &&
-    !Array.isArray(labels) &&
-    (labels as Record<string, unknown>)[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true'
-  );
+  return isDockerDeploymentManaged(readLabels(container));
 }
 
 function composeAvailabilityContainer(runtimeIdentity: unknown, serviceName: string): { containerName: string } | null {

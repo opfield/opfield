@@ -21,7 +21,16 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     requestId,
     method,
     path,
-    ...(path === '/health' ? { healthProbe: c.req.header('x-gateway-health-probe') ?? 'unattributed' } : {}),
+    ...(path === '/health'
+      ? {
+          healthProbe:
+            c.req.header('x-opfield-health-probe') ??
+            // legacy-name: x-gateway-health-probe — sent by a browser that still runs the console of a release before
+            // 2.12.1 (cached across the update) — remove once no supported update starts from a version before 2.12.1.
+            c.req.header('x-gateway-health-probe') ??
+            'unattributed',
+        }
+      : {}),
     userAgent: c.req.header('user-agent'),
   });
 

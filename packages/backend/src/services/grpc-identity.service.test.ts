@@ -95,18 +95,18 @@ describe('GrpcIdentityService', () => {
       getSystemCACertPem: vi.fn(),
     };
     const service = new GrpcIdentityService({ GRPC_TLS_AUTO_DIR: '/tmp/gateway-tls' } as any, systemCA as any);
-    const served = (await service.resolve()).gatewayCertSha256;
+    const served = (await service.resolve()).opfieldCertSha256;
 
     const next = await service.refresh({ renewBeforeMs: 30 * 86_400_000 });
     expect(systemCA.ensureGrpcServerCert).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), {
       renewBeforeMs: 30 * 86_400_000,
     });
-    expect(next.gatewayCertSha256).not.toBe(served);
+    expect(next.opfieldCertSha256).not.toBe(served);
     // Installed, not yet served: enrollment commands keep the fingerprint daemons get today.
-    await expect(service.getGatewayCertSha256()).resolves.toBe(served);
+    await expect(service.getOpfieldCertSha256()).resolves.toBe(served);
 
-    service.markServed(next.gatewayCertSha256);
-    await expect(service.getGatewayCertSha256()).resolves.toBe(next.gatewayCertSha256);
+    service.markServed(next.opfieldCertSha256);
+    await expect(service.getOpfieldCertSha256()).resolves.toBe(next.opfieldCertSha256);
   });
 
   it('keeps the current identity when a refresh fails', async () => {
@@ -123,7 +123,7 @@ describe('GrpcIdentityService', () => {
 
     await expect(service.refresh()).rejects.toThrow('issuance failed');
     await expect(service.resolve()).resolves.toEqual(current);
-    await expect(service.getGatewayCertSha256()).resolves.toBe(current.gatewayCertSha256);
+    await expect(service.getOpfieldCertSha256()).resolves.toBe(current.opfieldCertSha256);
   });
 
   it('never issues two certificates at once', async () => {
@@ -142,7 +142,7 @@ describe('GrpcIdentityService', () => {
     };
     const service = new GrpcIdentityService({ GRPC_TLS_AUTO_DIR: '/tmp/gateway-tls' } as any, systemCA as any);
 
-    await Promise.all([service.resolve(), service.refresh(), service.getGatewayCertSha256(), service.refresh()]);
+    await Promise.all([service.resolve(), service.refresh(), service.getOpfieldCertSha256(), service.refresh()]);
     expect(overlapped).toBe(false);
   });
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/protobuf/proto"
 )
 

@@ -5,7 +5,7 @@ import { managedAvailabilityWitnesses } from '@/db/schema/index.js';
 import type {
   ApplyWitnessesCommand,
   CommandResult,
-  GatewayCommand,
+  OpfieldCommand,
   WitnessPeer,
   WitnessSpec,
 } from '@/grpc/generated/types.js';
@@ -66,7 +66,7 @@ export function planNodeKeeperWitnesses(
 
 interface Registry {
   hasCapability(nodeId: string, capability: string): boolean;
-  sendCommand(nodeId: string, command: Partial<GatewayCommand>, timeoutMs?: number): Promise<CommandResult>;
+  sendCommand(nodeId: string, command: Partial<OpfieldCommand>, timeoutMs?: number): Promise<CommandResult>;
 }
 
 /**

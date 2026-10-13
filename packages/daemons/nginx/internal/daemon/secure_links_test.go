@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 const testSecureLinkID = "11111111-1111-4111-8111-111111111111"

@@ -7,11 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 // defaultHtpasswdDir matches the nginx daemon's canonical htpasswd directory and
 // the auth_basic_user_file path proxy host templates render.
-const defaultHtpasswdDir = "/etc/nginx/gateway/htpasswd"
+const defaultHtpasswdDir = naming.EtcDir + "/htpasswd"
 
 // PreviewIPRule is one ordered allow/deny directive of a preview access list.
 type PreviewIPRule struct {
@@ -46,7 +48,7 @@ func (r *Runtime) SetHtpasswdDir(dir string) error {
 func (r *Runtime) htpasswdPath(accessListID string) string {
 	dir := r.htpasswdDir
 	if dir == "" {
-		dir = defaultHtpasswdDir
+		dir = naming.Path(defaultHtpasswdDir)
 	}
 	return filepath.Join(dir, "access-list-"+accessListID)
 }

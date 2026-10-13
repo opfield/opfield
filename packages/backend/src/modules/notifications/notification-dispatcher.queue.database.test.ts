@@ -8,7 +8,7 @@ import type { OutboundWebhookFetchResponse } from '@/modules/settings/outbound-w
 import { NotificationDispatcherService } from './notification-dispatcher.service.js';
 import { buildNotificationTemplateContext, type NotificationEvent } from './notification-templates.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 type Answer = { status: number; body?: string; headers?: Record<string, string> } | Error;
 
@@ -28,7 +28,7 @@ function event(type: 'alert.fired' | 'alert.resolved', message: string): Notific
 }
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): webhook deliveries go out per webhook in order, the whole webhook
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): webhook deliveries go out per webhook in order, the whole webhook
  * pauses while its target cannot be reached, a firing that never went out is dropped with its resolve, and the
  * queue state lives in the database (a second sender or a restarted one continues it).
  */

@@ -42,9 +42,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
 // Capability is advertised by daemons whose update hands connections over.

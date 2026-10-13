@@ -52,8 +52,8 @@ export function Settings() {
   const inferenceEnabled = useSystemConfigStore((state) => state.config.features.inferenceEnabled);
 
   const canUpdate = hasScope("admin:update");
-  const canViewGatewaySettings = hasScope("settings:gateway:view");
-  const canEditGatewaySettings = hasScope("settings:gateway:edit");
+  const canViewOpfieldSettings = hasScope("settings:opfield:view");
+  const canEditOpfieldSettings = hasScope("settings:opfield:edit");
   const canViewHousekeeping = hasScope("housekeeping:view");
   const canRunHousekeeping = hasScope("housekeeping:run");
   const canConfigureHousekeeping = hasScope("housekeeping:configure");
@@ -84,17 +84,17 @@ export function Settings() {
     hasScope("integrations:ssh:manage");
   const canTransferConfiguration = hasScope("admin:system");
   const canAccessGeneralTab =
-    canViewGatewaySettings || canUpdate || canViewLicense || canTransferConfiguration;
-  const canAccessAdvancedTab = canViewGatewaySettings || canManageRegistries;
+    canViewOpfieldSettings || canUpdate || canViewLicense || canTransferConfiguration;
+  const canAccessAdvancedTab = canViewOpfieldSettings || canManageRegistries;
   const canAccessFeaturesTab =
-    canViewGatewaySettings || canViewStatusPage || canViewHousekeeping || canViewPagesSettings;
+    canViewOpfieldSettings || canViewStatusPage || canViewHousekeeping || canViewPagesSettings;
   const availableTabs = useMemo<SettingsTab[]>(() => {
     const tabs: SettingsTab[] = [];
     if (canAccessGeneralTab) tabs.push("general");
-    if (canViewGatewaySettings) tabs.push("authentication");
+    if (canViewOpfieldSettings) tabs.push("authentication");
     if (canAccessAdvancedTab) tabs.push("advanced");
-    if (canViewGatewaySettings) tabs.push("environment");
-    if (canViewGatewaySettings) tabs.push("relay");
+    if (canViewOpfieldSettings) tabs.push("environment");
+    if (canViewOpfieldSettings) tabs.push("relay");
     if (canAccessFeaturesTab) tabs.push("features");
     if (canViewIntegrations) tabs.push("integrations");
     if (canConfigInference) tabs.push("inference");
@@ -104,7 +104,7 @@ export function Settings() {
     canAccessFeaturesTab,
     canAccessAdvancedTab,
     canAccessGeneralTab,
-    canViewGatewaySettings,
+    canViewOpfieldSettings,
     canConfigAI,
     canConfigInference,
     canViewIntegrations,
@@ -152,7 +152,7 @@ export function Settings() {
                 General
               </TabsTrigger>
             )}
-            {canViewGatewaySettings && (
+            {canViewOpfieldSettings && (
               <TabsTrigger value="authentication" className="gap-1.5">
                 Authentication
               </TabsTrigger>
@@ -162,12 +162,12 @@ export function Settings() {
                 Advanced
               </TabsTrigger>
             )}
-            {canViewGatewaySettings && (
+            {canViewOpfieldSettings && (
               <TabsTrigger value="environment" className="gap-1.5">
                 Environment
               </TabsTrigger>
             )}
-            {canViewGatewaySettings && (
+            {canViewOpfieldSettings && (
               <TabsTrigger value="relay" className="gap-1.5">
                 Relay
               </TabsTrigger>
@@ -197,8 +197,8 @@ export function Settings() {
           {canAccessGeneralTab && (
             <TabsContent value="general" className="pb-0">
               <div className="space-y-4">
-                {canViewGatewaySettings && (
-                  <AuthProvisioningSection canEdit={canEditGatewaySettings} section="general" />
+                {canViewOpfieldSettings && (
+                  <AuthProvisioningSection canEdit={canEditOpfieldSettings} section="general" />
                 )}
                 {canViewLicense ? (
                   <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -216,11 +216,11 @@ export function Settings() {
             </TabsContent>
           )}
 
-          {canViewGatewaySettings && (
+          {canViewOpfieldSettings && (
             <TabsContent value="authentication" className="pb-0">
               <div className="space-y-4">
                 <AuthProvisioningSection
-                  canEdit={canEditGatewaySettings}
+                  canEdit={canEditOpfieldSettings}
                   section="authentication"
                 />
                 <PoweredByFooter />
@@ -230,8 +230,8 @@ export function Settings() {
           {canAccessAdvancedTab && (
             <TabsContent value="advanced" className="pb-0">
               <div className="space-y-4">
-                {canViewGatewaySettings && (
-                  <AuthProvisioningSection canEdit={canEditGatewaySettings} section="advanced" />
+                {canViewOpfieldSettings && (
+                  <AuthProvisioningSection canEdit={canEditOpfieldSettings} section="advanced" />
                 )}
                 {canManageRegistries && <DockerRegistriesSection nodesList={nodesList} />}
                 <PoweredByFooter />
@@ -239,19 +239,19 @@ export function Settings() {
             </TabsContent>
           )}
 
-          {canViewGatewaySettings && (
+          {canViewOpfieldSettings && (
             <TabsContent value="environment" className="pb-0">
               <div className="space-y-4">
-                <EnvironmentSettingsSection canEdit={canEditGatewaySettings} />
+                <EnvironmentSettingsSection canEdit={canEditOpfieldSettings} />
                 <PoweredByFooter />
               </div>
             </TabsContent>
           )}
 
-          {canViewGatewaySettings && (
+          {canViewOpfieldSettings && (
             <TabsContent value="relay" className="pb-0">
               <div className="space-y-4">
-                <RelaySettingsSection canEdit={canEditGatewaySettings} />
+                <RelaySettingsSection canEdit={canEditOpfieldSettings} />
                 <PoweredByFooter />
               </div>
             </TabsContent>
@@ -260,8 +260,8 @@ export function Settings() {
           {canAccessFeaturesTab && (
             <TabsContent value="features" className="pb-0">
               <div className="space-y-4">
-                {canViewGatewaySettings && (
-                  <AuthProvisioningSection canEdit={canEditGatewaySettings} section="features" />
+                {canViewOpfieldSettings && (
+                  <AuthProvisioningSection canEdit={canEditOpfieldSettings} section="features" />
                 )}
                 {canManageRegistries && <InternalRegistrySection nodesList={nodesList} />}
                 {canViewPagesSettings && <PagesSettingsSection />}

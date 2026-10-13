@@ -47,7 +47,7 @@ import { namesOnCloudflareIngressGroups } from './ssl-ingress-group-challenge.js
 
 const logger = createChildLogger('SSLService');
 const CLOUDFLARE_DNS01_PROPAGATION_DELAY_MS = process.env.NODE_ENV === 'test' ? 0 : 10_000;
-const GATEWAY_SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+const OPFIELD_SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 /** Prefix of a renewalError that reports incomplete delivery rather than a failed renewal. */
 export { SSL_DISTRIBUTION_ERROR_PREFIX };
@@ -203,11 +203,11 @@ export class SSLService {
    * hosts that predate deployment records; failures remain a distribution
    * status on that host instead of invalidating an otherwise valid renewal.
    */
-  private async refreshGatewayAssetAndSyncProxyHosts(
+  private async refreshOpfieldAssetAndSyncProxyHosts(
     certId: string,
     userId: string
   ): Promise<{ synchronized: number; failures: ProxyHostSyncFailure[] }> {
-    await this.certificateDistribution.upsertGatewayAsset({ type: 'ssl', id: certId });
+    await this.certificateDistribution.upsertOpfieldAsset({ type: 'ssl', id: certId });
     return this.resyncActiveProxyHosts(certId, userId);
   }
 
@@ -570,7 +570,7 @@ export class SSLService {
 
       // Deploy cert files to nginx
       try {
-        await this.refreshGatewayAssetAndSyncProxyHosts(cert.id, userId);
+        await this.refreshOpfieldAssetAndSyncProxyHosts(cert.id, userId);
       } catch (deployError) {
         const deployMessage = deployError instanceof Error ? deployError.message : 'Unknown deploy error';
         await this.db
@@ -842,7 +842,7 @@ export class SSLService {
 
         // Deploy to nginx — separate try/catch since cert is already valid at this point
         try {
-          const delivery = await this.refreshGatewayAssetAndSyncProxyHosts(certId, userId);
+          const delivery = await this.refreshOpfieldAssetAndSyncProxyHosts(certId, userId);
           await this.recordDistributionOutcome(certId, delivery.failures);
         } catch (deployError) {
           const deployMsg = deployError instanceof Error ? deployError.message : 'Unknown deploy error';
@@ -983,7 +983,7 @@ export class SSLService {
 
     // Deploy cert files to nginx
     try {
-      const delivery = await this.refreshGatewayAssetAndSyncProxyHosts(cert.id, userId);
+      const delivery = await this.refreshOpfieldAssetAndSyncProxyHosts(cert.id, userId);
       await this.recordDistributionOutcome(cert.id, delivery.failures);
     } catch (deployError) {
       const deployMessage = deployError instanceof Error ? deployError.message : 'Unknown deploy error';
@@ -1107,7 +1107,7 @@ export class SSLService {
     // Store the linked certificate canonically. Active hosts are synchronized
     // through their atomic TLS bundle; no default-node predeployment occurs.
     if (privateKeyPem) {
-      const delivery = await this.refreshGatewayAssetAndSyncProxyHosts(cert.id, userId);
+      const delivery = await this.refreshOpfieldAssetAndSyncProxyHosts(cert.id, userId);
       await this.recordDistributionOutcome(cert.id, delivery.failures);
     }
 
@@ -1250,7 +1250,7 @@ export class SSLService {
     // The certificate is renewed at this point; a delivery problem must not
     // be recorded as a renewal failure.
     try {
-      const delivery = await this.refreshGatewayAssetAndSyncProxyHosts(certId, userId);
+      const delivery = await this.refreshOpfieldAssetAndSyncProxyHosts(certId, userId);
       await this.recordDistributionOutcome(certId, delivery.failures);
     } catch (deployError) {
       const deployMsg = deployError instanceof Error ? deployError.message : 'Unknown deploy error';
@@ -1370,7 +1370,7 @@ export class SSLService {
     if (requester) return requester;
 
     try {
-      if (cert.createdById && cert.createdById !== GATEWAY_SYSTEM_USER_ID) {
+      if (cert.createdById && cert.createdById !== OPFIELD_SYSTEM_USER_ID) {
         const [creator] = await this.db
           .select({ email: users.email })
           .from(users)
@@ -1386,7 +1386,7 @@ export class SSLService {
         .where(
           and(
             eq(permissionGroups.name, 'system-admin'),
-            ne(users.id, GATEWAY_SYSTEM_USER_ID),
+            ne(users.id, OPFIELD_SYSTEM_USER_ID),
             isNull(users.deletedAt),
             eq(users.isBlocked, false)
           )
@@ -2047,7 +2047,7 @@ export class SSLService {
 
     let failures: ProxyHostSyncFailure[] = [];
     try {
-      const delivery = await this.refreshGatewayAssetAndSyncProxyHosts(certId, userId);
+      const delivery = await this.refreshOpfieldAssetAndSyncProxyHosts(certId, userId);
       await this.recordDistributionOutcome(certId, delivery.failures);
       failures = delivery.failures;
     } catch (deployError) {
@@ -2094,7 +2094,7 @@ export class SSLService {
       .where(and(eq(sslCertificates.id, certId), isNull(sslCertificates.chainPem)));
     // Without its key the certificate was never delivered to Nginx.
     if (cert.privateKeyPem) {
-      const delivery = await this.refreshGatewayAssetAndSyncProxyHosts(certId, GATEWAY_SYSTEM_USER_ID);
+      const delivery = await this.refreshOpfieldAssetAndSyncProxyHosts(certId, OPFIELD_SYSTEM_USER_ID);
       await this.recordDistributionOutcome(certId, delivery.failures);
     }
     logger.info('Issuer chain added to a linked internal certificate', { certId });

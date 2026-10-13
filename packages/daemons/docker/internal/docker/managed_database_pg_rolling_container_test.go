@@ -35,7 +35,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 const (
@@ -67,7 +67,7 @@ func pgrtRuntime(t *testing.T, n *pgctNode, logger *slog.Logger, peer func() *me
 		Engine: func(config memberha.Config) (memberha.Engine, error) {
 			return newPostgresSetMember(plugin, config)
 		},
-		GatewayContactAt: clock.Now,
+		OpfieldContactAt: clock.Now,
 		PeerState: func(_ context.Context, setID, peerMemberID string) (memberha.PeerState, bool) {
 			other := peer()
 			if other == nil {

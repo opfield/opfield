@@ -459,7 +459,7 @@ export class HostkeyHostingAdapter implements HostingProviderAdapter {
       input.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'gateway';
+        .replace(/^-+|-+$/g, '') || 'opfield';
     const name = `${prefix.slice(0, 63 - input.marker.length - 1).replace(/-+$/g, '')}-${input.marker}`;
     const result = await this.call(
       'eq',
@@ -641,7 +641,7 @@ export class HostkeyHostingAdapter implements HostingProviderAdapter {
     const result = await this.call(
       'whmcs',
       'create_addfunds',
-      { amount, 'params[amount]': amount, 'params[description]': `Gateway hosting ${marker}`, subscribe: false },
+      { amount, 'params[amount]': amount, 'params[description]': `Opfield hosting ${marker}`, subscribe: false },
       true
     );
     if (typeof result.invoice === 'number' || typeof result.invoice === 'string') {

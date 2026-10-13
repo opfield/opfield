@@ -124,7 +124,7 @@ export interface AIScenario {
 
 export type WebSearchProvider = "tavily" | "brave" | "serper" | "searxng" | "exa";
 export type AIEndpointMode = "auto" | "chat_completions" | "responses";
-export type AIProviderType = "openai_compatible" | "gateway_inference";
+export type AIProviderType = "openai_compatible" | "opfield_inference";
 
 export interface AIInferenceModelOption {
   id: string;
@@ -155,10 +155,10 @@ export interface AIConfig {
   endpointMode: AIEndpointMode;
   supportsImages: boolean;
   model: string;
-  gatewayInferenceModel: string;
-  gatewayInferenceAllowUserModelSelection: boolean;
+  opfieldInferenceModel: string;
+  opfieldInferenceAllowUserModelSelection: boolean;
   allowUserReasoningEffortSelection: boolean;
-  gatewayInferenceModels: AIInferenceModelOption[];
+  opfieldInferenceModels: AIInferenceModelOption[];
   maxCompletionTokens: number;
   maxTokensField: "max_tokens" | "max_completion_tokens";
   reasoningEffort: "low" | "medium" | "high" | "none";

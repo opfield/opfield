@@ -3,8 +3,8 @@ package pgha
 import (
 	"testing"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 func pgTestConfig() Config {

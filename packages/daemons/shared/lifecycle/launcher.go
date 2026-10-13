@@ -18,17 +18,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/hostrename"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
 )
 
 const (
 	LauncherProtocolVersion = 1
 	LauncherCommand         = "launcher"
 	LauncherProbeCommand    = "launcher-probe"
-	LauncherManagedEnv      = "GATEWAY_DAEMON_LAUNCHER_MANAGED"
-	LauncherReadyFDEnv      = "GATEWAY_DAEMON_LAUNCHER_READY_FD"
-	LauncherOwnerFDEnv      = "GATEWAY_DAEMON_LAUNCHER_OWNER_FD"
-	LauncherStateDirEnv     = "GATEWAY_DAEMON_LAUNCHER_STATE_DIR"
+	LauncherManagedEnv      = "OPFIELD_DAEMON_LAUNCHER_MANAGED"
+	LauncherReadyFDEnv      = "OPFIELD_DAEMON_LAUNCHER_READY_FD"
+	LauncherOwnerFDEnv      = "OPFIELD_DAEMON_LAUNCHER_OWNER_FD"
+	LauncherStateDirEnv     = "OPFIELD_DAEMON_LAUNCHER_STATE_DIR"
 	LauncherUpdateExitCode  = 75
 )
 
@@ -133,10 +134,10 @@ func PrintLauncherProbe() {
 // copy. If no safe copy can be created, it returns an error and the caller may
 // continue running directly with rollback protection unavailable.
 func BootstrapLauncher(spec LauncherSpec) error {
-	if os.Getenv(LauncherManagedEnv) == "1" {
+	if launcherManagedFromEnvironment() == "1" {
 		// Keep ownership in this daemon if the launcher dies, but never leak the
 		// lock into worker processes subsequently spawned by the daemon.
-		if fd, err := strconv.Atoi(os.Getenv(LauncherOwnerFDEnv)); err == nil && fd >= 3 {
+		if fd, err := strconv.Atoi(launcherEnv(LauncherOwnerFDEnv, legacyLauncherOwnerFDEnv)); err == nil && fd >= 3 {
 			syscall.CloseOnExec(fd)
 		}
 		// Likewise the listeners the launcher kept for this process, before
@@ -179,7 +180,7 @@ func BootstrapLauncher(spec LauncherSpec) error {
 		childArgs = []string{"run"}
 	}
 	args := launcherCommandArgs(launcherPath, LauncherSpec{DaemonType: spec.DaemonType, StateDir: stateDir, BinaryPath: executable, ChildArgs: childArgs})
-	environment := append(os.Environ(), LauncherStateDirEnv+"="+stateDir)
+	environment := append(os.Environ(), launcherEnvPairs(LauncherStateDirEnv, legacyLauncherStateDirEnv, stateDir)...)
 	return syscall.Exec(launcherPath, args, environment)
 }
 
@@ -532,12 +533,11 @@ func startLauncherChild(spec LauncherSpec, ownerLock *os.File, keeper *listenerk
 	// itself crashes, a replacement launcher cannot acquire ownership until the
 	// old child has actually exited after Pdeathsig, preventing process overlap.
 	cmd.ExtraFiles = []*os.File{writer, ownerLock}
-	cmd.Env = append(os.Environ(),
-		LauncherManagedEnv+"=1",
-		LauncherReadyFDEnv+"=3",
-		LauncherOwnerFDEnv+"=4",
-		LauncherStateDirEnv+"="+spec.StateDir,
-	)
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, launcherEnvPairs(LauncherManagedEnv, legacyLauncherManagedEnv, "1")...)
+	cmd.Env = append(cmd.Env, launcherEnvPairs(LauncherReadyFDEnv, legacyLauncherReadyFDEnv, "3")...)
+	cmd.Env = append(cmd.Env, launcherEnvPairs(LauncherOwnerFDEnv, legacyLauncherOwnerFDEnv, "4")...)
+	cmd.Env = append(cmd.Env, launcherEnvPairs(LauncherStateDirEnv, legacyLauncherStateDirEnv, spec.StateDir)...)
 	releaseKept := func() {}
 	if keeper != nil {
 		files, environment, release := keeper.ChildFiles(3 + len(cmd.ExtraFiles))
@@ -842,6 +842,7 @@ func notifyLauncherControlReady(logger *slog.Logger) {
 	controlReadyOnce.Do(func() {
 		writeLauncherReadiness(launcherReadinessEvent{Type: launcherEventControlReady, Version: version}, true)
 		scheduleLauncherRefresh(version, logger)
+		scheduleStartConfirmed(version, logger)
 	})
 }
 
@@ -852,7 +853,7 @@ func writeLauncherReadiness(event launcherReadinessEvent, last bool) {
 	defer launcherReadyMu.Unlock()
 	if !launcherReadyOpened {
 		launcherReadyOpened = true
-		fdValue := os.Getenv(LauncherReadyFDEnv)
+		fdValue := launcherEnv(LauncherReadyFDEnv, legacyLauncherReadyFDEnv)
 		if fdValue == "" {
 			return
 		}
@@ -878,10 +879,27 @@ func writeLauncherReadiness(event launcherReadinessEvent, last bool) {
 func ensureStableLauncher(preferredStateDir, daemonType, executable string) (string, string, error) {
 	candidates := []string{preferredStateDir}
 	if cacheDir, err := os.UserCacheDir(); err == nil {
-		candidates = append(candidates, filepath.Join(cacheDir, "gateway-daemon", daemonType))
+		candidates = append(candidates, fallbackLauncherDir(filepath.Join(cacheDir, "opfield-daemon", daemonType), filepath.Join(cacheDir, "gateway-daemon", daemonType)))
 	}
-	candidates = append(candidates, filepath.Join(os.TempDir(), fmt.Sprintf("gateway-daemon-%d", os.Getuid()), daemonType))
+	candidates = append(candidates, fallbackLauncherDir(
+		filepath.Join(os.TempDir(), fmt.Sprintf("opfield-daemon-%d", os.Getuid()), daemonType),
+		filepath.Join(os.TempDir(), fmt.Sprintf("gateway-daemon-%d", os.Getuid()), daemonType)))
 	return ensureStableLauncherIn(candidates, executable, os.Lstat)
+}
+
+// fallbackLauncherDir is the Opfield-named launcher directory, unless a launcher
+// already lives under the pre-Opfield name: its owner lock and update state
+// must stay where the running launcher looks for them, or two launchers could
+// run one daemon.
+func fallbackLauncherDir(dir, legacy string) string {
+	if _, err := os.Lstat(dir); err == nil {
+		return dir
+	}
+	// legacy-name: gateway-daemon launcher fallback directory of pre-Opfield daemons — remove once every node reports none
+	if _, err := os.Lstat(legacy); err == nil {
+		return legacy
+	}
+	return dir
 }
 
 // ensureStableLauncherIn uses the first candidate directory that holds or can
@@ -960,7 +978,7 @@ func readDaemonBinaryVersion(path string) (string, error) {
 }
 
 func launcherStateDirFromEnvironment(executable string) string {
-	if value := strings.TrimSpace(os.Getenv(LauncherStateDirEnv)); value != "" {
+	if value := strings.TrimSpace(launcherEnv(LauncherStateDirEnv, legacyLauncherStateDirEnv)); value != "" {
 		return value
 	}
 	switch filepath.Base(executable) {
@@ -971,9 +989,10 @@ func launcherStateDirFromEnvironment(executable string) string {
 	case "monitoring-daemon":
 		return "/var/lib/monitoring-daemon"
 	case "relay-supervisor":
-		return "/var/lib/gateway-relay-supervisor"
+		// legacy-name: /var/lib/gateway-relay-supervisor until the relay supervisor moved it — remove once every node reports none
+		return hostrename.Resolve(hostrename.Pair{Old: "/var/lib/gateway-relay-supervisor", New: "/var/lib/opfield-relay"})
 	default:
-		return filepath.Join(filepath.Dir(executable), ".gateway-launcher")
+		return fallbackLauncherDir(filepath.Join(filepath.Dir(executable), ".opfield-launcher"), filepath.Join(filepath.Dir(executable), ".gateway-launcher"))
 	}
 }
 

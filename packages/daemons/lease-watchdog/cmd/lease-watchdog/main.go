@@ -22,10 +22,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/lease-watchdog/internal/update"
-	"github.com/wiolett-industries/gateway/lease-watchdog/internal/watchdog"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasewatchdog"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/lease-watchdog/internal/update"
+	"github.com/opfield/opfield/lease-watchdog/internal/watchdog"
 )
 
 // Version is set at build time: -X main.Version=vX.Y.Z.
@@ -99,6 +100,13 @@ func run(args []string, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	if *root == leasefence.DefaultRoot || *root == leasefence.LegacyRoot {
+		// Meet a docker daemon of either release in one directory: the
+		// pre-Opfield name becomes a link to the Opfield one.
+		if _, err := leasefence.EnsureDefaultRoot(); err != nil {
+			logger.Warn("lease record directory keeps its pre-Opfield name", "error", err)
+		}
+	}
 	if err := prepareDirectories(dir); err != nil {
 		return err
 	}
@@ -117,6 +125,7 @@ func run(args []string, logger *slog.Logger) error {
 		enforcer.Run(runCtx)
 		close(done)
 	}()
+	go migrateLegacyService(ctx, logger)
 	select {
 	case <-ctx.Done():
 	case tag := <-restart:
@@ -210,7 +219,7 @@ func updateOnce(args []string, logger *slog.Logger) error {
 		fmt.Println("lease-watchdog is up to date")
 		return nil
 	}
-	fmt.Printf("lease-watchdog updated to %s; restart the gateway-lease-watchdog service\n", result.Tag)
+	fmt.Printf("lease-watchdog updated to %s; restart the %s service\n", result.Tag, leasewatchdog.UnitName)
 	return nil
 }
 
@@ -253,4 +262,73 @@ func selfTest(_ []string) error {
 	}
 	fmt.Printf("lease-watchdog %s ok\n", Version)
 	return nil
+}
+
+// migrateLegacyService moves a node from the pre-Opfield gateway-lease-watchdog
+// service to opfield-lease-watchdog once this watchdog enforces (its first
+// pass ran), so the switch-over gap is one stop and one start.
+func migrateLegacyService(ctx context.Context, logger *slog.Logger) {
+	if os.Geteuid() != 0 {
+		return
+	}
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(5 * time.Second):
+	}
+	executable, err := os.Executable()
+	if err == nil {
+		executable, err = filepath.EvalSymlinks(executable)
+	}
+	if err != nil {
+		logger.Warn("lease watchdog service keeps its pre-Opfield name", "error", err)
+		return
+	}
+	_, systemdErr := os.Stat("/run/systemd/system")
+	_, openrcErr := os.Stat("/sbin/openrc-run")
+	host := leasewatchdog.ServiceHost{
+		Systemd: systemdErr == nil,
+		OpenRC:  systemdErr != nil && openrcErr == nil,
+		Run: func(ctx context.Context, name string, args ...string) error {
+			runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			output, err := exec.CommandContext(runCtx, name, args...).CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+			}
+			return nil
+		},
+		Detach:             detachServiceSwitch(systemdErr == nil),
+		UnderLegacyService: leasewatchdog.UnderLegacyUnit,
+	}
+	result, err := leasewatchdog.MigrateLegacyService(ctx, host, executable, strings.Join(os.Args[1:], " "))
+	switch {
+	case err != nil:
+		logger.Warn("lease watchdog service keeps its pre-Opfield name; retried on the next start", "service", leasewatchdog.LegacyUnitName, "error", err)
+	case result == leasewatchdog.SwitchingOver:
+		logger.Info("moving the lease watchdog to its Opfield service; this process stops and the new service starts", "from", leasewatchdog.LegacyUnitName, "to", leasewatchdog.UnitName)
+	case result == leasewatchdog.RemovedLegacy:
+		logger.Info("removed the pre-Opfield lease watchdog service", "service", leasewatchdog.LegacyUnitName)
+	}
+}
+
+// detachServiceSwitch runs the switch-over step outside this process's
+// service: under systemd as a transient unit (stopping the old unit kills
+// every process of its cgroup), under OpenRC in its own session.
+func detachServiceSwitch(systemd bool) func(script string) error {
+	return func(script string) error {
+		if systemd {
+			output, err := exec.Command("systemd-run", "--unit="+leasewatchdog.UnitName+"-switch", "--collect", "--quiet", "/bin/sh", "-c", script).CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("systemd-run: %w: %s", err, strings.TrimSpace(string(output)))
+			}
+			return nil
+		}
+		command := exec.Command("/bin/sh", "-c", script)
+		command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		if err := command.Start(); err != nil {
+			return err
+		}
+		return command.Process.Release()
+	}
 }

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasewatchdog"
+	"github.com/opfield/opfield/daemon-shared/leasewatchdog"
 )
 
 const (

@@ -86,11 +86,11 @@ interface QuickActionChipsProps {
 
 export function QuickActionChips({ onSelect, context }: QuickActionChipsProps) {
   const location = useLocation();
-  const gatewayInferenceMode = useAIStore(
-    (state) => state.providerStatus?.providerType === "gateway_inference"
+  const opfieldInferenceMode = useAIStore(
+    (state) => state.providerStatus?.providerType === "opfield_inference"
   );
   const canViewInferenceUsage = useAuthStore((state) => state.hasScope("feat:ai:use"));
-  const inferenceQuota = useInferenceQuotaSnapshot(gatewayInferenceMode && canViewInferenceUsage);
+  const inferenceQuota = useInferenceQuotaSnapshot(opfieldInferenceMode && canViewInferenceUsage);
 
   // Keys are the page URLs from before Routes and Certificates had tabs.
   const pathname = legacyPathForPath(location.pathname);

@@ -72,10 +72,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/chha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/chha"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 const (
@@ -483,7 +483,7 @@ func (m *mwMember) forget() {
 	m.known = false
 	m.mu.Unlock()
 }
-func (m *mwMember) GatewayConnected() bool              { return true }
+func (m *mwMember) OpfieldConnected() bool              { return true }
 func (m *mwMember) Sign(string, []byte) ([]byte, error) { return []byte("test"), nil }
 func (m *mwMember) Logger() *slog.Logger                { return m.h.logger.With("member", m.spec.name) }
 

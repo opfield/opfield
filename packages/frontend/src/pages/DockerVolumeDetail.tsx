@@ -60,7 +60,9 @@ type VolumeUsageContainer = {
   state: string;
   canOpen: boolean;
 };
-const VOLUME_CLEANUP_PROTECTED_LABEL = "gateway.housekeeping.protected";
+const VOLUME_CLEANUP_PROTECTED_LABEL = "opfield.housekeeping.protected";
+// legacy-name: cleanup protection label of volumes protected before 2.12.1 — remove once no protected volume carries it
+const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = "gateway.housekeeping.protected";
 
 function labelsToEntries(labels: Record<string, string> | undefined): LabelEntry[] {
   return Object.entries(labels ?? {}).map(([key, value]) => ({ key, value }));
@@ -148,7 +150,9 @@ export function DockerVolumeDetail({
   const canExportVolume = hasVolumeScope("docker:volumes:export");
   const canRenameVolume = canEditVolume;
   const isAnonymousVolume = /^[a-f0-9]{64}$/i.test(decodedVolumeName);
-  const isCleanupProtected = volume?.labels?.[VOLUME_CLEANUP_PROTECTED_LABEL] === "true";
+  const isCleanupProtected =
+    volume?.labels?.[VOLUME_CLEANUP_PROTECTED_LABEL] === "true" ||
+    volume?.labels?.[LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL] === "true";
   const composeProjectName = volume?.labels?.["com.docker.compose.project"];
   const composeManaged = !!composeProjectName;
   const canReadVolumeFiles = hasVolumeScope("docker:volumes:files:read");
@@ -543,6 +547,7 @@ export function DockerVolumeDetail({
       const nextLabels = { ...(volume?.labels ?? {}) };
       if (isCleanupProtected) {
         delete nextLabels[VOLUME_CLEANUP_PROTECTED_LABEL];
+        delete nextLabels[LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL];
       } else {
         nextLabels[VOLUME_CLEANUP_PROTECTED_LABEL] = "true";
       }

@@ -208,7 +208,7 @@ export const relayPolicySigningKeys = pgTable(
 
 export const relayPools = pgTable('relay_pools', {
   id: varchar('id', { length: 32 }).primaryKey(),
-  gatewayHostIdentityId: uuid('gateway_host_identity_id').notNull().defaultRandom(),
+  opfieldHostIdentityId: uuid('host_identity_id').notNull().defaultRandom(),
   desiredPolicyRevision: bigint('desired_policy_revision', { mode: 'number' }).notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -223,7 +223,7 @@ export type RelayRouteResumeState = 'off' | 'enabling' | 'on' | 'rotating' | 'di
 
 export const relayPolicyState = pgTable('relay_policy_state', {
   id: varchar('id', { length: 32 }).primaryKey(),
-  gatewayInstanceId: uuid('gateway_instance_id').notNull(),
+  gatewayInstanceId: uuid('instance_id').notNull(),
   revision: bigint('revision', { mode: 'number' }).notNull().default(0),
   /**
    * The resumable relay stream (RSv1) secret every route resume key derives from, envelope-encrypted like the grant

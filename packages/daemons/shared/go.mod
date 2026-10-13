@@ -1,4 +1,4 @@
-module github.com/wiolett-industries/gateway/daemon-shared
+module github.com/opfield/opfield/daemon-shared
 
 go 1.24.4
 

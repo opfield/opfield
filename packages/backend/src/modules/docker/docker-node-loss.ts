@@ -13,7 +13,7 @@ interface DockerNodeLoss {
   taskId?: string;
 }
 
-const NODE_LOSS = Symbol.for('gateway.docker.nodeLoss');
+const NODE_LOSS = Symbol.for('opfield.docker.nodeLoss');
 
 /**
  * Records on a node connection error what became of the operation's task. The error itself (its message, which the

@@ -54,14 +54,14 @@ export const AIContextEstimateRequestSchema = z.object({
 
 export const AIConfigUpdateSchema = z.object({
   enabled: z.boolean().optional(),
-  providerType: z.enum(['openai_compatible', 'gateway_inference']).optional(),
+  providerType: z.enum(['openai_compatible', 'opfield_inference']).optional(),
   providerUrl: z.union([z.string().url(), z.literal('')]).optional(),
   endpointMode: z.enum(['auto', 'chat_completions', 'responses']).optional(),
   supportsImages: z.boolean().optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
-  gatewayInferenceModel: z.string().trim().max(255).optional(),
-  gatewayInferenceAllowUserModelSelection: z.boolean().optional(),
+  opfieldInferenceModel: z.string().trim().max(255).optional(),
+  opfieldInferenceAllowUserModelSelection: z.boolean().optional(),
   allowUserReasoningEffortSelection: z.boolean().optional(),
   customSystemPrompt: z.string().optional(),
   rateLimitMax: z.number().int().min(1).max(1000).optional(),

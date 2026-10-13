@@ -367,7 +367,7 @@ func volumeUploadTempPath(uploadID string, targetPath string) (string, string, e
 		return "", "", err
 	}
 	parent := filepath.Dir(cleanTarget)
-	return filepath.Join(parent, ".gateway-upload-"+uploadID+".tmp"), cleanTarget, nil
+	return filepath.Join(parent, ".opfield-upload-"+uploadID+".tmp"), cleanTarget, nil
 }
 
 func runVolumeHelper(ctx context.Context, c *Client, volumeName string, command []string, maxBytes int64) ([]byte, error) {

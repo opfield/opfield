@@ -2,7 +2,7 @@ import { count, eq, inArray, isNull, not, or } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor, DrizzleTransaction } from '@/db/client.js';
 import { settings, users } from '@/db/schema/index.js';
 
-const GATEWAY_SYSTEM_OIDC_SUBJECT = 'system:gateway-setup';
+const OPFIELD_SYSTEM_OIDC_SUBJECT = 'system:opfield-setup';
 const SETUP_COMPLETED_AT_KEY = 'setup:completed_at';
 const SETUP_FORCED_OPEN_KEY = 'setup:forced_open';
 
@@ -22,11 +22,11 @@ export class SetupTokenPolicyService {
     private readonly installerBootstrapEnabled = false
   ) {}
 
-  async isGatewayConfigured(executor: DrizzleExecutor = this.db): Promise<boolean> {
+  async isOpfieldConfigured(executor: DrizzleExecutor = this.db): Promise<boolean> {
     const [{ count: userCount }] = await executor
       .select({ count: count() })
       .from(users)
-      .where(or(isNull(users.oidcSubject), not(eq(users.oidcSubject, GATEWAY_SYSTEM_OIDC_SUBJECT))));
+      .where(or(isNull(users.oidcSubject), not(eq(users.oidcSubject, OPFIELD_SYSTEM_OIDC_SUBJECT))));
 
     return Number(userCount) > 0;
   }
@@ -39,7 +39,7 @@ export class SetupTokenPolicyService {
     if (await this.isForcedOpen()) return;
     if (await this.getTimestampSetting(SETUP_COMPLETED_AT_KEY)) return;
 
-    if (await this.isGatewayConfigured()) {
+    if (await this.isOpfieldConfigured()) {
       await this.markSetupComplete();
       return;
     }

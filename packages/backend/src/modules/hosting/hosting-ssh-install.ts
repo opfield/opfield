@@ -17,7 +17,7 @@ export const SSH_INSTALL_TOKEN_TTL_MS = 30 * 60 * 1000;
 const SSH_USER = 'root';
 const MAX_PROVIDER_KEY_ATTEMPTS = 20;
 const MAX_GUEST_KEY_ATTEMPTS = 3;
-const KEY_REMOVED = 'GATEWAY_INSTALL_KEY_REMOVED';
+const KEY_REMOVED = 'OPFIELD_INSTALL_KEY_REMOVED';
 
 /** Private key lives only in the operation's encrypted bootstrap payload, which finish() clears. */
 export type SshInstallKey = { privateKey: string; publicKey: string };
@@ -57,7 +57,9 @@ export function installDiagnostics(output: { stdout: string; stderr?: string }):
     .filter((part) => part.trim().length > 0)
     .join('\n')
     .replace(ANSI_ESCAPE, '')
-    .replace(/gw_node_[A-Za-z0-9_]+/g, 'gw_node_[redacted]')
+    .replace(/opf_node_[A-Za-z0-9_]+/g, 'opf_node_[redacted]')
+    // legacy-name: node enrollment tokens issued before 2.12.1 — remove once 2.12.0 is no longer an update source
+    .replace(/gw_node_[A-Za-z0-9_]+/g, 'opf_node_[redacted]')
     .replace(/(--token\s+)\S+/g, '$1[redacted]')
     .trim();
   return text.length > INSTALL_DIAGNOSTICS_MAX_CHARS ? text.slice(-INSTALL_DIAGNOSTICS_MAX_CHARS) : text;
@@ -100,7 +102,7 @@ export function sshKeyRemovalCommand(publicKey: string): string {
   const blob = keyBlob(publicKey);
   return [
     'f="$HOME/.ssh/authorized_keys"',
-    `if [ -f "$f" ]; then grep -vF '${blob}' "$f" > "$f.gateway" ; cat "$f.gateway" > "$f"; rm -f "$f.gateway"; fi`,
+    `if [ -f "$f" ]; then grep -vF '${blob}' "$f" > "$f.opfield" ; cat "$f.opfield" > "$f"; rm -f "$f.opfield"; fi`,
     `if [ ! -f "$f" ] || ! grep -qF '${blob}' "$f"; then echo ${KEY_REMOVED}; fi`,
   ].join('\n');
 }

@@ -6,7 +6,7 @@
 export interface FoldedUnder {
   /** The parent alert state. */
   stateId: string;
-  kind: 'node' | 'gateway_outbound';
+  kind: 'node' | 'opfield_outbound';
   /** The parent alert as a reader knows it: its rule and resource. */
   label: string;
 }
@@ -17,7 +17,7 @@ export function foldedUnder(context: unknown): FoldedUnder | null {
   if (!folded || typeof folded.stateId !== 'string') return null;
   return {
     stateId: folded.stateId,
-    kind: folded.kind === 'gateway_outbound' ? 'gateway_outbound' : 'node',
+    kind: folded.kind === 'opfield_outbound' ? 'opfield_outbound' : 'node',
     label: typeof folded.label === 'string' ? folded.label : 'it was folded under',
   };
 }

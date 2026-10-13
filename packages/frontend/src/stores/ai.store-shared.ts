@@ -21,8 +21,8 @@ import type {
 export const DEFAULT_CONTEXT_TOKEN_LIMIT = 56000;
 export const DEFAULT_REASONING_EFFORT: AIConfig["reasoningEffort"] = "none";
 export const CONTEXT_ESTIMATE_CACHE_TTL_MS = 30_000;
-export const AI_MODEL_STORAGE_KEY = "gateway:ai:selected-model";
-export const AI_REASONING_STORAGE_PREFIX = "gateway:ai:reasoning-effort:";
+export const AI_MODEL_STORAGE_KEY = "opfield:ai:selected-model";
+export const AI_REASONING_STORAGE_PREFIX = "opfield:ai:reasoning-effort:";
 
 export function loadStoredAIModel(): string | null {
   try {
@@ -86,7 +86,7 @@ export function resolveDraftProviderSelection(
             : null,
     };
   }
-  if (status?.providerType !== "gateway_inference" || status.models.length === 0) {
+  if (status?.providerType !== "opfield_inference" || status.models.length === 0) {
     return { selectedModel: null, selectedReasoningEffort: null };
   }
   const storedModel = loadStoredAIModel();
@@ -102,7 +102,7 @@ export function resolveDraftProviderSelection(
 
 export function canSendSelectedReasoningEffort(status: AIProviderStatus | null): boolean {
   return (
-    status?.providerType === "gateway_inference" ||
+    status?.providerType === "opfield_inference" ||
     (status?.providerType === "openai_compatible" &&
       status.allowUserReasoningEffortSelection === true)
   );
@@ -338,7 +338,7 @@ export const pendingSetupCommands = new Map<string, AISetupInteraction>();
 
 declare global {
   interface Window {
-    gatewayDev?: {
+    opfieldDev?: {
       showApprovalBlock?: () => void;
       hideApprovalBlock?: () => void;
       showChangedResources?: () => void;

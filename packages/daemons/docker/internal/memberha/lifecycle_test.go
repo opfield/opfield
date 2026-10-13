@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 // Rolling updates and set-aware lifecycle (P3-T07): a paused set

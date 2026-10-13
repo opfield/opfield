@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestVerifyGatewaySignedAcceptsOnlyTrustedKeysAndOwnDomains(t *testing.T) {
+func TestVerifyOpfieldSignedAcceptsOnlyTrustedKeysAndOwnDomains(t *testing.T) {
 	node, err := NewNode(Config{ID: "n", Clock: &manualClock{now: time.Hour}, Store: NewMemoryStore(), Signer: fakeSigner{id: "n"}, Verifier: fakeVerifier{}})
 	if err != nil {
 		t.Fatal(err)
@@ -19,20 +19,20 @@ func TestVerifyGatewaySignedAcceptsOnlyTrustedKeysAndOwnDomains(t *testing.T) {
 	const domain = "gateway-availability-member/primary-assignment/v1"
 	payload := []byte("payload")
 	signature := ed25519.Sign(private, blockMessage(domain, payload))
-	if err := node.VerifyGatewaySigned(domain, "k1", payload, signature); err != nil {
+	if err := node.VerifyOpfieldSigned(domain, "k1", payload, signature); err != nil {
 		t.Fatalf("a statement signed by a trusted key must verify: %v", err)
 	}
-	if err := node.VerifyGatewaySigned(domain, "k2", payload, signature); err == nil {
+	if err := node.VerifyOpfieldSigned(domain, "k2", payload, signature); err == nil {
 		t.Fatal("an untrusted key must be refused")
 	}
-	if err := node.VerifyGatewaySigned(domain, "k1", []byte("other"), signature); err == nil {
+	if err := node.VerifyOpfieldSigned(domain, "k1", []byte("other"), signature); err == nil {
 		t.Fatal("a changed payload must be refused")
 	}
-	if err := node.VerifyGatewaySigned("other/domain", "k1", payload, signature); err == nil {
+	if err := node.VerifyOpfieldSigned("other/domain", "k1", payload, signature); err == nil {
 		t.Fatal("a signature under another domain must be refused")
 	}
 	manifest := ed25519.Sign(private, blockMessage(domainManifest, payload))
-	if err := node.VerifyGatewaySigned(domainManifest, "k1", payload, manifest); err == nil {
+	if err := node.VerifyOpfieldSigned(domainManifest, "k1", payload, manifest); err == nil {
 		t.Fatal("lease domains are reserved")
 	}
 }

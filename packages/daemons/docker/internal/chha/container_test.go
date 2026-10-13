@@ -37,7 +37,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 const (
@@ -225,7 +225,7 @@ func (r *ctRuntime) Config() (memberha.Config, bool) {
 	config, ok := r.h.configs[r.name]
 	return config, ok
 }
-func (r *ctRuntime) GatewayConnected() bool              { return true }
+func (r *ctRuntime) OpfieldConnected() bool              { return true }
 func (r *ctRuntime) Sign(string, []byte) ([]byte, error) { return []byte("test"), nil }
 func (r *ctRuntime) Logger() *slog.Logger                { return r.h.logger.With("member", r.name) }
 

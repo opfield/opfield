@@ -65,7 +65,7 @@ function body(bytes: Buffer): ReadableStream<Uint8Array> {
 
 async function linkToken(args: Record<string, unknown> = {}) {
   const link = await createPageUploadLink(user, { projectId: PROJECT_ID, tag: 'demo', ...args });
-  expect(link.uploadUrl).toMatch(/^https:\/\/gateway\.example\/api\/pages-upload\/gwpu_/);
+  expect(link.uploadUrl).toMatch(/^https:\/\/gateway\.example\/api\/pages-upload\/opfpu_/);
   expect(link.commands.folder).toContain(`tar czf - -C dist . | curl`);
   return link.uploadUrl.split('/').at(-1) as string;
 }

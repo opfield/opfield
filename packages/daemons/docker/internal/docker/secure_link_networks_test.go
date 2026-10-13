@@ -39,7 +39,7 @@ func TestLinkSubnetAllocation(t *testing.T) {
 		t.Fatalf("IPAM %+v reserved %s", ipam, reserved)
 	}
 	inspected := network.Inspect{Network: network.Network{
-		Name: "gateway-link-0123456789abcdef", Labels: map[string]string{"wiolett.gateway.managed": linkNetworkLabel},
+		Name: "gateway-link-0123456789abcdef", Labels: map[string]string{"net.opfield.managed": linkNetworkLabel},
 		IPAM: network.IPAM{Config: []network.IPAMConfig{ipam}},
 	}}
 	if address, static := linkNetworkReservedAddress(inspected); !static || address.String() != reserved {

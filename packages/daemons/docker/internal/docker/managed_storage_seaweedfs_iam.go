@@ -393,7 +393,7 @@ type seaweedfsPrincipalView struct {
 func (c *seaweedfsIAMClient) listKeys(ctx context.Context, principal string) (string, error) {
 	principals := []string{principal}
 	if principal == "" {
-		users, err := c.listGatewayPrincipals(ctx)
+		users, err := c.listOpfieldPrincipals(ctx)
 		if err != nil {
 			return "", err
 		}
@@ -437,7 +437,7 @@ func (c *seaweedfsIAMClient) removeKey(ctx context.Context, iam managedStorageIA
 }
 
 func (c *seaweedfsIAMClient) findPrincipalForKey(ctx context.Context, accessKey string) (string, error) {
-	principals, err := c.listGatewayPrincipals(ctx)
+	principals, err := c.listOpfieldPrincipals(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -524,7 +524,7 @@ func (c *seaweedfsIAMClient) principalKeys(ctx context.Context, principal string
 	return views, nil
 }
 
-func (c *seaweedfsIAMClient) listGatewayPrincipals(ctx context.Context) ([]string, error) {
+func (c *seaweedfsIAMClient) listOpfieldPrincipals(ctx context.Context) ([]string, error) {
 	var principals []string
 	err := c.paginate(ctx, "ListUsers", url.Values{}, func(body []byte) (string, bool, error) {
 		var response struct {

@@ -20,7 +20,7 @@ Storage connections, managed object storage, managed-database backup/restore, an
 The general Opfield CLI (distinct from the existing Opfield Inference CLI) is expected in 2.13 on every plan. The Bastion / SSH management daemon is expected in 2.14 on Business and Enterprise. The plugin system is unimplemented core infrastructure, not a plan feature; its tentative timing is no earlier than 2.20 and is uncertain.
 
 ## How To Guide A User
-Start with the user goal, then read the focused topic before explaining a workflow or calling tools. Use installation for a new deployment, authentication for access/sign-in questions, gateway-settings for control-plane settings and MCP, and troubleshooting for failures. A feature being described here does not grant permission to view or change it; always respect the user's scopes and confirm destructive changes.
+Start with the user goal, then read the focused topic before explaining a workflow or calling tools. Use installation for a new deployment, authentication for access/sign-in questions, opfield-settings for control-plane settings and MCP, and troubleshooting for failures. A feature being described here does not grant permission to view or change it; always respect the user's scopes and confirm destructive changes.
 
 ## Dashboard Attention And Pins
 - The Dashboard sidebar item can show a **12px square attention badge**. Blue means the Dashboard has only informational cards, such as an unfinished setup checklist. Yellow means at least one warning card is visible; this includes red/unhealthy resource states, certificate expiry, low node capacity, MFA reminders, update/logging/inference warnings, and unhealthy pinned database or Docker resources. No badge means there are no visible information or warning cards for the current user.
@@ -125,8 +125,8 @@ Identify the failing surface, read its focused internal topic, and inspect the c
 - Browser URL problem: confirm the explicit canonical URL and whether the browser reaches Opfield directly or through a reverse proxy. Native HTTP/HTTPS use port 3000.
 
 ## Opfield Itself
-- Slow UI or API, a failing background job, database or cache trouble, or a failed update: read manage_gateway_diagnostics snapshot first, then history for the time window (48 hours of one-minute samples) and requests for the routes involved.
-- Read Opfield's own logs with manage_gateway_diagnostics logs (scope diagnostics:logs): source app for the backend, update for the last update run, or postgres, redis, relay, registry. Filter by level, text, context or requestId and a since/until window rather than reading everything.
+- Slow UI or API, a failing background job, database or cache trouble, or a failed update: read manage_opfield_diagnostics snapshot first, then history for the time window (48 hours of one-minute samples) and requests for the routes involved.
+- Read Opfield's own logs with manage_opfield_diagnostics logs (scope diagnostics:logs): source app for the backend, update for the last update run, or postgres, redis, relay, registry. Filter by level, text, context or requestId and a since/until window rather than reading everything.
 
 ## Nodes, Ingress, And Certificates
 - Offline node: inspect node health and reconnect status before retrying a mutation.

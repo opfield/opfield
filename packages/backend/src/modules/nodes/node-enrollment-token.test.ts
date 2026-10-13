@@ -11,11 +11,16 @@ describe('node enrollment token helpers', () => {
   it('creates parseable v2 tokens with a selector', () => {
     const enrollmentToken = createNodeEnrollmentToken();
 
-    expect(enrollmentToken.token).toMatch(/^gw_node_v2_[0-9a-f]{16}_[0-9a-f]{48}$/);
+    expect(enrollmentToken.token).toMatch(/^opf_node_v2_[0-9a-f]{16}_[0-9a-f]{48}$/);
     expect(parseNodeEnrollmentToken(enrollmentToken.token)).toEqual({
       kind: 'v2',
       selector: enrollmentToken.selector,
     });
+  });
+
+  it('still parses unused v2 tokens issued before 2.12.1', () => {
+    const selector = '0123456789abcdef';
+    expect(parseNodeEnrollmentToken(`gw_node_v2_${selector}_${'b'.repeat(48)}`)).toEqual({ kind: 'v2', selector });
   });
 
   it('keeps pre-v2 node tokens in the legacy path', () => {
@@ -23,6 +28,7 @@ describe('node enrollment token helpers', () => {
   });
 
   it('rejects malformed v2 tokens instead of falling back to a scan', () => {
+    expect(parseNodeEnrollmentToken('opf_node_v2_short_secret')).toEqual({ kind: 'invalid' });
     expect(parseNodeEnrollmentToken('gw_node_v2_short_secret')).toEqual({ kind: 'invalid' });
   });
 

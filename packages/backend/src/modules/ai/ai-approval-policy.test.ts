@@ -223,7 +223,7 @@ describe('AI backend approval policy', () => {
     ).toBe(true);
     expect(
       getAIToolApprovalDecision('manage_system_updates', 'bypass-non-destructive', {
-        operation: 'check_gateway',
+        operation: 'check_opfield',
       }).requiresApproval
     ).toBe(true);
   });

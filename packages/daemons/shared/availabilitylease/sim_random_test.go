@@ -91,7 +91,7 @@ func buildWorld(seed int64, wire, stateful bool) (*simWorld, simTopology) {
 		}
 		w.newNode(id, false, rate(i > candidates))
 	}
-	w.gw = newSimGateway(w)
+	w.gw = newSimOpfield(w)
 	policy := &simPolicy{id: "p1", slots: 1, available: topo.available, stateful: topo.stateful, candidates: topo.candidates, bootstrap: map[uint32]string{}}
 	if topo.replicated {
 		policy.slots = 2

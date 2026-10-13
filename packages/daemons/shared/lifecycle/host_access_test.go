@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 func loadHostAccessTestConfig(t *testing.T, extra string) *BaseConfig {
@@ -26,17 +26,17 @@ func loadHostAccessTestConfig(t *testing.T, extra string) *BaseConfig {
 	return cfg
 }
 
-func nodeExecCommand(action string) *pb.GatewayCommand {
-	return &pb.GatewayCommand{
+func nodeExecCommand(action string) *pb.OpfieldCommand {
+	return &pb.OpfieldCommand{
 		CommandId: "cmd-1",
-		Payload:   &pb.GatewayCommand_NodeExec{NodeExec: &pb.NodeExecCommand{Action: action}},
+		Payload:   &pb.OpfieldCommand_NodeExec{NodeExec: &pb.NodeExecCommand{Action: action}},
 	}
 }
 
-func nodeFileCommand(action string) *pb.GatewayCommand {
-	return &pb.GatewayCommand{
+func nodeFileCommand(action string) *pb.OpfieldCommand {
+	return &pb.OpfieldCommand{
 		CommandId: "cmd-2",
-		Payload:   &pb.GatewayCommand_NodeFile{NodeFile: &pb.NodeFileCommand{Action: action, Path: "/etc"}},
+		Payload:   &pb.OpfieldCommand_NodeFile{NodeFile: &pb.NodeFileCommand{Action: action, Path: "/etc"}},
 	}
 }
 

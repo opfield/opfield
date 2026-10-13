@@ -3,7 +3,7 @@ package availabilitylease
 import (
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // ProposeTransition queues one transition on top of the holder's certified

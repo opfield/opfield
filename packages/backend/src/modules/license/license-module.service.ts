@@ -46,12 +46,12 @@ export class LicenseModuleService {
     const grant = await this.license.authorizeCommercialUpdate(version);
     if (grant.edition !== 'commercial')
       throw new AppError(403, 'LICENSE_ENTITLEMENT_REQUIRED', 'A paid license is required to activate paid features');
-    const artifact = await this.updates.prepareGatewayUpdate(version);
+    const artifact = await this.updates.prepareOpfieldUpdate(version);
     // Re-checked after the downloads; this also refuses while a Relay Pool update runs.
-    await this.updates.assertGatewayUpdateAllowed();
+    await this.updates.assertOpfieldUpdateAllowed();
     // A new attempt supersedes the report of a previous rolled-back one.
-    await this.updates.acknowledgeGatewayUpdateFailure();
-    this.events.publish('system.update.changed', { updating: true, component: 'gateway', targetVersion: version });
+    await this.updates.acknowledgeOpfieldUpdateFailure();
+    this.events.publish('system.update.changed', { updating: true, component: 'opfield', targetVersion: version });
     // Send the activation response before the update can replace this process.
     // performUpdate stages/verifies private files while this Gateway still serves traffic.
     this.schedule(() => {
@@ -59,10 +59,10 @@ export class LicenseModuleService {
         this.preparation = undefined;
         // Another update won the race and keeps running: its screen must stay.
         if (error instanceof AppError && error.code === 'UPDATE_IN_PROGRESS') {
-          logger.warn('Paid feature activation deferred: a Gateway update is already in progress');
+          logger.warn('Paid feature activation deferred: a Opfield update is already in progress');
           return;
         }
-        this.events.publish('system.update.changed', { updating: false, component: 'gateway', targetVersion: version });
+        this.events.publish('system.update.changed', { updating: false, component: 'opfield', targetVersion: version });
         logger.error('Paid feature activation failed before completion', {
           message: error instanceof Error ? error.message : String(error),
         });
@@ -72,7 +72,7 @@ export class LicenseModuleService {
   }
 
   private assertNoUpdateInProgress(): void {
-    if (this.updates.isGatewayUpdateInProgress())
+    if (this.updates.isOpfieldUpdateInProgress())
       throw new AppError(
         409,
         'UPDATE_IN_PROGRESS',

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // dualSigned reports whether the relay sent any frame with an additional

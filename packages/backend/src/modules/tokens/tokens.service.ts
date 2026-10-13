@@ -8,6 +8,7 @@ import { expandFolderScopes } from '@/lib/folder-scopes.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { boundScopes, hasScope as permissionHasScope, withDelegableCleanupAdditions } from '@/lib/permissions.js';
 import { canonicalizeInboundScopes, canonicalizeScopes, isApiTokenScope } from '@/lib/scopes.js';
+import { TOKEN_PREFIXES } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { getAuditRequestContext } from '@/modules/audit/audit-request-context.js';
@@ -102,7 +103,7 @@ export class TokensService {
 
   async createToken(userId: string, input: CreateTokenInput) {
     assertNotImpersonatedRequest();
-    const raw = `gw_${randomBytes(32).toString('hex')}`;
+    const raw = `${TOKEN_PREFIXES.api}${randomBytes(32).toString('hex')}`;
     const tokenHash = hashToken(raw);
     const tokenPrefix = raw.slice(0, 10);
     // Legacy registry scopes in the request become the token's registry access.

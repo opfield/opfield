@@ -346,7 +346,7 @@ class EventStream {
     ws.onclose = (event) => {
       if (this.ws !== ws) return; // racing stop()→start() — leave singleton alone
       if (event.code === 1012) {
-        useAppStatusStore.getState().setGatewayRestartingActive(true);
+        useAppStatusStore.getState().setOpfieldRestartingActive(true);
       }
       this.setConnected(false);
       this.ws = null;

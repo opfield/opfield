@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { applyForcedGatewayUpdateStatus } from "@/lib/dev-force-updates";
+import { applyForcedOpfieldUpdateStatus } from "@/lib/dev-force-updates";
 import { api } from "@/services/api";
 import { useAppStatusStore } from "@/stores/app-status";
 import type { UpdateStatus } from "@/types";
@@ -8,7 +8,7 @@ interface UpdateState {
   status: UpdateStatus | null;
   isChecking: boolean;
   isUpdating: boolean;
-  updatingComponent: "gateway" | "relay" | null;
+  updatingComponent: "opfield" | "relay" | null;
   updatingTargetVersion: string | null;
 
   /** Resolves to the fetched status, or null when the request failed. */
@@ -20,7 +20,7 @@ interface UpdateState {
   /** Fails a stuck Relay Pool update; relays it drained return to service. */
   abandonRelayUpdate: () => Promise<void>;
   setUpdating: (
-    component: "gateway" | "relay",
+    component: "opfield" | "relay",
     active: boolean,
     targetVersion?: string | null
   ) => void;
@@ -61,29 +61,29 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
 
   fetchStatus: async () => {
     try {
-      const status = applyForcedGatewayUpdateStatus(await api.getVersionInfo());
+      const status = applyForcedOpfieldUpdateStatus(await api.getVersionInfo());
       api.setCache("system:version", status);
       set((state) => ({ status, ...relayStatusState(status, state) }));
-      const gatewayOperation = status.gatewayOperation;
+      const opfieldOperation = status.opfieldOperation;
       const appStatus = useAppStatusStore.getState();
-      if (gatewayOperation?.status === "failed") {
+      if (opfieldOperation?.status === "failed") {
         // The update was rolled back. Only sessions still waiting for it learn
         // that; everyone else keeps working without a screen.
-        if (appStatus.gatewayUpdatingActive) {
-          appStatus.setGatewayUpdateError(
-            gatewayOperation.error ?? "The Opfield update did not complete.",
-            gatewayOperation.targetVersion,
+        if (appStatus.opfieldUpdatingActive) {
+          appStatus.setOpfieldUpdateError(
+            opfieldOperation.error ?? "The Opfield update did not complete.",
+            opfieldOperation.targetVersion,
             { rolledBack: true }
           );
           set((state) =>
-            state.updatingComponent === "gateway"
+            state.updatingComponent === "opfield"
               ? { isUpdating: false, updatingComponent: null, updatingTargetVersion: null }
               : {}
           );
         }
-      } else if (gatewayOperation && !appStatus.gatewayUpdatingActive) {
+      } else if (opfieldOperation && !appStatus.opfieldUpdatingActive) {
         // A session that missed the update event still shows the update screen.
-        appStatus.setGatewayUpdatingActive(true, gatewayOperation.targetVersion);
+        appStatus.setOpfieldUpdatingActive(true, opfieldOperation.targetVersion);
       }
       return status;
     } catch {
@@ -94,7 +94,7 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
   checkForUpdates: async () => {
     set({ isChecking: true });
     try {
-      const status = applyForcedGatewayUpdateStatus(await api.checkForUpdates());
+      const status = applyForcedOpfieldUpdateStatus(await api.checkForUpdates());
       api.setCache("system:version", status);
       set((state) => ({ status, ...relayStatusState(status, state) }));
     } catch {
@@ -105,7 +105,7 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
   },
 
   triggerUpdate: async (version: string) => {
-    set({ isUpdating: true, updatingComponent: "gateway" });
+    set({ isUpdating: true, updatingComponent: "opfield" });
     try {
       // A new attempt replaces the report of a rolled-back one, before the
       // update screen can read that report as this attempt's outcome.
@@ -114,12 +114,12 @@ export const useUpdateStore = create<UpdateState>()((set) => ({
       } catch {
         // The server clears it too when it accepts the update.
       }
-      useAppStatusStore.getState().setGatewayUpdatingActive(true, version);
+      useAppStatusStore.getState().setOpfieldUpdatingActive(true, version);
       await api.triggerUpdate(version);
     } catch (error) {
       useAppStatusStore
         .getState()
-        .setGatewayUpdateError(
+        .setOpfieldUpdateError(
           error instanceof Error ? error.message : "Opfield update could not be started",
           version
         );

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // AS10: a forced promotion only skips the eligibility callback: it goes

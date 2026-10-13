@@ -24,18 +24,20 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Releases promote these builds from GATEWAY_IMAGE; the mirror receives the images nodes pin directly (patched
+  # Releases promote these builds from OPFIELD_IMAGE; the mirror receives the images nodes pin directly (patched
   # SeaweedFS, third-party mirrors). Keep these lines identical in release.yml, which explains them.
   OPFIELD_GHCR: ${{ vars.OPFIELD_GHCR }}
-  GATEWAY_IMAGE: ${{ vars.GATEWAY_IMAGE || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/opfield/opfield' || 'ghcr.io/the-square-labs/gateway') }}
-  GATEWAY_IMAGE_MIRROR: ${{ vars.GATEWAY_IMAGE_MIRROR || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/the-square-labs/gateway' || '') }}
+  # legacy-name: vars.GATEWAY_IMAGE, GATEWAY_IMAGE_MIRROR (and GATEWAY_SIGNED_IMAGE), the repository variable names before
+  # 2.12.1, read while the OPFIELD_* ones are unset — remove once the owner renamed the repository variables.
+  OPFIELD_IMAGE: ${{ vars.OPFIELD_IMAGE || vars.GATEWAY_IMAGE || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/opfield/opfield' || 'ghcr.io/the-square-labs/gateway') }}
+  OPFIELD_IMAGE_MIRROR: ${{ vars.OPFIELD_IMAGE_MIRROR || vars.GATEWAY_IMAGE_MIRROR || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/the-square-labs/gateway' || '') }}
   # With the repository variable SIGN_IMAGES=true every image is signed keyless (Sigstore, GitHub OIDC) and carries an
   # SPDX SBOM attestation (docs/verify-releases.md). Keep this line identical in release.yml.
   SIGN_IMAGES: ${{ vars.SIGN_IMAGES }}
 
 jobs:
-  gateway:
-    name: Gateway image
+  opfield:
+    name: Opfield image
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -64,9 +66,9 @@ jobs:
         run: |
           ./scripts/sync-update-trust-anchor.sh
           docker buildx build \
-            --cache-from type=gha,scope=gateway \
-            --cache-to type=gha,scope=gateway,mode=max \
-            --tag "${GATEWAY_IMAGE}:main-${SHA}" \
+            --cache-from type=gha,scope=opfield \
+            --cache-to type=gha,scope=opfield,mode=max \
+            --tag "${OPFIELD_IMAGE}:main-${SHA}" \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --label "org.opencontainers.image.revision=${SHA}" \
             --provenance=false \
@@ -82,7 +84,7 @@ jobs:
         if: ${{ env.SIGN_IMAGES == 'true' }}
         run: |
           digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[0-9a-f]{64}$"))' "${RUNNER_TEMP}/image.metadata.json")
-          scripts/release/supply-chain.sh sign "${GATEWAY_IMAGE}@${digest}"
+          scripts/release/supply-chain.sh sign "${OPFIELD_IMAGE}@${digest}"
 
   # The runner changes rarely; it is rebuilt (under emulation for arm64) only when its source
   # tree changes, and releases pin the build of the tree they carry.
@@ -112,7 +114,7 @@ jobs:
         env:
           TREE: ${{ steps.tree.outputs.hash }}
         run: |
-          if docker buildx imagetools inspect "${GATEWAY_IMAGE}/backup-runner:tree-${TREE}" >/dev/null 2>&1; then
+          if docker buildx imagetools inspect "${OPFIELD_IMAGE}/backup-runner:tree-${TREE}" >/dev/null 2>&1; then
             echo "built=true" >> "$GITHUB_OUTPUT"
           else
             echo "built=false" >> "$GITHUB_OUTPUT"
@@ -136,7 +138,7 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --file packages/daemons/backup-runner/Dockerfile \
-            --tag "${GATEWAY_IMAGE}/backup-runner:tree-${TREE}" \
+            --tag "${OPFIELD_IMAGE}/backup-runner:tree-${TREE}" \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --push packages/daemons/backup-runner
 
@@ -150,7 +152,7 @@ jobs:
         env:
           TREE: ${{ steps.tree.outputs.hash }}
         run: |
-          image="${GATEWAY_IMAGE}/backup-runner"
+          image="${OPFIELD_IMAGE}/backup-runner"
           digest=$(docker buildx imagetools inspect "${image}:tree-${TREE}" --format '{{json .Manifest}}' | jq -er '.digest')
           scripts/release/supply-chain.sh sign "${image}@${digest}"
 
@@ -183,7 +185,7 @@ jobs:
         env:
           TREE: ${{ steps.tree.outputs.hash }}
         run: |
-          if docker buildx imagetools inspect "${GATEWAY_IMAGE}/seaweedfs-gateway:tree-${TREE}" >/dev/null 2>&1; then
+          if docker buildx imagetools inspect "${OPFIELD_IMAGE}/seaweedfs-gateway:tree-${TREE}" >/dev/null 2>&1; then
             echo "built=true" >> "$GITHUB_OUTPUT"
           else
             echo "built=false" >> "$GITHUB_OUTPUT"
@@ -197,22 +199,22 @@ jobs:
         if: ${{ steps.existing.outputs.built != 'true' }}
         env:
           TREE: ${{ steps.tree.outputs.hash }}
-        run: scripts/build-seaweedfs-image.sh --push "${GATEWAY_IMAGE}/seaweedfs-gateway:tree-${TREE}"
+        run: scripts/build-seaweedfs-image.sh --push "${OPFIELD_IMAGE}/seaweedfs-gateway:tree-${TREE}"
 
       # Nodes pull the pinned digest from the repository the docker daemon names; both carry it.
       - name: Copy to the mirror repository
-        if: ${{ env.GATEWAY_IMAGE_MIRROR != '' }}
+        if: ${{ env.OPFIELD_IMAGE_MIRROR != '' }}
         env:
           TREE: ${{ steps.tree.outputs.hash }}
         run: |
           docker buildx imagetools create \
-            --tag "${GATEWAY_IMAGE_MIRROR}/seaweedfs-gateway:tree-${TREE}" \
-            "${GATEWAY_IMAGE}/seaweedfs-gateway:tree-${TREE}"
+            --tag "${OPFIELD_IMAGE_MIRROR}/seaweedfs-gateway:tree-${TREE}" \
+            "${OPFIELD_IMAGE}/seaweedfs-gateway:tree-${TREE}"
 
       - name: Show the digest to pin
         env:
           TREE: ${{ steps.tree.outputs.hash }}
-        run: docker buildx imagetools inspect "${GATEWAY_IMAGE}/seaweedfs-gateway:tree-${TREE}" --format '{{json .Manifest}}' | jq -r '.digest'
+        run: docker buildx imagetools inspect "${OPFIELD_IMAGE}/seaweedfs-gateway:tree-${TREE}" --format '{{json .Manifest}}' | jq -r '.digest'
 
       # Also for an existing build, so the first run with SIGN_IMAGES=true signs the build nodes pin.
       - name: Install cosign and syft
@@ -224,11 +226,11 @@ jobs:
         env:
           TREE: ${{ steps.tree.outputs.hash }}
         run: |
-          image="${GATEWAY_IMAGE}/seaweedfs-gateway"
+          image="${OPFIELD_IMAGE}/seaweedfs-gateway"
           digest=$(docker buildx imagetools inspect "${image}:tree-${TREE}" --format '{{json .Manifest}}' | jq -er '.digest')
           also=()
-          if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
-            also=(--also "${GATEWAY_IMAGE_MIRROR}/seaweedfs-gateway")
+          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
+            also=(--also "${OPFIELD_IMAGE_MIRROR}/seaweedfs-gateway")
           fi
           scripts/release/supply-chain.sh sign "${image}@${digest}" "${also[@]}"
 
@@ -265,14 +267,14 @@ jobs:
 
       - name: Mirror digest-pinned third-party images to GHCR
         env:
-          MIRROR_REPOSITORY: ${{ env.GATEWAY_IMAGE }}
+          MIRROR_REPOSITORY: ${{ env.OPFIELD_IMAGE }}
         run: node scripts/mirror-third-party-images.mjs
 
       # Nodes and the installer pull third-party images from the earlier repository; both carry them.
       - name: Mirror them to the mirror repository too
-        if: ${{ env.GATEWAY_IMAGE_MIRROR != '' }}
+        if: ${{ env.OPFIELD_IMAGE_MIRROR != '' }}
         env:
-          MIRROR_REPOSITORY: ${{ env.GATEWAY_IMAGE_MIRROR }}
+          MIRROR_REPOSITORY: ${{ env.OPFIELD_IMAGE_MIRROR }}
         run: node scripts/mirror-third-party-images.mjs
 
   # Signs every mirrored third-party digest in both repositories and attaches an SBOM per platform. The signature
@@ -307,8 +309,8 @@ jobs:
             name=${pin% *}
             digest=${pin#* }
             also=()
-            if [[ -n "$GATEWAY_IMAGE_MIRROR" ]]; then
-              also=(--also "${GATEWAY_IMAGE_MIRROR}/${name}")
+            if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
+              also=(--also "${OPFIELD_IMAGE_MIRROR}/${name}")
             fi
-            scripts/release/supply-chain.sh sign "${GATEWAY_IMAGE}/${name}@${digest}" "${also[@]}"
+            scripts/release/supply-chain.sh sign "${OPFIELD_IMAGE}/${name}@${digest}" "${also[@]}"
           done

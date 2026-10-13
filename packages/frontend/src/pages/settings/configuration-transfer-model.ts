@@ -1,7 +1,7 @@
 import type {
   ConfigurationExportEstimate,
   ConfigurationExportProgress,
-  GatewayMoveNodeStateName,
+  OpfieldMoveNodeStateName,
 } from "@/services/api-configuration-transfer";
 
 export const EXPORT_PASSPHRASE_MIN_LENGTH = 12;
@@ -88,7 +88,7 @@ export function normalizeMoveAddress(input: string): string | null {
 }
 
 export const MOVE_NODE_STATE_LABELS: Record<
-  GatewayMoveNodeStateName,
+  OpfieldMoveNodeStateName,
   { label: string; variant: "success" | "secondary" | "warning" | "destructive" }
 > = {
   ready: { label: "Ready", variant: "secondary" },

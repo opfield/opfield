@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/updateauth"
+	"github.com/opfield/opfield/daemon-shared/updateauth"
 )
 
 func TestRelayManifestIncludesOnlySecureLinkConnectorImage(t *testing.T) {

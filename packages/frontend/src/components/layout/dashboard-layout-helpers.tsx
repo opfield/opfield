@@ -1,6 +1,6 @@
 import type { AIWorkspaceAvailability } from "@/components/ai/AIWorkspaceAvailabilityDialog";
 
-const SIDEBAR_WIDTH_KEY = "gateway-sidebar-width";
+const SIDEBAR_WIDTH_KEY = "opfield-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 260;
 const COMMAND_PALETTE_SHIFT_GAP_MS = 400;
 

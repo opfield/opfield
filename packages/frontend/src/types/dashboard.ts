@@ -142,7 +142,7 @@ export interface DashboardRelaySnapshot {
    */
   warnings?: Array<
     | {
-        code: "gateway_host_only";
+        code: "opfield_host_only";
         endpointId: string;
         ownerKind: string;
         ownerId: string;
@@ -258,10 +258,10 @@ export interface RelayReenrollment extends NodeInstallation {
   servicePort: number;
   /** The relay release the pool runs; the installer pins it. */
   relayVersion?: string | null;
-  gatewayCertSha256: string;
-  gatewayEnrollmentTargets?: {
-    public?: { label: string; gateway: string | null };
-    local?: { label: string; gateway: string | null };
+  opfieldCertSha256: string;
+  opfieldEnrollmentTargets?: {
+    public?: { label: string; address: string | null };
+    local?: { label: string; address: string | null };
   };
 }
 

@@ -28,8 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/kvha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/kvha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
 )
 
 // Member roles in reports.

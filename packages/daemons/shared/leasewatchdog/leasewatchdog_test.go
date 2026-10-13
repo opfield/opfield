@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/updateauth"
+	"github.com/opfield/opfield/daemon-shared/updateauth"
 )
 
 const installerPath = "../../../../scripts/setup-docker-node.sh"

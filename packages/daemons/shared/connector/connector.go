@@ -13,9 +13,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/auth"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/tlsbatch"
+	"github.com/opfield/opfield/daemon-shared/auth"
+	"github.com/opfield/opfield/daemon-shared/controlpath"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/tlsbatch"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
@@ -222,6 +223,9 @@ func dialOptionsWith(tlsCfg *tls.Config, lane bool, dialed func(*tlsbatch.Conn))
 	}
 	options := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCredentials),
+		// opfield.v1 calls fall back to their gateway.v1 names behind a 2.12.0 relay.
+		grpc.WithChainUnaryInterceptor(controlpath.UnaryInterceptor),
+		grpc.WithChainStreamInterceptor(controlpath.StreamInterceptor),
 		grpc.WithConnectParams(ReconnectParams),
 		grpc.WithKeepaliveParams(keepaliveParams),
 		grpc.WithDefaultCallOptions(

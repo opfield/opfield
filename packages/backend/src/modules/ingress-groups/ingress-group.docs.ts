@@ -31,7 +31,7 @@ export const listIngressGroupsRoute = appRoute({
   path: '/',
   tags: TAGS,
   summary: 'List ingress groups',
-  description: `${GROUP_DESCRIPTION} Each group lists its members with state (joining, active, draining), node status, published addresses, the health their daemon reports for /.well-known/gateway-ingress-health, and per-member delivery counts.`,
+  description: `${GROUP_DESCRIPTION} Each group lists its members with state (joining, active, draining), node status, published addresses, the health their daemon reports for /.well-known/opfield-ingress-health, and per-member delivery counts.`,
   request: { query: IngressGroupListQuerySchema },
   responses: okJson(UnknownListResponseSchema),
 });

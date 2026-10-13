@@ -331,7 +331,7 @@ func uploadTempPath(uploadID string, targetPath string) (string, string, error) 
 	}
 	cleanTarget := filepath.Clean(targetPath)
 	parent := filepath.Dir(cleanTarget)
-	return filepath.Join(parent, ".gateway-upload-"+uploadID+".tmp"), cleanTarget, nil
+	return filepath.Join(parent, ".opfield-upload-"+uploadID+".tmp"), cleanTarget, nil
 }
 
 func validateUploadID(uploadID string) error {

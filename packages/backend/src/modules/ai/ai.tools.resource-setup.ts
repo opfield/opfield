@@ -520,7 +520,7 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
     },
     destructive: true,
     category: 'Logging Backend',
-    requiredScope: 'settings:gateway:view',
+    requiredScope: 'settings:opfield:view',
     invalidateStores: ['settings', 'logging'],
     historyRetention: { mode: 'summary_only' },
   },

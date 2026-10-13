@@ -17,7 +17,7 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // Availability HTTP health.
@@ -57,7 +57,7 @@ const (
 	availabilityHealthMaxTTL         = 10 * time.Minute
 	availabilityHealthBodyLimit      = 1 << 20
 	availabilityHealthDockerWait     = 2 * time.Second
-	availabilityHealthUserAgent      = "wiolett-gateway-availability-health"
+	availabilityHealthUserAgent      = "opfield-availability-health"
 )
 
 // availabilityHealthCheckSpec is one HTTP health check of a copy. The target

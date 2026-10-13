@@ -23,10 +23,10 @@ import (
 
 	mobyclient "github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/chha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/docker-daemon/internal/chha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // ClickHouse members of database availability sets (internal/chha). The
@@ -599,7 +599,7 @@ func (r *clickHouseMemberRuntime) Config() (memberha.Config, bool) {
 	return config, ok
 }
 
-func (r *clickHouseMemberRuntime) GatewayConnected() bool { return r.plugin.sessionLive.Load() }
+func (r *clickHouseMemberRuntime) OpfieldConnected() bool { return r.plugin.sessionLive.Load() }
 
 func (r *clickHouseMemberRuntime) Sign(domain string, payload []byte) ([]byte, error) {
 	if r.plugin.lease == nil || r.plugin.lease.keys == nil {

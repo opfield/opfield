@@ -12,10 +12,10 @@ import {
   COPY_NOT_STREAMING,
 } from './availability-members.service.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): the member plumbing of availability sets. Gateway configures each
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): the member plumbing of availability sets. Gateway configures each
  * member's node, records what the members report, follows the serving primary with the resource's node, hands
  * queued member events to the listeners before acknowledging them (replays skipped), and configures a member again
  * when its node reports an older configuration.

@@ -51,7 +51,7 @@ describe('scope resource references', () => {
       `pages:create:${NODE}`,
       'hosting:resources:view:provider/hetzner',
       `docker:registries:internal:pull:${NODE}`,
-      `settings:gateway:edit:${NODE}`,
+      `settings:opfield:edit:${NODE}`,
       `unknown:scope:${NODE}`,
     ]) {
       expect(scopeResourceReferences(scope), scope).toEqual([]);

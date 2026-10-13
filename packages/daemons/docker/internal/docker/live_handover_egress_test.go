@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover/handovertest"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/handover/handovertest"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

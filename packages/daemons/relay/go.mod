@@ -1,11 +1,11 @@
-module github.com/wiolett-industries/gateway/relay-supervisor
+module github.com/opfield/opfield/relay-supervisor
 
 go 1.24.4
 
-replace github.com/wiolett-industries/gateway/daemon-shared => ../shared
+replace github.com/opfield/opfield/daemon-shared => ../shared
 
 require (
-	github.com/wiolett-industries/gateway/daemon-shared v0.0.0
+	github.com/opfield/opfield/daemon-shared v0.0.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1

@@ -161,8 +161,7 @@ export const PLATFORM_TOKEN_SCOPES = [
     desc: "Allow this user account to access the remote MCP server with OAuth",
     group: "Features",
   },
-  // Inference administration. inference:setup is an OAuth-only protocol
-  // scope rendered by OAuthConsent and must not be user-assignable.
+  // Inference administration.
   {
     value: "inference:providers:view",
     label: "View Inference Providers",

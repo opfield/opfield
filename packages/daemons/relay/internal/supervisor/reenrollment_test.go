@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -20,7 +20,7 @@ func enrolledBaseConfig(t *testing.T, token string) *lifecycle.BaseConfig {
 	t.Helper()
 	dir := t.TempDir()
 	cfg := &lifecycle.BaseConfig{}
-	cfg.Gateway.Token = token
+	cfg.Control.Token = token
 	cfg.TLS.CACert = filepath.Join(dir, "ca.pem")
 	cfg.TLS.ClientCert = filepath.Join(dir, "node.pem")
 	cfg.TLS.ClientKey = filepath.Join(dir, "node-key.pem")
@@ -81,7 +81,7 @@ func TestInterruptedReenrollmentIsRestoredOnStart(t *testing.T) {
 	}
 }
 
-func TestEnrollmentTokenRejectedClassifiesGatewayRefusals(t *testing.T) {
+func TestEnrollmentTokenRejectedClassifiesOpfieldRefusals(t *testing.T) {
 	wrapped := fmt.Errorf("enrollment: %w", fmt.Errorf("enrollment failed: %w", status.Error(codes.Unauthenticated, "Invalid enrollment token")))
 	if !EnrollmentTokenRejected(wrapped) {
 		t.Fatal("an invalid token was not treated as rejected")

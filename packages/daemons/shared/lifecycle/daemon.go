@@ -11,12 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/auth"
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	"github.com/wiolett-industries/gateway/daemon-shared/enrollment"
-	"github.com/wiolett-industries/gateway/daemon-shared/state"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
+	"github.com/opfield/opfield/daemon-shared/auth"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/enrollment"
+	"github.com/opfield/opfield/daemon-shared/state"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
 	"google.golang.org/grpc"
 )
 
@@ -66,7 +66,7 @@ type DaemonBase struct {
 	// on in the local config (protected.go). It never changes at run time.
 	protected bool
 	// move holds the address Opfield moves to (next_address.go); set in Run.
-	move *gatewayMove
+	move *opfieldMove
 }
 
 // NewDaemonBase creates a new DaemonBase with the given plugin.
@@ -81,6 +81,12 @@ func NewDaemonBase(cfg *BaseConfig, cfgPath string, plugin DaemonPlugin, logger 
 	st, err := state.Load(cfg.StateDir)
 	if err != nil {
 		return nil, fmt.Errorf("load state: %w", err)
+	}
+
+	if os.Geteuid() == 0 {
+		// The shared state directory belongs to root; a daemon running as its
+		// own user leaves the move to the others.
+		OnStartConfirmed(func() { MoveSharedStateRoot(startupLogger) })
 	}
 
 	protected := pluginProtected(plugin)
@@ -120,8 +126,8 @@ func (d *DaemonBase) Run(ctx context.Context) error {
 
 	// Step 2: Set up mTLS connector
 	tlsMgr := auth.NewTLSManager(d.cfg.TLS.CACert, d.cfg.TLS.ClientCert, d.cfg.TLS.ClientKey)
-	d.connector = connector.NewConnector(d.cfg.Gateway.Address, tlsMgr, d.logger)
-	d.startGatewayMove(ctx)
+	d.connector = connector.NewConnector(d.cfg.Control.Address, tlsMgr, d.logger)
+	d.startOpfieldMove(ctx)
 
 	// Step 3: Start background cert renewal
 	go runCertRenewal(ctx, d)
@@ -446,9 +452,9 @@ func (d *DaemonBase) notifyTunnelIdentityChanged() {
 }
 
 func (d *DaemonBase) enroll() error {
-	d.logger.Info("enrolling with Opfield", "address", d.cfg.Gateway.Address)
-	if d.cfg.Gateway.CertSHA256 == "" {
-		return fmt.Errorf("gateway.cert_sha256 is required for initial enrollment")
+	d.logger.Info("enrolling with Opfield", "address", d.cfg.Control.Address)
+	if d.cfg.Control.CertSHA256 == "" {
+		return fmt.Errorf("opfield.cert_sha256 is required for initial enrollment")
 	}
 
 	hostname, _ := os.Hostname()
@@ -459,9 +465,9 @@ func (d *DaemonBase) enroll() error {
 	}
 
 	resp, err := enrollment.Enroll(
-		d.cfg.Gateway.Address,
-		d.cfg.Gateway.Token,
-		d.cfg.Gateway.CertSHA256,
+		d.cfg.Control.Address,
+		d.cfg.Control.Token,
+		d.cfg.Control.CertSHA256,
 		hostname,
 		"", // nginxVersion — filled by plugin if applicable
 		osInfo,
@@ -493,7 +499,7 @@ func (d *DaemonBase) enroll() error {
 	}
 
 	// Clear token from config file on disk to prevent re-use
-	d.cfg.Gateway.Token = ""
+	d.cfg.Control.Token = ""
 	if err := ClearTokenFromFile(d.cfgPath); err != nil {
 		d.logger.Warn("failed to clear token from config file", "error", err)
 	}

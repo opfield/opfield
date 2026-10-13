@@ -9,8 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 // leaseGatedBinding names one availability member's Secure Link socket for
@@ -216,7 +217,7 @@ func (m *sourceLinkManager) ensureReferencedListeners(config string) []string {
 	seen := map[string]bool{}
 	for _, match := range secureLinkSocketReference.FindAllStringSubmatch(config, -1) {
 		socketPath := match[1]
-		if seen[socketPath] || filepath.Dir(socketPath) != filepath.Clean(m.socketDir) {
+		if seen[socketPath] || !naming.SameDir(filepath.Dir(socketPath), filepath.Clean(m.socketDir)) {
 			continue
 		}
 		seen[socketPath] = true
@@ -224,7 +225,7 @@ func (m *sourceLinkManager) ensureReferencedListeners(config string) []string {
 		var id string
 		var binding *sourceLinkBinding
 		for candidateID, candidate := range m.bindings {
-			if candidate.socketPath == socketPath {
+			if sameSocketPath(candidate.socketPath, socketPath) {
 				id, binding = candidateID, candidate
 				break
 			}

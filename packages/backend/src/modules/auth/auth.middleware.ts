@@ -3,6 +3,7 @@ import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { container } from '@/container.js';
 import { hasScopeBase } from '@/lib/permissions.js';
+import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { runWithIdempotency } from '@/middleware/idempotency.js';
 import { getAuditRequestContext, setAuditImpersonationContext } from '@/modules/audit/audit-request-context.js';
@@ -16,6 +17,7 @@ import type { AppEnv, SessionData, User } from '@/types.js';
 import {
   getAcceptedSessionCookieNames,
   getSessionCookieNameForUrl,
+  hasInstallationSessionCookie,
   LEGACY_SESSION_COOKIE_NAME,
 } from './session-cookie.js';
 
@@ -38,16 +40,16 @@ function extractCredential(c: Context<AppEnv>): { type: CredentialType; value: s
   const authHeader = c.req.header('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const value = authHeader.slice(7).trim();
-    if (value.startsWith('gw_')) {
+    if (hasTokenPrefix(value, 'api')) {
       return { type: 'api-token', value };
     }
-    if (value.startsWith('gwo_')) {
+    if (hasTokenPrefix(value, 'oauthAccess')) {
       return { type: 'oauth-token', value };
     }
   }
 
   const cookieHeader = c.req.header('Cookie') ?? '';
-  if (cookieHeader.includes('gateway_session_')) {
+  if (hasInstallationSessionCookie(cookieHeader)) {
     const preferredCookieName = getSessionCookieNameForUrl(c.req.url);
     const preferredSession = getCookie(c, preferredCookieName);
     if (preferredSession) return { type: 'session', value: preferredSession };
@@ -115,7 +117,7 @@ function allowsImpersonationRecoveryPath(c: Context<AppEnv>): boolean {
 }
 
 export async function authenticateBearerToken(rawToken: string): Promise<AuthenticatedBearer | null> {
-  if (rawToken.startsWith('gw_')) {
+  if (hasTokenPrefix(rawToken, 'api')) {
     const tokensService = container.resolve(TokensService);
     const result = await tokensService.validateToken(rawToken);
     if (!result) return null;
@@ -128,7 +130,7 @@ export async function authenticateBearerToken(rawToken: string): Promise<Authent
     };
   }
 
-  if (rawToken.startsWith('gwo_')) {
+  if (hasTokenPrefix(rawToken, 'oauthAccess')) {
     const oauthService = container.resolve(OAuthService);
     const result = await oauthService.validateAccessToken(rawToken, { resource: oauthService.getApiResourceUrl() });
     if (!result) return null;

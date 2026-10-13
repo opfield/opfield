@@ -438,7 +438,7 @@ export class InternalCertificateRenewalService {
     const directHosts = movedHosts.filter((host) => host.enabled && host.sslEnabled && !host.sslCertificateId);
     if (directHosts.length > 0) {
       try {
-        await this.certificateDistribution.upsertGatewayAsset({ type: 'internal', id: replacement.id });
+        await this.certificateDistribution.upsertOpfieldAsset({ type: 'internal', id: replacement.id });
         for (const host of directHosts) {
           if (!this.proxyService) {
             deliveryFailures.push({ target: `proxy host ${host.id}`, error: 'Proxy service unavailable' });

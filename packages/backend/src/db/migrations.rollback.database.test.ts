@@ -15,7 +15,7 @@ import { syncPermissionGroupsAtStartup } from '@/lib/startup-scope-sync.js';
 import { resolveEffectiveUserAccess } from '@/modules/auth/live-session-user.js';
 import { disposableDatabase, migrateDatabase } from './migration-database.test-helpers.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /** v2.10.1's scope catalog (ALL_SCOPES and RESOURCE_SCOPABLE), to replay what its startup does to a newer schema. */
 const v2101 = JSON.parse(readFileSync(new URL('./fixtures/v2.10.1-scope-catalog.json', import.meta.url), 'utf8')) as {
@@ -92,7 +92,7 @@ const QUALIFIED_USER = id('202');
 const TOKEN = id('301');
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL, see migration-database.test-helpers): a v2.10.1 install (schema
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL, see migration-database.test-helpers): a v2.10.1 install (schema
  * through 0188) upgraded to head, rolled back by the v2.10.1 updater (it restores no database: v2.10.1 starts on the
  * migrated schema, rewrites the built-in groups and drops every scope it does not know from the others), and upgraded
  * again. v2.10.1 must find its own grants after the rollback, and the second upgrade must restore full access.

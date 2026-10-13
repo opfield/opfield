@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
-import { isGatewayManagedDockerNetwork } from "@/lib/docker-networks";
+import { isOpfieldManagedDockerNetwork } from "@/lib/docker-networks";
 import { api } from "@/services/api";
 import type { DockerNetwork } from "@/types";
 
@@ -42,7 +42,7 @@ export function readAttachedNetworks(
   networks: Record<string, Record<string, unknown>> = {}
 ): NetworkEntry[] {
   return Object.entries(networks)
-    .filter(([name]) => !isGatewayManagedDockerNetwork(name))
+    .filter(([name]) => !isOpfieldManagedDockerNetwork(name))
     .map(([name, config]) => ({
       name,
       networkId: String(
@@ -109,7 +109,7 @@ export function NetworksSection({
       setAllNetworks(
         (rows ?? [])
           .map((network) => normalizeDockerNetwork(network))
-          .filter((network) => !isGatewayManagedDockerNetwork(network.name))
+          .filter((network) => !isOpfieldManagedDockerNetwork(network.name))
       );
     } catch (err) {
       toastApiError(err, "Failed to load networks");

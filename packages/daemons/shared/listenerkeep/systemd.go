@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
 )
 
 // SystemdDropInName is the drop-in that gives a daemon's systemd unit a file
@@ -20,8 +20,12 @@ const SystemdDropInName = "30-listener-keep.conf"
 // systemdDropIn is written for units installed before the unit template set
 // these itself. NotifyAccess=main lets the unit's main process (the launcher)
 // store descriptors; nothing else of the unit changes.
-const systemdDropIn = "# Written by the Gateway daemon: keep its listening sockets across restarts.\n" +
-	"[Service]\n" +
+const systemdDropIn = "# Written by the Opfield daemon: keep its listening sockets across restarts.\n" + systemdDropInBody
+
+// legacy-name: drop-in header of pre-Opfield daemons, rewritten in place (the settings are the same) — remove once every node reports none
+const legacySystemdDropIn = "# Written by the Gateway daemon: keep its listening sockets across restarts.\n" + systemdDropInBody
+
+const systemdDropInBody = "[Service]\n" +
 	"FileDescriptorStoreMax=4096\n" +
 	"NotifyAccess=main\n"
 
@@ -50,13 +54,19 @@ func ensureSystemdStore(runtimeDir, cgroupPath, unitDir string, systemctl func(.
 	if err != nil || unit == "" {
 		return false, err
 	}
+	directory := filepath.Join(unitDir, unit+".d")
+	path := filepath.Join(directory, SystemdDropInName)
+	if current, err := os.ReadFile(path); err == nil && string(current) == legacySystemdDropIn {
+		// Only the comment differs: no reload needed.
+		if err := atomicfile.WriteFile(path, []byte(systemdDropIn), 0o644); err != nil {
+			return false, err
+		}
+	}
 	if value, err := systemctl("show", "--property=FileDescriptorStoreMax", "--value", unit); err == nil {
 		if count, parseErr := strconv.Atoi(value); parseErr == nil && count > 0 {
 			return false, nil
 		}
 	}
-	directory := filepath.Join(unitDir, unit+".d")
-	path := filepath.Join(directory, SystemdDropInName)
 	if current, err := os.ReadFile(path); err == nil && string(current) == systemdDropIn {
 		return false, nil
 	}

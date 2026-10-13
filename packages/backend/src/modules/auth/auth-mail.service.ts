@@ -203,7 +203,7 @@ function getTestEmailInput(kind: SmtpTestEmailKind): AuthEmailInput {
   switch (kind) {
     case 'password_setup':
     case 'password_reset':
-      return { kind, actionUrl: 'https://gateway.example/reset-password?token=test-link' };
+      return { kind, actionUrl: 'https://opfield.example/reset-password?token=test-link' };
     case 'email_otp':
       return { kind, code: '000000' };
     case 'smtp_configuration':

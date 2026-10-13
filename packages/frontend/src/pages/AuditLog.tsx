@@ -53,7 +53,7 @@ import type { AuditLogEntry } from "@/types";
 const PAGE_SIZE = 100;
 const EXPORT_FORMATS: readonly AuditExportFormat[] = ["csv", "tsv", "txt", "html"];
 const DIALOG_CLOSE_RESET_MS = 260;
-const AUDIT_VIEW_STORAGE_KEY = "gateway:audit-log:view";
+const AUDIT_VIEW_STORAGE_KEY = "opfield:audit-log:view";
 const SYSTEM_USER_FILTER = "system";
 
 interface AuditViewConfig {

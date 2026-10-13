@@ -11,7 +11,7 @@ import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { User } from '@/types.js';
 import { OAuthTokenLifecycle } from './oauth-token-lifecycle.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const USER_ID = '33333333-3333-4333-8333-333333333333';
 const API = 'https://gateway.example.com/api';
 const MCP = 'https://gateway.example.com/api/mcp';

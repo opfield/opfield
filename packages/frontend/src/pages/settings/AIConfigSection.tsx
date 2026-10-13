@@ -54,10 +54,10 @@ interface AIConfigState {
   endpointMode: string;
   supportsImages: boolean;
   model: string;
-  gatewayInferenceModel: string;
-  gatewayInferenceAllowUserModelSelection: boolean;
+  opfieldInferenceModel: string;
+  opfieldInferenceAllowUserModelSelection: boolean;
   allowUserReasoningEffortSelection: boolean;
-  gatewayInferenceModels: AIInferenceModelOption[];
+  opfieldInferenceModels: AIInferenceModelOption[];
   maxCompletionTokens: number;
   maxTokensField: string;
   reasoningEffort: string;
@@ -81,10 +81,10 @@ function normalizeAIConfigState(config: AIConfigState): AIConfigState {
   return {
     ...config,
     providerType: config.providerType ?? "openai_compatible",
-    gatewayInferenceModel: config.gatewayInferenceModel ?? "",
-    gatewayInferenceAllowUserModelSelection: config.gatewayInferenceAllowUserModelSelection ?? true,
+    opfieldInferenceModel: config.opfieldInferenceModel ?? "",
+    opfieldInferenceAllowUserModelSelection: config.opfieldInferenceAllowUserModelSelection ?? true,
     allowUserReasoningEffortSelection: config.allowUserReasoningEffortSelection ?? false,
-    gatewayInferenceModels: (config.gatewayInferenceModels ?? []).map((model) => ({
+    opfieldInferenceModels: (config.opfieldInferenceModels ?? []).map((model) => ({
       ...model,
       reasoningEfforts: model.reasoningEfforts ?? [],
       defaultReasoningEffort: model.defaultReasoningEffort ?? null,
@@ -787,9 +787,9 @@ export function AIConfigSection() {
       aiConfig.endpointMode !== aiSavedConfig.endpointMode ||
       aiConfig.supportsImages !== aiSavedConfig.supportsImages ||
       aiConfig.model !== aiSavedConfig.model ||
-      aiConfig.gatewayInferenceModel !== aiSavedConfig.gatewayInferenceModel ||
-      aiConfig.gatewayInferenceAllowUserModelSelection !==
-        aiSavedConfig.gatewayInferenceAllowUserModelSelection ||
+      aiConfig.opfieldInferenceModel !== aiSavedConfig.opfieldInferenceModel ||
+      aiConfig.opfieldInferenceAllowUserModelSelection !==
+        aiSavedConfig.opfieldInferenceAllowUserModelSelection ||
       aiConfig.reasoningEffort !== aiSavedConfig.reasoningEffort ||
       aiConfig.allowUserReasoningEffortSelection !== aiSavedConfig.allowUserReasoningEffortSelection
     );
@@ -887,12 +887,12 @@ export function AIConfigSection() {
   const saveProviderSettings = async () => {
     if (!aiConfig) return;
     const updates: Record<string, unknown> =
-      aiConfig.providerType === "gateway_inference"
+      aiConfig.providerType === "opfield_inference"
         ? {
             providerType: aiConfig.providerType,
-            gatewayInferenceModel: aiConfig.gatewayInferenceModel,
-            gatewayInferenceAllowUserModelSelection:
-              aiConfig.gatewayInferenceAllowUserModelSelection,
+            opfieldInferenceModel: aiConfig.opfieldInferenceModel,
+            opfieldInferenceAllowUserModelSelection:
+              aiConfig.opfieldInferenceAllowUserModelSelection,
           }
         : {
             providerType: aiConfig.providerType,
@@ -1108,7 +1108,7 @@ export function AIConfigSection() {
           icon={<Server className="h-4 w-4" />}
           title="Provider"
           description={
-            aiConfig.providerType === "gateway_inference"
+            aiConfig.providerType === "opfield_inference"
               ? "Opfield Inference model used for Workspace responses"
               : "OpenAI-compatible provider connection used for Workspace responses"
           }
@@ -1119,7 +1119,7 @@ export function AIConfigSection() {
               disabled={
                 !providerHasChanges ||
                 aiSaving ||
-                (aiConfig.providerType === "gateway_inference" && !aiConfig.gatewayInferenceModel)
+                (aiConfig.providerType === "opfield_inference" && !aiConfig.opfieldInferenceModel)
               }
             />
           }
@@ -1153,12 +1153,12 @@ export function AIConfigSection() {
                 setAiConfig({
                   ...aiConfig,
                   providerType: providerType as AIProviderType,
-                  gatewayInferenceModel:
-                    providerType === "gateway_inference"
-                      ? aiConfig.gatewayInferenceModel ||
-                        aiConfig.gatewayInferenceModels[0]?.id ||
+                  opfieldInferenceModel:
+                    providerType === "opfield_inference"
+                      ? aiConfig.opfieldInferenceModel ||
+                        aiConfig.opfieldInferenceModels[0]?.id ||
                         ""
-                      : aiConfig.gatewayInferenceModel,
+                      : aiConfig.opfieldInferenceModel,
                 })
               }
             >
@@ -1168,28 +1168,28 @@ export function AIConfigSection() {
               <SelectContent>
                 <SelectItem value="openai_compatible">OAI-compatible</SelectItem>
                 {inferenceEnabled && (
-                  <SelectItem value="gateway_inference">Opfield Inference</SelectItem>
+                  <SelectItem value="opfield_inference">Opfield Inference</SelectItem>
                 )}
               </SelectContent>
             </Select>
           </SettingsControlRow>
-          {aiConfig.providerType === "gateway_inference" ? (
+          {aiConfig.providerType === "opfield_inference" ? (
             <>
               <SettingsControlRow
                 title="Default model"
                 description="Model used unless an operator selects another allowed model."
               >
                 <Select
-                  value={aiConfig.gatewayInferenceModel}
-                  onValueChange={(gatewayInferenceModel) =>
-                    setAiConfig({ ...aiConfig, gatewayInferenceModel })
+                  value={aiConfig.opfieldInferenceModel}
+                  onValueChange={(opfieldInferenceModel) =>
+                    setAiConfig({ ...aiConfig, opfieldInferenceModel })
                   }
                 >
                   <SelectTrigger aria-label="Default model" className="text-sm">
                     <SelectValue placeholder="Select a model" />
                   </SelectTrigger>
                   <SelectContent>
-                    {aiConfig.gatewayInferenceModels.map((model) => (
+                    {aiConfig.opfieldInferenceModels.map((model) => (
                       <SelectItem key={model.id} value={model.id}>
                         {model.displayName}
                       </SelectItem>
@@ -1202,12 +1202,12 @@ export function AIConfigSection() {
                 description="Allow users to choose another Opfield Inference model they can access."
               >
                 <Switch
-                  checked={aiConfig.gatewayInferenceAllowUserModelSelection}
+                  checked={aiConfig.opfieldInferenceAllowUserModelSelection}
                   disabled={aiSaving}
-                  onChange={(gatewayInferenceAllowUserModelSelection) =>
+                  onChange={(opfieldInferenceAllowUserModelSelection) =>
                     setAiConfig({
                       ...aiConfig,
-                      gatewayInferenceAllowUserModelSelection,
+                      opfieldInferenceAllowUserModelSelection,
                     })
                   }
                 />

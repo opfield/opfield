@@ -79,7 +79,7 @@ export async function resolveDockerContainerScopeResourceId(
     const data = await inspect();
     return String(data?.scopeResourceId ?? '');
   } catch (error) {
-    if (error instanceof AppError && error.code === 'GATEWAY_INTERNAL_CONTAINER') throw error;
+    if (error instanceof AppError && error.code === 'OPFIELD_INTERNAL_CONTAINER') throw error;
     if (!transitionFallback?.active()) throw error;
     return (await transitionFallback.resolvePersisted()) ?? '';
   }

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
 )
 
 const migrationArtifactMaxAge = 72 * time.Hour

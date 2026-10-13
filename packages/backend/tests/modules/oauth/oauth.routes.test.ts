@@ -56,7 +56,6 @@ function registerOAuthService(overrides: Partial<OAuthService> = {}) {
     getIssuerUrl: vi.fn().mockReturnValue('https://gateway.example.com'),
     getApiResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api'),
     getMcpResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api/mcp'),
-    getInferenceSetupResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api/inference/setup'),
     registerClient: vi.fn().mockResolvedValue({
       client_id: 'goc_client',
       client_id_issued_at: 1777413600,
@@ -233,20 +232,13 @@ describe('OAuth metadata routes', () => {
     }
   });
 
-  it('advertises isolated inference setup OAuth metadata', async () => {
+  it('no longer serves OAuth metadata for the removed inference companion setup resource', async () => {
     const app = createApp();
     const authorization = await app.request('/.well-known/oauth-authorization-server/api/inference/setup');
     const protectedResource = await app.request('/.well-known/oauth-protected-resource/api/inference/setup');
 
-    expect(await authorization.json()).toMatchObject({
-      authorization_endpoint: 'https://gateway.example.com/api/oauth/authorize/api/inference/setup',
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      scopes_supported: ['inference:setup'],
-    });
-    expect(await protectedResource.json()).toMatchObject({
-      resource: 'https://gateway.example.com/api/inference/setup',
-      scopes_supported: ['inference:setup'],
-    });
+    expect(authorization.status).toBe(404);
+    expect(protectedResource.status).toBe(404);
   });
 
   it('advertises authorization server metadata below the MCP endpoint path', async () => {
@@ -275,7 +267,7 @@ describe('OAuth metadata routes', () => {
     expect(body.scopes_supported).not.toContain('admin:users:impersonate');
     expect(body.scopes_supported).toContain('admin:system');
     expect(body.scopes_supported).toContain('admin:users');
-    expect(body.scopes_supported).toContain('settings:gateway:edit');
+    expect(body.scopes_supported).toContain('settings:opfield:edit');
   });
 });
 
@@ -323,24 +315,18 @@ describe('OAuth authorization route', () => {
     );
   });
 
-  it('uses the isolated setup resource for inference setup alias requests', async () => {
+  it('has no authorize alias for the removed inference companion setup resource', async () => {
     registerSession();
     const createConsentRequest = vi.fn().mockResolvedValue({ id: 'request-1' });
     registerOAuthService({ createConsentRequest });
-    const setupPath = `${authorizePath}&scope=inference%3Asetup`.replace(
-      '/authorize?',
-      '/authorize/api/inference/setup?'
-    );
+    const setupPath = authorizePath.replace('/authorize?', '/authorize/api/inference/setup?');
 
     const response = await createApp().request(setupPath, {
       headers: { Cookie: 'session_id=session-1' },
     });
 
-    expect(response.status).toBe(302);
-    expect(createConsentRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ id: USER.id }),
-      expect.objectContaining({ resource: 'https://gateway.example.com/api/inference/setup' })
-    );
+    expect(response.status).toBe(404);
+    expect(createConsentRequest).not.toHaveBeenCalled();
   });
 
   it('redirects invalid target errors to the Gateway OAuth error UI', async () => {

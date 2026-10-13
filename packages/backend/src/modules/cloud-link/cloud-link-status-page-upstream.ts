@@ -48,7 +48,7 @@ export const statusPageUpstreamGuard: MiddlewareHandler<AppEnv> = async (c, next
 export interface StatusPageUpstreamView {
   /** Managed cloud installation: the upstream is the cloud's and read-only. */
   cloudManaged: boolean;
-  /** The console is served by Opfield itself on 443 (GATEWAY_CONSOLE_DOMAIN). */
+  /** The console is served by Opfield itself on 443 (OPFIELD_CONSOLE_DOMAIN). */
   consoleDirect: boolean;
   /** Where the generated status page proxy host forwards to; null without one. */
   inUse: string | null;

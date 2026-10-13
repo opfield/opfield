@@ -1,3 +1,4 @@
+import "@/lib/legacy-storage-keys";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -8,8 +9,8 @@ import { type AuthMethods, LoginPage, loadAuthMethods } from "@/pages/Login";
 import "./index.css";
 
 function readInjectedAuthMethods(): AuthMethods | null {
-  const raw = document.querySelector<HTMLMetaElement>('meta[name="gateway-auth-methods"]')?.content;
-  if (!raw || raw === "__GATEWAY_AUTH_METHODS__") return null;
+  const raw = document.querySelector<HTMLMetaElement>('meta[name="opfield-auth-methods"]')?.content;
+  if (!raw || raw === "__OPFIELD_AUTH_METHODS__") return null;
 
   try {
     const methods = JSON.parse(raw) as Partial<AuthMethods>;

@@ -16,7 +16,9 @@ import { proxyHosts } from '@/db/schema/proxy-hosts.js';
  */
 export const NGINX_SECURE_LINK_LOOPBACK_CAPABILITY = 'nginx_secure_link_loopback_tcp_v1';
 
-const SECURE_LINK_SOCKET_SERVER = /(\bserver\s+)unix:\/run\/gateway-secure-links\/([0-9a-fA-F-]{36})\.sock\b/g;
+// legacy-name: /run/gateway-secure-links of configs stored before 2.12.1 — remove once every node reports none
+const SECURE_LINK_SOCKET_SERVER =
+  /(\bserver\s+)unix:\/run\/(?:opfield|gateway)-secure-links\/([0-9a-fA-F-]{36})\.sock\b/g;
 
 /** The loopback endpoint of the link with this slot ("127.a.b.c:port"); undefined without a slot. */
 export function secureLinkLoopbackAddress(slot: number | null | undefined, port?: number): string | undefined {

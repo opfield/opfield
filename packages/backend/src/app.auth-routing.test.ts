@@ -10,7 +10,7 @@ import { LoggingTokenService } from '@/modules/logging/logging-token.service.js'
 import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
 import { OAuthService } from '@/modules/oauth/oauth.service.js';
 import { PageDeployTokenService } from '@/modules/pages/tokens/page-deploy-token.service.js';
-import { GatewayLifecycleService } from '@/services/gateway-lifecycle.service.js';
+import { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import { createApp } from './app.js';
 
 const validateOAuth = vi.fn(async (_token: string, options: { resource?: string }) =>
@@ -50,7 +50,7 @@ beforeEach(() => {
     ],
   };
   container.registerInstance(TOKENS.RedisClient, { pipeline: () => pipeline });
-  container.registerInstance(GatewayLifecycleService, { getState: () => 'running' } as GatewayLifecycleService);
+  container.registerInstance(OpfieldLifecycleService, { getState: () => 'running' } as OpfieldLifecycleService);
   container.registerInstance(OAuthService, {
     getApiResourceUrl: () => 'http://gateway.test/api',
     getMcpResourceUrl: () => 'http://gateway.test/api/mcp',

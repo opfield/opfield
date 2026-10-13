@@ -17,26 +17,26 @@ const artifact = {
 describe('installed Relay artifact persistence', () => {
   it('restores a newer managed Relay artifact over stale container environment', () => {
     const env = {
-      GATEWAY_RELAY_IMAGE_REF: `registry.example.com/relay@sha256:${'c'.repeat(64)}`,
-      GATEWAY_RELAY_BUILD_VERSION: 'v2.9.12',
-      GATEWAY_RELAY_PROTOCOL_MAJOR: 1,
+      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/relay@sha256:${'c'.repeat(64)}`,
+      OPFIELD_RELAY_BUILD_VERSION: 'v2.9.12',
+      OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
       SECURE_LINK_CONNECTOR_IMAGE: `registry.example.com/connector@sha256:${'d'.repeat(64)}`,
     } as Env;
 
     expect(applyNewerInstalledRelayArtifact(env, artifact)).toBe(true);
     expect(env).toMatchObject({
-      GATEWAY_RELAY_IMAGE_REF: artifact.imageRef,
-      GATEWAY_RELAY_BUILD_VERSION: artifact.buildVersion,
-      GATEWAY_RELAY_PROTOCOL_MAJOR: artifact.protocolMajor,
+      OPFIELD_RELAY_IMAGE_REF: artifact.imageRef,
+      OPFIELD_RELAY_BUILD_VERSION: artifact.buildVersion,
+      OPFIELD_RELAY_PROTOCOL_MAJOR: artifact.protocolMajor,
       SECURE_LINK_CONNECTOR_IMAGE: artifact.secureLinkConnectorImage,
     });
   });
 
   it('does not replace an equal or newer installer configuration', () => {
     for (const configuredVersion of ['v2.9.16', 'v2.10.0']) {
-      const env = { GATEWAY_RELAY_BUILD_VERSION: configuredVersion } as Env;
+      const env = { OPFIELD_RELAY_BUILD_VERSION: configuredVersion } as Env;
       expect(applyNewerInstalledRelayArtifact(env, artifact)).toBe(false);
-      expect(env.GATEWAY_RELAY_BUILD_VERSION).toBe(configuredVersion);
+      expect(env.OPFIELD_RELAY_BUILD_VERSION).toBe(configuredVersion);
     }
   });
 

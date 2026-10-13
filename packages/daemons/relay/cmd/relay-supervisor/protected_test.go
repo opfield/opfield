@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
 )
 
 func writeCLIConfig(t *testing.T) string {

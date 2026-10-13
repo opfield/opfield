@@ -24,7 +24,7 @@ interface AvatarAsset {
 }
 
 export function resolveAvatarStorageDir(nodeEnvironment: string | undefined, temporaryDirectory = os.tmpdir()): string {
-  return nodeEnvironment === 'production' ? PRODUCTION_STORAGE_DIR : join(temporaryDirectory, 'gateway-avatars');
+  return nodeEnvironment === 'production' ? PRODUCTION_STORAGE_DIR : join(temporaryDirectory, 'opfield-avatars');
 }
 
 export function isStoredAvatarUrl(value: string | null | undefined): boolean {

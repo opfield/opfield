@@ -10,10 +10,12 @@ import (
 
 const minimumServerNamesHashBucketSize = 128
 
+const serverNamesHashComment = "# Opfield Pages generated hostnames (auto-injected)"
+
 var serverNamesHashBucketSizePattern = regexp.MustCompile(`(?m)^(\s*)server_names_hash_bucket_size\s+(\d+)\s*;`)
 
 // EnsureServerNamesHashBucketSize makes the global nginx configuration able to
-// accept Gateway-generated Pages hostnames. Returns true when the file changed.
+// accept Opfield-generated Pages hostnames. Returns true when the file changed.
 func EnsureServerNamesHashBucketSize(nginxConfPath string) (bool, error) {
 	data, err := os.ReadFile(nginxConfPath)
 	if err != nil {
@@ -49,7 +51,8 @@ func EnsureServerNamesHashBucketSize(nginxConfPath string) (bool, error) {
 	}
 	insertAt := httpIdx + braceIdx + 1
 	injection := fmt.Sprintf(
-		"\n    # Gateway Pages generated hostnames (auto-injected)\n    server_names_hash_bucket_size %d;\n",
+		"\n    %s\n    server_names_hash_bucket_size %d;\n",
+		serverNamesHashComment,
 		minimumServerNamesHashBucketSize,
 	)
 	updated := content[:insertAt] + injection + content[insertAt:]

@@ -102,9 +102,9 @@ function poolWithProtectedRelay() {
       APP_VERSION: 'v2.4.2',
       COMPOSE_PROJECT_DIR: '/srv/gateway',
       RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
-      GATEWAY_RELAY_IMAGE_REF: IMAGE_REF,
-      GATEWAY_RELAY_BUILD_VERSION: 'v2.4.3',
-      GATEWAY_RELAY_PROTOCOL_MAJOR: 1,
+      OPFIELD_RELAY_IMAGE_REF: IMAGE_REF,
+      OPFIELD_RELAY_BUILD_VERSION: 'v2.4.3',
+      OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
     } as never,
     {
       setMaintenance: vi.fn().mockResolvedValue(undefined),

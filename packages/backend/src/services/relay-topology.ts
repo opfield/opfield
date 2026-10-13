@@ -287,7 +287,7 @@ function primaryGroup(
  *
  * Reachability comes from the round trips the endpoint node (and every reporting source node) measured: the nearest
  * measured remote relay is taken. When the node measured relays but none off the Gateway host, the placement stays as
- * it is and `gatewayHostOnly` says so: moving it would only produce a generation that fails its probes. A node that
+ * it is and `opfieldHostOnly` says so: moving it would only produce a generation that fails its probes. A node that
  * reports no measurement keeps a remote relay it already uses and is otherwise left alone.
  */
 export function includeRemoteRelay(
@@ -296,8 +296,8 @@ export function includeRemoteRelay(
   instances: RelayInstanceRow[],
   path?: EndpointLatencyPath,
   reference: ReadonlyArray<{ relayInstanceId: string }> = []
-): { planned: PlannedRelayAssignment[]; gatewayHostOnly: boolean } {
-  const unchanged = { planned, gatewayHostOnly: false };
+): { planned: PlannedRelayAssignment[]; opfieldHostOnly: boolean } {
+  const unchanged = { planned, opfieldHostOnly: false };
   if (!planned.length || planned.some(({ instance }) => instance.kind !== 'local')) return unchanged;
   const taken = new Set(planned.map(({ instance }) => instance.id));
   const remotes = instances.filter(
@@ -312,7 +312,7 @@ export function includeRemoteRelay(
         return cost === undefined ? [] : [[instance.id, cost] as const];
       })
     );
-    if (!costs.size) return { planned, gatewayHostOnly: true };
+    if (!costs.size) return { planned, opfieldHostOnly: true };
     const rendezvous = byRendezvous(endpointId);
     [remote] = remotes
       .filter(({ id }) => costs.has(id))
@@ -330,7 +330,7 @@ export function includeRemoteRelay(
   while (index > 0 && planned[index]!.instance.kind !== 'local') index -= 1;
   return {
     planned: planned.map((entry, position) => (position === index ? { instance: remote!, role: entry.role } : entry)),
-    gatewayHostOnly: false,
+    opfieldHostOnly: false,
   };
 }
 

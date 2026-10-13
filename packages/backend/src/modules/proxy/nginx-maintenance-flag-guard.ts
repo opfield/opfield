@@ -4,7 +4,7 @@ import { type NginxConfigDirective, parseNginxConfig, walkNginxConfig } from './
  * Maintenance without an nginx reload, for nodes whose daemon reports proxy_maintenance_flag_v1.
  *
  * Every managed route on such a node carries the guard below whether or not it is in maintenance. Per request it
- * checks whether the daemon keeps the route's flag file; the daemon creates and removes that file when Gateway sends
+ * checks whether the daemon keeps the route's flag file; the daemon creates and removes that file when Opfield sends
  * the route's maintenance state. So entering and leaving maintenance changes no config and reloads nothing, and the
  * idle keep-alive connections of every other route on the node stay open (a reload closes them).
  *
@@ -16,10 +16,10 @@ import { type NginxConfigDirective, parseNginxConfig, walkNginxConfig } from './
  *   through the guard's rewrite, which happens only while the flag exists; no path of the route is reserved;
  * - default_type and add_header of the maintenance page live in those locations only;
  * - secure_link is configured on the server but evaluated only while the flag exists; a config that uses
- *   secure_link itself keeps the reload-based guard (its own $secure_link would see Gateway's settings), whose page
+ *   secure_link itself keeps the reload-based guard (its own $secure_link would see Opfield's settings), whose page
  *   then has no team access (nginx-template.service.ts, maintenanceAccessFits);
  * - the Cookie each proxying scope sends is "$http_cookie", or the value of the route's own Cookie override, until
- *   the flag exists; then Gateway's access cookies are removed from it. A scope gets the directive only where it
+ *   the flag exists; then Opfield's access cookies are removed from it. A scope gets the directive only where it
  *   already sets proxy_set_header itself, so nginx's inheritance of proxy_set_header is unchanged. A proxying location
  *   that inherits the headers from outside the route's config (nginx.conf) keeps the reload-based guard.
  *
@@ -29,12 +29,15 @@ import { type NginxConfigDirective, parseNginxConfig, walkNginxConfig } from './
 
 export const MAINTENANCE_FLAG_CAPABILITY = 'proxy_maintenance_flag_v1';
 /** Kept byte-identical with maintenanceFlagDir in the nginx daemon (maintenance_flags.go). */
-export const MAINTENANCE_FLAG_DIR = '/etc/nginx/gateway/maintenance';
+export const MAINTENANCE_FLAG_DIR = '/etc/nginx/opfield/maintenance';
 
 const PAGES_ROUTE_INCLUDE = /\/pages\/routes\/[A-Za-z0-9-]+\.inc$/;
 const SECURE_LINK_DIRECTIVES = new Set(['secure_link', 'secure_link_md5', 'secure_link_secret']);
-/** The names of the guard's own locations, as `location = <name>` or `location =<name>`. */
-const GUARD_LOCATION = /^=?gateway-maintenance(?:-access|-status)?$/;
+/**
+ * The names of the guard's own locations, as `location = <name>` or `location =<name>`.
+ * legacy-name: gateway-maintenance locations of configs rendered before 2.12.1 — remove once every node reports none
+ */
+const GUARD_LOCATION = /^=?(?:opfield|gateway)-maintenance(?:-access|-status)?$/;
 
 export interface MaintenanceFlagGuardInput {
   hostId: string;
@@ -76,7 +79,10 @@ function usesReservedFeatures(directives: NginxConfigDirective[]): boolean {
       directive.name === 'proxy_pass_request_headers' ||
       (directive.name === 'include' && !PAGES_ROUTE_INCLUDE.test(directive.args[0]?.value ?? '')) ||
       (directive.name === 'location' && directive.args.some((arg) => GUARD_LOCATION.test(arg.value))) ||
-      directive.args.some((arg) => /\$\{?(secure_link|gateway_maintenance|gm_cookie_)/.test(arg.raw))
+      // legacy-name: $gateway_maintenance of configs written before 2.12.1 — remove once every node reports none
+      directive.args.some((arg) =>
+        /\$\{?(secure_link|opfield_maintenance|gateway_maintenance|gm_cookie_)/.test(arg.raw)
+      )
     ) {
       reserved = true;
     }
@@ -120,10 +126,10 @@ function lineIndent(text: string, position: number): string | null {
 function overrideMaps(hostId: string, overrides: string[]): string {
   return overrides
     .map(
-      (value, index) => `map $gateway_maintenance ${overrideVariable(hostId, index + 1)} {
+      (value, index) => `map $opfield_maintenance ${overrideVariable(hostId, index + 1)} {
     volatile;
     default ${value};
-    1 $gateway_maintenance_cookie_stripped;
+    1 $opfield_maintenance_cookie_stripped;
 }
 
 `
@@ -138,38 +144,38 @@ function overrideVariable(hostId: string, index: number): string {
 function serverGuard(input: MaintenanceFlagGuardInput, serverHeaders: string[]): string {
   const copied = serverHeaders.map((header) => `\n        ${header}`).join('');
   return `
-    # Gateway maintenance mode: answers only while the nginx daemon keeps ${MAINTENANCE_FLAG_DIR}/${input.hostId}.
+    # Opfield maintenance mode: answers only while the nginx daemon keeps ${MAINTENANCE_FLAG_DIR}/${input.hostId}.
     # Server-rewrite directives run before location selection; the guard's locations are reachable only through it.
     if (-f ${MAINTENANCE_FLAG_DIR}/${input.hostId}) {
-        set $gateway_maintenance 1;
+        set $opfield_maintenance 1;
     }
-    if ($gateway_maintenance_route) {
-        rewrite ^ $gateway_maintenance_route last;
+    if ($opfield_maintenance_route) {
+        rewrite ^ $opfield_maintenance_route last;
     }
-    secure_link "$cookie_gateway_maintenance_access_sig,$cookie_gateway_maintenance_access_exp";
+    secure_link "$cookie_opfield_maintenance_access_sig,$cookie_opfield_maintenance_access_exp";
     secure_link_md5 "\${secure_link_expires}\${host}${input.secret}";
 
-    location = gateway-maintenance {
+    location = opfield-maintenance {
         internal;
         default_type text/html;
         add_header Cache-Control "no-store" always;${copied}
         return 503 ${input.pageText};
     }
 
-    location = gateway-maintenance-access {
+    location = opfield-maintenance-access {
         internal;
         add_header Cache-Control "no-store" always;${copied}
         proxy_pass http://unix:/run/nginx-daemon/maintenance-access.sock:/redeem/${input.hostId};
         proxy_set_header Host $host;
-        proxy_set_header X-Gateway-Maintenance-Host $host;
-        proxy_set_header X-Gateway-Maintenance-Secure $https;
+        proxy_set_header X-Opfield-Maintenance-Host $host;
+        proxy_set_header X-Opfield-Maintenance-Secure $https;
         proxy_set_header Cookie "";
         proxy_connect_timeout 5s;
         proxy_send_timeout 5s;
         proxy_read_timeout 5s;
     }
 
-    location = gateway-maintenance-status {
+    location = opfield-maintenance-status {
         internal;
         default_type application/json;
         add_header Cache-Control "no-store" always;
@@ -177,7 +183,7 @@ function serverGuard(input: MaintenanceFlagGuardInput, serverHeaders: string[]):
         if ($request_method != GET) {
             return 405;
         }
-        return 200 '{"active":$gateway_maintenance_access}';
+        return 200 '{"active":$opfield_maintenance_access}';
     }
 `;
 }
@@ -208,7 +214,7 @@ export function renderMaintenanceFlagGuard(rendered: string, input: MaintenanceF
       }
       const last = headerDirectives(scope).at(-1)!;
       const indent = lineIndent(rendered, last.start);
-      const directive = 'proxy_set_header Cookie $gateway_maintenance_cookie;';
+      const directive = 'proxy_set_header Cookie $opfield_maintenance_cookie;';
       edits.push({
         start: last.end,
         end: last.end,

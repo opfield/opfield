@@ -6,7 +6,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
 	"gopkg.in/yaml.v3"
 )
 

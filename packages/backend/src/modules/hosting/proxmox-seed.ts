@@ -83,7 +83,7 @@ export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
 /** A bounded NoCloud ISO, generated without shell interpolation; never log file contents. */
 export async function buildProxmoxSeed(input: HostingCreateRequest, mac: string): Promise<Buffer> {
   const files = proxmoxSeedFiles(input, mac);
-  const directory = await mkdtemp(join(tmpdir(), 'gateway-seed-'));
+  const directory = await mkdtemp(join(tmpdir(), 'opfield-seed-'));
   try {
     for (const [name, content] of Object.entries(files))
       await writeFile(join(directory, name), content, { mode: 0o600 });

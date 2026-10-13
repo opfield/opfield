@@ -25,10 +25,10 @@ import (
 
 	mobyclient "github.com/moby/moby/client"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/chha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/chha"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 )
 
 func TestNodeKeeperWitnessContainer(t *testing.T) {

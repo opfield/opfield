@@ -1,11 +1,11 @@
-module github.com/wiolett-industries/gateway/nginx-daemon
+module github.com/opfield/opfield/nginx-daemon
 
 go 1.24.4
 
-replace github.com/wiolett-industries/gateway/daemon-shared => ../shared
+replace github.com/opfield/opfield/daemon-shared => ../shared
 
 require (
-	github.com/wiolett-industries/gateway/daemon-shared v0.0.0
+	github.com/opfield/opfield/daemon-shared v0.0.0
 	golang.org/x/sys v0.39.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11

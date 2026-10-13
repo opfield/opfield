@@ -25,7 +25,7 @@ packages/daemons/nginx/nginx-daemon
 packages/daemons/monitoring/bin/monitoring-daemon
 packages/daemons/relay/bin/
 packages/daemons/shared/updateauth/update-signing-public-key.pem
-packages/relay/gateway-relay
+packages/relay/opfield-relay
 
 # Update signing keygen outputs
 private.pem

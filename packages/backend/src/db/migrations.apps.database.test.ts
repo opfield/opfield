@@ -3,10 +3,10 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { disposableDatabase, migrateDatabase, rejection } from './migration-database.test-helpers.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): the apps migration. One Production environment per app, environment
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): the apps migration. One Production environment per app, environment
  * names unique per app case-insensitively, one hidden app-root and one environment folder per family, and an
  * environment folder always names its app. Upgraded rows keep working: existing folders get no app.
  */

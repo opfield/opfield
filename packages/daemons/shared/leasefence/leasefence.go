@@ -3,7 +3,8 @@
 // backward compatible: the watchdog is installed and updated independently of
 // the daemon, so any daemon version may meet any watchdog version.
 //
-// Layout under Dir.Root (tmpfs, default /run/gateway-lease-watchdog):
+// Layout under Dir.Root (tmpfs, default /run/opfield-lease-watchdog; see
+// RootPair for the pre-Opfield name):
 //
 //	heartbeat           written by the watchdog every HeartbeatInterval
 //	daemon-heartbeat    written by the lease-aware docker daemon every
@@ -28,12 +29,19 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/opfield/opfield/daemon-shared/hostrename"
 )
 
 const (
 	// DefaultRoot is on tmpfs so records vanish on reboot, when lease-mode
 	// containers (RestartPolicy no) cannot be running either.
-	DefaultRoot = "/run/gateway-lease-watchdog"
+	DefaultRoot = "/run/opfield-lease-watchdog"
+	// LegacyRoot is the pre-Opfield name of DefaultRoot. A watchdog or daemon
+	// of an older release uses it; the watchdog moves it to DefaultRoot and
+	// leaves a link (EnsureDefaultRoot), so both meet in one directory.
+	// legacy-name: /run/gateway-lease-watchdog of pre-Opfield watchdogs and docker daemons — remove once every node reports none
+	LegacyRoot = "/run/gateway-lease-watchdog"
 	// FormatVersion is the record and heartbeat schema version.
 	FormatVersion = 1
 	// HeartbeatInterval is how often the watchdog proves its kill loop runs.
@@ -130,12 +138,44 @@ type Dir struct {
 	Root string
 }
 
+// RootPair is the default directory under both its names.
+var RootPair = hostrename.Pair{Old: LegacyRoot, New: DefaultRoot}
+
+// root resolves the default directory on every use: an older watchdog may
+// create it under the pre-Opfield name after a reboot, and a newer one moves it
+// while the daemon runs.
 func (d Dir) root() string {
-	if d.Root == "" {
-		return DefaultRoot
+	if d.Root == "" || d.Root == DefaultRoot || d.Root == LegacyRoot {
+		return hostrename.Resolve(RootPair)
 	}
 	return d.Root
 }
+
+// EnsureDefaultRoot makes the default directory exist under its Opfield name
+// with the pre-Opfield name linking to it (moving a directory an older
+// component created). Only the watchdog, which runs as root, calls it.
+func EnsureDefaultRoot() (string, error) {
+	return hostrename.EnsureRunDir(RootPair, 0o755)
+}
+
+// ensureRoot creates the directory when it is missing. The default one is
+// created under its Opfield name with the pre-Opfield name linking to it, so a
+// watchdog of an older release that starts later uses the same directory
+// instead of creating its own.
+func (d Dir) ensureRoot() error {
+	if info, err := os.Stat(d.root()); err == nil && info.IsDir() {
+		return nil
+	}
+	if d.Root == "" || d.Root == DefaultRoot || d.Root == LegacyRoot {
+		_, err := EnsureDefaultRoot()
+		return err
+	}
+	return os.MkdirAll(d.root(), 0o755)
+}
+
+// Legacy reports whether the default directory is still under its pre-Opfield
+// name.
+func Legacy() bool { return hostrename.Legacy(RootPair) }
 
 // RecordsDir is where deadline records live.
 func (d Dir) RecordsDir() string { return filepath.Join(d.root(), recordsDirName) }
@@ -246,7 +286,7 @@ func (d Dir) WriteDaemonHeartbeat(h Heartbeat) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(d.root(), 0o755); err != nil {
+	if err := d.ensureRoot(); err != nil {
 		return err
 	}
 	return writeAtomic(d.root(), d.DaemonHeartbeatPath(), data, 0o644)

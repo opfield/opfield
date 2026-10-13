@@ -70,8 +70,8 @@ export const authSettings: AuthProvisioningSettings = {
     autoAssignCreatedResourcePermissions: true,
     fileUploadMaxBytes: systemConfig.fileUploadMaxBytes,
     fileOpenMaxBytes: systemConfig.fileOpenMaxBytes,
-    gatewayGrpcPublicTarget: systemConfig.gatewayGrpcPublicTarget,
-    gatewayGrpcLocalIp: systemConfig.gatewayGrpcLocalIp,
+    grpcPublicTarget: systemConfig.grpcPublicTarget,
+    grpcLocalIp: systemConfig.grpcLocalIp,
     relayAutoRecovery: true,
     relay: {
       dataLanes: 4,

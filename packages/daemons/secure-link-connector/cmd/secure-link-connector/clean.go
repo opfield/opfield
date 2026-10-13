@@ -9,24 +9,28 @@ import (
 // A docker-daemon running without root cannot delete the socket directory a
 // root daemon left to uid 65532 when the node switched modes. It runs this
 // image once as uid 65532 with that directory mounted at cleanDirectoryMount
-// and cleanDirectoryEnv set; the connector empties the directory and exits.
+// and OPFIELD_CONNECTOR_CLEAN_DIR set; the connector empties the directory and
+// exits.
 const (
-	cleanDirectoryEnv   = "GATEWAY_CONNECTOR_CLEAN_DIR"
-	cleanDirectoryMount = "/run/gateway-clean"
+	cleanDirectoryMount = "/run/opfield-clean"
+	// legacy-name: /run/gateway-clean mount — remove once every node reports none.
+	// docker-daemon 2.12.0 mounts the directory there.
+	legacyCleanDirectoryMount = "/run/gateway-clean"
 )
 
 // emptyCleanDirectory removes every entry of the mounted directory. Any other
 // path is refused, so the mode cannot be pointed at the connector's own files.
 func emptyCleanDirectory(directory string) error {
-	if filepath.Clean(directory) != cleanDirectoryMount {
-		return fmt.Errorf("%s must be %s", cleanDirectoryEnv, cleanDirectoryMount)
+	mount := filepath.Clean(directory)
+	if mount != cleanDirectoryMount && mount != legacyCleanDirectoryMount {
+		return fmt.Errorf("%s must be %s", envPrefix+connectorCleanDirEnv, cleanDirectoryMount)
 	}
-	entries, err := os.ReadDir(cleanDirectoryMount)
+	entries, err := os.ReadDir(mount)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", cleanDirectoryMount, err)
+		return fmt.Errorf("read %s: %w", mount, err)
 	}
 	for _, entry := range entries {
-		if err := os.RemoveAll(filepath.Join(cleanDirectoryMount, entry.Name())); err != nil {
+		if err := os.RemoveAll(filepath.Join(mount, entry.Name())); err != nil {
 			return fmt.Errorf("remove %s: %w", entry.Name(), err)
 		}
 	}

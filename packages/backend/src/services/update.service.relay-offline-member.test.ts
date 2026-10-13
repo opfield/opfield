@@ -100,9 +100,9 @@ function poolWithRemote(connected: boolean) {
       COMPOSE_PROJECT_DIR: '/srv/gateway',
       RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
       // The local relay already runs the target: its step completes without a recreate.
-      GATEWAY_RELAY_IMAGE_REF: IMAGE_REF,
-      GATEWAY_RELAY_BUILD_VERSION: 'v2.4.3',
-      GATEWAY_RELAY_PROTOCOL_MAJOR: 1,
+      OPFIELD_RELAY_IMAGE_REF: IMAGE_REF,
+      OPFIELD_RELAY_BUILD_VERSION: 'v2.4.3',
+      OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
     } as never,
     relayRuntime as never
   );

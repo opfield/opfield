@@ -6,7 +6,7 @@
     "proto": {
       "command": "make -C packages/daemons/nginx proto",
       "inputs": ["{workspaceRoot}/proto/**/*.proto"],
-      "outputs": ["{projectRoot}/internal/gatewayv1/*.pb.go"],
+      "outputs": ["{workspaceRoot}/packages/daemons/shared/opfieldv1/*.pb.go", "{workspaceRoot}/packages/daemons/shared/relayv1/*.pb.go"],
       "cache": true
     },
     "build": {

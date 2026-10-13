@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 )
 
 // keepSocketForNextProcess listens at path with mode, hands the listener to the keeper as a stopping daemon process

@@ -496,12 +496,12 @@ describe('AuthService additional permissions', () => {
       .mockResolvedValueOnce({
         id: 'group-2',
         name: 'MFA destination',
-        requireGateway2fa: destinationRequiresMfa,
+        require2fa: destinationRequiresMfa,
       })
       .mockResolvedValueOnce({
         id: 'group-1',
         name: 'Source',
-        requireGateway2fa: sourceRequiresMfa,
+        require2fa: sourceRequiresMfa,
       });
     const sessionService = {
       setUserSessionsMfaGraceExpiresAt: vi.fn().mockResolvedValue(undefined),
@@ -512,8 +512,8 @@ describe('AuthService additional permissions', () => {
     };
     const eventBus = { publish: vi.fn() };
     vi.mocked(fetchGroupScopeMap).mockResolvedValue(new Map([
-      ['group-1', { id: 'group-1', name: 'Source', parentId: null, scopes: [], requireGateway2fa: sourceRequiresMfa }],
-      ['group-2', { id: 'group-2', name: 'MFA destination', parentId: null, scopes: [], requireGateway2fa: destinationRequiresMfa }],
+      ['group-1', { id: 'group-1', name: 'Source', parentId: null, scopes: [], require2fa: sourceRequiresMfa }],
+      ['group-2', { id: 'group-2', name: 'MFA destination', parentId: null, scopes: [], require2fa: destinationRequiresMfa }],
     ]));
     const db = {
       query: {
@@ -627,7 +627,7 @@ describe('AuthService additional permissions', () => {
       expect(eventBus.publish).toHaveBeenCalledWith(`mfa.required.${targetUser.id}`, {
         groupId: 'group-2',
         groupName: 'MFA destination',
-        requireGateway2fa: true,
+        require2fa: true,
       });
     } finally {
       vi.useRealTimers();
@@ -650,7 +650,7 @@ describe('AuthService additional permissions', () => {
     expect(eventBus.publish).toHaveBeenCalledWith(`mfa.required.${targetUser.id}`, {
       groupId: 'group-2',
       groupName: 'MFA destination',
-      requireGateway2fa: false,
+      require2fa: false,
     });
   });
 
@@ -714,7 +714,7 @@ describe('normalizeOidcClaims', () => {
   });
 
   it('rejects subjects that collide with pre-created Gateway placeholders', () => {
-    for (const sub of ['manual:victim@example.com', 'MANUAL:victim@example.com', 'System:gateway-setup']) {
+    for (const sub of ['manual:victim@example.com', 'MANUAL:victim@example.com', 'System:opfield-setup']) {
       expect(() => normalizeOidcClaims({ sub, email: 'victim@example.com', email_verified: true })).toThrow(
         'OIDC subject uses a reserved Opfield namespace'
       );

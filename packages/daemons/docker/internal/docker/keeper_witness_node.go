@@ -21,10 +21,10 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/chha"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/docker-daemon/internal/chha"
 )
 
 // Keeper witness containers on a docker node (decision 8, second half): a
@@ -40,7 +40,7 @@ import (
 const (
 	nodeKeeperWitnessCapability = "node_keeper_witness_v1"
 	setWitnessEndpointKind      = "managed_availability_witness"
-	keeperWitnessLabel          = "wiolett.gateway.keeper-witness.id"
+	keeperWitnessLabel          = "net.opfield.keeper-witness.id"
 	keeperWitnessTick           = 5 * time.Second
 	keeperWitnessMaxWitnesses   = 20
 	keeperWitnessMemory         = 512 << 20

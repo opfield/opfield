@@ -6,13 +6,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaylocal"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay/internal/broker"
-	"github.com/wiolett-industries/gateway/relay/internal/identity"
-	"github.com/wiolett-industries/gateway/relay/internal/peer"
-	"github.com/wiolett-industries/gateway/relay/internal/policy"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/relaylocal"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay/internal/broker"
+	"github.com/opfield/opfield/relay/internal/config"
+	"github.com/opfield/opfield/relay/internal/grant"
+	"github.com/opfield/opfield/relay/internal/identity"
+	"github.com/opfield/opfield/relay/internal/peer"
+	"github.com/opfield/opfield/relay/internal/policy"
+	"github.com/opfield/opfield/relay/internal/proxy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -147,9 +150,10 @@ func healthCapabilities(mode relayv1.RelayMode, availabilityLease bool) []string
 		policy.PoolCapability, "signed_policy_envelope_v1", identity.ServerCertificateRolloverCapability,
 		policy.LongLeaseCapability, broker.EndpointRestartCapability, broker.DrainKeepsLocalServicesCapability,
 		broker.RegistryFairShareCapability, relaylocal.EndpointsCapability, relaylocal.DialRouteCapability,
+		grant.AudienceCapability, config.OpfieldRegistryCapability,
 	}
 	if mode == relayv1.RelayMode_RELAY_MODE_LOCAL_COMBINED {
-		capabilities = append(capabilities, policy.TrustResetCapability)
+		capabilities = append(capabilities, policy.TrustResetCapability, proxy.MetadataCapability)
 	}
 	if availabilityLease {
 		capabilities = append(capabilities, AvailabilityLeaseCapability, availabilitylease.CapabilityV3, HolderStatementCapability)

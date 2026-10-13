@@ -748,7 +748,7 @@ export class DockerRegistryService {
       username: null,
       trustedAuthRealm: null,
       source: 'system' as const,
-      provider: 'gateway' as const,
+      provider: 'opfield' as const,
       readOnly: true,
       scope: 'global',
       nodeId: null,

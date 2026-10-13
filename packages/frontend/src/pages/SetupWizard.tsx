@@ -84,7 +84,7 @@ interface PersistedSetupDraft {
 }
 
 function draftStorageKey(codeId: string): string {
-  return `gateway:setup-draft:${codeId}`;
+  return `opfield:setup-draft:${codeId}`;
 }
 
 function readDraft(codeId: string | null): Partial<PersistedSetupDraft> | null {
@@ -177,7 +177,7 @@ export function SetupWizardPage() {
     url: "",
     username: "",
     password: "",
-    database: "gateway_logs",
+    database: "opfield_logs",
     table: "logs",
   });
   const autoOidcRedirect = useRef<string | null>(null);
@@ -186,8 +186,8 @@ export function SetupWizardPage() {
   const hydrate = useCallback((next: SetupConfig, codeId: string | null) => {
     const saved = readDraft(codeId);
     const defaultNetwork = {
-      grpcPublicTarget: next.general.gatewayGrpcPublicTarget ?? "",
-      grpcLocalIp: next.general.gatewayGrpcLocalIp ?? next.networkSuggestions.localIps[0] ?? "",
+      grpcPublicTarget: next.general.grpcPublicTarget ?? "",
+      grpcLocalIp: next.general.grpcLocalIp ?? next.networkSuggestions.localIps[0] ?? "",
     };
     const nextMethods = { ...next.auth.methods, ...(saved?.methods ?? {}) };
     setConfig(next);
@@ -394,7 +394,7 @@ export function SetupWizardPage() {
 
   const finishSetup = async (outcome: {
     status: "configured" | "skipped";
-    configuredVia?: "direct" | "gateway_inference";
+    configuredVia?: "direct" | "opfield_inference";
   }) => {
     const result = await setupRequest<SetupCompleteResult>(
       "/wizard/complete",

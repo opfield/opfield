@@ -200,7 +200,7 @@ const contextEstimate: AIContextEstimate = {
 /** The AI settings the composer reads for its context limit. */
 const aiConfig = {
   enabled: true,
-  providerType: "gateway_inference",
+  providerType: "opfield_inference",
   model: aiStatus.defaultModel,
   maxContextTokens: 200_000,
   reasoningEffort: "medium",

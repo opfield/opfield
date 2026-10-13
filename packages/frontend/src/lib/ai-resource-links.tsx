@@ -8,7 +8,7 @@ import { aiResourceHref, resourceTypeIcon, resourceTypeLabel } from "./resource-
 import { createReturnNavigationState } from "./return-navigation";
 
 const MARKER_RE = /\[\[resource:(gwr_[a-f0-9]{24})\|((?:[^[\]\r\n]|\[[^[\]\r\n]*\]){1,240})\]\]/g;
-const INTERNAL_HREF_PREFIX = "#gateway-resource:";
+const INTERNAL_HREF_PREFIX = "#opfield-resource:";
 
 /** Whether a Markdown link target is a resource link that renders as a chip. */
 export function isResourceMarkdownHref(href: unknown): boolean {

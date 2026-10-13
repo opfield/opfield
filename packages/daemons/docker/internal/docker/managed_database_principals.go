@@ -184,9 +184,9 @@ END
 // free-form values in these bodies, so pick a dollar-quote tag the body cannot
 // contain; a password can then never close the block early.
 func postgresDollarQuotedDO(body string) string {
-	tag := "$gateway$"
+	tag := "$opfield$"
 	for suffix := 0; strings.Contains(body, tag); suffix++ {
-		tag = fmt.Sprintf("$gateway%d$", suffix)
+		tag = fmt.Sprintf("$opfield%d$", suffix)
 	}
 	return "RESET ROLE;\nDO " + tag + body + tag + ";\n"
 }
@@ -329,8 +329,8 @@ func (m *managedDatabaseManager) createBindingPrincipal(ctx context.Context, rec
 		command = []string{"sh", "-ec", redisBindingACLCommand()}
 		env = []string{
 			"REDISCLI_AUTH=" + input.OwnerPassword,
-			"GATEWAY_DB_BINDING_USER=" + input.Username,
-			"GATEWAY_DB_BINDING_PASSWORD=" + input.Password,
+			"OPFIELD_DB_BINDING_USER=" + input.Username,
+			"OPFIELD_DB_BINDING_PASSWORD=" + input.Password,
 		}
 	case "clickhouse":
 		stdin = clickHouseBindingCreateSQL(input)
@@ -373,8 +373,8 @@ func (m *managedDatabaseManager) applyBindingPrincipalV2(ctx context.Context, re
 			"",
 			[]string{
 				"REDISCLI_AUTH=" + input.OwnerPassword,
-				"GATEWAY_DB_PRINCIPAL=" + input.PrincipalName,
-				"GATEWAY_DB_PRINCIPAL_PASSWORD=" + input.Password,
+				"OPFIELD_DB_PRINCIPAL=" + input.PrincipalName,
+				"OPFIELD_DB_PRINCIPAL_PASSWORD=" + input.Password,
 			},
 		)
 	case "clickhouse":
@@ -404,10 +404,10 @@ func (m *managedDatabaseManager) probeBindingPrincipalV2(ctx context.Context, re
 		return m.runManagedDatabaseExec(
 			ctx,
 			record.ContainerID,
-			[]string{"sh", "-ec", `result="$(redis-cli --no-auth-warning --user "$GATEWAY_DB_PRINCIPAL" PING 2>&1 | tr -d '\r\n')"
+			[]string{"sh", "-ec", `result="$(redis-cli --no-auth-warning --user "$OPFIELD_DB_PRINCIPAL" PING 2>&1 | tr -d '\r\n')"
 [ "$result" = "PONG" ] || { echo "$result" >&2; exit 1; }`},
 			"",
-			[]string{"REDISCLI_AUTH=" + input.Password, "GATEWAY_DB_PRINCIPAL=" + input.PrincipalName},
+			[]string{"REDISCLI_AUTH=" + input.Password, "OPFIELD_DB_PRINCIPAL=" + input.PrincipalName},
 		)
 	case "clickhouse":
 		return m.runManagedDatabaseExec(
@@ -438,7 +438,7 @@ func (m *managedDatabaseManager) dropBindingPrincipalV2(ctx context.Context, rec
 			record.ContainerID,
 			[]string{"sh", "-ec", redisBindingPrincipalV2DropCommand()},
 			"",
-			[]string{"REDISCLI_AUTH=" + input.OwnerPassword, "GATEWAY_DB_PRINCIPAL=" + input.PrincipalName},
+			[]string{"REDISCLI_AUTH=" + input.OwnerPassword, "OPFIELD_DB_PRINCIPAL=" + input.PrincipalName},
 		)
 	case "clickhouse":
 		return m.runManagedDatabaseExec(
@@ -483,8 +483,8 @@ func (m *managedDatabaseManager) finalizeOwnerSeparation(ctx context.Context, re
 			[]string{"sh", "-ec", redisOwnerRotateCommand()},
 			"",
 			[]string{
-				"GATEWAY_DB_CURRENT_OWNER_PASSWORD=" + input.CurrentOwnerPassword,
-				"GATEWAY_DB_PENDING_OWNER_PASSWORD=" + input.PendingOwnerPassword,
+				"OPFIELD_DB_CURRENT_OWNER_PASSWORD=" + input.CurrentOwnerPassword,
+				"OPFIELD_DB_PENDING_OWNER_PASSWORD=" + input.PendingOwnerPassword,
 			},
 		)
 	case "clickhouse":
@@ -845,7 +845,7 @@ func clickHouseBindingPrincipalV2ApplySQL(input managedDatabasePrincipalV2Comman
 
 func redisBindingPrincipalV2ApplyCommand() string {
 	return fmt.Sprintf(`redis_major="$(redis-cli --no-auth-warning --user default INFO server 2>/dev/null | sed -n 's/^redis_version:\([0-9][0-9]*\)\..*/\1/p')"
-set -- redis-cli --no-auth-warning --user default -x ACL SETUSER "$GATEWAY_DB_PRINCIPAL" reset on
+set -- redis-cli --no-auth-warning --user default -x ACL SETUSER "$OPFIELD_DB_PRINCIPAL" reset on
 for acl_rule in %s; do
   set -- "$@" "$acl_rule"
 done
@@ -856,14 +856,14 @@ case "$redis_major" in
     done
     ;;
 esac
-result="$(printf '%%s' ">$GATEWAY_DB_PRINCIPAL_PASSWORD" | "$@" 2>&1 | tr -d '\r\n')"
+result="$(printf '%%s' ">$OPFIELD_DB_PRINCIPAL_PASSWORD" | "$@" 2>&1 | tr -d '\r\n')"
 [ "$result" = "OK" ] || { echo "$result" >&2; exit 1; }
 saved="$(redis-cli --no-auth-warning --user default ACL SAVE 2>&1 | tr -d '\r\n')"
 [ "$saved" = "OK" ] || { echo "$saved" >&2; exit 1; }`, redisBindingACLShellWords(redisBindingACLBaseRules()), redisBindingACLShellWords(redisBindingACLModernRules()))
 }
 
 func redisBindingPrincipalV2DropCommand() string {
-	return `result="$(redis-cli --no-auth-warning --user default ACL DELUSER "$GATEWAY_DB_PRINCIPAL")"
+	return `result="$(redis-cli --no-auth-warning --user default ACL DELUSER "$OPFIELD_DB_PRINCIPAL")"
 case "$result" in
   0|1) ;;
   *) echo "unexpected ACL DELUSER result: $result" >&2; exit 1 ;;
@@ -897,15 +897,15 @@ done </data/users.acl`
 }
 
 func redisOwnerRotateCommand() string {
-	return `pending_probe="$(REDISCLI_AUTH="$GATEWAY_DB_PENDING_OWNER_PASSWORD" redis-cli --no-auth-warning --user default PING 2>&1 | tr -d '\r\n')"
+	return `pending_probe="$(REDISCLI_AUTH="$OPFIELD_DB_PENDING_OWNER_PASSWORD" redis-cli --no-auth-warning --user default PING 2>&1 | tr -d '\r\n')"
 if [ "$pending_probe" = "PONG" ]; then
-  export REDISCLI_AUTH="$GATEWAY_DB_PENDING_OWNER_PASSWORD"
+  export REDISCLI_AUTH="$OPFIELD_DB_PENDING_OWNER_PASSWORD"
 else
-  export REDISCLI_AUTH="$GATEWAY_DB_CURRENT_OWNER_PASSWORD"
+  export REDISCLI_AUTH="$OPFIELD_DB_CURRENT_OWNER_PASSWORD"
 fi
-rotated="$(printf '%s' ">$GATEWAY_DB_PENDING_OWNER_PASSWORD" | redis-cli --no-auth-warning --user default -x ACL SETUSER default reset on '~*' '&*' '+@all' 2>&1 | tr -d '\r\n')"
+rotated="$(printf '%s' ">$OPFIELD_DB_PENDING_OWNER_PASSWORD" | redis-cli --no-auth-warning --user default -x ACL SETUSER default reset on '~*' '&*' '+@all' 2>&1 | tr -d '\r\n')"
 [ "$rotated" = "OK" ] || { echo "$rotated" >&2; exit 1; }
-export REDISCLI_AUTH="$GATEWAY_DB_PENDING_OWNER_PASSWORD"
+export REDISCLI_AUTH="$OPFIELD_DB_PENDING_OWNER_PASSWORD"
 saved="$(redis-cli --no-auth-warning --user default ACL SAVE 2>&1 | tr -d '\r\n')"
 [ "$saved" = "OK" ] || { echo "$saved" >&2; exit 1; }`
 }
@@ -930,7 +930,7 @@ func redisBindingACLShellWords(rules []string) string {
 
 func redisBindingACLCommand() string {
 	return fmt.Sprintf(`redis_major="$(redis-cli --no-auth-warning --user default INFO server 2>/dev/null | sed -n 's/^redis_version:\([0-9][0-9]*\)\..*/\1/p')"
-set -- redis-cli --no-auth-warning --user default -x ACL SETUSER "$GATEWAY_DB_BINDING_USER" reset on
+set -- redis-cli --no-auth-warning --user default -x ACL SETUSER "$OPFIELD_DB_BINDING_USER" reset on
 for acl_rule in %s; do
   set -- "$@" "$acl_rule"
 done
@@ -941,7 +941,7 @@ case "$redis_major" in
     done
     ;;
 esac
-printf '%%s' ">$GATEWAY_DB_BINDING_PASSWORD" | "$@"`, redisBindingACLShellWords(redisBindingACLBaseRules()), redisBindingACLShellWords(redisBindingACLModernRules()))
+printf '%%s' ">$OPFIELD_DB_BINDING_PASSWORD" | "$@"`, redisBindingACLShellWords(redisBindingACLBaseRules()), redisBindingACLShellWords(redisBindingACLModernRules()))
 }
 
 func (m *managedDatabaseManager) removeBindingPrincipal(ctx context.Context, record managedDatabaseRecord, input managedDatabaseBindingCommand) error {
@@ -953,8 +953,8 @@ func (m *managedDatabaseManager) removeBindingPrincipal(ctx context.Context, rec
 		stdin = postgresBindingRemoveSQL(input)
 		command = []string{"psql", "-v", "ON_ERROR_STOP=1", "-U", input.OwnerUsername, "-d", input.DatabaseName}
 	case "redis":
-		command = []string{"sh", "-ec", `redis-cli --no-auth-warning --user default ACL DELUSER "$GATEWAY_DB_BINDING_USER" >/dev/null || true`}
-		env = []string{"REDISCLI_AUTH=" + input.OwnerPassword, "GATEWAY_DB_BINDING_USER=" + input.Username}
+		command = []string{"sh", "-ec", `redis-cli --no-auth-warning --user default ACL DELUSER "$OPFIELD_DB_BINDING_USER" >/dev/null || true`}
+		env = []string{"REDISCLI_AUTH=" + input.OwnerPassword, "OPFIELD_DB_BINDING_USER=" + input.Username}
 	case "clickhouse":
 		stdin = clickHouseBindingRemoveSQL(input)
 		command = []string{"clickhouse-client", "--user", input.OwnerUsername, "--database", input.DatabaseName, "--multiquery"}

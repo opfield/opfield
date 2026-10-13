@@ -10,12 +10,13 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
-	sharedstate "github.com/wiolett-industries/gateway/daemon-shared/state"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/pages"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/securelink"
+	sharedstate "github.com/opfield/opfield/daemon-shared/state"
+	"github.com/opfield/opfield/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
+	"github.com/opfield/opfield/nginx-daemon/internal/pages"
 )
 
 // acmeTokenRegex validates ACME challenge tokens (alphanumeric + dash + underscore).
@@ -103,78 +104,78 @@ func (h *Handler) setConfigOwnership(hostID, ownership string) (func(), error) {
 	}, nil
 }
 
-// HandleCommand processes a GatewayCommand and returns a CommandResult.
-func (h *Handler) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
+// HandleCommand processes a OpfieldCommand and returns a CommandResult.
+func (h *Handler) HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult {
 	result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 	h.mutationMu.Lock()
 	defer h.mutationMu.Unlock()
 
 	switch payload := cmd.Payload.(type) {
-	case *pb.GatewayCommand_ApplyConfig:
+	case *pb.OpfieldCommand_ApplyConfig:
 		h.handleApplyConfig(payload.ApplyConfig, result)
-	case *pb.GatewayCommand_RemoveConfig:
+	case *pb.OpfieldCommand_RemoveConfig:
 		h.handleRemoveConfig(payload.RemoveConfig, result)
-	case *pb.GatewayCommand_DeployCert:
+	case *pb.OpfieldCommand_DeployCert:
 		h.handleDeployCert(payload.DeployCert, result)
-	case *pb.GatewayCommand_RemoveCert:
+	case *pb.OpfieldCommand_RemoveCert:
 		h.handleRemoveCert(payload.RemoveCert, result)
-	case *pb.GatewayCommand_ApplyTlsBundle:
+	case *pb.OpfieldCommand_ApplyTlsBundle:
 		h.handleApplyTlsBundle(payload.ApplyTlsBundle, result)
-	case *pb.GatewayCommand_InspectCertificates:
+	case *pb.OpfieldCommand_InspectCertificates:
 		h.handleInspectCertificates(payload.InspectCertificates, result)
-	case *pb.GatewayCommand_ExportLegacyCertificates:
+	case *pb.OpfieldCommand_ExportLegacyCertificates:
 		h.handleExportLegacyCertificates(payload.ExportLegacyCertificates, result)
-	case *pb.GatewayCommand_RemoveCertificateReplica:
+	case *pb.OpfieldCommand_RemoveCertificateReplica:
 		h.handleRemoveCertificateReplica(payload.RemoveCertificateReplica, result)
-	case *pb.GatewayCommand_FullSync:
+	case *pb.OpfieldCommand_FullSync:
 		h.handleFullSync(payload.FullSync, result)
-	case *pb.GatewayCommand_UpdateGlobalConfig:
+	case *pb.OpfieldCommand_UpdateGlobalConfig:
 		h.handleUpdateGlobalConfig(payload.UpdateGlobalConfig, result)
-	case *pb.GatewayCommand_DeployHtpasswd:
+	case *pb.OpfieldCommand_DeployHtpasswd:
 		h.handleDeployHtpasswd(payload.DeployHtpasswd, result)
-	case *pb.GatewayCommand_RemoveHtpasswd:
+	case *pb.OpfieldCommand_RemoveHtpasswd:
 		h.handleRemoveHtpasswd(payload.RemoveHtpasswd, result)
-	case *pb.GatewayCommand_TestConfig:
+	case *pb.OpfieldCommand_TestConfig:
 		h.handleTestConfig(result)
-	case *pb.GatewayCommand_DeployAcmeChallenge:
+	case *pb.OpfieldCommand_DeployAcmeChallenge:
 		h.handleDeployAcmeChallenge(payload.DeployAcmeChallenge, result)
-	case *pb.GatewayCommand_RemoveAcmeChallenge:
+	case *pb.OpfieldCommand_RemoveAcmeChallenge:
 		h.handleRemoveAcmeChallenge(payload.RemoveAcmeChallenge, result)
-	case *pb.GatewayCommand_SetDaemonLogStream:
+	case *pb.OpfieldCommand_SetDaemonLogStream:
 		h.handleSetDaemonLogStream(payload.SetDaemonLogStream, result)
-	case *pb.GatewayCommand_ReadGlobalConfig:
+	case *pb.OpfieldCommand_ReadGlobalConfig:
 		h.handleReadGlobalConfig(result)
-	case *pb.GatewayCommand_RequestTrafficStats:
+	case *pb.OpfieldCommand_RequestTrafficStats:
 		h.handleRequestTrafficStats(payload.RequestTrafficStats, result)
-	case *pb.GatewayCommand_PagesUploadInit:
+	case *pb.OpfieldCommand_PagesUploadInit:
 		h.handlePagesUploadInit(payload.PagesUploadInit, result)
-	case *pb.GatewayCommand_PagesUploadChunk:
+	case *pb.OpfieldCommand_PagesUploadChunk:
 		h.handlePagesUploadChunk(payload.PagesUploadChunk, result)
-	case *pb.GatewayCommand_PagesUploadFinalize:
+	case *pb.OpfieldCommand_PagesUploadFinalize:
 		h.handlePagesUploadFinalize(payload.PagesUploadFinalize, result)
-	case *pb.GatewayCommand_PagesVerifyRelease:
+	case *pb.OpfieldCommand_PagesVerifyRelease:
 		h.handlePagesVerifyRelease(payload.PagesVerifyRelease, result)
-	case *pb.GatewayCommand_PagesMaterializePreview:
+	case *pb.OpfieldCommand_PagesMaterializePreview:
 		h.handlePagesMaterializePreview(payload.PagesMaterializePreview, result)
-	case *pb.GatewayCommand_PagesRemovePreview:
+	case *pb.OpfieldCommand_PagesRemovePreview:
 		h.handlePagesRemovePreview(payload.PagesRemovePreview, result)
-	case *pb.GatewayCommand_PagesActivateTagRoute:
+	case *pb.OpfieldCommand_PagesActivateTagRoute:
 		h.handlePagesActivateTagRoute(payload.PagesActivateTagRoute, result)
-	case *pb.GatewayCommand_PagesDeactivateTagRoute:
+	case *pb.OpfieldCommand_PagesDeactivateTagRoute:
 		h.handlePagesDeactivateTagRoute(payload.PagesDeactivateTagRoute, result)
-	case *pb.GatewayCommand_PagesCleanupDeployment:
+	case *pb.OpfieldCommand_PagesCleanupDeployment:
 		h.handlePagesCleanupDeployment(payload.PagesCleanupDeployment, result)
-	case *pb.GatewayCommand_PagesInventory:
+	case *pb.OpfieldCommand_PagesInventory:
 		h.handlePagesInventory(payload.PagesInventory, result)
-	case *pb.GatewayCommand_PagesStoragePreflight:
+	case *pb.OpfieldCommand_PagesStoragePreflight:
 		h.handlePagesStoragePreflight(payload.PagesStoragePreflight, result)
-	case *pb.GatewayCommand_PagesDeployCertificate:
+	case *pb.OpfieldCommand_PagesDeployCertificate:
 		h.handlePagesDeployCertificate(payload.PagesDeployCertificate, result)
-	case *pb.GatewayCommand_PagesStageRuntimeConfig:
+	case *pb.OpfieldCommand_PagesStageRuntimeConfig:
 		h.handlePagesStageRuntimeConfig(payload.PagesStageRuntimeConfig, result)
-	case *pb.GatewayCommand_PagesActivateRuntimeConfig:
+	case *pb.OpfieldCommand_PagesActivateRuntimeConfig:
 		h.handlePagesActivateRuntimeConfig(payload.PagesActivateRuntimeConfig, result)
-	case *pb.GatewayCommand_PagesRemoveRuntimeConfig:
+	case *pb.OpfieldCommand_PagesRemoveRuntimeConfig:
 		h.handlePagesRemoveRuntimeConfig(payload.PagesRemoveRuntimeConfig, result)
 	default:
 		result.Success = false
@@ -185,7 +186,7 @@ func (h *Handler) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 }
 
 // logConfigTestFailure records the nginx -t output of a rejected change on the
-// node, where it stays available even when Gateway stores only a summary.
+// node, where it stays available even when Opfield stores only a summary.
 func (h *Handler) logConfigTestFailure(action, output string, attrs ...any) {
 	h.logger.Error("nginx config test failed", append([]any{"action", action, "output", strings.TrimSpace(output)}, attrs...)...)
 }
@@ -209,6 +210,9 @@ func (h *Handler) handleApplyConfig(cmd *pb.ApplyConfigCommand, result *pb.Comma
 }
 
 func (h *Handler) applyConfig(cmd *pb.ApplyConfigCommand, result *pb.CommandResult) {
+	// The config with the names this node runs with: Opfield renders a node's configs with them, but a config
+	// rendered or stored before the node moved to the Opfield names may still carry the pre-Opfield ones.
+	cmd.ConfigContent = naming.Render(cmd.ConfigContent)
 	path := h.mgr.ConfigPath(cmd.HostId)
 
 	// Read old config for rollback

@@ -1,14 +1,18 @@
-const SECURE_LINK_MANAGED_LABEL = 'wiolett.gateway.managed';
-const MANAGED_DATABASE_CONNECTOR_LABEL = 'wiolett.gateway.managed-database.connector';
-const MANAGED_STORAGE_CONNECTOR_LABEL = 'wiolett.gateway.managed-storage.connector';
-const INTERNAL_WORKLOAD_LABEL = 'wiolett.gateway.internal-workload';
-const LOCAL_SERVICE_MANAGED_LABEL = 'net.wiolett.gateway.managed';
-const LOCAL_SERVICE_OWNER_LABEL = 'net.wiolett.gateway.owner';
-const FOUNDATION_SERVICE_LABEL = 'com.wiolett.gateway.managed-service';
+import {
+  LEGACY_MANAGED_CLICKHOUSE_LABEL,
+  LEGACY_MANAGED_CLICKHOUSE_OWNER_LABEL,
+  LEGACY_MANAGED_SERVICE_LABEL,
+  MANAGED_CLICKHOUSE_LABEL,
+  MANAGED_CLICKHOUSE_OWNER_LABEL,
+  MANAGED_SERVICE_LABEL,
+} from '@/foundation/opfield-names.js';
+import { labelString } from './docker-managed-labels.js';
+
+function nonEmpty(value: unknown): boolean {
+  return typeof value === 'string' && value !== '';
+}
 const SANDBOX_LABEL = 'gateway.sandbox';
-const AVAILABILITY_PLACEMENT_LABEL = 'wiolett.gateway.availability.managed';
-// Backup runners carry storage credentials in their config while a run is active.
-const BACKUP_RUN_LABEL = 'wiolett.gateway.backup-run-id';
+const INTERNAL_MARKERS = new Set(['secure-link-connector', 'backup-runner', 'backup-redis-stage', 'connector-cleanup']);
 
 function containerLabels(container: Record<string, any>): Record<string, unknown> {
   return container?.Config?.Labels ?? container?.Labels ?? container?.labels ?? {};
@@ -18,31 +22,33 @@ function containerLabels(container: Record<string, any>): Record<string, unknown
  * Gateway-owned implementation containers must remain available to internal
  * reconciliation, but must not be exposed as user-managed Docker resources.
  */
-export function isGatewayInternalContainer(container: Record<string, any>): boolean {
+export function isOpfieldInternalContainer(container: Record<string, any>): boolean {
   const labels = containerLabels(container);
   return (
-    labels[SECURE_LINK_MANAGED_LABEL] === 'secure-link-connector' ||
-    labels[SECURE_LINK_MANAGED_LABEL] === 'backup-runner' ||
-    labels[SECURE_LINK_MANAGED_LABEL] === 'backup-redis-stage' ||
-    labels[SECURE_LINK_MANAGED_LABEL] === 'connector-cleanup' ||
-    (typeof labels[BACKUP_RUN_LABEL] === 'string' && labels[BACKUP_RUN_LABEL] !== '') ||
-    labels[MANAGED_DATABASE_CONNECTOR_LABEL] === 'true' ||
-    labels[MANAGED_STORAGE_CONNECTOR_LABEL] === 'true' ||
-    labels[INTERNAL_WORKLOAD_LABEL] === 'managed-storage-connector' ||
-    (labels[LOCAL_SERVICE_MANAGED_LABEL] === 'clickhouse' && labels[LOCAL_SERVICE_OWNER_LABEL] === 'gateway') ||
-    (typeof labels[FOUNDATION_SERVICE_LABEL] === 'string' && labels[FOUNDATION_SERVICE_LABEL] !== '') ||
+    INTERNAL_MARKERS.has(labelString(labels, 'managed')) ||
+    // Backup runners carry storage credentials in their config while a run is active.
+    labelString(labels, 'backup-run-id') !== '' ||
+    labelString(labels, 'managed-database.connector') === 'true' ||
+    labelString(labels, 'managed-storage.connector') === 'true' ||
+    labelString(labels, 'internal-workload') === 'managed-storage-connector' ||
+    (labels[MANAGED_CLICKHOUSE_LABEL] === 'clickhouse' && nonEmpty(labels[MANAGED_CLICKHOUSE_OWNER_LABEL])) ||
+    // legacy-name: the labels of a local ClickHouse and of Compose services created before 2.12.1.
+    (labels[LEGACY_MANAGED_CLICKHOUSE_LABEL] === 'clickhouse' &&
+      nonEmpty(labels[LEGACY_MANAGED_CLICKHOUSE_OWNER_LABEL])) ||
+    nonEmpty(labels[MANAGED_SERVICE_LABEL]) ||
+    nonEmpty(labels[LEGACY_MANAGED_SERVICE_LABEL]) ||
     labels[SANDBOX_LABEL] === 'true' ||
-    labels[AVAILABILITY_PLACEMENT_LABEL] === 'true'
+    labelString(labels, 'availability.managed') === 'true'
   );
 }
 
-export function filterGatewayInternalContainers<T extends Record<string, any>>(containers: T[]): T[] {
-  return containers.filter((container) => !isGatewayInternalContainer(container));
+export function filterOpfieldInternalContainers<T extends Record<string, any>>(containers: T[]): T[] {
+  return containers.filter((container) => !isOpfieldInternalContainer(container));
 }
 
 export function assertUserContainerAccessible(container: Record<string, any> | null | undefined): void {
-  if (container && isGatewayInternalContainer(container)) {
-    throw new AppError(404, 'GATEWAY_INTERNAL_CONTAINER', 'Container not found');
+  if (container && isOpfieldInternalContainer(container)) {
+    throw new AppError(404, 'OPFIELD_INTERNAL_CONTAINER', 'Container not found');
   }
 }
 

@@ -54,7 +54,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
           columns: { lastHealthReport: true },
         })
       : null;
-    const endpoints = await this.generalSettings?.getGatewayEndpointSettings().catch(() => null);
+    const endpoints = await this.generalSettings?.getOpfieldEndpointSettings().catch(() => null);
     const transport = await this.webTransportSettings?.getConfig().catch(() => null);
     const env = getEnv();
     return defaultStatusPageUpstreamUrl({
@@ -62,9 +62,9 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
         ...(node?.lastHealthReport?.localIpAddresses ?? []),
         ...(node?.lastHealthReport?.publicIpAddresses ?? []),
       ],
-      gatewayHostAddresses: env.GATEWAY_LOCAL_HOSTS?.split(',') ?? [],
-      gatewayLocalTarget: endpoints?.gatewayGrpcLocalIp,
-      gatewayPublicTarget: endpoints?.gatewayGrpcPublicTarget,
+      opfieldHostAddresses: env.OPFIELD_LOCAL_HOSTS?.split(',') ?? [],
+      opfieldLocalTarget: endpoints?.grpcLocalIp,
+      opfieldPublicTarget: endpoints?.grpcPublicTarget,
       tlsEnabled: transport?.tlsEnabled === true,
       port: env.PORT,
     });

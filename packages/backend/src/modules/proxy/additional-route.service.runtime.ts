@@ -189,10 +189,10 @@ export abstract class AdditionalRouteServiceRuntime {
           forwardHost: '127.0.0.1',
           forwardPort: binding.listenerPort ?? 1,
           secureLinkUpstream: true,
-          secureLinkSocketPath: `/run/gateway-secure-links/${binding.id}.sock`,
+          secureLinkSocketPath: `/run/opfield-secure-links/${binding.id}.sock`,
           secureLinkSocketPaths:
             availabilityMembers.length > 0
-              ? availabilityMembers.map((member) => `/run/gateway-secure-links/${member.id}.sock`)
+              ? availabilityMembers.map((member) => `/run/opfield-secure-links/${member.id}.sock`)
               : undefined,
           stripPrefix: row.stripPrefix,
           websocketSupport: row.websocketSupport,

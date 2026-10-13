@@ -14,11 +14,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 const (
-	DefaultGitAskpassPath      = "/usr/local/lib/gateway-builder/git-askpass"
 	maxBuildLogChunk           = 64 * 1024
 	maxScanVulnerabilities     = 100
 	commandCancellationGrace   = 10 * time.Second
@@ -62,6 +61,53 @@ type Manager struct {
 	cleanupAfterJob       func(string)
 	terminalRetryInterval time.Duration
 	terminalAckTimeout    time.Duration
+	// paused is non-nil while the runtime moves to its Opfield names
+	// (TryPause); Start waits until Resume closes it.
+	paused chan struct{}
+}
+
+// builderPauseWait bounds how long a build waits for the runtime to come back
+// from a rename.
+var builderPauseWait = 3 * time.Minute
+
+// TryPause stops new builds from starting when none runs, for a change of the
+// runtime under it (the move to the Opfield names); it reports false while
+// builds run. Resume ends the pause with the runtime's new configuration.
+func (m *Manager) TryPause() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.jobs) > 0 || m.paused != nil {
+		return false
+	}
+	m.paused = make(chan struct{})
+	return true
+}
+
+// Resume ends a pause; config and askpass describe the runtime now.
+func (m *Manager) Resume(config RuntimeConfig, askpass string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.config, m.askpass = config, askpass
+	m.executable = builderExecutableResolver(config.Naming)
+	if m.paused != nil {
+		close(m.paused)
+		m.paused = nil
+	}
+}
+
+func (m *Manager) waitUnpaused() error {
+	m.mu.Lock()
+	paused := m.paused
+	m.mu.Unlock()
+	if paused == nil {
+		return nil
+	}
+	select {
+	case <-paused:
+		return nil
+	case <-time.After(builderPauseWait):
+		return errors.New("the builder runtime is being updated; retry the build")
+	}
 }
 
 type checkoutCredential struct {
@@ -80,7 +126,7 @@ func NewManager(config RuntimeConfig, workspace, askpass string, emit EventSink)
 		attempts: map[string]uint32{}, generations: map[string]uint64{}, liveAttempts: map[string]*atomic.Uint32{},
 		statuses:       map[string]string{},
 		terminalEvents: map[string]*pb.DockerBuildEvent{}, terminalAcks: map[string]chan string{},
-		executable: resolveBuilderExecutable, terminalRetryInterval: terminalEventRetryInterval, terminalAckTimeout: terminalEventAckTimeout,
+		executable: builderExecutableResolver(config.Naming), terminalRetryInterval: terminalEventRetryInterval, terminalAckTimeout: terminalEventAckTimeout,
 	}
 	manager.cleanupAfterJob = manager.pruneAfterJob
 	return manager
@@ -116,6 +162,9 @@ func (m *Manager) Start(command *pb.DockerBuildCommand) error {
 		return m.continueRunningLocked(command)
 	}
 	m.mu.Unlock()
+	if err := m.waitUnpaused(); err != nil {
+		return err
+	}
 	if err := m.Ready(); err != nil {
 		return err
 	}

@@ -3,8 +3,8 @@ package daemon
 import (
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
 )
 
 func leaseGroupTestCandidate(relay, route string) *pb.RelayDataCandidate {

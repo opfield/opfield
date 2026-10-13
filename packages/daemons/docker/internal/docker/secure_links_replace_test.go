@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/moby/moby/client"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 )
 
 const (
@@ -238,7 +238,7 @@ func (e *fakeConnectorEngine) connectorInspect(current *fakeConnectorContainer) 
 			"Id": current.id, "Name": "/" + current.name,
 			"Config": map[string]any{
 				"Image": current.image, "User": "65532:65532", "Cmd": secureLinkAnchorCommand,
-				"Labels": map[string]string{"wiolett.gateway.managed": "secure-link-connector", secureLinkRoleLabel: secureLinkAnchorRole},
+				"Labels": map[string]string{"net.opfield.managed": "secure-link-connector", secureLinkRoleLabel: secureLinkAnchorRole},
 			},
 			"HostConfig": map[string]any{
 				"ReadonlyRootfs": true, "CapDrop": []string{"ALL"}, "SecurityOpt": []string{"no-new-privileges:true"},
@@ -253,10 +253,10 @@ func (e *fakeConnectorEngine) connectorInspect(current *fakeConnectorContainer) 
 		"Id": current.id, "Name": "/" + current.name,
 		"Config": map[string]any{
 			"Image": current.image, "User": "65532:65532", "Env": secureLinkConnectorEnv(current.slot),
-			"Labels": map[string]string{"wiolett.gateway.managed": "secure-link-connector"},
+			"Labels": map[string]string{"net.opfield.managed": "secure-link-connector"},
 		},
 		"HostConfig": map[string]any{
-			"Binds": []string{e.controlDir + ":/run/gateway"}, "ReadonlyRootfs": true, "CapDrop": []string{"ALL"},
+			"Binds": []string{e.controlDir + ":" + secureLinkConnectorMount}, "ReadonlyRootfs": true, "CapDrop": []string{"ALL"},
 			"SecurityOpt": []string{"no-new-privileges:true"}, "RestartPolicy": map[string]any{"Name": "unless-stopped"},
 			"Memory": secureLinkConnectorMemory(), "NanoCpus": secureLinkConnectorNanoCPUs, "PidsLimit": connectorPids(current),
 			"GroupAdd": current.groups, "NetworkMode": current.networkMode,
@@ -295,7 +295,7 @@ func (e *fakeConnectorEngine) serve(request *http.Request) (*http.Response, erro
 	case request.Method == http.MethodGet && path == "/networks/"+secureLinkManagementNetwork:
 		return respond(http.StatusOK, map[string]any{
 			"Name": secureLinkManagementNetwork, "Id": "management", "Driver": "bridge", "Internal": true,
-			"Labels": map[string]string{"wiolett.gateway.managed": "secure-link"},
+			"Labels": map[string]string{"net.opfield.managed": "secure-link"},
 			"IPAM":   map[string]any{"Config": []map[string]string{{"Subnet": "10.99.0.0/24", "Gateway": "10.99.0.1"}}},
 		})
 	case parts[0] == "networks" && len(parts) == 3 && (parts[2] == "connect" || parts[2] == "disconnect"):

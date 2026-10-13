@@ -152,6 +152,8 @@ export interface NodeHealthReport {
   // Nginx daemons: a problem of the host's nginx service that only root can fix, as one sentence ending with the
   // command that fixes it. Absent when there is none.
   nginxServiceProblem?: string;
+  // Daemons of 2.12.1 and later: objects on the node still under their pre-Opfield names, by kind. Absent when none.
+  legacyNames?: Record<string, number>;
 }
 
 /**
@@ -243,7 +245,7 @@ export interface NodeManagedLinkReport {
   completedTotal?: number;
 }
 
-/** What an nginx daemon's `/.well-known/gateway-ingress-health` endpoint answered when it last reported. */
+/** What an nginx daemon's `/.well-known/opfield-ingress-health` endpoint answered when it last reported. */
 export interface NodeIngressHealth {
   serving: boolean;
   reason: string;

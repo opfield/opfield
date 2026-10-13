@@ -1,10 +1,10 @@
-module github.com/wiolett-industries/gateway/lease-watchdog
+module github.com/opfield/opfield/lease-watchdog
 
 go 1.24.4
 
-replace github.com/wiolett-industries/gateway/daemon-shared => ../shared
+replace github.com/opfield/opfield/daemon-shared => ../shared
 
-require github.com/wiolett-industries/gateway/daemon-shared v0.0.0
+require github.com/opfield/opfield/daemon-shared v0.0.0
 
 require (
 	github.com/creack/pty v1.1.24 // indirect

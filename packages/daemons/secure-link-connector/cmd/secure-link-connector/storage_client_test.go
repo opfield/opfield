@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	"github.com/opfield/opfield/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 )
 
 // A storage connection the daemon refuses (the link's relay sessions are all in use) is logged with the daemon's

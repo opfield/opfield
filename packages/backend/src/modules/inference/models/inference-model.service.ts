@@ -20,7 +20,7 @@ import {
   CORE_MODEL_METADATA_KEY,
   coreProviderRef,
 } from '../core/inference-core-provider-map.js';
-import type { InferenceSetupEventsService } from '../inference-setup-events.service.js';
+import type { InferenceCatalogEventsService } from '../inference-catalog-events.service.js';
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import type { InferenceProviderRegistry } from '../providers/inference-provider.registry.js';
 import { knownProviderModel, pricingFromDiscoveredMetadata } from '../providers/inference-provider-model-catalog.js';
@@ -31,7 +31,6 @@ import {
   filterModelIdsByApiBudget,
   filterSourcesByApiUsage,
   sourceOriginMetadata,
-  sourceRole,
   supportsFastServiceTier,
 } from './inference-model.helpers.js';
 import type { InferenceModelInput, InferenceModelSourceInput, InferencePricingInput } from './inference-model.types.js';
@@ -61,7 +60,7 @@ export class InferenceModelService {
     private readonly access: InferenceModelAccessService,
     private readonly audit: AuditService,
     private readonly budgetPolicies: InferenceBudgetPolicyService,
-    private readonly setupEvents?: InferenceSetupEventsService,
+    private readonly catalogEvents?: InferenceCatalogEventsService,
     private readonly coreBridge?: InferenceCoreBridgeService
   ) {}
 
@@ -250,10 +249,7 @@ export class InferenceModelService {
         : input.pricing;
     if (sourceType === 'api' && input.enabled !== false) validatePricing(pricing);
     const originMetadata = sourceOriginMetadata(provider.family, Boolean(discovered), input.manualMetadata);
-    const metadata = {
-      ...originMetadata,
-      composition: { role: 'primary' as const },
-    };
+    const metadata = originMetadata;
 
     const source = await this.db.transaction(async (tx) => {
       const [created] = await tx
@@ -333,13 +329,11 @@ export class InferenceModelService {
   async removeSource(userId: string, sourceId: string): Promise<void> {
     const source = await this.requireSource(sourceId);
     const model = await this.requireModel(source.modelId);
-    if (model.enabled && source.enabled && sourceRole(source) === 'primary') {
+    if (model.enabled && source.enabled) {
       const siblings = await this.db.query.inferenceModelSources.findMany({
         where: eq(inferenceModelSources.modelId, source.modelId),
       });
-      const hasAnotherPrimary = siblings.some(
-        (candidate) => candidate.id !== source.id && candidate.enabled && sourceRole(candidate) === 'primary'
-      );
+      const hasAnotherPrimary = siblings.some((candidate) => candidate.id !== source.id && candidate.enabled);
       if (!hasAnotherPrimary) {
         throw new AppError(
           400,
@@ -561,18 +555,16 @@ export class InferenceModelService {
       .innerJoin(inferenceProviderConnections, eq(inferenceModelSources.connectionId, inferenceProviderConnections.id))
       .leftJoin(inferenceDiscoveredModels, eq(inferenceModelSources.discoveredModelId, inferenceDiscoveredModels.id))
       .where(and(...conditions, isNull(inferenceProviderConnections.deletedAt)));
-    const technical = sources
-      .filter(({ source }) => sourceRole(source) === 'primary')
-      .map(({ source, discovered }) => {
-        const manual = source.metadata.technical as Partial<typeof model> | undefined;
-        return {
-          contextWindow: manual?.contextWindow ?? discovered?.contextWindow ?? model.contextWindow,
-          maxInputTokens: manual?.maxInputTokens ?? discovered?.maxInputTokens ?? model.maxInputTokens,
-          maxOutputTokens: manual?.maxOutputTokens ?? discovered?.maxOutputTokens ?? model.maxOutputTokens,
-          autoCompactTokenLimit:
-            manual?.autoCompactTokenLimit ?? discovered?.autoCompactTokenLimit ?? model.autoCompactTokenLimit,
-        };
-      });
+    const technical = sources.map(({ source, discovered }) => {
+      const manual = source.metadata.technical as Partial<typeof model> | undefined;
+      return {
+        contextWindow: manual?.contextWindow ?? discovered?.contextWindow ?? model.contextWindow,
+        maxInputTokens: manual?.maxInputTokens ?? discovered?.maxInputTokens ?? model.maxInputTokens,
+        maxOutputTokens: manual?.maxOutputTokens ?? discovered?.maxOutputTokens ?? model.maxOutputTokens,
+        autoCompactTokenLimit:
+          manual?.autoCompactTokenLimit ?? discovered?.autoCompactTokenLimit ?? model.autoCompactTokenLimit,
+      };
+    });
     return effectiveTechnicalLimits(technical, model);
   }
 
@@ -585,7 +577,7 @@ export class InferenceModelService {
       id: model.publicId,
       object: 'model',
       created: Math.floor(model.createdAt.getTime() / 1000),
-      owned_by: 'gateway',
+      owned_by: 'opfield',
       display_name: model.displayName,
       context_window: limits.contextWindow,
       max_input_tokens: limits.maxInputTokens,
@@ -722,7 +714,7 @@ export class InferenceModelService {
 
   private async changed(userId: string, action: string, resourceId: string, details?: Record<string, unknown>) {
     await this.audit.log({ userId, action, resourceType: 'inference_model', resourceId, details });
-    this.setupEvents?.publishCatalogChanged();
+    this.catalogEvents?.publishCatalogChanged();
   }
 }
 

@@ -17,7 +17,7 @@ import {
   CORE_MODEL_METADATA_KEY,
   coreProviderRef,
 } from '../core/inference-core-provider-map.js';
-import type { InferenceSetupEventsService } from '../inference-setup-events.service.js';
+import type { InferenceCatalogEventsService } from '../inference-catalog-events.service.js';
 import type { InferenceProviderRegistry } from '../providers/inference-provider.registry.js';
 import { knownProviderModel, pricingFromDiscoveredMetadata } from '../providers/inference-provider-model-catalog.js';
 import type { InferenceModelService } from './inference-model.service.js';
@@ -67,7 +67,7 @@ export class InferenceModelConfigurationService {
     private readonly models: InferenceModelService,
     private readonly access: InferenceModelAccessService,
     private readonly audit: AuditService,
-    private readonly setupEvents?: InferenceSetupEventsService
+    private readonly catalogEvents?: InferenceCatalogEventsService
   ) {}
 
   async save(userId: string, modelId: string | null, input: InferenceModelConfigurationInput) {
@@ -161,7 +161,7 @@ export class InferenceModelConfigurationService {
       resourceId: savedId,
       details: { sourceCount: input.sources.length, accessMode: input.access.mode },
     });
-    this.setupEvents?.publishCatalogChanged();
+    this.catalogEvents?.publishCatalogChanged();
     return this.models.getAdmin(savedId);
   }
 
@@ -240,7 +240,6 @@ export class InferenceModelConfigurationService {
           origin: discoveredModel ? ('discovery' as const) : ('manual' as const),
           providerFamily: provider.family,
           ...(technical ? { technical } : {}),
-          composition: { role: 'primary' as const },
         },
         ...(pricing ? { pricing } : {}),
         safeContextWindow: technical?.contextWindow ?? discoveredModel?.contextWindow ?? model.contextWindow,

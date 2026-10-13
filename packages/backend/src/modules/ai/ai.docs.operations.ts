@@ -156,7 +156,7 @@ Scopes: status-page:view for reads/preview, status-page:manage for settings/serv
   api: `# Opfield REST API
 
 Opfield provides REST access for external scripts, CI/CD pipelines, CLI tools, and integrations without a browser session.
-Programmatic REST clients can use either Opfield API tokens (\`gw_\`) or OAuth Authorization Code + PKCE access tokens (\`gwo_\`). API/OAuth tokens can hold every resource scope, including user and group administration, Opfield settings, raw nginx config and bypass flags, node config and files, integrations, hosting and inference administration. Only account-bound scopes cannot be delegated: AI Workspace and sandbox access, AI configuration and skills, \`mcp:use\`, \`inference:setup\` and \`admin:users:impersonate\`. A token never exceeds its owner's current scopes. MCP clients use OAuth access tokens for the MCP resource with ordinary delegated API scopes; the owning user account must have \`mcp:use\`.
+Programmatic REST clients can use either Opfield API tokens (\`opf_\`) or OAuth Authorization Code + PKCE access tokens (\`opfo_\`). API/OAuth tokens can hold every resource scope, including user and group administration, Opfield settings, raw nginx config and bypass flags, node config and files, integrations, hosting and inference administration. Only account-bound scopes cannot be delegated: AI Workspace and sandbox access, AI configuration and skills, \`mcp:use\` and \`admin:users:impersonate\`. A token never exceeds its owner's current scopes. MCP clients use OAuth access tokens for the MCP resource with ordinary delegated API scopes; the owning user account must have \`mcp:use\`.
 
 ## Current-User OAuth Authorizations
 The assistant can manage existing OAuth authorizations for the current browser user with manage_oauth_authorization:
@@ -179,29 +179,29 @@ Token scopes must be a subset of the current user's scopes. registryAccess is th
 1. Open **Profile** from the account menu (avatar at the bottom of the sidebar) → **Authorizations** → **API Tokens**
 2. Click **Create Token** → enter a name and select the scopes (permissions) the token should have
 3. Token scopes must be a subset of your own group's scopes — you cannot grant permissions you don't have
-4. The token is shown **once** after creation (prefixed with \`gw_\`) — copy and store it securely
+4. The token is shown **once** after creation (prefixed with \`opf_\`) — copy and store it securely
 5. Tokens cannot be retrieved after creation — if lost, revoke and create a new one
 
 ## Authentication
 Programmatic API requests authenticate via the \`Authorization\` header:
 
 \`\`\`bash
-curl -H "Authorization: Bearer gw_your_token_here" https://gateway.example.com/api/cas
+curl -H "Authorization: Bearer opf_your_token_here" https://opfield.example.com/api/cas
 \`\`\`
 
-Token format: \`gw_\` followed by 64 hex characters.
-OAuth access tokens use the \`gwo_\` prefix and the same Bearer header. Browser-only endpoints still require the HttpOnly session cookie and CSRF token where applicable.
+Token format: \`opf_\` followed by 64 hex characters.
+OAuth access tokens use the \`opfo_\` prefix and the same Bearer header. Browser-only endpoints still require the HttpOnly session cookie and CSRF token where applicable.
 
 ## Base URL
-All endpoints are under \`/api/\`. Example: \`https://gateway.example.com/api/cas\`
+All endpoints are under \`/api/\`. Example: \`https://opfield.example.com/api/cas\`
 
 ## Safe Retries (Idempotency-Key)
 Selected create endpoints accept an optional \`Idempotency-Key\` header (1-255 printable ASCII characters, for example a UUID): Docker containers (create and duplicate), deployments, Compose projects, source resources, volumes, networks and registries; routes (\`/api/proxy-hosts\`) and route folders; domains; ACME certificates; certificate authorities; database connections and managed databases; storage connections and managed storage; Page Projects; alert rules; and SIEM destinations. The OpenAPI document lists the header on exactly these operations. Send a new key per logical operation and reuse it only when retrying that same request after a timeout or dropped connection:
 
 \`\`\`bash
-curl -X POST -H "Authorization: Bearer gw_your_token_here" -H "Content-Type: application/json" \\
+curl -X POST -H "Authorization: Bearer opf_your_token_here" -H "Content-Type: application/json" \\
   -H "Idempotency-Key: 5f0c6c1e-8a55-4c43-9d4e-2f1f8c3d9b10" \\
-  -d '{"domain":"app.example.com"}' https://gateway.example.com/api/domains
+  -d '{"domain":"app.example.com"}' https://opfield.example.com/api/domains
 \`\`\`
 
 - Keys are bound to the API/OAuth token or browser session, its current effective scopes, the method and the path. After a scope change a key starts fresh. Results are kept encrypted for 24 hours, and every replay is written to the audit log.
@@ -247,7 +247,7 @@ Programmatic clients read and write raw nginx config with the same \`proxy:raw:*
 
 ### Nodes
 - \`GET /api/nodes\` — list daemon nodes
-- \`POST /api/nodes\` — create node (returns enrollment token and gatewayCertSha256)
+- \`POST /api/nodes\` — create node (returns enrollment token and opfieldCertSha256)
 - \`DELETE /api/nodes/:id\` — delete node
 
 ### Docker

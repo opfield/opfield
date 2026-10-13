@@ -20,7 +20,7 @@ import { api } from "@/services/api";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
 import { requireLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
-import type { Node as GatewayNode } from "@/types";
+import type { Node as OpfieldNode } from "@/types";
 import { DockerBuilds } from "./DockerBuilds";
 import { DockerComposeProjects } from "./DockerComposeProjects";
 import { DockerContainers } from "./DockerContainers";
@@ -155,7 +155,7 @@ export function Docker() {
   const appliedNodeQuery = useRef<string | undefined>(undefined);
   // One Docker node list per node selection: the active tab and the preload of
   // the other tabs filter the same list instead of fetching it once per tab.
-  const nodeListRef = useRef<{ key: string; request: Promise<GatewayNode[]> } | null>(null);
+  const nodeListRef = useRef<{ key: string; request: Promise<OpfieldNode[]> } | null>(null);
   const listDockerNodes = useCallback(() => {
     const current = nodeListRef.current;
     if (current?.key === nodeSelectionKey) return current.request;
@@ -230,7 +230,7 @@ export function Docker() {
         if (cancelled) return;
         const scopeBases = DOCKER_NODE_SCOPES_BY_TAB[tab as keyof typeof DOCKER_NODE_SCOPES_BY_TAB];
         let nodeIdOverride: string | null | undefined;
-        let nodesOverride: GatewayNode[] | undefined;
+        let nodesOverride: OpfieldNode[] | undefined;
         if (scopeBases) {
           try {
             const nodes = await loadVisibleDockerNodes(
@@ -311,15 +311,15 @@ export function Docker() {
 
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
-    const gatewayDev = (window.gatewayDev ??= {});
+    const opfieldDev = (window.opfieldDev ??= {});
     const openGwcaImportModal = () => {
       setImportDevPreview(true);
       setImportOpen(true);
     };
-    gatewayDev.openGwcaImportModal = openGwcaImportModal;
+    opfieldDev.openGwcaImportModal = openGwcaImportModal;
     return () => {
-      if (gatewayDev.openGwcaImportModal === openGwcaImportModal) {
-        delete gatewayDev.openGwcaImportModal;
+      if (opfieldDev.openGwcaImportModal === openGwcaImportModal) {
+        delete opfieldDev.openGwcaImportModal;
       }
     };
   }, []);

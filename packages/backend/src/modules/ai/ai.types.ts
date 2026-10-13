@@ -7,7 +7,7 @@ export type WebSearchProvider = 'tavily' | 'brave' | 'serper' | 'searxng' | 'exa
 export type MaxTokensField = 'max_tokens' | 'max_completion_tokens';
 export type ReasoningEffort = 'low' | 'medium' | 'high' | 'none';
 export type AIEndpointMode = 'auto' | 'chat_completions' | 'responses';
-export type AIProviderType = 'openai_compatible' | 'gateway_inference';
+export type AIProviderType = 'openai_compatible' | 'opfield_inference';
 
 export interface AIConfig {
   enabled: boolean;
@@ -16,8 +16,8 @@ export interface AIConfig {
   endpointMode: AIEndpointMode;
   supportsImages: boolean;
   model: string;
-  gatewayInferenceModel: string;
-  gatewayInferenceAllowUserModelSelection: boolean;
+  opfieldInferenceModel: string;
+  opfieldInferenceAllowUserModelSelection: boolean;
   allowUserReasoningEffortSelection: boolean;
   maxCompletionTokens: number;
   maxTokensField: MaxTokensField;

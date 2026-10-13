@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/lease"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // Availability set members on a storage-profile daemon: the member runtime
@@ -166,10 +166,10 @@ func (a setMemberRuntimeAdapter) dialBackupSource(ctx context.Context, setID, me
 	return a.plugin.databaseManager.dial(ctx, config.OwnerID)
 }
 
-// NoteGatewayContact records that Gateway reached the daemon now (a command
+// NoteOpfieldContact records that Gateway reached the daemon now (a command
 // arrived on the control stream).
-func (p *DockerPlugin) NoteGatewayContact() {
-	p.gatewayContactAt.Store(int64(leasefence.Now()))
+func (p *DockerPlugin) NoteOpfieldContact() {
+	p.opfieldContactAt.Store(int64(leasefence.Now()))
 }
 
 // startSetMembers runs the availability set member runtime on a storage-profile
@@ -190,11 +190,11 @@ func (p *DockerPlugin) startSetMembers(runtime *lease.Runtime, fence lease.DirFe
 			}
 			return factory(p, config)
 		},
-		GatewayConnected: p.sessionLive.Load,
-		GatewayContactAt: func() time.Duration { return time.Duration(p.gatewayContactAt.Load()) },
+		OpfieldConnected: p.sessionLive.Load,
+		OpfieldContactAt: func() time.Duration { return time.Duration(p.opfieldContactAt.Load()) },
 		PeerState:        p.setPeerState,
 		VerifyAssignment: func(setID string, assignment memberha.Assignment) error {
-			return runtime.Node().VerifyGatewaySigned(memberha.AssignmentDomain, assignment.SigningKeyID,
+			return runtime.Node().VerifyOpfieldSigned(memberha.AssignmentDomain, assignment.SigningKeyID,
 				memberha.AssignmentStatement(setID, assignment), assignment.Signature)
 		},
 		// A member that leaves (lift, removal, set deleted) takes its member mesh with it.

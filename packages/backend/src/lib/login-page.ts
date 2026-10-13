@@ -1,6 +1,6 @@
 import type { PublicAuthMethods } from '@/modules/auth/public-auth-methods.js';
 
-export const LOGIN_AUTH_METHODS_PLACEHOLDER = '__GATEWAY_AUTH_METHODS__';
+export const LOGIN_AUTH_METHODS_PLACEHOLDER = '__OPFIELD_AUTH_METHODS__';
 
 function escapeHtmlAttribute(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');

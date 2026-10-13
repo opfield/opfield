@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/pgha"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/pgha"
 )
 
 func TestPGMemberAutoConfRunsAsACopyOfTheMeshPrimary(t *testing.T) {
@@ -235,7 +235,7 @@ func TestPrimaryAssignmentSignatureVerifiesWithTheLeaseKeychain(t *testing.T) {
 		t.Fatal(err)
 	}
 	verify := func(a memberha.Assignment) error {
-		return node.VerifyGatewaySigned(memberha.AssignmentDomain, a.SigningKeyID, memberha.AssignmentStatement(setID, a), a.Signature)
+		return node.VerifyOpfieldSigned(memberha.AssignmentDomain, a.SigningKeyID, memberha.AssignmentStatement(setID, a), a.Signature)
 	}
 	if err := verify(assignment); err != nil {
 		t.Fatalf("Gateway's assignment must verify: %v", err)

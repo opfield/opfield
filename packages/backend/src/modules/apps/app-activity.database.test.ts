@@ -16,11 +16,11 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = ['apps:view', 'apps:create', 'apps:edit'];
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): audit rows are tagged with the app, environment and member when they
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): audit rows are tagged with the app, environment and member when they
  * are written (app rows, member families incl. containers by node and name), untagged otherwise; the activity
  * feed shows a caller only rows of environments and members it may view.
  */

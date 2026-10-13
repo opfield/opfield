@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
-func grantSyncCommand(id string, revision uint64) *pb.GatewayCommand {
-	return &pb.GatewayCommand{CommandId: id, Payload: &pb.GatewayCommand_SyncRelayGrants{
+func grantSyncCommand(id string, revision uint64) *pb.OpfieldCommand {
+	return &pb.OpfieldCommand{CommandId: id, Payload: &pb.OpfieldCommand_SyncRelayGrants{
 		SyncRelayGrants: &pb.SyncRelayGrantsCommand{PolicyRevision: revision},
 	}}
 }

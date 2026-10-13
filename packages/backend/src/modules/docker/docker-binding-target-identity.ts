@@ -1,7 +1,7 @@
 import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { DockerManagementService } from './docker.service.js';
-import { isGatewayInternalContainer } from './docker-internal-containers.js';
+import { isOpfieldInternalContainer } from './docker-internal-containers.js';
 import { DockerSourceService } from './docker-source.service.js';
 
 function isMissingContainerError(error: unknown): boolean {
@@ -34,7 +34,7 @@ export async function resolveBindingTargetContainerIdentity(nodeId: string, cont
     if (pending?.scopeResourceId) return pending.scopeResourceId;
     throw new AppError(404, 'CONTAINER_NOT_FOUND', 'Binding target container not found');
   }
-  if (isGatewayInternalContainer(inspected)) {
+  if (isOpfieldInternalContainer(inspected)) {
     throw new AppError(404, 'CONTAINER_NOT_FOUND', 'Binding target container not found');
   }
   const resourceId = String(inspected.scopeResourceId ?? '');

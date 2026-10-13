@@ -22,7 +22,7 @@ const logger = createChildLogger('CloudManagedSso');
 /** Subject namespaces Gateway writes itself (see AuthService); an owner from the file can never claim them. */
 const RESERVED_SUBJECT_PREFIXES = ['manual:', 'system:'];
 /** General settings the managed set-up writes, and so the only ones its rollback restores. */
-const GENERAL_FIELDS = ['publicUrl', 'gatewayGrpcPublicTarget'] as const;
+const GENERAL_FIELDS = ['publicUrl', 'grpcPublicTarget'] as const;
 
 /** How the step ended: done, refused for good (the setup link flow stays), or worth another pass. */
 export type ManagedSsoOutcome = 'done' | 'rejected' | 'retry';
@@ -41,7 +41,7 @@ export interface CloudManagedSsoDeps {
   >;
   authSettings: Pick<AuthSettingsService, 'enableOidcSignIn' | 'getConfig'>;
   generalSettings: Pick<GeneralSettingsService, 'getConfig' | 'updateConfig' | 'restoreFields'>;
-  setupPolicy: Pick<SetupTokenPolicyService, 'isGatewayConfigured' | 'markSetupCompleteIn'>;
+  setupPolicy: Pick<SetupTokenPolicyService, 'isOpfieldConfigured' | 'markSetupCompleteIn'>;
   finalizeSetup: Pick<FinalizeSetupService, 'initializeOwner'>;
   /** Drops the cached OIDC discovery of this replica. */
   invalidateOidc: () => void;
@@ -109,7 +109,7 @@ export class CloudManagedSso {
     if (!input.sso && !input.owner) return 'done';
     const secret = input.sso?.clientSecret;
     try {
-      if (await this.deps.setupPolicy.isGatewayConfigured()) return await this.replaceClient(input);
+      if (await this.deps.setupPolicy.isOpfieldConfigured()) return await this.replaceClient(input);
       if (!input.sso || !input.owner) {
         throw new Rejected('incomplete', 'The enrolment file needs both sso and owner to set up sign-in');
       }
@@ -157,11 +157,11 @@ export class CloudManagedSso {
     let applied: GeneralSettings | null = null;
     let ownerId: string;
     try {
-      if (publicUrl !== before.publicUrl || !before.gatewayGrpcPublicTarget) {
+      if (publicUrl !== before.publicUrl || !before.grpcPublicTarget) {
         applied = await this.deps.generalSettings.updateConfig({
           publicUrl,
           // Nodes enrol with the gRPC target; on a managed installation it is the host of its public URL.
-          ...(before.gatewayGrpcPublicTarget ? {} : { gatewayGrpcPublicTarget: new URL(publicUrl).hostname }),
+          ...(before.grpcPublicTarget ? {} : { grpcPublicTarget: new URL(publicUrl).hostname }),
         });
         await this.deps.refreshIdentities?.();
       }
@@ -178,7 +178,7 @@ export class CloudManagedSso {
         step: 'public_url',
         publicUrl: applied.publicUrl,
         previousPublicUrl: before.publicUrl,
-        ...(before.gatewayGrpcPublicTarget ? {} : { gatewayGrpcPublicTarget: applied.gatewayGrpcPublicTarget }),
+        ...(before.grpcPublicTarget ? {} : { grpcPublicTarget: applied.grpcPublicTarget }),
       });
     }
     await this.deps.audit({ step: 'provider', issuer, clientId: sso.clientId, redirectUri: redirectUriFor(publicUrl) });
@@ -226,7 +226,7 @@ export class CloudManagedSso {
         .onConflictDoNothing()
         .returning({ key: settings.key });
       if (!claimed) throw new NotNow('setup_in_progress');
-      if (await this.deps.setupPolicy.isGatewayConfigured(tx)) throw new NotNow('administrator_exists');
+      if (await this.deps.setupPolicy.isOpfieldConfigured(tx)) throw new NotNow('administrator_exists');
 
       const [byEmail] = await tx.select({ id: users.id }).from(users).where(eq(users.email, owner.email)).limit(1);
       if (byEmail) throw new Rejected('owner_email_in_use', 'A user with the owner email already exists');

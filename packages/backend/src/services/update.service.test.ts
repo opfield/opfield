@@ -5,17 +5,17 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OFFICIAL_IMAGE_REPOSITORIES } from '@/config/vendor-urls.js';
 import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
-import type { TrustedGatewayUpdateArtifact, TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
+import type { TrustedOpfieldUpdateArtifact, TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import {
   DOCKER_COMPOSE_CLI_IMAGE_REF,
   imageRepositoryFromRef,
-  isGatewayCompatibleWithRelayUpdate,
-  isGatewayReleaseTag,
+  isOpfieldCompatibleWithRelayUpdate,
+  isOpfieldReleaseTag,
   isRelayReleaseTag,
-  isRelayTooOldForGatewayUpdate,
+  isRelayTooOldForOpfieldUpdate,
   isStaleRelayWorkerVersionError,
   relayRecreateStopTimeoutSeconds,
-  selectLatestGatewayRelease,
+  selectLatestOpfieldRelease,
   selectLatestRelayRelease,
   UpdateService,
 } from './update.service.js';
@@ -74,7 +74,7 @@ describe('UpdateService release selection', () => {
       {
         APP_VERSION: 'v2.9.15',
         RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
-        GATEWAY_RELAY_BUILD_VERSION: 'v2.9.12',
+        OPFIELD_RELAY_BUILD_VERSION: 'v2.9.12',
       } as never,
       undefined,
       generalSettings as never
@@ -108,7 +108,7 @@ describe('UpdateService release selection', () => {
       } as never
     );
 
-    expect(service.getGatewayManifestUrl('2.9.11')).toBe(
+    expect(service.getOpfieldManifestUrl('2.9.11')).toBe(
       'https://updates.thesqlabs.com/gateway/gateway/v2.9.11/gateway-image.update.json'
     );
     expect(service.getRelayManifestUrl('2.9.11')).toBe(
@@ -137,17 +137,17 @@ describe('UpdateService release selection', () => {
     }
   });
 
-  describe('isGatewayReleaseTag', () => {
+  describe('isOpfieldReleaseTag', () => {
     it('accepts plain gateway tags', () => {
-      expect(isGatewayReleaseTag('v2.1.2')).toBe(true);
-      expect(isGatewayReleaseTag('2.1.2')).toBe(true);
+      expect(isOpfieldReleaseTag('v2.1.2')).toBe(true);
+      expect(isOpfieldReleaseTag('2.1.2')).toBe(true);
     });
 
     it('rejects daemon-suffixed tags', () => {
-      expect(isGatewayReleaseTag('v2.1.1-docker')).toBe(false);
-      expect(isGatewayReleaseTag('v2.1.1-nginx')).toBe(false);
-      expect(isGatewayReleaseTag('v2.1.1-monitoring')).toBe(false);
-      expect(isGatewayReleaseTag('v2.1.1-relay')).toBe(false);
+      expect(isOpfieldReleaseTag('v2.1.1-docker')).toBe(false);
+      expect(isOpfieldReleaseTag('v2.1.1-nginx')).toBe(false);
+      expect(isOpfieldReleaseTag('v2.1.1-monitoring')).toBe(false);
+      expect(isOpfieldReleaseTag('v2.1.1-relay')).toBe(false);
     });
   });
 
@@ -162,9 +162,9 @@ describe('UpdateService release selection', () => {
     ).toBe('v2.2.0-relay');
   });
 
-  describe('selectLatestGatewayRelease', () => {
+  describe('selectLatestOpfieldRelease', () => {
     it('ignores daemon release tags and selects the latest plain gateway tag', () => {
-      const latest = selectLatestGatewayRelease([
+      const latest = selectLatestOpfieldRelease([
         {
           tag_name: 'v2.1.1-docker',
           description: 'docker',
@@ -186,7 +186,7 @@ describe('UpdateService release selection', () => {
     });
 
     it('returns null when only daemon tags exist', () => {
-      const latest = selectLatestGatewayRelease([
+      const latest = selectLatestOpfieldRelease([
         {
           tag_name: 'v2.1.1-docker',
           description: 'docker',
@@ -203,27 +203,27 @@ describe('UpdateService release selection', () => {
     });
   });
 
-  describe('isRelayTooOldForGatewayUpdate', () => {
+  describe('isRelayTooOldForOpfieldUpdate', () => {
     it('allows Gateway updates while Relay is less than two minor versions behind', () => {
-      expect(isRelayTooOldForGatewayUpdate('v2.6.12', 'v2.6.13')).toBe(false);
-      expect(isRelayTooOldForGatewayUpdate('v2.5.9', 'v2.6.0')).toBe(false);
+      expect(isRelayTooOldForOpfieldUpdate('v2.6.12', 'v2.6.13')).toBe(false);
+      expect(isRelayTooOldForOpfieldUpdate('v2.5.9', 'v2.6.0')).toBe(false);
     });
 
     it('blocks Gateway updates when Relay is at least two minor versions behind', () => {
-      expect(isRelayTooOldForGatewayUpdate('v2.4.12', 'v2.6.0')).toBe(true);
-      expect(isRelayTooOldForGatewayUpdate('v2.9.0', 'v3.0.0')).toBe(true);
+      expect(isRelayTooOldForOpfieldUpdate('v2.4.12', 'v2.6.0')).toBe(true);
+      expect(isRelayTooOldForOpfieldUpdate('v2.9.0', 'v3.0.0')).toBe(true);
     });
 
     it('does not block unverifiable local versions', () => {
-      expect(isRelayTooOldForGatewayUpdate('dev', 'v2.7.0')).toBe(false);
+      expect(isRelayTooOldForOpfieldUpdate('dev', 'v2.7.0')).toBe(false);
     });
   });
 
-  describe('isGatewayCompatibleWithRelayUpdate', () => {
+  describe('isOpfieldCompatibleWithRelayUpdate', () => {
     it('allows independent Relay patches when their declared Gateway floor is satisfied', () => {
-      expect(isGatewayCompatibleWithRelayUpdate('v2.7.6', 'v2.7.6')).toBe(true);
-      expect(isGatewayCompatibleWithRelayUpdate('v2.7.6', 'v2.7.5')).toBe(true);
-      expect(isGatewayCompatibleWithRelayUpdate('v2.7.5', 'v2.7.6')).toBe(false);
+      expect(isOpfieldCompatibleWithRelayUpdate('v2.7.6', 'v2.7.6')).toBe(true);
+      expect(isOpfieldCompatibleWithRelayUpdate('v2.7.6', 'v2.7.5')).toBe(true);
+      expect(isOpfieldCompatibleWithRelayUpdate('v2.7.5', 'v2.7.6')).toBe(false);
     });
   });
 
@@ -244,7 +244,7 @@ describe('UpdateService release selection', () => {
         APP_VERSION: 'v2.4.2',
         RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
         ARTIFACT_BASE_URL: 'https://updates.thesqlabs.com/gateway',
-        GATEWAY_RELAY_BUILD_VERSION: 'v2.4.1',
+        OPFIELD_RELAY_BUILD_VERSION: 'v2.4.1',
       } as never
     );
 
@@ -274,7 +274,7 @@ describe('UpdateService release selection', () => {
       {
         APP_VERSION: 'v2.4.0',
         RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
-        GATEWAY_RELAY_BUILD_VERSION: 'v2.4.0',
+        OPFIELD_RELAY_BUILD_VERSION: 'v2.4.0',
       } as never,
       undefined,
       { getConfig: vi.fn().mockResolvedValue({ updateChannel: 'stable' }) } as never
@@ -376,7 +376,7 @@ describe('UpdateService foundation migration', () => {
       3,
       expect.objectContaining({
         Cmd: expect.arrayContaining(['dist/foundation-migrator.js']),
-        Env: ['GATEWAY_DOCKER_LOG_DRIVER=json-file', 'GATEWAY_DOCKER_LOG_OPTS=set'],
+        Env: ['OPFIELD_DOCKER_LOG_DRIVER=json-file', 'OPFIELD_DOCKER_LOG_OPTS=set'],
       })
     );
   });
@@ -395,7 +395,7 @@ describe('UpdateService foundation migration', () => {
       expect.objectContaining({
         Image: DOCKER_COMPOSE_CLI_IMAGE_REF,
         Cmd: ['sh', '-c', expect.stringContaining('cp -p /host/.env "$backup/.env"')],
-        Env: [expect.stringMatching(/^FOUNDATION_BACKUP_DIR=\/host\/\.gateway-foundation-backups\/pre-update-/)],
+        Env: [expect.stringMatching(/^FOUNDATION_BACKUP_DIR=\/host\/\.opfield-foundation-backups\/pre-update-/)],
         HostConfig: { Binds: ['/srv/gateway:/host'] },
       })
     );
@@ -429,7 +429,7 @@ describe('UpdateService foundation migration', () => {
         HostConfig: expect.objectContaining({
           Binds: expect.arrayContaining([
             '/srv/gateway:/host',
-            '/var/lib/gateway/sandbox-workspaces:/var/lib/gateway/sandbox-workspaces',
+            '/var/lib/opfield/sandbox-workspaces:/var/lib/opfield/sandbox-workspaces',
           ]),
         }),
       })
@@ -466,7 +466,7 @@ describe('UpdateService foundation migration', () => {
         // The sidecar restores the files as they were before the legacy settings migration.
         Env: [
           expect.stringMatching(
-            /^FOUNDATION_BACKUP_DIR=\/srv\/gateway\/\.gateway-foundation-backups\/pre-update-[\w.-]+$/
+            /^FOUNDATION_BACKUP_DIR=\/srv\/gateway\/\.opfield-foundation-backups\/pre-update-[\w.-]+$/
           ),
         ],
         HostConfig: {
@@ -495,15 +495,15 @@ describe('UpdateService foundation migration', () => {
     expect(sidecarCommand.indexOf('snapshot_database || exit 1')).toBeLessThan(
       sidecarCommand.indexOf('compose up -d --no-deps --force-recreate app')
     );
-    expect(sidecarCommand).toContain('GATEWAY_DB_DUMP="$FOUNDATION_BACKUP_DIR/gateway-db.dump"');
+    expect(sidecarCommand).toContain('OPFIELD_DB_DUMP="$FOUNDATION_BACKUP_DIR/opfield-db.dump"');
     expect(sidecarCommand).toContain("SELECT pg_database_size('gateway')");
     expect(sidecarCommand).toContain('df -Pk "$FOUNDATION_BACKUP_DIR"');
     expect(sidecarCommand).toContain(
-      'compose exec -T postgres pg_dump --format=custom --create --no-password -U gateway -d gateway > "$GATEWAY_DB_DUMP"'
+      'compose exec -T postgres pg_dump --format=custom --create --no-password -U gateway -d gateway > "$OPFIELD_DB_DUMP"'
     );
-    expect(sidecarCommand).toContain('chmod 600 "$GATEWAY_DB_DUMP"');
+    expect(sidecarCommand).toContain('chmod 600 "$OPFIELD_DB_DUMP"');
     expect(sidecarCommand).toContain(
-      'for old_dump in /srv/gateway/.gateway-foundation-backups/pre-update-*/gateway-db.dump; do'
+      'for old_dump in /srv/gateway/.opfield-foundation-backups/pre-update-*/opfield-db.dump /srv/gateway/.gateway-foundation-backups/pre-update-*/gateway-db.dump; do'
     );
     // The rollback restores the snapshot once postgres is ready, before the previous app starts.
     const rollbackBody = sidecarCommand.slice(
@@ -514,9 +514,9 @@ describe('UpdateService foundation migration', () => {
     expect(rollbackBody.indexOf('restore_database_snapshot')).toBeLessThan(rollbackBody.indexOf('compose up -d app'));
     expect(sidecarCommand).toContain("-d postgres -c 'DROP DATABASE IF EXISTS gateway WITH (FORCE)'");
     expect(sidecarCommand).toContain(
-      'compose exec -T postgres pg_restore --create --exit-on-error --no-password -U gateway -d postgres < "$GATEWAY_DB_DUMP"'
+      'compose exec -T postgres pg_restore --create --exit-on-error --no-password -U gateway -d postgres < "$OPFIELD_DB_DUMP"'
     );
-    expect(sidecarCommand).toContain('if [ "$code" -eq 0 ]; then rm -f "$GATEWAY_DB_DUMP" || true; fi');
+    expect(sidecarCommand).toContain('if [ "$code" -eq 0 ]; then rm -f "$OPFIELD_DB_DUMP" || true; fi');
     expect(sidecarCommand).toContain('relay_reachable && registry_ready');
     expect(sidecarCommand).toContain('compose stop app');
     expect(sidecarCommand).not.toContain('compose stop app relay');
@@ -653,7 +653,7 @@ describe('UpdateService foundation migration', () => {
   it('allows a signed Relay migration from the running registry to an allow-listed GHCR repository', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService, undefined, {
-      GATEWAY_UPDATE_IMAGE_REPOSITORIES: 'ghcr.io/the-square-labs/gateway',
+      OPFIELD_UPDATE_IMAGE_REPOSITORIES: 'ghcr.io/the-square-labs/gateway',
     });
     const relay = makeRelayArtifact();
     const relayImage = 'ghcr.io/the-square-labs/gateway/relay';
@@ -670,7 +670,7 @@ describe('UpdateService foundation migration', () => {
     for (const repository of OFFICIAL_IMAGE_REPOSITORIES) {
       const dockerService = makeDockerService();
       const service = makeUpdateService(dockerService, undefined, {
-        GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+        OPFIELD_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
       });
       const relay = makeRelayArtifact();
       relay.imageRef = `${repository}/relay@${relay.digest}`;
@@ -687,7 +687,7 @@ describe('UpdateService foundation migration', () => {
   it('rejects a signed Relay artifact outside the configured repository allowlist', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService, undefined, {
-      GATEWAY_UPDATE_IMAGE_REPOSITORIES: 'ghcr.io/the-square-labs/gateway',
+      OPFIELD_UPDATE_IMAGE_REPOSITORIES: 'ghcr.io/the-square-labs/gateway',
     });
     const relay = makeRelayArtifact();
     const relayImage = 'ghcr.io/untrusted/gateway/relay';
@@ -724,7 +724,7 @@ describe('UpdateService foundation migration', () => {
       .mockResolvedValueOnce({
         exitCode: 0,
         output:
-          '{"ok":true,"changedFiles":["docker-compose.yml"],"backupDir":"/host/.gateway-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/gateway/sandbox-workspaces"}',
+          '{"ok":true,"changedFiles":["docker-compose.yml"],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/gateway/sandbox-workspaces"}',
       })
       .mockResolvedValueOnce({ exitCode: 0, output: '' })
       .mockResolvedValueOnce({ exitCode: 1, output: 'bad compose' })
@@ -778,7 +778,7 @@ describe('UpdateService foundation migration', () => {
   it('allows a signed migration from the running registry to an allow-listed GHCR repository', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService, undefined, {
-      GATEWAY_UPDATE_IMAGE_REPOSITORIES: 'ghcr.io/the-square-labs/gateway',
+      OPFIELD_UPDATE_IMAGE_REPOSITORIES: 'ghcr.io/the-square-labs/gateway',
     });
     const artifact = makeArtifact(`ghcr.io/the-square-labs/gateway@sha256:${'c'.repeat(64)}`);
     artifact.payload.image = 'ghcr.io/the-square-labs/gateway';
@@ -801,7 +801,7 @@ describe('UpdateService foundation migration', () => {
         },
       });
       const service = makeUpdateService(dockerService, undefined, {
-        GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+        OPFIELD_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
       });
       const artifact = makeArtifact(`${repository}@sha256:${'c'.repeat(64)}`);
       artifact.payload.image = repository;
@@ -815,7 +815,7 @@ describe('UpdateService foundation migration', () => {
   it('still refuses a signed Gateway image outside the official repositories', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService, undefined, {
-      GATEWAY_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
+      OPFIELD_UPDATE_IMAGE_REPOSITORIES: OFFICIAL_IMAGE_REPOSITORIES.join(','),
     });
     const artifact = makeArtifact(`ghcr.io/opfield/other@sha256:${'c'.repeat(64)}`);
     artifact.payload.image = 'ghcr.io/opfield/other';
@@ -834,7 +834,7 @@ describe('UpdateService foundation migration', () => {
       .mockResolvedValueOnce({
         exitCode: 0,
         output:
-          '{"ok":true,"changedFiles":[".env","docker-compose.yml"],"backupDir":"/host/.gateway-foundation-backups/test","sandboxWorkspaceDir":"/srv/gateway-workspaces"}',
+          '{"ok":true,"changedFiles":[".env","docker-compose.yml"],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/srv/gateway-workspaces"}',
       });
     const service = makeUpdateService(dockerService);
     const artifact = makeArtifact('registry.example.com/wiolett/gateway:v2.4.3');
@@ -939,7 +939,7 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
     });
     const calls = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [];
     const at = (fragment: string) => calls.findIndex((call) => call.includes(fragment));
-    return { ...result, calls, at, composeDir, dump: join(backupDir, 'gateway-db.dump') };
+    return { ...result, calls, at, composeDir, dump: join(backupDir, 'opfield-db.dump') };
   }
 
   it('snapshots the database before the target app starts and removes the snapshot once it is healthy', async () => {
@@ -1005,7 +1005,7 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
     expect(drop).toBeLessThan(restore);
     expect(restore).toBeLessThan(run.at('CREATE OR REPLACE VIEW'));
     expect(restore).toBeLessThan(run.calls.indexOf('compose up -d --no-deps app'));
-    expect(run.stdout).toContain('Restored the gateway database from the pre-update snapshot');
+    expect(run.stdout).toContain('Restored the Opfield database from the pre-update snapshot');
     expect(existsSync(run.dump)).toBe(false);
   });
 
@@ -1051,6 +1051,19 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
     expect(existsSync(join(backups, 'pre-update-old', 'gateway-db.dump'))).toBe(false);
     expect(existsSync(join(backups, 'pre-update-recent', 'gateway-db.dump'))).toBe(true);
   });
+
+  it('snapshots and restores the database the app uses: opfield after the host move', async () => {
+    const dockerService = makeDockerService();
+    await makeUpdateService(dockerService, undefined, {
+      DATABASE_URL: 'postgres://opfield:secret@postgres:5432/opfield',
+    }).performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'));
+    const script = (dockerService.runDetached.mock.calls[0]?.[0] as { Cmd: string[] }).Cmd[2]!;
+    expect(script).toContain('pg_dump --format=custom --create --no-password -U opfield -d opfield');
+    expect(script).toContain("SELECT pg_database_size('opfield')");
+    expect(script).toContain("-U opfield -d postgres -c 'DROP DATABASE IF EXISTS opfield WITH (FORCE)'");
+    expect(script).toContain('pg_isready -U opfield -d opfield');
+    expect(script).not.toMatch(/-U gateway|-d gateway/);
+  });
 });
 
 describe('UpdateService orchestration gate', () => {
@@ -1067,7 +1080,7 @@ describe('UpdateService orchestration gate', () => {
     };
     const events = { publish: vi.fn() };
     service.setOrchestrationGate(source, events);
-    const operation = () => (service as unknown as { gatewayUpdateOperation: unknown }).gatewayUpdateOperation;
+    const operation = () => (service as unknown as { opfieldUpdateOperation: unknown }).opfieldUpdateOperation;
     return { dockerService, service, source, events, operation };
   }
 
@@ -1090,7 +1103,7 @@ describe('UpdateService orchestration gate', () => {
     });
     expect(events.publish).toHaveBeenCalledWith(
       'system.update.changed',
-      expect.objectContaining({ updating: true, component: 'gateway', statusChanged: true })
+      expect.objectContaining({ updating: true, component: 'opfield', statusChanged: true })
     );
     // Nothing on the host changes while operations run.
     expect(dockerService.pullImageRef).toHaveBeenCalledTimes(2);
@@ -1149,7 +1162,7 @@ describe('UpdateService orchestration gate', () => {
     ).rejects.toThrow('migration failed');
     expect(source.setOrchestrationAdmissionHold).toHaveBeenLastCalledWith(null);
     expect(operation()).toBeNull();
-    expect(service.isGatewayUpdateInProgress()).toBe(false);
+    expect(service.isOpfieldUpdateInProgress()).toBe(false);
   });
 
   it('does not wait for a private core that cannot report its operations', async () => {
@@ -1254,7 +1267,7 @@ describe('UpdateService interrupted updates', () => {
     expect(dockerService.runDetached).toHaveBeenCalledWith(
       expect.objectContaining({
         Env: [
-          expect.stringMatching(/^FOUNDATION_BACKUP_DIR=\/srv\/gateway\/\.gateway-foundation-backups\/pre-update-/),
+          expect.stringMatching(/^FOUNDATION_BACKUP_DIR=\/srv\/gateway\/\.opfield-foundation-backups\/pre-update-/),
         ],
       })
     );
@@ -1272,7 +1285,7 @@ describe('UpdateService interrupted updates', () => {
       service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'))
     ).rejects.toThrow('migration failed');
     expect(db.delete).toHaveBeenCalledOnce();
-    expect((service as unknown as { gatewayUpdateOperation: unknown }).gatewayUpdateOperation).toBeNull();
+    expect((service as unknown as { opfieldUpdateOperation: unknown }).opfieldUpdateOperation).toBeNull();
   });
 
   it('reports a rolled-back update as failed after the previous version restarts', async () => {
@@ -1281,7 +1294,7 @@ describe('UpdateService interrupted updates', () => {
 
     await service.recoverInterruptedUpdates();
 
-    const operation = (service as unknown as { gatewayUpdateOperation: unknown }).gatewayUpdateOperation;
+    const operation = (service as unknown as { opfieldUpdateOperation: unknown }).opfieldUpdateOperation;
     expect(operation).toMatchObject({
       status: 'failed',
       targetVersion: 'v2.5.0',
@@ -1305,14 +1318,14 @@ describe('UpdateService interrupted updates', () => {
     );
     expect(events.publish).toHaveBeenCalledWith(
       'system.update.changed',
-      expect.objectContaining({ updating: false, component: 'gateway', error: expect.any(String) })
+      expect.objectContaining({ updating: false, component: 'opfield', error: expect.any(String) })
     );
-    expect(service.isGatewayUpdateInProgress()).toBe(false);
+    expect(service.isOpfieldUpdateInProgress()).toBe(false);
 
-    await expect(service.acknowledgeGatewayUpdateFailure()).resolves.toBe(true);
-    expect((service as unknown as { gatewayUpdateOperation: unknown }).gatewayUpdateOperation).toBeNull();
+    await expect(service.acknowledgeOpfieldUpdateFailure()).resolves.toBe(true);
+    expect((service as unknown as { opfieldUpdateOperation: unknown }).opfieldUpdateOperation).toBeNull();
     expect(db.delete).toHaveBeenCalledOnce();
-    await expect(service.acknowledgeGatewayUpdateFailure()).resolves.toBe(false);
+    await expect(service.acknowledgeOpfieldUpdateFailure()).resolves.toBe(false);
   });
 
   it('keeps the attempt, marked started, until the target version has settled', async () => {
@@ -1322,7 +1335,7 @@ describe('UpdateService interrupted updates', () => {
 
     await service.recoverInterruptedUpdates();
 
-    expect((service as unknown as { gatewayUpdateOperation: unknown }).gatewayUpdateOperation).toBeNull();
+    expect((service as unknown as { opfieldUpdateOperation: unknown }).opfieldUpdateOperation).toBeNull();
     // The sidecar can still roll the target back: the record must survive start-up.
     expect(db.delete).not.toHaveBeenCalled();
     expect(writes).toEqual([
@@ -1346,7 +1359,7 @@ describe('UpdateService interrupted updates', () => {
 
     await service.recoverInterruptedUpdates();
 
-    expect((service as unknown as { gatewayUpdateOperation: unknown }).gatewayUpdateOperation).toMatchObject({
+    expect((service as unknown as { opfieldUpdateOperation: unknown }).opfieldUpdateOperation).toMatchObject({
       status: 'failed',
       targetVersion: 'v2.5.0',
       error: expect.stringContaining('rolled back'),
@@ -1371,7 +1384,7 @@ describe('UpdateService interrupted updates', () => {
 
     await service.recoverInterruptedUpdates();
 
-    expect((service as unknown as { gatewayUpdateOperation: unknown }).gatewayUpdateOperation).toBeNull();
+    expect((service as unknown as { opfieldUpdateOperation: unknown }).opfieldUpdateOperation).toBeNull();
     await vi.waitFor(() => expect(db.delete).toHaveBeenCalledOnce());
   });
 
@@ -1741,7 +1754,7 @@ describe('UpdateService interrupted updates', () => {
     });
 
     // A durable run from before a restart still counts until recovery fails it.
-    await expect(service.assertGatewayUpdateAllowed()).rejects.toMatchObject({ code: 'RELAY_UPDATE_IN_PROGRESS' });
+    await expect(service.assertOpfieldUpdateAllowed()).rejects.toMatchObject({ code: 'RELAY_UPDATE_IN_PROGRESS' });
 
     const dockerService = makeDockerService();
     const gateway = makeUpdateService(dockerService);
@@ -1750,7 +1763,7 @@ describe('UpdateService interrupted updates', () => {
       gateway.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'))
     ).rejects.toMatchObject({ code: 'RELAY_UPDATE_IN_PROGRESS' });
     expect(dockerService.pullImageRef).not.toHaveBeenCalled();
-    expect(gateway.isGatewayUpdateInProgress()).toBe(false);
+    expect(gateway.isOpfieldUpdateInProgress()).toBe(false);
 
     const idle = makeUpdateService(makeDockerService());
     let release!: () => void;
@@ -1761,14 +1774,14 @@ describe('UpdateService interrupted updates', () => {
     idleDocker.pullImageRef.mockImplementationOnce(() => pulling);
     const update = idle.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'));
     expect(() => idle.startRelayUpdate('v2.4.3')).toThrow(
-      expect.objectContaining({ code: 'GATEWAY_UPDATE_IN_PROGRESS' })
+      expect.objectContaining({ code: 'OPFIELD_UPDATE_IN_PROGRESS' })
     );
     release();
     await update;
   });
 });
 
-const PRE_UPDATE_BACKUP_ENV = /^FOUNDATION_BACKUP_DIR=\/host\/\.gateway-foundation-backups\/pre-update-[\w.-]+$/;
+const PRE_UPDATE_BACKUP_ENV = /^FOUNDATION_BACKUP_DIR=\/host\/\.opfield-foundation-backups\/pre-update-[\w.-]+$/;
 
 function makeUpdateService(
   dockerService: ReturnType<typeof makeDockerService>,
@@ -1789,9 +1802,9 @@ function makeUpdateService(
       COMPOSE_PROJECT_DIR: '/srv/gateway',
       RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
       ARTIFACT_BASE_URL: 'https://updates.thesqlabs.com/gateway',
-      GATEWAY_RELAY_IMAGE_REF: `registry.example.com/wiolett/gateway/relay@sha256:${'b'.repeat(64)}`,
-      GATEWAY_RELAY_BUILD_VERSION: 'v2.4.2',
-      GATEWAY_RELAY_PROTOCOL_MAJOR: 1,
+      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/wiolett/gateway/relay@sha256:${'b'.repeat(64)}`,
+      OPFIELD_RELAY_BUILD_VERSION: 'v2.4.2',
+      OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
       ...envOverrides,
     } as never,
     relayRuntime
@@ -1813,7 +1826,7 @@ function makeDockerService() {
     runOneShot: vi.fn().mockResolvedValue({
       exitCode: 0,
       output:
-        '{"ok":true,"changedFiles":[],"backupDir":"/host/.gateway-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/gateway/sandbox-workspaces"}',
+        '{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/gateway/sandbox-workspaces"}',
     }),
     runDetached: vi.fn().mockResolvedValue('sidecar-1'),
   };
@@ -1823,7 +1836,7 @@ function makeArtifact(
   imageRef: string,
   secureLinkConnectorImage?: string,
   legacyDatabaseConnectorImage?: string
-): TrustedGatewayUpdateArtifact {
+): TrustedOpfieldUpdateArtifact {
   return {
     imageRef,
     digest: 'sha256:new',

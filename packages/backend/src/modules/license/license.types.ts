@@ -152,9 +152,18 @@ const SHARED_FEATURES = [
   'mcp',
   'gitlab',
   'ai-workspace',
-  'gateway-inference',
+  'inference',
   'signed-updates',
 ] as const;
+
+// legacy-name: `gateway-inference` license feature key — the license server still signs it in place of `inference`;
+// remove once the license server issues only `inference`.
+const LEGACY_FEATURE_NAMES: Readonly<Record<string, string>> = { 'gateway-inference': 'inference' };
+
+/** A signed feature key under its current name. */
+export function canonicalLicenseFeature(feature: string): string {
+  return LEGACY_FEATURE_NAMES[feature] ?? feature;
+}
 
 const PERSONAL_FEATURES_V3 = [
   ...SHARED_FEATURES,
@@ -329,13 +338,16 @@ export function isCanonicalEntitlements(
     return false;
   }
   const entitlements = value as LicenseEntitlements;
+  const features = entitlements.features.map((feature) =>
+    typeof feature === 'string' ? canonicalLicenseFeature(feature) : feature
+  );
   return (
     entitlements.managedNodes === expected.managedNodes &&
     entitlements.users === expected.users &&
     entitlements.customPermissionGroups === expected.customPermissionGroups &&
     entitlements.supportLevel === expected.supportLevel &&
-    entitlements.features.length === expected.features.length &&
-    new Set(entitlements.features).size === entitlements.features.length &&
-    entitlements.features.every((feature) => expected.features.includes(feature))
+    features.length === expected.features.length &&
+    new Set(features).size === features.length &&
+    features.every((feature) => expected.features.includes(feature))
   );
 }

@@ -9,28 +9,22 @@ import (
 )
 
 const (
-	DefaultBuildkitSocket      = "/run/gateway-builder/buildkit/buildkitd.sock"
-	DefaultBuildkitStateDir    = "/var/lib/docker-daemon/builder/buildkit"
-	DefaultContainerdSocket    = "/run/gateway-builder/containerd/containerd.sock"
-	DefaultContainerdStateDir  = "/run/gateway-builder/containerd/state"
-	DefaultContainerdRootDir   = "/var/lib/docker-daemon/builder/containerd"
-	DefaultCNIConfigPath       = "/etc/gateway-builder/cni.conflist"
-	DefaultCNIBinaryDir        = "/opt/gateway-builder/cni/bin"
-	DefaultRegistryCAPath      = "/var/lib/docker-daemon/registry-proxy/ca.pem"
-	DefaultContainerdNamespace = "gateway-builds"
-	DefaultBuildParallelism    = 16
-	DefaultCPULimitMillis      = int64(2000)
-	DefaultMemoryLimitBytes    = int64(4 * 1024 * 1024 * 1024)
-	DefaultDiskLimitBytes      = int64(20 * 1024 * 1024 * 1024)
-	DefaultTasksLimit          = int64(2048)
-	DefaultEgressProfile       = "internet"
-	BuilderNetworkSubnet       = "10.203.0.0/24"
-	BuilderBridgeName          = "gateway-builds0"
-	buildkitSocketDirectory    = "/run/gateway-builder/buildkit"
-	containerdSocketDirectory  = "/run/gateway-builder/containerd"
+	DefaultBuildkitStateDir  = "/var/lib/docker-daemon/builder/buildkit"
+	DefaultContainerdRootDir = "/var/lib/docker-daemon/builder/containerd"
+	DefaultCNIStateDir       = "/var/lib/docker-daemon/builder/cni"
+	DefaultRegistryCAPath    = "/var/lib/docker-daemon/registry-proxy/ca.pem"
+	DefaultBuildParallelism  = 16
+	DefaultCPULimitMillis    = int64(2000)
+	DefaultMemoryLimitBytes  = int64(4 * 1024 * 1024 * 1024)
+	DefaultDiskLimitBytes    = int64(20 * 1024 * 1024 * 1024)
+	DefaultTasksLimit        = int64(2048)
+	DefaultEgressProfile     = "internet"
+	BuilderNetworkSubnet     = "10.203.0.0/24"
 )
 
 type RuntimeConfig struct {
+	// Naming is the set of host names the runtime uses (naming.go).
+	Naming              Naming
 	BuildkitSocket      string
 	BuildkitStateDir    string
 	ContainerdSocket    string
@@ -50,17 +44,24 @@ type RuntimeConfig struct {
 	ControlPlaneAddress string
 }
 
+// DefaultRuntimeConfig is the runtime of a worker under the Opfield names.
 func DefaultRuntimeConfig(socketGID int) RuntimeConfig {
+	return DefaultRuntimeConfigFor(OpfieldNaming, socketGID)
+}
+
+// DefaultRuntimeConfigFor is the runtime under naming.
+func DefaultRuntimeConfigFor(naming Naming, socketGID int) RuntimeConfig {
 	return RuntimeConfig{
-		BuildkitSocket:      DefaultBuildkitSocket,
+		Naming:              naming,
+		BuildkitSocket:      filepath.Join(naming.BuildkitSocketDir(), "buildkitd.sock"),
 		BuildkitStateDir:    DefaultBuildkitStateDir,
-		ContainerdSocket:    DefaultContainerdSocket,
-		ContainerdStateDir:  DefaultContainerdStateDir,
+		ContainerdSocket:    filepath.Join(naming.ContainerdSocketDir(), "containerd.sock"),
+		ContainerdStateDir:  filepath.Join(naming.ContainerdSocketDir(), "state"),
 		ContainerdRootDir:   DefaultContainerdRootDir,
-		CNIConfigPath:       DefaultCNIConfigPath,
-		CNIBinaryDir:        DefaultCNIBinaryDir,
+		CNIConfigPath:       naming.CNIConfigPath(),
+		CNIBinaryDir:        naming.CNIBinDir(),
 		RegistryCAPath:      DefaultRegistryCAPath,
-		ContainerdNamespace: DefaultContainerdNamespace,
+		ContainerdNamespace: naming.Namespace,
 		SocketGID:           socketGID,
 		MaxParallelism:      DefaultBuildParallelism,
 		CPULimitMillis:      DefaultCPULimitMillis,
@@ -72,11 +73,14 @@ func DefaultRuntimeConfig(socketGID int) RuntimeConfig {
 }
 
 func (c RuntimeConfig) Validate() error {
-	if !filepath.IsAbs(c.BuildkitSocket) || filepath.Clean(filepath.Dir(c.BuildkitSocket)) != buildkitSocketDirectory {
-		return fmt.Errorf("BuildKit socket must be directly under %s", buildkitSocketDirectory)
+	if c.Naming.RunDir == "" {
+		return errors.New("builder runtime naming is required")
 	}
-	if !filepath.IsAbs(c.ContainerdSocket) || filepath.Clean(filepath.Dir(c.ContainerdSocket)) != containerdSocketDirectory {
-		return fmt.Errorf("containerd socket must be directly under %s", containerdSocketDirectory)
+	if !filepath.IsAbs(c.BuildkitSocket) || filepath.Clean(filepath.Dir(c.BuildkitSocket)) != c.Naming.BuildkitSocketDir() {
+		return fmt.Errorf("BuildKit socket must be directly under %s", c.Naming.BuildkitSocketDir())
+	}
+	if !filepath.IsAbs(c.ContainerdSocket) || filepath.Clean(filepath.Dir(c.ContainerdSocket)) != c.Naming.ContainerdSocketDir() {
+		return fmt.Errorf("containerd socket must be directly under %s", c.Naming.ContainerdSocketDir())
 	}
 	for name, value := range map[string]string{
 		"BuildKit state directory":   c.BuildkitStateDir,
@@ -90,8 +94,8 @@ func (c RuntimeConfig) Validate() error {
 			return fmt.Errorf("%s must be a clean absolute path", name)
 		}
 	}
-	if c.ContainerdNamespace != DefaultContainerdNamespace {
-		return errors.New("containerd namespace must remain gateway-builds")
+	if c.ContainerdNamespace != c.Naming.Namespace {
+		return fmt.Errorf("containerd namespace must remain %s", c.Naming.Namespace)
 	}
 	if c.SocketGID < 0 {
 		return errors.New("socket GID cannot be negative")
@@ -178,22 +182,23 @@ func (c RuntimeConfig) RenderBuildkitConfig() (string, error) {
 		"  reservedSpace = \"1GB\"",
 		"  maxUsedSpace = " + quote(strconv.FormatInt(c.DiskLimitBytes, 10)+"B"),
 		"  minFreeSpace = \"10GB\"",
-		"  defaultCgroupParent = \"gateway-builds\"",
+		"  defaultCgroupParent = " + quote(c.Naming.CgroupParent),
 		"",
 		"[registry.\"127.0.0.1:5443\"]",
 		"  http = false",
 		"  ca = [" + quote(c.RegistryCAPath) + "]",
 		"",
+		// BuildKit's own built-in "gateway" frontend, not a product name.
 		"[frontend.\"gateway.v0\"]",
 		"  enabled = false",
 		"",
 	}, "\n"), nil
 }
 
-func RenderLoopbackOnlyCNIConfig() string {
+func RenderLoopbackOnlyCNIConfig(naming Naming) string {
 	return `{
   "cniVersion": "1.0.0",
-  "name": "gateway-builder-deny-egress",
+  "name": "` + naming.DenyNetwork + `",
   "plugins": [
     {"type": "loopback"}
   ]
@@ -201,20 +206,20 @@ func RenderLoopbackOnlyCNIConfig() string {
 `
 }
 
-func RenderInternetCNIConfig() string {
+func RenderInternetCNIConfig(naming Naming) string {
 	return `{
   "cniVersion": "1.0.0",
-  "name": "gateway-builder-internet",
+  "name": "` + naming.OpenNetwork + `",
   "plugins": [
     {
       "type": "bridge",
-      "bridge": "gateway-builds0",
+      "bridge": "` + naming.Bridge + `",
       "isGateway": true,
       "ipMasq": true,
       "hairpinMode": false,
       "ipam": {
         "type": "host-local",
-        "dataDir": "/var/lib/docker-daemon/builder/cni",
+        "dataDir": "` + DefaultCNIStateDir + `",
         "ranges": [[{"subnet": "10.203.0.0/24", "gateway": "10.203.0.1"}]],
         "routes": [{"dst": "0.0.0.0/0"}]
       },

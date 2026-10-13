@@ -15,10 +15,10 @@ import {
 } from './relay-managed-availability.js';
 import { completeSetGrants } from './relay-managed-availability-grants.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): relay paths of an availability set. The resource's endpoint stays the
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): relay paths of an availability set. The resource's endpoint stays the
  * origin member's (same id and generation, no tunnel cut), every other member gets a client endpoint, every route to
  * the resource gets a member route per other member, the members get the peer mesh, lease mode gates the client and
  * primary peer endpoints, bundles carry the lease group, and turning the set off on another member converts that
@@ -36,7 +36,7 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
   const leasePolicyId = randomUUID();
   let anchorId = '';
   let bindingRouteId = '';
-  let gatewayRouteId = '';
+  let opfieldRouteId = '';
   const reconcile = () => db.transaction((tx) => reconcileSetRelayPaths(tx));
   const endpoint = async (ownerKind: string, ownerId: string) =>
     (
@@ -112,7 +112,7 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
         ]
       )
     ).rows[0].id;
-    gatewayRouteId = (
+    opfieldRouteId = (
       await q(
         `insert into relay_routes (owner_kind, owner_id, source_kind, source_id, source_certificate_sha256,
            target_endpoint_id) values ('managed_database_gateway', $1, 'gateway', 'gw', 'sha256:app', $2) returning id`,
@@ -175,7 +175,7 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
       await route('set_member:managed_database_binding', memberRouteOwnerId(bindingRouteId, memberB))
     ).toMatchObject({ source_id: consumer, target_endpoint_id: clientB.id, parent_route_id: bindingRouteId });
     expect(
-      await route('set_member:managed_database_gateway', memberRouteOwnerId(gatewayRouteId, memberB))
+      await route('set_member:managed_database_gateway', memberRouteOwnerId(opfieldRouteId, memberB))
     ).toMatchObject({
       source_id: 'gw',
       target_endpoint_id: clientB.id,

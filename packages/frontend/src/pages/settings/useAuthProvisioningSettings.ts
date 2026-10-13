@@ -7,7 +7,7 @@ import { api } from "@/services/api";
 import { useAppStatusStore } from "@/stores/app-status";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import {
-  DEFAULT_GATEWAY_FEATURES,
+  DEFAULT_OPFIELD_FEATURES,
   useSystemConfigStore,
   withDefaultSystemConfig,
 } from "@/stores/system-config";
@@ -26,10 +26,10 @@ const BYTES_PER_MEGABYTE = 1024 * 1024;
 const DEFAULT_FILE_UPLOAD_MAX_BYTES = 100 * BYTES_PER_MEGABYTE;
 const DEFAULT_FILE_OPEN_MAX_BYTES = 10 * BYTES_PER_MEGABYTE;
 const DEFAULT_GENERAL_FEATURES = {
-  pkiEnabled: DEFAULT_GATEWAY_FEATURES.pkiEnabled,
-  domainsEnabled: DEFAULT_GATEWAY_FEATURES.domainsEnabled,
-  siemEnabled: DEFAULT_GATEWAY_FEATURES.siemEnabled,
-  inferenceEnabled: DEFAULT_GATEWAY_FEATURES.inferenceEnabled,
+  pkiEnabled: DEFAULT_OPFIELD_FEATURES.pkiEnabled,
+  domainsEnabled: DEFAULT_OPFIELD_FEATURES.domainsEnabled,
+  siemEnabled: DEFAULT_OPFIELD_FEATURES.siemEnabled,
+  inferenceEnabled: DEFAULT_OPFIELD_FEATURES.inferenceEnabled,
 };
 const DEFAULT_SHUTDOWN_SETTINGS = {
   userRequestDrainSeconds: 30,
@@ -44,8 +44,8 @@ const DEFAULT_GENERAL_SETTINGS = {
   sendInvitationOnUserCreate: false,
   fileUploadMaxBytes: DEFAULT_FILE_UPLOAD_MAX_BYTES,
   fileOpenMaxBytes: DEFAULT_FILE_OPEN_MAX_BYTES,
-  gatewayGrpcPublicTarget: null as string | null,
-  gatewayGrpcLocalIp: null as string | null,
+  grpcPublicTarget: null as string | null,
+  grpcLocalIp: null as string | null,
   relayAutoRecovery: true,
   relayGrantTtlHours: 4,
   relayPolicyLeaseHours: 72,
@@ -114,7 +114,7 @@ const DEFAULT_LOGGING_DRAFT = {
   url: "",
   username: "",
   password: "",
-  database: "gateway_logs",
+  database: "opfield_logs",
   table: "logs",
   requestTimeoutMs: "5000",
 };
@@ -182,7 +182,7 @@ function loggingDraftFrom(settings: AuthProvisioningSettings | null | undefined)
     url: settings.logging?.url ?? "",
     username: settings.logging?.username ?? "",
     password: "",
-    database: settings.logging?.database ?? "gateway_logs",
+    database: settings.logging?.database ?? "opfield_logs",
     table: settings.logging?.table ?? "logs",
     requestTimeoutMs: String(settings.logging?.requestTimeoutMs ?? 5000),
   };
@@ -304,15 +304,15 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       )
     )
   );
-  const [gatewayGrpcPublicTarget, setGatewayGrpcPublicTarget] = useState(
+  const [grpcPublicTarget, setGrpcPublicTarget] = useState(
     () =>
       api.getCached<AuthProvisioningSettings>("settings:auth-provisioning")?.generalSettings
-        ?.gatewayGrpcPublicTarget ?? ""
+        ?.grpcPublicTarget ?? ""
   );
-  const [gatewayGrpcLocalIp, setGatewayGrpcLocalIp] = useState(
+  const [grpcLocalIp, setGrpcLocalIp] = useState(
     () =>
       api.getCached<AuthProvisioningSettings>("settings:auth-provisioning")?.generalSettings
-        ?.gatewayGrpcLocalIp ?? ""
+        ?.grpcLocalIp ?? ""
   );
   const [relayGrantTtlHours, setRelayGrantTtlHours] = useState(() =>
     String(
@@ -323,17 +323,17 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
   const [pkiEnabled, setPkiEnabled] = useState(
     () =>
       api.getCached<AuthProvisioningSettings>("settings:auth-provisioning")?.generalSettings
-        ?.features?.pkiEnabled ?? DEFAULT_GATEWAY_FEATURES.pkiEnabled
+        ?.features?.pkiEnabled ?? DEFAULT_OPFIELD_FEATURES.pkiEnabled
   );
   const [siemEnabled, setSiemEnabled] = useState(
     () =>
       api.getCached<AuthProvisioningSettings>("settings:auth-provisioning")?.generalSettings
-        ?.features?.siemEnabled ?? DEFAULT_GATEWAY_FEATURES.siemEnabled
+        ?.features?.siemEnabled ?? DEFAULT_OPFIELD_FEATURES.siemEnabled
   );
   const [inferenceEnabled, setInferenceEnabled] = useState(
     () =>
       api.getCached<AuthProvisioningSettings>("settings:auth-provisioning")?.generalSettings
-        ?.features?.inferenceEnabled ?? DEFAULT_GATEWAY_FEATURES.inferenceEnabled
+        ?.features?.inferenceEnabled ?? DEFAULT_OPFIELD_FEATURES.inferenceEnabled
   );
   const skipNextCidrsBlur = useRef(false);
   const skipNextWebhookCidrsBlur = useRef(false);
@@ -362,8 +362,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
         String(bytesToMegabytes(settingsData.generalSettings.fileUploadMaxBytes))
       );
       setFileOpenLimitMb(String(bytesToMegabytes(settingsData.generalSettings.fileOpenMaxBytes)));
-      setGatewayGrpcPublicTarget(settingsData.generalSettings.gatewayGrpcPublicTarget ?? "");
-      setGatewayGrpcLocalIp(settingsData.generalSettings.gatewayGrpcLocalIp ?? "");
+      setGrpcPublicTarget(settingsData.generalSettings.grpcPublicTarget ?? "");
+      setGrpcLocalIp(settingsData.generalSettings.grpcLocalIp ?? "");
       setRelayGrantTtlHours(String(settingsData.generalSettings.relayGrantTtlHours));
       setPkiEnabled(settingsData.generalSettings.features?.pkiEnabled ?? true);
       setSiemEnabled(settingsData.generalSettings.features?.siemEnabled ?? true);
@@ -408,7 +408,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
         toast.success("Opfield is restarting with the refreshed web certificate");
         useAppStatusStore
           .getState()
-          .setGatewayRestartingActive(
+          .setOpfieldRestartingActive(
             true,
             updated.webTransport.directAccess ? updated.webTransport.targetUrl : null
           );
@@ -467,7 +467,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
         toast.success("Opfield is restarting with the new internal protocol");
         useAppStatusStore
           .getState()
-          .setGatewayRestartingActive(
+          .setOpfieldRestartingActive(
             true,
             updated.webTransport.directAccess ? updated.webTransport.targetUrl : null
           );
@@ -614,8 +614,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       applySettings(nextSettings);
       setFileUploadLimitMb(String(bytesToMegabytes(updated.generalSettings.fileUploadMaxBytes)));
       setFileOpenLimitMb(String(bytesToMegabytes(updated.generalSettings.fileOpenMaxBytes)));
-      setGatewayGrpcPublicTarget(updated.generalSettings.gatewayGrpcPublicTarget ?? "");
-      setGatewayGrpcLocalIp(updated.generalSettings.gatewayGrpcLocalIp ?? "");
+      setGrpcPublicTarget(updated.generalSettings.grpcPublicTarget ?? "");
+      setGrpcLocalIp(updated.generalSettings.grpcLocalIp ?? "");
       setRelayGrantTtlHours(String(updated.generalSettings.relayGrantTtlHours));
       setPublicUrl(updated.generalSettings.publicUrl ?? "");
       setHideExternalBranding(updated.generalSettings.hideExternalBranding ?? false);
@@ -640,8 +640,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       setSettings(previous);
       setFileUploadLimitMb(String(bytesToMegabytes(previous.generalSettings.fileUploadMaxBytes)));
       setFileOpenLimitMb(String(bytesToMegabytes(previous.generalSettings.fileOpenMaxBytes)));
-      setGatewayGrpcPublicTarget(previous.generalSettings.gatewayGrpcPublicTarget ?? "");
-      setGatewayGrpcLocalIp(previous.generalSettings.gatewayGrpcLocalIp ?? "");
+      setGrpcPublicTarget(previous.generalSettings.grpcPublicTarget ?? "");
+      setGrpcLocalIp(previous.generalSettings.grpcLocalIp ?? "");
       setRelayGrantTtlHours(String(previous.generalSettings.relayGrantTtlHours));
       setPublicUrl(previous.generalSettings.publicUrl ?? "");
       setHideExternalBranding(previous.generalSettings.hideExternalBranding ?? false);
@@ -678,8 +678,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
 
   const draftFileUploadLimitBytes = getDraftFileUploadLimitBytes();
   const draftFileOpenLimitBytes = getDraftFileOpenLimitBytes();
-  const draftGatewayGrpcPublicTarget = gatewayGrpcPublicTarget.trim() || null;
-  const draftGatewayGrpcLocalIp = gatewayGrpcLocalIp.trim() || null;
+  const draftGrpcPublicTarget = grpcPublicTarget.trim() || null;
+  const draftGrpcLocalIp = grpcLocalIp.trim() || null;
   const draftPublicUrl = publicUrl.trim().replace(/\/$/, "");
   const draftRelayGrantTtlHours = Number(relayGrantTtlHours);
   const accessSettingsHaveChanges =
@@ -688,8 +688,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       draftFileUploadLimitBytes !== settings?.generalSettings.fileUploadMaxBytes) ||
     (draftFileOpenLimitBytes != null &&
       draftFileOpenLimitBytes !== settings?.generalSettings.fileOpenMaxBytes) ||
-    draftGatewayGrpcPublicTarget !== settings?.generalSettings.gatewayGrpcPublicTarget ||
-    draftGatewayGrpcLocalIp !== settings?.generalSettings.gatewayGrpcLocalIp ||
+    draftGrpcPublicTarget !== settings?.generalSettings.grpcPublicTarget ||
+    draftGrpcLocalIp !== settings?.generalSettings.grpcLocalIp ||
     (Number.isInteger(draftRelayGrantTtlHours) &&
       draftRelayGrantTtlHours !== settings?.generalSettings.relayGrantTtlHours);
   const featureSettingsHaveChanges =
@@ -735,8 +735,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       draftPublicUrl === settings.generalSettings.publicUrl &&
       nextBytes === settings.generalSettings.fileUploadMaxBytes &&
       nextOpenBytes === settings.generalSettings.fileOpenMaxBytes &&
-      draftGatewayGrpcPublicTarget === settings.generalSettings.gatewayGrpcPublicTarget &&
-      draftGatewayGrpcLocalIp === settings.generalSettings.gatewayGrpcLocalIp &&
+      draftGrpcPublicTarget === settings.generalSettings.grpcPublicTarget &&
+      draftGrpcLocalIp === settings.generalSettings.grpcLocalIp &&
       draftRelayGrantTtlHours === settings.generalSettings.relayGrantTtlHours
     ) {
       return;
@@ -758,8 +758,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
       publicUrl: draftPublicUrl,
       fileUploadMaxBytes: nextBytes,
       fileOpenMaxBytes: nextOpenBytes,
-      gatewayGrpcPublicTarget: draftGatewayGrpcPublicTarget,
-      gatewayGrpcLocalIp: draftGatewayGrpcLocalIp,
+      grpcPublicTarget: draftGrpcPublicTarget,
+      grpcLocalIp: draftGrpcLocalIp,
       relayGrantTtlHours: draftRelayGrantTtlHours,
     });
   };
@@ -1052,7 +1052,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
           (loggingDraft.url.trim() !== (settings.logging?.url ?? "") ||
             loggingDraft.username.trim() !== (settings.logging?.username ?? "") ||
             loggingDraft.password.length > 0 ||
-            loggingDraft.database.trim() !== (settings.logging?.database ?? "gateway_logs") ||
+            loggingDraft.database.trim() !== (settings.logging?.database ?? "opfield_logs") ||
             loggingDraft.table.trim() !== (settings.logging?.table ?? "logs") ||
             Number(loggingDraft.requestTimeoutMs) !==
               (settings.logging?.requestTimeoutMs ?? 5000))))
@@ -1141,10 +1141,10 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
     setFileUploadLimitMb,
     fileOpenLimitMb,
     setFileOpenLimitMb,
-    gatewayGrpcPublicTarget,
-    setGatewayGrpcPublicTarget,
-    gatewayGrpcLocalIp,
-    setGatewayGrpcLocalIp,
+    grpcPublicTarget,
+    setGrpcPublicTarget,
+    grpcLocalIp,
+    setGrpcLocalIp,
     relayGrantTtlHours,
     setRelayGrantTtlHours,
     pkiEnabled,

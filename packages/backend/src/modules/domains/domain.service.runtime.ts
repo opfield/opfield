@@ -22,7 +22,9 @@ import {
   type DomainExternalPlan,
   type DomainIngressPlacement,
   type DomainUsage,
+  domainRecordComment,
   type EligibleNginxNode,
+  legacyDomainRecordComment,
   logger,
   type NginxNodeOptions,
   selectBackfillNginxNode,
@@ -333,7 +335,7 @@ export abstract class DomainsServiceRuntime {
         content: nginxNode.effectiveAddress,
         ttl,
         proxied,
-        comment: `wiolett-gateway:domain:${row.id}`,
+        comment: domainRecordComment(row.id),
       });
       providerRecordIds = [created.id];
       targetIps = [nginxNode.effectiveAddress];
@@ -627,7 +629,10 @@ export abstract class DomainsServiceRuntime {
       );
       const recordsById = new Map(records.map((record) => [record.id, record]));
       const trackedRecordIds = new Set(row.providerRecordIds);
-      const recoveryComment = `wiolett-gateway:domain:${row.id}`;
+      const recoveryComment = domainRecordComment(row.id);
+      const legacyRecoveryComment = legacyDomainRecordComment(row.id);
+      const isOurComment = (comment: string | null | undefined) =>
+        comment === recoveryComment || comment === legacyRecoveryComment;
       const trackedAddressRecords = row.providerRecordIds.flatMap((id) => {
         const record = recordsById.get(id);
         return record && (record.type === 'A' || record.type === 'AAAA') ? [record] : [];
@@ -635,7 +640,7 @@ export abstract class DomainsServiceRuntime {
       const recoveredAddressRecords = records.filter(
         (record) =>
           (record.type === 'A' || record.type === 'AAAA') &&
-          record.comment === recoveryComment &&
+          isOurComment(record.comment) &&
           !trackedRecordIds.has(record.id)
       );
       const ownedAddressRecords = [...trackedAddressRecords, ...recoveredAddressRecords];
@@ -644,7 +649,7 @@ export abstract class DomainsServiceRuntime {
           record.type === 'CNAME' ||
           ((record.type === 'A' || record.type === 'AAAA') &&
             !trackedRecordIds.has(record.id) &&
-            record.comment !== recoveryComment)
+            !isOurComment(record.comment))
       );
       if (untrackedConflicts.length > 0) {
         throw new AppError(
@@ -677,12 +682,15 @@ export abstract class DomainsServiceRuntime {
           providerChanged = true;
           continue;
         }
+        // A record created before 2.12.1 carries the former comment: reconcile writes the current one.
+        const legacyComment = record.comment === legacyRecoveryComment;
         const matches =
           record.type === desiredType &&
           record.name === row.domain &&
           record.content === targetIp &&
           record.ttl === desiredTtl &&
-          (record.proxied ?? false) === desiredProxied;
+          (record.proxied ?? false) === desiredProxied &&
+          !legacyComment;
         if (!matches) {
           await context.client.updateDnsRecord(context.zone.remoteId, record.id, {
             type: desiredType,
@@ -690,6 +698,7 @@ export abstract class DomainsServiceRuntime {
             content: targetIp,
             ttl: desiredTtl,
             proxied: desiredProxied,
+            ...(legacyComment ? { comment: recoveryComment } : {}),
           });
           providerChanged = true;
         }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createChildLogger } from '@/lib/logger.js';
 import type { GeneralShutdownSettings } from '@/modules/settings/general-settings.service.js';
-import type { GatewayLifecycleService } from './gateway-lifecycle.service.js';
+import type { OpfieldLifecycleService } from './opfield-lifecycle.service.js';
 
 const logger = createChildLogger('ShutdownCoordinator');
 
@@ -36,7 +36,7 @@ export interface ShutdownHooks {
 }
 
 export interface ShutdownCoordinatorOptions {
-  lifecycle: GatewayLifecycleService;
+  lifecycle: OpfieldLifecycleService;
   getSettings: () => GeneralShutdownSettings;
   hooks: ShutdownHooks;
   exit?: (code: number) => void;

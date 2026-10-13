@@ -24,7 +24,7 @@ import { DEFAULT_GENERAL_SETTINGS, GeneralSettingsService } from '@/modules/sett
 import { NetworkSettingsService } from '@/modules/settings/network-settings.service.js';
 import { OutboundWebhookPolicyService } from '@/modules/settings/outbound-webhook-policy.service.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
-import { GatewayIdentityRenewalService } from '@/services/gateway-identity-renewal.service.js';
+import { OpfieldIdentityRenewalService } from '@/services/opfield-identity-renewal.service.js';
 import { SessionService } from '@/services/session.service.js';
 import { WebIdentityService } from '@/services/web-identity.service.js';
 import { WebTransportSettingsService } from '@/services/web-transport-settings.service.js';
@@ -133,7 +133,7 @@ function registerSession(scopes: string[], user: User = USER) {
       url: '',
       username: '',
       passwordLast4: null,
-      database: 'gateway_logs',
+      database: 'opfield_logs',
       table: 'logs',
       requestTimeoutMs: 5000,
     }),
@@ -154,7 +154,7 @@ function sessionHeaders() {
 
 afterEach(() => {
   container.reset();
-  delete process.env.GATEWAY_DEPLOYMENT_MODE;
+  delete process.env.OPFIELD_DEPLOYMENT_MODE;
 });
 
 describe('admin user identity validation', () => {
@@ -423,8 +423,8 @@ describe('admin user impersonation', () => {
 });
 
 describe('admin Gateway settings route permissions', () => {
-  it('allows reading Gateway settings with settings:gateway:view without admin:users', async () => {
-    registerSession(['settings:gateway:view']);
+  it('allows reading Gateway settings with settings:opfield:view without admin:users', async () => {
+    registerSession(['settings:opfield:view']);
     container.registerInstance(AuthSettingsService, {
       getConfig: vi.fn().mockResolvedValue({
         oidcAutoCreateUsers: false,
@@ -492,7 +492,7 @@ describe('admin Gateway settings route permissions', () => {
         url: '',
         username: '',
         passwordLast4: null,
-        database: 'gateway_logs',
+        database: 'opfield_logs',
         table: 'logs',
         requestTimeoutMs: 5000,
       },
@@ -528,9 +528,9 @@ describe('admin Gateway settings route permissions', () => {
   });
 
   it('returns a shape-compatible non-secret Gateway settings projection to demo visitors', async () => {
-    process.env.GATEWAY_DEPLOYMENT_MODE = 'demo';
+    process.env.OPFIELD_DEPLOYMENT_MODE = 'demo';
     const demoUser = { ...USER, groupId: 'demo-group', groupName: 'demo-admin', authMethod: 'demo_email_otp' as const };
-    registerSession(['settings:gateway:view'], demoUser);
+    registerSession(['settings:opfield:view'], demoUser);
     container.registerInstance(AuthSettingsService, {
       getConfig: vi.fn().mockResolvedValue({
         oidcAutoCreateUsers: true,
@@ -586,8 +586,8 @@ describe('admin Gateway settings route permissions', () => {
         hideExternalBranding: false,
         fileUploadMaxBytes: 100,
         fileOpenMaxBytes: 10,
-        gatewayGrpcPublicTarget: 'gateway.internal:9443',
-        gatewayGrpcLocalIp: '10.0.0.2:9443',
+        grpcPublicTarget: 'gateway.internal:9443',
+        grpcLocalIp: '10.0.0.2:9443',
         relayAutoRecovery: true,
         relay: { dataLanes: 8 },
         relayGrantTtlHours: 24,
@@ -621,8 +621,8 @@ describe('admin Gateway settings route permissions', () => {
       mcpServerEnabled: false,
       generalSettings: {
         publicUrl: 'https://demo.goodgateway.dev',
-        gatewayGrpcPublicTarget: null,
-        gatewayGrpcLocalIp: null,
+        grpcPublicTarget: null,
+        grpcLocalIp: null,
         relayAutoRecovery: false,
       },
       networkSecurity: { clientIpSource: 'auto', trustedProxyCidrs: [], trustCloudflareHeaders: false },
@@ -636,8 +636,8 @@ describe('admin Gateway settings route permissions', () => {
     expect(body.generalSettings).not.toHaveProperty('relay');
   });
 
-  it('does not allow editing Gateway settings with only settings:gateway:view', async () => {
-    registerSession(['settings:gateway:view']);
+  it('does not allow editing Gateway settings with only settings:opfield:view', async () => {
+    registerSession(['settings:opfield:view']);
 
     const response = await createApp().request('/api/admin/auth-settings', {
       method: 'PUT',
@@ -649,7 +649,7 @@ describe('admin Gateway settings route permissions', () => {
   });
 
   it('returns a human-readable conflict when OIDC is enabled before it is configured', async () => {
-    registerSession(['settings:gateway:edit']);
+    registerSession(['settings:opfield:edit']);
     const updateConfig = vi.fn();
     container.registerInstance(AuthSettingsService, { updateConfig } as unknown as AuthSettingsService);
     container.registerInstance(McpSettingsService, {} as McpSettingsService);
@@ -674,7 +674,7 @@ describe('admin Gateway settings route permissions', () => {
   });
 
   it('returns a human-readable conflict when email sign-in is enabled before SMTP is verified', async () => {
-    registerSession(['settings:gateway:edit']);
+    registerSession(['settings:opfield:edit']);
     const updateConfig = vi.fn();
     container.registerInstance(AuthSettingsService, { updateConfig } as unknown as AuthSettingsService);
     container.registerInstance(McpSettingsService, {} as McpSettingsService);
@@ -698,8 +698,8 @@ describe('admin Gateway settings route permissions', () => {
     expect(updateConfig).not.toHaveBeenCalled();
   });
 
-  it('allows editing verified OIDC email requirement with settings:gateway:edit', async () => {
-    registerSession(['settings:gateway:edit']);
+  it('allows editing verified OIDC email requirement with settings:opfield:edit', async () => {
+    registerSession(['settings:opfield:edit']);
     const updateConfig = vi.fn().mockResolvedValue({
       oidcAutoCreateUsers: true,
       oidcDefaultGroupId: 'group-1',
@@ -750,7 +750,7 @@ describe('admin Gateway settings route permissions', () => {
   });
 
   it('never writes an SMTP password into the auth-settings audit event', async () => {
-    registerSession(['settings:gateway:edit', 'admin:system']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     const auditLog = vi.fn().mockResolvedValue(undefined);
     container.registerInstance(AuthSettingsService, {
       updateConfig: vi.fn().mockResolvedValue({}),
@@ -803,8 +803,8 @@ describe('admin Gateway settings route permissions', () => {
     expect(JSON.stringify(entry)).not.toContain(password);
   });
 
-  it('allows editing general file upload limit with settings:gateway:edit', async () => {
-    registerSession(['settings:gateway:edit']);
+  it('allows editing general file upload limit with settings:opfield:edit', async () => {
+    registerSession(['settings:opfield:edit']);
     const updateGeneralConfig = vi.fn().mockResolvedValue({
       fileUploadMaxBytes: 50 * 1024 * 1024,
       fileOpenMaxBytes: 10 * 1024 * 1024,
@@ -870,8 +870,8 @@ describe('admin Gateway settings route permissions', () => {
     });
   });
 
-  it('allows editing OAuth extended callback compatibility with settings:gateway:edit', async () => {
-    registerSession(['settings:gateway:view', 'settings:gateway:edit']);
+  it('allows editing OAuth extended callback compatibility with settings:opfield:edit', async () => {
+    registerSession(['settings:opfield:view', 'settings:opfield:edit']);
     const updateConfig = vi.fn().mockResolvedValue({
       oidcAutoCreateUsers: true,
       oidcDefaultGroupId: null,
@@ -934,7 +934,7 @@ describe('admin Gateway settings route permissions', () => {
   });
 
   it('sends the selected SMTP test email template', async () => {
-    registerSession(['settings:gateway:edit', 'admin:system']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     const saveConfig = vi.fn().mockResolvedValue(undefined);
     const sendTestEmail = vi.fn().mockResolvedValue(undefined);
     const smtp = {
@@ -1482,8 +1482,8 @@ describe('identity-trust settings require admin:system', () => {
     ).resolves.toEqual([]);
   });
 
-  it('rejects an SMTP change from a settings:gateway:edit holder before anything is saved', async () => {
-    registerSession(['settings:gateway:edit']);
+  it('rejects an SMTP change from a settings:opfield:edit holder before anything is saved', async () => {
+    registerSession(['settings:opfield:edit']);
     const saveConfig = vi.fn();
     container.registerInstance(AuthMailService, {
       saveConfig,
@@ -1512,7 +1512,7 @@ describe('identity-trust settings require admin:system', () => {
 
 describe('general settings rollback', () => {
   it('rolls back only requested fields, and only if nothing changed them since', async () => {
-    registerSession(['settings:gateway:edit', 'admin:system']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     const previous = { ...DEFAULT_GENERAL_SETTINGS, publicUrl: 'https://old.example.com' };
     const applied = { ...previous, publicUrl: 'https://new.example.com' };
     const restoreFields = vi.fn().mockResolvedValue(previous);
@@ -1572,13 +1572,13 @@ describe('general settings rollback', () => {
     const applied = {
       ...previous,
       publicUrl: 'https://new.example.com',
-      gatewayGrpcPublicTarget: 'grpc.example.com:443',
+      grpcPublicTarget: 'grpc.example.com:443',
       relay: { ...previous.relay, dataLanes: previous.relay.dataLanes + 1 },
     };
 
     expect(generalSettingsRollbackPatch(previous, applied)).toEqual({
       publicUrl: 'https://old.example.com',
-      gatewayGrpcPublicTarget: null,
+      grpcPublicTarget: null,
       relay: { dataLanes: previous.relay.dataLanes },
     });
   });
@@ -1588,16 +1588,16 @@ describe('cloud-managed addresses', () => {
   const currentGeneral = {
     ...DEFAULT_GENERAL_SETTINGS,
     publicUrl: 'https://gw.example.com',
-    gatewayGrpcPublicTarget: 'gw.example.com:9443',
-    gatewayGrpcLocalIp: null,
+    grpcPublicTarget: 'gw.example.com:9443',
+    grpcLocalIp: null,
   };
 
   function registerSettings(managed: boolean) {
-    registerSession(['settings:gateway:edit', 'admin:system']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     container.registerInstance(WebIdentityService, { refresh: vi.fn() } as unknown as WebIdentityService);
-    container.registerInstance(GatewayIdentityRenewalService, {
+    container.registerInstance(OpfieldIdentityRenewalService, {
       refreshGrpcIdentity: vi.fn(),
-    } as unknown as GatewayIdentityRenewalService);
+    } as unknown as OpfieldIdentityRenewalService);
     const updateGeneralConfig = vi.fn().mockResolvedValue(currentGeneral);
     container.registerInstance(AuthSettingsService, {
       updateConfig: vi.fn().mockResolvedValue({
@@ -1643,8 +1643,8 @@ describe('cloud-managed addresses', () => {
 
   it('refuses changing the public URL or gRPC addresses of a managed installation', async () => {
     for (const change of [
-      { gatewayGrpcPublicTarget: 'other.example.com:9443' },
-      { gatewayGrpcLocalIp: '10.0.0.5:9443' },
+      { grpcPublicTarget: 'other.example.com:9443' },
+      { grpcLocalIp: '10.0.0.5:9443' },
       { publicUrl: 'https://other.example.com', fileUploadMaxBytes: 50 * 1024 * 1024 },
     ]) {
       const updateGeneralConfig = registerSettings(true);
@@ -1659,8 +1659,8 @@ describe('cloud-managed addresses', () => {
     const updateGeneralConfig = registerSettings(true);
     const change = {
       publicUrl: 'https://gw.example.com/',
-      gatewayGrpcPublicTarget: 'gw.example.com:9443',
-      gatewayGrpcLocalIp: '',
+      grpcPublicTarget: 'gw.example.com:9443',
+      grpcLocalIp: '',
       fileUploadMaxBytes: 50 * 1024 * 1024,
       relayGrantTtlHours: 12,
     };
@@ -1700,16 +1700,16 @@ describe('cloud-managed addresses', () => {
 
   it('lets an installation that is not managed change them', async () => {
     const updateGeneralConfig = registerSettings(false);
-    const response = await put({ gatewayGrpcPublicTarget: 'other.example.com:9443' });
+    const response = await put({ grpcPublicTarget: 'other.example.com:9443' });
     expect(response.status).toBe(200);
-    expect(updateGeneralConfig).toHaveBeenCalledWith({ gatewayGrpcPublicTarget: 'other.example.com:9443' });
+    expect(updateGeneralConfig).toHaveBeenCalledWith({ grpcPublicTarget: 'other.example.com:9443' });
   });
 
   it('names only the addresses that change', () => {
-    expect(
-      findCloudManagedChanges({ publicUrl: 'https://gw.example.com', gatewayGrpcLocalIp: null }, currentGeneral)
-    ).toEqual([]);
-    expect(findCloudManagedChanges({ gatewayGrpcPublicTarget: 'not a host' }, currentGeneral)).toEqual([
+    expect(findCloudManagedChanges({ publicUrl: 'https://gw.example.com', grpcLocalIp: null }, currentGeneral)).toEqual(
+      []
+    );
+    expect(findCloudManagedChanges({ grpcPublicTarget: 'not a host' }, currentGeneral)).toEqual([
       'the gRPC public target',
     ]);
   });
@@ -1802,7 +1802,7 @@ describe('sign-in on a managed installation', () => {
     admins: Array<{ authMethod: string; oidcIssuer: string | null }>,
     options: { enrolled?: boolean; managed?: boolean; clientIssued?: boolean; publicUrl?: string | null } = {}
   ) {
-    registerSession(['settings:gateway:edit', 'admin:system']);
+    registerSession(['settings:opfield:edit', 'admin:system']);
     const db = container.resolve<DrizzleClient>(TOKENS.DrizzleClient) as unknown as Record<string, unknown>;
     const chain = { from: () => chain, innerJoin: () => chain, where: async () => admins };
     container.registerInstance(TOKENS.DrizzleClient, { ...db, select: () => chain } as unknown as DrizzleClient);

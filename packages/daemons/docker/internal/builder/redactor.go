@@ -84,7 +84,13 @@ func (r *streamRedactor) drain(flush bool) {
 }
 
 func cleanupStaleSecretDirs(workspace string) error {
-	matches, err := filepath.Glob(filepath.Join(workspace, ".gateway-build-secrets-*"))
+	matches, err := filepath.Glob(filepath.Join(workspace, ".opfield-build-secrets-*"))
+	if err != nil {
+		return err
+	}
+	// legacy-name: secret directories a pre-Opfield daemon left behind — remove once every node reports none
+	legacy, err := filepath.Glob(filepath.Join(workspace, ".gateway-build-secrets-*"))
+	matches = append(matches, legacy...)
 	if err != nil {
 		return err
 	}

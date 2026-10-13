@@ -171,9 +171,9 @@ export class HostingProvisioningService {
     }
     let acceptedInput: HostingProvisionInput = input;
     let proxmoxDiscovery: HostingProxmoxDiscovery | undefined;
-    const targets = await this.nodeService.getGatewayEnrollmentTargets();
+    const targets = await this.nodeService.getOpfieldEnrollmentTargets();
     const gateway =
-      connector.provider === 'proxmox' ? targets.local?.gateway || targets.public.gateway : targets.public.gateway;
+      connector.provider === 'proxmox' ? targets.local?.address || targets.public.address : targets.public.address;
     if (!gateway)
       throw new AppError(
         409,
@@ -337,7 +337,7 @@ export class HostingProvisioningService {
           role: acceptedRequest.role,
           gateway,
           token: created.enrollmentToken,
-          certificateFingerprint: created.gatewayCertSha256,
+          certificateFingerprint: created.opfieldCertSha256,
           relayAddress,
           requireCleanHost: !existing,
           operationMarker: `gw-${operationId}`,
@@ -457,13 +457,13 @@ export class HostingProvisioningService {
     if (resource.snapshot.powerState !== 'running')
       throw new AppError(409, 'HOSTING_VM_STOPPED', 'Start the existing VM before retrying its installation');
     if (input.sshConnectorId) assertHostingScope(user.scopes, 'integrations:ssh:use');
-    const targets = await this.nodeService.getGatewayEnrollmentTargets();
+    const targets = await this.nodeService.getOpfieldEnrollmentTargets();
     const gateway =
-      connector.provider === 'proxmox' ? targets.local?.gateway || targets.public.gateway : targets.public.gateway;
+      connector.provider === 'proxmox' ? targets.local?.address || targets.public.address : targets.public.address;
     if (!gateway)
       throw new AppError(409, 'HOSTING_GATEWAY_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
     validateHostingGateway(gateway, connector.provider === 'proxmox');
-    const certificateFingerprint = await this.nodeService.getGatewayEnrollmentCertificateFingerprint();
+    const certificateFingerprint = await this.nodeService.getOpfieldEnrollmentCertificateFingerprint();
     const marker =
       typeof original.result?.bootstrapMarker === 'string' ? original.result.bootstrapMarker : `gw-${original.id}`;
     const reserved = await this.operations.reserve(
@@ -1395,7 +1395,7 @@ export class HostingProvisioningService {
   /** Built at SSH dispatch time so the embedded token is fresh (30 min) instead of the reservation token. */
   private async sshInstallScript(row: HostingOperationRow, connector: HostingConnectorRow): Promise<string> {
     const input = acceptedProvisionInput(row.request);
-    const gateway = (await this.nodeService.getGatewayEnrollmentTargets()).public.gateway;
+    const gateway = (await this.nodeService.getOpfieldEnrollmentTargets()).public.address;
     if (!gateway)
       throw new AppError(409, 'HOSTING_GATEWAY_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
     validateHostingGateway(gateway, connector.provider === 'proxmox');
@@ -1404,7 +1404,7 @@ export class HostingProvisioningService {
       waitForCloudInit: true,
       role: input.role,
       gateway,
-      certificateFingerprint: await this.nodeService.getGatewayEnrollmentCertificateFingerprint(),
+      certificateFingerprint: await this.nodeService.getOpfieldEnrollmentCertificateFingerprint(),
       token: await rotateSshInstallToken(this.db, row.nodeId!),
       relayAddress: input.role === 'relay' ? input.relayAddress : undefined,
       requireCleanHost: true,

@@ -1,7 +1,7 @@
 package chha
 
 import (
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // MemberReadinessQuery is the docker daemon's readiness query of a set

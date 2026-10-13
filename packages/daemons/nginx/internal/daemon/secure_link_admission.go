@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/logepisode"
+	"github.com/opfield/opfield/daemon-shared/logepisode"
 )
 
 // secureLinkSetupLimit bounds the connections of one listener manager that

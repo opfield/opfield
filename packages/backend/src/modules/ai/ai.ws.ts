@@ -301,7 +301,7 @@ function getRateLimitCount(results: unknown): number {
 async function checkRateLimit(userId: string): Promise<AIRateLimitResult> {
   const settingsService = container.resolve(AISettingsService);
   const config = await settingsService.getConfig();
-  if (config.providerType === 'gateway_inference') {
+  if (config.providerType === 'opfield_inference') {
     return { allowed: true, retryAfter: 0 };
   }
 
@@ -495,7 +495,7 @@ export function createWSHandlers() {
               if (msg.attachments?.length) {
                 const providerStatus = await providerRuntime.statusForUser(user);
                 const supportsImages =
-                  providerStatus.providerType === 'gateway_inference'
+                  providerStatus.providerType === 'opfield_inference'
                     ? providerStatus.models.find((candidate) => candidate.id === (model || providerStatus.defaultModel))
                         ?.supportsImages === true
                     : providerStatus.supportsImages;

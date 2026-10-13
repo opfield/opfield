@@ -122,7 +122,7 @@ describe('relay supervisor: a local relay that comes back', () => {
     await t.supervisor.watchReturn();
     expect(t.supervisor.getSnapshot(true)?.state).toBe('healthy');
     const calls = info.mock.calls as unknown as Array<[unknown, Record<string, unknown>?]>;
-    const lines = calls.filter(([message]) => message === 'Gateway reconnected its channels to the local relay');
+    const lines = calls.filter(([message]) => message === 'Opfield reconnected its channels to the local relay');
     expect(lines).toHaveLength(1);
     expect(lines[0]?.[1]).toMatchObject({ replacedNow: false });
   });
@@ -161,8 +161,8 @@ describe('relay supervisor: an answer from before the relay went down (stand rc.
     await probe;
     expect(t.supervisor.latestOutage()).toEqual(outage);
     const lines = (info.mock.calls as unknown as Array<[unknown]>).map(([message]) => message);
-    expect(lines).not.toContain('Gateway relay serves again; nodes and relays get a reconnect grace');
-    expect(lines).not.toContain('Gateway reconnected its channels to the local relay');
+    expect(lines).not.toContain('Opfield relay serves again; nodes and relays get a reconnect grace');
+    expect(lines).not.toContain('Opfield reconnected its channels to the local relay');
 
     // The relay really comes back: a check started after the outage ends it.
     t.relay(true);

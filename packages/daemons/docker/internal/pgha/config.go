@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 var rolePattern = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)

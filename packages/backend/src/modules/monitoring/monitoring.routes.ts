@@ -386,7 +386,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
       ? Promise.resolve(null)
       : Promise.all([
           container.resolve(MfaService).getStatus(user.id),
-          container.resolve(MfaService).isGatewayMfaRequired(user.id),
+          container.resolve(MfaService).isOpfieldMfaRequired(user.id),
           container.resolve(FinalizeSetupService).shouldShowMfaReminder(user.id),
           browserSessionPromise,
         ]).then(([status, required, showReminder, session]) => ({
@@ -790,9 +790,9 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     : null;
   const relayNotice =
     relay?.state === 'critical'
-      ? { id: 'gateway-relay', severity: 'critical' as const }
+      ? { id: 'opfield-relay', severity: 'critical' as const }
       : relay && ['migration_pending', 'maintenance', 'recovering', 'degraded'].includes(relay.state)
-        ? { id: 'gateway-relay', severity: 'warning' as const }
+        ? { id: 'opfield-relay', severity: 'warning' as const }
         : null;
   const licenseGraceUntil =
     license?.status === 'expired_grace' && license.graceUntil ? Date.parse(license.graceUntil) : 0;
@@ -839,7 +839,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
       : []),
     // The Dashboard shows one Update Available notice for a Gateway or a relay release.
     ...(update?.updateAvailable || update?.relay?.updateAvailable
-      ? [{ id: 'gateway-update', severity: 'warning' as const }]
+      ? [{ id: 'opfield-update', severity: 'warning' as const }]
       : []),
     ...(loggingHealth && !['disabled', 'healthy'].includes(loggingHealth.status)
       ? [{ id: 'logging-health', severity: 'warning' as const }]

@@ -10,7 +10,7 @@ export interface ConfigurationExportSection {
 export interface ConfigurationExportEstimate {
   available: boolean;
   unavailableReason: string | null;
-  gatewayVersion: string;
+  opfieldVersion: string;
   sections: {
     database: ConfigurationExportSection;
     files: ConfigurationExportSection;
@@ -43,7 +43,7 @@ export interface ConfigurationExportStart {
   expiresAt: string;
 }
 
-export type GatewayMoveNodeStateName =
+export type OpfieldMoveNodeStateName =
   | "ready"
   | "told"
   | "pending"
@@ -51,18 +51,18 @@ export type GatewayMoveNodeStateName =
   | "unsupported"
   | "failed";
 
-export interface GatewayMoveNodeState {
+export interface OpfieldMoveNodeState {
   nodeId: string;
   name: string;
   type: string;
-  state: GatewayMoveNodeStateName;
+  state: OpfieldMoveNodeStateName;
   error?: string;
 }
 
-export interface GatewayMoveStatus {
+export interface OpfieldMoveStatus {
   announcement: { address: string; announcedAt: string; userId: string | null } | null;
   currentAddress: string | null;
-  nodes: GatewayMoveNodeState[];
+  nodes: OpfieldMoveNodeState[];
 }
 
 const BASE = "/system/configuration-export";
@@ -92,14 +92,14 @@ export function withConfigurationTransferApi<TBase extends ApiClientBaseConstruc
       );
     }
 
-    async getGatewayMoveStatus(): Promise<GatewayMoveStatus> {
-      return this.unwrapData(this.request<{ data: GatewayMoveStatus }>(`${BASE}/move`));
+    async getOpfieldMoveStatus(): Promise<OpfieldMoveStatus> {
+      return this.unwrapData(this.request<{ data: OpfieldMoveStatus }>(`${BASE}/move`));
     }
 
     /** Announces the address nodes move to, or withdraws it with null. */
-    async setGatewayMoveAddress(address: string | null): Promise<GatewayMoveStatus> {
+    async setOpfieldMoveAddress(address: string | null): Promise<OpfieldMoveStatus> {
       return this.unwrapData(
-        this.request<{ data: GatewayMoveStatus }>(`${BASE}/move`, {
+        this.request<{ data: OpfieldMoveStatus }>(`${BASE}/move`, {
           method: "PUT",
           body: JSON.stringify({ address }),
         })

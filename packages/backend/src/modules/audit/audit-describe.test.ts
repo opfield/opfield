@@ -30,7 +30,7 @@ describe('one System user', () => {
   it("shows Opfield's own user as System in the audit user list", async () => {
     const { AuditService } = await import('./audit.service.js');
     const rows = [
-      { userId: '00000000-0000-0000-0000-000000000000', userName: 'Opfield System', userEmail: 'system@gateway.local' },
+      { userId: '00000000-0000-0000-0000-000000000000', userName: 'Opfield System', userEmail: 'system@opfield.local' },
       { userId: 'u1', userName: 'Ann', userEmail: 'ann@example.com' },
     ];
     const chain = { from: () => chain, leftJoin: () => chain, orderBy: async () => rows };

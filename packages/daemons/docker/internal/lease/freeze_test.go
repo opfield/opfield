@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
 )
 
 // D4, B-7: the wall clock is never evidence of a freeze. NTP steps in either

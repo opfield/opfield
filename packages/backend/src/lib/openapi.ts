@@ -17,7 +17,7 @@ export const openApiValidationHook = (result: { success: boolean; error?: unknow
  * VALIDATION_ERROR shape, never the raw ZodError. Route runtimes hand it to the commercial edition, so the routers
  * it creates from them answer the same way.
  */
-export class GatewayOpenAPIHono<
+export class OpfieldOpenAPIHono<
   E extends Env = Env,
   S extends Schema = BlankSchema,
   BasePath extends string = '/',
@@ -74,12 +74,12 @@ export const securitySchemes = {
     type: 'http' as const,
     scheme: 'bearer',
     description:
-      'Opfield API token (`gw_...`) or OAuth access token (`gwo_...`) for programmatic access. Browser sessions use the HttpOnly session cookie.',
+      'Opfield API token (`opf_...`) or OAuth access token (`opfo_...`) for programmatic access. Browser sessions use the HttpOnly session cookie.',
   },
   inferenceTokenAuth: {
     type: 'http' as const,
     scheme: 'bearer',
-    description: 'Dedicated Opfield inference token (`gwi_...`). Valid only on inference adapter data planes.',
+    description: 'Dedicated Opfield inference token (`opfi_...`). Valid only on inference adapter data planes.',
   },
 };
 
@@ -487,7 +487,7 @@ const tagExamples: Record<string, unknown> = {
   },
   Setup: {
     success: true,
-    domain: 'gateway.example.com',
+    domain: 'opfield.example.com',
   },
   Notifications: {
     id: '550e8400-e29b-41d4-a716-446655440000',

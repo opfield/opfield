@@ -40,18 +40,7 @@ type ConsentResult = {
   redirectUrl: string;
 };
 
-const OAUTH_ONLY_SCOPES: Record<string, Omit<OAuthScopeItem, "value">> = {
-  "inference:setup": {
-    label: "Set up inference clients",
-    desc: "Configure supported inference clients and manage their dedicated runtime tokens.",
-    group: "Inference",
-  },
-};
-
 function scopeItem(scope: string): OAuthScopeItem {
-  const oauthOnlyScope = OAUTH_ONLY_SCOPES[scope];
-  if (oauthOnlyScope) return { value: scope, ...oauthOnlyScope };
-
   const match = [...TOKEN_SCOPES]
     .sort((a, b) => b.value.length - a.value.length)
     .find((item) => scope === item.value || scope.startsWith(`${item.value}:`));

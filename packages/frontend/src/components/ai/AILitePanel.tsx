@@ -857,7 +857,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
               }
               selectedReasoningEffort={selectedReasoningEffort}
               onReasoningEffortChange={setSelectedReasoningEffort}
-              gatewayInferenceMode={providerStatus?.providerType === "gateway_inference"}
+              opfieldInferenceMode={providerStatus?.providerType === "opfield_inference"}
               attachments={attachments}
               canAttachImages={canAttachImages}
               uploadingAttachments={uploadingAttachments}

@@ -62,7 +62,7 @@ export const usePinnedNodesStore = create<PinnedNodesState>()(
       invalidate: () => set((s) => ({ refreshTick: s.refreshTick + 1 })),
     }),
     {
-      name: "gateway-pinned-nodes",
+      name: "opfield-pinned-nodes",
       partialize: (s) => ({
         dashboardNodeIds: s.dashboardNodeIds,
         sidebarNodeIds: s.sidebarNodeIds,

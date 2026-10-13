@@ -11,7 +11,7 @@ import { FINALIZE_SETUP_STATE_KEY } from '@/modules/onboarding/finalize-setup.se
 import { issueOwnerPasswordLink } from './owner-password-link.js';
 import { MANAGED_SIGN_IN_DETACH_SQL } from './transfer-docker.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const MEMBER = '22222222-2222-4222-8222-222222222222';
 

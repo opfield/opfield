@@ -79,7 +79,7 @@ import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { PasskeyService } from '@/modules/auth/passkey.service.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { ConfigurationExportService } from '@/modules/configuration-transfer/configuration-export.service.js';
-import { GatewayMoveService } from '@/modules/configuration-transfer/gateway-move.service.js';
+import { OpfieldMoveService } from '@/modules/configuration-transfer/opfield-move.service.js';
 import { issueOwnerPasswordLink, keepRestoredOwnerLink } from '@/modules/configuration-transfer/owner-password-link.js';
 import { completeConfigurationRestore } from '@/modules/configuration-transfer/restore-startup.js';
 import { SetupRestoreService } from '@/modules/configuration-transfer/setup-restore.service.js';
@@ -161,9 +161,9 @@ import { InferenceCoreOperationService } from '@/modules/inference/core/inferenc
 import { InferenceCoreProxyService } from '@/modules/inference/core/inference-core-proxy.service.js';
 import { InferenceCoreRuntimeService } from '@/modules/inference/core/inference-core-runtime.service.js';
 import { InferenceCoreStore } from '@/modules/inference/core/inference-core-store.js';
+import { InferenceCatalogEventsService } from '@/modules/inference/inference-catalog-events.service.js';
 import { InferenceCredentialVault } from '@/modules/inference/inference-credential-vault.js';
 import { InferenceRuntimeService } from '@/modules/inference/inference-runtime.service.js';
-import { InferenceSetupEventsService } from '@/modules/inference/inference-setup-events.service.js';
 import { InferenceTokenService } from '@/modules/inference/inference-token.service.js';
 import { InferenceModelService } from '@/modules/inference/models/inference-model.service.js';
 import { InferenceModelAccessService } from '@/modules/inference/models/inference-model-access.service.js';
@@ -287,11 +287,6 @@ import { DaemonUpdateRollout } from '@/services/daemon-update-rollout.service.js
 import { DatabaseCAService } from '@/services/database-ca.service.js';
 import { DockerService } from '@/services/docker.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
-import {
-  GatewayIdentityRenewalService,
-  hasUnexpiredEnrollmentTokens,
-} from '@/services/gateway-identity-renewal.service.js';
-import { GatewayLifecycleService } from '@/services/gateway-lifecycle.service.js';
 import { GrpcIdentityService } from '@/services/grpc-identity.service.js';
 import { HousekeepingService } from '@/services/housekeeping.service.js';
 import { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';
@@ -299,6 +294,11 @@ import { NginxConfigGenerator } from '@/services/nginx-config-generator.service.
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import { NodeKeeperWitnessService } from '@/services/node-keeper-witness.service.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
+import {
+  hasUnexpiredEnrollmentTokens,
+  OpfieldIdentityRenewalService,
+} from '@/services/opfield-identity-renewal.service.js';
+import { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import { ReadModelCoordinator } from '@/services/read-model-coordinator.service.js';
 import { RelayCertificateRenewalService } from '@/services/relay-certificate-renewal.service.js';
 import { RelayDockerRecoveryService } from '@/services/relay-docker-recovery.service.js';
@@ -372,8 +372,8 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(EnvironmentSettingsService, environmentSettingsService);
   const readModelCoordinator = new ReadModelCoordinator(eventBus);
   container.registerInstance(ReadModelCoordinator, readModelCoordinator);
-  const inferenceSetupEvents = new InferenceSetupEventsService(eventBus);
-  container.registerInstance(InferenceSetupEventsService, inferenceSetupEvents);
+  const inferenceCatalogEvents = new InferenceCatalogEventsService(eventBus);
+  container.registerInstance(InferenceCatalogEventsService, inferenceCatalogEvents);
 
   const sessionService = new SessionService(cacheService);
   container.registerInstance(SessionService, sessionService);
@@ -396,10 +396,10 @@ export async function initializeContainer(): Promise<void> {
   const mcpSettingsService = new McpSettingsService(db);
   container.registerInstance(McpSettingsService, mcpSettingsService);
 
-  const generalSettingsService = new GeneralSettingsService(db, inferenceSetupEvents, eventBus);
+  const generalSettingsService = new GeneralSettingsService(db, inferenceCatalogEvents, eventBus);
   container.registerInstance(GeneralSettingsService, generalSettingsService);
   await generalSettingsService.importLegacyPublicUrl(process.env.APP_URL);
-  container.registerInstance(GatewayLifecycleService, new GatewayLifecycleService());
+  container.registerInstance(OpfieldLifecycleService, new OpfieldLifecycleService());
 
   // SIEM reuses the existing installation identifier only as a non-secret
   // source label. It does not participate in licensing or tier checks.
@@ -562,7 +562,7 @@ export async function initializeContainer(): Promise<void> {
     auditService,
     inferenceDestinationPolicy,
     inferenceCoreBridgeService,
-    inferenceSetupEvents
+    inferenceCatalogEvents
   );
   container.registerInstance(InferenceProviderService, inferenceProviderService);
   inferenceProviderService.start();
@@ -578,7 +578,7 @@ export async function initializeContainer(): Promise<void> {
     inferenceModelAccessService,
     auditService,
     inferenceBudgetPolicyService,
-    inferenceSetupEvents,
+    inferenceCatalogEvents,
     inferenceCoreBridgeService
   );
   container.registerInstance(InferenceModelService, inferenceModelService);
@@ -588,7 +588,7 @@ export async function initializeContainer(): Promise<void> {
     inferenceModelService,
     inferenceModelAccessService,
     auditService,
-    inferenceSetupEvents
+    inferenceCatalogEvents
   );
   container.registerInstance(InferenceModelConfigurationService, inferenceModelConfigurationService);
   const inferenceRuntimeService = new InferenceRuntimeService();
@@ -663,7 +663,7 @@ export async function initializeContainer(): Promise<void> {
   // Upsert built-in groups (creates on fresh install, syncs scopes on upgrade)
   {
     const { syncPermissionGroupsAtStartup } = await import('@/lib/startup-scope-sync.js');
-    await syncPermissionGroupsAtStartup(db, env.GATEWAY_DEPLOYMENT_MODE);
+    await syncPermissionGroupsAtStartup(db, env.OPFIELD_DEPLOYMENT_MODE);
   }
 
   // Ensure system user exists before system CA (it's the owner of bootstrap resources)
@@ -671,16 +671,8 @@ export async function initializeContainer(): Promise<void> {
     const { users } = await import('@/db/schema/index.js');
     const { permissionGroups } = await import('@/db/schema/index.js');
     const { eq } = await import('drizzle-orm');
-    const SYSTEM_OIDC = 'system:gateway-setup';
-    const existing = await db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(eq(users.oidcSubject, SYSTEM_OIDC))
-      .limit(1);
-    const systemUser = existing[0];
-    if (systemUser?.name === 'Gateway System') {
-      await db.update(users).set({ name: 'Opfield System' }).where(eq(users.id, systemUser.id));
-    }
+    const SYSTEM_OIDC = 'system:opfield-setup';
+    const existing = await db.select({ id: users.id }).from(users).where(eq(users.oidcSubject, SYSTEM_OIDC)).limit(1);
     if (existing.length === 0) {
       const adminGroup = await db.query.permissionGroups.findFirst({
         where: eq(permissionGroups.name, 'system-admin'),
@@ -689,39 +681,13 @@ export async function initializeContainer(): Promise<void> {
         await db.insert(users).values({
           id: '00000000-0000-0000-0000-000000000000',
           oidcSubject: SYSTEM_OIDC,
-          email: 'system@gateway.local',
+          email: 'system@opfield.local',
           name: 'Opfield System',
           groupId: adminGroup.id,
         });
         logger.info('Created system user');
       }
     }
-  }
-
-  // The built-in outbound-connectivity alert rule (migration 0235) carries the product name; rename it while it still
-  // has the seeded text, so an operator's own edits stay.
-  {
-    const { notificationAlertRules } = await import('@/db/schema/index.js');
-    const { and, eq } = await import('drizzle-orm');
-    await db
-      .update(notificationAlertRules)
-      .set({
-        name: 'Opfield lost outbound connectivity',
-        messageTemplate:
-          'Opfield cannot reach {{details.targets}}. Route alerts this explains are folded into this alert, and notifications wait until Opfield can send them.',
-      })
-      .where(
-        and(
-          eq(notificationAlertRules.isBuiltin, true),
-          eq(notificationAlertRules.category, 'gateway'),
-          eq(notificationAlertRules.eventPattern, 'outbound.unavailable'),
-          eq(notificationAlertRules.name, 'Gateway lost outbound connectivity'),
-          eq(
-            notificationAlertRules.messageTemplate,
-            'Gateway cannot reach {{details.targets}}. Route alerts this explains are folded into this alert, and notifications wait until Gateway can send them.'
-          )
-        )
-      );
   }
 
   // System CA for node mTLS
@@ -755,18 +721,18 @@ export async function initializeContainer(): Promise<void> {
     systemCertificateLifecycleService,
     systemCA,
     grpcIdentityService,
-    env.GATEWAY_RELAY_IDENTITY_DIR
+    env.OPFIELD_RELAY_IDENTITY_DIR
   );
   container.registerInstance(RelayIdentityProvisionerService, relayIdentityProvisioner);
   let relayControlClient: RelayControlClient | undefined;
   let relayPolicyService: RelayPolicyService | undefined;
   let appRelayClientFingerprint: string | undefined;
-  if (env.GATEWAY_RELAY_REQUIRED) {
+  if (env.OPFIELD_RELAY_REQUIRED) {
     const identity = await relayIdentityProvisioner.ensure();
     appRelayClientFingerprint = identity.appClientFingerprint;
     relayControlClient = new RelayControlClient({
-      target: env.GATEWAY_RELAY_TARGET,
-      systemCaPath: `${env.GATEWAY_RELAY_IDENTITY_DIR}/system-ca.crt`,
+      target: env.OPFIELD_RELAY_TARGET,
+      systemCaPath: `${env.OPFIELD_RELAY_IDENTITY_DIR}/system-ca.crt`,
       certificatePath: identity.appClientCertPath,
       privateKeyPath: identity.appClientKeyPath,
       previousCertificatePath: identity.previousAppClientCertPath,
@@ -776,7 +742,7 @@ export async function initializeContainer(): Promise<void> {
     relayPolicyService = new RelayPolicyService(db, cryptoService, generalSettingsService, relayControlClient);
     // Gateway's own tunnels (database tools, storage browser, copy jobs) move their bytes in a worker thread.
     const tunnelLogger = createChildLogger('RelayTunnelWorker');
-    relayPolicyService.setGatewayTunnels(
+    relayPolicyService.setOpfieldTunnels(
       RelayTunnelHost.inWorker(relayControlClient, {
         log: ({ level, message, meta }) => tunnelLogger[level](message, meta ?? {}),
       })
@@ -789,7 +755,7 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(WebIdentityService, webIdentityService);
   // Renews Gateway's own TLS identities while it runs and hot-reloads them; also the one
   // refresh path settings changes and first-run setup use.
-  const gatewayIdentityRenewal = new GatewayIdentityRenewalService({
+  const opfieldIdentityRenewal = new OpfieldIdentityRenewalService({
     env,
     grpcIdentity: grpcIdentityService,
     grpcListener: {
@@ -797,9 +763,9 @@ export async function initializeContainer(): Promise<void> {
       servedCertificate: currentGrpcServerCertificate,
       stageRelayTrust: stageGrpcServerRelayTrust,
     },
-    relayIdentity: env.GATEWAY_RELAY_REQUIRED ? relayIdentityProvisioner : undefined,
+    relayIdentity: env.OPFIELD_RELAY_REQUIRED ? relayIdentityProvisioner : undefined,
     relayControl: relayControlClient,
-    startupRelayIdentity: env.GATEWAY_RELAY_REQUIRED ? await relayIdentityProvisioner.ensure() : undefined,
+    startupRelayIdentity: env.OPFIELD_RELAY_REQUIRED ? await relayIdentityProvisioner.ensure() : undefined,
     onAppClientFingerprint: (fingerprint) => {
       // Before the tunnel proxies exist they are created with the active fingerprint below.
       if (container.isRegistered(ManagedDatabaseTunnelProxy)) {
@@ -813,7 +779,7 @@ export async function initializeContainer(): Promise<void> {
     hasPendingEnrollments: () => hasUnexpiredEnrollmentTokens(db),
     audit: auditService,
   });
-  container.registerInstance(GatewayIdentityRenewalService, gatewayIdentityRenewal);
+  container.registerInstance(OpfieldIdentityRenewalService, opfieldIdentityRenewal);
 
   // Nginx config generator (pure config generation, no I/O)
   const configValidator = new ConfigValidatorService();
@@ -1896,12 +1862,12 @@ export async function initializeContainer(): Promise<void> {
   // AI Settings
   const aiSettingsService = new AISettingsService(db, cryptoService);
   aiSettingsService.setInferenceFeatureResolver(() => generalSettingsService.isFeatureEnabled('inferenceEnabled'));
-  aiSettingsService.setGatewayInferenceModelValidator(async (model) => {
+  aiSettingsService.setOpfieldInferenceModelValidator(async (model) => {
     const models = await inferenceModelService.listAdmin();
     return models.some((candidate) => candidate.enabled && candidate.publicId === model);
   });
   inferenceModelService.setModelRemovedHandler((removedModel, replacementModel) =>
-    aiSettingsService.handleGatewayInferenceModelRemoved(removedModel, replacementModel)
+    aiSettingsService.handleOpfieldInferenceModelRemoved(removedModel, replacementModel)
   );
   generalSettingsService.setInferenceDisabledHandler(() => aiSettingsService.handleInferenceDisabled());
   container.registerInstance(AISettingsService, aiSettingsService);
@@ -2114,7 +2080,7 @@ export async function initializeContainer(): Promise<void> {
       finalizeSetupService,
       mcpSettingsService,
       async () => {
-        await gatewayIdentityRenewal.refreshGrpcIdentity();
+        await opfieldIdentityRenewal.refreshGrpcIdentity();
       },
       async () => {
         const transport = await webTransportSettingsService.getConfig();
@@ -2156,9 +2122,9 @@ export async function initializeContainer(): Promise<void> {
   const relayDockerRecovery = new RelayDockerRecoveryService(dockerService, env);
   container.registerInstance(RelayDockerRecoveryService, relayDockerRecovery);
   const relayStartupFinalizer = new RelayStartupFinalizerService(relayControlClient ?? null, relayDockerRecovery, {
-    required: env.GATEWAY_RELAY_REQUIRED,
-    expectedVersion: env.GATEWAY_RELAY_BUILD_VERSION,
-    expectedProtocolMajor: env.GATEWAY_RELAY_PROTOCOL_MAJOR,
+    required: env.OPFIELD_RELAY_REQUIRED,
+    expectedVersion: env.OPFIELD_RELAY_BUILD_VERSION,
+    expectedProtocolMajor: env.OPFIELD_RELAY_PROTOCOL_MAJOR,
     syncPolicy: relayPolicyService ? () => relayPolicyService!.syncSnapshot() : undefined,
   });
   container.registerInstance(RelayStartupFinalizerService, relayStartupFinalizer);
@@ -2166,17 +2132,17 @@ export async function initializeContainer(): Promise<void> {
     db,
     cacheService,
     relayControlClient ?? null,
-    env.GATEWAY_RELAY_REQUIRED ? relayDockerRecovery : null,
+    env.OPFIELD_RELAY_REQUIRED ? relayDockerRecovery : null,
     generalSettingsService,
     eventBus,
     auditService,
     {
-      required: env.GATEWAY_RELAY_REQUIRED,
-      managed: env.GATEWAY_RELAY_MANAGED,
-      expectedImage: env.GATEWAY_RELAY_IMAGE_REF ?? null,
-      expectedService: env.GATEWAY_RELAY_SERVICE_NAME,
-      expectedVersion: env.GATEWAY_RELAY_BUILD_VERSION,
-      expectedProtocolMajor: env.GATEWAY_RELAY_PROTOCOL_MAJOR,
+      required: env.OPFIELD_RELAY_REQUIRED,
+      managed: env.OPFIELD_RELAY_MANAGED,
+      expectedImage: env.OPFIELD_RELAY_IMAGE_REF ?? null,
+      expectedService: env.OPFIELD_RELAY_SERVICE_NAME,
+      expectedVersion: env.OPFIELD_RELAY_BUILD_VERSION,
+      expectedProtocolMajor: env.OPFIELD_RELAY_PROTOCOL_MAJOR,
     }
   );
   relaySupervisor.setAvailabilityLeaseSink(availabilityLeaseService);
@@ -2196,7 +2162,7 @@ export async function initializeContainer(): Promise<void> {
   // Gateway's own relayed streams avoid the local relay while it does not serve, and return to it once it is stable.
   relayPolicyService?.setLocalRelayOutage(relaySupervisor);
   // They take the nearest remote relay then: Gateway measures every one of the pool all the time, as daemons do.
-  relayPolicyService?.measureGatewayRelayPaths();
+  relayPolicyService?.measureOpfieldRelayPaths();
 
   // Update service
   const updateService = new UpdateService(
@@ -2236,9 +2202,9 @@ export async function initializeContainer(): Promise<void> {
       auditService
     )
   );
-  const gatewayMoveService = new GatewayMoveService(db, nodeRegistry, generalSettingsService);
-  container.registerInstance(GatewayMoveService, gatewayMoveService);
-  await gatewayMoveService
+  const opfieldMoveService = new OpfieldMoveService(db, nodeRegistry, generalSettingsService);
+  container.registerInstance(OpfieldMoveService, opfieldMoveService);
+  await opfieldMoveService
     .initialize()
     .catch((error) => logger.error('Could not resume the announced Opfield address', { error }));
   const loggingClickHouseService = commercialEdition.createLogging(

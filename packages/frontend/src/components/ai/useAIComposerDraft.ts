@@ -3,7 +3,7 @@ import { createClientUuid } from "@/lib/client-id";
 import { useAuthStore } from "@/stores/auth";
 import type { AIComposerAttachment, AIComposerLocalImageAttachment } from "@/types/ai";
 
-const DRAFT_PREFIX = "gateway-ai-composer-draft";
+const DRAFT_PREFIX = "opfield-ai-composer-draft";
 const NEW_CONVERSATION_KEY = "new";
 
 function storageKey(userId: string | undefined, conversationId: string | null) {
@@ -68,7 +68,7 @@ export function useAIComposerDraft(
   return [value, setDraftValue];
 }
 
-const ATTACHMENT_DRAFT_PREFIX = "gateway-ai-composer-attachments";
+const ATTACHMENT_DRAFT_PREFIX = "opfield-ai-composer-attachments";
 
 function attachmentStorageKey(userId: string | undefined, conversationId: string | null) {
   return `${ATTACHMENT_DRAFT_PREFIX}:${userId ?? "anonymous"}:${conversationId ?? NEW_CONVERSATION_KEY}`;

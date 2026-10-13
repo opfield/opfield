@@ -15,8 +15,8 @@ func testFingerprint() string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-func TestVerifyGatewayFingerprintAcceptsValidFingerprint(t *testing.T) {
-	if err := verifyGatewayFingerprint(testFingerprint(), []*x509.Certificate{testPeerCert}); err != nil {
+func TestVerifyOpfieldFingerprintAcceptsValidFingerprint(t *testing.T) {
+	if err := verifyOpfieldFingerprint(testFingerprint(), []*x509.Certificate{testPeerCert}); err != nil {
 		t.Fatalf("expected fingerprint to verify: %v", err)
 	}
 }
@@ -54,15 +54,15 @@ func TestNormalizeExpectedFingerprintRejectsMalformed(t *testing.T) {
 	}
 }
 
-func TestVerifyGatewayFingerprintRejectsEmptyPeerCerts(t *testing.T) {
-	if err := verifyGatewayFingerprint(testFingerprint(), nil); err == nil {
+func TestVerifyOpfieldFingerprintRejectsEmptyPeerCerts(t *testing.T) {
+	if err := verifyOpfieldFingerprint(testFingerprint(), nil); err == nil {
 		t.Fatal("expected empty peer certificates to fail")
 	}
 }
 
-func TestVerifyGatewayFingerprintRejectsMismatch(t *testing.T) {
+func TestVerifyOpfieldFingerprintRejectsMismatch(t *testing.T) {
 	expected := "sha256:" + strings.Repeat("0", 64)
-	if err := verifyGatewayFingerprint(expected, []*x509.Certificate{testPeerCert}); err == nil {
+	if err := verifyOpfieldFingerprint(expected, []*x509.Certificate{testPeerCert}); err == nil {
 		t.Fatal("expected fingerprint mismatch to fail")
 	}
 }

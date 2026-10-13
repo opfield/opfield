@@ -1,9 +1,9 @@
-module github.com/wiolett-industries/gateway/secure-link-connector
+module github.com/opfield/opfield/secure-link-connector
 
 go 1.24.4
 
 require (
-	github.com/wiolett-industries/gateway/daemon-shared v0.0.0
+	github.com/opfield/opfield/daemon-shared v0.0.0
 	golang.org/x/sys v0.39.0
 )
 
@@ -18,4 +18,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/wiolett-industries/gateway/daemon-shared => ../shared
+replace github.com/opfield/opfield/daemon-shared => ../shared

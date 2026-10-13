@@ -125,7 +125,7 @@ export class NginxConfigGenerator {
     if (accessList.basicAuthEnabled) {
       directives.push('auth_basic "Restricted Access";');
       directives.push(
-        `auth_basic_user_file /etc/nginx/gateway/htpasswd/access-list-${this.sanitizeNginxValue(accessList.id)};`
+        `auth_basic_user_file /etc/nginx/opfield/htpasswd/access-list-${this.sanitizeNginxValue(accessList.id)};`
       );
     }
     return directives;
@@ -167,7 +167,7 @@ export class NginxConfigGenerator {
   private generateProxyConfig(host: ProxyHostConfig): string {
     const serverNames = host.domainNames.map((d) => this.sanitizeNginxValue(d)).join(' ');
     const sanitizedHost = host.forwardHost ? this.validateForwardHost(host.forwardHost) : '';
-    const secureLinkUpstreamName = `gateway_secure_link_${host.id.replace(/-/g, '_')}`;
+    const secureLinkUpstreamName = `opfield_secure_link_${host.id.replace(/-/g, '_')}`;
     const availability = Boolean(host.secureLinkUpstream && host.secureLinkSocketPaths?.length);
     const upstream = host.secureLinkUpstream
       ? `${host.forwardScheme}://${secureLinkUpstreamName}`
@@ -196,7 +196,7 @@ export class NginxConfigGenerator {
     if (host.secureLinkUpstream) {
       const socketPaths = host.secureLinkSocketPaths?.length
         ? host.secureLinkSocketPaths
-        : [host.secureLinkSocketPath ?? `/run/gateway-secure-links/${host.id}.sock`];
+        : [host.secureLinkSocketPath ?? `/run/opfield-secure-links/${host.id}.sock`];
       const body = availabilityUpstream.managedSecureLinkUpstreamBody(socketPaths, availability);
       lines.push(`upstream ${secureLinkUpstreamName} {\n${body}\n}`, '');
     }
@@ -288,7 +288,7 @@ export class NginxConfigGenerator {
       lines.push('        add_header X-Cache-Status $upstream_cache_status;');
     }
 
-    if (host.secureLinkUpstream) lines.push(`        # gateway-managed-secure-link-upstream ${host.id}`);
+    if (host.secureLinkUpstream) lines.push(`        # opfield-managed-secure-link-upstream ${host.id}`);
     lines.push(`        proxy_pass ${upstream};`);
     if (availability) {
       for (const directive of availabilityUpstream.AVAILABILITY_NEXT_UPSTREAM_DIRECTIVES)

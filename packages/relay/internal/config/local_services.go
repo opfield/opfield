@@ -3,8 +3,14 @@ package config
 import "fmt"
 
 const (
-	RegistryServiceID     = "gateway-internal-registry"
-	RegistryServiceTarget = "registry:5000"
+	RegistryServiceID = "opfield-internal-registry"
+	// legacy-name: gateway-internal-registry service id — remove once every node reports none.
+	// Opfield 2.12.0 names the internal registry so in its policy snapshots.
+	LegacyRegistryServiceID = "gateway-internal-registry"
+	RegistryServiceTarget   = "registry:5000"
+	// OpfieldRegistryCapability tells Opfield this relay serves the internal
+	// registry under RegistryServiceID as well as under the legacy id.
+	OpfieldRegistryCapability = "local_service_opfield_registry_v1"
 )
 
 type LocalServiceTarget struct {
@@ -16,8 +22,8 @@ type LocalServiceTarget struct {
 // Callers cannot supply a host or port, which prevents policy metadata from
 // turning the local Relay into an arbitrary network dialer.
 func BuiltinLocalServiceTarget(id string) (LocalServiceTarget, error) {
-	if id != RegistryServiceID {
+	if id != RegistryServiceID && id != LegacyRegistryServiceID {
 		return LocalServiceTarget{}, fmt.Errorf("unknown built-in local service %q", id)
 	}
-	return LocalServiceTarget{ID: RegistryServiceID, Target: RegistryServiceTarget}, nil
+	return LocalServiceTarget{ID: id, Target: RegistryServiceTarget}, nil
 }

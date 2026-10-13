@@ -115,7 +115,7 @@ export function resolveDirectoryOverride(value: string | undefined): { staging: 
   if (trimmed.toLowerCase() === 'production') return { staging: false };
   const url = new URL(trimmed);
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-    throw new Error('GATEWAY_ACME_DIRECTORY_URL must be an http(s) URL, "staging" or "production"');
+    throw new Error('OPFIELD_ACME_DIRECTORY_URL must be an http(s) URL, "staging" or "production"');
   }
   return { staging: false, directoryUrl: url.toString() };
 }

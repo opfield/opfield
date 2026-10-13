@@ -24,7 +24,7 @@ export const permissionGroups = pgTable(
     folderId: uuid('folder_id').references((): AnyPgColumn => permissionGroupFolders.id, { onDelete: 'set null' }),
     sortOrder: integer('sort_order').notNull().default(0),
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
-    requireGateway2fa: boolean('require_gateway_2fa').notNull().default(false),
+    require2fa: boolean('require_2fa').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

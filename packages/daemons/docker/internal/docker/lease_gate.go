@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // leaseGate refuses backend start and serve commands for placements of a
 // lease-mode policy unless this node holds the lease (A5). It runs before
 // the existing generation fencing, which stays in force (D12).
-func (p *DockerPlugin) leaseGate(cmd *pb.GatewayCommand) error {
+func (p *DockerPlugin) leaseGate(cmd *pb.OpfieldCommand) error {
 	if p.lease == nil || p.lease.runtime == nil {
 		return nil
 	}
@@ -27,11 +27,11 @@ func (p *DockerPlugin) leaseGate(cmd *pb.GatewayCommand) error {
 		}
 	}
 	switch payload := cmd.Payload.(type) {
-	case *pb.GatewayCommand_DockerContainer:
+	case *pb.OpfieldCommand_DockerContainer:
 		if payload.DockerContainer.GetAction() == "live_update" {
 			return p.leaseLiveUpdateGate(payload.DockerContainer)
 		}
-	case *pb.GatewayCommand_DockerAvailability:
+	case *pb.OpfieldCommand_DockerAvailability:
 		return p.leaseStandbyPrepareGate(payload.DockerAvailability)
 	}
 	return nil
@@ -58,14 +58,14 @@ func (p *DockerPlugin) leaseStandbyPrepareGate(cmd *pb.DockerAvailabilityCommand
 
 // leaseGatedPolicies lists the availability policies a command would start
 // or serve, for the actions that can start a workload.
-func (p *DockerPlugin) leaseGatedPolicies(cmd *pb.GatewayCommand) ([]string, error) {
+func (p *DockerPlugin) leaseGatedPolicies(cmd *pb.OpfieldCommand) ([]string, error) {
 	switch payload := cmd.Payload.(type) {
-	case *pb.GatewayCommand_DockerAvailability:
+	case *pb.OpfieldCommand_DockerAvailability:
 		switch payload.DockerAvailability.GetAction() {
 		case availabilityActionActivate, availabilityActionAdoptSingle:
 			return []string{payload.DockerAvailability.GetPolicyId()}, nil
 		}
-	case *pb.GatewayCommand_DockerContainer:
+	case *pb.OpfieldCommand_DockerContainer:
 		switch payload.DockerContainer.GetAction() {
 		case "start", "restart", "recreate", "update", "duplicate":
 			// Fail closed: a container that cannot be inspected is refused.
@@ -75,13 +75,13 @@ func (p *DockerPlugin) leaseGatedPolicies(cmd *pb.GatewayCommand) ([]string, err
 			}
 			return []string{policyID}, nil
 		}
-	case *pb.GatewayCommand_DockerDeployment:
+	case *pb.OpfieldCommand_DockerDeployment:
 		switch payload.DockerDeployment.GetAction() {
 		case "create", "deploy_slot", "switch", "start", "restart":
 			policies := p.availability.policiesForResource("deployment", payload.DockerDeployment.GetDeploymentId())
 			return appendLabelPolicy(policies, payload.DockerDeployment.GetConfigJson()), nil
 		}
-	case *pb.GatewayCommand_DockerCompose:
+	case *pb.OpfieldCommand_DockerCompose:
 		switch payload.DockerCompose.GetAction() {
 		case "apply", "pull_apply", "start", "restart":
 			return p.availability.policiesForResource("compose", payload.DockerCompose.GetProjectId()), nil
@@ -115,7 +115,7 @@ func appendLabelPolicy(policies []string, configJSON string) []string {
 		return policies
 	}
 	for _, labels := range []map[string]string{payload.DesiredConfig.Labels, payload.Labels} {
-		if policyID := labels[availabilityPolicyLabel]; policyID != "" {
+		if policyID := labelValue(labels, availabilityPolicyLabel); policyID != "" {
 			policies = append(policies, policyID)
 		}
 	}
@@ -155,6 +155,10 @@ func (p *DockerPlugin) leaseCreateConfig(configJSON string) string {
 	}
 	labels, _ := config["labels"].(map[string]any)
 	policyID, _ := labels[availabilityPolicyLabel].(string)
+	if policyID == "" {
+		// legacy-name: wiolett.gateway.* labels in a payload of a pre-Opfield control plane — remove once every node reports none
+		policyID, _ = labels[legacyLabelKey(availabilityPolicyLabel)].(string)
+	}
 	if policyID == "" || !p.lease.runtime.LeaseMode(policyID) {
 		return configJSON
 	}

@@ -14,7 +14,7 @@ export type SetupRestoreState =
 
 export interface RestoreExportSummary {
   createdAt: string;
-  gatewayVersion: string;
+  opfieldVersion: string;
   installationId: string;
   sourcePublicUrl: string | null;
   sourceGrpcPublicTarget: string | null;

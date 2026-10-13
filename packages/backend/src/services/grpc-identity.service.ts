@@ -10,7 +10,7 @@ const logger = createChildLogger('GrpcIdentity');
 export interface GrpcIdentity {
   certPath: string;
   keyPath: string;
-  gatewayCertSha256: string;
+  opfieldCertSha256: string;
 }
 
 export class GrpcIdentityService {
@@ -34,8 +34,8 @@ export class GrpcIdentityService {
   }
 
   /** The fingerprint new enrollment commands carry: the certificate daemons are served now. */
-  async getGatewayCertSha256(): Promise<string> {
-    return this.servedSha256 ?? (await this.resolve()).gatewayCertSha256;
+  async getOpfieldCertSha256(): Promise<string> {
+    return this.servedSha256 ?? (await this.resolve()).opfieldCertSha256;
   }
 
   /**
@@ -51,14 +51,14 @@ export class GrpcIdentityService {
   }
 
   /** Records that daemons are now served the certificate with this fingerprint. */
-  markServed(gatewayCertSha256: string): void {
-    this.servedSha256 = gatewayCertSha256;
+  markServed(opfieldCertSha256: string): void {
+    this.servedSha256 = opfieldCertSha256;
   }
 
   private remember(identity: GrpcIdentity): void {
     this.identity = identity;
     // What is resolved first is what the listener starts with; later changes are marked when served.
-    this.servedSha256 ??= identity.gatewayCertSha256;
+    this.servedSha256 ??= identity.opfieldCertSha256;
   }
 
   private exclusive<T>(task: () => Promise<T>): Promise<T> {
@@ -94,9 +94,9 @@ export class GrpcIdentityService {
 
     const resolvedCertPath = certPath!;
     const resolvedKeyPath = keyPath!;
-    const gatewayCertSha256 = GrpcIdentityService.computeCertificateSha256(readFileSync(resolvedCertPath));
-    logger.info('Resolved gRPC server identity', { certPath: resolvedCertPath, gatewayCertSha256 });
-    return { certPath: resolvedCertPath, keyPath: resolvedKeyPath, gatewayCertSha256 };
+    const opfieldCertSha256 = GrpcIdentityService.computeCertificateSha256(readFileSync(resolvedCertPath));
+    logger.info('Resolved gRPC server identity', { certPath: resolvedCertPath, opfieldCertSha256 });
+    return { certPath: resolvedCertPath, keyPath: resolvedKeyPath, opfieldCertSha256 };
   }
 
   static computeCertificateSha256(certificatePem: string | Buffer): string {

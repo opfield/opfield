@@ -78,7 +78,7 @@ export class InferenceUpstreamEmulator {
         });
       }
       if (url.pathname.endsWith('/alpha/search')) {
-        return writeJson(response, { results: [{ title: 'Gateway emulator', url: 'https://emulator.invalid' }] });
+        return writeJson(response, { results: [{ title: 'Opfield emulator', url: 'https://emulator.invalid' }] });
       }
       if (url.pathname.endsWith('/realtime/calls') || url.pathname.endsWith('/live')) {
         return writeJson(response, { id: 'call_emulator', status: 'ready' });
@@ -349,5 +349,5 @@ function toolCallFrom(body: unknown): { name: string; arguments: string } {
 }
 
 function responseText(body: unknown): string {
-  return hasToolResult(asObject(body)) ? 'The command output was `gateway-tool-ok`.' : 'Gateway emulator response.';
+  return hasToolResult(asObject(body)) ? 'The command output was `gateway-tool-ok`.' : 'Opfield emulator response.';
 }

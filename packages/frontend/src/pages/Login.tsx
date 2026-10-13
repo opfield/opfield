@@ -76,7 +76,7 @@ const EMPTY_METHODS: AuthMethods = {
   passkeyLogin: false,
   demoEmailOtp: false,
 };
-const redirectToGateway = (path: string) => window.location.assign(path);
+const redirectToOpfield = (path: string) => window.location.assign(path);
 
 function isPasskeyPromptDismissed(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -116,7 +116,7 @@ export function loadAuthMethods(): Promise<AuthMethods> {
 export function LoginPage({
   initialMethods,
   initialMethodsFailed = false,
-  onComplete = redirectToGateway,
+  onComplete = redirectToOpfield,
 }: {
   initialMethods?: AuthMethods;
   initialMethodsFailed?: boolean;
@@ -142,7 +142,7 @@ export function LoginPage({
   const [passwordResetConfirmOpen, setPasswordResetConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [preparingTotp, setPreparingTotp] = useState(false);
-  const gatewayNavigationPending = useRef(false);
+  const opfieldNavigationPending = useRef(false);
   const prefersReducedMotion = useReducedMotion();
   const resetToken = new URLSearchParams(location.search).get("token");
   const returnTo = resolveAuthReturnTo(location.search);
@@ -202,7 +202,7 @@ export function LoginPage({
   }, [navigate, resetToken]);
 
   const complete = () => {
-    gatewayNavigationPending.current = true;
+    opfieldNavigationPending.current = true;
     onComplete(returnTo);
   };
 
@@ -238,7 +238,7 @@ export function LoginPage({
       if (handleError?.(error)) return;
       toastApiError(error, "Sign-in failed");
     } finally {
-      if (!gatewayNavigationPending.current) setBusy(false);
+      if (!opfieldNavigationPending.current) setBusy(false);
     }
   };
 

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 // A replaced connector whose control socket the daemon cannot reach is told to drain by a signal: it stops accepting

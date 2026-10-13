@@ -11,7 +11,7 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 )
 
 func TestStorageConnectorConfigOfPassesValidation(t *testing.T) {
@@ -25,7 +25,7 @@ func TestStorageConnectorConfigOfPassesValidation(t *testing.T) {
 			Env: []string{
 				"PATH=/usr/bin",
 				"GATEWAY_CONNECTOR_BINDING_ID=" + bindingID,
-				"GATEWAY_CONNECTOR_SOCKET=" + storageConnectorSocketPath,
+				"GATEWAY_CONNECTOR_SOCKET=" + legacyStorageConnectorMount + "/" + storageConnectorSocketName,
 				"GATEWAY_CONNECTOR_LISTEN=:9000",
 			},
 			Labels: map[string]string{managedStorageConnectorLabel: managedStorageConnectorWorkload},

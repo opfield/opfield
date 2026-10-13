@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 )
 
 // The test binary doubles as the launcher and the daemon of these tests: a

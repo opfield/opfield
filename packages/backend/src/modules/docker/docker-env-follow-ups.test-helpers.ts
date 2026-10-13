@@ -123,7 +123,7 @@ type EnvironmentStore = DockerContainerMutationContext['environmentService'] & o
  * One Gateway process's container operations against `node`: the operations' own watches run here (until the test
  * stops the timers, as a restart does), and so does what the task reconciler of this process runs.
  */
-export function gatewayProcess(
+export function opfieldProcess(
   node: ReturnType<typeof fakeDockerNode>,
   tasks: TaskStore,
   environment: EnvironmentStore,

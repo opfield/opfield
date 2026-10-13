@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 // DirFence is the production Fence: the watchdog's tmpfs directory.

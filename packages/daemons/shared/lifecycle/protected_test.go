@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/state"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/state"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -23,7 +23,7 @@ func (p *protectedTestPlugin) Init(*BaseConfig, *slog.Logger) error { return nil
 func (p *protectedTestPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 	return &pb.RegisterMessage{NodeId: nodeID}
 }
-func (p *protectedTestPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
+func (p *protectedTestPlugin) HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult {
 	return &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 }
 func (p *protectedTestPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport { return base }
@@ -34,23 +34,23 @@ func (p *protectedTestPlugin) OnSessionStart(context.Context, *stream.Writer) er
 func (p *protectedTestPlugin) OnSessionEnd()          {}
 func (p *protectedTestPlugin) SetLogger(*slog.Logger) {}
 func (p *protectedTestPlugin) ProtectedMode() bool    { return p.protected }
-func (p *protectedTestPlugin) ProtectedCommandAllowed(cmd *pb.GatewayCommand) bool {
+func (p *protectedTestPlugin) ProtectedCommandAllowed(cmd *pb.OpfieldCommand) bool {
 	return p.allowed[commandKind(cmd)]
 }
 
-// everyGatewayCommand returns one command per payload of GatewayCommand, so a
+// everyOpfieldCommand returns one command per payload of OpfieldCommand, so a
 // payload added later is covered without changing this test.
-func everyGatewayCommand(t *testing.T) []*pb.GatewayCommand {
+func everyOpfieldCommand(t *testing.T) []*pb.OpfieldCommand {
 	t.Helper()
-	descriptor := (&pb.GatewayCommand{}).ProtoReflect().Descriptor()
+	descriptor := (&pb.OpfieldCommand{}).ProtoReflect().Descriptor()
 	oneof := descriptor.Oneofs().ByName("payload")
 	if oneof == nil {
-		t.Fatal("GatewayCommand has no payload oneof")
+		t.Fatal("OpfieldCommand has no payload oneof")
 	}
-	commands := make([]*pb.GatewayCommand, 0, oneof.Fields().Len())
+	commands := make([]*pb.OpfieldCommand, 0, oneof.Fields().Len())
 	for index := 0; index < oneof.Fields().Len(); index++ {
 		field := oneof.Fields().Get(index)
-		cmd := &pb.GatewayCommand{CommandId: "cmd-" + string(field.Name())}
+		cmd := &pb.OpfieldCommand{CommandId: "cmd-" + string(field.Name())}
 		message := cmd.ProtoReflect()
 		if field.Kind() != protoreflect.MessageKind {
 			t.Fatalf("payload %s is not a message", field.Name())
@@ -68,12 +68,12 @@ var protectedSharedAllowed = map[string]bool{
 	"request_stats":            true,
 	"set_daemon_log_stream":    true,
 	"update_daemon":            true,
-	"set_gateway_next_address": true,
+	"set_opfield_next_address": true,
 }
 
 func TestProtectedModeRefusesEveryCommandNotAllowed(t *testing.T) {
 	plugin := &protectedTestPlugin{protected: true}
-	for _, cmd := range everyGatewayCommand(t) {
+	for _, cmd := range everyOpfieldCommand(t) {
 		kind := commandKind(cmd)
 		refused := refuseProtectedCommand(true, plugin, cmd)
 		if protectedSharedAllowed[kind] {
@@ -99,7 +99,7 @@ func TestProtectedModeRefusesHostAccessEvenWhenThePluginAllowsIt(t *testing.T) {
 			t.Errorf("protected mode let node_exec %s through", action)
 		}
 	}
-	input := &pb.GatewayCommand{Payload: &pb.GatewayCommand_ExecInput{ExecInput: &pb.ExecInput{ExecId: "exec-1", Data: []byte("id\n")}}}
+	input := &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_ExecInput{ExecInput: &pb.ExecInput{ExecId: "exec-1", Data: []byte("id\n")}}}
 	if refuseProtectedCommand(true, plugin, input) == nil {
 		t.Error("protected mode let console input through")
 	}
@@ -115,11 +115,11 @@ func TestProtectedModeKeepsTheHostIdentityReadAndPluginCommands(t *testing.T) {
 	if refused := refuseProtectedCommand(true, plugin, nodeFileCommand("ensure-host-identity")); refused != nil {
 		t.Fatalf("protected mode refused the fixed host identity read: %s", refused.Error)
 	}
-	policy := &pb.GatewayCommand{CommandId: "policy", Payload: &pb.GatewayCommand_SyncRelayPolicy{SyncRelayPolicy: &pb.SyncRelayPolicyCommand{}}}
+	policy := &pb.OpfieldCommand{CommandId: "policy", Payload: &pb.OpfieldCommand_SyncRelayPolicy{SyncRelayPolicy: &pb.SyncRelayPolicyCommand{}}}
 	if refused := refuseProtectedCommand(true, plugin, policy); refused != nil {
 		t.Fatalf("protected mode refused a command the plugin allows: %s", refused.Error)
 	}
-	drain := &pb.GatewayCommand{CommandId: "drain", Payload: &pb.GatewayCommand_SetRelayDrain{SetRelayDrain: &pb.SetRelayDrainCommand{}}}
+	drain := &pb.OpfieldCommand{CommandId: "drain", Payload: &pb.OpfieldCommand_SetRelayDrain{SetRelayDrain: &pb.SetRelayDrainCommand{}}}
 	if refuseProtectedCommand(true, plugin, drain) == nil {
 		t.Fatal("protected mode let a command the plugin does not allow through")
 	}
@@ -127,7 +127,7 @@ func TestProtectedModeKeepsTheHostIdentityReadAndPluginCommands(t *testing.T) {
 
 func TestUnprotectedNodeRefusesNothingHere(t *testing.T) {
 	plugin := &protectedTestPlugin{}
-	for _, cmd := range everyGatewayCommand(t) {
+	for _, cmd := range everyOpfieldCommand(t) {
 		if refused := refuseProtectedCommand(false, plugin, cmd); refused != nil {
 			t.Fatalf("an unprotected node refused %s: %s", commandKind(cmd), refused.Error)
 		}

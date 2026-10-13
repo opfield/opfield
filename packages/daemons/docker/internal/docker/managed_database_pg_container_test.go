@@ -47,9 +47,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/pgha"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/pgha"
 )
 
 const (
@@ -865,7 +865,7 @@ func TestPostgresSetContainers(t *testing.T) {
 		run.mu.Unlock()
 		t.Fatalf("the copy's container was not recreated (%s -> %s)", before, after)
 	}
-	if out, _ := dockerCLI("inspect", "-f", "{{.State.Running}} {{index .Config.Labels \"wiolett.gateway.availability.member\"}}", after); strings.TrimSpace(out) != "false "+pgctB {
+	if out, _ := dockerCLI("inspect", "-f", "{{.State.Running}} {{index .Config.Labels \"net.opfield.availability.member\"}}", after); strings.TrimSpace(out) != "false "+pgctB {
 		run.mu.Unlock()
 		t.Fatalf("the recreated copy is created, not started, with its member label: %q", out)
 	}

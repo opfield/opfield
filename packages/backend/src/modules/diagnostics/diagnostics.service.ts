@@ -1,11 +1,12 @@
 import { and, asc, eq, gte, lt, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import { gatewayDiagnosticsSamples, settings } from '@/db/schema/index.js';
+import { opfieldDiagnosticsSamples, settings } from '@/db/schema/index.js';
+import { LEGACY_MANAGED_SERVICE_LABEL, MANAGED_SERVICE_LABEL } from '@/foundation/opfield-names.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { RedisClient } from '@/services/cache.service.js';
 import type { DockerContainerListItem, DockerService } from '@/services/docker.service.js';
-import type { GatewayLifecycleService } from '@/services/gateway-lifecycle.service.js';
+import type { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import type { SchedulerJobStats, SchedulerService } from '@/services/scheduler.service.js';
 import {
   type LogEntry,
@@ -20,7 +21,7 @@ import { type HostReading, type ProcessReading, readDisk, SystemReader } from '.
 import type { PostgresDetails, PostgresProbe, PostgresProbeResult } from './postgres-probe.js';
 import { type RequestSummary, type RouteSummary, requestStats } from './request-stats.js';
 
-const logger = createChildLogger('GatewayDiagnostics');
+const logger = createChildLogger('OpfieldDiagnostics');
 
 const MINUTE_MS = 60_000;
 const HISTORY_RETENTION_MS = 48 * 60 * MINUTE_MS;
@@ -37,7 +38,6 @@ const DEFAULT_LOG_WINDOW_MS = 60 * MINUTE_MS;
 const DATA_PATHS = ['/var/lib/gateway', process.cwd()];
 const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
 const COMPOSE_SERVICE_LABEL = 'com.docker.compose.service';
-const MANAGED_SERVICE_LABEL = 'com.wiolett.gateway.managed-service';
 const UPDATE_ATTEMPT_KEY = 'update:gateway:attempt';
 const DOCKER_TIMESTAMP_PREFIX = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))\s?(.*)$/;
 /** A job counts as failing after this many failed runs in a row. */
@@ -105,7 +105,7 @@ export interface PostgresReading extends PostgresProbeResult {
 
 export interface DiagnosticsSnapshot {
   collectedAt: string;
-  gateway: {
+  opfield: {
     version: string;
     lifecycleState: string;
     processStartedAt: string;
@@ -247,7 +247,12 @@ function containerName(item: DockerContainerListItem): string {
 }
 
 function serviceOf(item: DockerContainerListItem): string {
-  return item.Labels?.[COMPOSE_SERVICE_LABEL] ?? item.Labels?.[MANAGED_SERVICE_LABEL] ?? containerName(item);
+  return (
+    item.Labels?.[COMPOSE_SERVICE_LABEL] ??
+    item.Labels?.[MANAGED_SERVICE_LABEL] ??
+    item.Labels?.[LEGACY_MANAGED_SERVICE_LABEL] ??
+    containerName(item)
+  );
 }
 
 function numberAt(sample: unknown, path: string): number | null {
@@ -281,7 +286,7 @@ export class DiagnosticsService {
     private readonly redis: RedisClient | null,
     private readonly docker: DockerService,
     private readonly scheduler: SchedulerService,
-    private readonly lifecycle: GatewayLifecycleService,
+    private readonly lifecycle: OpfieldLifecycleService,
     private readonly postgresProbe: PostgresProbe,
     private readonly appVersion: string
   ) {
@@ -317,7 +322,7 @@ export class DiagnosticsService {
     const jobs = this.scheduler.getJobStats();
     return {
       collectedAt: new Date(now).toISOString(),
-      gateway: {
+      opfield: {
         version: this.appVersion,
         lifecycleState: this.lifecycle.getState(),
         processStartedAt: this.processStartedAt,
@@ -550,7 +555,7 @@ export class DiagnosticsService {
     await this.storeSample(sample);
     if (this.observer) {
       await this.observer({ sample, postgres, redis, containers, jobs }).catch((error: unknown) => {
-        logger.warn('Gateway alert evaluation failed', { error: errorMessage(error) });
+        logger.warn('Opfield alert evaluation failed', { error: errorMessage(error) });
       });
     }
   }
@@ -566,7 +571,7 @@ export class DiagnosticsService {
     return this.readHost(false);
   }
 
-  async readDockerHostInfo(): Promise<DiagnosticsSnapshot['gateway']['dockerHost']> {
+  async readDockerHostInfo(): Promise<DiagnosticsSnapshot['opfield']['dockerHost']> {
     return this.readDockerHost();
   }
 
@@ -659,17 +664,17 @@ export class DiagnosticsService {
     const toStore = [...this.pendingSamples, sample];
     try {
       await this.db
-        .insert(gatewayDiagnosticsSamples)
+        .insert(opfieldDiagnosticsSamples)
         .values(
           toStore.map((item) => ({ minute: new Date(item.minute), data: item as unknown as Record<string, unknown> }))
         )
-        .onConflictDoUpdate({ target: gatewayDiagnosticsSamples.minute, set: { data: sql`excluded.data` } });
+        .onConflictDoUpdate({ target: opfieldDiagnosticsSamples.minute, set: { data: sql`excluded.data` } });
       this.pendingSamples = [];
       if (Date.now() - this.lastPruneAt > PRUNE_INTERVAL_MS) {
         this.lastPruneAt = Date.now();
         await this.db
-          .delete(gatewayDiagnosticsSamples)
-          .where(lt(gatewayDiagnosticsSamples.minute, new Date(Date.now() - HISTORY_RETENTION_MS)));
+          .delete(opfieldDiagnosticsSamples)
+          .where(lt(opfieldDiagnosticsSamples.minute, new Date(Date.now() - HISTORY_RETENTION_MS)));
       }
     } catch (error) {
       // Postgres may be the thing that is down: keep the minutes and write them once it is back.
@@ -680,12 +685,12 @@ export class DiagnosticsService {
 
   private async samplesBetween(from: number, to: number): Promise<DiagnosticsSample[]> {
     const rows = await this.db
-      .select({ data: gatewayDiagnosticsSamples.data })
-      .from(gatewayDiagnosticsSamples)
+      .select({ data: opfieldDiagnosticsSamples.data })
+      .from(opfieldDiagnosticsSamples)
       .where(
-        and(gte(gatewayDiagnosticsSamples.minute, new Date(from)), lt(gatewayDiagnosticsSamples.minute, new Date(to)))
+        and(gte(opfieldDiagnosticsSamples.minute, new Date(from)), lt(opfieldDiagnosticsSamples.minute, new Date(to)))
       )
-      .orderBy(asc(gatewayDiagnosticsSamples.minute));
+      .orderBy(asc(opfieldDiagnosticsSamples.minute));
     const byMinute = new Map<string, DiagnosticsSample>();
     for (const row of rows) {
       const sample = row.data as unknown as DiagnosticsSample;
@@ -767,7 +772,7 @@ export class DiagnosticsService {
     }
   }
 
-  private async readDockerHost(): Promise<DiagnosticsSnapshot['gateway']['dockerHost']> {
+  private async readDockerHost(): Promise<DiagnosticsSnapshot['opfield']['dockerHost']> {
     try {
       const info = (await withTimeout(this.docker.getDaemonInfo(), DOCKER_TIMEOUT_MS, 'Docker')) as {
         Name?: string;
@@ -795,12 +800,14 @@ export class DiagnosticsService {
   }> {
     const self = await withTimeout(this.docker.inspectSelf(), DOCKER_TIMEOUT_MS, 'Docker');
     const project = self.Config.Labels?.[COMPOSE_PROJECT_LABEL] ?? null;
-    const [projectItems, managedItems] = await Promise.all([
+    const [projectItems, managedItems, legacyManagedItems] = await Promise.all([
       project ? this.docker.listContainersByLabel(`${COMPOSE_PROJECT_LABEL}=${project}`) : Promise.resolve([]),
       this.docker.listContainersByLabel(MANAGED_SERVICE_LABEL),
+      // legacy-name: services created before 2.12.1 keep their label until the host move recreates them.
+      this.docker.listContainersByLabel(LEGACY_MANAGED_SERVICE_LABEL),
     ]);
     const items = new Map<string, DockerContainerListItem>();
-    for (const item of [...projectItems, ...managedItems]) items.set(item.Id, item);
+    for (const item of [...projectItems, ...managedItems, ...legacyManagedItems]) items.set(item.Id, item);
     return { project, selfId: self.Id, items: [...items.values()] };
   }
 

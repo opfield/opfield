@@ -48,7 +48,7 @@ const secretService = {
     owner === `deployment:${DEPLOYMENT_ID}` ? new Set(['DATABASE_URL', 'AWS_SECRET_ACCESS_KEY']) : new Set<string>()
   ),
   getDecryptedMap: vi.fn(async (_nodeId: string, owner: string) =>
-    owner === `compose:${COMPOSE_PROJECT_ID}` ? { GATEWAY_DB_LINK: DATABASE_URL, API_TOKEN: COMPOSE_TOKEN } : {}
+    owner === `compose:${COMPOSE_PROJECT_ID}` ? { OPFIELD_DB_LINK: DATABASE_URL, API_TOKEN: COMPOSE_TOKEN } : {}
   ),
 };
 

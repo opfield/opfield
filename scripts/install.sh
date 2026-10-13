@@ -5,7 +5,7 @@ IFS=$'\n\t'
 DEFAULT_IMAGE="ghcr.io/opfield/opfield"
 # Official image repositories: the opfield organization and the earlier one every release is still published to.
 # A release's signed manifest names one of them (ghcr.io/opfield/opfield from 2.12; earlier releases the other one);
-# unless --image or GATEWAY_IMAGE names another repository, the installer installs the one the manifest names.
+# unless --image or OPFIELD_IMAGE names another repository, the installer installs the one the manifest names.
 OFFICIAL_IMAGES=("ghcr.io/opfield/opfield" "ghcr.io/the-square-labs/gateway")
 DOCKER_COMPOSE_CLI_IMAGE_REF="docker.io/library/docker:27-cli@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c"
 # Third-party service images, pinned by digest and mirrored to GHCR by the release pipeline
@@ -16,16 +16,30 @@ THIRD_PARTY_MIRROR_REPOSITORY="ghcr.io/the-square-labs/gateway"
 REGISTRY_UPSTREAM_IMAGE_REF="docker.io/library/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8" # 3.1.2
 POSTGRES_UPSTREAM_IMAGE_REF="docker.io/library/postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea" # 16.15-alpine
 REDIS_UPSTREAM_IMAGE_REF="docker.io/library/redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499" # 7.4.11-alpine
-DEFAULT_INSTALL_DIR="/opt/gateway"
+DEFAULT_INSTALL_DIR="/opt/opfield"
+# legacy-name: /opt/gateway — installations made before 2.12.1 live there until their host move; an update finds
+# them there. Remove once every installation reports the Opfield layout.
+LEGACY_INSTALL_DIR="/opt/gateway"
 # Present from the start of a fresh install until its setup code is shown; a re-run resumes it.
-INSTALL_PENDING_MARKER=".gateway-install-pending"
+INSTALL_PENDING_MARKER=".opfield-install-pending"
+# legacy-name: .gateway-install-pending — a fresh install of a release before 2.12.1 that stopped early.
+LEGACY_INSTALL_PENDING_MARKER=".gateway-install-pending"
+# The first release that runs in the Opfield layout (directory /opt/opfield, Compose project, database and role
+# `opfield`, OPFIELD_* settings). --restore installs older releases in the layout they know.
+FIRST_OPFIELD_LAYOUT_VERSION="v2.12.1-rc.3"
+HOST_MOVE_CONTAINER="opfield-host-move"
 RELEASES_API_URL="${RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
 ARTIFACT_BASE_URL="${ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
-INSTALL_DIR="${GATEWAY_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
-IMAGE="${GATEWAY_IMAGE:-$DEFAULT_IMAGE}"
-TRANSPORT="${GATEWAY_WEB_TRANSPORT:-}"
-SOURCE_DIR="${GATEWAY_SOURCE_DIR:-}"
-LOG_FILE="${GATEWAY_INSTALL_LOG_FILE:-/tmp/gateway-install.log}"
+# legacy-name: GATEWAY_* installer variables — automation written for releases before 2.12.1 still sets them; the
+# OPFIELD_* name wins when both are set.
+INSTALL_DIR="${OPFIELD_INSTALL_DIR:-${GATEWAY_INSTALL_DIR:-}}"
+IMAGE="${OPFIELD_IMAGE:-${GATEWAY_IMAGE:-$DEFAULT_IMAGE}}"
+TRANSPORT="${OPFIELD_WEB_TRANSPORT:-${GATEWAY_WEB_TRANSPORT:-}}"
+SOURCE_DIR="${OPFIELD_SOURCE_DIR:-${GATEWAY_SOURCE_DIR:-}}"
+LOG_FILE="${OPFIELD_INSTALL_LOG_FILE:-${GATEWAY_INSTALL_LOG_FILE:-/tmp/opfield-install.log}}"
+DOCKER_DAEMON_CONFIG="${OPFIELD_DOCKER_DAEMON_CONFIG:-${GATEWAY_DOCKER_DAEMON_CONFIG:-/etc/docker/daemon.json}}"
+# OPFIELD_ for the release this run installs; GATEWAY_ when --restore installs a release before 2.12.1.
+ENV_PREFIX="OPFIELD_"
 DRY_RUN=0
 RELAY_BOOTSTRAP=0
 RESTORE_FILE=""
@@ -207,9 +221,9 @@ pull_third_party_image() {
 }
 
 # ── Docker Engine bootstrap ─────────────────────────────────────────
-# Keep this installer self-contained: a fresh Gateway host must not require
+# Keep this installer self-contained: a fresh Opfield host must not require
 # Docker to have been installed manually beforehand.  The package flow mirrors
-# scripts/setup-docker-node.sh so Gateway and Docker-node installation use the
+# scripts/setup-docker-node.sh so Opfield and Docker-node installation use the
 # same official Docker Engine repositories and Compose v2 plugin.
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
@@ -603,13 +617,31 @@ env_value() {
   sed -n "s/^${key}=//p" "$env_file" | tail -n1
 }
 
-# Host Docker logging defaults. Gateway adds bounded json-file logs to its
+# The value of OPFIELD_<suffix> in .env.
+# legacy-name: GATEWAY_<suffix> of a .env the foundation migrator has not rewritten yet (releases before 2.12.1).
+setting_value() {
+  local value
+  value="$(env_value "OPFIELD_$1")"
+  [[ -n "$value" ]] || value="$(env_value "GATEWAY_$1")"
+  printf '%s' "$value"
+}
+
+# The .env key that holds setting <suffix>: the one the file has, or the current layout's name for a new one.
+setting_key() {
+  if ! grep -q "^OPFIELD_$1=" .env 2>/dev/null && grep -q "^GATEWAY_$1=" .env 2>/dev/null; then
+    printf 'GATEWAY_%s' "$1" # legacy-name: kept until the foundation migrator renames it
+  else
+    printf '%s%s' "$ENV_PREFIX" "$1"
+  fi
+}
+
+# Host Docker logging defaults. Opfield adds bounded json-file logs to its
 # Compose services only when the daemon default is json-file and daemon.json
 # sets no default log-opts; any other operator choice wins.
 DOCKER_LOG_DRIVER=""
 DOCKER_LOG_OPTS=""
 detect_docker_log_defaults() {
-  local config="${GATEWAY_DOCKER_DAEMON_CONFIG:-/etc/docker/daemon.json}" compact
+  local config="$DOCKER_DAEMON_CONFIG" compact
   DOCKER_LOG_DRIVER="$("${DOCKER[@]}" info --format '{{.LoggingDriver}}' 2>/dev/null | tr -d '[:space:]' || true)"
   DOCKER_LOG_OPTS=""
   [[ -n "$DOCKER_LOG_DRIVER" ]] || return 0
@@ -628,7 +660,7 @@ docker_bounded_logging_allowed() {
   [[ "$DOCKER_LOG_DRIVER" == "json-file" && "$DOCKER_LOG_OPTS" == "none" ]]
 }
 
-# Whether vX.Y.Z[-rc.N] version $1 is newer than $2, ordered like the Gateway backend: numerically,
+# Whether vX.Y.Z[-rc.N] version $1 is newer than $2, ordered like the Opfield backend: numerically,
 # and a release candidate before its release. $1 in another format is never newer; $2 in another
 # format is older than any release.
 version_is_newer() {
@@ -673,7 +705,7 @@ prepare_install_metadata() {
     return
   fi
 
-  local release_json relay_json relay_tag relay_version current_gateway_version current_relay_version
+  local release_json relay_json relay_tag relay_version current_opfield_version current_relay_version
   if [[ -n "$RESTORE_FILE" ]]; then
     # An export restores into the exact Opfield version that made it.
     [[ "$RESTORE_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] ||
@@ -685,15 +717,15 @@ prepare_install_metadata() {
     info "Resolving the latest Opfield release"
     # The installer and the updater record the running version; older installs only carry it in a
     # tagged image reference. A release candidate stays installed until its stable release exists.
-    current_gateway_version="$(env_value GATEWAY_VERSION)"
-    if [[ -z "$current_gateway_version" ]]; then
-      current_gateway_version="$(env_value GATEWAY_IMAGE_REF)"
-      current_gateway_version="${current_gateway_version##*:}"
+    current_opfield_version="$(setting_value VERSION)"
+    if [[ -z "$current_opfield_version" ]]; then
+      current_opfield_version="$(setting_value IMAGE_REF)"
+      current_opfield_version="${current_opfield_version##*:}"
     fi
-    [[ "$current_gateway_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || current_gateway_version=""
-    release_json="$(fetch_release gateway "$current_gateway_version")" || die "Unable to query Opfield releases"
-    if [[ -z "$release_json" && -n "$current_gateway_version" ]]; then
-      VERSION="$current_gateway_version"
+    [[ "$current_opfield_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || current_opfield_version=""
+    release_json="$(fetch_release gateway "$current_opfield_version")" || die "Unable to query Opfield releases"
+    if [[ -z "$release_json" && -n "$current_opfield_version" ]]; then
+      VERSION="$current_opfield_version"
     else
       VERSION="$(
         printf '%s' "$release_json" |
@@ -708,8 +740,8 @@ prepare_install_metadata() {
     info "Version: ${VERSION}"
     verify_signed_release "$VERSION"
   fi
-  current_relay_version="$(env_value GATEWAY_RELAY_BUILD_VERSION)"
-  if [[ "$FRESH" == 1 || -z "$(env_value GATEWAY_RELAY_IMAGE_REF)" || -z "$current_relay_version" ]]; then
+  current_relay_version="$(setting_value RELAY_BUILD_VERSION)"
+  if [[ "$FRESH" == 1 || -z "$(setting_value RELAY_IMAGE_REF)" || -z "$current_relay_version" ]]; then
     relay_json="$(fetch_release relay "$current_relay_version")" || die "Unable to query Relay releases"
     if [[ -z "$relay_json" && -n "$current_relay_version" ]]; then
       relay_tag="${current_relay_version}-relay"
@@ -748,7 +780,9 @@ read_export_version() {
   [[ "$magic" == "OPFIELD-EXPORT/1" ]] || die "${RESTORE_FILE} is not an Opfield configuration export"
   header_file="$(mktemp)"
   head -c 65536 "$RESTORE_FILE" | LC_ALL=C sed -n '2p' >"$header_file"
-  RESTORE_VERSION="$(json_string_field "$header_file" gatewayVersion)"
+  RESTORE_VERSION="$(json_string_field "$header_file" opfieldVersion)"
+  # legacy-name: gatewayVersion — the header of an export made before 2.12.1.
+  [[ -n "$RESTORE_VERSION" ]] || RESTORE_VERSION="$(json_string_field "$header_file" gatewayVersion)"
   rm -f "$header_file"
   [[ "$RESTORE_VERSION" =~ ^[A-Za-z0-9._+-]+$ ]] || die "The header of ${RESTORE_FILE} is invalid"
 }
@@ -788,7 +822,7 @@ run_restore() {
   info "Starting the database for the restore"
   run_quiet "Database startup" "${DOCKER[@]}" compose up -d postgres redis
   for _ in $(seq 1 60); do
-    "${DOCKER[@]}" compose exec -T postgres pg_isready -U gateway -d gateway </dev/null >/dev/null 2>&1 && break
+    "${DOCKER[@]}" compose exec -T postgres pg_isready -U "$DB_ROLE" -d "$DB_NAME" </dev/null >/dev/null 2>&1 && break
     sleep 2
   done
   postgres_id="$("${DOCKER[@]}" compose ps -q postgres)"
@@ -882,15 +916,78 @@ add_console_ports() {
   rm -f "$output"
 }
 
+# Whether the installation in INSTALL_DIR still has (part of) the layout of the releases before 2.12.1, and the release
+# this run installs moves it (foundation/host-move.ts in the app image).
+installation_needs_host_move() {
+  [[ "$LEGACY_LAYOUT" == 0 && "$FRESH" == 0 && -f "$INSTALL_DIR/docker-compose.yml" ]] || return 1
+  ! version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$VERSION" || return 1
+  [[ "$(basename "$INSTALL_DIR")" != gateway ]] || return 0
+  grep -Eq '^name:[[:space:]]*["'"'"']?opfield["'"'"']?[[:space:]]*$' "$INSTALL_DIR/docker-compose.yml" || return 0
+  [[ "$DB_NAME" == opfield ]] || return 0
+  return 1
+}
+
+# Where the host move puts the installation: a sibling `opfield` of a `gateway` directory, otherwise where it is.
+host_move_target_dir() {
+  if [[ "$(basename "$INSTALL_DIR")" == gateway && ! -e "$(dirname "$INSTALL_DIR")/opfield" ]]; then
+    printf '%s/opfield' "$(dirname "$INSTALL_DIR")"
+  else
+    printf '%s' "$INSTALL_DIR"
+  fi
+}
+
+# Moves an updated installation to the Opfield layout: the same container the app starts once an update settled; its
+# name makes sure only one runs. Docker restarts it after a crash or reboot, and it resumes where it stopped.
+run_host_move() {
+  local app_id project network parent target status state
+  installation_needs_host_move || return 0
+  app_id="$("${DOCKER[@]}" compose ps -q app)"
+  [[ -n "$app_id" ]] || { warn "Opfield is not running, so it stays in ${INSTALL_DIR} for now"; return 0; }
+  project="$("${DOCKER[@]}" inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$app_id")"
+  network="$("${DOCKER[@]}" inspect --format '{{.HostConfig.NetworkMode}}' "$app_id")"
+  target="$(host_move_target_dir)"
+  parent="$(dirname "$INSTALL_DIR")"
+  info "Moving Opfield to ${target}: Opfield and Secure Links through this host stop for about a minute"
+  state="$("${DOCKER[@]}" inspect --format '{{.State.Status}}' "$HOST_MOVE_CONTAINER" 2>/dev/null || true)"
+  if [[ "$state" != running && "$state" != restarting ]]; then
+    "${DOCKER[@]}" rm -f "$HOST_MOVE_CONTAINER" >>"$LOG_FILE" 2>&1 || true
+    run_quiet "Host move start" "${DOCKER[@]}" run -d --name "$HOST_MOVE_CONTAINER" \
+      --label net.opfield.role=opfield-host-move --restart unless-stopped --network none \
+      -v /var/run/docker.sock:/var/run/docker.sock -v "${parent}:${parent}" \
+      -v /var/lib/opfield/sandbox-workspaces:/var/lib/opfield/sandbox-workspaces \
+      "$IMAGE_REF" node dist/cli/host-move.js --dir "$INSTALL_DIR" --project "$project" --network "$network" --retry
+  fi
+  while :; do
+    status="$("${DOCKER[@]}" wait "$HOST_MOVE_CONTAINER" 2>>"$LOG_FILE" | tail -n1 || true)"
+    sleep 3
+    # A run that stopped early is restarted by Docker and resumes the move.
+    state="$("${DOCKER[@]}" inspect --format '{{.State.Status}}' "$HOST_MOVE_CONTAINER" 2>/dev/null || true)"
+    [[ "$state" == running || "$state" == restarting ]] || break
+  done
+  "${DOCKER[@]}" logs "$HOST_MOVE_CONTAINER" >>"$LOG_FILE" 2>&1 || true
+  case "$status" in
+    0)
+      INSTALL_DIR="$target"
+      cd "$INSTALL_DIR"
+      ok "Opfield moved to ${INSTALL_DIR}"
+      ;;
+    3) warn "The move to ${target} did not finish and was undone; Opfield runs from ${INSTALL_DIR} as before. Check ${LOG_FILE}" ;;
+    *) die "The move to ${target} stopped (exit ${status:-unknown}). See: docker logs ${HOST_MOVE_CONTAINER}" ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 Usage: install.sh [--install-dir PATH] [--image IMAGE] [--source-dir PATH] [--http|--https]
                   [--domain FQDN --acme-email EMAIL] [--dry-run]
        install.sh --restore FILE [--public-url URL] [--grpc-target HOST:PORT] [--install-dir PATH]
 
-Installs or updates Opfield. On a fresh interactive install, the only prompt
-selects native HTTPS or HTTP for port 3000. Non-interactive installs default
-to native HTTPS. All product configuration continues in the browser wizard.
+Installs or updates Opfield in /opt/opfield (or --install-dir). An update
+finds an installation made before 2.12.1 in /opt/gateway and, once the new
+release runs, moves it to /opt/opfield. On a fresh interactive install, the
+only prompt selects native HTTPS or HTTP for port 3000. Non-interactive
+installs default to native HTTPS. All product configuration continues in the
+browser wizard.
 
 --restore installs the Opfield version that made a configuration export into a
 fresh directory and restores the export into it. It asks for the export's
@@ -933,6 +1030,16 @@ while (($#)); do
 done
 validate_console_options
 
+# Without --install-dir: /opt/opfield, or an installation made before 2.12.1 that has not moved yet.
+INSTALL_DIR_DEFAULTED=0
+if [[ -z "$INSTALL_DIR" ]]; then
+  INSTALL_DIR_DEFAULTED=1
+  INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+  if [[ ! -f "$DEFAULT_INSTALL_DIR/.env" && -f "$LEGACY_INSTALL_DIR/.env" && ! -L "$LEGACY_INSTALL_DIR" ]]; then
+    INSTALL_DIR="$LEGACY_INSTALL_DIR" # legacy-name: see LEGACY_INSTALL_DIR
+  fi
+fi
+
 show_header
 
 RESTORED_PUBLIC_URL=""
@@ -957,6 +1064,10 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   fi
   cd "$INSTALL_DIR"
   INSTALL_DIR="$(pwd)"
+fi
+# legacy-name: a pending marker of a release before 2.12.1 counts as well.
+if [[ -f "$INSTALL_DIR/$LEGACY_INSTALL_PENDING_MARKER" && ! -f "$INSTALL_DIR/$INSTALL_PENDING_MARKER" ]]; then
+  INSTALL_PENDING_MARKER="$LEGACY_INSTALL_PENDING_MARKER"
 fi
 FRESH=1
 [[ -f "$INSTALL_DIR/.env" && ! -f "$INSTALL_DIR/$INSTALL_PENDING_MARKER" ]] && FRESH=0
@@ -986,7 +1097,26 @@ print_install_details
 
 # A re-run without --domain keeps the console domain the installation already has.
 if [[ -z "$CONSOLE_DOMAIN" ]]; then
-  CONSOLE_DOMAIN="$(env_value GATEWAY_CONSOLE_DOMAIN)"
+  CONSOLE_DOMAIN="$(setting_value CONSOLE_DOMAIN)"
+fi
+
+# The layout of what this run writes: a fresh install of a release before 2.12.1 (only --restore installs one) gets the
+# layout that release knows; everything else gets the Opfield layout, an existing installation through its host move.
+LEGACY_LAYOUT=0
+if [[ "$FRESH" == 1 ]] && version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$VERSION"; then
+  LEGACY_LAYOUT=1
+  ENV_PREFIX="GATEWAY_" # legacy-name: the settings names of the release this run installs
+fi
+DB_ROLE="opfield"
+DB_NAME="opfield"
+if [[ "$LEGACY_LAYOUT" == 1 ]]; then
+  # legacy-name: database and role of the releases before 2.12.1
+  DB_ROLE="gateway"
+  DB_NAME="gateway"
+elif [[ "$FRESH" == 0 && -f "$INSTALL_DIR/docker-compose.yml" ]] &&
+  grep -Eq 'DATABASE_URL[:=][[:space:]]*"?postgres(ql)?://gateway:' "$INSTALL_DIR/docker-compose.yml"; then
+  DB_ROLE="gateway" # legacy-name: an installation that has not moved yet
+  DB_NAME="gateway"
 fi
 if [[ "$RESUME" == 1 && -z "$TRANSPORT" ]]; then
   TRANSPORT="$(env_value WEB_TLS_BOOTSTRAP_MODE)"
@@ -1006,7 +1136,7 @@ if [[ "$FRESH" == 1 && -z "$TRANSPORT" ]]; then
     guide "${GRAY}Selected: ${NC}${TRANSPORT}"
   fi
 fi
-[[ "$TRANSPORT" == "http" || "$TRANSPORT" == "https" || "$FRESH" == 0 ]] || die "GATEWAY_WEB_TRANSPORT must be http or https"
+[[ "$TRANSPORT" == "http" || "$TRANSPORT" == "https" || "$FRESH" == 0 ]] || die "OPFIELD_WEB_TRANSPORT must be http or https"
 if [[ "$FRESH" == 1 && -z "$RESTORE_FILE" ]]; then
   if [[ -n "$CONSOLE_DOMAIN" ]]; then
     guide_blank
@@ -1021,8 +1151,11 @@ if [[ "$FRESH" == 1 && -z "$RESTORE_FILE" ]]; then
   fi
 fi
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  info "Dry run: would validate Docker and prepare Opfield services"
+  info "Dry run: would validate Docker and prepare Opfield services in ${INSTALL_DIR}"
   info "Dry run: would start Opfield with ${TRANSPORT} on port 3000"
+  if [[ "$FRESH" == 0 ]] && installation_needs_host_move; then
+    info "Dry run: would then move the installation to $(host_move_target_dir) (Opfield and Secure Links stop for about a minute)"
+  fi
   [[ -z "$CONSOLE_DOMAIN" ]] || info "Dry run: would serve https://${CONSOLE_DOMAIN} on ports 443 and 80 with a Let's Encrypt certificate"
   rm -f "$DRY_RUN_LOG"
   guide_blank
@@ -1040,6 +1173,26 @@ fi
 ensure_env() {
   local key="$1" value="$2"
   grep -q "^${key}=" .env 2>/dev/null || printf '%s=%s\n' "$key" "$value" >>.env
+}
+
+# Adds setting <suffix> unless .env has it under either name.
+ensure_setting() {
+  set_or_keep_setting "$1" "$2" keep
+}
+
+# Sets setting <suffix> under the name .env already uses (see setting_key).
+set_setting() {
+  set_or_keep_setting "$1" "$2" set
+}
+
+set_or_keep_setting() {
+  local key
+  key="$(setting_key "$1")"
+  if [[ "$3" == keep ]]; then
+    ensure_env "$key" "$2"
+  else
+    set_env "$key" "$2"
+  fi
 }
 
 set_env() {
@@ -1090,7 +1243,7 @@ detect_local_host_addresses() {
   detect_local_host_address_lines | paste -sd, -
 }
 
-format_gateway_url() {
+format_opfield_url() {
   local address="$1"
   if [[ "$address" == *:* ]]; then
     printf '%s://[%s]:3000' "$TRANSPORT" "$address"
@@ -1099,18 +1252,18 @@ format_gateway_url() {
   fi
 }
 
-print_gateway_urls() {
+print_opfield_urls() {
   local address
   guide "${BRAND_MINT}Open:${NC}"
   [[ -z "$CONSOLE_DOMAIN" ]] || guide "  ${GRAY}Console:${NC} https://${CONSOLE_DOMAIN}"
   guide "  ${GRAY}Local:${NC}   ${TRANSPORT}://localhost:3000"
   while IFS= read -r address; do
     [[ -n "$address" ]] || continue
-    guide "  ${GRAY}Network:${NC} $(format_gateway_url "$address")"
+    guide "  ${GRAY}Network:${NC} $(format_opfield_url "$address")"
   done < <(detect_local_host_address_lines)
 }
 
-REGISTRY_IMAGE_REF="$(env_value GATEWAY_REGISTRY_IMAGE_REF)"
+REGISTRY_IMAGE_REF="$(setting_value REGISTRY_IMAGE_REF)"
 if [[ "$FRESH" == 1 || -z "$REGISTRY_IMAGE_REF" ]]; then
   info "Pulling the pinned registry image"
   REGISTRY_IMAGE_REF="$(pull_third_party_image "$REGISTRY_UPSTREAM_IMAGE_REF")" ||
@@ -1129,7 +1282,7 @@ if [[ "$FRESH" == 1 ]]; then
   : >"$INSTALL_PENDING_MARKER"
   [[ "$RESUME" == 1 ]] || : >.env
 fi
-ensure_env GATEWAY_IMAGE_REF "$IMAGE_REF"
+ensure_setting IMAGE_REF "$IMAGE_REF"
 if [[ -n "${SECURE_LINK_CONNECTOR_IMAGE_REF:-}" ]]; then
   set_env SECURE_LINK_CONNECTOR_IMAGE "$SECURE_LINK_CONNECTOR_IMAGE_REF"
 fi
@@ -1137,37 +1290,40 @@ ensure_env DB_PASSWORD "$(openssl rand -hex 24)"
 ensure_env PKI_MASTER_KEY "$(openssl rand -hex 32)"
 ensure_env SETUP_BOOTSTRAP "$([[ "$FRESH" == 1 && -z "$RESTORE_FILE" ]] && printf true || printf false)"
 ensure_env WEB_TLS_BOOTSTRAP_MODE "${TRANSPORT:-http}"
-ensure_env SANDBOX_RUNNER_WORKSPACE_DIR "/var/lib/gateway/sandbox-workspaces"
-set_env GATEWAY_REGISTRY_IMAGE_REF "$REGISTRY_IMAGE_REF"
-ensure_env GATEWAY_REGISTRY_HTTP_SECRET "$(openssl rand -hex 32)"
-ensure_env GATEWAY_RELAY_MANAGED "$([[ -z "$SOURCE_DIR" ]] && printf true || printf false)"
+if [[ "$LEGACY_LAYOUT" == 1 ]]; then
+  ensure_env SANDBOX_RUNNER_WORKSPACE_DIR "/var/lib/gateway/sandbox-workspaces" # legacy-name: see LEGACY_LAYOUT
+else
+  ensure_env SANDBOX_RUNNER_WORKSPACE_DIR "/var/lib/opfield/sandbox-workspaces"
+fi
+set_setting REGISTRY_IMAGE_REF "$REGISTRY_IMAGE_REF"
+ensure_setting REGISTRY_HTTP_SECRET "$(openssl rand -hex 32)"
+ensure_setting RELAY_MANAGED "$([[ -z "$SOURCE_DIR" ]] && printf true || printf false)"
 if [[ -n "$ACME_EMAIL" ]]; then
-  set_env GATEWAY_CONSOLE_DOMAIN "$CONSOLE_DOMAIN"
-  set_env GATEWAY_ACME_EMAIL "$ACME_EMAIL"
+  set_setting CONSOLE_DOMAIN "$CONSOLE_DOMAIN"
+  set_setting ACME_EMAIL "$ACME_EMAIL"
 fi
 if [[ "$FRESH" == 1 ]]; then
-  set_env GATEWAY_VERSION "$VERSION"
-  set_env GATEWAY_RELAY_IMAGE_REF "$RELAY_IMAGE_REF"
-  set_env GATEWAY_RELAY_BUILD_VERSION "$RELAY_BUILD_VERSION"
-  set_env GATEWAY_RELAY_PROTOCOL_MAJOR "$RELAY_PROTOCOL_MAJOR"
-  set_env GATEWAY_POSTGRES_IMAGE_REF "$POSTGRES_IMAGE_REF"
-  set_env GATEWAY_REDIS_IMAGE_REF "$REDIS_IMAGE_REF"
+  set_setting VERSION "$VERSION"
+  set_setting RELAY_IMAGE_REF "$RELAY_IMAGE_REF"
+  set_setting RELAY_BUILD_VERSION "$RELAY_BUILD_VERSION"
+  set_setting RELAY_PROTOCOL_MAJOR "$RELAY_PROTOCOL_MAJOR"
+  set_setting POSTGRES_IMAGE_REF "$POSTGRES_IMAGE_REF"
+  set_setting REDIS_IMAGE_REF "$REDIS_IMAGE_REF"
 fi
 local_host_addresses="$(detect_local_host_addresses)"
 if [[ -n "$local_host_addresses" ]]; then
-  set_env GATEWAY_LOCAL_HOSTS "$local_host_addresses"
+  set_setting LOCAL_HOSTS "$local_host_addresses"
 else
-  ensure_env GATEWAY_LOCAL_HOSTS ""
+  ensure_setting LOCAL_HOSTS ""
 fi
 chmod 600 .env
 
 # Always advance the managed image reference to the latest release.
-tmp_env="$(mktemp)"
-awk -v ref="$IMAGE_REF" 'BEGIN{done=0} /^GATEWAY_IMAGE_REF=/{if(!done){print "GATEWAY_IMAGE_REF=" ref; done=1} next} {print} END{if(!done) print "GATEWAY_IMAGE_REF=" ref}' .env >"$tmp_env"
-mv "$tmp_env" .env
+set_setting IMAGE_REF "$IMAGE_REF"
 chmod 600 .env
 
-if [[ "$FRESH" == 1 ]]; then
+# legacy-name: docker-compose.yml of the releases before 2.12.1, for --restore of an export one of them made.
+write_legacy_compose() {
   cat >docker-compose.yml <<'COMPOSE'
 services:
   app:
@@ -1347,6 +1503,205 @@ volumes:
   postgres_data:
   redis_data:
 COMPOSE
+}
+
+write_opfield_compose() {
+  cat >docker-compose.yml <<'COMPOSE'
+name: opfield
+services:
+  app:
+    image: ${OPFIELD_IMAGE_REF}
+    restart: unless-stopped
+    stop_grace_period: 60s
+    labels:
+      net.opfield.managed-service: app
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://opfield:${DB_PASSWORD}@postgres:5432/opfield
+      REDIS_URL: redis://redis:6379
+      PKI_MASTER_KEY: ${PKI_MASTER_KEY}
+      WEB_TLS_AUTO_DIR: /var/lib/gateway/tls
+      GRPC_TLS_AUTO_DIR: /var/lib/gateway/tls
+      OPFIELD_RELAY_REQUIRED: "true"
+      OPFIELD_RELAY_MANAGED: "${OPFIELD_RELAY_MANAGED:-true}"
+      OPFIELD_RELAY_TARGET: relay:9443
+      OPFIELD_RELAY_IDENTITY_DIR: /var/lib/gateway-relay
+      OPFIELD_RELAY_IMAGE_REF: ${OPFIELD_RELAY_IMAGE_REF}
+      OPFIELD_RELAY_SERVICE_NAME: relay
+      OPFIELD_RELAY_BUILD_VERSION: ${OPFIELD_RELAY_BUILD_VERSION}
+      OPFIELD_RELAY_PROTOCOL_MAJOR: ${OPFIELD_RELAY_PROTOCOL_MAJOR}
+      OPFIELD_REGISTRY_AUTH_DIR: /var/lib/gateway-registry-auth
+      OPFIELD_REGISTRY_TOKEN_SERVICE: opfield-internal-registry
+      SANDBOX_RUNNER_WORKSPACE_DIR: ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}
+    ports:
+      - "3000:3000"
+    expose:
+      - "9443"
+    volumes:
+      - app_data:/var/lib/gateway
+      - relay_identity:/var/lib/gateway-relay
+      - registry_auth:/var/lib/gateway-registry-auth
+      - ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}:${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}
+      # Intentional host trust boundary: required for signed self-update,
+      # recovery, housekeeping, and Opfield-managed local services.
+      # Run Opfield on a dedicated host/VM; a read-only bind is not safer.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The host's memory, CPUs, load and uptime for diagnostics. In an LXC the memory use comes from the
+      # LXC's cgroup and the uptime from its init, since LXCFS answers /proc for the app container.
+      - /proc/meminfo:/host/proc/meminfo:ro
+      - /proc/loadavg:/host/proc/loadavg:ro
+      - /proc/stat:/host/proc/stat:ro
+      - /proc/1/stat:/host/proc/1/stat:ro
+      - /sys/fs/cgroup:/host/cgroup:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Inherit the image's bounded, child-process-free health probe.
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  relay:
+    image: ${OPFIELD_RELAY_IMAGE_REF}
+    entrypoint: ["/opfield-relay"]
+    restart: unless-stopped
+    labels:
+      net.opfield.managed-service: relay
+    environment:
+      RELAY_IDENTITY_DIR: /var/lib/gateway-relay/identity
+      RELAY_STATE_DIR: /var/lib/gateway-relay/state
+      RELAY_APP_GRPC_TARGET: app:9443
+      RELAY_POOL_ID: system
+      RELAY_INSTANCE_ID: 00000000-0000-4000-8000-000000000001
+    ports:
+      - "9443:9443"
+    volumes:
+      - relay_identity:/var/lib/gateway-relay/identity:ro
+      - relay_state:/var/lib/gateway-relay/state
+    healthcheck:
+      test: ["CMD", "/opfield-relay", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  registry:
+    image: ${OPFIELD_REGISTRY_IMAGE_REF}
+    restart: unless-stopped
+    labels:
+      net.opfield.managed-service: registry
+    environment:
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+      REGISTRY_HTTP_DEBUG_ADDR: 127.0.0.1:5001
+      REGISTRY_HTTP_SECRET: ${OPFIELD_REGISTRY_HTTP_SECRET}
+      REGISTRY_AUTH: token
+      REGISTRY_AUTH_TOKEN_REALM: ${OPFIELD_REGISTRY_TOKEN_REALM:-https://opfield.invalid/api/docker/registry/token}
+      REGISTRY_AUTH_TOKEN_SERVICE: opfield-internal-registry
+      REGISTRY_AUTH_TOKEN_ISSUER: opfield-internal-registry
+      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/gateway-registry-auth/token-cert.pem
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HEALTH_STORAGEDRIVER_ENABLED: "true"
+      REGISTRY_HEALTH_STORAGEDRIVER_INTERVAL: 10s
+      REGISTRY_HEALTH_STORAGEDRIVER_THRESHOLD: "3"
+    expose:
+      - "5000"
+    volumes:
+      - registry_data:/var/lib/registry
+      - registry_auth:/var/lib/gateway-registry-auth:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/debug/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  postgres:
+    image: ${OPFIELD_POSTGRES_IMAGE_REF}
+    restart: unless-stopped
+    # A host shutdown stops every container at once. Smart shutdown (SIGTERM) lets the app finish its shutdown drain
+    # on its open connections before postgres exits; the image's default (SIGINT) cuts them at once.
+    stop_signal: SIGTERM
+    stop_grace_period: 75s
+    environment:
+      POSTGRES_DB: opfield
+      POSTGRES_USER: opfield
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opfield -d opfield"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  redis:
+    image: ${OPFIELD_REDIS_IMAGE_REF}
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+volumes:
+  app_data:
+  relay_identity:
+  relay_state:
+  registry_data:
+  registry_auth:
+  postgres_data:
+  redis_data:
+COMPOSE
+}
+
+if [[ "$FRESH" == 1 ]]; then
+  if [[ "$LEGACY_LAYOUT" == 1 ]]; then
+    write_legacy_compose
+  else
+    write_opfield_compose
+    if version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$RELAY_BUILD_VERSION"; then
+      # legacy-name: a relay image before 2.12.1 has only /gateway-relay (later ones keep it as a link).
+      tmp_compose="$(mktemp)"
+      awk '{ gsub("\"/opfield-relay\"", "\"/gateway-relay\""); print }' docker-compose.yml >"$tmp_compose"
+      cat "$tmp_compose" >docker-compose.yml
+      rm -f "$tmp_compose"
+    fi
+  fi
   detect_docker_log_defaults
   if ! docker_bounded_logging_allowed; then
     # Keep the host's own logging (another driver, daemon.json log-opts, or unknown).
@@ -1368,7 +1723,7 @@ else
   current_app_id="$("${DOCKER[@]}" compose ps -q app)"
   [[ -n "$current_app_id" ]] || die "Start the existing Opfield installation before preparing its licensed update"
   current_network="$("${DOCKER[@]}" inspect --format '{{.HostConfig.NetworkMode}}' "$current_app_id")"
-  preparation_env="$(mktemp "$INSTALL_DIR/.gateway-update-env.XXXXXX")"
+  preparation_env="$(mktemp "$INSTALL_DIR/.opfield-update-env.XXXXXX")"
   chmod 600 "$preparation_env"
   trap 'rm -f "${preparation_env:-}"' EXIT
   if ! "${DOCKER[@]}" inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$current_app_id" \
@@ -1393,8 +1748,8 @@ else
   fi
   detect_docker_log_defaults
   foundation_env=()
-  [[ -n "$DOCKER_LOG_DRIVER" ]] && foundation_env+=(-e "GATEWAY_DOCKER_LOG_DRIVER=$DOCKER_LOG_DRIVER")
-  [[ -n "$DOCKER_LOG_OPTS" ]] && foundation_env+=(-e "GATEWAY_DOCKER_LOG_OPTS=$DOCKER_LOG_OPTS")
+  [[ -n "$DOCKER_LOG_DRIVER" ]] && foundation_env+=(-e "OPFIELD_DOCKER_LOG_DRIVER=$DOCKER_LOG_DRIVER")
+  [[ -n "$DOCKER_LOG_OPTS" ]] && foundation_env+=(-e "OPFIELD_DOCKER_LOG_OPTS=$DOCKER_LOG_OPTS")
   run_quiet "Opfield foundation migration" "${DOCKER[@]}" run --rm ${foundation_env[@]+"${foundation_env[@]}"} -v "$INSTALL_DIR:/host" "$IMAGE_REF" "${foundation_args[@]}"
 fi
 
@@ -1447,6 +1802,8 @@ if grep -Eq '^(OIDC_|CLICKHOUSE_|APP_URL=|SETUP_TOKEN=)' .env; then
   run_quiet "Opfield restart after legacy migration" "${DOCKER[@]}" compose up -d --force-recreate app
 fi
 
+[[ "$FRESH" == 1 ]] || run_host_move
+
 ok "Opfield ${VERSION} is running"
 guide_blank
 if [[ -n "$RESTORE_FILE" ]]; then
@@ -1483,7 +1840,7 @@ elif [[ "$FRESH" == 1 ]]; then
   expires_at="$(printf '%s' "$setup_json" | sed -n 's/.*"expiresAt":"\([^"]*\)".*/\1/p')"
   ca_fingerprint="$(printf '%s' "$setup_json" | sed -n 's/.*"caFingerprint":"\([^"]*\)".*/\1/p')"
   [[ -n "$setup_code" ]] || die "Opfield started, but the setup code could not be generated"
-  print_gateway_urls
+  print_opfield_urls
   guide_blank
   guide "${BRAND_MINT}Setup code:${NC} ${setup_code}"
   guide "${GRAY}Expires:${NC}    ${expires_at}"

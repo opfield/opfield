@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 func fiveVoterWorld(t *testing.T) *simWorld {
@@ -186,7 +186,7 @@ func TestN3HigherBallotNackRetriesInsteadOfFencing(t *testing.T) {
 
 // N4: a policy key rotation does not stop failover when the Gateway dies
 // before every voter learned the new key: the chain travels with the block.
-func TestN4PolicyKeyRotationSurvivesGatewayLoss(t *testing.T) {
+func TestN4PolicyKeyRotationSurvivesOpfieldLoss(t *testing.T) {
 	w := newScenario(t, scenarioSpec{
 		relays:     voterRelays(1, "r1", "r2", "r3"),
 		daemons:    []nodeSpec{{id: "d1"}, {id: "d2"}},

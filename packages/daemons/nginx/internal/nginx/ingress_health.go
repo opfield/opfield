@@ -1,50 +1,67 @@
 package nginx
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
+
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 const (
-	// IngressHealthPath is the reserved path every Gateway-rendered server block and the node's default servers
+	// IngressHealthPath is the reserved path every Opfield-rendered server block and the node's default servers
 	// answer. Probes (DNS failover monitors, the DNS steward) use it to learn whether this ingress node serves.
-	IngressHealthPath = "/.well-known/gateway-ingress-health"
-	// IngressHealthSocketDir holds the daemon's health responder socket; nginx proxies the reserved path there, so
-	// nginx itself answers 502 while the daemon is not running.
-	IngressHealthSocketDir = "/run/gateway-ingress-health"
-	// IngressHealthSocketPath is the responder socket inside IngressHealthSocketDir.
-	IngressHealthSocketPath = IngressHealthSocketDir + "/health.sock"
+	IngressHealthPath = naming.IngressHealthPath
+	// LegacyIngressHealthPath is answered the same way: monitors of customers set up before 2.12.1 probe it.
+	LegacyIngressHealthPath = naming.LegacyIngressHealthPath
+	// ingressHealthSocketName is the responder socket in the health socket directory; nginx proxies the reserved
+	// paths there, so nginx itself answers 502 while the daemon is not running.
+	ingressHealthSocketName = "health.sock"
 	// IngressHealthHostname is answered on :80 and :443 by a daemon-managed server block, for probes that address a
 	// node by IP (any Host is not enough on :443, where the catch-all rejects unknown SNI).
-	IngressHealthHostname = "ingress-health.gateway.invalid"
+	IngressHealthHostname = "ingress-health.opfield.invalid"
 	// IngressGenerationHeader carries the config generation of the nginx configuration that handled a probe.
-	IngressGenerationHeader = "X-Gateway-Ingress-Generation"
+	IngressGenerationHeader = "X-Opfield-Ingress-Generation"
+	// legacy-name: header of configs rendered for the pre-Opfield names — remove once every node reports none
+	LegacyIngressGenerationHeader = "X-Gateway-Ingress-Generation"
 
-	ingressGenerationFilename = "00-gateway-ingress-generation.conf"
-	ingressGenerationVariable = "$gateway_ingress_generation"
+	ingressGenerationFilename = "00-opfield-ingress-generation.conf"
+	ingressGenerationVariable = "$opfield_ingress_generation"
 )
 
 var ingressGenerationPattern = regexp.MustCompile(`default\s+"(\d+)";`)
 
-// IngressGenerationFilename is the managed http-level file that defines $gateway_ingress_generation. It is written
+// IngressHealthSocketDir is the directory of the responder socket under the names in effect.
+func IngressHealthSocketDir() string { return naming.Path(naming.IngressHealthSocketDir) }
+
+// IngressHealthSocketPath is the responder socket under the names in effect.
+func IngressHealthSocketPath() string {
+	return filepath.Join(IngressHealthSocketDir(), ingressHealthSocketName)
+}
+
+// IngressHealthHost is the reserved hostname under the names in effect.
+func IngressHealthHost() string { return naming.Render(IngressHealthHostname) }
+
+// IngressGenerationFilename is the managed http-level file that defines $opfield_ingress_generation. It is written
 // before every reload, so the value in the configuration nginx runs tells which reload it loaded.
 func IngressGenerationFilename() string {
-	return ingressGenerationFilename
+	return naming.File(ingressGenerationFilename)
 }
 
 func ingressGenerationConfig(generation uint64) []byte {
-	return []byte(fmt.Sprintf(`# Gateway managed: config generation of the nginx configuration in service (auto-generated).
+	return []byte(naming.Render(fmt.Sprintf(`# Managed by Opfield: config generation of the nginx configuration in service (auto-generated).
 map $pid %s {
     default "%d";
 }
-`, ingressGenerationVariable, generation))
+`, ingressGenerationVariable, generation)))
 }
 
-// IngressHealthLocation is the location the backend and the daemon-managed servers render for the reserved path.
-func IngressHealthLocation() string {
+// ingressHealthLocationFor is the location of one reserved path.
+func ingressHealthLocationFor(path string) string {
 	return fmt.Sprintf(`    location = %s {
         access_log off;
         allow all;
@@ -58,14 +75,44 @@ func IngressHealthLocation() string {
         proxy_send_timeout 3s;
         proxy_read_timeout 3s;
     }
-`, IngressHealthPath, IngressHealthSocketPath, IngressGenerationHeader, ingressGenerationVariable)
+`, path, naming.IngressHealthSocketDir+"/"+ingressHealthSocketName, IngressGenerationHeader, ingressGenerationVariable)
+}
+
+// IngressHealthLocation is the locations the backend and the daemon-managed servers render for the reserved paths
+// (the Opfield one, then the pre-Opfield one), under the names in effect. Kept byte-identical with
+// INGRESS_HEALTH_LOCATION in the backend (ingress-health.ts).
+func IngressHealthLocation() string {
+	return ingressHealthLocations(IngressHealthPath, LegacyIngressHealthPath)
+}
+
+func ingressHealthLocations(paths ...string) string {
+	var out strings.Builder
+	for _, path := range paths {
+		out.WriteString(ingressHealthLocationFor(path))
+	}
+	return naming.Render(out.String())
+}
+
+// missingIngressHealthLocations is the locations of the reserved paths content does not have yet ("" when it has
+// them all).
+func missingIngressHealthLocations(content string) string {
+	var missing []string
+	for _, path := range []string{IngressHealthPath, LegacyIngressHealthPath} {
+		if !strings.Contains(content, "location = "+path+" {") {
+			missing = append(missing, path)
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return ingressHealthLocations(missing...)
 }
 
 func (m *Manager) generationPath() string {
 	if m.configDir == "" {
 		return ""
 	}
-	return filepath.Join(m.configDir, ingressGenerationFilename)
+	return filepath.Join(m.configDir, IngressGenerationFilename())
 }
 
 // LoadConfigGeneration reads the generation the managed file records. It is the generation nginx runs when its
@@ -101,7 +148,7 @@ func (m *Manager) ConfigGeneration() uint64 {
 }
 
 // EnsureConfigGeneration writes the generation file when it is missing (a node upgraded to a daemon with ingress
-// health), so the variable exists before a Gateway-rendered config refers to it. Returns true when written.
+// health), so the variable exists before an Opfield-rendered config refers to it. Returns true when written.
 func (m *Manager) EnsureConfigGeneration() (bool, error) {
 	path := m.generationPath()
 	if path == "" {
@@ -111,7 +158,7 @@ func (m *Manager) EnsureConfigGeneration() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if existing != nil && ingressGenerationPattern.Match(existing) {
+	if existing != nil && ingressGenerationPattern.Match(existing) && bytes.Contains(existing, []byte(naming.Render(ingressGenerationVariable))) {
 		m.LoadConfigGeneration()
 		return false, nil
 	}

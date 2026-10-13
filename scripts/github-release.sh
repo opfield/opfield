@@ -10,9 +10,9 @@ repository=${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}
 # scripts/release/image-repositories.sh.
 # shellcheck source=release/image-repositories.sh
 source scripts/release/image-repositories.sh
-gateway_image="$GATEWAY_IMAGE"
-gateway_image_mirror="$GATEWAY_IMAGE_MIRROR"
-signed_image="$GATEWAY_SIGNED_IMAGE"
+opfield_image="$OPFIELD_IMAGE"
+opfield_image_mirror="$OPFIELD_IMAGE_MIRROR"
+signed_image="$OPFIELD_SIGNED_IMAGE"
 source_url="https://github.com/${repository}"
 
 release_notes_file=release-notes.md
@@ -26,7 +26,7 @@ classify_release_tag "$tag"
 # Only a stable Gateway release is the repository's Latest: releases/latest/download serves the
 # Gateway installers, which a component release does not carry.
 latest_args=(--latest=false)
-if [[ "$RELEASE_KIND" == "gateway" && "$RELEASE_PRERELEASE" != "true" ]]; then
+if [[ "$RELEASE_KIND" == "opfield" && "$RELEASE_PRERELEASE" != "true" ]]; then
   latest_args=(--latest)
 fi
 
@@ -45,7 +45,7 @@ prepare_release() {
   write_release_notes "$fallback"
   if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
     release_args+=(--prerelease --latest=false)
-  elif [[ "$RELEASE_KIND" == "gateway" ]]; then
+  elif [[ "$RELEASE_KIND" == "opfield" ]]; then
     release_args+=(--prerelease=false)
   else
     release_args+=(--prerelease=false --latest=false)
@@ -90,16 +90,16 @@ complete_release() {
 docker_login() {
   test -n "${GH_TOKEN:-}" || { printf 'GH_TOKEN is required\n' >&2; exit 1; }
   # GHCR_PUSH_TOKEN (secret): a token that can write packages in both organizations, needed once the repository lives
-  # in another organization than gateway_image or gateway_image_mirror.
+  # in another organization than opfield_image or opfield_image_mirror.
   printf '%s' "${GHCR_PUSH_TOKEN:-$GH_TOKEN}" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 }
 
 # mirror_image <primary repository> <digest> <tag>...: copies a pushed image to the mirror repository.
 mirror_image() {
-  [[ -n "$gateway_image_mirror" ]] || return 0
+  [[ -n "$opfield_image_mirror" ]] || return 0
   local image=$1 digest=$2 target t
   shift 2
-  target="${gateway_image_mirror}${image#"$gateway_image"}"
+  target="${opfield_image_mirror}${image#"$opfield_image"}"
   # skopeo keeps the manifest as it is, so the mirror tag has the signed digest. buildx imagetools create would wrap a
   # single-platform manifest in a new index with another digest that carries no signature.
   for t in "$@"; do
@@ -134,7 +134,7 @@ push_image_with_digest() {
   sh scripts/push-image-with-digest.sh "$image_ref" "$digest_file" "$label"
 }
 
-publish_gateway() {
+publish_opfield() {
   local digest
   local installers_dir=release-installers
   ./scripts/stage-installers.sh "$tag" "$installers_dir"
@@ -149,12 +149,12 @@ publish_gateway() {
   docker_login
   ./scripts/sync-update-trust-anchor.sh
   docker build \
-    --tag "${gateway_image}:${tag}" \
+    --tag "${opfield_image}:${tag}" \
     --build-arg "APP_VERSION=${tag}" \
     --label "org.opencontainers.image.source=${source_url}" \
     .
-  push_image_with_digest "${gateway_image}:${tag}" gateway-image.digest "gateway image"
-  digest=$(<gateway-image.digest)
+  push_image_with_digest "${opfield_image}:${tag}" opfield-image.digest "Opfield image"
+  digest=$(<opfield-image.digest)
   (
     cd packages/daemons
     go run ./shared/cmd/update-trust sign \
@@ -167,15 +167,15 @@ publish_gateway() {
       --git-pipeline-id "$run_id" \
       --out ../../gateway-image.update.json
   )
-  docker tag "${gateway_image}:${tag}" "${gateway_image}:${tag#v}"
-  docker push "${gateway_image}:${tag#v}"
+  docker tag "${opfield_image}:${tag}" "${opfield_image}:${tag#v}"
+  docker push "${opfield_image}:${tag#v}"
   local mirror_tags=("$tag" "${tag#v}")
   if [[ "$RELEASE_PRERELEASE" != "true" ]]; then
-    docker tag "${gateway_image}:${tag}" "${gateway_image}:latest"
-    docker push "${gateway_image}:latest"
+    docker tag "${opfield_image}:${tag}" "${opfield_image}:latest"
+    docker push "${opfield_image}:latest"
     mirror_tags+=(latest)
   fi
-  mirror_image "$gateway_image" "$digest" "${mirror_tags[@]}"
+  mirror_image "$opfield_image" "$digest" "${mirror_tags[@]}"
   complete_release "${assets[@]}"
 }
 
@@ -201,7 +201,7 @@ build_daemon_assets() {
         CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build \
           -ldflags "-s -w -X main.buildVersion=${version}" \
           -o "../../relay-worker-linux-${arch}" \
-          ./cmd/gateway-relay
+          ./cmd/opfield-relay
       )
     done
   fi
@@ -285,8 +285,8 @@ publish_daemon() {
 
 publish_relay() {
   local relay_version=${tag%-relay}
-  local relay_image="${gateway_image}/relay"
-  local secure_link_image="${gateway_image}/secure-link-connector"
+  local relay_image="${opfield_image}/relay"
+  local secure_link_image="${opfield_image}/secure-link-connector"
   local relay_digest secure_link_digest min_gateway_version arch
   local assets=(relay-image.update.json checksums.txt)
 
@@ -355,9 +355,9 @@ publish_relay() {
   mirror_image "$secure_link_image" "$secure_link_digest" "$tag"
   if signing_enabled; then
     local relay_also=() connector_also=() binary
-    if [[ -n "$gateway_image_mirror" ]]; then
-      relay_also=(--also "${gateway_image_mirror}/relay")
-      connector_also=(--also "${gateway_image_mirror}/secure-link-connector")
+    if [[ -n "$opfield_image_mirror" ]]; then
+      relay_also=(--also "${opfield_image_mirror}/relay")
+      connector_also=(--also "${opfield_image_mirror}/secure-link-connector")
     fi
     scripts/release/supply-chain.sh sign "${relay_image}@${relay_digest}" \
       --sbom "relay-${tag}.spdx.json" "${relay_also[@]}"
@@ -374,12 +374,12 @@ publish_relay() {
   complete_release "${assets[@]}"
 }
 
-if [[ "$RELEASE_KIND" == "gateway" ]]; then
-  publish_gateway
+if [[ "$RELEASE_KIND" == "opfield" ]]; then
+  publish_opfield
 elif [[ "$RELEASE_COMPONENT" == "relay" ]]; then
   publish_relay
 elif [[ "$RELEASE_COMPONENT" == "nginx" ]]; then
-  publish_daemon nginx nginx-daemon nginx "Nginx Daemon" github.com/wiolett-industries/gateway/nginx-daemon/internal/daemon
+  publish_daemon nginx nginx-daemon nginx "Nginx Daemon" github.com/opfield/opfield/nginx-daemon/internal/daemon
 elif [[ "$RELEASE_COMPONENT" == "docker" ]]; then
   publish_daemon docker docker-daemon docker "Docker Daemon" main
 elif [[ "$RELEASE_COMPONENT" == "monitoring" ]]; then
@@ -388,6 +388,6 @@ elif [[ "$RELEASE_COMPONENT" == "watchdog" ]]; then
   # The lease watchdog is released independently of docker-daemon (A12.5).
   publish_daemon lease-watchdog lease-watchdog watchdog "Lease Watchdog" main
 else
-  printf 'Tag %s is not a supported Gateway release tag\n' "$tag" >&2
+  printf 'Tag %s is not a supported Opfield release tag\n' "$tag" >&2
   exit 1
 fi

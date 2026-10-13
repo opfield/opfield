@@ -17,7 +17,7 @@ import (
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
 )
 
 func (c *Client) UpdateContainer(ctx context.Context, id string, newTag string, envOverrides map[string]string, envRemovals []string, registryAuth string, expectedState string) error {
@@ -307,7 +307,7 @@ func (c *Client) RecreateWithConfig(ctx context.Context, id string, configJSON s
 
 	// Apply labels override
 	if params.Labels != nil {
-		preserveGatewayManagedContainerLabels(insp.Config.Labels, params.Labels)
+		preserveOpfieldManagedContainerLabels(insp.Config.Labels, params.Labels)
 		insp.Config.Labels = params.Labels
 	}
 	if params.StopTimeout != nil {

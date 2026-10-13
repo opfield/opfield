@@ -122,7 +122,6 @@ describe('generated scope implications', () => {
       'ai:sandbox:tier:high',
       'ai:sandbox:manage',
       'mcp:use',
-      'inference:setup',
       'inference:limits:manage',
       'inference:usage:view',
       'docker:folders:manage',

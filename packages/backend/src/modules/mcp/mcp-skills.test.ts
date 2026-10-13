@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { describe, expect, it } from 'vitest';
-import { type GatewaySkill, registerMcpSkills } from './mcp-skills.js';
+import { type OpfieldSkill, registerMcpSkills } from './mcp-skills.js';
 
 function recordingServer() {
   const resources: string[] = [];
@@ -12,7 +12,7 @@ function recordingServer() {
   return { server, resources, prompts };
 }
 
-const skill = (name: string): GatewaySkill => ({
+const skill = (name: string): OpfieldSkill => ({
   name,
   description: `${name} skill`,
   files: [
@@ -22,17 +22,17 @@ const skill = (name: string): GatewaySkill => ({
 });
 
 describe('registerMcpSkills', () => {
-  it('serves using-opfield under its earlier name using-gateway too', () => {
+  it('serves each skill under its own name only', () => {
     const { server, resources, prompts } = recordingServer();
     registerMcpSkills(server, [skill('using-opfield'), skill('databases')]);
-    expect(resources).toEqual(
-      expect.arrayContaining([
-        'gateway://skills/using-opfield/SKILL.md',
-        'gateway://skills/using-gateway/SKILL.md',
-        'gateway://skills/using-gateway/references/connection.md',
-      ])
-    );
-    expect(prompts).toEqual(['skill-using-opfield', 'skill-using-gateway', 'skill-databases']);
-    expect(resources.filter((uri) => uri.startsWith('gateway://skills/databases/'))).toHaveLength(2);
+    expect(resources).toEqual([
+      'opfield://skills',
+      'opfield://skills/using-opfield/SKILL.md',
+      'opfield://skills/using-opfield/references/connection.md',
+      'opfield://skills/databases/SKILL.md',
+      'opfield://skills/databases/references/connection.md',
+    ]);
+    expect(prompts).toEqual(['skill-using-opfield', 'skill-databases']);
+    expect(resources.some((uri) => uri.includes('using-gateway'))).toBe(false);
   });
 });

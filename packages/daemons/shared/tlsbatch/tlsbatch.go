@@ -19,7 +19,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/slowstart"
+	"github.com/opfield/opfield/daemon-shared/slowstart"
 )
 
 // WriteBuffer is the gRPC write buffer of a daemon's batched relay lane: the

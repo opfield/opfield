@@ -72,7 +72,7 @@ const (
 // The stand after rc.8 (O-5): a record zeroed by a crash with its image and
 // mount point, and an exited container of a storage whose delete an older
 // daemon processed. Both are listed with what they hold; a live storage is not.
-func TestStorageLeftoversAreListedAndRemovedOnlyWhenGatewayConfirms(t *testing.T) {
+func TestStorageLeftoversAreListedAndRemovedOnlyWhenOpfieldConfirms(t *testing.T) {
 	m, _, loops, _ := newTestStorageEngine(t)
 	docker := &leftoverDocker{t: t, containers: []map[string]any{
 		{"Id": "c-left", "Names": []string{"/gateway-storage-" + deletedStorage + "-0"},

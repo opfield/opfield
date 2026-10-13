@@ -78,7 +78,7 @@ func servingHolder(t *testing.T, h *harness) {
 	h.calls.take()
 }
 
-func TestAnUnsignedAssignmentIsRefusedFromGatewayAndFromThePeer(t *testing.T) {
+func TestAnUnsignedAssignmentIsRefusedFromOpfieldAndFromThePeer(t *testing.T) {
 	h := newHarness(t, ModeManual)
 	if err := h.manager.AssignPrimary(testSet, Assignment{PrimaryMemberID: testMemberA, Generation: 1}); err == nil {
 		t.Fatal("an unsigned assignment from Gateway must be refused")

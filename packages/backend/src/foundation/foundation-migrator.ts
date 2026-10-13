@@ -2,16 +2,40 @@ import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseDocument } from 'yaml';
-import type { PreparedCommercialUpdate } from '@/edition/prepare-update.js';
+import {
+  COMMERCIAL_HOST_DIR,
+  LEGACY_COMMERCIAL_HOST_DIR,
+  type PreparedCommercialUpdate,
+} from '@/edition/prepare-update.js';
+import {
+  applyComposeVocabulary,
+  type ComposeVolumeKeys,
+  envLineKey,
+  FOUNDATION_BACKUPS_DIR,
+  isOpfieldComposeLayout,
+  LEGACY_COMPOSE_VOLUME_KEYS,
+  LEGACY_MANAGED_SERVICE_LABEL,
+  LEGACY_REGISTRY_TOKEN_SERVICE,
+  MANAGED_MARKER_PREFIX,
+  MANAGED_SERVICE_LABEL,
+  OPFIELD_COMPOSE_VOLUME_KEYS,
+  REGISTRY_TOKEN_SERVICE,
+  relayBinary,
+  renameLegacyEnvFileKeys,
+} from './opfield-names.js';
 
-export const DEFAULT_SANDBOX_WORKSPACE_DIR = '/var/lib/gateway/sandbox-workspaces';
+export const DEFAULT_SANDBOX_WORKSPACE_DIR = '/var/lib/opfield/sandbox-workspaces';
+// legacy-name: the sandbox workspace directory of installations made before 2.12.1; the host move switches a .env
+// that still has it to DEFAULT_SANDBOX_WORKSPACE_DIR — remove once every installation reports the Opfield layout.
+export const LEGACY_SANDBOX_WORKSPACE_DIR = '/var/lib/gateway/sandbox-workspaces';
 
-const SANDBOX_VOLUME_START = '# gateway-managed:start sandbox-workspace';
-const SANDBOX_VOLUME_END = '# gateway-managed:end sandbox-workspace';
-const RELAY_SERVICE_START = '# gateway-managed:start relay-service';
-const RELAY_SERVICE_END = '# gateway-managed:end relay-service';
-const REGISTRY_SERVICE_START = '# gateway-managed:start registry-service';
-const REGISTRY_SERVICE_END = '# gateway-managed:end registry-service';
+const SANDBOX_VOLUME_START = `${MANAGED_MARKER_PREFIX}start sandbox-workspace`;
+const SANDBOX_VOLUME_END = `${MANAGED_MARKER_PREFIX}end sandbox-workspace`;
+const RELAY_SERVICE_START = `${MANAGED_MARKER_PREFIX}start relay-service`;
+const RELAY_SERVICE_END = `${MANAGED_MARKER_PREFIX}end relay-service`;
+const REGISTRY_SERVICE_START = `${MANAGED_MARKER_PREFIX}start registry-service`;
+const REGISTRY_SERVICE_END = `${MANAGED_MARKER_PREFIX}end registry-service`;
+const MANAGED_SERVICE_LABEL_PATTERN = `(?:${escapeRegExp(MANAGED_SERVICE_LABEL)}|${escapeRegExp(LEGACY_MANAGED_SERVICE_LABEL)})`;
 const DEFAULT_REGISTRY_IMAGE_REF =
   'ghcr.io/the-square-labs/gateway/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8';
 /** Bounded container logs for installer-managed services; Docker keeps json-file logs forever otherwise. */
@@ -29,6 +53,8 @@ export interface FoundationMigrationOptions {
   relayProtocolMajor?: number;
   relayImageRef?: string;
   sandboxWorkspaceDir?: string;
+  /** Name of the commercial directory in the install directory; see commercialHostRoot. */
+  commercialDirName?: string;
   /**
    * The host Docker daemon's default logging, as the caller (which has the
    * Docker socket) sees it. Bounded json-file logs are added only when the
@@ -56,7 +82,7 @@ export function composeLoggingEligibility(defaults: DockerLogDefaults | undefine
   return defaults.logOpts === 'none' ? true : null;
 }
 
-const GATEWAY_LOG_OPTIONS: Record<string, string> = {
+const MANAGED_LOG_OPTIONS: Record<string, string> = {
   'max-size': COMPOSE_LOG_MAX_SIZE,
   'max-file': COMPOSE_LOG_MAX_FILE,
 };
@@ -64,9 +90,9 @@ const GATEWAY_LOG_OPTIONS: Record<string, string> = {
 /**
  * Derive the host logging defaults from what a caller with the Docker socket
  * sees: the daemon's default driver (Docker info) and the log configuration
- * of the Gateway app container. Docker copies the daemon's default log-opts
+ * of the Opfield app container. Docker copies the daemon's default log-opts
  * into a container that has no logging of its own, so the app shows them
- * unless it already carries Gateway's own bounded logging (or the operator
+ * unless it already carries Opfield's own bounded logging (or the operator
  * set another driver for it, which leaves the defaults unknown).
  */
 export function hostDockerLogDefaults(
@@ -78,30 +104,32 @@ export function hostDockerLogDefaults(
   if (driver !== 'json-file') return { driver, logOpts: null };
   if (appLogConfig?.Type !== 'json-file') return { driver, logOpts: null };
   const options = Object.entries(appLogConfig.Config ?? {});
-  const gatewayOwn =
-    options.length === Object.keys(GATEWAY_LOG_OPTIONS).length &&
-    options.every(([key, value]) => GATEWAY_LOG_OPTIONS[key] === value);
-  return { driver, logOpts: options.length === 0 || gatewayOwn ? 'none' : 'set' };
+  const opfieldOwn =
+    options.length === Object.keys(MANAGED_LOG_OPTIONS).length &&
+    options.every(([key, value]) => MANAGED_LOG_OPTIONS[key] === value);
+  return { driver, logOpts: options.length === 0 || opfieldOwn ? 'none' : 'set' };
 }
 
 /** Environment for the migrator container (see dockerLogDefaultsFromEnv). */
 export function dockerLogDefaultsEnv(defaults: DockerLogDefaults | undefined): string[] {
   if (!defaults?.driver) return [];
   return [
-    `GATEWAY_DOCKER_LOG_DRIVER=${defaults.driver}`,
-    ...(defaults.logOpts ? [`GATEWAY_DOCKER_LOG_OPTS=${defaults.logOpts}`] : []),
+    `OPFIELD_DOCKER_LOG_DRIVER=${defaults.driver}`,
+    ...(defaults.logOpts ? [`OPFIELD_DOCKER_LOG_OPTS=${defaults.logOpts}`] : []),
   ];
 }
 
 /**
  * Read the host logging defaults the update caller passes in the environment
- * (GATEWAY_DOCKER_LOG_DRIVER, GATEWAY_DOCKER_LOG_OPTS=none|set). Environment
+ * (OPFIELD_DOCKER_LOG_DRIVER, OPFIELD_DOCKER_LOG_OPTS=none|set). Environment
  * variables, unlike new CLI flags, are ignored by older migrator images.
  */
 export function dockerLogDefaultsFromEnv(env: NodeJS.ProcessEnv): DockerLogDefaults | undefined {
-  const driver = env.GATEWAY_DOCKER_LOG_DRIVER?.trim();
+  // legacy-name: GATEWAY_DOCKER_LOG_* — what an updating 2.12.0 passes to this migrator; remove once no supported
+  // update starts from a version before 2.12.1.
+  const driver = (env.OPFIELD_DOCKER_LOG_DRIVER ?? env.GATEWAY_DOCKER_LOG_DRIVER)?.trim();
   if (!driver) return undefined;
-  const opts = env.GATEWAY_DOCKER_LOG_OPTS?.trim();
+  const opts = (env.OPFIELD_DOCKER_LOG_OPTS ?? env.GATEWAY_DOCKER_LOG_OPTS)?.trim();
   return { driver, logOpts: opts === 'none' || opts === 'set' ? opts : null };
 }
 
@@ -126,11 +154,17 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
   const hostDir = path.resolve(options.hostDir);
   const envPath = path.join(hostDir, '.env');
   const composePath = path.join(hostDir, 'docker-compose.yml');
-  const backupDir = path.join(hostDir, '.gateway-foundation-backups', timestampForPath(new Date()));
-  const defaultSandboxWorkspaceDir = options.sandboxWorkspaceDir ?? DEFAULT_SANDBOX_WORKSPACE_DIR;
+  const backupDir = path.join(hostDir, FOUNDATION_BACKUPS_DIR, timestampForPath(new Date()));
 
   const envContent = await fs.readFile(envPath, 'utf8');
-  const currentRelayImageRef = envValue(envContent, 'GATEWAY_RELAY_IMAGE_REF');
+  const composeContent = await fs.readFile(composePath, 'utf8');
+  const opfieldLayout = isOpfieldComposeLayout(composeContent);
+  // A legacy installation keeps its sandbox directory until the host move; it is in its .env anyway.
+  const defaultSandboxWorkspaceDir =
+    options.sandboxWorkspaceDir ?? (opfieldLayout ? DEFAULT_SANDBOX_WORKSPACE_DIR : LEGACY_SANDBOX_WORKSPACE_DIR);
+  // Environment names first: everything below reads and writes the OPFIELD_* keys.
+  const renamedEnvContent = renameLegacyEnvFileKeys(envContent);
+  const currentRelayImageRef = envValue(renamedEnvContent, 'OPFIELD_RELAY_IMAGE_REF');
   const effectiveRelayImageRef = options.relayImageRef ?? currentRelayImageRef;
   if (!effectiveRelayImageRef) {
     throw new Error('foundation migration requires a relay image reference');
@@ -140,44 +174,54 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
   }
   const relayImageChanged = currentRelayImageRef !== effectiveRelayImageRef;
   const effectiveRelayBuildVersion =
-    relayImageChanged || !envValue(envContent, 'GATEWAY_RELAY_BUILD_VERSION')
+    relayImageChanged || !envValue(renamedEnvContent, 'OPFIELD_RELAY_BUILD_VERSION')
       ? options.relayBuildVersion
-      : envValue(envContent, 'GATEWAY_RELAY_BUILD_VERSION');
+      : envValue(renamedEnvContent, 'OPFIELD_RELAY_BUILD_VERSION');
   const effectiveRelayProtocolMajor =
-    relayImageChanged || !envValue(envContent, 'GATEWAY_RELAY_PROTOCOL_MAJOR')
+    relayImageChanged || !envValue(renamedEnvContent, 'OPFIELD_RELAY_PROTOCOL_MAJOR')
       ? (options.relayProtocolMajor ?? 1)
-      : Number(envValue(envContent, 'GATEWAY_RELAY_PROTOCOL_MAJOR'));
-  const sanitizedEnvContent = removeEnvKeys(envContent, [
-    'GATEWAY_RELAY_DB_PASSWORD',
-    'GATEWAY_RELAY_VERSION',
+      : Number(envValue(renamedEnvContent, 'OPFIELD_RELAY_PROTOCOL_MAJOR'));
+  const sanitizedEnvContent = removeEnvKeys(renamedEnvContent, [
+    'OPFIELD_RELAY_DB_PASSWORD',
+    'OPFIELD_RELAY_VERSION',
     'RELAY_DATABASE_URL',
     'DATABASE_CONNECTOR_IMAGE',
   ]);
   const envPatch = patchEnv(sanitizedEnvContent, {
     ...(options.commercial
       ? {
-          GATEWAY_COMMERCIAL_DIR:
+          OPFIELD_COMMERCIAL_DIR:
             options.commercial.edition === 'commercial'
               ? `/var/lib/gateway/commercial/versions/${options.commercial.hostVersion}`
               : '/var/lib/gateway/commercial/community',
         }
       : {}),
-    ...(options.targetVersion ? { GATEWAY_VERSION: options.targetVersion } : {}),
-    ...(options.imageRef ? { GATEWAY_IMAGE_REF: options.imageRef } : {}),
+    ...(options.targetVersion ? { OPFIELD_VERSION: options.targetVersion } : {}),
+    ...(options.imageRef ? { OPFIELD_IMAGE_REF: options.imageRef } : {}),
     ...(options.secureLinkConnectorImage ? { SECURE_LINK_CONNECTOR_IMAGE: options.secureLinkConnectorImage } : {}),
-    GATEWAY_RELAY_IMAGE_REF: effectiveRelayImageRef,
-    GATEWAY_RELAY_TARGET: 'relay:9443',
-    ...(effectiveRelayBuildVersion ? { GATEWAY_RELAY_BUILD_VERSION: effectiveRelayBuildVersion } : {}),
-    GATEWAY_RELAY_PROTOCOL_MAJOR: String(effectiveRelayProtocolMajor),
-    SANDBOX_RUNNER_WORKSPACE_DIR: envValue(envContent, 'SANDBOX_RUNNER_WORKSPACE_DIR') ?? defaultSandboxWorkspaceDir,
-    GATEWAY_REGISTRY_IMAGE_REF: envValue(envContent, 'GATEWAY_REGISTRY_IMAGE_REF') ?? DEFAULT_REGISTRY_IMAGE_REF,
-    GATEWAY_REGISTRY_HTTP_SECRET:
-      envValue(envContent, 'GATEWAY_REGISTRY_HTTP_SECRET') ?? randomBytes(32).toString('hex'),
+    OPFIELD_RELAY_IMAGE_REF: effectiveRelayImageRef,
+    OPFIELD_RELAY_TARGET: 'relay:9443',
+    ...(effectiveRelayBuildVersion ? { OPFIELD_RELAY_BUILD_VERSION: effectiveRelayBuildVersion } : {}),
+    OPFIELD_RELAY_PROTOCOL_MAJOR: String(effectiveRelayProtocolMajor),
+    SANDBOX_RUNNER_WORKSPACE_DIR:
+      envValue(renamedEnvContent, 'SANDBOX_RUNNER_WORKSPACE_DIR') ?? defaultSandboxWorkspaceDir,
+    OPFIELD_REGISTRY_IMAGE_REF: envValue(renamedEnvContent, 'OPFIELD_REGISTRY_IMAGE_REF') ?? DEFAULT_REGISTRY_IMAGE_REF,
+    OPFIELD_REGISTRY_HTTP_SECRET:
+      envValue(renamedEnvContent, 'OPFIELD_REGISTRY_HTTP_SECRET') ?? randomBytes(32).toString('hex'),
   });
 
-  const composeContent = await fs.readFile(composePath, 'utf8');
+  const commercialDirName =
+    options.commercialDirName ??
+    ((await fs
+      .stat(path.join(hostDir, LEGACY_COMMERCIAL_HOST_DIR))
+      .then(() => true)
+      .catch(() => false))
+      ? LEGACY_COMMERCIAL_HOST_DIR
+      : COMMERCIAL_HOST_DIR);
   const composePatch = patchCompose(composeContent, Boolean(options.commercial), {
     boundedLogging: composeLoggingEligibility(options.dockerLogDefaults),
+    commercialDirName,
+    relayBuildVersion: envPatch.values.get('OPFIELD_RELAY_BUILD_VERSION') ?? null,
   });
 
   const effectiveSandboxWorkspaceDir =
@@ -274,10 +318,18 @@ function removeEnvKeys(content: string, keys: string[]): string {
 export function patchCompose(
   content: string,
   commercialPrepared = false,
-  options: { boundedLogging?: boolean | null } = {}
+  options: {
+    boundedLogging?: boolean | null;
+    commercialDirName?: string;
+    /** Build version of the relay image the file runs; picks the relay binary (see relayBinary). */
+    relayBuildVersion?: string | null;
+  } = {}
 ): string {
   const boundedLogging = options.boundedLogging ?? null;
-  let lines = content.replace(/\r\n/g, '\n').split('\n');
+  // Variable names, labels and markers in their Opfield form first; the steps below know only those.
+  const renamed = applyComposeVocabulary(content);
+  const layout = composeLayout(renamed);
+  let lines = renamed.replace(/\r\n/g, '\n').split('\n');
   const hadTrailingNewline = lines.at(-1) === '';
   if (hadTrailingNewline) lines = lines.slice(0, -1);
 
@@ -286,19 +338,64 @@ export function patchCompose(
 
   const imagePatched = patchAppImage(lines, appBlock);
   const gracePatched = patchAppStopGracePeriod(imagePatched);
-  const volumesPatched = patchAppSandboxVolume(gracePatched, findServiceBlock(gracePatched, 'app') ?? appBlock);
+  const volumesPatched = patchAppSandboxVolume(
+    gracePatched,
+    findServiceBlock(gracePatched, 'app') ?? appBlock,
+    layout.sandboxWorkspaceDir
+  );
   const runtimePatched = patchAppRuntimeStorageAndSocket(
-    commercialPrepared ? patchCommercialCore(volumesPatched) : volumesPatched
+    commercialPrepared
+      ? patchCommercialCore(volumesPatched, options.commercialDirName ?? mountedCommercialDirName(volumesPatched))
+      : volumesPatched,
+    layout
   );
   // Before the relay and registry volumes, which those steps move to the end of the list on every run.
   const healthcheckPatched = patchAppHealthcheck(upsertAppHostDiagnosticsMounts(runtimePatched));
   const environmentPatched = removeLegacyAppEnvironment(healthcheckPatched);
   const clickHousePatched = removeLegacyClickHouseService(environmentPatched);
-  const relayPatched = patchRelayFoundation(clickHousePatched, boundedLogging);
-  const registryPatched = patchRegistryFoundation(relayPatched, boundedLogging);
+  const relayPatched = patchRelayFoundation(clickHousePatched, boundedLogging, layout, options.relayBuildVersion);
+  const registryPatched = patchRegistryFoundation(relayPatched, boundedLogging, layout);
   const loggingPatched =
     boundedLogging === true ? keepValidYaml(registryPatched, patchServiceLogging(registryPatched)) : registryPatched;
   return `${loggingPatched.join('\n')}${hadTrailingNewline ? '\n' : ''}`;
+}
+
+/** What the managed blocks of docker-compose.yml name differently in the two layouts. */
+interface ComposeLayout {
+  volumes: ComposeVolumeKeys;
+  /** Fallback of SANDBOX_RUNNER_WORKSPACE_DIR in the sandbox mount. */
+  sandboxWorkspaceDir: string;
+  /** Audience and issuer of the registry's token auth; see configuredRegistryTokenService. */
+  registryTokenService: string;
+  registryTokenRealm: string;
+}
+
+/**
+ * The layout of docker-compose.yml. A legacy file keeps its volume keys and registry audience: the running registry
+ * checks that audience until the host move recreates it, and the volumes are bound by the project's name.
+ */
+export function composeLayout(content: string): ComposeLayout {
+  return isOpfieldComposeLayout(content)
+    ? {
+        volumes: OPFIELD_COMPOSE_VOLUME_KEYS,
+        sandboxWorkspaceDir: DEFAULT_SANDBOX_WORKSPACE_DIR,
+        registryTokenService: REGISTRY_TOKEN_SERVICE,
+        registryTokenRealm: 'https://opfield.invalid/api/docker/registry/token',
+      }
+    : {
+        volumes: LEGACY_COMPOSE_VOLUME_KEYS,
+        sandboxWorkspaceDir: LEGACY_SANDBOX_WORKSPACE_DIR,
+        registryTokenService: LEGACY_REGISTRY_TOKEN_SERVICE,
+        // legacy-name: the registry token realm of the legacy layout; replaced by the host move.
+        registryTokenRealm: 'https://gateway.invalid/api/docker/registry/token',
+      };
+}
+
+/** The commercial directory docker-compose.yml mounts already, or the Opfield one. */
+function mountedCommercialDirName(lines: string[]): string {
+  return lines.some((line) => line.includes(`./${LEGACY_COMMERCIAL_HOST_DIR}:/var/lib/gateway/commercial`))
+    ? LEGACY_COMMERCIAL_HOST_DIR
+    : COMMERCIAL_HOST_DIR;
 }
 
 function yamlErrorCount(lines: string[]): number {
@@ -367,12 +464,12 @@ function patchServiceLogging(lines: string[]): string[] {
   return next;
 }
 
-function patchCommercialCore(lines: string[]): string[] {
+function patchCommercialCore(lines: string[], commercialDirName: string): string[] {
   const app = findServiceBlock(lines, 'app');
   if (!app) throw new Error('Commercial core requires services.app');
   const volumes = findNestedBlock(lines, app, 'volumes');
   if (!volumes) throw new Error('Commercial core requires app volumes');
-  const mount = `${' '.repeat(volumes.indent + 2)}- ./.gateway-commercial:/var/lib/gateway/commercial:ro`;
+  const mount = `${' '.repeat(volumes.indent + 2)}- ./${commercialDirName}:/var/lib/gateway/commercial:ro`;
   const next = [...lines];
   const existing = next.findIndex(
     (line, index) =>
@@ -390,23 +487,23 @@ function patchCommercialCore(lines: string[]): string[] {
       updatedApp.start + 1,
       0,
       `${indent}environment:`,
-      `${indent}  GATEWAY_COMMERCIAL_DIR: \${GATEWAY_COMMERCIAL_DIR}`
+      `${indent}  OPFIELD_COMMERCIAL_DIR: \${OPFIELD_COMMERCIAL_DIR}`
     );
     return next;
   }
   const listStyle = next.slice(environment.start + 1, environment.end).some((line) => /^\s*-\s/.test(line));
-  const value = `${' '.repeat(environment.indent + 2)}GATEWAY_COMMERCIAL_DIR: \${GATEWAY_COMMERCIAL_DIR}`;
+  const value = `${' '.repeat(environment.indent + 2)}OPFIELD_COMMERCIAL_DIR: \${OPFIELD_COMMERCIAL_DIR}`;
   if (listStyle) {
-    const listValue = `${' '.repeat(environment.indent + 2)}- GATEWAY_COMMERCIAL_DIR=\${GATEWAY_COMMERCIAL_DIR}`;
+    const listValue = `${' '.repeat(environment.indent + 2)}- OPFIELD_COMMERCIAL_DIR=\${OPFIELD_COMMERCIAL_DIR}`;
     const index = next.findIndex(
-      (line, i) => i > environment.start && i < environment.end && /^\s*-\s*GATEWAY_COMMERCIAL_DIR(?:=|\s*$)/.test(line)
+      (line, i) => i > environment.start && i < environment.end && /^\s*-\s*OPFIELD_COMMERCIAL_DIR(?:=|\s*$)/.test(line)
     );
     if (index >= 0) next[index] = listValue;
     else next.splice(environment.end, 0, listValue);
     return next;
   }
   const envIndex = next.findIndex(
-    (line, index) => index > environment.start && index < environment.end && /^\s*GATEWAY_COMMERCIAL_DIR\s*:/.test(line)
+    (line, index) => index > environment.start && index < environment.end && /^\s*OPFIELD_COMMERCIAL_DIR\s*:/.test(line)
   );
   if (envIndex >= 0) next[envIndex] = value;
   else next.splice(environment.end, 0, value);
@@ -458,7 +555,7 @@ function parseComposeDurationSeconds(value: string): number | null {
   return consumed === normalized.length ? seconds : null;
 }
 
-function patchAppRuntimeStorageAndSocket(lines: string[]): string[] {
+function patchAppRuntimeStorageAndSocket(lines: string[], layout: ComposeLayout): string[] {
   const app = findServiceBlock(lines, 'app');
   if (!app) return lines;
   const volumes = findNestedBlock(lines, app, 'volumes');
@@ -481,8 +578,8 @@ function patchAppRuntimeStorageAndSocket(lines: string[]): string[] {
   const indent = ' '.repeat(refreshedVolumes.indent + 2);
   const socketLine = findDockerSocketVolume(next, refreshedVolumes.start + 1, refreshedVolumes.end);
   const insertAt = socketLine >= 0 ? socketLine + 1 : refreshedVolumes.end;
-  next = [...next.slice(0, insertAt), `${indent}- gateway_data:/var/lib/gateway`, ...next.slice(insertAt)];
-  return ensureTopLevelVolume(next, 'gateway_data');
+  next = [...next.slice(0, insertAt), `${indent}- ${layout.volumes.appData}:/var/lib/gateway`, ...next.slice(insertAt)];
+  return ensureTopLevelVolume(next, layout.volumes.appData);
 }
 
 function patchAppHealthcheck(lines: string[]): string[] {
@@ -564,19 +661,26 @@ function managedBlockLogging(
   return body.some((_, index) => logging.every((expected, offset) => body[index + offset] === expected));
 }
 
-function patchRelayFoundation(lines: string[], boundedLogging: boolean | null = null): string[] {
+function patchRelayFoundation(
+  lines: string[],
+  boundedLogging: boolean | null = null,
+  layout: ComposeLayout = composeLayout(''),
+  relayBuildVersion: string | null = null
+): string[] {
   let next = removeAppPublicGrpcPort(lines);
-  next = upsertAppRelayEnvironment(next);
+  next = upsertAppRelayEnvironment(next, layout);
   next = upsertAppRelayDependency(next);
   next = upsertAppLabel(next);
-  next = upsertAppRelayIdentityVolume(next);
+  next = upsertAppRelayIdentityVolume(next, layout);
   next = upsertAppGrpcExpose(next);
   next = upsertRelayService(
     next,
-    managedBlockLogging(next, 'relay', RELAY_SERVICE_START, RELAY_SERVICE_END, boundedLogging)
+    managedBlockLogging(next, 'relay', RELAY_SERVICE_START, RELAY_SERVICE_END, boundedLogging),
+    layout,
+    relayBinary(relayBuildVersion)
   );
-  next = ensureTopLevelVolume(next, 'gateway_relay_identity');
-  return ensureTopLevelVolume(next, 'gateway_relay_state');
+  next = ensureTopLevelVolume(next, layout.volumes.relayIdentity);
+  return ensureTopLevelVolume(next, layout.volumes.relayState);
 }
 
 function upsertAppRelayDependency(lines: string[]): string[] {
@@ -638,32 +742,37 @@ function removeAppPublicGrpcPort(lines: string[]): string[] {
   });
 }
 
-function upsertAppRelayEnvironment(lines: string[]): string[] {
+function upsertAppRelayEnvironment(lines: string[], layout: ComposeLayout): string[] {
   return upsertServiceKeyedEntries(
     lines,
     'app',
     'environment',
     [
-      'GATEWAY_RELAY_REQUIRED',
-      'GATEWAY_RELAY_MANAGED',
-      'GATEWAY_RELAY_TARGET',
-      'GATEWAY_RELAY_IDENTITY_DIR',
-      'GATEWAY_RELAY_IMAGE_REF',
-      'GATEWAY_RELAY_SERVICE_NAME',
-      'GATEWAY_RELAY_DB_PASSWORD',
-      'GATEWAY_RELAY_VERSION',
-      'GATEWAY_RELAY_BUILD_VERSION',
-      'GATEWAY_RELAY_PROTOCOL_MAJOR',
+      'OPFIELD_RELAY_REQUIRED',
+      'OPFIELD_RELAY_MANAGED',
+      'OPFIELD_RELAY_TARGET',
+      'OPFIELD_RELAY_IDENTITY_DIR',
+      'OPFIELD_RELAY_IMAGE_REF',
+      'OPFIELD_RELAY_SERVICE_NAME',
+      'OPFIELD_RELAY_DB_PASSWORD',
+      'OPFIELD_RELAY_VERSION',
+      'OPFIELD_RELAY_BUILD_VERSION',
+      'OPFIELD_RELAY_PROTOCOL_MAJOR',
+      'OPFIELD_REGISTRY_TOKEN_SERVICE',
     ],
     [
-      'GATEWAY_RELAY_REQUIRED: "true"',
-      'GATEWAY_RELAY_MANAGED: "true"',
-      'GATEWAY_RELAY_TARGET: relay:9443',
-      'GATEWAY_RELAY_IDENTITY_DIR: /var/lib/gateway-relay',
-      `GATEWAY_RELAY_IMAGE_REF: \${GATEWAY_RELAY_IMAGE_REF}`,
-      'GATEWAY_RELAY_SERVICE_NAME: relay',
-      `GATEWAY_RELAY_BUILD_VERSION: \${GATEWAY_RELAY_BUILD_VERSION}`,
-      `GATEWAY_RELAY_PROTOCOL_MAJOR: \${GATEWAY_RELAY_PROTOCOL_MAJOR}`,
+      'OPFIELD_RELAY_REQUIRED: "true"',
+      'OPFIELD_RELAY_MANAGED: "true"',
+      'OPFIELD_RELAY_TARGET: relay:9443',
+      'OPFIELD_RELAY_IDENTITY_DIR: /var/lib/gateway-relay',
+      `OPFIELD_RELAY_IMAGE_REF: \${OPFIELD_RELAY_IMAGE_REF}`,
+      'OPFIELD_RELAY_SERVICE_NAME: relay',
+      `OPFIELD_RELAY_BUILD_VERSION: \${OPFIELD_RELAY_BUILD_VERSION}`,
+      `OPFIELD_RELAY_PROTOCOL_MAJOR: \${OPFIELD_RELAY_PROTOCOL_MAJOR}`,
+      // The app signs registry tokens for the audience the registry block below checks.
+      ...(layout.registryTokenService === REGISTRY_TOKEN_SERVICE
+        ? [`OPFIELD_REGISTRY_TOKEN_SERVICE: ${REGISTRY_TOKEN_SERVICE}`]
+        : []),
     ]
   );
 }
@@ -673,12 +782,12 @@ function upsertAppLabel(lines: string[]): string[] {
     lines,
     'app',
     'labels',
-    ['com.wiolett.gateway.managed-service'],
-    ['com.wiolett.gateway.managed-service: app']
+    [MANAGED_SERVICE_LABEL, LEGACY_MANAGED_SERVICE_LABEL],
+    [`${MANAGED_SERVICE_LABEL}: app`]
   );
 }
 
-function upsertServiceKeyedEntries(
+export function upsertServiceKeyedEntries(
   lines: string[],
   serviceName: string,
   blockName: string,
@@ -726,7 +835,7 @@ function upsertServiceKeyedEntries(
   return [...next.slice(0, block.end), ...entries, ...next.slice(block.end)];
 }
 
-function upsertAppRelayIdentityVolume(lines: string[]): string[] {
+function upsertAppRelayIdentityVolume(lines: string[], layout: ComposeLayout): string[] {
   const app = findServiceBlock(lines, 'app');
   const volumes = app ? findNestedBlock(lines, app, 'volumes') : null;
   if (!volumes) throw new Error('foundation migration failed: services.app.volumes block not found');
@@ -740,7 +849,7 @@ function upsertAppRelayIdentityVolume(lines: string[]): string[] {
   if (!refreshed) throw new Error('foundation migration failed: services.app.volumes block disappeared');
   return [
     ...next.slice(0, refreshed.end),
-    `${' '.repeat(indent)}- gateway_relay_identity:/var/lib/gateway-relay`,
+    `${' '.repeat(indent)}- ${layout.volumes.relayIdentity}:/var/lib/gateway-relay`,
     ...next.slice(refreshed.end),
   ];
 }
@@ -768,8 +877,8 @@ function upsertAppGrpcExpose(lines: string[]): string[] {
   return [...next.slice(0, refreshed.end), `${' '.repeat(indent)}- "9443"`, ...next.slice(refreshed.end)];
 }
 
-function upsertRelayService(lines: string[], logging: boolean): string[] {
-  const canonical = relayServiceBlock(logging);
+function upsertRelayService(lines: string[], logging: boolean, layout: ComposeLayout, binary: string): string[] {
+  const canonical = relayServiceBlock(logging, layout, binary);
   const markerStart = findLineInRange(lines, 0, lines.length, RELAY_SERVICE_START);
   const markerEnd = findLineInRange(lines, 0, lines.length, RELAY_SERVICE_END);
   if (markerStart >= 0 || markerEnd >= 0) {
@@ -783,7 +892,7 @@ function upsertRelayService(lines: string[], logging: boolean): string[] {
   if (relay) {
     const owned = lines
       .slice(relay.start, relay.end)
-      .some((line) => /com\.wiolett\.gateway\.managed-service\s*[:=]\s*relay/.test(line));
+      .some((line) => new RegExp(`${MANAGED_SERVICE_LABEL_PATTERN}\\s*[:=]\\s*relay`).test(line));
     if (!owned) throw new Error('foundation migration failed: existing relay service is not installer-managed');
     return [...lines.slice(0, relay.start), ...canonical, ...lines.slice(relay.end)];
   }
@@ -793,15 +902,15 @@ function upsertRelayService(lines: string[], logging: boolean): string[] {
   return [...lines.slice(0, services.end), '', ...canonical, ...lines.slice(services.end)];
 }
 
-function relayServiceBlock(logging: boolean): string[] {
+function relayServiceBlock(logging: boolean, layout: ComposeLayout, binary: string): string[] {
   return [
     `  ${RELAY_SERVICE_START}`,
     '  relay:',
-    `    image: \${GATEWAY_RELAY_IMAGE_REF}`,
-    '    entrypoint: ["/gateway-relay"]',
+    `    image: \${OPFIELD_RELAY_IMAGE_REF}`,
+    `    entrypoint: ["${binary}"]`,
     '    restart: unless-stopped',
     '    labels:',
-    '      com.wiolett.gateway.managed-service: relay',
+    `      ${MANAGED_SERVICE_LABEL}: relay`,
     '    environment:',
     '      RELAY_IDENTITY_DIR: /var/lib/gateway-relay/identity',
     '      RELAY_STATE_DIR: /var/lib/gateway-relay/state',
@@ -811,10 +920,10 @@ function relayServiceBlock(logging: boolean): string[] {
     '    ports:',
     '      - "9443:9443"',
     '    volumes:',
-    '      - gateway_relay_identity:/var/lib/gateway-relay/identity:ro',
-    '      - gateway_relay_state:/var/lib/gateway-relay/state',
+    `      - ${layout.volumes.relayIdentity}:/var/lib/gateway-relay/identity:ro`,
+    `      - ${layout.volumes.relayState}:/var/lib/gateway-relay/state`,
     '    healthcheck:',
-    '      test: ["CMD", "/gateway-relay", "healthcheck"]',
+    `      test: ["CMD", "${binary}", "healthcheck"]`,
     '      interval: 5s',
     '      timeout: 3s',
     '      retries: 2',
@@ -824,9 +933,14 @@ function relayServiceBlock(logging: boolean): string[] {
   ];
 }
 
-function patchRegistryFoundation(lines: string[], boundedLogging: boolean | null = null): string[] {
+function patchRegistryFoundation(
+  lines: string[],
+  boundedLogging: boolean | null = null,
+  layout: ComposeLayout = composeLayout('')
+): string[] {
   const canonical = registryServiceBlock(
-    managedBlockLogging(lines, 'registry', REGISTRY_SERVICE_START, REGISTRY_SERVICE_END, boundedLogging)
+    managedBlockLogging(lines, 'registry', REGISTRY_SERVICE_START, REGISTRY_SERVICE_END, boundedLogging),
+    layout
   );
   const markerStart = findLineInRange(lines, 0, lines.length, REGISTRY_SERVICE_START);
   const markerEnd = findLineInRange(lines, 0, lines.length, REGISTRY_SERVICE_END);
@@ -841,7 +955,7 @@ function patchRegistryFoundation(lines: string[], boundedLogging: boolean | null
     if (registry) {
       const owned = lines
         .slice(registry.start, registry.end)
-        .some((line) => /com\.wiolett\.gateway\.managed-service\s*[:=]\s*registry/.test(line));
+        .some((line) => new RegExp(`${MANAGED_SERVICE_LABEL_PATTERN}\\s*[:=]\\s*registry`).test(line));
       if (!owned) throw new Error('foundation migration failed: existing registry service is not installer-managed');
       next = [...lines.slice(0, registry.start), ...canonical, ...lines.slice(registry.end)];
     } else {
@@ -850,12 +964,12 @@ function patchRegistryFoundation(lines: string[], boundedLogging: boolean | null
       next = [...lines.slice(0, services.end), '', ...canonical, ...lines.slice(services.end)];
     }
   }
-  next = upsertAppRegistryAuthVolume(next);
-  next = ensureTopLevelVolume(next, 'gateway_registry_data');
-  return ensureTopLevelVolume(next, 'gateway_registry_auth');
+  next = upsertAppRegistryAuthVolume(next, layout);
+  next = ensureTopLevelVolume(next, layout.volumes.registryData);
+  return ensureTopLevelVolume(next, layout.volumes.registryAuth);
 }
 
-function upsertAppRegistryAuthVolume(lines: string[]): string[] {
+function upsertAppRegistryAuthVolume(lines: string[], layout: ComposeLayout): string[] {
   const app = findServiceBlock(lines, 'app');
   const volumes = app ? findNestedBlock(lines, app, 'volumes') : null;
   if (!volumes) throw new Error('foundation migration failed: services.app.volumes block not found');
@@ -869,7 +983,7 @@ function upsertAppRegistryAuthVolume(lines: string[]): string[] {
   if (!refreshed) throw new Error('foundation migration failed: services.app.volumes block disappeared');
   return [
     ...next.slice(0, refreshed.end),
-    `${' '.repeat(indent)}- gateway_registry_auth:/var/lib/gateway-registry-auth`,
+    `${' '.repeat(indent)}- ${layout.volumes.registryAuth}:/var/lib/gateway-registry-auth`,
     ...next.slice(refreshed.end),
   ];
 }
@@ -911,22 +1025,22 @@ function upsertAppHostDiagnosticsMounts(lines: string[]): string[] {
   return [...before, ...present, ...missing, ...lines.slice(volumes.end)];
 }
 
-function registryServiceBlock(logging: boolean): string[] {
+function registryServiceBlock(logging: boolean, layout: ComposeLayout): string[] {
   return [
     `  ${REGISTRY_SERVICE_START}`,
     '  registry:',
-    `    image: \${GATEWAY_REGISTRY_IMAGE_REF}`,
+    `    image: \${OPFIELD_REGISTRY_IMAGE_REF}`,
     '    restart: unless-stopped',
     '    labels:',
-    '      com.wiolett.gateway.managed-service: registry',
+    `      ${MANAGED_SERVICE_LABEL}: registry`,
     '    environment:',
     '      REGISTRY_HTTP_ADDR: 0.0.0.0:5000',
     '      REGISTRY_HTTP_DEBUG_ADDR: 127.0.0.1:5001',
-    `      REGISTRY_HTTP_SECRET: \${GATEWAY_REGISTRY_HTTP_SECRET}`,
+    `      REGISTRY_HTTP_SECRET: \${OPFIELD_REGISTRY_HTTP_SECRET}`,
     '      REGISTRY_AUTH: token',
-    `      REGISTRY_AUTH_TOKEN_REALM: \${GATEWAY_REGISTRY_TOKEN_REALM:-https://gateway.invalid/api/docker/registry/token}`,
-    '      REGISTRY_AUTH_TOKEN_SERVICE: gateway-internal-registry',
-    '      REGISTRY_AUTH_TOKEN_ISSUER: gateway-internal-registry',
+    `      REGISTRY_AUTH_TOKEN_REALM: \${OPFIELD_REGISTRY_TOKEN_REALM:-${layout.registryTokenRealm}}`,
+    `      REGISTRY_AUTH_TOKEN_SERVICE: ${layout.registryTokenService}`,
+    `      REGISTRY_AUTH_TOKEN_ISSUER: ${layout.registryTokenService}`,
     '      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/gateway-registry-auth/token-cert.pem',
     '      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry',
     '      REGISTRY_STORAGE_DELETE_ENABLED: "true"',
@@ -936,8 +1050,8 @@ function registryServiceBlock(logging: boolean): string[] {
     '    expose:',
     '      - "5000"',
     '    volumes:',
-    '      - gateway_registry_data:/var/lib/registry',
-    '      - gateway_registry_auth:/var/lib/gateway-registry-auth:ro',
+    `      - ${layout.volumes.registryData}:/var/lib/registry`,
+    `      - ${layout.volumes.registryAuth}:/var/lib/gateway-registry-auth:ro`,
     '    healthcheck:',
     '      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/debug/health >/dev/null"]',
     '      interval: 10s',
@@ -954,7 +1068,7 @@ function patchAppImage(lines: string[], appBlock: { start: number; end: number; 
   for (let index = appBlock.start + 1; index < appBlock.end; index += 1) {
     const match = /^(\s*)image\s*:/.exec(next[index]);
     if (!match) continue;
-    next[index] = `${match[1]}image: \${GATEWAY_IMAGE_REF}`;
+    next[index] = `${match[1]}image: \${OPFIELD_IMAGE_REF}`;
     return next;
   }
 
@@ -970,12 +1084,16 @@ function patchAppImage(lines: string[], appBlock: { start: number; end: number; 
   const indent = ' '.repeat(refreshedApp.indent + 2);
   return [
     ...withoutBuild.slice(0, refreshedApp.start + 1),
-    `${indent}image: \${GATEWAY_IMAGE_REF}`,
+    `${indent}image: \${OPFIELD_IMAGE_REF}`,
     ...withoutBuild.slice(refreshedApp.start + 1),
   ];
 }
 
-function patchAppSandboxVolume(lines: string[], appBlock: { start: number; end: number; indent: number }): string[] {
+function patchAppSandboxVolume(
+  lines: string[],
+  appBlock: { start: number; end: number; indent: number },
+  defaultDir: string
+): string[] {
   const volumes = findNestedBlock(lines, appBlock, 'volumes');
   if (!volumes)
     throw new Error('foundation migration failed: services.app.volumes block not found in docker-compose.yml');
@@ -983,7 +1101,7 @@ function patchAppSandboxVolume(lines: string[], appBlock: { start: number; end: 
   const volumeIndent = `${' '.repeat(volumes.indent + 2)}`;
   const canonicalBlock = [
     `${volumeIndent}${SANDBOX_VOLUME_START}`,
-    `${volumeIndent}- \${SANDBOX_RUNNER_WORKSPACE_DIR:-${DEFAULT_SANDBOX_WORKSPACE_DIR}}:\${SANDBOX_RUNNER_WORKSPACE_DIR:-${DEFAULT_SANDBOX_WORKSPACE_DIR}}`,
+    `${volumeIndent}- \${SANDBOX_RUNNER_WORKSPACE_DIR:-${defaultDir}}:\${SANDBOX_RUNNER_WORKSPACE_DIR:-${defaultDir}}`,
     `${volumeIndent}${SANDBOX_VOLUME_END}`,
   ];
 
@@ -1006,13 +1124,16 @@ function patchAppSandboxVolume(lines: string[], appBlock: { start: number; end: 
   return [...lines.slice(0, insertAt), ...canonicalBlock, ...lines.slice(insertAt)];
 }
 
-function findServiceBlock(lines: string[], serviceName: string): { start: number; end: number; indent: number } | null {
+export function findServiceBlock(
+  lines: string[],
+  serviceName: string
+): { start: number; end: number; indent: number } | null {
   const servicesBlock = findTopLevelBlock(lines, 'services');
   if (!servicesBlock) return null;
   return findDirectNestedBlock(lines, servicesBlock, serviceName);
 }
 
-function findTopLevelBlock(lines: string[], key: string): { start: number; end: number; indent: number } | null {
+export function findTopLevelBlock(lines: string[], key: string): { start: number; end: number; indent: number } | null {
   const pattern = new RegExp(`^${escapeRegExp(key)}\\s*:\\s*(?:#.*)?$`);
   for (let index = 0; index < lines.length; index += 1) {
     if (!pattern.test(lines[index])) continue;
@@ -1021,7 +1142,7 @@ function findTopLevelBlock(lines: string[], key: string): { start: number; end: 
   return null;
 }
 
-function findDirectNestedBlock(
+export function findDirectNestedBlock(
   lines: string[],
   parent: { start: number; end: number; indent: number },
   key: string
@@ -1041,7 +1162,10 @@ function findDirectNestedBlock(
   return null;
 }
 
-function firstChildIndent(lines: string[], parent: { start: number; end: number; indent: number }): number | null {
+export function firstChildIndent(
+  lines: string[],
+  parent: { start: number; end: number; indent: number }
+): number | null {
   for (let index = parent.start + 1; index < parent.end; index += 1) {
     const line = lines[index];
     if (!line.trim() || line.trimStart().startsWith('#')) continue;
@@ -1051,7 +1175,7 @@ function firstChildIndent(lines: string[], parent: { start: number; end: number;
   return null;
 }
 
-function findNestedBlock(
+export function findNestedBlock(
   lines: string[],
   parent: { start: number; end: number; indent: number },
   key: string
@@ -1101,7 +1225,8 @@ function findExistingSandboxVolume(lines: string[], start: number, end: number):
     const line = lines[index];
     if (
       line.includes('SANDBOX_RUNNER_WORKSPACE_DIR') ||
-      line.includes(`${DEFAULT_SANDBOX_WORKSPACE_DIR}:${DEFAULT_SANDBOX_WORKSPACE_DIR}`)
+      line.includes(`${DEFAULT_SANDBOX_WORKSPACE_DIR}:${DEFAULT_SANDBOX_WORKSPACE_DIR}`) ||
+      line.includes(`${LEGACY_SANDBOX_WORKSPACE_DIR}:${LEGACY_SANDBOX_WORKSPACE_DIR}`)
     ) {
       return index;
     }
@@ -1142,11 +1267,6 @@ function parseEnvValues(content: string): Map<string, string> {
   return values;
 }
 
-function envLineKey(line: string): string | null {
-  const match = /^([A-Z_][A-Z0-9_]*)=/.exec(line);
-  return match?.[1] ?? null;
-}
-
 async function backupFile(filePath: string, backupDir: string): Promise<void> {
   await fs.mkdir(backupDir, { recursive: true });
   await fs.copyFile(filePath, path.join(backupDir, path.basename(filePath)));
@@ -1161,7 +1281,7 @@ async function restoreBackups(backupDir: string, writes: PendingFoundationWrite[
   }
 }
 
-async function writeFileAtomic(filePath: string, content: string): Promise<void> {
+export async function writeFileAtomic(filePath: string, content: string): Promise<void> {
   const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
   const stat = await fs.stat(filePath).catch(() => null);
   await fs.writeFile(tempPath, content, { mode: stat ? stat.mode & 0o777 : 0o600 });

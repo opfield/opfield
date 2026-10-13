@@ -596,15 +596,15 @@ export const inferenceCoreStatus: InferenceCoreStatus = {
 
 export const aiConfig = {
   enabled: true,
-  providerType: "gateway_inference",
+  providerType: "opfield_inference",
   providerUrl: "",
   endpointMode: "chat_completions",
   supportsImages: true,
   model: "",
-  gatewayInferenceModel: "gateway-large",
-  gatewayInferenceAllowUserModelSelection: true,
+  opfieldInferenceModel: "gateway-large",
+  opfieldInferenceAllowUserModelSelection: true,
   allowUserReasoningEffortSelection: true,
-  gatewayInferenceModels: [
+  opfieldInferenceModels: [
     {
       id: "gateway-large",
       displayName: "Opfield Large",

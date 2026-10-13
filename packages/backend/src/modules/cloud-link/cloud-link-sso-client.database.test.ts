@@ -17,14 +17,14 @@ import { CloudLinkService } from './cloud-link.service.js';
 import { createCloudLinkActions } from './cloud-link-actions.js';
 import { CloudSsoClient } from './cloud-link-sso-client.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ISSUER = 'https://account.opfield.dev';
 const REDIRECT = 'https://gw.example.com/auth/callback';
 const SECRET = 'self-hosted-client-secret-5e1a';
 const CLIENT = { issuer: ISSUER, clientId: 'gw-self', clientSecret: SECRET, redirectUri: REDIRECT };
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a self-hosted installation connected to Opfield Cloud asks for an
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a self-hosted installation connected to Opfield Cloud asks for an
  * Opfield account sign-in client through its hello, takes only the client it asked for, rotates its secret without
  * being managed, and drops the provider when the cloud link ends unless no administrator could sign in then.
  */
@@ -63,6 +63,13 @@ describe.skipIf(!url)('Opfield account sign-in client over the cloud link (Postg
         }),
       ]
     );
+  };
+  const viewerGroupId = async () => {
+    const [group] = await db
+      .select({ id: schema.permissionGroups.id })
+      .from(schema.permissionGroups)
+      .where(eq(schema.permissionGroups.name, 'viewer'));
+    return group!.id;
   };
   const adminGroupId = async () => {
     const [group] = await db
@@ -213,6 +220,54 @@ describe.skipIf(!url)('Opfield account sign-in client over the cloud link (Postg
     expect(await oidcSettings.getOpfieldAccountClient()).toBeNull();
     expect(steps()).toContain('provider_removed');
     expect(await q(`select 1 from settings where key = 'cloud:sso_client_request'`)).toMatchObject({ rowCount: 0 });
+  });
+
+  it('drops the sign-in on disconnect even while members and deleted accounts are bound to it', async () => {
+    await cloud.requestSsoClient(REDIRECT, { userId: null });
+    await ssoClient.accept(CLIENT);
+    // A team member signing in with the Opfield account, and a deleted one: neither keeps the dead provider.
+    const groupId = await viewerGroupId();
+    await db.insert(schema.users).values([
+      {
+        email: 'bob@example.com',
+        name: 'Bob',
+        authMethod: 'oidc',
+        oidcSubject: 'account-bob',
+        oidcIssuer: ISSUER,
+        groupId,
+      },
+      {
+        groupId,
+        email: 'eve@example.com',
+        name: 'Eve',
+        authMethod: 'oidc',
+        oidcSubject: 'account-eve',
+        oidcIssuer: ISSUER,
+        isBlocked: true,
+        deletedAt: new Date(),
+      },
+    ]);
+
+    await cloud.disconnect({ userId: null });
+    expect((await oidcSettings.getPublicConfig()).configured).toBe(false);
+    expect((await authSettings.getConfig()).methods).toMatchObject({ oidc: false, password: true });
+    expect(steps()).toContain('provider_removed');
+  });
+
+  it('lets an administrator turn OIDC off while only deleted accounts are bound to it', async () => {
+    await authSettings.updateConfig({ methods: { oidc: true } });
+    await db.insert(schema.users).values({
+      groupId: await viewerGroupId(),
+      email: 'eve@example.com',
+      name: 'Eve',
+      authMethod: 'oidc',
+      oidcSubject: 'account-eve',
+      oidcIssuer: ISSUER,
+      isBlocked: true,
+      deletedAt: new Date(),
+    });
+    await expect(authSettings.updateConfig({ methods: { oidc: false } })).resolves.toBeDefined();
+    expect((await authSettings.getConfig()).methods.oidc).toBe(false);
   });
 
   it('keeps the provider when the account disconnects and nobody else could sign in, and says so', async () => {

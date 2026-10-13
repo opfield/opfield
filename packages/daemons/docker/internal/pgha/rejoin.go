@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // RejoinNeeded: a stopped member that must not start before a rejoin: no

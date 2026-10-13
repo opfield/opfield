@@ -9,13 +9,20 @@ import (
 	"io"
 	"time"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay/internal/peer"
-	"github.com/wiolett-industries/gateway/relay/internal/policy"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay/internal/peer"
+	"github.com/opfield/opfield/relay/internal/policy"
 )
 
 const (
-	Audience = "wiolett-relay"
+	// Audience is the audience of a grant Opfield issues to relays.
+	Audience = "opfield-relay"
+	// legacy-name: wiolett-relay grant audience — remove once every node reports none.
+	// Opfield 2.12.0 issues it, and a newer Opfield keeps issuing it while a
+	// relay of the pool does not advertise AudienceCapability.
+	LegacyAudience = "wiolett-relay"
+	// AudienceCapability tells Opfield this relay accepts grants for Audience.
+	AudienceCapability = "grant_audience_opfield_v1"
 	// MaxTTL is the longest grant lifetime this relay build accepts. Gateway only
 	// issues a grant this long to a relay instance that advertised
 	// policy.LongLeaseCapability; otherwise it keeps issuing the legacy 48-hour
@@ -106,7 +113,7 @@ func (v Verifier) VerifyEnvelope(envelope *relayv1.SignedGrant, wantKind string,
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return Claims{}, fmt.Errorf("grant payload contains trailing data")
 	}
-	if (claims.SchemaVersion != 1 && claims.SchemaVersion != 2) || claims.Audience != Audience || claims.GrantID == "" || claims.GatewayInstanceID != snapshot.GatewayInstanceID {
+	if (claims.SchemaVersion != 1 && claims.SchemaVersion != 2) || !acceptedAudience(claims.Audience) || claims.GrantID == "" || claims.GatewayInstanceID != snapshot.GatewayInstanceID {
 		return Claims{}, fmt.Errorf("grant scope is invalid")
 	}
 	if claims.SchemaVersion == 1 && snapshot.Mode == relayv1.RelayMode_RELAY_MODE_REMOTE_DATA_ONLY {
@@ -159,4 +166,9 @@ func ValidatePolicy(claims Claims, wantKind string, snapshot *policy.Snapshot) e
 		return fmt.Errorf("unsupported grant kind")
 	}
 	return nil
+}
+
+// acceptedAudience reports a grant audience this relay accepts.
+func acceptedAudience(audience string) bool {
+	return audience == Audience || audience == LegacyAudience
 }

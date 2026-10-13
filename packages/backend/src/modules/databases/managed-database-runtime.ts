@@ -21,7 +21,7 @@ import { appsHostRuntime } from '@/modules/apps/apps-host-runtime.js';
 import { decodeComposeServiceTarget } from '@/modules/docker/compose/compose-managed-bindings.js';
 import { assertDockerResourceScope } from '@/modules/docker/docker-access.middleware.js';
 import { resolveBindingTargetContainerIdentity } from '@/modules/docker/docker-binding-target-identity.js';
-import { isGatewayInternalContainer } from '@/modules/docker/docker-internal-containers.js';
+import { isOpfieldInternalContainer } from '@/modules/docker/docker-internal-containers.js';
 import { requireConfiguredLicensePolicy } from '@/modules/license/license-policy.service.js';
 import { currentWitnessVersion } from '@/modules/managed-workloads/witness-catalog.js';
 import {
@@ -77,7 +77,7 @@ export const managedDatabaseRuntime = {
   managedStorageBindings,
   hasScope,
   loggerManagedDatabaseBindings,
-  isGatewayInternalContainer,
+  isOpfieldInternalContainer,
   loggerManagedDatabaseBindingIdentityRuntime,
   // The workload check of links (ManagedDatabaseBindingService.assertTargetAccess).
   decodeComposeServiceTarget,

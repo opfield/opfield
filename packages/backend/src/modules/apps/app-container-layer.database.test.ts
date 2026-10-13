@@ -24,11 +24,11 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = ['apps:view', 'apps:create', 'apps:edit', 'apps:env:manage'];
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a container in an app environment gets the layer from its folder,
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a container in an app environment gets the layer from its folder,
  * keeps its record across rename and duplicate, and the environment view never shows or seeds layer keys as the
  * container's own env.
  */

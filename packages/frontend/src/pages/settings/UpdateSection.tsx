@@ -33,7 +33,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
   } = useUpdateStore();
   const [abandoningRelayUpdate, setAbandoningRelayUpdate] = useState(false);
   const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
-  const [releaseNotesSource, setReleaseNotesSource] = useState<"gateway" | "relay">("gateway");
+  const [releaseNotesSource, setReleaseNotesSource] = useState<"opfield" | "relay">("opfield");
   const [releaseNotesList, setReleaseNotesList] = useState<string[] | null>(null);
   const [releaseVersions, setReleaseVersions] = useState<string[] | null>(null);
   const [releaseNotesLoading, setReleaseNotesLoading] = useState(false);
@@ -66,10 +66,10 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
     }
   };
 
-  const handleGatewayUpdate = async () => {
+  const handleOpfieldUpdate = async () => {
     if (!updateStatus) return;
-    const gatewayUpdate = updateStatus.updateAvailable && Boolean(updateStatus.latestVersion);
-    if (!gatewayUpdate || !updateStatus.latestVersion) return;
+    const opfieldUpdate = updateStatus.updateAvailable && Boolean(updateStatus.latestVersion);
+    if (!opfieldUpdate || !updateStatus.latestVersion) return;
     const ok = await confirm({
       title: "Update Opfield",
       description: `Update Opfield from ${updateStatus.currentVersion} to ${updateStatus.latestVersion}? The application will restart automatically.`,
@@ -126,7 +126,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
     }
   };
 
-  const gatewayUpdateAvailable = Boolean(
+  const opfieldUpdateAvailable = Boolean(
     updateStatus?.updateAvailable && updateStatus.latestVersion
   );
   const relayRolloutRunning = relayOperation?.status === "updating";
@@ -135,15 +135,15 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
     updateStatus?.relay?.updateAvailable && updateStatus.relay.latestVersion && !relayRolloutRunning
   );
   const showRelayPanel = relayUpdateAvailable || relayOperationAbandonable;
-  const anyUpdateAvailable = gatewayUpdateAvailable || relayUpdateAvailable;
+  const anyUpdateAvailable = opfieldUpdateAvailable || relayUpdateAvailable;
   const activeReleaseNotes =
-    releaseNotesSource === "gateway"
+    releaseNotesSource === "opfield"
       ? updateStatus?.releaseNotes
       : updateStatus?.relay?.releaseNotes;
 
   return (
     <>
-      {gatewayUpdateAvailable && (
+      {opfieldUpdateAvailable && (
         <PanelShell
           icon={<RefreshCw className="h-4 w-4 text-warning-text" />}
           id="system-updates"
@@ -157,7 +157,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
                 <Button
                   variant="outline"
                   onClick={async () => {
-                    setReleaseNotesSource("gateway");
+                    setReleaseNotesSource("opfield");
                     setReleaseVersions(null);
                     setReleaseNotesList(null);
                     // Set with the open state, so the dialog waits for the full list
@@ -181,7 +181,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
                 </Button>
               )}
               {canUpdate && (
-                <Button onClick={handleGatewayUpdate} variant="warning">
+                <Button onClick={handleOpfieldUpdate} variant="warning">
                   Update Opfield to {updateStatus?.latestVersion}
                 </Button>
               )}
@@ -200,7 +200,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
       {showRelayPanel && (
         <PanelShell
           icon={<RefreshCw className="h-4 w-4 text-warning-text" />}
-          id={gatewayUpdateAvailable ? undefined : "system-updates"}
+          id={opfieldUpdateAvailable ? undefined : "system-updates"}
           title={
             <span className="text-warning-text">
               {relayUpdateAvailable
@@ -219,7 +219,7 @@ export function UpdateSection({ canUpdate }: UpdateSectionProps) {
           }
           className={cn(
             "xl:col-span-2",
-            !gatewayUpdateAvailable && navigationHighlighted && "navigation-target-ripple"
+            !opfieldUpdateAvailable && navigationHighlighted && "navigation-target-ripple"
           )}
           dirty
           actions={

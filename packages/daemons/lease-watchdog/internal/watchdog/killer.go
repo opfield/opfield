@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 // CgroupKiller kills a cgroup directly through cgroupfs, never through

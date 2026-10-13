@@ -9,25 +9,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/opfield/opfield/daemon-shared/hostrename"
 )
 
-const (
-	DefaultRuntimeConfigDir     = "/etc/gateway-builder"
-	DefaultRuntimeBinDir        = "/opt/gateway-builder/bin"
-	DefaultContainerdConfigPath = "/etc/gateway-builder/containerd.toml"
-	DefaultBuildkitConfigPath   = "/etc/gateway-builder/buildkitd.toml"
-	DefaultContainerdUnitPath   = "/etc/systemd/system/gateway-builder-containerd.service"
-	DefaultBuildkitUnitPath     = "/etc/systemd/system/gateway-builder-buildkit.service"
-	legacyCNIConfigPath         = "/etc/gateway-builder/cni.json"
-	legacyRunscConfigPath       = "/etc/gateway-builder/runsc.toml"
-	legacyRunscWrapperPath      = "/usr/local/lib/gateway-builder/runsc-oci"
-	DefaultGitAskpassDirectory  = "/usr/local/lib/gateway-builder"
-	DefaultEgressScriptPath     = "/usr/local/lib/gateway-builder/apply-egress-policy"
-	DefaultEgressUnitPath       = "/etc/systemd/system/gateway-builder-egress.service"
-	containerdServiceName       = "gateway-builder-containerd.service"
-	buildkitServiceName         = "gateway-builder-buildkit.service"
-	egressServiceName           = "gateway-builder-egress.service"
-)
+// Files of runtimes before the current layout, removed when the configuration
+// is installed (they live in the naming's configuration and library
+// directories).
+var legacyRuntimeFiles = []string{"cni.json", "runsc.toml"}
+
+const legacyRunscWrapperName = "runsc-oci"
 
 var bundledRuntimeBinaries = []string{
 	"containerd",
@@ -40,8 +31,8 @@ var bundledRuntimeBinaries = []string{
 	"grype",
 }
 
-func bundledRuntimeBinaryPath(name string) string {
-	return filepath.Join(DefaultRuntimeBinDir, name)
+func bundledRuntimeBinaryPath(binDir, name string) string {
+	return filepath.Join(binDir, name)
 }
 
 func requireExecutableFile(path string) error {
@@ -55,10 +46,16 @@ func requireExecutableFile(path string) error {
 	return nil
 }
 
-func resolveBuilderExecutable(name string) (string, error) {
+// builderExecutableResolver finds builder tools: the bundled ones in the
+// naming's bundle directory, the others on PATH.
+func builderExecutableResolver(naming Naming) func(string) (string, error) {
+	return func(name string) (string, error) { return resolveBuilderExecutable(naming.BinDir(), name) }
+}
+
+func resolveBuilderExecutable(binDir, name string) (string, error) {
 	for _, bundled := range bundledRuntimeBinaries {
 		if name == bundled {
-			path := bundledRuntimeBinaryPath(name)
+			path := bundledRuntimeBinaryPath(binDir, name)
 			if err := requireExecutableFile(path); err != nil {
 				return "", err
 			}
@@ -73,7 +70,7 @@ type RuntimeSupervisor struct {
 	lookPath func(string) (string, error)
 	run      func(string, ...string) error
 	// egressScriptPath is where ReapplyEgressPolicy writes the policy
-	// (DefaultEgressScriptPath when empty).
+	// (the naming's script when empty).
 	egressScriptPath string
 }
 
@@ -99,8 +96,9 @@ func (s *RuntimeSupervisor) InstallConfiguration() error {
 	if err := s.Config.Validate(); err != nil {
 		return err
 	}
+	naming := s.Config.Naming
 	for _, binary := range bundledRuntimeBinaries {
-		path := bundledRuntimeBinaryPath(binary)
+		path := bundledRuntimeBinaryPath(naming.BinDir(), binary)
 		if err := requireExecutableFile(path); err != nil {
 			return fmt.Errorf("required builder runtime binary %s is unavailable: %w", path, err)
 		}
@@ -129,21 +127,25 @@ func (s *RuntimeSupervisor) InstallConfiguration() error {
 		content string
 		mode    os.FileMode
 	}{
-		DefaultContainerdConfigPath: {content: containerdConfig, mode: 0o600},
-		DefaultBuildkitConfigPath:   {content: buildkitConfig, mode: 0o600},
-		s.Config.CNIConfigPath:      {content: renderCNIConfig(s.Config), mode: 0o600},
-		DefaultGitAskpassPath:       {content: renderGitAskpass(), mode: 0o755},
-		DefaultEgressScriptPath:     {content: renderEgressScript(s.Config), mode: 0o700},
-		DefaultEgressUnitPath:       {content: renderEgressUnit(), mode: 0o644},
-		DefaultContainerdUnitPath:   {content: renderContainerdUnit(s.Config), mode: 0o644},
-		DefaultBuildkitUnitPath:     {content: renderBuildkitUnit(s.Config), mode: 0o644},
+		naming.ContainerdConfigPath(): {content: containerdConfig, mode: 0o600},
+		naming.BuildkitConfigPath():   {content: buildkitConfig, mode: 0o600},
+		s.Config.CNIConfigPath:        {content: renderCNIConfig(s.Config), mode: 0o600},
+		naming.GitAskpassPath():       {content: renderGitAskpass(), mode: 0o755},
+		naming.EgressScriptPath():     {content: renderEgressScript(s.Config), mode: 0o700},
+		naming.EgressUnitPath():       {content: renderEgressUnit(naming), mode: 0o644},
+		naming.ContainerdUnitPath():   {content: renderContainerdUnit(s.Config), mode: 0o644},
+		naming.BuildkitUnitPath():     {content: renderBuildkitUnit(s.Config), mode: 0o644},
 	}
 	for path, file := range files {
 		if err := writeManagedFile(path, file.content, file.mode); err != nil {
 			return err
 		}
 	}
-	for _, legacyPath := range []string{legacyCNIConfigPath, legacyRunscConfigPath, legacyRunscWrapperPath} {
+	legacyPaths := []string{filepath.Join(naming.LibDir, legacyRunscWrapperName)}
+	for _, name := range legacyRuntimeFiles {
+		legacyPaths = append(legacyPaths, filepath.Join(naming.ConfigDir, name))
+	}
+	for _, legacyPath := range legacyPaths {
 		if err := os.Remove(legacyPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("remove legacy builder runtime file %s: %w", legacyPath, err)
 		}
@@ -158,22 +160,23 @@ func (s *RuntimeSupervisor) Start() error {
 	if err := s.run("systemctl", "daemon-reload"); err != nil {
 		return err
 	}
-	if err := s.run("systemctl", "enable", "--now", egressServiceName); err != nil {
+	naming := s.Config.Naming
+	if err := s.run("systemctl", "enable", "--now", naming.EgressService); err != nil {
 		return err
 	}
-	if err := s.run("systemctl", "restart", egressServiceName); err != nil {
+	if err := s.run("systemctl", "restart", naming.EgressService); err != nil {
 		return err
 	}
-	if err := s.run("systemctl", "enable", containerdServiceName); err != nil {
+	if err := s.run("systemctl", "enable", naming.ContainerdService); err != nil {
 		return err
 	}
-	if err := s.run("systemctl", "enable", buildkitServiceName); err != nil {
+	if err := s.run("systemctl", "enable", naming.BuildkitService); err != nil {
 		return err
 	}
-	if err := s.run("systemctl", "restart", containerdServiceName); err != nil {
+	if err := s.run("systemctl", "restart", naming.ContainerdService); err != nil {
 		return err
 	}
-	if err := s.run("systemctl", "restart", buildkitServiceName); err != nil {
+	if err := s.run("systemctl", "restart", naming.BuildkitService); err != nil {
 		return err
 	}
 	return nil
@@ -189,12 +192,12 @@ func (s *RuntimeSupervisor) ReapplyEgressPolicy(controlPlaneAddress string) erro
 	config.ControlPlaneAddress = controlPlaneAddress
 	path := s.egressScriptPath
 	if path == "" {
-		path = DefaultEgressScriptPath
+		path = config.Naming.EgressScriptPath()
 	}
 	if err := writeManagedFile(path, renderEgressScript(config), 0o700); err != nil {
 		return err
 	}
-	if err := s.run("systemctl", "restart", egressServiceName); err != nil {
+	if err := s.run("systemctl", "restart", config.Naming.EgressService); err != nil {
 		return err
 	}
 	s.Config = config
@@ -203,13 +206,13 @@ func (s *RuntimeSupervisor) ReapplyEgressPolicy(controlPlaneAddress string) erro
 
 func renderCNIConfig(config RuntimeConfig) string {
 	if config.EgressProfile == "offline" {
-		return RenderLoopbackOnlyCNIConfig()
+		return RenderLoopbackOnlyCNIConfig(config.Naming)
 	}
-	return RenderInternetCNIConfig()
+	return RenderInternetCNIConfig(config.Naming)
 }
 
 // renderEgressScript renders the idempotent policy for build steps. Forwarded
-// traffic goes through GATEWAY_BUILDER_EGRESS. Traffic to the worker host
+// traffic goes through the naming's egress chain (OPFIELD_BUILDER_EGRESS). Traffic to the worker host
 // itself (any of its addresses, including the bridge gateway) goes through
 // INPUT and is rejected in every egress profile: build steps resolve names
 // through public resolvers and need no host service. The bridge carries no
@@ -224,8 +227,8 @@ func renderEgressScript(config RuntimeConfig) string {
 	return fmt.Sprintf(`#!/bin/sh
 set -eu
 IPT="$(command -v iptables)"
-CHAIN=GATEWAY_BUILDER_EGRESS
-HOST_CHAIN=GATEWAY_BUILDER_HOST
+CHAIN=%s
+HOST_CHAIN=%s
 BRIDGE=%s
 SUBNET=%s
 CONTROL_HOST=%s
@@ -259,7 +262,7 @@ if [ -e /proc/net/if_inet6 ]; then
   $IP6T -C INPUT -i "$BRIDGE" -j "$HOST_CHAIN" 2>/dev/null || $IP6T -I INPUT 1 -i "$BRIDGE" -j "$HOST_CHAIN"
   $IP6T -C FORWARD -i "$BRIDGE" -j "$HOST_CHAIN" 2>/dev/null || $IP6T -I FORWARD 1 -i "$BRIDGE" -j "$HOST_CHAIN"
 fi
-`, BuilderBridgeName, BuilderNetworkSubnet, strconv.Quote(host), strconv.Quote(port), modeRule)
+`, config.Naming.EgressChain, config.Naming.HostChain, config.Naming.Bridge, BuilderNetworkSubnet, strconv.Quote(host), strconv.Quote(port), modeRule)
 }
 
 func splitControlPlaneAddress(address string) (string, string) {
@@ -273,16 +276,16 @@ func splitControlPlaneAddress(address string) (string, string) {
 	return "", "9443"
 }
 
-func renderEgressUnit() string {
+func renderEgressUnit(naming Naming) string {
 	return `[Unit]
 Description=Opfield builder egress policy
 After=network-online.target
 Wants=network-online.target
-Before=gateway-builder-containerd.service gateway-builder-buildkit.service
+Before=` + naming.ContainerdService + ` ` + naming.BuildkitService + `
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/lib/gateway-builder/apply-egress-policy
+ExecStart=` + naming.EgressScriptPath() + `
 RemainAfterExit=yes
 
 [Install]
@@ -294,7 +297,7 @@ func writeManagedFile(path, content string, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create %s directory: %w", path, err)
 	}
-	temporary, err := os.CreateTemp(filepath.Dir(path), ".gateway-builder-*")
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".opfield-builder-*")
 	if err != nil {
 		return err
 	}
@@ -322,7 +325,7 @@ func writeManagedFile(path, content string, mode os.FileMode) error {
 }
 
 func renderGitAskpass() string {
-	return "#!/bin/sh\ncase \"$1\" in\n  *Username*) printf '%s\\n' \"$GATEWAY_GIT_USERNAME\" ;;\n  *Password*) printf '%s\\n' \"$GATEWAY_GIT_PASSWORD\" ;;\n  *) exit 1 ;;\nesac\n"
+	return "#!/bin/sh\ncase \"$1\" in\n  *Username*) printf '%s\\n' \"$OPFIELD_GIT_USERNAME\" ;;\n  *Password*) printf '%s\\n' \"$OPFIELD_GIT_PASSWORD\" ;;\n  *) exit 1 ;;\nesac\n"
 }
 
 func renderContainerdUnit(config RuntimeConfig) string {
@@ -334,14 +337,14 @@ Wants=network-online.target
 
 [Service]
 Type=notify
-Environment="PATH=/opt/gateway-builder/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/opt/gateway-builder/bin/containerd --config /etc/gateway-builder/containerd.toml
+Environment="PATH=%[4]s:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=%[4]s/containerd --config %[5]s
 Restart=always
 RestartSec=3
 LimitNOFILE=1048576
-CPUQuota=%s
-MemoryMax=%d
-TasksMax=%d
+CPUQuota=%[1]s
+MemoryMax=%[2]d
+TasksMax=%[3]d
 OOMPolicy=kill
 UMask=0077
 NoNewPrivileges=true
@@ -349,25 +352,25 @@ TimeoutStopSec=15s
 
 [Install]
 WantedBy=multi-user.target
-`, cpuQuota, config.MemoryLimitBytes, config.TasksLimit)
+`, cpuQuota, config.MemoryLimitBytes, config.TasksLimit, config.Naming.BinDir(), config.Naming.ContainerdConfigPath())
 }
 
 func renderBuildkitUnit(config RuntimeConfig) string {
 	return fmt.Sprintf(`[Unit]
 Description=Opfield isolated BuildKit builder
-After=gateway-builder-containerd.service
-Requires=gateway-builder-containerd.service
+After=%[3]s
+Requires=%[3]s
 
 [Service]
 Type=notify
-Environment="PATH=/opt/gateway-builder/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/opt/gateway-builder/bin/buildkitd --config /etc/gateway-builder/buildkitd.toml
+Environment="PATH=%[4]s:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=%[4]s/buildkitd --config %[5]s
 Restart=always
 RestartSec=3
 LimitNOFILE=1048576
 CPUQuota=100%%
-MemoryMax=%d
-TasksMax=%d
+MemoryMax=%[1]d
+TasksMax=%[2]d
 OOMPolicy=kill
 UMask=0077
 NoNewPrivileges=true
@@ -375,5 +378,91 @@ TimeoutStopSec=15s
 
 [Install]
 WantedBy=multi-user.target
-`, int64(1024*1024*1024), config.TasksLimit)
+`, int64(1024*1024*1024), config.TasksLimit, config.Naming.ContainerdService, config.Naming.BinDir(), config.Naming.BuildkitConfigPath())
+}
+
+// SwitchToOpfieldNaming moves a worker running the runtime under its
+// pre-Opfield names to the Opfield ones: it stops and removes the old services,
+// their netfilter chains and bridge, moves the runtime's directories (leaving
+// links under the old names), then installs and starts the runtime under the
+// new names. Call it only while no build runs (Manager.TryPause) and only on a
+// confirmed start. Every step is idempotent: after a crash the next start
+// finds no old units and installs the new ones (SelectNaming), and the
+// cleanup of old chains, bridge and cgroup runs again there.
+func (s *RuntimeSupervisor) SwitchToOpfieldNaming() error {
+	if !s.Config.Naming.Legacy {
+		return nil
+	}
+	legacy := LegacyNaming
+	for _, service := range []string{legacy.BuildkitService, legacy.ContainerdService, legacy.EgressService} {
+		if _, err := os.Lstat(legacy.unitPath(service)); err != nil {
+			continue
+		}
+		if err := s.run("systemctl", "disable", "--now", service); err != nil {
+			return err
+		}
+	}
+	for _, path := range []string{legacy.BuildkitUnitPath(), legacy.ContainerdUnitPath(), legacy.EgressUnitPath()} {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	if err := s.run("systemctl", "daemon-reload"); err != nil {
+		return err
+	}
+	if err := s.RemoveLegacyLeftovers(); err != nil {
+		return err
+	}
+	config := s.Config
+	config.Naming = OpfieldNaming
+	fresh := DefaultRuntimeConfigFor(OpfieldNaming, config.SocketGID)
+	config.BuildkitSocket, config.ContainerdSocket, config.ContainerdStateDir = fresh.BuildkitSocket, fresh.ContainerdSocket, fresh.ContainerdStateDir
+	config.CNIConfigPath, config.CNIBinaryDir, config.ContainerdNamespace = fresh.CNIConfigPath, fresh.CNIBinaryDir, fresh.ContainerdNamespace
+	s.Config = config
+	if err := s.InstallConfiguration(); err != nil {
+		return err
+	}
+	return s.Start()
+}
+
+// RemoveLegacyLeftovers removes what the pre-Opfield runtime leaves on the host
+// once its services are gone: the jumps to and the netfilter chains, the build
+// bridge, the cgroup parent and the CNI address records, and moves the
+// directories to their Opfield names. It does nothing while the old units are
+// installed.
+func (s *RuntimeSupervisor) RemoveLegacyLeftovers() error {
+	if LegacyUnits() > 0 {
+		return nil
+	}
+	legacy := LegacyNaming
+	script := `for IPT in iptables ip6tables; do
+  command -v "$IPT" >/dev/null 2>&1 || continue
+  for CHAIN in ` + legacy.EgressChain + ` ` + legacy.HostChain + `; do
+    for PARENT in INPUT FORWARD CNI-ADMIN; do
+      "$IPT" -S "$PARENT" 2>/dev/null | grep -- "-j $CHAIN\$" | sed 's/^-A /-D /' | while read -r RULE; do
+        # shellcheck disable=SC2086
+        "$IPT" $RULE || true
+      done
+    done
+    "$IPT" -F "$CHAIN" 2>/dev/null || true
+    "$IPT" -X "$CHAIN" 2>/dev/null || true
+  done
+done
+if command -v ip >/dev/null 2>&1 && ip link show ` + legacy.Bridge + ` >/dev/null 2>&1; then
+  ip link delete ` + legacy.Bridge + `
+fi
+`
+	if err := s.run("sh", "-c", script); err != nil {
+		return fmt.Errorf("remove the pre-Opfield builder network: %w", err)
+	}
+	_ = os.Remove(filepath.Join("/sys/fs/cgroup", legacy.CgroupParent))
+	if err := os.RemoveAll(filepath.Join(DefaultCNIStateDir, legacy.OpenNetwork)); err != nil {
+		return err
+	}
+	for _, pair := range builderDirPairs() {
+		if _, err := hostrename.Move(pair); err != nil && !errors.Is(err, hostrename.ErrConflict) {
+			return fmt.Errorf("move %s: %w", pair.Old, err)
+		}
+	}
+	return nil
 }

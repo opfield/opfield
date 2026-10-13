@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { commercialHostRoot } from '@/edition/prepare-update.js';
 import { patchCompose, patchEnv } from '@/foundation/foundation-migrator.js';
 import { normalizeHostPortTarget, normalizePublicUrl } from '@/modules/settings/general-settings.service.js';
 import type { DockerService } from '@/services/docker.service.js';
@@ -33,6 +34,7 @@ import {
 import {
   CONFIGURATION_EXPORT_FORMAT,
   type ConfigurationExportManifest,
+  composeVolumeKey,
   composeVolumeName,
   ENVIRONMENT_PART,
   type PortableEnvKey,
@@ -66,7 +68,7 @@ export interface RestoreAddress {
 export interface RestoredMarker {
   restoredAt: string;
   exportCreatedAt: string;
-  gatewayVersion: string;
+  opfieldVersion: string;
   installationId: string;
   sourcePublicUrl: string | null;
   sourceGrpcPublicTarget: string | null;
@@ -93,7 +95,7 @@ export interface RestoreStatus {
 
 export interface ExportSummary {
   createdAt: string;
-  gatewayVersion: string;
+  opfieldVersion: string;
   installationId: string;
   sourcePublicUrl: string | null;
   sourceGrpcPublicTarget: string | null;
@@ -129,12 +131,12 @@ export interface RestoreOptions {
    * The archive was uploaded into gateway_data (setup wizard): the target is a fresh installation,
    * so gateway_data is not copied for a rollback (a rollback empties it, keeping the upload).
    */
-  archiveInGatewayData?: boolean;
+  archiveInOpfieldData?: boolean;
   /** Where to report progress (the wizard reads it). */
   statusFile?: string;
   /** SHA-256 hex of the wizard browser's owner-link claim (see RestoredMarker.ownerLinkClaimHash). */
   ownerLinkClaimHash?: string;
-  current: { gatewayVersion: string; schemaMigration: string };
+  current: { opfieldVersion: string; schemaMigration: string };
   log?: (line: string) => void;
 }
 
@@ -172,7 +174,7 @@ export async function inspectExportFile(path: string): Promise<ExportHeader> {
 export async function verifyExport(
   path: string,
   passphrase: string,
-  current: { gatewayVersion: string; schemaMigration: string },
+  current: { opfieldVersion: string; schemaMigration: string },
   onProgress?: (bytes: number) => void
 ): Promise<{
   header: ExportHeader;
@@ -232,7 +234,7 @@ export async function verifyExport(
     environment,
     summary: {
       createdAt: manifest.createdAt,
-      gatewayVersion: manifest.gatewayVersion,
+      opfieldVersion: manifest.opfieldVersion,
       installationId: manifest.installationId,
       sourcePublicUrl: manifest.source.publicUrl,
       sourceGrpcPublicTarget: manifest.source.grpcPublicTarget,
@@ -249,7 +251,7 @@ const SAFE_NAME = /^[a-zA-Z0-9._-]+$/;
 function validateManifest(manifest: ConfigurationExportManifest, header: ExportHeader): void {
   const invalid = (detail: string) => new RestoreError(`The export manifest is invalid: ${detail}`, 'INVALID_EXPORT');
   if (!manifest || manifest.format !== CONFIGURATION_EXPORT_FORMAT) throw invalid('unknown format');
-  if (manifest.gatewayVersion !== header.gatewayVersion || manifest.schemaMigration !== header.schemaMigration) {
+  if (manifest.opfieldVersion !== header.opfieldVersion || manifest.schemaMigration !== header.schemaMigration) {
     throw invalid('the version does not match the file header');
   }
   if (!manifest.database || !SAFE_NAME.test(manifest.database.file)) throw invalid('database');
@@ -313,9 +315,9 @@ async function isSetupComplete(docker: DockerService, installation: ComposeInsta
     '-X',
     '-At',
     '-U',
-    'gateway',
+    installation.database.role,
     '-d',
-    'gateway',
+    installation.database.name,
     '-c',
     "SELECT count(*) FROM settings WHERE key = 'setup:completed_at'",
   ]);
@@ -399,11 +401,13 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
     await snapshotDatabaseForRollback(docker, installation);
     rollback.database = true;
 
-    const volumeName = (key: TransferVolumeKey) => composeVolumeName(options.project, key);
+    // The volume names follow the layout of this installation's docker-compose.yml (an export keeps the earlier keys).
+    const composeFile = await readFile(join(options.hostDir, 'docker-compose.yml'), 'utf8').catch(() => null);
+    const volumeName = (key: TransferVolumeKey) => composeVolumeName(options.project, key, composeFile);
     const replaced: TransferVolumeKey[] = [...manifest.volumes.map((volume) => volume.key), 'gateway_relay_state'];
     for (const key of replaced) {
       const volume = volumeName(key);
-      if (!(await docker.inspectVolume(volume)) || (key === 'gateway_data' && options.archiveInGatewayData)) {
+      if (!(await docker.inspectVolume(volume)) || (key === 'gateway_data' && options.archiveInOpfieldData)) {
         rollback.volumes.push({ key, volume, file: null });
         continue;
       }
@@ -441,20 +445,21 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
           volumeName(volume.key),
           volume.root,
           part.stream,
-          volume.key === 'gateway_data' ? [RESTORE_STAGING_DIR] : []
+          volume.key === 'gateway_data' ? [RESTORE_STAGING_DIR] : [],
+          composeVolumeKey(volume.key, composeFile)
         );
         continue;
       }
       if (manifest.commercial && part.name === manifest.commercial.part) {
         await step('Restoring the commercial core');
-        const target = join(options.hostDir, '.gateway-commercial');
+        const target = commercialHostRoot(options.hostDir);
         const extractDir = join(workDir, 'commercial-extract');
         await rm(extractDir, { recursive: true, force: true });
         await extractTarInto(part.stream, extractDir);
         let backup: string | null = null;
         try {
           await stat(target);
-          backup = join(backupDir, 'gateway-commercial');
+          backup = join(backupDir, 'commercial');
           await rename(target, backup);
         } catch {
           backup = null;
@@ -476,19 +481,22 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
     await backupFile(envPath, backupDir, rollback);
     await backupFile(composePath, backupDir, rollback);
     const envValues: Record<string, string> = { ...(environment as Record<string, string>) };
-    if (manifest.commercialDir) envValues.GATEWAY_COMMERCIAL_DIR = manifest.commercialDir;
+    if (manifest.commercialDir) envValues.OPFIELD_COMMERCIAL_DIR = manifest.commercialDir;
     const envContent = await readFile(envPath, 'utf8');
     await writeAtomic(envPath, patchEnv(envContent, envValues).content);
     if (manifest.commercial) {
       const composeContent = await readFile(composePath, 'utf8');
-      await writeAtomic(composePath, patchCompose(composeContent, true));
+      await writeAtomic(
+        composePath,
+        patchCompose(composeContent, true, { commercialDirName: basename(commercialHostRoot(options.hostDir)) })
+      );
     }
 
     await step('Recording the restore for the next start');
     const marker: RestoredMarker = {
       restoredAt: new Date().toISOString(),
       exportCreatedAt: manifest.createdAt,
-      gatewayVersion: manifest.gatewayVersion,
+      opfieldVersion: manifest.opfieldVersion,
       installationId: manifest.installationId,
       sourcePublicUrl: manifest.source.publicUrl,
       sourceGrpcPublicTarget: manifest.source.grpcPublicTarget,
@@ -546,7 +554,7 @@ async function writeMarker(
   const helper = await docker.createContainer({
     Image: installation.helperImage,
     Cmd: ['true'],
-    Labels: { 'com.wiolett.gateway.configuration-transfer': installation.project },
+    Labels: { 'net.opfield.configuration-transfer': installation.project },
     HostConfig: { Binds: [`${volume}:/opfield-transfer/gateway_data`], NetworkMode: 'none' },
   });
   try {

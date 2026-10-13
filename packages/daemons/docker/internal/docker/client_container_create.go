@@ -17,7 +17,7 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/gpu"
+	"github.com/opfield/opfield/daemon-shared/gpu"
 )
 
 type ContainerCreateConfig struct {
@@ -181,7 +181,7 @@ func applyGPUSelection(hostCfg *container.HostConfig, devices []gpu.Device, prev
 	}
 	filteredRequests := hostCfg.DeviceRequests[:0]
 	for _, request := range hostCfg.DeviceRequests {
-		if isGatewayNVIDIARequest(request) {
+		if isOpfieldNVIDIARequest(request) {
 			continue
 		}
 		filteredRequests = append(filteredRequests, request)
@@ -190,7 +190,7 @@ func applyGPUSelection(hostCfg *container.HostConfig, devices []gpu.Device, prev
 
 	filteredMappings := hostCfg.Devices[:0]
 	for _, mapping := range hostCfg.Devices {
-		if isGatewayDirectGPUPath(mapping.PathOnHost) {
+		if isOpfieldDirectGPUPath(mapping.PathOnHost) {
 			continue
 		}
 		filteredMappings = append(filteredMappings, mapping)
@@ -238,12 +238,12 @@ func applyGPUSelection(hostCfg *container.HostConfig, devices []gpu.Device, prev
 					continue
 				}
 				_, alreadyPresent := currentGroupIDs[groupID]
-				_, wasGatewayManaged := previousManagedSet[groupID]
+				_, wasOpfieldManaged := previousManagedSet[groupID]
 				if !alreadyPresent {
 					groupIDs = append(groupIDs, groupID)
 					currentGroupIDs[groupID] = struct{}{}
 				}
-				if wasGatewayManaged || !alreadyPresent {
+				if wasOpfieldManaged || !alreadyPresent {
 					nextManagedGroupIDs = appendUniqueStrings(nextManagedGroupIDs, groupID)
 				}
 			}
@@ -261,13 +261,13 @@ func applyGPUSelection(hostCfg *container.HostConfig, devices []gpu.Device, prev
 }
 
 func managedGPUGroupIDs(containerCfg *container.Config) []string {
-	if containerCfg == nil || containerCfg.Labels == nil || containerCfg.Labels[gatewayGPUGroupIDsVersionLabel] != gatewayGPUGroupIDsVersion {
+	if containerCfg == nil || containerCfg.Labels == nil || containerCfg.Labels[opfieldGPUGroupIDsVersionLabel] != opfieldGPUGroupIDsVersion {
 		return nil
 	}
-	return parseGPUGroupIDs(containerCfg.Labels[gatewayGPUGroupIDsLabel])
+	return parseGPUGroupIDs(containerCfg.Labels[opfieldGPUGroupIDsLabel])
 }
 
-func preserveGatewayManagedContainerLabels(existing map[string]string, replacement map[string]string) {
+func preserveOpfieldManagedContainerLabels(existing map[string]string, replacement map[string]string) {
 	if replacement == nil {
 		return
 	}
@@ -279,7 +279,7 @@ func preserveGatewayManagedContainerLabels(existing map[string]string, replaceme
 	// GPU group provenance is daemon-owned metadata. Never admit values from a
 	// caller: an untracked label must not turn a pre-existing group into one we
 	// are allowed to remove on a later detach.
-	for _, label := range []string{gatewayGPUGroupIDsLabel, gatewayGPUGroupIDsVersionLabel} {
+	for _, label := range []string{opfieldGPUGroupIDsLabel, opfieldGPUGroupIDsVersionLabel} {
 		if existing == nil {
 			delete(replacement, label)
 			continue
@@ -298,8 +298,8 @@ func setManagedGPUGroupIDs(containerCfg *container.Config, groupIDs []string) {
 	}
 	if len(groupIDs) == 0 {
 		if containerCfg.Labels != nil {
-			delete(containerCfg.Labels, gatewayGPUGroupIDsLabel)
-			delete(containerCfg.Labels, gatewayGPUGroupIDsVersionLabel)
+			delete(containerCfg.Labels, opfieldGPUGroupIDsLabel)
+			delete(containerCfg.Labels, opfieldGPUGroupIDsVersionLabel)
 		}
 		return
 	}
@@ -307,8 +307,8 @@ func setManagedGPUGroupIDs(containerCfg *container.Config, groupIDs []string) {
 	if containerCfg.Labels == nil {
 		containerCfg.Labels = map[string]string{}
 	}
-	containerCfg.Labels[gatewayGPUGroupIDsLabel] = strings.Join(groupIDs, ",")
-	containerCfg.Labels[gatewayGPUGroupIDsVersionLabel] = gatewayGPUGroupIDsVersion
+	containerCfg.Labels[opfieldGPUGroupIDsLabel] = strings.Join(groupIDs, ",")
+	containerCfg.Labels[opfieldGPUGroupIDsVersionLabel] = opfieldGPUGroupIDsVersion
 }
 
 func parseGPUGroupIDs(value string) []string {
@@ -334,7 +334,7 @@ func withoutStrings(values []string, remove []string) []string {
 	return filtered
 }
 
-func isGatewayNVIDIARequest(request container.DeviceRequest) bool {
+func isOpfieldNVIDIARequest(request container.DeviceRequest) bool {
 	driver := strings.TrimSpace(request.Driver)
 	if driver != "" && !strings.EqualFold(driver, "nvidia") {
 		return false
@@ -345,7 +345,7 @@ func isGatewayNVIDIARequest(request container.DeviceRequest) bool {
 	return len(request.Options) == 0 && request.Count == 0
 }
 
-func isGatewayDirectGPUPath(path string) bool {
+func isOpfieldDirectGPUPath(path string) bool {
 	return path == "/dev/kfd" || strings.HasPrefix(path, "/dev/dri/renderD")
 }
 
@@ -524,8 +524,12 @@ const (
 )
 
 // dockerDaemonConfigPath is the Docker daemon configuration read for the
-// operator's default log options (GATEWAY_DOCKER_DAEMON_CONFIG overrides it).
+// operator's default log options (OPFIELD_DOCKER_DAEMON_CONFIG overrides it).
 func dockerDaemonConfigPath() string {
+	if value := strings.TrimSpace(os.Getenv("OPFIELD_DOCKER_DAEMON_CONFIG")); value != "" {
+		return value
+	}
+	// legacy-name: GATEWAY_DOCKER_DAEMON_CONFIG of pre-Opfield service environments — remove once every node reports none
 	if value := strings.TrimSpace(os.Getenv("GATEWAY_DOCKER_DAEMON_CONFIG")); value != "" {
 		return value
 	}
@@ -619,10 +623,10 @@ func isUnsetWorkloadLogConfig(cfg container.LogConfig) bool {
 	return (cfg.Type == "" || cfg.Type == jsonFileLogDriver) && len(cfg.Config) == 0
 }
 
-// isGatewayDefaultLogConfig reports whether cfg holds only json-file rotation
+// isOpfieldDefaultLogConfig reports whether cfg holds only json-file rotation
 // options (max-size, max-file), such as the Gateway workload default. These
 // are portable and carry no secrets, unlike other log driver options.
-func isGatewayDefaultLogConfig(cfg container.LogConfig) bool {
+func isOpfieldDefaultLogConfig(cfg container.LogConfig) bool {
 	if (cfg.Type != "" && cfg.Type != jsonFileLogDriver) || len(cfg.Config) == 0 {
 		return false
 	}
@@ -762,13 +766,17 @@ func httpProbeBodyMatches(body string, expected string, mode string) bool {
 	}
 }
 
-// reservedDockerLabelPrefixes are the label namespaces Gateway and Docker Compose read to place, group, hide
+// reservedDockerLabelPrefixes are the label namespaces Opfield and Docker Compose read to place, group, hide
 // or admit a container (the backend's docker-reserved-labels.ts holds the same set). A user workload carrying
 // them would join another Compose project (and its root-level folder), disappear behind a Gateway
 // implementation marker or pass for a Gateway deployment, so duplicates never copy them and Compose
 // services may not set them.
 var reservedDockerLabelPrefixes = []string{
 	"com.docker.compose.",
+	"net.opfield.",
+	// The pre-Opfield namespaces stay reserved for good: objects created
+	// before Opfield still carry them, and a user label must never pass for
+	// one of their managed labels.
 	"wiolett.gateway.",
 	"net.wiolett.gateway.",
 	"com.wiolett.gateway.",
@@ -796,7 +804,7 @@ func duplicateContainerLabels(source map[string]string) map[string]string {
 	labels := make(map[string]string, len(source))
 	for key, value := range source {
 		switch key {
-		case archiveImageReferenceLabel, gatewayGPUGroupIDsLabel, gatewayGPUGroupIDsVersionLabel:
+		case archiveImageReferenceLabel, opfieldGPUGroupIDsLabel, opfieldGPUGroupIDsVersionLabel:
 			labels[key] = value
 			continue
 		}

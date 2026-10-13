@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/handover/handovertest"
+	"github.com/opfield/opfield/daemon-shared/handover/handovertest"
 )
 
 func loopbackPair(t *testing.T) (net.Conn, net.Conn) {

@@ -1,6 +1,6 @@
 /**
  * What Opfield is, written once for every agent-facing surface: the MCP server instructions, the `overview`
- * documentation topic (read_gateway_documentation, gateway://docs/overview, the assistant's internal_documentation)
+ * documentation topic (read_opfield_documentation, opfield://docs/overview, the assistant's internal_documentation)
  * and the assistant's system prompt. The using-opfield Agent Skill carries the same text (opfield-about.test.ts).
  */
 
@@ -13,7 +13,7 @@ export const OPFIELD_DIFFERENCE =
 export const OPFIELD_AGENT_START = [
   'Use Opfield tools, not shell access to nodes: a change made around Opfield is not permission-checked or audited, and Opfield may overwrite it.',
   'Find anything by name, domain, image or ID with `find_resource`; see what you may do, and where, with `get_my_access`.',
-  'Read `read_gateway_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers, `logging` and `notifications` for monitoring, `permissions` for access.',
+  'Read `read_opfield_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers, `logging` and `notifications` for monitoring, `permissions` for access.',
 ] as const;
 
 /** The full section, Markdown. */
@@ -37,4 +37,4 @@ ${OPFIELD_DIFFERENCE}
 ${OPFIELD_AGENT_START.map((line) => `- ${line}`).join('\n')}`;
 
 /** Short form for the MCP server instructions. */
-export const OPFIELD_ABOUT_INSTRUCTIONS = `${OPFIELD_WHAT} ${OPFIELD_DIFFERENCE} Read read_gateway_documentation({ topic: "overview" }) (also gateway://docs/overview) for what each area covers and where to start.`;
+export const OPFIELD_ABOUT_INSTRUCTIONS = `${OPFIELD_WHAT} ${OPFIELD_DIFFERENCE} Read read_opfield_documentation({ topic: "overview" }) (also opfield://docs/overview) for what each area covers and where to start.`;

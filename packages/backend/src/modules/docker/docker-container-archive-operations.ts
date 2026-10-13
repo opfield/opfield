@@ -20,7 +20,8 @@ import { envListToMap } from './docker-env-operations.js';
 import { DockerEnvironmentService } from './docker-environment.service.js';
 import { dockerGpuAttachmentFromInspect } from './docker-gpu-attachment.js';
 import { inspectUserContainer } from './docker-internal-containers.js';
-import { isReservedGatewayNetworkName } from './docker-internal-networks.js';
+import { isReservedOpfieldNetworkName } from './docker-internal-networks.js';
+import { labelValue } from './docker-managed-labels.js';
 import { DockerMigrationDispatchAdapter } from './docker-migration-dispatch.js';
 import { DockerRegistryService } from './docker-registry.service.js';
 import { DockerSecretService } from './docker-secret.service.js';
@@ -37,7 +38,6 @@ type ContainerArchivePlanInput = z.infer<typeof ContainerArchivePlanSchema>;
 type ContainerArchiveResolution = z.infer<typeof ContainerArchiveResolutionSchema>;
 
 const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
-const COMPOSE_PROJECT_ID_LABEL = 'wiolett.gateway.compose.project-id';
 
 function inspectedContainerLabels(inspected: unknown): Record<string, unknown> {
   if (!inspected || typeof inspected !== 'object') return {};
@@ -57,7 +57,7 @@ export function assertDockerContainerArchiveExportAllowed(nodeId: string, contai
   const labels = inspectedContainerLabels(inspected);
   const projectName = labels[COMPOSE_PROJECT_LABEL];
   if (typeof projectName !== 'string' || projectName === '') return;
-  const projectId = labels[COMPOSE_PROJECT_ID_LABEL];
+  const projectId = labelValue(labels, 'compose.project-id');
   throw new AppError(
     409,
     'DOCKER_ARCHIVE_COMPOSE_CONTAINER',
@@ -122,7 +122,7 @@ export function assertArchiveNetworksAllowed(networks: ReadonlyArray<{ name: str
     if (name === 'host' || name.includes(':')) {
       throw new AppError(400, 'NETWORK_MODE_NOT_ALLOWED', `Network mode "${name}" is not allowed for containers`);
     }
-    if (isReservedGatewayNetworkName(name)) {
+    if (isReservedOpfieldNetworkName(name)) {
       throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be connected manually');
     }
   }

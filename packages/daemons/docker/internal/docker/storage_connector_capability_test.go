@@ -3,7 +3,7 @@ package docker
 import (
 	"testing"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 )
 
 func TestDockerProfileAdvertisesStorageLinkCapability(t *testing.T) {

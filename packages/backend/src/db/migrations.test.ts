@@ -488,3 +488,34 @@ describe('drizzle migration metadata', () => {
     expect(changed).toEqual(['public.node_host_port_reservations']);
   });
 });
+
+describe('inference companion removal migration', () => {
+  it('drops only the companion bookkeeping and its OAuth grants, keeping issued inference tokens', () => {
+    const migration = readFileSync(
+      join(process.cwd(), 'src/db/migrations/0245_remove_inference_companion.sql'),
+      'utf8'
+    );
+    for (const table of ['oauth_access_tokens', 'oauth_refresh_tokens', 'oauth_authorization_codes']) {
+      expect(migration).toContain(`DELETE FROM "${table}"\nWHERE "scopes" ? 'inference:setup'`);
+    }
+    expect(migration).toContain('DROP INDEX IF EXISTS "inference_tokens_managed_identity_active_unique"');
+    for (const column of ['managed_by', 'harness', 'device_name', 'installation_id']) {
+      expect(migration).toContain(`ALTER TABLE "inference_tokens" DROP COLUMN IF EXISTS "${column}"`);
+    }
+    expect(migration).not.toMatch(/DELETE FROM "inference_tokens"|DROP TABLE/);
+    expect(migration).toContain(`"metadata" -> 'composition' ->> 'role' = 'vision_sidecar'`);
+
+    const previous = JSON.parse(readFileSync(join(process.cwd(), 'src/db/migrations/meta/0244_snapshot.json'), 'utf8'));
+    const current = JSON.parse(readFileSync(join(process.cwd(), 'src/db/migrations/meta/0245_snapshot.json'), 'utf8'));
+    expect(current.prevId).toBe(previous.id);
+    const tokens = current.tables['public.inference_tokens'];
+    for (const column of ['managed_by', 'harness', 'device_name', 'installation_id']) {
+      expect(tokens.columns[column]).toBeUndefined();
+    }
+    expect(tokens.indexes.inference_tokens_managed_identity_active_unique).toBeUndefined();
+    const changed = Object.keys({ ...previous.tables, ...current.tables }).filter(
+      (table) => JSON.stringify(current.tables[table]) !== JSON.stringify(previous.tables[table])
+    );
+    expect(changed).toEqual(['public.inference_tokens']);
+  });
+});

@@ -13,7 +13,7 @@ export interface User {
   groupIds?: string[];
   groupNames?: string[];
   groupName: string;
-  requireGateway2fa?: boolean;
+  require2fa?: boolean;
   groupScopes?: string[];
   additionalScopes?: string[];
   scopes: string[];

@@ -7,7 +7,7 @@ import { normalizePublicUrl } from '@/modules/settings/general-settings.service.
  * public URL embedded in emailed links, and whether unverified IdP emails may
  * claim pre-created accounts. Changing any of them is equivalent to being able
  * to take over accounts, so it requires admin:system rather than
- * settings:gateway:edit. Values that are resubmitted unchanged are allowed.
+ * settings:opfield:edit. Values that are resubmitted unchanged are allowed.
  */
 export async function findIdentityTrustChanges(
   input: UpdateAuthProvisioningSettingsInput,

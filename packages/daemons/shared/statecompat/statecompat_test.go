@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -34,7 +34,7 @@ func oldSchemas(t *testing.T) map[string]*protoregistry.Files {
 		}
 		out[name] = files
 	}
-	load("v2.10.0", legacyGatewayV1)
+	load("v2.10.0", legacyStateSchema)
 	for _, tag := range []string{"v2.11.0-rc.4", "v2.11.0-rc.18"} {
 		data, err := os.ReadFile(filepath.Join("testdata", "gateway-v1-"+tag+".binpb"))
 		if err != nil {
@@ -47,7 +47,7 @@ func oldSchemas(t *testing.T) map[string]*protoregistry.Files {
 
 func oldMessage(t *testing.T, files *protoregistry.Files, name protoreflect.FullName) *dynamicpb.Message {
 	t.Helper()
-	descriptor, err := files.FindDescriptorByName(name)
+	descriptor, err := files.FindDescriptorByName(LegacyName(name))
 	if err != nil {
 		t.Fatal(err)
 	}

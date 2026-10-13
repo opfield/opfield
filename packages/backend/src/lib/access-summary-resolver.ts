@@ -703,7 +703,7 @@ export function renderAccessSummaryText(summary: Pick<AccessSummary, 'limited' |
   const header =
     'Your Opfield access is limited to specific folders, nodes or resources. Empty lists and denials at the root are expected; work inside these grants:';
   const footer =
-    'Call get_my_access (or read gateway://access) for ids and details; pass folderId (and nodeId) when creating.';
+    'Call get_my_access (or read opfield://access) for ids and details; pass folderId (and nodeId) when creating.';
   const broadTitles = summary.areas
     .filter((area) => !restricted.includes(area) && area.access === 'broad')
     .map((area) => area.title);

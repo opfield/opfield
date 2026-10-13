@@ -8,9 +8,9 @@ import { CreateAlertRuleSchema } from './notification-alert-rule.schemas.js';
 import { NotificationAlertRuleService } from './notification-alert-rule.service.js';
 import { NotificationWebhookService } from './notification-webhook.service.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
-/** Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): alert rules only name webhooks that exist. */
+/** Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): alert rules only name webhooks that exist. */
 describe.skipIf(!url)('Alert rule webhooks on disposable PostgreSQL', () => {
   let database: Awaited<ReturnType<typeof disposableDatabase>>;
   let pool: pg.Pool;

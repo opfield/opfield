@@ -15,7 +15,7 @@ import {
 } from '@/modules/docker/docker.schemas.js';
 import type { DockerManagementService } from '@/modules/docker/docker.service.js';
 import { dockerScopedNodeIds } from '@/modules/docker/docker-access-resource.service.js';
-import { DOCKER_DEPLOYMENT_MANAGED_LABEL } from '@/modules/docker/docker-deployment-labels.js';
+import { isDockerDeploymentManaged } from '@/modules/docker/docker-deployment-labels.js';
 import { inspectUserContainer } from '@/modules/docker/docker-internal-containers.js';
 import { withNodeLossAnswer } from '@/modules/docker/docker-node-loss.js';
 import { FILE_UPLOAD_MAX_BYTES } from '@/modules/settings/general-settings.service.js';
@@ -105,7 +105,7 @@ export async function manageDockerContainerConfigTool(
       throw new Error('containerName and resolved Docker identity do not match');
     }
     const labels = inspectedContainer?.Config?.Labels ?? inspectedContainer?.Labels ?? inspectedContainer?.labels ?? {};
-    if (labels[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true') {
+    if (isDockerDeploymentManaged(labels)) {
       throw new Error(
         'MANAGED_DEPLOYMENT_CONTAINER: This container is managed by a blue/green deployment. Use deployment actions instead.'
       );

@@ -12,9 +12,9 @@ import {
   drainDeadline,
   drainGraceMs,
   drainOutcomeNote,
-  gatewayStreamReport,
   localRelayPauseNote,
   MANUAL_DRAIN_TIMEOUT_MS,
+  opfieldStreamReport,
   PROXY_HALF_CLOSE_TIMEOUT_MS,
   planResumeTransitions,
   RELAY_STREAM_RESUME_CAPABILITY,
@@ -416,7 +416,7 @@ describe('RelayGrantIssuerService RSv1 fields', () => {
       { table: relayRoutes, projected: false, filtered: true, rows: [{ ...route, sourceKind: 'gateway' }] },
       { table: relayEndpoints, projected: false, filtered: true, rows: [endpoint] },
     ]);
-    const assignment = await service.issueGatewayConnectAssignment('route-1', 'sha256:app');
+    const assignment = await service.issueOpfieldConnectAssignment('route-1', 'sha256:app');
     expect(assignment.streamResume?.keyId).toBe('v4');
     expect(assignment.candidates.map(({ local }: { local: boolean }) => local)).toEqual([false, false]);
   });
@@ -424,7 +424,7 @@ describe('RelayGrantIssuerService RSv1 fields', () => {
 
 describe("Gateway's own streams", () => {
   it('reports them like a daemon, with the local relay for pre-pool streams', () => {
-    const report = gatewayStreamReport(
+    const report = opfieldStreamReport(
       {
         sessions: { resumable: 2, legacy: 1 },
         byRelay: { 'relay-1': { resumable: 2, legacy: 0 }, local: { resumable: 0, legacy: 1 } },
@@ -446,7 +446,7 @@ describe("Gateway's own streams", () => {
     });
     // Only refused resumes and unplanned moves out of time cut a live stream: a planned move that found no path or
     // no answer kept it, and "rejected" is a stream that ended meanwhile (stand rc.6 O-3).
-    const failedMoves = gatewayStreamReport(
+    const failedMoves = opfieldStreamReport(
       {
         sessions: { resumable: 0, legacy: 0 },
         byRelay: {},
@@ -474,7 +474,7 @@ describe("Gateway's own streams", () => {
       reporting: true,
     });
     // Before the local relay identity is known, its streams are not attributed.
-    const unattributed = gatewayStreamReport(
+    const unattributed = opfieldStreamReport(
       {
         sessions: { resumable: 0, legacy: 1 },
         byRelay: { local: { resumable: 0, legacy: 1 } },

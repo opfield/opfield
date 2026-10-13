@@ -13,10 +13,10 @@ function fixture(state: 'community' | 'ready' | 'unavailable' = 'community') {
   const artifact = { imageRef: 'signed-current-image' };
   const updates = {
     getCurrentVersion: () => 'v3.0.0-rc.1',
-    isGatewayUpdateInProgress: vi.fn(() => false),
-    assertGatewayUpdateAllowed: vi.fn(async () => undefined),
-    acknowledgeGatewayUpdateFailure: vi.fn(async () => false),
-    prepareGatewayUpdate: vi.fn(async () => {
+    isOpfieldUpdateInProgress: vi.fn(() => false),
+    assertOpfieldUpdateAllowed: vi.fn(async () => undefined),
+    acknowledgeOpfieldUpdateFailure: vi.fn(async () => false),
+    prepareOpfieldUpdate: vi.fn(async () => {
       calls.push('manifest');
       return artifact;
     }),
@@ -47,7 +47,7 @@ describe('paid module activation', () => {
     expect(f.calls).toEqual(['authorize', 'manifest']);
     expect(f.updates.performUpdate).not.toHaveBeenCalled();
     expect(f.license.authorizeCommercialUpdate).toHaveBeenCalledWith('v3.0.0-rc.1');
-    expect(f.updates.prepareGatewayUpdate).toHaveBeenCalledWith('v3.0.0-rc.1');
+    expect(f.updates.prepareOpfieldUpdate).toHaveBeenCalledWith('v3.0.0-rc.1');
     expect(f.jobs).toHaveLength(1);
     f.jobs[0]();
     expect(f.updates.performUpdate).toHaveBeenCalledExactlyOnceWith('v3.0.0-rc.1', f.artifact);
@@ -66,13 +66,13 @@ describe('paid module activation', () => {
     const f = fixture();
     f.license.authorizeCommercialUpdate.mockResolvedValueOnce({ edition: 'community' });
     await expect(f.service.ensureAvailable()).rejects.toMatchObject({ code: 'LICENSE_ENTITLEMENT_REQUIRED' });
-    expect(f.updates.prepareGatewayUpdate).not.toHaveBeenCalled();
+    expect(f.updates.prepareOpfieldUpdate).not.toHaveBeenCalled();
     expect(f.jobs).toHaveLength(0);
   });
 
   it('allows retry after manifest failure without starting an unverified update', async () => {
     const f = fixture('unavailable');
-    f.updates.prepareGatewayUpdate.mockRejectedValueOnce(new Error('invalid signature'));
+    f.updates.prepareOpfieldUpdate.mockRejectedValueOnce(new Error('invalid signature'));
     await expect(f.service.ensureAvailable()).rejects.toThrow('invalid signature');
     expect(f.jobs).toHaveLength(0);
     await expect(f.service.ensureAvailable()).resolves.toEqual({ restarting: true });
@@ -81,22 +81,22 @@ describe('paid module activation', () => {
 
   it('refuses activation while a Gateway update runs, without touching the update screen', async () => {
     const f = fixture();
-    f.updates.isGatewayUpdateInProgress.mockReturnValue(true);
+    f.updates.isOpfieldUpdateInProgress.mockReturnValue(true);
 
     await expect(f.service.ensureAvailable()).rejects.toMatchObject({ statusCode: 409, code: 'UPDATE_IN_PROGRESS' });
     expect(f.license.authorizeCommercialUpdate).not.toHaveBeenCalled();
-    expect(f.updates.prepareGatewayUpdate).not.toHaveBeenCalled();
+    expect(f.updates.prepareOpfieldUpdate).not.toHaveBeenCalled();
     expect(f.events.publish).not.toHaveBeenCalled();
     expect(f.jobs).toHaveLength(0);
 
     // Retry works once the update has finished.
-    f.updates.isGatewayUpdateInProgress.mockReturnValue(false);
+    f.updates.isOpfieldUpdateInProgress.mockReturnValue(false);
     await expect(f.service.ensureAvailable()).resolves.toEqual({ restarting: true });
   });
 
   it('refuses activation while a Relay Pool update runs', async () => {
     const f = fixture();
-    f.updates.assertGatewayUpdateAllowed.mockRejectedValueOnce(
+    f.updates.assertOpfieldUpdateAllowed.mockRejectedValueOnce(
       new AppError(409, 'RELAY_UPDATE_IN_PROGRESS', 'A Relay Pool update is in progress')
     );
 

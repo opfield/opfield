@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasewatchdog"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/updateauth"
+	"github.com/opfield/opfield/daemon-shared/leasewatchdog"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/updateauth"
 )
 
 // watchdogMissingCapability tells the Gateway this node has no lease watchdog
@@ -136,7 +136,9 @@ func detectServiceManager() string {
 // present reports whether any trace of a watchdog exists; then it is never
 // touched.
 func (b *watchdogBootstrap) present() bool {
-	return b.heartbeatFresh() || b.exists(leasewatchdog.BinaryPath) || b.exists(leasewatchdog.SystemdUnitPath) || b.exists(leasewatchdog.OpenRCPath)
+	return b.heartbeatFresh() || b.exists(leasewatchdog.BinaryPath) || b.exists(leasewatchdog.SystemdUnitPath) || b.exists(leasewatchdog.OpenRCPath) ||
+		// legacy-name: gateway-lease-watchdog service of pre-Opfield nodes (the watchdog moves itself) — remove once every node reports none
+		b.exists(leasewatchdog.LegacyBinaryPath) || b.exists(leasewatchdog.LegacySystemdUnitPath) || b.exists(leasewatchdog.LegacyOpenRCPath)
 }
 
 // evaluate returns whether the watchdog is missing and, when this daemon
@@ -329,6 +331,7 @@ func (b *watchdogBootstrap) alignChannel(ctx context.Context) error {
 	}
 	var path, prefix, suffix string
 	var mode os.FileMode
+	unit := leasewatchdog.UnitName
 	manager := b.serviceManager()
 	switch manager {
 	case "systemd":
@@ -339,6 +342,16 @@ func (b *watchdogBootstrap) alignChannel(ctx context.Context) error {
 		return nil
 	}
 	data, err := b.readFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		// legacy-name: gateway-lease-watchdog service the watchdog has not moved yet — remove once every node reports none
+		unit = leasewatchdog.LegacyUnitName
+		if manager == "systemd" {
+			path, prefix = leasewatchdog.LegacySystemdUnitPath, "ExecStart="+leasewatchdog.LegacyBinaryPath+" "
+		} else {
+			path = leasewatchdog.LegacyOpenRCPath
+		}
+		data, err = b.readFile(path)
+	}
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
@@ -361,14 +374,14 @@ func (b *watchdogBootstrap) alignChannel(ctx context.Context) error {
 	}
 	b.logger.Info("lease watchdog now follows this daemon's release channel; restarting it", "channel", b.channel, "service", path)
 	if manager == "systemd" {
-		for _, command := range [][]string{{"daemon-reload"}, {"try-restart", leasewatchdog.UnitName}} {
+		for _, command := range [][]string{{"daemon-reload"}, {"try-restart", unit}} {
 			if err := b.run(ctx, "systemctl", command...); err != nil {
 				return fmt.Errorf("systemctl %s: %w", strings.Join(command, " "), err)
 			}
 		}
 		return nil
 	}
-	if err := b.run(ctx, "rc-service", "--ifstarted", leasewatchdog.UnitName, "restart"); err != nil {
+	if err := b.run(ctx, "rc-service", "--ifstarted", unit, "restart"); err != nil {
 		return fmt.Errorf("rc-service restart: %w", err)
 	}
 	return nil

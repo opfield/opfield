@@ -282,7 +282,7 @@ func (p *DockerPlugin) prepareGwcaNetworks(
 		if entry.Createable {
 			options := mobyclient.NetworkCreateOptions{
 				Driver: entry.Driver,
-				Labels: map[string]string{"wiolett.gateway.archive.id": archiveID},
+				Labels: map[string]string{"net.opfield.archive.id": archiveID},
 			}
 			if entry.Subnet != "" || entry.Gateway != "" {
 				ipamConfig := network.IPAMConfig{}
@@ -390,7 +390,7 @@ func mergeArchiveLabels(labels map[string]string, archiveID string) map[string]s
 	if result == nil {
 		result = map[string]string{}
 	}
-	result["wiolett.gateway.archive.id"] = archiveID
+	result["net.opfield.archive.id"] = archiveID
 	result[managedVolumeLabel] = "true"
 	result[managedVolumeOriginLabel] = "created"
 	return result
@@ -400,7 +400,7 @@ func (p *DockerPlugin) cleanupGwcaImportResources(ctx context.Context, archiveID
 	if strings.TrimSpace(archiveID) == "" {
 		return fmt.Errorf("archive ID is required")
 	}
-	label := "wiolett.gateway.archive.id=" + archiveID
+	label := "net.opfield.archive.id=" + archiveID
 	volumes, err := p.client.cli.VolumeList(ctx, mobyclient.VolumeListOptions{
 		Filters: mobyclient.Filters{}.Add("label", label),
 	})

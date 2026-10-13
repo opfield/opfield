@@ -15,6 +15,7 @@ import {
   proxyHosts,
 } from '@/db/schema/index.js';
 import { DockerWorkloadResolverService } from '@/modules/docker/availability/docker-workload-resolver.service.js';
+import { labelString } from '@/modules/docker/docker-managed-labels.js';
 import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
 import type { AppMember, AppMembersReader } from './app-members.service.js';
 
@@ -218,7 +219,7 @@ export class AppIncidentTargetsReader {
       }
       await addContainer(deployment.nodeId, deployment.routerName, owner);
       for (const row of await snapshotOf(deployment.nodeId)) {
-        if (containerLabels(row)['wiolett.gateway.deployment.id'] === deployment.id) {
+        if (labelString(containerLabels(row), 'deployment.id') === deployment.id) {
           await addContainer(deployment.nodeId, containerName(row), owner);
         }
       }

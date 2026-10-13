@@ -7759,7 +7759,7 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\x16CommitIdentityRotation\x12'.relay.v1.CommitIdentityRotationRequest\x1a(.relay.v1.CommitIdentityRotationResponse\x12A\n" +
 	"\bSetDrain\x12\x19.relay.v1.SetDrainRequest\x1a\x1a.relay.v1.SetDrainResponse\x12=\n" +
 	"\tDialRoute\x12\x15.relay.v1.TunnelFrame\x1a\x15.relay.v1.TunnelFrame(\x010\x01\x12h\n" +
-	"\x15VerifyHolderStatement\x12&.relay.v1.VerifyHolderStatementRequest\x1a'.relay.v1.VerifyHolderStatementResponseB=Z;github.com/wiolett-industries/gateway/daemon-shared/relayv1b\x06proto3"
+	"\x15VerifyHolderStatement\x12&.relay.v1.VerifyHolderStatementRequest\x1a'.relay.v1.VerifyHolderStatementResponseB2Z0github.com/opfield/opfield/daemon-shared/relayv1b\x06proto3"
 
 var (
 	file_relay_v1_relay_proto_rawDescOnce sync.Once

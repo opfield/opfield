@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -430,8 +430,8 @@ func TestPromotedKeyValidFromAllowsIssuedAtClockSkew(t *testing.T) {
 	oldPublic, oldPrivate, _ := ed25519.GenerateKey(nil)
 	newPublic, newPrivate, _ := ed25519.GenerateKey(nil)
 	grantPublic, _, _ := ed25519.GenerateKey(nil)
-	gatewayNow := time.Unix(1_800_000_000, 0)
-	relayNow := gatewayNow.Add(-2 * time.Minute) // relay clock runs behind Gateway
+	opfieldNow := time.Unix(1_800_000_000, 0)
+	relayNow := opfieldNow.Add(-2 * time.Minute) // relay clock runs behind Gateway
 	dir := t.TempDir()
 	store := remoteStore(t, dir, &relayNow)
 	if _, err := store.BootstrapPolicyTrust("old", oldPublic, PublicKeyFingerprint(oldPublic)); err != nil {
@@ -443,15 +443,15 @@ func TestPromotedKeyValidFromAllowsIssuedAtClockSkew(t *testing.T) {
 	if _, _, err := store.Apply(pending); err != nil {
 		t.Fatal(err)
 	}
-	// Gateway promotes "new" at gatewayNow; the relay is still two minutes earlier.
+	// Gateway promotes "new" at opfieldNow; the relay is still two minutes earlier.
 	promoted := []*relayv1.PolicySigningKey{
-		policyKeyWindow("old", oldPublic, "verification_only", time.Time{}, gatewayNow.Add(30*time.Minute)),
-		policyKeyWindow("new", newPublic, "active", gatewayNow, time.Time{}),
+		policyKeyWindow("old", oldPublic, "verification_only", time.Time{}, opfieldNow.Add(30*time.Minute)),
+		policyKeyWindow("new", newPublic, "active", opfieldNow, time.Time{}),
 	}
-	if _, _, err := store.Apply(signedSnapshotWithPolicyKeys(t, newPrivate, "new", grantPublic, 2, gatewayNow, promoted)); err != nil {
+	if _, _, err := store.Apply(signedSnapshotWithPolicyKeys(t, newPrivate, "new", grantPublic, 2, opfieldNow, promoted)); err != nil {
 		t.Fatalf("first snapshot from the promoted key was refused: %v", err)
 	}
-	if _, _, err := store.Apply(signedSnapshotWithPolicyKeys(t, newPrivate, "new", grantPublic, 3, gatewayNow, promoted)); err != nil {
+	if _, _, err := store.Apply(signedSnapshotWithPolicyKeys(t, newPrivate, "new", grantPublic, 3, opfieldNow, promoted)); err != nil {
 		t.Fatalf("promoted key was refused for a relay two minutes behind: %v", err)
 	}
 	if err := store.Close(); err != nil {
@@ -463,7 +463,7 @@ func TestPromotedKeyValidFromAllowsIssuedAtClockSkew(t *testing.T) {
 	}
 
 	// Skew beyond the leeway is still refused.
-	farBehind := gatewayNow.Add(-IssuedAtClockSkew - time.Minute)
+	farBehind := opfieldNow.Add(-IssuedAtClockSkew - time.Minute)
 	relayNow = farBehind
 	if _, _, err := reopened.Apply(signedSnapshotWithPolicyKeys(t, newPrivate, "new", grantPublic, 4, farBehind, promoted)); err == nil {
 		t.Fatal("key was accepted long before its validity window")
@@ -471,28 +471,28 @@ func TestPromotedKeyValidFromAllowsIssuedAtClockSkew(t *testing.T) {
 	reopened.Close()
 }
 
-func TestLeaseExpiryAllowsRelayClockAheadOfGateway(t *testing.T) {
+func TestLeaseExpiryAllowsRelayClockAheadOfOpfield(t *testing.T) {
 	policyPublic, policyPrivate, _ := ed25519.GenerateKey(nil)
 	grantPublic, _, _ := ed25519.GenerateKey(nil)
-	gatewayNow := time.Unix(1_800_000_000, 0)
+	opfieldNow := time.Unix(1_800_000_000, 0)
 	// Gateway issued the lease a full lease ago by the relay's clock, which runs ahead.
-	relayNow := gatewayNow.Add(MaxPolicyLease + time.Minute)
+	relayNow := opfieldNow.Add(MaxPolicyLease + time.Minute)
 	store := remoteStore(t, t.TempDir(), &relayNow)
 	defer store.Close()
 	if _, err := store.BootstrapPolicyTrust("policy-1", policyPublic, PublicKeyFingerprint(policyPublic)); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := store.Apply(signedSnapshot(t, policyPrivate, "policy-1", policyPublic, grantPublic, 1, gatewayNow)); err != nil {
+	if _, _, err := store.Apply(signedSnapshot(t, policyPrivate, "policy-1", policyPublic, grantPublic, 1, opfieldNow)); err != nil {
 		t.Fatalf("lease inside the clock skew allowance was refused: %v", err)
 	}
 	if !store.Ready(relayNow) {
 		t.Fatal("lease inside the clock skew allowance did not admit tunnels")
 	}
-	relayNow = gatewayNow.Add(MaxPolicyLease + LeaseExpiryClockSkew)
+	relayNow = opfieldNow.Add(MaxPolicyLease + LeaseExpiryClockSkew)
 	if store.Ready(relayNow) {
 		t.Fatal("lease past the clock skew allowance still admitted tunnels")
 	}
-	if _, _, err := store.Apply(signedSnapshot(t, policyPrivate, "policy-1", policyPublic, grantPublic, 2, gatewayNow)); err == nil {
+	if _, _, err := store.Apply(signedSnapshot(t, policyPrivate, "policy-1", policyPublic, grantPublic, 2, opfieldNow)); err == nil {
 		t.Fatal("envelope past the clock skew allowance was accepted")
 	}
 }
@@ -712,7 +712,7 @@ func TestResetLocalPolicyTrustRebindsNextSnapshot(t *testing.T) {
 	if _, err := local.BootstrapPolicyTrust("old", oldPublic, PublicKeyFingerprint(oldPublic)); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := local.Apply(signedSnapshotForGateway(t, oldPrivate, "old", oldPublic, grantPublic, 50, now, "gateway-1")); err != nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, oldPrivate, "old", oldPublic, grantPublic, 50, now, "gateway-1")); err != nil {
 		t.Fatal(err)
 	}
 	replaced, err := local.ResetLocalPolicyTrust("new", newPublic, PublicKeyFingerprint(newPublic))
@@ -726,16 +726,16 @@ func TestResetLocalPolicyTrustRebindsNextSnapshot(t *testing.T) {
 	if _, err := local.ResetLocalPolicyTrust("new", oldPublic, PublicKeyFingerprint(oldPublic)); err == nil {
 		t.Fatal("reset replaced the material of a pinned key id")
 	}
-	if _, _, err := local.Apply(signedSnapshotForGateway(t, newPrivate, "new", newPublic, grantPublic, 3, now, "gateway-2")); err != nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 3, now, "gateway-2")); err != nil {
 		t.Fatalf("first snapshot after a reset could not rebind the relay: %v", err)
 	}
 	if current := local.Current(); current.Revision != 3 || current.GatewayInstanceID != "gateway-2" {
 		t.Fatalf("relay did not rebind: revision=%d gateway=%s", current.Revision, current.GatewayInstanceID)
 	}
-	if _, _, err := local.Apply(signedSnapshotForGateway(t, newPrivate, "new", newPublic, grantPublic, 2, now, "gateway-2")); err == nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 2, now, "gateway-2")); err == nil {
 		t.Fatal("an older revision was accepted after the rebind")
 	}
-	if _, _, err := local.Apply(signedSnapshotForGateway(t, newPrivate, "new", newPublic, grantPublic, 4, now, "gateway-1")); err == nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 4, now, "gateway-1")); err == nil {
 		t.Fatal("another Gateway instance was accepted after the rebind")
 	}
 }
@@ -759,7 +759,7 @@ func TestResetLocalPolicyTrustRebindSurvivesRestart(t *testing.T) {
 	if _, err := local.BootstrapPolicyTrust("key", policyPublic, PublicKeyFingerprint(policyPublic)); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := local.Apply(signedSnapshotForGateway(t, policyPrivate, "key", policyPublic, grantPublic, 50, now, "gateway-1")); err != nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 50, now, "gateway-1")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := local.ResetLocalPolicyTrust("key", policyPublic, PublicKeyFingerprint(policyPublic)); err != nil {
@@ -774,7 +774,7 @@ func TestResetLocalPolicyTrustRebindSurvivesRestart(t *testing.T) {
 	if reopened.Current().Revision != 50 {
 		t.Fatalf("persisted snapshot signed by the re-pinned key was dropped: revision=%d", reopened.Current().Revision)
 	}
-	if _, _, err := reopened.Apply(signedSnapshotForGateway(t, policyPrivate, "key", policyPublic, grantPublic, 3, now, "gateway-2")); err != nil {
+	if _, _, err := reopened.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 3, now, "gateway-2")); err != nil {
 		t.Fatalf("the rebind did not survive the restart: %v", err)
 	}
 	reopened.Close()
@@ -784,12 +784,12 @@ func TestResetLocalPolicyTrustRebindSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer again.Close()
-	if _, _, err := again.Apply(signedSnapshotForGateway(t, policyPrivate, "key", policyPublic, grantPublic, 2, now, "gateway-2")); err == nil {
+	if _, _, err := again.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 2, now, "gateway-2")); err == nil {
 		t.Fatal("the rebind outlived the snapshot that used it")
 	}
 }
 
-func signedSnapshotForGateway(t *testing.T, privateKey ed25519.PrivateKey, keyID string, policyPublic, grantPublic ed25519.PublicKey, revision uint64, now time.Time, gatewayInstanceID string) *relayv1.ApplySnapshotRequest {
+func signedSnapshotForOpfield(t *testing.T, privateKey ed25519.PrivateKey, keyID string, policyPublic, grantPublic ed25519.PublicKey, revision uint64, now time.Time, gatewayInstanceID string) *relayv1.ApplySnapshotRequest {
 	t.Helper()
 	payload := &relayv1.PolicyEnvelopePayload{
 		SchemaVersion: 2, GatewayInstanceId: gatewayInstanceID, PoolId: "system", RelayInstanceId: "relay-1",

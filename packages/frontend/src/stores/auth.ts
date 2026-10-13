@@ -9,7 +9,7 @@ export interface AuthContextResetOptions {
 type AuthContextResetCallback = (options?: AuthContextResetOptions) => void;
 
 let authContextResetCallback: AuthContextResetCallback | null = null;
-export const AUTH_CONTEXT_STORAGE_KEY = "gateway-auth-context-key";
+export const AUTH_CONTEXT_STORAGE_KEY = "opfield-auth-context-key";
 
 export function registerAuthContextReset(callback: AuthContextResetCallback) {
   authContextResetCallback = callback;

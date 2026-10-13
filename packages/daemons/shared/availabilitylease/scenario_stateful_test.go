@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // Scripted scenarios of the plan risk review (B1, B2, joint consensus) for

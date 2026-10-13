@@ -105,10 +105,10 @@ export function AuthProvisioningSection({
     setFileUploadLimitMb,
     fileOpenLimitMb,
     setFileOpenLimitMb,
-    gatewayGrpcPublicTarget,
-    setGatewayGrpcPublicTarget,
-    gatewayGrpcLocalIp,
-    setGatewayGrpcLocalIp,
+    grpcPublicTarget,
+    setGrpcPublicTarget,
+    grpcLocalIp,
+    setGrpcLocalIp,
     relayGrantTtlHours,
     setRelayGrantTtlHours,
     pkiEnabled,
@@ -328,10 +328,10 @@ export function AuthProvisioningSection({
               help="Host and port written into public node-enrollment commands. Nodes must be able to reach this address to establish their control connection."
             >
               <Input
-                value={gatewayGrpcPublicTarget}
+                value={grpcPublicTarget}
                 placeholder="opfield.example.com:9443"
                 disabled={!canEdit || isSavingGeneral || cloudManaged}
-                onChange={(event) => setGatewayGrpcPublicTarget(event.target.value)}
+                onChange={(event) => setGrpcPublicTarget(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     saveAccessSettings();
@@ -353,10 +353,10 @@ export function AuthProvisioningSection({
               help="Optional private address used in enrollment commands for nodes on the local network. When empty, Opfield uses the public target above."
             >
               <Input
-                value={gatewayGrpcLocalIp}
+                value={grpcLocalIp}
                 placeholder="Uses public target when empty"
                 disabled={!canEdit || isSavingGeneral || cloudManaged}
-                onChange={(event) => setGatewayGrpcLocalIp(event.target.value)}
+                onChange={(event) => setGrpcLocalIp(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     saveAccessSettings();

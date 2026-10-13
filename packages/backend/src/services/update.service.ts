@@ -9,6 +9,17 @@ import {
   dockerLogDefaultsEnv,
   hostDockerLogDefaults,
 } from '@/foundation/foundation-migrator.js';
+import { HOST_MOVE_CONTAINER_NAME } from '@/foundation/host-move.js';
+import {
+  DATABASE_SNAPSHOT_FILE,
+  databaseIdentity,
+  FOUNDATION_BACKUPS_DIR,
+  isSafeDatabaseIdentifier,
+  LEGACY_DATABASE,
+  LEGACY_DATABASE_ROLE,
+  LEGACY_DATABASE_SNAPSHOT_FILE,
+  LEGACY_FOUNDATION_BACKUPS_DIR,
+} from '@/foundation/opfield-names.js';
 import { createChildLogger } from '@/lib/logger.js';
 import {
   type ReleaseFileSource,
@@ -20,14 +31,15 @@ import {
 import { compareSemver, isNewerVersion, isReleaseCandidateVersion, parseSemver } from '@/lib/semver.js';
 import type { TrustedDaemonUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import {
-  type TrustedGatewayUpdateArtifact,
+  type TrustedOpfieldUpdateArtifact,
   type TrustedRelayUpdateArtifact,
-  verifyGatewayImageManifest,
+  verifyOpfieldImageManifest,
   verifyRelayImageManifest,
 } from '@/lib/update-artifact-trust.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { GeneralSettingsService, UpdateChannel } from '@/modules/settings/general-settings.service.js';
 import type { DockerService } from './docker.service.js';
+import { HOST_MOVE_ROLE, HostMoveLauncher, hasLegacyLayout } from './host-move-launcher.js';
 import {
   type OrchestrationActivitySource,
   type PendingOrchestrationOperation,
@@ -66,14 +78,14 @@ export interface UpdateStatus {
   releaseUrl: string | null;
   lastCheckedAt: string | null;
   relay: RelayUpdateStatus;
-  gatewayOperation: GatewayUpdateOperation | null;
+  opfieldOperation: OpfieldUpdateOperation | null;
 }
 
 /**
  * A Gateway self-update this process accepted and has not handed off yet, or
  * (`failed`) a handed-off update that did not replace this version.
  */
-export interface GatewayUpdateOperation {
+export interface OpfieldUpdateOperation {
   /** `waiting_for_operations` until running orchestration work finishes. */
   status: 'waiting_for_operations' | 'updating' | 'failed';
   targetVersion: string;
@@ -110,22 +122,27 @@ const UPDATE_HANDOFF_SETTLE_MS = 20 * 60_000;
  * reads it: the target version marks it started and clears it once the update
  * settles, any other version reports a failure.
  */
-const GATEWAY_UPDATE_ATTEMPT_KEY = 'update:gateway:attempt';
+const OPFIELD_UPDATE_ATTEMPT_KEY = 'update:gateway:attempt';
 /**
  * The sidecar keeps checking a started target for about 5 minutes and rolls it
  * back if it never becomes healthy. The target keeps the attempt record this
  * long, so the version it rolls back to still finds the record and reports it.
  */
-const GATEWAY_UPDATE_TARGET_GRACE_MS = 10 * 60_000;
+const OPFIELD_UPDATE_TARGET_GRACE_MS = 10 * 60_000;
 /** Marks the container that runs a Gateway self-update, so it is removed once it has finished. */
 const UPDATE_SIDECAR_LABEL = 'net.opfield.role';
-const UPDATE_SIDECAR_ROLE = 'gateway-update-sidecar';
+const UPDATE_SIDECAR_ROLE = 'opfield-update-sidecar';
+// legacy-name: gateway-update-sidecar — sidecars started by releases before 2.12.1; only cleaned up — remove once no
+// supported update starts from a version before 2.12.1.
+const LEGACY_UPDATE_SIDECAR_ROLE = 'gateway-update-sidecar';
+/** Exited update and host move containers this process cleans up. */
+const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
 /** The Docker CLI image of update sidecars started before they were labelled (any pinned version). */
 const UNLABELLED_SIDECAR_IMAGE = /^docker\.io\/library\/docker:\d+-cli@sha256:[0-9a-f]{64}$/;
 /** A failed update stays reported this long unless an admin acknowledges it. */
-const FAILED_GATEWAY_UPDATE_REPORT_MS = 24 * 60 * 60_000;
+const FAILED_OPFIELD_UPDATE_REPORT_MS = 24 * 60 * 60_000;
 
-interface GatewayUpdateAttempt {
+interface OpfieldUpdateAttempt {
   targetVersion: string;
   fromVersion: string;
   startedAt: string;
@@ -153,7 +170,7 @@ const LOCAL_RELAY_EVACUATION_TIMEOUT_MS = 5 * 60_000;
 const RELAY_DRAIN_RELEASE_ATTEMPTS = 20;
 /** How often a worker update that left the previous worker running is dispatched again. */
 const RELAY_WORKER_STALE_VERSION_RETRIES = 2;
-const RELAY_UPDATE_BLOCKS_GATEWAY_MESSAGE =
+const RELAY_UPDATE_BLOCKS_OPFIELD_MESSAGE =
   'A Relay Pool update is in progress. Update Opfield after it finishes, or abandon the Relay Pool update first.';
 
 class RelayPoolUpdateAbandonedError extends Error {
@@ -276,13 +293,13 @@ export function relayRecreateStopTimeoutSeconds(runningRelayVersion: string | un
     : RELAY_DEFAULT_STOP_TIMEOUT_SECONDS;
 }
 
-export function isGatewayReleaseTag(tag: string): boolean {
+export function isOpfieldReleaseTag(tag: string): boolean {
   return /^v?\d+\.\d+\.\d+$/.test(tag);
 }
 
-export function selectLatestGatewayRelease(releases: ReleaseRecord[]): ReleaseRecord | null {
+export function selectLatestOpfieldRelease(releases: ReleaseRecord[]): ReleaseRecord | null {
   const matching = releases
-    .filter((release) => isGatewayReleaseTag(release.tag_name))
+    .filter((release) => isOpfieldReleaseTag(release.tag_name))
     .sort((a, b) => compareSemver(b.tag_name, a.tag_name));
 
   return matching[0] ?? null;
@@ -300,7 +317,7 @@ export function selectLatestRelayRelease(releases: ReleaseRecord[]): ReleaseReco
   );
 }
 
-export function isRelayTooOldForGatewayUpdate(relayVersion: string, targetVersion: string): boolean {
+export function isRelayTooOldForOpfieldUpdate(relayVersion: string, targetVersion: string): boolean {
   const current = parseSemver(relayVersion);
   const target = parseSemver(targetVersion);
   if (!current || !target) return false;
@@ -324,7 +341,7 @@ export function isStaleRelayWorkerVersionError(error: unknown, targetVersion: st
   );
 }
 
-export function isGatewayCompatibleWithRelayUpdate(currentVersion: string, minGatewayVersion: string): boolean {
+export function isOpfieldCompatibleWithRelayUpdate(currentVersion: string, minGatewayVersion: string): boolean {
   const current = parseSemver(currentVersion);
   const minimum = parseSemver(minGatewayVersion);
   if (!current || !minimum) return currentVersion === 'dev';
@@ -339,12 +356,12 @@ const SETTINGS_KEYS = {
   relayLatestVersion: 'update:relay:latest_version',
   relayReleaseNotes: 'update:relay:release_notes',
   relayReleaseUrl: 'update:relay:release_url',
-  relayMinGatewayVersion: 'update:relay:min_gateway_version',
+  relayMinOpfieldVersion: 'update:relay:min_gateway_version',
 } as const;
 
 export class UpdateService {
-  private gatewayUpdateInProgress = false;
-  private gatewayUpdateOperation: GatewayUpdateOperation | null = null;
+  private opfieldUpdateInProgress = false;
+  private opfieldUpdateOperation: OpfieldUpdateOperation | null = null;
   private orchestration?: OrchestrationActivitySource;
   private events?: UpdateEvents;
   private audit?: UpdateAuditLog;
@@ -362,6 +379,8 @@ export class UpdateService {
    * finishes or rolls back on its own and cannot be abandoned, until the update ends.
    */
   private localRelayUpdateCommitted = false;
+  /** Starts the move to the Opfield layout once an update to this release has settled. */
+  private hostMoveLauncher: HostMoveLauncher | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -410,8 +429,8 @@ export class UpdateService {
     return payload.target;
   }
 
-  private gatewayImageRepositories(currentImage: string): string[] {
-    const configured = (this.env.GATEWAY_UPDATE_IMAGE_REPOSITORIES ?? '')
+  private opfieldImageRepositories(currentImage: string): string[] {
+    const configured = (this.env.OPFIELD_UPDATE_IMAGE_REPOSITORIES ?? '')
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
@@ -449,23 +468,23 @@ export class UpdateService {
     this.audit = audit;
   }
 
-  isGatewayUpdateInProgress(): boolean {
-    return this.gatewayUpdateInProgress;
+  isOpfieldUpdateInProgress(): boolean {
+    return this.opfieldUpdateInProgress;
   }
 
   /** Refuses a Gateway update (or paid-feature activation) that would interrupt another update. */
-  async assertGatewayUpdateAllowed(): Promise<void> {
-    if (this.gatewayUpdateInProgress) {
+  async assertOpfieldUpdateAllowed(): Promise<void> {
+    if (this.opfieldUpdateInProgress) {
       throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
     }
     if (await this.isRelayUpdateRunning()) {
-      throw new AppError(409, 'RELAY_UPDATE_IN_PROGRESS', RELAY_UPDATE_BLOCKS_GATEWAY_MESSAGE);
+      throw new AppError(409, 'RELAY_UPDATE_IN_PROGRESS', RELAY_UPDATE_BLOCKS_OPFIELD_MESSAGE);
     }
   }
 
   /** True while a Gateway update or a running Relay update is in flight. */
   async isAnyUpdateRunning(): Promise<boolean> {
-    return this.gatewayUpdateInProgress || (await this.isRelayUpdateRunning());
+    return this.opfieldUpdateInProgress || (await this.isRelayUpdateRunning());
   }
 
   /** A Relay update that runs now; a paused Relay Pool run waits for the operator and does not count. */
@@ -487,7 +506,7 @@ export class UpdateService {
 
   /** The operator's "update now": stop waiting for running orchestration work. */
   proceedWithoutWaiting(): boolean {
-    if (this.gatewayUpdateOperation?.status !== 'waiting_for_operations' || !this.operationWaitOverride) return false;
+    if (this.opfieldUpdateOperation?.status !== 'waiting_for_operations' || !this.operationWaitOverride) return false;
     this.operationWaitOverride.abort();
     return true;
   }
@@ -497,10 +516,10 @@ export class UpdateService {
   }
 
   startRelayUpdate(targetVersion: string): void {
-    if (this.gatewayUpdateInProgress) {
+    if (this.opfieldUpdateInProgress) {
       throw new AppError(
         409,
-        'GATEWAY_UPDATE_IN_PROGRESS',
+        'OPFIELD_UPDATE_IN_PROGRESS',
         'Opfield is updating. Update the Relay Pool after the Opfield update has finished.'
       );
     }
@@ -545,26 +564,26 @@ export class UpdateService {
       updateChannel === 'stable' && cachedLatestVersion && isReleaseCandidateVersion(cachedLatestVersion)
         ? null
         : cachedLatestVersion;
-    const gatewayUpdateAvailable =
+    const opfieldUpdateAvailable =
       currentVersion !== 'dev' && latestVersion != null ? isNewerVersion(latestVersion, currentVersion) : false;
-    const currentRelayVersion = this.env.GATEWAY_RELAY_BUILD_VERSION ?? 'unknown';
+    const currentRelayVersion = this.env.OPFIELD_RELAY_BUILD_VERSION ?? 'unknown';
     const cachedLatestRelayVersion = map.get(SETTINGS_KEYS.relayLatestVersion) ?? null;
     const latestRelayVersion =
       updateChannel === 'stable' && cachedLatestRelayVersion && isReleaseCandidateVersion(cachedLatestRelayVersion)
         ? null
         : cachedLatestRelayVersion;
-    const relayMinGatewayVersion = map.get(SETTINGS_KEYS.relayMinGatewayVersion) ?? null;
+    const relayMinOpfieldVersion = map.get(SETTINGS_KEYS.relayMinOpfieldVersion) ?? null;
     const relayUpdateAvailable =
       currentRelayVersion !== 'dev' &&
       currentRelayVersion !== 'unknown' &&
       latestRelayVersion != null &&
-      relayMinGatewayVersion != null &&
-      isGatewayCompatibleWithRelayUpdate(currentVersion, relayMinGatewayVersion) &&
+      relayMinOpfieldVersion != null &&
+      isOpfieldCompatibleWithRelayUpdate(currentVersion, relayMinOpfieldVersion) &&
       (isNewerVersion(latestRelayVersion, currentRelayVersion) || (await this.remoteRelayBehind(latestRelayVersion)));
     const updateAvailable =
-      gatewayUpdateAvailable &&
+      opfieldUpdateAvailable &&
       latestVersion != null &&
-      !isRelayTooOldForGatewayUpdate(currentRelayVersion, latestVersion);
+      !isRelayTooOldForOpfieldUpdate(currentRelayVersion, latestVersion);
 
     const durableOperation = await this.getDurableRelayOperation();
     return {
@@ -582,7 +601,7 @@ export class UpdateService {
         releaseUrl: latestRelayVersion ? (map.get(SETTINGS_KEYS.relayReleaseUrl) ?? null) : null,
         operation: durableOperation ?? this.relayUpdateOperation,
       },
-      gatewayOperation: this.gatewayUpdateOperation,
+      opfieldOperation: this.opfieldUpdateOperation,
     };
   }
 
@@ -603,19 +622,19 @@ export class UpdateService {
         releaseUrl: null,
         lastCheckedAt,
         relay: {
-          currentVersion: this.env.GATEWAY_RELAY_BUILD_VERSION ?? 'dev',
+          currentVersion: this.env.OPFIELD_RELAY_BUILD_VERSION ?? 'dev',
           latestVersion: null,
           updateAvailable: false,
           releaseNotes: null,
           releaseUrl: null,
           operation: this.relayUpdateOperation,
         },
-        gatewayOperation: this.gatewayUpdateOperation,
+        opfieldOperation: this.opfieldUpdateOperation,
       };
     }
 
     try {
-      const currentRelayVersion = this.env.GATEWAY_RELAY_BUILD_VERSION ?? currentVersion;
+      const currentRelayVersion = this.env.OPFIELD_RELAY_BUILD_VERSION ?? currentVersion;
       const updateChannel = await this.getUpdateChannel();
       const [latest, latestRelay] = await Promise.all([
         this.fetchNextRelease('gateway', currentVersion, updateChannel),
@@ -634,16 +653,16 @@ export class UpdateService {
         await this.upsertSetting(SETTINGS_KEYS.relayLatestVersion, relayVersion);
         await this.upsertSetting(SETTINGS_KEYS.relayReleaseNotes, releaseNotes(latestRelay));
         await this.upsertSetting(SETTINGS_KEYS.relayReleaseUrl, releaseUrl(latestRelay));
-        await this.upsertSetting(SETTINGS_KEYS.relayMinGatewayVersion, relayArtifact.minGatewayVersion);
+        await this.upsertSetting(SETTINGS_KEYS.relayMinOpfieldVersion, relayArtifact.minGatewayVersion);
       } else {
         await this.deleteSettings([
           SETTINGS_KEYS.relayLatestVersion,
           SETTINGS_KEYS.relayReleaseNotes,
           SETTINGS_KEYS.relayReleaseUrl,
-          SETTINGS_KEYS.relayMinGatewayVersion,
+          SETTINGS_KEYS.relayMinOpfieldVersion,
         ]);
       }
-      if (!latest && !latestRelay) logger.debug('No Gateway or relay releases found');
+      if (!latest && !latestRelay) logger.debug('No Opfield or relay releases found');
       return this.getCachedStatus();
     } catch (error) {
       logger.warn('Update check failed', { error });
@@ -670,13 +689,13 @@ export class UpdateService {
     return releases
       .filter((r) => {
         const tag = r.tag_name;
-        return isGatewayReleaseTag(tag) && compareSemver(tag, after) > 0 && compareSemver(tag, upTo) <= 0;
+        return isOpfieldReleaseTag(tag) && compareSemver(tag, after) > 0 && compareSemver(tag, upTo) <= 0;
       })
       .sort((a, b) => compareSemver(b.tag_name, a.tag_name))
       .map((r) => ({ version: r.tag_name, notes: releaseNotes(r) }));
   }
 
-  async prepareGatewayUpdate(targetVersion: string): Promise<TrustedGatewayUpdateArtifact> {
+  async prepareOpfieldUpdate(targetVersion: string): Promise<TrustedOpfieldUpdateArtifact> {
     const tag = normalizeVersionTag(targetVersion);
     const selfInfo = await this.dockerService.inspectSelf();
     const currentImage = imageRepositoryFromRef(selfInfo.Config.Image);
@@ -684,18 +703,18 @@ export class UpdateService {
       this.getManifestSource('gateway', tag, 'gateway-image.update.json'),
       'gateway'
     );
-    let artifact: TrustedGatewayUpdateArtifact | null = null;
+    let artifact: TrustedOpfieldUpdateArtifact | null = null;
     let verificationError: unknown;
-    for (const image of this.gatewayImageRepositories(currentImage)) {
+    for (const image of this.opfieldImageRepositories(currentImage)) {
       try {
-        artifact = verifyGatewayImageManifest(signedManifest, { version: tag, tag, image });
+        artifact = verifyOpfieldImageManifest(signedManifest, { version: tag, tag, image });
         break;
       } catch (error) {
         verificationError = error;
       }
     }
     if (!artifact) {
-      logger.warn('Gateway update manifest verification failed', {
+      logger.warn('Opfield update manifest verification failed', {
         targetVersion,
         currentImage,
         error: verificationError instanceof Error ? verificationError.message : String(verificationError),
@@ -708,7 +727,7 @@ export class UpdateService {
 
   async prepareRelayUpdate(
     targetVersion: string,
-    allowIncompatibleGateway = false
+    allowIncompatibleOpfield = false
   ): Promise<TrustedRelayUpdateArtifact> {
     const version = normalizeVersionTag(targetVersion);
     const tag = `${version}-relay`;
@@ -720,12 +739,12 @@ export class UpdateService {
     );
     let artifact: TrustedRelayUpdateArtifact | null = null;
     let verificationError: unknown;
-    for (const gatewayImage of this.gatewayImageRepositories(currentImage)) {
+    for (const opfieldImage of this.opfieldImageRepositories(currentImage)) {
       try {
         artifact = verifyRelayImageManifest(signedManifest, {
           version,
           tag,
-          image: `${gatewayImage}/relay`,
+          image: `${opfieldImage}/relay`,
           protocolMajor: 1,
         });
         break;
@@ -742,12 +761,12 @@ export class UpdateService {
       throw new AppError(502, 'UNTRUSTED_UPDATE_ARTIFACT', 'Relay update artifact is not trusted');
     }
     if (
-      !allowIncompatibleGateway &&
-      !isGatewayCompatibleWithRelayUpdate(this.getCurrentVersion(), artifact.minGatewayVersion)
+      !allowIncompatibleOpfield &&
+      !isOpfieldCompatibleWithRelayUpdate(this.getCurrentVersion(), artifact.minGatewayVersion)
     ) {
       throw new AppError(
         409,
-        'GATEWAY_UPDATE_REQUIRED',
+        'OPFIELD_UPDATE_REQUIRED',
         `Relay ${version} requires Opfield ${artifact.minGatewayVersion} or newer`
       );
     }
@@ -756,13 +775,13 @@ export class UpdateService {
 
   async performUpdate(
     targetVersion: string,
-    artifact: TrustedGatewayUpdateArtifact,
+    artifact: TrustedOpfieldUpdateArtifact,
     userId: string | null = null
   ): Promise<void> {
-    if (this.gatewayUpdateInProgress)
+    if (this.opfieldUpdateInProgress)
       throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
-    this.gatewayUpdateInProgress = true;
-    this.setGatewayUpdateOperation({
+    this.opfieldUpdateInProgress = true;
+    this.setOpfieldUpdateOperation({
       status: 'updating',
       targetVersion: normalizeVersionTag(targetVersion),
       startedAt: new Date().toISOString(),
@@ -772,28 +791,28 @@ export class UpdateService {
     try {
       // Checked after the flag is set: a Relay update cannot start from here on.
       if (await this.isRelayUpdateRunning()) {
-        throw new AppError(409, 'RELAY_UPDATE_IN_PROGRESS', RELAY_UPDATE_BLOCKS_GATEWAY_MESSAGE);
+        throw new AppError(409, 'RELAY_UPDATE_IN_PROGRESS', RELAY_UPDATE_BLOCKS_OPFIELD_MESSAGE);
       }
-      await this.performGatewayUpdate(targetVersion, artifact, userId);
+      await this.performOpfieldUpdate(targetVersion, artifact, userId);
     } catch (error) {
-      this.gatewayUpdateInProgress = false;
-      this.setGatewayUpdateOperation(null);
+      this.opfieldUpdateInProgress = false;
+      this.setOpfieldUpdateOperation(null);
       this.orchestration?.setOrchestrationAdmissionHold(null);
       // This process reports the failure itself; the next start must not.
-      await this.deleteSettings([GATEWAY_UPDATE_ATTEMPT_KEY]).catch((clearError) =>
-        logger.warn('Could not clear the Gateway update attempt record', { error: formatError(clearError) })
+      await this.deleteSettings([OPFIELD_UPDATE_ATTEMPT_KEY]).catch((clearError) =>
+        logger.warn('Could not clear the Opfield update attempt record', { error: formatError(clearError) })
       );
       throw error;
     }
     this.handoffSettleTimer = setTimeout(() => {
-      logger.error('Gateway update handoff did not replace this process; accepting orchestration work again', {
+      logger.error('Opfield update handoff did not replace this process; accepting orchestration work again', {
         targetVersion,
       });
-      this.gatewayUpdateInProgress = false;
+      this.opfieldUpdateInProgress = false;
       this.orchestration?.setOrchestrationAdmissionHold(null);
-      void this.reportFailedGatewayUpdate(
+      void this.reportFailedOpfieldUpdate(
         `The update to ${normalizeVersionTag(targetVersion)} did not replace Opfield ${this.getCurrentVersion()}, which keeps running. Check the update container logs on the Opfield host.`
-      ).catch((error) => logger.error('Could not report the failed Gateway update', { error: formatError(error) }));
+      ).catch((error) => logger.error('Could not report the failed Opfield update', { error: formatError(error) }));
     }, UPDATE_HANDOFF_SETTLE_MS);
     this.handoffSettleTimer.unref?.();
   }
@@ -804,30 +823,93 @@ export class UpdateService {
    * interrupted: report it and release what it holds.
    */
   async recoverInterruptedUpdates(): Promise<void> {
-    await this.recoverGatewayUpdateAttempt().catch((error) =>
-      logger.error('Could not recover the Gateway update attempt', { error: formatError(error) })
+    await this.recoverOpfieldUpdateAttempt().catch((error) =>
+      logger.error('Could not recover the Opfield update attempt', { error: formatError(error) })
     );
     await this.recoverInterruptedRelayPoolUpdates().catch((error) =>
       logger.error('Could not recover interrupted Relay Pool updates', { error: formatError(error) })
     );
+    this.startHostMoveLauncher();
   }
 
-  private async readGatewayUpdateAttempt(): Promise<GatewayUpdateAttempt | null> {
-    const [row] = await this.db.select().from(settings).where(eq(settings.key, GATEWAY_UPDATE_ATTEMPT_KEY)).limit(1);
-    return parseGatewayUpdateAttempt(row?.value);
+  /**
+   * An installation from before 2.12.1 moves to the Opfield layout (foundation/host-move.ts) after the update to this
+   * release has settled: the earlier release's sidecar can no longer roll it back by then.
+   */
+  private startHostMoveLauncher(): void {
+    if (this.hostMoveLauncher || this.env.NODE_ENV !== 'production') return;
+    this.hostMoveLauncher = new HostMoveLauncher({
+      db: this.db,
+      docker: this.dockerService,
+      env: this.env,
+      updateBusy: async () =>
+        this.opfieldUpdateInProgress ||
+        (await this.isRelayUpdateRunning()) ||
+        (await this.readOpfieldUpdateAttempt()) !== null,
+      sidecarRunning: () => this.updateSidecarRunning(),
+      quiesce: async () => {
+        const source = this.orchestration;
+        if (!source) return;
+        source.setOrchestrationAdmissionHold(
+          'Opfield is moving to its new directory and restarts in a minute. Start this operation again afterwards.'
+        );
+        await waitForOrchestrationIdle(source, { scope: 'all', deadline: 'auto' });
+      },
+      release: () => this.orchestration?.setOrchestrationAdmissionHold(null),
+    });
+    void this.hostMoveLauncher.check();
+    this.hostMoveLauncher.start();
   }
 
-  private async recoverGatewayUpdateAttempt(): Promise<void> {
-    const attempt = await this.readGatewayUpdateAttempt();
+  /** Whether a host move runs now (started by this process, by another one or by install.sh). */
+  private async hostMoveRunning(): Promise<boolean> {
+    if (this.hostMoveLauncher?.isMoving()) return true;
+    try {
+      const container = await this.dockerService.inspectContainerDetails(HOST_MOVE_CONTAINER_NAME);
+      return container?.State.Running === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Whether this installation still has the layout of the releases before 2.12.1. */
+  private async hostMoveNeeded(): Promise<boolean> {
+    const self = await this.dockerService.inspectSelf();
+    const labels = self.Config.Labels ?? {};
+    const composeDir = this.env.COMPOSE_PROJECT_DIR || labels['com.docker.compose.project.working_dir'];
+    const composeProject = labels['com.docker.compose.project'];
+    if (!composeDir || !composeProject) return false;
+    return hasLegacyLayout({ composeDir, composeProject, databaseUrl: this.env.DATABASE_URL });
+  }
+
+  /** Whether an update sidecar (of this release or an earlier one) still runs. */
+  private async updateSidecarRunning(): Promise<boolean> {
+    const containers = await this.dockerService.listLocalContainers();
+    for (const item of containers) {
+      if (item.State !== 'running') continue;
+      const role = item.Labels?.[UPDATE_SIDECAR_LABEL];
+      if (role !== undefined && FINISHED_CONTAINER_ROLES.includes(role)) return true;
+      if (role === undefined && UNLABELLED_SIDECAR_IMAGE.test(item.Image)) return true;
+    }
+    return false;
+  }
+
+  private async readOpfieldUpdateAttempt(): Promise<OpfieldUpdateAttempt | null> {
+    const [row] = await this.db.select().from(settings).where(eq(settings.key, OPFIELD_UPDATE_ATTEMPT_KEY)).limit(1);
+    return parseOpfieldUpdateAttempt(row?.value);
+  }
+
+  private async recoverOpfieldUpdateAttempt(): Promise<void> {
+    const attempt = await this.readOpfieldUpdateAttempt();
     // Keep the sidecar of the attempt still on record: its logs explain a rollback.
     void this.removeFinishedUpdateSidecars(attempt?.sidecarId ?? null);
     if (!attempt) {
-      await this.deleteSettings([GATEWAY_UPDATE_ATTEMPT_KEY]);
+      await this.deleteSettings([OPFIELD_UPDATE_ATTEMPT_KEY]);
       return;
     }
     const runningVersion = this.getCurrentVersion();
     if (normalizeVersionTag(runningVersion) === normalizeVersionTag(attempt.targetVersion)) {
-      await this.markGatewayUpdateTargetStarted(attempt);
+      await this.markOpfieldUpdateTargetStarted(attempt);
       return;
     }
     if (!attempt.failedAt) {
@@ -835,22 +917,22 @@ export class UpdateService {
       if (attempt.targetStartedAt) {
         if (normalizeVersionTag(runningVersion) !== normalizeVersionTag(attempt.fromVersion)) {
           // The target started and something other than the rollback replaced it since.
-          await this.deleteSettings([GATEWAY_UPDATE_ATTEMPT_KEY]);
+          await this.deleteSettings([OPFIELD_UPDATE_ATTEMPT_KEY]);
           return;
         }
-        await this.reportFailedGatewayUpdate(
+        await this.reportFailedOpfieldUpdate(
           `Opfield ${attempt.targetVersion} started but did not become healthy, so the update was rolled back and Opfield ${runningVersion} is running again. Check the update container logs on the Opfield host${container}.`,
           attempt
         );
         return;
       }
-      await this.reportFailedGatewayUpdate(
+      await this.reportFailedOpfieldUpdate(
         `Opfield ${attempt.targetVersion} did not start, so the update was rolled back and Opfield ${runningVersion} is running again. Check the update container logs on the Opfield host${container}.`,
         attempt
       );
       return;
     }
-    this.restoreFailedGatewayUpdateReport(attempt);
+    this.restoreFailedOpfieldUpdateReport(attempt);
   }
 
   /**
@@ -859,54 +941,54 @@ export class UpdateService {
    * version it rolls back to reports the rollback; clear it once the update had
    * time to settle.
    */
-  private async markGatewayUpdateTargetStarted(attempt: GatewayUpdateAttempt): Promise<void> {
-    const started: GatewayUpdateAttempt = {
+  private async markOpfieldUpdateTargetStarted(attempt: OpfieldUpdateAttempt): Promise<void> {
+    const started: OpfieldUpdateAttempt = {
       ...attempt,
       failedAt: null,
       error: null,
       targetStartedAt: attempt.targetStartedAt ?? new Date().toISOString(),
     };
-    await this.upsertSetting(GATEWAY_UPDATE_ATTEMPT_KEY, started);
-    logger.info('Gateway update target started', { from: attempt.fromVersion, to: attempt.targetVersion });
+    await this.upsertSetting(OPFIELD_UPDATE_ATTEMPT_KEY, started);
+    logger.info('Opfield update target started', { from: attempt.fromVersion, to: attempt.targetVersion });
     clearTimeout(this.targetGraceTimer);
     this.targetGraceTimer = setTimeout(() => {
       void this.db
         .delete(settings)
         .where(
           and(
-            eq(settings.key, GATEWAY_UPDATE_ATTEMPT_KEY),
+            eq(settings.key, OPFIELD_UPDATE_ATTEMPT_KEY),
             // A newer attempt started from this process replaced the record: keep it.
             sql`${settings.value}->>'startedAt' = ${started.startedAt}`,
             sql`${settings.value}->>'targetVersion' = ${started.targetVersion}`
           )
         )
         .then(() => {
-          logger.info('Gateway update completed', { from: started.fromVersion, to: started.targetVersion });
+          logger.info('Opfield update completed', { from: started.fromVersion, to: started.targetVersion });
           return this.removeFinishedUpdateSidecars(null);
         })
         .catch((error) =>
-          logger.warn('Could not clear the Gateway update attempt record', { error: formatError(error) })
+          logger.warn('Could not clear the Opfield update attempt record', { error: formatError(error) })
         );
-    }, GATEWAY_UPDATE_TARGET_GRACE_MS);
+    }, OPFIELD_UPDATE_TARGET_GRACE_MS);
     this.targetGraceTimer.unref?.();
   }
 
   /** Persists, audits and reports a Gateway update that did not replace this version. */
-  private async reportFailedGatewayUpdate(error: string, known?: GatewayUpdateAttempt): Promise<void> {
-    const attempt = known ?? (await this.readGatewayUpdateAttempt());
-    const targetVersion = attempt?.targetVersion ?? this.gatewayUpdateOperation?.targetVersion;
+  private async reportFailedOpfieldUpdate(error: string, known?: OpfieldUpdateAttempt): Promise<void> {
+    const attempt = known ?? (await this.readOpfieldUpdateAttempt());
+    const targetVersion = attempt?.targetVersion ?? this.opfieldUpdateOperation?.targetVersion;
     if (!targetVersion) return;
-    const failed: GatewayUpdateAttempt = {
+    const failed: OpfieldUpdateAttempt = {
       targetVersion,
       fromVersion: attempt?.fromVersion ?? this.getCurrentVersion(),
-      startedAt: attempt?.startedAt ?? this.gatewayUpdateOperation?.startedAt ?? new Date().toISOString(),
+      startedAt: attempt?.startedAt ?? this.opfieldUpdateOperation?.startedAt ?? new Date().toISOString(),
       userId: attempt?.userId ?? null,
       sidecarId: attempt?.sidecarId ?? null,
       failedAt: new Date().toISOString(),
       error,
     };
-    await this.upsertSetting(GATEWAY_UPDATE_ATTEMPT_KEY, failed);
-    logger.error('Gateway update failed', {
+    await this.upsertSetting(OPFIELD_UPDATE_ATTEMPT_KEY, failed);
+    logger.error('Opfield update failed', {
       targetVersion,
       runningVersion: this.getCurrentVersion(),
       error,
@@ -926,16 +1008,16 @@ export class UpdateService {
         },
       })
       .catch(() => undefined);
-    this.restoreFailedGatewayUpdateReport(failed);
+    this.restoreFailedOpfieldUpdateReport(failed);
   }
 
-  private restoreFailedGatewayUpdateReport(attempt: GatewayUpdateAttempt): void {
-    const remaining = Date.parse(attempt.failedAt ?? '') + FAILED_GATEWAY_UPDATE_REPORT_MS - Date.now();
+  private restoreFailedOpfieldUpdateReport(attempt: OpfieldUpdateAttempt): void {
+    const remaining = Date.parse(attempt.failedAt ?? '') + FAILED_OPFIELD_UPDATE_REPORT_MS - Date.now();
     if (!(remaining > 0)) {
-      void this.deleteSettings([GATEWAY_UPDATE_ATTEMPT_KEY]).catch(() => undefined);
+      void this.deleteSettings([OPFIELD_UPDATE_ATTEMPT_KEY]).catch(() => undefined);
       return;
     }
-    const operation: GatewayUpdateOperation = {
+    const operation: OpfieldUpdateOperation = {
       status: 'failed',
       targetVersion: attempt.targetVersion,
       startedAt: attempt.startedAt,
@@ -943,16 +1025,16 @@ export class UpdateService {
       operations: [],
       error: attempt.error,
     };
-    this.gatewayUpdateOperation = operation;
+    this.opfieldUpdateOperation = operation;
     clearTimeout(this.failedReportTimer);
     this.failedReportTimer = setTimeout(() => {
-      if (this.gatewayUpdateOperation === operation) void this.acknowledgeGatewayUpdateFailure();
+      if (this.opfieldUpdateOperation === operation) void this.acknowledgeOpfieldUpdateFailure();
     }, remaining);
     this.failedReportTimer.unref?.();
     // Sessions that still show the update screen leave it with this error.
     this.events?.publish('system.update.changed', {
       updating: false,
-      component: 'gateway',
+      component: 'opfield',
       targetVersion: attempt.targetVersion,
       error: attempt.error,
       rolledBack: true,
@@ -961,14 +1043,14 @@ export class UpdateService {
   }
 
   /** An admin saw the failed update, or starts a new one: stop reporting it. */
-  async acknowledgeGatewayUpdateFailure(): Promise<boolean> {
-    if (this.gatewayUpdateOperation?.status !== 'failed') return false;
+  async acknowledgeOpfieldUpdateFailure(): Promise<boolean> {
+    if (this.opfieldUpdateOperation?.status !== 'failed') return false;
     clearTimeout(this.failedReportTimer);
-    this.gatewayUpdateOperation = null;
-    await this.deleteSettings([GATEWAY_UPDATE_ATTEMPT_KEY]);
+    this.opfieldUpdateOperation = null;
+    await this.deleteSettings([OPFIELD_UPDATE_ATTEMPT_KEY]);
     void this.removeFinishedUpdateSidecars(null);
     // No `updating` flag: this must not end the update screen of a new attempt.
-    this.events?.publish('system.update.changed', { component: 'gateway', statusChanged: true });
+    this.events?.publish('system.update.changed', { component: 'opfield', statusChanged: true });
     return true;
   }
 
@@ -987,7 +1069,14 @@ export class UpdateService {
       const containers = await this.dockerService.listLocalContainers();
       for (const item of containers) {
         if (item.State === 'running' || item.State === 'restarting' || item.Id === keepId) continue;
-        const labelled = item.Labels?.[UPDATE_SIDECAR_LABEL] === UPDATE_SIDECAR_ROLE;
+        const role = item.Labels?.[UPDATE_SIDECAR_LABEL];
+        // The host move container stays until the move it ran is done: its logs explain a move that went back.
+        if (role === HOST_MOVE_ROLE) {
+          if (await this.hostMoveNeeded()) continue;
+          await this.dockerService.removeContainer(item.Id).catch(() => undefined);
+          continue;
+        }
+        const labelled = role !== undefined && FINISHED_CONTAINER_ROLES.includes(role);
         if (!labelled) {
           if (!composeDir) continue;
           const details = await this.dockerService.inspectContainerDetails(item.Id);
@@ -1014,13 +1103,13 @@ export class UpdateService {
     }
   }
 
-  private setGatewayUpdateOperation(operation: GatewayUpdateOperation | null): void {
+  private setOpfieldUpdateOperation(operation: OpfieldUpdateOperation | null): void {
     if (operation) clearTimeout(this.failedReportTimer);
-    this.gatewayUpdateOperation = operation;
+    this.opfieldUpdateOperation = operation;
     if (operation) {
       this.events?.publish('system.update.changed', {
         updating: true,
-        component: 'gateway',
+        component: 'opfield',
         targetVersion: operation.targetVersion,
         statusChanged: true,
       });
@@ -1042,14 +1131,14 @@ export class UpdateService {
     );
     const override = new AbortController();
     this.operationWaitOverride = override;
-    const startedAt = this.gatewayUpdateOperation?.startedAt ?? new Date().toISOString();
+    const startedAt = this.opfieldUpdateOperation?.startedAt ?? new Date().toISOString();
     try {
       const result = await waitForOrchestrationIdle(source, {
         scope: 'all',
         deadline: 'auto',
         signal: override.signal,
         onProgress: (operations, deadline) =>
-          this.setGatewayUpdateOperation({
+          this.setOpfieldUpdateOperation({
             status: 'waiting_for_operations',
             targetVersion,
             startedAt,
@@ -1058,7 +1147,7 @@ export class UpdateService {
           }),
       });
       if (result.outcome === 'deadline' || result.outcome === 'override') {
-        logger.warn('Gateway update proceeds while orchestration operations still run; recovery resumes them', {
+        logger.warn('Opfield update proceeds while orchestration operations still run; recovery resumes them', {
           targetVersion,
           reason: result.outcome,
           operations: result.operations,
@@ -1070,7 +1159,7 @@ export class UpdateService {
       }
     } finally {
       this.operationWaitOverride = null;
-      this.setGatewayUpdateOperation({
+      this.setOpfieldUpdateOperation({
         status: 'updating',
         targetVersion,
         startedAt,
@@ -1080,9 +1169,9 @@ export class UpdateService {
     }
   }
 
-  private async performGatewayUpdate(
+  private async performOpfieldUpdate(
     targetVersion: string,
-    artifact: TrustedGatewayUpdateArtifact,
+    artifact: TrustedOpfieldUpdateArtifact,
     userId: string | null
   ): Promise<void> {
     logger.info('Starting self-update', { targetVersion });
@@ -1100,6 +1189,21 @@ export class UpdateService {
 
     const currentImage = selfInfo.Config.Image;
     const imageBase = imageRepositoryFromRef(currentImage);
+    // The sidecar snapshots and restores the database the app uses: `gateway` before the host move, `opfield` after.
+    const database = databaseIdentity(this.env.DATABASE_URL) ?? {
+      role: LEGACY_DATABASE_ROLE,
+      database: LEGACY_DATABASE,
+    };
+    if (!isSafeDatabaseIdentifier(database.role) || !isSafeDatabaseIdentifier(database.database)) {
+      throw new Error(`Unsupported database role or name: ${database.role}/${database.database}`);
+    }
+    if (await this.hostMoveRunning()) {
+      throw new AppError(
+        409,
+        'HOST_MOVE_IN_PROGRESS',
+        'Opfield is moving to its new directory. Update once it has finished.'
+      );
+    }
 
     logger.info('Update context', {
       composeDir,
@@ -1112,7 +1216,7 @@ export class UpdateService {
     if (!parseSemver(targetVersion)) throw new Error(`Invalid version format: ${targetVersion}`);
 
     const tag = normalizeVersionTag(targetVersion);
-    if (!this.gatewayImageRepositories(imageBase).includes(artifact.payload.image)) {
+    if (!this.opfieldImageRepositories(imageBase).includes(artifact.payload.image)) {
       throw new Error(`Signed update image ${artifact.payload.image} is not an allowed Opfield image repository`);
     }
     if (artifact.payload.version !== tag) {
@@ -1128,22 +1232,22 @@ export class UpdateService {
 
     // From here on a restart can leave the previous version running. The next
     // process reads this record and reports the attempt instead of hiding it.
-    const attempt: GatewayUpdateAttempt = {
+    const attempt: OpfieldUpdateAttempt = {
       targetVersion: tag,
       fromVersion: this.getCurrentVersion(),
-      startedAt: this.gatewayUpdateOperation?.startedAt ?? new Date().toISOString(),
+      startedAt: this.opfieldUpdateOperation?.startedAt ?? new Date().toISOString(),
       userId,
       sidecarId: null,
       failedAt: null,
       error: null,
     };
-    await this.upsertSetting(GATEWAY_UPDATE_ATTEMPT_KEY, attempt);
+    await this.upsertSetting(OPFIELD_UPDATE_ATTEMPT_KEY, attempt);
 
     // The legacy settings migration below rewrites .env. Keep the untouched
     // files, so every rollback (here and in the sidecar) restores them.
     const backupDir = await this.backupFoundationFiles(composeDir);
 
-    logger.info('Migrating legacy environment-owned Gateway settings');
+    logger.info('Migrating legacy environment-owned settings');
     const settingsMigration = await this.dockerService.runOneShot({
       Image: artifact.imageRef,
       Cmd: ['node', 'dist/cli/migrate-legacy-settings.js', '/host'],
@@ -1234,7 +1338,7 @@ export class UpdateService {
     // The pre-update backup holds .env and docker-compose.yml as they were
     // before any migration, including the legacy settings removal.
     const sidecarBackupDir = backupDir.replace(/^\/host(?=\/)/, composeDir);
-    const expectedBackupPrefix = `${composeDir}/.gateway-foundation-backups/`;
+    const expectedBackupPrefix = `${composeDir}/${FOUNDATION_BACKUPS_DIR}/`;
     if (
       !sidecarBackupDir.startsWith(expectedBackupPrefix) ||
       !/^[a-zA-Z0-9_.-]+$/.test(sidecarBackupDir.slice(expectedBackupPrefix.length))
@@ -1266,7 +1370,7 @@ registry_ready() {
 relay_reachable() {
   compose exec -T app node -e 'const net=require("node:net");const socket=net.connect(9443,"relay",()=>{socket.end();process.exit(0)});socket.setTimeout(3000,()=>{socket.destroy();process.exit(1)});socket.on("error",()=>process.exit(1));'
 }
-${gatewayDatabaseSnapshotShell(composeDir)}
+${databaseSnapshotShell(composeDir, database)}
 rollback() {
   if [ -n "$FOUNDATION_BACKUP_DIR" ]; then
     if [ -f "$FOUNDATION_BACKUP_DIR/.env" ]; then
@@ -1281,7 +1385,7 @@ rollback() {
   compose stop app
   compose up -d postgres
   attempt=0
-  until compose exec -T postgres pg_isready -U gateway -d gateway; do
+  until compose exec -T postgres pg_isready -U ${database.role} -d ${database.database}; do
     attempt=$((attempt + 1))
     [ "$attempt" -lt 60 ]
     sleep 2
@@ -1291,17 +1395,17 @@ rollback() {
     db_restore_status=0
     restore_database_snapshot || db_restore_status=$?
     if [ "$db_restore_status" -eq 0 ]; then
-      rm -f "$GATEWAY_DB_DUMP" || true
-      echo "Restored the gateway database from the pre-update snapshot"
+      rm -f "$OPFIELD_DB_DUMP" || true
+      echo "Restored the Opfield database from the pre-update snapshot"
     elif [ "$db_restore_status" -eq 1 ]; then
-      echo "The gateway database was NOT restored and keeps the changes of the failed update. The pre-update snapshot is kept at $GATEWAY_DB_DUMP" >&2
+      echo "The Opfield database was NOT restored and keeps the changes of the failed update. The pre-update snapshot is kept at $OPFIELD_DB_DUMP" >&2
     else
-      echo "Restoring the gateway database failed after the migrated database was dropped, so Opfield is left stopped. The pre-update snapshot is kept at $GATEWAY_DB_DUMP. Restore it by hand (see Updates in the operations guide), then run docker compose up -d" >&2
+      echo "Restoring the Opfield database failed after the migrated database was dropped, so Opfield is left stopped. The pre-update snapshot is kept at $OPFIELD_DB_DUMP. Restore it by hand (see Updates in the operations guide), then run docker compose up -d" >&2
       return 1
     fi
   fi
   attempt=0
-  until compose exec -T postgres psql -v ON_ERROR_STOP=1 -U gateway -d gateway -c 'BEGIN; CREATE OR REPLACE VIEW "public"."gateway_relay_node_identities_v1" WITH (security_barrier = true) AS SELECT "id" AS "node_id", "type"::text AS "node_type", "status"::text AS "node_status", "certificate_serial" FROM "public"."nodes"; CREATE OR REPLACE VIEW "public"."gateway_relay_managed_databases_v1" WITH (security_barrier = true) AS SELECT "id" AS "managed_database_id", "node_id" AS "database_node_id", "status"::text AS "database_status" FROM "public"."managed_database_instances"; CREATE OR REPLACE VIEW "public"."gateway_relay_bindings_v1" WITH (security_barrier = true) AS SELECT binding."id" AS "binding_id", binding."managed_database_id", binding."target_node_id" AS "source_node_id", binding."status"::text AS "binding_status", managed."node_id" AS "database_node_id", managed."status"::text AS "database_status" FROM "public"."managed_database_bindings" binding INNER JOIN "public"."managed_database_instances" managed ON managed."id" = binding."managed_database_id"; COMMIT;'; do
+  until compose exec -T postgres psql -v ON_ERROR_STOP=1 -U ${database.role} -d ${database.database} -c 'BEGIN; CREATE OR REPLACE VIEW "public"."gateway_relay_node_identities_v1" WITH (security_barrier = true) AS SELECT "id" AS "node_id", "type"::text AS "node_type", "status"::text AS "node_status", "certificate_serial" FROM "public"."nodes"; CREATE OR REPLACE VIEW "public"."gateway_relay_managed_databases_v1" WITH (security_barrier = true) AS SELECT "id" AS "managed_database_id", "node_id" AS "database_node_id", "status"::text AS "database_status" FROM "public"."managed_database_instances"; CREATE OR REPLACE VIEW "public"."gateway_relay_bindings_v1" WITH (security_barrier = true) AS SELECT binding."id" AS "binding_id", binding."managed_database_id", binding."target_node_id" AS "source_node_id", binding."status"::text AS "binding_status", managed."node_id" AS "database_node_id", managed."status"::text AS "database_status" FROM "public"."managed_database_bindings" binding INNER JOIN "public"."managed_database_instances" managed ON managed."id" = binding."managed_database_id"; COMMIT;'; do
     attempt=$((attempt + 1))
     [ "$attempt" -lt 10 ]
     sleep 2
@@ -1336,7 +1440,7 @@ on_exit() {
   trap - EXIT
   if [ "$code" -ne 0 ]; then rollback; fi
   # The update settled: the snapshot is not needed any more.
-  if [ "$code" -eq 0 ]; then rm -f "$GATEWAY_DB_DUMP" || true; fi
+  if [ "$code" -eq 0 ]; then rm -f "$OPFIELD_DB_DUMP" || true; fi
   exit "$code"
 }
 trap on_exit EXIT
@@ -1380,7 +1484,7 @@ exit 1`,
 
     logger.info('Update sidecar launched — container will be replaced shortly');
     // Lets a failure report point at the sidecar logs; the attempt is already recorded.
-    await this.upsertSetting(GATEWAY_UPDATE_ATTEMPT_KEY, { ...attempt, sidecarId }).catch(() => undefined);
+    await this.upsertSetting(OPFIELD_UPDATE_ATTEMPT_KEY, { ...attempt, sidecarId }).catch(() => undefined);
   }
 
   /** Host Docker logging defaults for the foundation migrator; empty when they cannot be read. */
@@ -1401,7 +1505,7 @@ exit 1`,
   /** Copies .env and docker-compose.yml into a new backup directory; returns it as seen under /host. */
   private async backupFoundationFiles(composeDir: string): Promise<string> {
     const name = `pre-update-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-    const backupDir = `/host/.gateway-foundation-backups/${name}`;
+    const backupDir = `/host/${FOUNDATION_BACKUPS_DIR}/${name}`;
     const result = await this.dockerService.runOneShot({
       Image: DOCKER_COMPOSE_CLI_IMAGE_REF,
       Cmd: [
@@ -1424,7 +1528,7 @@ chmod 700 "$backup"
   /** A failed migration may have rewritten .env already. Restore it, keep the original error. */
   private async restoreAfterFailedMigration(imageRef: string, composeDir: string, backupDir: string): Promise<void> {
     await this.rollbackFoundationMigration(imageRef, composeDir, backupDir).catch((error) =>
-      logger.error('Could not restore the Gateway foundation files after a failed migration', {
+      logger.error('Could not restore the foundation files after a failed migration', {
         backupDir,
         error: formatError(error),
       })
@@ -1434,9 +1538,16 @@ chmod 700 "$backup"
   async performRelayUpdate(
     targetVersion: string,
     artifact: TrustedRelayUpdateArtifact,
-    // An update Gateway starts on its own is a system action: audited without a user (N-26).
+    // An update Opfield starts on its own is a system action: audited without a user (N-26).
     userId: string | null = null
   ): Promise<void> {
+    if (await this.hostMoveRunning()) {
+      throw new AppError(
+        409,
+        'HOST_MOVE_IN_PROGRESS',
+        'Opfield is moving to its new directory. Update once it has finished.'
+      );
+    }
     if (!this.relayPoolRuntime) {
       try {
         await this.performLocalRelayUpdate(targetVersion, artifact, true);
@@ -1514,7 +1625,7 @@ chmod 700 "$backup"
           let interruption: string | null = null;
           let pausesStreams = false;
           let pausedMs = 0;
-          if (!artifact.imageRef || this.env.GATEWAY_RELAY_IMAGE_REF !== artifact.imageRef) {
+          if (!artifact.imageRef || this.env.OPFIELD_RELAY_IMAGE_REF !== artifact.imageRef) {
             await runtime.awaitLeasePeers?.(instance.id, signal);
             throwIfAbandoned();
             // While another relay can carry its workloads, the local relay is drained like a remote one, so its
@@ -1805,8 +1916,8 @@ chmod 700 "$backup"
     const composeProject = labels['com.docker.compose.project'];
     if (!composeDir || !/^\/[a-zA-Z0-9/_.-]+$/.test(composeDir)) throw new Error('Invalid Compose directory');
     if (!composeProject || !/^[a-zA-Z0-9_-]+$/.test(composeProject)) throw new Error('Invalid Compose project');
-    const relayImageRepositories = this.gatewayImageRepositories(imageRepositoryFromRef(selfInfo.Config.Image)).map(
-      (gatewayImage) => `${gatewayImage}/relay`
+    const relayImageRepositories = this.opfieldImageRepositories(imageRepositoryFromRef(selfInfo.Config.Image)).map(
+      (opfieldImage) => `${opfieldImage}/relay`
     );
     if (artifact.payload.version !== version || !relayImageRepositories.includes(artifact.payload.image)) {
       throw new Error('Signed relay artifact does not match the requested release');
@@ -1858,11 +1969,11 @@ chmod 700 "$backup"
       throw new Error(`Migrated docker-compose.yml failed validation: ${configResult.output}`);
     }
 
-    if (migrationOutput.backupDir && !migrationOutput.backupDir.startsWith('/host/.gateway-foundation-backups/')) {
+    if (migrationOutput.backupDir && !migrationOutput.backupDir.startsWith(`/host/${FOUNDATION_BACKUPS_DIR}/`)) {
       throw new Error(`Refusing to use unexpected relay foundation backup path: ${migrationOutput.backupDir}`);
     }
     const backupDir = migrationOutput.backupDir?.replace(/^\/host(?=\/)/, composeDir) ?? '';
-    const stopTimeoutSeconds = relayRecreateStopTimeoutSeconds(this.env.GATEWAY_RELAY_BUILD_VERSION);
+    const stopTimeoutSeconds = relayRecreateStopTimeoutSeconds(this.env.OPFIELD_RELAY_BUILD_VERSION);
     await this.relayRuntime?.setMaintenance(true);
     try {
       const result = await this.dockerService.runOneShot({
@@ -1903,9 +2014,9 @@ exit 1`,
       if (result.exitCode !== 0) throw new Error(`Relay update failed and was rolled back: ${result.output}`);
 
       Object.assign(this.env, {
-        GATEWAY_RELAY_IMAGE_REF: artifact.imageRef,
-        GATEWAY_RELAY_BUILD_VERSION: artifact.buildVersion,
-        GATEWAY_RELAY_PROTOCOL_MAJOR: artifact.protocolMajor,
+        OPFIELD_RELAY_IMAGE_REF: artifact.imageRef,
+        OPFIELD_RELAY_BUILD_VERSION: artifact.buildVersion,
+        OPFIELD_RELAY_PROTOCOL_MAJOR: artifact.protocolMajor,
       });
       this.relayRuntime?.setExpectedArtifact(artifact.imageRef, artifact.buildVersion, artifact.protocolMajor);
       await saveInstalledRelayArtifact(this.db, {
@@ -2418,7 +2529,7 @@ exit 1`,
     backupDir: string | null
   ): Promise<void> {
     if (!backupDir) return;
-    if (!backupDir.startsWith('/host/.gateway-foundation-backups/')) {
+    if (!backupDir.startsWith(`/host/${FOUNDATION_BACKUPS_DIR}/`)) {
       throw new Error(`Refusing to rollback unexpected foundation backup path: ${backupDir}`);
     }
     const result = await this.dockerService.runOneShot({
@@ -2471,7 +2582,7 @@ backup="$FOUNDATION_BACKUP_DIR"
     return error;
   }
 
-  getGatewayManifestUrl(version: string): string {
+  getOpfieldManifestUrl(version: string): string {
     const tag = normalizeVersionTag(version);
     return this.getManifestSource('gateway', tag, 'gateway-image.update.json').url;
   }
@@ -2510,7 +2621,7 @@ function legacySettingsMigrationEnv(env: Env): string[] {
 
 /**
  * Update sidecar shell functions. The target app applies its migrations when it
- * starts, so the sidecar snapshots the gateway database before recreating it and
+ * starts, so the sidecar snapshots the Opfield database before recreating it and
  * a rollback restores the snapshot before the previous app starts again: the
  * previous app never runs on a schema it does not know.
  *
@@ -2518,24 +2629,25 @@ function legacySettingsMigrationEnv(env: Env): string[] {
  * database was left as the update changed it, 2 when it was dropped and could
  * not be restored (the previous app must not start then).
  */
-function gatewayDatabaseSnapshotShell(composeDir: string): string {
-  return `GATEWAY_DB_DUMP="$FOUNDATION_BACKUP_DIR/gateway-db.dump"
+function databaseSnapshotShell(composeDir: string, database: { role: string; database: string }): string {
+  const { role, database: name } = database;
+  return `OPFIELD_DB_DUMP="$FOUNDATION_BACKUP_DIR/${DATABASE_SNAPSHOT_FILE}"
 db_snapshot_ready=0
 prune_database_snapshots() {
-  # Left by an update whose sidecar was killed, or kept after a failed restore.
-  for old_dump in ${composeDir}/.gateway-foundation-backups/pre-update-*/gateway-db.dump; do
+  # Left by an update whose sidecar was killed, or kept after a failed restore (also those of updates before 2.12.1).
+  for old_dump in ${composeDir}/${FOUNDATION_BACKUPS_DIR}/pre-update-*/${DATABASE_SNAPSHOT_FILE} ${composeDir}/${LEGACY_FOUNDATION_BACKUPS_DIR}/pre-update-*/${LEGACY_DATABASE_SNAPSHOT_FILE}; do
     [ -f "$old_dump" ] || continue
-    [ "$old_dump" != "$GATEWAY_DB_DUMP" ] || continue
+    [ "$old_dump" != "$OPFIELD_DB_DUMP" ] || continue
     [ -n "$(find "$old_dump" -mtime +7)" ] || continue
     if rm -f "$old_dump"; then echo "Removed the database snapshot of an earlier update: $old_dump"; fi
   done
 }
 snapshot_database() {
   prune_database_snapshots
-  db_bytes="$(compose exec -T postgres psql -X -At -v ON_ERROR_STOP=1 -U gateway -d gateway -c "SELECT pg_database_size('gateway')")" || db_bytes=
+  db_bytes="$(compose exec -T postgres psql -X -At -v ON_ERROR_STOP=1 -U ${role} -d ${name} -c "SELECT pg_database_size('${name}')")" || db_bytes=
   case "$db_bytes" in
     ''|*[!0-9]*)
-      echo "Opfield update stopped before replacing the app: could not read the size of the gateway database" >&2
+      echo "Opfield update stopped before replacing the app: could not read the size of the Opfield database" >&2
       return 1
       ;;
   esac
@@ -2552,46 +2664,46 @@ snapshot_database() {
     echo "Opfield update stopped before replacing the app: the pre-update database snapshot needs $((need_kb / 1024)) MiB free in $FOUNDATION_BACKUP_DIR, but only $((free_kb / 1024)) MiB are free. Free up disk space and start the update again." >&2
     return 1
   fi
-  rm -f "$GATEWAY_DB_DUMP"
-  if ! (umask 077 && compose exec -T postgres pg_dump --format=custom --create --no-password -U gateway -d gateway > "$GATEWAY_DB_DUMP"); then
-    rm -f "$GATEWAY_DB_DUMP"
+  rm -f "$OPFIELD_DB_DUMP"
+  if ! (umask 077 && compose exec -T postgres pg_dump --format=custom --create --no-password -U ${role} -d ${name} > "$OPFIELD_DB_DUMP"); then
+    rm -f "$OPFIELD_DB_DUMP"
     echo "Opfield update stopped before replacing the app: the pre-update database snapshot failed" >&2
     return 1
   fi
-  if [ ! -s "$GATEWAY_DB_DUMP" ] || ! chmod 600 "$GATEWAY_DB_DUMP" || ! compose exec -T postgres pg_restore --list < "$GATEWAY_DB_DUMP" > /dev/null; then
-    rm -f "$GATEWAY_DB_DUMP"
+  if [ ! -s "$OPFIELD_DB_DUMP" ] || ! chmod 600 "$OPFIELD_DB_DUMP" || ! compose exec -T postgres pg_restore --list < "$OPFIELD_DB_DUMP" > /dev/null; then
+    rm -f "$OPFIELD_DB_DUMP"
     echo "Opfield update stopped before replacing the app: the pre-update database snapshot is empty or unreadable" >&2
     return 1
   fi
   db_snapshot_ready=1
-  echo "Saved the pre-update database snapshot to $GATEWAY_DB_DUMP"
+  echo "Saved the pre-update database snapshot to $OPFIELD_DB_DUMP"
 }
 restore_database_snapshot() {
-  echo "Restoring the gateway database from the pre-update snapshot $GATEWAY_DB_DUMP"
-  if [ ! -s "$GATEWAY_DB_DUMP" ] || ! compose exec -T postgres pg_restore --list < "$GATEWAY_DB_DUMP" > /dev/null; then
-    echo "The pre-update database snapshot $GATEWAY_DB_DUMP is missing or unreadable" >&2
+  echo "Restoring the Opfield database from the pre-update snapshot $OPFIELD_DB_DUMP"
+  if [ ! -s "$OPFIELD_DB_DUMP" ] || ! compose exec -T postgres pg_restore --list < "$OPFIELD_DB_DUMP" > /dev/null; then
+    echo "The pre-update database snapshot $OPFIELD_DB_DUMP is missing or unreadable" >&2
     return 1
   fi
   # Nothing may hold or reopen a connection while the database is replaced.
   for service in $(compose config --services); do
     [ "$service" = postgres ] && continue
     if ! compose stop "$service"; then
-      echo "Could not stop $service before restoring the gateway database" >&2
+      echo "Could not stop $service before restoring the Opfield database" >&2
       return 1
     fi
   done
-  if ! compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U gateway -d postgres -c 'DROP DATABASE IF EXISTS gateway WITH (FORCE)'; then
-    echo "Could not drop the migrated gateway database" >&2
+  if ! compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U ${role} -d postgres -c 'DROP DATABASE IF EXISTS ${name} WITH (FORCE)'; then
+    echo "Could not drop the migrated Opfield database" >&2
     return 1
   fi
-  if ! compose exec -T postgres pg_restore --create --exit-on-error --no-password -U gateway -d postgres < "$GATEWAY_DB_DUMP"; then
-    echo "pg_restore of $GATEWAY_DB_DUMP failed" >&2
+  if ! compose exec -T postgres pg_restore --create --exit-on-error --no-password -U ${role} -d postgres < "$OPFIELD_DB_DUMP"; then
+    echo "pg_restore of $OPFIELD_DB_DUMP failed" >&2
     return 2
   fi
 }`;
 }
 
-function parseGatewayUpdateAttempt(value: unknown): GatewayUpdateAttempt | null {
+function parseOpfieldUpdateAttempt(value: unknown): OpfieldUpdateAttempt | null {
   if (typeof value !== 'object' || value === null) return null;
   const record = value as Record<string, unknown>;
   const text = (key: string) => (typeof record[key] === 'string' ? (record[key] as string) : null);

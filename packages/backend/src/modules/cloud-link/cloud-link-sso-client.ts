@@ -24,7 +24,7 @@ export interface CloudSsoClientDeps {
     | 'removeConfig'
     | 'markOpfieldAccountDetached'
   >;
-  authSettings: Pick<AuthSettingsService, 'getConfig' | 'enableOidcSignIn' | 'updateConfig'>;
+  authSettings: Pick<AuthSettingsService, 'getConfig' | 'enableOidcSignIn' | 'disableOidcSignIn' | 'updateConfig'>;
   cloud: Pick<
     CloudLinkService,
     'managedByCloud' | 'pendingSsoClientRequest' | 'clearSsoClientRequest' | 'recordManagedSso'
@@ -156,7 +156,7 @@ export class CloudSsoClient {
         { issuer: null, methods: { oidc: false } },
         { methods, issuer: provider.issuer }
       );
-      if (methods.oidc) await this.deps.authSettings.updateConfig({ methods: { oidc: false } });
+      if (methods.oidc) await this.deps.authSettings.disableOidcSignIn();
       await this.deps.oidcSettings.removeConfig({ keepCloudClient: false });
       this.deps.invalidateOidc();
       await this.deps.cloud.recordManagedSso({

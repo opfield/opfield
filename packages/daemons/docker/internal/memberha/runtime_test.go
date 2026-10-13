@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 // Every start of a member is preceded by standby at rest, on every path.
@@ -309,7 +309,7 @@ func TestADivergedCopyRejoinsOnlyWhenAnotherPrimaryIsKnown(t *testing.T) {
 	assertStandbyBeforeStart(t, log)
 }
 
-func TestManualPrimarySelfFencesWithoutGatewayAndPeerAndResumes(t *testing.T) {
+func TestManualPrimarySelfFencesWithoutOpfieldAndPeerAndResumes(t *testing.T) {
 	h := newHarness(t, ModeManual)
 	h.engine.container.Running = true
 	h.engine.status = EngineStatus{Answering: true}
@@ -384,7 +384,7 @@ func TestManualCopyNeverPromotes(t *testing.T) {
 	}
 }
 
-func TestEventsSurviveARestartUntilGatewayAcknowledgesThem(t *testing.T) {
+func TestEventsSurviveARestartUntilOpfieldAcknowledgesThem(t *testing.T) {
 	h := newHarness(t, ModeAutomatic)
 	h.manager.mu.Lock()
 	mem := h.manager.members[testSet]
@@ -516,10 +516,10 @@ func promotedPrimary(t *testing.T) *harness {
 // The self-fence counts from the last command that arrived from Gateway, not
 // from a control session that is dead without knowing it yet: it fires at
 // its 30 s bound, inside Gateway's 45 s rule.
-func TestManualPrimarySelfFencesThirtySecondsAfterTheLastGatewayCommand(t *testing.T) {
+func TestManualPrimarySelfFencesThirtySecondsAfterTheLastOpfieldCommand(t *testing.T) {
 	h := promotedPrimary(t)
 	lastCommand := h.clock.now
-	h.manager.deps.GatewayContactAt = func() time.Duration { return lastCommand }
+	h.manager.deps.OpfieldContactAt = func() time.Duration { return lastCommand }
 	h.gateway = true // the session still looks up
 	h.step(28, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.kill") >= 0 {
@@ -545,7 +545,7 @@ func TestASelfFencedPrimaryWaitsForAConfirmedAssignment(t *testing.T) {
 		t.Fatalf("the isolated primary must fence: %v", log)
 	}
 	// Gateway reaches the node again, without an assignment yet.
-	h.manager.deps.GatewayContactAt = func() time.Duration { return h.clock.now }
+	h.manager.deps.OpfieldContactAt = func() time.Duration { return h.clock.now }
 	h.step(20, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.promote") >= 0 {
 		t.Fatalf("a fenced primary must not promote on contact alone: %v", log)
@@ -565,7 +565,7 @@ func TestASelfFencedPrimaryStaysACopyUnderANewerAssignment(t *testing.T) {
 	h.gateway = false
 	h.step(35, time.Second)
 	h.calls.take()
-	h.manager.deps.GatewayContactAt = func() time.Duration { return h.clock.now }
+	h.manager.deps.OpfieldContactAt = func() time.Duration { return h.clock.now }
 	if err := h.manager.AssignPrimary(testSet, signed(testMemberB, 2)); err != nil {
 		t.Fatal(err)
 	}

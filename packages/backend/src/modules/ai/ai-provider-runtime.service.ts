@@ -9,19 +9,19 @@ import type { InferenceModelService } from '@/modules/inference/models/inference
 import { InferenceProtocolError } from '@/modules/inference/protocol/inference-protocol.error.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import type { User } from '@/types.js';
-import { streamGatewayInferenceResponse } from './ai.gateway-inference-adapter.js';
+import { streamOpfieldInferenceResponse } from './ai.opfield-inference-adapter.js';
 import { type AIModelTool, type ModelProviderEvent, streamModelResponse } from './ai.provider-adapter.js';
 import type { AISandboxArtifactService } from './ai.sandbox-artifact.service.js';
 import type { AISettingsService } from './ai.settings.service.js';
 import type { AIConfig, AIContextLimits, AIMessageAttachment } from './ai.types.js';
 import { directProviderContextLimits, normalizeAIContextLimits } from './ai-context-limits.js';
 
-const GATEWAY_INFERENCE_MAX_TOOL_ROUNDS = 20;
-const GATEWAY_INFERENCE_MAX_STREAM_ATTEMPTS = 2;
-const GATEWAY_INFERENCE_RETRY_MIN_DELAY_MS = 200;
-const GATEWAY_INFERENCE_RETRY_JITTER_MS = 300;
+const OPFIELD_INFERENCE_MAX_TOOL_ROUNDS = 20;
+const OPFIELD_INFERENCE_MAX_STREAM_ATTEMPTS = 2;
+const OPFIELD_INFERENCE_RETRY_MIN_DELAY_MS = 200;
+const OPFIELD_INFERENCE_RETRY_JITTER_MS = 300;
 const DIRECT_PROVIDER_REASONING_EFFORTS = ['default', 'low', 'medium', 'high'] as const;
-const RETRYABLE_GATEWAY_INFERENCE_CODES = new Set([
+const RETRYABLE_OPFIELD_INFERENCE_CODES = new Set([
   'provider_request_failed',
   'provider_unavailable',
   'upstream_error',
@@ -106,7 +106,7 @@ export class AIProviderRuntimeService {
 
   async statusForUser(user: User): Promise<AIProviderStatus> {
     const config = await this.settings.getConfig();
-    if (config.providerType !== 'gateway_inference') {
+    if (config.providerType !== 'opfield_inference') {
       return {
         enabled: await this.settings.isEnabled(),
         providerType: config.providerType,
@@ -124,8 +124,8 @@ export class AIProviderRuntimeService {
       return {
         enabled: false,
         providerType: config.providerType,
-        defaultModel: config.gatewayInferenceModel,
-        allowUserModelSelection: config.gatewayInferenceAllowUserModelSelection,
+        defaultModel: config.opfieldInferenceModel,
+        allowUserModelSelection: config.opfieldInferenceAllowUserModelSelection,
         allowUserReasoningEffortSelection: false,
         reasoningEfforts: [],
         defaultReasoningEffort: null,
@@ -138,22 +138,22 @@ export class AIProviderRuntimeService {
       this.inferencePolicies.effective(user.id),
     ]);
     const models = modelsResult.data.map(toPublicModelOption);
-    const defaultAvailable = models.some((model) => model.id === config.gatewayInferenceModel);
+    const defaultAvailable = models.some((model) => model.id === config.opfieldInferenceModel);
     return {
       enabled:
         config.enabled &&
         this.inferenceRuntime.isConfigured() &&
         limits.enabled &&
         models.length > 0 &&
-        (defaultAvailable || config.gatewayInferenceAllowUserModelSelection),
+        (defaultAvailable || config.opfieldInferenceAllowUserModelSelection),
       providerType: config.providerType,
-      defaultModel: defaultAvailable ? config.gatewayInferenceModel : (models[0]?.id ?? config.gatewayInferenceModel),
-      allowUserModelSelection: config.gatewayInferenceAllowUserModelSelection,
+      defaultModel: defaultAvailable ? config.opfieldInferenceModel : (models[0]?.id ?? config.opfieldInferenceModel),
+      allowUserModelSelection: config.opfieldInferenceAllowUserModelSelection,
       allowUserReasoningEffortSelection: false,
       reasoningEfforts: [],
       defaultReasoningEffort: null,
       supportsImages:
-        models.find((model) => model.id === config.gatewayInferenceModel)?.supportsImages ??
+        models.find((model) => model.id === config.opfieldInferenceModel)?.supportsImages ??
         models[0]?.supportsImages ??
         false,
       models,
@@ -213,7 +213,7 @@ export class AIProviderRuntimeService {
     }
 
     if (!(await this.generalSettings.isFeatureEnabled('inferenceEnabled'))) {
-      throw new AppError(503, 'AI_GATEWAY_INFERENCE_DISABLED', 'Opfield Inference is disabled');
+      throw new AppError(503, 'AI_INFERENCE_DISABLED', 'Opfield Inference is disabled');
     }
     if (!this.inferenceRuntime.isConfigured()) {
       throw new AppError(503, 'INFERENCE_NOT_CONFIGURED', 'Opfield Inference is not configured');
@@ -223,14 +223,14 @@ export class AIProviderRuntimeService {
     const requestedModel = options.requestedModel?.trim();
     if (
       requestedModel &&
-      requestedModel !== config.gatewayInferenceModel &&
-      !config.gatewayInferenceAllowUserModelSelection
+      requestedModel !== config.opfieldInferenceModel &&
+      !config.opfieldInferenceAllowUserModelSelection
     ) {
       throw new AppError(403, 'AI_MODEL_SELECTION_DISABLED', 'AI model selection is disabled');
     }
 
-    let selected = models.find((model) => model.id === (requestedModel || config.gatewayInferenceModel));
-    if (!selected && !requestedModel && config.gatewayInferenceAllowUserModelSelection) selected = models[0];
+    let selected = models.find((model) => model.id === (requestedModel || config.opfieldInferenceModel));
+    if (!selected && !requestedModel && config.opfieldInferenceAllowUserModelSelection) selected = models[0];
     if (!selected) {
       throw new AppError(404, 'AI_MODEL_UNAVAILABLE', 'The selected Opfield Inference model is unavailable');
     }
@@ -258,7 +258,7 @@ export class AIProviderRuntimeService {
       supportsImages: selected.input_modalities.includes('image'),
       maxContextTokens: contextLimits.maxInputTokens,
       maxCompletionTokens: selected.max_output_tokens ?? config.maxCompletionTokens,
-      maxToolRounds: GATEWAY_INFERENCE_MAX_TOOL_ROUNDS,
+      maxToolRounds: OPFIELD_INFERENCE_MAX_TOOL_ROUNDS,
     };
 
     return {
@@ -266,9 +266,9 @@ export class AIProviderRuntimeService {
       contextLimits,
       reasoningEffort,
       stream: (messages, tools, streamOptions) =>
-        streamGatewayInferenceWithRetry({
+        streamOpfieldInferenceWithRetry({
           createAttempt: () =>
-            streamGatewayInferenceResponse({
+            streamOpfieldInferenceResponse({
               runtime: this.inferenceRuntime,
               userId: user.id,
               requestId: `${options.requestId}:${randomUUID()}`,
@@ -349,14 +349,14 @@ export class AIProviderRuntimeService {
   }
 }
 
-async function* streamGatewayInferenceWithRetry(input: {
+async function* streamOpfieldInferenceWithRetry(input: {
   createAttempt: () => AsyncGenerator<ModelProviderEvent>;
   requestId: string;
   conversationId?: string;
   model: string;
   signal: AbortSignal;
 }): AsyncGenerator<ModelProviderEvent> {
-  for (let attempt = 1; attempt <= GATEWAY_INFERENCE_MAX_STREAM_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= OPFIELD_INFERENCE_MAX_STREAM_ATTEMPTS; attempt += 1) {
     let emittedOutput = false;
     try {
       for await (const event of input.createAttempt()) {
@@ -368,13 +368,13 @@ async function* streamGatewayInferenceWithRetry(input: {
       if (
         input.signal.aborted ||
         emittedOutput ||
-        attempt >= GATEWAY_INFERENCE_MAX_STREAM_ATTEMPTS ||
-        !isRetryableGatewayInferenceStreamError(error)
+        attempt >= OPFIELD_INFERENCE_MAX_STREAM_ATTEMPTS ||
+        !isRetryableOpfieldInferenceStreamError(error)
       ) {
         throw error;
       }
       const delayMs =
-        GATEWAY_INFERENCE_RETRY_MIN_DELAY_MS + Math.floor(Math.random() * (GATEWAY_INFERENCE_RETRY_JITTER_MS + 1));
+        OPFIELD_INFERENCE_RETRY_MIN_DELAY_MS + Math.floor(Math.random() * (OPFIELD_INFERENCE_RETRY_JITTER_MS + 1));
       logger.warn('Retrying Opfield Inference before first model output', {
         requestId: input.requestId,
         conversationId: input.conversationId,
@@ -385,22 +385,22 @@ async function* streamGatewayInferenceWithRetry(input: {
         code: error.code,
         status: error.status,
       });
-      await waitForGatewayInferenceRetry(delayMs, input.signal);
+      await waitForOpfieldInferenceRetry(delayMs, input.signal);
     }
   }
 }
 
-function isRetryableGatewayInferenceStreamError(error: unknown): error is InferenceProtocolError {
+function isRetryableOpfieldInferenceStreamError(error: unknown): error is InferenceProtocolError {
   return (
     error instanceof InferenceProtocolError &&
     (error.status === 502 || error.status === 503) &&
     error.details?.emittedOutput !== true &&
-    RETRYABLE_GATEWAY_INFERENCE_CODES.has(error.code)
+    RETRYABLE_OPFIELD_INFERENCE_CODES.has(error.code)
   );
 }
 
-function waitForGatewayInferenceRetry(delayMs: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.reject(gatewayInferenceAbortError());
+function waitForOpfieldInferenceRetry(delayMs: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.reject(opfieldInferenceAbortError());
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       signal.removeEventListener('abort', onAbort);
@@ -409,13 +409,13 @@ function waitForGatewayInferenceRetry(delayMs: number, signal: AbortSignal): Pro
     const onAbort = () => {
       clearTimeout(timer);
       signal.removeEventListener('abort', onAbort);
-      reject(gatewayInferenceAbortError());
+      reject(opfieldInferenceAbortError());
     };
     signal.addEventListener('abort', onAbort, { once: true });
   });
 }
 
-function gatewayInferenceAbortError(): Error {
+function opfieldInferenceAbortError(): Error {
   const error = new Error('Aborted');
   error.name = 'AbortError';
   return error;

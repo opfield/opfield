@@ -41,7 +41,7 @@ vi.mock('openid-client', () => ({
   })),
 }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ISSUER = 'https://account.opfield.dev';
 const SECRET = 'portal-client-secret-4b1f9e';
 const OWNER = { sub: '0b6f3c8e-6a1e-4d43-9b8e-2b8d3c1f0a77', email: 'ada@example.com', name: 'Ada Owner' };
@@ -49,7 +49,7 @@ const OWNER = { sub: '0b6f3c8e-6a1e-4d43-9b8e-2b8d3c1f0a77', email: 'ada@example
 const PUBLIC_URL = 'https://acme.opfield.cloud:3000';
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a managed installation whose enrolment file carries the Opfield
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a managed installation whose enrolment file carries the Opfield
  * account client and owner comes up set up: owner as system administrator, the provider, setup complete and the
  * secret out of the file, all or nothing; retries are idempotent; sign-in through the provider lands on the owner;
  * replacing the provider is refused while the owner is the only administrator; once another administrator can sign in,
@@ -168,7 +168,7 @@ describe.skipIf(!url)('managed installation signed in with the Opfield account (
     });
     expect((await services().authSettings.getConfig()).methods.oidc).toBe(true);
     expect((await generalSettings.getConfig()).publicUrl).toBe(PUBLIC_URL);
-    expect((await generalSettings.getConfig()).gatewayGrpcPublicTarget).toBe('acme.opfield.cloud');
+    expect((await generalSettings.getConfig()).grpcPublicTarget).toBe('acme.opfield.cloud');
     expect(await new FinalizeSetupService(db).isOwner(owner!.id)).toBe(true);
     // Stored encrypted, never in the audit, and the file is gone once every step settled.
     expect((await oidcSettings.getRuntimeConfig())?.redirectUri).toBe('https://acme.opfield.cloud:3000/auth/callback');

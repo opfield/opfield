@@ -8,8 +8,7 @@ on:
         required: true
         type: choice
         options:
-          - '@sqgateway/inference'
-          - '@sqgateway/logger'
+          - '@opfield/logger'
       expected_version:
         description: Exact package.json version expected for publication
         required: true
@@ -67,8 +66,7 @@ jobs:
           EXPECTED_VERSION: ${{ inputs.expected_version }}
         run: |
           case "$PACKAGE_NAME" in
-            '@sqgateway/inference') package_dir='packages/gateway-inference' ;;
-            '@sqgateway/logger') package_dir='packages/logging-sdk' ;;
+            '@opfield/logger') package_dir='packages/logging-sdk' ;;
             *) echo "Unsupported package: $PACKAGE_NAME" >&2; exit 1 ;;
           esac
           actual_name=$(node -p "require('./${package_dir}/package.json').name")

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // relayAbstains checks that the relay reports abstention and that every

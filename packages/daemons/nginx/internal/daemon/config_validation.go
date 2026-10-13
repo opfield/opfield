@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	"github.com/opfield/opfield/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 const (

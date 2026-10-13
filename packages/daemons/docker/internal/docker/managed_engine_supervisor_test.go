@@ -231,15 +231,28 @@ func TestVolumeFstabEntryMountsBeforeDockerAndReplacesOlderEntry(t *testing.T) {
 	record := volumeImageRecord{Name: "data", ImagePath: "/var/lib/docker-daemon/volume-images/images/k.img", MountPath: "/var/lib/docker-daemon/volume-images/mounts/k"}
 	other := volumeImageRecord{Name: "other", ImagePath: "/var/lib/docker-daemon/volume-images/images/o.img", MountPath: "/var/lib/docker-daemon/volume-images/mounts/o"}
 	older := volumeImageFstabMarker(record) + "\n" + record.ImagePath + " " + record.MountPath + " ext4 loop,noatime,nodev,nosuid,nofail 0 0\n"
-	fstab := "UUID=1 / ext4 defaults 0 1\n" + older + withFstabEntry("", other)
+	fstab := "UUID=1 / ext4 defaults 0 1\n" + older + withFstabEntry("", other, false)
 
-	updated := withFstabEntry(fstab, record)
+	updated := withFstabEntry(fstab, record, false)
 	if strings.Count(updated, volumeImageFstabMarker(record)) != 1 || strings.Contains(updated, older) ||
-		!strings.Contains(updated, "x-systemd.before=docker.service") || !strings.Contains(updated, withFstabEntry("", other)) {
+		!strings.Contains(updated, "x-systemd.before=docker.service") || !strings.Contains(updated, withFstabEntry("", other, false)) {
 		t.Fatalf("fstab after update:\n%s", updated)
 	}
-	if withFstabEntry(updated, record) != updated || withFstabEntry(updated, other) != updated {
+	if withFstabEntry(updated, record, false) != updated || withFstabEntry(updated, other, false) != updated {
 		t.Fatal("a current entry must not be rewritten")
+	}
+	// A pre-Opfield entry stays until the start is confirmed, then turns into the current one.
+	legacy := legacyVolumeImageFstabMarker(record) + "\n" + legacyVolumeImageFstabEntryLine(record) + "\n"
+	legacyFstab := "UUID=1 / ext4 defaults 0 1\n" + legacy
+	if withFstabEntry(legacyFstab, record, true) != legacyFstab {
+		t.Fatal("a pre-Opfield entry was rewritten before the start was confirmed")
+	}
+	if converted := withFstabEntry(legacyFstab, record, false); strings.Contains(converted, "gateway-volume") ||
+		strings.Count(converted, volumeImageFstabMarker(record)) != 1 || !strings.Contains(converted, "x-systemd.before="+volumeImageBootService+".service") {
+		t.Fatalf("pre-Opfield entry after the confirmed start:\n%s", converted)
+	}
+	if removed := withoutFstabEntry(legacyFstab, record); strings.Contains(removed, record.ImagePath) {
+		t.Fatalf("pre-Opfield entry not removed:\n%s", removed)
 	}
 	if removed := withoutFstabEntry(fstab, record); strings.Contains(removed, record.ImagePath) || !strings.Contains(removed, other.ImagePath) {
 		t.Fatalf("fstab after removing the older entry:\n%s", removed)

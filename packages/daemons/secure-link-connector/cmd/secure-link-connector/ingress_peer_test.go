@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 // The ingress listeners take connections only from the peer the daemon names (the management network's gateway): a

@@ -30,10 +30,12 @@ export const mcpAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     challenge('invalid_token', 'Missing bearer token');
     throw new HTTPException(401, { message: 'MCP requires OAuth bearer token authentication' });
   }
-  if (token.startsWith('gwl_')) {
+  // legacy-name: gwl_ logging ingest token prefix — remove once no gwl_ tokens remain
+  if (token.startsWith('opfl_') || token.startsWith('gwl_')) {
     throw new HTTPException(401, { message: 'Logging ingest tokens cannot access MCP' });
   }
-  if (token.startsWith('gwo_')) {
+  // legacy-name: gwo_ OAuth access token prefix — remove once no gwo_ tokens remain
+  if (token.startsWith('opfo_') || token.startsWith('gwo_')) {
     const result = await oauthService.validateAccessToken(token, { resource: oauthService.getMcpResourceUrl() });
     if (!result) {
       challenge('invalid_token', 'Invalid OAuth access token');

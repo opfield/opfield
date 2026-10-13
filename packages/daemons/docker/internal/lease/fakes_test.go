@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 var containerSeq int

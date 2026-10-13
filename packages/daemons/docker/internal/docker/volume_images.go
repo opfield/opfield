@@ -22,12 +22,13 @@ import (
 	"github.com/moby/moby/client"
 	"golang.org/x/sys/unix"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 )
 
 const (
-	managedVolumeStorageKindLabel = "com.wiolett.gateway.managed-volume-storage-kind"
-	managedVolumeCapacityLabel    = "com.wiolett.gateway.managed-volume-capacity-bytes"
+	managedVolumeStorageKindLabel = "net.opfield.managed-volume-storage-kind"
+	managedVolumeCapacityLabel    = "net.opfield.managed-volume-capacity-bytes"
 	volumeStorageKindRegular      = "regular"
 	volumeStorageKindDiskImage    = "disk-image"
 	minimumVolumeImageBytes       = int64(256 * 1024 * 1024)
@@ -88,6 +89,12 @@ func newVolumeImageManager(stateDir string, dockerClient *Client, logger *slog.L
 	manager.supported = manager.preflight()
 	if manager.supported {
 		manager.ensureVolumeImageBootUnit(stateDir)
+		// Once the start is confirmed the pre-Opfield boot unit and fstab
+		// entries are replaced (renamed_boot_units.go).
+		lifecycle.OnStartConfirmed(func() {
+			manager.ensureVolumeImageBootUnit(stateDir)
+			manager.rewriteFstabEntries()
+		})
 		// Before remounting: leaked devices could leave none for live volumes.
 		manager.repairLoopImages(context.Background())
 		if err := manager.reconcile(context.Background()); err != nil {
@@ -119,7 +126,7 @@ func (m *volumeImageManager) preflight() bool {
 		return false
 	}
 	_ = fstab.Close()
-	probePath := filepath.Join(filepath.Dir(volumeImageFstabPath), fmt.Sprintf(".gateway-volume-images-probe-%d", os.Getpid()))
+	probePath := filepath.Join(filepath.Dir(volumeImageFstabPath), fmt.Sprintf(".opfield-volume-images-probe-%d", os.Getpid()))
 	probe, err := os.OpenFile(probePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		m.logger.Warn("disk-image volume support unavailable", "fstabDirectory", err)
@@ -770,7 +777,20 @@ func (m *volumeImageManager) records() ([]volumeImageRecord, error) {
 }
 
 func volumeImageFstabMarker(record volumeImageRecord) string {
+	return "# opfield-volume-image " + filepath.Base(record.ImagePath)
+}
+
+// legacyVolumeImageFstabMarker marks the entries pre-Opfield daemons wrote.
+// Until this start is confirmed such an entry is kept as it is (a daemon the
+// launcher rolls back to knows only it); afterwards it is rewritten.
+// legacy-name: gateway-volume-image fstab entries — remove once every node reports none
+func legacyVolumeImageFstabMarker(record volumeImageRecord) string {
 	return "# gateway-volume-image " + filepath.Base(record.ImagePath)
+}
+
+func legacyVolumeImageFstabEntryLine(record volumeImageRecord) string {
+	return strings.Replace(volumeImageFstabEntryLine(record), "x-systemd.before="+volumeImageBootService+".service",
+		"x-systemd.before="+legacyVolumeImageBootService+".service", 1)
 }
 
 func escapeFstabPath(value string) string {
@@ -793,12 +813,12 @@ func volumeImageFstabEntryLine(record volumeImageRecord) string {
 
 // withoutFstabEntry drops a record's entry, in the current or an older format.
 func withoutFstabEntry(data string, record volumeImageRecord) string {
-	marker := volumeImageFstabMarker(record)
+	marker, legacy := volumeImageFstabMarker(record), legacyVolumeImageFstabMarker(record)
 	image := escapeFstabPath(record.ImagePath) + " "
 	lines := strings.Split(data, "\n")
 	filtered := make([]string, 0, len(lines))
 	for index := 0; index < len(lines); index++ {
-		if lines[index] == marker {
+		if lines[index] == marker || lines[index] == legacy {
 			if index+1 < len(lines) && strings.HasPrefix(lines[index+1], image) {
 				index++
 			}
@@ -810,11 +830,18 @@ func withoutFstabEntry(data string, record volumeImageRecord) string {
 }
 
 // withFstabEntry returns data with exactly one, current entry for record.
-func withFstabEntry(data string, record volumeImageRecord) string {
+// keepLegacy accepts the entry of a pre-Opfield daemon as current.
+func withFstabEntry(data string, record volumeImageRecord, keepLegacy bool) string {
 	marker := volumeImageFstabMarker(record)
 	entry := marker + "\n" + volumeImageFstabEntryLine(record) + "\n"
-	if strings.Count(data, marker+"\n") == 1 && strings.Contains(data, entry) {
-		return data
+	legacyMarker := legacyVolumeImageFstabMarker(record)
+	if strings.Count(data, marker+"\n")+strings.Count(data, legacyMarker+"\n") == 1 {
+		if strings.Contains(data, entry) {
+			return data
+		}
+		if keepLegacy && strings.Contains(data, legacyMarker+"\n"+legacyVolumeImageFstabEntryLine(record)+"\n") {
+			return data
+		}
 	}
 	next := withoutFstabEntry(data, record)
 	if next != "" && !strings.HasSuffix(next, "\n") {
@@ -829,11 +856,46 @@ func (m *volumeImageManager) ensureFstabEntry(record volumeImageRecord) error {
 	if err != nil {
 		return err
 	}
-	next := withFstabEntry(string(data), record)
+	next := withFstabEntry(string(data), record, !lifecycle.StartConfirmed())
 	if next == string(data) {
 		return nil
 	}
 	return replaceFstab([]byte(next))
+}
+
+// rewriteFstabEntries turns the fstab entries of pre-Opfield daemons into
+// current ones (on a confirmed start).
+func (m *volumeImageManager) rewriteFstabEntries() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	records, err := m.records()
+	if err != nil {
+		m.logger.Warn("disk-image volume fstab entries keep their pre-Opfield form", "error", err)
+		return
+	}
+	for _, record := range records {
+		if record.Deleting {
+			continue
+		}
+		if err := m.ensureFstabEntry(record); err != nil {
+			m.logger.Warn("disk-image volume fstab entry keeps its pre-Opfield form", "volume", record.Name, "error", err)
+		}
+	}
+}
+
+// legacyFstabEntries counts the fstab entries still in their pre-Opfield form.
+func (m *volumeImageManager) legacyFstabEntries() uint32 {
+	data, err := os.ReadFile(volumeImageFstabPath)
+	if err != nil {
+		return 0
+	}
+	var count uint32
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "# gateway-volume-image ") {
+			count++
+		}
+	}
+	return count
 }
 
 func (m *volumeImageManager) removeFstabEntry(record volumeImageRecord) error {

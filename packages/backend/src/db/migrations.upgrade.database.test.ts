@@ -3,7 +3,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { disposableDatabase, migrateDatabase } from './migration-database.test-helpers.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const fixture = readFileSync(new URL('./fixtures/rc10-upgrade.sql', import.meta.url), 'utf8');
 
 /** The fixed ids of fixtures/rc10-upgrade.sql. */
@@ -12,7 +12,7 @@ const node1 = id('11');
 const node2 = id('12');
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL, see migration-database.test-helpers): an install at v2.11.0-rc.10
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL, see migration-database.test-helpers): an install at v2.11.0-rc.10
  * (schema through 0206, holding the collisions rc.10 could store) upgraded through 0207-0209 on its own database.
  */
 describe.skipIf(!url)('upgrade from v2.11.0-rc.10 data on disposable PostgreSQL', () => {

@@ -44,8 +44,8 @@ import { describeRelayRevocation } from './relay-revocation-fence.js';
 import { loadRelayRouteHistories, RelayRevocationFenceService } from './relay-revocation-fence.service.js';
 import {
   drainDeadline,
-  GATEWAY_STREAM_REPORT_SOURCE,
   MANUAL_DRAIN_TIMEOUT_MS,
+  OPFIELD_STREAM_REPORT_SOURCE,
   relayDrainGraceMs,
   relaySessionSplit,
 } from './relay-stream-resume.js';
@@ -72,11 +72,11 @@ import { isShuttingDown } from './shutdown-state.js';
 type RelayInstanceRow = typeof relayInstances.$inferSelect;
 
 /** A pool condition that needs an operator's attention. */
-export type RelayPoolWarning = GatewayHostOnlyWarning | OfflineLeaseMemberWarning;
+export type RelayPoolWarning = OpfieldHostOnlyWarning | OfflineLeaseMemberWarning;
 
 /** A link whose node reaches no relay off the Gateway host; the pool stays healthy. */
-interface GatewayHostOnlyWarning {
-  code: 'gateway_host_only';
+interface OpfieldHostOnlyWarning {
+  code: 'opfield_host_only';
   endpointId: string;
   ownerKind: string;
   ownerId: string;
@@ -192,7 +192,7 @@ export function planRelays(
   reference: ReadonlyArray<{ relayInstanceId: string; role: string }>,
   availabilityMember = false,
   /** Set when the endpoint's node reaches no relay off the Gateway host (see includeRemoteRelay). */
-  notes?: { gatewayHostOnly?: boolean },
+  notes?: { opfieldHostOnly?: boolean },
   /** Relays that came back lately: they only fill free slots (RELAY_RETURN_HOLD_MS). */
   holdBack?: ReadonlySet<string>
 ): PlannedRelayAssignment[] {
@@ -217,7 +217,7 @@ export function planRelays(
     path,
     reference
   );
-  if (notes) notes.gatewayHostOnly = placed.gatewayHostOnly;
+  if (notes) notes.opfieldHostOnly = placed.opfieldHostOnly;
   return placed.planned;
 }
 
@@ -569,7 +569,7 @@ export class RelayPoolService {
     path: EndpointLatencyPath | undefined,
     active: Array<{ relayInstanceId: string; role: string }>,
     availabilityMember = false,
-    notes?: { gatewayHostOnly?: boolean },
+    notes?: { opfieldHostOnly?: boolean },
     holdBack?: ReadonlySet<string>
   ): PlannedRelayAssignment[] {
     const reference = this.plannedRoles.get(endpointId) ?? active;
@@ -655,7 +655,7 @@ export class RelayPoolService {
    * Moving them would only fail the move's probes and keep the pool degraded; they keep working through the local
    * relay, and the pool status names them so an operator can open the network path.
    */
-  private async gatewayHostOnlyWarnings(
+  private async opfieldHostOnlyWarnings(
     endpoints: Array<
       Pick<typeof relayEndpoints.$inferSelect, 'id' | 'ownerKind' | 'ownerId' | 'subjectKind' | 'subjectId'>
     >,
@@ -682,7 +682,7 @@ export class RelayPoolService {
       const targetReaches = remoteIds.some((id) => paths.get(endpoint.id)?.endpoint?.has(id));
       const where = targetReaches ? `an ingress node of this link (target node ${node})` : node;
       return {
-        code: 'gateway_host_only' as const,
+        code: 'opfield_host_only' as const,
         endpointId: endpoint.id,
         ownerKind: endpoint.ownerKind,
         ownerId: endpoint.ownerId,
@@ -1228,9 +1228,9 @@ export class RelayPoolService {
     return retired;
   }
 
-  private gatewayStreamsByRelay(): Array<{ relayInstanceId: string; resumable: number; legacy: number }> {
+  private opfieldStreamsByRelay(): Array<{ relayInstanceId: string; resumable: number; legacy: number }> {
     const own = (this.policy.relayStreamReports?.() ?? []).find(
-      ({ nodeId }) => nodeId === GATEWAY_STREAM_REPORT_SOURCE
+      ({ nodeId }) => nodeId === OPFIELD_STREAM_REPORT_SOURCE
     );
     return (own?.report.byRelay ?? []).map(({ relayInstanceId, resumable, legacy }) => ({
       relayInstanceId,
@@ -1322,7 +1322,7 @@ export class RelayPoolService {
     for (const endpointId of this.deferrals.keys()) {
       if (!activeEndpointIds.has(endpointId)) this.deferrals.delete(endpointId);
     }
-    const gatewayHostOnly: Array<(typeof endpoints)[number]> = [];
+    const opfieldHostOnly: Array<(typeof endpoints)[number]> = [];
     const rebalancePlan =
       readyFaultDomains.size === 0
         ? []
@@ -1332,7 +1332,7 @@ export class RelayPoolService {
             const spread = effectiveSpreads.get(endpoint.id) ?? generalSettings.relay.assignmentSpread;
             const active = activeByEndpoint.get(endpoint.id);
             const current = active ? (assignmentsByGeneration.get(active.id) ?? []) : [];
-            const notes: { gatewayHostOnly?: boolean } = {};
+            const notes: { opfieldHostOnly?: boolean } = {};
             const planned = this.planEndpoint(
               endpoint.id,
               placement.instancesFor(current),
@@ -1344,7 +1344,7 @@ export class RelayPoolService {
               notes,
               placement.holdBack
             );
-            if (notes.gatewayHostOnly) gatewayHostOnly.push(endpoint);
+            if (notes.opfieldHostOnly) opfieldHostOnly.push(endpoint);
             const selectedIds = planned.map(({ instance }) => instance.id);
             if (!selectedIds.length) return [];
             if (active && samePlannedAssignments(current, planned)) return [];
@@ -1434,7 +1434,7 @@ export class RelayPoolService {
       (instances.some((instance) => ['offline', 'error'].includes(instance.state) && !reconnecting(instance)) ||
         [...revocations.values()].some((revocation) => revocation?.state === 'stale'));
     const warnings: RelayPoolWarning[] = [
-      ...(await this.gatewayHostOnlyWarnings(gatewayHostOnly, instances, latencyPaths).catch(() => [])),
+      ...(await this.opfieldHostOnlyWarnings(opfieldHostOnly, instances, latencyPaths).catch(() => [])),
       ...(await loadOfflineLeaseMemberWarnings(this.db, instances).catch(() => [])),
     ];
     return {
@@ -1472,7 +1472,7 @@ export class RelayPoolService {
        * A relay's activeTunnels also count the source probes of a placement being prepared (one short tunnel per
        * endpoint, source and relay), so this is where Gateway's own placement shows (stand rc.10, F-1).
        */
-      gatewayStreams: this.gatewayStreamsByRelay(),
+      opfieldStreams: this.opfieldStreamsByRelay(),
       registeredEndpoints,
       worstPressurePercent: worstPressure,
       endpointCount: endpoints.length,
@@ -2287,7 +2287,7 @@ export class RelayPoolService {
     });
     this.events.publish('system.relay.health.changed', { poolId: instance.poolId, instanceId: instance.id });
     if (!enabled) return;
-    if (connected) this.policy.migrateGatewayStreams?.(instance.id, deadlineAt);
+    if (connected) this.policy.migrateOpfieldStreams?.(instance.id, deadlineAt);
     if (manual) await this.evacuateInstance(instance.id);
     else await this.evacuateUpdateDrainedInstance(instance.id);
   }
@@ -2326,8 +2326,8 @@ export class RelayPoolService {
       this.policy,
       {
         instances: snapshot.instances,
-        gatewayHostOnlyEndpointIds: new Set(
-          snapshot.warnings.flatMap((warning) => (warning.code === 'gateway_host_only' ? [warning.endpointId] : []))
+        opfieldHostOnlyEndpointIds: new Set(
+          snapshot.warnings.flatMap((warning) => (warning.code === 'opfield_host_only' ? [warning.endpointId] : []))
         ),
       },
       localInstanceId
@@ -2543,7 +2543,7 @@ export class RelayPoolService {
     if (activated) {
       await this.policy.reconcileAndSync();
       // Gateway's own streams look at the new assignment at once instead of at their next 30-s lookup.
-      this.policy.gatewayAssignmentsChanged?.();
+      this.policy.opfieldAssignmentsChanged?.();
       this.events.publish('system.relay.health.changed', { poolId: 'system', action: 'rebalance_activated' });
     }
     return activated;
@@ -2780,7 +2780,7 @@ export class RelayPoolService {
       }
       if (route.sourceKind === 'gateway') {
         const result = await this.runProbe(null, 'source', () =>
-          this.policy.probeGatewayRelayCandidate(
+          this.policy.probeOpfieldRelayCandidate(
             route.id,
             probe.certificateFingerprint,
             probe.relayInstanceId,

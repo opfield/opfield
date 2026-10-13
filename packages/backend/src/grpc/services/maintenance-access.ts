@@ -39,7 +39,12 @@ export function createMaintenanceAccessHandlers(deps: GrpcServerDeps) {
         const token = await service.redeem(
           call.request.hostId ?? '',
           nodeId,
-          String(call.metadata.get('x-gateway-maintenance-host')[0] ?? ''),
+          String(
+            call.metadata.get('x-opfield-maintenance-host')[0] ??
+              // legacy-name: nginx daemons before 2.12.1 send x-gateway-maintenance-host — remove once every node reports none
+              call.metadata.get('x-gateway-maintenance-host')[0] ??
+              ''
+          ),
           call.request.code ?? ''
         );
         callback(null, { allowed: !!token, sessionToken: token ?? '' });

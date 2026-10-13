@@ -17,7 +17,7 @@ import (
 
 	"github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 )
 
 // fakeLoops is the kernel's loop and mount state. Image files are real files

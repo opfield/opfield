@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/moby/moby/client"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 const (
@@ -84,7 +84,7 @@ func (e *egressFakeEngine) serveLinks(request *http.Request) (*http.Response, er
 		}
 		return respond(http.StatusOK, map[string]any{
 			"Name": egressTestNetwork, "Id": "link-net-id", "Driver": "bridge", "Internal": true,
-			"Labels":     map[string]string{"wiolett.gateway.managed": linkNetworkLabel},
+			"Labels":     map[string]string{"net.opfield.managed": linkNetworkLabel},
 			"IPAM":       map[string]any{"Config": []map[string]string{{"Subnet": "10.213.0.0/26", "Gateway": "10.213.0.1", "IPRange": "10.213.0.32/27"}}},
 			"Containers": containers,
 		})

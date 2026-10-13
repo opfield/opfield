@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	gwstream "github.com/wiolett-industries/gateway/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	gwstream "github.com/opfield/opfield/daemon-shared/stream"
 	"google.golang.org/grpc"
 )
 

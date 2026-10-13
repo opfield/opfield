@@ -7,13 +7,13 @@ import { certificates } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CertService } from '@/modules/pki/cert.service.js';
 import type { GrpcIdentityService } from './grpc-identity.service.js';
-import { GATEWAY_IDENTITY_RENEW_BEFORE_MS } from './grpc-server-certificate.js';
+import { OPFIELD_IDENTITY_RENEW_BEFORE_MS } from './grpc-server-certificate.js';
 import type { SystemCAService } from './system-ca.service.js';
 import type { SystemCertificateLifecycleService } from './system-certificate-lifecycle.service.js';
 
 const logger = createChildLogger('RelayIdentityProvisioner');
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
-const RENEW_BEFORE_MS = GATEWAY_IDENTITY_RENEW_BEFORE_MS;
+const RENEW_BEFORE_MS = OPFIELD_IDENTITY_RENEW_BEFORE_MS;
 
 type ServiceOwnerId = 'app-internal-server' | 'app-relay-client' | 'relay-app-client';
 
@@ -308,7 +308,7 @@ export class RelayIdentityProvisionerService {
       .from(certificates)
       .where(
         and(
-          eq(certificates.systemOwnerType, 'gateway_service'),
+          eq(certificates.systemOwnerType, 'opfield_service'),
           eq(certificates.systemOwnerId, ownerId),
           eq(certificates.systemLifecycleState, 'current'),
           eq(certificates.status, 'active')
@@ -330,7 +330,7 @@ export class RelayIdentityProvisionerService {
         validityDays: 365,
       },
       SYSTEM_USER_ID,
-      { type: 'gateway_service', id: ownerId }
+      { type: 'opfield_service', id: ownerId }
     );
     return { certificatePem: issued.certificate.certificatePem, privateKeyPem: issued.privateKeyPem };
   }

@@ -119,18 +119,18 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: gateway
-          POSTGRES_PASSWORD: gateway
-          POSTGRES_DB: gateway_migration_test_ci
+          POSTGRES_USER: opfield
+          POSTGRES_PASSWORD: opfield
+          POSTGRES_DB: opfield_migration_test_ci
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U gateway -d gateway_migration_test_ci"
+          --health-cmd "pg_isready -U opfield -d opfield_migration_test_ci"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
     env:
-      GATEWAY_MIGRATION_TEST_DATABASE_URL: postgres://gateway:gateway@localhost:5432/gateway_migration_test_ci
+      OPFIELD_MIGRATION_TEST_DATABASE_URL: postgres://opfield:opfield@localhost:5432/opfield_migration_test_ci
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -155,7 +155,7 @@ jobs:
       - name: Opt-in PostgreSQL suites
         working-directory: packages/backend
         run: |
-          mapfile -t suites < <(grep -rlE --include='*.test.ts' 'process\.env\.GATEWAY_MIGRATION_TEST_DATABASE_URL\b' src tests | sort)
+          mapfile -t suites < <(grep -rlE --include='*.test.ts' 'process\.env\.OPFIELD_MIGRATION_TEST_DATABASE_URL\b' src tests | sort)
           [ "${#suites[@]}" -gt 0 ] || { echo 'No opt-in database suites found' >&2; exit 1; }
           printf '%s\n' "${suites[@]}"
           # Every suite recreates the schema of the one test database, so they must not run side by side.
@@ -183,7 +183,7 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.COMMERCIAL_CI_TOKEN }}
-      COMMERCIAL_REPOSITORY: ${{ vars.COMMERCIAL_REPOSITORY || (github.repository_owner == 'opfield' && 'opfield/opfield-commercial' || format('{0}/gateway-commercial', github.repository_owner)) }}
+      COMMERCIAL_REPOSITORY: ${{ vars.COMMERCIAL_REPOSITORY || (github.repository_owner == 'opfield' && 'opfield/opfield-commercial' || format('{0}/opfield-commercial', github.repository_owner)) }}
     steps:
       - name: Verify the commercial core against this commit
         run: |

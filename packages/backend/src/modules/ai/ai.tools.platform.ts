@@ -65,7 +65,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_node',
     description:
-      'Create (enroll) a new daemon node, including Relay Pool relays, and generate an enrollment token. Relay nodes require serviceAddresses (addresses daemons use to reach the relay) and optionally servicePort; other types reject them. IMPORTANT: The response contains enrollmentToken, gatewayCertSha256 and installCommands — display the token and fingerprint, and give the user the installCommands entry (curl or wget) for the target the host can reach, unchanged: it downloads the installer of this Opfield release, checks its checksum and pins the matching daemon release. The token is one-time-use and cannot be retrieved again; use manage_node regenerate_enrollment_token for a node that has not enrolled yet.',
+      'Create (enroll) a new daemon node, including Relay Pool relays, and generate an enrollment token. Relay nodes require serviceAddresses (addresses daemons use to reach the relay) and optionally servicePort; other types reject them. IMPORTANT: The response contains enrollmentToken, opfieldCertSha256 and installCommands — display the token and fingerprint, and give the user the installCommands entry (curl or wget) for the target the host can reach, unchanged: it downloads the installer of this Opfield release, checks its checksum and pins the matching daemon release. The token is one-time-use and cannot be retrieved again; use manage_node regenerate_enrollment_token for a node that has not enrolled yet.',
     parameters: {
       type: 'object',
       properties: {
@@ -209,7 +209,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'toggle_route_raw_mode',
     description:
-      'Enable or disable raw config mode on an ingress route. Once a raw config is saved (update_route_raw_config), it is used directly instead of the rendered template; until then the managed config keeps rendering. A Docker Route keeps its Secure Link in raw mode, so the raw config must keep its upstream gateway_secure_link_<route id with - replaced by _>. Disabling returns a Route of type raw to proxy and renders the managed config again.',
+      'Enable or disable raw config mode on an ingress route. Once a raw config is saved (update_route_raw_config), it is used directly instead of the rendered template; until then the managed config keeps rendering. A Docker Route keeps its Secure Link in raw mode, so the raw config must keep its upstream opfield_secure_link_<route id with - replaced by _>. Disabling returns a Route of type raw to proxy and renders the managed config again.',
     parameters: {
       type: 'object',
       properties: {
@@ -363,7 +363,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
         enabled: { type: 'boolean', description: 'Enable or disable AI Workspace.' },
         providerType: {
           type: 'string',
-          enum: ['openai_compatible', 'gateway_inference'],
+          enum: ['openai_compatible', 'opfield_inference'],
           description: 'Assistant response provider.',
         },
         providerUrl: { type: 'string', description: 'OpenAI-compatible provider base URL.' },
@@ -374,11 +374,11 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
         },
         apiKey: { type: 'string', description: 'Provider API key. Empty string clears the saved key.' },
         model: { type: 'string', description: 'Model name.' },
-        gatewayInferenceModel: {
+        opfieldInferenceModel: {
           type: 'string',
           description: 'Default published Opfield Inference model ID.',
         },
-        gatewayInferenceAllowUserModelSelection: {
+        opfieldInferenceAllowUserModelSelection: {
           type: 'boolean',
           description: 'Allow users to select another accessible Opfield Inference model.',
         },

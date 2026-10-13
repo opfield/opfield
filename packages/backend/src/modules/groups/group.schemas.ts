@@ -7,12 +7,10 @@ import {
 } from '@/lib/scopes-schemas.js';
 
 const assignable = <T extends z.ZodType<string>>(schema: T) =>
-  schema
-    .refine((scope) => extractBaseScope(scope) !== 'admin:system', 'admin:system cannot be assigned to custom groups')
-    .refine(
-      (scope) => extractBaseScope(scope) !== 'inference:setup',
-      'inference:setup is an OAuth-only scope and cannot be assigned to custom groups'
-    );
+  schema.refine(
+    (scope) => extractBaseScope(scope) !== 'admin:system',
+    'admin:system cannot be assigned to custom groups'
+  );
 
 // Git path qualifiers are resolved to stable IDs by the group actions before anything is stored.
 const scopeString = assignable(DelegatedScopeStringWithGitPathsSchema);
@@ -30,7 +28,7 @@ export const CreateGroupSchema = z.object({
   scopes: z.array(scopeString).max(MAX_DELEGATED_SCOPES),
   parentId: z.string().uuid().nullable().optional(),
   folderId: z.string().uuid().nullable().optional(),
-  requireGateway2fa: z.boolean().optional(),
+  require2fa: z.boolean().optional(),
 });
 
 export const UpdateGroupSchema = z.object({
@@ -44,7 +42,7 @@ export const UpdateGroupSchema = z.object({
   description: z.string().max(500).nullable().optional(),
   scopes: z.array(updateScopeString).max(MAX_DELEGATED_SCOPES).optional(),
   parentId: z.string().uuid().nullable().optional(),
-  requireGateway2fa: z.boolean().optional(),
+  require2fa: z.boolean().optional(),
 });
 
 export const AssignGroupSchema = z.object({
@@ -57,7 +55,7 @@ export const GroupResponseSchema = z.object({
   description: z.string().nullable(),
   isBuiltin: z.boolean(),
   scopes: z.array(z.string()),
-  requireGateway2fa: z.boolean(),
+  require2fa: z.boolean(),
   memberCount: z.number().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),

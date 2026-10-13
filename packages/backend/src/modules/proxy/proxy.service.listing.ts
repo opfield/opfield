@@ -136,10 +136,10 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     });
     if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
     if (existing.isSystem) throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot be toggled');
-    if (!enabled && (await this.isGatewayPublicRoute(existing))) {
+    if (!enabled && (await this.isOpfieldPublicRoute(existing))) {
       throw new AppError(
         409,
-        'GATEWAY_PUBLIC_ROUTE_PROTECTED',
+        'OPFIELD_PUBLIC_ROUTE_PROTECTED',
         'The route serving the Opfield public URL cannot be disabled'
       );
     }
@@ -284,8 +284,8 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
   }
 
   /** Whether a route serves the Gateway public URL (it never joins an app maintenance overlay or an app). */
-  async servesGatewayPublicUrl(host: Pick<ProxyHostRow, 'domainNames'>): Promise<boolean> {
-    return this.isGatewayPublicRoute(host);
+  async servesOpfieldPublicUrl(host: Pick<ProxyHostRow, 'domainNames'>): Promise<boolean> {
+    return this.isOpfieldPublicRoute(host);
   }
 
   async toggleMaintenance(id: string, enabled: boolean, userId: string) {
@@ -299,10 +299,10 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     });
     if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
     if (existing.isSystem) throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot enter maintenance');
-    if (enabled && (await this.isGatewayPublicRoute(existing))) {
+    if (enabled && (await this.isOpfieldPublicRoute(existing))) {
       throw new AppError(
         409,
-        'GATEWAY_PUBLIC_ROUTE_PROTECTED',
+        'OPFIELD_PUBLIC_ROUTE_PROTECTED',
         'The route serving the Opfield public URL cannot enter maintenance mode'
       );
     }

@@ -20,8 +20,8 @@ import {
 } from './docker-access-resource.service.js';
 import { compactContainerListItem, matchesContainerSearch } from './docker-container.routes.js';
 import { compactImageListItem, matchesImageSearch } from './docker-image.routes.js';
-import { filterGatewayInternalImages } from './docker-internal-images.js';
-import { isGatewayManagedDockerNetwork } from './docker-internal-networks.js';
+import { filterOpfieldInternalImages } from './docker-internal-images.js';
+import { isOpfieldManagedDockerNetwork } from './docker-internal-networks.js';
 import { compactNetworkListItem, matchesNetworkSearch } from './docker-network.routes.js';
 import {
   DOCKER_SNAPSHOT_KINDS,
@@ -82,14 +82,14 @@ function normalizeRows(kind: DockerSnapshotKind, data: Record<string, any>[], se
     case 'containers':
       return data.filter((item) => matchesContainerSearch(item, search)).map(compactContainerListItem);
     case 'images':
-      return filterGatewayInternalImages(data)
+      return filterOpfieldInternalImages(data)
         .filter((item) => matchesImageSearch(item, search))
         .map(compactImageListItem);
     case 'volumes':
       return data.filter((item) => matchesVolumeSearch(item, search)).map(compactVolumeListItem);
     case 'networks':
       return data
-        .filter((item) => !isGatewayManagedDockerNetwork(String(item.name ?? item.Name ?? '')))
+        .filter((item) => !isOpfieldManagedDockerNetwork(String(item.name ?? item.Name ?? '')))
         .map(compactNetworkListItem)
         .filter((item) => matchesNetworkSearch(item, search));
   }

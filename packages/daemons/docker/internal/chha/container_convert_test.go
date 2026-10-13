@@ -32,7 +32,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // ctReadinessWindow is the docker daemon's managedDatabaseReadinessTimeout.

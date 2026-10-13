@@ -15,9 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/daemon-shared/witnessactivation"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/witnessactivation"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // Runtime is the docker side of one ClickHouse member: its container, files
@@ -59,8 +59,8 @@ type Runtime interface {
 	Probe(ctx context.Context, alias string) error
 	// Config is the member's current configuration (false once forgotten).
 	Config() (memberha.Config, bool)
-	// GatewayConnected reports the Gateway control session.
-	GatewayConnected() bool
+	// OpfieldConnected reports the Gateway control session.
+	OpfieldConnected() bool
 	// Sign signs a holder statement with the node's identity key.
 	Sign(domain string, payload []byte) ([]byte, error)
 	Logger() *slog.Logger
@@ -97,7 +97,7 @@ type engine struct {
 	lastSample   sample
 	inConfig     map[uint32]time.Duration
 	witnessDown  map[uint32]time.Duration
-	gatewayDown  time.Duration
+	opfieldDown  time.Duration
 	voters       string
 	convert      string
 	lastSweep    time.Duration
@@ -962,7 +962,7 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 		return
 	}
 	now := bootNow()
-	e.trackGateway(now)
+	e.trackOpfield(now)
 	var current map[uint32]keeperEntry
 	e.mu.Lock()
 	readConfig := row.writable() || snap.config.Mode == memberha.ModeManual || e.lastConfigRead == 0 ||
@@ -1044,13 +1044,13 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 	e.holderConvert(ctx, snap)
 }
 
-func (e *engine) trackGateway(now time.Duration) {
+func (e *engine) trackOpfield(now time.Duration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.rt.GatewayConnected() {
-		e.gatewayDown = 0
-	} else if e.gatewayDown == 0 {
-		e.gatewayDown = now
+	if e.rt.OpfieldConnected() {
+		e.opfieldDown = 0
+	} else if e.opfieldDown == 0 {
+		e.opfieldDown = now
 	}
 }
 
@@ -1281,9 +1281,9 @@ func (e *engine) holderKeeper(ctx context.Context, snap *configSnapshot, current
 	for id, at := range e.inConfig {
 		since[id] = at
 	}
-	gatewayDown := time.Duration(0)
-	if e.gatewayDown > 0 {
-		gatewayDown = now - e.gatewayDown
+	opfieldDown := time.Duration(0)
+	if e.opfieldDown > 0 {
+		opfieldDown = now - e.opfieldDown
 	}
 	keeperQuorum := e.lastSample.keeperQuorum
 	e.mu.Unlock()
@@ -1291,13 +1291,13 @@ func (e *engine) holderKeeper(ctx context.Context, snap *configSnapshot, current
 		e.clearActivation()
 		act = nil
 	}
-	if act == nil && gatewayDown >= gatewayDownFor && len(standbys(snap.ec)) > 0 {
+	if act == nil && opfieldDown >= opfieldDownFor && len(standbys(snap.ec)) > 0 {
 		for _, voter := range snap.ec.Voters() {
 			if !voter.Witness() {
 				continue
 			}
 			down := e.witnessDownFor(ctx, voter, now)
-			if activationDue(gatewayDown, down, keeperQuorum, nil, snap.ec) {
+			if activationDue(opfieldDown, down, keeperQuorum, nil, snap.ec) {
 				if next, err := e.activate(ctx, snap, voter); err != nil {
 					e.logger.Warn("standby Keeper witness could not be activated", "set_id", snap.config.SetID, "error", err)
 				} else {

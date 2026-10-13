@@ -23,9 +23,10 @@ import {
 } from "@/components/ui/select";
 import { toastApiError } from "@/lib/api-error-toast";
 import {
-  GATEWAY_ARCHIVE_IMAGE_REFERENCE_LABEL,
+  ARCHIVE_IMAGE_REFERENCE_LABEL,
   resolveContainerImageReference,
 } from "@/lib/docker-image-ref";
+import { hasManagedLabelPrefix, isManagedLabelKey } from "@/lib/docker-managed-labels";
 import {
   DEFAULT_DOCKER_PORT_BIND_ADDRESS_OPTIONS,
   deriveDockerPortBindAddressOptions,
@@ -69,8 +70,8 @@ export { buildRecreatePayloadFromForm } from "./settings-payload";
 export { WebhookSection } from "./WebhookSection";
 
 const EMPTY_GPU_ATTACHMENT = { mode: "none" as const, deviceIds: [] };
-const GATEWAY_GPU_GROUP_IDS_LABEL = "wiolett.gateway.gpu.group-ids";
-const GATEWAY_GPU_GROUP_IDS_VERSION_LABEL = "wiolett.gateway.gpu.group-ids-version";
+const GPU_GROUP_IDS_LABEL = "gpu.group-ids";
+const GPU_GROUP_IDS_VERSION_LABEL = "gpu.group-ids-version";
 
 function parseOptionalNumber(value: string): number | null {
   if (value.trim() === "") return null;
@@ -355,10 +356,10 @@ export function SettingsTab({
   const initialLabels = Object.fromEntries(
     Object.entries(configLabels).filter(
       ([key]) =>
-        key !== GATEWAY_ARCHIVE_IMAGE_REFERENCE_LABEL &&
-        key !== GATEWAY_GPU_GROUP_IDS_LABEL &&
-        key !== GATEWAY_GPU_GROUP_IDS_VERSION_LABEL &&
-        !key.startsWith("wiolett.gateway.availability.")
+        !isManagedLabelKey(key, ARCHIVE_IMAGE_REFERENCE_LABEL) &&
+        !isManagedLabelKey(key, GPU_GROUP_IDS_LABEL) &&
+        !isManagedLabelKey(key, GPU_GROUP_IDS_VERSION_LABEL) &&
+        !hasManagedLabelPrefix(key, "availability.")
     )
   );
 

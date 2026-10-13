@@ -31,7 +31,7 @@ export function filterPublicIpSuggestions(addresses: string[]): string[] {
 }
 
 export function getSetupNetworkSuggestions(): { publicIps: string[]; localIps: string[] } {
-  const configuredLocalHosts = process.env.GATEWAY_LOCAL_HOSTS?.split(',') ?? [];
+  const configuredLocalHosts = process.env.OPFIELD_LOCAL_HOSTS?.split(',') ?? [];
   const { ipv4, ipv6 } = getPublicIPs();
 
   return {

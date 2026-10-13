@@ -95,7 +95,7 @@ func (f *fakeImageStore) serve(r *http.Request) (*http.Response, error) {
 	return respond(http.StatusNotFound, `{"message":"unexpected `+r.Method+" "+path+`"}`)
 }
 
-func TestEnsureSeaweedFSImagePrefersTheGatewayBuild(t *testing.T) {
+func TestEnsureSeaweedFSImagePrefersTheOpfieldBuild(t *testing.T) {
 	mirror, _ := thirdPartyMirrorReference(seaweedfsUpstreamImage)
 	ctx := context.Background()
 

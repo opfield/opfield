@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 type certificateInventoryResult struct {
@@ -54,6 +55,7 @@ func (h *Handler) handleApplyTlsBundle(cmd *pb.ApplyTlsBundleCommand, result *pb
 }
 
 func (h *Handler) applyTlsBundle(cmd *pb.ApplyTlsBundleCommand, result *pb.CommandResult) {
+	cmd.ConfigContent = naming.Render(cmd.ConfigContent) // as in applyConfig
 	configPath := h.mgr.ConfigPath(cmd.HostId)
 	oldConfig, _ := nginx.ReadFile(configPath)
 	pointers := make(map[string]nginx.CertPointer, len(cmd.Certificates))

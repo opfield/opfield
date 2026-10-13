@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 const registryIngressPort uint32 = 5444

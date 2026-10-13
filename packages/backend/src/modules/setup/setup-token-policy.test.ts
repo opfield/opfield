@@ -30,8 +30,8 @@ function makeService() {
 
 describe('SetupTokenPolicyService', () => {
   it('detects whether Gateway already has a real non-system user', async () => {
-    await expect(new SetupTokenPolicyService(makeUserCountDb(0)).isGatewayConfigured()).resolves.toBe(false);
-    await expect(new SetupTokenPolicyService(makeUserCountDb(1)).isGatewayConfigured()).resolves.toBe(true);
+    await expect(new SetupTokenPolicyService(makeUserCountDb(0)).isOpfieldConfigured()).resolves.toBe(false);
+    await expect(new SetupTokenPolicyService(makeUserCountDb(1)).isOpfieldConfigured()).resolves.toBe(true);
   });
 
   it('keeps setup API enabled until setup is explicitly completed', async () => {
@@ -83,7 +83,7 @@ describe('SetupTokenPolicyService', () => {
     const service = new SetupTokenPolicyService({} as any, true) as any;
     vi.spyOn(service, 'isForcedOpen').mockResolvedValue(false);
     vi.spyOn(service, 'getTimestampSetting').mockResolvedValue(null);
-    vi.spyOn(service, 'isGatewayConfigured').mockResolvedValue(false);
+    vi.spyOn(service, 'isOpfieldConfigured').mockResolvedValue(false);
     const markComplete = vi.spyOn(service, 'markSetupComplete').mockResolvedValue(undefined);
     const upsertSetting = vi.spyOn(service, 'upsertSetting').mockResolvedValue(undefined);
 
@@ -97,7 +97,7 @@ describe('SetupTokenPolicyService', () => {
     const service = new SetupTokenPolicyService({} as any, true) as any;
     vi.spyOn(service, 'isForcedOpen').mockResolvedValue(false);
     vi.spyOn(service, 'getTimestampSetting').mockResolvedValue(null);
-    vi.spyOn(service, 'isGatewayConfigured').mockResolvedValue(true);
+    vi.spyOn(service, 'isOpfieldConfigured').mockResolvedValue(true);
     const markComplete = vi.spyOn(service, 'markSetupComplete').mockResolvedValue(undefined);
 
     await service.ensureSetupStarted();
@@ -108,7 +108,7 @@ describe('SetupTokenPolicyService', () => {
   it('marks legacy installs without setup markers complete instead of reopening setup', async () => {
     const service = makeService();
     vi.spyOn(service, 'getTimestampSetting').mockResolvedValue(null);
-    vi.spyOn(service, 'isGatewayConfigured').mockResolvedValue(false);
+    vi.spyOn(service, 'isOpfieldConfigured').mockResolvedValue(false);
     const markComplete = vi.spyOn(service, 'markSetupComplete').mockResolvedValue(undefined);
 
     await service.ensureSetupStarted();

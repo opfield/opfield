@@ -13,7 +13,7 @@ import (
 
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/statecompat"
+	"github.com/opfield/opfield/daemon-shared/statecompat"
 )
 
 // The connector's address on a link network is kept: a client that resolved the link alias once (nginx with a

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
 )
 
 // A relay the daemon has not measured yet (it joined or came back) is

@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export const APP_STATUS_STORAGE_KEY = "gateway-app-status";
+export const APP_STATUS_STORAGE_KEY = "opfield-app-status";
+// legacy-name: app status key the 2.12.0 bundle in open tabs writes during the update — remove once 2.12.0 is no longer an update source
+export const LEGACY_APP_STATUS_STORAGE_KEY = "gateway-app-status";
 
-export interface GatewayUpdateError {
+export interface OpfieldUpdateError {
   message: string;
   targetVersion: string | null;
   /** The update restarted Gateway, which came back on the previous version. */
@@ -12,25 +14,25 @@ export interface GatewayUpdateError {
 
 interface AppStatusState {
   maintenanceActive: boolean;
-  gatewayUpdatingActive: boolean;
-  gatewayUpdatingTargetVersion: string | null;
+  opfieldUpdatingActive: boolean;
+  opfieldUpdatingTargetVersion: string | null;
   /** When this browser entered the update screen (epoch ms); bounds how long it waits. */
-  gatewayUpdatingStartedAt: number | null;
-  gatewayRestartingActive: boolean;
-  gatewayRestartTargetUrl: string | null;
-  gatewayUpdateError: GatewayUpdateError | null;
+  opfieldUpdatingStartedAt: number | null;
+  opfieldRestartingActive: boolean;
+  opfieldRestartTargetUrl: string | null;
+  opfieldUpdateError: OpfieldUpdateError | null;
   rateLimitedUntil: number | null;
   setMaintenanceActive: (active: boolean) => void;
-  setGatewayUpdatingActive: (active: boolean, targetVersion?: string | null) => void;
-  setGatewayRestartingActive: (active: boolean, targetUrl?: string | null) => void;
-  setGatewayUpdateError: (
+  setOpfieldUpdatingActive: (active: boolean, targetVersion?: string | null) => void;
+  setOpfieldRestartingActive: (active: boolean, targetUrl?: string | null) => void;
+  setOpfieldUpdateError: (
     message: string,
     targetVersion?: string | null,
     options?: { rolledBack?: boolean }
   ) => void;
-  clearGatewayUpdating: () => void;
-  clearGatewayRestarting: () => void;
-  clearGatewayUpdateError: () => void;
+  clearOpfieldUpdating: () => void;
+  clearOpfieldRestarting: () => void;
+  clearOpfieldUpdateError: () => void;
   activateRateLimit: (seconds?: number) => void;
   clearRateLimit: () => void;
 }
@@ -39,77 +41,77 @@ export const useAppStatusStore = create<AppStatusState>()(
   persist(
     (set) => ({
       maintenanceActive: false,
-      gatewayUpdatingActive: false,
-      gatewayUpdatingTargetVersion: null,
-      gatewayUpdatingStartedAt: null,
-      gatewayRestartingActive: false,
-      gatewayRestartTargetUrl: null,
-      gatewayUpdateError: null,
+      opfieldUpdatingActive: false,
+      opfieldUpdatingTargetVersion: null,
+      opfieldUpdatingStartedAt: null,
+      opfieldRestartingActive: false,
+      opfieldRestartTargetUrl: null,
+      opfieldUpdateError: null,
       rateLimitedUntil: null,
 
       setMaintenanceActive: (maintenanceActive) =>
         set((state) => {
-          if (maintenanceActive && (state.gatewayUpdatingActive || state.gatewayRestartingActive)) {
+          if (maintenanceActive && (state.opfieldUpdatingActive || state.opfieldRestartingActive)) {
             return {};
           }
           return { maintenanceActive };
         }),
 
-      setGatewayUpdatingActive: (gatewayUpdatingActive, gatewayUpdatingTargetVersion = null) =>
+      setOpfieldUpdatingActive: (opfieldUpdatingActive, opfieldUpdatingTargetVersion = null) =>
         set((state) => ({
-          gatewayUpdatingActive,
-          gatewayUpdatingTargetVersion,
+          opfieldUpdatingActive,
+          opfieldUpdatingTargetVersion,
           // Re-announcing the same update keeps its start; a new one starts the clock.
-          gatewayUpdatingStartedAt: gatewayUpdatingActive
-            ? state.gatewayUpdatingActive &&
-              state.gatewayUpdatingStartedAt != null &&
-              (state.gatewayUpdatingTargetVersion === gatewayUpdatingTargetVersion ||
-                gatewayUpdatingTargetVersion == null)
-              ? state.gatewayUpdatingStartedAt
+          opfieldUpdatingStartedAt: opfieldUpdatingActive
+            ? state.opfieldUpdatingActive &&
+              state.opfieldUpdatingStartedAt != null &&
+              (state.opfieldUpdatingTargetVersion === opfieldUpdatingTargetVersion ||
+                opfieldUpdatingTargetVersion == null)
+              ? state.opfieldUpdatingStartedAt
               : Date.now()
             : null,
-          gatewayRestartingActive: false,
-          gatewayRestartTargetUrl: null,
-          gatewayUpdateError: null,
-          ...(gatewayUpdatingActive ? { maintenanceActive: false } : {}),
+          opfieldRestartingActive: false,
+          opfieldRestartTargetUrl: null,
+          opfieldUpdateError: null,
+          ...(opfieldUpdatingActive ? { maintenanceActive: false } : {}),
         })),
 
-      setGatewayRestartingActive: (gatewayRestartingActive, gatewayRestartTargetUrl = null) =>
+      setOpfieldRestartingActive: (opfieldRestartingActive, opfieldRestartTargetUrl = null) =>
         set((state) => {
-          if (gatewayRestartingActive && state.gatewayUpdatingActive) return {};
+          if (opfieldRestartingActive && state.opfieldUpdatingActive) return {};
           return {
-            gatewayRestartingActive,
-            gatewayRestartTargetUrl,
-            gatewayUpdateError: null,
-            ...(gatewayRestartingActive ? { maintenanceActive: false } : {}),
+            opfieldRestartingActive,
+            opfieldRestartTargetUrl,
+            opfieldUpdateError: null,
+            ...(opfieldRestartingActive ? { maintenanceActive: false } : {}),
           };
         }),
 
-      setGatewayUpdateError: (message, targetVersion = null, options = {}) =>
+      setOpfieldUpdateError: (message, targetVersion = null, options = {}) =>
         set({
-          gatewayUpdatingActive: false,
-          gatewayUpdatingTargetVersion: null,
-          gatewayUpdatingStartedAt: null,
-          gatewayRestartingActive: false,
-          gatewayRestartTargetUrl: null,
-          gatewayUpdateError: {
+          opfieldUpdatingActive: false,
+          opfieldUpdatingTargetVersion: null,
+          opfieldUpdatingStartedAt: null,
+          opfieldRestartingActive: false,
+          opfieldRestartTargetUrl: null,
+          opfieldUpdateError: {
             message,
             targetVersion,
             ...(options.rolledBack ? { rolledBack: true } : {}),
           },
         }),
 
-      clearGatewayUpdating: () =>
+      clearOpfieldUpdating: () =>
         set({
-          gatewayUpdatingActive: false,
-          gatewayUpdatingTargetVersion: null,
-          gatewayUpdatingStartedAt: null,
+          opfieldUpdatingActive: false,
+          opfieldUpdatingTargetVersion: null,
+          opfieldUpdatingStartedAt: null,
         }),
 
-      clearGatewayRestarting: () =>
-        set({ gatewayRestartingActive: false, gatewayRestartTargetUrl: null }),
+      clearOpfieldRestarting: () =>
+        set({ opfieldRestartingActive: false, opfieldRestartTargetUrl: null }),
 
-      clearGatewayUpdateError: () => set({ gatewayUpdateError: null }),
+      clearOpfieldUpdateError: () => set({ opfieldUpdateError: null }),
 
       activateRateLimit: (seconds = 60) =>
         set({
@@ -121,40 +123,40 @@ export const useAppStatusStore = create<AppStatusState>()(
     {
       name: APP_STATUS_STORAGE_KEY,
       partialize: (state) => ({
-        gatewayUpdatingActive: state.gatewayUpdatingActive,
-        gatewayUpdatingTargetVersion: state.gatewayUpdatingTargetVersion,
-        gatewayUpdatingStartedAt: state.gatewayUpdatingStartedAt,
-        gatewayRestartingActive: state.gatewayRestartingActive,
-        gatewayRestartTargetUrl: state.gatewayRestartTargetUrl,
+        opfieldUpdatingActive: state.opfieldUpdatingActive,
+        opfieldUpdatingTargetVersion: state.opfieldUpdatingTargetVersion,
+        opfieldUpdatingStartedAt: state.opfieldUpdatingStartedAt,
+        opfieldRestartingActive: state.opfieldRestartingActive,
+        opfieldRestartTargetUrl: state.opfieldRestartTargetUrl,
       }),
     }
   )
 );
 
-interface GatewayOperationStatusSnapshot {
-  gatewayUpdatingActive: boolean;
-  gatewayUpdatingTargetVersion: string | null;
-  gatewayRestartingActive: boolean;
-  gatewayRestartTargetUrl: string | null;
+interface OpfieldOperationStatusSnapshot {
+  opfieldUpdatingActive: boolean;
+  opfieldUpdatingTargetVersion: string | null;
+  opfieldRestartingActive: boolean;
+  opfieldRestartTargetUrl: string | null;
 }
 
-export function syncGatewayOperationStatus(snapshot: GatewayOperationStatusSnapshot): boolean {
+export function syncOpfieldOperationStatus(snapshot: OpfieldOperationStatusSnapshot): boolean {
   const current = useAppStatusStore.getState();
   if (
-    current.gatewayUpdatingActive === snapshot.gatewayUpdatingActive &&
-    current.gatewayUpdatingTargetVersion === snapshot.gatewayUpdatingTargetVersion &&
-    current.gatewayRestartingActive === snapshot.gatewayRestartingActive &&
-    current.gatewayRestartTargetUrl === snapshot.gatewayRestartTargetUrl
+    current.opfieldUpdatingActive === snapshot.opfieldUpdatingActive &&
+    current.opfieldUpdatingTargetVersion === snapshot.opfieldUpdatingTargetVersion &&
+    current.opfieldRestartingActive === snapshot.opfieldRestartingActive &&
+    current.opfieldRestartTargetUrl === snapshot.opfieldRestartTargetUrl
   ) {
     return false;
   }
 
   useAppStatusStore.setState({
     ...snapshot,
-    gatewayUpdatingStartedAt: snapshot.gatewayUpdatingActive
-      ? (current.gatewayUpdatingStartedAt ?? Date.now())
+    opfieldUpdatingStartedAt: snapshot.opfieldUpdatingActive
+      ? (current.opfieldUpdatingStartedAt ?? Date.now())
       : null,
-    ...(snapshot.gatewayUpdatingActive || snapshot.gatewayRestartingActive
+    ...(snapshot.opfieldUpdatingActive || snapshot.opfieldRestartingActive
       ? { maintenanceActive: false }
       : {}),
   });

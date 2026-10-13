@@ -2,12 +2,12 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# ── Gateway Daemon Setup — Dispatcher ───────────────────────────────
+# ── Opfield Daemon Setup — Dispatcher ───────────────────────────────
 # Downloads and runs the appropriate setup script for a daemon type.
 #
 # Usage:
 #   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-daemon.sh | \
-#     sudo bash -s -- --type nginx --gateway gateway.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<HEX>
+#     sudo bash -s -- --type nginx --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<HEX>
 # ────────────────────────────────────────────────────────────────────
 
 # ── Colors ──────────────────────────────────────────────────────────
@@ -23,12 +23,21 @@ WARN_TAG='\033[48;2;112;97;48m\033[38;2;244;234;198m'
 ERROR_TAG='\033[48;2;96;61;43m\033[38;2;245;221;202m'
 
 # ── Defaults ────────────────────────────────────────────────────────
+# legacy-name: GATEWAY_SETUP_SCRIPT_DIR, GATEWAY_SETUP_VERSION and GATEWAY_RELEASE_DOWNLOAD_BASE installer environment —
+# customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is not set (the new name wins).
+for legacy_env in GATEWAY_SETUP_SCRIPT_DIR GATEWAY_SETUP_VERSION GATEWAY_RELEASE_DOWNLOAD_BASE; do
+    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+    if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
+        printf -v "$opfield_env" '%s' "${!legacy_env}"
+    fi
+done
+unset legacy_env opfield_env
 DAEMON_TYPE=""
-LOCAL_SCRIPT_DIR="${GATEWAY_SETUP_SCRIPT_DIR:-}"
+LOCAL_SCRIPT_DIR="${OPFIELD_SETUP_SCRIPT_DIR:-}"
 # A release publishes this file with its own tag here, so the node installers come from the same release.
 INSTALLER_RELEASE=latest
-SETUP_VERSION="${GATEWAY_SETUP_VERSION:-$INSTALLER_RELEASE}"
-RELEASE_DOWNLOAD_BASE="${GATEWAY_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/gateway/releases}"
+SETUP_VERSION="${OPFIELD_SETUP_VERSION:-$INSTALLER_RELEASE}"
+RELEASE_DOWNLOAD_BASE="${OPFIELD_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/gateway/releases}"
 PASSTHROUGH_ARGS=()
 
 # ── Helpers ─────────────────────────────────────────────────────────
@@ -53,7 +62,7 @@ sha256_file() {
 }
 
 mktemp_compat() {
-    local prefix="${1:-/tmp/gateway-tmp}"
+    local prefix="${1:-/tmp/opfield-tmp}"
     local dir template
 
     dir="$(dirname "$prefix")"
@@ -166,10 +175,10 @@ Examples:
   sudo bash setup-daemon.sh
 
   # Direct nginx setup:
-  sudo bash setup-daemon.sh --type nginx --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<HEX>
+  sudo bash setup-daemon.sh --type nginx --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<HEX>
 
   # Docker daemon:
-  sudo bash setup-daemon.sh --type docker --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<HEX>
+  sudo bash setup-daemon.sh --type docker --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<HEX>
 HELP
     exit 0
 }
@@ -234,11 +243,14 @@ else
         [[ "$SETUP_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]] || die "Invalid release tag: ${SETUP_VERSION}"
         RELEASE_URL="${RELEASE_DOWNLOAD_BASE%/}/download/${SETUP_VERSION}"
     fi
-    TMPDIR=$(mktemp -d /tmp/gateway-setup.XXXXXX)
+    TMPDIR=$(mktemp -d /tmp/opfield-setup.XXXXXX)
     trap 'rm -rf "$TMPDIR"' EXIT
-    CHECKSUMS="${TMPDIR}/gateway-daemon-installers.sha256"
+    CHECKSUMS="${TMPDIR}/opfield-node-installers.sha256"
     log "Downloading verified ${SCRIPT_NAME} from Opfield releases..."
-    curl -fsSL "${RELEASE_URL}/gateway-daemon-installers.sha256" -o "$CHECKSUMS" ||
+    # legacy-name: gateway-daemon-installers.sha256, the only checksum list of releases before 2.12.1 (a pinned
+    # --version) — remove once the installers no longer install such a release.
+    curl -fsSL "${RELEASE_URL}/opfield-node-installers.sha256" -o "$CHECKSUMS" 2>/dev/null ||
+        curl -fsSL "${RELEASE_URL}/gateway-daemon-installers.sha256" -o "$CHECKSUMS" ||
         die "Failed to download installer checksums from ${RELEASE_URL}"
 
     fetch_verified() {

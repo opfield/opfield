@@ -480,7 +480,7 @@ func writeControlAwareLauncherTestExecutable(t *testing.T, path, version string,
 	}
 }
 
-func TestLauncherRollsBackCandidateThatNeverReachesGatewayControl(t *testing.T) {
+func TestLauncherRollsBackCandidateThatNeverReachesOpfieldControl(t *testing.T) {
 	restore := useFastLauncherTimings()
 	defer restore()
 	stateDir := t.TempDir()
@@ -522,7 +522,7 @@ func TestLauncherRollsBackCandidateThatNeverReachesGatewayControl(t *testing.T) 
 	}
 }
 
-func TestLauncherCommitsCandidateAfterGatewayControlReady(t *testing.T) {
+func TestLauncherCommitsCandidateAfterOpfieldControlReady(t *testing.T) {
 	restore := useFastLauncherTimings()
 	defer restore()
 	stateDir := t.TempDir()

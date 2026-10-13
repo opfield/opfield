@@ -66,7 +66,7 @@ function publicId(value: string) {
       .toLocaleLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 128) || "gateway-model"
+      .slice(0, 128) || "opfield-model"
   );
 }
 
@@ -242,9 +242,9 @@ export function InferenceSetupWizard({
     await ensureDefaultLimits();
     await api.updateAIConfig({
       enabled: true,
-      providerType: "gateway_inference",
-      gatewayInferenceModel: defaultModel.publicId,
-      gatewayInferenceAllowUserModelSelection: true,
+      providerType: "opfield_inference",
+      opfieldInferenceModel: defaultModel.publicId,
+      opfieldInferenceAllowUserModelSelection: true,
     });
     await useAIStore.getState().refreshProviderStatus();
   };

@@ -59,7 +59,7 @@ export class SetupAccessService {
     if (await this.policy.isSetupComplete()) throw new Error('Opfield setup is already complete');
 
     const id = randomBytes(8).toString('hex');
-    const code = `gws_${randomBytes(32).toString('base64url')}`;
+    const code = `opfs_${randomBytes(32).toString('base64url')}`;
     const expiresAt = new Date(Date.now() + ACCESS_TTL_SECONDS * 1000).toISOString();
     const stored: StoredAccessCode = { id, hash: hashCode(code), expiresAt };
 

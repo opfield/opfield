@@ -7,7 +7,13 @@ import {
   HostingProviderError,
   type HostingRequestOptions,
 } from '../hosting-http.js';
-import { HOSTING_CLOUD_IMAGES, hostingCloudImage, hostingImageFilename } from '../hosting-images.js';
+import {
+  HOSTING_CLOUD_IMAGES,
+  type HostingCloudImage,
+  hostingCloudImage,
+  hostingImageFilename,
+  legacyHostingImageFilename,
+} from '../hosting-images.js';
 import {
   type HostingAccount,
   type HostingActionRequest,
@@ -40,6 +46,27 @@ interface PveResource {
   disk?: number;
 }
 type PveConfig = Record<string, string | number | undefined>;
+
+const DESCRIPTION_MARKER = /Opfield hosting (gw-[a-zA-Z0-9-]+)/;
+// legacy-name: Proxmox VM description "Gateway hosting <marker>" — remove once every hosting resource was reconciled by 2.12.1+
+const LEGACY_DESCRIPTION_MARKER = /Gateway hosting (gw-[a-zA-Z0-9-]+)/;
+function description(marker: string): string {
+  return `Opfield hosting ${marker}`;
+}
+/** Per-operation bootstrap media, current name first. */
+function seedFilenames(marker: string): string[] {
+  return [
+    `opfield-seed-${marker}.iso`,
+    // legacy-name: Proxmox seed ISO "gateway-seed-<marker>.iso" — remove once no create operation started before 2.12.1 is still preparing
+    `gateway-seed-${marker}.iso`,
+  ];
+}
+/** Per-operation image imports, current name first. */
+function imageFilenames(image: HostingCloudImage, marker: string): string[] {
+  return [hostingImageFilename(image), legacyHostingImageFilename(image)].map((name) =>
+    name.replace('.qcow2', `-${marker}.qcow2`)
+  );
+}
 interface PveInterface {
   name?: string;
   'hardware-address'?: string;
@@ -127,6 +154,8 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
   readonly provider = 'proxmox' as const;
   readonly firewall: ProxmoxFirewallAdapter;
   private discoveredIdentity?: { host: string; authority: string; clusterName: string };
+  /** `kind:vmid` of VMs whose description a read on this instance found in the legacy form. */
+  private readonly legacyDescriptions = new Set<string>();
   constructor(
     private readonly connection: HostingConnection,
     private readonly http: HostingHttp = new HostingHttpClient(connection)
@@ -495,7 +524,11 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
           ? `disk:${String(rootDisk).split(',')[0]}:mac:${mac}`
           : null;
     const description = String(config.description ?? '');
-    const marker = /Gateway hosting (gw-[a-zA-Z0-9-]+)/.exec(description)?.[1];
+    const current = DESCRIPTION_MARKER.exec(description)?.[1];
+    const legacy = current ? undefined : LEGACY_DESCRIPTION_MARKER.exec(description)?.[1];
+    const marker = current ?? legacy;
+    if (legacy) this.legacyDescriptions.add(`${kind}:${row.vmid}`);
+    else this.legacyDescriptions.delete(`${kind}:${row.vmid}`);
     return {
       remoteId: String(row.vmid),
       kind,
@@ -564,7 +597,7 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
             vmid: input.vmid,
             name: input.name,
             pool: settings.pool,
-            description: `Gateway hosting ${input.marker}`,
+            description: description(input.marker),
             ostype: 'l26',
             smbios1: `uuid=${input.marker.slice(3)}`,
             cores: input.cpu,
@@ -624,7 +657,7 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
           target: input.location,
           storage: settings.storage,
           pool: settings.pool,
-          description: `Gateway hosting ${input.marker}`,
+          description: description(input.marker),
         },
       }
     );
@@ -836,17 +869,26 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
     const config = await this.request<PveConfig>(`${base}/config`);
     if (config.lock) throw new AppError(409, 'HOSTING_VM_LOCKED', 'Proxmox is still preparing this VM');
     // Scratch imports belong to one operation. A checksum-looking shared filename is not verification.
-    const filename = hostingImageFilename(image).replace('.qcow2', `-${input.marker}.qcow2`);
-    const imageVolume = `${profile.imageStorage}:import/${filename}`;
-    const seedFilename = `gateway-seed-${input.marker}.iso`;
-    const seedVolume = `${profile.seedStorage}:iso/${seedFilename}`;
+    const filenames = imageFilenames(image, input.marker);
+    const filename = filenames[0]!;
     const contents = async (storage: string) =>
       this.request<Array<{ volid: string }>>(`/nodes/${part(input.location)}/storage/${part(storage)}/content`);
+    // An operation started by an older release keeps the media names it already wrote.
+    const existing = async (storage: string, volumes: string[]) => {
+      const items = await contents(storage);
+      return volumes.find((volume) => items.some((item) => item.volid === volume));
+    };
     const stageTask = (id: string, preparationStage: HostingProviderOperation['preparationStage']) => ({
       ...this.task(id, resource.remoteId),
       preparationStage,
     });
-    const imported = (await contents(profile.imageStorage!)).some((item) => item.volid === imageVolume);
+    const importedVolume = await existing(
+      profile.imageStorage!,
+      filenames.map((name) => `${profile.imageStorage}:import/${name}`)
+    );
+    const imported = importedVolume !== undefined;
+    const imageVolume = importedVolume ?? `${profile.imageStorage}:import/${filename}`;
+    const seedFilename = seedFilenames(input.marker)[0]!;
     if (!input.preparationStage) {
       if (imported)
         throw new AppError(
@@ -879,7 +921,12 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
         'HOSTING_IMAGE_MISSING',
         'The verified operation image is missing; no replacement was downloaded'
       );
-    const seeded = (await contents(profile.seedStorage!)).some((item) => item.volid === seedVolume);
+    const seededVolume = await existing(
+      profile.seedStorage!,
+      seedFilenames(input.marker).map((name) => `${profile.seedStorage}:iso/${name}`)
+    );
+    const seeded = seededVolume !== undefined;
+    const seedVolume = seededVolume ?? `${profile.seedStorage}:iso/${seedFilename}`;
     if (input.preparationStage === 'image') {
       if (seeded)
         throw new AppError(409, 'HOSTING_SEED_UNVERIFIED', 'Bootstrap media exists without a confirmed upload task');
@@ -993,7 +1040,9 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
       if (
         input.proxmox?.imageStorage &&
         (configValue(config.boot, 'order') !== 'scsi0' ||
-          String(config.ide2).split(',')[0] !== `${input.proxmox.seedStorage}:iso/gateway-seed-${input.marker}.iso` ||
+          !seedFilenames(input.marker)
+            .map((name) => `${input.proxmox!.seedStorage}:iso/${name}`)
+            .includes(String(config.ide2).split(',')[0]!) ||
           !isImportedBootDisk(config.scsi0, input.proxmox.storage, input.vmid))
       )
         return null;
@@ -1019,11 +1068,11 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
     }
     if (stage === 'boot' || (stage === 'start' && resource.powerState === 'running')) {
       const config = await this.request<PveConfig>(`${this.base(resource)}/config`);
-      const seed = `${input.proxmox!.seedStorage}:iso/gateway-seed-${input.marker}.iso`;
+      const seeds = seedFilenames(input.marker).map((name) => `${input.proxmox!.seedStorage}:iso/${name}`);
       if (
         !config.lock &&
         configValue(config.boot, 'order') === 'scsi0' &&
-        String(config.ide2).split(',')[0] === seed &&
+        seeds.includes(String(config.ide2).split(',')[0]!) &&
         isImportedBootDisk(config.scsi0, input.proxmox!.storage, input.vmid) &&
         resource.cpu === input.cpu &&
         resource.memoryMb === input.memoryMb &&
@@ -1040,15 +1089,14 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
         query: { source: 'all', typefilter: type, since: Math.floor(since), limit: 100 },
       }
     );
-    const imageName = hostingImageFilename(hostingCloudImage(input.image, input.role)).replace(
-      '.qcow2',
-      `-${input.marker}.qcow2`
-    );
-    const filename = stage === 'image' ? imageName : `gateway-seed-${input.marker}.iso`;
+    const filenames =
+      stage === 'image'
+        ? imageFilenames(hostingCloudImage(input.image, input.role), input.marker)
+        : seedFilenames(input.marker);
     const matches: string[] = [];
     for (const task of tasks) {
       if (task.upid.split(':')[7] !== this.connection.settings.tokenId) continue;
-      if (stage === 'image' && task.id === filename) matches.push(task.upid);
+      if (stage === 'image' && filenames.includes(task.id ?? '')) matches.push(task.upid);
       else if ((stage === 'disk' || stage === 'start') && task.id === String(input.vmid)) matches.push(task.upid);
       else if (stage === 'seed') {
         // Upload tasks have no VMID. Their bounded log records the exact target filename, never file contents.
@@ -1056,7 +1104,12 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
           `/nodes/${part(input.location)}/tasks/${part(task.upid)}/log`,
           { query: { start: 0, limit: 30 } }
         );
-        if (log.some((line) => line.t.startsWith('target file: ') && line.t.endsWith(`/${filename}`)))
+        if (
+          log.some(
+            (line) =>
+              line.t.startsWith('target file: ') && filenames.some((filename) => line.t.endsWith(`/${filename}`))
+          )
+        )
           matches.push(task.upid);
       }
     }
@@ -1071,29 +1124,57 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
       !/^gw-[a-f0-9-]{36}$/.test(input.marker)
     )
       throw new AppError(409, 'HOSTING_RESOURCE_IDENTITY_CONFLICT', 'Bootstrap cleanup target changed');
-    const volume = `${input.proxmox.seedStorage}:iso/gateway-seed-${input.marker}.iso`;
+    const seedStorage = input.proxmox.seedStorage;
+    const volumes = seedFilenames(input.marker).map((name) => `${seedStorage}:iso/${name}`);
     const base = this.base(resource);
     const config = await this.request<PveConfig>(`${base}/config`);
-    if (String(config.ide2 ?? '').split(',')[0] === volume)
+    if (volumes.includes(String(config.ide2 ?? '').split(',')[0]!))
       await this.request<null>(`${base}/config`, { method: 'PUT', body: { ide2: 'none,media=cdrom' } });
     const content = await this.request<Array<{ volid: string }>>(
-      `/nodes/${part(resource.location)}/storage/${part(input.proxmox.seedStorage)}/content`
+      `/nodes/${part(resource.location)}/storage/${part(seedStorage)}/content`
     );
-    if (content.some((entry) => entry.volid === volume))
-      await this.request<null>(
-        `/nodes/${part(resource.location)}/storage/${part(input.proxmox.seedStorage)}/content/${part(volume)}`,
-        { method: 'DELETE' }
-      );
+    for (const volume of volumes)
+      if (content.some((entry) => entry.volid === volume))
+        await this.request<null>(
+          `/nodes/${part(resource.location)}/storage/${part(seedStorage)}/content/${part(volume)}`,
+          { method: 'DELETE' }
+        );
     const image = hostingCloudImage(input.image, input.role);
-    const imageVolume = `${input.proxmox.imageStorage}:import/${hostingImageFilename(image).replace('.qcow2', `-${input.marker}.qcow2`)}`;
+    const imageVolumes = imageFilenames(image, input.marker).map(
+      (name) => `${input.proxmox!.imageStorage}:import/${name}`
+    );
     const images = await this.request<Array<{ volid: string }>>(
       `/nodes/${part(resource.location)}/storage/${part(input.proxmox.imageStorage!)}/content`
     );
-    if (images.some((entry) => entry.volid === imageVolume))
-      await this.request<null>(
-        `/nodes/${part(resource.location)}/storage/${part(input.proxmox.imageStorage!)}/content/${part(imageVolume)}`,
-        { method: 'DELETE' }
-      );
+    for (const imageVolume of imageVolumes)
+      if (images.some((entry) => entry.volid === imageVolume))
+        await this.request<null>(
+          `/nodes/${part(resource.location)}/storage/${part(input.proxmox.imageStorage!)}/content/${part(imageVolume)}`,
+          { method: 'DELETE' }
+        );
+  }
+
+  /**
+   * Rewrites a description an older release wrote ("Gateway hosting <marker>") to the current form.
+   * Description only, compare-and-set on the config digest; any other text in the description is kept.
+   */
+  async rewriteLegacyMarker(resource: HostingResourceSnapshot): Promise<boolean> {
+    const key = `${resource.kind}:${resource.remoteId}`;
+    if (!resource.marker || !this.legacyDescriptions.has(key)) return false;
+    this.legacyDescriptions.delete(key);
+    const base = this.base(resource);
+    const config = await this.request<PveConfig>(`${base}/config`);
+    const current = String(config.description ?? '');
+    const legacy = LEGACY_DESCRIPTION_MARKER.exec(current);
+    if (config.lock || DESCRIPTION_MARKER.test(current) || !legacy || legacy[1] !== resource.marker) return false;
+    await this.request<null>(`${base}/config`, {
+      method: 'PUT',
+      body: {
+        description: current.replace(legacy[0], description(resource.marker)),
+        ...(typeof config.digest === 'string' ? { digest: config.digest } : {}),
+      },
+    });
+    return true;
   }
 
   async action(

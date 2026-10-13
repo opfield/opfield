@@ -351,11 +351,11 @@ export class HostingHttpClient implements HostingHttp {
       const { filename, data } = options.seedIso;
       if (
         this.connection.provider !== 'proxmox' ||
-        !/^gateway-seed-gw-[a-f0-9-]+\.iso$/.test(filename) ||
+        !/^opfield-seed-gw-[a-f0-9-]+\.iso$/.test(filename) ||
         data.length > 2 * 1024 * 1024
       )
         throw new AppError(400, 'HOSTING_SEED_INVALID', 'Invalid bootstrap medium');
-      const boundary = `gateway-${randomUUID()}`;
+      const boundary = `opfield-${randomUUID()}`;
       body = Buffer.concat([
         Buffer.from(
           `--${boundary}\r\nContent-Disposition: form-data; name="content"\r\n\r\niso\r\n--${boundary}\r\nContent-Disposition: form-data; name="checksum-algorithm"\r\n\r\nsha256\r\n--${boundary}\r\nContent-Disposition: form-data; name="checksum"\r\n\r\n${createHash('sha256').update(data).digest('hex')}\r\n--${boundary}\r\nContent-Disposition: form-data; name="filename"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`

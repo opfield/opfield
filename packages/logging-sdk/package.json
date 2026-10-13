@@ -1,6 +1,6 @@
 {
-  "name": "@sqgateway/logger",
-  "version": "1.1.4",
+  "name": "@opfield/logger",
+  "version": "2.0.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

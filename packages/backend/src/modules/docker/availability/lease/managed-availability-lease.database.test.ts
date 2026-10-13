@@ -20,7 +20,7 @@ interface PublishedManifest {
   retained?: Array<{ slot: number; holderId: string }>;
 }
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 vi.setConfig({ testTimeout: 60_000 });
 
 const V3 = ['availability_lease_v2', 'availability_lease_v3', 'managed_availability_member_v1'];
@@ -29,7 +29,7 @@ const identityKey = () =>
   generateKeyPairSync('ec', { namedCurve: 'P-256' }).publicKey.export({ format: 'der', type: 'spki' }) as Buffer;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): the lease of a database availability set on the lease host, through the
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): the lease of a database availability set on the lease host, through the
  * set contract (createSetPolicy, updateSetVoters, closeSetPolicy, observeSet). Strict and stateful, v3 everywhere,
  * members on storage-profile nodes, member endpoints gated, joint epochs settle only through a live holder's renewal
  * (AS1), no implicit close on capability loss (AS9: degraded instead), an explicit close retains the holder, and every

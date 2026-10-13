@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/docker"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
+	"github.com/opfield/opfield/docker-daemon/internal/docker"
 )
 
 // `docker-daemon availability ...`: node-local operations on database and

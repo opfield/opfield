@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/grpc/mem"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"

@@ -35,10 +35,10 @@ function routeLabel(domains: readonly string[], id: string): string {
  * publications of member databases and storage: suspended with their ports held. Every container of every member:
  * cut off from all its networks (a host-network container is stopped instead).
  */
-export function buildIsolationItems(targets: IncidentTargets, gatewayRouteIds: ReadonlySet<string>): NewIncidentItem[] {
+export function buildIsolationItems(targets: IncidentTargets, opfieldRouteIds: ReadonlySet<string>): NewIncidentItem[] {
   const items: NewIncidentItem[] = [];
   for (const route of targets.routes) {
-    if (!route.enabled || gatewayRouteIds.has(route.id)) continue;
+    if (!route.enabled || opfieldRouteIds.has(route.id)) continue;
     items.push({
       itemKind: routeTakesMaintenance(route) ? 'route_overlay' : 'route_withdraw',
       itemKey: `route:${route.id}`,
@@ -231,19 +231,19 @@ export class AppIncidentService {
     return { app, envs: selected };
   }
 
-  private async gatewayRouteIds(targets: IncidentTargets): Promise<Set<string>> {
+  private async opfieldRouteIds(targets: IncidentTargets): Promise<Set<string>> {
     const ids = new Set<string>();
     if (!container.isRegistered(ProxyService)) return ids;
     const proxy = container.resolve(ProxyService);
     for (const route of targets.routes) {
-      if (await proxy.servesGatewayPublicUrl(route)) ids.add(route.id);
+      if (await proxy.servesOpfieldPublicUrl(route)) ids.add(route.id);
     }
     return ids;
   }
 
   private async build(kind: AppIncidentKind, environmentId: string): Promise<NewIncidentItem[]> {
     const targets = await this.targets.collect(environmentId);
-    const gateway = await this.gatewayRouteIds(targets);
+    const gateway = await this.opfieldRouteIds(targets);
     return kind === 'isolation' ? buildIsolationItems(targets, gateway) : buildShutdownItems(targets, gateway);
   }
 

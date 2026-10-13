@@ -84,5 +84,9 @@ export function hostingCloudImage(id: string, role?: HostingRole): HostingCloudI
 }
 
 export function hostingImageFilename(image: HostingCloudImage) {
+  return `opfield-${image.id}-${image.checksum.slice(0, 16)}.qcow2`;
+}
+// legacy-name: Proxmox operation image "gateway-<image>-<checksum>…" — remove once no create operation started before 2.12.1 is still preparing
+export function legacyHostingImageFilename(image: HostingCloudImage) {
   return `gateway-${image.id}-${image.checksum.slice(0, 16)}.qcow2`;
 }

@@ -6,7 +6,7 @@ import {
 } from '@/lib/access-summary-resolver.js';
 import { logger } from '@/lib/logger.js';
 
-export const MCP_ACCESS_RESOURCE_URI = 'gateway://access';
+export const MCP_ACCESS_RESOURCE_URI = 'opfield://access';
 
 /** Longest access summary added to the server instructions; get_my_access has the rest. */
 export const MCP_ACCESS_INSTRUCTIONS_MAX_LENGTH = 1500;
@@ -46,14 +46,14 @@ export async function isMcpInitializeRequest(request: Request): Promise<boolean>
   }
 }
 
-/** gateway://access: the connection's access summary, bounded by the token owner like every call. */
+/** opfield://access: the connection's access summary, bounded by the token owner like every call. */
 export function registerMcpAccessResource(
   server: McpServer,
   scopes: readonly string[],
   principal?: AccessSummaryPrincipal
 ): void {
   server.registerResource(
-    'gateway-access',
+    'opfield-access',
     MCP_ACCESS_RESOURCE_URI,
     {
       title: 'My Opfield access',

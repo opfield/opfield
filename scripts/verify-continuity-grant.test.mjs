@@ -37,10 +37,6 @@ test('accepts the complete canonical continuity grant', async () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('the inference package carries the same grant', async () => {
-  assert.equal(await readFile('packages/gateway-inference/CONTINUITY-GRANT.md', 'utf8'), canonicalGrant);
-});
-
 test('rejects any change to the inactivity trigger', async () => {
   await assertRejected('for 12 consecutive months', 'for 36 consecutive months');
 });

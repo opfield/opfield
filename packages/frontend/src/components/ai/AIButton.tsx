@@ -18,7 +18,7 @@ export function AIButton({ iconOnly = false, showLabel = false }: AIButtonProps)
 
   const handleClick = () => {
     if (showLabel || isEnabled === false || !canUseAIWorkspace || aiLiteMode) {
-      window.dispatchEvent(new CustomEvent("gateway:open-ai-workspace"));
+      window.dispatchEvent(new CustomEvent("opfield:open-ai-workspace"));
       return;
     }
     toggleAIPanel();

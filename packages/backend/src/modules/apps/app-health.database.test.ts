@@ -11,11 +11,11 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = ['apps:view', 'apps:create', 'apps:edit'];
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): environment health counts only the members the caller may view; the
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): environment health counts only the members the caller may view; the
  * app list reports the Production environment.
  */
 describe.skipIf(!url)('app health on disposable PostgreSQL', () => {

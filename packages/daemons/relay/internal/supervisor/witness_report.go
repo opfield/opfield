@@ -3,7 +3,7 @@ package supervisor
 import (
 	"sort"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // report lists every witness the supervisor knows, desired or still

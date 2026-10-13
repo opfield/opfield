@@ -153,7 +153,7 @@ export class NotificationDispatcherService {
     private generalSettingsService?: GeneralSettingsService
   ) {}
 
-  getGatewayUrl(): string {
+  getOpfieldUrl(): string {
     return (
       this.generalSettingsService?.getCachedPublicUrl() ??
       (this.env as Env & { PUBLIC_URL?: string }).PUBLIC_URL ??
@@ -319,7 +319,7 @@ export class NotificationDispatcherService {
   }
 
   private renderBody(webhook: Pick<DispatchWebhook, 'bodyTemplate'>, event: NotificationEvent): string {
-    const context = buildTemplateContext(event, this.getGatewayUrl());
+    const context = buildTemplateContext(event, this.getOpfieldUrl());
     return webhook.bodyTemplate ? renderTemplate(webhook.bodyTemplate, context) : JSON.stringify(context);
   }
 

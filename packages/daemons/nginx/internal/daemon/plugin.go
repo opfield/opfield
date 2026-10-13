@@ -14,22 +14,23 @@ import (
 	"sync"
 	"time"
 
-	sharedauth "github.com/wiolett-industries/gateway/daemon-shared/auth"
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/logepisode"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
-	sharedstate "github.com/wiolett-industries/gateway/daemon-shared/state"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/pages"
+	sharedauth "github.com/opfield/opfield/daemon-shared/auth"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/logepisode"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/securelink"
+	sharedstate "github.com/opfield/opfield/daemon-shared/state"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
+	"github.com/opfield/opfield/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
+	"github.com/opfield/opfield/nginx-daemon/internal/pages"
 	"google.golang.org/grpc"
 )
 
@@ -102,6 +103,12 @@ type NginxPlugin struct {
 	maintenanceAccessSupported bool
 	// maintenanceFlagsSupported: routes enter and leave maintenance through their flag files (maintenance_flags.go).
 	maintenanceFlagsSupported bool
+
+	// namesMigrationDue: the node still runs with the pre-Opfield names and moves once the start is confirmed
+	// (opfield_names.go); registrationChanged asks the control session to register the new capabilities.
+	namesMigrationDue   bool
+	namesMigrationMu    sync.Mutex
+	registrationChanged chan struct{}
 }
 
 var _ lifecycle.ProxySecureLinkPlugin = (*NginxPlugin)(nil)
@@ -121,17 +128,21 @@ func (p *NginxPlugin) releaseUnclaimedRegistryListeners() {
 		if p.registryListenersRelease != nil {
 			p.registryListenersRelease.Stop()
 		}
-		listenerkeep.ReleaseUnclaimed(registrySecureLinkSocketDir + "/")
+		releaseUnclaimedUnder(p.registryLinks.socketDir)
 	})
 }
 
+// secureLinkProxyPassPattern finds the proxy_pass a managed config marks as its Secure Link upstream, under the
+// Opfield marker or, in a config rendered for the pre-Opfield names, the gateway- one.
 func secureLinkProxyPassPattern(linkID string, port int) *regexp.Regexp {
 	portPattern := `[0-9]+`
 	if port > 0 {
 		portPattern = fmt.Sprintf("%d", port)
 	}
+	// legacy-name: gateway-managed-secure-link-upstream of configs rendered for the pre-Opfield names — remove once
+	// every node reports none
 	return regexp.MustCompile(fmt.Sprintf(
-		`(?m)(#[[:space:]]*gateway-managed-secure-link-upstream[[:space:]]+%s[[:space:]]*\r?\n[[:space:]]*proxy_pass[[:space:]]+https?://)127[.]0[.]0[.]1:%s`,
+		`(?m)(#[[:space:]]*(?:opfield|gateway)-managed-secure-link-upstream[[:space:]]+%s[[:space:]]*\r?\n[[:space:]]*proxy_pass[[:space:]]+https?://)127[.]0[.]0[.]1:%s`,
 		regexp.QuoteMeta(linkID),
 		portPattern,
 	))
@@ -160,7 +171,18 @@ func replaceFirstSecureLinkProxyPass(content []byte, linkID string, oldPort, new
 
 // NewNginxPlugin creates a new NginxPlugin with the given config.
 func NewNginxPlugin(cfg *config.Config) *NginxPlugin {
-	return &NginxPlugin{cfg: cfg, handover: handover.NewRegistry()}
+	return &NginxPlugin{cfg: cfg, handover: handover.NewRegistry(), registrationChanged: make(chan struct{}, 1)}
+}
+
+// RegistrationChanged signals that the node's capabilities changed (the node moved to the Opfield names): the control
+// session registers again.
+func (p *NginxPlugin) RegistrationChanged() <-chan struct{} { return p.registrationChanged }
+
+func (p *NginxPlugin) refreshRegistration() {
+	select {
+	case p.registrationChanged <- struct{}{}:
+	default:
+	}
 }
 
 func (p *NginxPlugin) Type() string {
@@ -180,6 +202,8 @@ func (p *NginxPlugin) SetLogger(logger *slog.Logger) {
 func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) error {
 	p.baseCfg = baseCfg
 	p.logger = logger
+	// The names this start uses (opfield_names.go): before anything reads a path of the node.
+	p.namesMigrationDue = resolveNames(p.cfg, baseCfg.StateDir, logger)
 
 	// Verify nginx is available
 	mgr := nginx.NewManager(p.cfg.Nginx.Binary, p.cfg.Nginx.ConfigDir, p.cfg.Nginx.CertsDir, p.cfg.Nginx.GlobalConfig)
@@ -197,8 +221,8 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	}
 	if !p.maintenanceAccessSupported {
 		logger.Warn("nginx secure_link module is unavailable; maintenance access codes are disabled")
-	} else if err := prepareMaintenanceFlagDir(maintenanceFlagDir); err != nil {
-		logger.Warn("maintenance flag directory is unavailable; maintenance changes reload nginx", "path", maintenanceFlagDir, "error", err)
+	} else if err := prepareMaintenanceFlagDir(maintenanceFlagDir()); err != nil {
+		logger.Warn("maintenance flag directory is unavailable; maintenance changes reload nginx", "path", maintenanceFlagDir(), "error", err)
 	} else {
 		p.maintenanceFlagsSupported = true
 	}
@@ -215,7 +239,7 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	p.secureLinks = newSourceLinkManager(p.openProxySecureLink, p.cfg.Nginx.Binary, p.mgr.CachedPID)
 	p.registryLinks = newSourceLinkManagerAt(
 		p.openRegistrySecureLink,
-		registrySecureLinkSocketDir,
+		registrySecureLinkSocketDir(),
 		p.cfg.Nginx.Binary,
 		p.mgr.CachedPID,
 	)
@@ -243,8 +267,8 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	p.availabilityLease.start()
 	// Adopt the sockets the previous process kept before the slower start-up work (Pages storage, nginx
 	// checks): connections made during a restart wait in their backlog until this point.
-	removeStaleTemporarySockets(proxySecureLinkSocketDir)
-	removeStaleTemporarySockets(registrySecureLinkSocketDir)
+	removeStaleTemporarySockets(p.secureLinks.socketDir)
+	removeStaleTemporarySockets(p.registryLinks.socketDir)
 	if restored := p.secureLinkState.Get(); len(restored.Bindings) > 0 {
 		statuses, restoreErr := p.secureLinks.sync(restored)
 		if restoreErr != nil {
@@ -259,7 +283,7 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	}
 	// Restoring adopted every proxy Secure Link socket the previous process
 	// kept for a binding it still has; the others were removed meanwhile.
-	if released := listenerkeep.ReleaseUnclaimed(proxySecureLinkSocketDir + "/"); len(released) > 0 {
+	if released := releaseUnclaimedUnder(p.secureLinks.socketDir); len(released) > 0 {
 		logger.Info("released kept Secure Link sockets without a binding", "sockets", len(released))
 	}
 	// The connections the previous process handed over go back under their bindings, before the relay lanes start
@@ -315,7 +339,7 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	if healthChanged {
 		configDirModified = true
 	}
-	// The shared maps of the flag-checked maintenance guard; without them Gateway keeps rendering the guard only
+	// The shared maps of the flag-checked maintenance guard; without them Opfield keeps rendering the guard only
 	// during maintenance.
 	if p.maintenanceFlagsSupported && p.ensureMaintenanceGuardMaps(logger) {
 		configDirModified = true
@@ -329,11 +353,11 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 		}
 	}
 
-	// Ensure gateway log format is present in nginx.conf.
+	// Ensure the daemon's log format is present in nginx.conf.
 	if modified, err := nginx.EnsureLogFormat(p.cfg.Nginx.GlobalConfig); err != nil {
 		logger.Warn("failed to inject log format", "error", err)
 	} else if modified {
-		logger.Info("injected gateway_combined log format into nginx.conf")
+		logger.Info("injected the daemon's log format into nginx.conf")
 		globalConfigModified = true
 	}
 
@@ -361,6 +385,11 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 		logger.Warn("nginx configuration is invalid", "output", output)
 	}
 
+	if p.namesMigrationDue {
+		// The move to the Opfield names waits until the launcher can no longer roll back to a daemon that knows only
+		// the pre-Opfield ones.
+		lifecycle.OnStartConfirmed(func() { go p.migrateNames() })
+	}
 	return nil
 }
 
@@ -437,7 +466,7 @@ func (p *NginxPlugin) SetState(st *sharedstate.State) {
 	p.reporter = NewReporter(p.cfg, p.mgr, p.logger)
 	p.handler = NewHandler(p.cfg, p.mgr, st, p.logger, p.secureLinkState, p.pagesRuntime, p.pagesRuntimeConfigAvailable)
 	if p.maintenanceFlagsSupported {
-		p.handler.maintenanceFlagDir = maintenanceFlagDir
+		p.handler.maintenanceFlagDir = maintenanceFlagDir()
 	}
 	if p.secureLinks != nil {
 		p.handler.secureLinkListeners = p.secureLinks
@@ -472,8 +501,8 @@ func (p *NginxPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 	}
 }
 
-func (p *NginxPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
-	if payload, ok := cmd.Payload.(*pb.GatewayCommand_SyncDockerRegistryBindings); ok {
+func (p *NginxPlugin) HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult {
+	if payload, ok := cmd.Payload.(*pb.OpfieldCommand_SyncDockerRegistryBindings); ok {
 		result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 		detail, err := p.SyncDockerRegistryBindings(payload.SyncDockerRegistryBindings)
 		if err != nil {
@@ -484,7 +513,7 @@ func (p *NginxPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 		}
 		return result
 	}
-	if payload, ok := cmd.Payload.(*pb.GatewayCommand_SyncAvailabilityLease); ok {
+	if payload, ok := cmd.Payload.(*pb.OpfieldCommand_SyncAvailabilityLease); ok {
 		result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 		detail, err := p.SyncAvailabilityLease(payload.SyncAvailabilityLease)
 		if err != nil {
@@ -499,7 +528,7 @@ func (p *NginxPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 }
 
 // SyncAvailabilityLease adopts policy keys, key rotations, the voter config
-// and every policy manifest carried by GatewayCommand 75 (T3's contract).
+// and every policy manifest carried by OpfieldCommand 75 (T3's contract).
 func (p *NginxPlugin) SyncAvailabilityLease(command *pb.SyncAvailabilityLeaseCommand) (string, error) {
 	if p.availabilityLease == nil {
 		return "", errors.New("availability lease coordination is unavailable")
@@ -516,6 +545,9 @@ func (p *NginxPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 	}
 	if p.ingressHealth != nil {
 		report.IngressHealth = p.ingressHealth.report()
+	}
+	if report != nil && naming.Legacy() {
+		lifecycle.AddLegacyNames(report, "nginx", 1)
 	}
 	if p.relayStreams != nil && report != nil {
 		report.RelayStreams = relayStreamStatsReport(p.relayStreams.Stats())
@@ -568,6 +600,9 @@ func (p *NginxPlugin) capabilities() []string {
 	if p.ingressHealth != nil {
 		capabilities = append(capabilities, ingressGroupCapability)
 	}
+	if !naming.Legacy() {
+		capabilities = append(capabilities, naming.Capability)
+	}
 	return capabilities
 }
 
@@ -595,7 +630,7 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 	tlsManager := sharedauth.NewTLSManager(p.baseCfg.TLS.CACert, p.baseCfg.TLS.ClientCert, p.baseCfg.TLS.ClientKey)
 	// The address the control session uses now: it follows a move of Opfield
 	// to another address (lifecycle.ControlAddress).
-	conn, err := connector.NewConnector(lifecycle.ControlAddress(p.baseCfg.Gateway.Address), tlsManager, p.logger).Connect(sessionCtx)
+	conn, err := connector.NewConnector(lifecycle.ControlAddress(p.baseCfg.Control.Address), tlsManager, p.logger).Connect(sessionCtx)
 	if err != nil {
 		cancel()
 		return err

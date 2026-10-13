@@ -76,7 +76,7 @@ describe('InferenceTokenService', () => {
     const stored = values.mock.calls[0][0];
     const auditEntry = audit.log.mock.calls[0][0];
 
-    expect(result.token).toMatch(/^gwi_[0-9a-f]{64}$/);
+    expect(result.token).toMatch(/^opfi_[0-9a-f]{64}$/);
     expect(stored.tokenHash).toBe(__testOnly.hashInferenceToken(result.token));
     expect(stored.tokenHash).not.toContain(result.token);
     expect(stored.tokenPrefix).toBe(result.token.slice(0, 12));
@@ -85,7 +85,7 @@ describe('InferenceTokenService', () => {
   });
 
   it('validates against the live owner and required inference scope', async () => {
-    const token = { id: TOKEN_ID, userId: USER_ID, tokenPrefix: 'gwi_12345678', managedBy: null };
+    const token = { id: TOKEN_ID, userId: USER_ID, tokenPrefix: 'gwi_12345678' };
     const allowed = await new InferenceTokenService(
       liveUserDb(token) as never,
       { log: vi.fn() } as never
@@ -103,7 +103,6 @@ describe('InferenceTokenService', () => {
       user: { id: USER_ID },
       tokenId: TOKEN_ID,
       tokenPrefix: 'gwi_12345678',
-      managedBy: null,
     });
     expect(blocked).toBeNull();
     expect(demoted).toBeNull();
@@ -136,82 +135,5 @@ describe('InferenceTokenService', () => {
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'inference_token.revoke', resourceId: TOKEN_ID })
     );
-  });
-
-  it('serializes managed token issuance per user, harness, and installation', async () => {
-    const execute = vi.fn().mockResolvedValue(undefined);
-    const returning = vi.fn().mockResolvedValue([
-      {
-        id: TOKEN_ID,
-        userId: USER_ID,
-        name: 'Codex · laptop',
-        managedBy: 'gateway-cli',
-        harness: 'codex',
-        deviceName: 'laptop',
-        installationId: '33333333-3333-4333-8333-333333333333',
-        tokenHash: 'hash',
-        tokenPrefix: 'gwi_12345678',
-        lastUsedAt: null,
-        revokedAt: null,
-        createdAt: new Date('2026-07-28T00:00:00.000Z'),
-      },
-    ]);
-    const tx = {
-      execute,
-      query: { inferenceTokens: { findFirst: vi.fn().mockResolvedValue(null) } },
-      insert: vi.fn().mockReturnValue({ values: vi.fn().mockReturnValue({ returning }) }),
-    };
-    const db = { transaction: vi.fn(async (callback) => callback(tx)) };
-    const audit = { log: vi.fn().mockResolvedValue(undefined) };
-    const service = new InferenceTokenService(db as never, audit as never);
-
-    const result = await service.createManagedToken(USER_ID, {
-      harness: 'codex',
-      deviceName: 'laptop',
-      installationId: '33333333-3333-4333-8333-333333333333',
-    });
-
-    expect(execute).toHaveBeenCalledOnce();
-    expect(result).toMatchObject({
-      id: TOKEN_ID,
-      prefix: 'gwi_12345678',
-      token: expect.stringMatching(/^gwi_[0-9a-f]{64}$/),
-      harness: 'codex',
-      deviceName: 'laptop',
-    });
-    expect(JSON.stringify(audit.log.mock.calls[0][0])).not.toContain(result.token);
-  });
-
-  it('returns a stable conflict instead of silently replacing an active managed token', async () => {
-    const tx = {
-      execute: vi.fn().mockResolvedValue(undefined),
-      query: { inferenceTokens: { findFirst: vi.fn().mockResolvedValue({ id: TOKEN_ID }) } },
-    };
-    const db = { transaction: vi.fn(async (callback) => callback(tx)) };
-    const service = new InferenceTokenService(db as never, { log: vi.fn() } as never);
-
-    await expect(
-      service.createManagedToken(USER_ID, {
-        harness: 'codex',
-        deviceName: 'laptop',
-        installationId: '33333333-3333-4333-8333-333333333333',
-      })
-    ).rejects.toMatchObject({
-      statusCode: 409,
-      code: 'INFERENCE_SETUP_TOKEN_EXISTS',
-      details: { tokenId: TOKEN_ID },
-    });
-  });
-
-  it('does not revoke a managed token owned by another user', async () => {
-    const db = {
-      query: { inferenceTokens: { findFirst: vi.fn().mockResolvedValue(null) } },
-    };
-    const service = new InferenceTokenService(db as never, { log: vi.fn() } as never);
-
-    await expect(service.revokeManagedToken(USER_ID, TOKEN_ID)).rejects.toMatchObject({
-      statusCode: 404,
-      code: 'INFERENCE_TOKEN_NOT_FOUND',
-    });
   });
 });

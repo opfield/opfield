@@ -20,7 +20,7 @@ const host: ProxyHostConfig = {
   forwardPort: 8080,
   forwardScheme: 'http',
   secureLinkUpstream: true,
-  secureLinkSocketPath: `/run/gateway-secure-links/${HOST_ID}.sock`,
+  secureLinkSocketPath: `/run/opfield-secure-links/${HOST_ID}.sock`,
   sslEnabled: true,
   sslForced: true,
   http2Support: true,
@@ -70,10 +70,10 @@ function withoutGuard(guarded: string, original: string): string {
   return guarded
     .slice(body)
     .replace(
-      /\n {4}# Gateway maintenance mode: answers only while[\s\S]*?\{"active":\$gateway_maintenance_access\}';\n {4}\}\n/g,
+      /\n {4}# Opfield maintenance mode: answers only while[\s\S]*?\{"active":\$opfield_maintenance_access\}';\n {4}\}\n/g,
       ''
     )
-    .replace(/\n[\t ]*proxy_set_header Cookie \$gateway_maintenance_cookie;/g, '')
+    .replace(/\n[\t ]*proxy_set_header Cookie \$opfield_maintenance_cookie;/g, '')
     .replace(new RegExp(`\\$gm_cookie_${HEX}_\\d+`, 'g'), (variable) => defaults.get(variable)!);
 }
 
@@ -91,9 +91,9 @@ describe('maintenance guard of a node that keeps maintenance flags', () => {
     // maintenance.
     expect(guarded).toContain(`proxy_set_header Cookie $gm_cookie_${HEX}_1;`);
     expect(guarded).toContain(
-      `map $gateway_maintenance $gm_cookie_${HEX}_1 {\n    volatile;\n    default "tenant=a; $http_cookie";`
+      `map $opfield_maintenance $gm_cookie_${HEX}_1 {\n    volatile;\n    default "tenant=a; $http_cookie";`
     );
-    expect(guarded!.match(/proxy_set_header Cookie \$gateway_maintenance_cookie;/g)).toHaveLength(1);
+    expect(guarded!.match(/proxy_set_header Cookie \$opfield_maintenance_cookie;/g)).toHaveLength(1);
     // nginx's default variables_hash_bucket_size (64) takes names of up to 46 bytes.
     expect(`gm_cookie_${HEX}_99`.length).toBeLessThanOrEqual(46);
   });
@@ -106,8 +106,8 @@ describe('maintenance guard of a node that keeps maintenance flags', () => {
     const guardLocations = server
       .block!.children.filter((directive) => directive.name === 'location' && directive.args[0]?.value === '=')
       .map((directive) => directive.args[1]!.value)
-      .filter((name) => name.startsWith('gateway-maintenance'));
-    expect(guardLocations).toEqual(['gateway-maintenance', 'gateway-maintenance-access', 'gateway-maintenance-status']);
+      .filter((name) => name.startsWith('opfield-maintenance'));
+    expect(guardLocations).toEqual(['opfield-maintenance', 'opfield-maintenance-access', 'opfield-maintenance-status']);
     expect(guardLocations.every((name) => !name.startsWith('/'))).toBe(true);
     // The page carries the server's own response headers, as the guard rendered during maintenance does.
     expect(guarded).toContain(
@@ -137,7 +137,7 @@ describe('maintenance guard of a node that keeps maintenance flags', () => {
       'server {',
       '    listen 80;',
       '    proxy_set_header X-Server-Level yes;',
-      '    include /etc/nginx/gateway/conf.d/pages/routes/route-1.inc;',
+      '    include /etc/nginx/opfield/conf.d/pages/routes/route-1.inc;',
       '    location / {',
       '        proxy_pass http://127.0.0.1:9000;',
       '    }',
@@ -146,7 +146,7 @@ describe('maintenance guard of a node that keeps maintenance flags', () => {
     ].join('\n');
     const guarded = renderMaintenanceFlagGuard(config, ACCESS);
     expect(guarded).toContain(
-      '    proxy_set_header X-Server-Level yes;\n    proxy_set_header Cookie $gateway_maintenance_cookie;\n    include'
+      '    proxy_set_header X-Server-Level yes;\n    proxy_set_header Cookie $opfield_maintenance_cookie;\n    include'
     );
     expect(withoutGuard(guarded!, config)).toBe(config);
   });

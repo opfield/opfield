@@ -6,8 +6,8 @@ import {
   trustedGitLabPackagePrefix,
   UpdateArtifactTrustError,
   verifyDaemonUpdateManifest,
-  verifyGatewayImageManifest,
   verifyOpenCodexImageManifest,
+  verifyOpfieldImageManifest,
   verifyRelayImageManifest,
 } from './update-artifact-trust.js';
 
@@ -20,8 +20,8 @@ const daemonManifest = `{
   "payload": "eyJraW5kIjoiZGFlbW9uLWJpbmFyeSIsInZlcnNpb24iOiJ2OS45LjkiLCJ0YWciOiJ2OS45LjktbmdpbngiLCJkYWVtb25UeXBlIjoibmdpbngiLCJhcmNoIjoiYW1kNjQiLCJhcnRpZmFjdE5hbWUiOiJuZ2lueC1kYWVtb24tbGludXgtYW1kNjQiLCJkb3dubG9hZFVybCI6Imh0dHBzOi8vZ2l0bGFiLndpb2xldHQubmV0L2FwaS92NC9wcm9qZWN0cy93aW9sZXR0JTJGZ2F0ZXdheS9wYWNrYWdlcy9nZW5lcmljL25naW54LWRhZW1vbi92OS45LjktbmdpbngvbmdpbngtZGFlbW9uLWxpbnV4LWFtZDY0Iiwic2hhMjU2IjoiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsImNyZWF0ZWRBdCI6IjIwMjYtMDUtMDJUMTQ6Mzk6MDNaIiwiZ2l0Q29tbWl0U2hhIjoidGVzdCIsImdpdFBpcGVsaW5lSWQiOiIxIn0",
   "signature": "sNy92HOZyOUMyGJkXQ1nRmTSFm3BosuaAUaInP_Svo0cWGx50jvMlnsfU64FyubGDXK4ihvpgtlcNCfqN61ABw"
 }`;
-const gatewaySigningKey = generateKeyPairSync('ed25519');
-const gatewayPayload = Buffer.from(
+const opfieldSigningKey = generateKeyPairSync('ed25519');
+const opfieldPayload = Buffer.from(
   JSON.stringify({
     kind: 'gateway-image',
     version: 'v9.9.9',
@@ -33,13 +33,13 @@ const gatewayPayload = Buffer.from(
     createdAt: '2026-05-02T14:39:10Z',
   })
 );
-const gatewayManifest = JSON.stringify({
+const opfieldManifest = JSON.stringify({
   schemaVersion: 1,
   keyId: 'wiolett-update-v1',
-  payload: gatewayPayload.toString('base64url'),
-  signature: sign(null, gatewayPayload, gatewaySigningKey.privateKey).toString('base64url'),
+  payload: opfieldPayload.toString('base64url'),
+  signature: sign(null, opfieldPayload, opfieldSigningKey.privateKey).toString('base64url'),
 });
-const gatewayPublicKey = gatewaySigningKey.publicKey.export({ type: 'spki', format: 'pem' });
+const opfieldPublicKey = opfieldSigningKey.publicKey.export({ type: 'spki', format: 'pem' });
 const relayPayload = Buffer.from(
   JSON.stringify({
     kind: 'relay-image',
@@ -58,7 +58,7 @@ const relayManifest = JSON.stringify({
   schemaVersion: 1,
   keyId: 'wiolett-update-v1',
   payload: relayPayload.toString('base64url'),
-  signature: sign(null, relayPayload, gatewaySigningKey.privateKey).toString('base64url'),
+  signature: sign(null, relayPayload, opfieldSigningKey.privateKey).toString('base64url'),
 });
 const opencodexPayload = Buffer.from(
   JSON.stringify({
@@ -81,7 +81,7 @@ const opencodexManifest = JSON.stringify({
   schemaVersion: 1,
   keyId: 'wiolett-update-v1',
   payload: opencodexPayload.toString('base64url'),
-  signature: sign(null, opencodexPayload, gatewaySigningKey.privateKey).toString('base64url'),
+  signature: sign(null, opencodexPayload, opfieldSigningKey.privateKey).toString('base64url'),
 });
 
 describe('update artifact trust', () => {
@@ -159,14 +159,14 @@ describe('update artifact trust', () => {
   });
 
   it('verifies a gateway image manifest with a digest-pinned image reference', () => {
-    const artifact = verifyGatewayImageManifest(
-      gatewayManifest,
+    const artifact = verifyOpfieldImageManifest(
+      opfieldManifest,
       {
         version: 'v9.9.9',
         tag: 'v9.9.9',
         image: 'registry.gitlab.wiolett.net/wiolett/gateway',
       },
-      gatewayPublicKey
+      opfieldPublicKey
     );
 
     expect(artifact.imageRef).toBe(`registry.gitlab.wiolett.net/wiolett/gateway@sha256:${checksum}`);
@@ -183,7 +183,7 @@ describe('update artifact trust', () => {
         image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
         protocolMajor: 1,
       },
-      gatewayPublicKey
+      opfieldPublicKey
     );
 
     expect(artifact.buildVersion).toBe('v1.2.3');
@@ -213,7 +213,7 @@ describe('update artifact trust', () => {
       schemaVersion: 1,
       keyId: 'wiolett-update-v1',
       payload: payload.toString('base64url'),
-      signature: sign(null, payload, gatewaySigningKey.privateKey).toString('base64url'),
+      signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
 
     const artifact = verifyRelayImageManifest(
@@ -224,7 +224,7 @@ describe('update artifact trust', () => {
         image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
         protocolMajor: 1,
       },
-      gatewayPublicKey
+      opfieldPublicKey
     );
 
     expect(artifact.buildVersion).toBe('v2.10.0-rc.2');
@@ -250,7 +250,7 @@ describe('update artifact trust', () => {
       schemaVersion: 1,
       keyId: 'wiolett-update-v1',
       payload: payload.toString('base64url'),
-      signature: sign(null, payload, gatewaySigningKey.privateKey).toString('base64url'),
+      signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
 
     const artifact = verifyRelayImageManifest(
@@ -261,7 +261,7 @@ describe('update artifact trust', () => {
         image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
         protocolMajor: 1,
       },
-      gatewayPublicKey
+      opfieldPublicKey
     );
 
     expect(artifact.minGatewayVersion).toBe('v1.2.3');
@@ -286,7 +286,7 @@ describe('update artifact trust', () => {
       schemaVersion: 1,
       keyId: 'wiolett-update-v1',
       payload: payload.toString('base64url'),
-      signature: sign(null, payload, gatewaySigningKey.privateKey).toString('base64url'),
+      signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
 
     expect(() =>
@@ -298,7 +298,7 @@ describe('update artifact trust', () => {
           image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
           protocolMajor: 1,
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow('Relay update secure-link connector image reference is not digest pinned');
   });
@@ -322,7 +322,7 @@ describe('update artifact trust', () => {
       schemaVersion: 1,
       keyId: 'wiolett-update-v1',
       payload: payload.toString('base64url'),
-      signature: sign(null, payload, gatewaySigningKey.privateKey).toString('base64url'),
+      signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
 
     expect(() =>
@@ -334,7 +334,7 @@ describe('update artifact trust', () => {
           image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
           protocolMajor: 1,
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow('Relay update database connector image reference is not digest pinned');
   });
@@ -349,21 +349,21 @@ describe('update artifact trust', () => {
           image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
           protocolMajor: 2,
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow('Relay update protocol major is incompatible');
   });
 
   it('rejects gateway manifests for a different image repository', () => {
     expect(() =>
-      verifyGatewayImageManifest(
-        gatewayManifest,
+      verifyOpfieldImageManifest(
+        opfieldManifest,
         {
           version: 'v9.9.9',
           tag: 'v9.9.9',
           image: 'registry.example.com/wiolett/gateway',
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow(UpdateArtifactTrustError);
   });
@@ -392,18 +392,18 @@ describe('update artifact trust', () => {
       schemaVersion: 1,
       keyId: 'wiolett-update-v1',
       payload: payload.toString('base64url'),
-      signature: sign(null, payload, gatewaySigningKey.privateKey).toString('base64url'),
+      signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
 
     expect(() =>
-      verifyGatewayImageManifest(
+      verifyOpfieldImageManifest(
         manifest,
         {
           version: 'v9.9.9',
           tag: 'v9.9.9',
           image: 'registry.gitlab.wiolett.net/wiolett/gateway',
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow('Opfield update secure-link connector image reference is not digest pinned');
   });
@@ -445,7 +445,7 @@ describe('update artifact trust', () => {
         image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
         coreProtocolMajor: 1,
       },
-      gatewayPublicKey
+      opfieldPublicKey
     );
 
     expect(artifact.version).toBe('2.26.0-wiolett.1');
@@ -454,7 +454,7 @@ describe('update artifact trust', () => {
     expect(artifact.sizeBytes).toBe(412345678);
     expect(artifact.coreProtocolMajor).toBe(1);
     expect(artifact.stateSchemaVersion).toBe(1);
-    expect(artifact.minGatewayVersion).toBe('v2.6.0');
+    expect(artifact.minOpfieldVersion).toBe('v2.6.0');
     expect(artifact.releaseNotesUrl).toBe('https://docs.wiolett.net/releases/opencodex-2.26.0-wiolett.1');
   });
 
@@ -467,7 +467,7 @@ describe('update artifact trust', () => {
           coreProtocolMajor: 1,
           version: '2.26.0-wiolett.2',
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow('OpenCodex update version mismatch');
   });
@@ -480,7 +480,7 @@ describe('update artifact trust', () => {
           image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
           coreProtocolMajor: 2,
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow('OpenCodex core protocol major is incompatible');
   });
@@ -493,7 +493,7 @@ describe('update artifact trust', () => {
           image: 'registry.example.com/wiolett/opencodex',
           coreProtocolMajor: 1,
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow('OpenCodex update image mismatch');
   });
@@ -518,7 +518,7 @@ describe('update artifact trust', () => {
       schemaVersion: 1,
       keyId: 'wiolett-update-v1',
       payload: payload.toString('base64url'),
-      signature: sign(null, payload, gatewaySigningKey.privateKey).toString('base64url'),
+      signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
 
     expect(() =>
@@ -528,7 +528,7 @@ describe('update artifact trust', () => {
           image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
           coreProtocolMajor: 1,
         },
-        gatewayPublicKey
+        opfieldPublicKey
       )
     ).toThrow('OpenCodex update version is not an Opfield release');
   });

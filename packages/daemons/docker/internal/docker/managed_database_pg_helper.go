@@ -16,7 +16,7 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/pgha"
+	"github.com/opfield/opfield/docker-daemon/internal/pgha"
 )
 
 // Helper containers of the database image run pg_basebackup, pg_rewind,
@@ -25,7 +25,7 @@ import (
 // the primary through the member mesh (primary-pg-repl).
 
 const (
-	pgHelperLabel = "wiolett.gateway.availability.helper"
+	pgHelperLabel = "net.opfield.availability.helper"
 	// pgDiskReserve is left free on the data image by copies the rejoin makes.
 	pgDiskReserve = 64 << 20
 )
@@ -361,7 +361,7 @@ func (e *pgMember) Rebuild(ctx context.Context, config pgha.StandbyConfig) (pgha
 		return result, err
 	}
 	run, err := e.runHelper(ctx, record, true, "pg_basebackup", "-d", pgReplicationConnInfo(config.ReplicationRole, config.MemberID+"-basebackup", ""),
-		"-D", pgContainerDataDir+"/"+pgRebuildDirName, "-X", "stream", "-c", "fast", "--no-password", "-l", "gateway-rebuild")
+		"-D", pgContainerDataDir+"/"+pgRebuildDirName, "-X", "stream", "-c", "fast", "--no-password", "-l", "opfield-rebuild")
 	if err != nil {
 		return result, err
 	}

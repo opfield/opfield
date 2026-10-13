@@ -6,14 +6,14 @@ import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
 import type { OutboundWebhookFetchResponse } from '@/modules/settings/outbound-webhook-request.js';
-import { GATEWAY_OUTBOUND_RESOURCE_ID, GatewayOutboundMonitor } from './gateway-outbound-monitor.js';
 import { NotificationDispatcherService } from './notification-dispatcher.service.js';
 import { NotificationEvaluatorService } from './notification-evaluator.service.js';
+import { OPFIELD_OUTBOUND_RESOURCE_ID, OpfieldOutboundMonitor } from './opfield-outbound-monitor.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): one cause is one alert. A route alert explained by its node's "node
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): one cause is one alert. A route alert explained by its node's "node
  * down" alert or by "Gateway lost outbound connectivity" is not sent separately and resolves with it; the built-in
  * outbound rule exists after migration; resolves carry Gateway's back-online text.
  */
@@ -47,7 +47,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
   const route = (state: 'health.offline' | 'health.online', context: Record<string, unknown> = {}) =>
     observe('proxy', state, { type: 'proxy', id: hostId, name: 'example.com' }, { health_status: state, ...context });
   const outbound = (state: 'outbound.unavailable' | 'ok') =>
-    observe('gateway', state, { type: 'gateway', id: GATEWAY_OUTBOUND_RESOURCE_ID, name: 'Opfield' });
+    observe('opfield', state, { type: 'opfield', id: OPFIELD_OUTBOUND_RESOURCE_ID, name: 'Opfield' });
   const routeState = async () =>
     (
       await q(`select status, context -> 'folded' as folded from notification_alert_states where resource_id = $1`, [
@@ -106,7 +106,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     rules = [
       await rule('Node down', 'node', 'offline'),
       await rule('Proxy host down', 'proxy', 'health.offline'),
-      await rule('Gateway lost outbound connectivity', 'gateway', 'outbound.unavailable'),
+      await rule('Opfield lost outbound connectivity', 'opfield', 'outbound.unavailable'),
     ];
 
     dispatcher = new NotificationDispatcherService(
@@ -245,12 +245,12 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     await route('health.offline', { probe_failure: 'unreachable' });
     await outbound('outbound.unavailable');
     expect(sent).toEqual([]);
-    expect((await routeState())[0]).toMatchObject({ folded: { kind: 'gateway_outbound' } });
+    expect((await routeState())[0]).toMatchObject({ folded: { kind: 'opfield_outbound' } });
 
     reachable = true;
     await dispatcher.resumePausedWebhooks();
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatch(/^Gateway lost outbound connectivity: Opfield$/);
+    expect(sent[0]).toMatch(/^Opfield lost outbound connectivity: Opfield$/);
 
     await outbound('ok');
     expect(sent).toEqual([sent[0], expect.stringMatching(/^Opfield has outbound connectivity again( after \d+s)?\.$/)]);
@@ -270,7 +270,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     await route('health.offline');
     await route('health.online');
     expect(sent).toEqual([
-      'Gateway lost outbound connectivity: Opfield',
+      'Opfield lost outbound connectivity: Opfield',
       'Proxy host down: example.com',
       expect.stringMatching(/^Proxy host example.com is back online( after \d+s)?\.$/),
     ]);
@@ -280,7 +280,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     let up = false;
     const observed: string[] = [];
     let resumed = 0;
-    const monitor = new GatewayOutboundMonitor(
+    const monitor = new OpfieldOutboundMonitor(
       db,
       { observeStatefulEvent: async (_c: string, state: string) => void observed.push(state) } as never,
       { resumePausedWebhooks: async () => void resumed++ } as never,

@@ -33,7 +33,7 @@ interface DockerRegistriesSectionProps {
   nodesList: Node[];
 }
 
-const GITLAB_REGISTRIES_EXPANDED_STORAGE_KEY = "gateway.dockerRegistries.gitlabExpanded";
+const GITLAB_REGISTRIES_EXPANDED_STORAGE_KEY = "opfield.dockerRegistries.gitlabExpanded";
 
 function readGitLabRegistriesExpanded(): boolean | null {
   try {

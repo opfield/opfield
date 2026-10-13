@@ -2,7 +2,7 @@ import { isIP } from 'node:net';
 import { eq, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { settings } from '@/db/schema/index.js';
-import type { InferenceSetupEventsService } from '@/modules/inference/inference-setup-events.service.js';
+import type { InferenceCatalogEventsService } from '@/modules/inference/inference-catalog-events.service.js';
 import { type LicensePolicyService, requireConfiguredLicensePolicy } from '@/modules/license/license-policy.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 
@@ -79,8 +79,8 @@ export interface GeneralSettings {
   sendInvitationOnUserCreate: boolean;
   fileUploadMaxBytes: number;
   fileOpenMaxBytes: number;
-  gatewayGrpcPublicTarget: string | null;
-  gatewayGrpcLocalIp: string | null;
+  grpcPublicTarget: string | null;
+  grpcLocalIp: string | null;
   relayAutoRecovery: boolean;
   relay: GeneralRelaySettings;
   shutdown: GeneralShutdownSettings;
@@ -134,8 +134,8 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   sendInvitationOnUserCreate: false,
   fileUploadMaxBytes: FILE_UPLOAD_DEFAULT_BYTES,
   fileOpenMaxBytes: FILE_OPEN_DEFAULT_BYTES,
-  gatewayGrpcPublicTarget: null,
-  gatewayGrpcLocalIp: null,
+  grpcPublicTarget: null,
+  grpcLocalIp: null,
   relayAutoRecovery: true,
   relay: {
     dataLanes: RELAY_DATA_LANES_DEFAULT,
@@ -200,27 +200,27 @@ export function normalizeHostPortTarget(value: string | null | undefined): strin
   const bracketedIpv6 = trimmed.match(/^\[([^\]]+)](?::(\d+))?$/);
   if (bracketedIpv6) {
     const [, ip, rawPort] = bracketedIpv6;
-    if (!isValidGatewayIp(ip)) throw new Error(`Opfield gRPC public target IPv6 address is invalid: ${ip}`);
+    if (!isValidOpfieldIp(ip)) throw new Error(`Opfield gRPC public target IPv6 address is invalid: ${ip}`);
     const port = normalizePort(rawPort);
     return port ? `[${ip}]:${port}` : ip;
   }
 
-  if (isValidGatewayIp(trimmed)) return trimmed;
+  if (isValidOpfieldIp(trimmed)) return trimmed;
 
   const hostWithPort = trimmed.match(/^([^:]+):(\d+)$/);
   const host = hostWithPort?.[1] ?? trimmed;
   const port = normalizePort(hostWithPort?.[2]);
-  if (!isValidGatewayHostname(host)) {
+  if (!isValidOpfieldHostname(host)) {
     throw new Error(`Opfield gRPC public target must be a hostname or IP address: ${trimmed}`);
   }
   return port ? `${host}:${port}` : host;
 }
 
-export function isValidGatewayIp(value: string): boolean {
+export function isValidOpfieldIp(value: string): boolean {
   return isIP(value) !== 0;
 }
 
-export function isValidGatewayHostname(value: string): boolean {
+export function isValidOpfieldHostname(value: string): boolean {
   if (value.length > 253 || value.endsWith('.')) return false;
   const labels = value.split('.');
   return labels.every((label) => /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(label));
@@ -243,24 +243,24 @@ export function normalizeIpPortTarget(value: string | null | undefined): string 
   const bracketedIpv6 = trimmed.match(/^\[([^\]]+)](?::(\d+))?$/);
   if (bracketedIpv6) {
     const [, ip, rawPort] = bracketedIpv6;
-    if (!isValidGatewayIp(ip)) throw new Error(`Opfield gRPC local IP must be an IPv4 or IPv6 address: ${ip}`);
+    if (!isValidOpfieldIp(ip)) throw new Error(`Opfield gRPC local IP must be an IPv4 or IPv6 address: ${ip}`);
     const port = normalizePort(rawPort);
     return port ? `[${ip}]:${port}` : ip;
   }
 
-  if (isValidGatewayIp(trimmed)) return trimmed;
+  if (isValidOpfieldIp(trimmed)) return trimmed;
 
   const ipv4WithPort = trimmed.match(/^([^:]+):(\d+)$/);
   if (ipv4WithPort) {
     const [, ip, rawPort] = ipv4WithPort;
-    if (!isValidGatewayIp(ip)) throw new Error(`Opfield gRPC local IP must be an IPv4 or IPv6 address: ${ip}`);
+    if (!isValidOpfieldIp(ip)) throw new Error(`Opfield gRPC local IP must be an IPv4 or IPv6 address: ${ip}`);
     return `${ip}:${normalizePort(rawPort)}`;
   }
 
   throw new Error(`Opfield gRPC local IP must be an IPv4 or IPv6 address: ${trimmed}`);
 }
 
-export function isValidGatewayIpPortTarget(value: string): boolean {
+export function isValidOpfieldIpPortTarget(value: string): boolean {
   try {
     normalizeIpPortTarget(value);
     return true;
@@ -269,7 +269,7 @@ export function isValidGatewayIpPortTarget(value: string): boolean {
   }
 }
 
-export function isValidGatewayHostPortTarget(value: string): boolean {
+export function isValidOpfieldHostPortTarget(value: string): boolean {
   try {
     normalizeHostPortTarget(value);
     return true;
@@ -287,7 +287,7 @@ export class GeneralSettingsService {
 
   constructor(
     private readonly db: DrizzleClient,
-    private readonly inferenceSetupEvents?: InferenceSetupEventsService,
+    private readonly inferenceCatalogEvents?: InferenceCatalogEventsService,
     private readonly eventBus?: EventBusService
   ) {}
 
@@ -406,7 +406,7 @@ export class GeneralSettingsService {
       externalBrandingChanged: current.hideExternalBranding !== next.hideExternalBranding,
     });
     if (current.features.inferenceEnabled !== next.features.inferenceEnabled) {
-      this.inferenceSetupEvents?.publishCatalogChanged();
+      this.inferenceCatalogEvents?.publishCatalogChanged();
     }
     if (current.features.inferenceEnabled && !next.features.inferenceEnabled) {
       await this.inferenceDisabledHandler?.();
@@ -444,11 +444,11 @@ export class GeneralSettingsService {
     return config.fileOpenMaxBytes;
   }
 
-  async getGatewayEndpointSettings(): Promise<Pick<GeneralSettings, 'gatewayGrpcPublicTarget' | 'gatewayGrpcLocalIp'>> {
+  async getOpfieldEndpointSettings(): Promise<Pick<GeneralSettings, 'grpcPublicTarget' | 'grpcLocalIp'>> {
     const config = await this.getConfig();
     return {
-      gatewayGrpcPublicTarget: config.gatewayGrpcPublicTarget,
-      gatewayGrpcLocalIp: config.gatewayGrpcLocalIp,
+      grpcPublicTarget: config.grpcPublicTarget,
+      grpcLocalIp: config.grpcLocalIp,
     };
   }
 
@@ -574,8 +574,8 @@ export class GeneralSettingsService {
       sendInvitationOnUserCreate: record.sendInvitationOnUserCreate === true,
       fileUploadMaxBytes,
       fileOpenMaxBytes,
-      gatewayGrpcPublicTarget: normalizeHostPortTarget(record.gatewayGrpcPublicTarget as string | null | undefined),
-      gatewayGrpcLocalIp: normalizeIpPortTarget(record.gatewayGrpcLocalIp as string | null | undefined),
+      grpcPublicTarget: normalizeHostPortTarget(record.grpcPublicTarget as string | null | undefined),
+      grpcLocalIp: normalizeIpPortTarget(record.grpcLocalIp as string | null | undefined),
       relayAutoRecovery:
         typeof record.relayAutoRecovery === 'boolean'
           ? record.relayAutoRecovery

@@ -32,7 +32,7 @@ import {
   parseCoreModelRows,
   parseCoreQuotaReports,
 } from '../core/inference-core-provider-map.js';
-import type { InferenceSetupEventsService } from '../inference-setup-events.service.js';
+import type { InferenceCatalogEventsService } from '../inference-catalog-events.service.js';
 import type { InferenceDestinationPolicy } from './inference-destination-policy.js';
 import type { InferenceProviderRegistry } from './inference-provider.registry.js';
 import {
@@ -81,7 +81,7 @@ export class InferenceProviderService {
     private readonly audit: AuditService,
     private readonly destinations: InferenceDestinationPolicy,
     private readonly coreBridge?: InferenceCoreBridgeService,
-    private readonly setupEvents?: InferenceSetupEventsService
+    private readonly catalogEvents?: InferenceCatalogEventsService
   ) {}
 
   /** Management delegates to the core as soon as it is installed and ready. */
@@ -250,7 +250,7 @@ export class InferenceProviderService {
       })
       .where(eq(inferenceProviderConnections.id, connectionId));
     const result = await this.getConnection(connectionId);
-    this.setupEvents?.publishCatalogChanged();
+    this.catalogEvents?.publishCatalogChanged();
     return result;
   }
 
@@ -304,7 +304,7 @@ export class InferenceProviderService {
       details: { fields: Object.keys(input) },
     });
     const result = await this.getConnection(connectionId);
-    this.setupEvents?.publishCatalogChanged();
+    this.catalogEvents?.publishCatalogChanged();
     return result;
   }
 
@@ -324,7 +324,7 @@ export class InferenceProviderService {
       resourceId: providerId,
       details: { routingStrategy },
     });
-    this.setupEvents?.publishCatalogChanged();
+    this.catalogEvents?.publishCatalogChanged();
     return { providerId, routingStrategy };
   }
 
@@ -348,7 +348,7 @@ export class InferenceProviderService {
       resourceType: 'inference_provider_connection',
       resourceId: connectionId,
     });
-    this.setupEvents?.publishCatalogChanged();
+    this.catalogEvents?.publishCatalogChanged();
   }
 
   start(): void {
@@ -705,7 +705,7 @@ export class InferenceProviderService {
         .where(eq(inferenceProviderConnections.id, connectionId));
     }
     const result = await this.getConnection(connectionId);
-    this.setupEvents?.publishCatalogChanged();
+    this.catalogEvents?.publishCatalogChanged();
     return result;
   }
 
@@ -876,15 +876,6 @@ export class InferenceProviderService {
             )
           );
         for (const { source } of existingPoolSources) {
-          const composition = source.metadata.composition;
-          if (
-            composition &&
-            typeof composition === 'object' &&
-            !Array.isArray(composition) &&
-            (composition as { role?: unknown }).role !== 'primary'
-          ) {
-            continue;
-          }
           const sourcesForUpstream = poolSourcesByUpstreamModel.get(source.upstreamModelId) ?? new Map();
           sourcesForUpstream.set(source.modelId, source);
           poolSourcesByUpstreamModel.set(source.upstreamModelId, sourcesForUpstream);

@@ -8,6 +8,9 @@ import { AppError } from '@/middleware/error-handler.js';
  */
 const RESERVED_DOCKER_LABEL_PREFIXES = [
   'com.docker.compose.',
+  'net.opfield.',
+  // The pre-Opfield namespaces stay reserved for good: containers created before the rename still carry them and
+  // older daemons still read them, so a user must never forge one on an object.
   'wiolett.gateway.',
   'net.wiolett.gateway.',
   'com.wiolett.gateway.',
@@ -45,6 +48,10 @@ export const DOCKER_DUPLICATE_LABEL_FILTER_CAPABILITY = 'docker_duplicate_label_
 
 /** Daemon-owned data describing the copied configuration itself; a duplicate keeps it. */
 const DUPLICATE_KEPT_LABELS = new Set([
+  'net.opfield.archive.image.reference',
+  'net.opfield.gpu.group-ids',
+  'net.opfield.gpu.group-ids-version',
+  // legacy-name: wiolett.gateway.* labels — remove once every node reports none
   'wiolett.gateway.archive.image.reference',
   'wiolett.gateway.gpu.group-ids',
   'wiolett.gateway.gpu.group-ids-version',

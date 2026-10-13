@@ -41,9 +41,9 @@ const RESERVED_SIEM_HEADER_NAMES = new Set([
   'transfer-encoding',
   'upgrade',
   'user-agent',
-  'x-gateway-schema-version',
-  'x-gateway-signature-256',
-  'x-gateway-timestamp',
+  'x-opfield-schema-version',
+  'x-opfield-signature-256',
+  'x-opfield-timestamp',
 ]);
 
 export const SiemCustomHeaderNameSchema = z

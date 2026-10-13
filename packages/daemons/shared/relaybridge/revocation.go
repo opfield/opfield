@@ -1,8 +1,8 @@
 package relaybridge
 
 import (
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // A relay that did not acknowledge a revoking policy in time may still admit

@@ -32,8 +32,8 @@ export const systemConfig = {
   publicUrl: "https://gateway.example.com",
   fileUploadMaxBytes: 100 * 1024 ** 2,
   fileOpenMaxBytes: 10 * 1024 ** 2,
-  gatewayGrpcPublicTarget: "gateway.example.com:9443",
-  gatewayGrpcLocalIp: "10.20.0.2",
+  grpcPublicTarget: "gateway.example.com:9443",
+  grpcLocalIp: "10.20.0.2",
   relayAutoRecovery: true,
   features: {
     pkiEnabled: true,
@@ -46,7 +46,7 @@ export const systemConfig = {
 
 export const aiStatus = {
   enabled: true,
-  providerType: "gateway_inference" as const,
+  providerType: "opfield_inference" as const,
   defaultModel: "gateway-large",
   allowUserModelSelection: true,
   allowUserReasoningEffortSelection: true,
@@ -81,7 +81,7 @@ export const updateStatus = {
     releaseUrl: null,
     operation: null,
   },
-  gatewayOperation: null,
+  opfieldOperation: null,
 };
 
 export const uiBootstrap: UIBootstrapShell = {

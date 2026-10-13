@@ -12,28 +12,30 @@ import (
 	"sync/atomic"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/logepisode"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
-	builderruntime "github.com/wiolett-industries/gateway/docker-daemon/internal/builder"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
-	runtimemanager "github.com/wiolett-industries/gateway/docker-daemon/internal/runtime"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/logepisode"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
+	builderruntime "github.com/opfield/opfield/docker-daemon/internal/builder"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
+	runtimemanager "github.com/opfield/opfield/docker-daemon/internal/runtime"
 )
 
 // DockerPlugin implements lifecycle.DaemonPlugin for the docker daemon.
 type DockerPlugin struct {
-	cfg     *config.Config
-	logger  *slog.Logger
-	client  *Client
-	version string // Docker engine version
+	// legacyNames counts the node's objects still under pre-Opfield names.
+	legacyNames legacyNameScan
+	cfg         *config.Config
+	logger      *slog.Logger
+	client      *Client
+	version     string // Docker engine version
 
 	allowlist       *AllowlistChecker
 	envStore        *EnvStore
@@ -158,8 +160,8 @@ type DockerPlugin struct {
 	sessionCtx       context.Context
 	// sessionLive: a Gateway control session is up (a manual pair's primary self-fences without it and its peer).
 	sessionLive atomic.Bool
-	// gatewayContactAt: when Gateway's last command arrived (leasefence clock, ns; 0: none yet).
-	gatewayContactAt atomic.Int64
+	// opfieldContactAt: when Gateway's last command arrived (leasefence clock, ns; 0: none yet).
+	opfieldContactAt atomic.Int64
 	logStreamMu      sync.Mutex
 	logStreamCancel  map[string]context.CancelFunc // containerId -> cancel
 }
@@ -253,10 +255,18 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		if err != nil {
 			return fmt.Errorf("initialize builder registry proxy: %w", err)
 		}
-		runtimeConfig := builderruntime.DefaultRuntimeConfig(0)
+		// A worker set up before Opfield keeps its runtime names until this
+		// start is confirmed (builder_rename.go).
+		naming := builderruntime.SelectNaming()
+		runtimeConfig := builderruntime.DefaultRuntimeConfigFor(naming, 0)
 		runtimeConfig.EgressProfile = p.cfg.Docker.Builder.EgressProfile
-		runtimeConfig.ControlPlaneAddress = p.cfg.Gateway.Address
+		runtimeConfig.ControlPlaneAddress = p.cfg.Control.Address
 		runtimeSupervisor := builderruntime.NewRuntimeSupervisor(runtimeConfig)
+		if !naming.Legacy {
+			if err := runtimeSupervisor.RemoveLegacyLeftovers(); err != nil {
+				p.logger.Warn("pre-Opfield builder runtime leftovers not removed", "error", err)
+			}
+		}
 		if err := runtimeSupervisor.InstallConfiguration(); err != nil {
 			return fmt.Errorf("install isolated builder runtime configuration: %w", err)
 		}
@@ -269,9 +279,12 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		p.builderManager = builderruntime.NewManager(
 			runtimeConfig,
 			filepath.Join(p.cfg.StateDir, "builder", "jobs"),
-			builderruntime.DefaultGitAskpassPath,
+			naming.GitAskpassPath(),
 			p.emitBuildEvent,
 		)
+		if naming.Legacy {
+			lifecycle.OnStartConfirmed(p.switchBuilderToOpfieldNaming)
+		}
 		p.logger.Info("builder profile initialized without Docker Engine access")
 		return nil
 	}

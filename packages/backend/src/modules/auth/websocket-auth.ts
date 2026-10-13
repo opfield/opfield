@@ -1,4 +1,5 @@
 import { hasScope, hasScopeBase } from '@/lib/permissions.js';
+import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { authenticateBearerToken } from '@/modules/auth/auth.middleware.js';
 import { requiresSessionMfaReauthentication, resolveLiveSessionUser } from '@/modules/auth/live-session-user.js';
 import { isDemoRealtimeCapabilityAllowed } from '@/modules/demo/demo-mode.js';
@@ -6,6 +7,7 @@ import type { User } from '@/types.js';
 import {
   getAcceptedSessionCookieNames,
   getSessionCookieNameForUrl,
+  hasInstallationSessionCookie,
   LEGACY_SESSION_COOKIE_NAME,
 } from './session-cookie.js';
 
@@ -40,7 +42,7 @@ export function getCookieValue(cookieHeader: string | undefined, name: string): 
 export function getBearerToken(authorizationHeader: string | undefined): string {
   if (!authorizationHeader?.startsWith('Bearer ')) return '';
   const token = authorizationHeader.slice(7).trim();
-  return token.startsWith('gw_') || token.startsWith('gwo_') ? token : '';
+  return hasTokenPrefix(token, 'api') || hasTokenPrefix(token, 'oauthAccess') ? token : '';
 }
 
 export function getSessionWebSocketCredential(
@@ -49,7 +51,7 @@ export function getSessionWebSocketCredential(
   isAllowedOrigin: (origin: string | undefined) => boolean
 ): WebSocketCredential | null {
   if (!isAllowedOrigin(origin)) return null;
-  if (cookieHeader?.includes('gateway_session_')) {
+  if (hasInstallationSessionCookie(cookieHeader)) {
     const preferredCookieName = origin ? getSessionCookieNameForUrl(origin) : null;
     if (preferredCookieName) {
       const preferredSessionId = getCookieValue(cookieHeader, preferredCookieName);

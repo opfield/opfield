@@ -11,8 +11,13 @@ import (
 )
 
 // dockerConfigBackupSuffix names the copy of the operator's daemon.json kept
-// before Gateway changes it for the first time.
-const dockerConfigBackupSuffix = ".gateway-backup"
+// before Opfield changes it for the first time.
+const dockerConfigBackupSuffix = ".opfield-backup"
+
+// legacyDockerConfigBackupSuffix is that copy as a pre-Opfield daemon kept it:
+// when it exists the operator's original is already kept there.
+// legacy-name: daemon.json.gateway-backup of pre-Opfield nodes — remove once every node reports none
+const legacyDockerConfigBackupSuffix = ".gateway-backup"
 
 const runscHostNetworkArg = "--network=host"
 
@@ -75,7 +80,8 @@ func writeRunscDockerConfig(path, runscPath string) (func() error, error) {
 	}
 	backupPath := path + dockerConfigBackupSuffix
 	backedUp := false
-	if existed {
+	_, legacyErr := os.Lstat(path + legacyDockerConfigBackupSuffix)
+	if existed && legacyErr != nil {
 		backedUp, err = backupDockerConfig(backupPath, original, originalMode)
 		if err != nil {
 			return nil, fmt.Errorf("back up Docker daemon config: %w", err)
@@ -129,7 +135,7 @@ func backupDockerConfig(path string, content []byte, mode os.FileMode) (bool, er
 }
 
 func writeDockerConfigFile(path string, content []byte, mode os.FileMode) error {
-	temp, err := os.CreateTemp(filepath.Dir(path), ".gateway-daemon-json-*")
+	temp, err := os.CreateTemp(filepath.Dir(path), ".opfield-daemon-json-*")
 	if err != nil {
 		return err
 	}

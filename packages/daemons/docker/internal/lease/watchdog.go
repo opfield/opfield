@@ -3,7 +3,7 @@ package lease
 import (
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 // Watchdog liveness has two thresholds (A12.4).

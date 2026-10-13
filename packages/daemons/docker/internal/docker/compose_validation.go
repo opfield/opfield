@@ -355,7 +355,7 @@ var composeContainerLinkNetworkKey = regexp.MustCompile(`^gateway_link_[0-9a-f]{
 // validateComposeNetworkNames keeps Compose networks off the host's network
 // namespaces and off the networks Gateway owns on the node, which a user
 // container may not join either (validateUserWorkloadNetworkMode, the
-// backend's isReservedGatewayNetworkName). Docker Compose joins an existing
+// backend's isReservedOpfieldNetworkName). Docker Compose joins an existing
 // network by its name, external or not, so the name decides: name: when
 // set, else the key of an external network. A name with a variable could
 // resolve to anything and is refused like a host path with one. The managed
@@ -376,7 +376,7 @@ func validateComposeNetworkNames(networks *yaml.Node) error {
 		if strings.Contains(name, "$") {
 			return fmt.Errorf("compose network %q name must not use variables", key)
 		}
-		if name != "host" && name != "none" && !isReservedGatewayNetworkName(name) {
+		if name != "host" && name != "none" && !isReservedOpfieldNetworkName(name) {
 			continue
 		}
 		if external && composeManagedDatabaseNetworkKey.MatchString(key) && strings.HasPrefix(name, "gateway-db-") {
@@ -390,10 +390,10 @@ func validateComposeNetworkNames(networks *yaml.Node) error {
 	return nil
 }
 
-// isReservedGatewayNetworkName mirrors the backend's isReservedGatewayNetworkName:
+// isReservedOpfieldNetworkName mirrors the backend's isReservedOpfieldNetworkName:
 // every name Gateway owns or will own on a node, the Secure Links management
 // network and managed database and storage link networks.
-func isReservedGatewayNetworkName(name string) bool {
+func isReservedOpfieldNetworkName(name string) bool {
 	return name == secureLinkManagementNetwork || strings.HasPrefix(name, "gateway-db-") || strings.HasPrefix(name, "gateway-storage-") ||
 		strings.HasPrefix(name, "gateway-link-")
 }
@@ -614,7 +614,9 @@ func validateServiceLabels(node *yaml.Node, reservedPolicy bool) error {
 	}
 	for key := range mappingValues(node) {
 		if !reservedPolicy {
-			if strings.HasPrefix(key, "com.docker.compose.") || strings.HasPrefix(key, "wiolett.gateway.compose.") {
+			if strings.HasPrefix(key, "com.docker.compose.") || strings.HasPrefix(key, "net.opfield.compose.") ||
+				// legacy-name: wiolett.gateway.compose.* labels of pre-Opfield Compose projects — remove once every node reports none
+				strings.HasPrefix(key, "wiolett.gateway.compose.") {
 				return fmt.Errorf("compose label %q is reserved by Docker Compose or Opfield", key)
 			}
 			continue
@@ -658,9 +660,9 @@ func injectComposeLabels(service *yaml.Node, projectID, digest string) {
 		labels = service.Content[len(service.Content)-1]
 	}
 	labels.Content = append(labels.Content,
-		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "wiolett.gateway.compose.managed"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "true"},
-		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "wiolett.gateway.compose.project-id"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: projectID},
-		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "wiolett.gateway.compose.revision"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: digest},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "net.opfield.compose.managed"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "true"},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "net.opfield.compose.project-id"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: projectID},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "net.opfield.compose.revision"}, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: digest},
 	)
 }
 

@@ -7,7 +7,7 @@ import type { PreferredInterface } from "@/services/api-auth";
 type Theme = "light" | "dark" | "system";
 type ResolvedTheme = "light" | "dark";
 
-export const UI_STORAGE_KEY = "gateway-ui";
+export const UI_STORAGE_KEY = "opfield-ui";
 
 interface ModalState {
   type: string | null;

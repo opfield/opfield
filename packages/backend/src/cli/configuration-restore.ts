@@ -70,7 +70,7 @@ async function main(): Promise<number> {
     return 1;
   }
   const current = {
-    gatewayVersion: process.env.APP_VERSION || 'dev',
+    opfieldVersion: process.env.APP_VERSION || 'dev',
     schemaMigration: currentSchemaMigration(),
   };
   const log = (line: string) => process.stderr.write(`${line}\n`);
@@ -78,7 +78,7 @@ async function main(): Promise<number> {
   if (command === 'inspect') {
     const header = await inspectExportFile(file);
     process.stdout.write(
-      `${JSON.stringify({ ok: true, gatewayVersion: header.gatewayVersion, schemaMigration: header.schemaMigration, createdAt: header.createdAt, current })}\n`
+      `${JSON.stringify({ ok: true, opfieldVersion: header.opfieldVersion, schemaMigration: header.schemaMigration, createdAt: header.createdAt, current })}\n`
     );
     return 0;
   }
@@ -113,7 +113,7 @@ async function main(): Promise<number> {
     },
     start: values.start ?? false,
     replaceConfigured: values['replace-existing'] ?? false,
-    archiveInGatewayData: values.wizard ?? false,
+    archiveInOpfieldData: values.wizard ?? false,
     statusFile: values['status-file'],
     ...(values['owner-link-claim-hash'] && /^[a-f0-9]{64}$/.test(values['owner-link-claim-hash'])
       ? { ownerLinkClaimHash: values['owner-link-claim-hash'] }

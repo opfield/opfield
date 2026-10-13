@@ -1,5 +1,6 @@
 import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import type { WebSocketAuthResult, WebSocketCredential } from '@/modules/auth/websocket-auth.js';
 import { AuditService } from './audit.service.js';
 import { getAuditRequestContext, runWithAuditRequestContext } from './audit-request-context.js';
@@ -22,7 +23,7 @@ export function captureWebSocketAuditOrigin(): WebSocketAuditOrigin {
 function credentialKind(credential: WebSocketCredential | null): string | undefined {
   if (!credential) return undefined;
   if (credential.type === 'session') return 'session';
-  return credential.value.startsWith('gwo_') ? 'oauth' : 'api_token';
+  return hasTokenPrefix(credential.value, 'oauthAccess') ? 'oauth' : 'api_token';
 }
 
 /**

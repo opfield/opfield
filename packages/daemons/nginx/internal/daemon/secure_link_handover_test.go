@@ -15,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 )
 
 const testMemberLinkID = "22222222-2222-4222-8222-222222222222"

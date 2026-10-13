@@ -7,7 +7,7 @@ import (
 	"github.com/moby/moby/api/types/events"
 	mobyclient "github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 )
 
 var _ lifecycle.HealthRefreshPlugin = (*DockerPlugin)(nil)

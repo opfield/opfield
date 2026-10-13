@@ -1,11 +1,14 @@
-import { createHash, createPublicKey, verify } from 'node:crypto';
+import { createHash, createPublicKey, verify, X509Certificate } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  configuredRegistryTokenService,
   DockerRegistryTokenService,
   dockerRegistryTokenContract,
+  LEGACY_REGISTRY_TOKEN_SERVICE,
+  REGISTRY_TOKEN_SERVICE,
   resolveDockerRegistryAuthDir,
 } from './docker-registry-token.service.js';
 
@@ -19,14 +22,14 @@ afterEach(async () => {
 describe('DockerRegistryTokenService', () => {
   it('uses a writable auth directory outside production', async () => {
     expect(resolveDockerRegistryAuthDir({ NODE_ENV: 'development' }, '/tmp/test-runtime')).toBe(
-      '/tmp/test-runtime/gateway-registry-auth'
+      '/tmp/test-runtime/opfield-registry-auth'
     );
     expect(resolveDockerRegistryAuthDir({ NODE_ENV: 'production' }, '/tmp/test-runtime')).toBe(
       '/var/lib/gateway-registry-auth'
     );
     expect(
       resolveDockerRegistryAuthDir(
-        { NODE_ENV: 'development', GATEWAY_REGISTRY_AUTH_DIR: '/custom/registry-auth' },
+        { NODE_ENV: 'development', OPFIELD_REGISTRY_AUTH_DIR: '/custom/registry-auth' },
         '/tmp/test-runtime'
       )
     ).toBe('/custom/registry-auth');
@@ -38,6 +41,7 @@ describe('DockerRegistryTokenService', () => {
     await service.initialize();
     const issued = service.issueToken({
       subject: 'builder:node-1:build-1',
+      service: dockerRegistryTokenContract.service,
       requested: [{ repository: 'gateway/source-1', actions: ['pull', 'push'] }],
       allowed: [{ repository: 'gateway/source-1', actions: ['pull', 'push'] }],
       context: { nodeId: 'node-1', buildId: 'build-1' },
@@ -69,6 +73,31 @@ describe('DockerRegistryTokenService', () => {
         Buffer.from(encodedSignature!, 'base64url')
       )
     ).toBe(true);
+  });
+
+  it('signs for the registry of either layout: the configured audience by default, the earlier name on request', async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-registry-token-'));
+    const service = new DockerRegistryTokenService(tempDir);
+    await service.initialize();
+    expect(new X509Certificate(service.getCertificatePem()).subject).toBe('CN=Opfield Internal Registry Token Signer');
+    const claims = (token: string) => JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString('utf8'));
+    const grant = [{ repository: 'gateway/source-1', actions: ['pull' as const] }];
+    expect(configuredRegistryTokenService({})).toBe(LEGACY_REGISTRY_TOKEN_SERVICE);
+    expect(configuredRegistryTokenService({ OPFIELD_REGISTRY_TOKEN_SERVICE: REGISTRY_TOKEN_SERVICE })).toBe(
+      REGISTRY_TOKEN_SERVICE
+    );
+    expect(configuredRegistryTokenService({ OPFIELD_REGISTRY_TOKEN_SERVICE: 'other' })).toBe(
+      LEGACY_REGISTRY_TOKEN_SERVICE
+    );
+    for (const audience of [REGISTRY_TOKEN_SERVICE, LEGACY_REGISTRY_TOKEN_SERVICE]) {
+      const payload = claims(
+        service.issueToken({ subject: 's', service: audience, requested: grant, allowed: grant }).token
+      );
+      expect(payload).toMatchObject({ iss: audience, aud: audience });
+    }
+    expect(() => service.issueToken({ subject: 's', service: 'other', requested: grant, allowed: grant })).toThrow(
+      /audience/
+    );
   });
 
   it('denies cross-repository and cross-action escalation', async () => {

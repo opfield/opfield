@@ -12,16 +12,16 @@ export function ConfigureAIWorkspaceWizard({
   onBack,
   onConfigured,
   onSkipped,
-  allowGatewayInference = true,
+  allowOpfieldInference = true,
   initialStepCanSkip = true,
   completionActionLabel,
   canManageInferenceCore,
 }: {
   open: boolean;
   onBack: () => void;
-  onConfigured: (configuredVia: "direct" | "gateway_inference") => Promise<void>;
+  onConfigured: (configuredVia: "direct" | "opfield_inference") => Promise<void>;
   onSkipped: () => Promise<void>;
-  allowGatewayInference?: boolean;
+  allowOpfieldInference?: boolean;
   initialStepCanSkip?: boolean;
   completionActionLabel?: string;
   canManageInferenceCore?: boolean;
@@ -45,11 +45,11 @@ export function ConfigureAIWorkspaceWizard({
         onDraftChange={setDraft}
         onBack={onBack}
         onConfigured={() =>
-          onConfigured(draft.source === "inference" ? "gateway_inference" : "direct")
+          onConfigured(draft.source === "inference" ? "opfield_inference" : "direct")
         }
         onSkipped={onSkipped}
         onNeedInference={() => setScreen("inference")}
-        allowGatewayInference={allowGatewayInference}
+        allowOpfieldInference={allowOpfieldInference}
         initialStepCanSkip={initialStepCanSkip}
         completionActionLabel={completionActionLabel}
       />
@@ -57,7 +57,7 @@ export function ConfigureAIWorkspaceWizard({
         open={open && screen === "inference"}
         canManageCoreOverride={canManageInferenceCore}
         onBack={() => setScreen("workspace")}
-        onConfigured={() => onConfigured("gateway_inference")}
+        onConfigured={() => onConfigured("opfield_inference")}
         onSkipped={async () => setScreen("workspace")}
         completionActionLabel={completionActionLabel}
       />

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/lease"
 )
 
 const errLeaseRuntimeUnavailable = "availability lease runtime is not running on this node"

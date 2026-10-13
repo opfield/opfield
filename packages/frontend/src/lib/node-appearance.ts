@@ -1,4 +1,4 @@
-import { isGatewayVersionNewer } from "@/lib/gateway-update-reload";
+import { isOpfieldVersionNewer } from "@/lib/opfield-update-reload";
 import { cn } from "@/lib/utils";
 import type { NodeAppearanceColor, NodeType } from "@/types";
 
@@ -119,5 +119,5 @@ export function isDaemonUpdateAvailable(
   daemonVersion: string | null | undefined,
   latestVersion: string | null | undefined
 ): latestVersion is string {
-  return !!latestVersion && isGatewayVersionNewer(latestVersion, daemonVersion ?? "");
+  return !!latestVersion && isOpfieldVersionNewer(latestVersion, daemonVersion ?? "");
 }

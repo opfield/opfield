@@ -5,7 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // managedLinkRuntimeCapability tells Gateway that the health report carries the connections of the node's managed

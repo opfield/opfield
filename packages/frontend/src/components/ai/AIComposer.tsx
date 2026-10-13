@@ -97,7 +97,7 @@ interface AIComposerProps {
   reasoningOptions?: string[];
   selectedReasoningEffort?: string | null;
   onReasoningEffortChange?: (effort: string) => void | Promise<void>;
-  gatewayInferenceMode?: boolean;
+  opfieldInferenceMode?: boolean;
   attachments?: AIComposerAttachment[];
   canAttachImages?: boolean;
   uploadingAttachments?: boolean;
@@ -528,7 +528,7 @@ export function AIComposer({
   reasoningOptions = [],
   selectedReasoningEffort,
   onReasoningEffortChange,
-  gatewayInferenceMode = false,
+  opfieldInferenceMode = false,
   attachments = [],
   canAttachImages = false,
   uploadingAttachments = false,
@@ -588,7 +588,7 @@ export function AIComposer({
   }, [context, conversationId, messages, selectedModel, selectedReasoningEffort]);
 
   const inferenceQuota = useInferenceQuota({
-    enabled: gatewayInferenceMode && canViewInferenceUsage,
+    enabled: opfieldInferenceMode && canViewInferenceUsage,
     isStreaming,
   });
   const disabled = !isConnected || !!retryAfter || interactionDisabled;

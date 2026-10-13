@@ -62,8 +62,8 @@ export interface SetupConfig {
   };
   general: {
     publicUrl: string | null;
-    gatewayGrpcPublicTarget: string | null;
-    gatewayGrpcLocalIp: string | null;
+    grpcPublicTarget: string | null;
+    grpcLocalIp: string | null;
   };
   networkSuggestions: { publicIps: string[]; localIps: string[] };
   auth: { methods: AuthMethodsDraft };

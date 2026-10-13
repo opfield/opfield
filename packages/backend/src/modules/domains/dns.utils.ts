@@ -80,7 +80,7 @@ export interface DnsProbeResult {
 
 export function dnsProbeName(domain: string, token = randomBytes(6).toString('hex')): string {
   const normalized = domain.trim().toLowerCase();
-  return normalized.startsWith('*.') ? `_gateway-check-${token}.${normalized.slice(2)}` : normalized;
+  return normalized.startsWith('*.') ? `_opfield-check-${token}.${normalized.slice(2)}` : normalized;
 }
 
 function isMissingAddressError(error: unknown): boolean {

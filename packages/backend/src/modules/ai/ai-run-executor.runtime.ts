@@ -61,7 +61,7 @@ import {
 import { redactOneTimeSecretToolResult } from './ai-secret-result-redaction.js';
 
 export abstract class AIRunExecutorRuntime {
-  protected readonly leaseOwner = `gateway-ai-${process.pid}-${randomUUID()}`;
+  protected readonly leaseOwner = `opfield-ai-${process.pid}-${randomUUID()}`;
   protected readonly abortControllers = new Map<string, AbortController>();
   protected readonly executingRuns = new Set<string>();
   protected readonly executionEpochs = new Map<string, number>();

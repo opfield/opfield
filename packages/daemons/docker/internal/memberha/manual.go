@@ -204,13 +204,13 @@ func (m *Manager) contactLocked(mem *member, now time.Duration) {
 		// could reach anyone.
 		mem.manual.lastContact = now
 	}
-	if m.deps.GatewayContactAt != nil {
+	if m.deps.OpfieldContactAt != nil {
 		// The last command that arrived from Gateway: a session that is dead
 		// without knowing it yet (keepalive) is no contact.
-		if at := m.deps.GatewayContactAt(); at > 0 && at <= now && at > mem.manual.lastContact {
+		if at := m.deps.OpfieldContactAt(); at > 0 && at <= now && at > mem.manual.lastContact {
 			mem.manual.lastContact = at
 		}
-	} else if m.deps.GatewayConnected() {
+	} else if m.deps.OpfieldConnected() {
 		mem.manual.lastContact = now
 	}
 	if mem.manual.peerReachable && now-mem.manual.peerAt <= peerProbeInterval+peerProbeTimeout {

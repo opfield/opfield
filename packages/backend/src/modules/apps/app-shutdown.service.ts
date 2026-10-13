@@ -19,11 +19,11 @@ function routeLabel(domains: readonly string[], id: string): string {
  * down, members take every change (deletes, unbinds, renames, migrations and moves included): Start brings back what
  * still exists and ends the items of deleted resources `gone` (DefaultAppIncidentActions.restore).
  */
-export function buildShutdownItems(targets: IncidentTargets, gatewayRouteIds: ReadonlySet<string>): NewIncidentItem[] {
+export function buildShutdownItems(targets: IncidentTargets, opfieldRouteIds: ReadonlySet<string>): NewIncidentItem[] {
   const items: NewIncidentItem[] = [];
   for (const route of targets.routes) {
     if (route.derived && !route.pages) continue;
-    if (!route.enabled || !routeTakesMaintenance(route) || gatewayRouteIds.has(route.id)) continue;
+    if (!route.enabled || !routeTakesMaintenance(route) || opfieldRouteIds.has(route.id)) continue;
     items.push({
       itemKind: 'route_overlay',
       itemKey: `route:${route.id}`,

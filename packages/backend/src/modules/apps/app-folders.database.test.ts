@@ -13,10 +13,10 @@ import { DockerFolderService } from '@/modules/docker/docker-folder.service.js';
 import { FolderService } from '@/modules/proxy/folder.service.js';
 import { AppFolderService } from './app-folders.service.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): hidden app folders never show in folder surfaces, are valid create
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): hidden app folders never show in folder surfaces, are valid create
  * destinations (environment folders only), refuse normal moves in and out, keep folder grants working, and deleting
  * an environment ungroups its members and drops the grants naming its folders.
  */

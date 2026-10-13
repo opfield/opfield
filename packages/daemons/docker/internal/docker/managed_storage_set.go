@@ -19,10 +19,10 @@ import (
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/swha"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/docker-daemon/internal/lease"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/swha"
 )
 
 // SeaweedFS availability set members (P2-T05). A storage-profile node runs one
@@ -38,7 +38,7 @@ import (
 
 const (
 	managedStorageSetPayloadVersion = 3
-	managedStorageRoleLabel         = "wiolett.gateway.managed-storage.role"
+	managedStorageRoleLabel         = "net.opfield.managed-storage.role"
 	seaweedfsSetMasterDataDir       = "/run/gateway-master"
 	seaweedfsSetStateRoot           = "seaweedfs-set"
 	seaweedfsSetHostsFile           = "hosts"
@@ -399,7 +399,7 @@ func (m *managedStorageManager) createSetContainer(ctx context.Context, record m
 		Labels: map[string]string{
 			managedStorageLabel: record.ID, managedStorageMemberLabel: strconv.Itoa(record.MemberIndex),
 			managedStorageEngineLabel: managedStorageEngineSeaweedFS, managedStorageRoleLabel: string(role),
-			"wiolett.gateway.availability-set": set.SetID,
+			"net.opfield.availability-set": set.SetID,
 		},
 		Healthcheck: seaweedfsSetHealthcheck(role, set, record.TLSEnabled),
 	}

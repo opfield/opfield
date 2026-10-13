@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 	"gopkg.in/yaml.v3"
 )
 
@@ -24,7 +24,8 @@ type DockerConfig struct {
 	// SecureLinks configures the networks of secure links (container, storage and database links).
 	SecureLinks SecureLinksConfig `yaml:"secure_links"`
 	// LeaseWatchdogDir is the tmpfs directory shared with the independent
-	// lease watchdog; empty means /run/gateway-lease-watchdog.
+	// lease watchdog; empty means /run/opfield-lease-watchdog (or its
+	// pre-Opfield name until the watchdog moved it).
 	LeaseWatchdogDir string `yaml:"lease_watchdog_dir"`
 	// LeaseWatchdogReleasesURL and LeaseWatchdogArtifactBaseURL override the
 	// update service used to bootstrap a missing watchdog (default: the
@@ -93,9 +94,10 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	cfg.ResolveControlSection()
 
-	if cfg.Gateway.Address == "" {
-		return nil, fmt.Errorf("gateway.address is required")
+	if cfg.Control.Address == "" {
+		return nil, fmt.Errorf("opfield.address is required")
 	}
 	if cfg.Docker.Mode != "" && cfg.Docker.Mode != "databases" && cfg.Docker.Mode != "storage" && cfg.Docker.Mode != "builder" {
 		return nil, fmt.Errorf("docker.mode must be empty, databases, storage, or builder")

@@ -126,7 +126,7 @@ func (p *DockerPlugin) openArchiveExport(ctx context.Context, archiveID, artifac
 		)
 		committed, err := p.client.cli.ContainerCommit(ctx, containerID, mobyclient.ContainerCommitOptions{
 			NoPause: true,
-			Comment: "Gateway portable container archive",
+			Comment: "Opfield portable container archive",
 			Config:  &commitConfig,
 		})
 		if err != nil {

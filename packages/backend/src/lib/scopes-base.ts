@@ -134,8 +134,8 @@ export const ALL_SCOPES = [
   'admin:update',
   'admin:alerts',
   // ── Gateway Settings ─────────────────────────────────────────────
-  'settings:gateway:view',
-  'settings:gateway:edit',
+  'settings:opfield:view',
+  'settings:opfield:edit',
   // ── Integrations: Git providers (GitLab, GitHub, generic Git) ────
   // Every Git provider uses the same verbs: view connectors, manage (and sync) them, use the
   // connector's system credential, and read or write repository content (files, CI, variables,
@@ -203,7 +203,6 @@ export const ALL_SCOPES = [
   'ai:sandbox:manage',
   'mcp:use',
   // ── Inference ────────────────────────────────────────────────────
-  'inference:setup',
   'inference:providers:view',
   'inference:providers:manage',
   'inference:models:manage',
@@ -307,7 +306,7 @@ export const ALL_SCOPES = [
 export type Scope = (typeof ALL_SCOPES)[number];
 
 /**
- * AI Workspace chat, skills, sandbox, the MCP account gate, and the OAuth-only inference setup grant.
+ * AI Workspace chat, skills, sandbox, and the MCP account gate.
  * `feat:ai:use` is not here: it gates Gateway Inference (a resource, including personal `gwi_` keys).
  */
 export const USER_ONLY_SCOPES = [
@@ -319,7 +318,6 @@ export const USER_ONLY_SCOPES = [
   'ai:sandbox:tier:high',
   'ai:sandbox:manage',
   'mcp:use',
-  'inference:setup',
 ] as const;
 /**
  * Scopes that API tokens and OAuth grants (REST and MCP) can never carry. Programmatic access may do

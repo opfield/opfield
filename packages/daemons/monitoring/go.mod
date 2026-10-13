@@ -1,11 +1,11 @@
-module github.com/wiolett-industries/gateway/monitoring-daemon
+module github.com/opfield/opfield/monitoring-daemon
 
 go 1.24.4
 
-replace github.com/wiolett-industries/gateway/daemon-shared => ../shared
+replace github.com/opfield/opfield/daemon-shared => ../shared
 
 require (
-	github.com/wiolett-industries/gateway/daemon-shared v0.0.0
+	github.com/opfield/opfield/daemon-shared v0.0.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

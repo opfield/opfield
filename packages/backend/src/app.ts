@@ -16,11 +16,11 @@ import { getEnv, isDevelopment } from '@/config/env.js';
 import { container, TOKENS } from '@/container.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { COMMERCIAL_ONLY_ROUTE_PREFIXES, commercialUnavailableRoutes } from '@/edition/unavailable-routes.js';
-import { GATEWAY_RESTARTING_HTML, GATEWAY_RESTARTING_SCRIPT, gatewayNotFoundHtml } from '@/lib/gateway-error-pages.js';
 import { injectLoginAuthMethods } from '@/lib/login-page.js';
 import { ONE_TIME_LINK_TOKEN_PATH } from '@/lib/one-time-link-path.js';
 import { tags as openApiTags, openApiValidationHook, securitySchemes } from '@/lib/openapi.js';
 import { IDEMPOTENCY_API_DESCRIPTION, withIdempotencyKeyDocumentation } from '@/lib/openapi-idempotency.js';
+import { OPFIELD_RESTARTING_HTML, OPFIELD_RESTARTING_SCRIPT, opfieldNotFoundHtml } from '@/lib/opfield-error-pages.js';
 import { absolutizeShareImageUrls } from '@/lib/spa-index-page.js';
 import { auditContextMiddleware } from '@/middleware/audit-context.js';
 import { emptyJsonBodyMiddleware } from '@/middleware/empty-json-body.js';
@@ -97,8 +97,6 @@ import { createCoreResponsesWSHandlers } from '@/modules/inference/core/inferenc
 import { inferenceManagementRoutes } from '@/modules/inference/inference.routes.js';
 import { inferenceAuthMiddleware } from '@/modules/inference/inference-auth.middleware.js';
 import { inferenceDataPlaneRoutes } from '@/modules/inference/inference-data-plane.routes.js';
-import { inferenceDiscoveryRoutes } from '@/modules/inference/inference-discovery.routes.js';
-import { inferenceSetupRoutes } from '@/modules/inference/inference-setup.routes.js';
 import { ingressGroupRoutes } from '@/modules/ingress-groups/ingress-group.routes.js';
 import { integrationsRoutes } from '@/modules/integrations/integrations.routes.js';
 import { licenseRoutes } from '@/modules/license/license.routes.js';
@@ -142,7 +140,7 @@ import { tokensRoutes } from '@/modules/tokens/tokens.routes.js';
 import { uiBootstrapRoutes } from '@/modules/ui-bootstrap/ui-bootstrap.routes.js';
 import type { RedisClient } from '@/services/cache.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
-import { GatewayLifecycleService } from '@/services/gateway-lifecycle.service.js';
+import { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import type { AppEnv } from '@/types.js';
 import { authenticateEventsConnection, createEventsWSHandlers } from '@/ws/events.ws.js';
 
@@ -151,7 +149,10 @@ const OPENAPI_DOCUMENT_PATH = '/api/openapi.json';
 const HEALTH_REDIS_TIMEOUT_MS = 1000;
 const INFERENCE_RESPONSES_WEBSOCKET_PATH = '/api/inference/v1/responses';
 const ENVIRONMENT_SETTINGS_KEY = 'environment:settings';
-const GATEWAY_RESTARTING_SCRIPT_PATH = '/gateway-restarting.js';
+const OPFIELD_RESTARTING_SCRIPT_PATH = '/opfield-restarting.js';
+// legacy-name: restart page script path of error pages rendered before 2.12.1 (nginx node configs re-render on their
+// next sync) — remove once no node config references it
+const LEGACY_RESTARTING_SCRIPT_PATH = '/gateway-restarting.js';
 const DOCKER_FILE_BODY_LIMIT_PATH =
   /^\/api\/docker\/nodes\/[^/]+\/(?:containers\/[^/]+\/files\/(?:write|create|uploads\/[^/]+\/chunks)|volumes\/[^/]+\/files\/(?:write|create|uploads\/[^/]+\/chunks))$/;
 const NODE_FILE_BODY_LIMIT_PATH = /^\/api\/nodes\/[^/]+\/files\/(?:write|create|uploads\/[^/]+\/chunks)$/;
@@ -422,7 +423,7 @@ function getLocalInterfaceAddresses(): Set<string> {
     .flatMap((entries) => entries ?? [])
     .map((entry) => entry.address.toLowerCase());
   addresses.push(
-    ...(process.env.GATEWAY_LOCAL_HOSTS?.split(',')
+    ...(process.env.OPFIELD_LOCAL_HOSTS?.split(',')
       .map((address) => address.trim().toLowerCase())
       .filter(Boolean) ?? [])
   );
@@ -458,13 +459,13 @@ async function getPostgresHealth(): Promise<'ok' | 'unavailable'> {
   return (await container.resolve(PostgresProbe).probe()).status;
 }
 
-export interface GatewayAppRuntime {
+export interface OpfieldAppRuntime {
   app: OpenAPIHono<AppEnv>;
   injectWebSocket: NodeWebSocket['injectWebSocket'];
   wss: NodeWebSocket['wss'];
 }
 
-export function createApp(): GatewayAppRuntime {
+export function createApp(): OpfieldAppRuntime {
   const app = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
   // WebSocket support for AI assistant
@@ -518,7 +519,7 @@ export function createApp(): GatewayAppRuntime {
     const hideExternalBranding = container.isRegistered(GeneralSettingsService)
       ? (await container.resolve(GeneralSettingsService).getConfig()).hideExternalBranding
       : false;
-    return c.html(gatewayNotFoundHtml(hideExternalBranding), 404);
+    return c.html(opfieldNotFoundHtml(hideExternalBranding), 404);
   });
   app.use(
     '*',
@@ -562,7 +563,7 @@ export function createApp(): GatewayAppRuntime {
   );
 
   app.use('*', async (c, next) => {
-    const lifecycle = container.resolve(GatewayLifecycleService);
+    const lifecycle = container.resolve(OpfieldLifecycleService);
     if (lifecycle.getState() === 'running') {
       await acceptedOperations.run(next);
       return;
@@ -577,11 +578,14 @@ export function createApp(): GatewayAppRuntime {
     c.header('Retry-After', '1');
     c.header('Connection', 'close');
     c.header('Cache-Control', 'no-store');
-    if (path === GATEWAY_RESTARTING_SCRIPT_PATH && c.req.method.toUpperCase() === 'GET') {
-      return c.body(GATEWAY_RESTARTING_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=UTF-8' });
+    if (
+      (path === OPFIELD_RESTARTING_SCRIPT_PATH || path === LEGACY_RESTARTING_SCRIPT_PATH) &&
+      c.req.method.toUpperCase() === 'GET'
+    ) {
+      return c.body(OPFIELD_RESTARTING_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=UTF-8' });
     }
     if (isBrowserDocumentRequest(c.req.method, path, c.req.header('accept'), c.req.header('sec-fetch-dest'))) {
-      return c.html(GATEWAY_RESTARTING_HTML, 503);
+      return c.html(OPFIELD_RESTARTING_HTML, 503);
     }
     return c.json({ code: 'SERVICE_RESTARTING', message: 'Opfield is restarting' }, 503);
   });
@@ -741,7 +745,6 @@ export function createApp(): GatewayAppRuntime {
   app.use('/api/setup/*', setupRateLimitMiddleware);
   app.use('/api/ai/ws', aiWebSocketRateLimitMiddleware);
   app.use('/api/events', streamRateLimitMiddleware);
-  app.use('/api/inference/setup/events', streamRateLimitMiddleware);
   app.use('/api/docker/nodes/:nodeId/containers/:containerId/exec', streamRateLimitMiddleware);
   app.use('/api/nodes/:nodeId/exec', streamRateLimitMiddleware);
   app.use('/api/docker/nodes/:nodeId/containers/:containerId/logs/stream', streamRateLimitMiddleware);
@@ -767,7 +770,7 @@ export function createApp(): GatewayAppRuntime {
     return c.json(
       {
         status: healthy ? 'ok' : 'unavailable',
-        lifecycleState: container.resolve(GatewayLifecycleService).getState(),
+        lifecycleState: container.resolve(OpfieldLifecycleService).getState(),
         version: getEnv().APP_VERSION,
         timestamp: new Date().toISOString(),
         dependencies: { redis, postgres },
@@ -811,7 +814,6 @@ export function createApp(): GatewayAppRuntime {
   // Auth routes
   app.route('/auth', authRoutes);
   app.route('/.well-known', oauthMetadataRoutes);
-  app.route('/.well-known', inferenceDiscoveryRoutes);
 
   // Protected API routes
   app.route('/api/oauth', oauthRoutes);
@@ -831,7 +833,6 @@ export function createApp(): GatewayAppRuntime {
     })
   );
   app.route('/api/inference/v1', inferenceDataPlaneRoutes);
-  app.route('/api/inference/setup', inferenceSetupRoutes);
   app.route('/api/inference/core', inferenceCoreLifecycleRoutes);
   app.route('/api/inference', inferenceManagementRoutes);
   app.route('/api/mcp/.well-known', oauthMetadataRoutes);
@@ -1102,7 +1103,7 @@ export function createApp(): GatewayAppRuntime {
       title: 'Opfield API',
       version: '1.0.0',
       description:
-        'Opfield is an infrastructure control plane for managing nodes, reverse proxies, Docker workloads, certificates, databases, logging, monitoring, status pages, notifications, and operational automation.\n\n## Authentication\n\nBrowser sessions authenticate through the HttpOnly `session_id` cookie set by OIDC login. Cookie-authenticated mutating requests must include `X-CSRF-Token` from `/auth/csrf`.\n\nAPI tokens use `Authorization: Bearer gw_...` for programmatic REST access. OAuth public clients use Authorization Code + PKCE and Opfield-issued `gwo_...` access tokens for the same programmatic API surface.\n\n## Remote MCP\n\n`POST /api/mcp` exposes Opfield through stateless Streamable HTTP MCP. It accepts only OAuth `gwo_...` access tokens issued for the Opfield MCP resource. Browser cookies, `gw_...` API tokens, and `gwl_...` logging ingest tokens are not accepted.\n\n## Public PKI Endpoints\n\nCRL and OCSP endpoints under `/pki/` are unauthenticated and publicly accessible.\n\n' +
+        'Opfield is an infrastructure control plane for managing nodes, reverse proxies, Docker workloads, certificates, databases, logging, monitoring, status pages, notifications, and operational automation.\n\n## Authentication\n\nBrowser sessions authenticate through the HttpOnly `session_id` cookie set by OIDC login. Cookie-authenticated mutating requests must include `X-CSRF-Token` from `/auth/csrf`.\n\nAPI tokens use `Authorization: Bearer opf_...` for programmatic REST access. OAuth public clients use Authorization Code + PKCE and Opfield-issued `opfo_...` access tokens for the same programmatic API surface.\n\n## Remote MCP\n\n`POST /api/mcp` exposes Opfield through stateless Streamable HTTP MCP. It accepts only OAuth `opfo_...` access tokens issued for the Opfield MCP resource. Browser cookies, `opf_...` API tokens, and `opfl_...` logging ingest tokens are not accepted.\n\n## Public PKI Endpoints\n\nCRL and OCSP endpoints under `/pki/` are unauthenticated and publicly accessible.\n\n' +
         IDEMPOTENCY_API_DESCRIPTION,
     },
     servers: [

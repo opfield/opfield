@@ -53,7 +53,8 @@ func (m *dockerSecureLinkManager) watchConnectorStarts(ctx context.Context) bool
 	defer cancel()
 	filters := mobyclient.Filters{}.
 		Add("type", string(events.ContainerEventType)).
-		Add("label", "wiolett.gateway.managed=secure-link-connector").
+		// No label filter: a connector created before Opfield carries its
+		// label under the pre-Opfield key; the name check below selects it.
 		Add("event", string(events.ActionStart)).
 		Add("event", string(events.ActionRestart)).
 		Add("event", string(events.ActionKill))

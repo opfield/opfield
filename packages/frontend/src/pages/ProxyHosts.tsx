@@ -52,7 +52,7 @@ import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { findFolderTreeNode } from "@/lib/folder-tree";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
-import { isGatewayPublicRoute } from "@/lib/proxy-route-protection";
+import { isOpfieldPublicRoute } from "@/lib/proxy-route-protection";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
@@ -95,7 +95,7 @@ export function ProxyHosts({
 } = {}) {
   const navigate = useNavigate();
   const { hasScope, hasScopedAccess, user } = useAuthStore();
-  const gatewayPublicUrl = useUIBootstrapStore(
+  const opfieldPublicUrl = useUIBootstrapStore(
     (state) => state.snapshot?.systemConfig.publicUrl ?? null
   );
   const {
@@ -454,7 +454,7 @@ export function ProxyHosts({
   const canMoveHostToApp = (host: ProxyHost) =>
     !host.app &&
     !host.isSystem &&
-    !isGatewayPublicRoute(host, gatewayPublicUrl) &&
+    !isOpfieldPublicRoute(host, opfieldPublicUrl) &&
     canEditHost(host);
   const canMoveHostTo = (folderId: string | null) =>
     canCreateInFolder(user?.scopes ?? [], "proxy:edit", folderId) && canManageFolderAt(folderId);
@@ -543,7 +543,7 @@ export function ProxyHosts({
       width: "5.5rem",
       align: "right",
       renderCell: (host) => {
-        const publicRouteLocked = isGatewayPublicRoute(host, gatewayPublicUrl) && host.enabled;
+        const publicRouteLocked = isOpfieldPublicRoute(host, opfieldPublicUrl) && host.enabled;
         return (
           <div onClick={(e) => e.stopPropagation()}>
             {host.isSystem || publicRouteLocked ? (
@@ -589,7 +589,7 @@ export function ProxyHosts({
                       <DropdownMenuItem
                         disabled={
                           togglingIds.has(host.id) ||
-                          (isGatewayPublicRoute(host, gatewayPublicUrl) &&
+                          (isOpfieldPublicRoute(host, opfieldPublicUrl) &&
                             !host.maintenanceEnabled) ||
                           (!host.maintenanceEnabled &&
                             (!host.enabled || host.type !== "proxy" || host.rawConfigEnabled))

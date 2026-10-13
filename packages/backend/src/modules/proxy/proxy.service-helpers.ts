@@ -153,9 +153,11 @@ export function storedRawConfigForRawModeEnablement(
  * upstream block is named after the Route and points at the link's socket.
  */
 export function rawConfigUsesSecureLink(hostId: string, rawConfig: string): boolean {
-  return (
-    rawConfig.includes(`/run/gateway-secure-links/${hostId}.sock`) ||
-    rawConfig.includes(`gateway_secure_link_${hostId.replace(/-/g, '_')}`)
+  // legacy-name: raw configs saved before 2.12.1 name the pre-Opfield socket and upstream — remove once every node reports none
+  return ['opfield', 'gateway'].some(
+    (prefix) =>
+      rawConfig.includes(`/run/${prefix}-secure-links/${hostId}.sock`) ||
+      rawConfig.includes(`${prefix}_secure_link_${hostId.replace(/-/g, '_')}`)
   );
 }
 
@@ -213,12 +215,12 @@ export function getStatusPageUpstream(upstreamUrl: string | null | undefined): {
 export type StatusPageDefaultUpstreamContext = {
   /** Addresses the status page ingress node reports for itself. */
   nodeAddresses: readonly string[];
-  /** Interface addresses of the Gateway host (GATEWAY_LOCAL_HOSTS). */
-  gatewayHostAddresses: readonly string[];
+  /** Interface addresses of the Gateway host (OPFIELD_LOCAL_HOSTS). */
+  opfieldHostAddresses: readonly string[];
   /** Gateway host address local nodes enroll with, optionally with the gRPC port. */
-  gatewayLocalTarget: string | null | undefined;
+  opfieldLocalTarget: string | null | undefined;
   /** Gateway host public nodes enroll with, optionally with the gRPC port. */
-  gatewayPublicTarget: string | null | undefined;
+  opfieldPublicTarget: string | null | undefined;
   /** Gateway serves its web port with native HTTPS. */
   tlsEnabled: boolean;
   port: number;
@@ -241,12 +243,12 @@ function enrollmentTargetHost(target: string | null | undefined): string | null 
  */
 export function defaultStatusPageUpstreamUrl(context: StatusPageDefaultUpstreamContext): string {
   const normalize = (address: string) => address.trim().toLowerCase();
-  const gatewayHost = new Set(context.gatewayHostAddresses.map(normalize).filter(Boolean));
-  const onGatewayHost = context.nodeAddresses.some((address) => gatewayHost.has(normalize(address)));
-  const host = onGatewayHost
+  const gatewayHost = new Set(context.opfieldHostAddresses.map(normalize).filter(Boolean));
+  const onOpfieldHost = context.nodeAddresses.some((address) => gatewayHost.has(normalize(address)));
+  const host = onOpfieldHost
     ? '127.0.0.1'
-    : (enrollmentTargetHost(context.gatewayLocalTarget) ??
-      enrollmentTargetHost(context.gatewayPublicTarget) ??
+    : (enrollmentTargetHost(context.opfieldLocalTarget) ??
+      enrollmentTargetHost(context.opfieldPublicTarget) ??
       '127.0.0.1');
   return `${context.tlsEnabled ? 'https' : 'http'}://${isIP(host) === 6 ? `[${host}]` : host}:${context.port}`;
 }

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	sharedstate "github.com/wiolett-industries/gateway/daemon-shared/state"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	sharedstate "github.com/opfield/opfield/daemon-shared/state"
+	"github.com/opfield/opfield/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 const (
@@ -70,21 +70,21 @@ func (h *reloadTestHandler) reloads(t *testing.T) int {
 	return strings.Count(string(data), "-s reload")
 }
 
-func (h *reloadTestHandler) run(t *testing.T, command *pb.GatewayCommand) {
+func (h *reloadTestHandler) run(t *testing.T, command *pb.OpfieldCommand) {
 	t.Helper()
 	if result := h.HandleCommand(command); !result.Success {
 		t.Fatalf("command failed: %s", result.Error)
 	}
 }
 
-func applyConfig(hostID, content string, deferred bool) *pb.GatewayCommand {
-	return &pb.GatewayCommand{Payload: &pb.GatewayCommand_ApplyConfig{ApplyConfig: &pb.ApplyConfigCommand{
+func applyConfig(hostID, content string, deferred bool) *pb.OpfieldCommand {
+	return &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_ApplyConfig{ApplyConfig: &pb.ApplyConfigCommand{
 		HostId: hostID, ConfigContent: content, DeferReload: deferred,
 	}}}
 }
 
-func tlsBundle(hostID, content, version, replicaGeneration string, deferred bool) *pb.GatewayCommand {
-	return &pb.GatewayCommand{Payload: &pb.GatewayCommand_ApplyTlsBundle{ApplyTlsBundle: &pb.ApplyTlsBundleCommand{
+func tlsBundle(hostID, content, version, replicaGeneration string, deferred bool) *pb.OpfieldCommand {
+	return &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_ApplyTlsBundle{ApplyTlsBundle: &pb.ApplyTlsBundleCommand{
 		HostId: hostID, ConfigContent: content, Generation: strings.Repeat("e", 64), DeferReload: deferred,
 		Certificates: []*pb.VersionedCertBundle{{
 			CertId: reloadTestCert, CertPem: []byte("certificate\n"), KeyPem: []byte("key\n"),
@@ -107,7 +107,7 @@ func TestReconnectResyncOfUnchangedContentDoesNotReload(t *testing.T) {
 	// The reconnect resync: the same routes, the bundle with a new replica generation, then the full sync.
 	h.run(t, applyConfig(reloadTestHostA, "server { listen 80; }\n", true))
 	h.run(t, tlsBundle(reloadTestHostB, "server { listen 443 ssl; }\n", versionA, "2", true))
-	h.run(t, &pb.GatewayCommand{Payload: &pb.GatewayCommand_FullSync{FullSync: &pb.FullSyncCommand{Hosts: []*pb.HostConfig{
+	h.run(t, &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_FullSync{FullSync: &pb.FullSyncCommand{Hosts: []*pb.HostConfig{
 		{HostId: reloadTestHostA, ConfigContent: "server { listen 80; }\n"},
 		{HostId: reloadTestHostB, ConfigContent: "server { listen 443 ssl; }\n"},
 	}}}})
@@ -116,7 +116,7 @@ func TestReconnectResyncOfUnchangedContentDoesNotReload(t *testing.T) {
 	if got := h.reloads(t); got != 2 {
 		t.Fatalf("a resync of unchanged content reloaded nginx %d times", got-2)
 	}
-	generation, err := os.ReadFile(filepath.Join(h.cfg.Nginx.CertsDir, reloadTestCert, ".gateway-replica-generation"))
+	generation, err := os.ReadFile(filepath.Join(h.cfg.Nginx.CertsDir, reloadTestCert, ".opfield-replica-generation"))
 	if err != nil || string(generation) != "2" {
 		t.Fatalf("replica generation of an unchanged bundle = %q, %v; want it recorded", generation, err)
 	}
@@ -138,7 +138,7 @@ func TestDeferredChangesLoadWithOneReload(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(h.stateDir, "nginx-reload-pending")); err != nil {
 		t.Fatalf("the pending reload is not recorded for a daemon restart: %v", err)
 	}
-	h.run(t, &pb.GatewayCommand{Payload: &pb.GatewayCommand_FullSync{FullSync: &pb.FullSyncCommand{Hosts: []*pb.HostConfig{
+	h.run(t, &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_FullSync{FullSync: &pb.FullSyncCommand{Hosts: []*pb.HostConfig{
 		{HostId: reloadTestHostA, ConfigContent: "server { listen 8080; }\n"},
 		{HostId: reloadTestHostB, ConfigContent: "server { listen 443 ssl; }\n"},
 	}}}})

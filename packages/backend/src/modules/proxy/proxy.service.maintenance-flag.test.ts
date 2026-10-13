@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree.js';
 import { MAINTENANCE_FLAG_CAPABILITY, MAINTENANCE_FLAG_DIR } from './nginx-maintenance-flag-guard.js';
+import { NGINX_OPFIELD_NAMES_CAPABILITY } from './nginx-node-names.js';
 import { NginxTemplateService } from './nginx-template.service.js';
 import { ProxyService } from './proxy.service.js';
 
@@ -96,11 +97,13 @@ describe('Maintenance mode on a node that keeps maintenance flags', () => {
     const enter = toggleHarness(route(false), route(true), [
       'proxy_maintenance_access_v1',
       MAINTENANCE_FLAG_CAPABILITY,
+      NGINX_OPFIELD_NAMES_CAPABILITY,
     ]);
     await enter.service.toggleMaintenance(HOST_ID, true, 'user-id');
     const leave = toggleHarness(route(true), route(false), [
       'proxy_maintenance_access_v1',
       MAINTENANCE_FLAG_CAPABILITY,
+      NGINX_OPFIELD_NAMES_CAPABILITY,
     ]);
     await leave.service.toggleMaintenance(HOST_ID, false, 'user-id');
 
@@ -111,6 +114,19 @@ describe('Maintenance mode on a node that keeps maintenance flags', () => {
     // (node, host, config, testOnly, ownership, deferReload, maintenance)
     expect(entered![6]).toBe(true);
     expect(left![6]).toBe(false);
+  });
+
+  it('renders the guard with the pre-Opfield names for a node that has not moved to the Opfield ones', async () => {
+    const enter = toggleHarness(route(false), route(true), [
+      'proxy_maintenance_access_v1',
+      MAINTENANCE_FLAG_CAPABILITY,
+    ]);
+    await enter.service.toggleMaintenance(HOST_ID, true, 'user-id');
+    const config = enter.applyConfig.mock.calls[0]![2] as string;
+    expect(config).toContain(`if (-f /etc/nginx/gateway/maintenance/${HOST_ID})`);
+    expect(config).toContain('set $gateway_maintenance 1;');
+    expect(config).toContain('location = gateway-maintenance-access {');
+    expect(config).not.toMatch(/\$opfield_|opfield-maintenance|\/etc\/nginx\/opfield|X-Opfield-/);
   });
 
   it('keeps reloading on a node without maintenance flags', async () => {
@@ -235,8 +251,8 @@ describe('Maintenance access cookies on a node without maintenance flags', () =>
     const suffix = HOST_ID.replace(/-/g, '_');
     const forward = (cookie: string) =>
       applyMap(config, `$gm_cookie_${suffix}`, applyMap(config, `$gms_${suffix}`, cookie));
-    const sig = 'gateway_maintenance_access_sig=S1g';
-    const exp = 'gateway_maintenance_access_exp=1700000000';
+    const sig = 'opfield_maintenance_access_sig=S1g';
+    const exp = 'opfield_maintenance_access_exp=1700000000';
 
     expect(forward(`${sig}; ${exp}; mine=1`)).toBe('mine=1');
     expect(forward(`${sig}; mine=1; ${exp}`)).toBe('mine=1');

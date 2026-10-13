@@ -14,7 +14,7 @@ import (
 
 const (
 	managedStorageConnectorWorkload = "managed-storage-connector"
-	managedStorageConnectorLabel    = "wiolett.gateway.internal-workload"
+	managedStorageConnectorLabel    = "net.opfield.internal-workload"
 )
 
 func (p *DockerPlugin) createManagedStorageConnector(ctx context.Context, raw string) (string, string, error) {
@@ -66,12 +66,7 @@ func validateManagedStorageConnectorConfig(config ContainerCreateConfig, socketD
 	if config.InternalWorkload != managedStorageConnectorWorkload || !allowedSecureLinkConnectorImage(config.Image) {
 		return errors.New("invalid managed storage connector workload image")
 	}
-	bindingID := ""
-	for _, value := range config.Env {
-		if strings.HasPrefix(value, "GATEWAY_CONNECTOR_BINDING_ID=") {
-			bindingID = strings.TrimPrefix(value, "GATEWAY_CONNECTOR_BINDING_ID=")
-		}
-	}
+	bindingID := connectorEnvValue(config.Env, "BINDING_ID")
 	if bindingID == "" || config.Name != "gateway-storage-connector-"+bindingID {
 		return errors.New("managed storage connector name must be derived from its binding id")
 	}

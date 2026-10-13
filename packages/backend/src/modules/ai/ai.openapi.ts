@@ -10,7 +10,7 @@ export const aiStatusRoute = appRoute({
   responses: okJson(
     z.object({
       enabled: z.boolean(),
-      providerType: z.enum(['openai_compatible', 'gateway_inference']),
+      providerType: z.enum(['openai_compatible', 'opfield_inference']),
       defaultModel: z.string(),
       allowUserModelSelection: z.boolean(),
       allowUserReasoningEffortSelection: z.boolean(),

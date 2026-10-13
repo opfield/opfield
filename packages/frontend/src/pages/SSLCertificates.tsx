@@ -220,7 +220,7 @@ export function SSLCertificates() {
 
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
-    const gatewayDev = ((window as Window & { gatewayDev?: Record<string, unknown> }).gatewayDev ??=
+    const opfieldDev = ((window as Window & { opfieldDev?: Record<string, unknown> }).opfieldDev ??=
       {});
     const openDns01Modal = () => {
       setHasDomains(true);
@@ -252,33 +252,33 @@ export function SSLCertificates() {
       });
       setCreateDialogOpen(true);
     };
-    gatewayDev.openSslDns01Modal = openDns01Modal;
-    gatewayDev.openSslHttp01Modal = openHttp01Modal;
+    opfieldDev.openSslDns01Modal = openDns01Modal;
+    opfieldDev.openSslHttp01Modal = openHttp01Modal;
     (
       window as Window & {
-        gatewayDevOpenSslDns01Modal?: () => void;
-        gatewayDevOpenSslHttp01Modal?: () => void;
+        opfieldDevOpenSslDns01Modal?: () => void;
+        opfieldDevOpenSslHttp01Modal?: () => void;
       }
-    ).gatewayDevOpenSslDns01Modal = openDns01Modal;
+    ).opfieldDevOpenSslDns01Modal = openDns01Modal;
     (
       window as Window & {
-        gatewayDevOpenSslDns01Modal?: () => void;
-        gatewayDevOpenSslHttp01Modal?: () => void;
+        opfieldDevOpenSslDns01Modal?: () => void;
+        opfieldDevOpenSslHttp01Modal?: () => void;
       }
-    ).gatewayDevOpenSslHttp01Modal = openHttp01Modal;
+    ).opfieldDevOpenSslHttp01Modal = openHttp01Modal;
 
     return () => {
-      if (gatewayDev.openSslDns01Modal === openDns01Modal) delete gatewayDev.openSslDns01Modal;
-      if (gatewayDev.openSslHttp01Modal === openHttp01Modal) delete gatewayDev.openSslHttp01Modal;
+      if (opfieldDev.openSslDns01Modal === openDns01Modal) delete opfieldDev.openSslDns01Modal;
+      if (opfieldDev.openSslHttp01Modal === openHttp01Modal) delete opfieldDev.openSslHttp01Modal;
       const win = window as Window & {
-        gatewayDevOpenSslDns01Modal?: () => void;
-        gatewayDevOpenSslHttp01Modal?: () => void;
+        opfieldDevOpenSslDns01Modal?: () => void;
+        opfieldDevOpenSslHttp01Modal?: () => void;
       };
-      if (win.gatewayDevOpenSslDns01Modal === openDns01Modal) {
-        delete win.gatewayDevOpenSslDns01Modal;
+      if (win.opfieldDevOpenSslDns01Modal === openDns01Modal) {
+        delete win.opfieldDevOpenSslDns01Modal;
       }
-      if (win.gatewayDevOpenSslHttp01Modal === openHttp01Modal) {
-        delete win.gatewayDevOpenSslHttp01Modal;
+      if (win.opfieldDevOpenSslHttp01Modal === openHttp01Modal) {
+        delete win.opfieldDevOpenSslHttp01Modal;
       }
     };
   }, []);

@@ -36,8 +36,8 @@ func Load() (Config, error) {
 	config := Config{
 		Port:        port,
 		AppTarget:   value("RELAY_APP_GRPC_TARGET", "app:9443"),
-		IdentityDir: filepath.Clean(value("RELAY_IDENTITY_DIR", "/var/lib/gateway-relay/identity")),
-		StateDir:    filepath.Clean(value("RELAY_STATE_DIR", "/var/lib/gateway-relay/state")),
+		IdentityDir: filepath.Clean(value("RELAY_IDENTITY_DIR", "/var/lib/opfield-relay/identity")),
+		StateDir:    filepath.Clean(value("RELAY_STATE_DIR", "/var/lib/opfield-relay/state")),
 		Mode:        mode,
 		PoolID:      os.Getenv("RELAY_POOL_ID"),
 		InstanceID:  os.Getenv("RELAY_INSTANCE_ID"),

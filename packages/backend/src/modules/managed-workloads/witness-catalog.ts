@@ -16,7 +16,7 @@ export const WITNESS_ARTIFACTS: readonly { kind: string; component: string; vers
   },
 ];
 
-const GATEWAY_RELEASE_TAG_RE = /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/;
+const OPFIELD_RELEASE_TAG_RE = /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/;
 const SHA256_RE = /^[a-f0-9]{64}$/;
 const FOUND_TTL_MS = 60 * 60_000;
 const MISSING_TTL_MS = 5 * 60_000;
@@ -63,7 +63,7 @@ export class WitnessCatalog implements WitnessArtifactSource {
     const entry = WITNESS_ARTIFACTS.find((candidate) => candidate.kind === kind && candidate.version === version);
     const arch = normalizeArch(rawArch);
     const tag = this.env.APP_VERSION;
-    if (!entry?.arches.includes(arch) || !GATEWAY_RELEASE_TAG_RE.test(tag)) return null;
+    if (!entry?.arches.includes(arch) || !OPFIELD_RELEASE_TAG_RE.test(tag)) return null;
     const key = `${entry.component}:${version}:${arch}:${tag}`;
     const cached = this.cache.get(key);
     if (cached && cached.expiresAt > this.now()) return cached.artifact;

@@ -153,7 +153,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
   const [cloudManaged, setCloudManaged] = useState(
     () => api.getCached<LicenseStatusView>("settings:license-status")?.cloudManaged === true
   );
-  useScrollToNavigationTarget("gateway-license", !loading);
+  useScrollToNavigationTarget("opfield-license", !loading);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -256,7 +256,7 @@ export function LicenseSection({ canManage }: LicenseSectionProps) {
     <>
       <PanelShell
         icon={<KeyRound className="h-4 w-4" />}
-        id="gateway-license"
+        id="opfield-license"
         title="License"
         description={
           cloudManaged

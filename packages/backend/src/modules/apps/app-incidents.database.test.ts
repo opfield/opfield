@@ -20,7 +20,7 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = [
   'apps:view',
   'apps:create',
@@ -35,7 +35,7 @@ const ALL = [
 ];
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): the kill switch and shutdown over the real tables. Isolation locks
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): the kill switch and shutdown over the real tables. Isolation locks
  * the environment's routes and routes outside the app whose upstream is a member down (own switches untouched),
  * freezes members, refuses membership moves and app deletes, and release restores exactly. Shutdown overlays
  * maintenance with team access, holds no member (moves and deletes work), and Start restores it, listing what was

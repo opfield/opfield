@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"sync"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/stream"
 )
 
 // Manager manages persistent exec sessions with ring-buffered output

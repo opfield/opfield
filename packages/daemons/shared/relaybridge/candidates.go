@@ -5,7 +5,7 @@ import (
 	"net"
 	"sort"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 const PoolCapability = "relay_pool_v1"

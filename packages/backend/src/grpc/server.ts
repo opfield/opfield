@@ -22,6 +22,7 @@ import {
   isTrustedRelayServiceCall,
   stageRelayForwardedIdentityTrust,
 } from './interceptors/auth.js';
+import { legacyGrpcServiceDefinition } from './legacy-service-names.js';
 import { createControlHandlers } from './services/control.js';
 import { createEnrollmentHandlers } from './services/enrollment.js';
 import { createLogStreamHandlers } from './services/log-stream.js';
@@ -34,12 +35,12 @@ const GRPC_MAX_MESSAGE_BYTES = 512 * 1024 * 1024;
 function resolveProtoPath() {
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    resolve(process.cwd(), 'proto/gateway/v1/nginx-daemon.proto'),
-    resolve(process.cwd(), '../proto/gateway/v1/nginx-daemon.proto'),
-    resolve(process.cwd(), '../../proto/gateway/v1/nginx-daemon.proto'),
-    resolve(moduleDir, '../../proto/gateway/v1/nginx-daemon.proto'),
-    resolve(moduleDir, '../../../proto/gateway/v1/nginx-daemon.proto'),
-    resolve(moduleDir, '../../../../proto/gateway/v1/nginx-daemon.proto'),
+    resolve(process.cwd(), 'proto/opfield/v1/nginx-daemon.proto'),
+    resolve(process.cwd(), '../proto/opfield/v1/nginx-daemon.proto'),
+    resolve(process.cwd(), '../../proto/opfield/v1/nginx-daemon.proto'),
+    resolve(moduleDir, '../../proto/opfield/v1/nginx-daemon.proto'),
+    resolve(moduleDir, '../../../proto/opfield/v1/nginx-daemon.proto'),
+    resolve(moduleDir, '../../../../proto/opfield/v1/nginx-daemon.proto'),
   ];
 
   for (const candidate of candidates) {
@@ -133,7 +134,7 @@ async function readGrpcServerTlsMaterial(
   const caPem = await systemCA.getSystemCACertPem();
 
   if (!caPem) {
-    throw new Error('gRPC server requires the Gateway system CA certificate for daemon mTLS');
+    throw new Error('gRPC server requires the Opfield system CA certificate for daemon mTLS');
   }
   validateGrpcServerCertificate(cert, key, caPem);
   const ca = Buffer.from(caPem);
@@ -206,7 +207,7 @@ export async function startGrpcServer(
   });
 
   const proto = grpc.loadPackageDefinition(packageDefinition) as any;
-  const gatewayV1 = proto.gateway.v1;
+  const opfieldV1 = proto.opfield.v1;
   const relayOnly = Boolean(deps.relayPeerFingerprint);
   configureRelayForwardedIdentityTrust(deps.relayPeerFingerprint ?? null);
 
@@ -240,8 +241,13 @@ export async function startGrpcServer(
   const logs = createLogStreamHandlers(deps);
   const migration = createMigrationTransferHandlers(deps);
   const maintenanceAccess = createMaintenanceAccessHandlers(deps);
-  server.addService(
-    gatewayV1.NodeEnrollment.service,
+  // 2.12.1+ daemons call opfield.v1.*; the same handlers also answer under the gateway.v1.* names.
+  const addService = (service: grpc.ServiceDefinition, implementation: grpc.UntypedServiceImplementation) => {
+    server!.addService(service, implementation);
+    server!.addService(legacyGrpcServiceDefinition(service), implementation);
+  };
+  addService(
+    opfieldV1.NodeEnrollment.service,
     relayOnly
       ? {
           Enroll: protectUnary(enrollment.Enroll),
@@ -249,18 +255,18 @@ export async function startGrpcServer(
         }
       : enrollment
   );
-  server.addService(
-    gatewayV1.NodeControl.service,
+  addService(
+    opfieldV1.NodeControl.service,
     relayOnly ? { CommandStream: protectStream(control.CommandStream) } : control
   );
-  server.addService(gatewayV1.LogStream.service, relayOnly ? { StreamLogs: protectStream(logs.StreamLogs) } : logs);
-  server.addService(
-    gatewayV1.MigrationTransfer.service,
+  addService(opfieldV1.LogStream.service, relayOnly ? { StreamLogs: protectStream(logs.StreamLogs) } : logs);
+  addService(
+    opfieldV1.MigrationTransfer.service,
     relayOnly ? { Transfer: protectStream(migration.Transfer) } : migration
   );
-  server.addService(gatewayV1.MaintenanceAccess.service, maintenanceAccess);
+  addService(opfieldV1.MaintenanceAccess.service, maintenanceAccess);
   const credentials = await createGrpcServerCredentials(tlsCertPath, tlsKeyPath, deps.systemCA, relayOnly);
-  logger.info('gRPC server using TLS with Gateway system CA client certificate validation', { relayOnly });
+  logger.info('gRPC server using TLS with Opfield system CA client certificate validation', { relayOnly });
 
   return new Promise((resolvePromise, reject) => {
     server!.bindAsync(`0.0.0.0:${port}`, credentials, (err, boundPort) => {

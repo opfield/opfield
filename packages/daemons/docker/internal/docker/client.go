@@ -15,16 +15,16 @@ import (
 	"time"
 
 	"github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/gpu"
+	"github.com/opfield/opfield/daemon-shared/gpu"
 )
 
 const (
 	defaultContainerStopTimeoutSeconds = 20
 	maxDockerLogReadBytes              = 8 * 1024 * 1024
 	maxDockerLogLineBytes              = 1024 * 1024
-	gatewayGPUGroupIDsLabel            = "wiolett.gateway.gpu.group-ids"
-	gatewayGPUGroupIDsVersionLabel     = "wiolett.gateway.gpu.group-ids-version"
-	gatewayGPUGroupIDsVersion          = "1"
+	opfieldGPUGroupIDsLabel            = "net.opfield.gpu.group-ids"
+	opfieldGPUGroupIDsVersionLabel     = "net.opfield.gpu.group-ids-version"
+	opfieldGPUGroupIDsVersion          = "1"
 )
 
 var errDockerLogsTooLarge = errors.New("docker logs response exceeds safety limit")
@@ -105,8 +105,15 @@ type PortInfo struct {
 
 // NewClient creates a Docker SDK client connected to the given socket path.
 func NewClient(socketPath string, stateDir string, logger *slog.Logger) (*Client, error) {
+	httpClient, err := labelHTTPClient(socketPath)
+	if err != nil {
+		return nil, fmt.Errorf("create docker client: %w", err)
+	}
 	cli, err := client.NewClientWithOpts(
 		client.WithHost(socketPath),
+		// After WithHost, which configures only a plain *http.Transport: the
+		// label transport carries its own, configured for the same host.
+		client.WithHTTPClient(httpClient),
 		client.WithAPIVersionNegotiation(),
 	)
 	if err != nil {

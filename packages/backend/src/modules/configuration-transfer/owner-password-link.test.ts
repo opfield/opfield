@@ -30,9 +30,12 @@ describe('the owner of a copy restored from a managed installation', () => {
       exitCode: 0,
       output: command.at(-1)!.startsWith('SELECT') ? 'true\n' : 'COMMIT',
     }));
-    await expect(detachManagedSignIn({ execInContainer: managed } as never, { postgres: 'pg' } as never)).resolves.toBe(
-      true
-    );
+    await expect(
+      detachManagedSignIn(
+        { execInContainer: managed } as never,
+        { postgres: 'pg', database: { role: 'opfield', name: 'opfield' } } as never
+      )
+    ).resolves.toBe(true);
     expect(managed.mock.calls[1]![1].at(-1)).toBe(MANAGED_SIGN_IN_DETACH_SQL);
     // The cloud installation's license does not come along; a self-hosted source keeps it (nothing runs).
     for (const key of MANAGED_SOURCE_LICENSE_SETTINGS) expect(MANAGED_SIGN_IN_DETACH_SQL).toContain(`'${key}'`);
@@ -40,7 +43,10 @@ describe('the owner of a copy restored from a managed installation', () => {
 
     const selfHosted = vi.fn(async () => ({ exitCode: 0, output: 'false\n' }));
     await expect(
-      detachManagedSignIn({ execInContainer: selfHosted } as never, { postgres: 'pg' } as never)
+      detachManagedSignIn(
+        { execInContainer: selfHosted } as never,
+        { postgres: 'pg', database: { role: 'opfield', name: 'opfield' } } as never
+      )
     ).resolves.toBe(false);
     expect(selfHosted).toHaveBeenCalledOnce();
   });

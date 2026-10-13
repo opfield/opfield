@@ -12,7 +12,7 @@ export const environmentSettingsRoutes = new OpenAPIHono<AppEnv>({ defaultHook: 
 environmentSettingsRoutes.use('*', authMiddleware);
 
 environmentSettingsRoutes.openapi(
-  { ...getEnvironmentSettingsRoute, middleware: requireScope('settings:gateway:view') },
+  { ...getEnvironmentSettingsRoute, middleware: requireScope('settings:opfield:view') },
   async (c) =>
     c.json({
       data: container.resolve(EnvironmentSettingsService).getSnapshot(),
@@ -21,7 +21,7 @@ environmentSettingsRoutes.openapi(
 );
 
 environmentSettingsRoutes.openapi(
-  { ...updateEnvironmentSettingsRoute, middleware: requireScope('settings:gateway:edit') },
+  { ...updateEnvironmentSettingsRoute, middleware: requireScope('settings:opfield:edit') },
   async (c) => {
     const input = EnvironmentSettingsUpdateSchema.parse(await c.req.json());
     const data = await container.resolve(EnvironmentSettingsService).update(input);

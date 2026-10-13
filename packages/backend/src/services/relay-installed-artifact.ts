@@ -35,7 +35,7 @@ export function parseInstalledRelayArtifact(value: unknown): InstalledRelayArtif
 
 export function applyNewerInstalledRelayArtifact(env: Env, installed: InstalledRelayArtifact | null): boolean {
   if (!installed) return false;
-  const configuredVersion = env.GATEWAY_RELAY_BUILD_VERSION;
+  const configuredVersion = env.OPFIELD_RELAY_BUILD_VERSION;
   if (
     configuredVersion &&
     configuredVersion !== 'dev' &&
@@ -45,9 +45,9 @@ export function applyNewerInstalledRelayArtifact(env: Env, installed: InstalledR
     return false;
   }
   Object.assign(env, {
-    GATEWAY_RELAY_IMAGE_REF: installed.imageRef,
-    GATEWAY_RELAY_BUILD_VERSION: installed.buildVersion,
-    GATEWAY_RELAY_PROTOCOL_MAJOR: installed.protocolMajor,
+    OPFIELD_RELAY_IMAGE_REF: installed.imageRef,
+    OPFIELD_RELAY_BUILD_VERSION: installed.buildVersion,
+    OPFIELD_RELAY_PROTOCOL_MAJOR: installed.protocolMajor,
     SECURE_LINK_CONNECTOR_IMAGE: installed.secureLinkConnectorImage,
   });
   return true;

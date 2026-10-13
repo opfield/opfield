@@ -70,7 +70,7 @@ describe('download_storage_object link', () => {
 
     const link = await createStorageObjectDownloadLink(user, ARGS);
     expect(link).toMatchObject({ method: 'GET', sizeBytes: CONTENT.byteLength, filename: 'q3 report.bin' });
-    expect(link.downloadUrl).toMatch(/^https:\/\/gateway\.example\/api\/storage-object-link\/gwsd_/);
+    expect(link.downloadUrl).toMatch(/^https:\/\/gateway\.example\/api\/storage-object-link\/opfsd_/);
     expect(link.commands.download).toBe(`curl -fsS -o 'q3 report.bin' '${link.downloadUrl}'`);
     expect(storage.headObject).toHaveBeenCalledWith(STORAGE, 'exports', 'reports/2026/q3 report.bin');
 

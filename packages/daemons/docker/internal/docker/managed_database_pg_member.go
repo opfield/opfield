@@ -18,10 +18,10 @@ import (
 
 	"github.com/moby/moby/api/pkg/stdcopy"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/pgha"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/docker-daemon/internal/lease"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/pgha"
 	"golang.org/x/sys/unix"
 )
 

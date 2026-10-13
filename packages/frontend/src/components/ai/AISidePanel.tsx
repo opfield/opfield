@@ -121,7 +121,7 @@ async function uploadLocalComposerAttachment(
   return api.uploadAIChatArtifact(file, conversationId);
 }
 
-const PANEL_WIDTH_KEY = "gateway-ai-panel-width";
+const PANEL_WIDTH_KEY = "opfield-ai-panel-width";
 const NORMAL_RECENT_CONVERSATION_LIMIT = 5;
 
 function readPanelWidth(): number {
@@ -960,7 +960,7 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
               }
               selectedReasoningEffort={selectedReasoningEffort}
               onReasoningEffortChange={setSelectedReasoningEffort}
-              gatewayInferenceMode={providerStatus?.providerType === "gateway_inference"}
+              opfieldInferenceMode={providerStatus?.providerType === "opfield_inference"}
               attachments={attachments}
               canAttachImages={canAttachImages}
               uploadingAttachments={uploadingAttachments}
@@ -1006,7 +1006,7 @@ export function AISidePanel({ isMobile = false }: AISidePanelProps) {
 
   const handleClose = () => setAIPanelOpen(false);
   const handleEnterLiteMode = () => {
-    window.dispatchEvent(new CustomEvent("gateway:open-ai-workspace"));
+    window.dispatchEvent(new CustomEvent("opfield:open-ai-workspace"));
   };
 
   const handleResizeEnd = useCallback(() => {

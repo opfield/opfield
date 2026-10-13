@@ -22,7 +22,7 @@ async function collect(stream: Readable): Promise<Buffer> {
 async function makeArchive(parts: Array<[string, Buffer]>, chunkBytes = 1024): Promise<Buffer> {
   const writer = await ExportArchiveWriter.create(
     PASSPHRASE,
-    { gatewayVersion: 'v2.12.0', schemaMigration: '0300_test' },
+    { opfieldVersion: 'v2.12.0', schemaMigration: '0300_test' },
     { kdf: FAST_KDF, chunkBytes }
   );
   const done = collect(writer.output);
@@ -63,8 +63,20 @@ describe('configuration export archive', () => {
       ['empty', Buffer.alloc(0)],
     ]);
     const header = await readExportHeader(Readable.from([file]));
-    expect(header.gatewayVersion).toBe('v2.12.0');
+    expect(header.opfieldVersion).toBe('v2.12.0');
     expect(header.schemaMigration).toBe('0300_test');
+    // The header of an export made before 2.12.1 names its version gatewayVersion.
+    const lines = file.toString('latin1').split('\n');
+    const legacyHeader = JSON.stringify(
+      Object.fromEntries(
+        Object.entries(JSON.parse(lines[1]!)).map(([key, value]) => [
+          key === 'opfieldVersion' ? 'gatewayVersion' : key,
+          value,
+        ])
+      )
+    );
+    const legacy = Buffer.from([lines[0], legacyHeader, ...lines.slice(2)].join('\n'), 'latin1');
+    expect((await readExportHeader(Readable.from([legacy]))).opfieldVersion).toBe('v2.12.0');
     expect(file.toString('utf8', 0, 17)).toBe('OPFIELD-EXPORT/1\n');
     const parts = await readAll(file);
     expect([...parts.keys()]).toEqual([MANIFEST_PART, 'database.tar', 'volume/gateway_data.tar', 'empty']);
@@ -129,7 +141,7 @@ describe('configuration export archive', () => {
     );
     expect(
       await errorCode(() =>
-        ExportArchiveWriter.create('short', { gatewayVersion: 'v1', schemaMigration: 'x' }, { kdf: FAST_KDF })
+        ExportArchiveWriter.create('short', { opfieldVersion: 'v1', schemaMigration: 'x' }, { kdf: FAST_KDF })
       )
     ).toBe('INVALID_CONTENT');
   });
@@ -137,7 +149,7 @@ describe('configuration export archive', () => {
   it('stops a stream source as soon as the reader of the output stops', async () => {
     const writer = await ExportArchiveWriter.create(
       PASSPHRASE,
-      { gatewayVersion: 'v2.12.0', schemaMigration: 'x' },
+      { opfieldVersion: 'v2.12.0', schemaMigration: 'x' },
       { kdf: FAST_KDF, chunkBytes: 1024 }
     );
     await writer.addJsonPart(MANIFEST_PART, {});

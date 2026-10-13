@@ -1,5 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import type { Readable } from 'node:stream';
+import {
+  isSafeDatabaseIdentifier,
+  LEGACY_DATABASE,
+  LEGACY_DATABASE_ROLE,
+  LEGACY_MANAGED_CLICKHOUSE_LABEL,
+  LEGACY_MANAGED_CLICKHOUSE_OWNER_LABEL,
+  MANAGED_CLICKHOUSE_LABEL,
+  MANAGED_CLICKHOUSE_OWNER_LABEL,
+} from '@/foundation/opfield-names.js';
 import type { DockerService } from '@/services/docker.service.js';
 import { composeVolumeName, DATABASE_DUMP_FILE, type TransferVolumeKey } from './transfer-layout.js';
 
@@ -10,7 +19,9 @@ import { composeVolumeName, DATABASE_DUMP_FILE, type TransferVolumeKey } from '.
  * keeping owners and modes).
  */
 
-const HELPER_LABEL = 'com.wiolett.gateway.configuration-transfer';
+const HELPER_LABEL = 'net.opfield.configuration-transfer';
+// legacy-name: helpers a release before 2.12.1 left behind carry this label; only cleaned up.
+const LEGACY_HELPER_LABEL = 'com.wiolett.gateway.configuration-transfer';
 const MOUNT_BASE = '/opfield-transfer';
 const CLICKHOUSE_SNAPSHOT_DIR = '.opfield-export-snapshot';
 
@@ -22,6 +33,8 @@ export interface ComposeInstallation {
   relay: string | null;
   registry: string | null;
   postgres: string;
+  /** Role and database the app uses: `opfield` in the Opfield layout, `gateway` in the earlier one. */
+  database: { role: string; name: string };
   redis: string | null;
   clickhouse: { id: string; running: boolean; volume: string } | null;
 }
@@ -42,9 +55,20 @@ export async function findInstallation(
     containers.find((container) => serviceOf(container.Labels) === service && container.State !== 'removing') ?? null;
   const postgres = byService('postgres');
   if (!postgres) throw new Error(`The postgres service of the Compose project ${project} was not found`);
-  const managedClickHouse = (await docker.listContainersByLabel('net.wiolett.gateway.managed=clickhouse')).find(
-    (container) => container.Labels?.['net.wiolett.gateway.owner'] === project
+  const managedClickHouse = [
+    ...(await docker.listContainersByLabel(`${MANAGED_CLICKHOUSE_LABEL}=clickhouse`)),
+    // legacy-name: a local ClickHouse created before 2.12.1.
+    ...(await docker.listContainersByLabel(`${LEGACY_MANAGED_CLICKHOUSE_LABEL}=clickhouse`)),
+  ].find(
+    (container) =>
+      (container.Labels?.[MANAGED_CLICKHOUSE_OWNER_LABEL] ??
+        container.Labels?.[LEGACY_MANAGED_CLICKHOUSE_OWNER_LABEL]) === project
   );
+  const clickHouseVolume = managedClickHouse
+    ? ((await docker.inspectContainerDetails(managedClickHouse.Id))?.Mounts?.find(
+        (mount) => mount.Destination === '/var/lib/clickhouse' && mount.Type === 'volume'
+      )?.Name ?? composeVolumeName(project, 'clickhouse_data'))
+    : null;
   return {
     project,
     helperImage,
@@ -52,15 +76,25 @@ export async function findInstallation(
     relay: byService('relay')?.Id ?? null,
     registry: byService('registry')?.Id ?? null,
     postgres: postgres.Id,
+    database: await postgresIdentity(docker, postgres.Id),
     redis: byService('redis')?.Id ?? null,
-    clickhouse: managedClickHouse
-      ? {
-          id: managedClickHouse.Id,
-          running: managedClickHouse.State === 'running',
-          volume: composeVolumeName(project, 'clickhouse_data'),
-        }
-      : null,
+    clickhouse:
+      managedClickHouse && clickHouseVolume
+        ? { id: managedClickHouse.Id, running: managedClickHouse.State === 'running', volume: clickHouseVolume }
+        : null,
   };
+}
+
+/** The role and database the postgres container was created with (both layouts set them in its environment). */
+async function postgresIdentity(docker: DockerService, postgresId: string): Promise<{ role: string; name: string }> {
+  const env = (await docker.inspectContainerDetails(postgresId))?.Config.Env ?? [];
+  const value = (key: string) => env.find((entry) => entry.startsWith(`${key}=`))?.slice(key.length + 1);
+  const role = value('POSTGRES_USER') || LEGACY_DATABASE_ROLE;
+  const name = value('POSTGRES_DB') || role || LEGACY_DATABASE;
+  if (!isSafeDatabaseIdentifier(role) || !isSafeDatabaseIdentifier(name)) {
+    throw new Error(`Unsupported database role or name: ${role}/${name}`);
+  }
+  return { role, name };
 }
 
 async function execChecked(docker: DockerService, containerId: string, command: string[], what: string) {
@@ -90,8 +124,10 @@ async function createHelper(
 
 /** Removes helpers a crashed export or restore left behind. */
 export async function removeLeftoverHelpers(docker: DockerService, project: string): Promise<void> {
-  for (const helper of await docker.listContainersByLabel(`${HELPER_LABEL}=${project}`)) {
-    await docker.removeContainer(helper.Id).catch(() => {});
+  for (const label of [HELPER_LABEL, LEGACY_HELPER_LABEL]) {
+    for (const helper of await docker.listContainersByLabel(`${label}=${project}`)) {
+      await docker.removeContainer(helper.Id).catch(() => {});
+    }
   }
 }
 
@@ -128,7 +164,7 @@ export async function openDatabaseDump(
       [
         'sh',
         '-c',
-        `umask 077 && rm -f ${path} && pg_dump --format=custom --create --no-password -U gateway -d gateway -f ${path} && pg_restore --list ${path} >/dev/null`,
+        `umask 077 && rm -f ${path} && pg_dump --format=custom --create --no-password -U ${installation.database.role} -d ${installation.database.name} -f ${path} && pg_restore --list ${path} >/dev/null`,
       ],
       'Database dump'
     );
@@ -141,12 +177,13 @@ export async function openDatabaseDump(
   }
 }
 
-/** Size of the gateway database in bytes. */
+/** Size of the Opfield database in bytes. */
 export async function databaseSize(docker: DockerService, installation: ComposeInstallation): Promise<number> {
+  const { role, name } = installation.database;
   const output = await execChecked(
     docker,
     installation.postgres,
-    ['psql', '-X', '-At', '-U', 'gateway', '-d', 'gateway', '-c', "SELECT pg_database_size('gateway')"],
+    ['psql', '-X', '-At', '-U', role, '-d', name, '-c', `SELECT pg_database_size('${name}')`],
     'Database size'
   );
   const bytes = Number(output.trim().split('\n').at(-1));
@@ -251,12 +288,18 @@ export async function openCommercialArchive(docker: DockerService, appContainer:
 
 // ── Restore ─────────────────────────────────────────────────────────
 
-async function ensureVolume(docker: DockerService, project: string, volume: string, key: TransferVolumeKey) {
+async function ensureVolume(
+  docker: DockerService,
+  project: string,
+  volume: string,
+  key: TransferVolumeKey,
+  composeKey: string
+) {
   if (await docker.inspectVolume(volume)) return;
   // Compose adopts a volume carrying its project and volume labels; the ClickHouse volume is the app's own.
   await docker.createVolume(
     volume,
-    key === 'clickhouse_data' ? {} : { 'com.docker.compose.project': project, 'com.docker.compose.volume': key }
+    key === 'clickhouse_data' ? {} : { 'com.docker.compose.project': project, 'com.docker.compose.volume': composeKey }
   );
 }
 
@@ -289,10 +332,12 @@ export async function restoreVolume(
   volume: string,
   root: string,
   content: Readable,
-  keep: string[] = []
+  keep: string[] = [],
+  /** The volume's key in docker-compose.yml, when the layout names it differently from the export. */
+  composeKey: string = key
 ): Promise<void> {
   if (!/^[a-zA-Z0-9._-]+$/.test(root) || root === '.' || root === '..') throw new Error(`Invalid volume root ${root}`);
-  await ensureVolume(docker, installation.project, volume, key);
+  await ensureVolume(docker, installation.project, volume, key, composeKey);
   await wipeVolume(docker, installation, volume, keep);
   const helper = await createHelper(docker, installation, [`${volume}:${MOUNT_BASE}/${root}`]);
   try {
@@ -312,40 +357,73 @@ export async function snapshotDatabaseForRollback(docker: DockerService, install
     [
       'sh',
       '-c',
-      `umask 077 && rm -f ${ROLLBACK_DUMP} && pg_dump --format=custom --create --no-password -U gateway -d gateway -f ${ROLLBACK_DUMP}`,
+      `umask 077 && rm -f ${ROLLBACK_DUMP} && pg_dump --format=custom --create --no-password -U ${installation.database.role} -d ${installation.database.name} -f ${ROLLBACK_DUMP}`,
     ],
     'Snapshot of the current database'
   );
 }
 
+/** The database a custom-format dump made with --create recreates (`;     dbname: …` in its table of contents). */
+export function dumpDatabaseName(list: string): string | null {
+  return /^;\s+dbname:\s*(\S+)\s*$/m.exec(list)?.[1] ?? null;
+}
+
 async function replaceDatabase(docker: DockerService, installation: ComposeInstallation, dumpPath: string) {
+  const { role, name } = installation.database;
+  const psql = (sql: string) => ['psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-U', role, '-d', 'postgres', '-c', sql];
+  const dumped = dumpDatabaseName(
+    await execChecked(docker, installation.postgres, ['pg_restore', '--list', dumpPath], 'Reading the database dump')
+  );
+  if (!dumped || !isSafeDatabaseIdentifier(dumped)) throw new Error('The database dump does not name its database');
+  await execChecked(
+    docker,
+    installation.postgres,
+    psql(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`),
+    'Dropping the current database'
+  );
+  if (dumped === name) {
+    await execChecked(
+      docker,
+      installation.postgres,
+      ['pg_restore', '--create', '--exit-on-error', '--no-password', '-U', role, '-d', 'postgres', dumpPath],
+      'Database restore'
+    );
+    return;
+  }
+  // A dump of the other layout (database and role `gateway` before the host move, `opfield` after): its objects
+  // belong to this installation's role, and the database gets this installation's name.
+  await execChecked(
+    docker,
+    installation.postgres,
+    psql(`DROP DATABASE IF EXISTS ${dumped} WITH (FORCE)`),
+    'Dropping a leftover database'
+  );
   await execChecked(
     docker,
     installation.postgres,
     [
-      'psql',
-      '-X',
-      '-q',
-      '-v',
-      'ON_ERROR_STOP=1',
+      'pg_restore',
+      '--create',
+      '--no-owner',
+      '--exit-on-error',
+      '--no-password',
       '-U',
-      'gateway',
+      role,
       '-d',
       'postgres',
-      '-c',
-      'DROP DATABASE IF EXISTS gateway WITH (FORCE)',
+      dumpPath,
     ],
-    'Dropping the current database'
+    'Database restore'
   );
   await execChecked(
     docker,
     installation.postgres,
-    ['pg_restore', '--create', '--exit-on-error', '--no-password', '-U', 'gateway', '-d', 'postgres', dumpPath],
-    'Database restore'
+    psql(`ALTER DATABASE ${dumped} RENAME TO ${name}`),
+    'Naming the restored database'
   );
 }
 
-/** Replaces the gateway database with the dump in `content` (a tar with the dump file). */
+/** Replaces the Opfield database with the dump in `content` (a tar with the dump file). */
 export async function restoreDatabase(
   docker: DockerService,
   installation: ComposeInstallation,
@@ -380,9 +458,9 @@ export async function detachManagedSignIn(docker: DockerService, installation: C
     '-v',
     'ON_ERROR_STOP=1',
     '-U',
-    'gateway',
+    installation.database.role,
     '-d',
-    'gateway',
+    installation.database.name,
     '-c',
     sql,
   ];
@@ -459,9 +537,9 @@ export async function forgetCloudLink(docker: DockerService, installation: Compo
       '-v',
       'ON_ERROR_STOP=1',
       '-U',
-      'gateway',
+      installation.database.role,
       '-d',
-      'gateway',
+      installation.database.name,
       '-c',
       `DELETE FROM settings WHERE key IN (${keys})`,
     ],

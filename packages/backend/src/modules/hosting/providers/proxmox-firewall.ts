@@ -29,6 +29,7 @@ type ManagedRule = {
   dest?: string;
   dport?: string;
   comment: string;
+  legacyComment: string;
 };
 type Inspection = {
   fresh: HostingResourceSnapshot | null;
@@ -36,7 +37,9 @@ type Inspection = {
   token: string;
   wantedGroup: string;
   marker: string;
+  legacyMarker: string;
   bindingComment: string;
+  legacyBindingComment: string;
   blockers: string[];
   disableBlockers: string[];
   options: PveOptions | null;
@@ -58,6 +61,10 @@ function ownerToken(ownerKey: string, remoteId: string): string {
   return createHash('sha256').update(`${ownerKey}:${remoteId}`).digest('hex').slice(0, 12);
 }
 function comment(token: string, key?: string): string {
+  return key ? `Opfield firewall ${token} ${key}` : `Opfield firewall ${token}`;
+}
+// legacy-name: Proxmox firewall group/rule comment "Gateway firewall <token> [key]" — remove once every hosting resource was reconciled by 2.12.1+
+function legacyComment(token: string, key?: string): string {
   return key ? `Gateway firewall ${token} ${key}` : `Gateway firewall ${token}`;
 }
 function enabled(rule: PveRule): boolean {
@@ -84,6 +91,7 @@ function compile(config: HostingFirewallConfig, token: string): ManagedRule[] {
           ...(rule.direction === 'in' ? { source: addresses.join(',') } : { dest: addresses.join(',') }),
           ...(rule.protocol === 'icmp' ? {} : { dport: pvePort(rule.ports) }),
           comment: comment(token, `rule-${rule.id}-${ipv6 ? '6' : '4'}`),
+          legacyComment: legacyComment(token, `rule-${rule.id}-${ipv6 ? '6' : '4'}`),
         },
       ];
     })
@@ -101,6 +109,7 @@ function compile(config: HostingFirewallConfig, token: string): ManagedRule[] {
         type: direction,
         proto: protocol,
         comment: comment(token, `default-${direction}-${protocol}`),
+        legacyComment: legacyComment(token, `default-${direction}-${protocol}`),
       });
   }
   return [
@@ -123,7 +132,7 @@ function sameRule(rule: PveRule, expected: ManagedRule): boolean {
     (rule.source ?? undefined) === expected.source &&
     (rule.dest ?? undefined) === expected.dest &&
     (rule.dport ?? undefined) === expected.dport &&
-    rule.comment === expected.comment
+    (rule.comment === expected.comment || rule.comment === expected.legacyComment)
   );
 }
 function hasPrivilege(permissions: Record<string, Record<string, number>>, path: string, privilege: string): boolean {
@@ -163,6 +172,8 @@ function ruleData(rule: ManagedRule): Record<string, string | number> {
 }
 
 export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
+  /** VM firewall paths, by remote ID, whose owned objects a read on this instance found with legacy comments. */
+  private readonly legacyNames = new Map<string, string>();
   constructor(private readonly dependencies: ProxmoxFirewallDependencies) {}
 
   private async clusterOptions(): Promise<PveOptions> {
@@ -195,7 +206,9 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
     const groupPrefix = groupName(ownerKey, resource.remoteId, desired);
     let wantedGroup = `${groupPrefix}${randomBytes(2).toString('hex')}`;
     const marker = comment(token);
+    const legacyMarker = legacyComment(token);
     const bindingComment = comment(token, 'binding');
+    const legacyBindingComment = legacyComment(token, 'binding');
     const blockers: string[] = [];
     if (!fresh) {
       blockers.push('The selected Proxmox VM no longer exists.');
@@ -205,7 +218,9 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
         token,
         wantedGroup,
         marker,
+        legacyMarker,
         bindingComment,
+        legacyBindingComment,
         blockers,
         disableBlockers: blockers,
         options: null,
@@ -234,7 +249,7 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
         query: { path: '/' },
       }),
     ]);
-    const managedGroups = groups.filter((group) => group.comment === marker);
+    const managedGroups = groups.filter((group) => group.comment === marker || group.comment === legacyMarker);
     const expectedRules = compile(desired, token);
     const ownedGroups = [];
     for (const group of managedGroups) {
@@ -254,8 +269,17 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
     if (wanted?.group) wantedGroup = wanted.group;
     const groupRules = wanted?.rules ?? [];
     const activeVmRules = vmRules.filter(enabled);
-    const ownBindings = vmRules.filter((rule) => rule.type === 'group' && rule.comment === bindingComment);
-    const foreignVmRules = activeVmRules.filter((rule) => !(rule.type === 'group' && rule.comment === bindingComment));
+    const isBinding = (rule: PveRule) =>
+      rule.type === 'group' && (rule.comment === bindingComment || rule.comment === legacyBindingComment);
+    const ownBindings = vmRules.filter(isBinding);
+    const legacyRule = (rule: PveRule) => String(rule.comment ?? '').startsWith(`${legacyMarker} `);
+    if (
+      ownedGroups.some((group) => group.comment === legacyMarker || group.rules.some(legacyRule)) ||
+      ownBindings.some((rule) => rule.comment === legacyBindingComment)
+    )
+      this.legacyNames.set(resource.remoteId, base);
+    else this.legacyNames.delete(resource.remoteId);
+    const foreignVmRules = activeVmRules.filter((rule) => !isBinding(rule));
     const disableBlockers = [...blockers];
     if (foreignVmRules.length) blockers.push('The VM has active firewall rules or groups not owned by Opfield.');
     if (truthy(options.enable) && !ownBindings.length)
@@ -263,7 +287,9 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
     if (ownBindings.some((binding) => !completeBinding(binding)))
       blockers.push('Opfield’s VM firewall binding is scoped or invalid; review it in Proxmox before applying rules.');
     const activeGroupRules = groupRules.filter(enabled);
-    const foreignGroupRules = activeGroupRules.filter((rule) => !String(rule.comment ?? '').startsWith(marker));
+    const foreignGroupRules = activeGroupRules.filter(
+      (rule) => !String(rule.comment ?? '').startsWith(marker) && !String(rule.comment ?? '').startsWith(legacyMarker)
+    );
     if (foreignGroupRules.length)
       blockers.push('Opfield’s target security group contains active rules not owned by Opfield.');
     const targetRulesMatch =
@@ -322,7 +348,9 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
       token,
       wantedGroup,
       marker,
+      legacyMarker,
       bindingComment,
+      legacyBindingComment,
       blockers,
       disableBlockers,
       options,
@@ -371,6 +399,73 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
         observedAt: new Date().toISOString(),
       };
     }
+  }
+
+  /**
+   * Rewrites legacy comments on this VM's owned groups, their rules and its binding. Comments only:
+   * groups are updated in place (`rename` to the same name), rule actions and order are untouched.
+   */
+  async migrateLegacyNames(resource: HostingResourceSnapshot, ownerKey: string): Promise<boolean> {
+    // Only after a read of this VM found legacy comments; the caller fences the VM identity.
+    const base = this.legacyNames.get(resource.remoteId);
+    if (!base) return false;
+    this.legacyNames.delete(resource.remoteId);
+    const token = ownerToken(ownerKey, resource.remoteId);
+    const marker = comment(token);
+    const legacyMarker = legacyComment(token);
+    const rewrite = (value: unknown) =>
+      typeof value === 'string' && (value === legacyMarker || value.startsWith(`${legacyMarker} `))
+        ? `${marker}${value.slice(legacyMarker.length)}`
+        : null;
+    let changed = false;
+    const groups = await this.dependencies.request<PveGroup[]>('/cluster/firewall/groups');
+    for (const group of groups) {
+      if (!group.group || (group.comment !== marker && group.comment !== legacyMarker)) continue;
+      if (group.comment === legacyMarker) {
+        // Every cluster firewall write changes the shared digest: read it fresh for each update.
+        const current = (await this.dependencies.request<PveGroup[]>('/cluster/firewall/groups')).find(
+          (item) => item.group === group.group
+        );
+        if (current?.comment === legacyMarker) {
+          // `rename` equal to `group` updates only the comment of the existing group.
+          await this.dependencies.request('/cluster/firewall/groups', {
+            method: 'POST',
+            body: {
+              group: group.group,
+              rename: group.group,
+              comment: marker,
+              ...(typeof current.digest === 'string' ? { digest: current.digest } : {}),
+            },
+          });
+          changed = true;
+        }
+      }
+      const path = `/cluster/firewall/groups/${encodeURIComponent(group.group)}`;
+      changed = (await this.rewriteRuleComments(path, rewrite)) || changed;
+    }
+    const binding = legacyComment(token, 'binding');
+    changed =
+      (await this.rewriteRuleComments(`${base}/firewall/rules`, (value) =>
+        value === binding ? comment(token, 'binding') : null
+      )) || changed;
+    return changed;
+  }
+
+  /** One rule per request with a fresh digest; bounded by the legacy rules seen first. */
+  private async rewriteRuleComments(path: string, rewrite: (value: unknown) => string | null): Promise<boolean> {
+    const pending = (rules: PveRule[]) => rules.filter((rule) => typeof rule.pos === 'number' && rewrite(rule.comment));
+    let rules = await this.rules(path);
+    const limit = pending(rules).length;
+    for (let attempt = 0; attempt < limit; attempt += 1) {
+      const rule = pending(rules)[0];
+      if (!rule) break;
+      await this.dependencies.request(`${path}/${rule.pos}`, {
+        method: 'PUT',
+        body: { comment: rewrite(rule.comment)!, digest: digest(rules) },
+      });
+      rules = await this.rules(path);
+    }
+    return limit > 0;
   }
 
   private async stageGroup(current: Inspection) {
@@ -466,7 +561,8 @@ export class ProxmoxFirewallAdapter implements HostingFirewallAdapter {
           binding,
           current.wantedGroup,
           this.dependencies.request,
-          this.rules.bind(this)
+          this.rules.bind(this),
+          current.bindingComment
         );
       throw error;
     }

@@ -3,9 +3,9 @@ import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import {
-  filterGatewayInternalImages,
+  filterOpfieldInternalImages,
   isDanglingDockerImage,
-  isGatewayInternalImage,
+  isOpfieldInternalImage,
 } from './docker-internal-images.js';
 import type { DockerRegistryService } from './docker-registry.service.js';
 import { type DockerTaskService, detachDockerTask, trackDockerTask } from './docker-task.service.js';
@@ -39,7 +39,7 @@ export async function listAllImages(context: DockerImageOperationContext, nodeId
 
 export async function listImages(context: DockerImageOperationContext, nodeId: string) {
   const images = await listAllImages(context, nodeId);
-  return Array.isArray(images) ? filterGatewayInternalImages(images) : images;
+  return Array.isArray(images) ? filterOpfieldInternalImages(images) : images;
 }
 
 export async function pullImage(
@@ -161,7 +161,7 @@ export async function pruneImages(context: DockerImageOperationContext, nodeId: 
   let spaceReclaimed = 0;
   if (Array.isArray(images)) {
     for (const image of images) {
-      if (isGatewayInternalImage(image) || !isDanglingDockerImage(image)) continue;
+      if (isOpfieldInternalImage(image) || !isDanglingDockerImage(image)) continue;
       const imageId = String(image.id ?? image.Id ?? '');
       if (!imageId) continue;
       try {

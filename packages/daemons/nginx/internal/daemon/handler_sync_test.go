@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	sharedstate "github.com/wiolett-industries/gateway/daemon-shared/state"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	sharedstate "github.com/opfield/opfield/daemon-shared/state"
+	"github.com/opfield/opfield/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 func TestFullSyncRemovesOrphanedHtpasswd(t *testing.T) {

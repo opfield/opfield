@@ -11,7 +11,7 @@ import { RECOMMENDED_POLICY_LEASE_HOURS } from "./availability-labels";
  * Below 7 days the notice offers "Set to 7 days" to admins; it never changes it by itself.
  */
 export function PolicyLeaseNotice({ hours }: { hours: number | null }) {
-  const canEditSettings = useAuthStore((state) => state.hasScope("settings:gateway:edit"));
+  const canEditSettings = useAuthStore((state) => state.hasScope("settings:opfield:edit"));
   const [override, setOverride] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const current = override ?? hours;

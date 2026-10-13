@@ -20,14 +20,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/logepisode"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaylane"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/logepisode"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/relaylane"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
@@ -38,9 +38,7 @@ import (
 const (
 	proxySecureLinkOwnerKind    = "proxy_host_secure_link"
 	proxySecureLinkSetupTimeout = 2 * time.Second
-	proxySecureLinkSocketDir    = "/run/gateway-secure-links"
 	registrySecureLinkOwnerKind = "registry_ingress"
-	registrySecureLinkSocketDir = "/run/gateway-registry-links"
 )
 
 // availabilityMemberSetupBudget bounds the tunnel setup of a member's link
@@ -156,7 +154,7 @@ func proxySecureLinkSetupContext(parent context.Context, timeout time.Duration) 
 }
 
 func newSourceLinkManager(opener func(string, net.Conn), nginxBinary string, masterPID func() (int, error)) *sourceLinkManager {
-	return newSourceLinkManagerAt(opener, proxySecureLinkSocketDir, nginxBinary, masterPID)
+	return newSourceLinkManagerAt(opener, proxySecureLinkSocketDir(), nginxBinary, masterPID)
 }
 
 func newSourceLinkManagerAt(
@@ -654,15 +652,15 @@ func removeStaleTemporarySockets(directory string) {
 // adoptKeptUnixSocket takes over the listener the previous daemon process
 // kept for socketPath, if the path still names it.
 func (m *sourceLinkManager) adoptKeptUnixSocket(socketPath string) (net.Listener, string) {
-	name, err := listenerkeep.Name(socketPath)
+	current, err := listenerkeep.Name(socketPath)
 	if err != nil {
 		return nil, ""
 	}
-	file, ok := listenerkeep.Take(name)
+	file, name, ok := takeKept(current)
 	if !ok {
 		// Not handed over (a launcher without a keeper passes nothing): a
 		// copy systemd may still keep of the socket about to be replaced goes.
-		_ = listenerkeep.DropStale(name)
+		dropStaleKept(current)
 		return nil, ""
 	}
 	defer file.Close()

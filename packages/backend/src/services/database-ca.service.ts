@@ -10,6 +10,7 @@ import {
 import { createChildLogger } from '@/lib/logger.js';
 import type { CAService } from '@/modules/pki/ca.service.js';
 import type { CertService } from '@/modules/pki/cert.service.js';
+import { renameLegacySystemCa, SYSTEM_CA_COMMON_NAMES } from './system-ca-names.js';
 import type {
   SystemCertificateCurrentBinding,
   SystemCertificateLifecycleService,
@@ -17,7 +18,6 @@ import type {
 
 const logger = createChildLogger('DatabaseCA');
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
-const DATABASE_CA_CN = 'Gateway Database CA';
 /**
  * A member of an availability set presents its leaf as the replication client too (sslcert of its standby, pg_rewind;
  * the members' pg_hba requires clientcert=verify-ca), so set members' leaves carry both usages.
@@ -47,12 +47,15 @@ export class DatabaseCAService {
       .from(certificateAuthorities)
       .where(eq(certificateAuthorities.systemPurpose, 'database-tls'))
       .limit(1);
-    if (existing) return existing.id;
+    if (existing) {
+      await renameLegacySystemCa(this.db, existing.id, 'database-tls');
+      return existing.id;
+    }
 
     logger.info('Creating system Database CA for managed direct TLS');
     const ca = await this.caService.createRootCA(
       {
-        commonName: DATABASE_CA_CN,
+        commonName: SYSTEM_CA_COMMON_NAMES['database-tls'],
         keyAlgorithm: 'ecdsa-p256',
         validityYears: 10,
         maxValidityDays: 730,

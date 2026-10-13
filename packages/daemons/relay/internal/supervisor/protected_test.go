@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -81,29 +81,29 @@ func TestProtectedModeComesFromTheLocalConfig(t *testing.T) {
 
 func TestProtectedRelayAllowsOnlyRelayOperation(t *testing.T) {
 	p := New(loadProtectedTestConfig(t, "protected:\n  enabled: true\n"))
-	allowed := []*pb.GatewayCommand{
-		{Payload: &pb.GatewayCommand_SyncRelayPolicy{SyncRelayPolicy: &pb.SyncRelayPolicyCommand{}}},
-		{Payload: &pb.GatewayCommand_SetRelayDrain{SetRelayDrain: &pb.SetRelayDrainCommand{}}},
-		{Payload: &pb.GatewayCommand_UpdateRelayWorker{UpdateRelayWorker: &pb.UpdateRelayWorkerCommand{}}},
-		{Payload: &pb.GatewayCommand_RenewRelayIdentity{RenewRelayIdentity: &pb.RenewRelayIdentityCommand{}}},
-		{Payload: &pb.GatewayCommand_GetRelayRouteRuntime{GetRelayRouteRuntime: &pb.GetRelayRouteRuntimeCommand{}}},
+	allowed := []*pb.OpfieldCommand{
+		{Payload: &pb.OpfieldCommand_SyncRelayPolicy{SyncRelayPolicy: &pb.SyncRelayPolicyCommand{}}},
+		{Payload: &pb.OpfieldCommand_SetRelayDrain{SetRelayDrain: &pb.SetRelayDrainCommand{}}},
+		{Payload: &pb.OpfieldCommand_UpdateRelayWorker{UpdateRelayWorker: &pb.UpdateRelayWorkerCommand{}}},
+		{Payload: &pb.OpfieldCommand_RenewRelayIdentity{RenewRelayIdentity: &pb.RenewRelayIdentityCommand{}}},
+		{Payload: &pb.OpfieldCommand_GetRelayRouteRuntime{GetRelayRouteRuntime: &pb.GetRelayRouteRuntimeCommand{}}},
 	}
 	for _, cmd := range allowed {
 		if !p.ProtectedCommandAllowed(cmd) {
 			t.Errorf("protected relay refuses relay operation %T", cmd.Payload)
 		}
 	}
-	refused := []*pb.GatewayCommand{
-		{Payload: &pb.GatewayCommand_NodeExec{NodeExec: &pb.NodeExecCommand{Action: "create"}}},
-		{Payload: &pb.GatewayCommand_ExecInput{ExecInput: &pb.ExecInput{}}},
-		{Payload: &pb.GatewayCommand_NodeFile{NodeFile: &pb.NodeFileCommand{Action: "read", Path: "/etc/shadow"}}},
-		{Payload: &pb.GatewayCommand_DockerExec{DockerExec: &pb.DockerExecCommand{}}},
-		{Payload: &pb.GatewayCommand_DockerFile{DockerFile: &pb.DockerFileCommand{}}},
-		{Payload: &pb.GatewayCommand_DockerLogs{DockerLogs: &pb.DockerLogsCommand{}}},
-		{Payload: &pb.GatewayCommand_ApplyConfig{ApplyConfig: &pb.ApplyConfigCommand{}}},
-		{Payload: &pb.GatewayCommand_ProbeRelayCandidate{ProbeRelayCandidate: &pb.ProbeRelayCandidateCommand{}}},
-		{Payload: &pb.GatewayCommand_ProbeProxySecureLink{ProbeProxySecureLink: &pb.ProbeProxySecureLinkCommand{}}},
-		{Payload: &pb.GatewayCommand_SyncRelayGrants{SyncRelayGrants: &pb.SyncRelayGrantsCommand{}}},
+	refused := []*pb.OpfieldCommand{
+		{Payload: &pb.OpfieldCommand_NodeExec{NodeExec: &pb.NodeExecCommand{Action: "create"}}},
+		{Payload: &pb.OpfieldCommand_ExecInput{ExecInput: &pb.ExecInput{}}},
+		{Payload: &pb.OpfieldCommand_NodeFile{NodeFile: &pb.NodeFileCommand{Action: "read", Path: "/etc/shadow"}}},
+		{Payload: &pb.OpfieldCommand_DockerExec{DockerExec: &pb.DockerExecCommand{}}},
+		{Payload: &pb.OpfieldCommand_DockerFile{DockerFile: &pb.DockerFileCommand{}}},
+		{Payload: &pb.OpfieldCommand_DockerLogs{DockerLogs: &pb.DockerLogsCommand{}}},
+		{Payload: &pb.OpfieldCommand_ApplyConfig{ApplyConfig: &pb.ApplyConfigCommand{}}},
+		{Payload: &pb.OpfieldCommand_ProbeRelayCandidate{ProbeRelayCandidate: &pb.ProbeRelayCandidateCommand{}}},
+		{Payload: &pb.OpfieldCommand_ProbeProxySecureLink{ProbeProxySecureLink: &pb.ProbeProxySecureLinkCommand{}}},
+		{Payload: &pb.OpfieldCommand_SyncRelayGrants{SyncRelayGrants: &pb.SyncRelayGrantsCommand{}}},
 	}
 	for _, cmd := range refused {
 		if p.ProtectedCommandAllowed(cmd) {
@@ -135,7 +135,7 @@ func localServicePolicy(t *testing.T, signed bool) []byte {
 func TestProtectedRelayRefusesPoliciesWithBuiltinLocalServices(t *testing.T) {
 	protected := New(loadProtectedTestConfig(t, "protected:\n  enabled: true\n"))
 	for _, signed := range []bool{true, false} {
-		result := protected.HandleCommand(&pb.GatewayCommand{CommandId: "policy", Payload: &pb.GatewayCommand_SyncRelayPolicy{
+		result := protected.HandleCommand(&pb.OpfieldCommand{CommandId: "policy", Payload: &pb.OpfieldCommand_SyncRelayPolicy{
 			SyncRelayPolicy: &pb.SyncRelayPolicyCommand{ApplySnapshotRequest: localServicePolicy(t, signed)},
 		}})
 		if result.Success || !strings.Contains(result.Error, "protected mode") || result.CommandId != "policy" {
@@ -162,7 +162,7 @@ func TestProtectedRelayRefusesWorkerDowngrades(t *testing.T) {
 		return os.ErrPermission
 	}
 	p.last = &pb.RelayRuntimeStatus{BuildVersion: "v2.12.0"}
-	result := p.HandleCommand(&pb.GatewayCommand{CommandId: "update", Payload: &pb.GatewayCommand_UpdateRelayWorker{
+	result := p.HandleCommand(&pb.OpfieldCommand{CommandId: "update", Payload: &pb.OpfieldCommand_UpdateRelayWorker{
 		UpdateRelayWorker: &pb.UpdateRelayWorkerCommand{TargetVersion: "v2.11.4", DownloadUrl: "https://updates.example/relay-worker", Checksum: strings.Repeat("a", 64), SignedManifest: "{}"},
 	}})
 	if result.Success || !strings.Contains(result.Error, "older release") {
@@ -205,7 +205,7 @@ func TestProtectedConfigToggleRoundTrip(t *testing.T) {
 	if !cfg.Protected.Enabled || !cfg.Protected.AllowDatabaseWitness {
 		t.Fatalf("protected mode not written: %+v", cfg.Protected)
 	}
-	if cfg.Gateway.Address != "gateway.example.com:9443" || cfg.Console.User != "ops" || len(cfg.Worker.AdvertisedAddresses) != 1 {
+	if cfg.Control.Address != "gateway.example.com:9443" || cfg.Console.User != "ops" || len(cfg.Worker.AdvertisedAddresses) != 1 {
 		t.Fatalf("other settings changed: %+v", cfg)
 	}
 	encoded, err := os.ReadFile(path)

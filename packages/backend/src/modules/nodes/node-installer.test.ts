@@ -1,4 +1,7 @@
 import 'reflect-metadata';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '@/config/env.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -6,7 +9,9 @@ import { DaemonUpdateService } from '@/services/daemon-update.service.js';
 import {
   enrollmentInstallation,
   installerRelease,
+  NODE_INSTALLERS,
   nodeInstallCommands,
+  OPFIELD_FLAG_INSTALLERS,
   secureRuntimeLocalCommand,
 } from './node-installer.js';
 
@@ -23,10 +28,10 @@ function storageCommands(release: string | null) {
     nodeType: 'storage',
     release,
     token: 'gw_node_v2_token',
-    gatewayCertSha256: CERT,
+    opfieldCertSha256: CERT,
     targets: {
-      public: { label: 'Public node', gateway: 'gw.example.com:9443' },
-      local: { label: 'Local node', gateway: '[fd00::1]:9443' },
+      public: { label: 'Public node', address: 'gw.example.com:9443' },
+      local: { label: 'Local node', address: '[fd00::1]:9443' },
     },
     daemonVersion: 'v2.11.0',
   });
@@ -38,8 +43,8 @@ describe('Secure Runtime local command', () => {
       [
         'cd "$(mktemp -d)"',
         `curl -fsSL -o setup-docker-node.sh ${RELEASE}/setup-docker-node.sh`,
-        `curl -fsSL -o gateway-daemon-installers.sha256 ${RELEASE}/gateway-daemon-installers.sha256`,
-        "grep ' setup-docker-node.sh$' gateway-daemon-installers.sha256 | sha256sum -c -",
+        `curl -fsSL -o opfield-node-installers.sha256 ${RELEASE}/opfield-node-installers.sha256`,
+        "grep ' setup-docker-node.sh$' opfield-node-installers.sha256 | sha256sum -c -",
         'sudo bash setup-docker-node.sh --user gwdock --secure-runtime',
       ].join(' && ')
     );
@@ -70,29 +75,29 @@ describe('Secure Runtime local command', () => {
 });
 
 describe('node setup commands', () => {
-  it('run only the installer of the Gateway release that matches the release checksums', () => {
+  it('run only the installer of the Opfield release that matches the release checksums', () => {
     const [publicCommand, localCommand] = storageCommands('v2.11.0');
 
     expect(publicCommand?.curl.split(' && \\\n')).toEqual([
       'cd "$(mktemp -d)"',
       `curl -fsSL -o setup-storage-node.sh ${RELEASE}/setup-storage-node.sh`,
-      `curl -fsSL -o gateway-daemon-installers.sha256 ${RELEASE}/gateway-daemon-installers.sha256`,
-      "grep ' setup-storage-node.sh$' gateway-daemon-installers.sha256 | sha256sum -c -",
+      `curl -fsSL -o opfield-node-installers.sha256 ${RELEASE}/opfield-node-installers.sha256`,
+      "grep ' setup-storage-node.sh$' opfield-node-installers.sha256 | sha256sum -c -",
       [
         'sudo bash setup-storage-node.sh \\',
-        '  --gateway gw.example.com:9443 \\',
+        '  --opfield gw.example.com:9443 \\',
         '  --token gw_node_v2_token \\',
-        `  --gateway-cert-sha256 ${CERT} \\`,
+        `  --opfield-cert-sha256 ${CERT} \\`,
         '  --version v2.11.0',
       ].join('\n'),
     ]);
     expect(publicCommand?.wget).toContain(`wget -qO setup-storage-node.sh ${RELEASE}/setup-storage-node.sh`);
     expect(publicCommand?.wget).toContain(
-      `wget -qO gateway-daemon-installers.sha256 ${RELEASE}/gateway-daemon-installers.sha256`
+      `wget -qO opfield-node-installers.sha256 ${RELEASE}/opfield-node-installers.sha256`
     );
     expect(publicCommand?.wget).toContain('| sha256sum -c - && \\\nsudo bash setup-storage-node.sh');
     // An IPv6 target is quoted so no shell expands the brackets.
-    expect(localCommand?.curl).toContain("--gateway '[fd00::1]:9443' \\");
+    expect(localCommand?.curl).toContain("--opfield '[fd00::1]:9443' \\");
     for (const command of [publicCommand, localCommand].flatMap((entry) => [entry?.curl, entry?.wget])) {
       expect(command).not.toMatch(/raw\.githubusercontent|releases\/latest|\/main\//);
     }
@@ -105,7 +110,7 @@ describe('node setup commands', () => {
 
     const [command] = storageCommands(null);
     expect(command?.curl).toMatch(
-      /^curl -sSL https:\/\/raw\.githubusercontent\.com\/opfield\/opfield\/main\/scripts\/setup-storage-node\.sh \| sudo bash -s -- \\\n {2}--gateway /
+      /^curl -sSL https:\/\/raw\.githubusercontent\.com\/opfield\/opfield\/main\/scripts\/setup-storage-node\.sh \| sudo bash -s -- \\\n {2}--opfield /
     );
     expect(command?.wget).toMatch(
       /^wget -qO- https:\/\/raw\.githubusercontent\.com\/.*\/main\/scripts\/setup-storage-node\.sh \|/
@@ -117,9 +122,9 @@ describe('node setup commands', () => {
       nodeType: 'relay',
       release: 'v2.11.0',
       token: 'gw_node_v2_token',
-      gatewayCertSha256: CERT,
-      targets: { public: { label: 'Public node', gateway: null }, local: { label: 'Local node', gateway: null } },
-      fallbackGateway: 'gateway.example.com:9443',
+      opfieldCertSha256: CERT,
+      targets: { public: { label: 'Public node', address: null }, local: { label: 'Local node', address: null } },
+      fallbackOpfield: 'gateway.example.com:9443',
       advertiseAddress: 'relay.example.com',
       servicePort: 9444,
       daemonVersion: 'v2.11.0-rc.20',
@@ -128,15 +133,18 @@ describe('node setup commands', () => {
     expect(commands.map((command) => command.target)).toEqual(['public']);
     expect(commands[0]?.curl).toContain(`${RELEASE}/setup-relay-node.sh`);
     expect(commands[0]?.curl).toMatch(
-      /--gateway gateway\.example\.com:9443 \\\n.*\n.*\n {2}--advertise-address relay\.example\.com \\\n {2}--service-port 9444 \\\n {2}--version v2\.11\.0-rc\.20$/
+      /--opfield gateway\.example\.com:9443 \\\n.*\n.*\n {2}--advertise-address relay\.example\.com \\\n {2}--service-port 9444 \\\n {2}--version v2\.11\.0-rc\.20$/
     );
+    // The relay installer of this release takes the Opfield flag names; installers not yet renamed keep --gateway.
+    expect(commands[0]?.curl).toContain(`--opfield-cert-sha256 ${CERT}`);
+    expect(commands[0]?.curl).not.toContain('--gateway');
     expect(
       nodeInstallCommands({
         nodeType: 'builder',
         release: 'v2.11.0',
         token: 't',
-        gatewayCertSha256: CERT,
-        targets: { public: { label: 'Public node', gateway: null } },
+        opfieldCertSha256: CERT,
+        targets: { public: { label: 'Public node', address: null } },
       })
     ).toEqual([]);
   });
@@ -147,8 +155,8 @@ describe('relay enrollment command', () => {
     return enrollmentInstallation({
       node: { type: 'relay', serviceAddresses: ['relay.example.com'], metadata },
       enrollmentToken: 'gw_node_v2_token',
-      gatewayCertSha256: CERT,
-      gatewayEnrollmentTargets: { public: { label: 'Public node', gateway: 'gw.example.com:9443' } },
+      opfieldCertSha256: CERT,
+      opfieldEnrollmentTargets: { public: { label: 'Public node', address: 'gw.example.com:9443' } },
     });
   }
 
@@ -213,5 +221,19 @@ describe('DaemonUpdateService.installVersion', () => {
       })
     );
     await expect(service('v2.11.0').installVersion('docker')).resolves.toBeNull();
+  });
+});
+
+describe('installer enrollment flags', () => {
+  it('passes --opfield exactly to the installers of this release that parse it', () => {
+    const scripts = fileURLToPath(new URL('../../../../../scripts/', import.meta.url));
+    // A wrapper that hands its arguments to an installer of the same release parses what that installer parses.
+    const parses = (installer: string): boolean => {
+      const source = readFileSync(join(scripts, installer), 'utf8');
+      const delegate = /^bash "\$stage\/(setup-[a-z-]+\.sh)" "\$@"$/m.exec(source)?.[1];
+      return /^\s*--opfield\)/m.test(source) || (delegate !== undefined && parses(delegate));
+    };
+    const parsing = [...new Set(Object.values(NODE_INSTALLERS))].filter(parses);
+    expect([...OPFIELD_FLAG_INSTALLERS].sort()).toEqual(parsing.sort());
   });
 });

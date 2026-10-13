@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // ReplicationPort is the member mesh port name of Postgres replication; the

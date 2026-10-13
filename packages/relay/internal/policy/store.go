@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	bolt "go.etcd.io/bbolt"
 	"google.golang.org/protobuf/proto"
 )
@@ -265,7 +265,7 @@ func (s *Store) ApplyStaged(request *relayv1.ApplySnapshotRequest, publish func(
 	// authoritative; see ResetLocalPolicyTrust.
 	if !s.rebind {
 		if current.GatewayInstanceID != "" && next.GatewayInstanceID != current.GatewayInstanceID {
-			return nil, false, fmt.Errorf("snapshot gateway instance changed")
+			return nil, false, fmt.Errorf("snapshot Opfield instance changed")
 		}
 		if next.Revision < current.Revision {
 			return nil, false, fmt.Errorf("snapshot revision %d is older than applied revision %d", next.Revision, current.Revision)
@@ -430,7 +430,7 @@ func (s *Store) normalizeLocked(request *relayv1.ApplySnapshotRequest, allowExpi
 
 func (s *Store) normalizeLegacy(request *relayv1.ApplySnapshotRequest, digest [sha256.Size]byte) (*Snapshot, error) {
 	if request.Revision == 0 || request.GatewayInstanceId == "" {
-		return nil, fmt.Errorf("snapshot revision and gateway instance id are required")
+		return nil, fmt.Errorf("snapshot revision and Opfield instance id are required")
 	}
 	return buildSnapshot(&relayv1.PolicyEnvelopePayload{
 		SchemaVersion: 1, GatewayInstanceId: request.GatewayInstanceId, Revision: request.Revision,

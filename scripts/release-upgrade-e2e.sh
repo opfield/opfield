@@ -19,6 +19,10 @@
 #    No warnings or errors in the app, relay and daemon logs beyond LOG_ALLOW.
 # 4. Runs the base updater's own rollback() on the migrated database, checks the base (license, node
 #    creation, group scopes, Pages insert), updates again and compares effective access with step 2.
+#    A candidate with the Opfield layout (FIRST_OPFIELD_LAYOUT) runs this right after step 2, then waits for the
+#    host move (/opt/gateway -> /opt/opfield, project and database `opfield`) the settled update starts, checks
+#    the moved stack, the volumes and data it kept and the outage, and only then runs step 3: rolling back to
+#    the base after the move is not supported.
 # 5. Installs the candidate fresh with the candidate's installer and completes setup and first sign-in; the
 #    upgraded install's built-in groups must equal the fresh install's.
 # 6. With GATEWAY_E2E_LICENSE_KEY set: activates the key on the base and checks that the candidate's
@@ -95,6 +99,12 @@ LICENSE_HOSTS="${GATEWAY_E2E_LICENSE_HOSTS:?run from a checkout (config/license-
 MAILPIT_IMAGE="docker.io/axllent/mailpit:v1.31.3"
 WEB_IMAGE="nginx:1.27-alpine"
 INSTALL_DIR="/opt/gateway"
+# The directory of the Opfield layout; the host move of a candidate from FIRST_OPFIELD_LAYOUT on puts the installation
+# there, and a fresh candidate installs there.
+OPFIELD_DIR="/opt/opfield"
+FIRST_OPFIELD_LAYOUT="v2.12.1-rc.3"
+DB_ROLE="gateway"
+DB_NAME="gateway"
 API="https://127.0.0.1:3000"
 FEED_PORT=18081
 WEB_PORT=18088
@@ -772,7 +782,46 @@ version_is() { [[ "$(gateway_version)" == "$1" ]] && api_healthy; }
 
 dc() { docker compose --project-name "$PROJECT" --project-directory "$INSTALL_DIR" -f "$INSTALL_DIR/docker-compose.yml" "$@"; }
 service_id() { dc ps -q "$1" 2>/dev/null | head -n1; }
-psql_gateway() { dc exec -T postgres psql -U gateway -d gateway -v ON_ERROR_STOP=1 -Atc "$1" 2>&1; }
+psql_gateway() { dc exec -T postgres psql -U "$DB_ROLE" -d "$DB_NAME" -v ON_ERROR_STOP=1 -Atc "$1" 2>&1; }
+
+# version_at_least A B: release A is B or later (vX.Y.Z[-rc.N], a release after its candidates).
+version_at_least() {
+  python3 - "$1" "$2" <<'PY'
+import re, sys
+def key(v):
+    m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$", v)
+    if not m:
+        sys.exit(1)
+    return (int(m[1]), int(m[2]), int(m[3]), int(m[4]) if m[4] else 10**9)
+sys.exit(0 if key(sys.argv[1]) >= key(sys.argv[2]) else 1)
+PY
+}
+
+# Follows the installation after the host move: directory, Compose project and database names.
+refresh_layout() {
+  local app pg env
+  if [[ -L "$INSTALL_DIR" || ( ! -e "$INSTALL_DIR" && -f "$OPFIELD_DIR/docker-compose.yml" ) ]]; then
+    INSTALL_DIR="$OPFIELD_DIR"
+  fi
+  app="$(docker ps -q --filter label=com.docker.compose.service=app --filter "label=com.docker.compose.project.working_dir=${INSTALL_DIR}" | head -n1)"
+  if [[ -n "$app" ]]; then
+    PROJECT="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$app")"
+    echo "$PROJECT" >"$WORK/project"
+  fi
+  pg="$(dc ps -q postgres 2>/dev/null | head -n1)"
+  if [[ -n "$pg" ]]; then
+    env="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$pg")"
+    DB_ROLE="$(sed -n 's/^POSTGRES_USER=//p' <<<"$env")"
+    DB_NAME="$(sed -n 's/^POSTGRES_DB=//p' <<<"$env")"
+    DB_ROLE="${DB_ROLE:-gateway}"
+    DB_NAME="${DB_NAME:-$DB_ROLE}"
+  fi
+}
+
+# The commercial directory of the installation (.opfield-commercial after the host move).
+commercial_dir() {
+  if [[ -d "$INSTALL_DIR/.gateway-commercial" ]]; then echo "$INSTALL_DIR/.gateway-commercial"; else echo "$INSTALL_DIR/.opfield-commercial"; fi
+}
 container_identity() {
   local id="${1:-}"
   [[ -n "$id" ]] || { echo "missing"; return 0; }
@@ -960,6 +1009,7 @@ cleanup_host() {
     if [[ "$(cat "$WORK/snapshot/docker-preexisting" 2>/dev/null)" == 1 ]]; then
       [[ -f "$INSTALL_DIR/docker-compose.yml" ]] && dc down -v --remove-orphans >/dev/null 2>&1
       docker ps -aq --filter name=gateway-e2e- | xargs -r docker rm -f >/dev/null 2>&1
+      docker rm -f opfield-host-move >/dev/null 2>&1
       docker rm -f e2e-web >/dev/null 2>&1
       comm -13 "$WORK/snapshot/docker-volumes" <(docker volume ls -q | sort) | xargs -r docker volume rm -f >/dev/null 2>&1
       comm -13 "$WORK/snapshot/docker-networks" <(docker network ls -q | sort) | xargs -r docker network rm >/dev/null 2>&1
@@ -999,7 +1049,8 @@ cleanup_host() {
   fi
 
   # Files, directories, units, apt sources, users and groups the product created.
-  rm -rf "$INSTALL_DIR"
+  rm -rf "$INSTALL_DIR" "$OPFIELD_DIR"
+  [[ -L /opt/gateway ]] && rm -f /opt/gateway
   for dir in "${SNAPSHOT_DIRS[@]}"; do
     for entry in $(new_entries "$dir" | grep -E "$PRODUCT_ENTRY"); do
       rm -rf "${dir:?}/${entry}"
@@ -1058,6 +1109,7 @@ cleanup_host() {
     done
   done
   [[ -e "$INSTALL_DIR" ]] && leftovers+=("$INSTALL_DIR")
+  [[ -e "$OPFIELD_DIR" || -L /opt/gateway ]] && leftovers+=("$OPFIELD_DIR")
   for link in $(comm -13 "$WORK/snapshot/links" <(host_links)); do
     leftovers+=("interface ${link}")
   done
@@ -1171,6 +1223,7 @@ preflight() {
   fi
   [[ "$HOST_ADDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Cannot determine the host address; pass --host-address." >&2; exit 2; }
   [[ ! -e "$INSTALL_DIR" ]] || { echo "${INSTALL_DIR} exists; this run needs a host without Gateway." >&2; exit 2; }
+  [[ ! -e "$OPFIELD_DIR" ]] || { echo "${OPFIELD_DIR} exists; this run needs a host without Opfield." >&2; exit 2; }
   for port in 3000 9443 80 443 "$WEB_PORT" "$FEED_PORT" 53; do
     if port_conflicts "$port"; then
       echo "Port ${port} is in use; this run needs it." >&2
@@ -1198,13 +1251,14 @@ run_installer() {
   status=$?
   TIMING["install ${label}"]="$((SECONDS - start)) s"
   sed -i 's/\x1b\[[0-9;]*[A-Za-z]//g' "$WORK/logs/install-${label}.out"
-  SETUP_CODE="$(grep -oE 'gws_[A-Za-z0-9_-]+' "$WORK/logs/install-${label}.out" | tail -n1)"
+  SETUP_CODE="$(grep -oE '(opfs|gws)_[A-Za-z0-9_-]+' "$WORK/logs/install-${label}.out" | tail -n1)"
   check "${label} installer" "exit ${status} in $((SECONDS - start)) s; $(grep -oE '(Version|Mode): +[^│]+' "$WORK/logs/install-${label}.out" | tr -s ' ' | tr '\n' ';')" \
     test "$status" = 0 || { tail -n 15 "$WORK/logs/install-${label}.out"; return 1; }
   app="$(docker ps -q --filter label=com.docker.compose.service=app --filter "label=com.docker.compose.project.working_dir=${INSTALL_DIR}" | head -n1)"
   PROJECT="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$app" 2>/dev/null)"
   [[ -n "$PROJECT" ]] || PROJECT="$(basename "$INSTALL_DIR")"
   echo "$PROJECT" >"$WORK/project"
+  refresh_layout
   check "setup code printed" "${SETUP_CODE:0:8}…" test -n "$SETUP_CODE"
 }
 
@@ -2068,8 +2122,8 @@ gateway_update() {
   api GET /api/system/version
   keep_json "version-${label// /-}"
   check "${label}: update record shows success" \
-    "currentVersion $(jx "$RESP" 'D["currentVersion"]'), gatewayOperation $(jx "$RESP" 'D.get("gatewayOperation")' || echo none)" \
-    test "$(jx "$RESP" 'D["currentVersion"] == args[0] and D.get("gatewayOperation") is None' "$CANDIDATE")" = true
+    "currentVersion $(jx "$RESP" 'D["currentVersion"]'), opfieldOperation $(jx "$RESP" 'D.get("opfieldOperation")' || echo none)" \
+    test "$(jx "$RESP" 'D["currentVersion"] == args[0] and D.get("opfieldOperation") is None' "$CANDIDATE")" = true
   # The license heartbeat of the new version (it posts /api/v1/installations/heartbeat), while the server is reachable.
   if [[ "$LICENSE_MODE" != block-all ]]; then
     api POST /api/system/license/check
@@ -2123,8 +2177,8 @@ check_upgraded_state() {
   if [[ -n "$LICENSE_KEY" ]]; then
     check "${label}: private core loaded" "commercialModule $(jx "$RESP" 'D["commercialModule"]'), plan $(jx "$RESP" 'D["license"]["plan"]')" \
       test "$(jx "$RESP" 'D["commercialModule"]')" = ready
-    check "${label}: private core prepared through the license server" "$(cat "$INSTALL_DIR/.gateway-commercial/prepared/${CANDIDATE}.json" 2>/dev/null)" \
-      grep -q '"edition":"commercial"' "$INSTALL_DIR/.gateway-commercial/prepared/${CANDIDATE}.json"
+    check "${label}: private core prepared through the license server" "$(cat "$(commercial_dir)/prepared/${CANDIDATE}.json" 2>/dev/null)" \
+      grep -q '"edition":"commercial"' "$(commercial_dir)/prepared/${CANDIDATE}.json"
   else
     check "${label}: Community edition" "commercialModule $(jx "$RESP" 'D["commercialModule"]'), license $(jx "$RESP" 'D["license"]["status"]')" \
       test "$(jx "$RESP" 'D["commercialModule"]')" = community
@@ -2152,7 +2206,7 @@ phase2_update() {
   done
   # A base that snapshots the database before an update removes the snapshot once the update succeeded; phase 4
   # needs it for the base's own restore, so its inode is kept by a hard link while the update runs.
-  start_background dump-capture sh -c 'while :; do for f in "$1"/.gateway-foundation-backups/pre-update-*/gateway-db.dump; do
+  start_background dump-capture sh -c 'while :; do for f in "$1"/.gateway-foundation-backups/pre-update-*/gateway-db.dump "$1"/.opfield-foundation-backups/pre-update-*/opfield-db.dump; do
       [ -s "$f" ] && ln -f "$f" "$2/pre-update-db.dump" 2>/dev/null; done; sleep 0.2; done' sh "$INSTALL_DIR" "$WORK"
   gateway_update "update${HOP_NOTE}"
   local updated=$?
@@ -2174,6 +2228,71 @@ phase2_update() {
     check "node stays online on its ${FACT[daemon_before_${id}]} daemon" "$(node_status "$id") (${id})" \
       node_online_with "$id" "${FACT[daemon_before_${id}]}"
   done
+}
+
+# ── Host move to the Opfield layout ───────────────────────────────────
+
+host_move_done() {
+  [[ -L /opt/gateway && -f "$OPFIELD_DIR/docker-compose.yml" ]] || return 1
+  [[ "$(docker inspect -f '{{.State.Status}}' opfield-host-move 2>/dev/null)" == exited ]] || return 1
+  refresh_layout
+  version_is "$CANDIDATE"
+}
+
+host_move_ended() {
+  [[ "$(docker inspect -f '{{.State.Status}} {{.HostConfig.RestartPolicy.Name}}' opfield-host-move 2>/dev/null)" == "exited no" ]]
+}
+
+# The settled update starts the move of an installation made before FIRST_OPFIELD_LAYOUT: once, after about ten
+# minutes; the API stops for about a minute and Secure Links through the local relay once.
+phase_host_move() {
+  local start_ms end_ms window volumes_before volumes_after code env_names compose_head projects
+  phase 2m "Host move to ${OPFIELD_DIR}"
+  volumes_before="$(docker volume ls -q | sort | tr '\n' ' ')"
+  start_ms="$(now_ms)"
+  wait_for 1500 "the host move" host_move_ended
+  code="$(docker inspect -f '{{.State.ExitCode}}' opfield-host-move 2>/dev/null)"
+  docker logs opfield-host-move >"$WORK/logs/host-move.log" 2>&1
+  check "host move ended" "exit ${code:-none} after $((($(now_ms) - start_ms) / 1000)) s; $(tail -n 2 "$WORK/logs/host-move.log" | cut -c1-200 | tr '\n' ' ')" \
+    test "$code" = 0 || return 1
+  wait_for 300 "Opfield after the host move" host_move_done
+  end_ms="$(now_ms)"
+  check "installation moved" "${INSTALL_DIR}; /opt/gateway -> $(readlink /opt/gateway); project ${PROJECT}; database ${DB_ROLE}/${DB_NAME}" \
+    test "$INSTALL_DIR" = "$OPFIELD_DIR" -a "$PROJECT" = opfield -a "$DB_ROLE" = opfield -a "$DB_NAME" = opfield || return 1
+  compose_head="$(head -n1 "$INSTALL_DIR/docker-compose.yml")"
+  env_names="$(grep -cE '^GATEWAY_' "$INSTALL_DIR/.env")"
+  check "Opfield files" "${compose_head}; ${env_names} GATEWAY_ settings; $(grep -c 'com.wiolett' "$INSTALL_DIR/docker-compose.yml") earlier labels" \
+    test "$compose_head" = "name: opfield" -a "$env_names" = 0 -a "$(grep -c 'com.wiolett' "$INSTALL_DIR/docker-compose.yml")" = 0
+  projects="$(docker ps -a --format '{{.Label "com.docker.compose.project"}}' | sort -u | tr '\n' ' ')"
+  check "no container of the earlier project left" "projects: ${projects}" \
+    test "$(docker ps -aq --filter label=com.docker.compose.project=gateway | wc -l)" = 0
+  volumes_after="$(docker volume ls -q | sort | tr '\n' ' ')"
+  check "volumes kept by name, none added" "before: ${volumes_before}; after: ${volumes_after}" test "$volumes_before" = "$volumes_after"
+  check "app data kept" "$(psql_gateway "select count(*) from users") users, $(psql_gateway "select count(*) from nodes") nodes" \
+    test "$(psql_gateway "select count(*) from users where email = '${ADMIN_EMAIL}'")" = 1
+  window="$(probe_window "$start_ms" "$end_ms")"
+  echo "$window" >"$WORK/json/probes-host-move.json"
+  TIMING["host move API outage"]="$(window_value "$window" 'D["apiOutageSeconds"]') s"
+  check "host move: API outage within ${MAX_API_DOWNTIME} s" \
+    "$(window_value "$window" '"%s s, %s of %s probes failed" % (D["apiOutageSeconds"], D["apiFailures"], D["apiSamples"])')" \
+    test "$(window_value "$window" 'D["apiRecovered"] and D["apiOutageSeconds"] <= float(args[0])' "$MAX_API_DOWNTIME")" = true
+  check "host move: route served throughout" \
+    "$(window_value "$window" '"%s of %s probes failed, codes %s" % (D["routeFailures"], D["routeSamples"], D["routeCodes"])')" \
+    test "$(window_value "$window" 'D["routeSamples"] > 0 and D["routeFailures"] == 0')" = true
+  ensure_session
+  check_upgraded_state "after the host move" "moved1"
+  check "effective access equals the update" \
+    "$(python3 "$WORK/py/access.py" compare "$WORK/json/access-upgrade1${HOP}.json" "$WORK/json/access-moved1.json" eq)" \
+    python3 "$WORK/py/access.py" compare "$WORK/json/access-upgrade1${HOP}.json" "$WORK/json/access-moved1.json" eq
+  if [[ "${FACT[sl_ready]}" == 1 ]]; then
+    wait_for 180 "route ${SECURE_LINK_DOMAIN}" sl_ok
+    check "after the host move: Route Secure Link serves" "http://${SECURE_LINK_DOMAIN}/ok" sl_ok
+  fi
+  for id in "${FACT[docker_node]}" "${FACT[nginx_node]}"; do
+    wait_for 180 "node ${id} online" node_online "$id"
+    check "node online after the host move" "$(node_status "$id")" node_online "$id"
+  done
+  check_logs "after the host move" "$((start_ms / 1000))"
 }
 
 # ── Phase 3: daemons and relay ────────────────────────────────────────
@@ -2387,7 +2506,11 @@ teardown_stack() {
   docker rm -f e2e-web e2e-sl e2e-echo e2e-echo-client gateway-e2e-mailpit gateway-e2e-rollback >/dev/null 2>&1
   [[ -f "$INSTALL_DIR/docker-compose.yml" ]] && dc down -v --remove-orphans >>"$WORK/logs/compose.log" 2>&1
   docker ps -aq --filter "ancestor=${FACT[sidecar_image]:-docker.io/library/docker:27-cli}" | xargs -r docker rm -f >/dev/null 2>&1
-  rm -rf "$INSTALL_DIR"
+  rm -rf "$INSTALL_DIR" "$OPFIELD_DIR"
+  [[ -L /opt/gateway ]] && rm -f /opt/gateway
+  docker rm -f opfield-host-move >/dev/null 2>&1
+  # The fresh candidate installs where its installer puts it.
+  if version_at_least "$CANDIDATE" "$FIRST_OPFIELD_LAYOUT"; then INSTALL_DIR="$OPFIELD_DIR"; fi
 }
 
 phase5_fresh() {
@@ -2406,8 +2529,15 @@ phase5_fresh() {
     check "installer accepts -rc.N tags (test-only patch)" "${patched} version patterns widened" test "$patched" -gt 0 || return 1
   fi
   run_installer fresh "$installer" || return 1
-  check "fresh install runs ${CANDIDATE}" "$(grep '^GATEWAY_VERSION=' "$INSTALL_DIR/.env")" \
-    grep -qx "GATEWAY_VERSION=${CANDIDATE}" "$INSTALL_DIR/.env"
+  check "fresh install runs ${CANDIDATE}" "$(grep -E '^(OPFIELD|GATEWAY)_VERSION=' "$INSTALL_DIR/.env")" \
+    grep -qxE "(OPFIELD|GATEWAY)_VERSION=${CANDIDATE}" "$INSTALL_DIR/.env"
+  if version_at_least "$CANDIDATE" "$FIRST_OPFIELD_LAYOUT"; then
+    check "fresh install in the Opfield layout" \
+      "${INSTALL_DIR}; $(head -n1 "$INSTALL_DIR/docker-compose.yml"); project ${PROJECT}; database ${DB_ROLE}/${DB_NAME}" \
+      test "$INSTALL_DIR" = "$OPFIELD_DIR" -a "$PROJECT" = opfield -a "$DB_NAME" = opfield -a "$DB_ROLE" = opfield
+    check "fresh install has no earlier names" "$(grep -cE '^GATEWAY_' "$INSTALL_DIR/.env") GATEWAY_ settings" \
+      test "$(grep -cE '^GATEWAY_' "$INSTALL_DIR/.env")" = 0
+  fi
   prepare_stack || return 1
   check_license_guard
   complete_setup fresh || return 1
@@ -2596,11 +2726,22 @@ main() {
     if [[ -n "$VIA" ]] && ! run_via_hop; then
       PHASE=2b; skip "product update to ${FINAL_CANDIDATE}" "the hop through ${VIA} did not complete"
     elif phase2_update; then
-      phase3_components
-      if ((SKIP_ROLLBACK)); then
-        PHASE=4; skip "forced rollback" "${VIA:+after a hop through ${VIA}: }--skip-rollback"
+      if version_at_least "$CANDIDATE" "$FIRST_OPFIELD_LAYOUT" && [[ "$INSTALL_DIR" != "$OPFIELD_DIR" ]]; then
+        # The base's rollback() works only before the host move; the move waits for the update to settle.
+        if ((SKIP_ROLLBACK)); then
+          PHASE=4; skip "forced rollback" "${VIA:+after a hop through ${VIA}: }--skip-rollback"
+        else
+          phase4_rollback
+        fi
+        phase_host_move
+        phase3_components
       else
-        phase4_rollback
+        phase3_components
+        if ((SKIP_ROLLBACK)); then
+          PHASE=4; skip "forced rollback" "${VIA:+after a hop through ${VIA}: }--skip-rollback"
+        else
+          phase4_rollback
+        fi
       fi
     else
       PHASE=3; skip "daemon and relay updates" "the Gateway update did not complete"

@@ -13,7 +13,8 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -21,6 +22,23 @@ import (
 const maintenanceAccessSocketPath = "/run/nginx-daemon/maintenance-access.sock"
 
 var maintenanceAccessHostID = regexp.MustCompile(`^[0-9a-fA-F-]{36}$`)
+
+const (
+	// The access cookies a redeemed code sets; route configs check them with secure_link.
+	maintenanceAccessSignatureCookie = "opfield_maintenance_access_sig"
+	maintenanceAccessExpiryCookie    = "opfield_maintenance_access_exp"
+	// maintenanceAccessHostMetadata carries the requested host to Opfield.
+	maintenanceAccessHostMetadata = "x-opfield-maintenance-host"
+)
+
+// maintenanceAccessHeader is a header nginx adds to a redemption (X-Opfield-Maintenance-<name>).
+func maintenanceAccessHeader(r *http.Request, name string) string {
+	if value := r.Header.Get("X-Opfield-Maintenance-" + name); value != "" {
+		return value
+	}
+	// legacy-name: X-Gateway-Maintenance-* of route configs rendered for the pre-Opfield names — remove once every node reports none
+	return r.Header.Get("X-Gateway-Maintenance-" + name)
+}
 
 type maintenanceAccessServer struct {
 	listener net.Listener
@@ -62,7 +80,7 @@ func (s *maintenanceAccessServer) close(handedOver bool) {
 
 // maintenanceAccessHandler redeems an access code the maintenance page posts. 204 sets the access cookies; 403 means
 // the code was not accepted (wrong, expired, already used, for another route or host), and the page says so; 502
-// means Gateway could not be asked.
+// means Opfield could not be asked.
 func maintenanceAccessHandler(client pb.MaintenanceAccessClient, logger interface{ Warn(string, ...any) }) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/redeem/", func(w http.ResponseWriter, r *http.Request) {
@@ -82,14 +100,14 @@ func maintenanceAccessHandler(client pb.MaintenanceAccessClient, logger interfac
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
-		requestHost := r.Header.Get("X-Gateway-Maintenance-Host")
+		requestHost := maintenanceAccessHeader(r, "Host")
 		if requestHost == "" {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-gateway-maintenance-host", requestHost))
+		ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs(maintenanceAccessHostMetadata, requestHost))
 		reply, err := client.Redeem(ctx, &pb.MaintenanceAccessRedeemRequest{HostId: hostID, Code: body.Code})
 		if err != nil {
 			logger.Warn("maintenance access redemption failed", "error", err)
@@ -106,22 +124,24 @@ func maintenanceAccessHandler(client pb.MaintenanceAccessClient, logger interfac
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
+		secure := maintenanceAccessHeader(r, "Secure") == "on"
+		// The names the route configs of this node check: those of the names in effect (naming.Render).
 		http.SetCookie(w, &http.Cookie{
-			Name:     "gateway_maintenance_access_sig",
+			Name:     naming.Render(maintenanceAccessSignatureCookie),
 			Value:    signature,
 			Path:     "/",
 			MaxAge:   60 * 60,
 			HttpOnly: true,
-			Secure:   r.Header.Get("X-Gateway-Maintenance-Secure") == "on",
+			Secure:   secure,
 			SameSite: http.SameSiteLaxMode,
 		})
 		http.SetCookie(w, &http.Cookie{
-			Name:     "gateway_maintenance_access_exp",
+			Name:     naming.Render(maintenanceAccessExpiryCookie),
 			Value:    expires,
 			Path:     "/",
 			MaxAge:   60 * 60,
 			HttpOnly: true,
-			Secure:   r.Header.Get("X-Gateway-Maintenance-Secure") == "on",
+			Secure:   secure,
 			SameSite: http.SameSiteLaxMode,
 		})
 		w.WriteHeader(http.StatusNoContent)

@@ -54,13 +54,13 @@ describe('NginxConfigGenerator proxy TLS and ACL rendering', () => {
 
     expect(secure).toContain('proxy_send_timeout 2h;');
     expect(secure).toContain('proxy_read_timeout 2h;');
-    expect(secure).toContain('# gateway-managed-secure-link-upstream');
+    expect(secure).toContain('# opfield-managed-secure-link-upstream');
     expect(websocket).toContain('proxy_send_timeout 2h;');
     expect(websocket).toContain('proxy_read_timeout 2h;');
-    expect(websocket).not.toContain('# gateway-managed-secure-link-upstream');
+    expect(websocket).not.toContain('# opfield-managed-secure-link-upstream');
     expect(regular).toContain('proxy_send_timeout 60s;');
     expect(regular).toContain('proxy_read_timeout 60s;');
-    expect(regular).not.toContain('# gateway-managed-secure-link-upstream');
+    expect(regular).not.toContain('# opfield-managed-secure-link-upstream');
   });
 
   it('applies inherited per-IP request and concurrent connection limits', () => {
@@ -103,7 +103,7 @@ describe('NginxConfigGenerator proxy TLS and ACL rendering', () => {
     expect(rendered).toContain('ssl_trusted_certificate /etc/nginx/certs/origin/chain.pem;');
     expect(rendered).not.toContain('deny all;');
     expect(rendered).toMatch(
-      /location \/ \{[\s\S]*auth_basic "Restricted Access";[\s\S]*auth_basic_user_file \/etc\/nginx\/gateway\/htpasswd\/access-list-basic-only;[\s\S]*proxy_pass/
+      /location \/ \{[\s\S]*auth_basic "Restricted Access";[\s\S]*auth_basic_user_file \/etc\/nginx\/opfield\/htpasswd\/access-list-basic-only;[\s\S]*proxy_pass/
     );
   });
 

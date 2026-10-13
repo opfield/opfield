@@ -4,6 +4,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { oauthAccessTokens, oauthClients, oauthRefreshTokens } from '@/db/schema/index.js';
 import { expandFolderScopes } from '@/lib/folder-scopes.js';
 import { canonicalizeInboundScopes, canonicalizeScopes, isValidInboundScope } from '@/lib/scopes.js';
+import { TOKEN_PREFIXES } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { resolveLiveUser } from '@/modules/auth/live-session-user.js';
@@ -161,7 +162,7 @@ export class OAuthTokenLifecycle {
     input: { clientId: string; userId: string; scopes: string[]; resource: string },
     db: Pick<DrizzleClient, 'insert'> = this.deps.db
   ): Promise<IssuedTokens> {
-    const accessToken = randomSecret('gwo_');
+    const accessToken = randomSecret(TOKEN_PREFIXES.oauthAccess);
     const now = Date.now();
     const scopes = canonicalizeScopes(input.scopes);
     if (this.isMcpResource(input.resource)) {
@@ -190,7 +191,7 @@ export class OAuthTokenLifecycle {
       };
     }
 
-    const refreshToken = randomSecret('gwr_');
+    const refreshToken = randomSecret(TOKEN_PREFIXES.oauthRefresh);
     const [refresh] = await db
       .insert(oauthRefreshTokens)
       .values({

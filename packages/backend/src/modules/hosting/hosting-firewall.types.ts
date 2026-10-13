@@ -108,6 +108,12 @@ export interface HostingFirewallAdapter {
     desired: HostingFirewallConfig,
     expected: HostingFirewallObservation
   ): Promise<void>;
+  /**
+   * Rewrites names/comments that older releases wrote on this VM's owned firewall objects to the
+   * current form. Metadata only: never recreates a policy or changes its rules. Returns whether
+   * anything was written, so the caller re-reads the observation.
+   */
+  migrateLegacyNames?(resource: HostingResourceSnapshot, ownerKey: string): Promise<boolean>;
 }
 export const HostingFirewallUpdateSchema = z
   .object({

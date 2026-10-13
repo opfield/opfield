@@ -52,6 +52,8 @@ export function buildHostingBootstrap(input: {
   const url = new URL(`https://${input.gateway}`);
   if (url.username || url.password || url.pathname !== '/' || url.search || url.hash)
     throw new AppError(400, 'HOSTING_GATEWAY_INVALID', 'Invalid Opfield enrollment endpoint');
+  // legacy-name: --gateway flags — the pinned installer (HOSTING_INSTALLER_REVISION) predates --opfield; switch with the
+  // next pin of a release whose installers take --opfield and --opfield-cert-sha256.
   const args = [
     '--gateway',
     input.gateway,
@@ -69,7 +71,7 @@ export function buildHostingBootstrap(input: {
   }
   const clean = input.requireCleanHost
     ? `
-# A cloned template must never inherit another Gateway host identity or certificate.
+# A cloned template must never inherit another Opfield host identity or certificate.
 if [ -s /var/lib/gateway/host-identity ]; then
   echo 'Opfield identity already exists; refusing to adopt or reinstall a cloned identity' >&2
   exit 42

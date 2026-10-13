@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/handover/handovertest"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/handover/handovertest"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

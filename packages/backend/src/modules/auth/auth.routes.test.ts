@@ -648,13 +648,13 @@ describe('impersonated sessions', () => {
         },
         permissionGroups: {
           findMany: vi.fn().mockResolvedValue([
-            { id: 'viewer-group', parentId: null, name: 'viewer', scopes: ['nodes:details'], requireGateway2fa: false },
+            { id: 'viewer-group', parentId: null, name: 'viewer', scopes: ['nodes:details'], require2fa: false },
             {
               id: 'admin-group',
               parentId: null,
               name: 'admin',
               scopes: ['admin:users:impersonate', 'nodes:details'],
-              requireGateway2fa: false,
+              require2fa: false,
             },
           ]),
         },
@@ -749,7 +749,7 @@ describe('sign-in audit entries name the account', () => {
     } as unknown as LocalAuthService);
     container.registerInstance(MfaService, {
       getStatus: vi.fn().mockResolvedValue({ totpConfigured: true, passkeyCount: 0 }),
-      isGatewayMfaRequired: vi.fn().mockResolvedValue(false),
+      isOpfieldMfaRequired: vi.fn().mockResolvedValue(false),
       beginLoginChallenge: vi.fn().mockResolvedValue('challenge-1'),
     } as unknown as MfaService);
     const response = await login(signInApp());

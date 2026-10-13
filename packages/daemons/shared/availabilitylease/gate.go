@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // verifyCommit checks a commit certificate against the voter config of its

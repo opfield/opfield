@@ -9,7 +9,7 @@ import type {
   NodeRelayStreamReport,
   NodeStatsReport,
 } from '@/db/schema/nodes.js';
-import type { CommandResult, DaemonMessage, GatewayCommand } from '@/grpc/generated/types.js';
+import type { CommandResult, DaemonMessage, OpfieldCommand } from '@/grpc/generated/types.js';
 import { compactHealthHistory } from '@/lib/health-history.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { DockerRuntimeStatus } from '@/modules/docker/docker.schemas.js';
@@ -63,7 +63,7 @@ export interface ConnectedNode {
   nodeId: string;
   type: 'nginx' | 'bastion' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay';
   hostname: string;
-  commandStream: ServerDuplexStream<DaemonMessage, GatewayCommand>;
+  commandStream: ServerDuplexStream<DaemonMessage, OpfieldCommand>;
   logStream: ServerDuplexStream<unknown, unknown> | null;
   connectedAt: Date;
   lastHealthReport: NodeHealthReport | null;
@@ -327,7 +327,7 @@ export class NodeRegistryService {
     type: 'nginx' | 'bastion' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay',
     hostname: string,
     configVersionHash: string,
-    commandStream: ServerDuplexStream<DaemonMessage, GatewayCommand>,
+    commandStream: ServerDuplexStream<DaemonMessage, OpfieldCommand>,
     options: { isCurrentRegistration?: () => boolean; capabilities?: string[] } = {}
   ): Promise<void> {
     const connectionId = randomUUID();
@@ -394,7 +394,7 @@ export class NodeRegistryService {
     this.observeNodeState(nodeId, 'online', hostname);
   }
 
-  async deregister(nodeId: string, commandStream?: ServerDuplexStream<DaemonMessage, GatewayCommand>): Promise<void> {
+  async deregister(nodeId: string, commandStream?: ServerDuplexStream<DaemonMessage, OpfieldCommand>): Promise<void> {
     const node = this.nodes.get(nodeId);
     if (!node) return; // Already removed
     if (commandStream && node.commandStream !== commandStream) {
@@ -668,7 +668,7 @@ export class NodeRegistryService {
     return Array.from(this.nodes.keys());
   }
 
-  async sendCommand(nodeId: string, command: Partial<GatewayCommand>, timeoutMs = 30000): Promise<CommandResult> {
+  async sendCommand(nodeId: string, command: Partial<OpfieldCommand>, timeoutMs = 30000): Promise<CommandResult> {
     const dispatched = this.dispatchCommand(nodeId, command, timeoutMs);
     void dispatched.accepted.catch(() => {});
     return dispatched.result;
@@ -756,7 +756,7 @@ export class NodeRegistryService {
     this.trafficStatsNodeTails.delete(nodeId);
   }
 
-  dispatchCommand(nodeId: string, command: Partial<GatewayCommand>, timeoutMs = 30000): DispatchedCommand {
+  dispatchCommand(nodeId: string, command: Partial<OpfieldCommand>, timeoutMs = 30000): DispatchedCommand {
     const node = this.nodes.get(nodeId);
     if (!node) {
       throw new Error(`Node ${nodeId} is not connected`);
@@ -765,7 +765,7 @@ export class NodeRegistryService {
     // A caller may name the command (a pull's task records the ID to ask the daemon for its outcome later).
     const commandId = command.commandId || randomUUID();
     const sentAt = Date.now();
-    const fullCommand: GatewayCommand = {
+    const fullCommand: OpfieldCommand = {
       ...command,
       commandId,
       // The daemon drops a command that is already past the point where the
@@ -822,13 +822,13 @@ export class NodeRegistryService {
   }
 
   /** Fire-and-forget: write a command to the stream without awaiting a response */
-  sendCommandNoWait(nodeId: string, command: Partial<GatewayCommand>): void {
+  sendCommandNoWait(nodeId: string, command: Partial<OpfieldCommand>): void {
     const node = this.nodes.get(nodeId);
     if (!node) {
       throw new Error(`Node ${nodeId} is not connected`);
     }
 
-    const fullCommand: GatewayCommand = {
+    const fullCommand: OpfieldCommand = {
       commandId: '',
       ...command,
     };

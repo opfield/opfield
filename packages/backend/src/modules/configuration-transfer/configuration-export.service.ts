@@ -47,7 +47,7 @@ const FINISHED_KEEP_MS = 60 * 60 * 1000;
 export const CONFIGURATION_EXPORT_LINK_PATH = '/api/configuration-export-link';
 const DOWNLOAD_LINK: OneTimeLinkKind = {
   path: CONFIGURATION_EXPORT_LINK_PATH,
-  tokenPrefix: 'gwce_',
+  tokenPrefix: 'opfce_',
   cachePrefix: 'configuration-export:download-link:',
   ttlSeconds: TICKET_TTL_MS / 1000,
   label: 'configuration export links',
@@ -68,7 +68,7 @@ export interface ConfigurationExportSection {
 export interface ConfigurationExportEstimate {
   available: boolean;
   unavailableReason: string | null;
-  gatewayVersion: string;
+  opfieldVersion: string;
   sections: {
     database: ConfigurationExportSection;
     files: ConfigurationExportSection;
@@ -132,7 +132,7 @@ export class ConfigurationExportService {
     private readonly env: NodeJS.ProcessEnv = process.env
   ) {}
 
-  private gatewayVersion(): string {
+  private opfieldVersion(): string {
     return this.env.APP_VERSION || 'dev';
   }
 
@@ -197,7 +197,7 @@ export class ConfigurationExportService {
       return {
         available: false,
         unavailableReason: error instanceof Error ? error.message : String(error),
-        gatewayVersion: this.gatewayVersion(),
+        opfieldVersion: this.opfieldVersion(),
         sections: { database: empty, files: empty, registry: empty, logs: empty },
         hostSpecific: HOST_SPECIFIC_VALUES,
       };
@@ -217,7 +217,7 @@ export class ConfigurationExportService {
     return {
       available: true,
       unavailableReason: null,
-      gatewayVersion: this.gatewayVersion(),
+      opfieldVersion: this.opfieldVersion(),
       sections: {
         database: { bytes: database, available: true },
         files: { bytes: files.reduce<number>((sum, bytes) => sum + (bytes ?? 0), 0), available: true },
@@ -318,7 +318,7 @@ export class ConfigurationExportService {
       installation = await this.installation();
       await removeLeftoverHelpers(this.docker, installation.project);
       writer = await ExportArchiveWriter.create(passphrase, {
-        gatewayVersion: this.gatewayVersion(),
+        opfieldVersion: this.opfieldVersion(),
         schemaMigration: currentSchemaMigration(),
         createdAt: ticket.createdAt,
       });
@@ -358,8 +358,8 @@ export class ConfigurationExportService {
           (volume.optional === 'registry' && ticket.options.includeRegistry) ||
           (volume.optional === 'logs' && ticket.options.includeLogs)
       );
-      const commercialDir = this.env.GATEWAY_COMMERCIAL_DIR?.startsWith('/var/lib/gateway/commercial/')
-        ? this.env.GATEWAY_COMMERCIAL_DIR
+      const commercialDir = this.env.OPFIELD_COMMERCIAL_DIR?.startsWith('/var/lib/gateway/commercial/')
+        ? this.env.OPFIELD_COMMERCIAL_DIR
         : null;
       const hasCommercial = Boolean(commercialDir && installation.app && existsSync('/var/lib/gateway/commercial'));
       for (const volume of included) {
@@ -372,13 +372,13 @@ export class ConfigurationExportService {
       const manifest: ConfigurationExportManifest = {
         format: CONFIGURATION_EXPORT_FORMAT,
         createdAt: ticket.createdAt,
-        gatewayVersion: this.gatewayVersion(),
+        opfieldVersion: this.opfieldVersion(),
         schemaMigration: currentSchemaMigration(),
         installationId: await this.license.getInstallationId(),
         source: {
           publicUrl: general.publicUrl,
-          grpcPublicTarget: general.gatewayGrpcPublicTarget,
-          grpcLocalIp: general.gatewayGrpcLocalIp,
+          grpcPublicTarget: general.grpcPublicTarget,
+          grpcLocalIp: general.grpcLocalIp,
           composeProject: installation.project,
         },
         includes: { registry: ticket.options.includeRegistry, logs: ticket.options.includeLogs },

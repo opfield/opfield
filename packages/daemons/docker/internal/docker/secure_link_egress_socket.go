@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/netaccept"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/netaccept"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 // The egress socket (C4): the shared connector opens one stream here for every connection a workload makes to an

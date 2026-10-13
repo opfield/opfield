@@ -95,7 +95,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
     invalidateStores: ['settings'],
   },
   {
-    name: 'manage_gateway_diagnostics',
+    name: 'manage_opfield_diagnostics',
     description:
       "Read the state of Opfield itself, the control plane (for managed nodes use get_node and manage_node). operation: snapshot (now: Opfield's host CPU, memory, load and data-volume disk, where host.cpuCount and host.cpuPercent cover the CPUs Opfield may use (kernelCpuCount is the kernel's count) and host.memoryScope says whether memory is the container cgroup limit (cgroup) or the kernel's view (kernel, as inside an LXC); the backend process memory, CPU and event-loop delay; Postgres and Redis reachability, latency, connection pool, size and long queries; the stack containers such as app, postgres, redis, relay and registry with state, health, restarts, CPU and memory; failing background jobs; API latency and 5xx), history (one-minute samples kept 48 hours: from/to as ISO or durations such as 6h or 1d, default the last 6 hours; metrics as dotted paths like host.cpuPercent, requests.p95Ms, postgres.poolWaiting or containers.postgres.memoryBytes, see availableMetrics; returns avg and max per step, stepMinutes defaults to at most 120 points), requests (per-route counts, p95 and 5xx over the last minutes, up to 60), jobs (every background job: last run, duration, last error, failures in a row), or logs (lines of one Opfield container, newest last: source app (default), update (the last Opfield update run), or a stack service such as postgres, redis, relay or registry; since/until as ISO or durations, default the last hour; level is the minimum (error, warn, info, debug); text, context and requestId filter app lines; limit up to 1000, default 200; needs diagnostics:logs).",
     parameters: {
@@ -164,17 +164,17 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
     invalidateStores: [],
   },
   {
-    name: 'get_gateway_settings',
+    name: 'get_opfield_settings',
     description:
       'Read every Opfield settings section: sign-in methods, password policy and MFA grace, OIDC provisioning and provider, SMTP (secrets masked), logging backend, MCP server, web TLS transport, general settings (public URL, update channel, relay tuning, features), network security, outbound webhook policy, and environment settings with their defaults.',
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'Maintenance',
-    requiredScope: 'settings:gateway:view',
+    requiredScope: 'settings:opfield:view',
     invalidateStores: [],
   },
   {
-    name: 'update_gateway_settings',
+    name: 'update_opfield_settings',
     description:
       'Update Opfield settings exactly like the Settings UI. Pass only fields to change. SMTP, the OIDC provider (oidc, oidcProviderAction), the public URL, and relaxing OIDC verified-email enforcement require admin:system. smtp.testRecipient sends a test email; enabling password or email-code sign-in requires verified SMTP; enabling OIDC sign-in requires a configured provider; turning a sign-in method off is refused (LAST_ADMIN_SIGN_IN) when no administrator could sign in afterwards. environmentSettings patches the environment (limits/timeouts) settings.',
     parameters: {
@@ -254,7 +254,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
           type: 'string',
           enum: ['remove', 'opfield_account', 'cancel_opfield_account'],
           description:
-            'Requires admin:system; not together with oidc. remove: removes the OIDC provider and turns OIDC sign-in off. opfield_account: Use Opfield account for sign-in on an installation connected to Opfield Cloud (opfieldAccountSignIn.available in get_gateway_settings, otherwise 409 OPFIELD_ACCOUNT_CLIENT_MISSING): with a client from the cloud (opfieldAccountSignIn.clientIssued) it brings back the "Opfield account" provider and turns OIDC sign-in on at once; without one it asks the Opfield account for a client (needs the public URL, PUBLIC_URL_REQUIRED otherwise) and opfieldAccountSignIn.pendingRequest shows the wait until the account answers and the provider is set up with OIDC sign-in on. Asking again does not add a request. cancel_opfield_account withdraws the pending request. Changes after which no administrator could sign in are refused (LAST_ADMIN_SIGN_IN).',
+            'Requires admin:system; not together with oidc. remove: removes the OIDC provider and turns OIDC sign-in off. opfield_account: Use Opfield account for sign-in on an installation connected to Opfield Cloud (opfieldAccountSignIn.available in get_opfield_settings, otherwise 409 OPFIELD_ACCOUNT_CLIENT_MISSING): with a client from the cloud (opfieldAccountSignIn.clientIssued) it brings back the "Opfield account" provider and turns OIDC sign-in on at once; without one it asks the Opfield account for a client (needs the public URL, PUBLIC_URL_REQUIRED otherwise) and opfieldAccountSignIn.pendingRequest shows the wait until the account answers and the provider is set up with OIDC sign-in on. Asking again does not add a request. cancel_opfield_account withdraws the pending request. Changes after which no administrator could sign in are refused (LAST_ADMIN_SIGN_IN).',
         },
         logging: {
           type: 'object',
@@ -284,7 +284,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
         generalSettings: {
           type: 'object',
           description:
-            "Partial general settings: publicUrl, updateChannel, hideExternalBranding, autoAssignCreatedResourcePermissions, sendInvitationOnUserCreate (email the account invitation to every created user; off by default), file limits, gatewayGrpcPublicTarget, gatewayGrpcLocalIp, relayAutoRecovery, relay tuning, shutdown deadlines, relayGrantTtlHours, relayPolicyLeaseHours (lifetime of the signed policy pushed to a relay, 1-168 hours, default 72), features. On a managed cloud installation publicUrl, gatewayGrpcPublicTarget and gatewayGrpcLocalIp are the cloud's: changing them answers 409 CLOUD_MANAGED (resubmitting them unchanged is fine).",
+            "Partial general settings: publicUrl, updateChannel, hideExternalBranding, autoAssignCreatedResourcePermissions, sendInvitationOnUserCreate (email the account invitation to every created user; off by default), file limits, grpcPublicTarget, grpcLocalIp, relayAutoRecovery, relay tuning, shutdown deadlines, relayGrantTtlHours, relayPolicyLeaseHours (lifetime of the signed policy pushed to a relay, 1-168 hours, default 72), features. On a managed cloud installation publicUrl, grpcPublicTarget and grpcLocalIp are the cloud's: changing them answers 409 CLOUD_MANAGED (resubmitting them unchanged is fine).",
         },
         networkSecurity: { type: 'object' },
         outboundWebhookPolicy: { type: 'object' },
@@ -297,26 +297,26 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
     },
     destructive: true,
     category: 'Maintenance',
-    requiredScope: 'settings:gateway:edit',
+    requiredScope: 'settings:opfield:edit',
     invalidateStores: ['settings'],
   },
   {
     name: 'manage_system_updates',
     description:
-      'Read or manage Opfield, Relay Pool, and daemon updates. Operations: get_gateway_status, check_gateway, get_gateway_release_notes, list_gateway_release_notes (every release between the current and the available version), perform_gateway_update, proceed_gateway_update (stop waiting for running operations), acknowledge_gateway_update_failure, perform_relay_update, abandon_relay_update (end a stuck or paused Relay Pool update), list_daemon_updates, check_daemon_updates, update_daemon (waits up to 30 minutes for long tasks running on the node, then for its lease peers, unless now is true). Mutating operations require explicit approval unless the user bypass mode allows it.',
+      'Read or manage Opfield, Relay Pool, and daemon updates. Operations: get_opfield_status, check_opfield, get_opfield_release_notes, list_opfield_release_notes (every release between the current and the available version), perform_opfield_update, proceed_opfield_update (stop waiting for running operations), acknowledge_opfield_update_failure, perform_relay_update, abandon_relay_update (end a stuck or paused Relay Pool update), list_daemon_updates, check_daemon_updates, update_daemon (waits up to 30 minutes for long tasks running on the node, then for its lease peers, unless now is true). Mutating operations require explicit approval unless the user bypass mode allows it.',
     parameters: {
       type: 'object',
       properties: {
         operation: {
           type: 'string',
           enum: [
-            'get_gateway_status',
-            'check_gateway',
-            'get_gateway_release_notes',
-            'list_gateway_release_notes',
-            'perform_gateway_update',
-            'proceed_gateway_update',
-            'acknowledge_gateway_update_failure',
+            'get_opfield_status',
+            'check_opfield',
+            'get_opfield_release_notes',
+            'list_opfield_release_notes',
+            'perform_opfield_update',
+            'proceed_opfield_update',
+            'acknowledge_opfield_update_failure',
             'perform_relay_update',
             'abandon_relay_update',
             'list_daemon_updates',
@@ -327,7 +327,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
         },
         version: {
           type: 'string',
-          description: 'Version for get_gateway_release_notes, perform_gateway_update, or perform_relay_update.',
+          description: 'Version for get_opfield_release_notes, perform_opfield_update, or perform_relay_update.',
         },
         nodeId: { type: 'string', description: 'Daemon node UUID for update_daemon.' },
         now: {
@@ -377,7 +377,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_system_alerts',
     description:
-      "List Opfield's system alerts about certificates (expiry warnings, CA expiry, revocations) or dismiss one by alertId. Operations: list, dismiss. For Opfield's own health use manage_gateway_diagnostics; for configurable alerts use list_alert_rules.",
+      "List Opfield's system alerts about certificates (expiry warnings, CA expiry, revocations) or dismiss one by alertId. Operations: list, dismiss. For Opfield's own health use manage_opfield_diagnostics; for configurable alerts use list_alert_rules.",
     parameters: {
       type: 'object',
       properties: {
@@ -435,7 +435,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
         },
         parentId: { type: 'string', description: 'Optional parent group UUID to inherit scopes from' },
         folderId: { type: ['string', 'null'], description: 'Optional group folder UUID.' },
-        requireGateway2fa: { type: 'boolean', description: 'Require Opfield MFA for members of this group.' },
+        require2fa: { type: 'boolean', description: 'Require Opfield MFA for members of this group.' },
       },
       required: ['name', 'scopes'],
       additionalProperties: false,
@@ -463,7 +463,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
           type: ['string', 'null'],
           description: 'New parent group UUID, or null to remove inheritance',
         },
-        requireGateway2fa: { type: 'boolean', description: 'Require Opfield MFA for members of this group.' },
+        require2fa: { type: 'boolean', description: 'Require Opfield MFA for members of this group.' },
       },
       required: ['groupId'],
       additionalProperties: false,
@@ -539,7 +539,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_node',
     description:
-      'Operate on one daemon node like the node page. Operations: update (displayName, appearanceColor, serviceAddresses or legacy serviceAddress/secondaryServiceAddress, confirmDomainDnsUpdate, builderSettings; each field needs the same node permission as the UI), regenerate_enrollment_token (only for a node that never enrolled; needs nodes:manage, or nodes:create for a node you created; display the new token and gatewayCertSha256 and give the installCommands entry for the target the host can reach), health_history, monitoring_history, daemon_logs (buffered daemon log lines), and nginx_logs (recent access/error lines for the ingress routes on an nginx node).',
+      'Operate on one daemon node like the node page. Operations: update (displayName, appearanceColor, serviceAddresses or legacy serviceAddress/secondaryServiceAddress, confirmDomainDnsUpdate, builderSettings; each field needs the same node permission as the UI), regenerate_enrollment_token (only for a node that never enrolled; needs nodes:manage, or nodes:create for a node you created; display the new token and opfieldCertSha256 and give the installCommands entry for the target the host can reach), health_history, monitoring_history, daemon_logs (buffered daemon log lines), and nginx_logs (recent access/error lines for the ingress routes on an nginx node).',
     parameters: {
       type: 'object',
       properties: {
@@ -611,7 +611,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_relay_pool',
     description:
-      'Inspect and operate the Relay Pool like Settings > Relay. Operations: get (pool and local relay health, instances with policyTrust, certificate, health.lastError, assignments; settings:gateway:view), local_policy_trust_status (policy signing trust of the local relay as seen by automatic recovery; settings:gateway:view), retry_recovery (retry local relay recovery), rebalance (stage a rebalance of relay assignments), drain_instance (stop placing new sessions on a relay; confirm: true required), resume_instance (undo a drain), force_disconnect_instance (drop every session on a relay; confirm: true required), renew_certificate (renew the server and admin certificates of a remote relay now instead of waiting for automatic renewal 60 days before expiry), reenroll_instance (single-use re-enrollment token for an enrolled remote relay whose policy trust is locked out; confirm: true required; returns installCommands pinned to the pool relay version with --version; give the user the installCommands entry (curl or wget) for the target the relay host can reach and the token expiry, and do not drop --version), set_witness_hosting (allowed: true|false; whether availability witnesses of databases and storage on several servers may run on the relay; get shows the witnessHosting of each instance: allowed, protected_needs_opt_in (a protected relay whose owner has not allowed database witnesses in its local config), not_reported or disabled, and its witnesses with set, purpose, role and status). Mutations require admin:system. Relay updates use manage_system_updates; relay tuning uses update_gateway_settings generalSettings.relay.',
+      'Inspect and operate the Relay Pool like Settings > Relay. Operations: get (pool and local relay health, instances with policyTrust, certificate, health.lastError, assignments; settings:opfield:view), local_policy_trust_status (policy signing trust of the local relay as seen by automatic recovery; settings:opfield:view), retry_recovery (retry local relay recovery), rebalance (stage a rebalance of relay assignments), drain_instance (stop placing new sessions on a relay; confirm: true required), resume_instance (undo a drain), force_disconnect_instance (drop every session on a relay; confirm: true required), renew_certificate (renew the server and admin certificates of a remote relay now instead of waiting for automatic renewal 60 days before expiry), reenroll_instance (single-use re-enrollment token for an enrolled remote relay whose policy trust is locked out; confirm: true required; returns installCommands pinned to the pool relay version with --version; give the user the installCommands entry (curl or wget) for the target the relay host can reach and the token expiry, and do not drop --version), set_witness_hosting (allowed: true|false; whether availability witnesses of databases and storage on several servers may run on the relay; get shows the witnessHosting of each instance: allowed, protected_needs_opt_in (a protected relay whose owner has not allowed database witnesses in its local config), not_reported or disabled, and its witnesses with set, purpose, role and status). Mutations require admin:system. Relay updates use manage_system_updates; relay tuning uses update_opfield_settings generalSettings.relay.',
     parameters: {
       type: 'object',
       properties: {
@@ -646,7 +646,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
     },
     destructive: true,
     category: 'Maintenance',
-    requiredScope: 'settings:gateway:view',
+    requiredScope: 'settings:opfield:view',
     invalidateStores: ['settings', 'nodes'],
   },
   {
@@ -760,7 +760,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'internal_documentation',
     description:
-      'Get detailed internal documentation about a specific topic in this system. Use this whenever you need deeper knowledge about how something works, what fields mean, or what the correct workflow is. Topics: discovery, pki, ssl, proxy, pages, domains, ingress-groups, access-lists, templates, acme, users, audit, siem, nginx, nodes, housekeeping, permissions, docker, availability, databases, storage, storage-migration, postgres, redis (key-value stores), logging, folders, node-files, sandbox, conversations, ai-settings, status-page, api, gateway-settings, licensing-updates, inference, gitlab, notifications, overview, installation, authentication, cloudflare, docker-registries, clickhouse, troubleshooting.',
+      'Get detailed internal documentation about a specific topic in this system. Use this whenever you need deeper knowledge about how something works, what fields mean, or what the correct workflow is. Topics: discovery, pki, ssl, proxy, pages, domains, ingress-groups, access-lists, templates, acme, users, audit, siem, nginx, nodes, housekeeping, permissions, docker, availability, databases, storage, storage-migration, postgres, redis (key-value stores), logging, folders, node-files, sandbox, conversations, ai-settings, status-page, api, opfield-settings, licensing-updates, inference, gitlab, notifications, overview, installation, authentication, cloudflare, docker-registries, clickhouse, troubleshooting.',
     parameters: {
       type: 'object',
       properties: {
@@ -779,7 +779,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
     historyRetention: { mode: 'persistent_context', maxBytes: 32000 },
   },
   {
-    name: 'read_gateway_documentation',
+    name: 'read_opfield_documentation',
     description:
       'Read Opfield internal operational documentation through remote MCP. Start with topic "overview": what Opfield is, how it differs from a single-host Docker panel, and which topic and tools cover each area. Topic access is filtered by the OAuth token scopes; general MCP workflow topics remain available to every authenticated MCP connection.',
     parameters: {

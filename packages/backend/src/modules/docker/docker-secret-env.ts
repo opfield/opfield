@@ -1,8 +1,7 @@
 import { AppError } from '@/middleware/error-handler.js';
-import { DOCKER_DEPLOYMENT_ID_LABEL, DOCKER_DEPLOYMENT_MANAGED_LABEL } from './docker-deployment-labels.js';
+import { dockerDeploymentIdLabel } from './docker-deployment-labels.js';
+import { labelString } from './docker-managed-labels.js';
 import type { DockerSecretService } from './docker-secret.service.js';
-
-const COMPOSE_PROJECT_ID_LABEL = 'wiolett.gateway.compose.project-id';
 
 /** Stored secrets whose values reach a container's environment, and how they show up there. */
 export interface DockerSecretEnvOwner {
@@ -25,12 +24,10 @@ export function dockerSecretEnvOwners(nodeId: string, inspect: unknown): DockerS
   const name = String(record.Name ?? record.name ?? '').replace(/^\/+/, '');
   const labels = (record.Config?.Labels ?? record.Labels ?? record.labels ?? {}) as Record<string, unknown>;
   const owners: DockerSecretEnvOwner[] = name ? [{ nodeId, containerName: name }] : [];
-  const deploymentId = labels[DOCKER_DEPLOYMENT_ID_LABEL];
-  if (labels[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true' && typeof deploymentId === 'string' && deploymentId) {
-    owners.push({ nodeId, containerName: `deployment:${deploymentId}` });
-  }
-  const composeProjectId = labels[COMPOSE_PROJECT_ID_LABEL];
-  if (typeof composeProjectId === 'string' && composeProjectId) {
+  const deploymentId = dockerDeploymentIdLabel(labels);
+  if (deploymentId) owners.push({ nodeId, containerName: `deployment:${deploymentId}` });
+  const composeProjectId = labelString(labels, 'compose.project-id');
+  if (composeProjectId) {
     owners.push({ nodeId, containerName: `compose:${composeProjectId}`, matchValues: true });
   }
   return owners;

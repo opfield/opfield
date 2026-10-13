@@ -17,8 +17,8 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/pgha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/pgha"
 )
 
 // Managed-database actions of Postgres availability set members (the JSON
@@ -518,10 +518,10 @@ func (m *managedDatabaseManager) createPGMemberContainer(ctx context.Context, re
 		Image: image,
 		Env:   engineEnvironment(input),
 		Labels: map[string]string{
-			managedDatabaseLabel:               record.ID,
-			managedDatabaseTypeTag:             input.Type,
-			pgMemberLabel:                      memberID,
-			"wiolett.gateway.availability.set": setID,
+			managedDatabaseLabel:           record.ID,
+			managedDatabaseTypeTag:         input.Type,
+			pgMemberLabel:                  memberID,
+			"net.opfield.availability.set": setID,
 		},
 		Cmd: command,
 	}

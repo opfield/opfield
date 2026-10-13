@@ -1,8 +1,8 @@
-// The release test matrix (scripts/release-matrix.json) stays complete: every option, option value and GATEWAY_*
+// The release test matrix (scripts/release-matrix.json) stays complete: every option, option value and OPFIELD_*
 // environment variable that an installer parses, every daemon config key that docs/nodes.md documents, every declared
 // feature and every node lifecycle operation has a scenario that lists it in `covers`, and the matrix names nothing
 // that no longer exists. The inventory comes from the sources: the `case "$1" in` option blocks, the validating
-// `case "$VAR" in` blocks that end in `*) die`, the `${GATEWAY_*}` reads outside quoted heredocs, and the YAML blocks
+// `case "$VAR" in` blocks that end in `*) die`, the `${OPFIELD_*}` reads outside quoted heredocs, and the YAML blocks
 // and `Key` tables of docs/nodes.md.
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
@@ -113,10 +113,10 @@ export function installerInventory(name, source) {
   const assigned = new Set();
   const reads = new Set();
   for (const { code } of lines) {
-    for (const match of code.matchAll(/\$\{(GATEWAY_[A-Z0-9_]+)(:?[-=])/g))
+    for (const match of code.matchAll(/\$\{(OPFIELD_[A-Z0-9_]+)(:?[-=])/g))
       env.set(match[1], { name: match[1], values: [] });
-    for (const match of code.matchAll(/\$\{?(GATEWAY_[A-Z0-9_]+)/g)) reads.add(match[1]);
-    for (const match of code.matchAll(/(?<![\w${])(GATEWAY_[A-Z0-9_]+)\+?=/g)) assigned.add(match[1]);
+    for (const match of code.matchAll(/\$\{?(OPFIELD_[A-Z0-9_]+)/g)) reads.add(match[1]);
+    for (const match of code.matchAll(/(?<![\w${])(OPFIELD_[A-Z0-9_]+)\+?=/g)) assigned.add(match[1]);
   }
   for (const name of reads) if (!assigned.has(name) && !env.has(name)) env.set(name, { name, values: [] });
 
@@ -393,38 +393,38 @@ test('the extractor finds the options, values and environment variables the inst
       '--skip-nginx',
       '--yes',
       '-y',
-      '$GATEWAY_NODE_TOKEN',
+      '$OPFIELD_NODE_TOKEN',
     ],
     'setup-docker-node.sh': [
       '--mode=builder',
       '--mode=storage',
       '--builder-egress=offline',
       '--secure-runtime',
-      '$GATEWAY_LEASE_WATCHDOG_VERSION',
+      '$OPFIELD_LEASE_WATCHDOG_VERSION',
     ],
-    'setup-database-node.sh': ['--storage-root', '$GATEWAY_DOCKER_MODE=storage'],
-    'setup-monitoring-node.sh': ['--disable-files', '$GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS'],
-    'setup-relay-node.sh': ['--advertise-address', '--dry-run', '$GATEWAY_RELAY_RUN_USER'],
-    'setup-daemon.sh': ['--type=storage', '--script-dir', '$GATEWAY_SETUP_VERSION'],
-    'setup-storage-node.sh': ['$GATEWAY_RELEASE_DOWNLOAD_BASE'],
-    'install.sh': ['--https', '--source-dir', '$GATEWAY_WEB_TRANSPORT', '$GATEWAY_DOCKER_DAEMON_CONFIG'],
+    'setup-database-node.sh': ['--storage-root', '$OPFIELD_DOCKER_MODE=storage'],
+    'setup-monitoring-node.sh': ['--disable-files', '$OPFIELD_MONITORING_ENROLLMENT_WAIT_SECONDS'],
+    'setup-relay-node.sh': ['--advertise-address', '--dry-run', '$OPFIELD_RELAY_RUN_USER'],
+    'setup-daemon.sh': ['--type=storage', '--script-dir', '$OPFIELD_SETUP_VERSION'],
+    'setup-storage-node.sh': ['$OPFIELD_RELEASE_DOWNLOAD_BASE'],
+    'install.sh': ['--https', '--source-dir', '$OPFIELD_WEB_TRANSPORT', '$OPFIELD_DOCKER_DAEMON_CONFIG'],
   };
   for (const [script, items] of Object.entries(anchors)) {
     for (const item of items)
       assert.equal(resolveToken(matrix, `${script} ${item}`).error, undefined, `${script} ${item}`);
   }
   // Internal variables are not inputs: the installers assign them before they read them.
-  assert.ok(resolveToken(matrix, 'setup-node.sh $GATEWAY_SESSION_FILE').error);
-  assert.ok(resolveToken(matrix, 'setup-docker-node.sh $GATEWAY_ADDR').error);
+  assert.ok(resolveToken(matrix, 'setup-node.sh $OPFIELD_SESSION_FILE').error);
+  assert.ok(resolveToken(matrix, 'setup-docker-node.sh $OPFIELD_ADDR').error);
   assert.ok(
-    resolveToken(matrix, 'install.sh $GATEWAY_RELAY_MANAGED').error,
+    resolveToken(matrix, 'install.sh $OPFIELD_RELAY_MANAGED').error,
     'a compose file in a quoted heredoc is not a read'
   );
   for (const key of [
     'console.enabled',
     'files.enabled',
     'console.user',
-    'gateway.cert_sha256',
+    'opfield.cert_sha256',
     'nginx.stub_status_url',
   ]) {
     assert.ok(inventory.config.has(key), key);
@@ -469,7 +469,7 @@ test('the checks report a missing, a stale and a public-unsafe entry', () => {
   copy.scenarios[0].covers.push(
     'setup-node.sh --no-such-option',
     'setup-docker-node.sh --mode=cluster',
-    'setup-node.sh $GATEWAY_NO_SUCH'
+    'setup-node.sh $OPFIELD_NO_SUCH'
   );
   copy.scenarios.at(-1).steps.push('Open https://10.1.2.3:3000 on CT 1130.');
   assert.ok(uncoveredInstallerInputs(copy).includes('setup-node.sh --skip-nginx'));

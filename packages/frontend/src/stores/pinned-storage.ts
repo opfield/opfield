@@ -81,7 +81,7 @@ export const usePinnedStorageStore = create<PinnedStorageState>()(
       invalidate: () => set((s) => ({ refreshTick: s.refreshTick + 1 })),
     }),
     {
-      name: "gateway-pinned-storage",
+      name: "opfield-pinned-storage",
       partialize: (s) => ({
         sidebarStorageIds: s.sidebarStorageIds,
         storageMeta: s.storageMeta,

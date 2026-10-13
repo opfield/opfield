@@ -26,6 +26,8 @@ import {
 const PAGE_SIZE = 50;
 const MAX_PAGES = 100;
 const MARKER_LABEL = 'marker';
+// legacy-name: Hetzner server label "gateway-marker" — remove once every hosting resource was reconciled by 2.12.1+
+const LEGACY_MARKER_LABEL = 'gateway-marker';
 type Json = Record<string, unknown>;
 type HAddress = { ip: string; network: string; mac?: string };
 type HType = {
@@ -324,7 +326,7 @@ function normalize(server: HServer, observedAt: string, baseUrl: string): Hostin
       direct: true,
     })),
     incarnation: server.created,
-    marker: server.labels[MARKER_LABEL] ?? server.labels['gateway-marker'],
+    marker: server.labels[MARKER_LABEL] ?? server.labels[LEGACY_MARKER_LABEL],
     providerUrl: new URL(`/v1/servers/${encodeURIComponent(server.id)}`, baseUrl).toString(),
     capabilities: hostingCapabilities({ start: true, shutdown: true, reboot: true, resize: true, delete: true }),
     observedAt,
@@ -370,6 +372,8 @@ export class HetznerHostingAdapter implements HostingProviderAdapter {
     return new VmSnapshotAdapter(this.connection, this.http);
   }
   readonly provider = 'hetzner' as const;
+  /** Server IDs whose marker a read on this instance found only under the legacy label. */
+  private readonly legacyLabels = new Set<string>();
   constructor(
     private readonly connection: HostingConnection,
     private readonly http: HostingHttp = new HostingHttpClient(connection)
@@ -430,6 +434,7 @@ export class HetznerHostingAdapter implements HostingProviderAdapter {
   }
   async listResources(): Promise<HostingInventory> {
     const servers = await this.listPage('/v1/servers', 'servers', parseServer);
+    for (const server of servers) this.observeLabels(server);
     const observedAt = new Date().toISOString();
     return {
       resources: servers.map((server) => normalize(server, observedAt, this.connection.baseUrl)),
@@ -440,11 +445,32 @@ export class HetznerHostingAdapter implements HostingProviderAdapter {
   async getResource(remoteId: string): Promise<HostingResourceSnapshot | null> {
     try {
       const root = record(await this.request<unknown>(`/v1/servers/${encodeURIComponent(input(remoteId))}`));
-      return normalize(parseServer(root.server), new Date().toISOString(), this.connection.baseUrl);
+      const server = parseServer(root.server);
+      this.observeLabels(server);
+      return normalize(server, new Date().toISOString(), this.connection.baseUrl);
     } catch (error) {
       if (error instanceof HostingProviderError && error.providerStatus === 404) return null;
       throw error;
     }
+  }
+  private observeLabels(server: HServer) {
+    if (server.labels[MARKER_LABEL] === undefined && server.labels[LEGACY_MARKER_LABEL] !== undefined)
+      this.legacyLabels.add(server.id);
+    else this.legacyLabels.delete(server.id);
+  }
+  /**
+   * Moves a marker an older release wrote under the legacy label key to the current key. Labels only;
+   * every other label is sent back unchanged.
+   */
+  async rewriteLegacyMarker(resource: HostingResourceSnapshot): Promise<boolean> {
+    if (!resource.marker || !this.legacyLabels.has(resource.remoteId)) return false;
+    this.legacyLabels.delete(resource.remoteId);
+    const path = `/v1/servers/${encodeURIComponent(input(resource.remoteId))}`;
+    const server = parseServer(record(await this.request<unknown>(path)).server);
+    const { [LEGACY_MARKER_LABEL]: legacy, ...labels } = server.labels;
+    if (legacy !== resource.marker || labels[MARKER_LABEL] !== undefined) return false;
+    await this.request<unknown>(path, { method: 'PUT', body: { labels: { ...labels, [MARKER_LABEL]: legacy } } });
+    return true;
   }
   async create(request: HostingCreateRequest): Promise<HostingProviderOperation> {
     const body = {

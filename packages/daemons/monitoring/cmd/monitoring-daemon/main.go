@@ -9,12 +9,12 @@ import (
 	"regexp"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/monitoring-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/monitoring-daemon/internal/monitoring"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/monitoring-daemon/internal/config"
+	"github.com/opfield/opfield/monitoring-daemon/internal/monitoring"
 )
 
-var gatewayCertSHA256Pattern = regexp.MustCompile(`^sha256:[0-9a-fA-F]{64}$`)
+var opfieldCertSHA256Pattern = regexp.MustCompile(`^sha256:[0-9a-fA-F]{64}$`)
 
 // Version is set via -ldflags at build time; falls back to "dev".
 var Version = "dev"
@@ -80,6 +80,7 @@ func main() {
 		logger.Error("failed to initialize daemon", "error", err)
 		os.Exit(1)
 	}
+	lifecycle.MigrateControlConfigKeyOnConfirmedStart(&cfg.BaseConfig, configPath, logger)
 	lifecycle.NotifyLauncherLocalReadyAwaitingControl(Version)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -127,28 +128,29 @@ func setupLogger(level, format string) *slog.Logger {
 
 func runInstall() {
 	if len(os.Args) < 4 {
-		fmt.Fprintf(os.Stderr, "Usage: monitoring-daemon install --gateway <address> --token <token> --gateway-cert-sha256 <sha256:hex>\n")
+		fmt.Fprintf(os.Stderr, "Usage: monitoring-daemon install --opfield <address> --token <token> --opfield-cert-sha256 <sha256:hex>\n")
 		os.Exit(1)
 	}
 
 	var address, token, certSHA256 string
 	for i := 2; i < len(os.Args)-1; i++ {
 		switch os.Args[i] {
-		case "--gateway":
+		// legacy-name: --gateway and --gateway-cert-sha256 used by customer automation — drop with a changelog notice
+		case "--opfield", "--gateway":
 			address = os.Args[i+1]
 		case "--token":
 			token = os.Args[i+1]
-		case "--gateway-cert-sha256":
+		case "--opfield-cert-sha256", "--gateway-cert-sha256":
 			certSHA256 = os.Args[i+1]
 		}
 	}
 
 	if address == "" || token == "" || certSHA256 == "" {
-		fmt.Fprintf(os.Stderr, "--gateway, --token, and --gateway-cert-sha256 are required\n")
+		fmt.Fprintf(os.Stderr, "--opfield, --token, and --opfield-cert-sha256 are required\n")
 		os.Exit(1)
 	}
-	if !gatewayCertSHA256Pattern.MatchString(certSHA256) {
-		fmt.Fprintf(os.Stderr, "--gateway-cert-sha256 must use sha256:<64-hex> format\n")
+	if !opfieldCertSHA256Pattern.MatchString(certSHA256) {
+		fmt.Fprintf(os.Stderr, "--opfield-cert-sha256 must use sha256:<64-hex> format\n")
 		os.Exit(1)
 	}
 
@@ -160,7 +162,7 @@ func runInstall() {
 		os.Exit(1)
 	}
 
-	configContent := fmt.Sprintf(`gateway:
+	configContent := fmt.Sprintf(`opfield:
   address: "%s"
   token: "%s"
   cert_sha256: "%s"

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/statecompat"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/statecompat"
 	"google.golang.org/protobuf/proto"
 )
 

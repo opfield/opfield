@@ -22,7 +22,7 @@ describe("export size", () => {
   const estimate: ConfigurationExportEstimate = {
     available: true,
     unavailableReason: null,
-    gatewayVersion: "v2.12.0",
+    opfieldVersion: "v2.12.0",
     sections: {
       database: { bytes: 100, available: true },
       files: { bytes: 50, available: true },

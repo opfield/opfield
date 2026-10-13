@@ -77,9 +77,9 @@ export function appendAIResourceReferencesToModelResult(result: unknown, referen
     'When mentioning one of these Opfield resources in a progress comment or final answer, copy its marker exactly. Do not write or guess an href.';
 
   if (isRecord(result)) {
-    return { ...result, gatewayResourceReferences: modelReferences, gatewayResourceReferenceInstruction: instruction };
+    return { ...result, opfieldResourceReferences: modelReferences, opfieldResourceReferenceInstruction: instruction };
   }
-  return { data: result, gatewayResourceReferences: modelReferences, gatewayResourceReferenceInstruction: instruction };
+  return { data: result, opfieldResourceReferences: modelReferences, opfieldResourceReferenceInstruction: instruction };
 }
 
 export function formatAIResourceMarker(reference: Pick<AIResourceReference, 'refId' | 'label'>): string {

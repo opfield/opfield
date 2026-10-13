@@ -28,7 +28,7 @@ const DAEMON_CONFIG_PATHS: Partial<Record<NodeType, string>> = {
   databases: "/etc/docker-daemon/config.yaml",
   storage: "/etc/docker-daemon/config.yaml",
   monitoring: "/etc/monitoring-daemon/config.yaml",
-  relay: "/etc/gateway-relay-supervisor/config.yaml",
+  relay: "/etc/opfield-relay/config.yaml",
 };
 
 /**

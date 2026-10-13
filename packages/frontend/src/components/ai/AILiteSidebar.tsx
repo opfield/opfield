@@ -81,7 +81,7 @@ import {
 } from "./AILiteSidebar.parts";
 import { AIProgressRing } from "./AIProgressRing";
 
-const EXPANDED_PROJECT_IDS_STORAGE_KEY = "gateway-ai-lite-expanded-project-ids";
+const EXPANDED_PROJECT_IDS_STORAGE_KEY = "opfield-ai-lite-expanded-project-ids";
 
 function readExpandedProjectIds(): Set<string> {
   try {
@@ -303,7 +303,7 @@ export function AILiteSidebar({
   };
 
   const handleOpenOperationsConsole = () => {
-    window.dispatchEvent(new CustomEvent("gateway:open-operations-console"));
+    window.dispatchEvent(new CustomEvent("opfield:open-operations-console"));
   };
 
   const handleToggleFolder = (folderId: string) => {

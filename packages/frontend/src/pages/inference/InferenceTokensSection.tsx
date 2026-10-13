@@ -100,7 +100,7 @@ export function InferenceTokensSection({ canManage }: { canManage: boolean }) {
     <>
       <PanelShell
         title="Inference API Tokens"
-        description="Use the Opfield inference base URL with a dedicated gwi_ credential."
+        description="Use the Opfield inference base URL with a dedicated opfi_ credential."
         icon={<KeyRound className="h-4 w-4" />}
         actions={
           canManage ? (

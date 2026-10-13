@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Context, Next } from 'hono';
 import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
-import { GATEWAY_TOKEN_PATTERN, PRIVATE_KEY_PATTERN } from '@/lib/secret-patterns.js';
+import { OPFIELD_TOKEN_PATTERN, PRIVATE_KEY_PATTERN } from '@/lib/secret-patterns.js';
 import { CacheService, type RedisClient } from '@/services/cache.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import type { AppEnv } from '@/types.js';
@@ -270,7 +270,7 @@ function secretInString(value: string): string | null {
   if (PRIVATE_KEY_PATTERN.test(value)) return 'private key';
   if (PASSWORD_HASH_PATTERN.test(value)) return 'password hash';
   if (CREDENTIAL_URL_PATTERN.test(value)) return 'URL with credentials';
-  if (GATEWAY_TOKEN_PATTERN.test(value)) return 'Opfield token';
+  if (OPFIELD_TOKEN_PATTERN.test(value)) return 'Opfield token';
   if (SECRET_ENV_ASSIGNMENT.test(value)) return 'secret environment assignment';
   return null;
 }

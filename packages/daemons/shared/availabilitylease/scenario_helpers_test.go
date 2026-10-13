@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // nodeSpec describes one host in a scripted scenario.
@@ -53,7 +53,7 @@ func newScenario(t *testing.T, spec scenarioSpec) *simWorld {
 		}
 	}
 	sort.Strings(voters)
-	w.gw = newSimGateway(w)
+	w.gw = newSimOpfield(w)
 	slots := spec.slots
 	if slots == 0 {
 		slots = 1

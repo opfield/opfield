@@ -8,10 +8,11 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 
-	"github.com/wiolett-industries/gateway/relay/internal/codec"
+	"github.com/opfield/opfield/relay/internal/codec"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
@@ -108,24 +109,34 @@ func echoUpstream(t *testing.T) (*grpc.ClientConn, func() metadata.MD, func()) {
 	}, stop
 }
 
-// Gateway learns which daemon is calling only from the relay-injected headers, so
-// they must come from the verified certificate and never from the caller.
+// Opfield learns which daemon is calling only from the relay-injected headers, so
+// they must come from the verified certificate and never from the caller. The
+// caller's headers with the legacy prefix are dropped too: an Opfield that still
+// reads them for an older relay must never get them from a client.
 func TestProxyForwardsOnlyTheVerifiedDaemonIdentity(t *testing.T) {
-	conn, seen, stop := echoUpstream(t)
-	defer stop()
-	handler := New(conn, func() (*grpc.ClientConn, error) { return conn, nil })
+	for _, method := range []string{"/opfield.v1.Contract/Unary", "/gateway.v1.Contract/Unary"} {
+		conn, seen, stop := echoUpstream(t)
+		handler := New(conn, func() (*grpc.ClientConn, error) { return conn, nil })
 
-	stream := authenticatedDownstream("/gateway.v1.Contract/Unary", []codec.Frame{{1}}, context.Background())
-	if err := handler.Handle(nil, stream); err != nil {
-		t.Fatal(err)
-	}
-	if !equalFrames(stream.output, []codec.Frame{{1}}) {
-		t.Fatalf("output = %v", stream.output)
-	}
-	forwarded := seen()
-	nodeIDs := forwarded.Get("x-wiolett-relay-node-id")
-	if forwarded.Get("x-wiolett-relay-spoofed") != nil || len(nodeIDs) != 1 || nodeIDs[0] != "node-1" || forwarded.Get("x-client-metadata")[0] != "kept" {
-		t.Fatalf("metadata was not sanitized and injected: %v", forwarded)
+		stream := authenticatedDownstream(method, []codec.Frame{{1}}, context.Background())
+		if err := handler.Handle(nil, stream); err != nil {
+			t.Fatal(err)
+		}
+		if !equalFrames(stream.output, []codec.Frame{{1}}) {
+			t.Fatalf("%s: output = %v", method, stream.output)
+		}
+		forwarded := seen()
+		nodeIDs := forwarded.Get("x-opfield-relay-node-id")
+		if len(nodeIDs) != 1 || nodeIDs[0] != "node-1" || forwarded.Get("x-client-metadata")[0] != "kept" ||
+			forwarded.Get("x-opfield-relay-cert-serial")[0] != "2a" || len(forwarded.Get("x-opfield-relay-cert-sha256")) != 1 {
+			t.Fatalf("%s: verified identity was not injected: %v", method, forwarded)
+		}
+		for _, spoofed := range []string{"x-opfield-relay-spoofed", "x-wiolett-relay-spoofed", "x-wiolett-relay-node-id", "x-wiolett-relay-cert-serial", "x-wiolett-relay-cert-sha256"} {
+			if forwarded.Get(spoofed) != nil {
+				t.Fatalf("%s: client header %s reached Opfield: %v", method, spoofed, forwarded)
+			}
+		}
+		stop()
 	}
 }
 
@@ -139,21 +150,32 @@ func TestProxyRejectsDaemonsWithoutAVerifiedCertificate(t *testing.T) {
 		t.Fatalf("unverified daemon status = %v, want Unauthenticated", code)
 	}
 	if seen() != nil {
-		t.Fatal("an unverified daemon reached Gateway")
+		t.Fatal("an unverified daemon reached Opfield")
 	}
 	foreign := authenticatedDownstream("/grpc.reflection.v1.ServerReflection/ServerReflectionInfo", []codec.Frame{{1}}, context.Background())
 	if code := status.Code(handler.Handle(nil, foreign)); code != codes.Unimplemented {
-		t.Fatalf("method outside the Gateway API status = %v, want Unimplemented", code)
+		t.Fatalf("method outside the Opfield API status = %v, want Unimplemented", code)
 	}
 
-	// Enrollment is how a daemon gets its first certificate: it passes, but without
-	// any identity headers, including ones the caller made up.
-	enrollment := downstreamFor("/gateway.v1.NodeEnrollment/Enroll", []codec.Frame{{1}}, context.Background(), false)
-	if err := handler.Handle(nil, enrollment); err != nil {
-		t.Fatal(err)
+	unverifiedOpfield := downstreamFor("/opfield.v1.NodeControl/CommandStream", []codec.Frame{{1}}, context.Background(), false)
+	if code := status.Code(handler.Handle(nil, unverifiedOpfield)); code != codes.Unauthenticated {
+		t.Fatalf("unverified daemon on the opfield.v1 package status = %v, want Unauthenticated", code)
 	}
-	if forwarded := seen(); forwarded.Get("x-wiolett-relay-node-id") != nil || forwarded.Get("x-wiolett-relay-spoofed") != nil {
-		t.Fatalf("enrollment carried relay identity headers: %v", forwarded)
+
+	// Enrollment is how a daemon gets its first certificate: it passes, under
+	// either package name, but without any identity headers, including ones the
+	// caller made up.
+	for _, method := range []string{"/opfield.v1.NodeEnrollment/Enroll", "/gateway.v1.NodeEnrollment/Enroll"} {
+		enrollment := downstreamFor(method, []codec.Frame{{1}}, context.Background(), false)
+		if err := handler.Handle(nil, enrollment); err != nil {
+			t.Fatal(err)
+		}
+		forwarded := seen()
+		for key := range forwarded {
+			if strings.HasPrefix(key, "x-opfield-relay-") || strings.HasPrefix(key, "x-wiolett-relay-") {
+				t.Fatalf("%s carried relay identity header %s: %v", method, key, forwarded)
+			}
+		}
 	}
 }
 
@@ -255,7 +277,9 @@ func authenticatedDownstream(method string, input []codec.Frame, base context.Co
 
 func downstreamFor(method string, input []codec.Frame, base context.Context, verified bool) *downstreamStream {
 	certificate := &x509.Certificate{Subject: pkix.Name{CommonName: "node-1"}, SerialNumber: big.NewInt(42), Raw: []byte("node-certificate")}
-	ctx := metadata.NewIncomingContext(base, metadata.Pairs("x-client-metadata", "kept", "x-wiolett-relay-spoofed", "removed", "x-wiolett-relay-node-id", "spoofed-node"))
+	ctx := metadata.NewIncomingContext(base, metadata.Pairs("x-client-metadata", "kept", "x-wiolett-relay-spoofed", "removed", "x-wiolett-relay-node-id", "spoofed-node",
+		"x-wiolett-relay-cert-serial", "spoofed", "x-wiolett-relay-cert-sha256", "spoofed",
+		"x-opfield-relay-spoofed", "removed", "X-Opfield-Relay-Node-Id", "spoofed-node", "x-opfield-relay-cert-serial", "spoofed"))
 	state := tls.ConnectionState{PeerCertificates: []*x509.Certificate{certificate}}
 	if verified {
 		state.VerifiedChains = [][]*x509.Certificate{{certificate}}

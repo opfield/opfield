@@ -9,10 +9,10 @@ import * as schema from '@/db/schema/index.js';
 import { rewritePersistedDockerResourceScopes } from '@/modules/docker/docker-access-resource-scope-rewrite.js';
 import { repairDanglingResourceScopes, transactionWithScopeCleanup } from './resource-scope-cleanup.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): deleting a resource removes every stored grant naming it (user, group,
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): deleting a resource removes every stored grant naming it (user, group,
  * API token and OAuth token scopes) in the deleting transaction, and the startup repair removes grants older releases
  * left behind without touching valid, unqualified or unrecognised scopes.
  */

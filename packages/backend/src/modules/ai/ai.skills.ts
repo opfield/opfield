@@ -126,7 +126,7 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 - After SSH setup, run a harmless identity/connectivity check before operational commands. Report which external connector was used without exposing passwords, private keys, or stored secret material.`,
   },
   {
-    id: 'system:gateway-administration-and-lifecycle',
+    id: 'system:opfield-administration-and-lifecycle',
     name: 'Opfield administration and lifecycle',
     description:
       'Manage users, groups, permissions, OAuth, API tokens, audit, Opfield settings, licensing, updates, and housekeeping.',
@@ -201,7 +201,7 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 - Distinguish confirmed cause, contributing condition, impact, and missing evidence. Do not restart, reconfigure, or delete evidence sources merely to see whether the symptom disappears.
 
 ### Opfield itself and managed resources
-- When the symptom is Opfield itself (slow UI or API, a failed update, a background job, its database or cache), use manage_gateway_diagnostics: snapshot for now, history for a window of the last 48 hours (host CPU, memory and disk, process, API latency and 5xx, Postgres, Redis, stack containers), requests for slow or failing routes, jobs for failing background jobs, and logs (needs diagnostics:logs) for app, postgres, redis, relay, registry or update lines. Read the logs of the same window before naming a cause.
+- When the symptom is Opfield itself (slow UI or API, a failed update, a background job, its database or cache), use manage_opfield_diagnostics: snapshot for now, history for a window of the last 48 hours (host CPU, memory and disk, process, API latency and 5xx, Postgres, Redis, stack containers), requests for slow or failing routes, jobs for failing background jobs, and logs (needs diagnostics:logs) for app, postgres, redis, relay, registry or update lines. Read the logs of the same window before naming a cause.
 - For managed nodes use get_node for live resources and manage_node health_history, monitoring_history, daemon_logs and nginx_logs; for a route use manage_route access_logs and health_history; for a container use its stats, stats_history and logs.
 
 ### Configure observability
@@ -242,7 +242,7 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 - Cite or paraphrase only the relevant recovered fact, then return to the current task. Do not flood the active context with unrelated history or repeatedly search for the same already-recovered detail.`,
   },
   {
-    id: 'system:gateway-inference',
+    id: 'system:opfield-inference',
     name: 'Opfield Inference',
     description: 'Configure Opfield Inference providers, models, limits, tokens, and compatible client endpoints.',
     source: 'system',
@@ -252,7 +252,7 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
     instructions: `## Opfield Inference
 
 ### Identify the surface and prerequisites
-- Opfield Inference is separate from AI Workspace provider configuration and Opfield MCP. It is a standalone external model gateway with dedicated provider connections, models, accounting, limits, continuation state, and gwi_ runtime tokens; never reuse Workspace, MCP, gw_, or gwo_ credentials on its data plane.
+- Opfield Inference is separate from AI Workspace provider configuration and Opfield MCP. It is a standalone external model gateway with dedicated provider connections, models, accounting, limits, continuation state, and opfi_ runtime tokens; never reuse Workspace, MCP, opf_, or opfo_ credentials on its data plane.
 - Before configuring providers, models, limits, tokens, or client harnesses, activate the Inference tool category and read internal_documentation({ topic: "inference" }) for the current schemas and lifecycle.
 - Read Opfield settings before client setup. Confirm generalSettings.features.inferenceEnabled; without read permission, tell the user an administrator must confirm it rather than guessing.
 - Users need feat:ai:use for inference, personal usage, and creating or revoking their own runtime tokens. Never attempt to issue a token for another user.
@@ -265,14 +265,13 @@ const SYSTEM_SKILLS: readonly AIAgentSkill[] = [
 
 ### Recommended harness setup
 - Recommend DeepSeek harness (https://www.deepseek.com/en/harness/), configured natively with Opfield as its OpenAI- or Anthropic-compatible provider; any other harness that accepts such a provider is set up the same way.
-- In the UI: Settings > Inference > Endpoint > Set up opens Set Up an Inference Harness. It shows the OpenAI-compatible base URL (https://<gateway>/api/inference/v1), the Anthropic-compatible base URL (https://<gateway>/api/inference), a new gwi_ key it creates for the current user and shows once (unused keys from earlier openings are revoked), and the models the user can call. The user pastes these into the harness's provider settings.
+- In the UI: Settings > Inference > Endpoint > Set up opens Set Up an Inference Harness. It shows the OpenAI-compatible base URL (https://<opfield-host>/api/inference/v1), the Anthropic-compatible base URL (https://<opfield-host>/api/inference), a new opfi_ key it creates for the current user and shows once (unused keys from earlier openings are revoked), and the models the user can call. The user pastes these into the harness's provider settings.
 - Without the UI, create the key with the current-user token tool and give the same values.
-- The @sqgateway/inference companion CLI is deprecated: do not recommend it for new setups; mention it only when the user already runs it.
 
 ### Manual clients and verification
-- OpenAI-compatible SDKs and clients use https://<gateway>/api/inference/v1 with a dedicated gwi_ token. The base adapter exposes the supported Models, Responses, and Chat Completions surfaces while inference is enabled.
-- All inference clients use the single stable prefix https://<gateway>/api/inference/v1; the Anthropic SDK baseURL is https://<gateway>/api/inference because the SDK appends /v1 itself. Do not guess other harness endpoints—read current documentation.
-- A gwi_ secret is shown once. Direct the user to Profile > Authorizations > Inference API tokens or the dedicated current-user token tool, and never repeat or store the secret in assistant history.
+- OpenAI-compatible SDKs and clients use https://<opfield-host>/api/inference/v1 with a dedicated opfi_ token. The base adapter exposes the supported Models, Responses, and Chat Completions surfaces while inference is enabled.
+- All inference clients use the single stable prefix https://<opfield-host>/api/inference/v1; the Anthropic SDK baseURL is https://<opfield-host>/api/inference because the SDK appends /v1 itself. Do not guess other harness endpoints—read current documentation.
+- A opfi_ secret is shown once. Direct the user to Profile > Authorizations > Inference API tokens or the dedicated current-user token tool, and never repeat or store the secret in assistant history.
 - After setup, verify model discovery and one small request. For administration changes also verify provider sync/health, user-visible model access, accounting, reasoning mapping, tools/continuation, and Codex compaction where applicable.
 - Provider credentials remain encrypted and read tools expose only masked metadata. Activity records usage metadata rather than prompts or model output.`,
   },
@@ -355,6 +354,12 @@ function toAgentSkill(skill: AIUserSkillRecord): AIAgentSkill {
   return { ...skill, source: 'user' };
 }
 
+// legacy-name: system skill ids from before the Opfield rename — remove once no stored conversation loads a skill by its old id
+const LEGACY_SYSTEM_SKILL_IDS: Readonly<Record<string, string>> = {
+  'system:gateway-inference': 'system:opfield-inference',
+  'system:gateway-administration-and-lifecycle': 'system:opfield-administration-and-lifecycle',
+};
+
 export class AISkillService {
   constructor(private readonly settings: AISettingsService) {}
 
@@ -378,7 +383,8 @@ export class AISkillService {
   }
 
   async getRuntimeSkill(id: string): Promise<AIAgentSkill> {
-    const skill = (await this.listRuntimeSkills()).find((candidate) => candidate.id === id);
+    const wanted = LEGACY_SYSTEM_SKILL_IDS[id] ?? id;
+    const skill = (await this.listRuntimeSkills()).find((candidate) => candidate.id === wanted);
     if (!skill) throw new AppError(404, 'AI_SKILL_NOT_FOUND', 'Skill not found or disabled');
     return skill;
   }

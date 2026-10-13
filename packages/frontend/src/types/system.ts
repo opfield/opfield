@@ -8,14 +8,14 @@ export interface UpdateStatus {
   lastCheckedAt: string | null;
   relay: RelayUpdateStatus;
   /** Absent on Gateways that predate the update gate. */
-  gatewayOperation?: GatewayUpdateOperation | null;
+  opfieldOperation?: OpfieldUpdateOperation | null;
 }
 
 /**
  * An accepted Gateway update, waiting for running orchestration operations first,
  * or (`failed`) one that was rolled back or never replaced the running version.
  */
-export interface GatewayUpdateOperation {
+export interface OpfieldUpdateOperation {
   status: "waiting_for_operations" | "updating" | "failed";
   targetVersion: string;
   startedAt: string;
@@ -50,13 +50,13 @@ export interface SystemConfig {
   publicUrl?: string | null;
   fileUploadMaxBytes: number;
   fileOpenMaxBytes: number;
-  gatewayGrpcPublicTarget: string | null;
-  gatewayGrpcLocalIp: string | null;
+  grpcPublicTarget: string | null;
+  grpcLocalIp: string | null;
   relayAutoRecovery: boolean;
-  features: GatewayFeatureConfig;
+  features: OpfieldFeatureConfig;
 }
 
-export interface GatewayFeatureConfig {
+export interface OpfieldFeatureConfig {
   pkiEnabled: boolean;
   domainsEnabled: boolean;
   siemEnabled: boolean;

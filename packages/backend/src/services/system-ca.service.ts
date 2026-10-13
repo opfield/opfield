@@ -13,10 +13,11 @@ import type { CertService } from '@/modules/pki/cert.service.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import type { CryptoService } from './crypto.service.js';
 import {
-  GATEWAY_GRPC_CERTIFICATE_FINAL_RENEW_BEFORE_MS,
-  GATEWAY_IDENTITY_RENEW_BEFORE_MS,
+  OPFIELD_GRPC_CERTIFICATE_FINAL_RENEW_BEFORE_MS,
+  OPFIELD_IDENTITY_RENEW_BEFORE_MS,
   validateGrpcServerCertificate,
 } from './grpc-server-certificate.js';
+import { renameLegacySystemCa, SYSTEM_CA_COMMON_NAMES } from './system-ca-names.js';
 import type {
   SystemCertificateBindingHandle,
   SystemCertificateCurrentBinding,
@@ -26,7 +27,6 @@ import type {
 const logger = createChildLogger('SystemCA');
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
-const SYSTEM_CA_CN = 'Gateway Node CA';
 
 function collectGrpcServerSans(): string[] {
   // Do not infer the machine hostname here. In container deployments Docker
@@ -118,7 +118,7 @@ async function recoverListenerMaterial(
     .from(certificates)
     .where(
       and(
-        eq(certificates.systemOwnerType, 'gateway_listener'),
+        eq(certificates.systemOwnerType, 'opfield_listener'),
         eq(certificates.systemOwnerId, listener === 'gRPC' ? 'grpc' : 'web'),
         eq(certificates.systemLifecycleState, 'current')
       )
@@ -237,7 +237,10 @@ export class SystemCAService {
       .where(eq(certificateAuthorities.systemPurpose, 'node-mtls'))
       .limit(1);
 
-    if (existing) return existing.id;
+    if (existing) {
+      await renameLegacySystemCa(this.db, existing.id, 'node-mtls');
+      return existing.id;
+    }
 
     // Installations created before purpose-scoped system CAs have exactly one
     // locked CA: it is the node mTLS CA. Adopt it instead of minting a second
@@ -252,6 +255,7 @@ export class SystemCAService {
         .update(certificateAuthorities)
         .set({ systemPurpose: 'node-mtls' })
         .where(eq(certificateAuthorities.id, legacy.id));
+      await renameLegacySystemCa(this.db, legacy.id, 'node-mtls');
       return legacy.id;
     }
 
@@ -259,7 +263,7 @@ export class SystemCAService {
 
     const ca = await this.caService.createRootCA(
       {
-        commonName: SYSTEM_CA_CN,
+        commonName: SYSTEM_CA_COMMON_NAMES['node-mtls'],
         keyAlgorithm: 'ecdsa-p256',
         validityYears: 10,
         maxValidityDays: 3650,
@@ -314,10 +318,11 @@ export class SystemCAService {
     return this.ensureServerCert(
       certPath,
       keyPath,
-      'gateway-grpc',
+      // Existing listener certificates keep their earlier name until their next renewal; nothing checks it.
+      'opfield-grpc',
       expectedSans,
       'gRPC',
-      options.renewBeforeMs ?? GATEWAY_GRPC_CERTIFICATE_FINAL_RENEW_BEFORE_MS
+      options.renewBeforeMs ?? OPFIELD_GRPC_CERTIFICATE_FINAL_RENEW_BEFORE_MS
     );
   }
 
@@ -327,10 +332,10 @@ export class SystemCAService {
     return this.ensureServerCert(
       certPath,
       keyPath,
-      'gateway-web',
+      'opfield-web',
       expectedSans,
       'web',
-      GATEWAY_IDENTITY_RENEW_BEFORE_MS
+      OPFIELD_IDENTITY_RENEW_BEFORE_MS
     );
   }
 
@@ -388,7 +393,7 @@ export class SystemCAService {
     const result = await this.requireSystemCertificateLifecycle().issueCurrent(
       issueInput,
       SYSTEM_USER_ID,
-      { type: 'gateway_listener', id: listener === 'gRPC' ? 'grpc' : 'web' },
+      { type: 'opfield_listener', id: listener === 'gRPC' ? 'grpc' : 'web' },
       async (_tx, certificate) =>
         installListenerMaterial(certPath, keyPath, certificate.certificatePem, certificate.privateKeyPem)
     );
@@ -399,9 +404,9 @@ export class SystemCAService {
 
   private async collectGrpcServerSans(): Promise<string[]> {
     const values = collectGrpcServerSans();
-    const settings = await this.generalSettingsService?.getGatewayEndpointSettings();
-    const publicHost = extractGrpcTargetHost(settings?.gatewayGrpcPublicTarget);
-    const localHost = extractGrpcTargetHost(settings?.gatewayGrpcLocalIp);
+    const settings = await this.generalSettingsService?.getOpfieldEndpointSettings();
+    const publicHost = extractGrpcTargetHost(settings?.grpcPublicTarget);
+    const localHost = extractGrpcTargetHost(settings?.grpcLocalIp);
     if (publicHost) values.push(publicHost);
     if (localHost) values.push(localHost);
     return [...new Set(values.map(normalizeGrpcServerSan).filter(Boolean))];
@@ -412,7 +417,7 @@ export class SystemCAService {
     if (process.env.PUBLIC_IPV4) values.push(process.env.PUBLIC_IPV4);
     if (process.env.PUBLIC_IPV6) values.push(process.env.PUBLIC_IPV6);
     values.push(
-      ...(process.env.GATEWAY_LOCAL_HOSTS?.split(',')
+      ...(process.env.OPFIELD_LOCAL_HOSTS?.split(',')
         .map((value) => value.trim())
         .filter(Boolean) ?? [])
     );

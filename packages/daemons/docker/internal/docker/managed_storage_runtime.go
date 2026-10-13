@@ -19,8 +19,8 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"golang.org/x/sys/unix"
 )
 

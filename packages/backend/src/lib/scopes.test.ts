@@ -232,14 +232,14 @@ describe('canonical scope definitions', () => {
     expect(documentedManualApprovalScopes()).toEqual([...MANUAL_APPROVAL_SCOPES]);
   });
 
-  it('keeps frontend scope selectors aligned while reserving inference setup for OAuth', () => {
-    expect(frontendSelectableScopes().sort()).toEqual(ALL_SCOPES.filter((scope) => scope !== 'inference:setup').sort());
+  it('keeps frontend scope selectors aligned', () => {
+    expect(frontendSelectableScopes().sort()).toEqual([...ALL_SCOPES].sort());
     expect(frontendProgrammaticDeniedScopes().sort()).toEqual([...PROGRAMMATIC_DENIED_BASE_SCOPES].sort());
   });
 
   it('keeps built-in admin broad while excluding protected operational scopes', () => {
-    expect(ADMIN_SCOPES).toContain('settings:gateway:view');
-    expect(ADMIN_SCOPES).not.toContain('settings:gateway:edit');
+    expect(ADMIN_SCOPES).toContain('settings:opfield:view');
+    expect(ADMIN_SCOPES).not.toContain('settings:opfield:edit');
     expect(ADMIN_SCOPES).toContain('housekeeping:run');
     expect(ADMIN_SCOPES).not.toContain('housekeeping:configure');
     expect(ADMIN_SCOPES).toContain('docker:registries:view');
@@ -498,8 +498,8 @@ describe('canonical scope definitions', () => {
       'admin:system',
       'admin:users',
       'admin:groups',
-      'settings:gateway:view',
-      'settings:gateway:edit',
+      'settings:opfield:view',
+      'settings:opfield:edit',
       'integrations:gitlab:manage',
       'integrations:gitlab:use',
       'integrations:hosting:manage',
@@ -618,7 +618,7 @@ describe('canonical scope definitions', () => {
       'admin:system',
       'admin:users',
       'admin:groups',
-      'settings:gateway:edit',
+      'settings:opfield:edit',
       'storage:bind',
     ]);
     for (const scope of MANUAL_APPROVAL_SCOPES) {

@@ -20,10 +20,10 @@ import (
 	mobyclient "github.com/moby/moby/client"
 	"golang.org/x/sys/unix"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/kvha"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/lease"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/docker-daemon/internal/kvha"
+	"github.com/opfield/opfield/docker-daemon/internal/lease"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // Valkey availability set members (P2-T03): a key-value store on Valkey runs

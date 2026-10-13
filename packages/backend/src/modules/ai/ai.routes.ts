@@ -380,13 +380,13 @@ aiRoutes.post('/context-estimate', requireScope('ai:workspace:use'), async (c) =
 // GET /api/ai/config — full config for admin display (admin only)
 aiRoutes.openapi({ ...getAiConfigRoute, middleware: requireScope('feat:ai:configure') }, async (c) => {
   const settingsService = container.resolve(AISettingsService);
-  const [config, gatewayInferenceModels] = await Promise.all([
+  const [config, opfieldInferenceModels] = await Promise.all([
     settingsService.getConfigForAdmin(),
     container.isRegistered(AIProviderRuntimeService)
       ? container.resolve(AIProviderRuntimeService).adminModels()
       : Promise.resolve([]),
   ]);
-  return c.json({ data: { ...config, gatewayInferenceModels } });
+  return c.json({ data: { ...config, opfieldInferenceModels } });
 });
 
 // PUT /api/ai/config — update config (admin only)
@@ -401,7 +401,7 @@ aiRoutes.openapi({ ...updateAiConfigRoute, middleware: requireScope('feat:ai:con
     ? (await settingsService.getConfig()).customSystemPrompt
     : undefined;
   await settingsService.updateConfig(body.data);
-  const [config, gatewayInferenceModels] = await Promise.all([
+  const [config, opfieldInferenceModels] = await Promise.all([
     settingsService.getConfigForAdmin(),
     container.isRegistered(AIProviderRuntimeService)
       ? container.resolve(AIProviderRuntimeService).adminModels()
@@ -434,7 +434,7 @@ aiRoutes.openapi({ ...updateAiConfigRoute, middleware: requireScope('feat:ai:con
       await auditService.log(promptAuditEntry, { markRequest: false });
     }
   }
-  return c.json({ data: { ...config, gatewayInferenceModels } });
+  return c.json({ data: { ...config, opfieldInferenceModels } });
 });
 
 // AI skills are shared installation-wide. Settings readers may inspect them;

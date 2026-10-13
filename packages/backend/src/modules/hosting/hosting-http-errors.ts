@@ -8,7 +8,8 @@ export function digitalOceanErrorMessage(body: string, token: string, status: nu
     // Read one documented scalar, never reflect arbitrary provider dumps or echoed bootstrap data.
     if (
       (token && message.includes(token)) ||
-      /gw_node_|dop_v1_|doo_v1_|dor_v1_|PVEAPIToken=|Bearer\s|-----BEGIN|user_data|cloud[-_ ]?init|#!|["']?(?:password|token|secret|privateKey)["']?\s*[:=]/i.test(
+      // legacy-name: gw_node_ = node enrollment tokens issued before 2.12.1 — remove once 2.12.0 is no longer an update source
+      /opf_node_|gw_node_|dop_v1_|doo_v1_|dor_v1_|PVEAPIToken=|Bearer\s|-----BEGIN|user_data|cloud[-_ ]?init|#!|["']?(?:password|token|secret|privateKey)["']?\s*[:=]/i.test(
         message
       )
     )

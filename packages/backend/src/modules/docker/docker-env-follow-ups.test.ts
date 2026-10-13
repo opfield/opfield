@@ -9,9 +9,9 @@ import {
   DAEMON_ERROR,
   type FakeDockerNodeOptions,
   fakeDockerNode,
-  gatewayProcess,
   memoryEnvironmentStore,
   memoryTaskStore,
+  opfieldProcess,
 } from './docker-env-follow-ups.test-helpers.js';
 import { nodeLossHttpError, withNodeLossAnswer } from './docker-node-loss.js';
 import { DockerTaskReconciler } from './docker-task-reconciler.js';
@@ -28,7 +28,7 @@ function setup(options: FakeDockerNodeOptions = {}) {
   const node = fakeDockerNode(OLD_ENV, NEW_IMAGE_ENV, options);
   const tasks = memoryTaskStore();
   const environment = memoryEnvironmentStore({ api: STORED });
-  const first = gatewayProcess(node, tasks.service, environment.service, NODE);
+  const first = opfieldProcess(node, tasks.service, environment.service, NODE);
   return {
     node,
     tasks,
@@ -38,7 +38,7 @@ function setup(options: FakeDockerNodeOptions = {}) {
     restart() {
       vi.clearAllTimers();
       tasks.restart();
-      const next = gatewayProcess(node, tasks.service, environment.service, NODE);
+      const next = opfieldProcess(node, tasks.service, environment.service, NODE);
       return {
         ...next,
         reconciler: new DockerTaskReconciler(

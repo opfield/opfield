@@ -4,7 +4,7 @@ import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope } from '@/lib/permissions.js';
 import { sanitizeFilename } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { requireGatewayFeature } from '@/middleware/feature-flags.js';
+import { requireOpfieldFeature } from '@/middleware/feature-flags.js';
 import { requireUuidParam } from '@/middleware/uuid-param.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import {
@@ -47,7 +47,7 @@ export const caRouteRuntime = {
   hasScope,
   sanitizeFilename,
   AppError,
-  requireGatewayFeature,
+  requireOpfieldFeature,
   AuditService,
   authMiddleware,
   requireAnyScope,

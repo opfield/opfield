@@ -14,14 +14,14 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	managedDatabaseLabel   = "wiolett.gateway.managed-database.id"
-	managedDatabaseTypeTag = "wiolett.gateway.managed-database.type"
+	managedDatabaseLabel   = "net.opfield.managed-database.id"
+	managedDatabaseTypeTag = "net.opfield.managed-database.type"
 	minimumDatabaseBytes   = 64 * 1024 * 1024
 	minimumClickHouseBytes = 512 * 1024 * 1024
 	// Keep the daemon's bounded lifecycle operation and rollback shorter than

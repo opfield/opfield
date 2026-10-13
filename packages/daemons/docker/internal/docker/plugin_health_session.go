@@ -2,11 +2,15 @@ package docker
 
 import (
 	"context"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/stream"
 )
 
 func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
+	for kind, count := range p.legacyNames.current(p) {
+		lifecycle.AddLegacyNames(base, kind, count)
+	}
 	if p.cfg.Docker.Mode == "builder" {
 		return base
 	}

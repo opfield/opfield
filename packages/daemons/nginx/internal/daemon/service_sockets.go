@@ -5,7 +5,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
 )
 
 // The daemon's service sockets nginx reaches (the ingress health responder, maintenance access) go to the next
@@ -16,8 +16,8 @@ import (
 // another user): the socket the previous process kept there while the path still names it, else a new one, kept for
 // the next process. It returns the keeper name ("" when not kept).
 func listenServiceSocket(path string) (net.Listener, string, error) {
-	if name, err := listenerkeep.Name(path); err == nil {
-		if file, ok := listenerkeep.Take(name); ok {
+	if current, err := listenerkeep.Name(path); err == nil {
+		if file, name, ok := takeKept(current); ok {
 			listener, err := net.FileListener(file)
 			_ = file.Close()
 			if unixListener, ok := listener.(*net.UnixListener); err == nil && ok {
@@ -32,7 +32,7 @@ func listenServiceSocket(path string) (net.Listener, string, error) {
 			_ = listenerkeep.Drop(name)
 		} else {
 			// Not handed over: a copy systemd may still keep of the socket about to be replaced goes.
-			_ = listenerkeep.DropStale(name)
+			dropStaleKept(current)
 		}
 	}
 	if info, err := os.Lstat(path); err == nil {

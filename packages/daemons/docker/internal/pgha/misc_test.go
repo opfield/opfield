@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 func TestLSN(t *testing.T) {

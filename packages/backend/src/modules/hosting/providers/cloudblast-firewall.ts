@@ -127,7 +127,7 @@ function rulePayload(rule: Rule, priority: number) {
     protocol: rule.protocol,
     ...(rule.direction === 'in' ? { source: rule.address } : { destination: rule.address }),
     destination_port: rule.port,
-    comment: 'Managed by Gateway',
+    comment: 'Managed by Opfield',
     priority,
   };
 }
@@ -264,7 +264,7 @@ export class CloudBlastFirewallAdapter implements HostingFirewallAdapter {
     if (!group) {
       const payload = await this.api.request('/security-groups', {
         method: 'POST',
-        body: { name: current.expectedName, description: 'Managed by Gateway' },
+        body: { name: current.expectedName, description: 'Managed by Opfield' },
       });
       const groupId = mutationResponse(() => id(record(record(payload).data).id));
       group = { id: groupId, name: current.expectedName, servers: [], rules: [] };

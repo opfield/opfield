@@ -100,7 +100,7 @@ function executeVerifiedModule(bytes: Buffer, filename: string, releaseId: strin
       bytes.toString('utf8'),
       ['exports', 'require', 'module', '__filename', '__dirname'],
       {
-        filename: `gateway-commercial/${releaseId}/backend/index.cjs`,
+        filename: `opfield-commercial/${releaseId}/backend/index.cjs`,
       }
     );
     evaluate(module.exports, requireBuiltin, module, filename, dirname(filename));

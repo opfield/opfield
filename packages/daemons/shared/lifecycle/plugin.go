@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/stream"
 	"google.golang.org/grpc"
 )
 
@@ -84,7 +84,7 @@ type DaemonPlugin interface {
 	BuildRegisterMessage(nodeID string) *pb.RegisterMessage
 
 	// HandleCommand processes a gateway command and returns a result.
-	HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult
+	HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult
 
 	// CollectHealth enriches a base health report with plugin-specific metrics.
 	// The base report already contains system-level metrics.
@@ -122,11 +122,11 @@ type RegistrationRefreshPlugin interface {
 	RegistrationChanged() <-chan struct{}
 }
 
-// GatewayContactPlugin is implemented by plugins that track when Gateway last reached the daemon: every command
+// OpfieldContactPlugin is implemented by plugins that track when Gateway last reached the daemon: every command
 // received on the control stream (Gateway asks the nodes of manual availability pairs for a report every few
 // seconds) is a contact; a manual pair's primary self-fences when it had none for its bound.
-type GatewayContactPlugin interface {
-	NoteGatewayContact()
+type OpfieldContactPlugin interface {
+	NoteOpfieldContact()
 }
 
 // HealthRefreshPlugin is implemented by plugins whose health report can change between the periodic reports in a

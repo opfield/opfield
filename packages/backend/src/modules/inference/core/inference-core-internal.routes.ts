@@ -9,7 +9,8 @@ import {
   INFERENCE_CORE_CALLBACK_PATHS,
   inferenceCoreAdmissionRequestSchema,
   inferenceCoreSettlementSchema,
-  WIOLETT_CORE_CONTRACT_ID,
+  LEGACY_INFERENCE_CORE_CALLBACK_HEADERS,
+  OPFIELD_CORE_CONTRACT_ID,
 } from './inference-core.contract.js';
 import { InferenceCoreBridgeService } from './inference-core-bridge.service.js';
 
@@ -38,12 +39,17 @@ async function verifyCallback(c: {
     text(): Promise<string>;
   };
 }): Promise<string> {
-  const contract = c.req.header(INFERENCE_CORE_CALLBACK_HEADERS.contract)?.trim();
-  if (contract !== WIOLETT_CORE_CONTRACT_ID) {
+  // legacy-name: a core released before the Opfield names signs with x-wiolett-* only.
+  const header = (name: keyof typeof INFERENCE_CORE_CALLBACK_HEADERS) =>
+    (
+      c.req.header(INFERENCE_CORE_CALLBACK_HEADERS[name]) ?? c.req.header(LEGACY_INFERENCE_CORE_CALLBACK_HEADERS[name])
+    )?.trim();
+  const contract = header('contract');
+  if (contract !== OPFIELD_CORE_CONTRACT_ID) {
     throw new AppError(401, 'callback_contract_mismatch', 'Unsupported callback contract');
   }
-  const timestamp = c.req.header(INFERENCE_CORE_CALLBACK_HEADERS.timestamp)?.trim();
-  const signature = c.req.header(INFERENCE_CORE_CALLBACK_HEADERS.signature)?.trim();
+  const timestamp = header('timestamp');
+  const signature = header('signature');
   if (!timestamp || !signature || !/^\d+$/.test(timestamp)) {
     throw new AppError(401, 'callback_signature_invalid', 'Callback signature is missing or malformed');
   }

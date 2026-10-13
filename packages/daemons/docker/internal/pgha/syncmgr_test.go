@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // AS5: adding a sync member sets the names, then the CHECKPOINT barrier,

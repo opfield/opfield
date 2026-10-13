@@ -75,7 +75,7 @@ export class RpcPort {
   }
 
   call<T = unknown>(op: string, args?: unknown): Promise<T> {
-    if (this.closed) return Promise.reject(new Error('Gateway tunnel worker is not running'));
+    if (this.closed) return Promise.reject(new Error('Opfield tunnel worker is not running'));
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
@@ -98,7 +98,7 @@ export class RpcPort {
   }
 
   /** Fails every request still waiting (the other side exited) and stops listening. */
-  close(reason = 'Gateway tunnel worker stopped'): void {
+  close(reason = 'Opfield tunnel worker stopped'): void {
     if (this.closed) return;
     this.closed = true;
     this.port.off?.('message', this.onMessage);

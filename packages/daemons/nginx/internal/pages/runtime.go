@@ -1,4 +1,4 @@
-// Package pages implements the nginx daemon's bounded Gateway Pages v1
+// Package pages implements the nginx daemon's bounded Opfield Pages v1
 // materialization runtime. It is deliberately independent from the control
 // plane: commands supply opaque IDs and DNS names, while this package derives
 // every path below a daemon-owned root.
@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 const (
@@ -311,7 +313,7 @@ func (r *Runtime) VerifyRelease(deploymentID, digest string) (releaseManifest, e
 }
 
 // IsReleaseNotStored reports a verification error that means the release is
-// not stored on this node (yet): Gateway then uploads it (N-23).
+// not stored on this node (yet): Opfield then uploads it (N-23).
 func IsReleaseNotStored(err error) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
@@ -364,7 +366,7 @@ func (r *Runtime) RemovePreview(hostname string) error {
 	// fall through to another preview or a tag route acting as nginx's default.
 	// The tombstone references neither artifacts nor certificates, survives
 	// restarts, and is atomically replaced by MaterializePreview on re-enable.
-	content := fmt.Sprintf("# gateway-pages revoked preview\nserver {\n    listen 80;\n    listen 443 ssl;\n    server_name %s;\n    ssl_reject_handshake on;\n    return 404;\n}\n", hostname)
+	content := fmt.Sprintf(revokedPreviewMarker+"\nserver {\n    listen 80;\n    listen 443 ssl;\n    server_name %s;\n    ssl_reject_handshake on;\n    return 404;\n}\n", hostname)
 	return r.applyConfig(r.previewConfigPath(hostname), []byte(content))
 }
 
@@ -386,8 +388,16 @@ func (r *Runtime) ActivateTagRoute(routeID, deploymentID string) error {
 	return r.applyConfig(r.routeIncludePath(routeID), []byte(fragment))
 }
 
+// revokedPreviewMarker starts the denial vhost of a revoked preview.
+const revokedPreviewMarker = "# opfield-pages revoked preview"
+
+// isRevokedPreview recognises a revoked preview under either names.
+func isRevokedPreview(content []byte) bool {
+	return strings.HasPrefix(naming.Normalize(string(content)), revokedPreviewMarker+"\n")
+}
+
 func (r *Runtime) routeConfig(routeID, deploymentID, runtimeConfigPath string) string {
-	return fmt.Sprintf("# gateway-pages route %s\nroot %s;\nindex index.html;\nset $gateway_pages_runtime_config_path %s;\n", routeID, r.releaseContentDir(deploymentID), runtimeConfigPath)
+	return fmt.Sprintf("# opfield-pages route %s\nroot %s;\nindex index.html;\nset $opfield_pages_runtime_config_path %s;\n", routeID, r.releaseContentDir(deploymentID), runtimeConfigPath)
 }
 
 func (r *Runtime) DeactivateTagRoute(routeID string) error {
@@ -397,7 +407,7 @@ func (r *Runtime) DeactivateTagRoute(routeID string) error {
 	return r.applyConfig(r.routeIncludePath(routeID), nil)
 }
 
-// RouteIncludePath returns the daemon-derived include path a normal Gateway
+// RouteIncludePath returns the daemon-derived include path a normal Opfield
 // Route must reference after a successful PagesActivateTagRoute command. It is
 // deliberately returned only for a validated opaque Route ID; callers must not
 // derive it from an operator path or hard-code the daemon default.
@@ -444,7 +454,7 @@ func (r *Runtime) Inventory() (Inventory, error) {
 	sort.Slice(result.Deployments, func(i, j int) bool { return result.Deployments[i].DeploymentID < result.Deployments[j].DeploymentID })
 	previews, _ := filepath.Glob(filepath.Join(r.configDir, "pages-preview-*.conf"))
 	for _, item := range previews {
-		if content, err := os.ReadFile(item); err == nil && !strings.HasPrefix(string(content), "# gateway-pages revoked preview\n") {
+		if content, err := os.ReadFile(item); err == nil && !isRevokedPreview(content) {
 			for _, line := range strings.Split(string(content), "\n") {
 				if hostname, found := strings.CutPrefix(strings.TrimSpace(line), "server_name "); found {
 					result.Previews = append(result.Previews, strings.TrimSuffix(hostname, ";"))

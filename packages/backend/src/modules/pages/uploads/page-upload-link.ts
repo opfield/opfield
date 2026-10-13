@@ -36,7 +36,7 @@ import { PagePublicationService } from '../tags/page-publication.service.js';
 export const PAGE_UPLOAD_LINK_PATH = '/api/pages-upload';
 const UPLOAD_LINK: OneTimeLinkKind = {
   path: PAGE_UPLOAD_LINK_PATH,
-  tokenPrefix: 'gwpu_',
+  tokenPrefix: 'opfpu_',
   cachePrefix: 'pages:upload-link:',
   ttlSeconds: 15 * 60,
   label: 'Pages upload links',
@@ -104,7 +104,7 @@ export async function publishPageUploadLink(token: string, body: ReadableStream<
   if (!body) throw new AppError(400, 'PAGES_UPLOAD_EMPTY', 'Send the artifact bytes as the request body');
 
   const maxBytes = (await container.resolve(GeneralSettingsService).getConfig()).fileUploadMaxBytes;
-  const directory = await mkdtemp(join(tmpdir(), 'gateway-pages-link-'));
+  const directory = await mkdtemp(join(tmpdir(), 'opfield-pages-link-'));
   const file = join(directory, 'artifact');
   try {
     const hash = createHash('sha256');

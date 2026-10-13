@@ -155,6 +155,9 @@ func (s *Store) ChildFiles(firstFD int) ([]*os.File, []string, func()) {
 	return files, []string{
 			ChannelFDEnv + "=" + strconv.Itoa(firstFD),
 			KeptEnv + "=" + string(encoded),
+			// legacy-name: GATEWAY_DAEMON_* read by a pre-Opfield daemon the launcher rolls back to — remove once every node reports none
+			legacyChannelFDEnv + "=" + strconv.Itoa(firstFD),
+			legacyKeptEnv + "=" + string(encoded),
 		}, func() {
 			closeAll(copies)
 		}

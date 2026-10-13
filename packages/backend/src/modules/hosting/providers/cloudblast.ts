@@ -103,7 +103,7 @@ function hostname(name: string, marker: string): string {
     name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'gateway';
+      .replace(/^-+|-+$/g, '') || 'opfield';
   return `${prefix.slice(0, 63 - marker.length - 1).replace(/-+$/g, '')}-${marker}`;
 }
 function parseAddress(value: unknown): HostingAddress {

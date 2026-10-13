@@ -50,7 +50,7 @@ const AI_WORKSPACE_DEFAULT_LIMITS: InferenceLimitInput = {
 type InferenceModelOption = { id: string; displayName: string };
 
 function readInferenceModels(config: Record<string, unknown>): InferenceModelOption[] {
-  const value = config.gatewayInferenceModels;
+  const value = config.opfieldInferenceModels;
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
@@ -75,7 +75,7 @@ export function AssistantSetupWizard({
   onConfigured,
   onSkipped,
   onNeedInference,
-  allowGatewayInference = true,
+  allowOpfieldInference = true,
   initialStepCanSkip = true,
   completionActionLabel = "Back to checklist",
 }: {
@@ -86,7 +86,7 @@ export function AssistantSetupWizard({
   onConfigured: () => Promise<void>;
   onSkipped: () => Promise<void>;
   onNeedInference: () => void;
-  allowGatewayInference?: boolean;
+  allowOpfieldInference?: boolean;
   initialStepCanSkip?: boolean;
   completionActionLabel?: string;
 }) {
@@ -161,9 +161,9 @@ export function AssistantSetupWizard({
             }
           : {
               enabled: true,
-              providerType: "gateway_inference",
-              gatewayInferenceModel: draft.model,
-              gatewayInferenceAllowUserModelSelection: true,
+              providerType: "opfield_inference",
+              opfieldInferenceModel: draft.model,
+              opfieldInferenceAllowUserModelSelection: true,
             }
       );
       await useAIStore.getState().refreshProviderStatus();
@@ -197,7 +197,7 @@ export function AssistantSetupWizard({
             connection for AI Workspace only; it does not expose the provider as a shared model
             catalog.
           </p>
-          {allowGatewayInference && (
+          {allowOpfieldInference && (
             <p>
               Choose Opfield Inference when providers and models should be managed centrally for
               multiple users or features. It requires Inference to have a connected provider and at
@@ -250,7 +250,7 @@ export function AssistantSetupWizard({
             description="Connect OpenAI or any compatible endpoint with your own API key and model."
             onClick={() => setSource("external")}
           />
-          {allowGatewayInference && (
+          {allowOpfieldInference && (
             <ChoiceCard
               icon={Cpu}
               title="Opfield Inference"

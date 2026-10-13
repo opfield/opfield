@@ -21,7 +21,7 @@ export type FinalizeSetupRootStep =
   | "integrations";
 
 export function finalizeSetupSkipPromptStorageKey(userId: string): string {
-  return `gateway:finalize-setup:skip-prompt-shown:${userId}`;
+  return `opfield:finalize-setup:skip-prompt-shown:${userId}`;
 }
 
 function readSkipPromptShown(userId: string): boolean {

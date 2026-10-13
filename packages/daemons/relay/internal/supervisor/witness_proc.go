@@ -20,19 +20,15 @@ import (
 	"syscall"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/relay-supervisor/internal/hostnames"
 )
 
 var sigterm os.Signal = syscall.SIGTERM
 
 const (
-	// witnessUser runs every witness when the supervisor runs as root.
-	witnessUser = "gateway-witness"
-	// witnessRootDir holds artifacts and data a root supervisor shares with
-	// the witness user; the supervisor's own state directory stays 0700.
-	witnessRootDir = "/var/lib/gateway-relay-witness"
 	// witnessMemoryMax caps a witness (systemd scope MemoryMax; the Keeper's
 	// own soft limit below it everywhere).
 	witnessMemoryMax       = 512 << 20
@@ -41,7 +37,12 @@ const (
 
 // hostWitnessRuntime runs witnesses on this host.
 type hostWitnessRuntime struct {
-	root    string
+	root string
+	// user runs every witness when the supervisor runs as root; root then
+	// holds the artifacts and data the supervisor shares with it (its own
+	// state directory stays 0700). Both are the Opfield names, or the
+	// pre-Opfield ones until the witness directory moved (hostnames).
+	user    string
 	logger  *slog.Logger
 	fetcher *witnessFetcher
 	// dialRoute opens RelayAdmin.DialRoute on the worker.
@@ -56,14 +57,14 @@ type witnessAccount struct {
 }
 
 // newHostWitnessRuntime picks where witnesses live: a root supervisor shares
-// witnessRootDir with the unprivileged witness user; any other supervisor
+// the witness directory with the unprivileged witness user; any other supervisor
 // runs witnesses as itself under its own state directory.
 func newHostWitnessRuntime(stateDir string, logger *slog.Logger, dialRoute func(ctx context.Context) (relayv1.RelayAdmin_DialRouteClient, error)) *hostWitnessRuntime {
-	root := filepath.Join(stateDir, "witness")
+	root, user := filepath.Join(stateDir, "witness"), ""
 	if os.Geteuid() == 0 {
-		root = witnessRootDir
+		root, user = hostnames.WitnessIdentity()
 	}
-	return &hostWitnessRuntime{root: root, logger: logger, fetcher: newWitnessFetcher(filepath.Join(root, "artifacts")), dialRoute: dialRoute}
+	return &hostWitnessRuntime{root: root, user: user, logger: logger, fetcher: newWitnessFetcher(filepath.Join(root, "artifacts")), dialRoute: dialRoute}
 }
 
 func (r *hostWitnessRuntime) fetch(ctx context.Context, artifact *pb.WitnessArtifact) (string, error) {
@@ -84,13 +85,13 @@ func (r *hostWitnessRuntime) ensureAccount() (*witnessAccount, error) {
 	if r.account != nil {
 		return r.account, nil
 	}
-	found, err := user.Lookup(witnessUser)
+	found, err := user.Lookup(r.user)
 	if err != nil {
-		if err := createWitnessUser(); err != nil {
+		if err := createWitnessUser(r.user, r.root); err != nil {
 			return nil, err
 		}
-		if found, err = user.Lookup(witnessUser); err != nil {
-			return nil, fmt.Errorf("look up %s: %w", witnessUser, err)
+		if found, err = user.Lookup(r.user); err != nil {
+			return nil, fmt.Errorf("look up %s: %w", r.user, err)
 		}
 	}
 	uid, err := strconv.ParseUint(found.Uid, 10, 32)
@@ -102,19 +103,19 @@ func (r *hostWitnessRuntime) ensureAccount() (*witnessAccount, error) {
 		return nil, err
 	}
 	if uid == 0 {
-		return nil, fmt.Errorf("%s must not be root", witnessUser)
+		return nil, fmt.Errorf("%s must not be root", r.user)
 	}
 	r.account = &witnessAccount{uid: uint32(uid), gid: uint32(gid)}
 	return r.account, nil
 }
 
-func createWitnessUser() error {
+func createWitnessUser(witnessUser, home string) error {
 	nologin := "/usr/sbin/nologin"
 	if _, err := os.Stat(nologin); err != nil {
 		nologin = "/sbin/nologin"
 	}
 	if path, err := exec.LookPath("useradd"); err == nil {
-		output, err := exec.Command(path, "--system", "--user-group", "--no-create-home", "--home-dir", witnessRootDir, "--shell", nologin, witnessUser).CombinedOutput()
+		output, err := exec.Command(path, "--system", "--user-group", "--no-create-home", "--home-dir", home, "--shell", nologin, witnessUser).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("create %s: %v: %s", witnessUser, err, strings.TrimSpace(string(output)))
 		}
@@ -125,7 +126,7 @@ func createWitnessUser() error {
 		if group, err := exec.LookPath("addgroup"); err == nil {
 			_ = exec.Command(group, "-S", witnessUser).Run()
 		}
-		output, err := exec.Command(path, "-S", "-D", "-H", "-h", witnessRootDir, "-s", nologin, "-G", witnessUser, witnessUser).CombinedOutput()
+		output, err := exec.Command(path, "-S", "-D", "-H", "-h", home, "-s", nologin, "-G", witnessUser, witnessUser).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("create %s: %v: %s", witnessUser, err, strings.TrimSpace(string(output)))
 		}
@@ -173,7 +174,11 @@ func (r *hostWitnessRuntime) start(launch witnessLaunch) (witnessProcess, error)
 	if account != nil && systemdAvailable() {
 		// A transient scope caps memory; the witness still runs as the
 		// unprivileged user.
-		_ = exec.Command("systemctl", "stop", scope).Run()
+		// A witness the previous supervisor started may run under the
+		// scope name of its release.
+		for _, name := range hostnames.WitnessScopeNames(launch.id) {
+			_ = exec.Command("systemctl", "stop", name).Run()
+		}
 		cmd = exec.Command("systemd-run", append([]string{
 			"--scope", "--quiet", "--collect", "--unit=" + scope,
 			"--property=MemoryMax=" + strconv.Itoa(witnessMemoryMax), "--property=MemorySwapMax=0",
@@ -204,10 +209,7 @@ func (r *hostWitnessRuntime) start(launch witnessLaunch) (witnessProcess, error)
 }
 
 func witnessScopeName(id string) string {
-	if len(id) > 32 {
-		id = id[:32]
-	}
-	return "gateway-witness-" + id + ".scope"
+	return hostnames.WitnessScopeNames(id)[0]
 }
 
 func systemdAvailable() bool {

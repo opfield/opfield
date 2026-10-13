@@ -10,14 +10,13 @@ import {
   proxyHosts,
 } from '@/db/schema/index.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
+import { labelString } from '../docker-managed-labels.js';
 
 const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
 const COMPOSE_SERVICE_LABEL = 'com.docker.compose.service';
 const COMPOSE_CONTAINER_NUMBER_LABEL = 'com.docker.compose.container-number';
 const COMPOSE_VOLUME_LABEL = 'com.docker.compose.volume';
 const COMPOSE_NETWORK_LABEL = 'com.docker.compose.network';
-const COMPOSE_SIDECAR_LABEL = 'wiolett.gateway.compose.sidecar';
-const GATEWAY_COMPOSE_MANAGED_LABEL = 'wiolett.gateway.compose.managed';
 const COMPOSE_ONEOFF_LABEL = 'com.docker.compose.oneoff';
 
 type DockerResource = Record<string, unknown>;
@@ -26,7 +25,7 @@ type ComposeResourceKind = 'container' | 'volume' | 'network';
 export interface ComposeProjectObservation {
   name: string;
   observedFingerprint: string;
-  gatewayManaged?: boolean;
+  opfieldManaged?: boolean;
 }
 
 export interface ComposeDiscoveryChange {
@@ -69,7 +68,7 @@ function projectNameFor(resource: DockerResource): string | null {
 
 export function isComposeOwnedContainer(resource: DockerResource): boolean {
   const labels = labelsFor(resource);
-  return projectNameFor(resource) !== null || labels[COMPOSE_SIDECAR_LABEL] === 'true';
+  return projectNameFor(resource) !== null || labelString(labels, 'compose.sidecar') === 'true';
 }
 
 export function isComposeOwnedVolume(resource: DockerResource): boolean {
@@ -109,7 +108,7 @@ export function observeComposeProjects(input: {
   volumes?: DockerResource[];
   networks?: DockerResource[];
 }): ComposeProjectObservation[] {
-  const entries = new Map<string, { values: string[]; gatewayManaged: boolean }>();
+  const entries = new Map<string, { values: string[]; opfieldManaged: boolean }>();
   const resources: Array<[ComposeResourceKind, DockerResource[] | undefined]> = [
     ['container', input.containers],
     ['volume', input.volumes],
@@ -122,9 +121,9 @@ export function observeComposeProjects(input: {
       if (!entry) continue;
       const [project, identity] = entry;
       const labels = labelsFor(resource);
-      const projectEntries = entries.get(project) ?? { values: [], gatewayManaged: false };
+      const projectEntries = entries.get(project) ?? { values: [], opfieldManaged: false };
       projectEntries.values.push(identity);
-      projectEntries.gatewayManaged ||= labels[GATEWAY_COMPOSE_MANAGED_LABEL] === 'true';
+      projectEntries.opfieldManaged ||= labelString(labels, 'compose.managed') === 'true';
       entries.set(project, projectEntries);
     }
   }
@@ -136,7 +135,7 @@ export function observeComposeProjects(input: {
       observedFingerprint: createHash('sha256')
         .update([...new Set(entry.values)].sort().join('\n'))
         .digest('hex'),
-      ...(entry.gatewayManaged ? { gatewayManaged: true } : {}),
+      ...(entry.opfieldManaged ? { opfieldManaged: true } : {}),
     }));
 }
 
@@ -174,7 +173,7 @@ export function composeProjectRunState(input: {
     const labels = labelsFor(container);
     if (labelValue(labels, COMPOSE_PROJECT_LABEL) !== input.projectName) continue;
     const service = labelValue(labels, COMPOSE_SERVICE_LABEL);
-    if (!service || labels[COMPOSE_SIDECAR_LABEL] === 'true') continue;
+    if (!service || labelString(labels, 'compose.sidecar') === 'true') continue;
     if (String(labels[COMPOSE_ONEOFF_LABEL] ?? '').toLowerCase() === 'true') continue;
     byService.set(service, [...(byService.get(service) ?? []), container]);
   }
@@ -216,8 +215,8 @@ export function filterDiscoverableComposeProjects(
     existing.filter((project) => project.managementState === 'managed').map((project) => project.name)
   );
   return observed
-    .filter((project) => !project.gatewayManaged || localManagedNames.has(project.name))
-    .map(({ gatewayManaged: _gatewayManaged, ...project }) => project);
+    .filter((project) => !project.opfieldManaged || localManagedNames.has(project.name))
+    .map(({ opfieldManaged: _opfieldManaged, ...project }) => project);
 }
 
 export function planExternalComposeProjectReconciliation(

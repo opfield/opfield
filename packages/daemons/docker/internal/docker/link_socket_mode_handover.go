@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/netaccept"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/netaccept"
 )
 
 // A switch of the daemon's user (root to non-root or back) hands the link Unix sockets (egress.sock,

@@ -85,11 +85,17 @@ describe('relay-forwarded daemon identity', () => {
 
   afterEach(() => configureRelayForwardedIdentityTrust(null));
 
-  function forwardedCall(peerRaw = raw) {
+  function forwardedCall(peerRaw = raw, entries?: Record<string, string>) {
     const metadata = new grpc.Metadata();
-    metadata.set('x-wiolett-relay-node-id', nodeId);
-    metadata.set('x-wiolett-relay-cert-serial', 'AA:01');
-    metadata.set('x-wiolett-relay-cert-sha256', `sha256:${'ab'.repeat(32)}`);
+    for (const [key, value] of Object.entries(
+      entries ?? {
+        'x-opfield-relay-node-id': nodeId,
+        'x-opfield-relay-cert-serial': 'AA:01',
+        'x-opfield-relay-cert-sha256': `sha256:${'ab'.repeat(32)}`,
+      }
+    )) {
+      metadata.set(key, value);
+    }
     return {
       metadata,
       handler: {
@@ -112,6 +118,36 @@ describe('relay-forwarded daemon identity', () => {
       serialNumber: 'aa01',
       certificateFingerprint: `sha256:${'ab'.repeat(32)}`,
     });
+  });
+
+  it('reads the legacy headers of a relay before 2.12.1 and ignores new ones it passed through', () => {
+    configureRelayForwardedIdentityTrust(fingerprint);
+    const forged = '22222222-2222-4222-8222-222222222222';
+    expect(
+      extractDaemonCertificateIdentity(
+        forwardedCall(raw, {
+          'x-wiolett-relay-node-id': nodeId,
+          'x-wiolett-relay-cert-serial': 'AA:01',
+          'x-wiolett-relay-cert-sha256': `sha256:${'ab'.repeat(32)}`,
+          'x-opfield-relay-node-id': forged,
+          'x-opfield-relay-cert-serial': 'FF',
+          'x-opfield-relay-cert-sha256': `sha256:${'cd'.repeat(32)}`,
+        })
+      )
+    ).toEqual({ nodeId, serialNumber: 'aa01', certificateFingerprint: `sha256:${'ab'.repeat(32)}` });
+  });
+
+  it('does not mix legacy and new keys: a partial legacy set is rejected', () => {
+    configureRelayForwardedIdentityTrust(fingerprint);
+    expect(
+      extractDaemonCertificateIdentity(
+        forwardedCall(raw, {
+          'x-wiolett-relay-node-id': nodeId,
+          'x-opfield-relay-cert-serial': 'AA:01',
+          'x-opfield-relay-cert-sha256': `sha256:${'ab'.repeat(32)}`,
+        })
+      )
+    ).toBeNull();
   });
 
   it('rejects spoofed forwarded metadata from another system-CA client', () => {

@@ -1,7 +1,7 @@
-import type { GatewayLogContext, GatewayLogEvent, NormalizedGatewayLogEvent } from './types.js';
+import type { NormalizedOpfieldLogEvent, OpfieldLogContext, OpfieldLogEvent } from './types.js';
 
-export function mergeContext(...contexts: Array<GatewayLogContext | undefined>): GatewayLogContext {
-  const merged: GatewayLogContext = {};
+export function mergeContext(...contexts: Array<OpfieldLogContext | undefined>): OpfieldLogContext {
+  const merged: OpfieldLogContext = {};
 
   for (const context of contexts) {
     if (!context) continue;
@@ -17,8 +17,8 @@ export function mergeContext(...contexts: Array<GatewayLogContext | undefined>):
   return merged;
 }
 
-export function normalizeEvent(event: GatewayLogEvent): NormalizedGatewayLogEvent {
-  const normalized: NormalizedGatewayLogEvent = {
+export function normalizeEvent(event: OpfieldLogEvent): NormalizedOpfieldLogEvent {
+  const normalized: NormalizedOpfieldLogEvent = {
     severity: event.severity,
     message: event.message,
   };
@@ -43,7 +43,7 @@ function normalizeTimestamp(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-function normalizeLabels(labels: GatewayLogContext['labels']): Record<string, string> | undefined {
+function normalizeLabels(labels: OpfieldLogContext['labels']): Record<string, string> | undefined {
   if (!labels) return undefined;
   const normalized: Record<string, string> = {};
 
@@ -55,7 +55,7 @@ function normalizeLabels(labels: GatewayLogContext['labels']): Record<string, st
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
-function normalizeFields(fields: GatewayLogContext['fields']): Record<string, unknown> | undefined {
+function normalizeFields(fields: OpfieldLogContext['fields']): Record<string, unknown> | undefined {
   if (!fields) return undefined;
   const normalized: Record<string, unknown> = {};
 

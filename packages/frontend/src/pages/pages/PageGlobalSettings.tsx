@@ -115,10 +115,10 @@ export function PagesSettingsSection() {
         certificateCovers(certificate, selectedDomain.domain)
       )
     : options.certificates;
-  const selectedDomainSharesGateway = Boolean(selectedDomain?.isolation.same);
+  const selectedDomainSharesOpfield = Boolean(selectedDomain?.isolation.same);
   const existingOverrideApplies =
     profile?.domainId === selectedDomain?.id && profile?.isolation?.overrideCurrent === true;
-  const sameRegistrableDomain = selectedDomainSharesGateway && !existingOverrideApplies;
+  const sameRegistrableDomain = selectedDomainSharesOpfield && !existingOverrideApplies;
   const templateError = useMemo(() => {
     const dots = labelTemplate.includes(".");
     const hashes = (labelTemplate.match(/\{hash\}/g) ?? []).length;
@@ -171,7 +171,7 @@ export function PagesSettingsSection() {
       }
       return;
     }
-    if (selectedDomainSharesGateway && !existingOverrideApplies && !override) {
+    if (selectedDomainSharesOpfield && !existingOverrideApplies && !override) {
       setWarningOpen(true);
       return;
     }

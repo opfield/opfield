@@ -23,7 +23,7 @@ export type SiemDeliveryStatus = 'queued' | 'delivering' | 'retrying' | 'deliver
 export interface SiemAuditEvent {
   id: string;
   source: string;
-  type: 'com.wiolett.gateway.audit.v1';
+  type: 'dev.opfield.audit.v1';
   time: string;
   data: {
     action: string;

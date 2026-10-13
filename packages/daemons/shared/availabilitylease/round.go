@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // round is one prepare/propose exchange. Every acquisition and every renewal

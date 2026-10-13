@@ -548,7 +548,7 @@ export function DatabaseConnectionForm({
                           <Input
                             value={draft.username}
                             onChange={(e) => set("username", e.target.value)}
-                            placeholder={draft.type === "postgres" ? "gateway" : "default"}
+                            placeholder={draft.type === "postgres" ? "opfield" : "default"}
                           />
                         </div>
                       </div>

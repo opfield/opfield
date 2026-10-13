@@ -291,7 +291,7 @@ func (p *DockerPlugin) watchEngineEvents(ctx context.Context, restarts *engineRe
 // requested is a stop asked for through Docker's API (see engineStops).
 func (p *DockerPlugin) handleEngineStop(ctx context.Context, restarts *engineRestarts, message events.Message, requested, oom bool) {
 	containerID := message.Actor.ID
-	if id := message.Actor.Attributes[managedDatabaseLabel]; id != "" && p.databaseManager != nil {
+	if id := labelValue(message.Actor.Attributes, managedDatabaseLabel); id != "" && p.databaseManager != nil {
 		if !requested {
 			p.databaseManager.incidents.record(id, oom)
 			p.logger.Warn("managed database engine stopped on its own; starting it again", "id", id, "outOfMemory", oom)
@@ -304,7 +304,7 @@ func (p *DockerPlugin) handleEngineStop(ctx context.Context, restarts *engineRes
 			}
 		})
 	}
-	if id := message.Actor.Attributes[managedStorageLabel]; id != "" && p.storageManager != nil {
+	if id := labelValue(message.Actor.Attributes, managedStorageLabel); id != "" && p.storageManager != nil {
 		p.storageManager.recordEngineStop(containerID, requested, oom)
 		if !requested {
 			p.storageManager.incidents.record(id, oom)
@@ -345,7 +345,7 @@ func newEngineStops() *engineStops {
 // started) and whether the kernel killed it for memory.
 func (s *engineStops) observe(message events.Message) (requested, oom, died bool) {
 	attributes := message.Actor.Attributes
-	if attributes[managedDatabaseLabel] == "" && attributes[managedStorageLabel] == "" {
+	if labelValue(attributes, managedDatabaseLabel) == "" && labelValue(attributes, managedStorageLabel) == "" {
 		return false, false, false
 	}
 	containerID := message.Actor.ID

@@ -9,9 +9,9 @@ import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
-import { isGatewayInternalContainer } from './docker-internal-containers.js';
-import { isGatewayManagedDockerNetwork, isReservedGatewayNetworkName } from './docker-internal-networks.js';
-import { DOCKER_MANAGED_VOLUME_LABEL } from './docker-managed-volume.constants.js';
+import { isOpfieldInternalContainer } from './docker-internal-containers.js';
+import { isOpfieldManagedDockerNetwork, isReservedOpfieldNetworkName } from './docker-internal-networks.js';
+import { isDockerManagedVolumeLabelled } from './docker-managed-volume.constants.js';
 import {
   assertDockerFileReadWithinLimit,
   DOCKER_FILE_READ_REQUEST_BYTES,
@@ -128,7 +128,7 @@ export async function listVolumes(context: DockerVolumeNetworkOperationContext, 
   const containers = context.parseResult(containerResult);
   const userVisibleContainerNames = new Set(
     (Array.isArray(containers) ? containers : [])
-      .filter((container) => !isGatewayInternalContainer(container))
+      .filter((container) => !isOpfieldInternalContainer(container))
       .map((container) => String(container.name ?? container.Name ?? '').replace(/^\/+/, ''))
       .filter(Boolean)
   );
@@ -645,14 +645,14 @@ export function isAnonymousDockerVolumeName(name: string): boolean {
  * Whether Gateway manages the volume: it has a managed-volume row (created or adopted) or carries the Gateway
  * managed-volume label. Anonymous-volume cleanup must never remove such a volume.
  */
-export async function isGatewayManagedVolume(
+export async function isOpfieldManagedVolume(
   db: DrizzleClient,
   nodeId: string,
   name: string,
   volume?: Record<string, any> | null
 ): Promise<boolean> {
   const labels = volume?.Labels ?? volume?.labels;
-  if (labels && typeof labels === 'object' && labels[DOCKER_MANAGED_VOLUME_LABEL] === 'true') return true;
+  if (isDockerManagedVolumeLabelled(labels)) return true;
   const rows = await db
     .select({ volumeName: dockerManagedVolumes.volumeName })
     .from(dockerManagedVolumes)
@@ -662,7 +662,7 @@ export async function isGatewayManagedVolume(
 }
 
 /** Names of the volumes Gateway manages on a node (created or adopted). */
-export async function gatewayManagedVolumeNames(db: DrizzleClient, nodeId: string): Promise<Set<string>> {
+export async function opfieldManagedVolumeNames(db: DrizzleClient, nodeId: string): Promise<Set<string>> {
   const rows = await db
     .select({ volumeName: dockerManagedVolumes.volumeName })
     .from(dockerManagedVolumes)
@@ -697,7 +697,7 @@ export async function removeOrphanedAnonymousVolume(
   if (Array.isArray(usedBy) && usedBy.length > 0) {
     throw new AppError(409, 'VOLUME_IN_USE', 'Volume is in use');
   }
-  if (await isGatewayManagedVolume(context.db, nodeId, name, volume)) {
+  if (await isOpfieldManagedVolume(context.db, nodeId, name, volume)) {
     throw new AppError(409, 'VOLUME_MANAGED', 'Housekeeping never removes a volume managed by Opfield');
   }
   // force=false: Docker still refuses a volume that a container started using meanwhile.
@@ -740,7 +740,7 @@ export async function listNetworks(context: DockerVolumeNetworkOperationContext,
   if (!Array.isArray(networks)) return networks;
   return networks.filter((network: any) => {
     const name = String(network.name ?? network.Name ?? '');
-    return !isGatewayManagedDockerNetwork(name);
+    return !isOpfieldManagedDockerNetwork(name);
   });
 }
 
@@ -789,7 +789,7 @@ export async function createNetwork(
   config: { name: string; driver: string; subnet?: string; gateway?: string; folderId?: string | null },
   userId: string
 ) {
-  if (isReservedGatewayNetworkName(config.name.trim())) {
+  if (isReservedOpfieldNetworkName(config.name.trim())) {
     throw new AppError(
       409,
       'RESERVED_NETWORK_NAME',
@@ -825,7 +825,7 @@ export async function removeNetwork(
   userId: string
 ) {
   const network = await resolveNetworkIdentity(context, nodeId, networkId);
-  if (isGatewayManagedDockerNetwork(network.name)) {
+  if (isOpfieldManagedDockerNetwork(network.name)) {
     throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be removed');
   }
   if (isBuiltInDockerNetwork(network.name)) {
@@ -853,7 +853,7 @@ export async function connectContainerToNetwork(
   userId: string
 ) {
   const network = await resolveNetworkIdentity(context, nodeId, networkId);
-  if (isGatewayManagedDockerNetwork(network.name)) {
+  if (isOpfieldManagedDockerNetwork(network.name)) {
     throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be connected manually');
   }
   await context.assertContainerMutationAllowed?.(nodeId, containerId);
@@ -879,7 +879,7 @@ export async function disconnectContainerFromNetwork(
   userId: string
 ) {
   const network = await resolveNetworkIdentity(context, nodeId, networkId);
-  if (isGatewayManagedDockerNetwork(network.name)) {
+  if (isOpfieldManagedDockerNetwork(network.name)) {
     throw new AppError(409, 'MANAGED_NETWORK', 'Opfield-managed networks cannot be disconnected manually');
   }
   if (isBuiltInDockerNetwork(network.name)) {

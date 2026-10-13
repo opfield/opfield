@@ -13,7 +13,7 @@ import (
 
 	mobyclient "github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // A managed instance can leave things on its node that no record describes:

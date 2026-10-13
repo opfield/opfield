@@ -105,12 +105,13 @@ function additionalSecureLinkVariablePattern(name: string): RegExp {
   return new RegExp(`\\{\\{\\s*additionalSecureLinks\\.${name}\\s*\\}\\}`);
 }
 
-// The variable renders to the nginx upstream `gateway_additional_secure_link_<id>` (dashes
+// The variable renders to the nginx upstream `opfield_additional_secure_link_<id>` (dashes
 // become underscores), and a config can name that upstream directly. A binding id is a UUID
 // (hex and dashes), so no regex escaping is required; either separator is accepted.
 function additionalSecureLinkUpstreamPattern(bindingId: string): RegExp {
   const id = bindingId.toLowerCase().split('-').join('[-_]');
-  return new RegExp(`gateway_additional_secure_link_${id}(?![A-Za-z0-9_])`, 'i');
+  // legacy-name: gateway_additional_secure_link_ of configs written before 2.12.1 — remove once every node reports none
+  return new RegExp(`(?:opfield|gateway)_additional_secure_link_${id}(?![A-Za-z0-9_])`, 'i');
 }
 
 function firstReference(text: string | null | undefined, patterns: RegExp[]): string | null {

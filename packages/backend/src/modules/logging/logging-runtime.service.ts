@@ -38,7 +38,7 @@ export class LoggingRuntimeService {
       url: '',
       username: '',
       password: '',
-      database: 'gateway_logs',
+      database: 'opfield_logs',
       table: 'logs',
       requestTimeoutMs: 30000,
     };

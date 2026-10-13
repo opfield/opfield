@@ -1,6 +1,11 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { LICENSE_PLAN_ENTITLEMENTS, type LicenseServerState } from './license.types.js';
+import {
+  canonicalLicenseFeature,
+  isCanonicalEntitlements,
+  LICENSE_PLAN_ENTITLEMENTS,
+  type LicenseServerState,
+} from './license.types.js';
 import {
   LICENSE_ATTESTATION_MAX_CLOCK_SKEW_MS,
   LICENSE_SIGNING_PUBLIC_KEYS,
@@ -53,7 +58,13 @@ describe('LicenseAttestationVerifier', () => {
       issuedAt: '2026-09-25T12:00:00Z',
       state: { effectivePlan: 'community', paidLicenseStatus: 'none', entitlementsVersion: 5 },
     });
-    expect(payload.state.entitlements).toEqual(LICENSE_PLAN_ENTITLEMENTS.community);
+    // The license server signs the inference feature under its pre-2.12.1 key; Opfield accepts both.
+    expect(payload.state.entitlements.features).toContain('gateway-inference');
+    expect({
+      ...payload.state.entitlements,
+      features: payload.state.entitlements.features.map(canonicalLicenseFeature),
+    }).toEqual(LICENSE_PLAN_ENTITLEMENTS.community);
+    expect(isCanonicalEntitlements('community', payload.state.entitlements)).toBe(true);
   });
 
   it('pins an Ed25519 production key for every key ID', () => {

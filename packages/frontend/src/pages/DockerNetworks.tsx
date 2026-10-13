@@ -43,6 +43,7 @@ import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
+import { managedLabel } from "@/lib/docker-managed-labels";
 import { canCreateDockerResourceOnNode, loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { dockerContainerRoute } from "@/lib/resource-routes";
@@ -72,10 +73,10 @@ function isControllerOwnedNetwork(network: DockerNetwork): boolean {
   >;
   return (
     CONTROLLER_NETWORK_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
-    labels["wiolett.gateway.internal"] === "true" ||
-    labels["wiolett.gateway.availability.policy-id"] !== undefined ||
-    labels["wiolett.gateway.deployment-id"] !== undefined ||
-    labels["wiolett.gateway.managed-database-binding-id"] !== undefined
+    managedLabel(labels, "internal") === "true" ||
+    managedLabel(labels, "availability.policy-id") !== undefined ||
+    managedLabel(labels, "deployment-id") !== undefined ||
+    managedLabel(labels, "managed-database-binding-id") !== undefined
   );
 }
 

@@ -1,10 +1,10 @@
 package supervisor
 
 import (
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaylocal"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaylocal"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -31,15 +31,15 @@ func (p *Plugin) ProtectedMode() bool { return p.cfg.Protected.Enabled }
 // ProtectedCommandAllowed lists the relay commands a protected relay runs:
 // its signed policy, drain, signed worker update, identity renewal and its
 // own route counters. Each of them is relay operation, none reaches the host.
-func (p *Plugin) ProtectedCommandAllowed(cmd *pb.GatewayCommand) bool {
+func (p *Plugin) ProtectedCommandAllowed(cmd *pb.OpfieldCommand) bool {
 	switch cmd.GetPayload().(type) {
-	case *pb.GatewayCommand_SyncRelayPolicy,
-		*pb.GatewayCommand_SetRelayDrain,
-		*pb.GatewayCommand_UpdateRelayWorker,
-		*pb.GatewayCommand_RenewRelayIdentity,
-		*pb.GatewayCommand_GetRelayRouteRuntime:
+	case *pb.OpfieldCommand_SyncRelayPolicy,
+		*pb.OpfieldCommand_SetRelayDrain,
+		*pb.OpfieldCommand_UpdateRelayWorker,
+		*pb.OpfieldCommand_RenewRelayIdentity,
+		*pb.OpfieldCommand_GetRelayRouteRuntime:
 		return true
-	case *pb.GatewayCommand_ApplyWitnesses:
+	case *pb.OpfieldCommand_ApplyWitnesses:
 		// Witness processes only with the owner's opt-in.
 		return p.cfg.Protected.AllowDatabaseWitness
 	}

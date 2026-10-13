@@ -222,7 +222,7 @@ func dropInheritedImageDefaults(
 	}
 	if len(config.Labels) > 0 {
 		for key, value := range previous.Labels {
-			if strings.HasPrefix(key, "wiolett.gateway.") {
+			if strings.HasPrefix(key, labelPrefix) || isLegacyLabelKey(key) {
 				continue
 			}
 			if current, ok := config.Labels[key]; ok && current == value {

@@ -21,7 +21,7 @@ import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { DockerWorkloadResolverService } from './availability/docker-workload-resolver.service.js';
 import type { DockerHealthCheckUpsertInput } from './docker.schemas.js';
-import { DOCKER_DEPLOYMENT_MANAGED_LABEL } from './docker-deployment-labels.js';
+import { isDockerDeploymentManaged } from './docker-deployment-labels.js';
 import { DEFAULT_CONFIG, healthAction, normalizePath, parseDispatchResult } from './docker-health-check.helpers.js';
 
 const logger = createChildLogger('DockerHealthCheckService');
@@ -1060,7 +1060,7 @@ export class DockerHealthCheckService {
     if (!result.success) throw new AppError(502, 'DISPATCH_ERROR', result.error || 'Could not inspect container');
     const inspect = result.detail ? JSON.parse(result.detail) : null;
     const labels = inspect?.Config?.Labels ?? {};
-    if (labels[DOCKER_DEPLOYMENT_MANAGED_LABEL] === 'true') {
+    if (isDockerDeploymentManaged(labels)) {
       throw new AppError(
         409,
         'MANAGED_DEPLOYMENT_CONTAINER',

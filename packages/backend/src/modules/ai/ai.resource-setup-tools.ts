@@ -2,7 +2,7 @@ import { container } from '@/container.js';
 import { getResourceScopedIds, hasScope, hasScopeForCreation } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { UpdateAuthProvisioningSettingsSchema } from '@/modules/admin/admin.schemas.js';
-import { updateGatewaySettings } from '@/modules/admin/gateway-settings.js';
+import { updateOpfieldSettings } from '@/modules/admin/opfield-settings.js';
 import { DatabaseFolderService } from '@/modules/databases/database-folders.service.js';
 import {
   CreateManagedDatabaseBindingSchema,
@@ -369,10 +369,10 @@ async function manageDockerMigration(user: User, args: Record<string, unknown>) 
 async function manageLoggingBackend(user: User, args: Record<string, unknown>) {
   const operation = requiredString(args.operation);
   if (operation === 'get') {
-    ensureScope(user, 'settings:gateway:view');
+    ensureScope(user, 'settings:opfield:view');
     return container.resolve(LoggingSettingsService).getPublicConfig();
   }
-  ensureScope(user, 'settings:gateway:edit');
+  ensureScope(user, 'settings:opfield:edit');
   const logging =
     operation === 'enable_local'
       ? { mode: 'local' }
@@ -394,5 +394,5 @@ async function manageLoggingBackend(user: User, args: Record<string, unknown>) {
   }
   // Same path as PUT /admin/auth-settings { logging }: schema, audit record, and settings change event.
   const input = UpdateAuthProvisioningSettingsSchema.parse({ logging });
-  return (await updateGatewaySettings({ user, scopes: user.scopes }, input)).logging;
+  return (await updateOpfieldSettings({ user, scopes: user.scopes }, input)).logging;
 }

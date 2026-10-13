@@ -25,7 +25,7 @@ import { pkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRouteScrollRestoration } from "@/hooks/use-route-scroll-restoration";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { getLoginRedirectUrl } from "@/lib/auth-return-to";
-import { applyForcedGatewayUpdateStatus } from "@/lib/dev-force-updates";
+import { applyForcedOpfieldUpdateStatus } from "@/lib/dev-force-updates";
 import { isCompactPanelsViewport } from "@/lib/responsive-panels";
 import { ConfigureAIWorkspaceWizard } from "@/pages/dashboard/finalize-setup/ConfigureAIWorkspaceWizard";
 import { api } from "@/services/api";
@@ -98,8 +98,8 @@ export function DashboardLayout() {
   const hasNginxNodes = uiBootstrap?.navigation.hasNginxNodes ?? true;
   const canUseAIWorkspace = Boolean(currentUser?.scopes?.includes(AI_SCOPE));
   const canConfigureAIWorkspace = Boolean(currentUser?.scopes?.includes("feat:ai:configure"));
-  const canConfigureGatewayInference = [
-    "settings:gateway:edit",
+  const canConfigureOpfieldInference = [
+    "settings:opfield:edit",
     "inference:providers:view",
     "inference:providers:manage",
     "inference:models:manage",
@@ -180,11 +180,11 @@ export function DashboardLayout() {
         shouldOpenAIConversationInConsole(ai.activeConversationId, ai.messages)
       );
     };
-    window.addEventListener("gateway:open-ai-workspace", openAIWorkspace);
-    window.addEventListener("gateway:open-operations-console", openOperationsConsole);
+    window.addEventListener("opfield:open-ai-workspace", openAIWorkspace);
+    window.addEventListener("opfield:open-operations-console", openOperationsConsole);
     return () => {
-      window.removeEventListener("gateway:open-ai-workspace", openAIWorkspace);
-      window.removeEventListener("gateway:open-operations-console", openOperationsConsole);
+      window.removeEventListener("opfield:open-ai-workspace", openAIWorkspace);
+      window.removeEventListener("opfield:open-operations-console", openOperationsConsole);
     };
   }, [
     aiEnabled,
@@ -220,7 +220,7 @@ export function DashboardLayout() {
     setSystemConfig(uiBootstrap.systemConfig);
     useDockerStore.getState().setDockerNodes(uiBootstrap.navigation.dockerNodes);
     if (uiBootstrap.update) {
-      useUpdateStore.setState({ status: applyForcedGatewayUpdateStatus(uiBootstrap.update) });
+      useUpdateStore.setState({ status: applyForcedOpfieldUpdateStatus(uiBootstrap.update) });
     }
     if (uiBootstrap.aiStatus) useAIStore.getState().setProviderStatus(uiBootstrap.aiStatus);
   }, [setSystemConfig, uiBootstrap]);
@@ -578,7 +578,7 @@ export function DashboardLayout() {
       />
       <ConfigureAIWorkspaceWizard
         open={interfaceSetupOpen}
-        allowGatewayInference={canConfigureGatewayInference}
+        allowOpfieldInference={canConfigureOpfieldInference}
         initialStepCanSkip={interfaceSetupOrigin !== "interface_choice"}
         completionActionLabel={
           interfaceSetupOrigin === "interface_choice" ? "Enable AI Workspace" : "Open AI Workspace"

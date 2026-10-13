@@ -9,16 +9,16 @@ import {
 /**
  * Gateway's own TLS leaves (the gRPC and web listeners and the local relay service identities)
  * are issued for 365 days and renewed this long before they expire: at start-up, and while
- * Gateway runs by GatewayIdentityRenewalService, which also hot-reloads them.
+ * Gateway runs by OpfieldIdentityRenewalService, which also hot-reloads them.
  */
-export const GATEWAY_IDENTITY_RENEW_BEFORE_MS = 30 * 24 * 60 * 60 * 1000;
+export const OPFIELD_IDENTITY_RENEW_BEFORE_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * The gRPC listener certificate's last week. Enrollment commands pin its fingerprint and stay
  * valid for up to seven days, so start-up renews it only this late, and running renewal waits
  * until this point while enrollment tokens are outstanding.
  */
-export const GATEWAY_GRPC_CERTIFICATE_FINAL_RENEW_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
+export const OPFIELD_GRPC_CERTIFICATE_FINAL_RENEW_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function validateGrpcServerCertificate(
   certificatePem: string | Buffer,

@@ -1,15 +1,15 @@
 {
-  "description": "Release test matrix: every configuration Gateway supports, with the scenario that proves it before a stable tag. Built from what the installers parse and the docs promise, not from changelogs. scripts/release-matrix.test.mjs keeps it complete. Stand scenarios run on a stand before every stable tag; static scenarios run in CI. Steps are stand-agnostic; the stand runbook maps them to hosts.",
+  "description": "Release test matrix: every configuration Opfield supports, with the scenario that proves it before a stable tag. Built from what the installers parse and the docs promise, not from changelogs. scripts/release-matrix.test.mjs keeps it complete. Stand scenarios run on a stand before every stable tag; static scenarios run in CI. Steps are stand-agnostic; the stand runbook maps them to hosts.",
   "conventions": {
     "covers": "'<installer> <option>' or '<installer> <option>=<value>'; '<installer> $<VARIABLE>' or '<installer> $<VARIABLE>=<value>'; 'config <key>' (a daemon config key documented in docs/nodes.md); 'feature <id>' (declared under features); 'lifecycle <daemon> <operation>' (declared under lifecycle).",
     "placeholders": {
-      "<setup command>": "The command Nodes > Add Node shows for the node type (the same as installCommands from POST /api/nodes), with the release, Gateway address, token and certificate fingerprint it generated.",
-      "<gateway>, <token>, <cert>": "The Gateway gRPC address, enrollment token and gRPC certificate fingerprint of a node created in Gateway.",
+      "<setup command>": "The command Nodes > Add Node shows for the node type (the same as installCommands from POST /api/nodes), with the release, Opfield address, token and certificate fingerprint it generated.",
+      "<opfield>, <token>, <cert>": "The Opfield gRPC address, enrollment token and gRPC certificate fingerprint of a node created in Opfield.",
       "<candidate>": "The release under test, for example v2.11.1.",
       "<previous>": "The latest stable release before the candidate of the same major line.",
       "<newer>": "A release of the same line newer than the candidate, published on the preview channel.",
       "gwsvc, gwsvc2, gwdock, gwdock2": "System users created for the run: useradd --system --no-create-home --shell /usr/sbin/nologin <name> (Alpine: adduser -S -D -H -s /sbin/nologin <name>).",
-      "<unit>": "nginx-daemon, docker-daemon, monitoring-daemon or gateway-relay-supervisor.",
+      "<unit>": "nginx-daemon, docker-daemon, monitoring-daemon or opfield-relay-supervisor.",
       "connected": "The installer prints '<daemon> is connected to Opfield' (the relay: that the supervisor enrolled and connected) and exits 0; the node is online in GET /api/nodes with daemonVersion equal to the installed release.",
       "service user": "systemd: systemctl show -p User,Group <unit>; OpenRC: rc-service <unit> status and ps -o user= -p <daemon pid>."
     }
@@ -22,7 +22,7 @@
   },
   "features": {
     "installer.generated-command": {
-      "description": "The setup command of Nodes > Add Node downloads the installer from this Gateway's release, runs it only after the release checksum matches, pins --version to the newest daemon release of the same minor, and appends --disable-console/--disable-files when their checkboxes are set.",
+      "description": "The setup command of Nodes > Add Node downloads the installer from this Opfield's release, runs it only after the release checksum matches, pins --version to the newest daemon release of the same minor, and appends --disable-console/--disable-files when their checkboxes are set.",
       "doc": "docs/nodes.md#quick-setup",
       "os": [
         "debian",
@@ -51,7 +51,7 @@
       ]
     },
     "installer.connection-check": {
-      "description": "An install or re-run succeeds only when the started daemon runs under the service manager and Gateway accepted its session; otherwise it exits 1 naming the daemon log and printing its last lines.",
+      "description": "An install or re-run succeeds only when the started daemon runs under the service manager and Opfield accepted its session; otherwise it exits 1 naming the daemon log and printing its last lines.",
       "doc": "docs/nodes.md#running-daemons-without-root",
       "os": [
         "debian",
@@ -59,14 +59,14 @@
       ]
     },
     "installer.legacy-daemon-check": {
-      "description": "A daemon release older than the session signal is accepted after its service stayed active for 10 seconds, with a warning that it does not report its Gateway connection.",
-      "doc": "scripts/setup-*.sh (GATEWAY_SESSION_SINCE)",
+      "description": "A daemon release older than the session signal is accepted after its service stayed active for 10 seconds, with a warning that it does not report its Opfield connection.",
+      "doc": "scripts/setup-*.sh (CONTROL_SESSION_SINCE)",
       "os": [
         "debian"
       ]
     },
     "installer.manual-mode": {
-      "description": "On a host without systemd or OpenRC the installers start a detached launcher that does not survive a reboot, and still wait for the Gateway session.",
+      "description": "On a host without systemd or OpenRC the installers start a detached launcher that does not survive a reboot, and still wait for the Opfield session.",
       "doc": "docs/nodes.md#running-daemons-without-root",
       "os": [
         "alpine-noinit"
@@ -135,7 +135,7 @@
       ]
     },
     "node.update-refusals": {
-      "description": "Gateway refuses a daemon update for a disconnected node, a relay node and a node already on that release, and records the reason of a failed update.",
+      "description": "Opfield refuses a daemon update for a disconnected node, a relay node and a node already on that release, and records the reason of a failed update.",
       "doc": "docs/nodes.md#daemon-updates",
       "os": [
         "debian"
@@ -149,7 +149,7 @@
       ]
     },
     "node.update-from-previous": {
-      "description": "Daemons of the previous stable release update to the candidate through Gateway.",
+      "description": "Daemons of the previous stable release update to the candidate through Opfield.",
       "doc": "docs/operations.md#daemon-updates",
       "os": [
         "debian"
@@ -299,7 +299,7 @@
       ]
     },
     "docker.lease-watchdog": {
-      "description": "The lease watchdog is installed as its own root service in docker mode, reports with 'gateway-lease-watchdog status', and GATEWAY_LEASE_WATCHDOG_VERSION pins its release.",
+      "description": "The lease watchdog is installed as its own root service in docker mode, reports with 'opfield-lease-watchdog status', and OPFIELD_LEASE_WATCHDOG_VERSION pins its release.",
       "doc": "docs/nodes.md#lease-watchdog",
       "os": [
         "debian",
@@ -342,7 +342,7 @@
       ]
     },
     "docker.log-limits": {
-      "description": "Containers Gateway creates get json-file rotation only while the host default allows it.",
+      "description": "Containers Opfield creates get json-file rotation only while the host default allows it.",
       "doc": "docs/operations.md#container-log-limits",
       "os": [
         "debian"
@@ -463,14 +463,14 @@
     },
     "relay.pool-update": {
       "description": "Relay Pool update: supervisor first, then worker, one relay at a time, resumable.",
-      "doc": "docs/operations.md#gateway-updates",
+      "doc": "docs/operations.md#opfield-updates",
       "os": [
         "debian"
       ]
     },
     "relay.rebalance-drain": {
       "description": "Rebalance, drain with the 30 minute wait and Force disconnect.",
-      "doc": "docs/operations.md#gateway-updates",
+      "doc": "docs/operations.md#opfield-updates",
       "os": [
         "debian"
       ]
@@ -483,7 +483,7 @@
       ]
     },
     "availability.failover-lease": {
-      "description": "Failover policies in lease mode: entering lease mode, autonomous failover with and without Gateway, planned handoff, priority failback, excluded nodes.",
+      "description": "Failover policies in lease mode: entering lease mode, autonomous failover with and without Opfield, planned handoff, priority failback, excluded nodes.",
       "doc": "docs/capabilities.md#data-plane-failover-lease-mode",
       "os": [
         "debian"
@@ -496,50 +496,50 @@
         "debian"
       ]
     },
-    "gateway.install": {
+    "opfield.install": {
       "description": "install.sh fresh install with the default native HTTPS, setup code and wizard, and its re-run as an update.",
       "doc": "docs/installation.md#install",
       "os": [
         "debian"
       ]
     },
-    "gateway.install-variants": {
+    "opfield.install-variants": {
       "description": "install.sh with HTTP, the interactive transport prompt, another install directory, a resumed interrupted install and the host Docker logging defaults.",
       "doc": "docs/installation.md#install",
       "os": [
         "debian"
       ]
     },
-    "gateway.install-from-source": {
+    "opfield.install-from-source": {
       "description": "install.sh --source-dir builds a fresh test installation from a checkout and refuses an existing one.",
       "doc": "docs/installation.md#install",
       "os": [
         "debian"
       ]
     },
-    "gateway.update-in-app": {
-      "description": "In-app Gateway update: waiting for running operations, Update now, database snapshot, the update channel.",
-      "doc": "docs/operations.md#gateway-updates",
+    "opfield.update-in-app": {
+      "description": "In-app Opfield update: waiting for running operations, Update now, database snapshot, the update channel.",
+      "doc": "docs/operations.md#opfield-updates",
       "os": [
         "debian"
       ]
     },
-    "gateway.update-from-2.10": {
+    "opfield.update-from-2.10": {
       "description": "The upgrade path from the 2.10 line including the base updater's rollback.",
       "doc": "docs/operations.md#updating-from-210",
       "os": [
         "debian"
       ]
     },
-    "gateway.web-transport": {
+    "opfield.web-transport": {
       "description": "Switching internal HTTPS on and off in Settings.",
       "doc": "docs/installation.md#native-https-and-reverse-proxies",
       "os": [
         "debian"
       ]
     },
-    "gateway.offline": {
-      "description": "With the Gateway app down, nginx keeps serving with the cached status page, containers run, daemons reconnect afterwards.",
+    "opfield.offline": {
+      "description": "With the Opfield app down, nginx keeps serving with the cached status page, containers run, daemons reconnect afterwards.",
       "doc": "docs/nodes.md#offline-behavior",
       "os": [
         "debian"
@@ -577,12 +577,12 @@
       "user-to-user": "Re-run of a non-root install with another user.",
       "refused-user": "A user that does not exist, or a non-root user for a root-only profile: exit 1 before any host change.",
       "token-refused": "An already used or expired token: exit 1 at once with 'Opfield refused the enrollment token', without the reachability hint.",
-      "gateway-unreachable": "Gateway cannot be reached: exit 1 after the enrollment wait with the daemon log source and its last lines.",
+      "opfield-unreachable": "Opfield cannot be reached: exit 1 after the enrollment wait with the daemon log source and its last lines.",
       "prerequisites": "A missing or unsupported prerequisite (packages, nginx version or user, Docker socket, loop devices, service manager) is installed or refused before any change, as documented.",
       "service-fails": "The service of an enrolled node cannot start: the re-run exits 1 with the log tail and no manual-mode fallback.",
       "restart": "A service-manager restart: online again, no restart loop.",
       "reboot": "A host reboot: online again with the same service user.",
-      "self-update": "Gateway updates the daemon to a newer release: new version, previous binary kept, owner and service user unchanged.",
+      "self-update": "Opfield updates the daemon to a newer release: new version, previous binary kept, owner and service user unchanged.",
       "dry-run": "--dry-run prints the plan and changes nothing."
     },
     "daemons": {
@@ -632,7 +632,7 @@
               "debian"
             ]
           },
-          "gateway-unreachable": {
+          "opfield-unreachable": {
             "os": [
               "debian",
               "alpine"
@@ -719,7 +719,7 @@
               "debian"
             ]
           },
-          "gateway-unreachable": {
+          "opfield-unreachable": {
             "os": [
               "debian",
               "alpine"
@@ -806,7 +806,7 @@
               "debian"
             ]
           },
-          "gateway-unreachable": {
+          "opfield-unreachable": {
             "os": [
               "debian",
               "alpine"
@@ -893,7 +893,7 @@
               "debian"
             ]
           },
-          "gateway-unreachable": {
+          "opfield-unreachable": {
             "os": [
               "debian",
               "alpine"
@@ -982,7 +982,7 @@
           "user-to-root": "Root only.",
           "user-to-user": "Root only.",
           "token-refused": "The same setup-docker-node.sh enrollment and session check as the docker profile.",
-          "gateway-unreachable": "The same setup-docker-node.sh session wait as the docker profile.",
+          "opfield-unreachable": "The same setup-docker-node.sh session wait as the docker profile.",
           "service-fails": "The same setup-docker-node.sh service start and check as the docker profile."
         }
       },
@@ -1033,7 +1033,7 @@
           "user-to-root": "Root only.",
           "user-to-user": "Root only.",
           "token-refused": "setup-database-node.sh hands enrollment to setup-docker-node.sh, the same check as the docker profile.",
-          "gateway-unreachable": "The same setup-docker-node.sh session wait as the docker profile.",
+          "opfield-unreachable": "The same setup-docker-node.sh session wait as the docker profile.",
           "service-fails": "The same setup-docker-node.sh service start and check as the docker profile."
         }
       }
@@ -1047,11 +1047,11 @@
       "where": "static",
       "ci": "test:light:installers",
       "covers": [
-        "setup-node.sh --gateway",
+        "setup-node.sh --opfield",
         "setup-node.sh --host",
         "setup-node.sh --port",
         "setup-node.sh --token",
-        "setup-node.sh --gateway-cert-sha256",
+        "setup-node.sh --opfield-cert-sha256",
         "setup-node.sh --version",
         "setup-node.sh --user",
         "setup-node.sh --nginx-mode=integrate",
@@ -1061,21 +1061,21 @@
         "setup-node.sh --dry-run",
         "setup-node.sh --yes",
         "setup-node.sh --help",
-        "setup-node.sh $GATEWAY_NODE_HOST",
-        "setup-node.sh $GATEWAY_NODE_PORT",
-        "setup-node.sh $GATEWAY_NODE_ADDRESS",
-        "setup-node.sh $GATEWAY_NODE_TOKEN",
-        "setup-node.sh $GATEWAY_NODE_CERT_SHA256",
-        "setup-node.sh $GATEWAY_NODE_DAEMON_VERSION",
-        "setup-node.sh $GATEWAY_NODE_SKIP_NGINX",
-        "setup-node.sh $GATEWAY_NODE_NGINX_MODE",
-        "setup-node.sh $GATEWAY_NODE_DISABLE_CONSOLE",
-        "setup-node.sh $GATEWAY_NODE_DISABLE_FILES",
-        "setup-docker-node.sh --gateway",
+        "setup-node.sh $OPFIELD_NODE_HOST",
+        "setup-node.sh $OPFIELD_NODE_PORT",
+        "setup-node.sh $OPFIELD_NODE_ADDRESS",
+        "setup-node.sh $OPFIELD_NODE_TOKEN",
+        "setup-node.sh $OPFIELD_NODE_CERT_SHA256",
+        "setup-node.sh $OPFIELD_NODE_DAEMON_VERSION",
+        "setup-node.sh $OPFIELD_NODE_SKIP_NGINX",
+        "setup-node.sh $OPFIELD_NODE_NGINX_MODE",
+        "setup-node.sh $OPFIELD_NODE_DISABLE_CONSOLE",
+        "setup-node.sh $OPFIELD_NODE_DISABLE_FILES",
+        "setup-docker-node.sh --opfield",
         "setup-docker-node.sh --host",
         "setup-docker-node.sh --port",
         "setup-docker-node.sh --token",
-        "setup-docker-node.sh --gateway-cert-sha256",
+        "setup-docker-node.sh --opfield-cert-sha256",
         "setup-docker-node.sh --version",
         "setup-docker-node.sh --user",
         "setup-docker-node.sh --mode=docker",
@@ -1088,31 +1088,31 @@
         "setup-docker-node.sh --dry-run",
         "setup-docker-node.sh --yes",
         "setup-docker-node.sh --help",
-        "setup-docker-node.sh $GATEWAY_NODE_HOST",
-        "setup-docker-node.sh $GATEWAY_NODE_PORT",
-        "setup-docker-node.sh $GATEWAY_NODE_ADDRESS",
-        "setup-docker-node.sh $GATEWAY_NODE_TOKEN",
-        "setup-docker-node.sh $GATEWAY_NODE_CERT_SHA256",
-        "setup-docker-node.sh $GATEWAY_NODE_DAEMON_VERSION",
-        "setup-docker-node.sh $GATEWAY_NODE_DISABLE_CONSOLE",
-        "setup-docker-node.sh $GATEWAY_NODE_DISABLE_FILES",
-        "setup-docker-node.sh $GATEWAY_DOCKER_MODE",
-        "setup-docker-node.sh $GATEWAY_BUILDER_EGRESS_PROFILE",
-        "setup-docker-node.sh $GATEWAY_DOCKER_SECURE_RUNTIME",
-        "setup-docker-node.sh $GATEWAY_DATABASE_STORAGE_ROOT",
+        "setup-docker-node.sh $OPFIELD_NODE_HOST",
+        "setup-docker-node.sh $OPFIELD_NODE_PORT",
+        "setup-docker-node.sh $OPFIELD_NODE_ADDRESS",
+        "setup-docker-node.sh $OPFIELD_NODE_TOKEN",
+        "setup-docker-node.sh $OPFIELD_NODE_CERT_SHA256",
+        "setup-docker-node.sh $OPFIELD_NODE_DAEMON_VERSION",
+        "setup-docker-node.sh $OPFIELD_NODE_DISABLE_CONSOLE",
+        "setup-docker-node.sh $OPFIELD_NODE_DISABLE_FILES",
+        "setup-docker-node.sh $OPFIELD_DOCKER_MODE",
+        "setup-docker-node.sh $OPFIELD_BUILDER_EGRESS_PROFILE",
+        "setup-docker-node.sh $OPFIELD_DOCKER_SECURE_RUNTIME",
+        "setup-docker-node.sh $OPFIELD_DATABASE_STORAGE_ROOT",
         "setup-database-node.sh --storage-root",
         "setup-database-node.sh --user",
         "setup-database-node.sh --dry-run",
         "setup-database-node.sh --yes",
         "setup-database-node.sh --help",
-        "setup-database-node.sh $GATEWAY_DATABASE_STORAGE_ROOT",
-        "setup-database-node.sh $GATEWAY_DOCKER_MODE=databases",
-        "setup-database-node.sh $GATEWAY_DOCKER_MODE=storage",
-        "setup-monitoring-node.sh --gateway",
+        "setup-database-node.sh $OPFIELD_DATABASE_STORAGE_ROOT",
+        "setup-database-node.sh $OPFIELD_DOCKER_MODE=databases",
+        "setup-database-node.sh $OPFIELD_DOCKER_MODE=storage",
+        "setup-monitoring-node.sh --opfield",
         "setup-monitoring-node.sh --host",
         "setup-monitoring-node.sh --port",
         "setup-monitoring-node.sh --token",
-        "setup-monitoring-node.sh --gateway-cert-sha256",
+        "setup-monitoring-node.sh --opfield-cert-sha256",
         "setup-monitoring-node.sh --version",
         "setup-monitoring-node.sh --user",
         "setup-monitoring-node.sh --disable-console",
@@ -1121,17 +1121,17 @@
         "setup-monitoring-node.sh --dry-run",
         "setup-monitoring-node.sh --yes",
         "setup-monitoring-node.sh --help",
-        "setup-monitoring-node.sh $GATEWAY_NODE_HOST",
-        "setup-monitoring-node.sh $GATEWAY_NODE_PORT",
-        "setup-monitoring-node.sh $GATEWAY_NODE_ADDRESS",
-        "setup-monitoring-node.sh $GATEWAY_NODE_TOKEN",
-        "setup-monitoring-node.sh $GATEWAY_NODE_CERT_SHA256",
-        "setup-monitoring-node.sh $GATEWAY_NODE_DAEMON_VERSION",
-        "setup-monitoring-node.sh $GATEWAY_NODE_DISABLE_CONSOLE",
-        "setup-monitoring-node.sh $GATEWAY_NODE_DISABLE_FILES",
-        "setup-relay-node.sh --gateway",
+        "setup-monitoring-node.sh $OPFIELD_NODE_HOST",
+        "setup-monitoring-node.sh $OPFIELD_NODE_PORT",
+        "setup-monitoring-node.sh $OPFIELD_NODE_ADDRESS",
+        "setup-monitoring-node.sh $OPFIELD_NODE_TOKEN",
+        "setup-monitoring-node.sh $OPFIELD_NODE_CERT_SHA256",
+        "setup-monitoring-node.sh $OPFIELD_NODE_DAEMON_VERSION",
+        "setup-monitoring-node.sh $OPFIELD_NODE_DISABLE_CONSOLE",
+        "setup-monitoring-node.sh $OPFIELD_NODE_DISABLE_FILES",
+        "setup-relay-node.sh --opfield",
         "setup-relay-node.sh --token",
-        "setup-relay-node.sh --gateway-cert-sha256",
+        "setup-relay-node.sh --opfield-cert-sha256",
         "setup-relay-node.sh --advertise-address",
         "setup-relay-node.sh --service-port",
         "setup-relay-node.sh --version",
@@ -1139,10 +1139,10 @@
         "setup-relay-node.sh --disable-files",
         "setup-relay-node.sh --dry-run",
         "setup-relay-node.sh --help",
-        "setup-relay-node.sh $GATEWAY_RELAY_RUN_USER",
-        "setup-relay-node.sh $GATEWAY_RELAY_RUN_GROUP",
-        "setup-relay-node.sh $GATEWAY_NODE_DISABLE_CONSOLE",
-        "setup-relay-node.sh $GATEWAY_NODE_DISABLE_FILES",
+        "setup-relay-node.sh $OPFIELD_RELAY_RUN_USER",
+        "setup-relay-node.sh $OPFIELD_RELAY_RUN_GROUP",
+        "setup-relay-node.sh $OPFIELD_NODE_DISABLE_CONSOLE",
+        "setup-relay-node.sh $OPFIELD_NODE_DISABLE_FILES",
         "setup-daemon.sh --type=nginx",
         "setup-daemon.sh --type=docker",
         "setup-daemon.sh --type=storage",
@@ -1150,7 +1150,7 @@
         "setup-daemon.sh --type=monitoring",
         "setup-daemon.sh --script-dir",
         "setup-daemon.sh --help",
-        "setup-daemon.sh $GATEWAY_SETUP_SCRIPT_DIR",
+        "setup-daemon.sh $OPFIELD_SETUP_SCRIPT_DIR",
         "install.sh --help",
         "lifecycle nginx dry-run",
         "lifecycle docker dry-run",
@@ -1158,7 +1158,17 @@
         "lifecycle relay dry-run",
         "lifecycle builder dry-run",
         "lifecycle storage dry-run",
-        "feature installer.dry-run"
+        "feature installer.dry-run",
+        "setup-node.sh --gateway",
+        "setup-node.sh --gateway-cert-sha256",
+        "setup-docker-node.sh --gateway",
+        "setup-docker-node.sh --gateway-cert-sha256",
+        "setup-monitoring-node.sh --gateway",
+        "setup-monitoring-node.sh --gateway-cert-sha256",
+        "setup-relay-node.sh --gateway",
+        "setup-relay-node.sh --gateway-cert-sha256",
+        "setup-database-node.sh --opfield",
+        "setup-database-node.sh --opfield-cert-sha256"
       ],
       "preconditions": [
         "Linux CI runner; the test copies the installers, points their host paths at an empty directory and stubs docker, nginx and curl."
@@ -1166,13 +1176,13 @@
       "steps": [
         "bash -n and the define-before-use check on every setup-*.sh.",
         "--dry-run of each installer and profile, as root and with --user, with and without --disable-console --disable-files.",
-        "The same dry runs with every setting from the GATEWAY_* environment instead of options, and with --host/--port/--no-logo.",
+        "The same dry runs with every setting from the OPFIELD_* environment instead of options, and with --host/--port/--no-logo.",
         "Invalid values through the environment (--mode, --builder-egress, --nginx-mode, --secure-runtime outside docker, a non-root database node, a missing relay user or group).",
-        "setup-daemon.sh --type <each type> with --script-dir and with GATEWAY_SETUP_SCRIPT_DIR, and an unknown type.",
+        "setup-daemon.sh --type <each type> with --script-dir and with OPFIELD_SETUP_SCRIPT_DIR, and an unknown type.",
         "--help of every installer and install.sh."
       ],
       "expect": [
-        "Every dry run exits 0, prints 'console.enabled: false'/'files.enabled: false' for the switches, the storage root given by --storage-root or GATEWAY_DATABASE_STORAGE_ROOT, 'integrate mode' for GATEWAY_NODE_NGINX_MODE, the Build Worker profile for GATEWAY_DOCKER_MODE=builder, CAP_NET_BIND_SERVICE for a non-root relay on port 853, and no 'command not found'.",
+        "Every dry run exits 0, prints 'console.enabled: false'/'files.enabled: false' for the switches, the storage root given by --storage-root or OPFIELD_DATABASE_STORAGE_ROOT, 'integrate mode' for OPFIELD_NODE_NGINX_MODE, the Build Worker profile for OPFIELD_DOCKER_MODE=builder, CAP_NET_BIND_SERVICE for a non-root relay on port 853, and no 'command not found'.",
         "Every invalid value exits non-zero with the installer's own message.",
         "setup-daemon.sh runs the local installer of each type; an unknown type exits non-zero.",
         "Every --help exits 0 with a Usage line."
@@ -1192,7 +1202,7 @@
         "CI runs the Go tests as a non-root user."
       ],
       "steps": [
-        "pnpm test:light:go runs shared/lifecycle (launcher, candidate directories, rollback, launcher update in place and service restart, gateway-session.json), the lease watchdog and the host access refusal tests."
+        "pnpm test:light:go runs shared/lifecycle (launcher, candidate directories, rollback, launcher update in place and service restart, control-session.json), the lease watchdog and the host access refusal tests."
       ],
       "expect": [
         "All packages pass; a candidate that does not stay ready is rolled back to the preserved binary.",
@@ -1213,22 +1223,22 @@
         "feature installer.universal-command",
         "feature installer.connection-check",
         "setup-daemon.sh --version",
-        "setup-daemon.sh $GATEWAY_SETUP_VERSION"
+        "setup-daemon.sh $OPFIELD_SETUP_VERSION"
       ],
       "preconditions": [
         "A host prepared for node installs (bash, curl and sudo present).",
-        "Gateway runs <candidate>."
+        "Opfield runs <candidate>."
       ],
       "steps": [
         "Create a monitoring node in Nodes > Add Node with both Disable host console/files checkboxes set; copy the command.",
-        "Check the command: it downloads from the <candidate> release, checks sha256sum against gateway-daemon-installers.sha256 and passes --version with the newest daemon release of the <candidate> minor, plus --disable-console --disable-files.",
+        "Check the command: it downloads from the <candidate> release, checks sha256sum against opfield-node-installers.sha256 and passes --version with the newest daemon release of the <candidate> minor, plus --disable-console --disable-files.",
         "Run it as given.",
-        "On Debian also run the universal form: curl -sSL <release>/download/<candidate>/setup-daemon.sh | sudo bash -s -- --type monitoring --version <candidate> --gateway <gateway> --token <token> --gateway-cert-sha256 <cert> -y on a second token, and once with GATEWAY_SETUP_VERSION=<candidate> instead of --version."
+        "On Debian also run the universal form: curl -sSL <release>/download/<candidate>/setup-daemon.sh | sudo bash -s -- --type monitoring --version <candidate> --opfield <opfield> --token <token> --opfield-cert-sha256 <cert> -y on a second token, and once with OPFIELD_SETUP_VERSION=<candidate> instead of --version."
       ],
       "expect": [
         "connected; console.enabled: false and files.enabled: false in /etc/monitoring-daemon/config.yaml; GET /api/nodes shows nodeConsoleDisabled and nodeFilesDisabled true.",
         "setup-daemon.sh logs 'Downloading verified setup-monitoring-node.sh' from download/<candidate> and the installer it ran is byte-identical to the release asset.",
-        "A tampered checksum file (served through GATEWAY_RELEASE_DOWNLOAD_BASE in INS-GEN-02) is refused; here the published one passes."
+        "A tampered checksum file (served through OPFIELD_RELEASE_DOWNLOAD_BASE in INS-GEN-02) is refused; here the published one passes."
       ]
     },
     {
@@ -1241,29 +1251,29 @@
       ],
       "covers": [
         "feature installer.release-mirror",
-        "setup-daemon.sh $GATEWAY_RELEASE_DOWNLOAD_BASE",
-        "setup-storage-node.sh $GATEWAY_RELEASE_DOWNLOAD_BASE",
-        "setup-storage-node.sh $GATEWAY_SETUP_VERSION",
-        "setup-database-node.sh $GATEWAY_RELEASE_DOWNLOAD_BASE",
-        "setup-database-node.sh $GATEWAY_SETUP_VERSION",
-        "setup-node.sh $GATEWAY_RELEASES_API_URL",
-        "setup-node.sh $GATEWAY_ARTIFACT_BASE_URL",
-        "setup-docker-node.sh $GATEWAY_RELEASES_API_URL",
-        "setup-docker-node.sh $GATEWAY_ARTIFACT_BASE_URL",
-        "setup-monitoring-node.sh $GATEWAY_RELEASES_API_URL",
-        "setup-monitoring-node.sh $GATEWAY_ARTIFACT_BASE_URL",
-        "setup-relay-node.sh $GATEWAY_RELEASES_API_URL",
-        "setup-relay-node.sh $GATEWAY_ARTIFACT_BASE_URL"
+        "setup-daemon.sh $OPFIELD_RELEASE_DOWNLOAD_BASE",
+        "setup-storage-node.sh $OPFIELD_RELEASE_DOWNLOAD_BASE",
+        "setup-storage-node.sh $OPFIELD_SETUP_VERSION",
+        "setup-database-node.sh $OPFIELD_RELEASE_DOWNLOAD_BASE",
+        "setup-database-node.sh $OPFIELD_SETUP_VERSION",
+        "setup-node.sh $OPFIELD_RELEASES_API_URL",
+        "setup-node.sh $OPFIELD_ARTIFACT_BASE_URL",
+        "setup-docker-node.sh $OPFIELD_RELEASES_API_URL",
+        "setup-docker-node.sh $OPFIELD_ARTIFACT_BASE_URL",
+        "setup-monitoring-node.sh $OPFIELD_RELEASES_API_URL",
+        "setup-monitoring-node.sh $OPFIELD_ARTIFACT_BASE_URL",
+        "setup-relay-node.sh $OPFIELD_RELEASES_API_URL",
+        "setup-relay-node.sh $OPFIELD_ARTIFACT_BASE_URL"
       ],
       "preconditions": [
         "A local HTTP server on the tool host mirrors the <candidate> GitHub release assets, the release feed answer for each component and the daemon artifact directories, with an access log.",
         "A host where monitoring-daemon and the relay are not installed yet."
       ],
       "steps": [
-        "Without --version, run --dry-run of setup-node.sh, setup-docker-node.sh, setup-monitoring-node.sh and setup-relay-node.sh with GATEWAY_RELEASES_API_URL and GATEWAY_ARTIFACT_BASE_URL pointing at the mirror.",
+        "Without --version, run --dry-run of setup-node.sh, setup-docker-node.sh, setup-monitoring-node.sh and setup-relay-node.sh with OPFIELD_RELEASES_API_URL and OPFIELD_ARTIFACT_BASE_URL pointing at the mirror.",
         "Replace the monitoring-daemon binary on the mirror with a modified copy and run the monitoring installer with the same variables; restore the binary.",
         "Install the relay of INS-RLY-01 for real with the same variables and no --version.",
-        "Run setup-daemon.sh --type storage --dry-run and the piped setup-storage-node.sh (no sibling files) --dry-run with GATEWAY_RELEASE_DOWNLOAD_BASE=<mirror> and GATEWAY_SETUP_VERSION=<candidate>.",
+        "Run setup-daemon.sh --type storage --dry-run and the piped setup-storage-node.sh (no sibling files) --dry-run with OPFIELD_RELEASE_DOWNLOAD_BASE=<mirror> and OPFIELD_SETUP_VERSION=<candidate>.",
         "Replace setup-database-node.sh on the mirror with a modified copy and repeat the storage dry run."
       ],
       "expect": [
@@ -1284,19 +1294,19 @@
       ],
       "covers": [
         "feature installer.interactive",
-        "setup-docker-node.sh $GATEWAY_SETUP_NO_CLEAR"
+        "setup-docker-node.sh $OPFIELD_SETUP_NO_CLEAR"
       ],
       "preconditions": [
         "A terminal session (tmux) on a host without docker-daemon; a fresh docker token. INS-DKR-03 can use this install."
       ],
       "steps": [
-        "sudo bash setup-docker-node.sh --gateway <gateway> --user gwdock (no -y, no token, no fingerprint).",
+        "sudo bash setup-docker-node.sh --opfield <opfield> --user gwdock (no -y, no token, no fingerprint).",
         "Answer the token and fingerprint prompts.",
-        "Re-run with only --user gwdock on the enrolled node with GATEWAY_SETUP_NO_CLEAR=1."
+        "Re-run with only --user gwdock on the enrolled node with OPFIELD_SETUP_NO_CLEAR=1."
       ],
       "expect": [
         "Only the token and fingerprint are asked; Docker version and the plan are shown; connected.",
-        "The re-run says 'Existing enrolled docker node detected — reusing current gateway configuration', asks nothing, does not clear the terminal and is connected."
+        "The re-run says 'Existing enrolled docker node detected — reusing the current Opfield connection settings', asks nothing, does not clear the terminal and is connected."
       ]
     },
     {
@@ -1309,16 +1319,16 @@
       ],
       "covers": [
         "feature installer.apt-lock-retry",
-        "setup-node.sh $GATEWAY_NODE_APT_LOCK_RETRY_ATTEMPTS",
-        "setup-node.sh $GATEWAY_NODE_APT_LOCK_RETRY_DELAY_SECONDS"
+        "setup-node.sh $OPFIELD_NODE_APT_LOCK_RETRY_ATTEMPTS",
+        "setup-node.sh $OPFIELD_NODE_APT_LOCK_RETRY_DELAY_SECONDS"
       ],
       "preconditions": [
         "A host without nginx, before INS-NGX-01."
       ],
       "steps": [
         "Hold the dpkg frontend lock the way apt does, for 20 s: python3 -c 'import fcntl,time; f=open(\"/var/lib/dpkg/lock-frontend\",\"w\"); fcntl.lockf(f,fcntl.LOCK_EX); time.sleep(20)' &",
-        "While it is held, run the nginx setup command with GATEWAY_NODE_APT_LOCK_RETRY_ATTEMPTS=2 GATEWAY_NODE_APT_LOCK_RETRY_DELAY_SECONDS=2.",
-        "Hold the lock again and run INS-NGX-01 with GATEWAY_NODE_APT_LOCK_RETRY_ATTEMPTS=12 GATEWAY_NODE_APT_LOCK_RETRY_DELAY_SECONDS=5."
+        "While it is held, run the nginx setup command with OPFIELD_NODE_APT_LOCK_RETRY_ATTEMPTS=2 OPFIELD_NODE_APT_LOCK_RETRY_DELAY_SECONDS=2.",
+        "Hold the lock again and run INS-NGX-01 with OPFIELD_NODE_APT_LOCK_RETRY_ATTEMPTS=12 OPFIELD_NODE_APT_LOCK_RETRY_DELAY_SECONDS=5."
       ],
       "expect": [
         "With 2 attempts the installer prints 'Package manager is busy; retrying in 2s (1/2)' and then fails with the apt error, before changing nginx config or enrolling.",
@@ -1335,17 +1345,17 @@
       ],
       "covers": [
         "feature installer.manual-mode",
-        "setup-monitoring-node.sh $GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS",
-        "setup-relay-node.sh $GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS",
-        "setup-node.sh $GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS",
-        "setup-docker-node.sh $GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS"
+        "setup-monitoring-node.sh $OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS",
+        "setup-relay-node.sh $OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS",
+        "setup-node.sh $OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS",
+        "setup-docker-node.sh $OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS"
       ],
       "preconditions": [
         "Throwaway Alpine containers with bash, curl and sudo and no init: one with host networking for monitoring and relay, one with nginx installed from apk, one docker:dind container for the docker profile.",
         "Fresh tokens for a monitoring, relay, nginx and docker node."
       ],
       "steps": [
-        "In each container run the setup command with GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS=60 (monitoring also once with --user gwsvc; relay with GATEWAY_RELAY_RUN_USER=gwsvc and a port above 1024; nginx with --nginx-mode integrate after starting nginx).",
+        "In each container run the setup command with OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS=60 (monitoring also once with --user gwsvc; relay with OPFIELD_RELAY_RUN_USER=gwsvc and a port above 1024; nginx with --nginx-mode integrate after starting nginx).",
         "Re-run the monitoring installer on the enrolled container.",
         "Stop the container and start it again."
       ],
@@ -1377,7 +1387,7 @@
       ],
       "steps": [
         "Download setup-monitoring-node.sh and setup-relay-node.sh, then remove curl and jq with the package manager.",
-        "Run the monitoring installer from the file with --user gwsvc; run the relay installer from the file with GATEWAY_RELAY_RUN_USER=gwsvc.",
+        "Run the monitoring installer from the file with --user gwsvc; run the relay installer from the file with OPFIELD_RELAY_RUN_USER=gwsvc.",
         "Make the Docker socket unusable for its group (chgrp root on the socket; Docker recreates it on restart), run setup-docker-node.sh --user gwdock, then restart Docker.",
         "Run setup-node.sh --user www-data --nginx-mode integrate (Alpine: --user nginx) while nginx still runs as root.",
         "Run setup-node.sh --user www-data --nginx-mode managed after preparing nginx as in INS-NGX-02."
@@ -1385,7 +1395,7 @@
       "expect": [
         "The monitoring installer installs curl and ca-certificates (apt or apk) and is connected; the relay installer installs jq and is connected.",
         "The Docker installer adds gwdock to the docker group, then stops with \"User 'gwdock' cannot use the Docker socket\" and exit 1; an existing docker-daemon keeps its configuration, service user and connection.",
-        "The nginx installer stops with the list of what to prepare and 'nothing was changed'; an existing nginx-daemon, its configuration and /etc/nginx/gateway are unchanged.",
+        "The nginx installer stops with the list of what to prepare and 'nothing was changed'; an existing nginx-daemon, its configuration and /etc/nginx/opfield are unchanged.",
         "managed mode with a non-root user is refused before any change."
       ]
     },
@@ -1417,33 +1427,33 @@
     {
       "id": "INS-FAIL-02",
       "area": "installer",
-      "title": "Gateway unreachable during a re-run",
+      "title": "Opfield unreachable during a re-run",
       "where": "stand",
       "os": [
         "debian",
         "alpine"
       ],
       "covers": [
-        "lifecycle monitoring gateway-unreachable",
-        "lifecycle nginx gateway-unreachable",
-        "lifecycle docker gateway-unreachable",
-        "lifecycle relay gateway-unreachable",
-        "setup-node.sh $GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS",
-        "setup-docker-node.sh $GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS",
-        "setup-monitoring-node.sh $GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS",
-        "setup-relay-node.sh $GATEWAY_RELAY_ENROLLMENT_WAIT_SECONDS",
+        "lifecycle monitoring opfield-unreachable",
+        "lifecycle nginx opfield-unreachable",
+        "lifecycle docker opfield-unreachable",
+        "lifecycle relay opfield-unreachable",
+        "setup-node.sh $OPFIELD_NODE_ENROLLMENT_WAIT_SECONDS",
+        "setup-docker-node.sh $OPFIELD_NODE_ENROLLMENT_WAIT_SECONDS",
+        "setup-monitoring-node.sh $OPFIELD_MONITORING_ENROLLMENT_WAIT_SECONDS",
+        "setup-relay-node.sh $OPFIELD_RELAY_ENROLLMENT_WAIT_SECONDS",
         "feature installer.connection-check"
       ],
       "preconditions": [
         "Enrolled, online monitoring, nginx, docker and relay daemons on the host."
       ],
       "steps": [
-        "Add a firewall rule on the host that drops traffic to the Gateway gRPC port.",
-        "Re-run each installer with its wait variable set to 30 (GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS, GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS, GATEWAY_RELAY_ENROLLMENT_WAIT_SECONDS).",
+        "Add a firewall rule on the host that drops traffic to the Opfield gRPC port.",
+        "Re-run each installer with its wait variable set to 30 (OPFIELD_NODE_ENROLLMENT_WAIT_SECONDS, OPFIELD_MONITORING_ENROLLMENT_WAIT_SECONDS, OPFIELD_RELAY_ENROLLMENT_WAIT_SECONDS).",
         "Remove the rule and re-run once more."
       ],
       "expect": [
-        "Each re-run exits 1 after about 30 s with 'has not connected to Opfield within 30 s; check that Opfield at <gateway> is reachable', 'Daemon log: journalctl -u <unit>' (Alpine: the OpenRC log files) and the last 20 lines.",
+        "Each re-run exits 1 after about 30 s with 'has not connected to Opfield within 30 s; check that Opfield at <opfield> is reachable', 'Daemon log: journalctl -u <unit>' (Alpine: the OpenRC log files) and the last 20 lines.",
         "After the rule is removed each re-run is connected."
       ]
     },
@@ -1466,7 +1476,7 @@
         "Enrolled, online monitoring, nginx, docker and relay daemons on the host."
       ],
       "steps": [
-        "Make each service unable to start without touching the installed files: systemd drop-in with ExecStartPre=/bin/false; OpenRC rc_need=\"gateway-no-such-service\" in /etc/conf.d/<unit>.",
+        "Make each service unable to start without touching the installed files: systemd drop-in with ExecStartPre=/bin/false; OpenRC rc_need=\"opfield-no-such-service\" in /etc/conf.d/<unit>.",
         "Re-run each installer.",
         "Remove the drop-in or conf.d line and re-run."
       ],
@@ -1495,8 +1505,8 @@
         "Snapshots of the file lists of /etc, /usr/local and /var/lib on the host."
       ],
       "steps": [
-        "setup-monitoring-node.sh, setup-node.sh and setup-docker-node.sh with --user gateway-no-such-user and a fresh token.",
-        "setup-relay-node.sh with GATEWAY_RELAY_RUN_USER=gateway-no-such-user.",
+        "setup-monitoring-node.sh, setup-node.sh and setup-docker-node.sh with --user opfield-no-such-user and a fresh token.",
+        "setup-relay-node.sh with OPFIELD_RELAY_RUN_USER=opfield-no-such-user.",
         "setup-docker-node.sh --mode builder --user gwsvc; setup-storage-node.sh --user gwsvc."
       ],
       "expect": [
@@ -1536,7 +1546,7 @@
       "expect": [
         "Fresh: connected; service user root; /usr/local/bin/monitoring-daemon is a root binary; no host_identity_path in the config.",
         "Re-run: connected, no new enrollment (certs unchanged), launcher directory kept.",
-        "To user: 'switching it to gwsvc'; connected; service user gwsvc; config, state and /usr/local/lib/monitoring-daemon owned by gwsvc; /usr/local/bin/monitoring-daemon is the root-owned wrapper and 'version' runs as gwsvc; host identity copy equals /var/lib/gateway/host-identity; same node id.",
+        "To user: 'switching it to gwsvc'; connected; service user gwsvc; config, state and /usr/local/lib/monitoring-daemon owned by gwsvc; /usr/local/bin/monitoring-daemon is the root-owned wrapper and 'version' runs as gwsvc; host identity copy equals /var/lib/opfield/host-identity; same node id.",
         "Back to root: 'ran as gwsvc; switching it to root'; connected; service user root; find over the three directories finds nothing owned by gwsvc; the wrapper is replaced by a root binary; host_identity_path removed.",
         "Restart and reboot: online again within a minute, no restart loop in the service log."
       ]
@@ -1561,12 +1571,12 @@
       ],
       "steps": [
         "Run the monitoring setup command with --user gwsvc.",
-        "Open the node console and run id and touch /etc/gateway-test.",
-        "In Files: list, create, write and read in /var/lib/monitoring-daemon; create a file in /etc; read /var/lib/gateway/host-identity.",
+        "Open the node console and run id and touch /etc/opfield-test.",
+        "In Files: list, create, write and read in /var/lib/monitoring-daemon; create a file in /etc; read /var/lib/opfield/host-identity.",
         "Re-run with --user gwsvc2."
       ],
       "expect": [
-        "connected; service user gwsvc; host_identity_path points into /var/lib/monitoring-daemon and the copy equals the shared identity; Gateway shows one host for both daemons of the host.",
+        "connected; service user gwsvc; host_identity_path points into /var/lib/monitoring-daemon and the copy equals the shared identity; Opfield shows one host for both daemons of the host.",
         "Console: uid of gwsvc; touch fails with Permission denied.",
         "Files: the state directory operations return 200; /etc and the root-only identity fail at once with permission denied, no hang.",
         "User to user: the daemon is stopped, launcher/ is removed, everything belongs to gwsvc2, connected, same node id."
@@ -1630,7 +1640,7 @@
         "Run nginx as root again, re-run without --user."
       ],
       "expect": [
-        "To user: connected; service user is the nginx user; the unit (systemd) or service (OpenRC) grants CAP_NET_BIND_SERVICE; /etc/nginx, /var/www/acme-challenge, /etc/nginx-daemon, /var/lib/nginx-daemon and /run/nginx-daemon, /run/gateway-secure-links, /run/gateway-registry-links, /run/gateway-ingress-health belong to the user.",
+        "To user: connected; service user is the nginx user; the unit (systemd) or service (OpenRC) grants CAP_NET_BIND_SERVICE; /etc/nginx, /var/www/acme-challenge, /etc/nginx-daemon, /var/lib/nginx-daemon and /run/nginx-daemon, /run/opfield-secure-links, /run/opfield-registry-links, /run/opfield-ingress-health belong to the user.",
         "Route create and change apply (nginx -t binds 443) and both routes answer 200.",
         "Without --user while nginx runs as the user: exit 1 'nginx runs as <user>, not root; nothing was changed'.",
         "Back to root: connected; what the installer handed over belongs to root again; distribution files keep their owners; routes answer 200."
@@ -1700,7 +1710,7 @@
         "lifecycle docker rerun",
         "lifecycle docker restart",
         "lifecycle docker reboot",
-        "setup-docker-node.sh $GATEWAY_LEASE_WATCHDOG_VERSION",
+        "setup-docker-node.sh $OPFIELD_LEASE_WATCHDOG_VERSION",
         "feature docker.engine-install",
         "feature docker.lease-watchdog"
       ],
@@ -1708,13 +1718,13 @@
         "A host without Docker Engine and docker-daemon (Alpine: LXC with nesting and keyctl)."
       ],
       "steps": [
-        "Run the docker setup command with GATEWAY_LEASE_WATCHDOG_VERSION=<the watchdog release of <previous>>.",
-        "Run gateway-lease-watchdog status; deploy a container from the Gateway registry.",
-        "Re-run without a token and without GATEWAY_LEASE_WATCHDOG_VERSION; restart docker-daemon; reboot the host."
+        "Run the docker setup command with OPFIELD_LEASE_WATCHDOG_VERSION=<the watchdog release of <previous>>.",
+        "Run opfield-lease-watchdog status; deploy a container from the Opfield registry.",
+        "Re-run without a token and without OPFIELD_LEASE_WATCHDOG_VERSION; restart docker-daemon; reboot the host."
       ],
       "expect": [
         "Debian: docker-ce from download.docker.com; Alpine: the docker package; /etc/docker/daemon.json has json-file with max-size 50m and max-file 3; connected.",
-        "gateway-lease-watchdog runs as its own root service (systemd unit or OpenRC service) at the pinned release, its status shows a fresh heartbeat; the Secure Runtime preflight result is reported on the node (healthy, installable or unsupported) and does not fail the install.",
+        "opfield-lease-watchdog runs as its own root service (systemd unit or OpenRC service) at the pinned release, its status shows a fresh heartbeat; the Secure Runtime preflight result is reported on the node (healthy, installable or unsupported) and does not fail the install.",
         "The container runs; re-run connected without new enrollment and does not downgrade or replace the watchdog; after restart and reboot the node and the container are back."
       ]
     },
@@ -1745,7 +1755,7 @@
       "expect": [
         "To user: gwdock is added to the docker group; connected; service user gwdock; the connector containers are recreated with GroupAdd of the daemon's gid; storage-relay.sock is gwdock:gwdock 0660; no *.previous-owner-* directory remains.",
         "The route answers 200 and the storage link keeps working during and after the switch without a manual step; the deployment succeeds; the console shows gwdock with the docker group.",
-        "Back to root: connected; storage-relay.sock is 65532:65532 0600 with a fresh mtime; links and route work; Gateway still lists and manages the recreated storage connector."
+        "Back to root: connected; storage-relay.sock is 65532:65532 0600 with a fresh mtime; links and route work; Opfield still lists and manages the recreated storage connector."
       ]
     },
     {
@@ -1767,7 +1777,7 @@
       ],
       "steps": [
         "Run the docker setup command with --user gwdock.",
-        "Pull an image built by a Build Worker from the Gateway registry; deploy a container.",
+        "Pull an image built by a Build Worker from the Opfield registry; deploy a container.",
         "Open the volume create dialog (disk-image option), start a volume migration from and to the node, read container stats.",
         "Re-run with --user gwdock2."
       ],
@@ -1829,14 +1839,14 @@
       ],
       "steps": [
         "Create a relay node and run its command (port 9443).",
-        "Re-run without a token; re-run with GATEWAY_RELAY_RUN_USER=gwsvc; re-run without it.",
-        "Restart gateway-relay-supervisor; reboot the host.",
+        "Re-run without a token; re-run with OPFIELD_RELAY_RUN_USER=gwsvc; re-run without it.",
+        "Restart opfield-relay-supervisor; reboot the host.",
         "Delete the relay node at the end."
       ],
       "expect": [
-        "Fresh: the supervisor enrolls, the relay is ready in Settings > Relay, gateway-relay listens on 9443, a Secure Link route keeps answering after Rebalance.",
+        "Fresh: the supervisor enrolls, the relay is ready in Settings > Relay, opfield-relay listens on 9443, a Secure Link route keeps answering after Rebalance.",
         "Re-run without a token: exit 0 without enrollment errors, the same relay id and identity; re-running the original command with its used token exits 1 and says the relay keeps running with its previous identity.",
-        "To gwsvc: service user gwsvc, supervisor and worker run as gwsvc, no AmbientCapabilities for 9443; back to root: /usr/local/lib/gateway-relay/run-supervisor and all relay directories belong to root, find -user gwsvc is empty.",
+        "To gwsvc: service user gwsvc, supervisor and worker run as gwsvc, no AmbientCapabilities for 9443; back to root: /usr/local/lib/opfield-relay/run-supervisor and all relay directories belong to root, find -user gwsvc is empty.",
         "After restart and reboot the relay is ready again."
       ]
     },
@@ -1851,16 +1861,16 @@
       "covers": [
         "lifecycle relay fresh-user",
         "lifecycle relay user-to-user",
-        "setup-relay-node.sh $GATEWAY_RELAY_RUN_GROUP",
-        "setup-relay-node.sh $GATEWAY_RELAY_SETUP_LOG",
+        "setup-relay-node.sh $OPFIELD_RELAY_RUN_GROUP",
+        "setup-relay-node.sh $OPFIELD_RELAY_SETUP_LOG",
         "feature relay.low-port"
       ],
       "preconditions": [
         "A host without a relay; gwsvc, gwsvc2 and a group gwrelay exist."
       ],
       "steps": [
-        "Run the relay command with --service-port 853, GATEWAY_RELAY_RUN_USER=gwsvc, GATEWAY_RELAY_RUN_GROUP=gwrelay and GATEWAY_RELAY_SETUP_LOG=/root/relay-setup.log.",
-        "Re-run with GATEWAY_RELAY_RUN_USER=gwsvc2 and no group."
+        "Run the relay command with --service-port 853, OPFIELD_RELAY_RUN_USER=gwsvc, OPFIELD_RELAY_RUN_GROUP=gwrelay and OPFIELD_RELAY_SETUP_LOG=/root/relay-setup.log.",
+        "Re-run with OPFIELD_RELAY_RUN_USER=gwsvc2 and no group."
       ],
       "expect": [
         "Service user gwsvc, group gwrelay; the unit has AmbientCapabilities=CAP_NET_BIND_SERVICE; the worker listens on 853 as gwsvc and the relay is ready with its advertised port 853 (managed nodes connect to it); /root/relay-setup.log holds the setup output.",
@@ -1901,7 +1911,7 @@
       ],
       "covers": [
         "setup-relay-node.sh --protected",
-        "setup-relay-node.sh $GATEWAY_RELAY_PROTECTED",
+        "setup-relay-node.sh $OPFIELD_RELAY_PROTECTED",
         "config protected.enabled",
         "config protected.allow_database_witness"
       ],
@@ -1909,13 +1919,13 @@
         "A remote relay host with no relay installed, and a database on several servers that can use a relay witness."
       ],
       "steps": [
-        "Install the relay with <setup command> --protected; on a second host, install with GATEWAY_RELAY_PROTECTED=1 and the plain <setup command>.",
+        "Install the relay with <setup command> --protected; on a second host, install with OPFIELD_RELAY_PROTECTED=1 and the plain <setup command>.",
         "Re-run the installer without --protected; then run relay-supervisor protected status.",
-        "Turn witness hosting on for the relay in Settings > Relay; then run relay-supervisor protected on --allow-database-witness on the relay host, restart gateway-relay-supervisor and wait for its next report.",
-        "From Gateway, send the relay a command outside its own operation (for example a console or file request)."
+        "Turn witness hosting on for the relay in Settings > Relay; then run relay-supervisor protected on --allow-database-witness on the relay host, restart opfield-relay-supervisor and wait for its next report.",
+        "From Opfield, send the relay a command outside its own operation (for example a console or file request)."
       ],
       "expect": [
-        "Both relays are connected and /etc/gateway-relay-supervisor/config.yaml has protected.enabled: true.",
+        "Both relays are connected and /etc/opfield-relay/config.yaml has protected.enabled: true.",
         "The re-run keeps protected mode on; status reports it on.",
         "Before the local opt-in Settings > Relay shows the relay as needing the local opt-in and hosts no witness; after it, protected.allow_database_witness is true and the relay hosts the witness.",
         "The relay refuses the command with an error that says the relay is protected; routing, drain, certificate renewal, logs and updates keep working."
@@ -1949,8 +1959,8 @@
         "Re-run with --builder-egress internet; restart docker-daemon; reboot."
       ],
       "expect": [
-        "Git and iptables are installed with apt; containerd, BuildKit, runc, CNI, Syft and Grype are downloaded and checksum-verified into /opt/gateway-builder/bin; gateway-builder-egress, gateway-builder-containerd and gateway-builder-buildkit units run; connected with every builder capability.",
-        "internet: both builds succeed; a build step reaching a private address, the worker host (its own addresses and the build bridge gateway) or the Gateway gRPC endpoint fails.",
+        "Git and iptables are installed with apt; containerd, BuildKit, runc, CNI, Syft and Grype are downloaded and checksum-verified into /opt/opfield-builder/bin; opfield-builder-egress, opfield-builder-containerd and opfield-builder-buildkit units run; connected with every builder capability.",
+        "internet: both builds succeed; a build step reaching a private address, the worker host (its own addresses and the build bridge gateway) or the Opfield gRPC endpoint fails.",
         "offline: the npm build fails at the download, the offline build succeeds.",
         "After re-run, restart and reboot the worker takes builds again."
       ]
@@ -2020,7 +2030,7 @@
         "A VM without docker-daemon with a second mounted filesystem."
       ],
       "steps": [
-        "Run curl … setup-storage-node.sh | sudo bash -s -- --gateway <gateway> --token <token> --gateway-cert-sha256 <cert> in a terminal without -y and pick the second filesystem in the disk selector.",
+        "Run curl … setup-storage-node.sh | sudo bash -s -- --opfield <opfield> --token <token> --opfield-cert-sha256 <cert> in a terminal without -y and pick the second filesystem in the disk selector.",
         "Create a managed PostgreSQL and a SeaweedFS storage on the node; write data.",
         "Re-run with -y --storage-root <the same path>; restart docker-daemon; reboot the VM."
       ],
@@ -2066,7 +2076,7 @@
         "feature installer.legacy-daemon-check"
       ],
       "preconditions": [
-        "A VM without docker-daemon; Gateway runs <candidate>."
+        "A VM without docker-daemon; Opfield runs <candidate>."
       ],
       "steps": [
         "Install with the <previous> installers: setup-daemon.sh --type databases --version <previous> … -y --storage-root <path>.",
@@ -2103,7 +2113,7 @@
       "expect": [
         "-y: exit 1 'nginx 1.25.1+ is required. Re-run interactively to approve the stable nginx upgrade.' before any config change or enrollment.",
         "--skip-nginx: exit 1 '--skip-nginx requires nginx 1.25.1+; found 1.24…'.",
-        "Declined: stops before Gateway changes nginx config or enrolls; approved: nginx.org stable repository, nginx 1.25.1 or newer, connected.",
+        "Declined: stops before Opfield changes nginx config or enrolls; approved: nginx.org stable repository, nginx 1.25.1 or newer, connected.",
         "Non-root under AppArmor: no AppArmor denial in the kernel log; nginx -t and reload succeed as www-data; routes answer 200."
       ]
     },
@@ -2127,12 +2137,12 @@
       ],
       "steps": [
         "Run the docker setup command as root with --secure-runtime.",
-        "Create a container; change its environment (recreate); run a container that resolves a public name and pulls from the Gateway registry.",
+        "Create a container; change its environment (recreate); run a container that resolves a public name and pulls from the Opfield registry.",
         "Re-run with --user gwdock --secure-runtime; create a Default container behind a Secure Link route and, if Secure Runtime is healthy, a Secure container.",
         "Read the kernel log for AppArmor denials."
       ],
       "expect": [
-        "docker.io is kept (no docker-ce); the existing daemon.json keeps every key and value of the operator, --secure-runtime only adds runtimes.runsc after saving the original as daemon.json.gateway-backup, and a re-run changes neither file; connected.",
+        "docker.io is kept (no docker-ce); the existing daemon.json keeps every key and value of the operator, --secure-runtime only adds runtimes.runsc after saving the original as daemon.json.opfield-backup, and a re-run changes neither file; connected.",
         "--secure-runtime either installs runsc and Node Details shows Secure Runtime healthy, or exits 1 with the preflight reason and leaves the daemon running; it never reports success without runsc.",
         "Recreate keeps the container's configuration; names resolve inside containers through the resolved upstream; the registry pull succeeds.",
         "Non-root: connected as gwdock; connectors and workloads start with the docker-default profile; the route answers 200; no AppArmor denial for docker-daemon, its connectors or nginx."
@@ -2174,7 +2184,7 @@
         "The Ubuntu guest of UBU-DOCKER."
       ],
       "steps": [
-        "Install monitoring with --user gwsvc and a relay with GATEWAY_RELAY_RUN_USER=gwsvc; open the console of the monitoring node; reboot."
+        "Install monitoring with --user gwsvc and a relay with OPFIELD_RELAY_RUN_USER=gwsvc; open the console of the monitoring node; reboot."
       ],
       "expect": [
         "Both connected and back after the reboot; no AppArmor denials; the monitoring wrapper runs as gwsvc."
@@ -2219,9 +2229,9 @@
       ],
       "covers": [
         "feature node.manual-setup",
-        "config gateway.address",
-        "config gateway.token",
-        "config gateway.cert_sha256",
+        "config opfield.address",
+        "config opfield.token",
+        "config opfield.cert_sha256",
         "config tls.ca_cert",
         "config tls.client_cert",
         "config tls.client_key",
@@ -2241,11 +2251,11 @@
       ],
       "steps": [
         "Download nginx-daemon, checksums.txt and the .update.json manifest of <candidate>; verify the checksum; install the binary.",
-        "Write /etc/nginx-daemon/config.yaml with every key of the docs example, log_level debug and log_format text; run nginx-daemon install --gateway <gateway> --token <token> --gateway-cert-sha256 <cert>.",
+        "Write /etc/nginx-daemon/config.yaml with every key of the docs example, log_level debug and log_format text; run nginx-daemon install --opfield <opfield> --token <token> --opfield-cert-sha256 <cert>.",
         "Write and start a systemd service; create a route with an access list using basic auth."
       ],
       "expect": [
-        "Enrollment clears gateway.token in the file and writes the certificate paths under tls; the node is online.",
+        "Enrollment clears opfield.token in the file and writes the certificate paths under tls; the node is online.",
         "The route config lands in nginx.config_dir, certificates in nginx.certs_dir, the htpasswd file in nginx.htpasswd_dir; ACME files go to nginx.acme_challenge_dir; logs in nginx.logs_dir stream in the UI; state lives in state_dir.",
         "The daemon log is text at debug level."
       ]
@@ -2287,7 +2297,7 @@
         "feature installer.legacy-daemon-check"
       ],
       "preconditions": [
-        "Gateway runs <candidate>; nginx, docker, storage, builder and monitoring nodes run <previous>, among them a non-root monitoring node installed with --version <previous>.",
+        "Opfield runs <candidate>; nginx, docker, storage, builder and monitoring nodes run <previous>, among them a non-root monitoring node installed with --version <previous>.",
         "A lease-mode Availability policy over two docker nodes."
       ],
       "steps": [
@@ -2297,7 +2307,7 @@
         "Apply an unchanged Compose revision on an updated docker node."
       ],
       "expect": [
-        "The installer accepts the older daemon after 10 s of active service and warns that it does not report its Gateway connection.",
+        "The installer accepts the older daemon after 10 s of active service and warns that it does not report its Opfield connection.",
         "The three updates are refused with their reasons.",
         "Every node reports <candidate> and its capabilities; the two lease peers update one after another with waiting_for_lease_peers and the policy keeps its quorum; non-root daemons keep their user and /usr/local/lib/<daemon>/bin/<daemon>.previous exists.",
         "The first apply recreates the Compose services once; the next one recreates nothing."
@@ -2344,7 +2354,7 @@
         "feature relay.pool-update"
       ],
       "preconditions": [
-        "Remote relays on <previous>; Gateway on <candidate>.",
+        "Remote relays on <previous>; Opfield on <candidate>.",
         "Database link pools and storage links held open through the local relay, with probes that count dropped connections."
       ],
       "steps": [
@@ -2385,7 +2395,7 @@
       ],
       "expect": [
         "The update to <candidate> restarts the daemon under its launcher, as before; the node details show the launcher version Unknown.",
-        "The update to <newer> restarts the whole service once: under systemd as root at once, as gwsvc after RestartSec, under OpenRC after respawn_delay; the update result (Gateway log: Daemon update staged) and the daemon log say so; the probes count one cut, as for any update. The node comes back on <newer> with the capabilities launcher_listener_keep_v1, launcher_self_update_v1 and launcher_openrc_v1.",
+        "The update to <newer> restarts the whole service once: under systemd as root at once, as gwsvc after RestartSec, under OpenRC after respawn_delay; the update result (Opfield log: Daemon update staged) and the daemon log say so; the probes count one cut, as for any update. The node comes back on <newer> with the capabilities launcher_listener_keep_v1, launcher_self_update_v1 and launcher_openrc_v1.",
         "Within 2 minutes after the <newer> daemon connected, the launcher execs into the launcher of <newer>: launcher and daemon PIDs unchanged, /proc/<launcher pid>/exe names <launcher>.next and launcher-refresh.json shows attempts 1, no probe counts a drop or a refused connection, the daemon reconnects its control session once and the node details show the launcher version <newer>.",
         "The last update restarts only the daemon under the launcher (launcher PID unchanged, no service restart in the journal or the OpenRC log); that daemon confirms the launcher (the launcher copy replaced, launcher-refresh.json gone until the new daemon stages itself), then the launcher updates itself in place again."
       ]
@@ -2616,13 +2626,13 @@
       "steps": [
         "Enable Failover with priority order; wait for lease mode.",
         "Power off the holder; later power it on (failback after the delay).",
-        "Stop the Gateway app and power off the new holder; start Gateway again.",
+        "Stop the Opfield app and power off the new holder; start Opfield again.",
         "Stop the lease watchdog on one candidate."
       ],
       "expect": [
         "The policy enters lease mode with participants settled.",
         "The next candidate serves within 45 s; failback runs after failbackDelaySeconds.",
-        "Failover happens without Gateway; Gateway records docker.availability.lease_failover after it returns.",
+        "Failover happens without Opfield; Opfield records docker.availability.lease_failover after it returns.",
         "The candidate is listed under excluded nodes with watchdog_missing."
       ]
     },
@@ -2647,7 +2657,7 @@
         "Exhaust loop devices to fail a create, free them and retry; move a record file aside on a live database and storage and retry."
       ],
       "expect": [
-        "One create and one start per engine; the port Gateway shows is the one the container listens on.",
+        "One create and one start per engine; the port Opfield shows is the one the container listens on.",
         "A requested stop stays ready; a real crash shows stopped 'keeps stopping' on the next pass.",
         "Retry provisions ready with takesOverExistingData as documented; data and objects survive."
       ]
@@ -2676,7 +2686,7 @@
     {
       "id": "GW-01",
       "area": "installer",
-      "title": "Gateway fresh install, dry run and re-run as update",
+      "title": "Opfield fresh install, dry run and re-run as update",
       "where": "stand",
       "os": [
         "debian"
@@ -2684,20 +2694,20 @@
       "covers": [
         "install.sh --dry-run",
         "install.sh --https",
-        "install.sh $GATEWAY_INSTALL_LOG_FILE",
-        "feature gateway.install"
+        "install.sh $OPFIELD_INSTALL_LOG_FILE",
+        "feature opfield.install"
       ],
       "preconditions": [
         "A clean host with Docker Engine and Compose v2, curl and openssl."
       ],
       "steps": [
         "curl … install.sh | bash -s -- --dry-run.",
-        "curl … install.sh | GATEWAY_INSTALL_LOG_FILE=/root/gw-install.log bash -s -- --https.",
+        "curl … install.sh | OPFIELD_INSTALL_LOG_FILE=/root/gw-install.log bash -s -- --https.",
         "Complete the wizard with the printed setup code.",
         "Run install.sh again."
       ],
       "expect": [
-        "The dry run verifies the signed release, prints the plan and creates no file in /opt/gateway.",
+        "The dry run verifies the signed release, prints the plan and creates no file in /opt/opfield.",
         "The install prints the URL, the System CA fingerprint and the setup code; https on :3000; /root/gw-install.log is 0600 and holds the run.",
         "The wizard completes and the setup code stops working.",
         "The re-run updates without prompts, keeps .env secrets and the relay container when its digest is unchanged."
@@ -2706,7 +2716,7 @@
     {
       "id": "GW-02",
       "area": "installer",
-      "title": "Gateway install variants",
+      "title": "Opfield install variants",
       "where": "stand",
       "os": [
         "debian"
@@ -2714,32 +2724,32 @@
       "covers": [
         "install.sh --install-dir",
         "install.sh --http",
-        "install.sh $GATEWAY_INSTALL_DIR",
-        "install.sh $GATEWAY_WEB_TRANSPORT",
-        "install.sh $GATEWAY_DOCKER_DAEMON_CONFIG",
-        "feature gateway.install-variants",
-        "feature gateway.web-transport"
+        "install.sh $OPFIELD_INSTALL_DIR",
+        "install.sh $OPFIELD_WEB_TRANSPORT",
+        "install.sh $OPFIELD_DOCKER_DAEMON_CONFIG",
+        "feature opfield.install-variants",
+        "feature opfield.web-transport"
       ],
       "preconditions": [
-        "The host of GW-01 after removing that installation (docker compose down -v in /opt/gateway)."
+        "The host of GW-01 after removing that installation (docker compose down -v in /opt/opfield)."
       ],
       "steps": [
         "Interactive install in a terminal: choose HTTP in the transport prompt.",
-        "Remove it; GATEWAY_INSTALL_DIR=/srv/gw-a GATEWAY_WEB_TRANSPORT=http install.sh; interrupt it after the images are pulled; run it again.",
-        "Remove it; write a daemon.json with log-opts to /root/daemon-test.json and run install.sh --install-dir /srv/gw-b --http with GATEWAY_DOCKER_DAEMON_CONFIG=/root/daemon-test.json.",
+        "Remove it; OPFIELD_INSTALL_DIR=/srv/gw-a OPFIELD_WEB_TRANSPORT=http install.sh; interrupt it after the images are pulled; run it again.",
+        "Remove it; write a daemon.json with log-opts to /root/daemon-test.json and run install.sh --install-dir /srv/gw-b --http with OPFIELD_DOCKER_DAEMON_CONFIG=/root/daemon-test.json.",
         "Switch internal HTTPS on and off in Settings > General."
       ],
       "expect": [
         "HTTP on :3000 after choosing HTTP.",
         "The second run says 'fresh install (resumed)', keeps DB_PASSWORD and PKI_MASTER_KEY of the first and prints a setup code.",
         "The install lives in /srv/gw-b and its docker-compose.yml has no logging sections; without the variable the sections are present.",
-        "Gateway restarts on the selected transport each time."
+        "Opfield restarts on the selected transport each time."
       ]
     },
     {
       "id": "GW-03",
       "area": "installer",
-      "title": "Gateway built from a source checkout",
+      "title": "Opfield built from a source checkout",
       "where": "stand",
       "os": [
         "debian"
@@ -2747,22 +2757,22 @@
       "covers": [
         "install.sh --source-dir",
         "install.sh --image",
-        "install.sh $GATEWAY_SOURCE_DIR",
-        "install.sh $GATEWAY_IMAGE",
-        "feature gateway.install-from-source"
+        "install.sh $OPFIELD_SOURCE_DIR",
+        "install.sh $OPFIELD_IMAGE",
+        "feature opfield.install-from-source"
       ],
       "preconditions": [
         "A clean host with a checkout of the candidate."
       ],
       "steps": [
-        "install.sh --source-dir <checkout> --image gateway-local --https.",
+        "install.sh --source-dir <checkout> --image opfield-local --https.",
         "Run install.sh --source-dir <checkout> again on the installed host.",
-        "Remove it; GATEWAY_SOURCE_DIR=<checkout> GATEWAY_IMAGE=gateway-local2 install.sh."
+        "Remove it; OPFIELD_SOURCE_DIR=<checkout> OPFIELD_IMAGE=opfield-local2 install.sh."
       ],
       "expect": [
-        "Images gateway-local:local-<time> and gateway-local/relay:local-<time> are built; GATEWAY_RELAY_MANAGED=false in .env; setup completes.",
+        "Images opfield-local:local-<time> and opfield-local/relay:local-<time> are built; OPFIELD_RELAY_MANAGED=false in .env; setup completes.",
         "The second run stops with '--source-dir is supported only for a fresh Opfield installation'.",
-        "The environment form builds gateway-local2 the same way."
+        "The environment form builds opfield-local2 the same way."
       ]
     },
     {
@@ -2774,7 +2784,7 @@
         "debian"
       ],
       "covers": [
-        "feature gateway.update-from-2.10",
+        "feature opfield.update-from-2.10",
         "feature docker.watchdog-auto-install"
       ],
       "preconditions": [
@@ -2790,17 +2800,17 @@
     {
       "id": "GW-05",
       "area": "feature",
-      "title": "In-app Gateway update and offline behaviour",
+      "title": "In-app Opfield update and offline behaviour",
       "where": "stand",
       "os": [
         "debian"
       ],
       "covers": [
-        "feature gateway.update-in-app",
-        "feature gateway.offline"
+        "feature opfield.update-in-app",
+        "feature opfield.offline"
       ],
       "preconditions": [
-        "The stand Gateway on <previous> with nodes, routes, a status page and database links."
+        "The stand Opfield on <previous> with nodes, routes, a status page and database links."
       ],
       "steps": [
         "Start a migration, then Check for updates and update to <candidate>; watch the wait list; press Update now on a second try.",
@@ -2816,7 +2826,7 @@
     {
       "id": "GW-06",
       "area": "installer",
-      "title": "Gateway restored on a new host from a configuration export",
+      "title": "Opfield restored on a new host from a configuration export",
       "where": "stand",
       "os": [
         "debian"
@@ -2824,27 +2834,28 @@
       "covers": [
         "install.sh --restore",
         "install.sh --public-url",
-        "install.sh --grpc-target"
+        "install.sh --grpc-target",
+        "install.sh $OPFIELD_RESTORE_PASSPHRASE"
       ],
       "preconditions": [
-        "A Gateway of <candidate> with nodes, a paid licence and a configuration export downloaded from Settings.",
+        "A Opfield of <candidate> with nodes, a paid licence and a configuration export downloaded from Settings.",
         "A clean second host with Docker Engine and Compose v2, curl and openssl."
       ],
       "steps": [
         "On the second host: install.sh --restore <export file> --public-url https://<new host>:3000 --grpc-target <new host>:9443.",
         "Run it once more without --public-url and --grpc-target in a terminal.",
-        "Stop the old Gateway."
+        "Stop the old Opfield."
       ],
       "expect": [
         "The installer installs the release that made the export, restores it without prompts and prints the sign-in link; the licence is not carried over and a cloud enrollment is dropped.",
         "Without the options it asks for the address and keeps the answers.",
-        "The nodes of the old Gateway move to the new address by themselves and show online."
+        "The nodes of the old Opfield move to the new address by themselves and show online."
       ]
     },
     {
       "id": "GW-07",
       "area": "installer",
-      "title": "Gateway console on its own domain with a Let's Encrypt certificate",
+      "title": "Opfield console on its own domain with a Let's Encrypt certificate",
       "where": "stand",
       "os": [
         "debian"

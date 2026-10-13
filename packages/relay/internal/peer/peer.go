@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wiolett-industries/gateway/relay/internal/identity"
+	"github.com/opfield/opfield/relay/internal/identity"
 	"google.golang.org/grpc/credentials"
 	grpcpeer "google.golang.org/grpc/peer"
 )

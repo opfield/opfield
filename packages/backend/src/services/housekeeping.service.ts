@@ -13,8 +13,8 @@ import type { AISandboxArtifactService } from '@/modules/ai/ai.sandbox-artifact.
 import type { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
 import type { DockerManagementService } from '@/modules/docker/docker.service.js';
 import {
-  type GatewayInternalImageCandidate,
-  selectObsoleteGatewayConnectorImages,
+  type OpfieldInternalImageCandidate,
+  selectObsoleteOpfieldConnectorImages,
 } from '@/modules/docker/docker-internal-images.js';
 import type { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
 import type { DockerTaskService } from '@/modules/docker/docker-task.service.js';
@@ -32,7 +32,10 @@ import {
 import type { SystemCertificateLifecycleService } from './system-certificate-lifecycle.service.js';
 
 const logger = createChildLogger('HousekeepingService');
-const VOLUME_CLEANUP_PROTECTED_LABEL = 'gateway.housekeeping.protected';
+const VOLUME_CLEANUP_PROTECTED_LABEL = 'opfield.housekeeping.protected';
+// legacy-name: cleanup protection label set on volumes before 2.12.1 (Docker cannot relabel a volume in place) — remove
+// once no protected volume carries it
+const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = 'gateway.housekeeping.protected';
 const SYSTEM_CERTIFICATE_KEY_RETENTION_DAYS = 30;
 const LOGGING_SETTINGS_KEY = 'logging:clickhouse';
 const DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT = 1;
@@ -761,16 +764,16 @@ export class HousekeepingService {
         }
       }
     } catch (error) {
-      logger.warn('Gateway host Docker pruning failed', { error });
+      logger.warn('Opfield host Docker pruning failed', { error });
     }
 
     for (const candidate of await this.getObsoleteConnectorImages()) {
       try {
-        await this.dockerManagementService?.removeGatewayInternalImage(candidate.nodeId, candidate.id);
+        await this.dockerManagementService?.removeOpfieldInternalImage(candidate.nodeId, candidate.id);
         cleaned += 1;
         freedBytes += candidate.size;
       } catch (error) {
-        logger.warn('Failed to remove obsolete Gateway connector image', {
+        logger.warn('Failed to remove obsolete Opfield connector image', {
           nodeId: candidate.nodeId,
           imageId: candidate.id,
           error,
@@ -932,25 +935,25 @@ export class HousekeepingService {
     };
   }
 
-  private async getObsoleteConnectorImages(): Promise<Array<GatewayInternalImageCandidate & { nodeId: string }>> {
+  private async getObsoleteConnectorImages(): Promise<Array<OpfieldInternalImageCandidate & { nodeId: string }>> {
     if (!this.dockerManagementService) return [];
     const dockerNodes = await this.db
       .select({ id: nodes.id })
       .from(nodes)
       .where(and(eq(nodes.type, 'docker'), eq(nodes.status, 'online')));
-    const candidates: Array<GatewayInternalImageCandidate & { nodeId: string }> = [];
+    const candidates: Array<OpfieldInternalImageCandidate & { nodeId: string }> = [];
     for (const node of dockerNodes) {
       try {
         const images = await this.dockerManagementService.listAllImages(node.id);
         if (!Array.isArray(images)) continue;
         candidates.push(
-          ...selectObsoleteGatewayConnectorImages(images, this._env.SECURE_LINK_CONNECTOR_IMAGE).map((image) => ({
+          ...selectObsoleteOpfieldConnectorImages(images, this._env.SECURE_LINK_CONNECTOR_IMAGE).map((image) => ({
             ...image,
             nodeId: node.id,
           }))
         );
       } catch (error) {
-        logger.warn('Failed to inspect Gateway connector images', { nodeId: node.id, error });
+        logger.warn('Failed to inspect Opfield connector images', { nodeId: node.id, error });
       }
     }
     return candidates;
@@ -1005,7 +1008,11 @@ export class HousekeepingService {
         if (!candidate) continue;
         if (!isAnonymousDockerVolumeName(candidate.name)) continue;
         if (candidate.usedBy.length > 0 || candidate.usedByCount > 0) continue;
-        if (candidate.labels[VOLUME_CLEANUP_PROTECTED_LABEL] === 'true') continue;
+        if (
+          candidate.labels[VOLUME_CLEANUP_PROTECTED_LABEL] === 'true' ||
+          candidate.labels[LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL] === 'true'
+        )
+          continue;
         // Placeholders for volumes missing on the node carry no creation time; never track or remove them.
         if (!candidate.createdAt || !Number.isFinite(Date.parse(candidate.createdAt))) continue;
         const since = previousForNode[candidate.name] ?? new Date(now).toISOString();

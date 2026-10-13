@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // Node-local control of availability set members for the operator CLI

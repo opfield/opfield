@@ -53,8 +53,8 @@ type SystemOwnerType =
   | 'node'
   | 'managed_database'
   | 'managed_storage'
-  | 'gateway_listener'
-  | 'gateway_service'
+  | 'opfield_listener'
+  | 'opfield_service'
   | 'relay_node_server';
 
 const SYSTEM_CA_PURPOSE_LABELS: Record<string, string> = {
@@ -320,8 +320,8 @@ export class ExpiryAlertJob {
     for (const owner of owners) {
       const key = `${owner.type}:${owner.id}`;
       if (labels.has(key)) continue;
-      if (owner.type === 'gateway_listener') labels.set(key, `the Opfield ${owner.id} listener`);
-      else if (owner.type === 'gateway_service') labels.set(key, `the Opfield internal service ${owner.id}`);
+      if (owner.type === 'opfield_listener') labels.set(key, `the Opfield ${owner.id} listener`);
+      else if (owner.type === 'opfield_service') labels.set(key, `the Opfield internal service ${owner.id}`);
       else if (owner.type === 'managed_storage') labels.set(key, `deleted managed storage ${owner.id}`);
       else if (owner.type === 'managed_database') labels.set(key, `deleted managed database ${owner.id}`);
       else if (owner.type === 'relay_node_server') labels.set(key, `relay ${owner.id}`);

@@ -10,7 +10,7 @@ import (
 )
 
 // installConfigTemplate is the configuration `install` writes on a host without one.
-const installConfigTemplate = `gateway:
+const installConfigTemplate = `opfield:
   address: "%s"
   token: "%s"
   cert_sha256: "%s"
@@ -27,7 +27,7 @@ nginx:
   global_config: "/etc/nginx/nginx.conf"
   binary: "/usr/sbin/nginx"
   stub_status_url: "http://127.0.0.1/nginx_status"
-  htpasswd_dir: "/etc/nginx/gateway/htpasswd"
+  htpasswd_dir: "/etc/nginx/opfield/htpasswd"
   acme_challenge_dir: "/var/www/acme-challenge"
 
 state_dir: "/var/lib/nginx-daemon"
@@ -36,8 +36,8 @@ log_format: "json"
 `
 
 // writeInstallConfig writes the configuration `install` enrolls with. An existing configuration (written by the
-// operator first, as the manual setup describes) is kept: only its gateway address, token and certificate fingerprint
-// are set. kept reports that case.
+// operator first, as the manual setup describes) is kept: only its Opfield address, token and certificate fingerprint
+// are set, in the control section the file has (opfield:, else the pre-Opfield gateway:). kept reports that case.
 func writeInstallConfig(path, address, token, certSHA256 string) (kept bool, err error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -57,12 +57,17 @@ func writeInstallConfig(path, address, token, certSHA256 string) (kept bool, err
 	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 || document.Content[0].Kind != yaml.MappingNode {
 		return false, fmt.Errorf("%s is not a YAML mapping", path)
 	}
-	gateway := mappingValue(document.Content[0], "gateway")
-	if gateway.Kind != yaml.MappingNode {
-		return false, fmt.Errorf("gateway in %s is not a mapping", path)
+	sectionKey := "opfield"
+	// legacy-name: gateway: section of configs written before 2.12.1 — remove once every node reports none
+	if !hasKey(document.Content[0], "opfield") && hasKey(document.Content[0], "gateway") {
+		sectionKey = "gateway"
+	}
+	section := mappingValue(document.Content[0], sectionKey)
+	if section.Kind != yaml.MappingNode {
+		return false, fmt.Errorf("%s in %s is not a mapping", sectionKey, path)
 	}
 	for _, field := range [][2]string{{"address", address}, {"token", token}, {"cert_sha256", certSHA256}} {
-		value := mappingValue(gateway, field[0])
+		value := mappingValue(section, field[0])
 		value.Kind, value.Tag, value.Value, value.Style, value.Content = yaml.ScalarNode, "!!str", field[1], yaml.DoubleQuotedStyle, nil
 	}
 	var out bytes.Buffer
@@ -81,8 +86,18 @@ func writeInstallConfig(path, address, token, certSHA256 string) (kept bool, err
 	return true, os.WriteFile(path, out.Bytes(), info.Mode().Perm())
 }
 
-// mappingValue returns the value of key in mapping, appending the key (with an empty mapping for "gateway", else an
-// empty scalar) when it is missing.
+// hasKey reports whether mapping has key.
+func hasKey(mapping *yaml.Node, key string) bool {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			return true
+		}
+	}
+	return false
+}
+
+// mappingValue returns the value of key in mapping, appending the key (with an empty mapping for a control section,
+// else an empty scalar) when it is missing.
 func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
 		if mapping.Content[i].Value == key {
@@ -90,7 +105,7 @@ func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
 		}
 	}
 	value := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str"}
-	if key == "gateway" {
+	if key == "opfield" || key == "gateway" {
 		value = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	}
 	mapping.Content = append(mapping.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}, value)

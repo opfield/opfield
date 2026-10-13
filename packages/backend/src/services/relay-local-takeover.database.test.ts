@@ -22,11 +22,11 @@ import {
 } from './relay-local-takeover.js';
 import { RelayPoolService } from './relay-pool.service.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
  * A Relay Pool update drains the local relay only while a remote relay can carry every workload it serves, and only
- * the update drains it. Opt-in: point GATEWAY_MIGRATION_TEST_DATABASE_URL at a disposable gateway_migration_test_*
+ * the update drains it. Opt-in: point OPFIELD_MIGRATION_TEST_DATABASE_URL at a disposable opfield_migration_test_*
  * database.
  */
 describe.skipIf(!url)('local relay takeover during a Relay Pool update', () => {
@@ -36,8 +36,8 @@ describe.skipIf(!url)('local relay takeover during a Relay Pool update', () => {
   let remoteNodeId: string;
 
   beforeAll(async () => {
-    if (!new URL(url!).pathname.startsWith('/gateway_migration_test_')) {
-      throw new Error('GATEWAY_MIGRATION_TEST_DATABASE_URL must name a disposable gateway_migration_test_* database');
+    if (!new URL(url!).pathname.startsWith('/opfield_migration_test_')) {
+      throw new Error('OPFIELD_MIGRATION_TEST_DATABASE_URL must name a disposable opfield_migration_test_* database');
     }
     pool = tolerateDatabaseDrop(new pg.Pool({ connectionString: url }));
     await pool.query(
@@ -136,7 +136,7 @@ describe.skipIf(!url)('local relay takeover during a Relay Pool update', () => {
       policy(incapable),
       {
         instances: await db.select().from(relayInstances).where(eq(relayInstances.poolId, 'system')),
-        gatewayHostOnlyEndpointIds: new Set(hostOnly),
+        opfieldHostOnlyEndpointIds: new Set(hostOnly),
       },
       localId
     );

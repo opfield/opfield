@@ -12,8 +12,8 @@ import {
  */
 const CLOUD_MANAGED_FIELDS = [
   ['publicUrl', 'the public URL', normalizePublicUrl],
-  ['gatewayGrpcPublicTarget', 'the gRPC public target', normalizeHostPortTarget],
-  ['gatewayGrpcLocalIp', 'the gRPC local IP', normalizeIpPortTarget],
+  ['grpcPublicTarget', 'the gRPC public target', normalizeHostPortTarget],
+  ['grpcLocalIp', 'the gRPC local IP', normalizeIpPortTarget],
 ] as const;
 
 export const CLOUD_MANAGED_SETTINGS_MESSAGE =
@@ -64,7 +64,7 @@ export function touchesCloudManagedSettings(input: GeneralSettingsUpdate | undef
 /** The cloud-managed addresses the update would change; values resubmitted unchanged are not listed. */
 export function findCloudManagedChanges(
   input: GeneralSettingsUpdate | undefined,
-  current: Pick<GeneralSettings, 'publicUrl' | 'gatewayGrpcPublicTarget' | 'gatewayGrpcLocalIp'>
+  current: Pick<GeneralSettings, 'publicUrl' | 'grpcPublicTarget' | 'grpcLocalIp'>
 ): string[] {
   if (!input) return [];
   const changes: string[] = [];

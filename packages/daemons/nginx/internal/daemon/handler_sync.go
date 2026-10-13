@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 func (h *Handler) handleFullSync(cmd *pb.FullSyncCommand, result *pb.CommandResult) {
@@ -170,6 +171,7 @@ func (h *Handler) handleFullSync(cmd *pb.FullSyncCommand, result *pb.CommandResu
 		path := h.mgr.ConfigPath(host.HostId)
 		name := fmt.Sprintf("proxy-host-%s.conf", host.HostId)
 		activeHosts[name] = true
+		host.ConfigContent = naming.Render(host.ConfigContent) // as in applyConfig
 		h.prepareSecureLinkListeners(host.ConfigContent)
 		if previous, ok := preExistingConfigs[name]; ok && string(previous) == host.ConfigContent {
 			continue

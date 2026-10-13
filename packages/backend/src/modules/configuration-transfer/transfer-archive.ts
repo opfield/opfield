@@ -72,7 +72,7 @@ const truncated = () =>
 export interface ExportHeader {
   format: number;
   createdAt: string;
-  gatewayVersion: string;
+  opfieldVersion: string;
   /** Tag of the last database migration the exporting Opfield applied. */
   schemaMigration: string;
   kdf: { name: 'scrypt'; N: number; r: number; p: number; salt: string };
@@ -84,7 +84,7 @@ export interface ExportHeader {
 
 export interface ExportHeaderInput {
   createdAt?: string;
-  gatewayVersion: string;
+  opfieldVersion: string;
   schemaMigration: string;
 }
 
@@ -215,7 +215,12 @@ function parseHeader(json: string): ExportHeader {
   } catch {
     throw new ExportArchiveError('NOT_AN_EXPORT', 'This file is not an Opfield configuration export');
   }
-  const header = value as Partial<ExportHeader>;
+  const header = value as Partial<ExportHeader> & { gatewayVersion?: unknown };
+  // legacy-name: gatewayVersion — the header field of exports made before 2.12.1 (read to name their version).
+  if (header && typeof header === 'object' && header.opfieldVersion === undefined) {
+    if (typeof header.gatewayVersion === 'string') header.opfieldVersion = header.gatewayVersion;
+    delete header.gatewayVersion;
+  }
   if (!header || typeof header !== 'object' || header.format !== EXPORT_FORMAT_VERSION) {
     throw new ExportArchiveError(
       'UNSUPPORTED_FORMAT',
@@ -225,7 +230,7 @@ function parseHeader(json: string): ExportHeader {
   const kdf = header.kdf;
   const valid =
     typeof header.createdAt === 'string' &&
-    typeof header.gatewayVersion === 'string' &&
+    typeof header.opfieldVersion === 'string' &&
     typeof header.schemaMigration === 'string' &&
     header.cipher === 'aes-256-gcm' &&
     Number.isSafeInteger(header.chunkBytes) &&
@@ -499,7 +504,7 @@ export class ExportArchiveWriter {
     const header: ExportHeader = {
       format: EXPORT_FORMAT_VERSION,
       createdAt: input.createdAt ?? new Date().toISOString(),
-      gatewayVersion: input.gatewayVersion,
+      opfieldVersion: input.opfieldVersion,
       schemaMigration: input.schemaMigration,
       kdf,
       cipher: 'aes-256-gcm',

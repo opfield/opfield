@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { resolveAuthReturnTo } from "@/lib/auth-return-to";
 
 let currentUserRequest: Promise<void> | null = null;
-const redirectToGateway = (path: string) => window.location.replace(path);
+const redirectToOpfield = (path: string) => window.location.replace(path);
 
 function loadCurrentUserOnce() {
   if (!currentUserRequest) {
@@ -23,7 +23,7 @@ function loadCurrentUserOnce() {
 }
 
 export function AuthCallback({
-  onAuthenticated = redirectToGateway,
+  onAuthenticated = redirectToOpfield,
 }: {
   onAuthenticated?: (path: string) => void;
 } = {}) {

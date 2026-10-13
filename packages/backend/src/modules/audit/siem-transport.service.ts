@@ -7,7 +7,7 @@ import type { CryptoService } from '@/services/crypto.service.js';
 export interface SiemTestEvent {
   id: string;
   source: string;
-  type: 'com.wiolett.gateway.audit.test.v1';
+  type: 'dev.opfield.audit.test.v1';
   time: string;
   test: true;
   data: SiemAuditEvent['data'];

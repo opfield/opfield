@@ -1,4 +1,4 @@
-MODULE := github.com/wiolett-industries/gateway/lease-watchdog
+MODULE := github.com/opfield/opfield/lease-watchdog
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 export VERSION
 BINARY := bin/lease-watchdog

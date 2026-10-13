@@ -13,8 +13,8 @@ import (
 	"github.com/moby/moby/client"
 )
 
-const managedVolumeLabel = "com.wiolett.gateway.managed-volume"
-const managedVolumeOriginLabel = "com.wiolett.gateway.managed-volume-origin"
+const managedVolumeLabel = "net.opfield.managed-volume"
+const managedVolumeOriginLabel = "net.opfield.managed-volume-origin"
 
 func (c *Client) collectVolumeUsers(ctx context.Context) map[string][]string {
 	volumeUsers := make(map[string][]string)
@@ -171,7 +171,7 @@ func (c *Client) UpdateVolumeLabels(ctx context.Context, name string, labels map
 		return nil
 	}
 
-	tempName := fmt.Sprintf("gateway-labels-%d", time.Now().UnixNano())
+	tempName := fmt.Sprintf("opfield-labels-%d", time.Now().UnixNano())
 	if err := c.CreateVolume(ctx, tempName, source.Volume.Driver, source.Volume.Labels); err != nil {
 		return err
 	}

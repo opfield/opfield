@@ -76,7 +76,7 @@ export class SetupRestoreService {
   }
 
   private current() {
-    return { gatewayVersion: this.env.APP_VERSION || 'dev', schemaMigration: currentSchemaMigration() };
+    return { opfieldVersion: this.env.APP_VERSION || 'dev', schemaMigration: currentSchemaMigration() };
   }
 
   private async uploadedBytes(): Promise<number> {
@@ -164,7 +164,7 @@ export class SetupRestoreService {
       summary: verification?.summary ?? null,
       error: verification?.error ?? null,
       restore,
-      currentVersion: this.current().gatewayVersion,
+      currentVersion: this.current().opfieldVersion,
     };
   }
 
@@ -265,7 +265,7 @@ export class SetupRestoreService {
             ...(input.ownerLinkClaim ? ['--owner-link-claim-hash', ownerLinkClaimHash(input.ownerLinkClaim)] : []),
           ],
           // Not the helper label: the restore removes leftover helpers and must not remove itself.
-          Labels: { 'com.wiolett.gateway.configuration-restore': project },
+          Labels: { 'net.opfield.configuration-restore': project },
           HostConfig: {
             Binds: [
               '/var/run/docker.sock:/var/run/docker.sock',

@@ -35,8 +35,17 @@ export const INSTALLER_RELEASES_URL = `${UPDATES_BASE_URL}/releases`;
 export const OPFIELD_IMAGE_REPOSITORY = 'ghcr.io/opfield/opfield';
 export const LEGACY_IMAGE_REPOSITORIES: readonly string[] = ['ghcr.io/the-square-labs/gateway'];
 export const OFFICIAL_IMAGE_REPOSITORIES: readonly string[] = [OPFIELD_IMAGE_REPOSITORY, ...LEGACY_IMAGE_REPOSITORIES];
-/** The same for the managed inference core image. */
-export const OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES: readonly string[] = [
+/**
+ * The same for the managed inference core image: opfield-inference, and the repositories core releases were published
+ * under before the rename, which keep receiving every release as mirrors.
+ */
+export const OPFIELD_INFERENCE_IMAGE_REPOSITORY = 'ghcr.io/opfield/opfield-inference';
+// legacy-name: inference-core image repositories — remove once every supported core release is published to opfield-inference
+export const LEGACY_INFERENCE_CORE_IMAGE_REPOSITORIES: readonly string[] = [
   'ghcr.io/opfield/inference-core',
   'ghcr.io/the-square-labs/inference-core',
+];
+export const OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES: readonly string[] = [
+  OPFIELD_INFERENCE_IMAGE_REPOSITORY,
+  ...LEGACY_INFERENCE_CORE_IMAGE_REPOSITORIES,
 ];

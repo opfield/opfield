@@ -444,7 +444,7 @@ export async function resumeQueuedDaemonUpdates(
             ? { taskWaitStartedAt: update.taskWaitStartedAt ?? undefined, warnings: update.warnings }
             : { tasksSettled: true, warnings: update.warnings },
       });
-      logger.info('Queued daemon update taken up again after a Gateway restart', { nodeId });
+      logger.info('Queued daemon update taken up again after a Opfield restart', { nodeId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error('Queued daemon update could not be taken up again', { nodeId, error: message });

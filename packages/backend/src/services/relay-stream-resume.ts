@@ -32,7 +32,7 @@ const logger = createChildLogger('RelayStreamResume');
 export const RELAY_STREAM_RESUME_CAPABILITY = 'relay_stream_resume_v1';
 export const RELAY_STREAM_RESUME_VERSION = 1;
 /** Gateway's own TypeScript source (database tools, storage browser) speaks RSv1 (task T6). */
-export const GATEWAY_STREAM_RESUME_CAPABLE = true;
+export const OPFIELD_STREAM_RESUME_CAPABLE = true;
 const KDF_DOMAIN = 'gw-relay-resume/v1';
 const KEY_LEN = 32;
 /** Route keys are replaced this often; the target keeps the previous key until the next rotation. */
@@ -305,7 +305,7 @@ export function relaySessionSplit(
 }
 
 /** What Gateway's own relayed streams (RelayControlClient.relayResumeStats) look like as a daemon report. */
-export interface GatewayRelayResumeStats {
+export interface OpfieldRelayResumeStats {
   sessions: { resumable: number; legacy: number };
   byRelay?: Record<string, { resumable: number; legacy: number }>;
   suspended: number;
@@ -322,8 +322,8 @@ export interface GatewayRelayResumeStats {
  * stream that had ended meanwhile (stand rc.6 O-3). Raw streams through a pre-pool relay are keyed "local", which is
  * the local relay.
  */
-export function gatewayStreamReport(
-  stats: GatewayRelayResumeStats,
+export function opfieldStreamReport(
+  stats: OpfieldRelayResumeStats,
   localRelayInstanceId: string | null
 ): NodeRelayStreamReport {
   let moved = 0;
@@ -366,7 +366,7 @@ export function gatewayStreamReport(
 }
 
 /** The report source name of Gateway's own streams. */
-export const GATEWAY_STREAM_REPORT_SOURCE = 'gateway';
+export const OPFIELD_STREAM_REPORT_SOURCE = 'gateway';
 
 /** Per daemon: streams it moved to another relay and resumable streams it lost, since it started. */
 export type RelayStreamCounters = Map<string, { moved: number; cut: number }>;
@@ -630,7 +630,7 @@ export class RelayStreamResumeService {
       ends.set(route.id, { id: route.id, sourceKind: route.sourceKind, sourceId: route.sourceId, targetNodeId });
       const sourceCapable =
         route.sourceKind === 'gateway'
-          ? GATEWAY_STREAM_RESUME_CAPABLE
+          ? OPFIELD_STREAM_RESUME_CAPABLE
           : route.sourceKind === 'daemon' && capable.has(route.sourceId);
       return {
         id: route.id,

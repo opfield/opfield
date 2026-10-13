@@ -121,7 +121,7 @@ async function uploadLink(docker: unknown, user: User) {
     name: 'restored-api',
     resolution: { ports: { '80/tcp': 8081 } },
   })) as { uploadUrl: string; commands: { file: string } };
-  expect(link.uploadUrl).toMatch(/^https:\/\/gateway\.example\/api\/docker-archive-link\/gwau_/);
+  expect(link.uploadUrl).toMatch(/^https:\/\/gateway\.example\/api\/docker-archive-link\/opfau_/);
   expect(link.commands.file).toBe(`curl -sS --fail-with-body -T container.gwca '${link.uploadUrl}'`);
   return `/${link.uploadUrl.split('/').at(-1)}`;
 }
@@ -131,7 +131,7 @@ async function downloadLink(docker: unknown, user: User, args: Record<string, un
     operation: 'link',
     ...args,
   })) as { downloadUrl: string; filename: string; commands: { download: string } };
-  expect(link.downloadUrl).toMatch(/^https:\/\/gateway\.example\/api\/docker-archive-link\/gwad_/);
+  expect(link.downloadUrl).toMatch(/^https:\/\/gateway\.example\/api\/docker-archive-link\/opfad_/);
   expect(link.commands.download).toBe(`curl -fsS -o '${link.filename}' '${link.downloadUrl}'`);
   return { path: `/${link.downloadUrl.split('/').at(-1)}`, filename: link.filename };
 }
@@ -286,7 +286,7 @@ describe('Docker archive download links', () => {
     expect(filename).toBe('api.gwca');
 
     const response = await app.request(path);
-    expect(response.headers.get('content-type')).toBe('application/vnd.wiolett.gwca');
+    expect(response.headers.get('content-type')).toBe('application/vnd.opfield.gwca');
     expect(await response.text()).toBe('gwca');
     expect(openDockerContainerArchiveExport).toHaveBeenCalledWith({
       nodeId: 'node-1',

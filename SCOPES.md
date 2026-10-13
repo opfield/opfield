@@ -7,7 +7,7 @@ All scopes follow `domain:resource:action[:qualifier]`. Resource-scopable scopes
 | Group | Description |
 |-------|-------------|
 | `system-admin` | All canonical scopes, including protected `admin:system`. |
-| `admin` | Curated broad access: every scope except `admin:system`, `admin:users:impersonate`, `settings:gateway:edit`, `housekeeping:configure`, `nodes:console`, `ai:skills:manage`, `inference:setup`, the `hosting:*` and `integrations:hosting:*` scopes, Docker registry create, edit, and delete, and the legacy `docker:registries:internal:*` scopes (registry access is set per API token). |
+| `admin` | Curated broad access: every scope except `admin:system`, `admin:users:impersonate`, `settings:opfield:edit`, `housekeeping:configure`, `nodes:console`, `ai:skills:manage`, the `hosting:*` and `integrations:hosting:*` scopes, Docker registry create, edit, and delete, and the legacy `docker:registries:internal:*` scopes (registry access is set per API token). |
 | `operator` | Operational access for day-to-day storage (with `storage:credentials:use`, without credential reveal, IAM keys, or bucket admin), database backups (without restore) and backup execution, PKI, proxy, Pages, SSL, ACL, node, database, notification, and logging read/query work. Creates and deploys Docker containers, deployments and Compose projects (image pull, secrets, console, GitLab, GitHub and Git connectors with `use` for build sources), without delete, mounts, export, migration, container file writes, or repository content (`repo:read`/`repo:write`). |
 | `viewer` | Read-only view/discovery access, including GitLab, GitHub, Git, and Cloudflare connectors. Reads that can reveal secrets stay out: Docker volume files, notification webhooks, and logging ingest tokens. |
 | `guest` | Authenticated account access without infrastructure permissions. |
@@ -252,8 +252,8 @@ Legacy global nginx management routes under `/api/monitoring/nginx/*` are no lon
 | `admin:details:certificates` |  |
 | `admin:update` |  |
 | `admin:alerts` |  |
-| `settings:gateway:view` |  |
-| `settings:gateway:edit` |  |
+| `settings:opfield:view` |  |
+| `settings:opfield:edit` |  |
 | `integrations:gitlab:view` | View GitLab connectors, their sync status, and their synced projects. Absorbs `projects:view`. Restrictable to a connector, group, or project. |
 | `integrations:gitlab:manage` | Configure, test, and synchronize GitLab connectors. Restrictable to a connector. |
 | `integrations:gitlab:use` | Use the GitLab connector system credential; connect Docker and Pages build sources to a repository. Replaces `integrations:gitlab:system`. Restrictable to a connector, group, or project. |
@@ -307,7 +307,6 @@ Legacy global nginx management routes under `/api/monitoring/nginx/*` are no lon
 | `ai:sandbox:tier:high` |  |
 | `ai:sandbox:manage` |  |
 | `mcp:use` |  |
-| `inference:setup` | OAuth-only companion setup token scope; not assignable to users or groups. |
 | `inference:providers:view` |  |
 | `inference:providers:manage` |  |
 | `inference:models:manage` |  |
@@ -416,7 +415,6 @@ API tokens and OAuth grants (for both the Opfield API and Opfield MCP resources)
 | `ai:sandbox:tier:high` | User-only AI sandbox runner tier access. |
 | `ai:sandbox:manage` | User-only AI sandbox runner management. |
 | `mcp:use` | User-account capability gate for remote MCP. |
-| `inference:setup` | OAuth-only companion CLI authorization resource; not assignable to users or groups. |
 | `admin:users:impersonate` | Impersonation replaces the caller's browser session with another user's session. |
 | `integrations:gitlab:sandbox:clone` | Clones repositories into the AI sandbox working copy and also requires `ai:sandbox:use`. |
 
@@ -493,5 +491,5 @@ OAuth consent leaves high-risk scopes unchecked by default. The user must explic
 | `admin:system` | Protected system administration: deleted-user restore, MFA reset, relay control. |
 | `admin:users` | Can create, reconfigure, block, and delete users and revoke their sessions. |
 | `admin:groups` | Can create and change permission groups and their scopes. |
-| `settings:gateway:edit` | Can change authentication and control-plane settings. |
+| `settings:opfield:edit` | Can change authentication and control-plane settings. |
 | `storage:bind` | Gives a workload its own key to the managed storage cluster. |

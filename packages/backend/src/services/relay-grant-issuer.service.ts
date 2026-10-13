@@ -20,7 +20,12 @@ import {
   LONG_POLICY_LEASE_CAPABILITY,
 } from '@/modules/settings/general-settings.service.js';
 import type { CryptoService } from './crypto.service.js';
-import { RelayGrantSigningContext, type RelayGrantSigningKey } from './relay-grant-signing.js';
+import {
+  type RelayGrantAudience,
+  RelayGrantSigningContext,
+  type RelayGrantSigningKey,
+  relayGrantAudience,
+} from './relay-grant-signing.js';
 import { candidateAssignmentState } from './relay-local-takeover.js';
 import { completeSetGrants, type SetLeaseTarget } from './relay-managed-availability-grants.js';
 import type { RelayRevokedRouteFence } from './relay-revocation-fence.js';
@@ -50,7 +55,7 @@ type GrantKind = 'endpoint' | 'connect';
 
 export interface RelayGrantClaims {
   schemaVersion: 1 | 2;
-  audience: 'wiolett-relay';
+  audience: RelayGrantAudience;
   grantId: string;
   gatewayInstanceId: string;
   kind: GrantKind;
@@ -694,11 +699,11 @@ export class RelayGrantIssuerService {
     return this.instanceCapabilities(instance).includes('relay_pool_v1');
   }
 
-  async issueGatewayConnectGrant(routeId: string, appCertificateFingerprint: string): Promise<SignedRelayGrant> {
-    return (await this.issueGatewayConnectAssignment(routeId, appCertificateFingerprint)).grant;
+  async issueOpfieldConnectGrant(routeId: string, appCertificateFingerprint: string): Promise<SignedRelayGrant> {
+    return (await this.issueOpfieldConnectAssignment(routeId, appCertificateFingerprint)).grant;
   }
 
-  async issueGatewayConnectAssignment(routeId: string, appCertificateFingerprint: string) {
+  async issueOpfieldConnectAssignment(routeId: string, appCertificateFingerprint: string) {
     const [route] = await this.db.select().from(relayRoutes).where(eq(relayRoutes.id, routeId)).limit(1);
     if (!route || route.sourceKind !== 'gateway' || route.sourceCertificateSha256 !== appCertificateFingerprint)
       throw new Error('Opfield relay route is unavailable');
@@ -758,7 +763,9 @@ export class RelayGrantIssuerService {
     signing?: RelayGrantSigningContext
   ): Promise<SignedRelayGrant> {
     const { longLeaseCapable, ...claimsInput } = input;
-    const { state, settings, keyId, privateKey } = await (signing ? signing.key() : this.loadSigningKey(false));
+    const { state, settings, keyId, privateKey, audience } = await (signing
+      ? signing.key()
+      : this.loadSigningKey(false));
     this.assertAcknowledged(state.revision);
     const now = Math.floor(Date.now() / 1000);
     // A grant not scoped to a specific upgraded relay instance keeps the legacy cap: an older
@@ -768,7 +775,7 @@ export class RelayGrantIssuerService {
       : Math.min(settings.relayGrantTtlHours, LEGACY_RELAY_GRANT_TTL_MAX_HOURS);
     const claims: RelayGrantClaims = {
       schemaVersion: claimsInput.schemaVersion ?? 1,
-      audience: 'wiolett-relay',
+      audience,
       grantId: randomUUID(),
       gatewayInstanceId: state.gatewayInstanceId,
       ...claimsInput,
@@ -782,7 +789,7 @@ export class RelayGrantIssuerService {
   }
 
   private async loadSigningKey(unsigned: boolean): Promise<RelayGrantSigningKey> {
-    const [state, settings, active] = await Promise.all([
+    const [state, settings, active, relays] = await Promise.all([
       this.requireState(),
       this.settings.getConfig(),
       this.db
@@ -791,6 +798,7 @@ export class RelayGrantIssuerService {
         .where(eq(relayGrantSigningKeys.status, 'active'))
         .limit(1)
         .then((rows) => rows[0]),
+      this.db.select({ capabilities: relayInstances.capabilities }).from(relayInstances),
     ]);
     if (!active?.encryptedPrivateKey || !active.encryptedDek)
       throw new Error('Active relay signing key is unavailable');
@@ -803,7 +811,8 @@ export class RelayGrantIssuerService {
             dekIv: '',
           })
         );
-    return { state, settings, keyId: active.keyId, privateKey };
+    const audience = relayGrantAudience(relays.map((relay) => relay.capabilities?.features));
+    return { state, settings, keyId: active.keyId, audience, privateKey };
   }
 
   /** Grants are never signed for a revision the local relay has not taken (unless bypassed, see above). */

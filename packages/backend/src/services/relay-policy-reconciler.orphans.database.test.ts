@@ -16,20 +16,20 @@ import {
 } from '@/db/schema/index.js';
 import { removeOrphanedRelayState } from './relay-policy-reconciler.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const FINGERPRINT = `sha256:${'0'.repeat(64)}`;
 
 /**
  * Relay endpoints and routes of a deleted Route stayed in the policy forever and the daemons kept retrying their
- * tunnels. Opt-in: point GATEWAY_MIGRATION_TEST_DATABASE_URL at a disposable database named gateway_migration_test_*.
+ * tunnels. Opt-in: point OPFIELD_MIGRATION_TEST_DATABASE_URL at a disposable database named opfield_migration_test_*.
  */
 describe.skipIf(!url)('relay state whose owner is gone', () => {
   let pool: pg.Pool;
   let db: DrizzleClient;
 
   beforeAll(async () => {
-    if (!new URL(url!).pathname.startsWith('/gateway_migration_test_')) {
-      throw new Error('GATEWAY_MIGRATION_TEST_DATABASE_URL must name a disposable gateway_migration_test_* database');
+    if (!new URL(url!).pathname.startsWith('/opfield_migration_test_')) {
+      throw new Error('OPFIELD_MIGRATION_TEST_DATABASE_URL must name a disposable opfield_migration_test_* database');
     }
     pool = tolerateDatabaseDrop(new pg.Pool({ connectionString: url }));
     await pool.query(

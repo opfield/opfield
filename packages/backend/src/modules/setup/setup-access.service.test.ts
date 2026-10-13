@@ -54,7 +54,7 @@ describe('SetupAccessService', () => {
     const generated = await harness.service.generateCode();
     const stored = harness.getStored() as Record<string, unknown>;
 
-    expect(generated.code).toMatch(/^gws_/);
+    expect(generated.code).toMatch(/^opfs_/);
     expect(stored).toMatchObject({ id: generated.id, expiresAt: generated.expiresAt });
     expect(stored.hash).toMatch(/^[a-f0-9]{64}$/);
     expect(JSON.stringify(stored)).not.toContain(generated.code);

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 const containerID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

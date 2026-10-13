@@ -31,7 +31,7 @@ import {
   updateAdminUserAuthMethod,
   updateAdminUserGroups,
 } from '@/modules/admin/admin-user-actions.js';
-import { readGatewaySettings, updateGatewaySettings } from '@/modules/admin/gateway-settings.js';
+import { readOpfieldSettings, updateOpfieldSettings } from '@/modules/admin/opfield-settings.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { CloudLinkRequestError, CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import {
@@ -40,7 +40,7 @@ import {
   isCloudManaged,
 } from '@/modules/cloud-link/cloud-link-managed-locks.js';
 import { ConfigurationExportService } from '@/modules/configuration-transfer/configuration-export.service.js';
-import { GatewayMoveService } from '@/modules/configuration-transfer/gateway-move.service.js';
+import { OpfieldMoveService } from '@/modules/configuration-transfer/opfield-move.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
 import { HousekeepingConfigUpdateSchema } from '@/modules/housekeeping/housekeeping.docs.js';
 import { toLicenseAppError } from '@/modules/license/license.errors.js';
@@ -70,7 +70,7 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
   /** manage_configuration_export: the same service and checks as /api/system/configuration-export. */
   private async executeConfigurationExportTool(user: User, a: Record<string, any>): Promise<unknown> {
     const exports = container.resolve(ConfigurationExportService);
-    const move = container.resolve(GatewayMoveService);
+    const move = container.resolve(OpfieldMoveService);
     switch (a.operation) {
       case 'estimate':
         return exports.estimate();
@@ -102,7 +102,7 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
         const status = await move.announce(address, user.id);
         await container.resolve(AuditService).log({
           userId: user.id,
-          action: address ? 'system.gateway_move_announced' : 'system.gateway_move_withdrawn',
+          action: address ? 'system.opfield_move_announced' : 'system.opfield_move_withdrawn',
           resourceType: 'system',
           details: {
             address: status.announcement?.address ?? null,
@@ -182,11 +182,11 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
       case 'manage_user':
         return this.executeManageUserTool(user, a);
       case 'get_ai_settings': {
-        const [config, gatewayInferenceModels] = await Promise.all([
+        const [config, opfieldInferenceModels] = await Promise.all([
           this.settingsService.getConfigForAdmin(),
           this.getAdminInferenceModels(),
         ]);
-        return { ...config, gatewayInferenceModels };
+        return { ...config, opfieldInferenceModels };
       }
       case 'update_ai_settings': {
         const updates = aiSettingsUpdatesFromArgs(args);
@@ -194,11 +194,11 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
           throw new Error('No supported AI settings fields were provided');
         }
         await this.settingsService.updateConfig(updates);
-        const [config, gatewayInferenceModels] = await Promise.all([
+        const [config, opfieldInferenceModels] = await Promise.all([
           this.settingsService.getConfigForAdmin(),
           this.getAdminInferenceModels(),
         ]);
-        return { ...config, gatewayInferenceModels };
+        return { ...config, opfieldInferenceModels };
       }
       case 'list_ai_tools':
         return AI_TOOLS.map((tool) => ({
@@ -392,7 +392,7 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
       }
       case 'manage_configuration_export':
         return this.executeConfigurationExportTool(user, a);
-      case 'manage_gateway_diagnostics': {
+      case 'manage_opfield_diagnostics': {
         const service = container.resolve(DiagnosticsService);
         const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : undefined);
         const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
@@ -460,8 +460,8 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
             throw new Error('Unsupported housekeeping operation');
         }
       }
-      case 'get_gateway_settings': {
-        const settings = await readGatewaySettings(
+      case 'get_opfield_settings': {
+        const settings = await readOpfieldSettings(
           { user, scopes: user.scopes },
           {},
           { groupService: this.groupService }
@@ -474,7 +474,7 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
           },
         };
       }
-      case 'update_gateway_settings': {
+      case 'update_opfield_settings': {
         // Same validation, privilege boundaries, side effects and audit as PUT /admin/auth-settings
         // and PATCH /settings/environment.
         const { environmentSettings, ...settingsArgs } = args;
@@ -486,13 +486,13 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
         }
         const settings =
           Object.keys(settingsInput).length > 0
-            ? await updateGatewaySettings(
+            ? await updateOpfieldSettings(
                 { user, scopes: user.scopes },
                 settingsInput,
                 {},
                 { groupService: this.groupService, auditService: this.auditService }
               )
-            : await readGatewaySettings({ user, scopes: user.scopes }, {}, { groupService: this.groupService });
+            : await readOpfieldSettings({ user, scopes: user.scopes }, {}, { groupService: this.groupService });
         const environmentService = container.resolve(EnvironmentSettingsService);
         const environment = environmentInput
           ? await environmentService.update(environmentInput)

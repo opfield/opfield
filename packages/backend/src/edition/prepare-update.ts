@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Dirent } from 'node:fs';
+import { type Dirent, existsSync } from 'node:fs';
 import { lstat, mkdir, mkdtemp, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { installCommercialRelease } from './install.js';
@@ -22,8 +22,17 @@ export function commercialVersionKey(version: string): string {
   return version;
 }
 
+/** Directory of the installation that holds prepared private cores; the app container mounts it read-only. */
+export const COMMERCIAL_HOST_DIR = '.opfield-commercial';
+// legacy-name: `.gateway-commercial` of installations that have not moved to the Opfield layout yet (the move renames
+// it) — remove once every installation reports the Opfield layout.
+export const LEGACY_COMMERCIAL_HOST_DIR = '.gateway-commercial';
+
+/** The commercial directory of an installation: the legacy one while it exists, otherwise the Opfield one. */
 export function commercialHostRoot(hostDir: string): string {
-  return join(hostDir, '.gateway-commercial');
+  return existsSync(join(hostDir, LEGACY_COMMERCIAL_HOST_DIR))
+    ? join(hostDir, LEGACY_COMMERCIAL_HOST_DIR)
+    : join(hostDir, COMMERCIAL_HOST_DIR);
 }
 
 /** Runs while the old Gateway is alive. Never changes its active image/core pair. */

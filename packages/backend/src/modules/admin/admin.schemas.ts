@@ -5,8 +5,8 @@ import {
   FILE_OPEN_MIN_BYTES,
   FILE_UPLOAD_MAX_BYTES,
   FILE_UPLOAD_MIN_BYTES,
-  isValidGatewayHostPortTarget,
-  isValidGatewayIpPortTarget,
+  isValidOpfieldHostPortTarget,
+  isValidOpfieldIpPortTarget,
   normalizePublicUrl,
   RELAY_ASSIGNMENT_SPREAD_MAX_COUNT,
   RELAY_ASSIGNMENT_SPREAD_MIN_COUNT,
@@ -191,18 +191,18 @@ export const UpdateAuthProvisioningSettingsSchema = z.object({
       sendInvitationOnUserCreate: z.boolean().optional(),
       fileUploadMaxBytes: z.number().int().min(FILE_UPLOAD_MIN_BYTES).max(FILE_UPLOAD_MAX_BYTES).optional(),
       fileOpenMaxBytes: z.number().int().min(FILE_OPEN_MIN_BYTES).max(FILE_OPEN_MAX_BYTES).optional(),
-      gatewayGrpcPublicTarget: z
+      grpcPublicTarget: z
         .string()
         .trim()
         .max(255)
-        .refine(isValidGatewayHostPortTarget, 'Must be a hostname or IP address, optionally with a port')
+        .refine(isValidOpfieldHostPortTarget, 'Must be a hostname or IP address, optionally with a port')
         .nullable()
         .optional(),
-      gatewayGrpcLocalIp: z
+      grpcLocalIp: z
         .string()
         .trim()
         .max(255)
-        .refine(isValidGatewayIpPortTarget, 'Must be an IPv4 or IPv6 address, optionally with a port')
+        .refine(isValidOpfieldIpPortTarget, 'Must be an IPv4 or IPv6 address, optionally with a port')
         .nullable()
         .optional(),
       relayAutoRecovery: z.boolean().optional(),

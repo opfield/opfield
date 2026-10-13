@@ -955,10 +955,10 @@ describe('RelayPolicyService snapshots', () => {
     await expect(service.getNodeGrantBundle('node')).resolves.toMatchObject({ revision: '11' });
     expect(sync).toHaveBeenCalledTimes(1);
     sync.mockClear();
-    issuer.issueGatewayConnectGrant = vi.fn().mockRejectedValue(new RelayPolicyNotAcknowledgedError(12));
-    await expect(service.issueGatewayConnectGrant('route', 'fingerprint')).rejects.toThrow('revision 12');
+    issuer.issueOpfieldConnectGrant = vi.fn().mockRejectedValue(new RelayPolicyNotAcknowledgedError(12));
+    await expect(service.issueOpfieldConnectGrant('route', 'fingerprint')).rejects.toThrow('revision 12');
     expect(sync).toHaveBeenCalledTimes(2);
-    expect(issuer.issueGatewayConnectGrant).toHaveBeenCalledTimes(3);
+    expect(issuer.issueOpfieldConnectGrant).toHaveBeenCalledTimes(3);
     sync.mockClear();
     issuer.getNodeGrantBundle.mockRejectedValue(new Error('identity revoked'));
     await expect(service.getNodeGrantBundle('node')).rejects.toThrow('identity revoked');
@@ -1737,9 +1737,9 @@ describe('RelayPolicyService gateway tunnels', () => {
       })),
     };
     const service = createService(db, { applySnapshot: vi.fn() });
-    const ensureRoute = vi.spyOn(service, 'ensureGatewayRoute');
+    const ensureRoute = vi.spyOn(service, 'ensureOpfieldRoute');
 
-    await expect(service.openGatewayTunnel('database-1', `sha256:${'a'.repeat(64)}`)).rejects.toThrow(
+    await expect(service.openOpfieldTunnel('database-1', `sha256:${'a'.repeat(64)}`)).rejects.toThrow(
       'Managed database is unavailable'
     );
     expect(ensureRoute).not.toHaveBeenCalled();
@@ -2448,7 +2448,7 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     const issuer = (service as any).grantIssuer;
     issuer.requireState = async () => ({ revision: 1, gatewayInstanceId: 'gateway' });
     issuer.requireNodeIdentity = async () => ({ certificateFingerprint: 'sha256:node' });
-    const route = (service as any).currentGatewayRoute(
+    const route = (service as any).currentOpfieldRoute(
       'managed_database_gateway',
       'managed_database',
       'db-1',
@@ -2461,7 +2461,7 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     order.push('route', 'endpoint', 'assignment');
     issuer.requireNodeIdentity = async () => ({ certificateFingerprint: 'sha256:renewed' });
     await expect(
-      (service as any).currentGatewayRoute(
+      (service as any).currentOpfieldRoute(
         'managed_database_gateway',
         'managed_database',
         'db-1',

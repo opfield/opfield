@@ -16,7 +16,7 @@ import {
 } from '@/db/schema/index.js';
 import { RelayPoolService } from './relay-pool.service.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
  * Stand rc.8, F-2 and O-7, on a real database. The Relay Pool update drained UK at 20:51:25 and placed endpoint
@@ -24,15 +24,15 @@ const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
  * activated at 20:51:37 anyway, and the local relay drained at 20:51:38 onto it, so the endpoint's traffic ran over
  * the 300-ms NL relay until generation 150 (`uk:primary, nl:fallback`) was active at 20:51:48. During the local
  * relay's restart NL and UK were listed offline although they served.
- * Opt-in: point GATEWAY_MIGRATION_TEST_DATABASE_URL at a disposable database named gateway_migration_test_*.
+ * Opt-in: point OPFIELD_MIGRATION_TEST_DATABASE_URL at a disposable database named opfield_migration_test_*.
  */
 describe.skipIf(!url)('Relay Pool update placement (stand rc.8, F-2, O-7)', () => {
   let pool: pg.Pool;
   let db: DrizzleClient;
 
   beforeAll(async () => {
-    if (!new URL(url!).pathname.startsWith('/gateway_migration_test_')) {
-      throw new Error('GATEWAY_MIGRATION_TEST_DATABASE_URL must name a disposable gateway_migration_test_* database');
+    if (!new URL(url!).pathname.startsWith('/opfield_migration_test_')) {
+      throw new Error('OPFIELD_MIGRATION_TEST_DATABASE_URL must name a disposable opfield_migration_test_* database');
     }
     pool = tolerateDatabaseDrop(new pg.Pool({ connectionString: url }));
     await pool.query(
@@ -109,7 +109,7 @@ describe.skipIf(!url)('Relay Pool update placement (stand rc.8, F-2, O-7)', () =
       syncRemoteInstancePolicy: vi.fn(async () => undefined),
       setRemoteInstanceDrain: vi.fn(async () => undefined),
       isRemoteInstanceConnected: vi.fn(() => true),
-      gatewayAssignmentsChanged: vi.fn(),
+      opfieldAssignmentsChanged: vi.fn(),
     };
     const pool = new RelayPoolService(
       db,
@@ -177,7 +177,7 @@ describe.skipIf(!url)('Relay Pool update placement (stand rc.8, F-2, O-7)', () =
       [nl.id, 'fallback'],
     ]);
     expect(await t.tryActivate(current.id)).toBe(true);
-    expect(t.policy.gatewayAssignmentsChanged).toHaveBeenCalled();
+    expect(t.policy.opfieldAssignmentsChanged).toHaveBeenCalled();
   });
 
   it('lists the remote relays as ready and reconnecting, not offline, while the local relay restarts', async () => {

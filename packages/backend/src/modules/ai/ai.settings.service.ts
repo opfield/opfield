@@ -23,8 +23,8 @@ const AI_SETTINGS_DEFAULTS: Record<string, unknown> = {
   'ai:supports_images': false,
   'ai:api_key_encrypted': null,
   'ai:model': '',
-  'ai:gateway_inference_model': '',
-  'ai:gateway_inference_allow_user_model_selection': true,
+  'ai:opfield_inference_model': '',
+  'ai:opfield_inference_allow_user_model_selection': true,
   'ai:allow_user_reasoning_effort_selection': false,
   'ai:max_completion_tokens': 8192,
   'ai:max_tokens_field': 'max_completion_tokens',
@@ -45,7 +45,7 @@ const AI_SETTINGS_DEFAULTS: Record<string, unknown> = {
 
 export class AISettingsService {
   private inferenceFeatureEnabled: () => Promise<boolean> = async () => false;
-  private gatewayInferenceModelAvailable: (model: string) => Promise<boolean> = async () => false;
+  private opfieldInferenceModelAvailable: (model: string) => Promise<boolean> = async () => false;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -56,8 +56,8 @@ export class AISettingsService {
     this.inferenceFeatureEnabled = resolver;
   }
 
-  setGatewayInferenceModelValidator(validator: (model: string) => Promise<boolean>): void {
-    this.gatewayInferenceModelAvailable = validator;
+  setOpfieldInferenceModelValidator(validator: (model: string) => Promise<boolean>): void {
+    this.opfieldInferenceModelAvailable = validator;
   }
 
   async getConfig(): Promise<AIConfig> {
@@ -81,8 +81,8 @@ export class AISettingsService {
       endpointMode: getValue<AIEndpointMode>('ai:endpoint_mode'),
       supportsImages: getValue<boolean>('ai:supports_images'),
       model: getValue<string>('ai:model'),
-      gatewayInferenceModel: getValue<string>('ai:gateway_inference_model'),
-      gatewayInferenceAllowUserModelSelection: getValue<boolean>('ai:gateway_inference_allow_user_model_selection'),
+      opfieldInferenceModel: getValue<string>('ai:opfield_inference_model'),
+      opfieldInferenceAllowUserModelSelection: getValue<boolean>('ai:opfield_inference_allow_user_model_selection'),
       allowUserReasoningEffortSelection: getValue<boolean>('ai:allow_user_reasoning_effort_selection'),
       maxCompletionTokens: getValue<number>('ai:max_completion_tokens'),
       maxTokensField: getValue<MaxTokensField>('ai:max_tokens_field'),
@@ -149,30 +149,30 @@ export class AISettingsService {
   }
 
   async updateConfig(updates: Record<string, unknown>): Promise<AIConfig> {
-    if (Object.hasOwn(updates, 'providerType') || Object.hasOwn(updates, 'gatewayInferenceModel')) {
+    if (Object.hasOwn(updates, 'providerType') || Object.hasOwn(updates, 'opfieldInferenceModel')) {
       const current = await this.getConfig();
       const providerType = (updates.providerType ?? current.providerType) as AIProviderType;
-      const gatewayInferenceModel = String(updates.gatewayInferenceModel ?? current.gatewayInferenceModel).trim();
+      const opfieldInferenceModel = String(updates.opfieldInferenceModel ?? current.opfieldInferenceModel).trim();
 
-      if (providerType === 'gateway_inference') {
+      if (providerType === 'opfield_inference') {
         if (!(await this.inferenceFeatureEnabled())) {
           throw new AppError(
             400,
-            'AI_GATEWAY_INFERENCE_DISABLED',
+            'AI_INFERENCE_DISABLED',
             'Opfield Inference must be enabled before it can be used by AI Workspace'
           );
         }
-        if (!gatewayInferenceModel) {
-          throw new AppError(400, 'AI_GATEWAY_INFERENCE_MODEL_REQUIRED', 'Select a default Opfield Inference model');
+        if (!opfieldInferenceModel) {
+          throw new AppError(400, 'AI_INFERENCE_MODEL_REQUIRED', 'Select a default Opfield Inference model');
         }
-        if (!(await this.gatewayInferenceModelAvailable(gatewayInferenceModel))) {
+        if (!(await this.opfieldInferenceModelAvailable(opfieldInferenceModel))) {
           throw new AppError(
             400,
-            'AI_GATEWAY_INFERENCE_MODEL_UNAVAILABLE',
+            'AI_INFERENCE_MODEL_UNAVAILABLE',
             'The selected Opfield Inference model is not available'
           );
         }
-        updates.gatewayInferenceModel = gatewayInferenceModel;
+        updates.opfieldInferenceModel = opfieldInferenceModel;
       }
     }
 
@@ -183,8 +183,8 @@ export class AISettingsService {
       endpointMode: 'ai:endpoint_mode',
       supportsImages: 'ai:supports_images',
       model: 'ai:model',
-      gatewayInferenceModel: 'ai:gateway_inference_model',
-      gatewayInferenceAllowUserModelSelection: 'ai:gateway_inference_allow_user_model_selection',
+      opfieldInferenceModel: 'ai:opfield_inference_model',
+      opfieldInferenceAllowUserModelSelection: 'ai:opfield_inference_allow_user_model_selection',
       allowUserReasoningEffortSelection: 'ai:allow_user_reasoning_effort_selection',
       customSystemPrompt: 'ai:custom_system_prompt',
       rateLimitMax: 'ai:rate_limit_max',
@@ -248,8 +248,8 @@ export class AISettingsService {
     const val = await this.getSetting<boolean>('ai:enabled');
     if (!val) return false;
     const providerType = await this.getSetting<AIProviderType>('ai:provider_type');
-    if (providerType === 'gateway_inference') {
-      const model = await this.getSetting<string>('ai:gateway_inference_model');
+    if (providerType === 'opfield_inference') {
+      const model = await this.getSetting<string>('ai:opfield_inference_model');
       return Boolean(model && (await this.inferenceFeatureEnabled()));
     }
     const apiKey = await this.getSetting<EncryptedValue | null>('ai:api_key_encrypted');
@@ -258,17 +258,17 @@ export class AISettingsService {
 
   async handleInferenceDisabled(): Promise<void> {
     const providerType = await this.getSetting<AIProviderType>('ai:provider_type');
-    if (providerType !== 'gateway_inference') return;
+    if (providerType !== 'opfield_inference') return;
 
     await this.setSetting('ai:provider_type', 'openai_compatible');
     const apiKey = await this.getSetting<EncryptedValue | null>('ai:api_key_encrypted');
     if (!apiKey) await this.setSetting('ai:enabled', false);
   }
 
-  async handleGatewayInferenceModelRemoved(removedModel: string, replacementModel: string | null): Promise<void> {
-    const current = await this.getSetting<string>('ai:gateway_inference_model');
+  async handleOpfieldInferenceModelRemoved(removedModel: string, replacementModel: string | null): Promise<void> {
+    const current = await this.getSetting<string>('ai:opfield_inference_model');
     if (current !== removedModel) return;
-    await this.setSetting('ai:gateway_inference_model', replacementModel ?? '');
+    await this.setSetting('ai:opfield_inference_model', replacementModel ?? '');
   }
 
   async getDecryptedApiKey(): Promise<string | null> {

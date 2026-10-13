@@ -3,11 +3,12 @@ package docker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
 )
 
 // The shared connector carries every link of the node (proxy secure links, container links, managed storage and
@@ -40,7 +41,8 @@ func secureLinkConnectorMemory() int64 {
 
 // secureLinkConnectorEnv is the environment of the connector in slot.
 func secureLinkConnectorEnv(slot int) []string {
-	return []string{secureLinkConnectorSocketEnv(slot)}
+	socket := secureLinkConnectorMount + "/" + secureLinkConnectorSlots[slot].socket
+	return []string{secureLinkConnectorSocketVar + "=" + socket, legacySecureLinkConnectorSocketVar + "=" + socket}
 }
 
 func secureLinkConnectorResources() container.Resources {
@@ -59,7 +61,7 @@ func currentSecureLinkConnectorShape(inspect container.InspectResponse) bool {
 	return host.Resources.Memory >= secureLinkConnectorMinMemory && host.Resources.Memory <= secureLinkConnectorMaxMemory &&
 		host.Resources.NanoCPUs == secureLinkConnectorNanoCPUs &&
 		host.Resources.PidsLimit != nil && *host.Resources.PidsLimit == secureLinkConnectorPidsLimit &&
-		validSecureLinkConnectorEnv(config.Env, secureLinkConnectorSocketEnv(slot))
+		validSecureLinkConnectorEnv(config.Env, host.Binds, slot)
 }
 
 // legacySecureLinkConnectorShape reports a connector of an earlier release's limits and environment.
@@ -71,23 +73,38 @@ func legacySecureLinkConnectorShape(inspect container.InspectResponse) bool {
 	}
 	return host.Resources.Memory == legacySecureLinkConnectorMemory && host.Resources.NanoCPUs == legacySecureLinkConnectorNanoCPUs &&
 		host.Resources.PidsLimit != nil && *host.Resources.PidsLimit == legacySecureLinkConnectorPidsLimit &&
-		validSecureLinkConnectorEnv(config.Env, secureLinkConnectorSocketEnv(slot))
+		validSecureLinkConnectorEnv(config.Env, host.Binds, slot)
 }
 
-// validSecureLinkConnectorEnv accepts exactly the socket variable and the image's PATH, each once.
-func validSecureLinkConnectorEnv(values []string, socket string) bool {
-	seenSocket, seenPath := false, false
+// validSecureLinkConnectorEnv accepts exactly the socket variables of the
+// connector's mount and the image's PATH, each once: under /run/opfield the
+// Opfield variable (the pre-Opfield one may come along with the same value),
+// under the pre-Opfield /run/gateway the pre-Opfield variable alone.
+func validSecureLinkConnectorEnv(values []string, binds []string, slot int) bool {
+	mount := legacySecureLinkConnectorMount
+	if len(binds) == 1 && strings.HasSuffix(binds[0], ":"+secureLinkConnectorMount) {
+		mount = secureLinkConnectorMount
+	}
+	socket := mount + "/" + secureLinkConnectorSlots[slot].socket
+	current := secureLinkConnectorSocketVar + "=" + socket
+	legacy := legacySecureLinkConnectorSocketVar + "=" + socket
+	seenCurrent, seenLegacy, seenPath := false, false, false
 	for _, value := range values {
 		switch {
-		case value == socket && !seenSocket:
-			seenSocket = true
+		case value == current && mount == secureLinkConnectorMount && !seenCurrent:
+			seenCurrent = true
+		case value == legacy && !seenLegacy:
+			seenLegacy = true
 		case value == secureLinkConnectorPathEnv && !seenPath:
 			seenPath = true
 		default:
 			return false
 		}
 	}
-	return seenSocket
+	if mount == secureLinkConnectorMount {
+		return seenCurrent
+	}
+	return seenLegacy
 }
 
 // updateConnectorMemory sets the memory limit of a current connector in place when the host's memory gives another

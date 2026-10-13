@@ -9,16 +9,16 @@ import (
 	"time"
 	"unicode"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	runtimemanager "github.com/wiolett-industries/gateway/docker-daemon/internal/runtime"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	runtimemanager "github.com/opfield/opfield/docker-daemon/internal/runtime"
 )
 
-func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
+func (p *DockerPlugin) HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult {
 	result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 	if p.cfg.Docker.Mode == "builder" {
 		switch payload := cmd.Payload.(type) {
-		case *pb.GatewayCommand_DockerBuild:
+		case *pb.OpfieldCommand_DockerBuild:
 			if p.builderManager == nil {
 				result.Success = false
 				result.Error = "builder execution is not initialized"
@@ -26,12 +26,12 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 				result.Success = false
 				result.Error = err.Error()
 			}
-		case *pb.GatewayCommand_DockerBuildCancel:
+		case *pb.OpfieldCommand_DockerBuildCancel:
 			if p.builderManager == nil || !p.builderManager.Cancel(payload.DockerBuildCancel.GetBuildId()) {
 				result.Success = false
 				result.Error = "build is not running"
 			}
-		case *pb.GatewayCommand_DockerBuildEventAck:
+		case *pb.OpfieldCommand_DockerBuildEventAck:
 			if p.builderManager == nil {
 				result.Success = false
 				result.Error = "builder execution is not initialized"
@@ -42,7 +42,7 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 					payload.DockerBuildEventAck.GetDisposition(),
 				)
 			}
-		case *pb.GatewayCommand_SyncDockerRegistryBindings:
+		case *pb.OpfieldCommand_SyncDockerRegistryBindings:
 			detail, err := p.SyncDockerRegistryBindings(payload.SyncDockerRegistryBindings)
 			if err != nil {
 				result.Success = false
@@ -50,7 +50,7 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 			} else {
 				result.Detail = detail
 			}
-		case *pb.GatewayCommand_SetDaemonLogStream:
+		case *pb.OpfieldCommand_SetDaemonLogStream:
 			stream.SetDaemonLogStreaming(payload.SetDaemonLogStream.Enabled, payload.SetDaemonLogStream.MinLevel)
 		default:
 			result.Success = false
@@ -60,11 +60,11 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 	}
 	if p.cfg.Docker.IsStorageProfile() {
 		switch payload := cmd.Payload.(type) {
-		case *pb.GatewayCommand_DockerDatabase:
+		case *pb.OpfieldCommand_DockerDatabase:
 			p.handleManagedDatabaseCommand(payload.DockerDatabase, result)
-		case *pb.GatewayCommand_DockerStorage:
+		case *pb.OpfieldCommand_DockerStorage:
 			p.handleManagedStorageCommand(payload.DockerStorage, result)
-		case *pb.GatewayCommand_DockerBackup:
+		case *pb.OpfieldCommand_DockerBackup:
 			if p.backupHandler == nil {
 				result.Success = false
 				result.Error = "backup command handler is not registered"
@@ -72,17 +72,17 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 				p.backupHandler.handleBackupCommand(payload.DockerBackup, result)
 			}
 		// Availability sets run their members on storage nodes, so the lease and member commands belong here too.
-		case *pb.GatewayCommand_SyncAvailabilityLease:
+		case *pb.OpfieldCommand_SyncAvailabilityLease:
 			p.handleAvailabilityLeaseSync(payload.SyncAvailabilityLease, result)
-		case *pb.GatewayCommand_AvailabilityLeaseHandoff:
+		case *pb.OpfieldCommand_AvailabilityLeaseHandoff:
 			p.handleAvailabilityLeaseHandoff(payload.AvailabilityLeaseHandoff, result)
-		case *pb.GatewayCommand_ApplyWitnesses:
+		case *pb.OpfieldCommand_ApplyWitnesses:
 			p.handleApplyKeeperWitnesses(payload.ApplyWitnesses, result)
-		case *pb.GatewayCommand_AvailabilityMember:
+		case *pb.OpfieldCommand_AvailabilityMember:
 			if err := p.handleAvailabilityMember(payload.AvailabilityMember); err != nil {
 				result.Success, result.Error = false, err.Error()
 			}
-		case *pb.GatewayCommand_SetDaemonLogStream:
+		case *pb.OpfieldCommand_SetDaemonLogStream:
 			stream.SetDaemonLogStreaming(payload.SetDaemonLogStream.Enabled, payload.SetDaemonLogStream.MinLevel)
 		default:
 			result.Success = false
@@ -98,63 +98,63 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 	}
 
 	switch payload := cmd.Payload.(type) {
-	case *pb.GatewayCommand_DockerContainer:
+	case *pb.OpfieldCommand_DockerContainer:
 		p.handleContainerCommand(payload.DockerContainer, result)
 
-	case *pb.GatewayCommand_DockerImage:
+	case *pb.OpfieldCommand_DockerImage:
 		p.handleImageCommand(payload.DockerImage, result)
 
-	case *pb.GatewayCommand_DockerVolume:
+	case *pb.OpfieldCommand_DockerVolume:
 		p.handleVolumeCommand(payload.DockerVolume, result)
 
-	case *pb.GatewayCommand_DockerNetwork:
+	case *pb.OpfieldCommand_DockerNetwork:
 		p.handleNetworkCommand(payload.DockerNetwork, result)
 
-	case *pb.GatewayCommand_DockerDeployment:
+	case *pb.OpfieldCommand_DockerDeployment:
 		p.handleDeploymentCommand(payload.DockerDeployment, result)
 
-	case *pb.GatewayCommand_DockerCompose:
+	case *pb.OpfieldCommand_DockerCompose:
 		p.handleComposeCommand(payload.DockerCompose, result)
 
-	case *pb.GatewayCommand_DockerRuntime:
+	case *pb.OpfieldCommand_DockerRuntime:
 		p.handleRuntimeCommand(payload.DockerRuntime, result)
 
-	case *pb.GatewayCommand_DockerAvailability:
+	case *pb.OpfieldCommand_DockerAvailability:
 		p.handleAvailabilityCommand(payload.DockerAvailability, result)
 
-	case *pb.GatewayCommand_SyncAvailabilityLease:
+	case *pb.OpfieldCommand_SyncAvailabilityLease:
 		p.handleAvailabilityLeaseSync(payload.SyncAvailabilityLease, result)
 
-	case *pb.GatewayCommand_AvailabilityLeaseHandoff:
+	case *pb.OpfieldCommand_AvailabilityLeaseHandoff:
 		p.handleAvailabilityLeaseHandoff(payload.AvailabilityLeaseHandoff, result)
 
-	case *pb.GatewayCommand_ApplyWitnesses:
+	case *pb.OpfieldCommand_ApplyWitnesses:
 		p.handleApplyKeeperWitnesses(payload.ApplyWitnesses, result)
 
-	case *pb.GatewayCommand_AvailabilityMember:
+	case *pb.OpfieldCommand_AvailabilityMember:
 		if err := p.handleAvailabilityMember(payload.AvailabilityMember); err != nil {
 			result.Success, result.Error = false, err.Error()
 		}
 
-	case *pb.GatewayCommand_DockerExec:
+	case *pb.OpfieldCommand_DockerExec:
 		p.handleExecCommand(payload.DockerExec, result)
 
-	case *pb.GatewayCommand_DockerFile:
+	case *pb.OpfieldCommand_DockerFile:
 		p.handleFileCommand(payload.DockerFile, result)
 
-	case *pb.GatewayCommand_ExecInput:
+	case *pb.OpfieldCommand_ExecInput:
 		p.handleExecInput(payload.ExecInput)
 
-	case *pb.GatewayCommand_DockerLogs:
+	case *pb.OpfieldCommand_DockerLogs:
 		p.handleLogsCommand(payload.DockerLogs, result)
 
-	case *pb.GatewayCommand_DockerConfigPush:
+	case *pb.OpfieldCommand_DockerConfigPush:
 		p.handleConfigPush(payload.DockerConfigPush, result)
 
-	case *pb.GatewayCommand_DockerMigration:
+	case *pb.OpfieldCommand_DockerMigration:
 		p.handleMigrationCommand(payload.DockerMigration, result)
 
-	case *pb.GatewayCommand_SyncDockerRegistryBindings:
+	case *pb.OpfieldCommand_SyncDockerRegistryBindings:
 		detail, err := p.SyncDockerRegistryBindings(payload.SyncDockerRegistryBindings)
 		if err != nil {
 			result.Success = false
@@ -163,19 +163,19 @@ func (p *DockerPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
 			result.Detail = detail
 		}
 
-	case *pb.GatewayCommand_DockerDatabase:
+	case *pb.OpfieldCommand_DockerDatabase:
 		result.Success = false
 		result.Error = "managed database commands require the Storage profile"
 
-	case *pb.GatewayCommand_DockerStorage:
+	case *pb.OpfieldCommand_DockerStorage:
 		result.Success = false
 		result.Error = "managed storage commands require docker.mode=storage"
 
-	case *pb.GatewayCommand_DockerBackup:
+	case *pb.OpfieldCommand_DockerBackup:
 		result.Success = false
 		result.Error = "backup commands require docker.mode=storage"
 
-	case *pb.GatewayCommand_SetDaemonLogStream:
+	case *pb.OpfieldCommand_SetDaemonLogStream:
 		stream.SetDaemonLogStreaming(payload.SetDaemonLogStream.Enabled, payload.SetDaemonLogStream.MinLevel)
 		p.logger.Info("daemon log stream updated", "enabled", payload.SetDaemonLogStream.Enabled, "min_level", payload.SetDaemonLogStream.MinLevel)
 

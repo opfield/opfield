@@ -351,7 +351,7 @@ async function manageNotifications(context: NotificationToolContext, user: User,
       if (typeof a.bodyTemplate !== 'string') {
         throw new AppError(400, 'BODY_TEMPLATE_REQUIRED', 'bodyTemplate is required');
       }
-      const templateContext = buildTemplateContext(buildSampleEvent(), context.notifDispatcherService.getGatewayUrl());
+      const templateContext = buildTemplateContext(buildSampleEvent(), context.notifDispatcherService.getOpfieldUrl());
       return { rendered: renderTemplate(a.bodyTemplate, templateContext), context: templateContext };
     }
     case 'delivery_get': {

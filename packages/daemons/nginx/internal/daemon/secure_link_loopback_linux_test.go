@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover/handovertest"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/handover/handovertest"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
 // freeLoopbackAddress is a free port on a 127.64.x.y address, like the ones Gateway allocates.

@@ -45,10 +45,12 @@ const (
 	setAsideSuffix = ".previous-owner-"
 	// connectorCleanMount and connectorCleanEnv start a connector image in its
 	// clean mode (secure-link-connector clean.go).
-	connectorCleanMount = "/run/gateway-clean"
-	connectorCleanEnv   = "GATEWAY_CONNECTOR_CLEAN_DIR"
-	connectorCleanLabel = "connector-cleanup"
-	connectorUID        = 65532
+	connectorCleanMount = "/run/opfield-clean"
+	connectorCleanEnv   = "OPFIELD_CONNECTOR_CLEAN_DIR"
+	// legacy-name: GATEWAY_CONNECTOR_CLEAN_DIR read by connector images before Opfield — remove once every node reports none
+	legacyConnectorCleanEnv = "GATEWAY_CONNECTOR_CLEAN_DIR"
+	connectorCleanLabel     = "connector-cleanup"
+	connectorUID            = 65532
 )
 
 var setAsideCleanup sync.Mutex
@@ -127,8 +129,8 @@ func (p *DockerPlugin) emptyWithConnector(ctx context.Context, image, path strin
 	created, err := p.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config: &container.Config{
 			Image: image, User: fmt.Sprintf("%d:%d", connectorUID, connectorUID),
-			Env:    []string{connectorCleanEnv + "=" + connectorCleanMount},
-			Labels: map[string]string{"wiolett.gateway.managed": connectorCleanLabel},
+			Env:    []string{connectorCleanEnv + "=" + connectorCleanMount, legacyConnectorCleanEnv + "=" + connectorCleanMount},
+			Labels: map[string]string{"net.opfield.managed": connectorCleanLabel},
 		},
 		HostConfig: &container.HostConfig{
 			Binds:       []string{path + ":" + connectorCleanMount},
@@ -254,7 +256,7 @@ func storageConnectorConfigOf(inspect container.InspectResponse) (ContainerCreat
 	// The image may set variables of its own; only the connector's own pass validation.
 	env := config.Env[:0:0]
 	for _, value := range config.Env {
-		if strings.HasPrefix(value, "GATEWAY_CONNECTOR_") {
+		if isConnectorEnv(value) {
 			env = append(env, value)
 		}
 	}

@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 const (
@@ -744,7 +744,7 @@ func (m *Manager) AssignPrimary(setID string, assignment Assignment) error {
 	if mem == nil {
 		return fmt.Errorf("set %s has no member on this node", setID)
 	}
-	return m.adoptAssignmentLocked(mem, assignment, "gateway")
+	return m.adoptAssignmentLocked(mem, assignment, "opfield")
 }
 
 // adoptAssignmentLocked records a verified assignment newer than the one
@@ -770,7 +770,7 @@ func (m *Manager) adoptAssignmentLocked(mem *member, assignment Assignment, sour
 	if err := m.saveLocked(mem); err != nil {
 		return err
 	}
-	if source != "gateway" {
+	if source != "opfield" {
 		m.eventLocked(mem, Event{Kind: EventAssignmentLearned, Reason: source,
 			Detail: map[string]string{"generation": strconv.FormatUint(assignment.Generation, 10), "primaryMemberId": assignment.PrimaryMemberID}})
 	}

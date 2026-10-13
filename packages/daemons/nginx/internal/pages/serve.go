@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 // The console palette (packages/backend/src/lib/brand-palette.ts): paper in light, graphite in dark.
@@ -21,7 +23,7 @@ const (
 
 const pageColorVariables = ":root{--page:" + paperPage + ";--ink:" + paperInk + ";--stone:" + paperStone + "}@media(prefers-color-scheme:dark){:root{--page:" + graphitePage + ";--ink:" + graphiteInk + ";--stone:" + graphiteStone + "}}"
 
-const gatewayNotFoundHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>Page not found</title><style>` + pageColorVariables + `*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--page);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:100%;max-width:560px;text-align:center}.status{color:var(--stone);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}h1{margin:16px 0 0;font-size:clamp(40px,8vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.04em}p.message{margin:20px auto 0;max-width:440px;color:var(--stone);font-size:15px;line-height:1.6}.footer{margin-top:48px;color:var(--stone);font-size:12px}.footer a{color:inherit;text-decoration:none}.footer a:hover{text-decoration:underline}</style></head><body><main><section><div class="status">Error 404</div><h1>Page not found</h1><p class="message">The requested host or page is not available.</p></section><div class="footer">Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a></div></main></body></html>`
+const notFoundHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>Page not found</title><style>` + pageColorVariables + `*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--page);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:100%;max-width:560px;text-align:center}.status{color:var(--stone);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}h1{margin:16px 0 0;font-size:clamp(40px,8vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.04em}p.message{margin:20px auto 0;max-width:440px;color:var(--stone);font-size:15px;line-height:1.6}.footer{margin-top:48px;color:var(--stone);font-size:12px}.footer a{color:inherit;text-decoration:none}.footer a:hover{text-decoration:underline}</style></head><body><main><section><div class="status">Error 404</div><h1>Page not found</h1><p class="message">The requested host or page is not available.</p></section><div class="footer">Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a></div></main></body></html>`
 
 // PreviewFallback carries the per-preview serving options: missing-path
 // handling and the optional Project access list.
@@ -45,6 +47,7 @@ func (r *Runtime) applyConfig(configPath string, next []byte) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	next = naming.RenderBytes(next)
 	if (next == nil && !oldExists) || (next != nil && oldExists && string(old) == string(next)) {
 		return nil
 	}
@@ -99,7 +102,7 @@ func (r *Runtime) isReferenced(deploymentID string) bool {
 }
 
 func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certificateVersion, runtimeConfigPath string, fallback PreviewFallback) string {
-	lines := []string{"# gateway-pages immutable preview"}
+	lines := []string{"# opfield-pages immutable preview"}
 	if certificateID != "" && fallback.Access.Enabled() {
 		// Never ask for basic-auth credentials over plain HTTP: a protected
 		// preview with a certificate only answers port 80 with a redirect.
@@ -117,9 +120,14 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	if !fallback.SPAFallback && fallback.URL != "" {
 		lines = append(lines, "    error_page 404 =302 "+fallback.URL+";")
 	} else {
-		lines = append(lines, "    error_page 404 = @gateway_pages_not_found;")
+		lines = append(lines, "    error_page 404 = @opfield_pages_not_found;")
 	}
-	lines = append(lines, "    location = /_gateway/pages/config.js {", "        limit_except GET HEAD { deny all; }", "        alias "+runtimeConfigPath+";", "        default_type application/javascript;", "        add_header Cache-Control \"no-store, max-age=0\" always;", "    }", "    location ~ /\\. { deny all; }", "    location / {", "        limit_except GET HEAD { deny all; }", "        sub_filter_once on;", "        sub_filter '</head>' '<script src=\"/_gateway/pages/config.js\"></script></head>';")
+	// The runtime configuration answers under the Opfield path, which pages load, and under the pre-Opfield one, which
+	// pages written before 2.12.1 may name themselves.
+	for _, scriptPath := range []string{naming.PagesConfigScriptPath, naming.LegacyPagesConfigScriptPath} {
+		lines = append(lines, "    location = "+scriptPath+" {", "        limit_except GET HEAD { deny all; }", "        alias "+runtimeConfigPath+";", "        default_type application/javascript;", "        add_header Cache-Control \"no-store, max-age=0\" always;", "    }")
+	}
+	lines = append(lines, "    location ~ /\\. { deny all; }", "    location / {", "        limit_except GET HEAD { deny all; }", "        sub_filter_once on;", "        sub_filter '</head>' '<script src=\""+naming.PagesConfigScriptPath+"\"></script></head>';")
 	if fallback.SPAFallback {
 		lines = append(lines, "        try_files $uri $uri/ /index.html;")
 	} else {
@@ -127,7 +135,7 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	}
 	lines = append(lines, "    }")
 	if fallback.SPAFallback || fallback.URL == "" {
-		lines = append(lines, "    location @gateway_pages_not_found {", "        default_type text/html;", "        return 404 '"+gatewayNotFoundHTML+"';", "    }")
+		lines = append(lines, "    location @opfield_pages_not_found {", "        default_type text/html;", "        return 404 '"+notFoundHTML+"';", "    }")
 	}
 	lines = append(lines, "    location ~* \\.(?:css|js|mjs|json|png|jpe?g|gif|svg|ico|webp|avif|woff2?)$ {", "        limit_except GET HEAD { deny all; }", "        expires 1y;", "        add_header Cache-Control \"public, max-age=31536000, immutable\" always;", "    }", "}")
 	return strings.Join(lines, "\n") + "\n"

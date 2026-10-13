@@ -10,24 +10,24 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: gateway-postgres-dev
+    container_name: opfield-postgres-dev
     ports:
       - "55432:5432"
     environment:
-      POSTGRES_DB: gateway
+      POSTGRES_DB: opfield
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: dev
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dev -d gateway"]
+      test: ["CMD-SHELL", "pg_isready -U dev -d opfield"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: gateway-redis-dev
+    container_name: opfield-redis-dev
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
@@ -41,22 +41,22 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:26.2.10.10
-    container_name: gateway-clickhouse-dev
+    container_name: opfield-clickhouse-dev
     ports:
       - "8123:8123"
       - "9000:9000"
     environment:
-      CLICKHOUSE_DB: gateway_logs
-      CLICKHOUSE_USER: gateway
+      CLICKHOUSE_DB: opfield_logs
+      CLICKHOUSE_USER: opfield
       CLICKHOUSE_PASSWORD: dev
     volumes:
       - clickhouse_dev_data:/var/lib/clickhouse
-      - ./clickhouse-config/gateway-safety.xml:/etc/clickhouse-server/config.d/gateway-safety.xml:ro
+      - ./clickhouse-config/opfield-safety.xml:/etc/clickhouse-server/config.d/opfield-safety.xml:ro
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "clickhouse-client --user gateway --password dev --query 'SELECT 1'",
+          "clickhouse-client --user opfield --password dev --query 'SELECT 1'",
         ]
       interval: 10s
       timeout: 5s
@@ -65,10 +65,10 @@ services:
 
   registry:
     image: registry:3
-    container_name: gateway-registry-dev
+    container_name: opfield-registry-dev
     environment:
       REGISTRY_HTTP_ADDR: 0.0.0.0:5000
-      REGISTRY_HTTP_SECRET: gateway-development-registry-secret
+      REGISTRY_HTTP_SECRET: opfield-development-registry-secret
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
       REGISTRY_HEALTH_STORAGEDRIVER_ENABLED: "true"

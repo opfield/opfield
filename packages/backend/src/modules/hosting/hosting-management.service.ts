@@ -31,8 +31,12 @@ const SERVICES: Record<string, string> = {
   databases: 'docker-daemon',
   storage: 'docker-daemon',
   monitoring: 'monitoring-daemon',
-  relay: 'gateway-relay-supervisor',
+  relay: 'opfield-relay-supervisor',
 };
+
+// legacy-name: gateway-relay-supervisor unit — a relay installed before 2.12.1 keeps running under it until its next
+// start, and the new unit refuses to start while the old unit file exists; remove once every relay reports none.
+const LEGACY_SERVICES: Record<string, string> = { 'opfield-relay-supervisor': 'gateway-relay-supervisor' };
 export function hostingRecoveryScript(roles: string[]): string {
   const services = [...new Set(roles.map((role) => SERVICES[role]))];
   if (!services.length || services.some((service) => !service))
@@ -41,9 +45,20 @@ export function hostingRecoveryScript(roles: string[]): string {
       'HOSTING_RECOVERY_UNSUPPORTED',
       'No known service restart is available for these node roles'
     );
+  const candidates = services.map((service) => [LEGACY_SERVICES[service as string], service].filter(Boolean).join(':'));
   return `#!/bin/bash
 set -eu
-for service in ${services.map(shellArgument).join(' ')}; do
+unit_exists() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl cat "$1" >/dev/null 2>&1
+  else
+    [ -e "/etc/init.d/$1" ]
+  fi
+}
+for names in ${candidates.map(shellArgument).join(' ')}; do
+  service=\${names##*:}
+  legacy=\${names%%:*}
+  if [ "$legacy" != "$service" ] && unit_exists "$legacy"; then service=$legacy; fi
   if command -v systemctl >/dev/null 2>&1; then
     systemctl restart "$service"
   elif command -v rc-service >/dev/null 2>&1; then

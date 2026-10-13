@@ -10,15 +10,15 @@ import * as schema from '@/db/schema/index.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { listNodeLongTasks } from '@/services/node-long-tasks.js';
 import { updateContainer, updateContainerEnv } from './docker-container-mutation-operations.js';
-import { DAEMON_ERROR, fakeDockerNode, gatewayProcess } from './docker-env-follow-ups.test-helpers.js';
+import { DAEMON_ERROR, fakeDockerNode, opfieldProcess } from './docker-env-follow-ups.test-helpers.js';
 import { DockerEnvironmentService } from './docker-environment.service.js';
 import { DETACHED_TASK_PROGRESS, DockerTaskService } from './docker-task.service.js';
 import { DockerTaskReconciler } from './docker-task-reconciler.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a Gateway restart keeps the Docker tasks a node may still run
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a Gateway restart keeps the Docker tasks a node may still run
  * (they have tracking) active, so a daemon update waiting for the node's tasks still sees them, and settles them
  * later; a task without tracking fails as before (F-1).
  */
@@ -143,7 +143,7 @@ const sealed = {
 } satisfies schema.DockerTaskFollowUps;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): an update's or recreate's env follow-ups are kept sealed with its task
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): an update's or recreate's env follow-ups are kept sealed with its task
  * until they ran once, and still run after a Gateway restart once the node settled the task.
  */
 describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart', () => {
@@ -188,7 +188,7 @@ describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart',
     const environment = new DockerEnvironmentService(db, crypto);
     await environment.replace(nodeId, 'api', STORED);
     const node = fakeDockerNode(OLD_ENV, NEW_IMAGE_ENV);
-    const first = gatewayProcess(node, new DockerTaskService(db), environment, nodeId);
+    const first = opfieldProcess(node, new DockerTaskService(db), environment, nodeId);
     const { taskId } = await run(first.ctx);
     // The watch records the task's tracking right after it starts.
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -209,7 +209,7 @@ describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart',
     expect(await restarted.get(taskId!)).not.toHaveProperty('followUps');
 
     node.finish(outcome);
-    const next = gatewayProcess(node, restarted, new DockerEnvironmentService(db, crypto), nodeId);
+    const next = opfieldProcess(node, restarted, new DockerEnvironmentService(db, crypto), nodeId);
     await new DockerTaskReconciler(
       () => next.reconcileContext,
       () => true
@@ -248,7 +248,7 @@ describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart',
     const environment = new DockerEnvironmentService(db, crypto);
     await environment.replace(nodeId, 'api', STORED);
     const node = fakeDockerNode(OLD_ENV, NEW_IMAGE_ENV, { answer });
-    const first = gatewayProcess(node, new DockerTaskService(db), environment, nodeId);
+    const first = opfieldProcess(node, new DockerTaskService(db), environment, nodeId);
     void updateContainerEnv(first.ctx, nodeId, 'api', { API_KEY: NEW_SECRET }, undefined, 'user-1');
     // Gateway dies while it waits for the daemon's answer, after it saved the env.
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -270,7 +270,7 @@ describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart',
       expect(kept.sealed).not.toContain(plain);
 
     if (outcome) node.finish(outcome);
-    const next = gatewayProcess(node, restarted, new DockerEnvironmentService(db, crypto), nodeId);
+    const next = opfieldProcess(node, restarted, new DockerEnvironmentService(db, crypto), nodeId);
     await new DockerTaskReconciler(
       () => next.reconcileContext,
       () => true
@@ -342,7 +342,7 @@ const previousReleaseDockerTasks = pgTable('docker_tasks', {
 });
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a rollback whose database restore did not happen starts the previous
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a rollback whose database restore did not happen starts the previous
  * release on the migrated schema. It must still create, read, end and clean up its tasks there, and what this release
  * kept on a task the previous one ended is dropped once this release runs again.
  */

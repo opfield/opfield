@@ -41,11 +41,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
 )
 
 const (
-	launcherResumeFDEnv         = "GATEWAY_DAEMON_LAUNCHER_RESUME_FD"
+	launcherResumeFDEnv         = "OPFIELD_DAEMON_LAUNCHER_RESUME_FD"
 	launcherResumeSchemaVersion = 1
 	launcherResumeMaxSize       = 16 << 20
 
@@ -92,9 +92,14 @@ func launcherRunningFeatures(keeper bool) []string {
 func takeLauncherResume() (*launcherResume, error) {
 	value, ok := os.LookupEnv(launcherResumeFDEnv)
 	if !ok {
-		return nil, nil
+		// legacy-name: GATEWAY_DAEMON_LAUNCHER_RESUME_FD from a pre-Opfield launcher image execing into this one — remove once every node reports none
+		value, ok = os.LookupEnv(legacyLauncherResumeFDEnv)
 	}
 	_ = os.Unsetenv(launcherResumeFDEnv)
+	_ = os.Unsetenv(legacyLauncherResumeFDEnv)
+	if !ok {
+		return nil, nil
+	}
 	fd, err := strconv.Atoi(value)
 	if err != nil || fd < 3 {
 		return nil, errors.New("launcher resume descriptor is invalid")
@@ -225,7 +230,8 @@ func execLauncherInPlace(ctx context.Context, spec LauncherSpec, target string, 
 	if resume.Keeper != nil {
 		descriptors = append(descriptors, resume.Keeper.Descriptors()...)
 	}
-	environment := append(environmentWithout(os.Environ(), launcherResumeFDEnv), launcherResumeFDEnv+"="+strconv.Itoa(int(record.Fd())))
+	environment := append(environmentWithout(environmentWithout(os.Environ(), launcherResumeFDEnv), legacyLauncherResumeFDEnv),
+		launcherEnvPairs(launcherResumeFDEnv, legacyLauncherResumeFDEnv, strconv.Itoa(int(record.Fd())))...)
 
 	// No process may start while these descriptors stay open across exec.
 	syscall.ForkLock.Lock()

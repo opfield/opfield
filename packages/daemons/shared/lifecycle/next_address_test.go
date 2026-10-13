@@ -16,9 +16,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/connector"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/state"
+	"github.com/opfield/opfield/daemon-shared/connector"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/state"
 	"google.golang.org/grpc/connectivity"
 )
 
@@ -65,9 +65,9 @@ func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// testMove is a gatewayMove on a fake clock whose probe answers with probeErr.
+// testMove is a opfieldMove on a fake clock whose probe answers with probeErr.
 type testMove struct {
-	*gatewayMove
+	*opfieldMove
 	clock    time.Time
 	mu       sync.Mutex
 	probed   []string
@@ -78,7 +78,7 @@ type testMove struct {
 func newTestMove(t *testing.T, path, current, next string) *testMove {
 	t.Helper()
 	tm := &testMove{clock: time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)}
-	tm.gatewayMove = newGatewayMove(path, current, next,
+	tm.opfieldMove = newOpfieldMove(path, current, next,
 		func() time.Time { return tm.clock },
 		discardLogger(),
 		func(_ context.Context, address string) error {
@@ -100,7 +100,7 @@ func (tm *testMove) probes() int {
 	return len(tm.probed)
 }
 
-func TestNormalizeGatewayAddress(t *testing.T) {
+func TestNormalizeOpfieldAddress(t *testing.T) {
 	valid := map[string]string{
 		"gw.example.com:9443":   "gw.example.com:9443",
 		"GW.Example.com:1":      "gw.example.com:1",
@@ -112,9 +112,9 @@ func TestNormalizeGatewayAddress(t *testing.T) {
 		"xn--bcher-kva.ch:9443": "xn--bcher-kva.ch:9443",
 	}
 	for input, want := range valid {
-		got, err := normalizeGatewayAddress(input)
+		got, err := normalizeOpfieldAddress(input)
 		if err != nil || got != want {
-			t.Errorf("normalizeGatewayAddress(%q) = %q, %v; want %q", input, got, err, want)
+			t.Errorf("normalizeOpfieldAddress(%q) = %q, %v; want %q", input, got, err, want)
 		}
 	}
 	invalid := []string{
@@ -126,8 +126,8 @@ func TestNormalizeGatewayAddress(t *testing.T) {
 		strings.Repeat("a", 64) + ".example:443",
 	}
 	for _, input := range invalid {
-		if got, err := normalizeGatewayAddress(input); err == nil {
-			t.Errorf("normalizeGatewayAddress(%q) = %q, want an error", input, got)
+		if got, err := normalizeOpfieldAddress(input); err == nil {
+			t.Errorf("normalizeOpfieldAddress(%q) = %q, want an error", input, got)
 		}
 	}
 }
@@ -159,7 +159,7 @@ func TestSetNextAddressPersistsAndKeepsEveryOtherKey(t *testing.T) {
 	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o640 {
 		t.Fatalf("file mode changed: %v %v", info.Mode(), err)
 	}
-	if loaded, err := LoadBaseConfig(path); err != nil || loaded.Gateway.NextAddress != "new.example:9443" || loaded.Gateway.Address != "old.example:9443" {
+	if loaded, err := LoadBaseConfig(path); err != nil || loaded.Control.NextAddress != "new.example:9443" || loaded.Control.Address != "old.example:9443" {
 		t.Fatalf("LoadBaseConfig = %+v, %v", loaded, err)
 	}
 }
@@ -209,7 +209,7 @@ func TestNextAddressIsLoadedOnStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tm := newTestMove(t, path, cfg.Gateway.Address, cfg.Gateway.NextAddress)
+	tm := newTestMove(t, path, cfg.Control.Address, cfg.Control.NextAddress)
 	if tm.next != "new.example:9443" {
 		t.Fatalf("next address not loaded: %q", tm.next)
 	}
@@ -368,32 +368,32 @@ func TestSwitchControlAddressUpdatesConnectorAndListeners(t *testing.T) {
 	}
 }
 
-func TestSetGatewayNextAddressCommandResult(t *testing.T) {
+func TestSetOpfieldNextAddressCommandResult(t *testing.T) {
 	path := writeNextAddressTestConfig(t, nextAddressTestConfig)
-	d := &DaemonBase{logger: discardLogger(), move: newTestMove(t, path, "old.example:9443", "").gatewayMove}
-	command := func(address string) *pb.GatewayCommand {
-		return &pb.GatewayCommand{CommandId: "c1", Payload: &pb.GatewayCommand_SetGatewayNextAddress{
-			SetGatewayNextAddress: &pb.SetGatewayNextAddressCommand{Address: address},
+	d := &DaemonBase{logger: discardLogger(), move: newTestMove(t, path, "old.example:9443", "").opfieldMove}
+	command := func(address string) *pb.OpfieldCommand {
+		return &pb.OpfieldCommand{CommandId: "c1", Payload: &pb.OpfieldCommand_SetOpfieldNextAddress{
+			SetOpfieldNextAddress: &pb.SetOpfieldNextAddressCommand{Address: address},
 		}}
 	}
-	if result := d.handleSetGatewayNextAddress(command("new.example:9443")); !result.Success || result.CommandId != "c1" {
+	if result := d.handleSetOpfieldNextAddress(command("new.example:9443")); !result.Success || result.CommandId != "c1" {
 		t.Fatalf("valid address: %+v", result)
 	}
-	if result := d.handleSetGatewayNextAddress(command("new.example")); result.Success || !strings.Contains(result.Error, "host:port") {
+	if result := d.handleSetOpfieldNextAddress(command("new.example")); result.Success || !strings.Contains(result.Error, "host:port") {
 		t.Fatalf("invalid address: %+v", result)
 	}
-	if result := d.handleSetGatewayNextAddress(command("")); !result.Success || d.move.next != "" {
+	if result := d.handleSetOpfieldNextAddress(command("")); !result.Success || d.move.next != "" {
 		t.Fatalf("clear: %+v, next %q", result, d.move.next)
 	}
-	if result := (&DaemonBase{}).handleSetGatewayNextAddress(command("new.example:9443")); result.Success {
+	if result := (&DaemonBase{}).handleSetOpfieldNextAddress(command("new.example:9443")); result.Success {
 		t.Fatal("a daemon without its lifecycle started accepted the command")
 	}
 }
 
-func TestRegistrationAdvertisesGatewayNextAddress(t *testing.T) {
+func TestRegistrationAdvertisesOpfieldNextAddress(t *testing.T) {
 	d := &DaemonBase{plugin: &protectedTestPlugin{}, cfg: &BaseConfig{}, state: &state.State{NodeID: "node-1"}}
-	if !slices.Contains(d.buildRegistration().Capabilities, GatewayNextAddressCapability) {
-		t.Fatal("registration lacks " + GatewayNextAddressCapability)
+	if !slices.Contains(d.buildRegistration().Capabilities, OpfieldNextAddressCapability) {
+		t.Fatal("registration lacks " + OpfieldNextAddressCapability)
 	}
 }
 

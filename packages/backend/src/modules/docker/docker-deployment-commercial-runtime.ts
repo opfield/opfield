@@ -36,7 +36,7 @@ import {
 
 import { assertDockerCreationAccess, placeCreatedDockerResource } from '@/modules/docker/docker-creation-access.js';
 
-import { DOCKER_DEPLOYMENT_MANAGED_LABEL, dockerDeploymentLabels } from '@/modules/docker/docker-deployment-labels.js';
+import { dockerDeploymentLabels } from '@/modules/docker/docker-deployment-labels.js';
 import { hasDockerGpuV1Capability } from '@/modules/docker/docker-gpu-attachment.js';
 import { assertManagedMountMutation } from '@/modules/docker/docker-managed-mounts.js';
 import {
@@ -72,7 +72,6 @@ export const dockerDeploymentCommercialRuntime = {
   assertDockerCreationAccess,
   placeCreatedDockerResource,
 
-  DOCKER_DEPLOYMENT_MANAGED_LABEL,
   dockerDeploymentLabels,
   hasDockerGpuV1Capability,
   assertManagedMountMutation,

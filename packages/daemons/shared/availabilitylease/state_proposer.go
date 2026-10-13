@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // pendingTransition is a transition queued on a held stateful key (AS2).

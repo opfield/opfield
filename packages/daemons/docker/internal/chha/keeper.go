@@ -17,10 +17,10 @@ const (
 	settleAfterAdd = 15 * time.Second
 	// witnessDeadFor: an active witness unreachable this long is replaced.
 	witnessDeadFor = 2 * time.Minute
-	// gatewayDownFor: the holder activates a standby witness itself only when
+	// opfieldDownFor: the holder activates a standby witness itself only when
 	// the Gateway session is down at least this long (Gateway re-places
 	// witnesses itself when it is up).
-	gatewayDownFor = 30 * time.Second
+	opfieldDownFor = 30 * time.Second
 )
 
 // KeeperClientCommand is the clickhouse keeper-client invocation of one
@@ -256,8 +256,8 @@ func planKeeper(selfID uint32, current map[uint32]keeperEntry, voters, learners 
 // witness (decision 8): Gateway down, the active witness dead for
 // witnessDeadFor, this member's Keeper in the quorum (the two data Keepers),
 // a standby named by Gateway, and nothing activated yet.
-func activationDue(gatewayDown, witnessDown time.Duration, keeperQuorum bool, pending *activation, ec EngineConfig) bool {
-	return pending == nil && gatewayDown >= gatewayDownFor && witnessDown >= witnessDeadFor && keeperQuorum &&
+func activationDue(opfieldDown, witnessDown time.Duration, keeperQuorum bool, pending *activation, ec EngineConfig) bool {
+	return pending == nil && opfieldDown >= opfieldDownFor && witnessDown >= witnessDeadFor && keeperQuorum &&
 		len(standbys(ec)) > 0
 }
 

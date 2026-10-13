@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
 )
 
 const (
@@ -45,11 +45,12 @@ func (p *Plugin) SetLogger(logger *slog.Logger) { p.logger = logger }
 func (p *Plugin) Init(_ *lifecycle.BaseConfig, logger *slog.Logger) error {
 	p.logger = logger
 	p.startWitnesses()
+	p.scheduleHostNames()
 	return nil
 }
 
 // startWitnesses restores the last applied witness set and runs it, with or
-// without a Gateway session.
+// without an Opfield session.
 func (p *Plugin) startWitnesses() {
 	if p.witnesses != nil {
 		return
@@ -83,12 +84,12 @@ func (p *Plugin) startWitnesses() {
 // PersistEnrollmentBundle stores a new enrollment, first or repeated. The
 // worker starts over from the enrollment key: its previous policy trust is
 // moved aside, which is how a re-enrollment repairs a relay that trusts only
-// keys Gateway can no longer sign with.
+// keys Opfield can no longer sign with.
 func (p *Plugin) PersistEnrollmentBundle(response *pb.EnrollResponse) error {
 	if _, err := validateEnrollmentBundle(response); err != nil {
 		return err
 	}
-	// From here on Gateway considers the relay enrolled with this bundle; the
+	// From here on Opfield considers the relay enrolled with this bundle; the
 	// previous identity is superseded. Record the bundle first, so a failure
 	// below is completed on the next start rather than leaving the relay half
 	// re-enrolled.
@@ -146,11 +147,11 @@ func (p *Plugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 	return register
 }
 
-func (p *Plugin) HandleCommand(command *pb.GatewayCommand) *pb.CommandResult {
+func (p *Plugin) HandleCommand(command *pb.OpfieldCommand) *pb.CommandResult {
 	result := &pb.CommandResult{CommandId: command.GetCommandId(), Success: true}
 	var err error
 	switch payload := command.GetPayload().(type) {
-	case *pb.GatewayCommand_SyncRelayPolicy:
+	case *pb.OpfieldCommand_SyncRelayPolicy:
 		if refusal := p.protectedPolicyRefusal(payload.SyncRelayPolicy.GetApplySnapshotRequest()); refusal != "" {
 			result.Success = false
 			result.Error = refusal
@@ -170,7 +171,7 @@ func (p *Plugin) HandleCommand(command *pb.GatewayCommand) *pb.CommandResult {
 			result.Detail = fmt.Sprintf("revision=%d unchanged=%t expires_at=%d pool=%s instance=%s", responseRevision, responseUnchanged, responseExpiry, responsePool, responseInstance)
 		}
 		err = applyErr
-	case *pb.GatewayCommand_SetRelayDrain:
+	case *pb.OpfieldCommand_SetRelayDrain:
 		err = p.worker.setDrain(
 			context.Background(),
 			payload.SetRelayDrain.GetEnabled(),
@@ -183,7 +184,7 @@ func (p *Plugin) HandleCommand(command *pb.GatewayCommand) *pb.CommandResult {
 				payload.SetRelayDrain.GetForceDisconnect(),
 			)
 		}
-	case *pb.GatewayCommand_UpdateRelayWorker:
+	case *pb.OpfieldCommand_UpdateRelayWorker:
 		update := payload.UpdateRelayWorker
 		if refusal := p.protectedWorkerUpdateRefusal(update.GetTargetVersion()); refusal != "" {
 			result.Success = false
@@ -201,20 +202,20 @@ func (p *Plugin) HandleCommand(command *pb.GatewayCommand) *pb.CommandResult {
 		if err == nil {
 			result.Detail = fmt.Sprintf("relay worker updated to %s", update.GetTargetVersion())
 		}
-	case *pb.GatewayCommand_RenewRelayIdentity:
+	case *pb.OpfieldCommand_RenewRelayIdentity:
 		var fingerprint string
 		fingerprint, err = p.worker.renewIdentity(context.Background(), payload.RenewRelayIdentity, p.cfg.TLS.ClientCert, p.cfg.TLS.ClientKey)
 		if err == nil {
 			result.Detail = fmt.Sprintf("server_identity=%s server_fingerprint=%s", payload.RenewRelayIdentity.GetServerIdentity(), fingerprint)
 		}
-	case *pb.GatewayCommand_GetRelayRouteRuntime:
+	case *pb.OpfieldCommand_GetRelayRouteRuntime:
 		result.Detail, err = p.worker.routeRuntime(context.Background(), payload.GetRelayRouteRuntime.GetRouteIds())
-	case *pb.GatewayCommand_ApplyWitnesses:
+	case *pb.OpfieldCommand_ApplyWitnesses:
 		if p.witnesses == nil {
 			p.startWitnesses()
 		}
 		result.Detail, err = p.witnesses.Apply(payload.ApplyWitnesses)
-	case *pb.GatewayCommand_SetDaemonLogStream:
+	case *pb.OpfieldCommand_SetDaemonLogStream:
 		stream.SetDaemonLogStreaming(payload.SetDaemonLogStream.Enabled, payload.SetDaemonLogStream.MinLevel)
 	default:
 		result.Success = false
@@ -236,6 +237,7 @@ func (p *Plugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 		base.ConfigValid = last.GetState() == "ready" || last.GetState() == "draining" || last.GetState() == "synchronizing"
 		base.NginxRunning = last.GetState() != "offline" && last.GetState() != "error"
 	}
+	p.reportLegacyHostNames(base)
 	return base
 }
 

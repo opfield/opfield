@@ -2,15 +2,15 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# ── Gateway Nginx Node Setup ─────────────────────────────────────────
-# Installs nginx + nginx-daemon on a host and enrolls it with the Gateway.
+# ── Opfield Nginx Node Setup ─────────────────────────────────────────
+# Installs nginx + nginx-daemon on a host and enrolls it with Opfield.
 #
 # Usage:
 #   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-node.sh | \
-#     bash -s -- --gateway gateway.example.com:9443 --token <ENROLLMENT_TOKEN> --gateway-cert-sha256 sha256:<HEX>
+#     bash -s -- --opfield opfield.example.com:9443 --token <ENROLLMENT_TOKEN> --opfield-cert-sha256 sha256:<HEX>
 #
 # Or download and run:
-#   bash setup-node.sh --gateway gateway.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<HEX>
+#   bash setup-node.sh --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<HEX>
 # ──────────────────────────────────────────────────────────────────────
 
 LOG_FILE="/dev/null"
@@ -30,27 +30,48 @@ SUCCESS_TAG='\033[42m\033[97m'
 TITLE_TAG='\033[48;2;140;176;132m\033[30m'
 
 # ── Defaults ─────────────────────────────────────────────────────────
-GATEWAY_HOST="${GATEWAY_NODE_HOST:-}"
-GATEWAY_PORT="${GATEWAY_NODE_PORT:-9443}"
-GATEWAY_ADDR="${GATEWAY_NODE_ADDRESS:-}"
-ENROLL_TOKEN="${GATEWAY_NODE_TOKEN:-}"
-GATEWAY_CERT_SHA256="${GATEWAY_NODE_CERT_SHA256:-}"
-DAEMON_VERSION="${GATEWAY_NODE_DAEMON_VERSION:-latest}"
-SKIP_NGINX="${GATEWAY_NODE_SKIP_NGINX:-0}"
-DISABLE_CONSOLE="${GATEWAY_NODE_DISABLE_CONSOLE:-0}"
-DISABLE_FILES="${GATEWAY_NODE_DISABLE_FILES:-0}"
-RELEASES_API_URL="${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
-ARTIFACT_BASE_URL="${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
+# legacy-name: GATEWAY_NODE_*, GATEWAY_RELEASES_API_URL, GATEWAY_ARTIFACT_BASE_URL and GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS
+# installer environment — customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is
+# not set (the new name wins).
+for legacy_env in GATEWAY_NODE_HOST GATEWAY_NODE_PORT GATEWAY_NODE_ADDRESS GATEWAY_NODE_TOKEN GATEWAY_NODE_CERT_SHA256 \
+    GATEWAY_NODE_DAEMON_VERSION GATEWAY_NODE_SKIP_NGINX GATEWAY_NODE_DISABLE_CONSOLE GATEWAY_NODE_DISABLE_FILES \
+    GATEWAY_NODE_NGINX_MODE GATEWAY_NODE_APT_LOCK_RETRY_ATTEMPTS GATEWAY_NODE_APT_LOCK_RETRY_DELAY_SECONDS \
+    GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS GATEWAY_RELEASES_API_URL GATEWAY_ARTIFACT_BASE_URL \
+    GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS; do
+    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+    if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
+        printf -v "$opfield_env" '%s' "${!legacy_env}"
+    fi
+done
+unset legacy_env opfield_env
+OPFIELD_HOST="${OPFIELD_NODE_HOST:-}"
+OPFIELD_PORT="${OPFIELD_NODE_PORT:-9443}"
+OPFIELD_ADDR="${OPFIELD_NODE_ADDRESS:-}"
+ENROLL_TOKEN="${OPFIELD_NODE_TOKEN:-}"
+OPFIELD_CERT_SHA256="${OPFIELD_NODE_CERT_SHA256:-}"
+DAEMON_VERSION="${OPFIELD_NODE_DAEMON_VERSION:-latest}"
+SKIP_NGINX="${OPFIELD_NODE_SKIP_NGINX:-0}"
+DISABLE_CONSOLE="${OPFIELD_NODE_DISABLE_CONSOLE:-0}"
+DISABLE_FILES="${OPFIELD_NODE_DISABLE_FILES:-0}"
+RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
+ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
 RUN_USER=""
-NGINX_MODE="${GATEWAY_NODE_NGINX_MODE:-}"
+NGINX_MODE="${OPFIELD_NODE_NGINX_MODE:-}"
 NON_INTERACTIVE=0
 NO_LOGO=0
 DRY_RUN=0
 GUIDE_ACTIVE=0
 STUB_STATUS_URL="http://127.0.0.1/nginx_status"
 INTEGRATED_STUB_STATUS_PORT="8081"
-NGINX_SITES_DIR="/etc/nginx/gateway/conf.d"
-NGINX_HTPASSWD_DIR="/etc/nginx/gateway/htpasswd"
+# The Opfield nginx tree. A node installed before 2.12.1 has it at /etc/nginx/gateway; migrate_nginx_tree moves it here
+# and leaves /etc/nginx/gateway as a link to it, because configurations written for the old path still name it.
+NGINX_OPFIELD_DIR="/etc/nginx/opfield"
+# legacy-name: /etc/nginx/gateway nginx tree of nodes installed before 2.12.1 (kept as a link) — remove once every node
+# reports none and no customer configuration names it
+NGINX_LEGACY_DIR="/etc/nginx/gateway"
+NGINX_SITES_DIR="${NGINX_OPFIELD_DIR}/conf.d"
+NGINX_LEGACY_SITES_DIR="${NGINX_LEGACY_DIR}/conf.d"
+NGINX_HTPASSWD_DIR="${NGINX_OPFIELD_DIR}/htpasswd"
 NGINX_GLOBAL_CONF="/etc/nginx/nginx.conf"
 NGINX_SYSTEMD_DROPIN_DIR="/etc/systemd/system/nginx.service.d"
 NGINX_OPENRC_CONF_DIR="/etc/conf.d"
@@ -59,13 +80,13 @@ NGINX_WORKER_NOFILE_MIN=65535
 NGINX_SERVICE_NOFILE_MIN=65536
 NGINX_WORKER_CONNECTIONS_MIN=8192
 NGINX_SERVICE_RESTART_REQUIRED=0
-APT_LOCK_RETRY_ATTEMPTS="${GATEWAY_NODE_APT_LOCK_RETRY_ATTEMPTS:-12}"
-APT_LOCK_RETRY_DELAY_SECONDS="${GATEWAY_NODE_APT_LOCK_RETRY_DELAY_SECONDS:-5}"
-MANUAL_LAUNCH_TIMEOUT_SECONDS="${GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS:-30}"
+APT_LOCK_RETRY_ATTEMPTS="${OPFIELD_NODE_APT_LOCK_RETRY_ATTEMPTS:-12}"
+APT_LOCK_RETRY_DELAY_SECONDS="${OPFIELD_NODE_APT_LOCK_RETRY_DELAY_SECONDS:-5}"
+MANUAL_LAUNCH_TIMEOUT_SECONDS="${OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS:-30}"
 RESOLVED_DAEMON_VERSION=""
 EXISTING_INSTALL=0
 EXISTING_VERSION=""
-EXISTING_GATEWAY_ADDR=""
+EXISTING_OPFIELD_ADDR=""
 EXISTING_ENROLLED=0
 MANUAL_FALLBACK_USED=0
 
@@ -347,17 +368,30 @@ nginx_conf_has_line() {
     ' "$conf"
 }
 
-# The nginx mode of an earlier Gateway install on this host, or nothing: a
-# managed install writes nginx.conf with a direct include of the Gateway sites
+# The nginx mode of an earlier Opfield install on this host, or nothing: a
+# managed install writes nginx.conf with a direct include of the Opfield sites
 # directory, an integrated one adds the include of sites.include.conf.
 detect_installed_nginx_mode() {
     local global_conf="/etc/nginx/nginx.conf"
-    if nginx_conf_has_line "$global_conf" "include /etc/nginx/gateway/sites.include.conf;"; then
+    # legacy-name: include lines of the /etc/nginx/gateway tree written before 2.12.1 — remove once every node reports none
+    if nginx_conf_has_line "$global_conf" "include ${NGINX_OPFIELD_DIR}/sites.include.conf;" || \
+        nginx_conf_has_line "$global_conf" "include ${NGINX_LEGACY_DIR}/sites.include.conf;"; then
         echo "integrate"
-    elif nginx_conf_has_line "$global_conf" "include ${NGINX_SITES_DIR}/*.conf;"; then
+    elif nginx_conf_has_line "$global_conf" "include ${NGINX_SITES_DIR}/*.conf;" || \
+        nginx_conf_has_line "$global_conf" "include ${NGINX_LEGACY_SITES_DIR}/*.conf;"; then
         echo "managed"
     fi
 }
+# Before anything changes: an /etc/nginx/opfield directory with files next to the /etc/nginx/gateway directory cannot be
+# merged by the installer.
+preflight_nginx_tree() {
+    [[ -d "$NGINX_LEGACY_DIR" && ! -L "$NGINX_LEGACY_DIR" && -d "$NGINX_OPFIELD_DIR" && ! -L "$NGINX_OPFIELD_DIR" ]] || return 0
+    [[ -n "$(ls -A "$NGINX_OPFIELD_DIR" 2>/dev/null)" ]] || return 0
+    err "${NGINX_LEGACY_DIR} and ${NGINX_OPFIELD_DIR} are both directories with files; the Opfield nginx tree must be one of them."
+    err "Move the files of ${NGINX_OPFIELD_DIR} into ${NGINX_LEGACY_DIR}, remove ${NGINX_OPFIELD_DIR}, and run the installer again."
+    die "The nginx tree cannot be moved; nothing was changed."
+}
+
 has_systemd() { command_exists systemctl && [[ -d /run/systemd/system ]]; }
 has_openrc() { command_exists rc-service && command_exists rc-update; }
 
@@ -368,9 +402,21 @@ NGINX_DAEMON_BIN_LINK="/usr/local/bin/nginx-daemon"
 NGINX_DAEMON_OWN_DIR="/usr/local/lib/nginx-daemon"
 NGINX_DAEMON_OWN_BINARY="${NGINX_DAEMON_OWN_DIR}/bin/nginx-daemon"
 NGINX_DAEMON_OWN_HOST_IDENTITY="/var/lib/nginx-daemon/host-identity"
-SHARED_HOST_IDENTITY="/var/lib/gateway/host-identity"
+# The identity root daemons of one host share. The daemons move /var/lib/gateway to /var/lib/opfield themselves (after
+# a start their launcher confirmed) and leave /var/lib/gateway as a link to it; the installer never moves it.
+SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
+# legacy-name: /var/lib/gateway shared host identity directory of daemons before 2.12.1 — remove once every node
+# reports none
+LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
 # Sockets the daemon serves to nginx and Secure Links; root creates them on demand, a run user needs them prepared.
-NGINX_DAEMON_RUNTIME_DIRS=(nginx-daemon gateway-secure-links gateway-registry-links gateway-ingress-health)
+NGINX_DAEMON_RUNTIME_DIRS=(nginx-daemon opfield-secure-links opfield-registry-links opfield-ingress-health)
+# An existing node whose daemon has not moved to the Opfield names yet (it writes opfield-names in its state directory
+# when it has) still uses the old directories, and a daemon running as its own user cannot create the new ones itself:
+# prepare both until its move.
+# legacy-name: gateway-* nginx-daemon runtime directories — remove once every node reports none
+if [[ -d /var/lib/nginx-daemon && ! -e /var/lib/nginx-daemon/opfield-names ]]; then
+    NGINX_DAEMON_RUNTIME_DIRS+=(gateway-secure-links gateway-registry-links gateway-ingress-health)
+fi
 
 # Reads an installed binary's version. A binary another user can replace is never run as root.
 daemon_binary_version() {
@@ -387,10 +433,12 @@ daemon_binary_version() {
 
 # In non-root mode /usr/local/bin/<daemon> is a root-owned wrapper, not the binary: the binary belongs to the service
 # user, who replaces it on update, so root must never execute it. The wrapper switches a root caller to that user.
-DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
+DAEMON_WRAPPER_MARK="# opfield-daemon-wrapper: runs the service user's binary, never as root"
+# legacy-name: wrapper marker written by installers before 2.12.1 — remove once every node reports none
+LEGACY_DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
 write_daemon_wrapper() {
     local command_path="$1" binary="$2" temporary
-    temporary=$(mktemp "$(dirname "$command_path")/.gateway-daemon-wrapper.XXXXXX") || return 1
+    temporary=$(mktemp "$(dirname "$command_path")/.opfield-daemon-wrapper.XXXXXX") || return 1
     if ! cat >"$temporary" <<WRAPPER
 #!/bin/sh
 ${DAEMON_WRAPPER_MARK}
@@ -416,7 +464,7 @@ WRAPPER
 }
 
 is_daemon_wrapper() {
-    [[ -f "$1" && ! -L "$1" ]] && grep -Fqx "$DAEMON_WRAPPER_MARK" "$1" 2>/dev/null
+    [[ -f "$1" && ! -L "$1" ]] && grep -Fqx -e "$DAEMON_WRAPPER_MARK" -e "$LEGACY_DAEMON_WRAPPER_MARK" "$1" 2>/dev/null
 }
 
 run_as_run_user() {
@@ -548,7 +596,7 @@ ensure_nginx_openrc_pid_directory() {
     [[ "$(stat -c %u "$service")" == 0 ]] || die "Untrusted nginx OpenRC service owner"
     mode=$(stat -c %a "$service")
     (( (8#$mode & 8#022) == 0 )) || die "Untrusted nginx OpenRC service permissions"
-    candidate=$(mktemp /etc/init.d/.nginx-gateway-XXXXXX)
+    candidate=$(mktemp /etc/init.d/.nginx-opfield-XXXXXX)
     cat "$service" > "$candidate"
     if [[ -n "$replaced" ]]; then
         sed "s/${replaced}/${secured}/" "$service" > "$candidate"
@@ -763,8 +811,38 @@ new_host_identity() {
     printf '%s\n' "$value"
 }
 
+# The shared host identity: at /var/lib/opfield when it is there (a file, or through a linked directory), else at the
+# legacy /var/lib/gateway when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
+# at once more after a pause: a daemon moving the directory right then must not make the host look like a new one.
+shared_host_identity_path() {
+    local current="${SHARED_HOST_IDENTITY_DIR}/host-identity"
+    # legacy-name: /var/lib/gateway/host-identity of daemons before 2.12.1 — remove once every node reports none
+    local legacy="${LEGACY_SHARED_HOST_IDENTITY_DIR}/host-identity"
+    local attempt
+    for attempt in 1 2; do
+        if [[ -e "$current" || -L "$current" ]]; then
+            echo "$current"
+            return 0
+        fi
+        if [[ -e "$legacy" || -L "$legacy" ]]; then
+            echo "$legacy"
+            return 0
+        fi
+        [[ "$attempt" -eq 2 ]] || sleep 1
+    done
+    echo "$current"
+}
+
+# A shared identity directory created at /var/lib/opfield gets /var/lib/gateway as a link to it, the layout the daemons
+# leave after they move the directory, so a daemon of an earlier release on this host finds the same identity.
+link_legacy_host_identity_dir() {
+    [[ -d "$SHARED_HOST_IDENTITY_DIR" && ! -L "$SHARED_HOST_IDENTITY_DIR" ]] || return 0
+    [[ ! -e "$LEGACY_SHARED_HOST_IDENTITY_DIR" && ! -L "$LEGACY_SHARED_HOST_IDENTITY_DIR" ]] || return 0
+    ln -s "$(basename "$SHARED_HOST_IDENTITY_DIR")" "$LEGACY_SHARED_HOST_IDENTITY_DIR" 2>/dev/null || true
+}
+
 # A daemon running as its own user cannot read the host identity that root daemons share (root-owned, mode 0600). It
-# gets a copy of that same identity in its own state directory, so Gateway still sees one host and the shared file
+# gets a copy of that same identity in its own state directory, so Opfield still sees one host and the shared file
 # keeps its owner and mode. Without a shared identity yet, one is created there exactly as a root daemon would.
 seed_host_identity_copy() {
     local shared="$1" copy="$2" identity="" temporary
@@ -821,8 +899,11 @@ prepare_run_user_identity() {
             || die "Could not point /etc/nginx-daemon/config.yaml at the shared host identity."
         return 0
     fi
-    seed_host_identity_copy "$SHARED_HOST_IDENTITY" "$NGINX_DAEMON_OWN_HOST_IDENTITY" \
+    local shared
+    shared=$(shared_host_identity_path)
+    seed_host_identity_copy "$shared" "$NGINX_DAEMON_OWN_HOST_IDENTITY" \
         || die "Could not prepare the host identity for ${RUN_USER}."
+    link_legacy_host_identity_dir
     set_config_host_identity_path /etc/nginx-daemon/config.yaml "$NGINX_DAEMON_OWN_HOST_IDENTITY" \
         || die "Could not point /etc/nginx-daemon/config.yaml at ${NGINX_DAEMON_OWN_HOST_IDENTITY}."
     grant_daemon_paths_to_run_user
@@ -839,15 +920,27 @@ clear_config_host_identity_path() {
     rm -f "$temporary"
 }
 
-# The daemon records each control session Gateway accepted in its state directory (from GATEWAY_SESSION_SINCE on).
+# The daemon records each control session Opfield accepted in its state directory (from CONTROL_SESSION_SINCE on).
 # The installer removes the record before it starts the daemon, so only a session of the daemon it started counts.
-GATEWAY_SESSION_SINCE="v2.11.1-rc.2"
-GATEWAY_SESSION_FILE="/var/lib/nginx-daemon/gateway-session.json"
-GATEWAY_SESSION_STARTED=0
+CONTROL_SESSION_SINCE="v2.11.1-rc.2"
+CONTROL_SESSION_FILE="/var/lib/nginx-daemon/control-session.json"
+# legacy-name: gateway-session.json session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
+# every node reports none
+LEGACY_CONTROL_SESSION_FILE="/var/lib/nginx-daemon/gateway-session.json"
+CONTROL_SESSION_STARTED=0
 
-forget_gateway_session() {
-    rm -f "$GATEWAY_SESSION_FILE"
-    GATEWAY_SESSION_STARTED=$(date +%s)
+forget_control_session() {
+    rm -f "$CONTROL_SESSION_FILE" "$LEGACY_CONTROL_SESSION_FILE"
+    CONTROL_SESSION_STARTED=$(date +%s)
+}
+
+# The session record to read: the daemon's current one, else the one a daemon of an earlier release writes.
+control_session_file() {
+    if [[ -e "$CONTROL_SESSION_FILE" || -L "$CONTROL_SESSION_FILE" || ! -e "$LEGACY_CONTROL_SESSION_FILE" ]]; then
+        echo "$CONTROL_SESSION_FILE"
+    else
+        echo "$LEGACY_CONTROL_SESSION_FILE"
+    fi
 }
 
 # Orders vX.Y.Z and vX.Y.Z-rc.N; a release orders after its release candidates.
@@ -856,21 +949,22 @@ release_order() {
     echo $(( ((BASH_REMATCH[1] * 1000 + BASH_REMATCH[2]) * 1000 + BASH_REMATCH[3]) * 100000 + ${BASH_REMATCH[5]:-99999} ))
 }
 
-# Daemons older than GATEWAY_SESSION_SINCE write no session record; development builds do.
-daemon_records_gateway_session() {
+# Daemons older than CONTROL_SESSION_SINCE write no session record; development builds do.
+daemon_records_control_session() {
     local order
     order=$(release_order "$1") || return 0
-    (( order >= $(release_order "$GATEWAY_SESSION_SINCE") ))
+    (( order >= $(release_order "$CONTROL_SESSION_SINCE") ))
 }
 
-# Gateway accepted a session of the daemon this run started, and that process still runs under its service manager.
-gateway_session_is_current() {
-    local pid connected_at
-    [[ -f "$GATEWAY_SESSION_FILE" && ! -L "$GATEWAY_SESSION_FILE" ]] || return 1
-    pid=$(sed -nE 's/.*"pid":([0-9]+).*/\1/p' "$GATEWAY_SESSION_FILE")
-    connected_at=$(sed -nE 's/.*"connected_at":([0-9]+).*/\1/p' "$GATEWAY_SESSION_FILE")
+# Opfield accepted a session of the daemon this run started, and that process still runs under its service manager.
+control_session_is_current() {
+    local pid connected_at session
+    session=$(control_session_file)
+    [[ -f "$session" && ! -L "$session" ]] || return 1
+    pid=$(sed -nE 's/.*"pid":([0-9]+).*/\1/p' "$session")
+    connected_at=$(sed -nE 's/.*"connected_at":([0-9]+).*/\1/p' "$session")
     [[ -n "$pid" && -n "$connected_at" ]] || return 1
-    (( connected_at >= GATEWAY_SESSION_STARTED )) || return 1
+    (( connected_at >= CONTROL_SESSION_STARTED )) || return 1
     kill -0 "$pid" 2>/dev/null || return 1
     if [[ "$MANUAL_FALLBACK_USED" -eq 0 ]] && has_systemd; then
         grep -q '/nginx-daemon\.service$' "/proc/${pid}/cgroup" 2>/dev/null || return 1
@@ -878,9 +972,11 @@ gateway_session_is_current() {
 }
 
 # The enrollment error the daemon started by this run recorded instead of a session, if any.
-gateway_session_enrollment_error() {
-    [[ -f "$GATEWAY_SESSION_FILE" && ! -L "$GATEWAY_SESSION_FILE" ]] || return 1
-    sed -nE 's/.*"enrollment_error":"(([^"\\]|\\.)*)".*/\1/p' "$GATEWAY_SESSION_FILE" | grep .
+control_session_enrollment_error() {
+    local session
+    session=$(control_session_file)
+    [[ -f "$session" && ! -L "$session" ]] || return 1
+    sed -nE 's/.*"enrollment_error":"(([^"\\]|\\.)*)".*/\1/p' "$session" | grep .
 }
 
 daemon_service_running() {
@@ -915,19 +1011,19 @@ fail_daemon_start() {
     die "nginx-daemon is installed, but it is not running."
 }
 
-# An install is done once the daemon it started runs and Gateway accepted it. A daemon too old to record its session
+# An install is done once the daemon it started runs and Opfield accepted it. A daemon too old to record its session
 # must have enrolled and keep running for 10 s instead.
-await_gateway_connection() {
-    local waited=0 limit="${GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS:-90}" running=0
+await_opfield_connection() {
+    local waited=0 limit="${OPFIELD_NODE_ENROLLMENT_WAIT_SECONDS:-90}" running=0
     while (( waited < limit )); do
-        if daemon_records_gateway_session "$RESOLVED_DAEMON_VERSION"; then
-            if gateway_session_is_current; then
+        if daemon_records_control_session "$RESOLVED_DAEMON_VERSION"; then
+            if control_session_is_current; then
                 ok "nginx-daemon is connected to Opfield"
                 return 0
             fi
-            # Gateway answered and refused the token: waiting cannot change that.
-            if grep -q '"enrollment_refused":true' "$GATEWAY_SESSION_FILE" 2>/dev/null; then
-                err "Opfield refused the enrollment token (already used, expired, or for another node): $(gateway_session_enrollment_error)"
+            # Opfield answered and refused the token: waiting cannot change that.
+            if grep -q '"enrollment_refused":true' "$(control_session_file)" 2>/dev/null; then
+                err "Opfield refused the enrollment token (already used, expired, or for another node): $(control_session_enrollment_error)"
                 err "Create a new setup command in Opfield and run it on this host."
                 show_daemon_log
                 return 1
@@ -946,12 +1042,12 @@ await_gateway_connection() {
         waited=$((waited + 1))
     done
     local enrollment_error
-    if enrollment_error=$(gateway_session_enrollment_error); then
+    if enrollment_error=$(control_session_enrollment_error); then
         err "nginx-daemon could not enroll with Opfield: ${enrollment_error}"
     elif ! daemon_service_running; then
         err "nginx-daemon is not running; the service manager could not keep it up. The log below shows why."
     else
-        err "nginx-daemon has not connected to Opfield within ${limit} s; check that Opfield at ${GATEWAY_ADDR} is reachable."
+        err "nginx-daemon has not connected to Opfield within ${limit} s; check that Opfield at ${OPFIELD_ADDR} is reachable."
     fi
     show_daemon_log
     return 1
@@ -1188,7 +1284,7 @@ manual_launcher_fallback() {
         echo "Foreground command: $(launcher_foreground_command "$daemon_binary")"
         return 1
     fi
-    forget_gateway_session
+    forget_control_session
     if ! detach_manual_launcher "$daemon_binary" "$manual_log"; then
         err "Could not detach ${daemon_name}; installed files and launcher files were preserved."
         echo "Foreground command: $(launcher_foreground_command "$daemon_binary")"
@@ -1224,19 +1320,35 @@ normalize_daemon_version() {
 }
 
 # The token a completed enrollment used, as a digest: a re-run of the same setup command (its token now used) keeps
-# the node's enrollment instead of replacing it with a token Gateway refuses.
+# the node's enrollment instead of replacing it with a token Opfield refuses.
 ENROLLMENT_TOKEN_DIGEST_FILE="/var/lib/nginx-daemon/enrollment-token.sha256"
 enrollment_token_digest() {
     printf '%s' "$1" | sha256sum | awk '{print $1}'
 }
 
 # A node already enrolled with this setup command's token keeps that enrollment: the re-run goes on as one without a
-# token (Gateway would refuse the used token, and the node would lose a working enrollment).
+# token (Opfield would refuse the used token, and the node would lose a working enrollment).
 keep_enrollment_of_used_token() {
     [[ -n "$ENROLL_TOKEN" && "$EXISTING_ENROLLED" -eq 1 && -f "$ENROLLMENT_TOKEN_DIGEST_FILE" ]] || return 0
     [[ "$(cat "$ENROLLMENT_TOKEN_DIGEST_FILE" 2>/dev/null)" == "$(enrollment_token_digest "$ENROLL_TOKEN")" ]] || return 0
     log "This node is already enrolled with this setup command's token; keeping its enrollment."
     ENROLL_TOKEN=""
+}
+
+# The address: of a top-level section (opfield: or gateway:) of the daemon configuration, without quotes or comment.
+config_section_address() {
+    awk -v section="$2" '
+        $0 ~ ("^" section ":[[:space:]]*(#.*)?$") { in_section = 1; next }
+        in_section && /^[^[:space:]#]/ { in_section = 0 }
+        in_section && /^[[:space:]]+address:[[:space:]]*/ {
+            value = $0
+            sub(/^[[:space:]]+address:[[:space:]]*/, "", value)
+            if (value ~ /^"/) { sub(/^"/, "", value); sub(/".*$/, "", value) }
+            else { sub(/[[:space:]]+#.*$/, "", value); sub(/[[:space:]]+$/, "", value) }
+            print value
+            exit
+        }
+    ' "$1"
 }
 
 detect_existing_install() {
@@ -1246,7 +1358,7 @@ detect_existing_install() {
     local cert_path="/etc/nginx-daemon/certs/node.pem"
     EXISTING_INSTALL=0
     EXISTING_VERSION=""
-    EXISTING_GATEWAY_ADDR=""
+    EXISTING_OPFIELD_ADDR=""
     EXISTING_ENROLLED=0
 
     if [[ -x "$target" ]]; then
@@ -1255,9 +1367,15 @@ detect_existing_install() {
     fi
 
     if [[ -f "$config_path" ]]; then
-        EXISTING_GATEWAY_ADDR=$(awk -F'"' '/^[[:space:]]*address:[[:space:]]*"/ {print $2; exit}' "$config_path")
-        if [[ -z "$EXISTING_GATEWAY_ADDR" ]]; then
-            EXISTING_GATEWAY_ADDR=$(awk '/^[[:space:]]*address:[[:space:]]*/ {print $2; exit}' "$config_path")
+        EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" opfield)
+        # legacy-name: gateway: section of /etc/nginx-daemon/config.yaml written before 2.12.1 — remove once every node
+        # reports none
+        [[ -n "$EXISTING_OPFIELD_ADDR" ]] || EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" gateway)
+        if [[ -z "$EXISTING_OPFIELD_ADDR" ]]; then
+            EXISTING_OPFIELD_ADDR=$(awk -F'"' '/^[[:space:]]*address:[[:space:]]*"/ {print $2; exit}' "$config_path")
+        fi
+        if [[ -z "$EXISTING_OPFIELD_ADDR" ]]; then
+            EXISTING_OPFIELD_ADDR=$(awk '/^[[:space:]]*address:[[:space:]]*/ {print $2; exit}' "$config_path")
         fi
     fi
 
@@ -1298,7 +1416,7 @@ daemon_version_older() {
 
 # A re-run without --version never moves a node to an older daemon than it runs: "latest" is the newest stable
 # release, so a node on a newer release or pre-release keeps its version. Only --version (or
-# GATEWAY_NODE_DAEMON_VERSION) naming the older release installs it.
+# OPFIELD_NODE_DAEMON_VERSION) naming the older release installs it.
 keep_installed_newer_daemon() {
     local daemon="$1"
     [[ "$DAEMON_VERSION" == "latest" && "$EXISTING_INSTALL" -eq 1 ]] || return 0
@@ -1345,11 +1463,11 @@ Usage:
   daemon version defaults to latest unless supplied.
 
 Options:
-  --gateway <addr>         Opfield gRPC address as host:port (e.g. gateway.example.com:9443)
-  --host <host>            Opfield hostname or IP (e.g. gateway.example.com)
+  --opfield <addr>         Opfield gRPC address as host:port (e.g. opfield.example.com:9443)
+  --host <host>            Opfield hostname or IP (e.g. opfield.example.com)
   --port <port>            Opfield gRPC port (default: 9443)
   --token <token>          Enrollment token from Opfield UI (Nodes > Add Node)
-  --gateway-cert-sha256 <fp>
+  --opfield-cert-sha256 <fp>
                            Opfield gRPC TLS leaf fingerprint from the generated setup command
   --version <ver>          Daemon version to install (default: latest; never older than an installed one)
   --user <user>            Run daemon as this user (default: root)
@@ -1363,45 +1481,53 @@ Options:
   -h, --help               Show this help
 
 Environment variables:
-  GATEWAY_NODE_HOST             Same as --host
-  GATEWAY_NODE_PORT             Same as --port (default: 9443)
-  GATEWAY_NODE_ADDRESS          Same as --gateway (host:port combined)
-  GATEWAY_NODE_TOKEN            Same as --token
-  GATEWAY_NODE_CERT_SHA256      Same as --gateway-cert-sha256
-  GATEWAY_NODE_DAEMON_VERSION   Same as --version
-  GATEWAY_NODE_SKIP_NGINX       Set to 1 to skip nginx install
-  GATEWAY_NODE_NGINX_MODE       Same as --nginx-mode
-  GATEWAY_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
-  GATEWAY_NODE_DISABLE_FILES    Set to 1 to disable host file access
-  GATEWAY_RELEASES_API_URL      Override the Opfield release feed
-  GATEWAY_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
+  OPFIELD_NODE_HOST             Same as --host
+  OPFIELD_NODE_PORT             Same as --port (default: 9443)
+  OPFIELD_NODE_ADDRESS          Same as --opfield (host:port combined)
+  OPFIELD_NODE_TOKEN            Same as --token
+  OPFIELD_NODE_CERT_SHA256      Same as --opfield-cert-sha256
+  OPFIELD_NODE_DAEMON_VERSION   Same as --version
+  OPFIELD_NODE_SKIP_NGINX       Set to 1 to skip nginx install
+  OPFIELD_NODE_NGINX_MODE       Same as --nginx-mode
+  OPFIELD_NODE_DISABLE_CONSOLE  Set to 1 to disable the host console
+  OPFIELD_NODE_DISABLE_FILES    Set to 1 to disable host file access
+  OPFIELD_RELEASES_API_URL      Override the Opfield release feed
+  OPFIELD_ARTIFACT_BASE_URL     Override the Opfield artifact base URL
 
 Examples:
   # Interactive (prompts for everything):
   sudo bash setup-node.sh
 
   # Partially interactive (pre-fill host, prompt for token):
-  sudo bash setup-node.sh --host gateway.example.com
+  sudo bash setup-node.sh --host opfield.example.com
 
   # Fully non-interactive:
-  sudo bash setup-node.sh -y --host gateway.example.com --token gw_node_abc123 --gateway-cert-sha256 sha256:<HEX>
+  sudo bash setup-node.sh -y --host opfield.example.com --token opf_node_abc123 --opfield-cert-sha256 sha256:<HEX>
 
-  # Legacy format (host:port combined):
-  sudo bash setup-node.sh --gateway gateway.example.com:9443 --token gw_node_abc123 --gateway-cert-sha256 sha256:<HEX>
+  # Host and port combined:
+  sudo bash setup-node.sh --opfield opfield.example.com:9443 --token opf_node_abc123 --opfield-cert-sha256 sha256:<HEX>
 
   # Custom daemon user:
-  sudo bash setup-node.sh --user www-data --gateway gw:9443 --token TOKEN --gateway-cert-sha256 sha256:<HEX>
+  sudo bash setup-node.sh --user www-data --opfield opfield.example.com:9443 --token TOKEN --opfield-cert-sha256 sha256:<HEX>
 HELP
     exit 0
 }
 
+LEGACY_ADDR_FLAG=""
+LEGACY_CERT_SHA256_FLAG=""
+OPFIELD_ADDR_FLAG=""
+OPFIELD_CERT_SHA256_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --gateway)        GATEWAY_ADDR="$2"; shift 2 ;;
-        --host)           GATEWAY_HOST="$2"; shift 2 ;;
-        --port)           GATEWAY_PORT="$2"; shift 2 ;;
+        --opfield)        OPFIELD_ADDR_FLAG="$2"; shift 2 ;;
+        # legacy-name: --gateway flag — customer automation; drop with a changelog notice
+        --gateway)        LEGACY_ADDR_FLAG="$2"; shift 2 ;;
+        --host)           OPFIELD_HOST="$2"; shift 2 ;;
+        --port)           OPFIELD_PORT="$2"; shift 2 ;;
         --token)          ENROLL_TOKEN="$2"; shift 2 ;;
-        --gateway-cert-sha256) GATEWAY_CERT_SHA256="$2"; shift 2 ;;
+        --opfield-cert-sha256) OPFIELD_CERT_SHA256_FLAG="$2"; shift 2 ;;
+        # legacy-name: --gateway-cert-sha256 flag — customer automation; drop with a changelog notice
+        --gateway-cert-sha256) LEGACY_CERT_SHA256_FLAG="$2"; shift 2 ;;
         --version)        DAEMON_VERSION="$2"; shift 2 ;;
         --user)           RUN_USER="$2"; shift 2 ;;
         --skip-nginx)     SKIP_NGINX=1; shift ;;
@@ -1415,26 +1541,38 @@ while [[ $# -gt 0 ]]; do
         *) die "Unknown option: $1. Use --help for usage." ;;
     esac
 done
-
-# Resolve GATEWAY_ADDR from --host/--port if --gateway not given
-if [[ -n "$GATEWAY_HOST" && -z "$GATEWAY_ADDR" ]]; then
-    GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+# A new flag wins over its legacy synonym, and either over the environment.
+if [[ -n "$OPFIELD_ADDR_FLAG" ]]; then
+    OPFIELD_ADDR="$OPFIELD_ADDR_FLAG"
+elif [[ -n "$LEGACY_ADDR_FLAG" ]]; then
+    OPFIELD_ADDR="$LEGACY_ADDR_FLAG"
 fi
-# If --gateway was given, extract host/port for display
-if [[ -n "$GATEWAY_ADDR" && -z "$GATEWAY_HOST" ]]; then
-    GATEWAY_HOST="${GATEWAY_ADDR%%:*}"
-    GATEWAY_PORT="${GATEWAY_ADDR##*:}"
+if [[ -n "$OPFIELD_CERT_SHA256_FLAG" ]]; then
+    OPFIELD_CERT_SHA256="$OPFIELD_CERT_SHA256_FLAG"
+elif [[ -n "$LEGACY_CERT_SHA256_FLAG" ]]; then
+    OPFIELD_CERT_SHA256="$LEGACY_CERT_SHA256_FLAG"
+fi
+unset LEGACY_ADDR_FLAG LEGACY_CERT_SHA256_FLAG OPFIELD_ADDR_FLAG OPFIELD_CERT_SHA256_FLAG
+
+# Resolve OPFIELD_ADDR from --host/--port if --opfield not given
+if [[ -n "$OPFIELD_HOST" && -z "$OPFIELD_ADDR" ]]; then
+    OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
+fi
+# If --opfield was given, extract host/port for display
+if [[ -n "$OPFIELD_ADDR" && -z "$OPFIELD_HOST" ]]; then
+    OPFIELD_HOST="${OPFIELD_ADDR%%:*}"
+    OPFIELD_PORT="${OPFIELD_ADDR##*:}"
     # If no port in the address, use default
-    if [[ "$GATEWAY_PORT" == "$GATEWAY_HOST" ]]; then
-        GATEWAY_PORT="9443"
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+    if [[ "$OPFIELD_PORT" == "$OPFIELD_HOST" ]]; then
+        OPFIELD_PORT="9443"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
     fi
 fi
 
 # ── Validate ─────────────────────────────────────────────────────────
 need_root
 if [[ "$DRY_RUN" -eq 0 ]]; then
-    LOG_FILE=$(mktemp /tmp/gateway_node_setup.XXXXXX) || die "Could not create installer log file"
+    LOG_FILE=$(mktemp /tmp/opfield_node_setup.XXXXXX) || die "Could not create installer log file"
     chmod 600 "$LOG_FILE" || die "Could not secure installer log file"
 fi
 detect_os
@@ -1443,19 +1581,19 @@ check_dependencies
 detect_existing_install
 keep_enrollment_of_used_token
 
-if [[ -z "$GATEWAY_ADDR" && -n "$EXISTING_GATEWAY_ADDR" ]]; then
-    GATEWAY_ADDR="$EXISTING_GATEWAY_ADDR"
-    GATEWAY_HOST="${GATEWAY_ADDR%%:*}"
-    GATEWAY_PORT="${GATEWAY_ADDR##*:}"
-    if [[ "$GATEWAY_PORT" == "$GATEWAY_HOST" ]]; then
-        GATEWAY_PORT="9443"
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+if [[ -z "$OPFIELD_ADDR" && -n "$EXISTING_OPFIELD_ADDR" ]]; then
+    OPFIELD_ADDR="$EXISTING_OPFIELD_ADDR"
+    OPFIELD_HOST="${OPFIELD_ADDR%%:*}"
+    OPFIELD_PORT="${OPFIELD_ADDR##*:}"
+    if [[ "$OPFIELD_PORT" == "$OPFIELD_HOST" ]]; then
+        OPFIELD_PORT="9443"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
     fi
 fi
 
-# A host that already runs a Gateway nginx node keeps its nginx mode when
+# A host that already runs a Opfield nginx node keeps its nginx mode when
 # --nginx-mode is not given. Re-running the enroll command without it on a
-# managed host picked integrate, which added a second include of the Gateway
+# managed host picked integrate, which added a second include of the Opfield
 # sites directory ("duplicate default server"). Only a host without an
 # earlier install gets the default.
 if [[ -z "$NGINX_MODE" ]]; then
@@ -1479,18 +1617,18 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     guide "${GRAY}  4. Start the daemon as a systemd service${NC}"
     guide_blank
 
-    if [[ "$EXISTING_ENROLLED" -eq 1 && -n "$EXISTING_GATEWAY_ADDR" && -z "$ENROLL_TOKEN" ]]; then
+    if [[ "$EXISTING_ENROLLED" -eq 1 && -n "$EXISTING_OPFIELD_ADDR" && -z "$ENROLL_TOKEN" ]]; then
         log "Existing enrolled nginx node detected — reusing the current Opfield connection settings"
     else
-        # Gateway host
-        if [[ -z "$GATEWAY_HOST" ]]; then
-            GATEWAY_HOST=$(prompt_input "Opfield hostname or IP" "")
-            [[ -z "$GATEWAY_HOST" ]] && die "Opfield hostname is required"
+        # Opfield host
+        if [[ -z "$OPFIELD_HOST" ]]; then
+            OPFIELD_HOST=$(prompt_input "Opfield hostname or IP" "")
+            [[ -z "$OPFIELD_HOST" ]] && die "Opfield hostname is required"
         else
-            guide "${GRAY}Opfield host: ${BRAND_MINT}${GATEWAY_HOST}${NC}"
+            guide "${GRAY}Opfield host: ${BRAND_MINT}${OPFIELD_HOST}${NC}"
         fi
 
-        GATEWAY_ADDR="${GATEWAY_HOST}:${GATEWAY_PORT}"
+        OPFIELD_ADDR="${OPFIELD_HOST}:${OPFIELD_PORT}"
 
         guide_blank
 
@@ -1502,12 +1640,17 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
             guide "${GRAY}Token: ${ENROLL_TOKEN:0:12}...${ENROLL_TOKEN: -4}${NC}"
         fi
 
-        if [[ -z "$GATEWAY_CERT_SHA256" ]]; then
-            GATEWAY_CERT_SHA256=$(prompt_input "Opfield certificate SHA-256 fingerprint" "")
-            [[ -z "$GATEWAY_CERT_SHA256" ]] && die "Opfield certificate SHA-256 fingerprint is required"
+        guide_blank
+
+        if [[ -z "$OPFIELD_CERT_SHA256" ]]; then
+            OPFIELD_CERT_SHA256=$(prompt_input "Opfield certificate SHA-256 fingerprint" "")
+            [[ -z "$OPFIELD_CERT_SHA256" ]] && die "Opfield certificate SHA-256 fingerprint is required"
         else
-            guide "${GRAY}Opfield cert: ${GATEWAY_CERT_SHA256}${NC}"
+            guide "${GRAY}Opfield cert: ${OPFIELD_CERT_SHA256}${NC}"
         fi
+        # The daemon refuses any other form at enrollment, after the whole install.
+        [[ "$OPFIELD_CERT_SHA256" =~ ^[sS][hH][aA]256:[0-9a-fA-F]{64}$ ]] ||
+            die "Opfield certificate SHA-256 fingerprint must be sha256: followed by 64 hex characters (copy it from Nodes > Add Node)"
 
         guide_blank
     fi
@@ -1517,7 +1660,7 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     # User selection
     if [[ -z "$RUN_USER" ]]; then
         selector_title "Run daemon as:"
-        user_choice=$(prompt_choice "Choose" "1" "root  [default]" "Current user ($(logname 2>/dev/null || echo "$SUDO_USER"))" "Custom user")
+        user_choice=$(prompt_choice "Choose" "1" "root  [default]" "Current user ($(logname 2>/dev/null || echo "${SUDO_USER:-root}"))" "Custom user")
         case "$user_choice" in
             1|root)   RUN_USER="root" ;;
             2)        RUN_USER="$(logname 2>/dev/null || echo "${SUDO_USER:-root}")" ;;
@@ -1543,15 +1686,18 @@ if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
     guide_end
 else
     # Non-interactive: validate required fields
-    if [[ -z "$GATEWAY_ADDR" && "$EXISTING_ENROLLED" -eq 0 ]]; then
-        die "--gateway or --host is required in non-interactive mode"
+    if [[ -z "$OPFIELD_ADDR" && "$EXISTING_ENROLLED" -eq 0 ]]; then
+        die "--opfield or --host is required in non-interactive mode"
     fi
     if [[ -z "$ENROLL_TOKEN" && "$EXISTING_ENROLLED" -eq 0 ]]; then
         die "--token is required in non-interactive mode"
     fi
-    if [[ -z "$GATEWAY_CERT_SHA256" && "$EXISTING_ENROLLED" -eq 0 ]]; then
-        die "--gateway-cert-sha256 is required in non-interactive mode"
+    if [[ -z "$OPFIELD_CERT_SHA256" && "$EXISTING_ENROLLED" -eq 0 ]]; then
+        die "--opfield-cert-sha256 is required in non-interactive mode"
     fi
+    # The daemon refuses any other form at enrollment, after the whole install.
+    [[ -z "$OPFIELD_CERT_SHA256" || "$OPFIELD_CERT_SHA256" =~ ^[sS][hH][aA]256:[0-9a-fA-F]{64}$ ]] ||
+        die "Opfield certificate SHA-256 fingerprint must be sha256: followed by 64 hex characters (copy it from Nodes > Add Node)"
     # Default user to root in non-interactive mode
     [[ -z "$RUN_USER" ]] && RUN_USER="root"
     if [[ -z "$NGINX_MODE" ]]; then
@@ -1580,6 +1726,7 @@ else
     RUN_GROUP=$(id -gn "$RUN_USER" 2>/dev/null)
 fi
 preflight_run_user_nginx
+preflight_nginx_tree
 
 resolve_download_url "$DAEMON_VERSION"
 detect_existing_install
@@ -1594,14 +1741,14 @@ if [[ "$EXISTING_INSTALL" -eq 1 ]]; then
 fi
 
 summary_start
-summary_row "Opfield:     ${GATEWAY_ADDR}"
+summary_row "Opfield:     ${OPFIELD_ADDR}"
 if [[ -n "$ENROLL_TOKEN" ]]; then
     summary_row "Token:       ${ENROLL_TOKEN:0:12}..."
 else
     summary_row "Token:       existing enrollment"
 fi
-if [[ -n "$GATEWAY_CERT_SHA256" ]]; then
-    summary_row "Cert SHA256: ${GATEWAY_CERT_SHA256}"
+if [[ -n "$OPFIELD_CERT_SHA256" ]]; then
+    summary_row "Cert SHA256: ${OPFIELD_CERT_SHA256}"
 else
     summary_row "Cert SHA256: existing enrollment"
 fi
@@ -1753,6 +1900,7 @@ dry_run_preview() {
     preview_nginx_install
     [[ "$NGINX_SERVICE_REPAIR_PLANNED" -eq 0 ]] || log "Would update the nginx OpenRC service's PID lines and start nginx (dry run)"
     log "Creating required directories..."
+    preview_nginx_tree
     ok "Directories created (dry run)"
     log "Configuring nginx (${NGINX_MODE} mode)..."
     ok "nginx configuration updated (${NGINX_MODE} mode; dry run)"
@@ -1792,7 +1940,7 @@ run_apt_with_lock_retry() {
     local attempt_log
 
     while (( attempt <= APT_LOCK_RETRY_ATTEMPTS )); do
-        attempt_log=$(mktemp /tmp/gateway-node-apt.XXXXXX) || die "Could not create apt log file"
+        attempt_log=$(mktemp /tmp/opfield-node-apt.XXXXXX) || die "Could not create apt log file"
         if apt-get "$@" > "$attempt_log" 2>&1; then
             cat "$attempt_log" >> "$LOG_FILE"
             rm -f "$attempt_log"
@@ -1963,18 +2111,35 @@ install_nginx() {
 }
 
 # ── Step 2: Configure nginx ───────────────────────────────────────────
+# Adds an include line to the http block of nginx.conf. An include line an earlier release wrote for the same file under
+# its old path (legacy_line) is replaced in place, so the file is included once; the copy taken first lets a failed
+# nginx -t put nginx.conf back.
 ensure_http_include() {
     local include_line="$1"
+    local legacy_line="${2:-}"
     local global_conf="/etc/nginx/nginx.conf"
-    local tmp_file
+    local tmp_file has_include=0 has_legacy=0
 
-    if nginx_conf_has_line "$global_conf" "$include_line"; then
+    nginx_conf_has_line "$global_conf" "$include_line" && has_include=1
+    [[ -n "$legacy_line" ]] && nginx_conf_has_line "$global_conf" "$legacy_line" && has_legacy=1
+    if [[ "$has_include" -eq 1 && "$has_legacy" -eq 0 ]]; then
         return 0
     fi
 
+    backup_nginx_config "$global_conf"
     tmp_file=$(mktemp /tmp/nginx-conf-XXXXXX)
-    if ! awk -v include_line="$include_line" '
-        !inserted && $0 ~ /^[[:space:]]*http[[:space:]]*\{/ {
+    if ! awk -v include_line="$include_line" -v legacy_line="$legacy_line" -v has_include="$has_include" \
+        -v has_legacy="$has_legacy" '
+        { trimmed = $0; sub(/^[[:space:]]+/, "", trimmed); sub(/[[:space:]]+$/, "", trimmed) }
+        legacy_line != "" && trimmed == legacy_line {
+            if (!has_include && !inserted) {
+                match($0, /^[[:space:]]*/)
+                print substr($0, 1, RLENGTH) include_line
+                inserted = 1
+            }
+            next
+        }
+        !has_include && !has_legacy && !inserted && $0 ~ /^[[:space:]]*http[[:space:]]*\{/ {
             print
             print "    " include_line
             inserted = 1
@@ -1982,7 +2147,7 @@ ensure_http_include() {
         }
         { print }
         END {
-            if (!inserted) {
+            if (!has_include && !inserted) {
                 exit 1
             }
         }
@@ -1991,18 +2156,22 @@ ensure_http_include() {
         return 1
     fi
 
-    mv "$tmp_file" "$global_conf"
+    # Written in place so nginx.conf keeps its owner and mode.
+    cat "$tmp_file" > "$global_conf" || { rm -f "$tmp_file"; return 1; }
+    rm -f "$tmp_file"
     return 0
 }
 
-remove_legacy_gateway_sites_include() {
+remove_legacy_conf_d_sites_include() {
+    # legacy-name: conf.d/gateway-managed.conf of early installers (already legacy cleanup) — remove once every node
+    # reports none
     local legacy_file="/etc/nginx/conf.d/gateway-managed.conf"
-    local expected_line="include ${NGINX_SITES_DIR}/*.conf;"
     local effective_content
 
     [[ -f "$legacy_file" ]] || return 0
     effective_content=$(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' "$legacy_file")
-    [[ "$effective_content" == "$expected_line" ]] || return 0
+    [[ "$effective_content" == "include ${NGINX_SITES_DIR}/*.conf;" || \
+        "$effective_content" == "include ${NGINX_LEGACY_SITES_DIR}/*.conf;" ]] || return 0
 
     backup_nginx_config "$legacy_file"
     rm -f "$legacy_file"
@@ -2010,25 +2179,29 @@ remove_legacy_gateway_sites_include() {
 }
 
 # A host switched from managed to integrate mode still has the managed direct
-# include of the Gateway sites directory in nginx.conf; the integrate include
-# replaces it, so the directory is included once.
-remove_direct_gateway_sites_include() {
+# include of the Opfield sites directory in nginx.conf (under its current or its
+# pre-2.12.1 path); the integrate include replaces it, so the directory is
+# included once.
+remove_direct_sites_include() {
     local global_conf="/etc/nginx/nginx.conf"
     local line="include ${NGINX_SITES_DIR}/*.conf;"
+    # legacy-name: direct include of /etc/nginx/gateway/conf.d written before 2.12.1 — remove once every node reports none
+    local legacy_line="include ${NGINX_LEGACY_SITES_DIR}/*.conf;"
     local tmp_file
 
-    nginx_conf_has_line "$global_conf" "$line" || return 0
+    nginx_conf_has_line "$global_conf" "$line" || nginx_conf_has_line "$global_conf" "$legacy_line" || return 0
     backup_nginx_config "$global_conf"
     tmp_file=$(mktemp /tmp/nginx-conf-XXXXXX)
-    if ! awk -v line="$line" '
+    if ! awk -v line="$line" -v legacy_line="$legacy_line" '
         { trimmed = $0; sub(/^[[:space:]]+/, "", trimmed); sub(/[[:space:]]+$/, "", trimmed) }
-        trimmed == line { next }
+        trimmed == line || trimmed == legacy_line { next }
         { print }
     ' "$global_conf" > "$tmp_file"; then
         rm -f "$tmp_file"
         die "Failed to remove the direct Opfield sites include from $global_conf"
     fi
-    mv "$tmp_file" "$global_conf"
+    cat "$tmp_file" > "$global_conf" || { rm -f "$tmp_file"; die "Could not write $global_conf"; }
+    rm -f "$tmp_file"
     log "Replaced the direct Opfield sites include with the integrate include"
 }
 
@@ -2153,12 +2326,30 @@ nginx_worker_requires_restart() {
     [[ "$running_nofile" =~ ^[0-9]+$ ]] && (( running_nofile < NGINX_WORKER_NOFILE_MIN ))
 }
 
+# A file the installer wrote under its pre-2.12.1 name gets the current name: renamed (the same contents, so the
+# setting holds throughout), or removed when a file with the current name is there already. Fails without a change.
+rename_legacy_installer_file() {
+    local legacy="$1" current="$2"
+    [[ -f "$legacy" && ! -L "$legacy" ]] || return 1
+    if [[ -e "$current" || -L "$current" ]]; then
+        rm -f -- "$legacy"
+    else
+        mv -f -- "$legacy" "$current"
+    fi
+}
+
 # A non-root nginx keeps its pid file in its RuntimeDirectory= (/run/nginx), which systemd removes whenever nginx stops
 # unless RuntimeDirectoryPreserve= keeps it. The daemon cannot create it again as nginx's user, so every nginx -t would
 # fail until root starts nginx.
 ensure_nginx_runtime_directory_preserved() {
-    [[ "$RUN_USER" != "root" ]] && has_systemd || return 0
-    local dropin_file="${NGINX_SYSTEMD_DROPIN_DIR}/zz-gateway-runtime-directory.conf"
+    has_systemd || return 0
+    local dropin_file="${NGINX_SYSTEMD_DROPIN_DIR}/zz-opfield-runtime-directory.conf"
+    # legacy-name: nginx drop-in zz-gateway-runtime-directory.conf written before 2.12.1 — remove once every node
+    # reports none
+    if rename_legacy_installer_file "${NGINX_SYSTEMD_DROPIN_DIR}/zz-gateway-runtime-directory.conf" "$dropin_file"; then
+        systemctl daemon-reload >> "$LOG_FILE" 2>&1 || die "systemd daemon-reload failed."
+    fi
+    [[ "$RUN_USER" != "root" ]] || return 0
     local runtime_dirs preserve
     # ensure_nginx_service_limit ran daemon-reload just before, so the operator's drop-ins are loaded.
     runtime_dirs=$(systemctl show nginx.service -p RuntimeDirectory --value 2>/dev/null || true)
@@ -2190,10 +2381,12 @@ ensure_nginx_service_limit() {
 
     if has_systemd; then
         local dropin_dir="$NGINX_SYSTEMD_DROPIN_DIR"
-        local dropin_file="${dropin_dir}/gateway-limits.conf"
+        local dropin_file="${dropin_dir}/opfield-limits.conf"
         local desired
         local effective
 
+        # legacy-name: nginx drop-in gateway-limits.conf written before 2.12.1 — remove once every node reports none
+        rename_legacy_installer_file "${dropin_dir}/gateway-limits.conf" "$dropin_file" || true
         systemctl daemon-reload >> "$LOG_FILE" 2>&1
         effective=$(systemctl show nginx.service -p LimitNOFILE --value 2>/dev/null || true)
         if [[ "$effective" != "infinity" ]] && \
@@ -2224,11 +2417,28 @@ EOF
     if has_openrc; then
         local conf_dir="$NGINX_OPENRC_CONF_DIR"
         local conf_file="${conf_dir}/nginx"
-        local marker="# Managed by Gateway: nginx file-descriptor limit"
+        local marker="# Managed by Opfield: nginx file-descriptor limit"
+        # legacy-name: /etc/conf.d/nginx marker written before 2.12.1 — remove once every node reports none
+        local legacy_marker="# Managed by Gateway: nginx file-descriptor limit"
         local current=""
 
         mkdir -p "$conf_dir"
         touch "$conf_file"
+        # The block an earlier release added carries the current marker from now on; its limit line stays as it is.
+        if grep -Fqx "$legacy_marker" "$conf_file"; then
+            if grep -Fqx "$marker" "$conf_file"; then
+                # Both blocks: the earlier one goes, with its limit line.
+                awk -v legacy="$legacy_marker" '
+                    dropped && /^[[:space:]]*rc_ulimit=/ { dropped = 0; next }
+                    { dropped = 0 }
+                    $0 == legacy { dropped = 1; next }
+                    { print }
+                ' "$conf_file" > "${conf_file}.opfield-tmp" && cat "${conf_file}.opfield-tmp" > "$conf_file"
+                rm -f "${conf_file}.opfield-tmp"
+            else
+                sed -i "s/^${legacy_marker}\$/${marker}/" "$conf_file"
+            fi
+        fi
         current=$(grep -E '^[[:space:]]*rc_ulimit=.*-n[[:space:]]+[0-9]+' "$conf_file" | tail -n 1 | sed -E 's/.*-n[[:space:]]+([0-9]+).*/\1/' || true)
         if [[ ! "$current" =~ ^[0-9]+$ ]] || (( current < NGINX_SERVICE_NOFILE_MIN )); then
             if grep -Fq "$marker" "$conf_file"; then
@@ -2293,8 +2503,8 @@ verify_nginx_server_tokens() {
 
 configure_nginx_managed() {
     log "Configuring nginx in managed mode..."
-    # nginx.conf below includes the Gateway sites directory itself.
-    remove_legacy_gateway_sites_include
+    # nginx.conf below includes the Opfield sites directory itself.
+    remove_legacy_conf_d_sites_include
     backup_nginx_config "/etc/nginx/nginx.conf"
     backup_nginx_config "/etc/nginx/conf.d/default.conf"
     backup_nginx_config "/etc/nginx/http.d/default.conf"
@@ -2315,7 +2525,7 @@ http {
     tcp_nodelay on;
     keepalive_timeout 65;
     types_hash_max_size 2048;
-    # Gateway Pages generated hostnames are longer than the default bucket fits.
+    # Opfield Pages generated hostnames are longer than the default bucket fits.
     server_names_hash_bucket_size 128;
     client_max_body_size 50m;
 
@@ -2331,10 +2541,10 @@ http {
     }
 
     include /etc/nginx/conf.d/*.conf;
-    include __GATEWAY_SITES_DIR__/*.conf;
+    include __OPFIELD_SITES_DIR__/*.conf;
 }
 EOF
-    sed -i "s|__GATEWAY_SITES_DIR__|${NGINX_SITES_DIR}|g; s|__NGINX_PID_FILE__|$(nginx_service_pid_file)|g" /etc/nginx/nginx.conf
+    sed -i "s|__OPFIELD_SITES_DIR__|${NGINX_SITES_DIR}|g; s|__NGINX_PID_FILE__|$(nginx_service_pid_file)|g" /etc/nginx/nginx.conf
 
     cat > /etc/nginx/conf.d/default.conf << 'EOF'
 server {
@@ -2371,9 +2581,11 @@ EOF
     # server block nginx loaded, serving another route's content. The
     # nginx-daemon keeps this file in sync on every start (see
     # nginx.EnsureDefaultServer); it is written here too so the protection is
-    # already in place before the daemon's first start.
-    cat > "${NGINX_SITES_DIR}/00-gateway-default-server.conf" << 'EOF'
-# Gateway managed default server (auto-injected)
+    # already in place before the daemon's first start, under the name the
+    # installed daemon uses (align_default_server_file).
+    align_default_server_file
+    cat > "${NGINX_SITES_DIR}/$(default_server_file_name)" << 'EOF'
+# Opfield managed default server (auto-injected)
 # Rejects any TLS request whose SNI or Host does not match a configured
 # route, so a deleted route's hostname (or any other hostname pointed at
 # this node) cannot fall through to another route's server block.
@@ -2389,18 +2601,21 @@ EOF
 }
 
 configure_nginx_integrated() {
-    local include_file="/etc/nginx/gateway/sites.include.conf"
-    local stub_conf="/etc/nginx/gateway/stub_status.conf"
+    local include_file="${NGINX_OPFIELD_DIR}/sites.include.conf"
+    local stub_conf="${NGINX_OPFIELD_DIR}/stub_status.conf"
 
     log "Configuring nginx in integrate mode..."
 
-    remove_legacy_gateway_sites_include
-    remove_direct_gateway_sites_include
+    remove_legacy_conf_d_sites_include
+    remove_direct_sites_include
+    align_default_server_file
+    backup_nginx_config "$include_file"
+    backup_nginx_config "$stub_conf"
 
     cat > "$include_file" << 'EOF'
-include __GATEWAY_SITES_DIR__/*.conf;
+include __OPFIELD_SITES_DIR__/*.conf;
 EOF
-    sed -i "s|__GATEWAY_SITES_DIR__|${NGINX_SITES_DIR}|g" "$include_file"
+    sed -i "s|__OPFIELD_SITES_DIR__|${NGINX_SITES_DIR}|g" "$include_file"
 
     cat > "$stub_conf" << EOF
 server {
@@ -2416,9 +2631,11 @@ server {
 }
 EOF
 
-    ensure_http_include "include /etc/nginx/gateway/sites.include.conf;" || \
+    # legacy-name: integrate include lines of the /etc/nginx/gateway tree written before 2.12.1 (replaced in place) —
+    # remove once every node reports none
+    ensure_http_include "include ${NGINX_OPFIELD_DIR}/sites.include.conf;" "include ${NGINX_LEGACY_DIR}/sites.include.conf;" || \
         die "Failed to inject Opfield sites include into /etc/nginx/nginx.conf"
-    ensure_http_include "include /etc/nginx/gateway/stub_status.conf;" || \
+    ensure_http_include "include ${NGINX_OPFIELD_DIR}/stub_status.conf;" "include ${NGINX_LEGACY_DIR}/stub_status.conf;" || \
         die "Failed to inject Opfield stub_status include into /etc/nginx/nginx.conf"
 
     STUB_STATUS_URL="http://127.0.0.1:${INTEGRATED_STUB_STATUS_PORT}/nginx_status"
@@ -2496,13 +2713,115 @@ configure_nginx() {
 }
 
 # ── Step 3: Create directories ───────────────────────────────────────
+# Renames a path whose new name is not taken: mv -T where mv has it, else a plain mv once the new name is free.
+rename_path() {
+    mv -T -- "$1" "$2" 2>/dev/null || { [[ ! -e "$2" && ! -L "$2" ]] && mv -- "$1" "$2"; }
+}
+
+# The nginx tree moves from /etc/nginx/gateway to /etc/nginx/opfield once, and /etc/nginx/gateway stays as a link to it:
+# configurations written for the old path (by Opfield and by the operator) keep working. The move is two renames with
+# the link made first under a temporary name, so one of the two paths names the tree at every moment. A run that
+# stopped between them leaves /etc/nginx/opfield without /etc/nginx/gateway, which the next run completes with the
+# link; a link left under its temporary name is removed. A tree another component already named the other way round
+# (/etc/nginx/opfield a link to /etc/nginx/gateway) is left as it is: both paths work.
+migrate_nginx_tree() {
+    local parent current legacy name stale link target
+    current="$NGINX_OPFIELD_DIR"
+    legacy="$NGINX_LEGACY_DIR"
+    parent=$(dirname "$current")
+    name=$(basename "$current")
+    # The link that takes the place of /etc/nginx/gateway, under a temporary name until the tree has moved.
+    link="${parent}/.gateway-link.$$"
+    for stale in "${parent}"/.gateway-link.*; do
+        [[ ! -L "$stale" ]] || rm -f -- "$stale"
+    done
+    [[ ! -L "$current" ]] || return 0
+    if [[ -d "$legacy" && ! -L "$legacy" ]]; then
+        # An empty /etc/nginx/opfield is in the way only; preflight_nginx_tree refused a populated one.
+        [[ ! -d "$current" ]] || rmdir -- "$current" || die "Could not move ${legacy} to ${current}: ${current} is not empty."
+        ln -sfn "$name" "$link" || die "Could not prepare the link ${legacy} -> ${name}."
+        if ! rename_path "$legacy" "$current"; then
+            rm -f -- "$link"
+            die "Could not move ${legacy} to ${current}."
+        fi
+        rename_path "$link" "$legacy" || die "Moved ${legacy} to ${current}, but could not link ${legacy} to it; run the installer again."
+        log "Moved ${legacy} to ${current}; ${legacy} links to it"
+        return 0
+    fi
+    if [[ -L "$legacy" ]]; then
+        target=$(readlink -- "$legacy")
+        if [[ "$target" != "$name" && "$target" != "$current" && ! -e "$current" ]]; then
+            # An operator's link to a tree elsewhere: the new path names the same tree.
+            ln -sfn "$(basename "$legacy")" "$link" || die "Could not prepare the link ${current} -> ${legacy}."
+            rename_path "$link" "$current" || { rm -f -- "$link"; die "Could not link ${current} to ${legacy}."; }
+            return 0
+        fi
+    fi
+    mkdir -p "$current"
+    if [[ ! -e "$legacy" && ! -L "$legacy" ]]; then
+        ln -sfn "$name" "$link" || die "Could not prepare the link ${legacy} -> ${name}."
+        rename_path "$link" "$legacy" || { rm -f -- "$link"; die "Could not link ${legacy} to ${current}."; }
+    fi
+}
+
+preview_nginx_tree() {
+    if [[ -d "$NGINX_LEGACY_DIR" && ! -L "$NGINX_LEGACY_DIR" && ! -L "$NGINX_OPFIELD_DIR" ]]; then
+        log "Would move ${NGINX_LEGACY_DIR} to ${NGINX_OPFIELD_DIR} and link ${NGINX_LEGACY_DIR} to it (dry run)"
+    fi
+}
+
+# The managed HTTPS catch-all belongs to the daemon too: it writes it on every start, under the file name of its
+# release. A second copy under the other name would be a second default server, which nginx refuses, so the installer
+# uses the name the installed daemon binary carries (a daemon of an earlier release, a pinned --version, has only the
+# legacy one) and keeps one file of the two.
+DEFAULT_SERVER_FILE="00-opfield-default-server.conf"
+# legacy-name: 00-gateway-default-server.conf written by nginx-daemon and installers before 2.12.1 — remove once no
+# supported nginx-daemon release writes it
+LEGACY_DEFAULT_SERVER_FILE="00-gateway-default-server.conf"
+
+# The nginx-daemon binary the installed command runs, if any.
+installed_daemon_binary() {
+    if is_daemon_wrapper "$NGINX_DAEMON_BIN_LINK"; then
+        echo "$NGINX_DAEMON_OWN_BINARY"
+    elif [[ -f "$NGINX_DAEMON_BIN_LINK" ]]; then
+        echo "$NGINX_DAEMON_BIN_LINK"
+    fi
+}
+
+default_server_file_name() {
+    local binary
+    binary=$(installed_daemon_binary)
+    if [[ -n "$binary" && -f "$binary" ]] && ! grep -aqF "$DEFAULT_SERVER_FILE" "$binary" 2>/dev/null && \
+        grep -aqF "$LEGACY_DEFAULT_SERVER_FILE" "$binary" 2>/dev/null; then
+        echo "$LEGACY_DEFAULT_SERVER_FILE"
+    else
+        echo "$DEFAULT_SERVER_FILE"
+    fi
+}
+
+# Keeps the catch-all under the installed daemon's name only: the copy under the other name is renamed to it, or
+# removed when that name is taken (a copy is kept for a failed nginx -t).
+align_default_server_file() {
+    local wanted other
+    wanted=$(default_server_file_name)
+    other="$LEGACY_DEFAULT_SERVER_FILE"
+    [[ "$wanted" != "$LEGACY_DEFAULT_SERVER_FILE" ]] || other="$DEFAULT_SERVER_FILE"
+    [[ -f "${NGINX_SITES_DIR}/${other}" && ! -L "${NGINX_SITES_DIR}/${other}" ]] || return 0
+    if [[ -e "${NGINX_SITES_DIR}/${wanted}" ]]; then
+        backup_nginx_config "${NGINX_SITES_DIR}/${other}"
+        rm -f -- "${NGINX_SITES_DIR}/${other}"
+    else
+        mv -f -- "${NGINX_SITES_DIR}/${other}" "${NGINX_SITES_DIR}/${wanted}"
+    fi
+}
+
 create_directories() {
     log "Creating required directories..."
     mkdir -p /etc/nginx/conf.d
+    migrate_nginx_tree
     mkdir -p "${NGINX_SITES_DIR}"
     mkdir -p /etc/nginx/certs
     mkdir -p "${NGINX_HTPASSWD_DIR}"
-    mkdir -p /etc/nginx/gateway
     mkdir -p /var/www/acme-challenge/.well-known/acme-challenge
     mkdir -p /etc/nginx-daemon/certs
     mkdir -p /var/lib/nginx-daemon
@@ -2511,7 +2830,11 @@ create_directories() {
     ok "Directories created"
 }
 
-migrate_legacy_gateway_paths() {
+# Site configurations and access lists from the directories of installers before the /etc/nginx/gateway tree (already
+# legacy cleanup) go to the current tree.
+migrate_legacy_site_paths() {
+    # legacy-name: /etc/nginx/http.d/gateway sites directory of early installers (already legacy cleanup) — remove once
+    # every node reports none
     local legacy_dirs=(
         "/etc/nginx/conf.d/sites"
         "/etc/nginx/http.d/gateway"
@@ -2536,7 +2859,7 @@ verify_checksum() {
     local binary_name="$2"
 
     log "Verifying checksum..."
-    local checksums_file="/tmp/gateway_checksums.txt"
+    local checksums_file="/tmp/opfield_checksums.txt"
     if curl -fsSL "${RELEASE_BASE}/checksums.txt" -o "$checksums_file" >> "$LOG_FILE" 2>&1; then
         local expected actual
         expected=$(grep "$binary_name" "$checksums_file" | awk '{print $1}')
@@ -2630,7 +2953,7 @@ reset_existing_enrollment_for_token() {
     log "Fresh enrollment token provided — replacing existing nginx-daemon enrollment state..."
     mkdir -p "$backup_dir"
     ENROLLMENT_BACKUP_DIR="$backup_dir"
-    # The configuration holds the Gateway address, token and certificate the enrollment used.
+    # The configuration holds the Opfield address, token and certificate the enrollment used.
     [[ ! -f /etc/nginx-daemon/config.yaml ]] || cp -a /etc/nginx-daemon/config.yaml "$backup_dir/config.yaml"
 
     if [[ -n "$(ls -A /etc/nginx-daemon/certs 2>/dev/null)" ]]; then
@@ -2646,7 +2969,7 @@ reset_existing_enrollment_for_token() {
     ok "Backed up previous enrollment state to ${backup_dir}"
 }
 
-# A token Gateway does not accept (already used, expired, another node's) must not cost an enrolled node its
+# A token Opfield does not accept (already used, expired, another node's) must not cost an enrolled node its
 # enrollment: the enrollment reset_existing_enrollment_for_token set aside comes back, and the daemon runs on it again.
 # A new enrollment that completed (its certificate is there) stays.
 ENROLLMENT_BACKUP_DIR=""
@@ -2666,7 +2989,7 @@ restore_previous_enrollment() {
         apply_host_access_config /etc/nginx-daemon/config.yaml
     fi
     grant_daemon_paths_to_run_user
-    forget_gateway_session
+    forget_control_session
     ENROLLMENT_RESTORED=1
     if restart_daemon_service; then
         ok "nginx-daemon runs on its previous enrollment again"
@@ -2704,13 +3027,23 @@ set_daemon_config_value() {
 
     # Accept both quoted and legacy unquoted YAML values. Older installers only
     # matched quoted values, leaving htpasswd_dir pointed at /etc/nginx/htpasswd
-    # while generated host configs read /etc/nginx/gateway/htpasswd.
+    # while generated host configs read the htpasswd directory of the Opfield tree.
     sed -i -E "s|^([[:space:]]*${key}:[[:space:]]*).*$|\\1\"${value}\"|" "$config_file"
     grep -Fq "${key}: \"${value}\"" "$config_file" || die "Failed to update ${key} in ${config_file}"
 }
 
+# Whether the daemon's install command takes --opfield and --opfield-cert-sha256: install without arguments prints its
+# usage and exits without changing anything. A daemon of an earlier release (a pinned --version) knows only the
+# legacy flags.
+daemon_install_takes_opfield_flags() {
+    local usage
+    usage=$(run_as_run_user "$1" install 2>&1 || true)
+    [[ "$usage" == *--opfield* ]]
+}
+
 enroll_daemon() {
     local target="/usr/local/bin/nginx-daemon"
+    local address_flag="--opfield" cert_flag="--opfield-cert-sha256"
 
     if [[ -f /etc/nginx-daemon/config.yaml ]]; then
         set_daemon_config_value config_dir "$NGINX_SITES_DIR"
@@ -2730,7 +3063,13 @@ enroll_daemon() {
     fi
 
     log "Writing config and enrolling with Opfield..."
-    if ! run_as_run_user "$target" install --gateway "$GATEWAY_ADDR" --token "$ENROLL_TOKEN" --gateway-cert-sha256 "$GATEWAY_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
+    if ! daemon_install_takes_opfield_flags "$target"; then
+        # legacy-name: --gateway and --gateway-cert-sha256 install flags of nginx-daemon before 2.12.1 — remove once the
+        # installer no longer installs an nginx-daemon release before 2.12.1
+        address_flag="--gateway"
+        cert_flag="--gateway-cert-sha256"
+    fi
+    if ! run_as_run_user "$target" install "$address_flag" "$OPFIELD_ADDR" --token "$ENROLL_TOKEN" "$cert_flag" "$OPFIELD_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
         die "Failed to enroll nginx-daemon. Check ${LOG_FILE} for details."
     fi
     set_daemon_config_value config_dir "$NGINX_SITES_DIR"
@@ -2788,7 +3127,7 @@ WantedBy=multi-user.target
 UNIT
         systemctl daemon-reload >> "$LOG_FILE" 2>&1 || die "systemd daemon-reload failed."
         systemctl enable nginx-daemon >> "$LOG_FILE" 2>&1 || die "Could not enable nginx-daemon."
-        forget_gateway_session
+        forget_control_session
         systemctl restart nginx-daemon >> "$LOG_FILE" 2>&1 || { release_fd_store_hold; fail_daemon_start "Could not start nginx-daemon."; }
         release_fd_store_hold
     elif has_openrc; then
@@ -2812,7 +3151,7 @@ depend() {
 UNIT
         chmod +x /etc/init.d/nginx-daemon || die "Could not make the nginx-daemon OpenRC service executable."
         rc-update add nginx-daemon default >> "$LOG_FILE" 2>&1 || die "Could not enable nginx-daemon in OpenRC."
-        forget_gateway_session
+        forget_control_session
         if ! rc-service nginx-daemon restart >> "$LOG_FILE" 2>&1 && ! rc-service nginx-daemon start >> "$LOG_FILE" 2>&1; then
             fail_daemon_start "Could not start nginx-daemon in OpenRC."
         fi
@@ -2834,16 +3173,17 @@ fi
 prepare_run_user_switch
 install_nginx
 create_directories
-migrate_legacy_gateway_paths
+migrate_legacy_site_paths
 configure_nginx
 install_daemon
+align_default_server_file
 remember_host_access_config /etc/nginx-daemon/config.yaml
 enroll_daemon
 apply_host_access_config /etc/nginx-daemon/config.yaml
 finish_run_user_switch
 start_daemon
-# An install whose daemon does not run or did not connect to Gateway is not done.
-if ! await_gateway_connection; then
+# An install whose daemon does not run or did not connect to Opfield is not done.
+if ! await_opfield_connection; then
     restore_previous_enrollment
     [[ "$ENROLLMENT_RESTORED" -eq 0 ]] || die "The node keeps its previous enrollment; the enrollment token was not used."
     die "nginx-daemon is installed, but it did not connect to Opfield."

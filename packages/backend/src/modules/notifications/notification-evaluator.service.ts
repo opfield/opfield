@@ -19,7 +19,6 @@ import { effectiveMaintenance } from '@/modules/proxy/effective-maintenance.js';
 import type { CacheService, RedisClient } from '@/services/cache.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
-import { GATEWAY_OUTBOUND_RESOURCE_ID } from './gateway-outbound-monitor.js';
 import {
   EVENT_BUS_MAPPINGS,
   evaluateThreshold,
@@ -50,6 +49,7 @@ import {
   renderTemplate,
 } from './notification-templates.js';
 import type { NotificationWebhookService } from './notification-webhook.service.js';
+import { OPFIELD_OUTBOUND_RESOURCE_ID } from './opfield-outbound-monitor.js';
 
 /** Consecutive reports a default node CPU, memory or disk rule must breach before it fires. */
 export const NODE_METRIC_SUSTAINED_REPORTS = 3;
@@ -71,7 +71,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /** After a Redis error, alert windows stay in memory this long before Redis is tried again. */
 const MEMORY_PROBE_RETRY_MS = 60_000;
 const MEMORY_PROBE_SAMPLE_LIMIT = 1_000;
-const GATEWAY_SAMPLING_MS = 60_000;
+const OPFIELD_SAMPLING_MS = 60_000;
 /** A held state is observed again this long after a rule's window can be covered by it. */
 const HELD_STATE_SLACK_MS = 1_000;
 /** Route alerts explained by a parent that resolved this recently are held, see foldingParent. */
@@ -105,13 +105,13 @@ function isFoldableContainerAlert(rule: { category?: string; eventPattern?: stri
 /** The kind of parent a rule's alerts are, if route alerts fold under them. */
 function foldingParentKind(rule: { category?: string; eventPattern?: string | null }): FoldedUnder['kind'] | null {
   if (rule.category === 'node' && rule.eventPattern === 'offline') return 'node';
-  if (rule.category === 'gateway' && rule.eventPattern === 'outbound.unavailable') return 'gateway_outbound';
+  if (rule.category === 'opfield' && rule.eventPattern === 'outbound.unavailable') return 'opfield_outbound';
   return null;
 }
 
 /** Resource keys of Gateway's own alerts (category gateway). */
-export const GATEWAY_RESOURCE_ID = 'gateway';
-export const GATEWAY_POSTGRES_RESOURCE_ID = 'gateway-postgres';
+export const OPFIELD_RESOURCE_ID = 'opfield';
+export const OPFIELD_POSTGRES_RESOURCE_ID = 'opfield-postgres';
 
 /** Outage starts further back than this before the firing are not the same outage. */
 const MAX_OUTAGE_LEAD_MS = 15 * 60_000;
@@ -470,26 +470,26 @@ export class NotificationEvaluatorService {
   }
 
   /** Gateway's own metrics from the diagnostics sampler, once a minute; the resource is Gateway itself. */
-  async evaluateGatewaySnapshot(metrics: Record<string, number | null>): Promise<void> {
+  async evaluateOpfieldSnapshot(metrics: Record<string, number | null>): Promise<void> {
     const rules = await this.getThresholdRules();
     for (const rule of rules) {
-      if (rule.category !== 'gateway') continue;
-      if (rule.resourceIds?.length > 0 && !rule.resourceIds.includes(GATEWAY_RESOURCE_ID)) continue;
+      if (rule.category !== 'opfield') continue;
+      if (rule.resourceIds?.length > 0 && !rule.resourceIds.includes(OPFIELD_RESOURCE_ID)) continue;
       const value = metrics[rule.metric];
       if (typeof value !== 'number' || Number.isNaN(value)) continue;
 
       const breached = evaluateThreshold(value, rule.operator, rule.thresholdValue);
       await this.recordProbeOutcome(
         rule.id,
-        GATEWAY_RESOURCE_ID,
+        OPFIELD_RESOURCE_ID,
         breached,
         Math.max(rule.durationSeconds ?? 0, rule.resolveAfterSeconds ?? 0) * 1000,
-        GATEWAY_SAMPLING_MS
+        OPFIELD_SAMPLING_MS
       );
       if (breached) {
-        await this.handleThresholdBreach(rule, GATEWAY_RESOURCE_ID, value, GATEWAY_RESOURCE_ID, 'Opfield');
+        await this.handleThresholdBreach(rule, OPFIELD_RESOURCE_ID, value, OPFIELD_RESOURCE_ID, 'Opfield');
       } else {
-        await this.handleThresholdClear(rule, GATEWAY_RESOURCE_ID, value, GATEWAY_RESOURCE_ID, 'Opfield');
+        await this.handleThresholdClear(rule, OPFIELD_RESOURCE_ID, value, OPFIELD_RESOURCE_ID, 'Opfield');
       }
     }
   }
@@ -500,7 +500,7 @@ export class NotificationEvaluatorService {
    * copied while it answered are used to send directly, and the alert state and delivery rows are
    * written once it answers again, together with the resolved notification.
    */
-  async observeGatewayPostgres(available: boolean, error?: string): Promise<void> {
+  async observeOpfieldPostgres(available: boolean, error?: string): Promise<void> {
     const now = Date.now();
     if (available) {
       await this.refreshPostgresOutageTargets().catch((refreshError: unknown) => {
@@ -531,9 +531,9 @@ export class NotificationEvaluatorService {
         { error: outage.error, down_since: new Date(outage.startedAt).toISOString() },
         'postgres.unavailable',
         'postgres.unavailable',
-        GATEWAY_POSTGRES_RESOURCE_ID
+        OPFIELD_POSTGRES_RESOURCE_ID
       );
-      const event = this.buildFiredEvent(rule, 'gateway', GATEWAY_POSTGRES_RESOURCE_ID, 'Postgres', details);
+      const event = this.buildFiredEvent(rule, 'opfield', OPFIELD_POSTGRES_RESOURCE_ID, 'Postgres', details);
       const sends: PostgresOutageAlert['sends'] = [];
       for (const webhook of webhooks) {
         const sentAt = new Date();
@@ -559,9 +559,9 @@ export class NotificationEvaluatorService {
   private async refreshPostgresOutageTargets(): Promise<void> {
     const rules = (await this.getEventRules()).filter(
       (rule) =>
-        rule.category === 'gateway' &&
+        rule.category === 'opfield' &&
         rule.eventPattern === 'postgres.unavailable' &&
-        (!(rule.resourceIds?.length > 0) || rule.resourceIds.includes(GATEWAY_POSTGRES_RESOURCE_ID))
+        (!(rule.resourceIds?.length > 0) || rule.resourceIds.includes(OPFIELD_POSTGRES_RESOURCE_ID))
     );
     const webhookIds = [...new Set(rules.flatMap((rule) => (rule.webhookIds ?? []) as string[]))];
     const webhooks =
@@ -588,12 +588,12 @@ export class NotificationEvaluatorService {
       },
       'postgres.unavailable',
       'ok',
-      GATEWAY_POSTGRES_RESOURCE_ID
+      OPFIELD_POSTGRES_RESOURCE_ID
     );
     const resolvedEvent = this.buildResolvedEvent(
       alert.rule,
-      'gateway',
-      GATEWAY_POSTGRES_RESOURCE_ID,
+      'opfield',
+      OPFIELD_POSTGRES_RESOURCE_ID,
       'Postgres',
       details
     );
@@ -603,8 +603,8 @@ export class NotificationEvaluatorService {
           .insert(notificationAlertStates)
           .values({
             ruleId: alert.rule.id,
-            resourceType: 'gateway',
-            resourceId: GATEWAY_POSTGRES_RESOURCE_ID,
+            resourceType: 'opfield',
+            resourceId: OPFIELD_POSTGRES_RESOURCE_ID,
             status: 'resolved',
             severity: alert.rule.severity,
             firedAt: new Date(alert.firedAt),
@@ -1919,8 +1919,8 @@ export class NotificationEvaluatorService {
     if (unreachable) {
       sources.push(
         and(
-          eq(notificationAlertStates.resourceType, 'gateway'),
-          eq(notificationAlertStates.resourceId, GATEWAY_OUTBOUND_RESOURCE_ID)
+          eq(notificationAlertStates.resourceType, 'opfield'),
+          eq(notificationAlertStates.resourceId, OPFIELD_OUTBOUND_RESOURCE_ID)
         )!
       );
     }
@@ -1946,10 +1946,10 @@ export class NotificationEvaluatorService {
       );
     const firing = parents.find((parent) => parent.status === 'firing');
     if (firing) {
-      const outbound = firing.resourceType === 'gateway';
+      const outbound = firing.resourceType === 'opfield';
       return {
         stateId: firing.id,
-        kind: outbound ? 'gateway_outbound' : 'node',
+        kind: outbound ? 'opfield_outbound' : 'node',
         label: `${firing.ruleName} (${outbound ? 'Opfield' : await this.nodeNameOf(firing.resourceId)})`,
       };
     }
@@ -2013,14 +2013,14 @@ export class NotificationEvaluatorService {
     const folded: FoldedUnder = {
       stateId: parentStateId,
       kind,
-      label: `${parentRule.name} (${kind === 'gateway_outbound' ? 'Opfield' : parentResourceName})`,
+      label: `${parentRule.name} (${kind === 'opfield_outbound' ? 'Opfield' : parentResourceName})`,
     };
     for (const { state } of candidates) {
       const context = (state.context ?? {}) as TemplateDetails;
       const explained =
         state.resourceType !== 'proxy'
           ? kind === 'node' && context.node?.id === parentResourceKey
-          : kind === 'gateway_outbound'
+          : kind === 'opfield_outbound'
             ? context.details?.probe_failure === 'unreachable'
             : (await this.routeNodeIds(state.resourceId)).includes(parentResourceKey);
       if (!explained) continue;
@@ -2470,7 +2470,7 @@ export class NotificationEvaluatorService {
       rule.category === 'managed_storage' ||
       rule.category === 'logging' ||
       rule.category === 'hosting_account' ||
-      rule.category === 'gateway'
+      rule.category === 'opfield'
     ) {
       return sourceId;
     }

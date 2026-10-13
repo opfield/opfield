@@ -81,6 +81,10 @@ export type GwcaContainerManifest = z.infer<typeof GwcaContainerSchema>;
 
 const RESERVED_LABEL_PREFIXES = [
   'com.docker.compose.',
+  'net.opfield.archive.',
+  'net.opfield.deployment.',
+  'net.opfield.migration.',
+  // legacy-name: wiolett.gateway.* labels — remove once every node reports none
   'wiolett.gateway.archive.',
   'wiolett.gateway.deployment.',
   'wiolett.gateway.migration.',

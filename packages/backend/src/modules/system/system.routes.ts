@@ -12,7 +12,7 @@ import { readStatusPageUpstream } from '@/modules/cloud-link/cloud-link-status-p
 import { entitlementsIncludeFeature } from '@/modules/license/license-features.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
-import { browserHostGateway, relayReenrollmentInstallation } from '@/modules/nodes/node-installer.js';
+import { browserHostOpfield, relayReenrollmentInstallation } from '@/modules/nodes/node-installer.js';
 import { NodesService } from '@/modules/nodes/nodes.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { dispatchNodeDaemonUpdate } from '@/services/daemon-node-update.js';
@@ -67,15 +67,15 @@ systemRoutes.openapi(systemConfigRoute, async (c) => {
     service.getConfig(),
     container.resolve(LicensePolicyService).getSummary(),
   ]);
-  const canViewGatewaySettings = hasScope(c.get('effectiveScopes') || [], 'settings:gateway:view');
+  const canViewOpfieldSettings = hasScope(c.get('effectiveScopes') || [], 'settings:opfield:view');
   return c.json({
     data: {
       fileUploadMaxBytes: config.fileUploadMaxBytes,
       fileOpenMaxBytes: config.fileOpenMaxBytes,
-      gatewayGrpcPublicTarget: canViewGatewaySettings ? config.gatewayGrpcPublicTarget : null,
-      gatewayGrpcLocalIp: canViewGatewaySettings ? config.gatewayGrpcLocalIp : null,
-      relayAutoRecovery: canViewGatewaySettings ? config.relayAutoRecovery : false,
-      ...(canViewGatewaySettings ? { relay: config.relay } : {}),
+      grpcPublicTarget: canViewOpfieldSettings ? config.grpcPublicTarget : null,
+      grpcLocalIp: canViewOpfieldSettings ? config.grpcLocalIp : null,
+      relayAutoRecovery: canViewOpfieldSettings ? config.relayAutoRecovery : false,
+      ...(canViewOpfieldSettings ? { relay: config.relay } : {}),
       features: {
         ...config.features,
         // The switches default to on; a plan without the feature reports them off.
@@ -91,7 +91,7 @@ systemRoutes.openapi(systemConfigRoute, async (c) => {
 
 // The status page upstream as it is in use, for the read-only field of a managed cloud installation.
 systemRoutes.get('/status-page-upstream', requireScope('status-page:view'), async (c) => {
-  return c.json({ data: await readStatusPageUpstream(getEnv().GATEWAY_CONSOLE_DOMAIN) });
+  return c.json({ data: await readStatusPageUpstream(getEnv().OPFIELD_CONSOLE_DOMAIN) });
 });
 
 systemRoutes.post('/relay/recovery', requireScope('admin:system'), async (c) => {
@@ -100,7 +100,7 @@ systemRoutes.post('/relay/recovery', requireScope('admin:system'), async (c) => 
   return c.json({ data });
 });
 
-systemRoutes.get('/relay', requireScope('settings:gateway:view'), async (c) => {
+systemRoutes.get('/relay', requireScope('settings:opfield:view'), async (c) => {
   const local = container.resolve(RelaySupervisorService).getSnapshot(true);
   const pool = container.isRegistered(RelayPoolService)
     ? await container.resolve(RelayPoolService).getSnapshot()
@@ -165,18 +165,18 @@ systemRoutes.post('/relay/instances/:instanceId/reenroll', requireScope('admin:s
   z.object({ confirm: z.literal(true) }).parse(await c.req.json());
   const issued = await container.resolve(RelayPoolService).issueRelayReenrollment(instanceId, user.id);
   const nodesService = container.resolve(NodesService);
-  const gatewayCertSha256 = await nodesService.getGatewayEnrollmentCertificateFingerprint();
-  const gatewayEnrollmentTargets = await nodesService.getGatewayEnrollmentTargets();
+  const opfieldCertSha256 = await nodesService.getOpfieldEnrollmentCertificateFingerprint();
+  const opfieldEnrollmentTargets = await nodesService.getOpfieldEnrollmentTargets();
   return c.json({
     data: {
       ...issued,
-      gatewayCertSha256,
-      gatewayEnrollmentTargets,
+      opfieldCertSha256,
+      opfieldEnrollmentTargets,
       ...(await relayReenrollmentInstallation(
         issued,
-        gatewayCertSha256,
-        gatewayEnrollmentTargets,
-        browserHostGateway(c.req.header('x-forwarded-host') ?? c.req.header('host'))
+        opfieldCertSha256,
+        opfieldEnrollmentTargets,
+        browserHostOpfield(c.req.header('x-forwarded-host') ?? c.req.header('host'))
       )),
     },
   });
@@ -202,7 +202,7 @@ systemRoutes.openapi(checkSystemUpdateRoute, async (c) => {
     .resolve(EventBusService)
     .publish(
       'system.update.changed',
-      updateRunning ? { statusChanged: true } : { updating: false, component: 'gateway', statusChanged: true }
+      updateRunning ? { statusChanged: true } : { updating: false, component: 'opfield', statusChanged: true }
     );
   return c.json({ data: status });
 });
@@ -220,11 +220,11 @@ systemRoutes.openapi(performSystemUpdateRoute, async (c) => {
 
   const updateService = container.resolve(UpdateService);
   const eventBus = container.resolve(EventBusService);
-  if (updateService.isGatewayUpdateInProgress()) {
+  if (updateService.isOpfieldUpdateInProgress()) {
     return c.json({ code: 'UPDATE_IN_PROGRESS', message: 'An Opfield update is already in progress' }, 409);
   }
   // A running Relay Pool update refuses the Gateway update with a 409.
-  await updateService.assertGatewayUpdateAllowed();
+  await updateService.assertOpfieldUpdateAllowed();
 
   // Verify update is actually available and version matches
   const status = await updateService.getCachedStatus();
@@ -234,16 +234,16 @@ systemRoutes.openapi(performSystemUpdateRoute, async (c) => {
   if (version !== status.latestVersion) {
     return c.json({ code: 'VERSION_MISMATCH', message: 'Requested version does not match available update' }, 400);
   }
-  const artifact = await updateService.prepareGatewayUpdate(version);
+  const artifact = await updateService.prepareOpfieldUpdate(version);
   const userId = c.get('user')?.id ?? null;
   // A new attempt supersedes the report of a previous rolled-back one.
-  await updateService.acknowledgeGatewayUpdateFailure();
+  await updateService.acknowledgeOpfieldUpdateFailure();
 
   // Respond immediately, then trigger the update asynchronously.
   // The container will be replaced — the response must be sent first.
   eventBus.publish('system.update.changed', {
     updating: true,
-    component: 'gateway',
+    component: 'opfield',
     targetVersion: version,
   });
   setTimeout(() => {
@@ -252,7 +252,7 @@ systemRoutes.openapi(performSystemUpdateRoute, async (c) => {
       if (err instanceof AppError && err.code === 'UPDATE_IN_PROGRESS') return;
       eventBus.publish('system.update.changed', {
         updating: false,
-        component: 'gateway',
+        component: 'opfield',
         targetVersion: version,
         // Only curated messages; raw migration output stays in the server log.
         ...(err instanceof AppError ? { error: err.message } : {}),
@@ -275,7 +275,7 @@ systemRoutes.openapi(proceedSystemUpdateRoute, async (c) => {
   if (!updateService.proceedWithoutWaiting()) {
     return c.json({ code: 'UPDATE_NOT_WAITING', message: 'No Opfield update is waiting for running operations' }, 409);
   }
-  logger.warn('Gateway update proceeds without waiting for running operations', { userId: c.get('user')?.id });
+  logger.warn('Opfield update proceeds without waiting for running operations', { userId: c.get('user')?.id });
   return c.json({ data: { status: 'updating' } });
 });
 
@@ -283,7 +283,7 @@ systemRoutes.openapi(proceedSystemUpdateRoute, async (c) => {
 systemRoutes.openapi(acknowledgeSystemUpdateFailureRoute, async (c) => {
   const forbidden = requireUpdateScope(c);
   if (forbidden) return forbidden;
-  const acknowledged = await container.resolve(UpdateService).acknowledgeGatewayUpdateFailure();
+  const acknowledged = await container.resolve(UpdateService).acknowledgeOpfieldUpdateFailure();
   return c.json({ data: { acknowledged } });
 });
 
@@ -295,10 +295,10 @@ systemRoutes.openapi(performRelayUpdateRoute, async (c) => {
     .parse(await c.req.json());
   const updateService = container.resolve(UpdateService);
   const eventBus = container.resolve(EventBusService);
-  if (updateService.isGatewayUpdateInProgress()) {
+  if (updateService.isOpfieldUpdateInProgress()) {
     return c.json(
       {
-        code: 'GATEWAY_UPDATE_IN_PROGRESS',
+        code: 'OPFIELD_UPDATE_IN_PROGRESS',
         message: 'Opfield is updating. Update the Relay Pool after the Opfield update has finished.',
       },
       409

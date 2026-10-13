@@ -12,8 +12,8 @@ export function installAIStoreLifecycle(useAIStore: UseBoundStore<StoreApi<AISta
   function installAIResourcePreviewCommands(): void {
     if (typeof window === "undefined") return;
 
-    window.gatewayDev = {
-      ...(window.gatewayDev ?? {}),
+    window.opfieldDev = {
+      ...(window.opfieldDev ?? {}),
       showChangedResources: () => {
         useUIStore.setState({ aiPanelOpen: true });
         useAIStore.setState((state) => ({
@@ -153,8 +153,8 @@ export function installAIStoreLifecycle(useAIStore: UseBoundStore<StoreApi<AISta
   function installAIDevCommands(): void {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
 
-    window.gatewayDev = {
-      ...(window.gatewayDev ?? {}),
+    window.opfieldDev = {
+      ...(window.opfieldDev ?? {}),
       showApprovalBlock: () => {
         useUIStore.setState({ aiPanelOpen: true });
         useAIStore.setState((state) => ({

@@ -4,7 +4,7 @@ function normalizedHostname(value: string): string {
   return value.trim().toLowerCase().replace(/\.$/, "");
 }
 
-export function isGatewayPublicRoute(
+export function isOpfieldPublicRoute(
   host: Pick<ProxyHost, "domainNames">,
   publicUrl: string | null | undefined
 ): boolean {

@@ -10,7 +10,7 @@ import (
 
 	mobyclient "github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/swha"
+	"github.com/opfield/opfield/docker-daemon/internal/swha"
 )
 
 // SeaweedFS set members on a newly pinned image (P3-T07). A daemon update that

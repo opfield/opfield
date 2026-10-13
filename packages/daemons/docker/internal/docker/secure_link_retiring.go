@@ -10,7 +10,7 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/statecompat"
+	"github.com/opfield/opfield/daemon-shared/statecompat"
 )
 
 // secureLinkRetiringFile records the connectors being retired: told to drain, they finish their sessions and accept

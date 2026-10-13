@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/netaccept"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/netaccept"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 const targetDialTimeout = 10 * time.Second

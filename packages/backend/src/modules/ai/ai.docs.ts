@@ -80,7 +80,7 @@ export const DOC_TOPIC_SCOPES: Record<string, string | string[]> = {
   housekeeping: 'housekeeping:view',
   permissions: ['ai:workspace:use', 'mcp:use'],
   api: ['ai:workspace:use', 'mcp:use'],
-  'gateway-settings': ['settings:gateway:view', 'settings:gateway:edit'],
+  'opfield-settings': ['settings:opfield:view', 'settings:opfield:edit'],
   'licensing-updates': ['license:view', 'license:manage', 'admin:update'],
   inference: [
     'ai:workspace:use',
@@ -90,7 +90,7 @@ export const DOC_TOPIC_SCOPES: Record<string, string | string[]> = {
     'inference:models:manage',
     'inference:limits:manage',
     'inference:usage:view',
-    'settings:gateway:edit',
+    'settings:opfield:edit',
   ],
   gitlab: 'integrations:gitlab:view',
   notifications: ['notifications:alerts:view', 'notifications:webhooks:view', 'audit:siem:view'],

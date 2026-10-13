@@ -22,7 +22,7 @@ func waitTaskStatus(t *testing.T, m *TaskManager, id string, want TaskStatus) Ta
 }
 
 // Gateway asks for an update's task by the command that started it when it lost the answer that named the task.
-func TestTaskManagerFindsTaskByItsGatewayCommand(t *testing.T) {
+func TestTaskManagerFindsTaskByItsOpfieldCommand(t *testing.T) {
 	m := NewTaskManager()
 	release := make(chan struct{})
 	task, err := m.SubmitForCommand("cmd-1", "api", "update", time.Minute, func(context.Context) error {

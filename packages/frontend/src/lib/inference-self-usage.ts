@@ -2,7 +2,7 @@ import { lowInferenceUsageWindows } from "@/lib/dashboard-attention";
 import type { InferenceSelfUsage } from "@/types/inference";
 
 export const INFERENCE_SELF_USAGE_CACHE_KEY = "req:/api/inference/usage/self";
-export const INFERENCE_SELF_USAGE_UPDATED_EVENT = "gateway:inference-self-usage-updated";
+export const INFERENCE_SELF_USAGE_UPDATED_EVENT = "opfield:inference-self-usage-updated";
 export const INFERENCE_USAGE_CHANGED_CHANNEL = "inference.usage.changed";
 export const INFERENCE_CATALOG_CHANGED_CHANNEL = "inference.catalog.changed";
 export type InferenceUsageChangedEvent = {

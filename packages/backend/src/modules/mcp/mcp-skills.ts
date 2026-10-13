@@ -7,15 +7,15 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
  * into the image). MCP clients get them as resources and prompts, so an agent
  * connected to this Opfield reads the version that matches it.
  */
-export interface GatewaySkill {
+export interface OpfieldSkill {
   name: string;
   description: string;
   /** Markdown files keyed by path relative to the skill folder; `SKILL.md` first. */
   files: Array<{ path: string; content: string }>;
 }
 
-export function gatewaySkillsDirectory(): string {
-  return process.env.GATEWAY_SKILLS_DIR || resolve(process.cwd(), '../../skills');
+export function opfieldSkillsDirectory(): string {
+  return process.env.OPFIELD_SKILLS_DIR || resolve(process.cwd(), '../../skills');
 }
 
 const FRONTMATTER = /^---\n([\s\S]*?)\n---\n?/;
@@ -35,11 +35,11 @@ function markdownFiles(directory: string): string[] {
     });
 }
 
-export function loadGatewaySkills(directory = gatewaySkillsDirectory()): GatewaySkill[] {
+export function loadOpfieldSkills(directory = opfieldSkillsDirectory()): OpfieldSkill[] {
   if (!existsSync(directory)) return [];
   return readdirSync(directory)
     .sort()
-    .flatMap((entry): GatewaySkill[] => {
+    .flatMap((entry): OpfieldSkill[] => {
       const folder = join(directory, entry);
       const skillFile = join(folder, 'SKILL.md');
       if (!statSync(folder).isDirectory() || !existsSync(skillFile)) return [];
@@ -57,30 +57,24 @@ export function loadGatewaySkills(directory = gatewaySkillsDirectory()): Gateway
     });
 }
 
-let cachedSkills: GatewaySkill[] | null = null;
+let cachedSkills: OpfieldSkill[] | null = null;
 
-function gatewaySkills(): GatewaySkill[] {
-  cachedSkills ??= loadGatewaySkills();
+function opfieldSkills(): OpfieldSkill[] {
+  cachedSkills ??= loadOpfieldSkills();
   return cachedSkills;
 }
 
-/**
- * Earlier names of renamed skills. Agents and installed skill sets from before the rename still read
- * gateway://skills/<old name>/... and the skill-<old name> prompt; the index lists only the current name.
- */
-export const GATEWAY_SKILL_ALIASES: Readonly<Record<string, string>> = { 'using-gateway': 'using-opfield' };
-
 function skillUri(name: string, path?: string): string {
-  return path ? `gateway://skills/${name}/${path}` : `gateway://skills/${name}`;
+  return path ? `opfield://skills/${name}/${path}` : `opfield://skills/${name}`;
 }
 
 /** Skills are product documentation and need no scope beyond MCP access itself. */
-export function registerMcpSkills(server: McpServer, skills: GatewaySkill[] = gatewaySkills()): void {
+export function registerMcpSkills(server: McpServer, skills: OpfieldSkill[] = opfieldSkills()): void {
   if (skills.length === 0) return;
 
   server.registerResource(
-    'gateway-skills',
-    'gateway://skills',
+    'opfield-skills',
+    'opfield://skills',
     {
       title: 'Opfield agent skills',
       description: 'Index of the Agent Skills for operating Opfield. Start with using-opfield.',
@@ -104,26 +98,18 @@ export function registerMcpSkills(server: McpServer, skills: GatewaySkill[] = ga
     })
   );
 
-  const aliasesOf = (name: string) =>
-    Object.entries(GATEWAY_SKILL_ALIASES)
-      .filter(([alias, target]) => target === name && !skills.some((skill) => skill.name === alias))
-      .map(([alias]) => alias);
-
   for (const skill of skills) {
-    for (const name of [skill.name, ...aliasesOf(skill.name)]) {
-      const renamed = name === skill.name ? '' : ` (earlier name of ${skill.name})`;
-      for (const file of skill.files) {
-        server.registerResource(
-          `gateway-skill-${name}-${file.path.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`,
-          skillUri(name, file.path),
-          {
-            title: file.path === 'SKILL.md' ? `Skill: ${name}${renamed}` : `Skill ${name}: ${file.path}${renamed}`,
-            description: file.path === 'SKILL.md' ? skill.description : `Reference for the ${skill.name} skill.`,
-            mimeType: 'text/markdown',
-          },
-          async (uri) => ({ contents: [{ uri: uri.toString(), mimeType: 'text/markdown', text: file.content }] })
-        );
-      }
+    for (const file of skill.files) {
+      server.registerResource(
+        `opfield-skill-${skill.name}-${file.path.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`,
+        skillUri(skill.name, file.path),
+        {
+          title: file.path === 'SKILL.md' ? `Skill: ${skill.name}` : `Skill ${skill.name}: ${file.path}`,
+          description: file.path === 'SKILL.md' ? skill.description : `Reference for the ${skill.name} skill.`,
+          mimeType: 'text/markdown',
+        },
+        async (uri) => ({ contents: [{ uri: uri.toString(), mimeType: 'text/markdown', text: file.content }] })
+      );
     }
 
     const references = skill.files.filter((file) => file.path !== 'SKILL.md');
@@ -133,22 +119,20 @@ export function registerMcpSkills(server: McpServer, skills: GatewaySkill[] = ga
           .map((file) => skillUri(skill.name, file.path))
           .join(', ')}.`
       : '';
-    for (const name of [skill.name, ...aliasesOf(skill.name)]) {
-      server.registerPrompt(
-        `skill-${name}`,
-        {
-          title: name === skill.name ? `Skill: ${name}` : `Skill: ${name} (earlier name of ${skill.name})`,
-          description: skill.description,
-        },
-        () => ({
-          messages: [
-            {
-              role: 'user' as const,
-              content: { type: 'text' as const, text: `${body}${referenceNote}` },
-            },
-          ],
-        })
-      );
-    }
+    server.registerPrompt(
+      `skill-${skill.name}`,
+      {
+        title: `Skill: ${skill.name}`,
+        description: skill.description,
+      },
+      () => ({
+        messages: [
+          {
+            role: 'user' as const,
+            content: { type: 'text' as const, text: `${body}${referenceNote}` },
+          },
+        ],
+      })
+    );
   }
 }

@@ -17,11 +17,11 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = ['apps:view', 'apps:create', 'apps:edit', 'apps:env:manage'];
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): environment variables and secrets are encrypted at rest, secrets are
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): environment variables and secrets are encrypted at rest, secrets are
  * never returned (REST service and MCP tool), keys are validated, and workloads that have not received the current
  * values are listed until they record what they applied.
  */

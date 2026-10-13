@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // Sync manager of the promoted holder (synchronous durability, AS4, AS5, M5;

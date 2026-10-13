@@ -118,19 +118,19 @@ export function SidebarContent({
   const { sidebarOpen, toggleSidebar, setCommandPaletteOpen: openPalette } = useUIStore();
 
   const updateStatus = useUpdateStore((s) => s.status);
-  const gatewayUpdateAvailable = updateStatus?.updateAvailable ?? false;
+  const opfieldUpdateAvailable = updateStatus?.updateAvailable ?? false;
   // A running Relay Pool rollout shows its own indicator, not another update offer.
   const relayOnlyUpdateAvailable =
-    !gatewayUpdateAvailable &&
+    !opfieldUpdateAvailable &&
     (updateStatus?.relay?.updateAvailable ?? false) &&
     updateStatus?.relay?.operation?.status !== "updating";
-  const updateAvailable = gatewayUpdateAvailable || relayOnlyUpdateAvailable;
+  const updateAvailable = opfieldUpdateAvailable || relayOnlyUpdateAvailable;
   const updateLabel = relayOnlyUpdateAvailable
     ? "Relay update available"
     : "Opfield update available";
   const showUpdateNotifications = useUIStore((s) => s.showUpdateNotifications);
   const relayUpdateLabel = useRelayPoolUpdateLabel();
-  const showRelayUpdate = relayUpdateLabel !== null && hasScope("settings:gateway:view");
+  const showRelayUpdate = relayUpdateLabel !== null && hasScope("settings:opfield:view");
   const statusPageEnabled = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.statusPageEnabled ?? false
   );

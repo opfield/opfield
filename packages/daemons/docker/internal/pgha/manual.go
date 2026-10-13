@@ -6,7 +6,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // Manual pairs (decision 6): no lease, no certified value. The assigned

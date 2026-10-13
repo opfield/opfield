@@ -369,10 +369,10 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
   ],
   'system.license.changed': [
     {
-      category: 'gateway',
+      category: 'opfield',
       eventId: 'license.unavailable',
       match: () => true,
-      extractResource: () => ({ type: 'gateway', id: 'gateway-license', name: 'Opfield license' }),
+      extractResource: () => ({ type: 'opfield', id: 'opfield-license', name: 'Opfield license' }),
       extractData: (p) => ({
         plan: p.plan ?? null,
         expires_at: p.expiresAt ?? null,
@@ -395,13 +395,13 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
   ],
   'system.relay.health.changed': [
     {
-      category: 'gateway',
+      category: 'opfield',
       eventId: 'relay.unavailable',
       // Only the relay supervisor's own reports carry its state. A revocation report concerns one relay instance, and
       // pool and relay runtime events say nothing of the Gateway relay: read as healthy, they resolved its alert
       // during a local relay outage.
       match: (p) => p.action !== 'revocation_fence' && typeof p.state === 'string',
-      extractResource: () => ({ type: 'gateway', id: 'gateway-relay', name: 'Opfield relay' }),
+      extractResource: () => ({ type: 'opfield', id: 'opfield-relay', name: 'Opfield relay' }),
       extractData: (p) => ({
         failure_code: p.reason ?? null,
         attempt: p.attempt ?? 0,
@@ -420,12 +420,12 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       },
     },
     {
-      category: 'gateway',
+      category: 'opfield',
       eventId: 'relay.revocation_stale',
       match: (p) => p.action === 'revocation_fence' && typeof p.instanceId === 'string',
       extractResource: (p) => ({
-        type: 'gateway',
-        id: `gateway-relay-instance:${p.instanceId}`,
+        type: 'opfield',
+        id: `opfield-relay-instance:${p.instanceId}`,
         name: p.instanceName ?? p.instanceId,
       }),
       extractData: (p) => ({ relay_instance_id: p.instanceId, stale_routes: p.staleRoutes ?? 0 }),
@@ -435,12 +435,12 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       },
     },
     {
-      category: 'gateway',
+      category: 'opfield',
       eventId: 'relay.unreachable',
       match: (p) => p.action === 'data_plane' && typeof p.instanceId === 'string',
       extractResource: (p) => ({
-        type: 'gateway',
-        id: `gateway-relay-instance:${p.instanceId}`,
+        type: 'opfield',
+        id: `opfield-relay-instance:${p.instanceId}`,
         name: p.instanceName ?? p.instanceId,
       }),
       extractData: (p) => ({ relay_instance_id: p.instanceId, relay_address: p.address ?? null }),
@@ -487,7 +487,7 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
     {
       category: 'security',
       eventId: 'mfa.required',
-      match: (p) => p.requireGateway2fa === true,
+      match: (p) => p.require2fa === true,
       extractResource: (p) => ({ type: 'permission_group', id: p.groupId, name: p.groupName }),
     },
   ],

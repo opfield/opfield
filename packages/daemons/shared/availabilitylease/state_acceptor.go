@@ -3,7 +3,7 @@ package availabilitylease
 import (
 	"encoding/json"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // markStore writes the store-created marker on the first start of a v3 node

@@ -14,7 +14,7 @@ import { CryptoService } from '@/services/crypto.service.js';
 import { parseLegacySettingsEnv } from './legacy-settings-env.js';
 import { importLegacySettings } from './legacy-settings-import.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /** The last migration of v2.11.3: the database the 2.11.3 updater runs the 2.11.4 image against. */
 const V2113_LAST_MIGRATION = '0227_relay_stream_resume';

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 const (
@@ -266,7 +266,7 @@ func newHarness(t *testing.T, mode string) *harness {
 		Logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Engine:           func(Config) (Engine, error) { return h.engine, nil },
 		Async:            func(fn func()) { h.pending = append(h.pending, fn) },
-		GatewayConnected: func() bool { return h.gateway },
+		OpfieldConnected: func() bool { return h.gateway },
 		VerifyAssignment: func(setID string, assignment Assignment) error {
 			if setID != testSet || string(assignment.Signature) != testSignature(assignment) {
 				return errors.New("bad assignment signature")

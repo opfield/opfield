@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover"
-	"github.com/wiolett-industries/gateway/daemon-shared/handover/handovertest"
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	"github.com/opfield/opfield/daemon-shared/handover"
+	"github.com/opfield/opfield/daemon-shared/handover/handovertest"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 )
 
 // useTestKeeper makes handovers of this test go through keeper, as updates.

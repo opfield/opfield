@@ -2,6 +2,7 @@ import { container } from '@/container.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { DockerAvailabilityService } from '../availability/docker-availability.service.js';
 import { DockerManagementService } from '../docker.service.js';
+import { labelString } from '../docker-managed-labels.js';
 import { DockerSnapshotService } from '../docker-snapshot.service.js';
 import { DockerComposeService } from './compose.service.js';
 import { isComposeOwnedNetwork, isComposeOwnedVolume } from './compose-discovery.service.js';
@@ -35,7 +36,7 @@ export async function assertComposeChildMutationAllowed(nodeId: string, containe
     'This container belongs to a Compose project and must be changed through the Compose project',
     {
       nodeId,
-      projectId: labels['wiolett.gateway.compose.project-id'] || persisted?.id || null,
+      projectId: labelString(labels, 'compose.project-id') || persisted?.id || null,
       projectName,
     }
   );

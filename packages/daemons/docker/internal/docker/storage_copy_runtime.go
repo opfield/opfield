@@ -19,8 +19,8 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/mount"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // Storage copy jobs copy or sync objects between two S3 connections with the
@@ -38,7 +38,7 @@ const (
 	// A safeguard behind the control plane's own per-executor limit.
 	storageCopyMaxActive  = 4
 	storageCopyRunnerKind = "storage-copy-runner"
-	storageCopyJobLabel   = "wiolett.gateway.storage-copy-job-id"
+	storageCopyJobLabel   = "net.opfield.storage-copy-job-id"
 	storageCopyUnknownJob = "STORAGE_COPY_JOB_UNKNOWN"
 	// Finished statuses are kept long enough for the control plane to collect
 	// the report after an outage; cancel records only have to outlive a late

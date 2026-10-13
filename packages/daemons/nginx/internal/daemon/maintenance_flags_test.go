@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 const maintenanceTestHostC = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
@@ -28,7 +28,7 @@ func (h *reloadTestHandler) flagged(hostID string) bool {
 	return err == nil
 }
 
-func maintenanceApply(hostID, content string, flag pb.ProxyMaintenanceFlag) *pb.GatewayCommand {
+func maintenanceApply(hostID, content string, flag pb.ProxyMaintenanceFlag) *pb.OpfieldCommand {
 	command := applyConfig(hostID, content, false)
 	command.GetApplyConfig().Maintenance = flag
 	return command
@@ -111,12 +111,12 @@ func TestMaintenanceFlagsFollowTheRoutesTheNodeServes(t *testing.T) {
 	h.run(t, maintenanceApply(reloadTestHostB, "server { listen 81; }\n", on))
 	h.run(t, maintenanceApply(maintenanceTestHostC, "server { listen 82; }\n", on))
 
-	h.run(t, &pb.GatewayCommand{Payload: &pb.GatewayCommand_RemoveConfig{RemoveConfig: &pb.RemoveConfigCommand{HostId: maintenanceTestHostC}}})
+	h.run(t, &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_RemoveConfig{RemoveConfig: &pb.RemoveConfigCommand{HostId: maintenanceTestHostC}}})
 	if h.flagged(maintenanceTestHostC) {
 		t.Fatal("removing a route kept its maintenance flag")
 	}
 	reloads := h.reloads(t)
-	h.run(t, &pb.GatewayCommand{Payload: &pb.GatewayCommand_FullSync{FullSync: &pb.FullSyncCommand{Hosts: []*pb.HostConfig{
+	h.run(t, &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_FullSync{FullSync: &pb.FullSyncCommand{Hosts: []*pb.HostConfig{
 		{HostId: reloadTestHostA, ConfigContent: "server { listen 80; }\n", Maintenance: pb.ProxyMaintenanceFlag_PROXY_MAINTENANCE_FLAG_OFF},
 	}}}})
 	if h.flagged(reloadTestHostA) {
@@ -125,7 +125,7 @@ func TestMaintenanceFlagsFollowTheRoutesTheNodeServes(t *testing.T) {
 	if h.flagged(reloadTestHostB) {
 		t.Fatal("the flag of a route the full sync does not list was kept")
 	}
-	h.run(t, &pb.GatewayCommand{Payload: &pb.GatewayCommand_FullSync{FullSync: &pb.FullSyncCommand{Hosts: []*pb.HostConfig{
+	h.run(t, &pb.OpfieldCommand{Payload: &pb.OpfieldCommand_FullSync{FullSync: &pb.FullSyncCommand{Hosts: []*pb.HostConfig{
 		{HostId: reloadTestHostA, ConfigContent: "server { listen 80; }\n", Maintenance: on},
 	}}}})
 	if !h.flagged(reloadTestHostA) {

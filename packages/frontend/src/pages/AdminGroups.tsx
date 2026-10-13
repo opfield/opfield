@@ -154,7 +154,7 @@ function AdminGroupsContent({
   }, [dialogOpen, editingGroup]);
   const [formDescription, setFormDescription] = useState("");
   const [formParentId, setFormParentId] = useState<string | null>(null);
-  const [formRequireGateway2fa, setFormRequireGateway2fa] = useState(false);
+  const [formRequire2fa, setFormRequire2fa] = useState(false);
   const [scopesOpen, setScopesOpen] = useState(false);
   const [listSearch, setListSearch] = useState("");
   const [groupDialogMode, setGroupDialogMode] = useState<"edit" | "readonly">("edit");
@@ -334,7 +334,7 @@ function AdminGroupsContent({
     setFormName("");
     setFormDescription("");
     setFormParentId(null);
-    setFormRequireGateway2fa(false);
+    setFormRequire2fa(false);
     setDestinationFolders(null);
     setDialogOpen(true);
   }, []);
@@ -351,7 +351,7 @@ function AdminGroupsContent({
     setFormName(group.name);
     setFormDescription(group.description ?? "");
     setFormParentId(group.parentId);
-    setFormRequireGateway2fa(group.requireGateway2fa ?? false);
+    setFormRequire2fa(group.require2fa ?? false);
     setDialogOpen(true);
   };
 
@@ -372,7 +372,7 @@ function AdminGroupsContent({
     if (editingGroup?.isBuiltin) {
       setSaving(true);
       try {
-        await api.updateGroup(editingGroup.id, { requireGateway2fa: formRequireGateway2fa });
+        await api.updateGroup(editingGroup.id, { require2fa: formRequire2fa });
         useDashboardBootstrapStore.getState().invalidate();
         toast.success("MFA policy updated");
         setDialogOpen(false);
@@ -399,7 +399,7 @@ function AdminGroupsContent({
           description: formDescription.trim() || null,
           scopes: finalScopes,
           parentId: formParentId,
-          requireGateway2fa: formRequireGateway2fa,
+          require2fa: formRequire2fa,
         });
         useDashboardBootstrapStore.getState().invalidate();
         toast.success("Group updated");
@@ -412,7 +412,7 @@ function AdminGroupsContent({
           description: formDescription.trim() || undefined,
           scopes: finalScopes,
           parentId: formParentId,
-          requireGateway2fa: formRequireGateway2fa,
+          require2fa: formRequire2fa,
         });
         toast.success("Group created");
       }
@@ -525,7 +525,7 @@ function AdminGroupsContent({
                     Built-in
                   </Badge>
                 )}
-                {group.requireGateway2fa && (
+                {group.require2fa && (
                   <Badge variant="outline" size="inline">
                     MFA required
                   </Badge>
@@ -818,9 +818,9 @@ function AdminGroupsContent({
             <SwitchCard
               label="Require two-factor authentication"
               description="Applies only to Opfield email-based sign-in. OIDC MFA stays managed by the identity provider."
-              checked={formRequireGateway2fa}
+              checked={formRequire2fa}
               disabled={groupDialogReadOnly}
-              onCheckedChange={setFormRequireGateway2fa}
+              onCheckedChange={setFormRequire2fa}
             />
           </div>
           <AccessDialogFooter

@@ -19,16 +19,26 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/updateauth"
+	"github.com/opfield/opfield/daemon-shared/updateauth"
 )
 
 const (
 	// BinaryPath and UnitName match LEASE_WATCHDOG_BIN / LEASE_WATCHDOG_UNIT.
-	BinaryPath = "/usr/local/bin/gateway-lease-watchdog"
-	UnitName   = "gateway-lease-watchdog"
+	BinaryPath = "/usr/local/bin/opfield-lease-watchdog"
+	UnitName   = "opfield-lease-watchdog"
 	// SystemdUnitPath and OpenRCPath are where the installer writes them.
 	SystemdUnitPath = "/etc/systemd/system/" + UnitName + ".service"
 	OpenRCPath      = "/etc/init.d/" + UnitName
+
+	// The pre-Opfield service. The watchdog moves itself to UnitName
+	// (MigrateLegacyService); while the old unit is installed (a node not
+	// migrated yet, or an older installer restored it) the new one does not
+	// start, so two watchdogs never run.
+	// legacy-name: gateway-lease-watchdog service and binary of pre-Opfield nodes — remove once every node reports none
+	LegacyBinaryPath      = "/usr/local/bin/gateway-lease-watchdog"
+	LegacyUnitName        = "gateway-lease-watchdog"
+	LegacySystemdUnitPath = "/etc/systemd/system/" + LegacyUnitName + ".service"
+	LegacyOpenRCPath      = "/etc/init.d/" + LegacyUnitName
 
 	// Component is the update-service package; DaemonType the signed
 	// manifest daemonType of its artifacts (tags vX.Y.Z-watchdog).
@@ -55,6 +65,9 @@ Description=Opfield Availability Lease Watchdog
 # Deliberately independent of docker-daemon and docker: it must keep
 # enforcing lease deadlines when either one is stopped, hung or removed.
 After=local-fs.target
+# Never next to the pre-Opfield unit of the same watchdog: that one runs
+# while it is installed and moves the node to this unit.
+ConditionPathExists=!` + LegacySystemdUnitPath + `
 
 [Service]
 Type=simple
@@ -82,6 +95,15 @@ error_log="/var/log/` + UnitName + `.err"
 
 depend() {
     need localmount
+}
+
+start_pre() {
+    # Never next to the pre-Opfield service of the same watchdog: that one runs
+    # while it is installed and moves the node to this service.
+    if [ -e ` + LegacyOpenRCPath + ` ]; then
+        eerror "` + LegacyUnitName + ` is installed and runs instead"
+        return 1
+    fi
 }
 `
 }

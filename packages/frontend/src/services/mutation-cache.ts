@@ -58,7 +58,7 @@ const DASHBOARD_RESOURCES = new Set([
  * become stale after a successful API mutation.
  */
 export function mutationCachePrefixes(url: string): string[] {
-  const pathname = new URL(url, "http://gateway.local").pathname;
+  const pathname = new URL(url, "http://opfield.local").pathname;
   const apiPath = pathname.startsWith("/api/") ? pathname.slice(5) : pathname.replace(/^\//, "");
   const resource = apiPath.split("/")[0];
   if (!resource) return [];

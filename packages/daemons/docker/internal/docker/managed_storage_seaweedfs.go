@@ -23,8 +23,8 @@ import (
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/swha"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/docker-daemon/internal/swha"
 )
 
 // SeaweedFS runtime contract (rc.8): one `weed server` container per cluster

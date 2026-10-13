@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises';
 import http from 'node:http';
 import { type Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { LEGACY_MANAGED_SERVICE_LABEL, MANAGED_SERVICE_LABEL } from '@/foundation/opfield-names.js';
 import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('DockerService');
@@ -110,7 +111,7 @@ export class DockerService {
     };
     const image = registry.Config?.Image;
     if (!image) throw new Error('Managed registry image is unavailable');
-    const temporaryName = `gateway-registry-gc-${process.pid}-${Date.now()}`;
+    const temporaryName = `opfield-registry-gc-${process.pid}-${Date.now()}`;
     let temporaryId: string | null = null;
     let registryStopped = false;
     let operationError: unknown;
@@ -204,7 +205,9 @@ export class DockerService {
   }
 
   async recoverManagedRegistryMaintenance(): Promise<void> {
-    const filters = encodeURIComponent(JSON.stringify({ name: ['gateway-registry-gc-'] }));
+    // legacy-name: gateway-registry-gc- containers left by an update from a release before 2.12.1 — remove once
+    // every installation runs 2.12.1+
+    const filters = encodeURIComponent(JSON.stringify({ name: ['opfield-registry-gc-', 'gateway-registry-gc-'] }));
     const listed = await this.request('GET', `${API_VERSION}/containers/json?all=1&filters=${filters}`);
     if (listed.statusCode !== 200) throw new Error(`Docker GC container lookup failed (${listed.statusCode})`);
     const containers = JSON.parse(listed.body) as Array<{ Id?: string }>;
@@ -216,13 +219,16 @@ export class DockerService {
   }
 
   private async managedRegistryContainerId(): Promise<string> {
-    const filters = encodeURIComponent(JSON.stringify({ label: ['com.wiolett.gateway.managed-service=registry'] }));
-    const listed = await this.request('GET', `${API_VERSION}/containers/json?all=1&filters=${filters}`);
-    if (listed.statusCode !== 200) throw new Error(`Docker container lookup failed (${listed.statusCode})`);
-    const containers = JSON.parse(listed.body) as Array<{ Id?: string }>;
-    const registryId = containers[0]?.Id;
-    if (!registryId) throw new Error('Managed registry container was not found');
-    return registryId;
+    // legacy-name: a registry created before 2.12.1 keeps its label until the host move recreates it.
+    for (const label of [MANAGED_SERVICE_LABEL, LEGACY_MANAGED_SERVICE_LABEL]) {
+      const filters = encodeURIComponent(JSON.stringify({ label: [`${label}=registry`] }));
+      const listed = await this.request('GET', `${API_VERSION}/containers/json?all=1&filters=${filters}`);
+      if (listed.statusCode !== 200) throw new Error(`Docker container lookup failed (${listed.statusCode})`);
+      const containers = JSON.parse(listed.body) as Array<{ Id?: string }>;
+      const registryId = containers[0]?.Id;
+      if (registryId) return registryId;
+    }
+    throw new Error('Managed registry container was not found');
   }
 
   /**

@@ -2,40 +2,43 @@ import { AlertTriangle, RotateCw, XCircle } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  isGatewayUpdateTargetVersion,
-  isGatewayVersionNewer,
-  normalizeGatewayUpdateVersion,
-  publishGatewayReload,
-  reloadGatewayClient,
-  subscribeGatewayReload,
-} from "@/lib/gateway-update-reload";
+  isOpfieldUpdateTargetVersion,
+  isOpfieldVersionNewer,
+  normalizeOpfieldUpdateVersion,
+  publishOpfieldReload,
+  reloadOpfieldClient,
+  subscribeOpfieldReload,
+} from "@/lib/opfield-update-reload";
 import { cn, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAppStatusStore } from "@/stores/app-status";
 import { useAuthStore } from "@/stores/auth";
 import { useUpdateStore } from "@/stores/update";
-import type { GatewayUpdateOperation } from "@/types";
+import type { OpfieldUpdateOperation } from "@/types";
 
-export { isGatewayUpdateTargetVersion, normalizeGatewayUpdateVersion };
+export { isOpfieldUpdateTargetVersion, normalizeOpfieldUpdateVersion };
 
 const VERSION_RELOAD_CHECK_INTERVAL_MS = 30_000;
 /**
  * The update screen never outlasts the longest wait for running operations
  * (one hour) plus the update itself, even if the server still reports it.
  */
-export const GATEWAY_UPDATE_MAX_WAIT_MS = 90 * 60_000;
+export const OPFIELD_UPDATE_MAX_WAIT_MS = 90 * 60_000;
 /** Covers the moments before the server has registered an accepted update. */
-export const GATEWAY_UPDATE_UNKNOWN_GRACE_MS = 60_000;
-const GATEWAY_UPDATE_STATUS_CHECK_INTERVAL_MS = 15_000;
+export const OPFIELD_UPDATE_UNKNOWN_GRACE_MS = 60_000;
+const OPFIELD_UPDATE_STATUS_CHECK_INTERVAL_MS = 15_000;
 const MAINTENANCE_RECOVERY_CHECK_INTERVAL_MS = 5_000;
-const MAINTENANCE_AUTO_RELOAD_GUARD_KEY = "gateway-maintenance-auto-reload";
+const MAINTENANCE_AUTO_RELOAD_GUARD_KEY = "opfield-maintenance-auto-reload";
+// legacy-name: reload guard the 2.12.0 bundle sets before it reloads into the update — remove once 2.12.0 is no longer an update source
+const LEGACY_MAINTENANCE_AUTO_RELOAD_GUARD_KEY = "gateway-maintenance-auto-reload";
 
 export function clearMaintenanceAutoReloadGuard(): void {
   window.sessionStorage.removeItem(MAINTENANCE_AUTO_RELOAD_GUARD_KEY);
+  window.sessionStorage.removeItem(LEGACY_MAINTENANCE_AUTO_RELOAD_GUARD_KEY);
 }
 
 /**
- * The maintenance and restart screens mirror GATEWAY_RESTARTING_HTML in
+ * The maintenance and restart screens mirror OPFIELD_RESTARTING_HTML in
  * packages/backend/src/lib/gateway-error-pages.ts. While Gateway is down the
  * browser reloads onto that static page, which is always dark, so these screens
  * keep its fixed palette (and the dark theme for their controls) instead of the
@@ -131,16 +134,16 @@ function StatusScreen({
   );
 }
 
-async function fetchGatewayCurrentVersion(): Promise<string | null> {
+async function fetchOpfieldCurrentVersion(): Promise<string | null> {
   try {
     // Health is intentionally outside the authenticated API rate-limit bucket.
     // A deployment detector must never be able to lock the application UI out.
     const response = await fetch("/health", {
       cache: "no-store",
-      headers: { "X-Gateway-Health-Probe": "version" },
+      headers: { "X-Opfield-Health-Probe": "version" },
     });
     if (response.ok) {
-      const payload = (await response.json()) as GatewayHealthSnapshot;
+      const payload = (await response.json()) as OpfieldHealthSnapshot;
       return payload.version ?? null;
     }
   } catch {
@@ -168,7 +171,7 @@ function MaintenanceScreen() {
         const [healthResponse, apiResponse] = await Promise.all([
           fetch("/health", {
             cache: "no-store",
-            headers: { "X-Gateway-Health-Probe": "maintenance" },
+            headers: { "X-Opfield-Health-Probe": "maintenance" },
             signal: controller.signal,
           }),
           fetch("/api/setup/status", {
@@ -178,7 +181,7 @@ function MaintenanceScreen() {
           }),
         ]);
         const health = healthResponse.ok
-          ? ((await healthResponse.json()) as GatewayHealthSnapshot)
+          ? ((await healthResponse.json()) as OpfieldHealthSnapshot)
           : null;
         const ready =
           healthResponse.ok &&
@@ -188,7 +191,8 @@ function MaintenanceScreen() {
         consecutiveReadyChecks = ready ? consecutiveReadyChecks + 1 : 0;
         if (consecutiveReadyChecks >= 2) {
           const autoReloadAlreadyAttempted =
-            window.sessionStorage.getItem(MAINTENANCE_AUTO_RELOAD_GUARD_KEY) === "1";
+            window.sessionStorage.getItem(MAINTENANCE_AUTO_RELOAD_GUARD_KEY) === "1" ||
+            window.sessionStorage.getItem(LEGACY_MAINTENANCE_AUTO_RELOAD_GUARD_KEY) === "1";
           if (!autoReloadAlreadyAttempted) {
             window.sessionStorage.setItem(MAINTENANCE_AUTO_RELOAD_GUARD_KEY, "1");
             window.location.reload();
@@ -224,7 +228,7 @@ function MaintenanceScreen() {
   );
 }
 
-interface GatewayHealthSnapshot {
+interface OpfieldHealthSnapshot {
   lifecycleState?: "running" | "draining_user" | "draining_logs" | "terminating";
   version?: string | null;
 }
@@ -252,7 +256,7 @@ function UpdateOperationScreen({
   );
 }
 
-export function buildGatewayRestartTargetUrl(targetBase: string, currentHref: string): string {
+export function buildOpfieldRestartTargetUrl(targetBase: string, currentHref: string): string {
   const target = new URL(targetBase, currentHref);
   const current = new URL(currentHref);
   target.pathname = current.pathname;
@@ -262,7 +266,7 @@ export function buildGatewayRestartTargetUrl(targetBase: string, currentHref: st
 }
 
 /** The update waits for running orchestration operations before it restarts Gateway. */
-function GatewayUpdateWaitingScreen({ operation }: { operation: GatewayUpdateOperation }) {
+function OpfieldUpdateWaitingScreen({ operation }: { operation: OpfieldUpdateOperation }) {
   const canUpdate = useAuthStore((state) => state.hasScope("admin:update"));
   const proceedWithUpdate = useUpdateStore((state) => state.proceedWithUpdate);
   const [proceeding, setProceeding] = useState(false);
@@ -319,14 +323,14 @@ function GatewayUpdateWaitingScreen({ operation }: { operation: GatewayUpdateOpe
   );
 }
 
-function GatewayOperationScreen() {
-  const updatingActive = useAppStatusStore((s) => s.gatewayUpdatingActive);
-  const gatewayOperation = useUpdateStore((state) => state.status?.gatewayOperation ?? null);
-  const targetVersion = useAppStatusStore((s) => s.gatewayUpdatingTargetVersion);
-  const restartTargetUrl = useAppStatusStore((s) => s.gatewayRestartTargetUrl);
-  const clearGatewayUpdating = useAppStatusStore((s) => s.clearGatewayUpdating);
-  const clearGatewayRestarting = useAppStatusStore((s) => s.clearGatewayRestarting);
-  const setGatewayUpdateError = useAppStatusStore((s) => s.setGatewayUpdateError);
+function OpfieldOperationScreen() {
+  const updatingActive = useAppStatusStore((s) => s.opfieldUpdatingActive);
+  const opfieldOperation = useUpdateStore((state) => state.status?.opfieldOperation ?? null);
+  const targetVersion = useAppStatusStore((s) => s.opfieldUpdatingTargetVersion);
+  const restartTargetUrl = useAppStatusStore((s) => s.opfieldRestartTargetUrl);
+  const clearOpfieldUpdating = useAppStatusStore((s) => s.clearOpfieldUpdating);
+  const clearOpfieldRestarting = useAppStatusStore((s) => s.clearOpfieldRestarting);
+  const setOpfieldUpdateError = useAppStatusStore((s) => s.setOpfieldUpdateError);
   useEffect(() => {
     let cancelled = false;
     let timer: number | null = null;
@@ -343,10 +347,10 @@ function GatewayOperationScreen() {
     const completeSameOriginRestart = (version: string | null, reason: string) => {
       if (navigating) return;
       navigating = true;
-      const reload = publishGatewayReload(version, reason);
-      if (updatingActive) clearGatewayUpdating();
-      else clearGatewayRestarting();
-      reloadGatewayClient(reload.id);
+      const reload = publishOpfieldReload(version, reason);
+      if (updatingActive) clearOpfieldUpdating();
+      else clearOpfieldRestarting();
+      reloadOpfieldClient(reload.id);
     };
 
     // Gateway runs, but not the target version: the update was rolled back,
@@ -355,7 +359,7 @@ function GatewayOperationScreen() {
       if (navigating || !targetVersion) return;
       navigating = true;
       useUpdateStore.getState().clearUpdating();
-      setGatewayUpdateError(
+      setOpfieldUpdateError(
         `${
           runningVersion
             ? `Opfield ${runningVersion} is running instead of ${targetVersion}.`
@@ -368,20 +372,20 @@ function GatewayOperationScreen() {
 
     const checkUpdateOutcome = async (runningVersion: string | null) => {
       const now = Date.now();
-      const waited = now - (useAppStatusStore.getState().gatewayUpdatingStartedAt ?? mountedAt);
-      if (waited >= GATEWAY_UPDATE_MAX_WAIT_MS) {
+      const waited = now - (useAppStatusStore.getState().opfieldUpdatingStartedAt ?? mountedAt);
+      if (waited >= OPFIELD_UPDATE_MAX_WAIT_MS) {
         leaveUnfinishedUpdate(runningVersion);
         return;
       }
-      if (now - lastStatusCheckAt < GATEWAY_UPDATE_STATUS_CHECK_INTERVAL_MS) return;
+      if (now - lastStatusCheckAt < OPFIELD_UPDATE_STATUS_CHECK_INTERVAL_MS) return;
       lastStatusCheckAt = now;
       const status = await useUpdateStore.getState().fetchStatus();
       if (!status || cancelled || navigating) return;
       // A waiting or running update keeps the screen; a failed one already
       // replaced it with its error (see the update store).
-      if (status.gatewayOperation) return;
+      if (status.opfieldOperation) return;
       // The server knows no update: the process that accepted it is gone.
-      if (restartObserved || waited >= GATEWAY_UPDATE_UNKNOWN_GRACE_MS) {
+      if (restartObserved || waited >= OPFIELD_UPDATE_UNKNOWN_GRACE_MS) {
         leaveUnfinishedUpdate(runningVersion);
       }
     };
@@ -389,8 +393,8 @@ function GatewayOperationScreen() {
     const navigateToRestartTarget = () => {
       if (navigating || !restartTargetUrl) return;
       navigating = true;
-      clearGatewayRestarting();
-      window.location.assign(buildGatewayRestartTargetUrl(restartTargetUrl, window.location.href));
+      clearOpfieldRestarting();
+      window.location.assign(buildOpfieldRestartTargetUrl(restartTargetUrl, window.location.href));
     };
 
     const probeRestartTarget = async () => {
@@ -424,14 +428,14 @@ function GatewayOperationScreen() {
       try {
         const response = await fetch("/health", {
           cache: "no-store",
-          headers: { "X-Gateway-Health-Probe": "operation" },
+          headers: { "X-Opfield-Health-Probe": "operation" },
         });
         if (!response.ok) {
           restartObserved = true;
           return;
         }
 
-        const health = (await response.json()) as GatewayHealthSnapshot;
+        const health = (await response.json()) as OpfieldHealthSnapshot;
         const lifecycleState = health.lifecycleState ?? "running";
         if (lifecycleState !== "running") {
           restartObserved = true;
@@ -439,16 +443,16 @@ function GatewayOperationScreen() {
         }
 
         if (targetVersion) {
-          if (isGatewayUpdateTargetVersion(health.version, targetVersion)) {
-            completeSameOriginRestart(health.version ?? null, "gateway-update-target-ready");
+          if (isOpfieldUpdateTargetVersion(health.version, targetVersion)) {
+            completeSameOriginRestart(health.version ?? null, "opfield-update-target-ready");
             return;
           }
           // A later release is running: this browser kept the flag of an update that finished
           // long ago (the tab closed mid-update) and was superseded since. Nothing failed.
-          if (isGatewayVersionNewer(health.version, targetVersion)) {
+          if (isOpfieldVersionNewer(health.version, targetVersion)) {
             navigating = true;
             useUpdateStore.getState().clearUpdating();
-            clearGatewayUpdating();
+            clearOpfieldUpdating();
             return;
           }
           if (updatingActive) await checkUpdateOutcome(health.version ?? null);
@@ -458,12 +462,12 @@ function GatewayOperationScreen() {
         if (restartObserved) {
           if (restartTargetUrl) navigateToRestartTarget();
           else if (updatingActive || targetVersion) {
-            completeSameOriginRestart(health.version ?? null, "gateway-restart-recovered");
+            completeSameOriginRestart(health.version ?? null, "opfield-restart-recovered");
           } else {
             // A regular Gateway restart has no new client assets to load.
             // Keep the current document alive so the event stream and active
             // route can recover without repeating the full startup prewarm.
-            clearGatewayRestarting();
+            clearOpfieldRestarting();
           }
         }
       } catch {
@@ -489,10 +493,10 @@ function GatewayOperationScreen() {
       if (timer !== null) window.clearTimeout(timer);
     };
   }, [
-    clearGatewayRestarting,
-    clearGatewayUpdating,
+    clearOpfieldRestarting,
+    clearOpfieldUpdating,
     restartTargetUrl,
-    setGatewayUpdateError,
+    setOpfieldUpdateError,
     targetVersion,
     updatingActive,
   ]);
@@ -502,8 +506,8 @@ function GatewayOperationScreen() {
     if (updatingActive) void useUpdateStore.getState().fetchStatus();
   }, [updatingActive]);
 
-  if (updatingActive && gatewayOperation?.status === "waiting_for_operations") {
-    return <GatewayUpdateWaitingScreen operation={gatewayOperation} />;
+  if (updatingActive && opfieldOperation?.status === "waiting_for_operations") {
+    return <OpfieldUpdateWaitingScreen operation={opfieldOperation} />;
   }
 
   return (
@@ -518,22 +522,22 @@ function GatewayOperationScreen() {
   );
 }
 
-function GatewayReloadCoordinator() {
-  const gatewayUpdatingActive = useAppStatusStore((s) => s.gatewayUpdatingActive);
-  const gatewayRestartingActive = useAppStatusStore((s) => s.gatewayRestartingActive);
+function OpfieldReloadCoordinator() {
+  const opfieldUpdatingActive = useAppStatusStore((s) => s.opfieldUpdatingActive);
+  const opfieldRestartingActive = useAppStatusStore((s) => s.opfieldRestartingActive);
   const maintenanceActive = useAppStatusStore((s) => s.maintenanceActive);
   const rateLimitedUntil = useAppStatusStore((s) => s.rateLimitedUntil);
 
   useEffect(() => {
     if (rateLimitedUntil != null) return;
-    return subscribeGatewayReload((message) => reloadGatewayClient(message.id));
+    return subscribeOpfieldReload((message) => reloadOpfieldClient(message.id));
   }, [rateLimitedUntil]);
 
   useEffect(() => {
     if (
       maintenanceActive ||
-      gatewayUpdatingActive ||
-      gatewayRestartingActive ||
+      opfieldUpdatingActive ||
+      opfieldRestartingActive ||
       rateLimitedUntil != null
     )
       return;
@@ -547,7 +551,7 @@ function GatewayReloadCoordinator() {
       if (checking || navigating || document.visibilityState !== "visible") return;
       checking = true;
       try {
-        const currentVersion = await fetchGatewayCurrentVersion();
+        const currentVersion = await fetchOpfieldCurrentVersion();
         if (!currentVersion || cancelled) return;
 
         if (baselineVersion == null) {
@@ -556,12 +560,12 @@ function GatewayReloadCoordinator() {
         }
 
         if (
-          normalizeGatewayUpdateVersion(currentVersion) !==
-          normalizeGatewayUpdateVersion(baselineVersion)
+          normalizeOpfieldUpdateVersion(currentVersion) !==
+          normalizeOpfieldUpdateVersion(baselineVersion)
         ) {
           navigating = true;
-          const reload = publishGatewayReload(currentVersion, "gateway-version-changed");
-          reloadGatewayClient(reload.id);
+          const reload = publishOpfieldReload(currentVersion, "opfield-version-changed");
+          reloadOpfieldClient(reload.id);
         }
       } catch {
         // Ignore transient backend downtime; explicit update mode has its own faster polling.
@@ -579,14 +583,14 @@ function GatewayReloadCoordinator() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [gatewayRestartingActive, gatewayUpdatingActive, maintenanceActive, rateLimitedUntil]);
+  }, [opfieldRestartingActive, opfieldUpdatingActive, maintenanceActive, rateLimitedUntil]);
 
   return null;
 }
 
-function GatewayUpdateErrorScreen() {
-  const error = useAppStatusStore((s) => s.gatewayUpdateError);
-  const clearGatewayUpdateError = useAppStatusStore((s) => s.clearGatewayUpdateError);
+function OpfieldUpdateErrorScreen() {
+  const error = useAppStatusStore((s) => s.opfieldUpdateError);
+  const clearOpfieldUpdateError = useAppStatusStore((s) => s.clearOpfieldUpdateError);
   const canUpdate = useAuthStore((state) => state.hasScope("admin:update"));
 
   if (!error) return null;
@@ -598,7 +602,7 @@ function GatewayUpdateErrorScreen() {
         .then(() => api.acknowledgeUpdateFailure())
         .catch(() => undefined);
     }
-    clearGatewayUpdateError();
+    clearOpfieldUpdateError();
   };
 
   return (
@@ -682,9 +686,9 @@ function RateLimitScreen() {
 /** A Relay Pool update never blocks the app; the sidebar shows it and links to Settings > Relay. */
 export function AppStatusGate() {
   const maintenanceActive = useAppStatusStore((s) => s.maintenanceActive);
-  const gatewayUpdatingActive = useAppStatusStore((s) => s.gatewayUpdatingActive);
-  const gatewayRestartingActive = useAppStatusStore((s) => s.gatewayRestartingActive);
-  const gatewayUpdateError = useAppStatusStore((s) => s.gatewayUpdateError);
+  const opfieldUpdatingActive = useAppStatusStore((s) => s.opfieldUpdatingActive);
+  const opfieldRestartingActive = useAppStatusStore((s) => s.opfieldRestartingActive);
+  const opfieldUpdateError = useAppStatusStore((s) => s.opfieldUpdateError);
   const rateLimitedUntil = useAppStatusStore((s) => s.rateLimitedUntil);
   const [showMaintenanceScreen, setShowMaintenanceScreen] = useState(false);
 
@@ -703,13 +707,13 @@ export function AppStatusGate() {
 
   return (
     <>
-      <GatewayReloadCoordinator />
+      <OpfieldReloadCoordinator />
       {rateLimitedUntil != null ? (
         <RateLimitScreen />
-      ) : gatewayUpdateError ? (
-        <GatewayUpdateErrorScreen />
-      ) : gatewayUpdatingActive || gatewayRestartingActive ? (
-        <GatewayOperationScreen />
+      ) : opfieldUpdateError ? (
+        <OpfieldUpdateErrorScreen />
+      ) : opfieldUpdatingActive || opfieldRestartingActive ? (
+        <OpfieldOperationScreen />
       ) : showMaintenanceScreen ? (
         <MaintenanceScreen />
       ) : null}

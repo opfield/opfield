@@ -19,8 +19,8 @@ import { LoggingRuntimeService } from '@/modules/logging/logging-runtime.service
 import { LoggingSettingsService } from '@/modules/logging/logging-settings.service.js';
 import {
   GeneralSettingsService,
-  isValidGatewayHostPortTarget,
-  isValidGatewayIpPortTarget,
+  isValidOpfieldHostPortTarget,
+  isValidOpfieldIpPortTarget,
 } from '@/modules/settings/general-settings.service.js';
 import { CacheService } from '@/services/cache.service.js';
 import { RuntimeRestartService } from '@/services/runtime-restart.service.js';
@@ -37,7 +37,7 @@ const logger = createChildLogger('SetupRoutes');
 export const setupRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 export const SETUP_SESSION_COOKIE = 'setup_session';
 export const SETUP_CSRF_HEADER = 'X-CSRF-Token';
-const GATEWAY_SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+const OPFIELD_SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 function isDockerSocketUnavailable(error: unknown): boolean {
   let current = error;
@@ -199,12 +199,12 @@ const SetupApplySchema = z.object({
       .trim()
       .min(1)
       .max(255)
-      .refine(isValidGatewayHostPortTarget, 'Must be a hostname or IP address, optionally with a port'),
+      .refine(isValidOpfieldHostPortTarget, 'Must be a hostname or IP address, optionally with a port'),
     grpcLocalIp: z
       .string()
       .trim()
       .max(255)
-      .refine((value) => value === '' || isValidGatewayIpPortTarget(value), {
+      .refine((value) => value === '' || isValidOpfieldIpPortTarget(value), {
         message: 'Must be an IPv4 or IPv6 address, optionally with a port',
       }),
   }),
@@ -241,7 +241,7 @@ setupRoutes.get('/wizard/config', async (c) => {
     container.resolve(OidcSettingsService).getPublicConfig(),
     container.resolve(LoggingSettingsService).getPublicConfig(),
     container.resolve(WebTransportSettingsService).getConfig(),
-    container.resolve(SetupTokenPolicyService).isGatewayConfigured(),
+    container.resolve(SetupTokenPolicyService).isOpfieldConfigured(),
     container.resolve(SetupWizardService).getPhase(),
     container.resolve(LicenseService).getOnboardingState(),
   ]);
@@ -271,11 +271,11 @@ setupRoutes.post('/wizard/session', async (c) => {
   if ((await container.resolve(SetupWizardService).getPhase()) !== 'ai_workspace') {
     throw new AppError(409, 'SETUP_CONFIGURATION_REQUIRED', 'Apply Opfield setup before configuring AI Workspace');
   }
-  const user = await container.resolve(AuthService).getUserById(GATEWAY_SYSTEM_USER_ID);
+  const user = await container.resolve(AuthService).getUserById(OPFIELD_SYSTEM_USER_ID);
   if (!user) throw new AppError(500, 'SETUP_SYSTEM_USER_MISSING', 'Opfield System user is unavailable');
 
   const sessions = container.resolve(SessionService);
-  await sessions.destroySetupSessions(GATEWAY_SYSTEM_USER_ID, setupSessionId);
+  await sessions.destroySetupSessions(OPFIELD_SYSTEM_USER_ID, setupSessionId);
   const session = await sessions.createSession(user, undefined, undefined, {
     purpose: 'setup',
     setupSessionId,
@@ -346,7 +346,7 @@ setupRoutes.post('/wizard/license/activate', async (c) => {
 
 const SetupAIWorkspaceOutcomeSchema = z.object({
   status: z.enum(['configured', 'skipped']),
-  configuredVia: z.enum(['direct', 'gateway_inference']).optional(),
+  configuredVia: z.enum(['direct', 'opfield_inference']).optional(),
 });
 
 setupRoutes.post('/wizard/complete', async (c) => {
@@ -354,7 +354,7 @@ setupRoutes.post('/wizard/complete', async (c) => {
   const access = container.resolve(SetupAccessService);
   const outcome = SetupAIWorkspaceOutcomeSchema.parse(await c.req.json());
   await access.withApplyLock(setupSessionId, async () => {
-    await container.resolve(SessionService).destroySetupSessions(GATEWAY_SYSTEM_USER_ID, setupSessionId);
+    await container.resolve(SessionService).destroySetupSessions(OPFIELD_SYSTEM_USER_ID, setupSessionId);
     await container.resolve(SetupWizardService).completeAIWorkspace(outcome);
   });
   for (const cookieName of getAcceptedSessionCookieNames()) deleteCookie(c, cookieName, { path: '/' });
@@ -377,12 +377,12 @@ const SetupRestoreStartSchema = z.object({
     .trim()
     .min(1)
     .max(255)
-    .refine(isValidGatewayHostPortTarget, 'Must be a hostname or IP address, optionally with a port'),
+    .refine(isValidOpfieldHostPortTarget, 'Must be a hostname or IP address, optionally with a port'),
   grpcLocalIp: z
     .string()
     .trim()
     .max(255)
-    .refine((value) => value === '' || isValidGatewayIpPortTarget(value), {
+    .refine((value) => value === '' || isValidOpfieldIpPortTarget(value), {
       message: 'Must be an IPv4 or IPv6 address, optionally with a port',
     }),
   ownerLinkClaim: z
@@ -392,7 +392,7 @@ const SetupRestoreStartSchema = z.object({
 });
 
 async function requireFreshForRestore(): Promise<void> {
-  if (await container.resolve(SetupTokenPolicyService).isGatewayConfigured()) {
+  if (await container.resolve(SetupTokenPolicyService).isOpfieldConfigured()) {
     throw new AppError(
       409,
       'SETUP_RESTORE_CONFIGURED',

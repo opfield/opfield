@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	runtimemanager "github.com/wiolett-industries/gateway/docker-daemon/internal/runtime"
+	runtimemanager "github.com/opfield/opfield/docker-daemon/internal/runtime"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
 )
 
 // Secure Runtime (runsc) verification at daemon start.

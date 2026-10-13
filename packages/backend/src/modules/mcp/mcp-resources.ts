@@ -55,14 +55,14 @@ function take<T>(items: T[] | undefined, limit = 25): T[] {
 }
 
 function docUri(topic: string): string {
-  return `gateway://docs/${encodeURIComponent(topic)}`;
+  return `opfield://docs/${encodeURIComponent(topic)}`;
 }
 
 function docRequiredScopes(topic: string): string[] {
   const requiredScope = DOC_TOPIC_SCOPES[topic];
   if (!requiredScope) return [];
   const scopes = Array.isArray(requiredScope) ? requiredScope : [requiredScope];
-  // Topics open to every MCP connection (read_gateway_documentation reads them with mcp:use) stay open here.
+  // Topics open to every MCP connection (read_opfield_documentation reads them with mcp:use) stay open here.
   if (scopes.includes('mcp:use')) return [];
   return scopes.filter((scope) => scope !== 'ai:workspace:use' && scope !== 'feat:ai:use');
 }
@@ -80,8 +80,8 @@ function accessibleDocTopics(scopes: string[]) {
 
 const operationalResources: ResourceDefinition[] = [
   {
-    name: 'gateway-overview',
-    uri: 'gateway://overview',
+    name: 'opfield-overview',
+    uri: 'opfield://overview',
     title: 'Opfield overview',
     description: 'Dashboard-level counts filtered to the token scopes.',
     requiredScopes: ['proxy:view', 'ssl:cert:view', 'pki:cert:view', 'pki:ca:view', 'nodes:details'],
@@ -97,8 +97,8 @@ const operationalResources: ResourceDefinition[] = [
     },
   },
   {
-    name: 'gateway-nodes',
-    uri: 'gateway://nodes',
+    name: 'opfield-nodes',
+    uri: 'opfield://nodes',
     title: 'Opfield nodes',
     description: 'Bounded list of Opfield nodes and connection state.',
     requiredScopes: ['nodes:details'],
@@ -124,8 +124,8 @@ const operationalResources: ResourceDefinition[] = [
     },
   },
   {
-    name: 'gateway-proxy-hosts',
-    uri: 'gateway://proxy/hosts',
+    name: 'opfield-proxy-hosts',
+    uri: 'opfield://proxy/hosts',
     title: 'Ingress routes',
     description: 'Bounded list of ingress routes, node placement, targets, TLS, and health status.',
     requiredScopes: ['proxy:view'],
@@ -157,8 +157,8 @@ const operationalResources: ResourceDefinition[] = [
     },
   },
   {
-    name: 'gateway-docker-nodes',
-    uri: 'gateway://docker/nodes',
+    name: 'opfield-docker-nodes',
+    uri: 'opfield://docker/nodes',
     title: 'Docker nodes',
     description: 'Bounded list of Docker-capable nodes.',
     requiredScopes: ['nodes:details'],
@@ -184,8 +184,8 @@ const operationalResources: ResourceDefinition[] = [
     },
   },
   {
-    name: 'gateway-logging-environments',
-    uri: 'gateway://logging/environments',
+    name: 'opfield-logging-environments',
+    uri: 'opfield://logging/environments',
     title: 'Logging environments',
     description: 'Bounded list of external logging environments.',
     requiredScopes: ['logs:environments:view'],
@@ -213,8 +213,8 @@ const operationalResources: ResourceDefinition[] = [
     },
   },
   {
-    name: 'gateway-status-page-summary',
-    uri: 'gateway://status-page/summary',
+    name: 'opfield-status-page-summary',
+    uri: 'opfield://status-page/summary',
     title: 'Status page summary',
     description: 'Status page config, exposed services, and active incidents.',
     requiredScopes: ['status-page:view'],
@@ -254,8 +254,8 @@ const operationalResources: ResourceDefinition[] = [
     },
   },
   {
-    name: 'gateway-certificates-expiring',
-    uri: 'gateway://certificates/expiring',
+    name: 'opfield-certificates-expiring',
+    uri: 'opfield://certificates/expiring',
     title: 'Expiring certificates',
     description: 'SSL certificates expiring in the next 30 days.',
     requiredScopes: ['ssl:cert:view'],
@@ -285,8 +285,8 @@ const operationalResources: ResourceDefinition[] = [
 
 const docsResources: ResourceDefinition[] = [
   {
-    name: 'gateway-internal-docs',
-    uri: 'gateway://docs',
+    name: 'opfield-internal-docs',
+    uri: 'opfield://docs',
     title: 'Opfield internal documentation',
     description: 'Index of internal documentation topics available to this MCP token.',
     requiredScopes: [],
@@ -302,7 +302,7 @@ const docsResources: ResourceDefinition[] = [
     .sort()
     .map(
       (topic): ResourceDefinition => ({
-        name: `gateway-internal-docs-${topic}`,
+        name: `opfield-internal-docs-${topic}`,
         uri: docUri(topic),
         title: `Opfield internal documentation: ${topic}`,
         description: `Internal Opfield operator documentation for ${topic}.`,

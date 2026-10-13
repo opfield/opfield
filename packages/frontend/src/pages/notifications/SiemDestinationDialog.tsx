@@ -279,8 +279,8 @@ export function SiemDestinationDialog({
                     <SecretError message={secretError} />
                     {authType === "hmac_sha256" && (
                       <p className="text-xs text-muted-foreground">
-                        Opfield sends <code>X-Gateway-Timestamp</code> and signs it with the raw
-                        JSON body in <code>X-Gateway-Signature-256</code>.
+                        Opfield sends <code>X-Opfield-Timestamp</code> and signs it with the raw
+                        JSON body in <code>X-Opfield-Signature-256</code>.
                       </p>
                     )}
                   </div>

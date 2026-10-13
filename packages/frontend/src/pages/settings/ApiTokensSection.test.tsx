@@ -46,7 +46,7 @@ const user = {
 const pullToken: ApiToken = {
   id: "token-1",
   name: "ci",
-  tokenPrefix: "gw_1234567",
+  tokenPrefix: "opf_123456",
   scopes: ["docker:containers:view"],
   registryAccess: { pull: "all" },
   lastUsedAt: null,
@@ -70,7 +70,7 @@ beforeEach(() => {
   state.externalAccess = true;
   state.licensed = true;
   api.listTokens.mockResolvedValue([pullToken]);
-  api.createToken.mockResolvedValue({ ...pullToken, id: "token-2", token: "gw_secret" });
+  api.createToken.mockResolvedValue({ ...pullToken, id: "token-2", token: "opf_secret" });
   api.updateToken.mockResolvedValue(undefined);
   api.getTokenRegistryAccess.mockImplementation(async () => ({
     externalAccessEnabled: state.externalAccess,

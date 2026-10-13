@@ -34,7 +34,7 @@ const OLD_COMPOSE = `services:
     image: redis:7-alpine
 `;
 const DOLLAR = '$';
-const EXPECTED_IMAGE_LINE = `image: ${DOLLAR}{GATEWAY_IMAGE_REF}`;
+const EXPECTED_IMAGE_LINE = `image: ${DOLLAR}{OPFIELD_IMAGE_REF}`;
 const EXPECTED_SANDBOX_VOLUME =
   `      - ${DOLLAR}{SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}:` +
   `${DOLLAR}{SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}`;
@@ -58,7 +58,7 @@ describe('foundation migrator patches', () => {
     const first = patchCompose(source, true);
     const second = patchCompose(first, true);
     expect(second).toBe(first);
-    expect(second).toContain('    labels:\n      com.wiolett.gateway.managed-service: app');
+    expect(second).toContain('    labels:\n      net.opfield.managed-service: app');
     expect(second).toContain('    expose:\n      - "9443"');
   });
 
@@ -118,21 +118,21 @@ describe('foundation migrator patches', () => {
     const patched = patchCompose(OLD_COMPOSE);
 
     expect(patched).toContain(EXPECTED_IMAGE_LINE);
-    expect(patched).toContain('      # gateway-managed:start sandbox-workspace');
+    expect(patched).toContain('      # opfield-managed:start sandbox-workspace');
     expect(patched).toContain(EXPECTED_SANDBOX_VOLUME);
-    expect(patched).toContain('      # gateway-managed:end sandbox-workspace');
+    expect(patched).toContain('      # opfield-managed:end sandbox-workspace');
     expect(patched).toContain('      - /var/run/docker.sock:/var/run/docker.sock\n');
     expect(patched).toContain('      - gateway_data:/var/lib/gateway');
     expect(patched).not.toContain('wget -qO- http://127.0.0.1:3000/health');
     expect(patched).toContain('\nvolumes:\n  gateway_data:');
-    expect(patched).toContain(`  relay:\n    image: \${GATEWAY_RELAY_IMAGE_REF}`);
+    expect(patched).toContain(`  relay:\n    image: \${OPFIELD_RELAY_IMAGE_REF}`);
     expect(patched).toContain('    entrypoint: ["/gateway-relay"]');
-    expect(patched).toContain('com.wiolett.gateway.managed-service: app');
+    expect(patched).toContain('net.opfield.managed-service: app');
     expect(patched).toContain('gateway_relay_identity:/var/lib/gateway-relay');
     expect(patched).toContain('gateway_relay_state:/var/lib/gateway-relay/state');
-    expect(patched).toContain('# gateway-managed:start registry-service');
-    expect(patched).toContain(`  registry:\n    image: \${GATEWAY_REGISTRY_IMAGE_REF}`);
-    expect(patched).toContain('com.wiolett.gateway.managed-service: registry');
+    expect(patched).toContain('# opfield-managed:start registry-service');
+    expect(patched).toContain(`  registry:\n    image: \${OPFIELD_REGISTRY_IMAGE_REF}`);
+    expect(patched).toContain('net.opfield.managed-service: registry');
     expect(patched).toContain('REGISTRY_STORAGE_DELETE_ENABLED: "true"');
     expect(patched).not.toContain('REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING_');
     expect(patched).toContain('REGISTRY_AUTH_TOKEN_SERVICE: gateway-internal-registry');
@@ -144,7 +144,7 @@ describe('foundation migrator patches', () => {
     expect(patched).not.toMatch(/(?:127\.0\.0\.1:)?5000:5000/);
     expect(patched).toContain('      relay:\n        condition: service_started');
     expect(patched).not.toContain('RELAY_DATABASE_URL');
-    expect(patched).not.toContain('GATEWAY_RELAY_DB_PASSWORD');
+    expect(patched).not.toContain('OPFIELD_RELAY_DB_PASSWORD');
     expect(patched.match(/9443:9443/g)).toHaveLength(1);
     expect(patchCompose(patched)).toBe(patched);
   });
@@ -161,9 +161,9 @@ describe('foundation migrator patches', () => {
 
     for (const compose of [mappingStyle, listStyle]) {
       const patched = patchCompose(compose);
-      expect(patched).toContain('GATEWAY_RELAY_TARGET: relay:9443');
+      expect(patched).toContain('OPFIELD_RELAY_TARGET: relay:9443');
       expect(patched).not.toContain('172.18.0.4:9443');
-      expect(patched.match(/GATEWAY_RELAY_TARGET/g)).toHaveLength(1);
+      expect(patched.match(/OPFIELD_RELAY_TARGET/g)).toHaveLength(1);
     }
   });
 
@@ -258,7 +258,7 @@ volumes:
     const patched = patchCompose(compose);
 
     expect(patched.match(/sandbox-workspaces/g)).toHaveLength(2);
-    expect(patched).toContain('# gateway-managed:start sandbox-workspace');
+    expect(patched).toContain('# opfield-managed:start sandbox-workspace');
   });
 
   it('only patches the app service under services', () => {
@@ -401,7 +401,7 @@ ${OLD_COMPOSE}`;
 
   it('passes the host defaults to the migrator through the environment', () => {
     const env = dockerLogDefaultsEnv({ driver: 'json-file', logOpts: 'none' });
-    expect(env).toEqual(['GATEWAY_DOCKER_LOG_DRIVER=json-file', 'GATEWAY_DOCKER_LOG_OPTS=none']);
+    expect(env).toEqual(['OPFIELD_DOCKER_LOG_DRIVER=json-file', 'OPFIELD_DOCKER_LOG_OPTS=none']);
     expect(
       dockerLogDefaultsFromEnv(Object.fromEntries(env.map((entry) => entry.split('=') as [string, string])))
     ).toEqual({ driver: 'json-file', logOpts: 'none' });
@@ -421,12 +421,12 @@ ${OLD_COMPOSE}`;
   });
 
   it('upserts env keys without leaving duplicates', () => {
-    const patched = patchEnv('GATEWAY_VERSION=v2.4.2\nGATEWAY_VERSION=old\nOTHER=value\n', {
-      GATEWAY_VERSION: 'v2.4.3',
-      GATEWAY_IMAGE_REF: 'registry/gateway:v2.4.3',
+    const patched = patchEnv('OPFIELD_VERSION=v2.4.2\nOPFIELD_VERSION=old\nOTHER=value\n', {
+      OPFIELD_VERSION: 'v2.4.3',
+      OPFIELD_IMAGE_REF: 'registry/gateway:v2.4.3',
     }).content;
 
-    expect(patched).toBe('GATEWAY_VERSION=v2.4.3\nOTHER=value\n\nGATEWAY_IMAGE_REF=registry/gateway:v2.4.3\n');
+    expect(patched).toBe('OPFIELD_VERSION=v2.4.3\nOTHER=value\n\nOPFIELD_IMAGE_REF=registry/gateway:v2.4.3\n');
   });
 });
 
@@ -492,39 +492,39 @@ describe('runFoundationMigrations', () => {
     });
 
     expect(first.changedFiles).toEqual(['.env', 'docker-compose.yml']);
-    expect(first.backupDir).toContain('.gateway-foundation-backups');
+    expect(first.backupDir).toContain('.opfield-foundation-backups');
     expect(second.changedFiles).toEqual([]);
     expect(second.backupDir).toBeNull();
-    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain('GATEWAY_IMAGE_REF=registry/gateway:v2.4.3');
+    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain('OPFIELD_IMAGE_REF=registry/gateway:v2.4.3');
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).not.toContain('DATABASE_CONNECTOR_IMAGE');
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain(
       'SECURE_LINK_CONNECTOR_IMAGE=registry/gateway/secure-link-connector@sha256:secure-connector'
     );
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain(
-      `GATEWAY_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'a'.repeat(64)}`
+      `OPFIELD_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'a'.repeat(64)}`
     );
-    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain('GATEWAY_RELAY_TARGET=relay:9443');
+    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain('OPFIELD_RELAY_TARGET=relay:9443');
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain(
-      'GATEWAY_REGISTRY_IMAGE_REF=ghcr.io/the-square-labs/gateway/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8'
+      'OPFIELD_REGISTRY_IMAGE_REF=ghcr.io/the-square-labs/gateway/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8'
     );
-    const firstRegistrySecret = /^GATEWAY_REGISTRY_HTTP_SECRET=(.+)$/m.exec(
+    const firstRegistrySecret = /^OPFIELD_REGISTRY_HTTP_SECRET=(.+)$/m.exec(
       await readFile(path.join(tempDir, '.env'), 'utf8')
     )?.[1];
     expect(firstRegistrySecret).toMatch(/^[0-9a-f]{64}$/);
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).not.toContain('172.18.0.4:9443');
-    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).not.toContain('GATEWAY_RELAY_DB_PASSWORD');
-    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).not.toContain('GATEWAY_RELAY_VERSION');
+    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).not.toContain('OPFIELD_RELAY_DB_PASSWORD');
+    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).not.toContain('OPFIELD_RELAY_VERSION');
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).not.toContain('RELAY_DATABASE_URL');
     expect(await readFile(path.join(tempDir, 'docker-compose.yml'), 'utf8')).toContain(
-      '# gateway-managed:start sandbox-workspace'
+      '# opfield-managed:start sandbox-workspace'
     );
     expect(await readFile(path.join(tempDir, 'docker-compose.yml'), 'utf8')).toContain(
-      '# gateway-managed:start registry-service'
+      '# opfield-managed:start registry-service'
     );
     expect(await readFile(path.join(tempDir, 'docker-compose.yml'), 'utf8')).toContain(
       'gateway_registry_data:/var/lib/registry'
     );
-    expect(/^GATEWAY_REGISTRY_HTTP_SECRET=(.+)$/m.exec(await readFile(path.join(tempDir, '.env'), 'utf8'))?.[1]).toBe(
+    expect(/^OPFIELD_REGISTRY_HTTP_SECRET=(.+)$/m.exec(await readFile(path.join(tempDir, '.env'), 'utf8'))?.[1]).toBe(
       firstRegistrySecret
     );
   });
@@ -547,10 +547,10 @@ describe('runFoundationMigrations', () => {
     });
 
     const env = await readFile(path.join(tempDir, '.env'), 'utf8');
-    expect(env).toContain('GATEWAY_IMAGE_REF=registry/gateway@sha256:new');
-    expect(env).toContain(`GATEWAY_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'a'.repeat(64)}`);
-    expect(env).toContain('GATEWAY_RELAY_BUILD_VERSION=v2.4.3-relay');
-    expect(env).not.toContain('GATEWAY_RELAY_BUILD_VERSION=v2.4.4-relay');
+    expect(env).toContain('OPFIELD_IMAGE_REF=registry/gateway@sha256:new');
+    expect(env).toContain(`OPFIELD_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'a'.repeat(64)}`);
+    expect(env).toContain('OPFIELD_RELAY_BUILD_VERSION=v2.4.3-relay');
+    expect(env).not.toContain('OPFIELD_RELAY_BUILD_VERSION=v2.4.4-relay');
   });
 
   it('preserves all Relay metadata when a Gateway-only update omits Relay arguments', async () => {
@@ -569,11 +569,11 @@ describe('runFoundationMigrations', () => {
     });
 
     const env = await readFile(path.join(tempDir, '.env'), 'utf8');
-    expect(env).toContain('GATEWAY_VERSION=v2.4.4');
-    expect(env).toContain('GATEWAY_IMAGE_REF=registry/gateway@sha256:new');
-    expect(env).toContain(`GATEWAY_RELAY_IMAGE_REF=${relayImage}`);
-    expect(env).toContain('GATEWAY_RELAY_BUILD_VERSION=v2.4.3-relay');
-    expect(env).toContain('GATEWAY_RELAY_PROTOCOL_MAJOR=1');
+    expect(env).toContain('OPFIELD_VERSION=v2.4.4');
+    expect(env).toContain('OPFIELD_IMAGE_REF=registry/gateway@sha256:new');
+    expect(env).toContain(`OPFIELD_RELAY_IMAGE_REF=${relayImage}`);
+    expect(env).toContain('OPFIELD_RELAY_BUILD_VERSION=v2.4.3-relay');
+    expect(env).toContain('OPFIELD_RELAY_PROTOCOL_MAJOR=1');
   });
 
   it('advances the relay image only when the signed relay digest changes', async () => {
@@ -593,7 +593,7 @@ describe('runFoundationMigrations', () => {
     });
 
     const env = await readFile(path.join(tempDir, '.env'), 'utf8');
-    expect(env).toContain(`GATEWAY_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'b'.repeat(64)}`);
+    expect(env).toContain(`OPFIELD_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'b'.repeat(64)}`);
   });
 
   it('rejects an unsupported relay protocol major', async () => {

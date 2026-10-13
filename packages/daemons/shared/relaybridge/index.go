@@ -1,6 +1,6 @@
 package relaybridge
 
-import pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+import pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 
 // AssignmentKey names one assignment of a grant bundle.
 type AssignmentKey struct {

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // MaxTTL bounds every relay gate view regardless of what the relay reports,

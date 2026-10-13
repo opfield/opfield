@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,9 +28,10 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	cfg.ResolveControlSection()
 
-	if cfg.Gateway.Address == "" {
-		return nil, fmt.Errorf("gateway.address is required")
+	if cfg.Control.Address == "" {
+		return nil, fmt.Errorf("opfield.address is required")
 	}
 
 	return cfg, nil

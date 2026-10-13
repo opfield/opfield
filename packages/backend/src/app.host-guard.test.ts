@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { GATEWAY_NOT_FOUND_HTML } from '@/lib/gateway-error-pages.js';
+import { OPFIELD_NOT_FOUND_HTML } from '@/lib/opfield-error-pages.js';
 import { SetupTokenPolicyService } from '@/modules/setup/setup-token-policy.js';
 import { StatusPageService } from '@/modules/status-page/status-page.service.js';
 import {
@@ -131,7 +131,7 @@ describe('Gateway Host guard', () => {
     const response = await createApp().app.request('/', { headers: { host: '127.0.0.1:3000' } });
 
     expect(response.status).toBe(404);
-    expect(await response.text()).not.toBe(GATEWAY_NOT_FOUND_HTML);
+    expect(await response.text()).not.toBe(OPFIELD_NOT_FOUND_HTML);
   });
 
   it.each([
@@ -146,7 +146,7 @@ describe('Gateway Host guard', () => {
       headers: { host: 'legacy.example.com', 'x-forwarded-host': 'gateway.example.com' },
     });
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe(GATEWAY_NOT_FOUND_HTML);
+    expect(await response.text()).toBe(OPFIELD_NOT_FOUND_HTML);
   });
 
   it('does not expose /health through a legacy host', async () => {
@@ -154,7 +154,7 @@ describe('Gateway Host guard', () => {
     container.registerInstance(TOKENS.RedisClient, { ping } as any);
     const response = await createApp().app.request('/health', { headers: { host: 'legacy.example.com' } });
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe(GATEWAY_NOT_FOUND_HTML);
+    expect(await response.text()).toBe(OPFIELD_NOT_FOUND_HTML);
     expect(ping).not.toHaveBeenCalled();
   });
 
@@ -163,7 +163,7 @@ describe('Gateway Host guard', () => {
     container.registerInstance(StatusPageService, { isStatusHost } as any);
     const response = await createApp().app.request('/missing', { headers: { host: 'status.example.com' } });
     expect(response.status).toBe(404);
-    expect(await response.text()).not.toBe(GATEWAY_NOT_FOUND_HTML);
+    expect(await response.text()).not.toBe(OPFIELD_NOT_FOUND_HTML);
     expect(isStatusHost).toHaveBeenCalledWith('status.example.com');
   });
 });

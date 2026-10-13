@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
 // Restored is what the previous process handed over.

@@ -20,7 +20,7 @@ type ConsoleHistoryEntry = {
   executedAt: string;
 };
 
-const CONSOLE_SPLIT_STORAGE_KEY = "gateway-database-console-split-percent";
+const CONSOLE_SPLIT_STORAGE_KEY = "opfield-database-console-split-percent";
 const CONSOLE_HISTORY_LIMIT = 100;
 
 function readStoredSplitPercent() {
@@ -34,11 +34,11 @@ function defaultConsoleInput(databaseType: DatabaseConnection["type"]) {
 }
 
 function consoleInputStorageKey(databaseId: string) {
-  return `gateway-database-console-input:${databaseId}`;
+  return `opfield-database-console-input:${databaseId}`;
 }
 
 function consoleHistoryStorageKey(databaseId: string) {
-  return `gateway-database-console-history:${databaseId}`;
+  return `opfield-database-console-history:${databaseId}`;
 }
 
 function readStoredConsoleInput(databaseId: string, databaseType: DatabaseConnection["type"]) {

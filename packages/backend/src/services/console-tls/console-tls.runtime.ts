@@ -15,26 +15,26 @@ const logger = createChildLogger('ConsoleTLS');
 export const CONSOLE_CERTIFICATE_RESOURCE_ID = '00000000-0000-4000-8000-00000000c0de';
 
 /**
- * The console TLS service when GATEWAY_CONSOLE_DOMAIN is set, null otherwise (an installation without it keeps only
+ * The console TLS service when OPFIELD_CONSOLE_DOMAIN is set, null otherwise (an installation without it keeps only
  * its PORT listener). A configuration it cannot use is logged and leaves the console on PORT; the app still starts.
  */
 export function createConsoleTlsService(env: Env, container: DependencyContainer): ConsoleTlsService | null {
-  const domain = env.GATEWAY_CONSOLE_DOMAIN?.trim().toLowerCase().replace(/\.$/, '');
+  const domain = env.OPFIELD_CONSOLE_DOMAIN?.trim().toLowerCase().replace(/\.$/, '');
   if (!domain) return null;
   if (!isValidConsoleDomain(domain)) {
-    logger.error('GATEWAY_CONSOLE_DOMAIN is not a DNS name; the console stays on its port only', { domain });
+    logger.error('OPFIELD_CONSOLE_DOMAIN is not a DNS name; the console stays on its port only', { domain });
     return null;
   }
-  const email = env.GATEWAY_ACME_EMAIL?.trim();
+  const email = env.OPFIELD_ACME_EMAIL?.trim();
   if (!email) {
-    logger.error('GATEWAY_ACME_EMAIL is required with GATEWAY_CONSOLE_DOMAIN; the console stays on its port only');
+    logger.error('OPFIELD_ACME_EMAIL is required with OPFIELD_CONSOLE_DOMAIN; the console stays on its port only');
     return null;
   }
   let directory: ReturnType<typeof resolveDirectoryOverride>;
   try {
-    directory = resolveDirectoryOverride(env.GATEWAY_ACME_DIRECTORY_URL);
+    directory = resolveDirectoryOverride(env.OPFIELD_ACME_DIRECTORY_URL);
   } catch (error) {
-    logger.error('GATEWAY_ACME_DIRECTORY_URL is invalid; the console stays on its port only', {
+    logger.error('OPFIELD_ACME_DIRECTORY_URL is invalid; the console stays on its port only', {
       error: (error as Error).message,
     });
     return null;
@@ -47,8 +47,8 @@ export function createConsoleTlsService(env: Env, container: DependencyContainer
     email,
     staging: directory.staging,
     stateDir: join(env.WEB_TLS_AUTO_DIR, 'console-acme'),
-    httpsPort: env.GATEWAY_CONSOLE_HTTPS_PORT,
-    httpPort: env.GATEWAY_CONSOLE_HTTP_PORT,
+    httpsPort: env.OPFIELD_CONSOLE_HTTPS_PORT,
+    httpPort: env.OPFIELD_CONSOLE_HTTP_PORT,
     bindHost: env.BIND_HOST,
     acme: new ACMEService({ directoryUrl: directory.directoryUrl }),
     fallback: () =>

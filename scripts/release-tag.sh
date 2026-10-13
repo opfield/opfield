@@ -10,7 +10,7 @@ classify_release_tag() {
   RELEASE_PRERELEASE='false'
 
   if [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-rc\.([0-9]+))?$ ]]; then
-    RELEASE_KIND='gateway'
+    RELEASE_KIND='opfield'
     RELEASE_VERSION="$tag"
     [[ -n "${BASH_REMATCH[2]}" ]] && RELEASE_PRERELEASE='true'
   elif [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-rc\.([0-9]+))?-(${component_pattern})$ ]]; then
@@ -19,7 +19,7 @@ classify_release_tag() {
     RELEASE_VERSION="${tag%-${RELEASE_COMPONENT}}"
     [[ -n "${BASH_REMATCH[2]}" ]] && RELEASE_PRERELEASE='true'
   else
-    printf 'Tag %s is not a supported Gateway release tag\n' "$tag" >&2
+    printf 'Tag %s is not a supported Opfield release tag\n' "$tag" >&2
     return 1
   fi
 

@@ -205,7 +205,7 @@ export interface NotificationTemplateContext {
   resolution: {
     reason: string | null;
   };
-  gateway: {
+  opfield: {
     url: string;
   };
 }
@@ -231,7 +231,7 @@ export type NotificationTemplateContextInput = {
   /** duration: seconds the alert lasted. */
   fired?: { at?: string | null; duration?: number | null };
   resolution?: Partial<NotificationTemplateContext['resolution']>;
-  gateway?: Partial<NotificationTemplateContext['gateway']>;
+  opfield?: Partial<NotificationTemplateContext['opfield']>;
 };
 
 export interface NotificationEvent {
@@ -324,17 +324,18 @@ export function buildNotificationTemplateContext(input: NotificationTemplateCont
     resolution: {
       reason: input.resolution?.reason ?? null,
     },
-    gateway: {
-      url: input.gateway?.url ?? '',
+    opfield: {
+      url: input.opfield?.url ?? '',
     },
   };
 }
 
-/** Build the full template context from a notification event + gateway URL */
-export function buildTemplateContext(event: NotificationEvent, gatewayUrl?: string): NotificationTemplateContext {
+/** Build the full template context from a notification event + the Opfield URL */
+export function buildTemplateContext(event: NotificationEvent, opfieldUrl?: string): NotificationTemplateContext {
   return {
     ...event.context,
-    gateway: { url: gatewayUrl ?? event.context.gateway.url },
+    // Events queued before 2.12.1 carry no `opfield` key; the dispatcher always passes the URL.
+    opfield: { url: opfieldUrl ?? event.context.opfield?.url ?? '' },
   };
 }
 
@@ -425,7 +426,7 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
   "event": {{{json event}}},
   "fired": {{{json fired}}},
   "resolution": {{{json resolution}}},
-  "gateway": {{{json gateway}}}
+  "opfield": {{{json opfield}}}
 }`,
   },
   {

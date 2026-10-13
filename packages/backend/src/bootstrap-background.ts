@@ -34,7 +34,7 @@ import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
 import { createCloudSsoClient } from '@/modules/cloud-link/cloud-link-sso-client.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
-import { createGatewayAlertObserver } from '@/modules/diagnostics/diagnostics-alerts.js';
+import { createOpfieldAlertObserver } from '@/modules/diagnostics/diagnostics-alerts.js';
 import { PostgresProbe } from '@/modules/diagnostics/postgres-probe.js';
 import { DockerAvailabilityService } from '@/modules/docker/availability/docker-availability.service.js';
 import { AvailabilityLeaseService } from '@/modules/docker/availability/lease/availability-lease.service.js';
@@ -70,15 +70,15 @@ import { LoggingEnvironmentService } from '@/modules/logging/logging-environment
 import { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance.service.js';
 import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
 import { NODE_MONITORING_CADENCE_MS } from '@/modules/nodes/node-monitoring.service.js';
-import {
-  GatewayOutboundMonitor,
-  OUTBOUND_CHECK_INTERVAL_MS,
-} from '@/modules/notifications/gateway-outbound-monitor.js';
 import { NotificationAlertRuleService } from '@/modules/notifications/notification-alert-rule.service.js';
 import { NotificationDeliveryService } from '@/modules/notifications/notification-delivery.service.js';
 import { NotificationDispatcherService } from '@/modules/notifications/notification-dispatcher.service.js';
 import { NotificationEvaluatorService } from '@/modules/notifications/notification-evaluator.service.js';
 import { NotificationWebhookService } from '@/modules/notifications/notification-webhook.service.js';
+import {
+  OpfieldOutboundMonitor,
+  OUTBOUND_CHECK_INTERVAL_MS,
+} from '@/modules/notifications/opfield-outbound-monitor.js';
 import {
   ObjectStorageMonitoringService,
   type StorageMetricSnapshot,
@@ -97,16 +97,16 @@ import { CacheService, type RedisClient } from '@/services/cache.service.js';
 import { DaemonUpdateService } from '@/services/daemon-update.service.js';
 import { DockerService } from '@/services/docker.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
-import {
-  GATEWAY_IDENTITY_RENEWAL_CHECK_INTERVAL_MS,
-  GatewayIdentityRenewalService,
-} from '@/services/gateway-identity-renewal.service.js';
-import { GatewayLifecycleService } from '@/services/gateway-lifecycle.service.js';
 import { HousekeepingService } from '@/services/housekeeping.service.js';
 import { ManagedLeftoverRepair } from '@/services/managed-leftover-repair.js';
 import { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
+import {
+  OPFIELD_IDENTITY_RENEWAL_CHECK_INTERVAL_MS,
+  OpfieldIdentityRenewalService,
+} from '@/services/opfield-identity-renewal.service.js';
+import { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import { ReadModelCoordinator } from '@/services/read-model-coordinator.service.js';
 import { RelayPolicyService } from '@/services/relay-policy.service.js';
 import { RelayPoolService } from '@/services/relay-pool.service.js';
@@ -228,12 +228,12 @@ export async function initializeBackgroundServices(): Promise<void> {
     container.resolve<RedisClient>(TOKENS.RedisClient),
     container.resolve(DockerService),
     scheduler,
-    container.resolve(GatewayLifecycleService),
+    container.resolve(OpfieldLifecycleService),
     container.resolve(PostgresProbe),
     env.APP_VERSION
   );
   container.registerInstance(DiagnosticsService, diagnosticsService);
-  diagnosticsService.setObserver(createGatewayAlertObserver(notifEvaluatorService));
+  diagnosticsService.setObserver(createOpfieldAlertObserver(notifEvaluatorService));
   // The installation's one socket to its cloud account; started with the scheduler, on the replica holding its lease.
   container.registerInstance(
     CloudLinkAgent,
@@ -263,7 +263,7 @@ export async function initializeBackgroundServices(): Promise<void> {
       finalizeSetup: container.resolve(FinalizeSetupService),
       invalidateOidc: () => container.resolve(AuthService).invalidateOidcConfiguration(),
       refreshIdentities: async () => {
-        await container.resolve(GatewayIdentityRenewalService).refreshGrpcIdentity();
+        await container.resolve(OpfieldIdentityRenewalService).refreshGrpcIdentity();
         if ((await container.resolve(WebTransportSettingsService).getConfig()).tlsEnabled) {
           await container.resolve(WebIdentityService).refresh();
         }
@@ -276,7 +276,7 @@ export async function initializeBackgroundServices(): Promise<void> {
     })
   );
   container.registerInstance(CloudLinkEnrollFile, cloudEnrollFile);
-  scheduler.registerInterval('gateway-diagnostics-sample', 60_000, () => diagnosticsService.sampleMinute());
+  scheduler.registerInterval('opfield-diagnostics-sample', 60_000, () => diagnosticsService.sampleMinute());
   container
     .resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition)
     .initializeBackups(scheduler, backupRuntime, relayPolicyService);
@@ -354,8 +354,8 @@ export async function initializeBackgroundServices(): Promise<void> {
   scheduler.registerInterval('system-certificate-crl-retry', 5 * 60 * 1000, async () => {
     await systemCertificateLifecycleService.retryPendingCRLs();
   });
-  scheduler.registerInterval('gateway-identity-renewal', GATEWAY_IDENTITY_RENEWAL_CHECK_INTERVAL_MS, async () => {
-    await container.resolve(GatewayIdentityRenewalService).renewDue();
+  scheduler.registerInterval('opfield-identity-renewal', OPFIELD_IDENTITY_RENEWAL_CHECK_INTERVAL_MS, async () => {
+    await container.resolve(OpfieldIdentityRenewalService).renewDue();
   });
   // Managed storage and database TLS certificates (hot reload, restart only as the last resort).
   scheduler.registerInterval('system-certificate-renewal', SYSTEM_CERTIFICATE_RENEWAL_CHECK_INTERVAL_MS, async () => {
@@ -575,8 +575,8 @@ export async function initializeBackgroundServices(): Promise<void> {
   scheduler.registerInterval('notification-retry', 30000, () => notifRetryJob.run());
   // Gateway's own outbound connectivity: the "Gateway lost outbound connectivity" alert, the route alerts it explains
   // fold under it, and paused webhooks resume as soon as it is back.
-  const outboundMonitor = new GatewayOutboundMonitor(db, notifEvaluatorService, notifDispatcherService);
-  scheduler.registerInterval('gateway-outbound-check', OUTBOUND_CHECK_INTERVAL_MS, () => outboundMonitor.run());
+  const outboundMonitor = new OpfieldOutboundMonitor(db, notifEvaluatorService, notifDispatcherService);
+  scheduler.registerInterval('opfield-outbound-check', OUTBOUND_CHECK_INTERVAL_MS, () => outboundMonitor.run());
   const siemDeliveryJob = new SiemDeliveryJob(siemDeliveryService, generalSettingsService);
   scheduler.registerInterval('siem-delivery', 30000, () => siemDeliveryJob.run());
   container.resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition).registerJobs(scheduler);

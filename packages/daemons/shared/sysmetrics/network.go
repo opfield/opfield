@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // GetNetworkInterfaces reads /proc/net/dev and returns per-interface stats, skipping lo.

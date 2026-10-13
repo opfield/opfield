@@ -187,6 +187,9 @@ function dryRun(script, args, env = {}) {
 }
 
 const common = ['--gateway', 'gw.example.com:9443', '--token', 'gw_node_test', '--gateway-cert-sha256', CERT, '--version', VERSION];
+// The relay installer installs relay releases from the Opfield names on (MIN_RELAY_VERSION) and takes --opfield options.
+const RELAY_VERSION = 'v2.12.1';
+const relayCommon = ['--opfield', 'gw.example.com:9443', '--token', 'gw_node_test', '--opfield-cert-sha256', CERT, '--version', RELAY_VERSION];
 const switches = [[], ['--disable-console', '--disable-files']];
 // The account the non-root runs use: the test user, or nobody when the test runs as root.
 const nonRootUser = userInfo().uid === 0 ? 'nobody' : userInfo().username;
@@ -199,8 +202,8 @@ test('every installer completes a dry run for each profile, as root and with --u
       runs.push(['setup-docker-node.sh', ['-y', ...common, '--mode', 'docker', '--user', user, ...extra]]);
       runs.push([
         'setup-relay-node.sh',
-        [...common, '--advertise-address', 'relay.example.com', ...extra],
-        { GATEWAY_RELAY_RUN_USER: user },
+        [...relayCommon, '--advertise-address', 'relay.example.com', ...extra],
+        { OPFIELD_RELAY_RUN_USER: user },
       ]);
     }
     // A non-root nginx-daemon needs an nginx master running as its user; the stub's pid file names one of the test
@@ -221,12 +224,14 @@ test('every installer completes a dry run for each profile, as root and with --u
   }
 });
 
-// Protected mode is the relay machine owner's switch: --protected (or GATEWAY_RELAY_PROTECTED=1) writes it, and the
-// installer never turns it off. Turning it off is `relay-supervisor protected off` on the machine.
+// Protected mode is the relay machine owner's switch: --protected (or OPFIELD_RELAY_PROTECTED=1, or the legacy
+// GATEWAY_RELAY_PROTECTED=1) writes it, and the installer never turns it off. Turning it off is
+// `relay-supervisor protected off` on the machine.
 test('the relay installer writes protected mode', { skip: !linux }, () => {
-  const relayArgs = [...common, '--advertise-address', 'relay.example.com'];
+  const relayArgs = [...relayCommon, '--advertise-address', 'relay.example.com'];
   for (const [args, env] of [
     [[...relayArgs, '--protected'], {}],
+    [relayArgs, { OPFIELD_RELAY_PROTECTED: '1' }],
     [relayArgs, { GATEWAY_RELAY_PROTECTED: '1' }],
   ]) {
     const { status, output } = dryRun('setup-relay-node.sh', args, env);
@@ -237,7 +242,7 @@ test('the relay installer writes protected mode', { skip: !linux }, () => {
   assert.equal(plain.status, 0, plain.output);
   assert.doesNotMatch(plain.output, /protected\.enabled/, plain.output);
   const source = readFileSync(path.join(scriptsDir, 'setup-relay-node.sh'), 'utf8');
-  assert.match(source, /relay_protected_setting \/etc\/gateway-relay-supervisor\/config\.yaml enabled; then PROTECTED=1/);
+  assert.match(source, /relay_protected_setting "\$RELAY_CONFIG" enabled; then PROTECTED=1/);
   assert.match(source, /--protected\) PROTECTED=1/);
 });
 
@@ -256,7 +261,7 @@ test('the installers take their settings from the environment', { skip: !linux }
   const nginxUser = userInfo().uid === 0 ? [] : ['--user', nonRootUser];
   const relayArgs = [
     ...['--gateway', 'gw.example.com:9443', '--token', 'gw_node_test', '--gateway-cert-sha256', CERT],
-    ...['--advertise-address', 'relay.example.com', '--service-port', '853', '--version', VERSION],
+    ...['--advertise-address', 'relay.example.com', '--service-port', '853', '--version', RELAY_VERSION],
   ];
   const runs = [
     ['setup-monitoring-node.sh', ['-y'], address, /monitoring-daemon installed \(v2\.11\.1; dry run\)/],
@@ -362,8 +367,8 @@ test('setup-daemon.sh dispatches every node type to its installer', { skip: !lin
   };
   // setup-daemon.sh keeps --version for itself (the release of the installers), so the daemon release comes from the
   // environment.
-  const args = ['-y', '--gateway', 'gw.example.com:9443', '--token', 'gw_node_test', '--gateway-cert-sha256', CERT];
-  const env = { GATEWAY_NODE_DAEMON_VERSION: VERSION };
+  const args = ['-y', '--opfield', 'opfield.example.com:9443', '--token', 'opf_node_test', '--opfield-cert-sha256', CERT];
+  const env = { OPFIELD_NODE_DAEMON_VERSION: VERSION };
   for (const [type, script] of Object.entries(types)) {
     const extra = type === 'nginx' ? ['--nginx-mode', 'integrate', ...nginxUser] : [];
     const viaFlag = dryRun('setup-daemon.sh', ['--type', type, '--script-dir', copies, ...args, ...extra], env);
@@ -371,9 +376,15 @@ test('setup-daemon.sh dispatches every node type to its installer', { skip: !lin
     assert.match(viaFlag.output, new RegExp(`Running local ${script.replace('.', '\\.')}`), viaFlag.output);
     const viaEnv = dryRun('setup-daemon.sh', ['--type', type, ...args, ...extra], {
       ...env,
-      GATEWAY_SETUP_SCRIPT_DIR: copies,
+      OPFIELD_SETUP_SCRIPT_DIR: copies,
     });
     assert.equal(viaEnv.status, 0, `${type}\n${viaEnv.output}`);
+    // legacy-name: GATEWAY_SETUP_SCRIPT_DIR of automation written before 2.12.1.
+    const viaLegacyEnv = dryRun('setup-daemon.sh', ['--type', type, ...args, ...extra], {
+      ...env,
+      GATEWAY_SETUP_SCRIPT_DIR: copies,
+    });
+    assert.equal(viaLegacyEnv.status, 0, `${type}\n${viaLegacyEnv.output}`);
   }
   const unknown = dryRun('setup-daemon.sh', ['--type', 'gateway', '--script-dir', copies]);
   assert.notEqual(unknown.status, 0);
@@ -432,7 +443,7 @@ const OPENRC_OWNED_LOGS = {
   'setup-monitoring-node.sh': 'monitoring-daemon',
   'setup-docker-node.sh': 'docker-daemon',
   'setup-node.sh': 'nginx-daemon',
-  'setup-relay-node.sh': 'gateway-relay-supervisor',
+  'setup-relay-node.sh': 'opfield-relay-supervisor',
 };
 
 test('OpenRC services of a non-root daemon hand their log files over before the privilege drop', () => {
@@ -472,7 +483,7 @@ test('an installer that cannot keep the OpenRC service up says so and shows the 
     const source = readFileSync(path.join(scriptsDir, script), 'utf8');
     assert.match(source, /is not running; the service manager could not keep it up/, script);
     // supervise-daemon logs why it could not start the service to the system log, not to the service's own logs.
-    const filter = daemon === 'gateway-relay-supervisor' ? 'gateway-relay' : daemon;
+    const filter = daemon === 'opfield-relay-supervisor' ? 'opfield-relay' : daemon;
     assert.ok(source.includes(`grep -h 'supervise-daemon.*${filter}' /var/log/messages`), script);
   }
 });
@@ -739,7 +750,7 @@ test('every installer announces the switch of the run user from root and to root
       'setup-monitoring-node.sh': '/etc/monitoring-daemon',
       'setup-docker-node.sh': '/etc/docker-daemon',
       'setup-node.sh': '/etc/nginx-daemon',
-      'setup-relay-node.sh': '/etc/gateway-relay-supervisor',
+      'setup-relay-node.sh': '"$RELAY_CONFIG_DIR"',
     };
     for (const [script, config] of Object.entries(configs)) {
       const source = readFileSync(path.join(scriptsDir, script), 'utf8');
@@ -754,6 +765,7 @@ test('every installer announces the switch of the run user from root and to root
             'id() { case "$1" in -u) [[ "$2" == root ]] && echo 0 || echo 4242 ;; -nu) [[ "$2" == 0 ]] && echo root || echo "user$2" ;; esac; }',
             'stop_daemon_service() { echo STOPPED; }',
             'stop_relay_supervisor() { echo STOPPED; }',
+            `RELAY_STATE_DIR='${path.join(dir, 'lib', 'opfield-relay')}'`,
             `PREVIOUS_RUN_UID=${previousUid}`,
             `RUN_USER=${runUser}`,
             `EXISTING_ENROLLED=${enrolled}`,
@@ -1068,9 +1080,10 @@ test('the nginx service repair of a non-root install is planned before the promp
 // fails; a new relay still needs every argument.
 test('an enrolled relay re-runs without a token and keeps its identity', { skip: !linux }, async () => {
   const host = path.join(work, 'host');
+  // A relay installed before the Opfield names: the installer reads it there and moves it.
   const config = path.join(host, 'etc/gateway-relay-supervisor/config.yaml');
   const identity = path.join(host, 'var/lib/gateway-relay-supervisor/supervisor-identity/node.pem');
-  const relayArgs = ['--version', VERSION];
+  const relayArgs = ['--version', RELAY_VERSION];
   const full = ['--gateway', 'gw.example.com:9443', '--gateway-cert-sha256', CERT, '--advertise-address', 'relay.example.com'];
   try {
     // A new relay: every argument is still required.
@@ -1099,6 +1112,7 @@ test('an enrolled relay re-runs without a token and keeps its identity', { skip:
     assert.equal(kept.status, 0, kept.output);
     assert.match(kept.output, /for Opfield gw\.example\.com:9443, advertised at relay\.example\.com:853\./);
     assert.match(kept.output, /no token was given: it keeps its identity/);
+    assert.match(kept.output, /Would stop the relay supervisor and move the relay from its pre-Opfield names/);
     // What is given wins.
     const given = dryRun('setup-relay-node.sh', [...relayArgs, '--gateway', 'other.example.com:9443', '--service-port', '9444']);
     assert.match(given.output, /for Opfield other\.example\.com:9443, advertised at relay\.example\.com:9444\./, given.output);
@@ -1113,29 +1127,47 @@ test('an enrolled relay re-runs without a token and keeps its identity', { skip:
     const incomplete = dryRun('setup-relay-node.sh', relayArgs);
     assert.equal(incomplete.status, 2, incomplete.output);
     assert.match(incomplete.output, /does not name its Opfield address, certificate pin and advertised address/);
+    // The same relay under the Opfield names (an opfield: section) needs no move.
+    const current = path.join(host, 'etc/opfield-relay/config.yaml');
+    const currentIdentity = path.join(host, 'var/lib/opfield-relay/supervisor-identity/node.pem');
+    runShell(
+      `rm -rf '${path.join(host, 'etc/gateway-relay-supervisor')}' '${path.join(host, 'var/lib/gateway-relay-supervisor')}' && mkdir -p '${path.dirname(current)}' '${path.dirname(currentIdentity)}' && sed 's/^gateway:/opfield:/' '${path.join(work, 'relay-config.yaml')}' > '${current}' && echo pem > '${currentIdentity}'`
+    );
+    const moved = dryRun('setup-relay-node.sh', relayArgs);
+    assert.equal(moved.status, 0, moved.output);
+    assert.match(moved.output, /for Opfield gw\.example\.com:9443, advertised at relay\.example\.com:853\./);
+    assert.doesNotMatch(moved.output, /pre-Opfield names/);
+    // Releases before the Opfield names come with the installer of their release.
+    const old = dryRun('setup-relay-node.sh', ['--version', 'v2.12.0']);
+    assert.equal(old.status, 1, old.output);
+    assert.match(old.output, /installs relay v2\.12\.1-rc\.3 or newer/);
+    runShell(`rm -rf '${path.join(host, 'etc/opfield-relay')}' '${path.join(host, 'var/lib/opfield-relay')}'`);
   } finally {
-    runShell(`rm -f '${config}' '${identity}' '${path.join(work, 'relay-config.yaml')}'`);
+    runShell(`rm -rf '${config}' '${identity}' '${path.join(work, 'relay-config.yaml')}' '${path.join(host, 'etc/gateway-relay-supervisor')}' '${path.join(host, 'var/lib/gateway-relay-supervisor')}'`);
   }
 
   const source = readFileSync(path.join(scriptsDir, 'setup-relay-node.sh'), 'utf8');
   // No token, no token line: a token in the configuration of an enrolled supervisor starts a re-enrollment.
-  const start = source.indexOf('GATEWAY_TOKEN_YAML=""');
+  const start = source.indexOf('OPFIELD_TOKEN_YAML=""');
   const end = source.indexOf('\nCONFIG\n', start) + '\nCONFIG\n'.length;
   const rendered = path.join(work, 'rendered-relay-config.yaml');
   const render = (token) => {
     const result = runShell(
       [
-        `GATEWAY=gw.example.com:9443; TOKEN='${token}'; GATEWAY_CERT_SHA256=${CERT}; HOST_IDENTITY_PATH=/h; SERVICE_PORT=9443; ADVERTISE_ADDRESS=relay.example.com`,
-        source.slice(start, end).replace('/etc/gateway-relay-supervisor/config.yaml', rendered),
+        `OPFIELD_ADDRESS=gw.example.com:9443; TOKEN='${token}'; OPFIELD_CERT_SHA256=${CERT}; HOST_IDENTITY_PATH=/h; SERVICE_PORT=9443; ADVERTISE_ADDRESS=relay.example.com`,
+        `RELAY_CONFIG='${rendered}'; RELAY_STATE_DIR=/var/lib/opfield-relay; RELAY_WORKER_BINARY=/usr/local/lib/opfield-relay/opfield-relay`,
+        source.slice(start, end),
       ].join('\n')
     );
     assert.equal(result.status, 0, result.output);
     return readFileSync(rendered, 'utf8');
   };
   assert.doesNotMatch(render(''), /token:/);
-  assert.match(render(''), /^gateway:\n {2}address: gw\.example\.com:9443\n {2}cert_sha256: /);
+  assert.match(render(''), /^opfield:\n {2}address: gw\.example\.com:9443\n {2}cert_sha256: /);
+  assert.match(render(''), /^state_dir: \/var\/lib\/opfield-relay$/m);
+  assert.match(render(''), /^ {2}binary_path: \/usr\/local\/lib\/opfield-relay\/opfield-relay$/m);
   assert.match(render('gw_node_new'), /^ {2}address: gw\.example\.com:9443\n {2}token: gw_node_new\n {2}cert_sha256:/m);
-  // Without a token there is no enrollment result to wait for, only the Gateway session.
+  // Without a token there is no enrollment result to wait for, only the control session.
   assert.match(source, /Without a token there is no enrollment to wait for[^\n]*\n\s+\[\[ -n "\$TOKEN" \]\] \|\| enrolled=1/);
   // A refused re-enrollment token is a failure that says the relay still runs.
   assert.match(source, /enrollment_status" -eq 1 && "\$REENROLLMENT" -eq 1[\s\S]*keeps running with its previous identity, but it was not re-enrolled[\s\S]*without --token[\s\S]*exit 1/);
@@ -1541,7 +1573,7 @@ test('the nginx installer keeps or restores the enrollment when its token was us
           `LOG_FILE=/dev/null RUN_USER=$(id -un) RUN_GROUP=$(id -gn) ENROLLMENT_BACKUP_DIR='' ENROLLMENT_RESTORED=0 ENROLLMENT_TOKEN_DIGEST_FILE='${lib}/enrollment-token.sha256'`,
           'log() { echo "LOG $*"; }; ok() { echo "OK $*"; }; warn() { echo "WARN $*"; }',
           'stop_daemon_service() { echo STOP; }; restart_daemon_service() { echo RESTART; }; grant_daemon_paths_to_run_user() { :; }',
-          'forget_gateway_session() { :; }; apply_host_access_config() { :; }',
+          'forget_control_session() { :; }; apply_host_access_config() { :; }',
           functions,
           `mkdir -p '${etc}/certs' '${lib}' && echo OLD > '${etc}/certs/node.pem' && echo '{}' > '${lib}/state.json'`,
           `printf 'gateway:\\n  token: ""\\n' > '${etc}/config.yaml'`,
@@ -1592,7 +1624,7 @@ test('the nginx installer names the apt failure', { skip: !linux }, () => {
       shellFunction(source, 'apt_failed'),
       shellFunction(source, 'run_apt_with_lock_retry')
         .replaceAll('>> "$LOG_FILE"', '>/dev/null')
-        .replaceAll('mktemp /tmp/gateway-node-apt.XXXXXX', 'mktemp "${TMPDIR:-/tmp}/gateway-node-apt.XXXXXX"'),
+        .replaceAll('mktemp /tmp/opfield-node-apt.XXXXXX', 'mktemp "${TMPDIR:-/tmp}/opfield-node-apt.XXXXXX"'),
       'run_apt_with_lock_retry install -y -qq nginx',
     ].join('\n')
   );
@@ -1663,7 +1695,8 @@ test('the relay installer downloads its binaries from the mirror and checks them
       return runShell(
         [
           'set -euo pipefail',
-          `${env} ARTIFACT_BASE_URL="\${GATEWAY_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"`,
+          `${env} OPFIELD_ARTIFACT_BASE_URL="\${OPFIELD_ARTIFACT_BASE_URL:-\${GATEWAY_ARTIFACT_BASE_URL:-}}"`,
+          'ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"',
           `TAG=${tag}; VERSION=v2.11.1; ARCH=amd64; LOG_FILE=/dev/null; TEMP_DIR='${dir}/tmp'`,
           'PACKAGE_BASE="${ARTIFACT_BASE_URL%/}/relay-supervisor/${TAG}"',
           // The signature check is the real openssl call in the installer; here every signature verifies.
@@ -1678,7 +1711,7 @@ test('the relay installer downloads its binaries from the mirror and checks them
         ].join('\n')
       );
     };
-    const mirrored = run("GATEWAY_ARTIFACT_BASE_URL='http://mirror.example:18991/gateway/';", sha256(binary));
+    const mirrored = run("OPFIELD_ARTIFACT_BASE_URL='http://mirror.example:18991/gateway/';", sha256(binary));
     assert.equal(mirrored.status, 0, mirrored.output);
     assert.match(mirrored.output, /FETCHED/);
     assert.deepEqual(mirrored.output.trim().split('\n').slice(-2), [
@@ -1715,7 +1748,7 @@ test('the relay installer downloads its binaries from the mirror and checks them
   }
 });
 
-// INS-RLY-02: GATEWAY_RELAY_SETUP_LOG stayed empty and the package manager wrote to the terminal. The log holds what
+// INS-RLY-02: the relay setup log (OPFIELD_RELAY_SETUP_LOG) stayed empty and the package manager wrote to the terminal. The log holds what
 // the terminal shows and the detail it does not.
 test('the relay installer keeps a setup log with the terminal output and the detail', { skip: !linux }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-relay-node.sh'), 'utf8');
@@ -1725,7 +1758,8 @@ test('the relay installer keeps a setup log with the terminal output and the det
     const result = runShell(
       [
         'set -euo pipefail',
-        `GATEWAY_RELAY_SETUP_LOG='${log}'; LOG_FILE=/dev/null`,
+        // OPFIELD_RELAY_SETUP_LOG (or the legacy GATEWAY_RELAY_SETUP_LOG), as the installer reads it.
+        `OPFIELD_RELAY_SETUP_LOG='${log}'; SETUP_LOG_PATH="\${OPFIELD_RELAY_SETUP_LOG:-\${GATEWAY_RELAY_SETUP_LOG:-}}"; LOG_FILE=/dev/null`,
         'command_exists() { command -v "$1" >/dev/null 2>&1; }',
         'apt-get() { echo "apt-get $* output"; }',
         shellFunction(source, 'open_setup_log'),
@@ -1924,8 +1958,8 @@ test('a fresh monitoring install records its token, so a new token is refused af
   for (const script of ['setup-monitoring-node.sh', 'setup-docker-node.sh']) {
     const { topLevel } = parseShell(readFileSync(path.join(scriptsDir, script), 'utf8'));
     const line = (name) => topLevel.find((entry) => entry.calls.includes(name))?.line ?? -1;
-    assert.ok(line('remember_enrollment_token') > line('await_gateway_connection'), `${script} records the token after the daemon connected`);
-    assert.ok(line('await_gateway_connection') > line('start_daemon'), script);
+    assert.ok(line('remember_enrollment_token') > line('await_opfield_connection'), `${script} records the token after the daemon connected`);
+    assert.ok(line('await_opfield_connection') > line('start_daemon'), script);
   }
   const host = path.join(work, 'host');
   const dir = await mkdtemp(path.join(tmpdir(), 'gateway-monitoring-fresh-'));
@@ -2014,13 +2048,16 @@ test('install.sh --restore reads the export version and refuses what it cannot r
     assert.notEqual(notExport.status, 0);
     assert.match(notExport.stdout + notExport.stderr, /is not an Opfield configuration export/);
 
-    const header = (version) =>
-      `OPFIELD-EXPORT/1\n${JSON.stringify({ format: 1, gatewayVersion: version, schemaMigration: 'x' })}\n\u0001\u0002binary`;
+    const header = (version, field = 'opfieldVersion') =>
+      `OPFIELD-EXPORT/1\n${JSON.stringify({ format: 1, [field]: version, schemaMigration: 'x' })}\n\u0001\u0002binary`;
     const development = path.join(work, 'dev.opfield-export');
-    await writeFile(development, header('local-20261011120000'));
-    const refused = run(development);
-    assert.notEqual(refused.status, 0);
-    assert.match(refused.stdout + refused.stderr, /made by a development build \(local-20261011120000\)/);
+    // Exports made before 2.12.1 name the version gatewayVersion.
+    for (const field of ['opfieldVersion', 'gatewayVersion']) {
+      await writeFile(development, header('local-20261011120000', field));
+      const refused = run(development);
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stdout + refused.stderr, /made by a development build \(local-20261011120000\)/, field);
+    }
 
     const missing = run(path.join(work, 'missing.opfield-export'));
     assert.notEqual(missing.status, 0);
@@ -2088,6 +2125,130 @@ test('install.sh --domain and --acme-email: help, validation before any host cha
     for (const name of ['localhost', 'example.com:443', '-a.example.com', 'a..example.com', '1.2.3.4']) {
       assert.notEqual(runShell(`${valid}valid_console_domain '${name}'`).status, 0, name);
     }
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+// install.sh: a current release gets the Opfield layout; the layout of the releases before 2.12.1 is written only when
+// --restore installs one of them, and an existing installation of that layout is found and updated where it is.
+test('install.sh writes the Opfield layout, keeps the earlier one only for older releases', () => {
+  const source = readFileSync(path.join(scriptsDir, 'install.sh'), 'utf8');
+  const templates = [...source.matchAll(/cat >docker-compose\.yml <<'COMPOSE'\n([\s\S]*?)\nCOMPOSE\n/g)].map(
+    (match) => match[1]
+  );
+  assert.equal(templates.length, 2, 'the earlier and the Opfield Compose file');
+  const [legacy, current] = templates;
+  assert.match(shellFunction(source, 'write_legacy_compose'), /POSTGRES_DB: gateway/);
+  assert.match(shellFunction(source, 'write_opfield_compose'), /^name: opfield$/m);
+  assert.match(current, /^name: opfield$/m);
+  assert.match(current, /DATABASE_URL: postgres:\/\/opfield:\$\{DB_PASSWORD\}@postgres:5432\/opfield/);
+  assert.match(current, /POSTGRES_DB: opfield\n\s+POSTGRES_USER: opfield/);
+  assert.match(current, /pg_isready -U opfield -d opfield/);
+  assert.match(current, /REGISTRY_AUTH_TOKEN_SERVICE: opfield-internal-registry/);
+  assert.match(current, /OPFIELD_REGISTRY_TOKEN_SERVICE: opfield-internal-registry/);
+  assert.match(current, /net\.opfield\.managed-service: app/);
+  assert.match(current, /\nvolumes:\n {2}app_data:\n {2}relay_identity:\n {2}relay_state:\n {2}registry_data:\n {2}registry_auth:\n/);
+  assert.doesNotMatch(current, /GATEWAY_|com\.wiolett|gateway_data|gateway-internal-registry|\/var\/lib\/gateway\/sandbox/);
+  // The earlier layout stays exactly what the releases before 2.12.1 expect.
+  assert.match(legacy, /GATEWAY_RELAY_IMAGE_REF: \$\{GATEWAY_RELAY_IMAGE_REF\}/);
+  assert.match(legacy, /DATABASE_URL: postgres:\/\/gateway:\$\{DB_PASSWORD\}@postgres:5432\/gateway/);
+  assert.doesNotMatch(legacy, /^name:/m);
+  assert.match(source, /^FIRST_OPFIELD_LAYOUT_VERSION="v2\.12\.1(-rc\.\d+)?"$/m);
+});
+
+test('install.sh finds an installation of the earlier layout and takes the earlier variable names', { skip: !linux }, async () => {
+  const source = readFileSync(path.join(scriptsDir, 'install.sh'), 'utf8');
+  const work = await mkdtemp(path.join(tmpdir(), 'install-layout-'));
+  try {
+    const variables = source
+      .split('\n')
+      .filter((line) => /^(INSTALL_DIR|IMAGE|TRANSPORT|SOURCE_DIR|LOG_FILE|DOCKER_DAEMON_CONFIG)="\$\{OPFIELD_/.test(line))
+      .join('\n');
+    const defaults = /# Without --install-dir:[^\n]*\n([\s\S]*?)\nshow_header/.exec(source)?.[1];
+    assert.ok(defaults, 'install.sh resolves its default directory');
+    const resolve = (env, setup = '') =>
+      spawnSync(
+        'bash',
+        [
+          '-c',
+          `set -eu\nDEFAULT_IMAGE=img\nDEFAULT_INSTALL_DIR='${work}/opt/opfield'\nLEGACY_INSTALL_DIR='${work}/opt/gateway'\n${setup}\n${variables}\n${defaults}\nprintf '%s|%s|%s|%s' "$INSTALL_DIR" "$IMAGE" "$TRANSPORT" "$LOG_FILE"`,
+        ],
+        { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } }
+      );
+    const fresh = resolve({});
+    assert.equal(fresh.status, 0, fresh.stderr);
+    assert.equal(fresh.stdout, `${work}/opt/opfield|img||/tmp/opfield-install.log`);
+    // An installation made before 2.12.1 that has not moved yet.
+    const legacy = resolve({}, `mkdir -p '${work}/opt/gateway' && touch '${work}/opt/gateway/.env'`);
+    assert.equal(legacy.stdout.split('|')[0], `${work}/opt/gateway`);
+    // Once moved, /opt/gateway is a link to /opt/opfield.
+    const moved = resolve(
+      {},
+      `rm -rf '${work}/opt' && mkdir -p '${work}/opt/opfield' && touch '${work}/opt/opfield/.env' && ln -s '${work}/opt/opfield' '${work}/opt/gateway'`
+    );
+    assert.equal(moved.stdout.split('|')[0], `${work}/opt/opfield`);
+    // The earlier variable names still work; the Opfield ones win.
+    const synonyms = resolve({ GATEWAY_INSTALL_DIR: '/srv/old', GATEWAY_IMAGE: 'old', GATEWAY_WEB_TRANSPORT: 'http' });
+    assert.equal(synonyms.stdout, '/srv/old|old|http|/tmp/opfield-install.log');
+    const both = resolve({ GATEWAY_INSTALL_DIR: '/srv/old', OPFIELD_INSTALL_DIR: '/srv/new', OPFIELD_IMAGE: 'new' });
+    assert.equal(both.stdout.split('|').slice(0, 2).join('|'), '/srv/new|new');
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('install.sh writes settings under the name an existing .env uses, OPFIELD_ for new ones', { skip: !linux }, async () => {
+  const source = readFileSync(path.join(scriptsDir, 'install.sh'), 'utf8');
+  const work = await mkdtemp(path.join(tmpdir(), 'install-settings-'));
+  try {
+    const functions = [
+      'env_value',
+      'setting_value',
+      'setting_key',
+      'ensure_env',
+      'set_env',
+      'set_or_keep_setting',
+      'ensure_setting',
+      'set_setting',
+    ]
+      .map((name) => shellFunction(source, name))
+      .join('\n');
+    await writeFile(path.join(work, '.env'), 'GATEWAY_IMAGE_REF=old\nGATEWAY_VERSION=v2.12.0\nOPFIELD_LOCAL_HOSTS=10.0.0.1\n');
+    const result = runShell(
+      `set -eu\ncd '${work}'\nINSTALL_DIR='${work}'\nENV_PREFIX=OPFIELD_\n${functions}\n` +
+        `set_setting IMAGE_REF new\nensure_setting VERSION v9\nset_setting LOCAL_HOSTS 10.0.0.2\nensure_setting REGISTRY_HTTP_SECRET s\n` +
+        `printf '%s|%s|' "$(setting_value VERSION)" "$(setting_value IMAGE_REF)"\ncat .env`
+    );
+    assert.equal(result.status, 0, result.output);
+    assert.equal(
+      result.output,
+      'v2.12.0|new|GATEWAY_IMAGE_REF=new\nGATEWAY_VERSION=v2.12.0\nOPFIELD_LOCAL_HOSTS=10.0.0.2\nOPFIELD_REGISTRY_HTTP_SECRET=s\n'
+    );
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('install.sh moves an updated installation of the earlier layout once, to a sibling opfield directory', { skip: !linux }, async () => {
+  const source = readFileSync(path.join(scriptsDir, 'install.sh'), 'utf8');
+  const work = await mkdtemp(path.join(tmpdir(), 'install-move-'));
+  try {
+    const functions = ['version_is_newer', 'installation_needs_host_move', 'host_move_target_dir']
+      .map((name) => shellFunction(source, name))
+      .join('\n');
+    const check = (dir, compose, extra = '') =>
+      runShell(
+        `set -eu\nmkdir -p '${dir}'\nprintf '%s' '${compose}' > '${dir}/docker-compose.yml'\n` +
+          `FIRST_OPFIELD_LAYOUT_VERSION=v2.12.1\nLEGACY_LAYOUT=0\nFRESH=0\nVERSION=v2.12.1\nDB_NAME=gateway\nINSTALL_DIR='${dir}'\n${extra}\n${functions}\n` +
+          `if installation_needs_host_move; then printf 'move:%s' "$(host_move_target_dir)"; else printf stay; fi`
+      ).output;
+    assert.equal(check(`${work}/a/gateway`, 'services: {}\n'), `move:${work}/a/opfield`);
+    assert.equal(check(`${work}/b/opfield`, 'name: opfield\nservices: {}\n', 'DB_NAME=opfield'), 'stay');
+    // A restored release before 2.12.1 in /opt/opfield: the directory stays, the rest moves.
+    assert.equal(check(`${work}/c/opfield`, 'services: {}\n'), `move:${work}/c/opfield`);
+    // An update to a release without the move never starts it.
+    assert.equal(check(`${work}/d/gateway`, 'services: {}\n', 'VERSION=v2.12.0'), 'stay');
   } finally {
     await rm(work, { recursive: true, force: true });
   }

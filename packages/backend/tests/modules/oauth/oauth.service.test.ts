@@ -410,44 +410,28 @@ describe('OAuthService.createConsentRequest', () => {
     ).rejects.toThrow('Your account is not allowed to use MCP');
   });
 
-  it('grants only inference:setup for the isolated setup resource', async () => {
+  it('rejects the removed inference companion setup resource and its scope', async () => {
     const { service } = createService();
-    const setupUser = {
-      ...USER,
-      scopes: ['feat:ai:use', 'nodes:details'],
-    };
-
-    const pending = await service.createConsentRequest(setupUser, {
-      response_type: 'code',
+    const request = {
+      response_type: 'code' as const,
       client_id: 'goc_client',
       redirect_uri: 'http://127.0.0.1:8765/callback',
       code_challenge: 'challenge',
-      code_challenge_method: 'S256',
-      scope: 'inference:setup nodes:details',
-      resource: 'https://gateway.example.com/api/inference/setup',
-    });
-
-    expect(pending.grantableScopes).toEqual(['inference:setup']);
-    expect(pending.unavailableScopes).toEqual(['nodes:details']);
-  });
-
-  it('rejects setup OAuth when the user cannot use Gateway Inference', async () => {
-    const { service } = createService();
+      code_challenge_method: 'S256' as const,
+    };
 
     await expect(
       service.createConsentRequest(
-        { ...USER, scopes: [] },
-        {
-          response_type: 'code',
-          client_id: 'goc_client',
-          redirect_uri: 'http://127.0.0.1:8765/callback',
-          code_challenge: 'challenge',
-          code_challenge_method: 'S256',
-          scope: 'inference:setup',
-          resource: 'https://gateway.example.com/api/inference/setup',
-        }
+        { ...USER, scopes: ['feat:ai:use', 'nodes:details'] },
+        { ...request, scope: 'nodes:details', resource: 'https://gateway.example.com/api/inference/setup' }
       )
-    ).rejects.toThrow('Your account is not allowed to set up inference clients');
+    ).rejects.toThrow('OAuth authorization is not available for this resource');
+    await expect(
+      service.createConsentRequest(
+        { ...USER, scopes: ['feat:ai:use'] },
+        { ...request, scope: 'inference:setup', resource: 'https://gateway.example.com/api' }
+      )
+    ).rejects.toThrow('Scopes are not recognized: inference:setup');
   });
 
   it('marks high-risk OAuth scopes for manual approval', async () => {
@@ -848,7 +832,7 @@ describe('OAuthService.exchangeToken authorization code flow', () => {
     expect(result.token_type).toBe('Bearer');
     expect(result.scope).toBe('nodes:details');
     expect(result.expires_in).toBe(900);
-    expect(result.refresh_token).toMatch(/^gwr_/);
+    expect(result.refresh_token).toMatch(/^opfr_/);
     expect(updateCalls.some((call) => call.table === oauthAuthorizationCodes)).toBe(true);
     expect(insertCalls).toHaveLength(2);
     expect(insertCalls).toEqual(
@@ -943,33 +927,6 @@ describe('OAuthService.exchangeToken authorization code flow', () => {
 });
 
 describe('OAuthService.validateAccessToken', () => {
-  it('accepts setup access tokens only for the inference setup resource', async () => {
-    const setupResource = 'https://gateway.example.com/api/inference/setup';
-    const { service } = createService({
-      groupScopes: ['feat:ai:use'],
-      accessToken: {
-        id: 'access-setup',
-        tokenHash: 'hash',
-        tokenPrefix: 'gwo_setup12',
-        clientId: 'goc_client',
-        userId: USER.id,
-        scopes: ['inference:setup'],
-        resource: setupResource,
-        refreshTokenId: 'refresh-setup',
-        expiresAt: new Date(Date.now() + 60_000),
-        revokedAt: null,
-      },
-    });
-
-    await expect(
-      service.validateAccessToken('gwo_setup', { resource: service.getApiResourceUrl() })
-    ).resolves.toBeNull();
-    await expect(service.validateAccessToken('gwo_setup', { resource: setupResource })).resolves.toMatchObject({
-      tokenId: 'access-setup',
-      scopes: ['inference:setup'],
-    });
-  });
-
   it('expands a folder-restricted grant to the resources currently in the folder', async () => {
     const folderId = '0b3d7f0e-1111-4c1a-9d2e-3f4a5b6c7d8e';
     const { service } = createService({
@@ -1108,7 +1065,7 @@ describe('OAuthService.revokeToken', () => {
     });
 
     expect(result.token_type).toBe('Bearer');
-    expect(result.refresh_token).toMatch(/^gwr_/);
+    expect(result.refresh_token).toMatch(/^opfr_/);
     expect(insertCalls).toHaveLength(2);
     expect(updateCalls).toEqual(
       expect.arrayContaining([

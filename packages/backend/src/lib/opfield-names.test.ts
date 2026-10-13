@@ -6,7 +6,7 @@ import {
   OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES,
   UPDATES_BASE_URL,
 } from '@/config/vendor-urls.js';
-import { gatewayInternalImageKind } from '@/modules/docker/docker-internal-images.js';
+import { opfieldInternalImageKind } from '@/modules/docker/docker-internal-images.js';
 import {
   compareOpenCodexVersions,
   OPENCODEX_RELEASE_TAG_RE,
@@ -17,8 +17,8 @@ import { coreUpdateInputSchema, coreVersionInputSchema } from '@/modules/inferen
 import { releaseArtifactSource } from './release-artifacts.js';
 import {
   verifyDaemonUpdateManifest,
-  verifyGatewayImageManifest,
   verifyOpenCodexImageManifest,
+  verifyOpfieldImageManifest,
   verifyRelayImageManifest,
 } from './update-artifact-trust.js';
 
@@ -83,6 +83,7 @@ describe('Opfield names', () => {
     expect(LEGACY_UPDATES_BASE_URLS).toEqual([OLD_HOST]);
     expect(OFFICIAL_IMAGE_REPOSITORIES).toEqual([NEW_REPO, OLD_REPO]);
     expect(OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES).toEqual([
+      'ghcr.io/opfield/opfield-inference',
       'ghcr.io/opfield/inference-core',
       'ghcr.io/the-square-labs/inference-core',
     ]);
@@ -104,7 +105,7 @@ describe('Opfield names', () => {
       for (const name of [
         'RELEASES_API_URL',
         'ARTIFACT_BASE_URL',
-        'GATEWAY_UPDATE_IMAGE_REPOSITORIES',
+        'OPFIELD_UPDATE_IMAGE_REPOSITORIES',
         'INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES',
         'SECURE_LINK_CONNECTOR_IMAGE',
       ]) {
@@ -119,8 +120,9 @@ describe('Opfield names', () => {
       const env = await loadEnv();
       expect(env.RELEASES_API_URL).toBe(`${NEW_HOST}/releases`);
       expect(env.ARTIFACT_BASE_URL).toBe(NEW_HOST);
-      expect(env.GATEWAY_UPDATE_IMAGE_REPOSITORIES.split(',')).toEqual([NEW_REPO, OLD_REPO]);
+      expect(env.OPFIELD_UPDATE_IMAGE_REPOSITORIES.split(',')).toEqual([NEW_REPO, OLD_REPO]);
       expect(env.INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES.split(',')).toEqual([
+        'ghcr.io/opfield/opfield-inference',
         'ghcr.io/opfield/inference-core',
         'ghcr.io/the-square-labs/inference-core',
       ]);
@@ -177,7 +179,7 @@ describe('Opfield names: daemon, relay supervisor and watchdog manifests', () =>
 });
 
 describe('Opfield names: Gateway and Relay image manifests', () => {
-  function gatewayManifest(repository: string) {
+  function opfieldManifest(repository: string) {
     return signed({
       kind: 'gateway-image',
       version: 'v2.12.0',
@@ -206,8 +208,8 @@ describe('Opfield names: Gateway and Relay image manifests', () => {
   }
 
   it.each([OLD_REPO, NEW_REPO])('verifies a Gateway and a Relay manifest naming %s', (repository) => {
-    const gateway = verifyGatewayImageManifest(
-      gatewayManifest(repository),
+    const gateway = verifyOpfieldImageManifest(
+      opfieldManifest(repository),
       { version: 'v2.12.0', tag: 'v2.12.0', image: repository },
       publicKey
     );
@@ -249,7 +251,7 @@ describe('Opfield names: Gateway and Relay image manifests', () => {
     ['registry.example.com/wiolett/gateway/secure-link-connector', 'secure-link-connector'],
     ['ghcr.io/opfield/other/secure-link-connector', null],
   ])('classifies %s as a Gateway internal image: %s', (repository, kind) => {
-    expect(gatewayInternalImageKind({ RepoDigests: [`${repository}@sha256:${sha}`] })).toBe(kind);
+    expect(opfieldInternalImageKind({ RepoDigests: [`${repository}@sha256:${sha}`] })).toBe(kind);
   });
 });
 
@@ -297,5 +299,33 @@ describe('Opfield names: inference core', () => {
       publicKey
     );
     expect(artifact.version).toBe('2.61.0-opfield.1');
+    expect(artifact.minOpfieldVersion).toBe('v2.10.2');
+  });
+
+  it('verifies an opfield-inference-image manifest and prefers minOpfieldVersion', () => {
+    const image = 'ghcr.io/opfield/opfield-inference';
+    const manifest = signed({
+      kind: 'opfield-inference-image',
+      version: '2.62.0-opfield.1',
+      tag: 'v2.62.0-opfield.1',
+      image,
+      digest: `sha256:${sha}`,
+      imageRef: `${image}@sha256:${sha}`,
+      sizeBytes: 412345678,
+      coreProtocolMajor: 1,
+      stateSchemaVersion: 1,
+      minOpfieldVersion: 'v2.12.1',
+      minGatewayVersion: 'v2.12.1',
+      maxOpfieldVersion: 'v3.0.0',
+      buildRevision: 'abc123',
+      createdAt: '2026-10-13T00:00:00Z',
+    });
+    const artifact = verifyOpenCodexImageManifest(
+      manifest,
+      { image, coreProtocolMajor: 1, version: '2.62.0-opfield.1', tag: 'v2.62.0-opfield.1' },
+      publicKey
+    );
+    expect(artifact.minOpfieldVersion).toBe('v2.12.1');
+    expect(artifact.maxOpfieldVersion).toBe('v3.0.0');
   });
 });

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/nginx"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 const (
@@ -217,7 +217,7 @@ func TestPreviewFallbackConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(spaConfig), "try_files $uri $uri/ /index.html;") || !strings.Contains(string(spaConfig), "gateway_pages_not_found") {
+	if !strings.Contains(string(spaConfig), "try_files $uri $uri/ /index.html;") || !strings.Contains(string(spaConfig), "opfield_pages_not_found") {
 		t.Fatalf("SPA fallback is missing from preview config: %s", spaConfig)
 	}
 
@@ -229,7 +229,7 @@ func TestPreviewFallbackConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(redirectConfig), "error_page 404 =302 "+customURL+";") || strings.Contains(string(redirectConfig), "location @gateway_pages_not_found") {
+	if !strings.Contains(string(redirectConfig), "error_page 404 =302 "+customURL+";") || strings.Contains(string(redirectConfig), "location @opfield_pages_not_found") {
 		t.Fatalf("custom fallback redirect is incorrect: %s", redirectConfig)
 	}
 

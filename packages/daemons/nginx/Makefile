@@ -1,9 +1,9 @@
-MODULE := github.com/wiolett-industries/gateway/nginx-daemon
-SHARED_MODULE := github.com/wiolett-industries/gateway/daemon-shared
+MODULE := github.com/opfield/opfield/nginx-daemon
+SHARED_MODULE := github.com/opfield/opfield/daemon-shared
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 export VERSION
 PROTO_DIR := ../../../proto
-SHARED_OUT_DIR := ../shared/gatewayv1
+SHARED_OUT_DIR := ../shared/opfieldv1
 BINARY := bin/nginx-daemon
 
 .PHONY: all build test lint clean proto trust-anchor
@@ -19,10 +19,10 @@ proto:
 	protoc \
 		--proto_path=$(PROTO_DIR) \
 		--go_out=$(SHARED_OUT_DIR) \
-		--go_opt=module=$(SHARED_MODULE)/gatewayv1 \
+		--go_opt=module=$(SHARED_MODULE)/opfieldv1 \
 		--go-grpc_out=$(SHARED_OUT_DIR) \
-		--go-grpc_opt=module=$(SHARED_MODULE)/gatewayv1 \
-		gateway/v1/nginx-daemon.proto
+		--go-grpc_opt=module=$(SHARED_MODULE)/opfieldv1 \
+		opfield/v1/nginx-daemon.proto
 	protoc \
 		--proto_path=$(PROTO_DIR) \
 		--go_out=../shared/relayv1 \

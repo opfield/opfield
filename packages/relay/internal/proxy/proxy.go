@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wiolett-industries/gateway/relay/internal/codec"
-	"github.com/wiolett-industries/gateway/relay/internal/peer"
+	"github.com/opfield/opfield/relay/internal/codec"
+	"github.com/opfield/opfield/relay/internal/peer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -15,12 +15,36 @@ import (
 )
 
 const (
-	gatewayPrefix    = "/gateway.v1."
-	enrollmentMethod = "/gateway.v1.NodeEnrollment/Enroll"
-	metadataPrefix   = "x-wiolett-relay-"
+	opfieldPackagePrefix = "/opfield.v1."
+	// legacy-name: gateway.v1 package — remove once every node reports none
+	legacyPackagePrefix = "/gateway.v1."
+	enrollmentService   = "NodeEnrollment/Enroll"
+	// MetadataPrefix starts every identity header the relay forwards to
+	// Opfield. A client's own header with this or the legacy prefix is
+	// dropped, so only the relay can set them.
+	MetadataPrefix = "x-opfield-relay-"
+	// legacy-name: x-wiolett-relay-* headers — remove once every node reports none.
+	// Still stripped from client metadata: an Opfield that reads them trusts
+	// them only from a relay, never from the client behind it.
+	legacyMetadataPrefix = "x-wiolett-relay-"
+	// MetadataCapability tells Opfield this relay forwards the identity of a
+	// verified daemon as x-opfield-relay-* and strips client headers with
+	// either prefix.
+	MetadataCapability = "relay_metadata_opfield_v1"
 )
 
-// upstreamConn is one connection to Gateway and the number of proxied RPCs on it.
+// proxiedMethod reports whether method belongs to the Opfield control API the
+// local relay proxies, under its current or its legacy package name.
+func proxiedMethod(method string) bool {
+	return strings.HasPrefix(method, opfieldPackagePrefix) || strings.HasPrefix(method, legacyPackagePrefix)
+}
+
+// enrollmentMethod reports the one method a client without a certificate may call.
+func enrollmentMethod(method string) bool {
+	return method == opfieldPackagePrefix+enrollmentService || method == legacyPackagePrefix+enrollmentService
+}
+
+// upstreamConn is one connection to Opfield and the number of proxied RPCs on it.
 type upstreamConn struct {
 	conn    *grpc.ClientConn
 	active  int
@@ -39,7 +63,7 @@ func New(upstream *grpc.ClientConn, connect func() (*grpc.ClientConn, error)) *H
 }
 
 // ReloadUpstream moves new RPCs onto a fresh connection, which presents the
-// relay's reloaded client certificate to Gateway. Closing the previous
+// relay's reloaded client certificate to Opfield. Closing the previous
 // connection would cancel every daemon stream proxied over it, so RPCs already
 // running keep it until they end, and it closes after the last one.
 func (h *Handler) ReloadUpstream() error {
@@ -105,19 +129,19 @@ func (h *Handler) release(used *upstreamConn) {
 
 func (h *Handler) Handle(_ any, downstream grpc.ServerStream) error {
 	method, ok := grpc.MethodFromServerStream(downstream)
-	if !ok || !strings.HasPrefix(method, gatewayPrefix) {
+	if !ok || !proxiedMethod(method) {
 		return status.Error(codes.Unimplemented, "relay method is not registered")
 	}
 	identity, authenticated := peer.FromContext(downstream.Context())
-	if method != enrollmentMethod && !authenticated {
+	if !enrollmentMethod(method) && !authenticated {
 		return status.Error(codes.Unauthenticated, "verified daemon certificate required")
 	}
 	incoming, _ := metadata.FromIncomingContext(downstream.Context())
 	outgoing := sanitizeMetadata(incoming)
 	if authenticated {
-		outgoing.Set("x-wiolett-relay-node-id", identity.SubjectID)
-		outgoing.Set("x-wiolett-relay-cert-serial", identity.CertificateSerial)
-		outgoing.Set("x-wiolett-relay-cert-sha256", identity.CertificateFingerprint)
+		outgoing.Set(MetadataPrefix+"node-id", identity.SubjectID)
+		outgoing.Set(MetadataPrefix+"cert-serial", identity.CertificateSerial)
+		outgoing.Set(MetadataPrefix+"cert-sha256", identity.CertificateFingerprint)
 	}
 	used := h.acquire()
 	defer h.release(used)
@@ -190,7 +214,8 @@ func (h *Handler) Handle(_ any, downstream grpc.ServerStream) error {
 func sanitizeMetadata(source metadata.MD) metadata.MD {
 	result := metadata.MD{}
 	for key, values := range source {
-		if strings.HasPrefix(strings.ToLower(key), metadataPrefix) {
+		lower := strings.ToLower(key)
+		if strings.HasPrefix(lower, MetadataPrefix) || strings.HasPrefix(lower, legacyMetadataPrefix) {
 			continue
 		}
 		result[key] = append([]string(nil), values...)

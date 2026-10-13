@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 var errNotObserved = errors.New("the member has not been observed yet")

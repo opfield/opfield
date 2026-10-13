@@ -1,7 +1,7 @@
 import { ApiRequestError } from "@/services/api-base";
 
 export const MIGRATION_TARGET_RETRY_DELAYS_MS = [0, 150, 300, 500, 750, 1_000, 1_500, 2_000, 2_500];
-const OWNED_MIGRATION_STORAGE_KEY = "gateway:docker-migration:owned";
+const OWNED_MIGRATION_STORAGE_KEY = "opfield:docker-migration:owned";
 
 export function markDockerMigrationOwnedByTab(migrationId: string): void {
   window.sessionStorage.setItem(OWNED_MIGRATION_STORAGE_KEY, migrationId);

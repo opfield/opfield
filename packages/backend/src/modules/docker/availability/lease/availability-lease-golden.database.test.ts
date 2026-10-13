@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
-import type { AvailabilityLeaseReport, GatewayCommand } from '@/grpc/generated/types.js';
+import type { AvailabilityLeaseReport, OpfieldCommand } from '@/grpc/generated/types.js';
 import { loadLeaseUpdateView } from '@/services/daemon-update-lease-gate.js';
 import { AvailabilityLeaseService } from './availability-lease.service.js';
 import {
@@ -36,13 +36,13 @@ vi.mock('node:crypto', async (importOriginal) => {
   return { ...actual, randomInt: () => 424_242 };
 });
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const goldenPath = fileURLToPath(new URL('./availability-lease.golden.json', import.meta.url));
 
 vi.setConfig({ testTimeout: 300_000 });
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): pins every output of the Availability lease host over one long
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): pins every output of the Availability lease host over one long
  * scenario (bootstrap, failover, handoff, relay view, key rotation, joint voter change, partition mode switch,
  * exclusion, close, surge, legacy request). Signed manifests, key chains, daemon distributions, relay gate fields,
  * lease lanes, update topology, API views, controller callbacks, audit entries and events must stay byte-identical
@@ -59,7 +59,7 @@ describe.skipIf(!url)('availability lease host golden outputs', () => {
     [KEY_ID, policyKey],
     [NEXT_KEY_ID, nextKey],
   ]);
-  const sent: Array<{ nodeId: string; command: Partial<GatewayCommand> }> = [];
+  const sent: Array<{ nodeId: string; command: Partial<OpfieldCommand> }> = [];
   const audit = { log: vi.fn(async (_entry: unknown) => true) };
   const events = { publish: vi.fn() };
   const modeChanges: unknown[] = [];
@@ -79,7 +79,7 @@ describe.skipIf(!url)('availability lease host golden outputs', () => {
     getAllNodes: () => connected,
     hasCapability: (nodeId: string, capability: string) =>
       connected.find((node) => node.nodeId === nodeId)?.capabilities.has(capability) ?? false,
-    sendCommand: vi.fn(async (nodeId: string, command: Partial<GatewayCommand>) => {
+    sendCommand: vi.fn(async (nodeId: string, command: Partial<OpfieldCommand>) => {
       sent.push({ nodeId, command });
       return { commandId: 'c', success: true, error: '', detail: '', data: Buffer.alloc(0) };
     }),

@@ -3,7 +3,7 @@
  * winston JSON lines; other containers (Postgres, Redis, relay, registry) write plain text.
  */
 
-import { GATEWAY_TOKEN_PATTERN, PRIVATE_KEY_PATTERN } from '@/lib/secret-patterns.js';
+import { OPFIELD_TOKEN_PATTERN, PRIVATE_KEY_PATTERN } from '@/lib/secret-patterns.js';
 
 export const LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -47,7 +47,7 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
   // SQL as Postgres logs it: CREATE/ALTER ROLE … PASSWORD 'value'.
   [/\b(PASSWORD)\s+'(?:[^']|'')*'/gi, "$1 '[REDACTED]'"],
   [new RegExp(`(\\b(?:${SECRET_NAME})["']?\\s*[=:]\\s*)("[^"]*"|'[^']*'|[^\\s&"',;]+)`, 'gi'), '$1[REDACTED]'],
-  [new RegExp(GATEWAY_TOKEN_PATTERN.source, 'g'), '[REDACTED]'],
+  [new RegExp(OPFIELD_TOKEN_PATTERN.source, 'g'), '[REDACTED]'],
 ];
 
 const RELATIVE_TIME = /^(\d+)\s*(s|m|h|d)$/i;

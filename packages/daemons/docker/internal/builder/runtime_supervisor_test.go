@@ -102,26 +102,26 @@ func TestEgressPolicyRejectsBuildTrafficToTheWorkerHostInEveryProfile(t *testing
 				t.Fatal(err)
 			}
 			wantInput := []string{
-				"-i gateway-builds0 -j GATEWAY_BUILDER_HOST",
-				"-s 10.203.0.0/24 -j GATEWAY_BUILDER_HOST",
+				"-i opfield-builds0 -j OPFIELD_BUILDER_HOST",
+				"-s 10.203.0.0/24 -j OPFIELD_BUILDER_HOST",
 			}
 			if got := netfilter.chain("iptables", "INPUT"); !reflect.DeepEqual(got, wantInput) {
 				t.Fatalf("INPUT = %q, want %q", got, wantInput)
 			}
-			if got := netfilter.chain("iptables", "GATEWAY_BUILDER_HOST"); !reflect.DeepEqual(got, []string{"-j REJECT"}) {
-				t.Fatalf("GATEWAY_BUILDER_HOST = %q, want only a reject", got)
+			if got := netfilter.chain("iptables", "OPFIELD_BUILDER_HOST"); !reflect.DeepEqual(got, []string{"-j REJECT"}) {
+				t.Fatalf("OPFIELD_BUILDER_HOST = %q, want only a reject", got)
 			}
 			if !ipv6Enabled() {
 				return
 			}
-			wantIPv6 := []string{"-i gateway-builds0 -j GATEWAY_BUILDER_HOST"}
+			wantIPv6 := []string{"-i opfield-builds0 -j OPFIELD_BUILDER_HOST"}
 			for _, chain := range []string{"INPUT", "FORWARD"} {
 				if got := netfilter.chain("ip6tables", chain); !reflect.DeepEqual(got, wantIPv6) {
 					t.Fatalf("ip6tables %s = %q, want %q", chain, got, wantIPv6)
 				}
 			}
-			if got := netfilter.chain("ip6tables", "GATEWAY_BUILDER_HOST"); !reflect.DeepEqual(got, []string{"-j DROP"}) {
-				t.Fatalf("ip6tables GATEWAY_BUILDER_HOST = %q, want only a drop", got)
+			if got := netfilter.chain("ip6tables", "OPFIELD_BUILDER_HOST"); !reflect.DeepEqual(got, []string{"-j DROP"}) {
+				t.Fatalf("ip6tables OPFIELD_BUILDER_HOST = %q, want only a drop", got)
 			}
 		})
 	}
@@ -133,16 +133,16 @@ func TestEgressPolicyKeepsForwardedBuildTrafficInTheEgressChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantForward := []string{
-		"-i gateway-builds0 -j GATEWAY_BUILDER_EGRESS",
-		"-s 10.203.0.0/24 -j GATEWAY_BUILDER_EGRESS",
+		"-i opfield-builds0 -j OPFIELD_BUILDER_EGRESS",
+		"-s 10.203.0.0/24 -j OPFIELD_BUILDER_EGRESS",
 	}
 	if got := netfilter.chain("iptables", "FORWARD"); !reflect.DeepEqual(got, wantForward) {
 		t.Fatalf("FORWARD = %q, want %q", got, wantForward)
 	}
-	if got := netfilter.chain("iptables", "CNI-ADMIN"); !reflect.DeepEqual(got, []string{"-s 10.203.0.0/24 -j GATEWAY_BUILDER_EGRESS"}) {
+	if got := netfilter.chain("iptables", "CNI-ADMIN"); !reflect.DeepEqual(got, []string{"-s 10.203.0.0/24 -j OPFIELD_BUILDER_EGRESS"}) {
 		t.Fatalf("CNI-ADMIN = %q", got)
 	}
-	egress := netfilter.chain("iptables", "GATEWAY_BUILDER_EGRESS")
+	egress := netfilter.chain("iptables", "OPFIELD_BUILDER_EGRESS")
 	if egress[0] != "! -s 10.203.0.0/24 -j DROP" {
 		t.Fatalf("first egress rule = %q, want the drop of spoofed sources", egress[0])
 	}
@@ -184,7 +184,7 @@ func TestEgressPolicyReapplyAndProfileChangeLeaveOneCopyOfEachRule(t *testing.T)
 			}
 		}
 	}
-	egress := netfilter.chain("iptables", "GATEWAY_BUILDER_EGRESS")
+	egress := netfilter.chain("iptables", "OPFIELD_BUILDER_EGRESS")
 	if containsLine(egress, "-s 10.203.0.0/24 -j ACCEPT") || egress[len(egress)-1] != "-s 10.203.0.0/24 -j REJECT" {
 		t.Fatalf("offline egress chain = %q, want the internet accept replaced by a reject", egress)
 	}
@@ -201,8 +201,10 @@ func TestEgressPolicyFailsClosedWithoutIP6TablesOnAnIPv6Host(t *testing.T) {
 }
 
 func TestBuilderBridgeNameMatchesTheCNIConfig(t *testing.T) {
-	if !strings.Contains(RenderInternetCNIConfig(), `"bridge": "`+BuilderBridgeName+`"`) {
-		t.Fatalf("CNI config does not use bridge %s", BuilderBridgeName)
+	for _, naming := range []Naming{OpfieldNaming, LegacyNaming} {
+		if !strings.Contains(RenderInternetCNIConfig(naming), `"bridge": "`+naming.Bridge+`"`) {
+			t.Fatalf("CNI config does not use bridge %s", naming.Bridge)
+		}
 	}
 }
 
@@ -237,7 +239,7 @@ func TestReapplyEgressPolicyFencesTheNewControlAddressWithoutRestartingTheRuntim
 	if !strings.Contains(string(script), `CONTROL_HOST="new.example"`) || !strings.Contains(string(script), `CONTROL_PORT="7443"`) {
 		t.Fatalf("policy does not fence the new address:\n%s", script)
 	}
-	if want := []string{"systemctl restart " + egressServiceName}; !reflect.DeepEqual(commands, want) {
+	if want := []string{"systemctl restart " + OpfieldNaming.EgressService}; !reflect.DeepEqual(commands, want) {
 		t.Fatalf("commands = %v, want %v (containerd and BuildKit keep running)", commands, want)
 	}
 	if supervisor.Config.ControlPlaneAddress != "new.example:7443" {

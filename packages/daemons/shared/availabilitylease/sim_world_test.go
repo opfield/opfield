@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	pb "github.com/opfield/opfield/daemon-shared/relayv1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -27,7 +27,7 @@ type simWorld struct {
 	daemons []string
 	links   map[string]*simLink
 	net     simNetParams
-	gw      *simGateway
+	gw      *simOpfield
 	// state models the application of stateful policies (v3); nil when the
 	// world has none.
 	state  *simStateModel

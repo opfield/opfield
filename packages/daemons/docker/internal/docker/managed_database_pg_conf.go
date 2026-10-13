@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/pgha"
+	"github.com/opfield/opfield/docker-daemon/internal/pgha"
 )
 
 // Settings the daemon owns in postgresql.auto.conf of a Postgres set member.
@@ -51,7 +51,7 @@ const (
 	// unix socket only (pg_hba rejects it on every TCP line).
 	pgLocalRole = "gw_ha_local"
 	// pgMemberLabel marks a Postgres set member's container.
-	pgMemberLabel = "wiolett.gateway.availability.member"
+	pgMemberLabel = "net.opfield.availability.member"
 )
 
 // pgReplicationConnInfo is the libpq conninfo of the member's walreceiver and
@@ -184,7 +184,7 @@ func pgMemberHBA(replicationRoles []string, rewindRole string) string {
 	sort.Strings(roles)
 	restricted := append(append([]string(nil), roles...), rewindRole, pgLocalRole)
 	var b strings.Builder
-	b.WriteString("# Managed by Gateway: availability set member. Direct TCP clients must negotiate TLS.\n")
+	b.WriteString("# Managed by Opfield: availability set member. Direct TCP clients must negotiate TLS.\n")
 	b.WriteString("local all all trust\n")
 	if len(roles) > 0 {
 		fmt.Fprintf(&b, "hostssl replication %s all scram-sha-256 clientcert=verify-ca\n", quoted(roles))

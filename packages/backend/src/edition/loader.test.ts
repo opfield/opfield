@@ -24,7 +24,7 @@ async function fixture(patch: Record<string, unknown> = {}, entry = code) {
   ];
   const payload = Buffer.from(
     JSON.stringify({
-      kind: 'gateway-commercial',
+      kind: 'opfield-commercial',
       version: '0.1.0',
       hostVersion: 'dev',
       hostApiVersion: 1,
@@ -72,7 +72,7 @@ describe('commercial artifact loading', () => {
     } catch (reason) {
       error = reason;
     }
-    expect((error as Error).stack).toContain(`gateway-commercial/${releaseId}/backend/index.cjs`);
+    expect((error as Error).stack).toContain(`opfield-commercial/${releaseId}/backend/index.cjs`);
     expect((error as Error).stack).not.toContain('PRIVATE_SOURCE_SENTINEL');
     expect((error as Error).stack).not.toContain('data:text');
   });

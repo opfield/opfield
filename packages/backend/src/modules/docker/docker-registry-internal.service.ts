@@ -123,7 +123,7 @@ export class DockerInternalRegistryService {
     return this.store.getState();
   }
 
-  async probeHealth(registryUrl = process.env.GATEWAY_INTERNAL_REGISTRY_URL || 'http://registry:5000') {
+  async probeHealth(registryUrl = process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000') {
     let healthy = false;
     try {
       const response = await fetch(new URL('/v2/', registryUrl), {

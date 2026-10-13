@@ -19,8 +19,8 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -598,7 +598,7 @@ func (m *dockerSecureLinkManager) ensureConnector(ctx context.Context, image str
 			return nil, secureLinkConnectorUnchangedError{fmt.Errorf("inspect secure-link management network: %w", err)}
 		}
 		if _, err := m.plugin.client.cli.NetworkCreate(ctx, secureLinkManagementNetwork, mobyclient.NetworkCreateOptions{
-			Driver: "bridge", Internal: true, Labels: map[string]string{"wiolett.gateway.managed": "secure-link"},
+			Driver: "bridge", Internal: true, Labels: map[string]string{"net.opfield.managed": "secure-link"},
 		}); err != nil {
 			return nil, fmt.Errorf("create secure-link management network: %w", err)
 		}
@@ -1061,7 +1061,7 @@ func (m *dockerSecureLinkManager) createConnector(ctx context.Context, image str
 	m.retiring.stopSocket(m.slotSocketPath(slot))
 	_ = os.Remove(filepath.Join(controlDirectory, secureLinkConnectorSlots[slot].socket))
 	hostConfig := &container.HostConfig{
-		Binds:          []string{controlDirectory + ":/run/gateway"},
+		Binds:          []string{controlDirectory + ":" + secureLinkConnectorMount},
 		GroupAdd:       connectorGroupAdd(),
 		ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 		RestartPolicy: container.RestartPolicy{Name: "unless-stopped"},
@@ -1079,7 +1079,7 @@ func (m *dockerSecureLinkManager) createConnector(ctx context.Context, image str
 		Config: &container.Config{
 			Image: image, User: "65532:65532",
 			Env:    secureLinkConnectorEnv(slot),
-			Labels: map[string]string{"wiolett.gateway.managed": "secure-link-connector"},
+			Labels: map[string]string{"net.opfield.managed": "secure-link-connector"},
 		},
 		HostConfig:       hostConfig,
 		NetworkingConfig: networking,
@@ -1138,7 +1138,7 @@ func waitForConnectorSocket(ctx context.Context, socketPath string) error {
 
 func validSecureLinkManagementNetwork(inspect network.Inspect) bool {
 	return inspect.Driver == "bridge" && inspect.Internal && !inspect.Ingress && !inspect.ConfigOnly &&
-		inspect.Labels["wiolett.gateway.managed"] == "secure-link"
+		inspect.Labels["net.opfield.managed"] == "secure-link"
 }
 
 func validSecureLinkConnector(inspect container.InspectResponse, image, controlDirectory, anchorID string) bool {
@@ -1148,7 +1148,7 @@ func validSecureLinkConnector(inspect container.InspectResponse, image, controlD
 }
 
 func ownedSecureLinkConnector(inspect container.InspectResponse) bool {
-	return inspect.Config != nil && inspect.Config.Labels["wiolett.gateway.managed"] == "secure-link-connector"
+	return inspect.Config != nil && inspect.Config.Labels["net.opfield.managed"] == "secure-link-connector"
 }
 
 // connectorSlot reports the slot of a container named like a connector.
@@ -1173,21 +1173,41 @@ func managedSecureLinkConnector(inspect container.InspectResponse, controlDirect
 			!immutableConnectorImagePattern.MatchString(config.Image) &&
 			!officialConnectorReleaseTagPattern.MatchString(config.Image)) ||
 		config.User != "65532:65532" ||
-		config.Labels["wiolett.gateway.managed"] != "secure-link-connector" ||
+		config.Labels["net.opfield.managed"] != "secure-link-connector" ||
 		(!currentSecureLinkConnectorShape(inspect) && !legacySecureLinkConnectorShape(inspect)) ||
 		len(config.ExposedPorts) != 0 || host.Privileged || host.PublishAllPorts || !host.ReadonlyRootfs ||
 		len(host.CapAdd) != 0 || !containsFold(host.CapDrop, "ALL") || !allowedConnectorGroups(host.GroupAdd) ||
 		(!containsFold(host.SecurityOpt, "no-new-privileges") && !containsFold(host.SecurityOpt, "no-new-privileges:true")) ||
 		string(host.NetworkMode) == "host" || len(host.PortBindings) != 0 ||
-		len(host.Binds) != 1 || host.Binds[0] != controlDirectory+":/run/gateway" ||
+		len(host.Binds) != 1 || connectorControlMount(host.Binds[0], controlDirectory) == "" ||
 		host.RestartPolicy.Name != "unless-stopped" {
 		return false
 	}
 	return inspect.NetworkSettings != nil && len(inspect.NetworkSettings.Ports) == 0
 }
 
-func secureLinkConnectorSocketEnv(slot int) string {
-	return "GATEWAY_SECURE_LINK_SOCKET=/run/gateway/" + secureLinkConnectorSlots[slot].socket
+// The connector's control directory is mounted at /run/opfield and named by
+// OPFIELD_SECURE_LINK_SOCKET. A connector image of an earlier release reads only
+// GATEWAY_SECURE_LINK_SOCKET, so new connectors get both; a connector created
+// before Opfield (mount /run/gateway, the old variable only) stays valid until it
+// is replaced for its own reasons (an image update).
+const (
+	secureLinkConnectorMount     = "/run/opfield"
+	secureLinkConnectorSocketVar = "OPFIELD_SECURE_LINK_SOCKET"
+	// legacy-name: /run/gateway mount and GATEWAY_SECURE_LINK_SOCKET of connectors before Opfield — remove once every node reports none
+	legacySecureLinkConnectorMount     = "/run/gateway"
+	legacySecureLinkConnectorSocketVar = "GATEWAY_SECURE_LINK_SOCKET"
+)
+
+// connectorControlMount is the mount target of a connector's control
+// directory bind, "" when the bind is not one.
+func connectorControlMount(bind, controlDirectory string) string {
+	for _, target := range []string{secureLinkConnectorMount, legacySecureLinkConnectorMount} {
+		if bind == controlDirectory+":"+target {
+			return target
+		}
+	}
+	return ""
 }
 
 func containsFold(values []string, expected string) bool {

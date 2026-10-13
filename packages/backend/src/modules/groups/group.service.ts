@@ -129,7 +129,7 @@ export class GroupService {
   private async notifyMfaPolicyChanged(
     groupId: string,
     groupName: string,
-    requireGateway2fa: boolean,
+    require2fa: boolean,
     members: DirectGroupMember[]
   ): Promise<{ memberCount: number }> {
     const localMembers = members.filter((member) => member.authMethod !== 'oidc');
@@ -139,7 +139,7 @@ export class GroupService {
       this.eventBus?.publish(mfaRequiredChannel(member.id), {
         groupId,
         groupName,
-        requireGateway2fa: requireGateway2fa || Boolean(member.otherGroupRequiresMfa),
+        require2fa: require2fa || Boolean(member.otherGroupRequiresMfa),
       });
     }
     return { memberCount: members.length };
@@ -150,22 +150,19 @@ export class GroupService {
       .select({
         id: users.id,
         authMethod: users.authMethod,
-        otherGroupRequiresMfa: sql<boolean>`EXISTS (SELECT 1 FROM permission_groups g WHERE g.id <> ${groupId}::uuid AND g.require_gateway_2fa AND (g.id = ${users.groupId} OR g.id = ANY(${users.additionalGroupIds})))`,
+        otherGroupRequiresMfa: sql<boolean>`EXISTS (SELECT 1 FROM permission_groups g WHERE g.id <> ${groupId}::uuid AND g.require_2fa AND (g.id = ${users.groupId} OR g.id = ANY(${users.additionalGroupIds})))`,
       })
       .from(users)
       .where(and(userBelongsToGroup(groupId), isNull(users.deletedAt)));
   }
 
-  private async updateMfaSessionGraceDeadlines(
-    members: DirectGroupMember[],
-    requireGateway2fa: boolean
-  ): Promise<void> {
+  private async updateMfaSessionGraceDeadlines(members: DirectGroupMember[], require2fa: boolean): Promise<void> {
     const localUserIds = members
       .filter((member) => member.authMethod !== 'oidc' && !member.otherGroupRequiresMfa)
       .map((member) => member.id);
     if (localUserIds.length === 0) return;
 
-    if (requireGateway2fa) {
+    if (require2fa) {
       const { mfaExistingSessionGracePeriodDays } = await this.authSettingsService.getConfig();
       const gracePeriodDays =
         Number.isInteger(mfaExistingSessionGracePeriodDays) &&
@@ -216,7 +213,7 @@ export class GroupService {
         input.description !== undefined ||
         input.scopes !== undefined ||
         input.parentId !== undefined;
-      if (nonSecurityChanges || input.requireGateway2fa === undefined || !actorScopes.includes('admin:system')) {
+      if (nonSecurityChanges || input.require2fa === undefined || !actorScopes.includes('admin:system')) {
         throw new AppError(
           403,
           'BUILTIN_GROUP',
@@ -226,7 +223,7 @@ export class GroupService {
       return;
     }
 
-    if (input.scopes !== undefined || input.parentId !== undefined || input.requireGateway2fa !== undefined) {
+    if (input.scopes !== undefined || input.parentId !== undefined || input.require2fa !== undefined) {
       const groupMap = await fetchGroupScopeMap(this.db);
       const affected = [id, ...this.collectDescendantGroupIds(id, groupMap)];
       if (affected.some((groupId) => !hasScope(actorScopes, `admin:groups:${groupId}`)))
@@ -286,7 +283,7 @@ export class GroupService {
         folderId: permissionGroups.folderId,
         sortOrder: permissionGroups.sortOrder,
         scopes: permissionGroups.scopes,
-        requireGateway2fa: permissionGroups.requireGateway2fa,
+        require2fa: permissionGroups.require2fa,
         createdAt: permissionGroups.createdAt,
         updatedAt: permissionGroups.updatedAt,
         memberCount: sql<number>`(SELECT count(*) FROM users WHERE (users.group_id = "permission_groups"."id" OR "permission_groups"."id" = ANY(users.additional_group_ids)) AND users.deleted_at IS NULL)::int`,
@@ -365,7 +362,7 @@ export class GroupService {
           parentId: input.parentId ?? null,
           folderId: input.folderId ?? null,
           scopes,
-          requireGateway2fa: input.requireGateway2fa ?? false,
+          require2fa: input.require2fa ?? false,
         })
         .returning();
       return group;
@@ -384,11 +381,11 @@ export class GroupService {
 
     logger.info('Created permission group', { groupId: group.id, name: group.name, parentId: group.parentId });
     this.emitGroup(group.id, 'created');
-    if (group.requireGateway2fa) {
+    if (group.require2fa) {
       this.eventBus?.publish('group.mfa.required', {
         groupId: group.id,
         groupName: group.name,
-        requireGateway2fa: true,
+        require2fa: true,
         memberCount: 0,
       });
     }
@@ -413,7 +410,7 @@ export class GroupService {
 
     const builtinMfaOnly =
       group.isBuiltin &&
-      input.requireGateway2fa !== undefined &&
+      input.require2fa !== undefined &&
       input.name === undefined &&
       input.description === undefined &&
       input.scopes === undefined &&
@@ -440,8 +437,8 @@ export class GroupService {
       }
     }
 
-    const nextMfaPolicy = input.requireGateway2fa;
-    const mfaPolicyChanged = nextMfaPolicy !== undefined && nextMfaPolicy !== group.requireGateway2fa;
+    const nextMfaPolicy = input.require2fa;
+    const mfaPolicyChanged = nextMfaPolicy !== undefined && nextMfaPolicy !== group.require2fa;
     const mfaMembers = mfaPolicyChanged ? await this.getDirectGroupMembers(id) : [];
     if (mfaPolicyChanged && nextMfaPolicy !== undefined) {
       await this.updateMfaSessionGraceDeadlines(mfaMembers, nextMfaPolicy);
@@ -454,7 +451,7 @@ export class GroupService {
         ...(input.description !== undefined && { description: input.description }),
         ...(input.scopes !== undefined && { scopes: canonicalizeScopes(input.scopes) }),
         ...(input.parentId !== undefined && { parentId: input.parentId }),
-        ...(input.requireGateway2fa !== undefined && { requireGateway2fa: input.requireGateway2fa }),
+        ...(input.require2fa !== undefined && { require2fa: input.require2fa }),
         updatedAt: new Date(),
       })
       .where(eq(permissionGroups.id, id))
@@ -467,7 +464,7 @@ export class GroupService {
       this.eventBus?.publish('group.mfa.required', {
         groupId: updated.id,
         groupName: updated.name,
-        requireGateway2fa: nextMfaPolicy,
+        require2fa: nextMfaPolicy,
         memberCount,
       });
     }

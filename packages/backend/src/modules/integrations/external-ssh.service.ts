@@ -388,6 +388,14 @@ export class ExternalSshService {
     const normalized = host.trim().toLowerCase();
     if (
       [
+        'opfield',
+        'opfield-backend',
+        'opfield-frontend',
+        'opfield-daemon',
+        'opfield-agent',
+        'opfield-proxy',
+        // legacy-name: host names of installations set up before 2.12.1 — remove once every installation runs the
+        // Opfield layout
         'gateway',
         'gateway-backend',
         'gateway-frontend',
@@ -399,16 +407,16 @@ export class ExternalSshService {
         'localhost',
       ].includes(normalized)
     ) {
-      throw new AppError(403, 'SSH_GATEWAY_TARGET_BLOCKED', 'Opfield itself cannot be used as an external SSH target');
+      throw new AppError(403, 'SSH_OPFIELD_TARGET_BLOCKED', 'Opfield itself cannot be used as an external SSH target');
     }
     const addresses = await this.resolveHostAddresses(normalized);
-    const gatewayAddresses = new Set(
+    const opfieldAddresses = new Set(
       Object.values(networkInterfaces())
         .flatMap((entries) => entries ?? [])
         .map((entry) => entry.address.toLowerCase())
     );
-    if (addresses.some((address) => gatewayAddresses.has(address) || isLoopbackAddress(address))) {
-      throw new AppError(403, 'SSH_GATEWAY_TARGET_BLOCKED', 'Opfield itself cannot be used as an external SSH target');
+    if (addresses.some((address) => opfieldAddresses.has(address) || isLoopbackAddress(address))) {
+      throw new AppError(403, 'SSH_OPFIELD_TARGET_BLOCKED', 'Opfield itself cannot be used as an external SSH target');
     }
     const nodeRows = await this.db.select({ hostname: nodes.hostname, report: nodes.lastHealthReport }).from(nodes);
     const matchesManagedNode = nodeRows.some((node) => {

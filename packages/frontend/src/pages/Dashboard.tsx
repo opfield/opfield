@@ -64,9 +64,9 @@ import { RecentActivityCard } from "./dashboard/RecentActivityCard";
 import { DashboardInferenceUsage } from "./inference/InferenceUsagePanels";
 
 type DashboardDevWindow = Window & {
-  gatewayDev?: Record<string, unknown>;
-  gatewayDevShowExpiringSoon?: () => void;
-  gatewayDevHideExpiringSoon?: () => void;
+  opfieldDev?: Record<string, unknown>;
+  opfieldDevShowExpiringSoon?: () => void;
+  opfieldDevHideExpiringSoon?: () => void;
 };
 
 function makeDevExpiringItems(): ExpiringItem[] {
@@ -325,7 +325,7 @@ export function LicenseGraceNotice({
           <NoticeAction
             tone="destructive"
             to="/settings/general"
-            state={{ scrollTarget: "gateway-license" }}
+            state={{ scrollTarget: "opfield-license" }}
           >
             Update license key
           </NoticeAction>
@@ -511,12 +511,12 @@ export function Dashboard() {
   const attentionIds = (id: string) => new Set(attentionNotice(id)?.ids ?? []);
   const relay = dashboardBootstrap?.relay ?? null;
   const license = useUIBootstrapStore((state) => state.snapshot?.license ?? null);
-  const relayNotice = attentionNotice("gateway-relay") ? relay : null;
+  const relayNotice = attentionNotice("opfield-relay") ? relay : null;
   const tlsCertificateDistributionNeedsAttention = Boolean(
     attentionNotice("tls-certificate-distribution")
   );
   const expiredPkiCertificates = attentionNotice("pki-certificates-expired")?.count ?? 0;
-  const updateNeedsAttention = Boolean(attentionNotice("gateway-update"));
+  const updateNeedsAttention = Boolean(attentionNotice("opfield-update"));
   const loggingNeedsAttention = Boolean(attentionNotice("logging-health"));
   const mfaNeedsAttention = Boolean(attentionNotice("mfa"));
   const finalizeSetupNeedsAttention = Boolean(attentionNotice("finalize-setup"));
@@ -544,22 +544,22 @@ export function Dashboard() {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
 
     const win = window as DashboardDevWindow;
-    const gatewayDev = (win.gatewayDev ??= {});
+    const opfieldDev = (win.opfieldDev ??= {});
     const showExpiringSoon = () => setForcedExpiringItems(makeDevExpiringItems());
     const hideExpiringSoon = () => setForcedExpiringItems(null);
 
-    gatewayDev.showExpiringSoon = showExpiringSoon;
-    gatewayDev.hideExpiringSoon = hideExpiringSoon;
-    win.gatewayDevShowExpiringSoon = showExpiringSoon;
-    win.gatewayDevHideExpiringSoon = hideExpiringSoon;
+    opfieldDev.showExpiringSoon = showExpiringSoon;
+    opfieldDev.hideExpiringSoon = hideExpiringSoon;
+    win.opfieldDevShowExpiringSoon = showExpiringSoon;
+    win.opfieldDevHideExpiringSoon = hideExpiringSoon;
 
     return () => {
-      if (gatewayDev.showExpiringSoon === showExpiringSoon) delete gatewayDev.showExpiringSoon;
-      if (gatewayDev.hideExpiringSoon === hideExpiringSoon) delete gatewayDev.hideExpiringSoon;
-      if (win.gatewayDevShowExpiringSoon === showExpiringSoon)
-        delete win.gatewayDevShowExpiringSoon;
-      if (win.gatewayDevHideExpiringSoon === hideExpiringSoon)
-        delete win.gatewayDevHideExpiringSoon;
+      if (opfieldDev.showExpiringSoon === showExpiringSoon) delete opfieldDev.showExpiringSoon;
+      if (opfieldDev.hideExpiringSoon === hideExpiringSoon) delete opfieldDev.hideExpiringSoon;
+      if (win.opfieldDevShowExpiringSoon === showExpiringSoon)
+        delete win.opfieldDevShowExpiringSoon;
+      if (win.opfieldDevHideExpiringSoon === hideExpiringSoon)
+        delete win.opfieldDevHideExpiringSoon;
     };
   }, []);
 
@@ -897,8 +897,8 @@ export function Dashboard() {
             )}
             <ConfigureAIWorkspaceWizard
               open={activeFinalizeWizard === "ai_workspace"}
-              allowGatewayInference={[
-                "settings:gateway:edit",
+              allowOpfieldInference={[
+                "settings:opfield:edit",
                 "inference:providers:view",
                 "inference:providers:manage",
                 "inference:models:manage",

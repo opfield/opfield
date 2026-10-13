@@ -2,11 +2,28 @@ import crypto, { createPrivateKey, createSign, randomUUID, X509Certificate } fro
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { readOpfieldEnv } from '@/config/env.js';
+import { LEGACY_REGISTRY_TOKEN_SERVICE, REGISTRY_TOKEN_SERVICE } from '@/foundation/opfield-names.js';
 import { x509 } from '@/lib/x509.js';
 import { AppError } from '@/middleware/error-handler.js';
 
-const TOKEN_ISSUER = 'gateway-internal-registry';
-const TOKEN_SERVICE = 'gateway-internal-registry';
+export { LEGACY_REGISTRY_TOKEN_SERVICE, REGISTRY_TOKEN_SERVICE };
+
+const REGISTRY_TOKEN_SERVICES: readonly string[] = [REGISTRY_TOKEN_SERVICE, LEGACY_REGISTRY_TOKEN_SERVICE];
+
+/**
+ * The audience the installation's registry checks: OPFIELD_REGISTRY_TOKEN_SERVICE, which the Opfield Compose layout
+ * sets next to the registry's own setting. An installation without it still runs the registry of the earlier layout.
+ */
+export function configuredRegistryTokenService(environment: NodeJS.ProcessEnv = process.env): string {
+  const configured = readOpfieldEnv('REGISTRY_TOKEN_SERVICE', environment)?.trim();
+  return configured && REGISTRY_TOKEN_SERVICES.includes(configured) ? configured : LEGACY_REGISTRY_TOKEN_SERVICE;
+}
+
+/** Whether a token request names an audience an internal registry of either layout checks. */
+export function isRegistryTokenService(service: string): boolean {
+  return REGISTRY_TOKEN_SERVICES.includes(service);
+}
 const PRODUCTION_AUTH_DIR = '/var/lib/gateway-registry-auth';
 const TOKEN_CERT_FILE = 'token-cert.pem';
 const TOKEN_KEY_FILE = 'token-key.pem';
@@ -17,10 +34,10 @@ export function resolveDockerRegistryAuthDir(
   temporaryDirectory = os.tmpdir()
 ): string {
   return (
-    environment.GATEWAY_REGISTRY_AUTH_DIR ||
+    readOpfieldEnv('REGISTRY_AUTH_DIR', environment) ||
     (environment.NODE_ENV === 'production'
       ? PRODUCTION_AUTH_DIR
-      : path.join(temporaryDirectory, 'gateway-registry-auth'))
+      : path.join(temporaryDirectory, 'opfield-registry-auth'))
   );
 }
 
@@ -87,7 +104,8 @@ export class DockerRegistryTokenService {
     notAfter.setUTCFullYear(notAfter.getUTCFullYear() + 10);
     const certificate = await x509.X509CertificateGenerator.createSelfSigned({
       serialNumber: crypto.randomBytes(20).toString('hex'),
-      name: 'CN=Gateway Internal Registry Token Signer',
+      // Existing installations keep the signer they have; the registry trusts exactly that certificate.
+      name: 'CN=Opfield Internal Registry Token Signer',
       notBefore,
       notAfter,
       keys,
@@ -118,8 +136,8 @@ export class DockerRegistryTokenService {
     if (!this.privateKeyPem || !this.certificatePem) {
       throw new AppError(503, 'REGISTRY_TOKEN_SIGNER_UNAVAILABLE', 'Registry token signer is not initialized');
     }
-    const service = input.service || TOKEN_SERVICE;
-    if (service !== TOKEN_SERVICE) {
+    const service = input.service || configuredRegistryTokenService();
+    if (!isRegistryTokenService(service)) {
       throw new AppError(403, 'REGISTRY_SERVICE_DENIED', 'Registry token audience is not allowed');
     }
     const allowed = new Map(input.allowed.map((grant) => [grant.repository, new Set(grant.actions)]));
@@ -136,7 +154,8 @@ export class DockerRegistryTokenService {
     const expiresIn = Math.min(Math.max(input.ttlSeconds ?? 120, 30), MAX_TOKEN_TTL_SECONDS);
     const header = { alg: 'RS256', typ: 'JWT', kid: rsaJwkThumbprint(this.certificatePem) };
     const payload = {
-      iss: TOKEN_ISSUER,
+      // The registry of either layout sets its issuer to the same name as its audience.
+      iss: service,
       sub: input.subject,
       aud: service,
       exp: issuedAt + expiresIn,
@@ -173,8 +192,8 @@ export class DockerRegistryTokenService {
 }
 
 export const dockerRegistryTokenContract = {
-  issuer: TOKEN_ISSUER,
-  service: TOKEN_SERVICE,
+  issuer: REGISTRY_TOKEN_SERVICE,
+  service: REGISTRY_TOKEN_SERVICE,
   authDir: PRODUCTION_AUTH_DIR,
   certificatePath: `${PRODUCTION_AUTH_DIR}/${TOKEN_CERT_FILE}`,
   maxTtlSeconds: MAX_TOKEN_TTL_SECONDS,

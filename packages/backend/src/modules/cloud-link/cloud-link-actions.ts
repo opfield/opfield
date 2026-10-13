@@ -4,7 +4,7 @@ import { RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuthService } from '@/modules/auth/auth.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
-import { enrollmentInstallation, publicUrlFallbackGateway } from '@/modules/nodes/node-installer.js';
+import { enrollmentInstallation, publicUrlFallbackOpfield } from '@/modules/nodes/node-installer.js';
 import { CreateNodeSchema } from '@/modules/nodes/nodes.schemas.js';
 import { NodesService } from '@/modules/nodes/nodes.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -38,7 +38,7 @@ export function createCloudLinkActions(): CloudLinkActions {
   return {
     async setupLink() {
       const policy = container.resolve(SetupTokenPolicyService);
-      if ((await policy.isSetupComplete()) || (await policy.isGatewayConfigured())) throw new Error('already set up');
+      if ((await policy.isSetupComplete()) || (await policy.isOpfieldConfigured())) throw new Error('already set up');
       const generated = await container.resolve(SetupAccessService).generateCode();
       return { code: generated.code, expiresAt: generated.expiresAt };
     },
@@ -62,7 +62,7 @@ export function createCloudLinkActions(): CloudLinkActions {
           : {}),
       });
       const created = await container.resolve(NodesService).create(input, CLOUD_LINK_ACTOR);
-      const installation = await enrollmentInstallation(created, await publicUrlFallbackGateway());
+      const installation = await enrollmentInstallation(created, await publicUrlFallbackOpfield());
       const target =
         installation.installCommands.find((command) => command.target === 'public') ?? installation.installCommands[0];
       if (!target) throw new Error('Opfield has no address a node could enrol with; set its public URL first');
@@ -79,14 +79,14 @@ export function createCloudLinkActions(): CloudLinkActions {
       const updateService = container.resolve(UpdateService);
       const status = await updateService.getCachedStatus();
       const channel = (await container.resolve(GeneralSettingsService).getConfig()).updateChannel ?? 'stable';
-      const operation = status.gatewayOperation;
+      const operation = status.opfieldOperation;
       return {
         current: status.currentVersion,
         latest: status.latestVersion,
         channel,
         available: status.updateAvailable,
         updating:
-          updateService.isGatewayUpdateInProgress() ||
+          updateService.isOpfieldUpdateInProgress() ||
           operation?.status === 'updating' ||
           operation?.status === 'waiting_for_operations',
       };
@@ -128,31 +128,31 @@ export function createCloudLinkActions(): CloudLinkActions {
     // Mirrors POST /api/system/update (Settings → Update now).
     async update(version) {
       const updateService = container.resolve(UpdateService);
-      if (updateService.isGatewayUpdateInProgress()) {
+      if (updateService.isOpfieldUpdateInProgress()) {
         throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
       }
-      await updateService.assertGatewayUpdateAllowed();
+      await updateService.assertOpfieldUpdateAllowed();
       const status = await updateService.getCachedStatus();
       if (!status.updateAvailable || !status.latestVersion) throw new Error('No update available');
       const target = version?.trim() || status.latestVersion;
       if (!RELEASE_VERSION_PATTERN.test(target)) throw new Error('Invalid version format');
       if (target !== status.latestVersion) throw new Error('Requested version does not match available update');
-      const artifact = await updateService.prepareGatewayUpdate(target);
+      const artifact = await updateService.prepareOpfieldUpdate(target);
       // A new attempt supersedes the report of a previous rolled-back one.
-      await updateService.acknowledgeGatewayUpdateFailure();
+      await updateService.acknowledgeOpfieldUpdateFailure();
       const eventBus = container.resolve(EventBusService);
-      eventBus.publish('system.update.changed', { updating: true, component: 'gateway', targetVersion: target });
+      eventBus.publish('system.update.changed', { updating: true, component: 'opfield', targetVersion: target });
       // Answer first: the update replaces this container.
       setTimeout(() => {
         updateService.performUpdate(target, artifact, null).catch((error) => {
           if (error instanceof AppError && error.code === 'UPDATE_IN_PROGRESS') return;
           eventBus.publish('system.update.changed', {
             updating: false,
-            component: 'gateway',
+            component: 'opfield',
             targetVersion: target,
             ...(error instanceof AppError ? { error: error.message } : {}),
           });
-          logger.error('Gateway update started by the cloud account failed', {
+          logger.error('Opfield update started by the cloud account failed', {
             error: error instanceof Error ? error.message : String(error),
             stack: error instanceof Error ? error.stack : undefined,
           });

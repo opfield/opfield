@@ -27,8 +27,8 @@ import type {
   ConfigurationExportEstimate,
   ConfigurationExportProgress,
   ConfigurationExportSection,
-  GatewayMoveNodeState,
-  GatewayMoveStatus,
+  OpfieldMoveNodeState,
+  OpfieldMoveStatus,
 } from "@/services/api-configuration-transfer";
 import {
   DEFAULT_GRPC_PORT,
@@ -296,12 +296,12 @@ const MOVE_COLUMNS = [
   {
     id: "name",
     header: "Node",
-    render: (node: GatewayMoveNodeState) => <span className="font-medium">{node.name}</span>,
+    render: (node: OpfieldMoveNodeState) => <span className="font-medium">{node.name}</span>,
   },
   {
     id: "type",
     header: "Type",
-    render: (node: GatewayMoveNodeState) => (
+    render: (node: OpfieldMoveNodeState) => (
       <span className="text-muted-foreground">{node.type}</span>
     ),
   },
@@ -309,7 +309,7 @@ const MOVE_COLUMNS = [
     id: "state",
     header: "State",
     align: "right" as const,
-    render: (node: GatewayMoveNodeState) => {
+    render: (node: OpfieldMoveNodeState) => {
       const state = MOVE_NODE_STATE_LABELS[node.state] ?? MOVE_NODE_STATE_LABELS.pending;
       return (
         <Badge variant={state.variant} title={node.error}>
@@ -327,9 +327,9 @@ function MoveDialog({
   onSaved,
 }: {
   open: boolean;
-  status: GatewayMoveStatus;
+  status: OpfieldMoveStatus;
   onOpenChange: (open: boolean) => void;
-  onSaved: (status: GatewayMoveStatus) => void;
+  onSaved: (status: OpfieldMoveStatus) => void;
 }) {
   const [address, setAddress] = useState("");
   const [saving, setSaving] = useState(false);
@@ -350,7 +350,7 @@ function MoveDialog({
     if (!normalized || sameAsCurrent) return;
     setSaving(true);
     try {
-      const next = await api.setGatewayMoveAddress(normalized);
+      const next = await api.setOpfieldMoveAddress(normalized);
       onSaved(next);
       const notTold = next.nodes.filter((node) => node.state !== "told").length;
       if (notTold > 0) {
@@ -374,7 +374,7 @@ function MoveDialog({
           <DialogTitle>Move nodes to a new address</DialogTitle>
         </DialogHeader>
         <form
-          id="gateway-move-form"
+          id="opfield-move-form"
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
@@ -416,11 +416,11 @@ function MoveDialog({
             />
           </PanelShell>
           <div className="space-y-1.5">
-            <label htmlFor="gateway-move-address" className="text-sm font-medium">
+            <label htmlFor="opfield-move-address" className="text-sm font-medium">
               New gRPC address
             </label>
             <Input
-              id="gateway-move-address"
+              id="opfield-move-address"
               value={address}
               placeholder={`opfield-new.example.com:${DEFAULT_GRPC_PORT}`}
               className="font-mono"
@@ -441,7 +441,7 @@ function MoveDialog({
           </Button>
           <Button
             type="submit"
-            form="gateway-move-form"
+            form="opfield-move-form"
             pending={saving}
             disabled={!normalized || sameAsCurrent}
           >
@@ -455,7 +455,7 @@ function MoveDialog({
 
 export function ConfigurationTransferSection() {
   const [estimate, setEstimate] = useState<ConfigurationExportEstimate | null>(null);
-  const [move, setMove] = useState<GatewayMoveStatus | null>(null);
+  const [move, setMove] = useState<OpfieldMoveStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -463,7 +463,7 @@ export function ConfigurationTransferSection() {
 
   const loadMove = useCallback(async (quiet = false) => {
     try {
-      setMove(await api.getGatewayMoveStatus());
+      setMove(await api.getOpfieldMoveStatus());
     } catch (error) {
       if (!quiet) toastApiError(error, "Failed to load nodes");
     }
@@ -471,7 +471,7 @@ export function ConfigurationTransferSection() {
 
   useEffect(() => {
     let active = true;
-    void Promise.allSettled([api.getConfigurationExportEstimate(), api.getGatewayMoveStatus()])
+    void Promise.allSettled([api.getConfigurationExportEstimate(), api.getOpfieldMoveStatus()])
       .then(([nextEstimate, nextMove]) => {
         if (!active) return;
         if (nextEstimate.status === "fulfilled") setEstimate(nextEstimate.value);
@@ -524,7 +524,7 @@ export function ConfigurationTransferSection() {
       },
       async () => {
         try {
-          setMove(await api.setGatewayMoveAddress(null));
+          setMove(await api.setOpfieldMoveAddress(null));
           toast.success("Address withdrawn");
           return true;
         } catch (error) {

@@ -65,6 +65,7 @@ import { getPublicAuthMethods } from './public-auth-methods.js';
 import {
   getAcceptedSessionCookieNames,
   getSessionCookieNameForUrl,
+  hasInstallationSessionCookie,
   LEGACY_SESSION_COOKIE_NAME,
 } from './session-cookie.js';
 
@@ -141,9 +142,9 @@ async function finishLocalPrimaryAuth(c: any, user: import('@/types.js').User, a
   // The first factor passed: the sign-in's audit entry names this user, also while MFA is still pending.
   setAuditSubjectUser(user.id);
   const mfa = container.resolve(MfaService);
-  const [mfaStatus, gatewayMfaRequired] = await Promise.all([
+  const [mfaStatus, opfieldMfaRequired] = await Promise.all([
     mfa.getStatus(user.id),
-    mfa.isGatewayMfaRequired(user.id),
+    mfa.isOpfieldMfaRequired(user.id),
   ]);
 
   if (mfaStatus.totpConfigured || mfaStatus.passkeyCount > 0) {
@@ -155,7 +156,7 @@ async function finishLocalPrimaryAuth(c: any, user: import('@/types.js').User, a
     });
   }
 
-  if (gatewayMfaRequired) {
+  if (opfieldMfaRequired) {
     return c.json({
       ok: true,
       mfaEnrollmentRequired: true,
@@ -189,7 +190,7 @@ async function auditFailedLocalSignIn(method: 'password', email: string): Promis
     .catch(() => undefined);
 }
 
-export const OIDC_STATE_COOKIE_NAME = 'gateway_oidc_state';
+export const OIDC_STATE_COOKIE_NAME = 'opfield_oidc_state';
 const OIDC_STATE_COOKIE_MAX_AGE_SECONDS = 5 * 60;
 
 export function hashOidcState(state: string): string {
@@ -703,7 +704,7 @@ authRoutes.openapi(logoutRoute, async (c) => {
     // Always drop the browser cookie, even if the IdP logout URL could not
     // be computed, so a signed-out browser never keeps a session reference.
     const cookieHeader = c.req.header('Cookie') ?? '';
-    if (cookieHeader.includes('gateway_session_')) {
+    if (hasInstallationSessionCookie(cookieHeader)) {
       for (const cookieName of getAcceptedSessionCookieNames()) {
         deleteCookie(c, cookieName, { path: '/' });
       }
@@ -821,7 +822,7 @@ authRoutes.openapi(getCurrentUserMfaRoute, async (c) => {
   const user = c.get('user')!;
   assertLocalMfaAccount(user);
   const mfa = container.resolve(MfaService);
-  const [status, required] = await Promise.all([mfa.getStatus(user.id), mfa.isGatewayMfaRequired(user.id)]);
+  const [status, required] = await Promise.all([mfa.getStatus(user.id), mfa.isOpfieldMfaRequired(user.id)]);
   return c.json({ ...status, required });
 });
 

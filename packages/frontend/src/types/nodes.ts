@@ -125,6 +125,8 @@ export interface NodeHealthReport {
   updateConnections?: NodeUpdateConnections;
   /** Nginx daemons: a problem of the host's nginx service only root can fix, ending with the command that fixes it. */
   nginxServiceProblem?: string;
+  /** Daemons of 2.12.1 and later: objects on the node still under their previous names, by kind. */
+  legacyNames?: Record<string, number>;
 }
 
 /** Connections across a daemon update, as the daemon reports them; cut classes are an open set. */
@@ -237,7 +239,7 @@ export interface NodeDetail extends Node {
 export interface NodeInstallCommand {
   target: "public" | "local";
   label: string;
-  gateway: string;
+  address: string;
   curl: string;
   wget: string;
 }
@@ -253,15 +255,15 @@ export interface CreateNodeResponse extends NodeInstallation {
   enrollmentToken: string;
   /** ISO timestamp after which an unused enrollment token is rejected. */
   enrollmentTokenExpiresAt?: string;
-  gatewayCertSha256: string;
-  gatewayEnrollmentTargets?: {
+  opfieldCertSha256: string;
+  opfieldEnrollmentTargets?: {
     public?: {
       label: string;
-      gateway: string | null;
+      address: string | null;
     };
     local?: {
       label: string;
-      gateway: string;
+      address: string;
     };
   };
 }

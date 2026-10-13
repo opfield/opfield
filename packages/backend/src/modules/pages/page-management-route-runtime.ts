@@ -3,8 +3,8 @@ import { container } from '@/container.js';
 import {
   appRoute,
   createdJson,
-  GatewayOpenAPIHono,
   jsonBody,
+  OpfieldOpenAPIHono,
   okJson,
   UnknownDataResponseSchema,
 } from '@/lib/openapi.js';
@@ -26,7 +26,7 @@ import { PageTagService } from './tags/page-tag.service.js';
 import { CreatePageDeployTokenSchema } from './tokens/page-deploy-token.schemas.js';
 import { PageDeployTokenService } from './tokens/page-deploy-token.service.js';
 export const pageManagementRouteRuntime = {
-  OpenAPIHono: GatewayOpenAPIHono,
+  OpenAPIHono: OpfieldOpenAPIHono,
   z,
   container,
   appRoute,

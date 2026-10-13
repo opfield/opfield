@@ -369,6 +369,17 @@ cases:
           labels:
             wiolett.gateway.deployment.id: 00000000-0000-4000-8000-000000000000
 
+  - name: service label in the net.opfield. namespace
+    valid: false
+    backendCode: RESERVED_LABEL
+    daemonError: compose label "net.opfield.deployment.id" is reserved
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          labels:
+            net.opfield.deployment.id: 00000000-0000-4000-8000-000000000000
+
   - name: service label in the net.wiolett.gateway. namespace
     valid: false
     backendCode: RESERVED_LABEL
@@ -426,6 +437,8 @@ cases:
             gateway.sandboxed: "true"
             wiolett.gateway: owner
             org.example.wiolett.gateway.note: kept
+            net.opfield: owner
+            org.example.net.opfield.note: kept
 
   - name: depends_on list and long syntax with condition
     valid: true

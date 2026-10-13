@@ -234,9 +234,9 @@ export class NginxCertificateDistributionService {
     const node = await this.getNode(nodeId);
     if (!node || node.type !== 'nginx' || nodeHasDistributionCapability(node.capabilities)) return 'not_legacy';
 
-    const material = await this.loadGatewayMaterial(reference);
+    const material = await this.loadOpfieldMaterial(reference);
     const version = fingerprintFor(material.certificatePem, material.keyPem, material.chainPem);
-    const asset = (await this.findAsset(reference)) ?? (await this.upsertGatewayAsset(reference));
+    const asset = (await this.findAsset(reference)) ?? (await this.upsertOpfieldAsset(reference));
     try {
       if (node.status !== 'online' || !this.nodeDispatch.isNodeConnected(nodeId)) {
         throw new Error('The Nginx node is offline; the certificate is delivered after it reconnects');
@@ -337,7 +337,7 @@ export class NginxCertificateDistributionService {
     if (!asset) {
       // Assets created after the migration snapshot are v2 and originate from
       // Gateway material, never a daemon export.
-      asset = await this.upsertGatewayAsset(reference);
+      asset = await this.upsertOpfieldAsset(reference);
     }
 
     await this.assertNodeSupportsDistribution(targetNodeId, asset);
@@ -612,8 +612,8 @@ export class NginxCertificateDistributionService {
   }
 
   /** Creates or refreshes v2 canonical material after an issuance/upload/renewal. */
-  async upsertGatewayAsset(reference: CertificateReference): Promise<AssetRow> {
-    const source = await this.loadGatewayMaterial(reference);
+  async upsertOpfieldAsset(reference: CertificateReference): Promise<AssetRow> {
+    const source = await this.loadOpfieldMaterial(reference);
     const encrypted = this.encryptAssetMaterial(source);
     const fingerprint = fingerprintFor(source.certificatePem, source.keyPem, source.chainPem);
     const [asset] = await this.db
@@ -655,7 +655,7 @@ export class NginxCertificateDistributionService {
   async syncCertificate(reference: CertificateReference): Promise<{ synchronized: number }> {
     let asset = await this.findAsset(reference);
     if (!asset) {
-      asset = await this.upsertGatewayAsset(reference);
+      asset = await this.upsertOpfieldAsset(reference);
     }
     if (asset.format === 'legacy' || asset.state !== 'ready' || !asset.encryptedMaterial || !asset.version) {
       const sourceNodeIds = await this.legacySourceNodeIds(reference);
@@ -1163,7 +1163,7 @@ export class NginxCertificateDistributionService {
           })
           .where(eq(nginxCertificateAssets.id, asset.id))
           .returning();
-        logger.info('Imported legacy TLS certificate into Gateway canonical storage', {
+        logger.info('Imported legacy TLS certificate into Opfield canonical storage', {
           assetId: asset.id,
           sourceNodeId: nodeId,
           referenceType: reference.type,
@@ -1243,7 +1243,7 @@ export class NginxCertificateDistributionService {
     });
   }
 
-  private async loadGatewayMaterial(reference: CertificateReference): Promise<{
+  private async loadOpfieldMaterial(reference: CertificateReference): Promise<{
     certificatePem: string;
     keyPem: string;
     chainPem: string | null;
@@ -1317,9 +1317,9 @@ export class NginxCertificateDistributionService {
       return false;
     }
     if (this.decryptAsset(asset).chainPem) return false;
-    const source = await this.loadGatewayMaterial(reference);
+    const source = await this.loadOpfieldMaterial(reference);
     if (!source.chainPem) return false;
-    await this.upsertGatewayAsset(reference);
+    await this.upsertOpfieldAsset(reference);
     return true;
   }
 

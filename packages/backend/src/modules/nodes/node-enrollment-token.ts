@@ -1,11 +1,15 @@
 import { randomBytes } from 'node:crypto';
 
-const TOKEN_PREFIX = 'gw_node';
+const TOKEN_PREFIX = 'opf_node';
+// legacy-name: gw_node enrollment token prefix — unused tokens issued before 2.12.1 stay valid for their 7-day TTL;
+// remove once 2.12.0 is no longer an update source.
+const LEGACY_TOKEN_PREFIX = 'gw_node';
 const TOKEN_VERSION = 'v2';
 const SELECTOR_BYTES = 8;
 const SECRET_BYTES = 24;
 const SELECTOR_RE = /^[0-9a-f]{16}$/;
 const SECRET_RE = /^[0-9a-f]{48}$/;
+// legacy-name: pre-v2 gw_node tokens never expire (NULL expiry) — remove once no node holds one
 const LEGACY_TOKEN_RE = /^gw_node_[0-9a-f]{48}$/;
 
 /** Enrollment tokens are single use and expire after this long if unused. */
@@ -39,9 +43,11 @@ export function createNodeEnrollmentToken(): NodeEnrollmentToken {
 
 export function parseNodeEnrollmentToken(token: string): ParsedNodeEnrollmentToken {
   const trimmed = token.trim();
-  const v2Prefix = `${TOKEN_PREFIX}_${TOKEN_VERSION}_`;
+  const v2Prefix = [TOKEN_PREFIX, LEGACY_TOKEN_PREFIX]
+    .map((prefix) => `${prefix}_${TOKEN_VERSION}_`)
+    .find((prefix) => trimmed.startsWith(prefix));
 
-  if (trimmed.startsWith(v2Prefix)) {
+  if (v2Prefix) {
     const parts = trimmed.slice(v2Prefix.length).split('_');
     if (parts.length !== 2) {
       return { kind: 'invalid' };

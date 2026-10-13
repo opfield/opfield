@@ -5,8 +5,8 @@ import (
 	"sync"
 	"testing"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/stream"
 )
 
 // fakeCommandStream records what the daemon sends Gateway on its control session.

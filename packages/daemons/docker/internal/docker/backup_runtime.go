@@ -23,7 +23,7 @@ import (
 	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
 )
 
 const (
@@ -36,9 +36,9 @@ const (
 )
 
 const (
-	backupRunnerManagedLabel  = "wiolett.gateway.managed"
-	backupRunnerRunLabel      = "wiolett.gateway.backup-run-id"
-	backupRunnerDeadlineLabel = "wiolett.gateway.backup-deadline"
+	backupRunnerManagedLabel  = "net.opfield.managed"
+	backupRunnerRunLabel      = "net.opfield.backup-run-id"
+	backupRunnerDeadlineLabel = "net.opfield.backup-deadline"
 	// The staging Redis of a Redis restore, labelled with backupRunnerRunLabel.
 	backupRedisStageManagedValue = "backup-redis-stage"
 	// A runner found after a daemon restart is stopped only once it is

@@ -28,7 +28,7 @@ import {
   portableEnvironment,
 } from './transfer-layout.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const PG_DUMP = process.env.PG_DUMP_BIN || 'pg_dump';
 const PG_RESTORE = process.env.PG_RESTORE_BIN || 'pg_restore';
 const PASSPHRASE = 'round trip passphrase';
@@ -89,7 +89,7 @@ describe.skipIf(!url)('configuration export round trip, on disposable PostgreSQL
     await sourceDb.insert(users).values({
       id: '00000000-0000-0000-0000-000000000000',
       oidcSubject: 'system:transfer-test',
-      email: 'system@gateway.local',
+      email: 'system@opfield.local',
       name: 'Opfield System',
       groupId: group!.id,
     });
@@ -108,7 +108,7 @@ describe.skipIf(!url)('configuration export round trip, on disposable PostgreSQL
     });
 
     // Export: the same parts the app writes, with the database from pg_dump.
-    const header = { gatewayVersion: 'v-test', schemaMigration: currentSchemaMigration(migrationsFolder) };
+    const header = { opfieldVersion: 'v-test', schemaMigration: currentSchemaMigration(migrationsFolder) };
     const writer = await ExportArchiveWriter.create(PASSPHRASE, header, {
       kdf: { name: 'scrypt', N: 16_384, r: 8, p: 1 },
     });
@@ -158,7 +158,7 @@ describe.skipIf(!url)('configuration export round trip, on disposable PostgreSQL
   it('restores into a fresh database where secrets decrypt and keys keep their trust', async () => {
     // Verify the whole file first, as a restore does, then load the database part.
     const verified = await verifyExport(archivePath, PASSPHRASE, {
-      gatewayVersion: 'v-test',
+      opfieldVersion: 'v-test',
       schemaMigration: currentSchemaMigration(migrationsFolder),
     });
     const archive = await openExportArchive(createReadStream(archivePath), PASSPHRASE);

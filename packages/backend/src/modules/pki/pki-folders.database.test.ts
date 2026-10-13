@@ -11,11 +11,11 @@ import { NginxTemplateFolderService } from '@/modules/proxy/nginx-template-folde
 import { CAService } from './ca.service.js';
 import { CAFolderService, CertificateFolderService, PkiTemplateFolderService } from './pki-folders.service.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const audit = { log: async () => true } as unknown as AuditService;
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): CA folders hold whole hierarchies (only roots move, intermediates
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): CA folders hold whole hierarchies (only roots move, intermediates
  * report and follow their root's folder, folder grants cover the intermediates), system CAs and certificates and
  * built-in templates never move, and deleting a folder ungroups its resources and removes the grants naming it.
  */

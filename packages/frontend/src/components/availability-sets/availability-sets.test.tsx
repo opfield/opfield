@@ -143,7 +143,7 @@ beforeEach(() => {
   api.getRelayStatus.mockResolvedValue(null);
   api.listNodes.mockResolvedValue({ data: [] });
   api.listAvailabilityEvents.mockResolvedValue([]);
-  signIn(["databases:edit", "settings:gateway:edit"]);
+  signIn(["databases:edit", "settings:opfield:edit"]);
 });
 
 function renderSection(result: AvailabilityPreflightResult) {

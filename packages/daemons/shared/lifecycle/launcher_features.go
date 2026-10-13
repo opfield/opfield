@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
 )
 
 const (
@@ -80,11 +80,11 @@ func (i LauncherInfo) equal(other LauncherInfo) bool {
 // A launcher that updated itself in place reports its new version and
 // features from then on, so callers ask again rather than keep the answer.
 func LauncherFeatures() LauncherInfo {
-	if os.Getenv(LauncherManagedEnv) != "1" {
+	if launcherManagedFromEnvironment() != "1" {
 		return LauncherInfo{}
 	}
 	info := LauncherInfo{Managed: true}
-	stateDir := strings.TrimSpace(os.Getenv(LauncherStateDirEnv))
+	stateDir := strings.TrimSpace(launcherEnv(LauncherStateDirEnv, legacyLauncherStateDirEnv))
 	if filepath.IsAbs(stateDir) {
 		if owner, err := readLauncherOwner(stateDir); err == nil && owner.PID == os.Getppid() && owner.Version != "" {
 			info.Version = owner.Version

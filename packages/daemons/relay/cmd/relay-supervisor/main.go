@@ -8,9 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/config"
-	"github.com/wiolett-industries/gateway/relay-supervisor/internal/supervisor"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/relay-supervisor/internal/config"
+	"github.com/opfield/opfield/relay-supervisor/internal/hostnames"
+	"github.com/opfield/opfield/relay-supervisor/internal/supervisor"
 )
 
 var Version = "dev"
@@ -44,9 +45,15 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	// A directory move a crash interrupted is finished before anything below
+	// resolves a path (the move itself runs on a confirmed start, see
+	// hostnames).
+	if err := hostnames.RepairInterrupted(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: finishing an interrupted move of the relay directories: %v\n", err)
+	}
 	if err := lifecycle.BootstrapLauncher(lifecycle.LauncherSpec{
 		DaemonType: "relay",
-		StateDir:   "/var/lib/gateway-relay-supervisor",
+		StateDir:   hostnames.DefaultStateDir(),
 		ChildArgs:  os.Args[1:],
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: launcher unavailable; continuing in direct mode: %v\n", err)
@@ -84,7 +91,7 @@ func main() {
 	defer cancel()
 	err = daemon.Run(ctx)
 	if err != nil && reenrollment != nil && ctx.Err() == nil && supervisor.HasPendingEnrollment(cfg) {
-		// Gateway handed over the new identity but persisting it failed: finish
+		// Opfield handed over the new identity but persisting it failed: finish
 		// it, since the previous identity is already superseded.
 		if completeInterruptedEnrollment(cfg, configPath, logger) != nil {
 			os.Exit(1)
@@ -105,7 +112,7 @@ func main() {
 				logger.Warn("failed to clear the rejected enrollment token from the configuration", "error", clearErr)
 			}
 		}
-		cfg.Gateway.Token = ""
+		cfg.Control.Token = ""
 		daemon, err = lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, supervisor.New(cfg), logger)
 		if err == nil {
 			err = daemon.Run(ctx)
@@ -131,7 +138,7 @@ func completeInterruptedEnrollment(cfg *config.Config, configPath string, logger
 	}
 	if completed {
 		logger.Warn("completed an interrupted relay enrollment")
-		cfg.Gateway.Token = ""
+		cfg.Control.Token = ""
 		if clearErr := lifecycle.ClearTokenFromFile(configPath); clearErr != nil {
 			logger.Warn("failed to clear the used enrollment token from the configuration", "error", clearErr)
 		}

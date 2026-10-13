@@ -508,7 +508,7 @@ export async function initializeCommercialEdition(host: CommercialHost): Promise
   let loaded: LoadedCommercialPackage | null;
   try {
     loaded = await loadCommercialPackage({
-      directory: host.env.GATEWAY_COMMERCIAL_DIR,
+      directory: host.env.OPFIELD_COMMERCIAL_DIR,
       hostVersion: host.env.APP_VERSION,
     });
   } catch (error) {

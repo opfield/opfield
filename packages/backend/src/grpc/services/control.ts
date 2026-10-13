@@ -24,7 +24,7 @@ import { nodeHostAccessFlags } from '@/services/node-host-access.js';
 import { bumpRelayPolicyRevision } from '@/services/relay-policy-reconciler.js';
 import { reportedPolicySigningKeyIds } from '@/services/relay-policy-signing-key.service.js';
 import { reportedRelayServiceEndpoint } from '@/services/relay-service-endpoint.js';
-import type { DaemonMessage, GatewayCommand } from '../generated/types.js';
+import type { DaemonMessage, OpfieldCommand } from '../generated/types.js';
 import { extractDaemonCertificateIdentity, normalizeCertificateSerial } from '../interceptors/auth.js';
 import { matchEnrolledNodeCertificate, promotePendingNodeCertificate } from '../node-certificate.js';
 import type { GrpcServerDeps } from '../server.js';
@@ -35,6 +35,7 @@ import {
   relayStreamHealth,
   updateConnectionsHealth,
 } from './health-report.js';
+import { legacyNameCounts } from './legacy-names.js';
 
 const logger = createChildLogger('GrpcControl');
 
@@ -383,7 +384,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
   };
 
   return {
-    CommandStream(stream: ServerDuplexStream<DaemonMessage, GatewayCommand>) {
+    CommandStream(stream: ServerDuplexStream<DaemonMessage, OpfieldCommand>) {
       let nodeId: string | null = null;
       let closed = false;
       let registering = false;
@@ -637,7 +638,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 return;
               }
             }
-            const gatewayHash = node.configVersionHash;
+            const opfieldHash = node.configVersionHash;
 
             if (certificateMatch === 'pending') {
               try {
@@ -724,7 +725,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
             if (versionMismatch) {
               logger.warn('Daemon version mismatch', {
                 nodeId: claimedNodeId,
-                gatewayVersion: appVersion,
+                opfieldVersion: appVersion,
                 daemonVersion: msg.register.daemonVersion,
               });
             }
@@ -883,7 +884,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
             // legacy deployCert retry below.
             const supportsTlsDistribution =
               msg.register.capabilities?.includes('nginx_certificate_distribution_v2') ?? false;
-            const configHashMismatch = !!gatewayHash && gatewayHash !== msg.register.configVersionHash;
+            const configHashMismatch = !!opfieldHash && opfieldHash !== msg.register.configVersionHash;
             if (nodeType === 'nginx' && !supportsTlsDistribution) {
               setImmediate(async () => {
                 try {
@@ -906,7 +907,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 logger.info('Config hash mismatch, triggering full resync', {
                   nodeId: claimedNodeId,
                   daemonHash: msg.register.configVersionHash,
-                  gatewayHash,
+                  opfieldHash,
                 });
               }
             } else if (nodeType === 'nginx' && (supportsTlsDistribution || configHashMismatch)) {
@@ -917,7 +918,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 {
                   nodeId: claimedNodeId,
                   daemonHash: msg.register.configVersionHash,
-                  gatewayHash,
+                  opfieldHash,
                 }
               );
               // Async reconciliation — never block node registration.
@@ -1262,6 +1263,9 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 errorRate5xx: (msg.healthReport as any).errorRate_5xx ?? msg.healthReport.errorRate5xx ?? 0,
                 ...(msg.healthReport.nginxServiceProblem
                   ? { nginxServiceProblem: String(msg.healthReport.nginxServiceProblem) }
+                  : {}),
+                ...(legacyNameCounts(msg.healthReport.legacyNames)
+                  ? { legacyNames: legacyNameCounts(msg.healthReport.legacyNames) as Record<string, number> }
                   : {}),
                 // Docker-specific fields
                 ...(msg.healthReport.dockerVersion ? { dockerVersion: msg.healthReport.dockerVersion } : {}),

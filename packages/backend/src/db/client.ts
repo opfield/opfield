@@ -29,7 +29,7 @@ export function createDrizzleClient(connectionString: string): DrizzleClient {
   const reportLostConnection = (message: string, error: Error) => {
     if (isShuttingDown()) {
       if (firstShutdownReport('postgres')) {
-        logger.info('Database connections closed while Gateway shuts down', { error: error.message });
+        logger.info('Database connections closed while Opfield shuts down', { error: error.message });
       }
       return;
     }

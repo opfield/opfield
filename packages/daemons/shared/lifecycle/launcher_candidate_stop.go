@@ -1,7 +1,6 @@
 package lifecycle
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -19,10 +18,10 @@ import (
 // candidateStopHandsOver reports whether this daemon is an update candidate
 // still on trial whose previous daemon takes a handover over.
 func candidateStopHandsOver() bool {
-	if os.Getenv(LauncherManagedEnv) != "1" {
+	if launcherManagedFromEnvironment() != "1" {
 		return false
 	}
-	stateDir := strings.TrimSpace(os.Getenv(LauncherStateDirEnv))
+	stateDir := strings.TrimSpace(launcherEnv(LauncherStateDirEnv, legacyLauncherStateDirEnv))
 	if !filepath.IsAbs(stateDir) {
 		return false
 	}

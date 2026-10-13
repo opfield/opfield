@@ -11,7 +11,7 @@ import (
 
 	"github.com/moby/moby/client"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // blockingPullDocker is a Docker Engine API whose image pull streams until the test releases it, then ends with

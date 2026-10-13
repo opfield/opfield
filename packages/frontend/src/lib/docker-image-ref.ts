@@ -1,4 +1,7 @@
-export const GATEWAY_ARCHIVE_IMAGE_REFERENCE_LABEL = "wiolett.gateway.archive.image.reference";
+import { managedLabel } from "@/lib/docker-managed-labels";
+
+/** Managed label holding the image reference an imported archive was built from. */
+export const ARCHIVE_IMAGE_REFERENCE_LABEL = "archive.image.reference";
 
 export function resolveDeploymentImageReference(
   image: string | null | undefined,
@@ -20,7 +23,9 @@ export function resolveDeploymentImageReference(
 export function resolveContainerImageReference(container: Record<string, any>): string {
   const config = (container.Config ?? {}) as Record<string, any>;
   const labels = (config.Labels ?? container.Labels ?? {}) as Record<string, string>;
-  return labels[GATEWAY_ARCHIVE_IMAGE_REFERENCE_LABEL] || config.Image || container.Image || "";
+  return (
+    managedLabel(labels, ARCHIVE_IMAGE_REFERENCE_LABEL) || config.Image || container.Image || ""
+  );
 }
 
 export function stripRegistryHostFromImageName(imageName: string): string {

@@ -9,20 +9,20 @@ const MIN_REQUESTS_FOR_ERROR_RATE = 20;
 const JOB_WATCH_MS = 60 * 60_000;
 
 /** Hands each minute of Gateway diagnostics to the alert evaluator (category gateway). */
-export function createGatewayAlertObserver(
+export function createOpfieldAlertObserver(
   evaluator: Pick<
     NotificationEvaluatorService,
-    'observeGatewayPostgres' | 'evaluateGatewaySnapshot' | 'observeStatefulEvent'
+    'observeOpfieldPostgres' | 'evaluateOpfieldSnapshot' | 'observeStatefulEvent'
   >
 ): (observation: DiagnosticsObservation) => Promise<void> {
   let composeServices = new Set<string>();
 
   return async ({ sample, postgres, redis, containers, jobs }) => {
     // First: the Postgres outage path works without the database, everything below needs it.
-    await evaluator.observeGatewayPostgres(postgres.status === 'ok', postgres.error);
+    await evaluator.observeOpfieldPostgres(postgres.status === 'ok', postgres.error);
     if (postgres.status !== 'ok') return;
 
-    await evaluator.evaluateGatewaySnapshot({
+    await evaluator.evaluateOpfieldSnapshot({
       host_cpu: sample.host.cpuPercent,
       host_memory: sample.host.memoryUsedPercent,
       host_disk: sample.host.diskUsedPercent,
@@ -36,9 +36,9 @@ export function createGatewayAlertObserver(
     });
 
     await evaluator.observeStatefulEvent(
-      'gateway',
+      'opfield',
       redis.status === 'ok' ? 'ok' : 'redis.unavailable',
-      { type: 'gateway', id: 'gateway-redis', name: 'Redis' },
+      { type: 'opfield', id: 'opfield-redis', name: 'Redis' },
       redis.error ? { error: redis.error } : {},
       ['redis.unavailable'],
       SAMPLING_MS
@@ -53,9 +53,9 @@ export function createGatewayAlertObserver(
         seen.add(container.service);
         const down = container.state !== 'running' || container.health === 'unhealthy';
         await evaluator.observeStatefulEvent(
-          'gateway',
+          'opfield',
           down ? 'container.unhealthy' : 'ok',
-          { type: 'gateway', id: `gateway-container:${container.service}`, name: `Container ${container.service}` },
+          { type: 'opfield', id: `opfield-container:${container.service}`, name: `Container ${container.service}` },
           { service: container.service, state: container.health ?? container.state },
           ['container.unhealthy'],
           SAMPLING_MS
@@ -65,9 +65,9 @@ export function createGatewayAlertObserver(
       for (const service of composeServices) {
         if (seen.has(service)) continue;
         await evaluator.observeStatefulEvent(
-          'gateway',
+          'opfield',
           'ok',
-          { type: 'gateway', id: `gateway-container:${service}`, name: `Container ${service}` },
+          { type: 'opfield', id: `opfield-container:${service}`, name: `Container ${service}` },
           { service, state: 'removed' },
           ['container.unhealthy'],
           SAMPLING_MS
@@ -81,9 +81,9 @@ export function createGatewayAlertObserver(
       const lastError = job.lastErrorAt ? Date.parse(job.lastErrorAt) : 0;
       if (job.consecutiveFailures === 0 && now - lastError > JOB_WATCH_MS) continue;
       await evaluator.observeStatefulEvent(
-        'gateway',
+        'opfield',
         job.consecutiveFailures >= FAILING_JOB_RUNS ? 'job.failing' : 'ok',
-        { type: 'gateway', id: `gateway-job:${job.name}`, name: `Background job ${job.name}` },
+        { type: 'opfield', id: `opfield-job:${job.name}`, name: `Background job ${job.name}` },
         {
           job: job.name,
           failures_in_a_row: job.consecutiveFailures,

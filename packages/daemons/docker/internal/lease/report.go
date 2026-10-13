@@ -3,7 +3,7 @@ package lease
 import (
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
 )
 
 // Report is the lease part of the daemon health report. Field for field it

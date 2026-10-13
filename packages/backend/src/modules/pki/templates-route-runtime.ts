@@ -1,7 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
-import { requireGatewayFeature } from '@/middleware/feature-flags.js';
+import { requireOpfieldFeature } from '@/middleware/feature-flags.js';
 import { requireUuidParam } from '@/middleware/uuid-param.js';
 import { authMiddleware, requireScope } from '@/modules/auth/auth.middleware.js';
 import { requireLicenseFeature, requireLicenseFeatureForRequest } from '@/modules/license/license-policy.middleware.js';
@@ -21,7 +21,7 @@ export const templateRouteRuntime = {
   OpenAPIHono,
   container,
   openApiValidationHook,
-  requireGatewayFeature,
+  requireOpfieldFeature,
   authMiddleware,
   requireScope,
   requireLicenseFeature,

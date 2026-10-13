@@ -21,11 +21,11 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = ['apps:view', 'apps:create', 'apps:edit'];
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): an app is visible without apps:view through the members a caller can
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): an app is visible without apps:view through the members a caller can
  * view (environment folder grant, app root folder grant, direct resource grant), limited to the environments holding
  * them and to those members; overview, activity and incidents are computed from them alone. apps:view callers see
  * the app as before.

@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import { NGINX_OPFIELD_NAMES_CAPABILITY } from './nginx-node-names.js';
 import { ProxyService } from './proxy.service.js';
 import { ProxySecureLinkService } from './proxy-secure-link.service.js';
 
 const HOST_ID = '11111111-1111-4111-8111-111111111111';
-const SOCKET_PATH = `/run/gateway-secure-links/${HOST_ID}.sock`;
-const UPSTREAM_NAME = `gateway_secure_link_${HOST_ID.replace(/-/g, '_')}`;
+const SOCKET_PATH = `/run/opfield-secure-links/${HOST_ID}.sock`;
+const UPSTREAM_NAME = `opfield_secure_link_${HOST_ID.replace(/-/g, '_')}`;
 // What the Route dialog stores when raw mode is switched on: the config Gateway rendered.
 const SEEDED_RAW_CONFIG = `upstream ${UPSTREAM_NAME} {
     server unix:${SOCKET_PATH};
@@ -81,7 +82,13 @@ function dockerRoute(overrides: Record<string, unknown> = {}) {
 /** A Route update over fakes: the stored row, the row the write returns, and the Secure Link service. */
 function updateHarness(existing: any, updated: any) {
   const db = {
-    query: { proxyHosts: { findFirst: vi.fn().mockResolvedValue(existing) } },
+    query: {
+      proxyHosts: { findFirst: vi.fn().mockResolvedValue(existing) },
+      // The node runs with the Opfield names, so configs reach it as written.
+      nodes: {
+        findFirst: vi.fn().mockResolvedValue({ capabilities: { capabilities: [NGINX_OPFIELD_NAMES_CAPABILITY] } }),
+      },
+    },
     select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })) })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([updated]) })) })),

@@ -204,7 +204,7 @@ export class InferenceCoreProxyService {
       );
 
     const excluded = new Set(options.excludeConnectionIds ?? []);
-    const primary = rows.filter((row) => !excluded.has(row.connection.id) && isPrimarySource(row.source));
+    const primary = rows.filter((row) => !excluded.has(row.connection.id));
     const providerId = primary.some((row) => row.connection.providerId === 'openai') ? 'openai' : 'openai-apikey';
     const byConnection = new Map<string, (typeof primary)[number]>();
     for (const row of primary) {
@@ -1021,16 +1021,6 @@ function imageProviderUnavailable(): InferenceProtocolError {
     503,
     'image_provider_unavailable',
     'No accessible OpenAI image provider is available'
-  );
-}
-
-function isPrimarySource(source: typeof inferenceModelSources.$inferSelect): boolean {
-  const composition = source.metadata.composition;
-  return !(
-    composition &&
-    typeof composition === 'object' &&
-    !Array.isArray(composition) &&
-    (composition as { role?: unknown }).role === 'vision_sidecar'
   );
 }
 

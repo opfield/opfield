@@ -21,8 +21,8 @@ import (
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/chha"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/docker-daemon/internal/chha"
 )
 
 // createContainer creates and starts the engine container and waits until it
@@ -484,7 +484,7 @@ func writeManagedDatabaseTLS(dir string, input managedDatabaseCommand) error {
 	return nil
 }
 
-const managedPostgresTLSHBA = `# Managed by Gateway. Direct TCP clients must negotiate TLS.
+const managedPostgresTLSHBA = `# Managed by Opfield. Direct TCP clients must negotiate TLS.
 local all all trust
 hostssl all all 0.0.0.0/0 scram-sha-256
 hostssl all all ::0/0 scram-sha-256

@@ -61,8 +61,8 @@ export interface UIBootstrapShell {
     publicUrl: string | null;
     fileUploadMaxBytes: number;
     fileOpenMaxBytes: number;
-    gatewayGrpcPublicTarget: string | null;
-    gatewayGrpcLocalIp: string | null;
+    grpcPublicTarget: string | null;
+    grpcLocalIp: string | null;
     relayAutoRecovery: boolean;
     features: {
       pkiEnabled: boolean;
@@ -168,7 +168,7 @@ export class UIBootstrapService {
       this.appsByMembers(scopes),
     ]);
     const config = configSnapshot.data;
-    const canViewGatewaySettings = hasScope(scopes, 'settings:gateway:view');
+    const canViewOpfieldSettings = hasScope(scopes, 'settings:opfield:view');
 
     const visibleNodes = this.visibleNodes(nodeSnapshot.data, scopes);
     const dockerNodes = this.visibleDockerNodes(nodeSnapshot.data, scopes);
@@ -185,9 +185,9 @@ export class UIBootstrapService {
         publicUrl: config.publicUrl,
         fileUploadMaxBytes: config.fileUploadMaxBytes,
         fileOpenMaxBytes: config.fileOpenMaxBytes,
-        gatewayGrpcPublicTarget: canViewGatewaySettings ? config.gatewayGrpcPublicTarget : null,
-        gatewayGrpcLocalIp: canViewGatewaySettings ? config.gatewayGrpcLocalIp : null,
-        relayAutoRecovery: canViewGatewaySettings ? config.relayAutoRecovery : false,
+        grpcPublicTarget: canViewOpfieldSettings ? config.grpcPublicTarget : null,
+        grpcLocalIp: canViewOpfieldSettings ? config.grpcLocalIp : null,
+        relayAutoRecovery: canViewOpfieldSettings ? config.relayAutoRecovery : false,
         features: {
           // The switches default to on; a plan without the feature reports them off.
           pkiEnabled:

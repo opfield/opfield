@@ -11,7 +11,7 @@ export const migrationsFolder = fileURLToPath(new URL('./migrations', import.met
 
 /** The migrations up to and including `lastTag`, in a temporary folder drizzle's migrator can read. */
 export function migrationsThrough(lastTag: string): string {
-  const folder = mkdtempSync(join(tmpdir(), 'gateway-migrations-'));
+  const folder = mkdtempSync(join(tmpdir(), 'opfield-migrations-'));
   mkdirSync(join(folder, 'meta'));
   const journal = JSON.parse(readFileSync(join(migrationsFolder, 'meta/_journal.json'), 'utf8')) as {
     entries: Array<{ tag: string }>;
@@ -59,13 +59,13 @@ export function tolerateDatabaseDrop(pool: pg.Pool): pg.Pool {
 
 /**
  * A fresh database next to the one `url` names (`<name>_<suffix>`), so each opt-in suite has its own. The URL must
- * point at a local, dedicated `<prefix>*` database (`gateway_migration_test_*` by default): these suites drop and
+ * point at a local, dedicated `<prefix>*` database (`opfield_migration_test_*` by default): these suites drop and
  * create databases.
  */
 export async function disposableDatabase(
   url: string,
   suffix: string,
-  { prefix = 'gateway_migration_test_', max = 4 }: { prefix?: string; max?: number } = {}
+  { prefix = 'opfield_migration_test_', max = 4 }: { prefix?: string; max?: number } = {}
 ) {
   const target = new URL(url);
   if (

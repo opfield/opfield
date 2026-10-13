@@ -193,7 +193,7 @@ export function HostingNodeWizard({
     setSizeFamily("");
     setRole("docker");
     setSsh("");
-    const initialName = `gateway-${createClientUuid().slice(0, 8)}`;
+    const initialName = `opfield-${createClientUuid().slice(0, 8)}`;
     setName(initialName);
     setDisplayName(initialName);
     setIp("");

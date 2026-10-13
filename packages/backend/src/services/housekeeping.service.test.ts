@@ -49,7 +49,7 @@ describe('HousekeepingService system certificate cleanup', () => {
         },
         { Id: 'user', RepoTags: ['acme/api:old'], Created: 0, Containers: 0, Size: 40 },
       ]),
-      removeGatewayInternalImage: vi.fn().mockResolvedValue(undefined),
+      removeOpfieldInternalImage: vi.fn().mockResolvedValue(undefined),
     };
     service.setDockerManagementService(dockerManagement as any);
 
@@ -57,7 +57,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       itemsCleaned: 1,
       spaceFreedBytes: 30,
     });
-    expect(dockerManagement.removeGatewayInternalImage).toHaveBeenCalledWith('node-1', 'obsolete');
+    expect(dockerManagement.removeOpfieldInternalImage).toHaveBeenCalledWith('node-1', 'obsolete');
   });
 
   it('still cleans managed-node connector images when local Docker inspection is unavailable', async () => {
@@ -89,7 +89,7 @@ describe('HousekeepingService system certificate cleanup', () => {
           Size: 30,
         },
       ]),
-      removeGatewayInternalImage: vi.fn().mockResolvedValue(undefined),
+      removeOpfieldInternalImage: vi.fn().mockResolvedValue(undefined),
     };
     service.setDockerManagementService(dockerManagement as any);
 
@@ -493,6 +493,25 @@ describe('HousekeepingService orphaned volume retention', () => {
   });
 
   it('keeps the existing filters for named, in-use and protected volumes', async () => {
+    const h = createHarness({
+      volumes: {
+        'node-1': [
+          volume('pgdata'),
+          volume(VOLUME_A, { UsedBy: [], usedByCount: 1 }),
+          volume(VOLUME_B, { Labels: { 'opfield.housekeeping.protected': 'true' } }),
+        ],
+      },
+      unusedSince: { 'node-1': { pgdata: daysAgo(90), [VOLUME_A]: daysAgo(90), [VOLUME_B]: daysAgo(90) } },
+    });
+
+    await h.clean();
+
+    expect(h.dockerManagement.removeOrphanedAnonymousVolume).not.toHaveBeenCalled();
+    expect(h.state()).toEqual({});
+  });
+
+  // legacy-name: volumes protected before 2.12.1 carry gateway.housekeeping.protected.
+  it('keeps volumes protected with the earlier label', async () => {
     const h = createHarness({
       volumes: {
         'node-1': [

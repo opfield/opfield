@@ -7,11 +7,11 @@ import { disposableDatabase, migrateDatabase } from '@/db/migration-database.tes
 import * as schema from '@/db/schema/index.js';
 import { DockerAccessResourceService } from './docker-access-resource.service.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const runtime = (digit: string) => digit.repeat(64);
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): a container keeps its access identity, and the grants on it, across a
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a container keeps its access identity, and the grants on it, across a
  * Gateway recreate whose task ended before anyone saw the replacement (no transition, no watcher), and a lagging
  * snapshot that still lists the replaced runtime cannot take the identity back. A container nobody recreated under
  * the same name still gets a new identity without the previous one's grants.

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -157,7 +157,7 @@ func TestComposePolicyRejectsBuildAndInjectsOwnershipLabels(t *testing.T) {
 	}
 	services := document["services"].(map[string]any)
 	labels := services["web"].(map[string]any)["labels"].(map[string]any)
-	if labels["wiolett.gateway.compose.project-id"] != "project-1" {
+	if labels["net.opfield.compose.project-id"] != "project-1" {
 		t.Fatalf("project ownership label = %#v", labels)
 	}
 	command.ComposeYaml = []byte("services:\n  web:\n    image: nginx:alpine\n    build: .\n")
@@ -179,7 +179,7 @@ func TestComposeServicesCarryTheirOwnConfigurationDigest(t *testing.T) {
 		}
 		labels := make(map[string]any)
 		for name, service := range document["services"].(map[string]any) {
-			labels[name] = service.(map[string]any)["labels"].(map[string]any)["wiolett.gateway.compose.revision"]
+			labels[name] = service.(map[string]any)["labels"].(map[string]any)["net.opfield.compose.revision"]
 		}
 		return labels
 	}
@@ -306,7 +306,7 @@ networks:
 		t.Fatalf("parse normalized yaml: %v", err)
 	}
 	labels := document["services"].(map[string]any)["web"].(map[string]any)["labels"].(map[string]any)
-	if labels["app"] != "web" || labels["wiolett.gateway.compose.managed"] != "true" {
+	if labels["app"] != "web" || labels["net.opfield.compose.managed"] != "true" {
 		t.Fatalf("normalized labels = %#v", labels)
 	}
 
@@ -488,7 +488,7 @@ func TestComposeCapabilityRequiresInitializedExecutorAndGeneralProfile(t *testin
 	if containsCapability(plugin.BuildRegisterMessage("node-1").Capabilities, composeCapability) {
 		t.Fatal("database profile advertised compose capability")
 	}
-	result := plugin.HandleCommand(&pb.GatewayCommand{CommandId: "command-1", Payload: &pb.GatewayCommand_DockerCompose{DockerCompose: validComposeCommand("apply", "operation-1")}})
+	result := plugin.HandleCommand(&pb.OpfieldCommand{CommandId: "command-1", Payload: &pb.OpfieldCommand_DockerCompose{DockerCompose: validComposeCommand("apply", "operation-1")}})
 	if result.Success || !strings.Contains(result.Error, "storage-profile") {
 		t.Fatalf("database profile compose result = %#v", result)
 	}

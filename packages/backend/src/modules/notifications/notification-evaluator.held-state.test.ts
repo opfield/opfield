@@ -61,7 +61,7 @@ function setup(rule: Record<string, unknown>) {
   );
   const internals = service as any;
   internals.getEventRules = async () => [
-    { id: 'rule-1', category: 'gateway', resourceIds: [], durationSeconds: 0, resolveAfterSeconds: 60, ...rule },
+    { id: 'rule-1', category: 'opfield', resourceIds: [], durationSeconds: 0, resolveAfterSeconds: 60, ...rule },
   ];
   let firing: { id: string } | null = null;
   const fired = vi.fn(async () => {

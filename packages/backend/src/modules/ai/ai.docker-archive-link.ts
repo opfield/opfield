@@ -29,14 +29,14 @@ export const DOCKER_ARCHIVE_LINK_PATH = '/api/docker-archive-link';
 const LINK_TTL_SECONDS = 15 * 60;
 const UPLOAD_LINK: OneTimeLinkKind = {
   path: DOCKER_ARCHIVE_LINK_PATH,
-  tokenPrefix: 'gwau_',
+  tokenPrefix: 'opfau_',
   cachePrefix: 'docker:archive-upload-link:',
   ttlSeconds: LINK_TTL_SECONDS,
   label: 'archive upload links',
 };
 const DOWNLOAD_LINK: OneTimeLinkKind = {
   ...UPLOAD_LINK,
-  tokenPrefix: 'gwad_',
+  tokenPrefix: 'opfad_',
   cachePrefix: 'docker:archive-download-link:',
   label: 'archive download links',
 };
@@ -170,7 +170,7 @@ export async function openDockerArchiveDownloadLink(token: string): Promise<Resp
   const data = await archive.source();
   return new Response(Buffer.isBuffer(data) ? new Uint8Array(data) : data, {
     headers: {
-      'Content-Type': prepared.access.kind === 'container' ? 'application/vnd.wiolett.gwca' : 'application/gzip',
+      'Content-Type': prepared.access.kind === 'container' ? 'application/vnd.opfield.gwca' : 'application/gzip',
       'Content-Disposition': `attachment; filename="${archive.filename}"`,
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',

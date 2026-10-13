@@ -9,13 +9,13 @@ import (
 	"regexp"
 	"syscall"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/config"
-	"github.com/wiolett-industries/gateway/nginx-daemon/internal/daemon"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/nginx-daemon/internal/daemon"
 )
 
-var gatewayCertSHA256Pattern = regexp.MustCompile(`^sha256:[0-9a-fA-F]{64}$`)
+var certSHA256Pattern = regexp.MustCompile(`^sha256:[0-9a-fA-F]{64}$`)
 
 func main() {
 	// The launcher and its probe report this version too.
@@ -102,7 +102,7 @@ func main() {
 	}
 }
 
-func defaultNginxConfigDir() string { return "/etc/nginx/gateway/conf.d" }
+func defaultNginxConfigDir() string { return "/etc/nginx/opfield/conf.d" }
 
 func setupLogger(level, format string) *slog.Logger {
 	var lvl slog.Level
@@ -131,28 +131,30 @@ func setupLogger(level, format string) *slog.Logger {
 
 func runInstall() {
 	if len(os.Args) < 4 {
-		fmt.Fprintf(os.Stderr, "Usage: nginx-daemon install --gateway <address> --token <token> --gateway-cert-sha256 <sha256:hex>\n")
+		fmt.Fprintf(os.Stderr, "Usage: nginx-daemon install --opfield <address> --token <token> --opfield-cert-sha256 <sha256:hex>\n")
 		os.Exit(1)
 	}
 
 	var address, token, certSHA256 string
 	for i := 2; i < len(os.Args)-1; i++ {
 		switch os.Args[i] {
-		case "--gateway":
+		// legacy-name: --gateway and --gateway-cert-sha256 of installers and scripts written before 2.12.1 — remove once
+		// no installer passes them
+		case "--opfield", "--gateway":
 			address = os.Args[i+1]
 		case "--token":
 			token = os.Args[i+1]
-		case "--gateway-cert-sha256":
+		case "--opfield-cert-sha256", "--gateway-cert-sha256":
 			certSHA256 = os.Args[i+1]
 		}
 	}
 
 	if address == "" || token == "" || certSHA256 == "" {
-		fmt.Fprintf(os.Stderr, "--gateway, --token, and --gateway-cert-sha256 are required\n")
+		fmt.Fprintf(os.Stderr, "--opfield, --token, and --opfield-cert-sha256 are required\n")
 		os.Exit(1)
 	}
-	if !gatewayCertSHA256Pattern.MatchString(certSHA256) {
-		fmt.Fprintf(os.Stderr, "--gateway-cert-sha256 must use sha256:<64-hex> format\n")
+	if !certSHA256Pattern.MatchString(certSHA256) {
+		fmt.Fprintf(os.Stderr, "--opfield-cert-sha256 must use sha256:<64-hex> format\n")
 		os.Exit(1)
 	}
 

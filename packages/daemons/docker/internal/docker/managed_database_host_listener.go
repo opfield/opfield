@@ -17,10 +17,10 @@ import (
 
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
-	"github.com/wiolett-industries/gateway/daemon-shared/netaccept"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/netaccept"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
 )
 
 const (

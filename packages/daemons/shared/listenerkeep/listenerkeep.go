@@ -34,14 +34,21 @@ import (
 
 const (
 	// ChannelFDEnv names the descriptor of the datagram channel to the launcher.
-	ChannelFDEnv = "GATEWAY_DAEMON_LISTENER_KEEP_FD"
+	ChannelFDEnv = "OPFIELD_DAEMON_LISTENER_KEEP_FD"
 	// KeptEnv lists the listeners the launcher handed this process: a JSON
 	// array of {"name", "fd"}.
-	KeptEnv = "GATEWAY_DAEMON_KEPT_LISTENERS"
+	KeptEnv = "OPFIELD_DAEMON_KEPT_LISTENERS"
 	// launcherManagedEnv mirrors lifecycle.LauncherManagedEnv: a daemon started
 	// by a launcher is not the unit's main process, so it must never talk to
 	// systemd's notification socket itself.
-	launcherManagedEnv = "GATEWAY_DAEMON_LAUNCHER_MANAGED"
+	launcherManagedEnv = "OPFIELD_DAEMON_LAUNCHER_MANAGED"
+
+	// The launcher and the daemon can be different releases: the launcher sets
+	// both names, the daemon reads the Opfield one first.
+	// legacy-name: GATEWAY_DAEMON_* listener keep environment of pre-Opfield launchers and daemons — remove once every node reports none
+	legacyChannelFDEnv       = "GATEWAY_DAEMON_LISTENER_KEEP_FD"
+	legacyKeptEnv            = "GATEWAY_DAEMON_KEPT_LISTENERS"
+	legacyLauncherManagedEnv = "GATEWAY_DAEMON_LAUNCHER_MANAGED"
 
 	messageKeep = "keep"
 	messageDrop = "drop"
@@ -346,11 +353,12 @@ func (c *client) releaseUnclaimed(prefix string) []string {
 
 func newClientFromEnvironment() *client {
 	current := &client{inherited: map[string]*os.File{}}
-	if os.Getenv(launcherManagedEnv) == "1" {
-		kept := os.Getenv(KeptEnv)
-		channel := os.Getenv(ChannelFDEnv)
-		_ = os.Unsetenv(KeptEnv)
-		_ = os.Unsetenv(ChannelFDEnv)
+	if envEither(launcherManagedEnv, legacyLauncherManagedEnv) == "1" {
+		kept := envEither(KeptEnv, legacyKeptEnv)
+		channel := envEither(ChannelFDEnv, legacyChannelFDEnv)
+		for _, name := range []string{KeptEnv, legacyKeptEnv, ChannelFDEnv, legacyChannelFDEnv} {
+			_ = os.Unsetenv(name)
+		}
 		var descriptors []keptDescriptor
 		if kept != "" && json.Unmarshal([]byte(kept), &descriptors) == nil {
 			for _, descriptor := range descriptors {
@@ -577,4 +585,13 @@ func forwardToSystemd(notify *notifySocket, message string, file *os.File) error
 		return errors.New("listener keep message carries no descriptor")
 	}
 	return notify.send("FDSTORE=1\nFDNAME="+name+"\n", file)
+}
+
+// envEither reads a variable under its Opfield name, else its pre-Opfield one.
+func envEither(name, legacy string) string {
+	if value, ok := os.LookupEnv(name); ok {
+		return value
+	}
+	// legacy-name: GATEWAY_DAEMON_* set by a pre-Opfield launcher copy — remove once every node reports none
+	return os.Getenv(legacy)
 }

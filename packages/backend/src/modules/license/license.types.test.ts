@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import legacy from './fixtures/entitlements-legacy.json';
 import {
   COMMUNITY_ENTITLEMENTS,
+  canonicalLicenseFeature,
   isCanonicalEntitlements,
   LICENSE_ENTITLEMENTS_VERSION,
   LICENSE_PLAN_ENTITLEMENTS,
@@ -13,7 +14,14 @@ const plans: LicensePlan[] = ['community', 'personal', 'business', 'enterprise']
 
 describe('versioned entitlement contracts', () => {
   it.each([3, 4] as const)('preserves every published v%s grant', (version) => {
-    expect(licensePlanEntitlementsForVersion(version)).toEqual(legacy[version]);
+    // The license server signs `gateway-inference`; Opfield names the same feature `inference`.
+    const published = Object.fromEntries(
+      plans.map((plan) => [
+        plan,
+        { ...legacy[version][plan], features: legacy[version][plan].features.map(canonicalLicenseFeature) },
+      ])
+    );
+    expect(licensePlanEntitlementsForVersion(version)).toEqual(published);
     for (const plan of plans) {
       expect(isCanonicalEntitlements(plan, legacy[version][plan], version)).toBe(true);
       expect(isCanonicalEntitlements(plan, legacy[version][plan], 5)).toBe(false);
@@ -60,9 +68,24 @@ describe('versioned entitlement contracts', () => {
         'api',
         'mcp',
         'ai-workspace',
-        'gateway-inference',
+        'inference',
       ])
     );
+  });
+
+  it('accepts both the current and the pre-2.12.1 inference feature key', () => {
+    for (const plan of plans) {
+      const signed = {
+        ...LICENSE_PLAN_ENTITLEMENTS[plan],
+        features: LICENSE_PLAN_ENTITLEMENTS[plan].features.map((feature) =>
+          feature === 'inference' ? 'gateway-inference' : feature
+        ),
+      };
+      expect(signed.features).toContain('gateway-inference');
+      expect(isCanonicalEntitlements(plan, signed)).toBe(true);
+      expect(isCanonicalEntitlements(plan, LICENSE_PLAN_ENTITLEMENTS[plan])).toBe(true);
+      expect(isCanonicalEntitlements(plan, { ...signed, features: [...signed.features, 'inference'] })).toBe(false);
+    }
   });
 
   it('rejects unknown versions and edited canonical grants', () => {

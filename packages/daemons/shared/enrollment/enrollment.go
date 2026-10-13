@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	"github.com/opfield/opfield/daemon-shared/controlpath"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -18,8 +19,8 @@ import (
 // Enroll performs the initial enrollment with a PSK token.
 // The enrollment token is only sent after the Gateway TLS leaf certificate
 // matches the expected SHA-256 fingerprint.
-func Enroll(address, token, expectedGatewayCertSHA256, hostname, nginxVersion, osInfo, daemonVersion, daemonType, hostIdentityID string) (*pb.EnrollResponse, error) {
-	expectedFingerprint, err := normalizeExpectedFingerprint(expectedGatewayCertSHA256)
+func Enroll(address, token, expectedOpfieldCertSHA256, hostname, nginxVersion, osInfo, daemonVersion, daemonType, hostIdentityID string) (*pb.EnrollResponse, error) {
+	expectedFingerprint, err := normalizeExpectedFingerprint(expectedOpfieldCertSHA256)
 	if err != nil {
 		return nil, err
 	}
@@ -27,13 +28,13 @@ func Enroll(address, token, expectedGatewayCertSHA256, hostname, nginxVersion, o
 	tlsCfg := &tls.Config{
 		InsecureSkipVerify: true,
 		VerifyConnection: func(state tls.ConnectionState) error {
-			return verifyGatewayFingerprint(expectedFingerprint, state.PeerCertificates)
+			return verifyOpfieldFingerprint(expectedFingerprint, state.PeerCertificates)
 		},
 	}
 
-	conn, err := grpc.NewClient(address,
+	conn, err := grpc.NewClient(address, append([]grpc.DialOption{
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
-	)
+	}, controlpath.DialOptions()...)...)
 	if err != nil {
 		return nil, fmt.Errorf("dial Opfield: %w", err)
 	}
@@ -63,24 +64,24 @@ func Enroll(address, token, expectedGatewayCertSHA256, hostname, nginxVersion, o
 func normalizeExpectedFingerprint(fingerprint string) (string, error) {
 	fingerprint = strings.ToLower(strings.TrimSpace(fingerprint))
 	if fingerprint == "" {
-		return "", fmt.Errorf("gateway.cert_sha256 is required for initial enrollment")
+		return "", fmt.Errorf("opfield.cert_sha256 is required for initial enrollment")
 	}
 	if !strings.HasPrefix(fingerprint, "sha256:") {
-		return "", fmt.Errorf("gateway.cert_sha256 must use sha256:<64-hex> format")
+		return "", fmt.Errorf("opfield.cert_sha256 must use sha256:<64-hex> format")
 	}
 
 	hexPart := strings.TrimPrefix(fingerprint, "sha256:")
 	if len(hexPart) != 64 {
-		return "", fmt.Errorf("gateway.cert_sha256 must contain a 64-character SHA-256 hex digest")
+		return "", fmt.Errorf("opfield.cert_sha256 must contain a 64-character SHA-256 hex digest")
 	}
 	if _, err := hex.DecodeString(hexPart); err != nil {
-		return "", fmt.Errorf("gateway.cert_sha256 must contain valid hex: %w", err)
+		return "", fmt.Errorf("opfield.cert_sha256 must contain valid hex: %w", err)
 	}
 
 	return "sha256:" + hexPart, nil
 }
 
-func verifyGatewayFingerprint(expectedFingerprint string, peerCertificates []*x509.Certificate) error {
+func verifyOpfieldFingerprint(expectedFingerprint string, peerCertificates []*x509.Certificate) error {
 	if len(peerCertificates) == 0 {
 		return fmt.Errorf("Opfield did not present a TLS certificate")
 	}

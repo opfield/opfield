@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 // The lease protocol node (availabilitylease v3) as the member runtime uses it.
@@ -129,13 +129,13 @@ type Deps struct {
 	Engine func(config Config) (Engine, error)
 	// Async runs background operations; default: a goroutine.
 	Async func(func())
-	// GatewayConnected reports whether the Gateway control session is up
-	// (manual mode self-fence when GatewayContactAt is nil).
-	GatewayConnected func() bool
-	// GatewayContactAt is when Gateway last reached this node (a command
+	// OpfieldConnected reports whether the Gateway control session is up
+	// (manual mode self-fence when OpfieldContactAt is nil).
+	OpfieldConnected func() bool
+	// OpfieldContactAt is when Gateway last reached this node (a command
 	// arrived), on Clock; 0 when never. A manual primary counts its contact
 	// from it (not from a session that may be dead without knowing it yet).
-	GatewayContactAt func() time.Duration
+	OpfieldContactAt func() time.Duration
 	// PeerState asks a manual pair's peer for its primary assignment over the
 	// member mesh; false when the peer does not answer.
 	PeerState func(ctx context.Context, setID, peerMemberID string) (PeerState, bool)
@@ -162,8 +162,8 @@ func (d *Deps) defaults() error {
 	if d.Async == nil {
 		d.Async = func(fn func()) { go fn() }
 	}
-	if d.GatewayConnected == nil {
-		d.GatewayConnected = func() bool { return false }
+	if d.OpfieldConnected == nil {
+		d.OpfieldConnected = func() bool { return false }
 	}
 	if d.VerifyAssignment == nil {
 		d.VerifyAssignment = func(string, Assignment) error {

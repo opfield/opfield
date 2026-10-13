@@ -4,9 +4,9 @@ import { container } from '@/container.js';
 import {
   appRoute,
   createdJson,
-  GatewayOpenAPIHono,
   IdParamSchema,
   jsonBody,
+  OpfieldOpenAPIHono,
   okJson,
   optionalJsonBody,
   UnknownDataResponseSchema,
@@ -23,7 +23,7 @@ import { requirePagesEnabledForMutation } from './profile/page-enabled.middlewar
 import { PagePublicationService } from './tags/page-publication.service.js';
 import { PageDeployTokenService } from './tokens/page-deploy-token.service.js';
 export const pageDeployRouteRuntime = {
-  OpenAPIHono: GatewayOpenAPIHono,
+  OpenAPIHono: OpfieldOpenAPIHono,
   HTTPException,
   z,
   container,

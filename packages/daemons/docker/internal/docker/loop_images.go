@@ -37,7 +37,9 @@ const (
 	selfMountInfoPath       = "/proc/self/mountinfo"
 	// volumePlaceholderSource names the read-only empty tmpfs mounted at the
 	// mount point of a disk-image volume whose image could not be mounted.
-	volumePlaceholderSource = "gateway-volume-placeholder"
+	volumePlaceholderSource = "opfield-volume-placeholder"
+	// legacy-name: placeholder mounted by a pre-Opfield daemon (until the next boot) — remove once every node reports none
+	legacyVolumePlaceholderSource = "gateway-volume-placeholder"
 )
 
 // loopDevice is one bound loop device as sysfs reports it.
@@ -367,7 +369,7 @@ func (h *loopHost) isPlaceholder(path string) (bool, error) {
 	placeholder := false
 	for _, mount := range mounts {
 		if mount.MountPoint == path {
-			placeholder = mount.FSType == "tmpfs" && mount.Source == volumePlaceholderSource // the last one is visible
+			placeholder = mount.FSType == "tmpfs" && (mount.Source == volumePlaceholderSource || mount.Source == legacyVolumePlaceholderSource) // the last one is visible
 		}
 	}
 	return placeholder, nil

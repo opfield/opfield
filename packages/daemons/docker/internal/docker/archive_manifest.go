@@ -77,10 +77,15 @@ type gwcaResources struct {
 func sanitizeGwcaLabels(labels map[string]string) map[string]string {
 	result := cloneStringMap(labels)
 	for key := range result {
+		managed := key
+		if next := opfieldLabelKey(key); next != "" {
+			// legacy-name: wiolett.gateway.* labels of an archive from a pre-Opfield node — remove once every node reports none
+			managed = next
+		}
 		if strings.HasPrefix(key, "com.docker.compose.") ||
-			strings.HasPrefix(key, "wiolett.gateway.archive.") ||
-			strings.HasPrefix(key, "wiolett.gateway.deployment.") ||
-			strings.HasPrefix(key, "wiolett.gateway.migration.") {
+			strings.HasPrefix(managed, "net.opfield.archive.") ||
+			strings.HasPrefix(managed, "net.opfield.deployment.") ||
+			strings.HasPrefix(managed, "net.opfield.migration.") {
 			delete(result, key)
 		}
 	}
@@ -103,7 +108,7 @@ func validateGwcaNetworks(networks []gwcaNetwork) error {
 		if err := validateUserWorkloadNetworkMode(entry.Name); err != nil {
 			return fmt.Errorf("archive network: %w", err)
 		}
-		if isReservedGatewayNetworkName(entry.Name) {
+		if isReservedOpfieldNetworkName(entry.Name) {
 			return fmt.Errorf("archive network %q is managed by Opfield and cannot be attached to imported containers", entry.Name)
 		}
 	}
@@ -280,7 +285,7 @@ func validateGwcaExportSupport(config *container.Config, host *container.HostCon
 		hostNamespaceMode(string(host.UsernsMode)) || hostNamespaceMode(string(host.CgroupnsMode)) {
 		unsupported = append(unsupported, "host/container namespace sharing")
 	}
-	if !isGatewayDefaultLogConfig(host.LogConfig) &&
+	if !isOpfieldDefaultLogConfig(host.LogConfig) &&
 		(len(host.LogConfig.Config) > 0 || (host.LogConfig.Type != "" && host.LogConfig.Type != "json-file")) {
 		unsupported = append(unsupported, "custom log driver configuration")
 	}

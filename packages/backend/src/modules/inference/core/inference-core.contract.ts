@@ -7,7 +7,9 @@ import { z } from 'zod';
  * ./fixtures are the shared source of truth protected by hash-pinned tests in
  * both repositories.
  */
-export const WIOLETT_CORE_CONTRACT_ID = 'wiolett-core/v1';
+// Wire value shared with the separately released inference core (frozen fixtures in both repositories): kept on
+// purpose and listed in config/legacy-brand-allowlist.json; it changes only with a core release that accepts both.
+export const OPFIELD_CORE_CONTRACT_ID = 'wiolett-core/v1';
 export const INFERENCE_CORE_PROTOCOL_MAJOR = 1;
 export const INFERENCE_CORE_STATE_SCHEMA_VERSION = 1;
 
@@ -157,7 +159,7 @@ export type InferenceCoreStatus = z.infer<typeof inferenceCoreStatusSchema>;
 export const inferenceCoreHealthIdentitySchema = z.object({
   service: z.literal('opencodex'),
   version: z.string().min(1),
-  contractId: z.literal(WIOLETT_CORE_CONTRACT_ID),
+  contractId: z.literal(OPFIELD_CORE_CONTRACT_ID),
   coreProtocolMajor: z.number().int().positive(),
   stateSchemaVersion: z.number().int().positive(),
   instanceId: z.string().min(1),
@@ -170,6 +172,14 @@ export type InferenceCoreHealthIdentity = z.infer<typeof inferenceCoreHealthIden
 
 /** Internal header names for the signed request context injected by Gateway. */
 export const INFERENCE_CORE_CONTEXT_HEADERS = {
+  contract: 'x-opfield-contract',
+  context: 'x-opfield-context',
+  signature: 'x-opfield-signature',
+} as const;
+
+// legacy-name: x-wiolett-* core contract headers — cores released before the Opfield names read and send only these;
+// sent next to the new ones and accepted on callbacks until the minimum supported core reads x-opfield-*.
+export const LEGACY_INFERENCE_CORE_CONTEXT_HEADERS = {
   contract: 'x-wiolett-contract',
   context: 'x-wiolett-context',
   signature: 'x-wiolett-signature',
@@ -183,6 +193,13 @@ export const INFERENCE_CORE_CALLBACK_PATHS = {
 
 /** Core -> Gateway callback authentication headers (HMAC over `${timestamp}.${body}`). */
 export const INFERENCE_CORE_CALLBACK_HEADERS = {
+  contract: 'x-opfield-contract',
+  timestamp: 'x-opfield-timestamp',
+  signature: 'x-opfield-signature',
+} as const;
+
+// legacy-name: x-wiolett-* callback headers — see LEGACY_INFERENCE_CORE_CONTEXT_HEADERS.
+export const LEGACY_INFERENCE_CORE_CALLBACK_HEADERS = {
   contract: 'x-wiolett-contract',
   timestamp: 'x-wiolett-timestamp',
   signature: 'x-wiolett-signature',
@@ -195,7 +212,7 @@ export const INFERENCE_CORE_CALLBACK_HEADERS = {
  */
 export const inferenceCoreRequestContextSchema = z
   .object({
-    contractId: z.literal(WIOLETT_CORE_CONTRACT_ID),
+    contractId: z.literal(OPFIELD_CORE_CONTRACT_ID),
     tenantUserId: z.string().uuid(),
     rootRequestId: z.string().uuid(),
     parentAttemptId: z.string().min(1).nullable(),
@@ -245,7 +262,7 @@ export type InferenceCoreUsage = z.infer<typeof inferenceCoreUsageSchema>;
 /** Core -> Gateway admission callback, invoked before every upstream dispatch. */
 export const inferenceCoreAdmissionRequestSchema = z
   .object({
-    contractId: z.literal(WIOLETT_CORE_CONTRACT_ID),
+    contractId: z.literal(OPFIELD_CORE_CONTRACT_ID),
     rootRequestId: z.string().uuid(),
     attemptId: z.string().min(1),
     parentAttemptId: z.string().min(1).nullable(),
@@ -289,7 +306,7 @@ export type InferenceCoreAdmissionResponse = z.infer<typeof inferenceCoreAdmissi
  */
 export const inferenceCoreSettlementSchema = z
   .object({
-    contractId: z.literal(WIOLETT_CORE_CONTRACT_ID),
+    contractId: z.literal(OPFIELD_CORE_CONTRACT_ID),
     rootRequestId: z.string().uuid(),
     attemptId: z.string().min(1),
     parentAttemptId: z.string().min(1).nullable(),

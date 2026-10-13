@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/atomicfile"
-	"github.com/wiolett-industries/gateway/daemon-shared/witnessactivation"
+	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	"github.com/opfield/opfield/daemon-shared/witnessactivation"
 )
 
 // Standby witness activation while Gateway is down (decision 8 of the

@@ -8,7 +8,7 @@ import { AuditService } from '@/modules/audit/audit.service.js';
 import { assertNotImpersonating, authMiddleware, requireScope } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { ConfigurationExportService } from './configuration-export.service.js';
-import { GatewayMoveService } from './gateway-move.service.js';
+import { OpfieldMoveService } from './opfield-move.service.js';
 
 export const ConfigurationExportRequestSchema = z.object({
   passphrase: z
@@ -20,7 +20,7 @@ export const ConfigurationExportRequestSchema = z.object({
   includeLogs: z.boolean().default(false).describe('Include the logs of the Opfield-managed ClickHouse.'),
 });
 
-export const GatewayMoveRequestSchema = z.object({
+export const OpfieldMoveRequestSchema = z.object({
   address: z
     .string()
     .trim()
@@ -73,7 +73,7 @@ const announceMoveRoute = appRoute({
   summary: 'Tell nodes and relays the address Opfield moves to',
   description:
     'Daemons keep the address and switch to it after the current address stayed unreachable for 10 minutes and the new one presents a certificate of the same System CA. null withdraws the address. Requires admin:system.',
-  request: jsonBody(GatewayMoveRequestSchema),
+  request: jsonBody(OpfieldMoveRequestSchema),
   responses: okJson(),
 });
 
@@ -86,17 +86,17 @@ configurationExportRoutes.openapi(estimateRoute, async (c) =>
 );
 
 configurationExportRoutes.openapi(moveStatusRoute, async (c) =>
-  c.json({ data: await container.resolve(GatewayMoveService).status() })
+  c.json({ data: await container.resolve(OpfieldMoveService).status() })
 );
 
 configurationExportRoutes.openapi(announceMoveRoute, async (c) => {
   assertNotImpersonating(c, 'Opfield cannot be moved while impersonating');
-  const { address } = GatewayMoveRequestSchema.parse(await c.req.json());
+  const { address } = OpfieldMoveRequestSchema.parse(await c.req.json());
   const user = c.get('user')!;
-  const status = await container.resolve(GatewayMoveService).announce(address, user.id);
+  const status = await container.resolve(OpfieldMoveService).announce(address, user.id);
   await container.resolve(AuditService).log({
     userId: user.id,
-    action: address ? 'system.gateway_move_announced' : 'system.gateway_move_withdrawn',
+    action: address ? 'system.opfield_move_announced' : 'system.opfield_move_withdrawn',
     resourceType: 'system',
     details: {
       address: status.announcement?.address ?? null,

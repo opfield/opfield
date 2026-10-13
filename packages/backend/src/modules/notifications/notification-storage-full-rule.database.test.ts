@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 const seededRule = `select name, enabled, type, severity, category, duration_seconds, resolve_after_seconds, resource_ids,
   webhook_ids, is_builtin from notification_alert_rules where category = 'managed_storage' and event_pattern = 'storage.full'`;

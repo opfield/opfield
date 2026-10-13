@@ -3,7 +3,7 @@ import { handleRequest } from "./index.js";
 
 const env = {
 	GITHUB_OWNER: "opfield",
-	GITHUB_GATEWAY_REPO: "opfield",
+	GITHUB_OPFIELD_REPO: "opfield",
 	GITHUB_INFERENCE_CORE_REPO: "inference-core",
 	GITHUB_INFERENCE_CORE_TOKEN: "private-core-token",
 } as Env;
@@ -47,7 +47,7 @@ describe("gateway update facade", () => {
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({
 			ok: true,
-			service: "gateway-updates",
+			service: "opfield-updates",
 		});
 		expect(fetcher).not.toHaveBeenCalled();
 	});
@@ -100,9 +100,9 @@ describe("gateway update facade", () => {
 				description: "Core release notes",
 			}),
 		]);
-		const gatewayHeaders = new Headers(fetcher.mock.calls[0]?.[1]?.headers);
+		const opfieldHeaders = new Headers(fetcher.mock.calls[0]?.[1]?.headers);
 		const coreHeaders = new Headers(fetcher.mock.calls[1]?.[1]?.headers);
-		expect(gatewayHeaders.get("Authorization")).toBe(
+		expect(opfieldHeaders.get("Authorization")).toBe(
 			"Bearer private-core-token",
 		);
 		expect(coreHeaders.get("Authorization")).toBe("Bearer private-core-token");
@@ -659,6 +659,31 @@ describe("gateway update facade", () => {
 			"https://api.github.com/repos/opfield/opfield/releases/tags/v2.12.0",
 		);
 		expect(response.headers.get("Cache-Control")).toContain("immutable");
+	});
+
+	it.each([
+		"opfield-node-installers.sha256",
+		// legacy-name: the checksum list of releases before 2.12.1.
+		"gateway-daemon-installers.sha256",
+	])("serves the installer checksum list %s", async (name) => {
+		const fetcher = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				Response.json({
+					...release("v2.12.1"),
+					assets: [{ id: 9, name, size: 9, content_type: "text/plain" }],
+				}),
+			)
+			.mockResolvedValueOnce(new Response("abc  setup-node.sh"));
+
+		const response = await handleRequest(
+			new Request(
+				`https://get.opfield.dev/gateway/releases/download/v2.12.1/${name}`,
+			),
+			env,
+			fetcher,
+		);
+		expect(response.status).toBe(200);
 	});
 
 	it.each([

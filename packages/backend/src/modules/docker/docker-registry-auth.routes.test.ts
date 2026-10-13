@@ -8,17 +8,17 @@ import type { AppEnv } from '@/types.js';
 import { __testOnly, dockerRegistryAuthRoutes } from './docker-registry-auth.routes.js';
 import { DockerInternalRegistryService } from './docker-registry-internal.service.js';
 
-const ORIGINAL_DEPLOYMENT_MODE = process.env.GATEWAY_DEPLOYMENT_MODE;
+const ORIGINAL_DEPLOYMENT_MODE = process.env.OPFIELD_DEPLOYMENT_MODE;
 
 afterEach(() => {
   container.reset();
-  if (ORIGINAL_DEPLOYMENT_MODE === undefined) delete process.env.GATEWAY_DEPLOYMENT_MODE;
-  else process.env.GATEWAY_DEPLOYMENT_MODE = ORIGINAL_DEPLOYMENT_MODE;
+  if (ORIGINAL_DEPLOYMENT_MODE === undefined) delete process.env.OPFIELD_DEPLOYMENT_MODE;
+  else process.env.OPFIELD_DEPLOYMENT_MODE = ORIGINAL_DEPLOYMENT_MODE;
 });
 
 describe('docker registry external token request parsing', () => {
   it('disables external registry token issuance before service work in demo mode', async () => {
-    process.env.GATEWAY_DEPLOYMENT_MODE = 'demo';
+    process.env.OPFIELD_DEPLOYMENT_MODE = 'demo';
     const assertExternalAccessEntitled = vi.fn();
     container.registerInstance(DockerInternalRegistryService, { assertExternalAccessEntitled } as never);
     const app = new Hono<AppEnv>();
@@ -81,7 +81,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
 
     const response = await app.request(
-      '/registry/token?service=gateway-internal-registry&scope=repository:tenant/app:pull,push',
+      '/registry/token?service=opfield-internal-registry&scope=repository:tenant/app:pull,push',
       {
         headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
       }

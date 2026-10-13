@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { api } from "@/services/api";
-import type { GatewayFeatureConfig, SystemConfig } from "@/types";
+import type { OpfieldFeatureConfig, SystemConfig } from "@/types";
 
 const BYTES_PER_MEGABYTE = 1024 * 1024;
 
-export const DEFAULT_GATEWAY_FEATURES: GatewayFeatureConfig = {
+export const DEFAULT_OPFIELD_FEATURES: OpfieldFeatureConfig = {
   pkiEnabled: true,
   domainsEnabled: true,
   siemEnabled: true,
@@ -15,10 +15,10 @@ export const DEFAULT_GATEWAY_FEATURES: GatewayFeatureConfig = {
 export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
   fileUploadMaxBytes: 100 * BYTES_PER_MEGABYTE,
   fileOpenMaxBytes: 10 * BYTES_PER_MEGABYTE,
-  gatewayGrpcPublicTarget: null,
-  gatewayGrpcLocalIp: null,
+  grpcPublicTarget: null,
+  grpcLocalIp: null,
   relayAutoRecovery: true,
-  features: DEFAULT_GATEWAY_FEATURES,
+  features: DEFAULT_OPFIELD_FEATURES,
 };
 
 const cachedSystemConfig = api.getCached<SystemConfig>("system:config");
@@ -31,7 +31,7 @@ export function withDefaultSystemConfig(
     ...DEFAULT_SYSTEM_CONFIG,
     ...config,
     features: {
-      ...DEFAULT_GATEWAY_FEATURES,
+      ...DEFAULT_OPFIELD_FEATURES,
       ...config?.features,
     },
   };

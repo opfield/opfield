@@ -1,13 +1,14 @@
+name: opfield
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${GATEWAY_IMAGE_REF:-gateway:local}
+    image: ${OPFIELD_IMAGE_REF:-opfield:local}
     restart: unless-stopped
     stop_grace_period: 60s
     labels:
-      com.wiolett.gateway.managed-service: app
+      net.opfield.managed-service: app
     ports:
       - "3000:3000"
     expose:
@@ -17,7 +18,7 @@ services:
       - PORT=3000
       - SECURE_LINK_CONNECTOR_IMAGE=${SECURE_LINK_CONNECTOR_IMAGE:-}
       - BACKUP_RUNNER_IMAGE=${BACKUP_RUNNER_IMAGE:-}
-      - DATABASE_URL=postgres://gateway:${DB_PASSWORD}@postgres:5432/gateway
+      - DATABASE_URL=postgres://opfield:${DB_PASSWORD}@postgres:5432/opfield
       - REDIS_URL=redis://redis:6379
       - GITHUB_OAUTH_CLIENT_ID
       - SETUP_BOOTSTRAP=${SETUP_BOOTSTRAP:-false}
@@ -29,30 +30,31 @@ services:
       - EXPIRY_CHECK_CRON=${EXPIRY_CHECK_CRON:-0 6 * * *}
       - GRPC_PORT=${GRPC_PORT:-9443}
       - GRPC_TLS_AUTO_DIR=${GRPC_TLS_AUTO_DIR:-/var/lib/gateway/tls}
-      - SANDBOX_RUNNER_WORKSPACE_DIR=${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}
+      - SANDBOX_RUNNER_WORKSPACE_DIR=${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}
       - GRPC_TLS_CERT=${GRPC_TLS_CERT:-}
       - GRPC_TLS_KEY=${GRPC_TLS_KEY:-}
       - GRPC_TLS_EXTRA_SANS=${GRPC_TLS_EXTRA_SANS:-}
-      - GATEWAY_RELAY_REQUIRED=${GATEWAY_RELAY_REQUIRED:-true}
-      - GATEWAY_RELAY_MANAGED=${GATEWAY_RELAY_MANAGED:-false}
-      - GATEWAY_RELAY_TARGET=${GATEWAY_RELAY_TARGET:-relay:9443}
-      - GATEWAY_RELAY_IDENTITY_DIR=/var/lib/gateway-relay
-      - GATEWAY_RELAY_IMAGE_REF=${GATEWAY_RELAY_IMAGE_REF:-gateway-relay:local}
-      - GATEWAY_RELAY_SERVICE_NAME=relay
-      - GATEWAY_RELAY_BUILD_VERSION=${GATEWAY_RELAY_BUILD_VERSION:-dev}
-      - GATEWAY_RELAY_PROTOCOL_MAJOR=${GATEWAY_RELAY_PROTOCOL_MAJOR:-1}
-      - GATEWAY_REGISTRY_AUTH_DIR=/var/lib/gateway-registry-auth
+      - OPFIELD_RELAY_REQUIRED=${OPFIELD_RELAY_REQUIRED:-true}
+      - OPFIELD_RELAY_MANAGED=${OPFIELD_RELAY_MANAGED:-false}
+      - OPFIELD_RELAY_TARGET=${OPFIELD_RELAY_TARGET:-relay:9443}
+      - OPFIELD_RELAY_IDENTITY_DIR=/var/lib/gateway-relay
+      - OPFIELD_RELAY_IMAGE_REF=${OPFIELD_RELAY_IMAGE_REF:-opfield-relay:local}
+      - OPFIELD_RELAY_SERVICE_NAME=relay
+      - OPFIELD_RELAY_BUILD_VERSION=${OPFIELD_RELAY_BUILD_VERSION:-dev}
+      - OPFIELD_RELAY_PROTOCOL_MAJOR=${OPFIELD_RELAY_PROTOCOL_MAJOR:-1}
+      - OPFIELD_REGISTRY_AUTH_DIR=/var/lib/gateway-registry-auth
+      - OPFIELD_REGISTRY_TOKEN_SERVICE=opfield-internal-registry
       - PUBLIC_IPV4=${PUBLIC_IPV4:-}
       - PUBLIC_IPV6=${PUBLIC_IPV6:-}
-      - APP_VERSION=${GATEWAY_VERSION:-dev}
+      - APP_VERSION=${OPFIELD_VERSION:-dev}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - gateway_data:/var/lib/gateway
-      - gateway_relay_identity:/var/lib/gateway-relay
-      - gateway_registry_auth:/var/lib/gateway-registry-auth
-      # gateway-managed:start sandbox-workspace
-      - ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}:${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}
-      # gateway-managed:end sandbox-workspace
+      - app_data:/var/lib/gateway
+      - relay_identity:/var/lib/gateway-relay
+      - registry_auth:/var/lib/gateway-registry-auth
+      # opfield-managed:start sandbox-workspace
+      - ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}:${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}
+      # opfield-managed:end sandbox-workspace
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,11 +75,11 @@ services:
         max-file: "3"
 
   relay:
-    image: ${GATEWAY_RELAY_IMAGE_REF:-gateway-relay:local}
-    entrypoint: ["/gateway-relay"]
+    image: ${OPFIELD_RELAY_IMAGE_REF:-opfield-relay:local}
+    entrypoint: ["/opfield-relay"]
     restart: unless-stopped
     labels:
-      com.wiolett.gateway.managed-service: relay
+      net.opfield.managed-service: relay
     environment:
       - RELAY_IDENTITY_DIR=/var/lib/gateway-relay/identity
       - RELAY_STATE_DIR=/var/lib/gateway-relay/state
@@ -87,10 +89,10 @@ services:
     ports:
       - "9443:9443"
     volumes:
-      - gateway_relay_identity:/var/lib/gateway-relay/identity:ro
-      - gateway_relay_state:/var/lib/gateway-relay/state
+      - relay_identity:/var/lib/gateway-relay/identity:ro
+      - relay_state:/var/lib/gateway-relay/state
     healthcheck:
-      test: ["CMD", "/gateway-relay", "healthcheck"]
+      test: ["CMD", "/opfield-relay", "healthcheck"]
       interval: 5s
       timeout: 3s
       retries: 2
@@ -102,18 +104,18 @@ services:
         max-file: "3"
 
   registry:
-    image: ${GATEWAY_REGISTRY_IMAGE_REF:-registry:3}
+    image: ${OPFIELD_REGISTRY_IMAGE_REF:-registry:3}
     restart: unless-stopped
     labels:
-      com.wiolett.gateway.managed-service: registry
+      net.opfield.managed-service: registry
     environment:
       REGISTRY_HTTP_ADDR: 0.0.0.0:5000
       REGISTRY_HTTP_DEBUG_ADDR: 127.0.0.1:5001
-      REGISTRY_HTTP_SECRET: ${GATEWAY_REGISTRY_HTTP_SECRET:-gateway-development-registry-secret}
+      REGISTRY_HTTP_SECRET: ${OPFIELD_REGISTRY_HTTP_SECRET:-opfield-development-registry-secret}
       REGISTRY_AUTH: token
-      REGISTRY_AUTH_TOKEN_REALM: ${GATEWAY_REGISTRY_TOKEN_REALM:-https://gateway.invalid/api/docker/registry/token}
-      REGISTRY_AUTH_TOKEN_SERVICE: gateway-internal-registry
-      REGISTRY_AUTH_TOKEN_ISSUER: gateway-internal-registry
+      REGISTRY_AUTH_TOKEN_REALM: ${OPFIELD_REGISTRY_TOKEN_REALM:-https://opfield.invalid/api/docker/registry/token}
+      REGISTRY_AUTH_TOKEN_SERVICE: opfield-internal-registry
+      REGISTRY_AUTH_TOKEN_ISSUER: opfield-internal-registry
       REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/gateway-registry-auth/token-cert.pem
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
@@ -123,8 +125,8 @@ services:
     expose:
       - "5000"
     volumes:
-      - gateway_registry_data:/var/lib/registry
-      - gateway_registry_auth:/var/lib/gateway-registry-auth:ro
+      - registry_data:/var/lib/registry
+      - registry_auth:/var/lib/gateway-registry-auth:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/debug/health >/dev/null"]
       interval: 10s
@@ -145,13 +147,13 @@ services:
     stop_signal: SIGTERM
     stop_grace_period: 75s
     environment:
-      POSTGRES_DB: gateway
-      POSTGRES_USER: gateway
+      POSTGRES_DB: opfield
+      POSTGRES_USER: opfield
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gateway -d gateway"]
+      test: ["CMD-SHELL", "pg_isready -U opfield -d opfield"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -179,10 +181,10 @@ services:
         max-file: "3"
 
 volumes:
-  gateway_data:
-  gateway_relay_identity:
-  gateway_relay_state:
-  gateway_registry_data:
-  gateway_registry_auth:
+  app_data:
+  relay_identity:
+  relay_state:
+  registry_data:
+  registry_auth:
   postgres_data:
   redis_data:

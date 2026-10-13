@@ -42,7 +42,7 @@ func scheduleChaos(w *simWorld, topo simTopology) {
 			w.tracef("gateway dies")
 		})
 	}
-	w.after(5*time.Second, func() { gatewayBootstrapLoop(w) })
+	w.after(5*time.Second, func() { opfieldBootstrapLoop(w) })
 	at := 3 * time.Second
 	minGap, maxGap := 3*time.Second, 12*time.Second
 	if w.rng.Float64() < 0.25 {
@@ -59,9 +59,9 @@ func scheduleChaos(w *simWorld, topo simTopology) {
 	}
 }
 
-// gatewayBootstrapLoop drops the bootstrap reservation once its holder
+// opfieldBootstrapLoop drops the bootstrap reservation once its holder
 // reported acquiring (A5), like the Gateway does on the lease report.
-func gatewayBootstrapLoop(w *simWorld) {
+func opfieldBootstrapLoop(w *simWorld) {
 	policy := w.gw.policies["p1"]
 	if len(policy.bootstrap) == 0 || !w.gw.alive {
 		return
@@ -84,7 +84,7 @@ func gatewayBootstrapLoop(w *simWorld) {
 		w.tracef("gateway drops bootstrap reservation")
 	}
 	if len(policy.bootstrap) > 0 {
-		w.after(5*time.Second, func() { gatewayBootstrapLoop(w) })
+		w.after(5*time.Second, func() { opfieldBootstrapLoop(w) })
 	}
 }
 

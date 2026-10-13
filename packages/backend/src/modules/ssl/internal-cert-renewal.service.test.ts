@@ -54,7 +54,7 @@ function services(db: unknown) {
     issueCertificate: vi.fn().mockResolvedValue({ certificate: replacement, privateKeyPem: 'NEW-KEY' }),
   };
   const sslService = { applyReissuedInternalCertificate: vi.fn().mockResolvedValue({ failures: [] }) };
-  const distribution = { upsertGatewayAsset: vi.fn().mockResolvedValue({}) };
+  const distribution = { upsertOpfieldAsset: vi.fn().mockResolvedValue({}) };
   const audit = { log: vi.fn().mockResolvedValue(true) };
   const alerts = { createAlert: vi.fn().mockResolvedValue(undefined) };
   const proxy = { resyncTlsHost: vi.fn().mockResolvedValue({}) };
@@ -132,7 +132,7 @@ describe('InternalCertificateRenewalService', () => {
       'manual'
     );
     expect(updateCalls).toHaveLength(1); // proxy hosts referencing the leaf directly
-    expect(distribution.upsertGatewayAsset).toHaveBeenCalledWith({ type: 'internal', id: 'pki-new' });
+    expect(distribution.upsertOpfieldAsset).toHaveBeenCalledWith({ type: 'internal', id: 'pki-new' });
     expect(proxy.resyncTlsHost).toHaveBeenCalledWith('host-1', 'user-1');
     expect(result.deliveryFailures).toEqual([]);
   });

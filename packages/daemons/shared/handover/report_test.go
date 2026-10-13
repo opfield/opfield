@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
 // Sessions a replaced Secure Link connector still carried when it was removed, an hour after the update that

@@ -32,7 +32,7 @@ import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
-import { isGatewayPublicRoute } from "@/lib/proxy-route-protection";
+import { isOpfieldPublicRoute } from "@/lib/proxy-route-protection";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -104,7 +104,7 @@ export function ProxyHostDetail({
   const routeSlug = resolvedProxySlug ?? params.proxySlug ?? params.id ?? "";
   const navigate = useStableNavigate();
   const { hasScope } = useAuthStore();
-  const gatewayPublicUrl = useUIBootstrapStore(
+  const opfieldPublicUrl = useUIBootstrapStore(
     (state) => state.snapshot?.systemConfig.publicUrl ?? null
   );
   const canViewAdvancedConfig = !!id && hasScope(`proxy:advanced:${id}`);
@@ -880,7 +880,7 @@ export function ProxyHostDetail({
   const isSystemHost = host?.isSystem ?? false;
   const maintenanceActionAvailable =
     !!host &&
-    (!isGatewayPublicRoute(host, gatewayPublicUrl) || host.maintenanceEnabled) &&
+    (!isOpfieldPublicRoute(host, opfieldPublicUrl) || host.maintenanceEnabled) &&
     (host.maintenanceEnabled ||
       (host.enabled && host.type === "proxy" && !host.rawConfigEnabled && !host.isSystem));
   const canIssueMaintenanceAccessCode =

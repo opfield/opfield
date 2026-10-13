@@ -29,7 +29,7 @@ import { RpcError, type RpcErrorShape, RpcPort } from './rpc.js';
 export type { RemotePath } from './protocol.js';
 
 /** One of Gateway's resumable streams as the returner sees it (it lives in the tunnel worker). */
-export interface GatewayStream {
+export interface OpfieldStream {
   readonly routeId: string;
   readonly relayId: string | null;
   readonly movable: boolean;
@@ -38,9 +38,9 @@ export interface GatewayStream {
   migrate(trigger: MigrationTrigger, fromRelayId?: string | null): Promise<void>;
 }
 
-/** What GatewayRelayPaths needs of the streams: list them, pace moves, its clock. */
-export interface GatewayStreamRegistry {
-  liveSessions(): Iterable<GatewayStream> | Promise<Iterable<GatewayStream>>;
+/** What OpfieldRelayPaths needs of the streams: list them, pace moves, its clock. */
+export interface OpfieldStreamRegistry {
+  liveSessions(): Iterable<OpfieldStream> | Promise<Iterable<OpfieldStream>>;
   schedule(task: () => Promise<unknown>): void;
   readonly timers: ResumeTimers;
 }
@@ -200,9 +200,9 @@ export class RelayTunnelHost {
           `import('tsx/esm/api').then(({ register }) => { register(); return import(${JSON.stringify(
             new URL('./worker.ts', import.meta.url).href
           )}); });`,
-          { eval: true, workerData: data, name: 'gateway-tunnels' }
+          { eval: true, workerData: data, name: 'opfield-tunnels' }
         )
-      : new Worker(new URL('./worker.js', import.meta.url), { workerData: data, name: 'gateway-tunnels' });
+      : new Worker(new URL('./worker.js', import.meta.url), { workerData: data, name: 'opfield-tunnels' });
     worker.unref();
     const rpc = this.connect(worker);
     let stopping = false;
@@ -210,23 +210,23 @@ export class RelayTunnelHost {
       this.restartDelay = RESTART_MIN_MS;
       this.options.log?.({
         level: 'info',
-        message: 'Gateway tunnel worker started',
+        message: 'Opfield tunnel worker started',
         meta: { threadId: worker.threadId },
       });
     });
     worker.on('error', (error) => {
       this.options.log?.({
         level: 'error',
-        message: 'Gateway tunnel worker failed',
+        message: 'Opfield tunnel worker failed',
         meta: { error: error instanceof Error ? error.message : String(error) },
       });
     });
     worker.once('exit', (code) => {
-      rpc.close('Gateway tunnel worker exited');
+      rpc.close('Opfield tunnel worker exited');
       if (stopping || this.closed) return;
       this.options.log?.({
         level: 'error',
-        message: 'Gateway tunnel worker exited; starting it again',
+        message: 'Opfield tunnel worker exited; starting it again',
         meta: { code },
       });
       this.reset();
@@ -263,7 +263,7 @@ export class RelayTunnelHost {
   }
 
   private rpc(): RpcPort {
-    if (!this.runner) throw new Error('Gateway tunnel worker is restarting');
+    if (!this.runner) throw new Error('Opfield tunnel worker is restarting');
     return this.runner.rpc;
   }
 
@@ -381,7 +381,7 @@ export class RelayTunnelHost {
     return this.call<RelayResumeStatsSnapshot>('stats');
   }
 
-  readonly streams: GatewayStreamRegistry = {
+  readonly streams: OpfieldStreamRegistry = {
     timers: realTimers,
     // The worker paces moves itself (at most 32 in flight).
     schedule: (task) => {

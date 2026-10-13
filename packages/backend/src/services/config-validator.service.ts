@@ -35,9 +35,10 @@ export interface ConfigValidationResult {
 const TEMPLATE_LOG_PATH = /{{\s*logPath\s*}}/g;
 
 /** Statements with forbidden directive names that Gateway's own templates emit, in their template form. */
-const GATEWAY_TEMPLATE_STATEMENTS: readonly RegExp[] = [
+const OPFIELD_TEMPLATE_STATEMENTS: readonly RegExp[] = [
   /include\s+{{\s*pagesRouteIncludePath\s*}}\s*;/g,
-  /auth_basic_user_file\s+\/etc\/nginx\/gateway\/htpasswd\/access-list-{{\s*accessList\.id\s*}}\s*;/g,
+  // legacy-name: /etc/nginx/gateway in templates saved before 2.12.1 — remove once every node reports none
+  /auth_basic_user_file\s+\/etc\/nginx\/(?:opfield|gateway)\/htpasswd\/access-list-{{\s*accessList\.id\s*}}\s*;/g,
 ];
 
 const RAW_MAX_LENGTH = 262144;
@@ -514,11 +515,11 @@ export class ConfigValidatorService {
    * form.
    */
   validateTemplate(content: string): ConfigValidationResult {
-    const withoutGatewayStatements = GATEWAY_TEMPLATE_STATEMENTS.reduce(
+    const withoutOpfieldStatements = OPFIELD_TEMPLATE_STATEMENTS.reduce(
       (text, pattern) => text.replace(pattern, blank),
       content.replace(TEMPLATE_LOG_PATH, `${ConfigValidatorService.NGINX_LOG_DIRECTORY}proxy`)
     );
-    return this.check(content, ConfigValidatorService.stripHandlebarsExpressions(withoutGatewayStatements), {
+    return this.check(content, ConfigValidatorService.stripHandlebarsExpressions(withoutOpfieldStatements), {
       denyList: 'raw',
       limits: { maxLength: RAW_MAX_LENGTH },
       syntax: false,

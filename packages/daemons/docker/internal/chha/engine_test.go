@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/witnessactivation"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/daemon-shared/witnessactivation"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 func newTestEngine(t *testing.T, rt *fakeRuntime) *engine {
@@ -134,7 +134,7 @@ func TestEligibleAndValuesThroughStatus(t *testing.T) {
 // Gateway down and the active witness dead for 2 minutes: the holder signs an
 // activation, sends it over the standby's witness route, then adds the
 // standby and removes the dead witness.
-func TestHolderActivatesStandbyWhileGatewayIsDown(t *testing.T) {
+func TestHolderActivatesStandbyWhileOpfieldIsDown(t *testing.T) {
 	rt := newFakeRuntime(testConfig(memberha.ModeAutomatic, pairEngineConfig(), testMemberA, testMemberB))
 	rt.gateway = false
 	received := make(chan witnessactivation.Request, 1)
@@ -155,7 +155,7 @@ func TestHolderActivatesStandbyWhileGatewayIsDown(t *testing.T) {
 	ctx := context.Background()
 	e.mu.Lock()
 	e.lastSample.keeperQuorum = true
-	e.gatewayDown = time.Second
+	e.opfieldDown = time.Second
 	e.mu.Unlock()
 	current := map[uint32]keeperEntry{1: {endpoint: "a"}, 2: {endpoint: "b"}, 101: {endpoint: "w"}}
 	start := 10 * time.Minute

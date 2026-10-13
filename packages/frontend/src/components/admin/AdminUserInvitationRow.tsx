@@ -22,7 +22,7 @@ export function AdminUserInvitationRow({
   disabled: boolean;
   onSend: () => void;
 }) {
-  const canReadSettings = useAuthStore((state) => state.hasScope("settings:gateway:view"));
+  const canReadSettings = useAuthStore((state) => state.hasScope("settings:opfield:view"));
   const invitable = !user.invitationSentAt && user.lastLoginAt === null;
   const checkSmtp = invitable && canReadSettings;
   // undefined while loading; null when unknown, and the server still enforces it.

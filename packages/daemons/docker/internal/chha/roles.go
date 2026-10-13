@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 // Keeper roles beyond three voters (prototype for the unblocking work,

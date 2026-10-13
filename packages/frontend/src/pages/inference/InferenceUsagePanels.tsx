@@ -40,7 +40,7 @@ import {
   InferenceHarnessDialog,
 } from "../settings/inference/InferenceEndpointSettingsPanel";
 
-const COMPACT_USAGE_OPEN_KEY = "gateway:account-menu:ai-usage-open";
+const COMPACT_USAGE_OPEN_KEY = "opfield:account-menu:ai-usage-open";
 
 function remainingPercentage(percentage: number) {
   return Math.round(Math.max(0, Math.min(100, 100 - percentage)));

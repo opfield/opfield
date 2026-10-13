@@ -138,7 +138,7 @@ export const InferencePublicModelsResponseSchema = z.object({
       id: z.string(),
       object: z.literal('model'),
       created: z.number().int(),
-      owned_by: z.literal('gateway'),
+      owned_by: z.literal('opfield'),
       display_name: z.string(),
       context_window: z.number().int(),
       max_input_tokens: z.number().int(),
@@ -327,7 +327,7 @@ export const InferenceTokenResponseSchema = z.object({
 });
 
 export const CreateInferenceTokenResponseSchema = InferenceTokenResponseSchema.extend({
-  token: z.string().startsWith('gwi_'),
+  token: z.string().startsWith('opfi_'),
 });
 
 export type CreateInferenceTokenInput = z.infer<typeof CreateInferenceTokenSchema>;

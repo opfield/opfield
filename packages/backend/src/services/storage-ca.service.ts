@@ -5,6 +5,7 @@ import { certificateAuthorities, certificates, managedStorageClusters } from '@/
 import { createChildLogger } from '@/lib/logger.js';
 import type { CAService } from '@/modules/pki/ca.service.js';
 import type { CertService } from '@/modules/pki/cert.service.js';
+import { renameLegacySystemCa, SYSTEM_CA_COMMON_NAMES } from './system-ca-names.js';
 import type {
   SystemCertificateCurrentBinding,
   SystemCertificateLifecycleService,
@@ -12,11 +13,10 @@ import type {
 
 const logger = createChildLogger('StorageCA');
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
-const STORAGE_CA_CN = 'Gateway Storage CA';
 
 /**
  * Names every managed storage server certificate carries besides the node's
- * own addresses. The Gateway relay tunnel and the backup relay both reach the
+ * own addresses. The Opfield relay tunnel and the backup relay both reach the
  * container through a local `127.0.0.1` listener and verify it as `localhost`
  * or `127.0.0.1` — for every cluster, whether or not it also publishes its S3
  * port directly.
@@ -46,12 +46,15 @@ export class StorageCAService {
       .from(certificateAuthorities)
       .where(eq(certificateAuthorities.systemPurpose, 'storage-tls'))
       .limit(1);
-    if (existing) return existing.id;
+    if (existing) {
+      await renameLegacySystemCa(this.db, existing.id, 'storage-tls');
+      return existing.id;
+    }
 
     logger.info('Creating system Storage CA for managed direct TLS');
     const ca = await this.caService.createRootCA(
       {
-        commonName: STORAGE_CA_CN,
+        commonName: SYSTEM_CA_COMMON_NAMES['storage-tls'],
         keyAlgorithm: 'ecdsa-p256',
         validityYears: 10,
         maxValidityDays: 730,

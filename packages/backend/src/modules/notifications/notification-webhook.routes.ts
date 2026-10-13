@@ -85,7 +85,7 @@ webhookRoutes.openapi(
     }
     const dispatcher = container.resolve(NotificationDispatcherService);
     const sampleEvent = buildSampleEvent();
-    const context = buildTemplateContext(sampleEvent, dispatcher.getGatewayUrl());
+    const context = buildTemplateContext(sampleEvent, dispatcher.getOpfieldUrl());
     const rendered = renderTemplate(bodyTemplate, context);
     return c.json({ data: { rendered, context } });
   }

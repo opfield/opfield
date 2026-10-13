@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/leasegate"
+	"github.com/opfield/opfield/daemon-shared/leasegate"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 // availabilityLeaseCapability is advertised once this daemon can derive

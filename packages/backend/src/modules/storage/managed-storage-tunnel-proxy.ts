@@ -7,7 +7,7 @@ export interface ManagedStorageTunnelEndpoint {
 export class ManagedStorageTunnelProxy {
   // biome-ignore lint/complexity/noUselessConstructor: Stable commercial constructor contract.
   constructor(
-    _relayPolicy?: Pick<RelayPolicyService, 'openStorageGatewayTunnel'> | undefined,
+    _relayPolicy?: Pick<RelayPolicyService, 'openStorageOpfieldTunnel'> | undefined,
     _appCertificateFingerprint?: string | undefined
   ) {}
   setAppCertificateFingerprint(_fingerprint: string): void {}

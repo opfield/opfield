@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/memberha"
+	"github.com/opfield/opfield/docker-daemon/internal/memberha"
 )
 
 const (
@@ -223,7 +223,7 @@ func (f *fakeRuntime) Config() (memberha.Config, bool) {
 	return f.config, f.known
 }
 
-func (f *fakeRuntime) GatewayConnected() bool {
+func (f *fakeRuntime) OpfieldConnected() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.gateway

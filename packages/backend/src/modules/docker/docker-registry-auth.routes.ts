@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { container } from '@/container.js';
+import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { demoRestriction, isDemoMode } from '@/modules/demo/demo-mode.js';
 import { REGISTRY_REPOSITORY_PATTERN, tokenAllowsRegistryAction } from '@/modules/tokens/token-registry-access.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import type { AppEnv } from '@/types.js';
 import { DockerInternalRegistryService } from './docker-registry-internal.service.js';
+import { configuredRegistryTokenService, isRegistryTokenService } from './docker-registry-token.service.js';
 
-const REGISTRY_SERVICE = 'gateway-internal-registry';
 const MAX_SCOPE_COUNT = 64;
 const MAX_SCOPE_LENGTH = 1024;
 
@@ -26,7 +27,7 @@ function basicPassword(header: string | undefined): string | null {
   const separator = decoded.indexOf(':');
   if (separator < 0) return null;
   const password = decoded.slice(separator + 1);
-  return password.startsWith('gw_') ? password : null;
+  return hasTokenPrefix(password, 'api') ? password : null;
 }
 
 function requestedRegistryGrants(url: URL) {
@@ -55,14 +56,14 @@ dockerRegistryAuthRoutes.get('/token', async (c) => {
   const registry = container.resolve(DockerInternalRegistryService);
   await registry.assertExternalAccessEntitled();
 
-  const service = c.req.query('service') || REGISTRY_SERVICE;
-  if (service !== REGISTRY_SERVICE) {
+  const service = c.req.query('service') || configuredRegistryTokenService();
+  if (!isRegistryTokenService(service)) {
     throw new AppError(403, 'REGISTRY_SERVICE_DENIED', 'Registry token audience is not allowed');
   }
   const rawToken = basicPassword(c.req.header('Authorization'));
   const authenticated = rawToken ? await container.resolve(TokensService).validateToken(rawToken) : null;
   if (!authenticated) {
-    c.header('WWW-Authenticate', 'Basic realm="Gateway Internal Registry"');
+    c.header('WWW-Authenticate', 'Basic realm="Opfield Internal Registry"');
     c.header('Cache-Control', 'no-store');
     return c.json({ code: 'REGISTRY_AUTH_REQUIRED', message: 'Valid Opfield API token required' }, 401);
   }

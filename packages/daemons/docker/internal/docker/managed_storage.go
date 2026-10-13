@@ -20,13 +20,13 @@ import (
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/docker-daemon/internal/config"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/docker-daemon/internal/config"
 )
 
 const (
-	managedStorageLabel          = "wiolett.gateway.managed-storage.id"
-	managedStorageMemberLabel    = "wiolett.gateway.managed-storage.member-index"
+	managedStorageLabel          = "net.opfield.managed-storage.id"
+	managedStorageMemberLabel    = "net.opfield.managed-storage.member-index"
 	managedStorageCommandTimeout = 13 * time.Minute
 	minimumStorageBytes          = 1024 * 1024 * 1024
 	maximumStorageBytes          = 16 * 1024 * 1024 * 1024 * 1024

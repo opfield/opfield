@@ -7,18 +7,18 @@ import (
 	"strconv"
 	"time"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
 const (
-	deploymentManagedLabel           = "wiolett.gateway.deployment.managed"
-	deploymentIDLabel                = "wiolett.gateway.deployment.id"
-	deploymentRoleLabel              = "wiolett.gateway.deployment.role"
-	deploymentSlotLabel              = "wiolett.gateway.deployment.slot"
-	availabilityPolicyLabel          = "wiolett.gateway.availability.policy"
-	availabilityPlacementLabel       = "wiolett.gateway.availability.placement"
-	availabilityGenerationLabel      = "wiolett.gateway.availability.generation"
-	availabilitySpecFingerprintLabel = "wiolett.gateway.availability.spec-fingerprint"
+	deploymentManagedLabel           = "net.opfield.deployment.managed"
+	deploymentIDLabel                = "net.opfield.deployment.id"
+	deploymentRoleLabel              = "net.opfield.deployment.role"
+	deploymentSlotLabel              = "net.opfield.deployment.slot"
+	availabilityPolicyLabel          = "net.opfield.availability.policy"
+	availabilityPlacementLabel       = "net.opfield.availability.placement"
+	availabilityGenerationLabel      = "net.opfield.availability.generation"
+	availabilitySpecFingerprintLabel = "net.opfield.availability.spec-fingerprint"
 )
 
 // deploymentCandidateStopTimeoutSeconds is the grace a failed rollout candidate gets to stop, as for a drained slot.

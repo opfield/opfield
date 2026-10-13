@@ -7,25 +7,25 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm --filter @sqgateway/update-service build"
+        "command": "pnpm --filter @opfield/update-service build"
       }
     },
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm --filter @sqgateway/update-service test"
+        "command": "pnpm --filter @opfield/update-service test"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm --filter @sqgateway/update-service lint"
+        "command": "pnpm --filter @opfield/update-service lint"
       }
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm --filter @sqgateway/update-service typecheck"
+        "command": "pnpm --filter @opfield/update-service typecheck"
       }
     }
   },

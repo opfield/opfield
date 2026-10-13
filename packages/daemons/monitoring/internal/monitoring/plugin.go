@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"os"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/gpu"
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/stream"
-	"github.com/wiolett-industries/gateway/daemon-shared/sysmetrics"
+	"github.com/opfield/opfield/daemon-shared/gpu"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
 )
 
 // MonitoringPlugin implements lifecycle.DaemonPlugin for the monitoring daemon.
@@ -56,11 +56,11 @@ func (p *MonitoringPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessa
 	}
 }
 
-func (p *MonitoringPlugin) HandleCommand(cmd *pb.GatewayCommand) *pb.CommandResult {
+func (p *MonitoringPlugin) HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult {
 	result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 
 	switch payload := cmd.Payload.(type) {
-	case *pb.GatewayCommand_SetDaemonLogStream:
+	case *pb.OpfieldCommand_SetDaemonLogStream:
 		stream.SetDaemonLogStreaming(payload.SetDaemonLogStream.Enabled, payload.SetDaemonLogStream.MinLevel)
 		p.logger.Info("daemon log stream updated", "enabled", payload.SetDaemonLogStream.Enabled, "min_level", payload.SetDaemonLogStream.MinLevel)
 	default:

@@ -12,9 +12,9 @@ export type SystemCertificateOwner =
   | { type: 'node'; id: string }
   | { type: 'managed_database'; id: string }
   | { type: 'managed_storage'; id: string }
-  | { type: 'gateway_listener'; id: 'grpc' | 'web' }
+  | { type: 'opfield_listener'; id: 'grpc' | 'web' }
   | { type: 'relay_node_server'; id: string }
-  | { type: 'gateway_service'; id: 'app-internal-server' | 'app-relay-client' | 'relay-app-client' };
+  | { type: 'opfield_service'; id: 'app-internal-server' | 'app-relay-client' | 'relay-app-client' };
 
 export interface SystemCertificateBindingHandle {
   onCommitted?: () => void | Promise<void>;

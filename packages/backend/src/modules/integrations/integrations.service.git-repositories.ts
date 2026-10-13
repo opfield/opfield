@@ -539,7 +539,7 @@ export abstract class IntegrationsGitRepositoryService extends IntegrationsGitHu
         }
         await writeFile(filePath, input.content, { mode: 0o600 });
         await this.runGit(['config', 'user.name', 'Opfield AI'], context);
-        await this.runGit(['config', 'user.email', 'gateway-ai@localhost'], context);
+        await this.runGit(['config', 'user.email', 'opfield-ai@localhost'], context);
         await this.runGit(['add', '--', relativePath], context);
         await this.runGit(['commit', '-m', input.message.trim()], context);
         await this.runGit(['push', 'origin', `HEAD:${branch}`], context);

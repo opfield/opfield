@@ -15,7 +15,7 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = ['apps:view', 'apps:create', 'apps:edit', 'apps:env:manage', 'apps:operate'];
 
 /** In-memory stand-in for the Redis cache the codes live in (TTL is not simulated). */
@@ -41,7 +41,7 @@ function memoryCache() {
 }
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): an environment Maintenance Access Code opens each route of the
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): an environment Maintenance Access Code opens each route of the
  * environment that is in maintenance once, for its user, while the user still manages the environment; never a route
  * of another environment, a second time, a route in lockdown, after expiry or after the permission is gone.
  */

@@ -79,7 +79,7 @@ const MCP_EXCLUDED_TOOLS = new Set([
   'open_connector_setup',
   'set_resource_pin',
 ]);
-const MCP_ALWAYS_VISIBLE_AI_TOOLS = new Set(['find_resource', 'get_my_access', 'read_gateway_documentation']);
+const MCP_ALWAYS_VISIBLE_AI_TOOLS = new Set(['find_resource', 'get_my_access', 'read_opfield_documentation']);
 const MCP_TOOLS_PAGE_SIZE = 80;
 const MCP_DISCOVERY_STATE_TTL_MS = 24 * 60 * 60 * 1000;
 

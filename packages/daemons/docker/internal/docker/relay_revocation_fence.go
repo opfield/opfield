@@ -3,10 +3,10 @@ package docker
 import (
 	"context"
 
-	pb "github.com/wiolett-industries/gateway/daemon-shared/gatewayv1"
-	"github.com/wiolett-industries/gateway/daemon-shared/logepisode"
-	"github.com/wiolett-industries/gateway/daemon-shared/relaybridge"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/logepisode"
+	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
+	"github.com/opfield/opfield/daemon-shared/relaybridge"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // acceptedRelayTunnel is one endpoint tunnel a relay delivered. It is tracked

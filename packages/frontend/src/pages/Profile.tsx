@@ -217,20 +217,20 @@ export function Profile() {
 
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
-    const gatewayDev = (window.gatewayDev ??= {});
+    const opfieldDev = (window.opfieldDev ??= {});
     const openInferenceHarnessModal = () => setInferenceHarnessDevOpen(true);
     const showInferenceProfile = () => {
       setInferenceProfileDevPreview(true);
       navigate("/profile");
     };
-    gatewayDev.openInferenceHarnessModal = openInferenceHarnessModal;
-    gatewayDev.showInferenceProfile = showInferenceProfile;
+    opfieldDev.openInferenceHarnessModal = openInferenceHarnessModal;
+    opfieldDev.showInferenceProfile = showInferenceProfile;
     return () => {
-      if (gatewayDev.openInferenceHarnessModal === openInferenceHarnessModal) {
-        delete gatewayDev.openInferenceHarnessModal;
+      if (opfieldDev.openInferenceHarnessModal === openInferenceHarnessModal) {
+        delete opfieldDev.openInferenceHarnessModal;
       }
-      if (gatewayDev.showInferenceProfile === showInferenceProfile) {
-        delete gatewayDev.showInferenceProfile;
+      if (opfieldDev.showInferenceProfile === showInferenceProfile) {
+        delete opfieldDev.showInferenceProfile;
       }
     };
   }, [navigate]);
@@ -1335,7 +1335,7 @@ function derivePasskeyName(response: unknown): string {
 }
 
 function printRecoveryCodes(recoveryCodes: string[]) {
-  const printWindow = window.open("", "gateway-recovery-codes", "width=640,height=720");
+  const printWindow = window.open("", "opfield-recovery-codes", "width=640,height=720");
   if (!printWindow) {
     toast.error("Allow pop-ups to print recovery codes");
     return;

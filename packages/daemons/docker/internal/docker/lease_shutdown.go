@@ -3,7 +3,7 @@ package docker
 import (
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
 )
 
 // leaseShutdownWait bounds how long the exiting process waits for the lease runtime: a Docker call it has in flight

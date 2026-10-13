@@ -13,11 +13,11 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = ['apps:view', 'apps:create', 'apps:edit', 'apps:env:manage', 'apps:operate', 'proxy:edit'];
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): environment maintenance and the app override set the overlay of
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): environment maintenance and the app override set the overlay of
  * every proxy route of the scope and never touch a route's own switch; switching off restores exactly the own
  * state; a route that leaves the environment loses the overlay; health checks skip routes in effective maintenance.
  */

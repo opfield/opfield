@@ -148,8 +148,8 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 ### Opfield Settings
 | Scope | Description |
 |-------|-------------|
-| settings:gateway:view | View Opfield settings: public URL, sign-in, SMTP, OAuth and MCP, network, environment, and relay settings |
-| settings:gateway:edit | Edit those settings; SMTP, the OIDC provider, the public URL, and relaxing OIDC verified-email enforcement also need admin:system |
+| settings:opfield:view | View Opfield settings: public URL, sign-in, SMTP, OAuth and MCP, network, environment, and relay settings |
+| settings:opfield:edit | Edit those settings; SMTP, the OIDC provider, the public URL, and relaxing OIDC verified-email enforcement also need admin:system |
 
 ### Housekeeping
 | Scope | Description |
@@ -186,8 +186,7 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 ### Opfield Inference
 | Scope | Description |
 |-------|-------------|
-| inference:setup | OAuth-only authorization for the Opfield companion CLI setup resource; do not assign it to users or groups |
-| feat:ai:use | Use Opfield Inference, view personal usage, and create or revoke dedicated gwi_ inference tokens for the current user |
+| feat:ai:use | Use Opfield Inference, view personal usage, and create or revoke dedicated opfi_ inference tokens for the current user |
 | inference:providers:view | View provider templates, connections, masked credentials, discovery, and quota |
 | inference:providers:manage | Connect, update, synchronize, route, and disconnect inference providers |
 | inference:models:manage | Atomically create, replace, publish, or delete logical inference models |
@@ -395,7 +394,7 @@ Git scopes can be limited with stable IDs: \`<scope>:<connectorId>\` (every repo
 | Group | Description |
 |-------|-------------|
 | system-admin | Every scope, including admin:system |
-| admin | Every scope except admin:system, admin:users:impersonate, settings:gateway:edit, housekeeping:configure, nodes:console, ai:skills:manage, inference:setup, the hosting:* and integrations:hosting:* scopes, Docker registry create/edit/delete, and the legacy docker:registries:internal:* scopes |
+| admin | Every scope except admin:system, admin:users:impersonate, settings:opfield:edit, housekeeping:configure, nodes:console, ai:skills:manage, the hosting:* and integrations:hosting:* scopes, Docker registry create/edit/delete, and the legacy docker:registries:internal:* scopes |
 | operator | Day-to-day operations: storage connections and objects (no credential reveal, IAM keys, or bucket admin) with storage:credentials:use for backups, database backup policies and runs (no restore) and backup execution, PKI certificates and templates, domains, routes and Pages without delete, SSL, ACL, node details, config view, logs, and files, Docker containers, deployments and Compose with create, image pull, secrets and console but without delete, mounts, export, migration or file writes, GitLab, GitHub and Git connectors with use for build sources but no repository content, read-only images, volumes, networks, and registries, databases with queries, notifications, log search and ingest tokens, alerts, AI Workspace, and MCP |
 | viewer | Read-only: storage, backups, PKI, domains, routes, nginx templates, Pages, SSL, ACL, Docker without volume file contents, databases, notification alerts without webhooks, logging including log search without ingest tokens, GitLab, GitHub, Git and Cloudflare connectors, plus AI Workspace |
 | guest | Account access only — no infrastructure permissions |
@@ -414,7 +413,7 @@ Implied scopes: any action scope in a family except creation scopes (\`*:create*
 
 ## Limited Access (folders, nodes, resources)
 Access limited to folders, nodes or resources is normal. If you can't see or do something at the root, check get_my_access; folder-limited access is normal, so work inside the granted folders.
-- get_my_access (MCP also serves it as the gateway://access resource; REST: GET /api/auth/me/access) groups the caller's access by area: broad or limited, the granted folders (id, name, path), nodes, accounts and specific resources with their actions, and where it may create (create.atRoot, create.folders, create.nodes). Tokens and OAuth/MCP grants are reported as bounded by the owner's current access.
+- get_my_access (MCP also serves it as the opfield://access resource; REST: GET /api/auth/me/access) groups the caller's access by area: broad or limited, the granted folders (id, name, path), nodes, accounts and specific resources with their actions, and where it may create (create.atRoot, create.folders, create.nodes). Tokens and OAuth/MCP grants are reported as bounded by the owner's current access.
 - MCP adds a short summary of limited access to the server instructions at connect time.
 - List tools return the subset the caller can access; an empty list is not a denial. list_resource_folders shows every folder the caller holds any grant on (even an empty one) with access.actions and access.canCreate.
 - A create without a destination targets the root. With folder- or node-limited create access, pass folderId (and nodeId where the tool takes one); a refused root create names the folders and nodes that hold the grant.

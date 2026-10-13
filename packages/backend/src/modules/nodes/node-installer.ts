@@ -11,9 +11,9 @@ import { DEFAULT_RELAY_SERVICE_PORT, requestedRelayServicePort } from '@/service
 const RELEASE_DOWNLOADS = `${INSTALLER_RELEASES_URL}/download`;
 // An unreleased build has no release assets of its own, so its commands run the installers from main.
 const MAIN_INSTALLERS = 'https://raw.githubusercontent.com/opfield/opfield/main/scripts';
-const INSTALLER_CHECKSUMS = 'gateway-daemon-installers.sha256';
+const INSTALLER_CHECKSUMS = 'opfield-node-installers.sha256';
 
-const NODE_INSTALLERS: Readonly<Record<string, string>> = {
+export const NODE_INSTALLERS: Readonly<Record<string, string>> = {
   nginx: 'setup-node.sh',
   docker: 'setup-docker-node.sh',
   builder: 'setup-docker-node.sh',
@@ -23,12 +23,34 @@ const NODE_INSTALLERS: Readonly<Record<string, string>> = {
   relay: 'setup-relay-node.sh',
 };
 
+/**
+ * Installers of this release that take --opfield and --opfield-cert-sha256. The command always runs the installer of
+ * this release (or main), so its flags only have to match these scripts.
+ */
+export const OPFIELD_FLAG_INSTALLERS: ReadonlySet<string> = new Set([
+  'setup-node.sh',
+  'setup-docker-node.sh',
+  'setup-monitoring-node.sh',
+  'setup-database-node.sh',
+  'setup-storage-node.sh',
+  'setup-relay-node.sh',
+]);
+
+/** The enrollment address and certificate pin flags the installer of this release understands. */
+function enrollmentFlags(installer: string): { address: string; certificate: string } {
+  return OPFIELD_FLAG_INSTALLERS.has(installer)
+    ? { address: '--opfield', certificate: '--opfield-cert-sha256' }
+    : // legacy-name: --gateway flags of installers not yet taking --opfield — remove once every installer does.
+      { address: '--gateway', certificate: '--gateway-cert-sha256' };
+}
+
 export type InstallTransport = 'curl' | 'wget';
 
 export interface NodeInstallCommand {
   target: 'public' | 'local';
   label: string;
-  gateway: string;
+  /** The Opfield gRPC address the command enrolls with. */
+  address: string;
   curl: string;
   wget: string;
 }
@@ -40,8 +62,8 @@ export interface NodeInstallation {
 }
 
 interface EnrollmentTargets {
-  public?: { label: string; gateway: string | null };
-  local?: { label: string; gateway: string | null };
+  public?: { label: string; address: string | null };
+  local?: { label: string; address: string | null };
 }
 
 /** The Gateway release tag this build was stamped with. Development and other unreleased builds have none. */
@@ -50,7 +72,7 @@ export function installerRelease(appVersion: string): string | null {
 }
 
 /** The browser's host on the gRPC port: what a public target nobody configured yet falls back to. */
-export function browserHostGateway(host: string | undefined): string | null {
+export function browserHostOpfield(host: string | undefined): string | null {
   const value = host?.split(',')[0]?.trim();
   if (!value) return null;
   try {
@@ -61,12 +83,12 @@ export function browserHostGateway(host: string | undefined): string | null {
 }
 
 /** The same fallback for callers without a browser request (AI and MCP tools): the host of the public URL. */
-export async function publicUrlFallbackGateway(): Promise<string | null> {
+export async function publicUrlFallbackOpfield(): Promise<string | null> {
   if (!container.isRegistered(GeneralSettingsService)) return null;
   const publicUrl = await container.resolve(GeneralSettingsService).getPublicUrl();
   if (!publicUrl) return null;
   try {
-    return browserHostGateway(new URL(publicUrl).host);
+    return browserHostOpfield(new URL(publicUrl).host);
   } catch {
     return null;
   }
@@ -79,7 +101,7 @@ function shellWord(value: string): string {
 
 /**
  * One setup command, shown with line continuations. A release build downloads the installer from its own GitHub
- * release and runs it only when it matches that release's gateway-daemon-installers.sha256. The steps use tools
+ * release and runs it only when it matches that release's opfield-node-installers.sha256. The steps use tools
  * every supported host has, busybox included (Debian, Ubuntu, RHEL, Alpine). An unreleased build pipes the
  * installer from main, unverified, as before installers were pinned.
  */
@@ -148,9 +170,9 @@ export function nodeInstallCommands(input: {
   nodeType: string;
   release: string | null;
   token: string;
-  gatewayCertSha256: string;
+  opfieldCertSha256: string;
   targets: EnrollmentTargets;
-  fallbackGateway?: string | null;
+  fallbackOpfield?: string | null;
   advertiseAddress?: string | null;
   servicePort?: number | null;
   daemonVersion?: string | null;
@@ -161,18 +183,19 @@ export function nodeInstallCommands(input: {
     {
       target: 'public' as const,
       label: input.targets.public?.label ?? 'Public node',
-      gateway: input.targets.public?.gateway ?? input.fallbackGateway ?? null,
+      address: input.targets.public?.address ?? input.fallbackOpfield ?? null,
     },
     ...(input.targets.local
-      ? [{ target: 'local' as const, label: input.targets.local.label, gateway: input.targets.local.gateway }]
+      ? [{ target: 'local' as const, label: input.targets.local.label, address: input.targets.local.address }]
       : []),
   ];
-  return targets.flatMap(({ target, label, gateway }) => {
-    if (!gateway) return [];
+  return targets.flatMap(({ target, label, address }) => {
+    if (!address) return [];
+    const flags = enrollmentFlags(installer);
     const args: Array<readonly [string, string]> = [
-      ['--gateway', gateway],
+      [flags.address, address],
       ['--token', input.token],
-      ['--gateway-cert-sha256', input.gatewayCertSha256],
+      [flags.certificate, input.opfieldCertSha256],
     ];
     if (input.nodeType === 'builder') args.push(['--mode', 'builder']);
     if (input.advertiseAddress) args.push(['--advertise-address', input.advertiseAddress]);
@@ -182,7 +205,7 @@ export function nodeInstallCommands(input: {
     if (input.daemonVersion) args.push(['--version', input.daemonVersion]);
     const command = (transport: InstallTransport) =>
       nodeInstallCommand({ installer, release: input.release, transport, args });
-    return [{ target, label, gateway, curl: command('curl'), wget: command('wget') }];
+    return [{ target, label, address, curl: command('curl'), wget: command('wget') }];
   });
 }
 
@@ -193,9 +216,9 @@ export function nodeInstallCommands(input: {
 export async function nodeInstallation(input: {
   nodeType: string;
   token: string;
-  gatewayCertSha256: string;
+  opfieldCertSha256: string;
   targets: EnrollmentTargets;
-  fallbackGateway?: string | null;
+  fallbackOpfield?: string | null;
   advertiseAddress?: string | null;
   servicePort?: number | null;
   /** The pool's relay release, when the caller already read it. */
@@ -211,17 +234,17 @@ export function enrollmentInstallation(
   enrollment: {
     node: { type: string; serviceAddresses?: string[] | null; metadata?: unknown };
     enrollmentToken: string;
-    gatewayCertSha256: string;
-    gatewayEnrollmentTargets: EnrollmentTargets;
+    opfieldCertSha256: string;
+    opfieldEnrollmentTargets: EnrollmentTargets;
   },
-  fallbackGateway?: string | null
+  fallbackOpfield?: string | null
 ): Promise<NodeInstallation> {
   return nodeInstallation({
     nodeType: enrollment.node.type,
     token: enrollment.enrollmentToken,
-    gatewayCertSha256: enrollment.gatewayCertSha256,
-    targets: enrollment.gatewayEnrollmentTargets,
-    fallbackGateway,
+    opfieldCertSha256: enrollment.opfieldCertSha256,
+    targets: enrollment.opfieldEnrollmentTargets,
+    fallbackOpfield,
     advertiseAddress: enrollment.node.type === 'relay' ? enrollment.node.serviceAddresses?.[0] : null,
     servicePort: enrollment.node.type === 'relay' ? requestedRelayServicePort(enrollment.node.metadata) : null,
   });
@@ -238,16 +261,16 @@ export function relayReenrollmentInstallation(
     servicePort?: number | null;
     relayVersion?: string | null;
   },
-  gatewayCertSha256: string,
+  opfieldCertSha256: string,
   targets: EnrollmentTargets,
-  fallbackGateway?: string | null
+  fallbackOpfield?: string | null
 ): Promise<NodeInstallation> {
   return nodeInstallation({
     nodeType: 'relay',
     token: issued.enrollmentToken,
-    gatewayCertSha256,
+    opfieldCertSha256,
     targets,
-    fallbackGateway,
+    fallbackOpfield,
     advertiseAddress: issued.advertiseAddress,
     servicePort: issued.servicePort,
     relayVersion: issued.relayVersion ?? null,

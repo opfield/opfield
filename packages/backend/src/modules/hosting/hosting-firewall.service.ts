@@ -277,6 +277,16 @@ export class HostingFirewallService {
         const live = await adapter.getResource(resource.remoteId);
         if (!live || live.incarnation !== resource.incarnation) fail('Provider VM identity changed');
         let observation = await adapter.firewall.read(live, resource.id, row.config);
+        if (!active && adapter.firewall.migrateLegacyNames) {
+          // Names older releases wrote are rewritten in place; a failure keeps them, both forms are recognized.
+          let migrated: boolean;
+          try {
+            migrated = await adapter.firewall.migrateLegacyNames(live, resource.id);
+          } catch {
+            migrated = true;
+          }
+          if (migrated) observation = await adapter.firewall.read(live, resource.id, row.config);
+        }
         if (row.status === 'pending' && !row.dispatchedAt) {
           if (observation.fingerprint !== row.expectedFingerprint)
             fail('Provider firewall changed before applying; review the current state');

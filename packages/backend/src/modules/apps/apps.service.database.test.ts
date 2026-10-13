@@ -12,11 +12,11 @@ import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ALL = ['apps:view', 'apps:create', 'apps:edit', 'apps:delete', 'apps:env:manage', 'apps:operate'];
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): apps and environments with their hidden folders, the Production
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): apps and environments with their hidden folders, the Production
  * marker, name rules, deletes that leave members running outside the app and remove grants, and visibility for
  * environment-limited callers (REST service and MCP tool share the same calls).
  */

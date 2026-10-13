@@ -98,7 +98,7 @@ func TestAnchorSysctlFollowsTheKernel(t *testing.T) {
 		return container.InspectResponse{
 			Name: "/" + secureLinkAnchorName,
 			Config: &container.Config{Image: replaceTestNewImage, User: "65532:65532", Cmd: secureLinkAnchorCommand,
-				Labels: map[string]string{"wiolett.gateway.managed": "secure-link-connector", secureLinkRoleLabel: secureLinkAnchorRole}},
+				Labels: map[string]string{"net.opfield.managed": "secure-link-connector", secureLinkRoleLabel: secureLinkAnchorRole}},
 			HostConfig: &container.HostConfig{ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 				RestartPolicy: container.RestartPolicy{Name: "unless-stopped"}, Sysctls: sysctls,
 				Resources: container.Resources{Memory: secureLinkAnchorMemory, PidsLimit: &pids}},

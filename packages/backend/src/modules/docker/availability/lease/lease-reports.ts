@@ -114,7 +114,7 @@ export function leaseReporterClockOffset(
 }
 
 /** A time the reporter stated on its own clock, on Gateway's clock; null when the offset is unknown. */
-function onGatewayClock(reported: Date | null, offsetMs: number | null): Date | null {
+function onOpfieldClock(reported: Date | null, offsetMs: number | null): Date | null {
   if (!reported || offsetMs === null) return null;
   if (Math.abs(offsetMs) <= LEASE_REPORTER_CLOCK_TOLERANCE_MS) return reported;
   return new Date(reported.getTime() - offsetMs);
@@ -165,10 +165,10 @@ export class AvailabilityLeaseReports {
     // N-15: a daemon states times on its own wall clock; they are moved onto Gateway's by the measured offset, and not
     // used at all when it cannot be measured. Relays keep their times (their reports carry no clock yet).
     const offsetMs = sender.kind === 'relay' ? 0 : leaseReporterClockOffset(report, clock);
-    const daemonTime = (value: string | number | undefined | null) => onGatewayClock(reportedTime(value), offsetMs);
-    const startedOnGatewayClock = startedAt ? daemonTime(startedAt.getTime()) : null;
+    const daemonTime = (value: string | number | undefined | null) => onOpfieldClock(reportedTime(value), offsetMs);
+    const startedOnOpfieldClock = startedAt ? daemonTime(startedAt.getTime()) : null;
     const starting = Boolean(
-      startedOnGatewayClock && now.getTime() - startedOnGatewayClock.getTime() < LEASE_VOTER_RESTART_GRACE_MS
+      startedOnOpfieldClock && now.getTime() - startedOnOpfieldClock.getTime() < LEASE_VOTER_RESTART_GRACE_MS
     );
     // The holder's own acquired events carry its takeover time (N-5).
     const acquiredAt = new Map<string, Date>();

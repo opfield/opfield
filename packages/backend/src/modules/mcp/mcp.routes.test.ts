@@ -53,7 +53,7 @@ function registerToken(scopes: string[] | null, user: User = USER) {
             user,
             scopes,
             tokenId: 'token-1',
-            tokenPrefix: 'gw_abc1234',
+            tokenPrefix: 'opf_abc1234',
           }
         : null
     ),
@@ -69,18 +69,18 @@ function registerMcpSettings(enabled = true, extendedCompatibility = false) {
 
 function registerOAuth(scopes: string[] | null = null, user: User = USER, clientId = 'goc_client') {
   container.registerInstance(OAuthService, {
-    getMcpResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api/mcp'),
-    getApiResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api'),
+    getMcpResourceUrl: vi.fn().mockReturnValue('https://opfield.example.com/api/mcp'),
+    getApiResourceUrl: vi.fn().mockReturnValue('https://opfield.example.com/api'),
     getProtectedResourceMetadataUrl: vi
       .fn()
-      .mockReturnValue('https://gateway.example.com/.well-known/oauth-protected-resource/api/mcp'),
+      .mockReturnValue('https://opfield.example.com/.well-known/oauth-protected-resource/api/mcp'),
     validateAccessToken: vi.fn().mockResolvedValue(
       scopes
         ? {
             user,
             scopes,
             tokenId: 'oauth-token-1',
-            tokenPrefix: 'gwo_abc123',
+            tokenPrefix: 'opfo_abc123',
             clientId,
           }
         : null
@@ -88,7 +88,7 @@ function registerOAuth(scopes: string[] | null = null, user: User = USER, client
   } as unknown as OAuthService);
 }
 
-function mcpHeaders(token = 'gwo_valid', mcpSessionId?: string) {
+function mcpHeaders(token = 'opfo_valid', mcpSessionId?: string) {
   return {
     Authorization: `Bearer ${token}`,
     Accept: 'application/json, text/event-stream',
@@ -117,7 +117,7 @@ async function parseMcpMessages(response: Response): Promise<JsonRecord[]> {
 async function mcpRequest(
   method: string,
   params: Record<string, unknown> = {},
-  token = 'gwo_valid',
+  token = 'opfo_valid',
   mcpSessionId?: string
 ) {
   const response = await createApp().request('/api/mcp', {
@@ -171,18 +171,18 @@ describe('MCP route authentication', () => {
   it('rejects cookie-only auth', async () => {
     const response = await createApp().request('/api/mcp', {
       method: 'POST',
-      headers: { Cookie: 'session_id=session-1' },
+      headers: { Cookie: 'opfield_session=session-1' },
     });
 
     expect(response.status).toBe(401);
   });
 
-  it('rejects invalid gateway tokens', async () => {
+  it('rejects invalid Opfield tokens', async () => {
     registerToken(null);
 
     const response = await createApp().request('/api/mcp', {
       method: 'POST',
-      headers: mcpHeaders('gw_invalid'),
+      headers: mcpHeaders('opf_invalid'),
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     });
 
@@ -192,11 +192,29 @@ describe('MCP route authentication', () => {
   it('rejects logging ingest tokens', async () => {
     const response = await createApp().request('/api/mcp', {
       method: 'POST',
+      headers: mcpHeaders('opfl_ingest'),
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects legacy logging ingest tokens', async () => {
+    const response = await createApp().request('/api/mcp', {
+      method: 'POST',
       headers: mcpHeaders('gwl_ingest'),
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     });
 
     expect(response.status).toBe(401);
+  });
+
+  it('accepts OAuth access tokens issued before the opfo_ prefix', async () => {
+    registerOAuth(['nodes:details']);
+
+    const { response } = await mcpRequest('tools/list', {}, 'gwo_valid');
+
+    expect(response.status).toBe(200);
   });
 
   it('rejects valid tokens with no effective scopes', async () => {
@@ -211,10 +229,10 @@ describe('MCP route authentication', () => {
     expect(response.status).toBe(403);
   });
 
-  it('rejects Gateway API tokens for MCP', async () => {
+  it('rejects Opfield API tokens for MCP', async () => {
     registerToken(['nodes:details']);
 
-    const { response } = await mcpRequest('tools/list', {}, 'gw_valid');
+    const { response } = await mcpRequest('tools/list', {}, 'opf_valid');
 
     expect(response.status).toBe(401);
   });
@@ -222,7 +240,7 @@ describe('MCP route authentication', () => {
   it('allows OAuth access tokens without mcp:use when the user can use MCP', async () => {
     registerOAuth(['nodes:details']);
 
-    const { response, body } = await mcpRequest('tools/list', {}, 'gwo_valid');
+    const { response, body } = await mcpRequest('tools/list', {}, 'opfo_valid');
 
     expect(response.status).toBe(200);
     expect(response.headers.get('mcp-session-id')).toBeTruthy();
@@ -247,20 +265,20 @@ describe('MCP route authentication', () => {
   it('rejects API-resource OAuth access tokens for MCP', async () => {
     const validateAccessToken = vi.fn().mockResolvedValueOnce(null);
     container.registerInstance(OAuthService, {
-      getMcpResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api/mcp'),
-      getApiResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api'),
+      getMcpResourceUrl: vi.fn().mockReturnValue('https://opfield.example.com/api/mcp'),
+      getApiResourceUrl: vi.fn().mockReturnValue('https://opfield.example.com/api'),
       getProtectedResourceMetadataUrl: vi
         .fn()
-        .mockReturnValue('https://gateway.example.com/.well-known/oauth-protected-resource/api/mcp'),
+        .mockReturnValue('https://opfield.example.com/.well-known/oauth-protected-resource/api/mcp'),
       validateAccessToken,
     } as unknown as OAuthService);
 
-    const { response } = await mcpRequest('tools/list', {}, 'gwo_valid');
+    const { response } = await mcpRequest('tools/list', {}, 'opfo_valid');
 
     expect(response.status).toBe(401);
     expect(validateAccessToken).toHaveBeenCalledTimes(1);
-    expect(validateAccessToken).toHaveBeenCalledWith('gwo_valid', {
-      resource: 'https://gateway.example.com/api/mcp',
+    expect(validateAccessToken).toHaveBeenCalledWith('opfo_valid', {
+      resource: 'https://opfield.example.com/api/mcp',
     });
   });
 
@@ -269,7 +287,7 @@ describe('MCP route authentication', () => {
 
     const response = await createApp().request('/api/mcp', {
       method: 'POST',
-      headers: mcpHeaders('gwo_valid'),
+      headers: mcpHeaders('opfo_valid'),
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     });
 
@@ -282,7 +300,7 @@ describe('MCP route authentication', () => {
 
     const response = await createApp().request('/api/mcp', {
       method: 'POST',
-      headers: mcpHeaders('gw_valid'),
+      headers: mcpHeaders('opf_valid'),
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     });
 
@@ -350,7 +368,7 @@ describe('MCP tools', () => {
       'nodes:config:view',
       'nodes:files:read',
       'docker:containers:migrate',
-      'settings:gateway:view',
+      'settings:opfield:view',
       'inference:providers:view',
       'integrations:ssh:use',
       'integrations:github:repo:read',
@@ -394,7 +412,7 @@ describe('MCP tools', () => {
     );
   });
 
-  it('lists only scoped Gateway tools and excludes AI-only tools', async () => {
+  it('lists only scoped Opfield tools and excludes AI-only tools', async () => {
     registerToken(['nodes:details']);
 
     const { response, body } = await mcpRequest('tools/list');
@@ -412,7 +430,7 @@ describe('MCP tools', () => {
     expect(names).not.toContain('list_projects');
     expect(names).not.toContain('list_chat_projects');
     expect(names).not.toContain('internal_documentation');
-    expect(names).toContain('read_gateway_documentation');
+    expect(names).toContain('read_opfield_documentation');
     expect(names).not.toContain('web_search');
     expect(names).not.toContain('wait');
     expect(names).not.toContain('send_comment');
@@ -469,7 +487,7 @@ describe('MCP tools', () => {
           denied: true,
           reason: 'missing_scope',
           tokenId: 'oauth-token-1',
-          tokenPrefix: 'gwo_abc123',
+          tokenPrefix: 'opfo_abc123',
           toolName: 'create_node',
           requiredScope: 'nodes:create',
           arguments: { hostname: 'node-1', enrollmentToken: '[REDACTED]' },
@@ -610,7 +628,7 @@ describe('MCP tools', () => {
         source: 'mcp',
         scopes: ['nodes:details'],
         tokenId: 'oauth-token-1',
-        tokenPrefix: 'gwo_abc123',
+        tokenPrefix: 'opfo_abc123',
         authType: 'oauth',
         clientId: 'goc_client',
       }
@@ -777,15 +795,15 @@ describe('MCP tools', () => {
       'maintenance',
       'ai_assistant',
     ]) {
-      await mcpRequest('tools/call', { name: 'discover_tools', arguments: { category } }, 'gwo_valid', sessionId);
+      await mcpRequest('tools/call', { name: 'discover_tools', arguments: { category } }, 'opfo_valid', sessionId);
     }
 
-    const firstPage = await mcpRequest('tools/list', {}, 'gwo_valid', sessionId);
+    const firstPage = await mcpRequest('tools/list', {}, 'opfo_valid', sessionId);
     const firstPageNames = firstPage.body.result.tools.map((tool: { name: string }) => tool.name);
     const secondPage = await mcpRequest(
       'tools/list',
       { cursor: firstPage.body.result.nextCursor },
-      'gwo_valid',
+      'opfo_valid',
       sessionId
     );
     const secondPageNames = secondPage.body.result.tools.map((tool: { name: string }) => tool.name);
@@ -863,12 +881,12 @@ describe('MCP tools', () => {
         name: 'discover_tools',
         arguments: { category: 'docker' },
       },
-      'gwo_valid',
+      'opfo_valid',
       firstSessionId ?? undefined
     );
 
-    const firstRefreshed = await mcpRequest('tools/list', {}, 'gwo_valid', firstSessionId ?? undefined);
-    const secondRefreshed = await mcpRequest('tools/list', {}, 'gwo_valid', secondSessionId ?? undefined);
+    const firstRefreshed = await mcpRequest('tools/list', {}, 'opfo_valid', firstSessionId ?? undefined);
+    const secondRefreshed = await mcpRequest('tools/list', {}, 'opfo_valid', secondSessionId ?? undefined);
     const firstNames = firstRefreshed.body.result.tools.map((tool: { name: string }) => tool.name);
     const secondNames = secondRefreshed.body.result.tools.map((tool: { name: string }) => tool.name);
 
@@ -901,7 +919,7 @@ describe('MCP tools', () => {
     const issuedSessionId = discovered.response.headers.get('mcp-session-id');
     expect(issuedSessionId).toBeTruthy();
 
-    const refreshed = await mcpRequest('tools/list', {}, 'gwo_valid', issuedSessionId ?? undefined);
+    const refreshed = await mcpRequest('tools/list', {}, 'opfo_valid', issuedSessionId ?? undefined);
     const names = refreshed.body.result.tools.map((tool: { name: string }) => tool.name);
 
     expect(names).toContain('list_docker_deployments');
@@ -922,7 +940,7 @@ describe('MCP tools', () => {
       arguments: { category: 'proxy' },
     });
 
-    const sessionList = await mcpRequest('tools/list', {}, 'gwo_valid', issuedSessionId ?? undefined);
+    const sessionList = await mcpRequest('tools/list', {}, 'opfo_valid', issuedSessionId ?? undefined);
     const names = sessionList.body.result.tools.map((tool: { name: string }) => tool.name);
 
     expect(names).toContain('list_docker_deployments');
@@ -938,14 +956,14 @@ describe('MCP tools', () => {
         name: 'discover_tools',
         arguments: { category: 'docker' },
       },
-      'gwo_valid',
+      'opfo_valid',
       'client-picked-session'
     );
     const issuedSessionId = discovered.response.headers.get('mcp-session-id');
     expect(issuedSessionId).toBeTruthy();
     expect(issuedSessionId).not.toBe('client-picked-session');
 
-    const arbitraryList = await mcpRequest('tools/list', {}, 'gwo_valid', 'client-picked-session');
+    const arbitraryList = await mcpRequest('tools/list', {}, 'opfo_valid', 'client-picked-session');
     const names = arbitraryList.body.result.tools.map((tool: { name: string }) => tool.name);
 
     expect(names).not.toContain('list_docker_deployments');
@@ -959,13 +977,13 @@ describe('MCP resources and prompts', () => {
     const { body } = await mcpRequest('resources/list');
     const uris = body.result.resources.map((resource: { uri: string }) => resource.uri);
 
-    expect(uris).toContain('gateway://overview');
-    expect(uris).toContain('gateway://nodes');
-    expect(uris).toContain('gateway://docker/nodes');
-    expect(uris).toContain('gateway://docs');
-    expect(uris).toContain('gateway://docs/nodes');
-    expect(uris).not.toContain('gateway://proxy/hosts');
-    expect(uris).not.toContain('gateway://docs/proxy');
+    expect(uris).toContain('opfield://overview');
+    expect(uris).toContain('opfield://nodes');
+    expect(uris).toContain('opfield://docker/nodes');
+    expect(uris).toContain('opfield://docs');
+    expect(uris).toContain('opfield://docs/nodes');
+    expect(uris).not.toContain('opfield://proxy/hosts');
+    expect(uris).not.toContain('opfield://docs/proxy');
   });
 
   it('returns compact JSON resource content', async () => {
@@ -981,7 +999,7 @@ describe('MCP resources and prompts', () => {
     } as unknown as MonitoringService);
 
     const { body } = await mcpRequest('resources/read', {
-      uri: 'gateway://overview',
+      uri: 'opfield://overview',
     });
 
     expect(body.result.contents[0].mimeType).toBe('application/json');
@@ -1003,10 +1021,10 @@ describe('MCP resources and prompts', () => {
 
     const list = await mcpRequest('resources/list');
     const uris = list.body.result.resources.map((resource: { uri: string }) => resource.uri);
-    expect(uris).toContain('gateway://overview');
+    expect(uris).toContain('opfield://overview');
 
     const { body } = await mcpRequest('resources/read', {
-      uri: 'gateway://overview',
+      uri: 'opfield://overview',
     });
 
     expect(getDashboardStats).toHaveBeenCalledWith(
@@ -1021,7 +1039,7 @@ describe('MCP resources and prompts', () => {
     registerToken(['nodes:details']);
 
     const { body } = await mcpRequest('resources/read', {
-      uri: 'gateway://docs',
+      uri: 'opfield://docs',
     });
 
     const data = JSON.parse(body.result.contents[0].text);
@@ -1036,7 +1054,7 @@ describe('MCP resources and prompts', () => {
     registerToken(['nodes:details']);
 
     const { body } = await mcpRequest('resources/read', {
-      uri: 'gateway://docs/nodes',
+      uri: 'opfield://docs/nodes',
     });
 
     const data = JSON.parse(body.result.contents[0].text);
@@ -1049,10 +1067,10 @@ describe('MCP resources and prompts', () => {
 
     const list = await mcpRequest('resources/list');
     const uris = list.body.result.resources.map((resource: { uri: string }) => resource.uri);
-    expect(uris).toContain('gateway://docs/logging');
+    expect(uris).toContain('opfield://docs/logging');
 
     const { body } = await mcpRequest('resources/read', {
-      uri: 'gateway://docs/logging',
+      uri: 'opfield://docs/logging',
     });
 
     const data = JSON.parse(body.result.contents[0].text);
@@ -1064,7 +1082,7 @@ describe('MCP resources and prompts', () => {
     registerToken(['nodes:details']);
 
     const { body } = await mcpRequest('resources/read', {
-      uri: 'gateway://docs/api',
+      uri: 'opfield://docs/api',
     });
 
     const data = JSON.parse(body.result.contents[0].text);

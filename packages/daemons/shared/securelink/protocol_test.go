@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 )
 
 // fakeConnector answers each control request with answer and records the request versions.

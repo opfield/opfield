@@ -1,6 +1,6 @@
 import { OFFICIAL_IMAGE_REPOSITORIES } from '@/config/vendor-urls.js';
 
-export type GatewayInternalImageKind =
+export type OpfieldInternalImageKind =
   | 'secure-link-connector'
   | 'database-connector'
   | 'compose-sidecar'
@@ -8,9 +8,9 @@ export type GatewayInternalImageKind =
 
 type DockerImageLike = Record<string, any>;
 
-export interface GatewayInternalImageCandidate {
+export interface OpfieldInternalImageCandidate {
   id: string;
-  kind: Exclude<GatewayInternalImageKind, 'compose-sidecar'>;
+  kind: Exclude<OpfieldInternalImageKind, 'compose-sidecar'>;
   repository: string;
   references: string[];
   created: number;
@@ -41,7 +41,7 @@ function normalizedReference(reference: string): string {
 }
 
 /** Whether a repository is `<name>` under a Gateway image repository: any `…/gateway/<name>`, or an official one. */
-function isGatewayComponentRepository(repository: string, name: string): boolean {
+function isOpfieldComponentRepository(repository: string, name: string): boolean {
   return (
     repository.endsWith(`/gateway/${name}`) ||
     OFFICIAL_IMAGE_REPOSITORIES.some((official) => repository === `${official}/${name}`)
@@ -160,16 +160,16 @@ export function resolvePulledDockerImage<T extends DockerImageLike>(
   );
 }
 
-export function gatewayInternalImageKind(image: DockerImageLike): GatewayInternalImageKind | null {
+export function opfieldInternalImageKind(image: DockerImageLike): OpfieldInternalImageKind | null {
   for (const reference of dockerImageReferences(image)) {
     const repository = normalizedRepository(reference);
     if (
       repository === 'gateway-secure-link-connector' ||
-      isGatewayComponentRepository(repository, 'secure-link-connector')
+      isOpfieldComponentRepository(repository, 'secure-link-connector')
     ) {
       return 'secure-link-connector';
     }
-    if (repository === 'gateway-database-connector' || isGatewayComponentRepository(repository, 'database-connector')) {
+    if (repository === 'gateway-database-connector' || isOpfieldComponentRepository(repository, 'database-connector')) {
       return 'database-connector';
     }
     if (repository === 'docker/compose-bin' || repository === 'docker.io/docker/compose-bin') {
@@ -182,12 +182,12 @@ export function gatewayInternalImageKind(image: DockerImageLike): GatewayInterna
   return null;
 }
 
-export function isGatewayInternalImage(image: DockerImageLike): boolean {
-  return gatewayInternalImageKind(image) !== null;
+export function isOpfieldInternalImage(image: DockerImageLike): boolean {
+  return opfieldInternalImageKind(image) !== null;
 }
 
-export function filterGatewayInternalImages<T extends DockerImageLike>(images: T[]): T[] {
-  return images.filter((image) => !isGatewayInternalImage(image));
+export function filterOpfieldInternalImages<T extends DockerImageLike>(images: T[]): T[] {
+  return images.filter((image) => !isOpfieldInternalImage(image));
 }
 
 export function isDanglingDockerImage(image: DockerImageLike): boolean {
@@ -195,20 +195,20 @@ export function isDanglingDockerImage(image: DockerImageLike): boolean {
   return !Array.isArray(tags) || tags.length === 0 || tags.every((tag) => tag === '<none>:<none>');
 }
 
-export function findGatewayInternalImage(images: DockerImageLike[], imageIdOrReference: string) {
+export function findOpfieldInternalImage(images: DockerImageLike[], imageIdOrReference: string) {
   const image = resolveDockerImageByIdentifier(images, imageIdOrReference);
-  return image && isGatewayInternalImage(image) ? image : undefined;
+  return image && isOpfieldInternalImage(image) ? image : undefined;
 }
 
-export function selectObsoleteGatewayConnectorImages(
+export function selectObsoleteOpfieldConnectorImages(
   images: DockerImageLike[],
   currentSecureLinkReference?: string | null
-): GatewayInternalImageCandidate[] {
+): OpfieldInternalImageCandidate[] {
   const currentReference = currentSecureLinkReference?.trim() || null;
-  const groups = new Map<string, GatewayInternalImageCandidate[]>();
+  const groups = new Map<string, OpfieldInternalImageCandidate[]>();
 
   for (const image of images) {
-    const kind = gatewayInternalImageKind(image);
+    const kind = opfieldInternalImageKind(image);
     if (kind !== 'secure-link-connector' && kind !== 'database-connector') continue;
     if (Number(image.containers ?? image.Containers ?? 0) > 0) continue;
     const references = dockerImageReferences(image);
@@ -216,7 +216,7 @@ export function selectObsoleteGatewayConnectorImages(
     const repository = references.map(dockerImageRepository).find(Boolean);
     const id = String(image.id ?? image.Id ?? '');
     if (!repository || !id) continue;
-    const candidate: GatewayInternalImageCandidate = {
+    const candidate: OpfieldInternalImageCandidate = {
       id,
       kind,
       repository,

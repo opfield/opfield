@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
 )
 
 func heldView(t *testing.T, report Report) Held {

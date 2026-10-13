@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	relayv1 "github.com/wiolett-industries/gateway/daemon-shared/relayv1"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	relayv1 "github.com/opfield/opfield/daemon-shared/relayv1"
 )
 
 // A lane's receiver may still wait in Recv after Run returned, but it must not deliver a frame to the node any more:

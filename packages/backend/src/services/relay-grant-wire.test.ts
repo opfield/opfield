@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as protoLoader from '@grpc/proto-loader';
 import { describe, expect, it, vi } from 'vitest';
-import type { GatewayCommand } from '@/grpc/generated/types.js';
+import type { OpfieldCommand } from '@/grpc/generated/types.js';
 import { NodeDispatchService } from './node-dispatch.service.js';
 import { SET_PEER_ENDPOINT_KIND, SET_PEER_ROUTE_KIND } from './relay-managed-availability.js';
 import type { RelayGrantBundle } from './relay-policy.service.js';
@@ -83,7 +83,7 @@ const bundle: RelayGrantBundle = {
 };
 
 function commandStream() {
-  const definition = protoLoader.loadSync(resolve(root, 'proto/gateway/v1/nginx-daemon.proto'), {
+  const definition = protoLoader.loadSync(resolve(root, 'proto/opfield/v1/nginx-daemon.proto'), {
     keepCase: false,
     longs: String,
     enums: String,
@@ -91,13 +91,13 @@ function commandStream() {
     defaults: true,
     oneofs: true,
   });
-  return (definition['gateway.v1.NodeControl'] as Record<string, protoLoader.MethodDefinition<unknown, unknown>>)
+  return (definition['opfield.v1.NodeControl'] as Record<string, protoLoader.MethodDefinition<unknown, unknown>>)
     .CommandStream!;
 }
 
 describe('relay grant bundles on the wire', () => {
   it('carry the lease target and lease group of set paths to the daemon', async () => {
-    const sendCommand = vi.fn(async (_nodeId: string, _command: Partial<GatewayCommand>) => ({ success: true }));
+    const sendCommand = vi.fn(async (_nodeId: string, _command: Partial<OpfieldCommand>) => ({ success: true }));
     const db = {
       select: () => ({
         from: () => ({
@@ -112,7 +112,7 @@ describe('relay grant bundles on the wire', () => {
     // The command as the gRPC stream encodes it, and as a daemon decodes it.
     const stream = commandStream();
     const bytes = stream.responseSerialize(command);
-    const decoded = stream.responseDeserialize(bytes) as GatewayCommand;
+    const decoded = stream.responseDeserialize(bytes) as OpfieldCommand;
     const grants = decoded.syncRelayGrants!.grants;
     expect(grants[0]!.leaseTarget).toMatchObject({
       setId: SET,
@@ -133,14 +133,14 @@ describe('relay grant bundles on the wire', () => {
         `${JSON.stringify(
           {
             comment:
-              'A GatewayCommand with a relay grant bundle of availability set paths as Gateway sends it (relay-grant-wire.test.ts); the docker daemon decodes it into its grant store (availability_set_grants_wire_test.go). UPDATE_RELAY_GRANT_VECTORS=1 rewrites it.',
-            gatewayCommandBase64: encoded,
+              'An OpfieldCommand with a relay grant bundle of availability set paths as Opfield sends it (relay-grant-wire.test.ts); the docker daemon decodes it into its grant store (availability_set_grants_wire_test.go). UPDATE_RELAY_GRANT_VECTORS=1 rewrites it.',
+            opfieldCommandBase64: encoded,
           },
           null,
           2
         )}\n`
       );
     }
-    expect(JSON.parse(readFileSync(vectorPath, 'utf8')).gatewayCommandBase64).toBe(encoded);
+    expect(JSON.parse(readFileSync(vectorPath, 'utf8')).opfieldCommandBase64).toBe(encoded);
   });
 });

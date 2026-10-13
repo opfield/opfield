@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/lifecycle"
-	"github.com/wiolett-industries/gateway/daemon-shared/listenerkeep"
+	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/listenerkeep"
 )
 
 // Keeper holds what a handover passes to the next process: the launcher's

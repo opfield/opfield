@@ -2,7 +2,8 @@ import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import {
   INFERENCE_CORE_CONTEXT_HEADERS,
   type InferenceCoreRequestContext,
-  WIOLETT_CORE_CONTRACT_ID,
+  LEGACY_INFERENCE_CORE_CONTEXT_HEADERS,
+  OPFIELD_CORE_CONTRACT_ID,
 } from './inference-core.contract.js';
 
 /** Bounded lifetime for a signed data-plane context (core enforces ≤120s). */
@@ -30,7 +31,7 @@ export function newCoreRequestContext(input: {
   return {
     rootRequestId,
     claims: {
-      contractId: WIOLETT_CORE_CONTRACT_ID,
+      contractId: OPFIELD_CORE_CONTRACT_ID,
       tenantUserId: input.tenantUserId,
       rootRequestId,
       parentAttemptId: input.parentAttemptId ?? null,
@@ -62,10 +63,14 @@ export function coreRequestHeaders(
   dataCredential: string
 ): Record<string, string> {
   const context = Buffer.from(JSON.stringify(claims), 'utf8').toString('base64url');
+  const signature = signCoreContext(context, dataCredential);
   return {
-    [INFERENCE_CORE_CONTEXT_HEADERS.contract]: WIOLETT_CORE_CONTRACT_ID,
+    [INFERENCE_CORE_CONTEXT_HEADERS.contract]: OPFIELD_CORE_CONTRACT_ID,
     [INFERENCE_CORE_CONTEXT_HEADERS.context]: context,
-    [INFERENCE_CORE_CONTEXT_HEADERS.signature]: signCoreContext(context, dataCredential),
+    [INFERENCE_CORE_CONTEXT_HEADERS.signature]: signature,
+    [LEGACY_INFERENCE_CORE_CONTEXT_HEADERS.contract]: OPFIELD_CORE_CONTRACT_ID,
+    [LEGACY_INFERENCE_CORE_CONTEXT_HEADERS.context]: context,
+    [LEGACY_INFERENCE_CORE_CONTEXT_HEADERS.signature]: signature,
     'x-opencodex-api-key': dataCredential,
   };
 }

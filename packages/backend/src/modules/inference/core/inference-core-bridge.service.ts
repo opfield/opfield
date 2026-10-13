@@ -4,7 +4,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
 import type { InferenceCredentialVault } from '../inference-credential-vault.js';
 import { InferenceCoreClient } from './inference-core.client.js';
-import { INFERENCE_CORE_PROTOCOL_MAJOR, WIOLETT_CORE_CONTRACT_ID } from './inference-core.contract.js';
+import { INFERENCE_CORE_PROTOCOL_MAJOR, OPFIELD_CORE_CONTRACT_ID } from './inference-core.contract.js';
 import type { InferenceCoreCredentials } from './inference-core-runtime.service.js';
 import type { InferenceCoreStore } from './inference-core-store.js';
 
@@ -179,7 +179,7 @@ export class InferenceCoreBridgeService {
     const identity = await client.health();
     return (
       identity != null &&
-      identity.contractId === WIOLETT_CORE_CONTRACT_ID &&
+      identity.contractId === OPFIELD_CORE_CONTRACT_ID &&
       identity.coreProtocolMajor === INFERENCE_CORE_PROTOCOL_MAJOR
     );
   }

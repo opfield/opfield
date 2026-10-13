@@ -6,8 +6,8 @@ import (
 	"crypto/x509"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/availabilitylease"
-	"github.com/wiolett-industries/gateway/relay/internal/identity"
+	"github.com/opfield/opfield/daemon-shared/availabilitylease"
+	"github.com/opfield/opfield/relay/internal/identity"
 )
 
 // IdentityKeys yields the relay's lease identity keys: the current external

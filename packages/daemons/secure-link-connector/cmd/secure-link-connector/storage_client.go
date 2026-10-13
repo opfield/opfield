@@ -11,12 +11,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/netaccept"
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/netaccept"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 const (
@@ -38,28 +37,28 @@ type storageConnectorConfig struct {
 }
 
 func storageConnectorConfigFromEnv(getenv func(string) string) (storageConnectorConfig, bool, error) {
-	bindingID := strings.TrimSpace(getenv("GATEWAY_CONNECTOR_BINDING_ID"))
+	bindingID := connectorSetting(getenv, connectorBindingEnv)
 	if bindingID == "" {
 		return storageConnectorConfig{}, false, nil
 	}
 	config := storageConnectorConfig{
 		BindingID:  bindingID,
-		SocketPath: strings.TrimSpace(getenv("GATEWAY_CONNECTOR_SOCKET")),
-		Listen:     strings.TrimSpace(getenv("GATEWAY_CONNECTOR_LISTEN")),
-		CAPEM:      strings.TrimSpace(getenv("GATEWAY_CONNECTOR_CA_PEM")),
-		ServerName: strings.TrimSpace(getenv("GATEWAY_CONNECTOR_SERVER_NAME")),
+		SocketPath: connectorSetting(getenv, connectorSocketEnv),
+		Listen:     connectorSetting(getenv, connectorListenEnv),
+		CAPEM:      connectorSetting(getenv, connectorCAPEMEnv),
+		ServerName: connectorSetting(getenv, connectorServerEnv),
 	}
 	if !storageConnectorBindingIDPattern.MatchString(config.BindingID) {
-		return config, true, errors.New("GATEWAY_CONNECTOR_BINDING_ID must be a UUID")
+		return config, true, errors.New(envPrefix + connectorBindingEnv + " must be a UUID")
 	}
 	if config.SocketPath == "" || !filepath.IsAbs(config.SocketPath) {
-		return config, true, errors.New("GATEWAY_CONNECTOR_SOCKET must be an absolute path")
+		return config, true, errors.New(envPrefix + connectorSocketEnv + " must be an absolute path")
 	}
 	if config.Listen != storageConnectorListenAddress {
-		return config, true, fmt.Errorf("GATEWAY_CONNECTOR_LISTEN must be %s", storageConnectorListenAddress)
+		return config, true, fmt.Errorf("%s must be %s", envPrefix+connectorListenEnv, storageConnectorListenAddress)
 	}
 	if (config.CAPEM == "") != (config.ServerName == "") {
-		return config, true, errors.New("GATEWAY_CONNECTOR_CA_PEM and GATEWAY_CONNECTOR_SERVER_NAME must be set together")
+		return config, true, errors.New(envPrefix + connectorCAPEMEnv + " and " + envPrefix + connectorServerEnv + " must be set together")
 	}
 	return config, true, nil
 }
@@ -67,7 +66,7 @@ func storageConnectorConfigFromEnv(getenv func(string) string) (storageConnector
 func storageConnectorTLSConfig(config storageConnectorConfig) (*tls.Config, error) {
 	tlsConfig, err := relayTLSConfig(config.CAPEM, config.ServerName)
 	if err != nil {
-		return nil, errors.New("GATEWAY_CONNECTOR_CA_PEM is not a valid certificate")
+		return nil, errors.New(envPrefix + connectorCAPEMEnv + " is not a valid certificate")
 	}
 	return tlsConfig, nil
 }

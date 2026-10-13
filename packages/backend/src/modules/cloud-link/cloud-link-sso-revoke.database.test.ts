@@ -16,7 +16,7 @@ import { CryptoService } from '@/services/crypto.service.js';
 import { CloudLinkService } from './cloud-link.service.js';
 import { CloudSsoRevoker } from './cloud-link-sso-revoke.js';
 
-const url = process.env.GATEWAY_MIGRATION_TEST_DATABASE_URL;
+const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const ISSUER = 'https://account.opfield.dev';
 const OTHER_ISSUER = 'https://id.customer.example';
 const SUB_ADA = '0b6f1a52-6a51-4c5e-9d8e-0f3f4a2b7c11';
@@ -25,7 +25,7 @@ const SUB_OPS = '2d8f3c74-8c73-4e70-9fa0-2b5b6c4d9e33';
 const SUB_NOBODY = '3e904d85-9d84-4f81-a0b1-3c6c7d5eaf44';
 
 /**
- * Opt-in (GATEWAY_MIGRATION_TEST_DATABASE_URL): the Opfield account removes people's access (sso-revoke). Accounts are
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): the Opfield account removes people's access (sso-revoke). Accounts are
  * matched by issuer and subject, blocked as the Opfield account's with their sessions ended and tokens refused, the
  * next sign-in through that issuer lifts only that block, and an administrator's block wins over it.
  */

@@ -28,8 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
-	"github.com/wiolett-industries/gateway/daemon-shared/sockettest"
+	"github.com/opfield/opfield/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/sockettest"
 )
 
 // stand rc.8 F-3: an hour after a Relay Pool update replaced the secure-link connector, the replaced one was removed

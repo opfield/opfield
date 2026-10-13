@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/relayresume"
+	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
 // ErrHandedOver is what a bridge returns once the next daemon process carries

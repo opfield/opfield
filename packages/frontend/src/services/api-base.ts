@@ -149,9 +149,9 @@ function getApiErrorCode(payload: unknown): string | undefined {
   return typeof code === "string" ? code : undefined;
 }
 
-function activateGatewayRestartIfNeeded(payload: unknown): void {
+function activateOpfieldRestartIfNeeded(payload: unknown): void {
   if (getApiErrorCode(payload) === "SERVICE_RESTARTING") {
-    useAppStatusStore.getState().setGatewayRestartingActive(true);
+    useAppStatusStore.getState().setOpfieldRestartingActive(true);
   }
 }
 
@@ -373,7 +373,7 @@ export class ApiClientBase {
 
     if (!response.ok) {
       const error = await response.json().catch(() => undefined);
-      activateGatewayRestartIfNeeded(error);
+      activateOpfieldRestartIfNeeded(error);
       throw new ApiRequestError("Unable to prepare request", {
         status: response.status,
         code: getApiErrorCode(error) ?? "CSRF_TOKEN_UNAVAILABLE",
@@ -449,7 +449,7 @@ export class ApiClientBase {
           parsedError && typeof parsedError === "object"
             ? (parsedError as ApiError)
             : { code: "SERVICE_UNAVAILABLE", message: "Service unavailable" };
-        activateGatewayRestartIfNeeded(parsedError);
+        activateOpfieldRestartIfNeeded(parsedError);
         throw new ApiRequestError(extractApiErrorMessage(parsedError, "Service unavailable"), {
           status: response.status,
           code: error.code || "SERVICE_UNAVAILABLE",
@@ -606,7 +606,7 @@ export class ApiClientBase {
 
     if (!response.ok) {
       const parsedError = await response.json().catch(() => undefined);
-      activateGatewayRestartIfNeeded(parsedError);
+      activateOpfieldRestartIfNeeded(parsedError);
       if (response.status === 429) {
         const retryAfterSeconds = getRetryAfterSeconds(response);
         useAppStatusStore.getState().activateRateLimit(retryAfterSeconds);
@@ -758,7 +758,7 @@ export class ApiClientBase {
           parsedError && typeof parsedError === "object"
             ? ((parsedError as ApiError).code ?? undefined)
             : undefined;
-        activateGatewayRestartIfNeeded(parsedError);
+        activateOpfieldRestartIfNeeded(parsedError);
 
         if (xhr.status === 429) {
           const retryAfterSeconds = getXhrRetryAfterSeconds(xhr);

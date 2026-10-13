@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/wiolett-industries/gateway/daemon-shared/securelink"
+	"github.com/opfield/opfield/daemon-shared/securelink"
 )
 
 // initProxySecureLinks starts the proxy Secure Link manager and restores its

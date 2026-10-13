@@ -2,9 +2,17 @@ import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { settings } from '@/db/schema/index.js';
+import {
+  LEGACY_CLICKHOUSE_ALIAS,
+  OPFIELD_CLICKHOUSE_ALIAS,
+  OPFIELD_LOGS_DATABASE,
+} from '@/foundation/opfield-names.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import { validateClickHouseIdentifier } from './logging-query-builder.js';
+
+/** User of a local ClickHouse created by this release. */
+const OPFIELD_CLICKHOUSE_USER = 'opfield';
 
 const SETTINGS_KEY = 'logging:clickhouse';
 
@@ -90,7 +98,7 @@ export class LoggingSettingsService {
     const previousWasLocal = !!previousUrl && isLocalClickHouseHost(previousUrl.hostname);
     const requestedUrl = input.url?.trim();
     const rawUrl = local
-      ? requestedUrl || (previousWasLocal ? previous?.url : undefined) || 'http://gateway-clickhouse:8123'
+      ? requestedUrl || (previousWasLocal ? previous?.url : undefined) || `http://${OPFIELD_CLICKHOUSE_ALIAS}:8123`
       : (requestedUrl ?? '');
     let url: URL;
     try {
@@ -102,7 +110,12 @@ export class LoggingSettingsService {
       throw invalidLoggingConfig('ClickHouse URL must use http or https');
     }
 
-    const username = (input.username ?? (local ? 'gateway' : previous?.username) ?? '').trim();
+    // An existing local ClickHouse keeps the user it was created with.
+    const username = (
+      input.username ??
+      (local ? (previousWasLocal ? previous?.username : undefined) || OPFIELD_CLICKHOUSE_USER : previous?.username) ??
+      ''
+    ).trim();
     if (!username) throw invalidLoggingConfig('ClickHouse username is required');
     const rawPassword =
       input.password ?? (local && !previousWasLocal ? randomBytes(32).toString('base64url') : undefined);
@@ -124,7 +137,7 @@ export class LoggingSettingsService {
       );
     }
     if (!password) throw invalidLoggingConfig('ClickHouse password is required');
-    const database = validateClickHouseIdentifier(input.database ?? previous?.database ?? 'gateway_logs');
+    const database = validateClickHouseIdentifier(input.database ?? previous?.database ?? OPFIELD_LOGS_DATABASE);
     const table = validateClickHouseIdentifier(input.table ?? previous?.table ?? 'logs');
     const requestTimeoutMs = input.requestTimeoutMs ?? previous?.requestTimeoutMs ?? 5000;
     if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1)
@@ -150,7 +163,7 @@ export class LoggingSettingsService {
     }
     const hostname = new URL(env.CLICKHOUSE_URL).hostname;
     await this.saveConfig({
-      mode: hostname === 'clickhouse' || hostname === 'gateway-clickhouse' ? 'local' : 'external',
+      mode: isLocalClickHouseHost(hostname) ? 'local' : 'external',
       url: env.CLICKHOUSE_URL,
       username: env.CLICKHOUSE_USERNAME,
       password: env.CLICKHOUSE_PASSWORD,
@@ -188,7 +201,7 @@ function disabledConfig(): LoggingRuntimeSettings {
     url: '',
     username: '',
     password: '',
-    database: 'gateway_logs',
+    database: OPFIELD_LOGS_DATABASE,
     table: 'logs',
     requestTimeoutMs: 5000,
   };
@@ -203,5 +216,7 @@ function parseUrlOrNull(value: string | undefined): URL | null {
 }
 
 function isLocalClickHouseHost(hostname: string): boolean {
-  return hostname === 'clickhouse' || hostname === 'gateway-clickhouse';
+  // legacy-name: gateway-clickhouse — the alias of a local ClickHouse in settings saved before 2.12.1; the host move
+  // rewrites it — remove once every installation reports the Opfield layout.
+  return hostname === 'clickhouse' || hostname === OPFIELD_CLICKHOUSE_ALIAS || hostname === LEGACY_CLICKHOUSE_ALIAS;
 }
