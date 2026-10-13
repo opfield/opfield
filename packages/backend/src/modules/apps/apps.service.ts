@@ -45,7 +45,7 @@ const logger = createChildLogger('AppsService');
 
 export type AppRow = typeof apps.$inferSelect;
 export type AppEnvironmentRow = typeof appEnvironments.$inferSelect;
-export type AppHealth = 'healthy' | 'degraded' | 'failing';
+export type AppHealth = 'healthy' | 'degraded' | 'failing' | 'unknown';
 export type AppIncidentState = 'none' | 'stopped' | 'isolated' | 'partial';
 
 export interface AppActor {
@@ -58,6 +58,10 @@ export interface EnvironmentHealthSummary {
   running: number;
   failing: number;
   degraded: number;
+  /** Members stopped on request: shown, but they do not change the health. */
+  stopped: number;
+  /** Open warnings (a nearly full disk, 5xx errors): each makes the environment degraded. */
+  warnings: number;
   cpuPercent: number | null;
   memoryBytes: number | null;
 }
@@ -119,6 +123,8 @@ const DEFAULT_HEALTH: EnvironmentHealthSummary = {
   running: 0,
   failing: 0,
   degraded: 0,
+  stopped: 0,
+  warnings: 0,
   cpuPercent: null,
   memoryBytes: null,
 };
@@ -366,6 +372,8 @@ export class AppsService {
         running: summary.running,
         failing: summary.failing,
         degraded: summary.degraded,
+        stopped: summary.stopped,
+        warnings: summary.warnings,
       };
     });
   }

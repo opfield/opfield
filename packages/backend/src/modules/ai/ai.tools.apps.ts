@@ -1,3 +1,4 @@
+import { APP_HEALTH_RULES } from '@/modules/apps/app-environment-health.js';
 import type { AIToolDefinition } from './ai.types.js';
 
 const APP_CREATE_HINT =
@@ -6,8 +7,7 @@ const APP_CREATE_HINT =
 export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_apps',
-    description:
-      'List apps the caller may view: with apps:view, or through members it can view (access "members": only the environments holding those members, everything computed from those members). An app groups containers, deployments, Compose projects, routes, databases, storage and Pages into environments (production, staging, ...). Each app lists its visible environments with health, plus the Production environment health, incident state, CPU and memory and running/failing/degraded counts.',
+    description: `List apps the caller may view: with apps:view, or through members it can view (access "members": only the environments holding those members, everything computed from those members). An app groups containers, deployments, Compose projects, routes, databases, storage and Pages into environments (production, staging, ...). Each app lists its visible environments with health, plus the Production environment health, incident state, CPU and memory, running/failing/degraded/stopped counts and open warnings. ${APP_HEALTH_RULES}`,
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'Apps',
@@ -163,8 +163,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_app_overview',
-    description:
-      'Monitoring overview of an app: per environment you may view, health, issues (failing or degraded members per type), alerts (tone destructive for a failing member, warning for a nearly full disk or 5xx errors), and 24-point series over range 1h or 24h for containers (CPU, memory, unhealthy names), databases (disk, connections), storage (disk, buckets, RX/TX), routes (requests, 5xx, latency, traffic) and Pages, plus the nodes the members run on. A database or storage on several servers carries availability {state, mode, stateReason, members[{memberId, nodeId, nodeName, role, primary, eligible, health healthy|degraded|down|stopped}]} (null on one server); a set that lost a copy or cannot fail over counts degraded, not failing, while its primary answers. Only members you may view count; unknown values are null.',
+    description: `Monitoring overview of an app: per environment you may view, health, issues (members per type and state: failing, degraded, stopped, disabled, maintenance, starting), alerts (destructive for a failing member, warning for a degraded member or an environment warning, detail = the reason), and 24-point series over range 1h or 24h for containers (CPU, memory, restarts, healthy share, unhealthy names), databases (disk, connections, throughput, cache hit, CPU), storage (disk, objects, buckets, RX/TX), routes (requests, 5xx, latency, traffic) and Pages (requests of the routes serving it), plus the nodes the members run on. Series survive recreates and restarts; one that started within the range has leading nulls. ${APP_HEALTH_RULES} A database or storage on several servers carries availability {state, mode, stateReason, members[{memberId, nodeId, nodeName, role, primary, eligible, health healthy|degraded|down|stopped}]} (null on one server); a set that lost a copy or cannot fail over counts degraded, not failing, while its primary answers. Only members you may view count; unknown values are null.`,
     parameters: {
       type: 'object',
       properties: {

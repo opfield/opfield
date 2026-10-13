@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { container } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import {
@@ -7,37 +7,49 @@ import {
   objectStorageConnections,
   pageDeployments,
   pageProjects,
-  pageTags,
+  pageRouteTargets,
   proxyHosts,
 } from '@/db/schema/index.js';
-import { createChildLogger } from '@/lib/logger.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
-import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
 import { NodeMonitoringService } from '@/modules/nodes/node-monitoring.service.js';
 import { ObjectStorageMonitoringService } from '@/modules/object-storage/object-storage-monitoring.service.js';
-import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { CacheService } from '@/services/cache.service.js';
 import { availabilityOverviews } from './app-availability-overview.js';
-import { type AppHealthService, combineHealth, type MemberStatus } from './app-health.service.js';
+import { assessEnvironment } from './app-environment-health.js';
+import {
+  type AppHealthService,
+  databaseDiskPercent,
+  type MemberStatus,
+  storageDiskPercent,
+} from './app-health.service.js';
 import type { AppMember, AppMembersReader } from './app-members.service.js';
+import type { AppOverviewDatabaseMetric, AppOverviewStorageMetric } from './app-overview-metrics.js';
+import { latestOf, type OverviewRange, type OverviewSample, overviewSamples } from './app-overview-sources.js';
 import {
   APP_STORAGE_OBJECTS_KEY_PREFIX,
   type ObjectCountSample,
+  type RouteTrafficSample,
   readSamples,
+  routeTrafficKey,
   type WorkloadSample,
   workloadSampleKey,
 } from './app-workload-sampler.js';
 import type { AppsService } from './apps.service.js';
 
-const logger = createChildLogger('AppOverview');
+export {
+  APP_OVERVIEW_ALERT_TONES,
+  type AppOverviewAlert,
+  type AppOverviewAlertTone,
+  environmentAlerts,
+} from './app-environment-health.js';
+export type { OverviewRange } from './app-overview-sources.js';
 
-export type OverviewRange = '1h' | '24h';
 const RANGE_MS: Record<OverviewRange, number> = { '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000 };
 /** Points per series. */
 export const OVERVIEW_POINTS = 24;
 const CACHE_TTL_MS = 15_000;
-const DISK_ALERT_PERCENT = 85;
-const ERROR_ALERT_PERCENT = 2;
+/** A route sample older than this is no current rate (the sampler writes one a minute). */
+const CURRENT_SAMPLE_MAX_AGE_MS = 3 * 60 * 1000;
 
 type Point = { at: number; value: number };
 
@@ -143,7 +155,7 @@ export function restartSeries(
 
 /**
  * When the restart samples of an environment's workloads start (ISO), while they do not yet cover the whole range
- * (the sampler keeps one hour); null once the range is covered or nothing is known.
+ * (the sampler keeps a day); null once the range is covered or nothing is known.
  */
 export function restartsSince(
   sinces: ReadonlyArray<number | null>,
@@ -154,47 +166,56 @@ export function restartsSince(
   if (known.length === 0) return null;
   const earliest = Math.min(...known);
   const span = RANGE_MS[range];
-  // Samples are a minute apart and kept for one hour: the first one within a bucket of the range start covers it.
+  // Samples are a minute apart: the first one within a bucket of the range start covers it.
   const covered = earliest <= now - span + span / OVERVIEW_POINTS;
   return covered ? null : new Date(earliest).toISOString();
 }
 
-/** Healthy share (percent) of one workload per bucket from its per-minute samples. */
+/**
+ * Healthy share (percent) of one workload per bucket from its per-minute samples; minutes it was stopped on request
+ * or its health check had not reported do not count either way.
+ */
 export function healthySeries(
   samples: readonly WorkloadSample[],
   range: OverviewRange,
   now = Date.now()
 ): Array<number | null> {
   return bucketSeries(
-    samples.map((sample) => ({ at: sample.at, value: sample.healthy ? 100 : 0 })),
+    samples.flatMap((sample) =>
+      sample.state === 'stopped' || sample.state === 'none' ? [] : [{ at: sample.at, value: sample.healthy ? 100 : 0 }]
+    ),
     range,
     now
   );
 }
 
-const THROUGHPUT_METRICS = [
-  ['transaction_rate', 'tx'],
-  ['instantaneous_ops_per_sec', 'ops'],
-  ['query_rate', 'q'],
-] as const;
-
-/** A database's throughput: the first of transactions, operations or queries per second its engine reports. */
+/**
+ * A database's throughput by engine: transactions (PostgreSQL), operations (key-value) or queries (ClickHouse) per
+ * second. Samples written before 2.12.2 stored the key-value and ClickHouse rates under transaction_rate.
+ */
 export function throughputOf(
-  latest: Record<string, unknown>,
-  points: (metric: string) => Array<number | null>
+  type: string,
+  latest: (metric: AppOverviewDatabaseMetric) => number | null,
+  points: (metric: AppOverviewDatabaseMetric) => Array<number | null>
 ): {
   transactionsPerSecond: number | null;
   transactionsHistory: Array<number | null>;
   throughputUnit: 'tx' | 'ops' | 'q';
 } {
-  for (const [metric, unit] of THROUGHPUT_METRICS) {
-    const value = num(latest[metric]);
-    const history = points(metric);
-    if (value !== null || history.some((point) => point !== null)) {
-      return { transactionsPerSecond: value, transactionsHistory: history, throughputUnit: unit };
-    }
-  }
-  return { transactionsPerSecond: null, transactionsHistory: [], throughputUnit: 'tx' };
+  const [metric, unit] =
+    type === 'redis'
+      ? (['instantaneous_ops_per_sec', 'ops'] as const)
+      : type === 'clickhouse'
+        ? (['query_rate', 'q'] as const)
+        : (['transaction_rate', 'tx'] as const);
+  const own = points(metric);
+  const legacy = metric === 'transaction_rate' ? own : points('transaction_rate');
+  const history = own.length ? own.map((value, index) => value ?? legacy[index] ?? null) : legacy;
+  return {
+    transactionsPerSecond: latest(metric) ?? (metric === 'transaction_rate' ? null : latest('transaction_rate')),
+    transactionsHistory: history.some((value) => value !== null) ? history : [],
+    throughputUnit: unit,
+  };
 }
 
 /** Where the routes' latency comes from: requests (p95), health-check probes when idle, or nothing. */
@@ -242,79 +263,178 @@ function num(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function familyOf(member: AppMember): string {
-  switch (member.type) {
-    case 'container':
-    case 'deployment':
-      return 'containers';
-    case 'compose':
-      return 'compose';
-    case 'database':
-      return 'databases';
-    case 'storage':
-      return 'storage';
-    case 'route':
-      return 'routes';
-    case 'pages':
-      return 'pages';
-  }
+/** The bucketed series of a metric over overview samples, gaps carrying the last value. */
+function samplePoints<T extends string>(
+  samples: readonly OverviewSample[],
+  range: OverviewRange,
+  now: number
+): (metric: T) => Array<number | null> {
+  return (metric) =>
+    fillGaps(
+      bucketSeries(
+        samples.map((sample) => ({
+          at: Date.parse(sample.timestamp),
+          value: num(sample.metrics[metric]) ?? Number.NaN,
+        })),
+        range,
+        now
+      )
+    );
 }
 
-/** Alert tones, the same words the console's Notice uses. */
-export const APP_OVERVIEW_ALERT_TONES = ['destructive', 'warning'] as const;
-export type AppOverviewAlertTone = (typeof APP_OVERVIEW_ALERT_TONES)[number];
-export type AppOverviewAlert = {
-  tone: AppOverviewAlertTone;
-  title: string;
-  detail: string;
-  href?: string;
-  actionLabel?: string;
-};
-
 /**
- * Alerts of one environment: a destructive alert per failing member, a warning per database or storage whose disk
- * is at least DISK_ALERT_PERCENT full, and a warning when at least ERROR_ALERT_PERCENT of route requests fail.
+ * The cards of one database from its overview samples. Reads only metrics of the overview contract
+ * (APP_OVERVIEW_DATABASE_METRICS), which the core's writer stores.
  */
-export function environmentAlerts(input: {
-  envName: string;
-  failing: ReadonlyArray<{ name: string; family: string }>;
-  disks: ReadonlyArray<{ name: string; diskPercent: number | null }>;
-  routeRps: number | null;
-  routeErrors: number | null;
-}): AppOverviewAlert[] {
-  const alerts: AppOverviewAlert[] = [];
-  for (const member of input.failing) {
-    alerts.push({
-      tone: 'destructive',
-      title: `${member.name} is failing`,
-      detail: `${member.family} member of ${input.envName}`,
-    });
-  }
-  for (const entry of input.disks) {
-    if (entry.diskPercent !== null && entry.diskPercent >= DISK_ALERT_PERCENT) {
-      alerts.push({
-        tone: 'warning',
-        title: `${entry.name} disk is ${Math.round(entry.diskPercent)}% full`,
-        detail: 'Free space or grow the volume',
-      });
-    }
-  }
-  const { routeRps, routeErrors } = input;
-  if (routeRps && routeErrors !== null && (routeErrors / routeRps) * 100 >= ERROR_ALERT_PERCENT) {
-    alerts.push({
-      tone: 'warning',
-      title: `${Math.round((routeErrors / routeRps) * 1000) / 10}% of requests fail with 5xx`,
-      detail: `Routes of ${input.envName}`,
-    });
-  }
-  return alerts;
+export function databaseCards(
+  row: { type: string; manualSizeLimitMb: number | null },
+  samples: readonly OverviewSample[],
+  range: OverviewRange,
+  now = Date.now()
+) {
+  const latest = (metric: AppOverviewDatabaseMetric) => latestOf(samples, metric);
+  const points = samplePoints<AppOverviewDatabaseMetric>(samples, range, now);
+  // PostgreSQL connections, key-value clients, ClickHouse running queries.
+  const connectionsMetric: AppOverviewDatabaseMetric =
+    row.type === 'redis' ? 'connected_clients' : row.type === 'clickhouse' ? 'running_queries' : 'total_connections';
+  const legacyConnections = row.type === 'postgres' ? [] : points('total_connections');
+  const connectionsHistory = points(connectionsMetric);
+  const size = latest('database_size_bytes');
+  return {
+    diskBytes: size,
+    /** The database's size limit; null without one. */
+    diskLimitBytes: row.manualSizeLimitMb ? row.manualSizeLimitMb * 1024 * 1024 : null,
+    diskPercent: databaseDiskPercent(size, row.manualSizeLimitMb),
+    diskHistory: points('database_size_bytes'),
+    connections: latest(connectionsMetric) ?? (row.type === 'postgres' ? null : latest('total_connections')),
+    maxConnections: latest('max_connections'),
+    connectionsHistory: connectionsHistory.length ? connectionsHistory : legacyConnections,
+    ...throughputOf(row.type, latest, points),
+    cacheHitPercent: latest('cache_hit_ratio'),
+    cacheHitHistory: points('cache_hit_ratio'),
+    cpuPercent: latest('managed_cpu_percent'),
+    cpuHistory: points('managed_cpu_percent'),
+  };
 }
 
 /**
- * Monitoring overview of an app: per visible environment, the health of its members, issues and alerts, and
- * 24-point series for containers, databases, storage, routes and Pages, read once per source per request and cached
- * for 15 s per app, range and caller scopes. Only members the caller may view appear. Unknown values are null and
- * unknown series empty.
+ * The cards of one storage from its overview samples (APP_OVERVIEW_STORAGE_METRICS only), and the object counts the
+ * sampler lists when the engine reports none.
+ */
+export function storageCards(
+  samples: readonly OverviewSample[],
+  counted: readonly ObjectCountSample[],
+  range: OverviewRange,
+  now = Date.now()
+) {
+  const latest = (metric: AppOverviewStorageMetric) => latestOf(samples, metric);
+  const points = samplePoints<AppOverviewStorageMetric>(samples, range, now);
+  // Network counters are cumulative: rates come from consecutive samples (a reset, such as a restart, is skipped).
+  const rate = (metric: AppOverviewStorageMetric) => {
+    const out: Point[] = [];
+    for (let index = 1; index < samples.length; index += 1) {
+      const previous = samples[index - 1]!;
+      const current = samples[index]!;
+      const delta = (num(current.metrics[metric]) ?? Number.NaN) - (num(previous.metrics[metric]) ?? Number.NaN);
+      const seconds = (Date.parse(current.timestamp) - Date.parse(previous.timestamp)) / 1000;
+      if (Number.isFinite(delta) && delta >= 0 && seconds > 0)
+        out.push({ at: Date.parse(current.timestamp), value: delta / seconds });
+    }
+    return out;
+  };
+  const used = latest('disk_used_bytes');
+  const reported = points('object_count');
+  const objectsHistory = reported.some((value) => value !== null)
+    ? reported
+    : fillGaps(
+        bucketSeries(
+          counted.map((sample) => ({ at: sample.at, value: sample.count })),
+          range,
+          now
+        )
+      );
+  const rx = rate('network_rx_bytes');
+  const tx = rate('network_tx_bytes');
+  return {
+    diskBytes: used,
+    /** The storage's quota (its disk); null when the engine reports none. */
+    diskTotalBytes: latest('disk_total_bytes'),
+    diskPercent: storageDiskPercent(used, latest('disk_total_bytes')),
+    diskHistory: points('disk_used_bytes'),
+    objects: latest('object_count') ?? counted.at(-1)?.count ?? null,
+    objectsHistory,
+    buckets: latest('bucket_count'),
+    rxBytesPerSecond: rx.at(-1)?.value ?? null,
+    rxHistory: fillGaps(bucketSeries(rx, range, now)),
+    txBytesPerSecond: tx.at(-1)?.value ?? null,
+    txHistory: fillGaps(bucketSeries(tx, range, now)),
+  };
+}
+
+/**
+ * A route's traffic from its per-minute access-log samples: the latest minute's rates (null when the newest sample is
+ * older than three minutes or there is none) and per-bucket means of requests, 5xx and bytes per second and the p95
+ * latency of the minutes with requests.
+ */
+export function routeTraffic(samples: readonly RouteTrafficSample[], range: OverviewRange, now = Date.now()) {
+  const perSecond = (pick: (sample: RouteTrafficSample) => number) =>
+    fillGaps(
+      bucketSeries(
+        samples.map((sample) => ({
+          at: sample.at,
+          value: sample.seconds > 0 ? pick(sample) / sample.seconds : Number.NaN,
+        })),
+        range,
+        now
+      )
+    );
+  const latest = samples.at(-1);
+  const current = latest && now - latest.at <= CURRENT_SAMPLE_MAX_AGE_MS && latest.seconds > 0 ? latest : null;
+  return {
+    requestsPerSecond: current ? current.requests / current.seconds : null,
+    requestsHistory: perSecond((sample) => sample.requests),
+    errorsPerSecond: current ? current.errors / current.seconds : null,
+    errorsHistory: perSecond((sample) => sample.errors),
+    latencyMs: current?.p95Ms ?? null,
+    latencyHistory: bucketSeries(
+      samples.map((sample) => ({ at: sample.at, value: sample.p95Ms ?? Number.NaN })),
+      range,
+      now
+    ),
+    trafficBytesPerSecond: current ? current.bytes / current.seconds : null,
+    trafficHistory: perSecond((sample) => sample.bytes),
+  };
+}
+
+/**
+ * CPU and memory points of a workload: its per-minute samples (kept a day under the member, so a recreate keeps them),
+ * and for the time before its first sample with usage the node's minute history of its current container (one hour).
+ */
+export function workloadUsagePoints(
+  samples: readonly WorkloadSample[],
+  minuteHistory: ReadonlyArray<Record<string, unknown>>,
+  pick: 'cpuPercent' | 'memoryBytes'
+): Point[] {
+  const own = samples.flatMap((sample) => {
+    const value = sample[pick];
+    return typeof value === 'number' && Number.isFinite(value) ? [{ at: sample.at, value }] : [];
+  });
+  const first = own[0]?.at ?? Number.POSITIVE_INFINITY;
+  const field = pick === 'cpuPercent' ? 'cpuPercent' : 'memoryUsageBytes';
+  const earlier = minuteHistory.flatMap((entry) => {
+    const at = num(entry.timestamp);
+    const value = num(entry[field]);
+    return at !== null && value !== null && at < first - 30_000 ? [{ at, value }] : [];
+  });
+  return [...earlier, ...own];
+}
+
+/**
+ * Monitoring overview of an app: per visible environment, the health of its members, issues and alerts (the same
+ * assessment the Apps list uses), and 24-point series for containers, databases, storage, routes and Pages over 1 or
+ * 24 hours, read once per source per request and cached for 15 s per app, range and caller scopes. Only members the
+ * caller may view appear. Unknown values are null and unknown series empty; a series that starts later than the range
+ * has leading nulls.
  */
 export class AppOverviewService {
   private cache = new Map<string, { at: number; value: unknown }>();
@@ -338,33 +458,31 @@ export class AppOverviewService {
     if (this.cache.size > 500) this.cache.clear();
 
     const visible = await this.members.listVisibleMembers(scopes, envIds);
-    const statuses = await this.health.memberStatuses(visible);
+    const now = Date.now();
+    const [statuses, signals] = await Promise.all([
+      this.health.memberStatuses(visible),
+      this.health.memberSignals(visible, now),
+    ]);
     const [containerSeries, databases, storages, routes, pages] = await Promise.all([
-      this.containerSeries(statuses, range),
-      this.databaseSection(visible, range),
-      this.storageSection(visible, range),
-      this.routeSection(visible, range),
-      this.pagesSection(visible),
+      this.containerSeries(statuses, range, now),
+      this.databaseSection(visible, range, now),
+      this.storageSection(visible, range, now),
+      this.routeSection(visible, range, now),
+      this.pagesSection(visible, range, now),
     ]);
 
     const environments = envs
       .filter((env) => envIds.includes(env.id))
       .map((env) => {
         const own = statuses.filter((status) => status.member.environmentId === env.id);
-        const counted = own.filter((status) => status.health !== 'none');
-        const issues = new Map<string, { family: string; state: string; count: number }>();
-        for (const status of counted) {
-          if (status.health === 'healthy') continue;
-          const family = familyOf(status.member);
-          const issueKey = `${family}:${status.health}`;
-          const entry = issues.get(issueKey) ?? { family, state: status.health, count: 0 };
-          entry.count += 1;
-          issues.set(issueKey, entry);
-        }
+        const assessment = assessEnvironment({ envName: env.name, statuses: own, signals });
         const workloads = own.filter(
           (status) => status.member.type === 'container' || status.member.type === 'deployment'
         );
-        const checked = workloads.filter((status) => status.hasHealthCheck === true);
+        // Stopped on request, or a health check that has not reported: neither healthy nor unhealthy, and the
+        // Healthy card leaves them out.
+        const running = workloads.filter((status) => status.health !== 'stopped' && status.health !== 'none');
+        const checked = running.filter((status) => status.hasHealthCheck === true);
         const sum = (values: Array<number | null>) => {
           const present = values.filter((value): value is number => value !== null);
           return present.length ? Math.round(present.reduce((total, value) => total + value, 0) * 10) / 10 : null;
@@ -374,29 +492,20 @@ export class AppOverviewService {
         const envStorage = storages.filter((entry) => entry.environmentId === env.id);
         const envRoutes = routes.filter((entry) => entry.environmentId === env.id);
         const envPages = pages.filter((entry) => entry.environmentId === env.id);
-        const routeRps = sum(envRoutes.map((entry) => entry.requestsPerSecond));
-        const routeErrors = sum(envRoutes.map((entry) => entry.errorsPerSecond));
-        const alerts = environmentAlerts({
-          envName: env.name,
-          failing: counted
-            .filter((item) => item.health === 'failing')
-            .map((item) => ({ name: item.member.name, family: familyOf(item.member) })),
-          disks: [...envDatabases, ...envStorage],
-          routeRps,
-          routeErrors,
-        });
         return {
           environmentId: env.id,
-          health: combineHealth(counted.map((status) => status.health)),
+          health: assessment.health,
           members: own.length,
-          issues: [...issues.values()],
-          alerts,
+          issues: assessment.issues,
+          alerts: assessment.alerts,
           containers: {
             total: workloads.length,
             healthy: workloads.filter((status) => status.health === 'healthy').length,
             // Workloads with an Opfield health check: the Healthy card counts these; the rest only by number.
             checkedHealthy: checked.filter((status) => status.health === 'healthy').length,
-            noHealthCheck: workloads.length - checked.length,
+            checked: checked.length,
+            noHealthCheck: running.length - checked.length,
+            stopped: workloads.filter((status) => status.health === 'stopped').length,
             cpuPercent: sum(workloads.map((status) => status.cpuPercent)),
             cpuHistory: sumSeries(envContainers.map((entry) => entry.cpu)),
             memoryBytes: sum(workloads.map((status) => status.memoryBytes)),
@@ -407,7 +516,8 @@ export class AppOverviewService {
             restarts: sum(envContainers.map((entry) => entry.restarts)),
             restartsSince: restartsSince(
               envContainers.map((entry) => entry.restartsSince),
-              range
+              range,
+              now
             ),
             restartsHistory: sumSeries(
               envContainers.map((entry) => entry.restartsHistory),
@@ -416,15 +526,16 @@ export class AppOverviewService {
             healthyHistory: averageSeries(
               envContainers.filter((entry) => entry.hasHealthCheck).map((entry) => entry.healthy)
             ),
-            unhealthy: workloads.filter((status) => status.health !== 'healthy').map((status) => status.member.name),
+            // Workloads that are not healthy; one stopped on request is not unhealthy.
+            unhealthy: running.filter((status) => status.health !== 'healthy').map((status) => status.member.name),
           },
           databases: envDatabases.map(({ environmentId: _env, ...entry }) => entry),
           storage: envStorage.map(({ environmentId: _env, ...entry }) => entry),
           routes: {
             total: own.filter((status) => status.member.type === 'route').length,
-            requestsPerSecond: routeRps,
+            requestsPerSecond: sum(envRoutes.map((entry) => entry.requestsPerSecond)),
             requestsHistory: sumSeries(envRoutes.map((entry) => entry.requestsHistory)),
-            errorsPerSecond: routeErrors,
+            errorsPerSecond: sum(envRoutes.map((entry) => entry.errorsPerSecond)),
             errorsHistory: sumSeries(envRoutes.map((entry) => entry.errorsHistory)),
             ...routeLatency(envRoutes),
             trafficBytesPerSecond: sum(envRoutes.map((entry) => entry.trafficBytesPerSecond)),
@@ -435,70 +546,43 @@ export class AppOverviewService {
         };
       });
 
-    const value = { range, measuredAt: new Date().toISOString(), environments };
+    const value = { range, measuredAt: new Date(now).toISOString(), environments };
     this.cache.set(key, { at: Date.now(), value });
     return value;
   }
 
-  /** CPU and memory series of each container and active deployment slot, from the stats the nodes report. */
-  private async containerSeries(statuses: readonly MemberStatus[], range: OverviewRange) {
+  /** Per container and deployment: CPU, memory, restarts and health from its per-minute samples. */
+  private async containerSeries(statuses: readonly MemberStatus[], range: OverviewRange, now: number) {
     const workloads = statuses.filter(
       (status) => status.member.type === 'container' || status.member.type === 'deployment'
     );
     if (workloads.length === 0) return [];
-    const snapshots = container.isRegistered(DockerSnapshotService) ? container.resolve(DockerSnapshotService) : null;
     const monitoring = container.isRegistered(NodeMonitoringService) ? container.resolve(NodeMonitoringService) : null;
     const cache = container.isRegistered(CacheService) ? container.resolve(CacheService) : null;
-    const idsByNode = new Map<string, Map<string, string>>();
-    for (const nodeId of new Set(workloads.map((status) => status.member.nodeId!))) {
-      if (!snapshots) break;
-      const list = await snapshots.getList<Array<Record<string, any>>>(nodeId, 'containers').catch(() => null);
-      const byName = new Map<string, string>();
-      for (const item of Array.isArray(list?.data) ? list.data : []) {
-        const name = String(item.name ?? item.Name ?? '').replace(/^\/+/, '');
-        const id = String(item.id ?? item.Id ?? '');
-        if (name && id) byName.set(name, id);
-      }
-      idsByNode.set(nodeId, byName);
-    }
     return Promise.all(
       workloads.map(async (status) => {
-        const runtimeId = status.runtimeName
-          ? idsByNode.get(status.member.nodeId!)?.get(status.runtimeName)
-          : undefined;
-        const [history, samples] = await Promise.all([
-          runtimeId && monitoring ? monitoring.getContainerStatsHourHistory(runtimeId).catch(() => []) : [],
+        const [samples, minuteHistory] = await Promise.all([
           readSamples<WorkloadSample>(cache, workloadSampleKey(status.member.type, status.member.id)),
+          status.runtimeId && monitoring
+            ? monitoring.getContainerStatsHourHistory(status.runtimeId, now).catch(() => [])
+            : [],
         ]);
-        const at = (entry: Record<string, unknown>) => num(entry.timestamp) ?? 0;
-        const restarts = restartSeries(samples, range);
+        const restarts = restartSeries(samples, range, now);
         return {
           environmentId: status.member.environmentId,
           hasHealthCheck: status.hasHealthCheck === true,
           restarts: restarts.total,
           restartsHistory: restarts.history,
           restartsSince: restarts.since,
-          healthy: healthySeries(samples, range),
-          cpu: bucketSeries(
-            history.map((entry) => ({
-              at: at(entry),
-              value: num(entry.cpuPercent ?? entry.cpu_percent) ?? Number.NaN,
-            })),
-            range
-          ),
-          memory: bucketSeries(
-            history.map((entry) => ({
-              at: at(entry),
-              value: num(entry.memoryUsageBytes ?? entry.memory_usage_bytes) ?? Number.NaN,
-            })),
-            range
-          ),
+          healthy: healthySeries(samples, range, now),
+          cpu: bucketSeries(workloadUsagePoints(samples, minuteHistory, 'cpuPercent'), range, now),
+          memory: bucketSeries(workloadUsagePoints(samples, minuteHistory, 'memoryBytes'), range, now),
         };
       })
     );
   }
 
-  private async databaseSection(members: readonly AppMember[], range: OverviewRange) {
+  private async databaseSection(members: readonly AppMember[], range: OverviewRange, now: number) {
     const dbs = members.filter((member) => member.type === 'database');
     if (dbs.length === 0) return [];
     const rows = await this.db
@@ -506,6 +590,7 @@ export class AppOverviewService {
         id: databaseConnections.id,
         slug: databaseConnections.slug,
         name: databaseConnections.name,
+        type: databaseConnections.type,
         manualSizeLimitMb: databaseConnections.manualSizeLimitMb,
       })
       .from(databaseConnections)
@@ -516,7 +601,7 @@ export class AppOverviewService {
         )
       );
     const [series, availability] = await Promise.all([
-      this.seriesFrom(
+      overviewSamples(
         DatabaseMonitoringService,
         rows.map((row) => row.id),
         range
@@ -530,38 +615,14 @@ export class AppOverviewService {
     return dbs.flatMap((member) => {
       const row = rows.find((item) => item.id === member.id);
       if (!row) return [];
-      const samples = series.get(member.id) ?? [];
-      const latest = samples.at(-1)?.metrics ?? {};
-      const size = num(latest.database_size_bytes);
-      const limit = row.manualSizeLimitMb ? row.manualSizeLimitMb * 1024 * 1024 : null;
-      const points = (metric: string) =>
-        fillGaps(
-          bucketSeries(
-            samples.map((sample) => ({
-              at: Date.parse(sample.timestamp),
-              value: num(sample.metrics[metric]) ?? Number.NaN,
-            })),
-            range
-          )
-        );
       return [
         {
           environmentId: member.environmentId,
           id: row.id,
           slug: row.slug,
           name: row.name,
-          diskBytes: size,
-          diskPercent: size !== null && limit ? Math.round((size / limit) * 1000) / 10 : null,
-          diskHistory: points('database_size_bytes'),
-          connections: num(latest.total_connections),
-          maxConnections: num(latest.max_connections),
-          connectionsHistory: points('total_connections'),
-          // Throughput: transactions (PostgreSQL), operations (key-value) or queries (ClickHouse) per second.
-          ...throughputOf(latest, points),
-          cacheHitPercent: num(latest.cache_hit_ratio),
-          cacheHitHistory: points('cache_hit_ratio'),
-          cpuPercent: num(latest.managed_cpu_percent),
-          cpuHistory: points('managed_cpu_percent'),
+          type: row.type,
+          ...databaseCards(row, series.get(member.id) ?? [], range, now),
           // On several servers: the set's state and each member's role and health (degraded is not down).
           availability: availability.get(row.id) ?? null,
         },
@@ -569,7 +630,7 @@ export class AppOverviewService {
     });
   }
 
-  private async storageSection(members: readonly AppMember[], range: OverviewRange) {
+  private async storageSection(members: readonly AppMember[], range: OverviewRange, now: number) {
     const storages = members.filter((member) => member.type === 'storage');
     if (storages.length === 0) return [];
     const rows = await this.db
@@ -587,7 +648,7 @@ export class AppOverviewService {
       );
     const cache = container.isRegistered(CacheService) ? container.resolve(CacheService) : null;
     const [series, availability, objectCounts] = await Promise.all([
-      this.seriesFrom(
+      overviewSamples(
         ObjectStorageMonitoringService,
         rows.map((row) => row.id),
         range
@@ -607,61 +668,13 @@ export class AppOverviewService {
     return storages.flatMap((member) => {
       const row = rows.find((item) => item.id === member.id);
       if (!row) return [];
-      const samples = series.get(member.id) ?? [];
-      const latest = samples.at(-1)?.metrics ?? {};
-      const used = num(latest.disk_used_bytes);
-      const total = num(latest.disk_total_bytes);
-      const points = (metric: string) =>
-        fillGaps(
-          bucketSeries(
-            samples.map((sample) => ({
-              at: Date.parse(sample.timestamp),
-              value: num(sample.metrics[metric]) ?? Number.NaN,
-            })),
-            range
-          )
-        );
-      // Network counters are cumulative: rates come from consecutive samples.
-      const rate = (metric: string) => {
-        const out: Point[] = [];
-        for (let index = 1; index < samples.length; index += 1) {
-          const previous = samples[index - 1]!;
-          const current = samples[index]!;
-          const delta = (num(current.metrics[metric]) ?? Number.NaN) - (num(previous.metrics[metric]) ?? Number.NaN);
-          const seconds = (Date.parse(current.timestamp) - Date.parse(previous.timestamp)) / 1000;
-          if (Number.isFinite(delta) && delta >= 0 && seconds > 0)
-            out.push({ at: Date.parse(current.timestamp), value: delta / seconds });
-        }
-        return out;
-      };
-      // The engine reports no object count (SeaweedFS has none per S3 user): the sampler lists the buckets.
-      const counted = objectCounts.get(member.id) ?? [];
-      const objectsHistory = points('object_count').some((value) => value !== null)
-        ? points('object_count')
-        : fillGaps(
-            bucketSeries(
-              counted.map((sample) => ({ at: sample.at, value: sample.count })),
-              range
-            )
-          );
-      const rx = rate('network_rx_bytes');
-      const tx = rate('network_tx_bytes');
       return [
         {
           environmentId: member.environmentId,
           id: row.id,
           slug: row.slug,
           name: row.name,
-          diskBytes: used,
-          diskPercent: used !== null && total ? Math.round((used / total) * 1000) / 10 : null,
-          diskHistory: points('disk_used_bytes'),
-          objects: num(latest.object_count) ?? counted.at(-1)?.count ?? null,
-          objectsHistory,
-          buckets: num(latest.bucket_count),
-          rxBytesPerSecond: rx.at(-1)?.value ?? null,
-          rxHistory: fillGaps(bucketSeries(rx, range)),
-          txBytesPerSecond: tx.at(-1)?.value ?? null,
-          txHistory: fillGaps(bucketSeries(tx, range)),
+          ...storageCards(series.get(member.id) ?? [], objectCounts.get(member.id) ?? [], range, now),
           // On several servers: the set's state and each member's role and health (degraded is not down).
           availability: availability.get(row.id) ?? null,
         },
@@ -669,10 +682,10 @@ export class AppOverviewService {
     });
   }
 
-  private async routeSection(members: readonly AppMember[], range: OverviewRange) {
+  private async routeSection(members: readonly AppMember[], range: OverviewRange, now: number) {
     const routes = members.filter((member) => member.type === 'route');
-    const proxy = container.isRegistered(ProxyService) ? container.resolve(ProxyService) : null;
     if (routes.length === 0) return [];
+    const cache = container.isRegistered(CacheService) ? container.resolve(CacheService) : null;
     const probes = await this.db
       .select({
         id: proxyHosts.id,
@@ -688,107 +701,85 @@ export class AppOverviewService {
       );
     return Promise.all(
       routes.map(async (member) => {
-        const history = proxy ? await proxy.cachedTrafficHistory(member.id).catch(() => []) : [];
+        const samples = await readSamples<RouteTrafficSample>(cache, routeTrafficKey(member.id));
         // Health-check probes: their response time is the latency while the route has no traffic.
         const probe = probes.find((row) => row.id === member.id);
-        const start = Date.now() - RANGE_MS[range];
+        const start = now - RANGE_MS[range];
         const probePoints = (probe?.healthCheckEnabled ? (probe.healthHistory ?? []) : [])
           .map((entry) => ({ at: Date.parse(entry.ts), value: entry.responseMs ?? Number.NaN }))
           .filter((point) => Number.isFinite(point.value) && point.at >= start);
-        const latest = history.at(-1)?.traffic;
-        const errorShare = (traffic: { statusCodes: { s5xx: number }; totalRequests: number }) =>
-          traffic.totalRequests > 0 ? traffic.statusCodes.s5xx / traffic.totalRequests : 0;
-        const series = (pick: (traffic: NonNullable<typeof latest>) => number) =>
-          fillGaps(
-            bucketSeries(
-              history.map((entry) => ({ at: Date.parse(entry.timestamp), value: pick(entry.traffic) })),
-              range
-            )
-          );
         return {
           environmentId: member.environmentId,
-          requestsPerSecond: latest ? latest.requestsPerSecond : null,
-          requestsHistory: series((traffic) => traffic.requestsPerSecond),
-          errorsPerSecond: latest ? latest.requestsPerSecond * errorShare(latest) : null,
-          errorsHistory: series((traffic) => traffic.requestsPerSecond * errorShare(traffic)),
-          latencyMs: latest ? latest.p95ResponseTime || latest.avgResponseTime || null : null,
-          // No requests in a sample means no latency, not 0 ms.
-          latencyHistory: series((traffic) => traffic.p95ResponseTime || traffic.avgResponseTime || Number.NaN),
+          ...routeTraffic(samples, range, now),
           probeLatencyMs: probePoints.at(-1)?.value ?? null,
-          probeLatencyHistory: fillGaps(bucketSeries(probePoints, range)),
-          trafficBytesPerSecond: latest ? latest.bytesPerSecond : null,
-          trafficHistory: series((traffic) => traffic.bytesPerSecond),
+          probeLatencyHistory: fillGaps(bucketSeries(probePoints, range, now)),
         };
       })
     );
   }
 
-  private async pagesSection(members: readonly AppMember[]) {
+  /** Per Pages project: the deployment its routes serve and the requests of those routes. */
+  private async pagesSection(members: readonly AppMember[], range: OverviewRange, now: number) {
     const projects = members.filter((member) => member.type === 'pages');
     if (projects.length === 0) return [];
     const ids = projects.map((member) => member.id);
-    const [rows, tags] = await Promise.all([
+    const cache = container.isRegistered(CacheService) ? container.resolve(CacheService) : null;
+    const [rows, targets] = await Promise.all([
       this.db
         .select({ id: pageProjects.id, slug: pageProjects.slug, name: pageProjects.name })
         .from(pageProjects)
         .where(inArray(pageProjects.id, ids)),
       this.db
         .select({
-          projectId: pageTags.projectId,
-          deploymentId: pageTags.deploymentId,
+          projectId: pageRouteTargets.projectId,
+          routeId: pageRouteTargets.proxyHostId,
+          status: pageRouteTargets.status,
+          deploymentId: pageRouteTargets.activeDeploymentId,
           createdAt: pageDeployments.createdAt,
+          routeEnabled: proxyHosts.enabled,
         })
-        .from(pageTags)
-        .innerJoin(pageDeployments, eq(pageDeployments.id, pageTags.deploymentId))
-        .where(and(inArray(pageTags.projectId, ids), eq(pageTags.name, 'latest')))
+        .from(pageRouteTargets)
+        .innerJoin(proxyHosts, eq(proxyHosts.id, pageRouteTargets.proxyHostId))
+        .leftJoin(pageDeployments, eq(pageDeployments.id, pageRouteTargets.activeDeploymentId))
+        .where(inArray(pageRouteTargets.projectId, ids))
         .orderBy(desc(pageDeployments.createdAt)),
     ]);
+    const traffic = new Map(
+      await Promise.all(
+        targets.map(
+          async (target) =>
+            [
+              target.routeId,
+              routeTraffic(await readSamples<RouteTrafficSample>(cache, routeTrafficKey(target.routeId)), range, now),
+            ] as const
+        )
+      )
+    );
     return projects.flatMap((member) => {
       const row = rows.find((item) => item.id === member.id);
       if (!row) return [];
-      const tag = tags.find((item) => item.projectId === member.id);
+      // The deployment an enabled route serves (the newest when several do): what visitors get.
+      const active = targets.find(
+        (target) =>
+          target.projectId === member.id && target.routeEnabled && target.status === 'ready' && target.deploymentId
+      );
+      const served = targets
+        .filter((target) => target.projectId === member.id)
+        .map((target) => traffic.get(target.routeId)!);
+      const rates = served.map((entry) => entry.requestsPerSecond).filter((value): value is number => value !== null);
       return [
         {
           environmentId: member.environmentId,
           id: row.id,
           slug: row.slug,
           name: row.name,
-          activeDeployment: tag?.deploymentId ? { id: tag.deploymentId, createdAt: tag.createdAt } : null,
-          requestsPerSecond: null as number | null,
-          requestsHistory: [] as Array<number | null>,
+          activeDeployment: active?.deploymentId ? { id: active.deploymentId, createdAt: active.createdAt } : null,
+          /** Routes that serve the project (its requests are theirs). */
+          routes: served.length,
+          requestsPerSecond: rates.length ? rates.reduce((total, value) => total + value, 0) : null,
+          requestsHistory: sumSeries(served.map((entry) => entry.requestsHistory)),
         },
       ];
     });
-  }
-
-  /**
-   * Samples per resource over the range: the core's overview series when it provides them, else the short live
-   * history the monitoring service keeps, else nothing (no commercial core, or monitoring off).
-   */
-  private async seriesFrom(
-    service: typeof DatabaseMonitoringService | typeof ObjectStorageMonitoringService,
-    ids: readonly string[],
-    range: OverviewRange
-  ): Promise<Map<string, Array<{ timestamp: string; metrics: Record<string, number | null> }>>> {
-    const result = new Map<string, Array<{ timestamp: string; metrics: Record<string, number | null> }>>();
-    const token = service as unknown as typeof DatabaseMonitoringService;
-    if (ids.length === 0 || !container.isRegistered(token)) return result;
-    const monitoring = container.resolve(token) as unknown as {
-      getOverviewSeries(ids: readonly string[], range: OverviewRange): Promise<Record<string, any[]>>;
-      getHistory(id: string): Promise<any[]>;
-    };
-    try {
-      const series = await monitoring.getOverviewSeries(ids, range);
-      for (const id of ids) result.set(id, Array.isArray(series?.[id]) ? series[id] : []);
-      return result;
-    } catch (error) {
-      logger.debug('Overview series unavailable; using the live history', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-    for (const id of ids) {
-      result.set(id, await monitoring.getHistory(id).catch(() => []));
-    }
-    return result;
   }
 }

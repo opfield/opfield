@@ -3,6 +3,7 @@ import {
   APP_OVERVIEW_ALERT_TONES,
   averageSeries,
   bucketSeries,
+  databaseCards,
   environmentAlerts,
   fillGaps,
   healthySeries,
@@ -10,10 +11,13 @@ import {
   restartSeries,
   restartsSince,
   routeLatency,
+  routeTraffic,
+  storageCards,
   sumSeries,
   throughputOf,
 } from './app-overview.service.js';
-import { restartCountOf } from './app-workload-sampler.js';
+import { APP_OVERVIEW_DATABASE_METRICS, APP_OVERVIEW_STORAGE_METRICS } from './app-overview-metrics.js';
+import { mergeTrafficReplies, restartCountOf } from './app-workload-sampler.js';
 
 describe('app overview series', () => {
   const now = Date.parse('2026-10-11T12:00:00Z');
@@ -135,6 +139,13 @@ describe('app overview restarts and health samples', () => {
     );
     expect(history[OVERVIEW_POINTS - 1]).toBe(50);
     expect(history).toContain(100);
+    // Minutes stopped on request count neither way.
+    const stopped = healthySeries(
+      [sample(1, 0, 'a', true), { ...sample(1.5, 0, 'a', false), state: 'stopped' as const }],
+      '1h',
+      now
+    );
+    expect(stopped[OVERVIEW_POINTS - 1]).toBe(100);
   });
 });
 
@@ -165,45 +176,141 @@ describe('app overview routes latency and database throughput', () => {
     });
   });
 
-  it('picks the throughput metric the engine reports', () => {
+  it('picks the throughput metric of the engine, older key-value samples under transaction_rate', () => {
     const points = (metric: string) => (metric === 'instantaneous_ops_per_sec' ? series(7) : []);
-    expect(throughputOf({ instantaneous_ops_per_sec: 7 }, points)).toMatchObject({
-      transactionsPerSecond: 7,
-      throughputUnit: 'ops',
+    const latest = (metric: string) => (metric === 'instantaneous_ops_per_sec' ? 7 : null);
+    expect(throughputOf('redis', latest, points)).toMatchObject({ transactionsPerSecond: 7, throughputUnit: 'ops' });
+    const legacy = (metric: string) => (metric === 'transaction_rate' ? series(3) : []);
+    expect(throughputOf('clickhouse', () => null, legacy)).toMatchObject({
+      transactionsHistory: series(3),
+      throughputUnit: 'q',
     });
-    expect(throughputOf({}, () => [])).toEqual({
+    expect(
+      throughputOf(
+        'postgres',
+        () => null,
+        () => []
+      )
+    ).toEqual({
       transactionsPerSecond: null,
       transactionsHistory: [],
       throughputUnit: 'tx',
     });
   });
+
+  it('reads route traffic per second from minute samples, latency in milliseconds', () => {
+    const now = Date.parse('2026-10-11T12:00:00Z');
+    const at = now - 60_000;
+    const merged = mergeTrafficReplies(
+      [
+        JSON.stringify({
+          hostId: 'r1',
+          totalRequests: 120,
+          statusCodes: { s5xx: 6 },
+          totalBytes: 6000,
+          windowSeconds: 60,
+          p95ResponseTime: 0.25,
+        }),
+        JSON.stringify({
+          hostId: 'r1',
+          totalRequests: 60,
+          statusCodes: { s5xx: 0 },
+          totalBytes: 0,
+          windowSeconds: 60,
+          p95ResponseTime: 0.1,
+        }),
+        JSON.stringify({ hostId: 'other', totalRequests: 999 }),
+        null,
+      ],
+      'r1',
+      at
+    )!;
+    expect(merged).toEqual({ at, requests: 180, errors: 6, bytes: 6000, seconds: 60, p95Ms: 250 });
+    expect(mergeTrafficReplies([null], 'r1', at)).toBe(null);
+    // A log without upstream times reports 0: no latency, not 0 ms.
+    expect(
+      mergeTrafficReplies([JSON.stringify({ hostId: 'r1', totalRequests: 5, p95ResponseTime: 0 })], 'r1', at)?.p95Ms
+    ).toBe(null);
+    const traffic = routeTraffic([merged], '1h', now);
+    expect(traffic).toMatchObject({
+      requestsPerSecond: 3,
+      errorsPerSecond: 0.1,
+      trafficBytesPerSecond: 100,
+      latencyMs: 250,
+    });
+    expect(traffic.requestsHistory[OVERVIEW_POINTS - 1]).toBe(3);
+    // A stale newest sample is no current rate.
+    expect(routeTraffic([{ ...merged, at: now - 10 * 60_000 }], '1h', now).requestsPerSecond).toBe(null);
+  });
 });
 
 describe('app overview alerts', () => {
-  it('uses the console Notice tones: destructive for a failing member, warning for disk and 5xx', () => {
+  it('uses the console Notice tones: warning for a nearly full disk and 5xx', () => {
     const alerts = environmentAlerts({
       envName: 'production',
-      failing: [{ name: 'shop-api', family: 'containers' }],
       disks: [
         { name: 'shop-db', diskPercent: 90 },
         { name: 'shop-s3', diskPercent: 40 },
         { name: 'shop-kv', diskPercent: null },
       ],
-      routeRps: 10,
-      routeErrors: 1,
+      routeRequests: 100,
+      routeErrors: 10,
     });
     expect(alerts).toEqual([
-      { tone: 'destructive', title: 'shop-api is failing', detail: 'containers member of production' },
       { tone: 'warning', title: 'shop-db disk is 90% full', detail: 'Free space or grow the volume' },
-      { tone: 'warning', title: '10% of requests fail with 5xx', detail: 'Routes of production' },
+      { tone: 'warning', title: '10% of requests fail with 5xx', detail: 'Routes of production, last 5 minutes' },
     ]);
     for (const alert of alerts) expect(APP_OVERVIEW_ALERT_TONES).toContain(alert.tone);
     expect([...APP_OVERVIEW_ALERT_TONES]).toEqual(['destructive', 'warning']);
   });
 
   it('raises nothing for a healthy environment', () => {
-    const quiet = { envName: 'staging', failing: [], disks: [] };
-    expect(environmentAlerts({ ...quiet, routeRps: null, routeErrors: null })).toEqual([]);
-    expect(environmentAlerts({ ...quiet, routeRps: 100, routeErrors: 1 })).toEqual([]);
+    const quiet = { envName: 'staging', disks: [] };
+    expect(environmentAlerts({ ...quiet, routeRequests: null, routeErrors: null })).toEqual([]);
+    expect(environmentAlerts({ ...quiet, routeRequests: 100, routeErrors: 1 })).toEqual([]);
+  });
+});
+
+/**
+ * The overview reads database and storage metrics from the commercial core's overview series. Every metric a card
+ * reads must be in the contract list the core's writer stores (its test compares the lists), or the card stays empty.
+ */
+describe('app overview metric contract', () => {
+  const now = Date.parse('2026-10-11T12:00:00Z');
+  const recording = (read: Set<string>) =>
+    new Proxy({} as Record<string, number | null>, {
+      get: (_target, key) => {
+        if (typeof key === 'string') read.add(key);
+        return 1;
+      },
+    });
+  const samples = (read: Set<string>) =>
+    [2, 1].map((minutes) => ({ timestamp: new Date(now - minutes * 60_000).toISOString(), metrics: recording(read) }));
+
+  it.each(['postgres', 'redis', 'clickhouse'])('reads only contract metrics of a %s database', (type) => {
+    const read = new Set<string>();
+    databaseCards({ type, manualSizeLimitMb: 100 }, samples(read), '1h', now);
+    expect(read.size).toBeGreaterThan(0);
+    for (const metric of read) expect(APP_OVERVIEW_DATABASE_METRICS).toContain(metric);
+  });
+
+  it('reads only contract metrics of a storage', () => {
+    const read = new Set<string>();
+    storageCards(samples(read), [], '1h', now);
+    for (const metric of read) expect(APP_OVERVIEW_STORAGE_METRICS).toContain(metric);
+  });
+
+  it('fills every database card from a sample with the contract metrics', () => {
+    const metrics = Object.fromEntries(APP_OVERVIEW_DATABASE_METRICS.map((metric) => [metric, 5]));
+    const cards = databaseCards(
+      { type: 'postgres', manualSizeLimitMb: 1 },
+      [{ timestamp: new Date(now - 60_000).toISOString(), metrics }],
+      '1h',
+      now
+    );
+    expect(cards).toMatchObject({ connections: 5, transactionsPerSecond: 5, cacheHitPercent: 5, cpuPercent: 5 });
+    for (const series of [cards.diskHistory, cards.connectionsHistory, cards.cacheHitHistory, cards.cpuHistory]) {
+      expect(series.at(-1)).toBe(5);
+    }
   });
 });

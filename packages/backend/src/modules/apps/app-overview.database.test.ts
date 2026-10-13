@@ -89,7 +89,8 @@ describe.skipIf(!url)('app overview on disposable PostgreSQL', () => {
 
     const full = (await overview.overview([...ALL, 'databases:view'], app.id, '1h')) as any;
     const production = full.environments.find((item: any) => item.environmentId === env.id);
-    expect(production).toMatchObject({ health: 'healthy', members: 1, issues: [], nodeIds: [] });
+    // The 90% disk is a warning: the environment is degraded.
+    expect(production).toMatchObject({ health: 'degraded', members: 1, issues: [], nodeIds: [] });
     expect(production.databases).toHaveLength(1);
     expect(production.databases[0]).toMatchObject({
       id: dbId,

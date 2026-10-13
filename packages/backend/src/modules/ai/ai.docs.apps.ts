@@ -1,3 +1,5 @@
+import { APP_HEALTH_RULES } from '@/modules/apps/app-environment-health.js';
+
 export const APP_DOCS: Record<string, string> = {
   apps: `# Apps
 
@@ -30,6 +32,10 @@ An app groups resources of several types into environments (production, staging,
 
 ## Promote
 - promote_app_environment preview (sourceEnvironmentId, targetEnvironmentId) pairs members by name (same name, or the name without a trailing -<environment>) and shows what the target would run: image digests (Git builds by artifact digest, never rebuilt), Compose revision with pinned images and YAML changes, Pages artifact. execute (items = pairKeys, previewDigest) runs the selected items one by one in the background; status / list show progress. Variables, secrets, databases and storage are never promoted. apps:promote on the target environment.
+
+## Health and overview
+- ${APP_HEALTH_RULES}
+- get_app_overview series (1h or 24h) are kept a day per member: a container recreate, a deployment, or a restart of Opfield or of a daemon keeps them. Route and Pages requests come from the access logs of their ingress nodes, one sample a minute.
 
 ## Permissions
 - apps:view, apps:create, apps:edit, apps:delete, apps:env:manage, apps:promote, apps:operate. Qualifiers: <appId> (whole app) and env/<envId> (view, env:manage, promote, operate). Renaming, environment changes and deleting need the permission on the whole app. Members still need their own permissions; grants on an environment folder (<scope>:folder/<placementFolderId>) cover its members, grants on an app root folder (rootFolderIds) cover every environment.
