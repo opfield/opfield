@@ -92,6 +92,7 @@ import {
   usePlanIncludes,
 } from "@/stores/license-paywall";
 import { usePinnedContainersStore } from "@/stores/pinned-containers";
+import { usePublishedPageResource } from "@/stores/resolved-page-context";
 import type {
   DockerAvailabilityPolicy,
   DockerComposeOperation,
@@ -221,6 +222,17 @@ export function DockerComposeProjectDetail() {
   );
   const backTarget = getReturnNavigationTarget(location.state, dockerComposeRootRoute());
   const planIncludesCompose = usePlanIncludes("compose-applications");
+  usePublishedPageResource(
+    projectId ? dockerComposeProjectRoute(projectId) : undefined,
+    project && project.id === projectId
+      ? {
+          resourceType: "docker-compose-project",
+          resourceId: project.id,
+          nodeId: project.nodeId,
+          label: project.name,
+        }
+      : null
+  );
 
   const load = useCallback(async () => {
     if (!projectId) return;

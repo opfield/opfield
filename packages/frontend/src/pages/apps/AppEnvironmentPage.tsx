@@ -24,6 +24,7 @@ import { nodeRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
+import { usePublishedPageResource } from "@/stores/resolved-page-context";
 import type { AppAllowedNodes, AppDetail, AppEnvironmentDetail, ProxyHost } from "@/types";
 import { AppRouteFailure } from "./AppPage";
 import {
@@ -52,12 +53,26 @@ import { useNodeIndex } from "./use-node-index";
 export function AppEnvironmentPage() {
   const { appSlug, envSlug } = useParams<{ appSlug: string; envSlug: string }>();
   const { app, loading, error, version, refresh } = useAppDetail(appSlug);
+  const env =
+    app?.environments.find((item) => item.slug === envSlug || item.id === envSlug) ?? null;
+  usePublishedPageResource(
+    appSlug && envSlug
+      ? `/apps/${encodeURIComponent(appSlug)}/env/${encodeURIComponent(envSlug)}`
+      : undefined,
+    app && env && env.access !== "members"
+      ? {
+          resourceType: "app-environment",
+          resourceId: env.id,
+          scopeResourceId: app.id,
+          label: `${env.name} of ${app.name}`,
+        }
+      : null
+  );
   if (!app) {
     if (error) return <AppRouteFailure error={error} />;
     if (loading) return <DetailPageSkeleton label="Loading environment" />;
     return null;
   }
-  const env = app.environments.find((item) => item.slug === envSlug || item.id === envSlug);
   // A renamed or deleted environment, or one seen only through members (its page is its settings): back to its app.
   if (!env || env.access === "members") return <Navigate to={appRoute(app.slug)} replace />;
   return <EnvironmentContent app={app} env={env} version={version} refresh={refresh} />;

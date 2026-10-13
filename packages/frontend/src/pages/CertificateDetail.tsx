@@ -37,6 +37,7 @@ import { api } from "@/services/api";
 import type { CertificateExportFormat } from "@/services/api-pki";
 import { useAuthStore } from "@/stores/auth";
 import { useCAStore } from "@/stores/ca";
+import { usePublishedPageResource } from "@/stores/resolved-page-context";
 import type { Certificate } from "@/types";
 
 export function CertificateDetail() {
@@ -68,6 +69,12 @@ export function CertificateDetail() {
     };
     load();
   }, [id]);
+  usePublishedPageResource(
+    id ? `/certificates/${encodeURIComponent(id)}` : undefined,
+    cert && cert.id === id
+      ? { resourceType: "certificate", resourceId: cert.id, label: cert.commonName }
+      : null
+  );
 
   useRealtime(id ? "cert.changed" : null, (payload) => {
     const ev = payload as { id?: string };

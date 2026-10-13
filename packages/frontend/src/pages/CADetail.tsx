@@ -34,6 +34,7 @@ import { daysUntil, formatDate, formatSerialNumber, hoursUntil } from "@/lib/uti
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useCAStore } from "@/stores/ca";
+import { usePublishedPageResource } from "@/stores/resolved-page-context";
 import { useUIStore } from "@/stores/ui";
 import type { Certificate } from "@/types";
 
@@ -47,6 +48,12 @@ export function CADetail() {
   const canViewSystemCertificates = useAuthStore((s) => s.hasScope("admin:details:certificates"));
   const showSystemCertificatePreference = useUIStore((s) => s.showSystemCertificates);
   const showSystemCertificates = canViewSystemCertificates && showSystemCertificatePreference;
+  usePublishedPageResource(
+    id ? `/cas/${encodeURIComponent(id)}` : undefined,
+    selectedCA && selectedCA.id === id
+      ? { resourceType: "ca", resourceId: selectedCA.id, label: selectedCA.commonName }
+      : null
+  );
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
