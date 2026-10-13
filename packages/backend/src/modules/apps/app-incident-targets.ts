@@ -332,7 +332,11 @@ export class AppIncidentTargetsReader {
       })),
     ];
     const refCondition = (nodeColumn: any, typeColumn: any, idColumn: any): SQL | undefined => {
-      const parts = workloadRefs.map((ref) =>
+      // A table whose type column is an enum takes only its own values (storage bindings know no Compose
+      // services): comparing an enum to a value outside it is a database error, not "no rows".
+      const allowed: readonly string[] | undefined = typeColumn.enumValues;
+      const refs = allowed ? workloadRefs.filter((ref) => allowed.includes(ref.type)) : workloadRefs;
+      const parts = refs.map((ref) =>
         ref.prefix
           ? and(eq(nodeColumn, ref.nodeId), eq(typeColumn, ref.type), like(idColumn, `${ref.prefix}%`))!
           : and(eq(nodeColumn, ref.nodeId), eq(typeColumn, ref.type), eq(idColumn, ref.resourceId!))!

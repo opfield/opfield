@@ -1,7 +1,7 @@
 // An environment's variables and secrets (canvas frames env-live, env-staging): the container
 // Environment tab's editor. Values reach each workload on its next recreate or deploy; "Save and
 // recreate N workloads" recreates them one at a time right away.
-import { Braces, Code2, Minus, Plus, RotateCcw, Save, Table2 } from "lucide-react";
+import { Braces, Code2, Minus, Plus, RotateCcw, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
@@ -9,11 +9,12 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Notice, NoticeAction } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { Button } from "@/components/ui/button";
-import { CodeEditor } from "@/components/ui/code-editor";
+
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { toastApiError } from "@/lib/api-error-toast";
 import { cn } from "@/lib/utils";
+import { EnvTextDialog } from "@/pages/docker-detail/EnvTextDialog";
 import { type SecretRow, SecretsSection } from "@/pages/docker-detail/SecretsSection";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail, AppPendingWorkload, AppVariables } from "@/types";
@@ -80,8 +81,9 @@ export function VariablesPanel({
 }) {
   const [data, setData] = useState<AppVariables | null>(null);
   const [rows, setRows] = useState<VarRow[]>([]);
-  const [rawMode, setRawMode] = useState(false);
-  const [rawText, setRawText] = useState("");
+  // Raw view edits the variables as KEY=value lines in a dialog; Apply puts them back into the table.
+  const [rawOpen, setRawOpen] = useState(false);
+  const [rawDraft, setRawDraft] = useState("");
   const [secretRows, setSecretRows] = useState<SecretRow[]>([]);
   const [deletedSecrets, setDeletedSecrets] = useState<Map<string, string>>(new Map());
   const [saving, setSaving] = useState<"variables" | "secrets" | "both" | null>(null);
@@ -92,7 +94,6 @@ export function VariablesPanel({
   const apply = useCallback((next: AppVariables) => {
     setData(next);
     setRows(next.variables.map((item) => ({ key: item.key, value: item.value })));
-    setRawText(next.variables.map((item) => `${item.key}=${item.value}`).join("\n"));
     setSecretRows(secretRowsOf(next));
     setDeletedSecrets(new Map());
   }, []);
@@ -107,9 +108,7 @@ export function VariablesPanel({
 
   // Reloads on realtime changes only while nothing is being edited.
   const [loadedVersion, setLoadedVersion] = useState(-1);
-  const editedVariables = rawMode
-    ? !sameRows(parseRaw(rawText), data?.variables ?? [])
-    : !sameRows(rows, data?.variables ?? []);
+  const editedVariables = !sameRows(rows, data?.variables ?? []);
   const editedSecrets = deletedSecrets.size > 0 || secretRows.some((row) => row.dirty);
   useEffect(() => {
     if (loadedVersion === version || editedVariables || editedSecrets) return;
@@ -130,11 +129,11 @@ export function VariablesPanel({
       if (indices.length > 1) for (const i of indices) errors.add(i);
     return errors;
   }, [rows]);
-  const rawErrors = useMemo(() => (rawMode ? rawErrorLines(rawText) : []), [rawMode, rawText]);
+  const rawErrors = useMemo(() => (rawOpen ? rawErrorLines(rawDraft) : []), [rawOpen, rawDraft]);
   const secretKeyErrors = useMemo(() => {
     const errors = new Set<number>();
     const seen = new Map<string, number[]>();
-    const variableKeys = new Set((rawMode ? parseRaw(rawText) : rows).map((row) => row.key.trim()));
+    const variableKeys = new Set(rows.map((row) => row.key.trim()));
     secretRows.forEach((row, index) => {
       const key = row.key.trim();
       if (!key) return;
@@ -145,16 +144,14 @@ export function VariablesPanel({
     for (const indices of seen.values())
       if (indices.length > 1) for (const i of indices) errors.add(i);
     return errors;
-  }, [secretRows, rows, rawMode, rawText]);
-  const hasVariableErrors = rawMode ? rawErrors.length > 0 : tableErrors.size > 0;
+  }, [secretRows, rows]);
+  const hasVariableErrors = tableErrors.size > 0;
   const hasSecretErrors =
     secretKeyErrors.size > 0 ||
     secretRows.some((row) => row.dirty && (!KEY_PATTERN.test(row.key.trim()) || !row.value));
 
   const variablesPayload = () =>
-    (rawMode ? parseRaw(rawText) : rows)
-      .map((row) => ({ key: row.key.trim(), value: row.value }))
-      .filter((row) => row.key);
+    rows.map((row) => ({ key: row.key.trim(), value: row.value })).filter((row) => row.key);
 
   const secretsPatch = () => ({
     set: Object.fromEntries(
@@ -183,7 +180,6 @@ export function VariablesPanel({
       }
       if (!next) next = await api.getAppVariables(app.id, env.id);
       apply(next);
-      setRawMode(false);
       const pending = next.pendingWorkloads.length;
       if (recreate && pending > 0) {
         setRecreateConfirm(false);
@@ -205,13 +201,13 @@ export function VariablesPanel({
   const update = (index: number, field: keyof VarRow, value: string) =>
     setRows((current) => current.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
 
-  const switchToRaw = () => {
-    setRawText(rows.map((row) => `${row.key}=${row.value}`).join("\n"));
-    setRawMode(true);
+  const openRaw = () => {
+    setRawDraft(rows.map((row) => `${row.key}=${row.value}`).join("\n"));
+    setRawOpen(true);
   };
-  const switchToTable = () => {
-    setRows(parseRaw(rawText));
-    setRawMode(false);
+  const applyRaw = () => {
+    setRows(parseRaw(rawDraft));
+    setRawOpen(false);
   };
 
   if (!data) return <ContentLoading loading />;
@@ -250,20 +246,17 @@ export function VariablesPanel({
         icon={<Braces className="h-4 w-4" />}
         description={`Injected into every container of ${env.name}`}
         dirty={editedVariables}
-        className={rawMode ? "overflow-visible" : undefined}
         actions={
           <>
-            {!rawMode && (
-              <Button
-                variant="ghost"
-                size="icon"
-                title="Add variable"
-                aria-label="Add variable"
-                onClick={() => setRows((current) => [...current, { key: "", value: "" }])}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Add variable"
+              aria-label="Add variable"
+              onClick={() => setRows((current) => [...current, { key: "", value: "" }])}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
             <MoreMenu label={`More variable actions for ${env.name}`}>
               <DropdownMenuItem
                 disabled={
@@ -279,12 +272,9 @@ export function VariablesPanel({
                 Save and recreate {plural(workloadCount, "workload")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={hasVariableErrors}
-                onClick={rawMode ? switchToTable : switchToRaw}
-              >
-                {rawMode ? <Table2 className="h-4 w-4" /> : <Code2 className="h-4 w-4" />}
-                {rawMode ? "Table view" : "Raw view"}
+              <DropdownMenuItem onClick={openRaw}>
+                <Code2 className="h-4 w-4" />
+                Raw view
               </DropdownMenuItem>
             </MoreMenu>
             <Button
@@ -299,16 +289,7 @@ export function VariablesPanel({
           </>
         }
       >
-        {rawMode ? (
-          <CodeEditor
-            value={rawText}
-            onChange={setRawText}
-            language="env"
-            errorLines={rawErrors}
-            minHeight="200px"
-            className="-m-px"
-          />
-        ) : rows.length === 0 ? (
+        {rows.length === 0 ? (
           <EmptyState
             message="No variables yet."
             actionLabel="Add one"
@@ -373,6 +354,17 @@ export function VariablesPanel({
         saveIcon={<Save className="h-3.5 w-3.5" />}
         description={`Encrypted values for every container of ${env.name}`}
         dirty={editedSecrets}
+      />
+      <EnvTextDialog
+        open={rawOpen}
+        onOpenChange={setRawOpen}
+        title={`Variables · ${env.name}`}
+        description="One KEY=value per line. Apply puts them back into the table; Save stores them."
+        value={rawDraft}
+        onValueChange={setRawDraft}
+        errorLines={rawErrors}
+        applyDisabled={rawErrors.length > 0}
+        onApply={applyRaw}
       />
       <RecreateWorkloadsDialog
         appId={app.id}

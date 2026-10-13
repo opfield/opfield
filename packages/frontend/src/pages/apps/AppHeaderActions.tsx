@@ -120,6 +120,17 @@ export function AppHeaderActions({
               },
         ]
       : []),
+    // The New menu (create in the app) stays in the header: it is the page's main action.
+    ...(newMenu
+      ? [
+          {
+            id: "app:new",
+            label: "New",
+            onClick: () => undefined,
+            priority: HEADER_ACTION_PRIORITY.emergency,
+          },
+        ]
+      : []),
     ...(app.permissions.delete
       ? [
           {
@@ -135,41 +146,30 @@ export function AppHeaderActions({
 
   return (
     <>
+      {/* Each action has its button at the same index: the overflow menu takes what doesn't fit. */}
       <ResponsiveHeaderActions reservedContentWidth={360} actions={actions}>
-        <Button
-          variant="outline"
-          size="icon"
-          title="Refresh"
-          aria-label="Refresh app"
-          onClick={onRefresh}
-          disabled={refreshing}
-        >
-          <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-        </Button>
-        <Button variant="outline" size="icon" aria-label="Pin app" onClick={() => setPinOpen(true)}>
-          <Pin className="h-4 w-4" />
-        </Button>
-        {canStart && (
-          <Button
-            variant="outline"
-            onClick={() => void end(() => startAfterShutdown(app, stoppedIncidents))}
-            pending={ending}
-          >
-            <Play className="h-4 w-4" />
-            Start
-          </Button>
+        {actions.map((action) =>
+          action.id === "app:new" ? (
+            <span key={action.id}>{newMenu}</span>
+          ) : (
+            <Button
+              key={action.id}
+              variant={action.destructive ? "destructive" : "outline"}
+              size={action.id === "app:refresh" || action.id === "app:pin" ? "icon" : "default"}
+              aria-label={action.label}
+              title={action.disabled ? action.disabledReason : action.label}
+              disabled={action.disabled || (action.id === "app:refresh" && refreshing)}
+              onClick={action.onClick}
+            >
+              {action.id === "app:refresh" ? (
+                <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+              ) : (
+                action.icon
+              )}
+              {action.id === "app:refresh" || action.id === "app:pin" ? null : action.label}
+            </Button>
+          )
         )}
-        {canRelease && (
-          <Button
-            variant="outline"
-            onClick={() => void end(() => turnOffKillSwitch(app, isolatedIncidents))}
-            pending={ending}
-          >
-            <ShieldOff className="h-4 w-4" />
-            Turn off kill switch
-          </Button>
-        )}
-        {newMenu}
       </ResponsiveHeaderActions>
 
       <Dialog open={pinOpen} onOpenChange={setPinOpen}>
