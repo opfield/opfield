@@ -18,6 +18,8 @@ interface AIMessageListProps {
     attachments: AIMessageAttachment[]
   ) => void;
   onRetryUserMessage?: (messageId: string) => void;
+  /** The user message a Retry is resending; its error line shows the retry in progress. */
+  retryingMessageId?: string | null;
   retryDisabled?: boolean;
   editUserMessageDisabled?: boolean;
   resourceReferences?: AIResourceReference[];
@@ -33,6 +35,7 @@ export function AIMessageList({
   onAnswer,
   onEditUserMessage,
   onRetryUserMessage,
+  retryingMessageId = null,
   retryDisabled,
   editUserMessageDisabled,
   resourceReferences = NO_RESOURCE_REFERENCES,
@@ -58,7 +61,8 @@ export function AIMessageList({
           ? () => onRetryUserMessage(retryTargets.get(message)!)
           : undefined
       }
-      retryDisabled={retryDisabled}
+      retrying={retryingMessageId !== null && retryTargets.get(message) === retryingMessageId}
+      retryDisabled={retryDisabled || retryingMessageId !== null}
       editUserMessageDisabled={editUserMessageDisabled}
       resourceReferences={resourceReferences}
       suppressActivityIndicator

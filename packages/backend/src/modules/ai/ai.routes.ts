@@ -23,7 +23,7 @@ import { AIService } from './ai.service.js';
 import { AISettingsService } from './ai.settings.service.js';
 import { AISkillService } from './ai.skills.js';
 import { AI_TOOLS } from './ai.tools.js';
-import { AIConversationService } from './ai-conversation.service.js';
+import { AIConversationService, isConversationMessageId } from './ai-conversation.service.js';
 import { AIConversationFolderService } from './ai-conversation-folder.service.js';
 import { AIProviderRuntimeService } from './ai-provider-runtime.service.js';
 import { AIRunService } from './ai-run.service.js';
@@ -351,6 +351,9 @@ aiRoutes.post('/conversations/:id/rollback', requireScope('ai:workspace:use'), a
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
   const messageId = typeof body.messageId === 'string' ? body.messageId : '';
   if (!messageId) return c.json({ code: 'VALIDATION_ERROR', message: 'messageId is required' }, 400);
+  if (!isConversationMessageId(messageId)) {
+    return c.json({ code: 'NOT_FOUND', message: 'This message is not saved yet. Try again in a moment.' }, 404);
+  }
 
   const runService = container.resolve(AIRunService);
   await runService.stopActiveRunForRollback({ conversationId: c.req.param('id'), userId: user.id });

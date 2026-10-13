@@ -615,7 +615,7 @@ export function reconcileOptimisticMessages(
   const stableSnapshotMessages = snapshotMessages.map((message) => {
     if (message.role !== "user" || !message.clientCommandId) return message;
     const current = currentUsersByCommand.get(message.clientCommandId);
-    return current ? { ...message, id: current.id } : message;
+    return current ? { ...message, id: current.id, serverId: message.id } : message;
   });
   const persistedCommands = new Set(
     stableSnapshotMessages.flatMap((message) =>

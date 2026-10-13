@@ -63,6 +63,7 @@ interface AIMessageProps {
     attachments: AIMessageAttachment[]
   ) => void;
   onRetry?: () => void;
+  retrying?: boolean;
   retryDisabled?: boolean;
   editUserMessageDisabled?: boolean;
   resourceReferences?: AIResourceReference[];
@@ -272,6 +273,7 @@ export function AIMessage({
   assistantMaxWidthClass = "max-w-[95%]",
   onEditUserMessage,
   onRetry,
+  retrying = false,
   retryDisabled = false,
   editUserMessageDisabled = false,
   resourceReferences = NO_RESOURCE_REFERENCES,
@@ -447,9 +449,15 @@ export function AIMessage({
                   "text-primary transition-colors hover:text-primary/80"
                 )}
                 onClick={onRetry}
-                disabled={retryDisabled}
+                disabled={retryDisabled || retrying}
+                aria-busy={retrying}
+                title={
+                  !retrying && retryDisabled
+                    ? "Wait for the assistant to finish or stop it, then retry"
+                    : undefined
+                }
               >
-                Retry
+                {retrying ? "Retrying…" : "Retry"}
               </button>
             ) : undefined
           }

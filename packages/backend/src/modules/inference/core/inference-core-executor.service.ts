@@ -14,6 +14,7 @@ import type {
   InferenceStreamEvent,
 } from '../protocol/inference-protocol.types.js';
 import type { InferenceProviderDefinition } from '../providers/inference-provider.types.js';
+import { inferenceProviderVendorName } from '../providers/inference-provider-vendor.js';
 import {
   createProviderStreamState,
   parseProviderEvent,
@@ -22,6 +23,7 @@ import {
 import type { CoreDataPlaneTarget } from './inference-core-bridge.service.js';
 import { coreRequestHeaders, newCoreRequestContext } from './inference-core-context.js';
 import { type InferenceCoreProxyService, shouldFailOverCoreResponse } from './inference-core-proxy.service.js';
+import { parseRetryAfterMs } from './inference-retry-after.js';
 
 /**
  * The Opfield↔core wire is always the OpenAI Responses protocol: the core is
@@ -144,7 +146,9 @@ export class InferenceCoreExecutor implements InferenceExecutor {
           excludedConnectionIds.push(resolved.selected.connection.id);
           continue;
         }
-        if (!upstream.ok || !upstream.body) throw await coreFailure(upstream);
+        if (!upstream.ok || !upstream.body) {
+          throw await coreFailure(upstream, inferenceProviderVendorName(resolved.selected.connection.providerId));
+        }
         break;
       }
     } catch (error) {
@@ -157,10 +161,15 @@ export class InferenceCoreExecutor implements InferenceExecutor {
     const state = createProviderStreamState(resolved.upstreamModel, effectiveRequest.tools);
     const accounting = this.coreAccounting;
     const signal = context.signal;
+    const provider = inferenceProviderVendorName(resolved.selected.connection.providerId);
+    const parse = (payload: JsonObject): InferenceStreamEvent[] =>
+      parseProviderEvent(CORE_WIRE_DEFINITION, payload, state).map((event) =>
+        event.type === 'error' && provider ? { ...event, provider } : event
+      );
     const events = (async function* (): AsyncGenerator<InferenceStreamEvent> {
       let outcome: 'completed' | 'failed' | 'cancelled' = 'completed';
       try {
-        yield* decodeSse(upstream.body!, (payload) => parseProviderEvent(CORE_WIRE_DEFINITION, payload, state));
+        yield* decodeSse(upstream.body!, parse);
       } catch {
         outcome = signal.aborted ? 'cancelled' : 'failed';
         throw new InferenceProtocolError(502, 'inference_core_stream_failed', 'The core stream ended unexpectedly');
@@ -200,7 +209,7 @@ export class InferenceCoreExecutor implements InferenceExecutor {
   }
 }
 
-async function coreFailure(response: Response): Promise<InferenceProtocolError> {
+async function coreFailure(response: Response, provider: string | undefined): Promise<InferenceProtocolError> {
   let code = 'inference_core_request_failed';
   let message = `The inference core request failed with HTTP ${response.status}`;
   try {
@@ -216,7 +225,13 @@ async function coreFailure(response: Response): Promise<InferenceProtocolError> 
   const status = (allowed as readonly number[]).includes(response.status)
     ? (response.status as InferenceProtocolError['status'])
     : 502;
-  return new InferenceProtocolError(status, code, message.slice(0, 500));
+  const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+  const details = {
+    ...(provider ? { provider } : {}),
+    ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+    upstreamStatus: response.status,
+  };
+  return new InferenceProtocolError(status, code, message.slice(0, 500), details);
 }
 
 async function* decodeSse(

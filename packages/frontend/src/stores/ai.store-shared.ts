@@ -219,6 +219,8 @@ export interface AIState {
   connectionError: string | null;
   isEnabled: boolean | null;
   retryAfter: number | null;
+  /** The user message a Retry is resending right now. */
+  retryingMessageId: string | null;
   savedName: string | null;
   activeConversationId: string | null;
   sidebarActiveConversationId: string | null;
