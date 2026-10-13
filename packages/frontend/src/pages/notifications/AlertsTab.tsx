@@ -18,9 +18,20 @@ import { Switch } from "@/components/ui/switch";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
 import { api } from "@/services/api";
-import type { AlertRule } from "@/types";
+import type { AlertCategoryDef, AlertRule } from "@/types";
 import { AlertDialog } from "./AlertDialog";
 import { alertSeverityVariant } from "./notification-status";
+
+/** A category id read as words ("managed_storage" → "Managed storage") until the catalog names it. */
+export function alertCategoryLabel(
+  category: string,
+  categories: readonly AlertCategoryDef[]
+): string {
+  const label = categories.find((item) => item.id === category)?.label;
+  if (label) return label;
+  const words = category.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 // ── Alerts Tab ──────────────────────────────────────────────────────
 
@@ -43,6 +54,21 @@ export function AlertsTab({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
   const lastHandledCreateToken = useRef(openCreateToken);
+  const [categories, setCategories] = useState<AlertCategoryDef[]>([]);
+
+  useEffect(() => {
+    if (!canRead) return;
+    let cancelled = false;
+    api
+      .getAlertCategories()
+      .then((loaded) => {
+        if (!cancelled) setCategories(loaded);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [canRead]);
 
   const load = useCallback(
     async (options?: { showLoading?: boolean }) => {
@@ -147,7 +173,9 @@ export function AlertsTab({
       id: "category",
       header: "Category",
       align: "right",
-      render: (rule) => <Badge variant="secondary">{rule.category}</Badge>,
+      render: (rule) => (
+        <Badge variant="secondary">{alertCategoryLabel(rule.category, categories)}</Badge>
+      ),
     },
     {
       id: "scope",
