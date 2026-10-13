@@ -5,7 +5,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_alert_rules',
     description:
-      'List notification alert rules. Returns id, name, enabled, type (threshold/event), category, severity, metric, operator, thresholdValue, eventPattern, resourceIds, webhookIds, cooldownSeconds. Categories include hosting VM/account, node, container, build, compose, proxy, pages, opfield (the Opfield host, backend process, Postgres, Redis, stack containers and background jobs, plus relay and license), logging, integration, certificate, security, and managed database types. Use manage_notifications alert_categories for each category metrics, events, and template variables.',
+      'List notification alert rules. Returns id, name, enabled, type (threshold/event), category, severity, metric, operator, thresholdValue, eventPattern, resourceIds, webhookIds, cooldownSeconds. Categories include hosting VM/account, node, container, build, compose, proxy (routes: health events and request metrics such as the 5xx share), pages, opfield (the Opfield host, backend process, Postgres, Redis, stack containers and background jobs, plus relay and license), logging, integration, certificate, security, managed database types, managed_storage, app (app environment health, kill switch, shutdown, maintenance, 5xx share over its routes), backup (failed or missed scheduled backups), and domain (DNS not pointing to Opfield). Use manage_notifications alert_categories for each category metrics, events, and template variables.',
     parameters: {
       type: 'object',
       properties: {
@@ -44,7 +44,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_alert_rule',
     description:
-      'Create a new notification alert rule. Threshold rules fire when a metric crosses a value. Event rules fire on system events like node offline or container stopped.',
+      "Create a new notification alert rule. Threshold rules fire when a metric crosses a value for durationSeconds; event rules fire on events or states like node offline or an app environment failing. The metric or event must be one of the category's (manage_notifications alert_categories lists them). Example, a route 5xx share of at least 10% for one minute: category proxy, type threshold, metric error_5xx_percent, operator >=, thresholdValue 10, durationSeconds 60.",
     parameters: {
       type: 'object',
       properties: {
@@ -59,7 +59,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         metric: {
           type: 'string',
           description:
-            'For threshold: metric name (cpu, memory, disk, log_size for containers in MB, days_until_expiry)',
+            'For threshold: a metric id of the category, e.g. cpu, memory, disk (node), restarts_per_hour (container), error_5xx_percent, error_4xx_percent, requests_per_second, latency_p95_ms (proxy), error_5xx_percent (app), days_until_expiry (certificate), hours_since_last_backup (backup)',
         },
         metricTarget: {
           type: 'string',
@@ -85,11 +85,16 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
           description:
             'For threshold: percent of probes in the resolve window that must be clear before resolving (default 100)',
         },
-        eventPattern: { type: 'string', description: 'For event: event pattern (offline, stopped, oom_killed, etc.)' },
+        eventPattern: {
+          type: 'string',
+          description:
+            'For event: an event id of the category, e.g. offline (node), stopped (container), health.offline (proxy), health.failing or kill_switch.on (app), backup.failed (backup), dns.not_pointing (domain)',
+        },
         resourceIds: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Scope to specific resources (empty = all)',
+          description:
+            'Scope to specific resources of the category (empty = all): node, route, certificate, database or domain ids, container names, app or app environment ids, database ids for backup rules',
         },
         messageTemplate: {
           type: 'string',

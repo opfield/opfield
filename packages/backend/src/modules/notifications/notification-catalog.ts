@@ -45,7 +45,10 @@ export type AlertCategory =
   | 'database_postgres'
   | 'database_clickhouse'
   | 'database_redis'
-  | 'managed_storage';
+  | 'managed_storage'
+  | 'app'
+  | 'backup'
+  | 'domain';
 
 export interface MetricDefinition {
   id: string;
@@ -72,6 +75,10 @@ export interface EventDefinition {
 export interface CategoryDefinition {
   id: AlertCategory;
   label: string;
+  /** What the rule's scope picks, plural and lower case ("routes", "app environments"). */
+  resourceLabel: string;
+  /** False when the category has no resources to pick (the rule always covers everything). */
+  scopable?: boolean;
   metrics: MetricDefinition[];
   events: EventDefinition[];
   /** Variables available in message templates for this category */
@@ -157,10 +164,74 @@ const AVAILABILITY_VARIABLES = [
   { name: '{{details.occurred_at}}', description: 'Availability: when it happened (also for events replayed later)' },
 ];
 
+/**
+ * Request metrics of a route over the last minute of its access log (summed over the nodes serving it). A share is
+ * measured once the minute has at least ROUTE_SHARE_MIN_REQUESTS requests; with fewer it counts as 0 %, so one failed
+ * request on an idle route does not alert and an alert resolves once traffic stops.
+ */
+export const ROUTE_TRAFFIC_METRICS: MetricDefinition[] = [
+  {
+    id: 'error_5xx_percent',
+    label: '5xx Responses (%)',
+    unit: '%',
+    defaultOperator: '>=',
+    defaultValue: 10,
+    defaultDurationSeconds: 60,
+  },
+  {
+    id: 'error_4xx_percent',
+    label: '4xx Responses (%)',
+    unit: '%',
+    defaultOperator: '>=',
+    defaultValue: 50,
+    defaultDurationSeconds: 300,
+  },
+  {
+    id: 'requests_per_second',
+    label: 'Requests per Second',
+    unit: 'req/s',
+    defaultOperator: '>',
+    defaultValue: 100,
+    defaultDurationSeconds: 300,
+  },
+  {
+    id: 'latency_p95_ms',
+    label: 'Response Time p95 (ms)',
+    unit: 'ms',
+    defaultOperator: '>',
+    defaultValue: 1000,
+    defaultDurationSeconds: 300,
+  },
+];
+
+/** Requests a minute needs before its 4xx/5xx share counts; see ROUTE_TRAFFIC_METRICS. */
+export const ROUTE_SHARE_MIN_REQUESTS = 10;
+
+/** Container metrics of a managed database (CPU and memory of its container, as its node reports them). */
+const MANAGED_DATABASE_METRICS: MetricDefinition[] = [
+  {
+    id: 'managed_cpu_percent',
+    label: 'Container CPU Usage (%)',
+    unit: '%',
+    defaultOperator: '>',
+    defaultValue: 90,
+    defaultDurationSeconds: 300,
+  },
+  {
+    id: 'managed_memory_pct',
+    label: 'Container Memory (% of Limit)',
+    unit: '%',
+    defaultOperator: '>',
+    defaultValue: 90,
+    defaultDurationSeconds: 300,
+  },
+];
+
 export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'hosting_vm',
     label: 'Hosting VM',
+    resourceLabel: 'hosting VMs',
     metrics: [],
     events: [
       ...['running', 'stopped', 'starting', 'stopping', 'unknown', 'missing'].map((state) => ({
@@ -196,6 +267,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'hosting_account',
     label: 'Hosting account',
+    resourceLabel: 'hosting accounts',
     metrics: [
       { id: 'balance', label: 'Account balance', unit: 'currency', defaultOperator: '<', defaultValue: 10 },
       {
@@ -223,6 +295,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'node',
     label: 'Node',
+    resourceLabel: 'nodes',
     metrics: [
       { id: 'cpu', label: 'CPU Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
       { id: 'memory', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
@@ -301,12 +374,21 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'container',
     label: 'Container',
+    resourceLabel: 'containers',
     metrics: [
       { id: 'cpu', label: 'CPU Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
       { id: 'memory', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
       // Containers with Opfield's default rotation stay under 150 MB, so this
       // catches workloads whose logs are unbounded.
       { id: 'log_size', label: 'Log Size (MB)', unit: 'MB', defaultOperator: '>', defaultValue: 1024 },
+      // Docker restarts (restart policy, crashes) in the last hour, from the container's inspect.
+      {
+        id: 'restarts_per_hour',
+        label: 'Restarts in the Last Hour',
+        unit: 'restarts',
+        defaultOperator: '>=',
+        defaultValue: 3,
+      },
     ],
     events: [
       { id: 'stopped', label: 'Container Stopped', defaultSeverity: 'warning', supportsThreshold: true },
@@ -336,7 +418,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{resource.key}}', description: 'Internal alert resource key' },
       { name: '{{node.id}}', description: 'Docker node ID' },
       { name: '{{node.name}}', description: 'Node hosting this container' },
-      { name: '{{metric.name}}', description: 'Metric name (cpu, memory)' },
+      { name: '{{metric.name}}', description: 'Metric name (cpu, memory, log_size, restarts_per_hour)' },
       { name: '{{metric.value}}', description: 'Current metric value' },
       { name: '{{metric.threshold}}', description: 'Configured threshold' },
       { name: '{{health.status}}', description: 'HTTP health status' },
@@ -348,6 +430,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'build',
     label: 'Docker Build',
+    resourceLabel: 'build sources',
     metrics: [],
     events: [
       { id: 'succeeded', label: 'Build Succeeded', defaultSeverity: 'info' },
@@ -366,6 +449,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'compose',
     label: 'Compose Project',
+    resourceLabel: 'Compose projects',
     metrics: [],
     events: [
       { id: 'operation.succeeded', label: 'Operation Succeeded', defaultSeverity: 'info' },
@@ -385,7 +469,8 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'proxy',
     label: 'Route',
-    metrics: [],
+    resourceLabel: 'routes',
+    metrics: ROUTE_TRAFFIC_METRICS,
     events: [
       { id: 'health.offline', label: 'Health Offline', defaultSeverity: 'critical', supportsThreshold: true },
       { id: 'health.degraded', label: 'Health Degraded', defaultSeverity: 'warning', supportsThreshold: true },
@@ -405,6 +490,13 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{resource.name}}', description: 'Domain name(s)' },
       { name: '{{resource.id}}', description: 'Route ID' },
       { name: '{{resource.key}}', description: 'Internal alert resource key' },
+      { name: '{{metric.name}}', description: 'Request metric (5xx or 4xx share, requests per second, p95)' },
+      { name: '{{metric.value}}', description: 'Current metric value' },
+      { name: '{{metric.threshold}}', description: 'Configured threshold' },
+      { name: '{{metric.operator}}', description: 'Comparison operator' },
+      { name: '{{details.requests}}', description: 'Requests in the last minute (request metrics)' },
+      { name: '{{details.errors_5xx}}', description: '5xx responses in the last minute (request metrics)' },
+      { name: '{{fired.duration}}', description: 'How long the alert lasted, such as 3m 37s' },
       { name: '{{health.status}}', description: 'Health status' },
       { name: '{{event.name}}', description: 'Event pattern/name' },
       { name: '{{state.current}}', description: 'Current state for stateful events' },
@@ -413,6 +505,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'pages',
     label: 'Pages',
+    resourceLabel: 'Pages projects',
     metrics: [],
     events: [
       { id: 'deployment.ready', label: 'Deployment Ready', defaultSeverity: 'info' },
@@ -464,6 +557,8 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'opfield',
     label: 'Opfield',
+    resourceLabel: 'Opfield components',
+    scopable: false,
     // Opfield's own host, process and dependencies, sampled once a minute by Opfield diagnostics.
     metrics: [
       {
@@ -614,6 +709,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'logging',
     label: 'Logging',
+    resourceLabel: 'logging environments',
     metrics: [
       {
         id: 'error_fatal_ratio_percent',
@@ -647,6 +743,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'integration',
     label: 'Integration',
+    resourceLabel: 'connectors',
     metrics: [],
     events: [
       { id: 'sync.failed', label: 'Connector Sync Failed', defaultSeverity: 'warning', supportsThreshold: true },
@@ -662,6 +759,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'certificate',
     label: 'Certificate',
+    resourceLabel: 'certificates',
     metrics: [
       {
         id: 'days_until_expiry',
@@ -701,6 +799,8 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'security',
     label: 'Security',
+    resourceLabel: 'permission groups',
+    scopable: false,
     metrics: [],
     events: [{ id: 'mfa.required', label: 'Group MFA Required', defaultSeverity: 'warning' }],
     variables: [
@@ -713,14 +813,30 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'database_postgres',
     label: 'Database - Postgres',
+    resourceLabel: 'Postgres databases',
     metrics: [
       { id: 'latency_ms', label: 'Latency (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 1000 },
       {
         id: 'active_connections_pct',
-        label: 'Active Connections (%)',
+        label: 'Active Connections (% of Max)',
         unit: '%',
         defaultOperator: '>',
         defaultValue: 90,
+      },
+      {
+        id: 'total_connections_pct',
+        label: 'Open Connections (% of Max)',
+        unit: '%',
+        defaultOperator: '>',
+        defaultValue: 90,
+      },
+      {
+        id: 'long_running_queries',
+        label: 'Long-Running Queries',
+        unit: 'queries',
+        defaultOperator: '>',
+        defaultValue: 0,
+        defaultDurationSeconds: 300,
       },
       {
         id: 'database_size_mb',
@@ -729,6 +845,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultOperator: '>',
         defaultValue: 1024,
       },
+      ...MANAGED_DATABASE_METRICS,
       ...AVAILABILITY_METRICS,
     ],
     events: [
@@ -775,6 +892,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'database_clickhouse',
     label: 'Database - ClickHouse',
+    resourceLabel: 'ClickHouse databases',
     metrics: [
       { id: 'latency_ms', label: 'Latency (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 1000 },
       {
@@ -793,6 +911,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultValue: 10_240,
       },
       { id: 'pending_mutations', label: 'Pending Mutations', unit: '', defaultOperator: '>', defaultValue: 5 },
+      ...MANAGED_DATABASE_METRICS,
       ...AVAILABILITY_METRICS,
     ],
     events: [
@@ -839,9 +958,11 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'database_redis',
     label: 'Database - Key-value',
+    resourceLabel: 'key-value stores',
     metrics: [
       { id: 'latency_ms', label: 'Latency (ms)', unit: 'ms', defaultOperator: '>', defaultValue: 1000 },
-      { id: 'memory_pct', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
+      { id: 'memory_pct', label: 'Memory Usage (% of maxmemory)', unit: '%', defaultOperator: '>', defaultValue: 90 },
+      ...MANAGED_DATABASE_METRICS,
       ...AVAILABILITY_METRICS,
     ],
     events: [
@@ -888,6 +1009,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'managed_storage',
     label: 'Managed Storage',
+    resourceLabel: 'storages',
     metrics: [
       // The storage disk as its node reports it (managed storage monitoring).
       { id: 'disk_used_pct', label: 'Disk Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 85 },
@@ -915,6 +1037,102 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       ...AVAILABILITY_VARIABLES,
     ],
   },
+  {
+    // One alert per app environment, keyed `<app id>:<environment id>`: a rule scoped to an app covers all its
+    // environments. Health is the one the Apps list shows; request metrics are summed over the environment's routes.
+    id: 'app',
+    label: 'App',
+    resourceLabel: 'apps or environments',
+    metrics: [
+      {
+        ...ROUTE_TRAFFIC_METRICS[0]!,
+        label: '5xx Responses Over Its Routes (%)',
+      },
+      { ...ROUTE_TRAFFIC_METRICS[2]!, label: 'Requests per Second Over Its Routes' },
+    ],
+    events: [
+      { id: 'health.failing', label: 'Environment Failing', defaultSeverity: 'critical', supportsThreshold: true },
+      {
+        id: 'health.degraded',
+        label: 'Environment Degraded or Failing',
+        defaultSeverity: 'warning',
+        supportsThreshold: true,
+      },
+      {
+        id: 'health.healthy',
+        label: 'Environment Healthy Again',
+        defaultSeverity: 'info',
+        supportsThreshold: true,
+        recovery: true,
+      },
+      { id: 'kill_switch.on', label: 'Kill Switch On', defaultSeverity: 'critical', supportsThreshold: true },
+      { id: 'shutdown.active', label: 'Environment Shut Down', defaultSeverity: 'warning', supportsThreshold: true },
+      { id: 'maintenance.active', label: 'Maintenance On', defaultSeverity: 'info', supportsThreshold: true },
+    ],
+    variables: [
+      { name: '{{resource.name}}', description: 'App and environment, such as "Shop · production"' },
+      { name: '{{resource.id}}', description: 'Environment ID' },
+      { name: '{{resource.key}}', description: 'Internal alert resource key (app ID:environment ID)' },
+      { name: '{{state.current}}', description: 'Current state, such as health.degraded' },
+      { name: '{{details.app}}', description: 'App name' },
+      { name: '{{details.environment}}', description: 'Environment name' },
+      { name: '{{details.failing}}', description: 'Failing resources of the environment (health events)' },
+      { name: '{{details.degraded}}', description: 'Degraded resources of the environment (health events)' },
+      { name: '{{details.requests}}', description: 'Requests in the last minute over its routes (request metrics)' },
+      { name: '{{details.errors_5xx}}', description: '5xx responses in the last minute (request metrics)' },
+      { name: '{{metric.value}}', description: 'Current metric value' },
+      { name: '{{metric.threshold}}', description: 'Configured threshold' },
+      { name: '{{fired.duration}}', description: 'How long the alert lasted, such as 3m 37s' },
+    ],
+  },
+  {
+    // Scheduled database backups (backup policies), checked every minute. Keyed `<database id>:<policy id>`: a rule
+    // scoped to a database covers each of its policies.
+    id: 'backup',
+    label: 'Backup',
+    resourceLabel: 'databases',
+    metrics: [
+      {
+        id: 'hours_since_last_backup',
+        label: 'Hours Since Last Successful Backup',
+        unit: 'h',
+        defaultOperator: '>',
+        defaultValue: 26,
+      },
+    ],
+    events: [
+      { id: 'backup.failed', label: 'Last Backup Failed', defaultSeverity: 'critical', supportsThreshold: true },
+    ],
+    variables: [
+      { name: '{{resource.name}}', description: 'Database name and backup destination' },
+      { name: '{{resource.id}}', description: 'Database connection ID' },
+      { name: '{{details.policy_id}}', description: 'Backup policy ID' },
+      { name: '{{details.last_success_at}}', description: 'When the last backup succeeded' },
+      { name: '{{details.last_error}}', description: 'Why the last backup failed (backup.failed)' },
+      { name: '{{metric.value}}', description: 'Hours since the last successful backup' },
+      { name: '{{metric.threshold}}', description: 'Configured threshold' },
+    ],
+  },
+  {
+    // DNS of domains, as the domain DNS check last saw it.
+    id: 'domain',
+    label: 'Domain',
+    resourceLabel: 'domains',
+    metrics: [],
+    events: [
+      {
+        id: 'dns.not_pointing',
+        label: 'DNS Not Pointing to Opfield',
+        defaultSeverity: 'warning',
+        supportsThreshold: true,
+      },
+    ],
+    variables: [
+      { name: '{{resource.name}}', description: 'Domain' },
+      { name: '{{resource.id}}', description: 'Domain ID' },
+      { name: '{{details.dns_status}}', description: 'DNS check result' },
+    ],
+  },
 ];
 
 /** Every category id, for schemas and tool definitions that must accept exactly the catalog. */
@@ -934,4 +1152,28 @@ export function isRecoveryEvent(category: string | null | undefined, eventPatter
   if (!category || !eventPattern) return false;
   return !!ALERT_CATEGORIES.find((item) => item.id === category)?.events.find((event) => event.id === eventPattern)
     ?.recovery;
+}
+
+/** Why a rule's metric or event is not in its category's catalog, or null when it is. */
+export function catalogMismatch(rule: {
+  type?: string | null;
+  category?: string | null;
+  metric?: string | null;
+  eventPattern?: string | null;
+}): string | null {
+  const category = CATEGORY_MAP.get(rule.category as AlertCategory);
+  if (!category) return `Unknown alert category ${rule.category}`;
+  if (rule.type === 'threshold') {
+    if (category.metrics.some((metric) => metric.id === rule.metric)) return null;
+    return category.metrics.length === 0
+      ? `${category.label} alerts have no metrics; use an event rule`
+      : `${category.label} has no metric ${rule.metric}; use one of ${category.metrics.map((metric) => metric.id).join(', ')}`;
+  }
+  if (rule.type === 'event') {
+    if (category.events.some((event) => event.id === rule.eventPattern)) return null;
+    return category.events.length === 0
+      ? `${category.label} alerts have no events; use a threshold rule`
+      : `${category.label} has no event ${rule.eventPattern}; use one of ${category.events.map((event) => event.id).join(', ')}`;
+  }
+  return null;
 }

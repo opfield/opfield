@@ -1,4 +1,4 @@
-import { isPerDeviceNodeMetric } from './notification-catalog.js';
+import { isPerDeviceNodeMetric, ROUTE_SHARE_MIN_REQUESTS } from './notification-catalog.js';
 
 // ── Threshold Metric Extraction ───────────────────────────────────────
 
@@ -190,9 +190,48 @@ export function extractMetricFromDatabaseSnapshot(
   if (category !== 'database_postgres' && category !== 'database_clickhouse' && category !== 'database_redis') {
     return null;
   }
-  const value = snapshot.metrics[metric];
+  const value = metric === 'managed_memory_pct' ? managedMemoryPercent(snapshot.metrics) : snapshot.metrics[metric];
   if (typeof value !== 'number' || Number.isNaN(value)) return null;
   return { values: [{ resourceId: snapshot.databaseId, value }] };
+}
+
+/** Memory of a managed database's container as a share of its limit; null without a limit (or not managed). */
+function managedMemoryPercent(metrics: Record<string, number | null>): number | null {
+  const used = metrics.managed_memory_usage_bytes;
+  const limit = metrics.managed_memory_limit_bytes;
+  if (typeof used !== 'number' || typeof limit !== 'number' || !(limit > 0)) return null;
+  return (used / limit) * 100;
+}
+
+/** HTTP numbers of a route over a window, as the nginx daemon reports them (summed over the nodes serving it). */
+export interface RouteTrafficSample {
+  totalRequests: number;
+  statusCodes: { s2xx: number; s3xx: number; s4xx: number; s5xx: number };
+  requestsPerSecond: number;
+  p95ResponseTime: number;
+}
+
+/**
+ * Request metrics of a route or an app environment from its traffic (see ROUTE_TRAFFIC_METRICS): 4xx/5xx shares in
+ * percent (0 below ROUTE_SHARE_MIN_REQUESTS requests), requests per second, and the worst p95 in milliseconds (the
+ * daemon reports seconds; 0 without requests).
+ */
+export function routeTrafficMetrics(samples: readonly RouteTrafficSample[]): Record<string, number | null> {
+  const total = samples.reduce((sum, sample) => sum + (Number(sample.totalRequests) || 0), 0);
+  const count = (pick: (sample: RouteTrafficSample) => number) =>
+    samples.reduce((sum, sample) => sum + (Number(pick(sample)) || 0), 0);
+  const share = (errors: number) => (total >= ROUTE_SHARE_MIN_REQUESTS ? (errors / total) * 100 : 0);
+  const p95 = samples.reduce((worst, sample) => Math.max(worst, Number(sample.p95ResponseTime) || 0), 0);
+  return {
+    error_5xx_percent: share(count((sample) => sample.statusCodes?.s5xx ?? 0)),
+    error_4xx_percent: share(count((sample) => sample.statusCodes?.s4xx ?? 0)),
+    requests_per_second: count((sample) => sample.requestsPerSecond),
+    // No requests is no latency: 0, so a firing p95 alert resolves once traffic stops.
+    latency_p95_ms: total > 0 ? p95 * 1000 : 0,
+    requests: total,
+    errors_5xx: count((sample) => sample.statusCodes?.s5xx ?? 0),
+    errors_4xx: count((sample) => sample.statusCodes?.s4xx ?? 0),
+  };
 }
 
 /**

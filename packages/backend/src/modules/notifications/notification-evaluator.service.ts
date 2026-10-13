@@ -1,8 +1,11 @@
 import { and, desc, eq, gt, gte, inArray, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleTransaction } from '@/db/client.js';
 import {
+  appEnvironments,
+  backupPolicies,
   databaseConnections,
   dockerAccessResources,
+  domains,
   loggingEnvironments,
   nodes,
   notificationAlertRules,
@@ -160,7 +163,27 @@ interface PostgresOutage {
 }
 
 type AlertStateRow = typeof notificationAlertStates.$inferSelect;
-type ResourceKind = 'node' | 'proxy' | 'certificate' | 'database' | 'logging';
+type ResourceKind =
+  | 'node'
+  | 'proxy'
+  | 'certificate'
+  | 'database'
+  | 'logging'
+  | 'app_environment'
+  | 'backup_policy'
+  | 'domain';
+
+/** One reading of a resource's metrics for a category's threshold rules (see evaluateMetricSnapshot). */
+export interface MetricSnapshot {
+  /** The alert key: the resource id, or `<parent id>:<id>` where rules may be scoped to either. */
+  key: string;
+  /** The resource's own id ({{resource.id}}). */
+  id: string;
+  name: string;
+  metrics: Record<string, number | null>;
+  /** Scalar values for {{details.*}}. */
+  details?: Record<string, string | number | boolean | null>;
+}
 
 type TemplateDetails = Partial<
   Pick<
@@ -490,6 +513,92 @@ export class NotificationEvaluatorService {
         await this.handleThresholdBreach(rule, OPFIELD_RESOURCE_ID, value, OPFIELD_RESOURCE_ID, 'Opfield');
       } else {
         await this.handleThresholdClear(rule, OPFIELD_RESOURCE_ID, value, OPFIELD_RESOURCE_ID, 'Opfield');
+      }
+    }
+  }
+
+  /**
+   * Threshold rules of one category over metric snapshots a periodic source took (route and app request metrics,
+   * backups): one sample per rule and resource each time, `samplingPeriodMs` apart.
+   */
+  async evaluateMetricSnapshots(
+    category: string,
+    snapshots: readonly MetricSnapshot[],
+    samplingPeriodMs: number
+  ): Promise<void> {
+    const rules = (await this.getThresholdRules()).filter((rule) => rule.category === category);
+    for (const rule of rules) {
+      for (const snapshot of snapshots) {
+        if (!this.stateInRuleScope(rule, { resourceId: snapshot.key })) continue;
+        const value = snapshot.metrics[rule.metric];
+        if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+        const breached = evaluateThreshold(value, rule.operator, rule.thresholdValue);
+        await this.recordProbeOutcome(
+          rule.id,
+          snapshot.key,
+          breached,
+          Math.max(rule.durationSeconds ?? 0, rule.resolveAfterSeconds ?? 0) * 1000,
+          samplingPeriodMs
+        );
+        const details: TemplateDetails = snapshot.details ? { details: snapshot.details } : {};
+        if (breached) await this.handleThresholdBreach(rule, snapshot.key, value, snapshot.id, snapshot.name, details);
+        else await this.handleThresholdClear(rule, snapshot.key, value, snapshot.id, snapshot.name, details);
+      }
+    }
+  }
+
+  /** Whether any enabled rule of the category exists (periodic sources skip their work otherwise). */
+  async hasEnabledRules(category: string, type?: 'threshold' | 'event', metric?: string): Promise<boolean> {
+    const rules = [
+      ...(type === 'event' ? [] : await this.getThresholdRules()),
+      ...(type === 'threshold' ? [] : await this.getEventRules()),
+    ];
+    return rules.some((rule) => rule.category === category && (!metric || rule.metric === metric));
+  }
+
+  /** Scopes of the enabled rules of a category: null when one covers every resource. */
+  async enabledRuleScopes(category: string, type?: 'threshold' | 'event'): Promise<Set<string> | null> {
+    const rules = [
+      ...(type === 'event' ? [] : await this.getThresholdRules()),
+      ...(type === 'threshold' ? [] : await this.getEventRules()),
+    ].filter((rule) => rule.category === category);
+    const ids = new Set<string>();
+    for (const rule of rules) {
+      const scope = (rule.resourceIds ?? []) as string[];
+      if (scope.length === 0) return null;
+      for (const id of scope) ids.add(id);
+    }
+    return ids;
+  }
+
+  /**
+   * Container metrics read outside the health report (restarts_per_hour from the containers' inspect), keyed like the
+   * health report's container metrics: `<node id>:<container name>`, scoped by container name.
+   */
+  async evaluateContainerMetric(
+    nodeId: string,
+    metric: string,
+    values: ReadonlyArray<{ name: string; value: number }>,
+    samplingPeriodMs: number
+  ): Promise<void> {
+    const rules = (await this.getThresholdRules()).filter(
+      (rule) => rule.category === 'container' && rule.metric === metric
+    );
+    for (const rule of rules) {
+      for (const { name, value } of values) {
+        if (rule.resourceIds?.length > 0 && !rule.resourceIds.includes(name)) continue;
+        if (!Number.isFinite(value)) continue;
+        const key = `${nodeId}:${name}`;
+        const breached = evaluateThreshold(value, rule.operator, rule.thresholdValue);
+        await this.recordProbeOutcome(
+          rule.id,
+          key,
+          breached,
+          Math.max(rule.durationSeconds ?? 0, rule.resolveAfterSeconds ?? 0) * 1000,
+          samplingPeriodMs
+        );
+        if (breached) await this.handleThresholdBreach(rule, key, value, nodeId, name);
+        else await this.handleThresholdClear(rule, key, value, nodeId, name);
       }
     }
   }
@@ -866,9 +975,21 @@ export class NotificationEvaluatorService {
         return threshold && state.resourceId.includes(':') ? { kind: 'node', id: nodeId } : null;
       case 'proxy':
         return state.resourceType === 'proxy' &&
-          (eventPattern.startsWith('health.') || eventPattern === 'maintenance.active')
+          (threshold || eventPattern.startsWith('health.') || eventPattern === 'maintenance.active')
           ? { kind: 'proxy', id: state.resourceId }
           : null;
+      case 'app':
+        // Keyed `<app id>:<environment id>`.
+        return state.resourceType === 'app' && state.resourceId.includes(':')
+          ? { kind: 'app_environment', id: state.resourceId.slice(state.resourceId.indexOf(':') + 1) }
+          : null;
+      case 'backup':
+        // Keyed `<database id>:<policy id>`.
+        return state.resourceType === 'backup' && state.resourceId.includes(':')
+          ? { kind: 'backup_policy', id: state.resourceId.slice(state.resourceId.indexOf(':') + 1) }
+          : null;
+      case 'domain':
+        return state.resourceType === 'domain' ? { kind: 'domain', id: state.resourceId } : null;
       case 'certificate':
         return threshold && state.resourceType === 'certificate' ? { kind: 'certificate', id: state.resourceId } : null;
       case 'database_postgres':
@@ -925,6 +1046,12 @@ export class NotificationEvaluatorService {
           .select({ id: loggingEnvironments.id })
           .from(loggingEnvironments)
           .where(inArray(loggingEnvironments.id, ids));
+      case 'app_environment':
+        return this.db.select({ id: appEnvironments.id }).from(appEnvironments).where(inArray(appEnvironments.id, ids));
+      case 'backup_policy':
+        return this.db.select({ id: backupPolicies.id }).from(backupPolicies).where(inArray(backupPolicies.id, ids));
+      case 'domain':
+        return this.db.select({ id: domains.id }).from(domains).where(inArray(domains.id, ids));
     }
   }
 
@@ -1431,8 +1558,14 @@ export class NotificationEvaluatorService {
       }
     }
     samples ??= withWindowAnchor(this.memoryProbeOutcomes.get(redisKey) ?? [], windowStart);
+    // The anchor stands for the state at the window's start; a sample taken exactly then already says it. Counting
+    // both held a periodic source's alert one sampling period longer than its window (the anchor still breached).
+    const ordered = [...samples].sort((a, b) => a.timestamp - b.timestamp);
+    if (ordered.length > 1 && ordered[0]!.timestamp < windowStart && ordered[1]!.timestamp === windowStart) {
+      ordered.shift();
+    }
 
-    return evaluateWindowRatio(samples, targetState, thresholdPercent, windowMs, now);
+    return evaluateWindowRatio(ordered, targetState, thresholdPercent, windowMs, now);
   }
 
   // ── EventBus Event Handling ─────────────────────────────────────────
@@ -1525,7 +1658,7 @@ export class NotificationEvaluatorService {
     for (const rule of await this.getEventRules()) {
       if (rule.category !== category || !patterns.has(rule.eventPattern)) continue;
       if (!eventSupportsThreshold(rule.category, rule.eventPattern)) continue;
-      if (rule.resourceIds?.length > 0 && !rule.resourceIds.includes(resource.id)) continue;
+      if (!this.stateInRuleScope(rule, { resourceId: resource.id })) continue;
       const seconds =
         rule.eventPattern === currentState ? (rule.durationSeconds ?? 0) : (rule.resolveAfterSeconds ?? 60);
       if (seconds > 0) windows.add(seconds * 1000);
@@ -1567,7 +1700,8 @@ export class NotificationEvaluatorService {
       if (rule.category !== category) continue;
       if (!eventSupportsThreshold(rule.category, rule.eventPattern)) continue;
       if (observedPatternSet && !observedPatternSet.has(rule.eventPattern)) continue;
-      if (rule.resourceIds?.length > 0 && !rule.resourceIds.includes(resource.id)) continue;
+      // Keys may be composite (`<app id>:<environment id>`): a rule scoped to either part covers the resource.
+      if (!this.stateInRuleScope(rule, { resourceId: resource.id })) continue;
 
       const active = rule.eventPattern === currentState;
       await this.recordProbeOutcome(
@@ -2470,7 +2604,10 @@ export class NotificationEvaluatorService {
       rule.category === 'managed_storage' ||
       rule.category === 'logging' ||
       rule.category === 'hosting_account' ||
-      rule.category === 'opfield'
+      rule.category === 'opfield' ||
+      rule.category === 'proxy' ||
+      rule.category === 'app' ||
+      rule.category === 'backup'
     ) {
       return sourceId;
     }

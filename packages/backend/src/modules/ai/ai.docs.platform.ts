@@ -271,15 +271,15 @@ Opfield GitLab connectors are configured by admins in Settings -> Integrations. 
   notifications: `# Webhook Notifications
 
 ## Overview
-The notification system sends HTTP webhook notifications when alert conditions are met. It supports threshold-based alerts (CPU, memory, disk) and event-based alerts (node offline, container stopped, etc.).
+The notification system sends HTTP webhook notifications when alert conditions are met. It supports threshold-based alerts (a metric such as CPU, disk, a route's 5xx share or response time crosses a value) and event-based alerts (node offline, container stopped, an app environment failing, etc.). \`GET /api/notifications/alert-rules/categories\` lists every category with its metrics, events and variables; a rule's metric or event must be one of its category's (others are refused with INVALID_ALERT_RULE).
 
 ## Alert Rules
 Each alert rule defines:
-- **Category**: node, container, build, compose, proxy, pages, opfield, logging, integration, certificate, security, database_postgres, database_clickhouse, database_redis, or managed_storage
+- **Category**: hosting_vm, hosting_account, node, container, build, compose, proxy (routes), pages, opfield, logging, integration, certificate, security, database_postgres, database_clickhouse, database_redis, managed_storage, app, backup, or domain
 - **Type**: threshold (metric breaches a value) or event (something happens)
 - **Threshold fields** (for threshold type): metric, metricTarget (optional sub-target such as a specific node disk mount), operator (>, >=, <, <=), thresholdValue, durationSeconds (fire observation window), fireThresholdPercent (percent of probes in that window that must breach), resolveAfterSeconds (resolve observation window, default 60s), resolveThresholdPercent (percent of probes in that window that must be clear)
-- **Event fields** (for event type): eventPattern (offline, stopped, oom_killed, etc.)
-- **Scope**: resourceIds — specific nodes/containers/certs to monitor (empty = all)
+- **Event fields** (for event type): eventPattern, one of the category's events (offline, stopped, health.offline, etc.). Events with supportsThreshold are states: they fire after durationSeconds in the state and resolve after resolveAfterSeconds out of it.
+- **Scope**: resourceIds — specific resources of the category (empty = all): node, route, certificate, database or domain ids, container names, app or app environment ids (an app id covers all its environments), database ids for backup rules
 - **Severity**: info, warning, critical
 - **Webhooks**: webhookIds — which webhooks receive notifications from this rule
 - **Message template**: Handlebars template rendered with event-specific variables
@@ -311,10 +311,18 @@ The render context is nested and canonical. Historical flat variables such as \`
 
 The category metadata returned by \`GET /api/notifications/alert-rules/categories\` is authoritative for event-specific variables. Build and Compose lifecycle events place safe structured fields in \`operation.*\`, \`failure.code\`, and \`details.*\`; database threshold alerts use \`metric.*\`; certificate alerts use \`certificate.*\`.
 
+## Route, App, Container, Backup and Domain Alerts
+- proxy (routes) metrics, measured every 30 s over the last minute of the route's access log on every node serving it: error_5xx_percent and error_4xx_percent (share of responses, %; a minute with fewer than 10 requests counts as 0 %), requests_per_second, latency_p95_ms (worst p95 of the serving nodes; 0 without requests). Example: "5xx share ≥ 10 % for 1 min" is category proxy, type threshold, metric error_5xx_percent, operator >=, thresholdValue 10, durationSeconds 60. The details carry details.requests and details.errors_5xx. Route events: health.offline, health.degraded, health.online (recovery), maintenance.active, created, deleted, Secure Link failures.
+- app: one alert per app environment, keyed \`<app id>:<environment id>\`. Events (states): health.failing, health.degraded (degraded or failing), health.healthy (recovery: sent once when the environment is healthy again), kill_switch.on, shutdown.active, maintenance.active. Health is the one the Apps list shows. Metrics: error_5xx_percent and requests_per_second summed over the environment's routes.
+- container metrics also include restarts_per_hour (Docker restarts in the last hour, from the container's inspect, refreshed every few minutes).
+- backup: scheduled database backups, keyed \`<database id>:<policy id>\` and scoped by database. Metric hours_since_last_backup (since the last successful backup, or since the policy was created) for missed backups; event backup.failed (a state: the last finished backup failed; resolves when one succeeds).
+- domain: event dns.not_pointing (a state: the domain's DNS check finds records that do not point to Opfield).
+
 ## Database Alert Categories
-- database_postgres metrics: latency_ms, active_connections_pct, database_size_mb.
+- database_postgres metrics: latency_ms, active_connections_pct and total_connections_pct (% of max_connections), long_running_queries, database_size_mb.
 - database_clickhouse metrics: latency_ms, database_size_mb, disk_used_pct, disk_available_mb, pending_mutations.
-- database_redis (key-value stores) metrics: latency_ms, memory_pct.
+- database_redis (key-value stores) metrics: latency_ms, memory_pct (% of maxmemory).
+- managed databases (all three) also have managed_cpu_percent and managed_memory_pct (CPU and memory of the database container, % of its limit).
 - database health events: health.offline, health.degraded, health.online. These events can also be used with threshold-style observation windows when supportsThreshold is true.
 - Availability (a database or storage on several servers): the three database categories and managed_storage have the events availability.failover, availability.switchover, availability.forced_promotion, availability.degraded, availability.no_failover and availability.restored (set states, supportsThreshold), availability.member_offline, availability.sync_degraded, availability.sync_far, availability.witness_lost, availability.witness_moved, availability.fenced, availability.rejoined, availability.rebuilt and availability.cancelled_sync_wait. Their \`details.reason\`, \`details.member_id\` and \`details.occurred_at\` say why, which server, and when it happened (events the servers queued while Opfield was down keep their own time). The database categories also have the metrics replication_lag_bytes and replication_lag_seconds (worst copy) and rtt_ms (round trip between the servers). managed_storage rules name storage connection ids. managed_storage also has the events storage.full (the storage refuses uploads: its disk is full or it can create no volume; critical, a state with supportsThreshold) and storage.writable (its recovery), and the metric disk_used_pct (the storage disk as its node reports it).
 

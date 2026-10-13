@@ -13,6 +13,7 @@ import {
   ONCE_A_DAY_ALERT_WINDOWS,
   type UpdateAlertRuleInput,
 } from './notification-alert-rule.schemas.js';
+import { catalogMismatch } from './notification-catalog.js';
 
 const logger = createChildLogger('AlertRuleService');
 
@@ -90,6 +91,12 @@ export class NotificationAlertRuleService {
     }
   }
 
+  /** A rule watches a metric or event its category has; anything else would be accepted and never evaluated. */
+  private assertInCatalog(rule: Parameters<typeof catalogMismatch>[0]): void {
+    const mismatch = catalogMismatch(rule);
+    if (mismatch) throw new AppError(400, 'INVALID_ALERT_RULE', mismatch);
+  }
+
   async getById(id: string) {
     const [rule] = await this.db
       .select()
@@ -103,6 +110,7 @@ export class NotificationAlertRuleService {
   async create(input: CreateAlertRuleInput, userId: string) {
     // API, AI and MCP all create through here; normalize windows a once-a-day rule can never satisfy.
     if (isOnceADayAlertRule(input)) input = { ...input, ...ONCE_A_DAY_ALERT_WINDOWS };
+    this.assertInCatalog(input);
     await this.assertWebhooksExist(input.webhookIds);
     const [rule] = await this.db
       .insert(notificationAlertRules)
@@ -144,6 +152,18 @@ export class NotificationAlertRuleService {
 
   async update(id: string, input: UpdateAlertRuleInput, userId: string) {
     const existing = await this.getById(id);
+    // Only a changed metric or event is checked: a rule saved by an older release keeps working for other edits.
+    if (
+      (existing.type === 'threshold' && input.metric !== undefined) ||
+      (existing.type === 'event' && input.eventPattern !== undefined)
+    ) {
+      this.assertInCatalog({
+        type: existing.type,
+        category: existing.category,
+        metric: input.metric ?? existing.metric,
+        eventPattern: input.eventPattern ?? existing.eventPattern,
+      });
+    }
     if (input.webhookIds !== undefined) await this.assertWebhooksExist(input.webhookIds, existing.webhookIds);
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
