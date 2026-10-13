@@ -126,6 +126,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       acmeCleanup: { enabled: true },
       operationHistory: { enabled: true, retentionDays: 90 },
       oauthCleanup: { enabled: true },
+      expiredTokens: { enabled: true, retentionDays: 7 },
     });
   });
 
@@ -160,6 +161,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       acmeCleanup: { enabled: false },
       operationHistory: { enabled: true, retentionDays: 60 },
       oauthCleanup: { enabled: true },
+      expiredTokens: { enabled: false, retentionDays: 7 },
     });
     vi.spyOn(service as any, 'saveRunResult').mockResolvedValue(undefined);
 
@@ -261,6 +263,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       acmeCleanup: { enabled: false },
       operationHistory: { enabled: false, retentionDays: 90 },
       oauthCleanup: { enabled: false },
+      expiredTokens: { enabled: false, retentionDays: 7 },
     });
     vi.spyOn(service as any, 'saveRunResult').mockResolvedValue(undefined);
 
@@ -301,6 +304,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       acmeCleanup: { enabled: false },
       operationHistory: { enabled: false, retentionDays: 90 },
       oauthCleanup: { enabled: false },
+      expiredTokens: { enabled: false, retentionDays: 7 },
     });
     vi.spyOn(service as any, 'saveRunResult').mockResolvedValue(undefined);
 
@@ -335,6 +339,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       acmeCleanup: { enabled: false },
       operationHistory: { enabled: false, retentionDays: 90 },
       oauthCleanup: { enabled: false },
+      expiredTokens: { enabled: false, retentionDays: 7 },
     });
     vi.spyOn(service as any, 'saveRunResult').mockResolvedValue(undefined);
 

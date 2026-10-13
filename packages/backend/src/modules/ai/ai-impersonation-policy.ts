@@ -20,8 +20,8 @@ const CREDENTIAL_TOOL_CALLS: Readonly<Record<string, (args: ToolArgs) => boolean
   // The API token routes refuse all token management while impersonating.
   manage_api_token: () => true,
   // Widening an OAuth grant extends its refresh token.
-  manage_oauth_authorization: (args) => args.operation === 'update_scopes',
-  manage_inference_token: (args) => args.operation === 'create',
+  manage_oauth_authorization: (args) => args.operation === 'update_scopes' || args.operation === 'update',
+  manage_inference_token: (args) => args.operation === 'create' || args.operation === 'update',
   // Returns a node enrollment token.
   create_node: () => true,
   manage_node: (args) => args.operation === 'regenerate_enrollment_token',

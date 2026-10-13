@@ -144,13 +144,14 @@ function oauthTargets(now: Date): KeyedTarget[] {
       name: 'oauth access tokens',
       table: 'oauth_access_tokens',
       key: 'id',
-      where: sql`(("expires_at" IS NOT NULL AND "expires_at" < ${expiredBefore}) OR ("revoked_at" IS NOT NULL AND "revoked_at" < ${revokedBefore}))`,
+      where: sql`(("expires_at" IS NOT NULL AND "expires_at" < ${expiredBefore}) OR ("grant_expires_at" IS NOT NULL AND "grant_expires_at" < ${expiredBefore}) OR ("revoked_at" IS NOT NULL AND "revoked_at" < ${revokedBefore}))`,
     },
     {
       name: 'oauth refresh tokens',
       table: 'oauth_refresh_tokens',
       key: 'id',
-      where: sql`"expires_at" < ${expiredBefore}`,
+      // A grant's own expiry (set by its owner) ends its refresh chain as well.
+      where: sql`("expires_at" < ${expiredBefore} OR ("grant_expires_at" IS NOT NULL AND "grant_expires_at" < ${expiredBefore}))`,
     },
     {
       name: 'oauth clients',

@@ -90,6 +90,8 @@ export interface AppEnv {
       tokenId: string;
       tokenPrefix: string;
       rawToken: string;
+      /** The request's client address: a token limited to addresses is checked against it again. */
+      clientIp?: string;
     };
     inferenceAdapter?: 'anthropic' | 'codex' | 'openai';
     pageDeployAuth?:
@@ -142,6 +144,8 @@ export type AuthenticatedContext = Context<AppEnv> & {
       tokenId: string;
       tokenPrefix: string;
       rawToken: string;
+      /** The request's client address: a token limited to addresses is checked against it again. */
+      clientIp?: string;
     };
     requestId: string;
   };

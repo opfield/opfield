@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { isScopeSubset } from '@/lib/permissions.js';
+import { getClientIpForContext } from '@/lib/request-ip.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { authMiddleware, sessionOnly } from '@/modules/auth/auth.middleware.js';
 import { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
@@ -11,6 +12,7 @@ import {
   listTokensRoute,
   renameTokenRoute,
   revokeTokenRoute,
+  tokenClientAddressRoute,
   tokenRegistryAccessRoute,
 } from './tokens.docs.js';
 import { CreateTokenSchema, UpdateTokenSchema } from './tokens.schemas.js';
@@ -46,6 +48,11 @@ tokensRoutes.openapi(listTokensRoute, async (c) => {
 tokensRoutes.openapi(tokenRegistryAccessRoute, async (c) => {
   const state = await container.resolve(DockerInternalRegistryService).getState();
   return c.json({ externalAccessEnabled: state.externalAccessEnabled });
+});
+
+// The address the token dialogs offer as "Add my current IP" is the one token limits are checked against.
+tokensRoutes.openapi(tokenClientAddressRoute, async (c) => {
+  return c.json({ ipAddress: (await getClientIpForContext(c)) ?? null });
 });
 
 tokensRoutes.openapi(createTokenRoute, async (c) => {

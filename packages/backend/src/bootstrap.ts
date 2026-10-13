@@ -2414,6 +2414,7 @@ export async function initializeContainer(): Promise<void> {
   housekeepingService.setPagesMaintenanceService(pageMaintenanceService);
   housekeepingService.setInternalRegistryMaintenanceService(dockerInternalRegistryService);
   housekeepingService.setDockerTaskService(dockerTaskService);
+  housekeepingService.setTokenCleanupServices(auditService, eventBus);
   container.registerInstance(HousekeepingService, housekeepingService);
 
   // Group service (injectable — resolve from container)

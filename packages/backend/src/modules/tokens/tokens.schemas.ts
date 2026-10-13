@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { API_TOKEN_SCOPES, isApiTokenScope } from '@/lib/scopes.js';
 import { DelegatedScopeArraySchema, everyReplacementScope } from '@/lib/scopes-schemas.js';
+import { TokenAllowedIpsSchema, TokenExpiresAtSchema } from '@/lib/token-limits.js';
 import { hasRegistryAccess, TokenRegistryAccessSchema } from './token-registry-access.js';
 
 export const AVAILABLE_SCOPES = API_TOKEN_SCOPES;
@@ -17,6 +18,8 @@ export const CreateTokenSchema = z
     name: z.string().trim().min(1).max(255),
     scopes: TokenScopeArraySchema.default([]),
     registryAccess: TokenRegistryAccessSchema.optional(),
+    expiresAt: TokenExpiresAtSchema.optional(),
+    allowedIps: TokenAllowedIpsSchema.optional(),
     exactScopes: z
       .boolean()
       .optional()
@@ -35,9 +38,16 @@ export const UpdateTokenSchema = z
     name: z.string().trim().min(1).max(255).optional(),
     scopes: TokenScopeArraySchema.optional(),
     registryAccess: TokenRegistryAccessSchema.optional(),
+    expiresAt: TokenExpiresAtSchema.optional(),
+    allowedIps: TokenAllowedIpsSchema.optional(),
   })
   .refine(
-    (input) => input.name !== undefined || input.scopes !== undefined || input.registryAccess !== undefined,
+    (input) =>
+      input.name !== undefined ||
+      input.scopes !== undefined ||
+      input.registryAccess !== undefined ||
+      input.expiresAt !== undefined ||
+      input.allowedIps !== undefined,
     'At least one field is required'
   );
 
@@ -47,6 +57,9 @@ export const TokenResponseSchema = z.object({
   tokenPrefix: z.string(),
   scopes: z.array(z.string()),
   registryAccess: TokenRegistryAccessSchema,
+  expiresAt: z.string().nullable(),
+  expired: z.boolean(),
+  allowedIps: z.array(z.string()),
   lastUsedAt: z.string().nullable(),
   createdAt: z.string(),
 });

@@ -58,6 +58,56 @@ function createService(db: any) {
   return new TokensService(db, { log: vi.fn().mockResolvedValue(undefined) } as any);
 }
 
+describe('TokensService.validateToken limits', () => {
+  function limitedDb(limits: { expiresAt?: Date | null; allowedIps?: string[] }) {
+    const db = createDb({
+      userGroupId: 'viewer-group',
+      tokenScopes: ['nodes:details'],
+      groups: [{ id: 'viewer-group', name: 'viewer', parentId: null, scopes: ['nodes:details'] }],
+    });
+    db.query.apiTokens.findFirst.mockResolvedValue({
+      id: '22222222-2222-4222-8222-222222222222',
+      userId: USER_ID,
+      tokenHash: TOKEN_HASH,
+      scopes: ['nodes:details'],
+      expiresAt: null,
+      allowedIps: [],
+      ...limits,
+    });
+    return db;
+  }
+
+  it('refuses an expired token like a revoked one and does not mark it used', async () => {
+    const db = limitedDb({ expiresAt: new Date(Date.now() - 1000) });
+    await expect(createService(db).validateToken('gw_test_token')).resolves.toBeNull();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('accepts a token before its expiry', async () => {
+    const db = limitedDb({ expiresAt: new Date(Date.now() + 60_000) });
+    await expect(createService(db).validateToken('gw_test_token')).resolves.not.toBeNull();
+  });
+
+  it('accepts a limited token only from an allowed address or range', async () => {
+    const db = limitedDb({ allowedIps: ['203.0.113.10', '10.20.0.0/16', '2001:db8::/32'] });
+    const service = createService(db);
+    await expect(service.validateToken('gw_test_token', { clientIp: '203.0.113.10' })).resolves.not.toBeNull();
+    await expect(service.validateToken('gw_test_token', { clientIp: '10.20.4.17' })).resolves.not.toBeNull();
+    await expect(service.validateToken('gw_test_token', { clientIp: '2001:db8:40::1' })).resolves.not.toBeNull();
+    await expect(service.validateToken('gw_test_token', { clientIp: '198.51.100.7' })).resolves.toBeNull();
+    // An unknown client address never passes a list.
+    await expect(service.validateToken('gw_test_token')).resolves.toBeNull();
+  });
+
+  it('accepts a token without a list from any address', async () => {
+    const db = limitedDb({});
+    await expect(
+      createService(db).validateToken('gw_test_token', { clientIp: '198.51.100.7' })
+    ).resolves.not.toBeNull();
+    await expect(createService(db).validateToken('gw_test_token')).resolves.not.toBeNull();
+  });
+});
+
 describe('TokensService.validateToken', () => {
   it('keeps a project-limited Git scope inside the owner group grant and checks both at request time', async () => {
     const connector = '33333333-3333-4333-8333-333333333333';

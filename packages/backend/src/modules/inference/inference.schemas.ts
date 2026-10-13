@@ -1,8 +1,23 @@
 import { z } from '@hono/zod-openapi';
+import { TokenAllowedIpsSchema, TokenExpiresAtSchema } from '@/lib/token-limits.js';
 
 export const CreateInferenceTokenSchema = z.object({
   name: z.string().trim().min(1).max(255),
+  expiresAt: TokenExpiresAtSchema.optional(),
+  allowedIps: TokenAllowedIpsSchema.optional(),
 });
+
+/** Changes of an inference token; undefined keeps a field, `expiresAt: null` removes the expiry. */
+export const UpdateInferenceTokenSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255).optional(),
+    expiresAt: TokenExpiresAtSchema.optional(),
+    allowedIps: TokenAllowedIpsSchema.optional(),
+  })
+  .refine(
+    (input) => input.name !== undefined || input.expiresAt !== undefined || input.allowedIps !== undefined,
+    'At least one field is required'
+  );
 
 export const CreateInferenceProviderConnectionSchema = z.object({
   providerId: z.string().trim().min(1).max(80),
@@ -321,6 +336,10 @@ export const InferenceTokenResponseSchema = z.object({
   name: z.string(),
   tokenPrefix: z.string(),
   status: z.enum(['active', 'revoked']),
+  expiresAt: z.string().datetime().nullable(),
+  /** The expiry passed: the token is refused, and housekeeping removes it. */
+  expired: z.boolean(),
+  allowedIps: z.array(z.string()),
   lastUsedAt: z.string().datetime().nullable(),
   revokedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
@@ -331,5 +350,6 @@ export const CreateInferenceTokenResponseSchema = InferenceTokenResponseSchema.e
 });
 
 export type CreateInferenceTokenInput = z.infer<typeof CreateInferenceTokenSchema>;
+export type UpdateInferenceTokenInput = z.infer<typeof UpdateInferenceTokenSchema>;
 export type InferenceTokenResponse = z.infer<typeof InferenceTokenResponseSchema>;
 export type CreateInferenceTokenResponse = z.infer<typeof CreateInferenceTokenResponseSchema>;

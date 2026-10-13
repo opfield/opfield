@@ -472,20 +472,34 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_oauth_authorization',
     description:
-      'Manage existing OAuth authorizations for the current user. Each authorization is one consent with its own scopes; the same client can have several. Operations: list, update_scopes, revoke (by the id from list). Pending browser consent is intentionally not exposed.',
+      'Manage existing OAuth authorizations for the current user. Each authorization is one consent with its own scopes, expiry and allowed addresses; the same client can have several. Operations: list, update (scopes, expiresAt, allowedIps; omitted fields stay), update_scopes, revoke (by the id from list). Pending browser consent is intentionally not exposed.',
     parameters: {
       type: 'object',
       properties: {
         operation: {
           type: 'string',
-          enum: ['list', 'update_scopes', 'revoke'],
+          enum: ['list', 'update', 'update_scopes', 'revoke'],
           description: 'OAuth authorization operation to perform.',
         },
-        authorizationId: { type: 'string', description: 'Authorization id from list, for update_scopes or revoke.' },
+        authorizationId: {
+          type: 'string',
+          description: 'Authorization id from list, for update, update_scopes or revoke.',
+        },
         scopes: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Replacement delegated scopes for update_scopes.',
+          description: 'Replacement delegated scopes for update or update_scopes.',
+        },
+        expiresAt: {
+          type: ['string', 'null'],
+          description:
+            'For update: when every token of the authorization stops working (ISO 8601 date-time in the future); null removes the limit.',
+        },
+        allowedIps: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'For update: up to 20 IPv4/IPv6 addresses or CIDR ranges the authorization works from; [] allows any address.',
         },
       },
       required: ['operation'],
@@ -518,6 +532,17 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
           type: 'object',
           description:
             'Internal registry access for docker login with the token: pull and push each "all" or a list of exact repository names; omit an action to deny it, {} removes the access. Pull needs view access to a Docker workload or image, push edit or manage on a workload.',
+        },
+        expiresAt: {
+          type: ['string', 'null'],
+          description:
+            'When the token stops working: an ISO 8601 date-time in the future, or null for no expiry (the default). An expired token is refused like a revoked one and removed by housekeeping after the Expired Tokens period.',
+        },
+        allowedIps: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Up to 20 IPv4/IPv6 addresses or CIDR ranges the token works from (for example "203.0.113.10", "10.0.0.0/8"); requests from other addresses are refused. [] allows any address (the default).',
         },
       },
       required: ['operation'],

@@ -249,13 +249,24 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_inference_token',
     description:
-      'Manage dedicated opfi_ inference tokens for the current user only. Operations: list, create, revoke. A created secret is shown once and is redacted from assistant history; never create a token for another user.',
+      'Manage dedicated opfi_ inference tokens for the current user only. Operations: list, create, update (name, expiresAt, allowedIps), revoke. A created secret is shown once and is redacted from assistant history; never create a token for another user.',
     parameters: {
       type: 'object',
       properties: {
-        operation: { type: 'string', enum: ['list', 'create', 'revoke'] },
-        name: { type: 'string', description: 'Token name for create.' },
-        tokenId: { type: 'string', description: 'Token UUID for revoke.' },
+        operation: { type: 'string', enum: ['list', 'create', 'update', 'revoke'] },
+        name: { type: 'string', description: 'Token name for create or update.' },
+        tokenId: { type: 'string', description: 'Token UUID for update or revoke.' },
+        expiresAt: {
+          type: ['string', 'null'],
+          description:
+            'When the token stops working: an ISO 8601 date-time in the future, or null for no expiry (the default). An expired token is refused like a revoked one and removed by housekeeping after the Expired Tokens period.',
+        },
+        allowedIps: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Up to 20 IPv4/IPv6 addresses or CIDR ranges the token works from (for example "203.0.113.10", "10.0.0.0/8"); requests from other addresses are refused. [] allows any address (the default).',
+        },
       },
       required: ['operation'],
     },

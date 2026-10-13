@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import { container } from '@/container.js';
+import { getClientIpForContext } from '@/lib/request-ip.js';
 import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { assertDemoRequestAllowed } from '@/modules/demo/demo-mode.js';
 import type { AppEnv } from '@/types.js';
@@ -26,9 +27,10 @@ export const inferenceAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next
     return inferenceErrorResponse(c, 401, 'invalid_api_key', 'A valid Opfield inference token is required');
   }
 
-  const result = await container.resolve(InferenceTokenService).validateToken(rawToken);
+  const clientIp = await getClientIpForContext(c);
+  const result = await container.resolve(InferenceTokenService).validateToken(rawToken, { clientIp });
   if (!result) {
-    return inferenceErrorResponse(c, 401, 'invalid_api_key', 'Invalid or revoked Opfield inference token');
+    return inferenceErrorResponse(c, 401, 'invalid_api_key', 'Invalid, expired or revoked Opfield inference token');
   }
 
   c.set('user', result.user);
@@ -36,7 +38,7 @@ export const inferenceAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next
   c.set('isTokenAuth', true);
   c.set('authType', 'inference-token');
   // Kept only in request-local state so WebSocket response.create events can revalidate it.
-  c.set('inferenceAuth', { tokenId: result.tokenId, tokenPrefix: result.tokenPrefix, rawToken });
+  c.set('inferenceAuth', { tokenId: result.tokenId, tokenPrefix: result.tokenPrefix, rawToken, clientIp });
   assertDemoRequestAllowed(c);
   await next();
 };

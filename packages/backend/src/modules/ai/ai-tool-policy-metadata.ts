@@ -111,7 +111,11 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     delete: ['delete', 'upload_abort'],
   }),
   manage_ai_conversation: operationPolicies({ read: ['list', 'get'], delete: ['delete', 'delete_by_title'] }),
-  manage_oauth_authorization: operationPolicies({ read: ['list'], update: ['update_scopes'], delete: ['revoke'] }),
+  manage_oauth_authorization: operationPolicies({
+    read: ['list'],
+    update: ['update', 'update_scopes'],
+    delete: ['revoke'],
+  }),
   manage_api_token: operationPolicies({ read: ['list'], create: ['create'], update: ['update'], delete: ['revoke'] }),
   manage_license: operationPolicies({ external: ['activate', 'activate_module', 'check'], delete: ['clear'] }),
   manage_cloud: operationPolicies({
@@ -432,7 +436,12 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     update: ['set_default', 'set_user', 'reset_user'],
     delete: ['remove_user'],
   }),
-  manage_inference_token: operationPolicies({ read: ['list'], create: ['create'], delete: ['revoke'] }),
+  manage_inference_token: operationPolicies({
+    read: ['list'],
+    create: ['create'],
+    update: ['update'],
+    delete: ['revoke'],
+  }),
   manage_inference_usage: operationPolicies({
     read: ['self', 'self_overview', 'system', 'users', 'activity_filters', 'activity'],
   }),

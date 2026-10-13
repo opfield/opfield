@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DelegatedScopeArraySchema, MAX_OAUTH_SCOPE_PARAMETER_LENGTH } from '@/lib/scopes-schemas.js';
+import { TokenAllowedIpsSchema, TokenExpiresAtSchema } from '@/lib/token-limits.js';
 
 const UrlSchema = z.string().max(2048).url();
 const HttpUrlSchema = UrlSchema.refine((value) => {
@@ -68,10 +69,17 @@ export const OAuthConsentDecisionSchema = z.object({
   scopes: DelegatedScopeArraySchema.optional(),
 });
 
-/** Narrowing an existing OAuth authorization from Settings. */
-export const OAuthAuthorizationScopesSchema = z.object({
-  scopes: DelegatedScopeArraySchema.min(1),
-});
+/** Narrowing an existing OAuth authorization from Settings: its scopes, expiry and allowed addresses. */
+export const OAuthAuthorizationScopesSchema = z
+  .object({
+    scopes: DelegatedScopeArraySchema.min(1).optional(),
+    expiresAt: TokenExpiresAtSchema.optional(),
+    allowedIps: TokenAllowedIpsSchema.optional(),
+  })
+  .refine(
+    (input) => input.scopes !== undefined || input.expiresAt !== undefined || input.allowedIps !== undefined,
+    'At least one field is required'
+  );
 
 export type OAuthClientRegistrationInput = z.infer<typeof OAuthClientRegistrationSchema>;
 export type OAuthAuthorizeQuery = z.infer<typeof OAuthAuthorizeQuerySchema>;

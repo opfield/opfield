@@ -53,3 +53,13 @@ export const tokenRegistryAccessRoute = appRoute({
     'Internal registry access works through docker login on the external registry endpoint, so it is offered while external access to the internal registry is on.',
   responses: okJson(z.object({ externalAccessEnabled: z.boolean() })),
 });
+
+export const tokenClientAddressRoute = appRoute({
+  method: 'get',
+  path: '/client-address',
+  tags: ['Tokens'],
+  summary: 'The client address Opfield sees for this request',
+  description:
+    'The address a token limited to allowed addresses is checked against (resolved through the trusted proxies, as for the audit log); null when it cannot be told. Token dialogs offer it as "Add my current IP".',
+  responses: okJson(z.object({ ipAddress: z.string().nullable() })),
+});

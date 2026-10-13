@@ -84,7 +84,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
         config: {
           type: 'object',
           description:
-            'Partial housekeeping config for update_config, validated like PUT /housekeeping/config (retention periods, cronExpression, enabled categories; operationHistory {enabled, retentionDays} prunes finished Docker tasks, builds, compose, availability and hosting operations; oauthCleanup {enabled} purges expired OAuth grants and client registrations that never completed an authorization).',
+            'Partial housekeeping config for update_config, validated like PUT /housekeeping/config (retention periods, cronExpression, enabled categories; operationHistory {enabled, retentionDays} prunes finished Docker tasks, builds, compose, availability and hosting operations; oauthCleanup {enabled} purges expired OAuth grants and client registrations that never completed an authorization; expiredTokens {enabled, retentionDays (0-365, default 7, 0 removes at once)} removes API and inference tokens that many days after they expired).',
         },
       },
       required: ['operation'],

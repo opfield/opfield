@@ -21,6 +21,7 @@ import { ONE_TIME_LINK_TOKEN_PATH } from '@/lib/one-time-link-path.js';
 import { tags as openApiTags, openApiValidationHook, securitySchemes } from '@/lib/openapi.js';
 import { IDEMPOTENCY_API_DESCRIPTION, withIdempotencyKeyDocumentation } from '@/lib/openapi-idempotency.js';
 import { OPFIELD_RESTARTING_HTML, OPFIELD_RESTARTING_SCRIPT, opfieldNotFoundHtml } from '@/lib/opfield-error-pages.js';
+import { getClientIpForContext } from '@/lib/request-ip.js';
 import { absolutizeShareImageUrls } from '@/lib/spa-index-page.js';
 import { auditContextMiddleware } from '@/middleware/audit-context.js';
 import { emptyJsonBodyMiddleware } from '@/middleware/empty-json-body.js';
@@ -827,7 +828,15 @@ export function createApp(): OpfieldAppRuntime {
       const user = c.get('user');
       const auth = c.get('inferenceAuth');
       return createCoreResponsesWSHandlers(
-        user && auth ? { user, tokenId: auth.tokenId, tokenPrefix: auth.tokenPrefix, rawToken: auth.rawToken } : null,
+        user && auth
+          ? {
+              user,
+              tokenId: auth.tokenId,
+              tokenPrefix: auth.tokenPrefix,
+              rawToken: auth.rawToken,
+              clientIp: auth.clientIp,
+            }
+          : null,
         () => getEnvironmentSettingsSnapshot().requestLimits.inferenceWebSocketMaxPayloadBytes
       );
     })
@@ -949,7 +958,8 @@ export function createApp(): OpfieldAppRuntime {
         c.req.header('cookie'),
         c.req.header('origin'),
         c.req.header('authorization'),
-        isAllowedOrigin
+        isAllowedOrigin,
+        () => getClientIpForContext(c)
       );
       return createDockerExecWSHandlers(nodeId, containerId, shell, credential);
     })
@@ -966,7 +976,8 @@ export function createApp(): OpfieldAppRuntime {
         c.req.header('cookie'),
         c.req.header('origin'),
         c.req.header('authorization'),
-        isAllowedOrigin
+        isAllowedOrigin,
+        () => getClientIpForContext(c)
       );
       return createNodeExecWSHandlers(nodeId, shell, credential);
     })
@@ -985,7 +996,8 @@ export function createApp(): OpfieldAppRuntime {
         c.req.header('cookie'),
         c.req.header('origin'),
         c.req.header('authorization'),
-        isAllowedOrigin
+        isAllowedOrigin,
+        () => getClientIpForContext(c)
       );
       return createDockerLogStreamWSHandlers(nodeId, containerId, tail, credential);
     })
@@ -1002,7 +1014,8 @@ export function createApp(): OpfieldAppRuntime {
         c.req.header('cookie'),
         c.req.header('origin'),
         c.req.header('authorization'),
-        isAllowedOrigin
+        isAllowedOrigin,
+        () => getClientIpForContext(c)
       );
       return createManagedDatabaseLogStreamWSHandlers(databaseId, tail, credential);
     })
@@ -1020,7 +1033,8 @@ export function createApp(): OpfieldAppRuntime {
         c.req.header('cookie'),
         c.req.header('origin'),
         c.req.header('authorization'),
-        isAllowedOrigin
+        isAllowedOrigin,
+        () => getClientIpForContext(c)
       );
       return createProxyLogStreamWSHandlers(hostId, tail, credential);
     })
@@ -1038,7 +1052,8 @@ export function createApp(): OpfieldAppRuntime {
         c.req.header('cookie'),
         c.req.header('origin'),
         c.req.header('authorization'),
-        isAllowedOrigin
+        isAllowedOrigin,
+        () => getClientIpForContext(c)
       );
       return createNodeNginxLogStreamWSHandlers(nodeId, tail, credential);
     })
@@ -1084,7 +1099,8 @@ export function createApp(): OpfieldAppRuntime {
         c.req.header('cookie'),
         c.req.header('origin'),
         c.req.header('authorization'),
-        isAllowedOrigin
+        isAllowedOrigin,
+        () => getClientIpForContext(c)
       );
       return createComposeLogsWSHandlers(nodeId, project, credential);
     })

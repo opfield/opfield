@@ -161,23 +161,28 @@ Programmatic REST clients can use either Opfield API tokens (\`opf_\`) or OAuth 
 ## Current-User OAuth Authorizations
 The assistant can manage existing OAuth authorizations for the current browser user with manage_oauth_authorization:
 - { operation: "list" }
-- { operation: "update_scopes", clientId, resource, scopes }
-- { operation: "revoke", clientId, resource }
+- { operation: "update", authorizationId, scopes?, expiresAt?, allowedIps? }
+- { operation: "update_scopes", authorizationId, scopes }
+- { operation: "revoke", authorizationId }
+
+expiresAt (ISO date-time in the future, null removes it) ends every token of the authorization at that moment; allowedIps (up to 20 IPv4/IPv6 addresses or CIDR ranges, [] for any address) refuses its tokens, including refreshes, from other addresses.
 
 Pending OAuth consent remains browser-only. Do not try to approve a new OAuth client through tools.
 
 ## Current-User Opfield API Tokens
 The assistant can manage the current browser user's Opfield API tokens with manage_api_token:
 - { operation: "list" }
-- { operation: "create", name, scopes, registryAccess? }
-- { operation: "update", tokenId, name?, scopes?, registryAccess? }
+- { operation: "create", name, scopes, registryAccess?, expiresAt?, allowedIps? }
+- { operation: "update", tokenId, name?, scopes?, registryAccess?, expiresAt?, allowedIps? }
 - { operation: "revoke", tokenId }
+
+expiresAt is an ISO date-time in the future (null or omitted on create: no expiry; null on update removes it). An expired token is refused like a revoked one, listed with expired: true and removed by housekeeping after the Expired Tokens period (7 days by default). allowedIps limits the token to up to 20 IPv4/IPv6 addresses or CIDR ranges, checked against the client address Opfield resolves (trusted proxies only); [] allows any address. Existing tokens have neither limit.
 
 Token scopes must be a subset of the current user's scopes. registryAccess is the token's internal registry access for docker login: { pull?: "all" | [repositories], push?: "all" | [repositories] } (exact repository names; {} removes it). Pull needs view access to a Docker workload or image, push edit or manage on a workload; a token may have registry access and no scopes. Token secrets are returned only by create and cannot be read later. manage_api_token is browser-session-only and is not exposed through MCP.
 
 ## Creating an API Token
 1. Open **Profile** from the account menu (avatar at the bottom of the sidebar) → **Authorizations** → **API Tokens**
-2. Click **Create Token** → enter a name and select the scopes (permissions) the token should have
+2. Click **Create Token** → enter a name, choose when it expires (15 minutes to 1 year, Never, or a custom date), optionally restrict it to IP addresses (**Restrict by IP**), and select the scopes (permissions) the token should have
 3. Token scopes must be a subset of your own group's scopes — you cannot grant permissions you don't have
 4. The token is shown **once** after creation (prefixed with \`opf_\`) — copy and store it securely
 5. Tokens cannot be retrieved after creation — if lost, revoke and create a new one

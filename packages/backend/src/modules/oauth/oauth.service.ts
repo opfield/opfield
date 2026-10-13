@@ -16,6 +16,7 @@ import {
   withoutManualApprovalScopes,
 } from '@/lib/scopes.js';
 import { delegatedScopeIssue } from '@/lib/scopes-schemas.js';
+import { normalizeAllowedIps, parseTokenExpiry, type TokenRequestContext } from '@/lib/token-limits.js';
 import { OAUTH_CLIENT_ID_PREFIX, TOKEN_PREFIXES } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -383,9 +384,9 @@ export class OAuthService {
     }
   }
 
-  async exchangeToken(input: OAuthTokenRequest) {
+  async exchangeToken(input: OAuthTokenRequest, context: TokenRequestContext = {}) {
     if (input.grant_type === 'authorization_code') return this.exchangeAuthorizationCode(input);
-    return this.tokenLifecycle.exchangeRefreshToken(input);
+    return this.tokenLifecycle.exchangeRefreshToken(input, context);
   }
 
   private async exchangeAuthorizationCode(input: OAuthTokenRequest) {
@@ -430,7 +431,7 @@ export class OAuthService {
     return issued.response;
   }
 
-  async validateAccessToken(rawToken: string, options: { resource?: string } = {}) {
+  async validateAccessToken(rawToken: string, options: { resource?: string } & TokenRequestContext = {}) {
     return this.tokenLifecycle.validateAccessToken(rawToken, options);
   }
 
@@ -453,11 +454,20 @@ export class OAuthService {
   }
 
   async updateUserAuthorizationScopes(user: User, authorizationId: string, requestedScopes: string[]) {
-    const authorization = await this.tokenLifecycle.updateUserAuthorizationScopes(
-      user,
-      authorizationId,
-      requestedScopes
-    );
+    return this.updateUserAuthorization(user, authorizationId, { scopes: requestedScopes });
+  }
+
+  /** Scopes, expiry and allowed addresses of one authorization (undefined keeps a field as it is). */
+  async updateUserAuthorization(
+    user: User,
+    authorizationId: string,
+    input: { scopes?: string[]; expiresAt?: string | null; allowedIps?: string[] }
+  ) {
+    const authorization = await this.tokenLifecycle.updateUserAuthorization(user, authorizationId, {
+      scopes: input.scopes,
+      grantExpiresAt: parseTokenExpiry(input.expiresAt),
+      allowedIps: input.allowedIps === undefined ? undefined : normalizeAllowedIps(input.allowedIps),
+    });
     this.eventBus?.publish(oauthAuthorizationChangedChannel(user.id), {
       action: 'update',
       clientId: authorization?.clientId,

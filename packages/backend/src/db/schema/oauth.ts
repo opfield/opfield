@@ -66,6 +66,10 @@ export const oauthRefreshTokens = pgTable(
     scopes: jsonb('scopes').$type<string[]>().notNull(),
     resource: text('resource'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /** The expiry the owner set on the grant: no token of its chain outlives it. Null: no limit. */
+    grantExpiresAt: timestamp('grant_expires_at', { withTimezone: true }),
+    /** Addresses or CIDR ranges every token of the grant works from; empty allows any address. */
+    allowedIps: jsonb('allowed_ips').$type<string[]>().notNull().default([]),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     replacedByTokenId: uuid('replaced_by_token_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -93,6 +97,10 @@ export const oauthAccessTokens = pgTable(
     scopes: jsonb('scopes').$type<string[]>().notNull(),
     resource: text('resource'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    /** The expiry the owner set on the grant (see oauthRefreshTokens.grantExpiresAt). Null: no limit. */
+    grantExpiresAt: timestamp('grant_expires_at', { withTimezone: true }),
+    /** Addresses or CIDR ranges every token of the grant works from; empty allows any address. */
+    allowedIps: jsonb('allowed_ips').$type<string[]>().notNull().default([]),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

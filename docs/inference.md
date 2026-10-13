@@ -165,7 +165,7 @@ Back up the PostgreSQL inference tables with the normal database backup and pres
 Troubleshooting:
 
 - Core unhealthy or missing: use **Repair** in **Settings > Inference**; check the lifecycle operation log shown there for the failing step.
-- A harness that stops authenticating: its token was revoked or its owner lost `feat:ai:use`. Open **Set up a harness** again and paste the new API key into the harness settings.
+- A harness that stops authenticating: its token was revoked or expired, it is used from an address outside the token's allowed addresses, or its owner lost `feat:ai:use`. Open **Set up a harness** again and paste the new API key into the harness settings.
 - A failed core update rolls back automatically; if rollback also fails, **Repair** reinstalls the last known-good pinned release.
 
 To disable inference:

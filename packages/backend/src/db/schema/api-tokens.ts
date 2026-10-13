@@ -37,6 +37,10 @@ export const apiTokens = pgTable(
     tokenPrefix: varchar('token_prefix', { length: 20 }).notNull(),
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
     registryAccess: jsonb('registry_access').$type<ApiTokenRegistryAccess>().notNull().default({}),
+    /** Null: the token never expires. An expired token is refused like a revoked one; housekeeping removes it. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    /** IPv4/IPv6 addresses or CIDR ranges the token works from; empty allows any address (lib/token-limits.ts). */
+    allowedIps: jsonb('allowed_ips').$type<string[]>().notNull().default([]),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -1,6 +1,7 @@
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { container } from '@/container.js';
+import { getClientIpForContext } from '@/lib/request-ip.js';
 import { API_TOKEN_SCOPES, MCP_TOKEN_SCOPES } from '@/lib/scopes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import {
@@ -239,7 +240,7 @@ oauthRoutes.post('/token', async (c) => {
   if (!parsed.success) return oauthError('invalid_request', 'Invalid token request', 400);
 
   try {
-    return c.json(await oauthService().exchangeToken(parsed.data));
+    return c.json(await oauthService().exchangeToken(parsed.data, { clientIp: await getClientIpForContext(c) }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid token request';
     return oauthError(message.includes('Resource') ? 'invalid_target' : 'invalid_grant', message, 400);
@@ -277,11 +278,7 @@ oauthRoutes.delete('/authorizations/:authorizationId', async (c) => {
 oauthRoutes.patch('/authorizations/:authorizationId', async (c) => {
   const authorizationId = z.string().min(1).parse(c.req.param('authorizationId'));
   const body = OAuthAuthorizationScopesSchema.parse(await c.req.json());
-  const authorization = await oauthService().updateUserAuthorizationScopes(
-    c.get('user')!,
-    authorizationId,
-    body.scopes
-  );
+  const authorization = await oauthService().updateUserAuthorization(c.get('user')!, authorizationId, body);
   return c.json({ data: authorization });
 });
 

@@ -47,6 +47,8 @@ Use it before reporting a permission problem: a denial at the root, or a refusal
 
 A token or grant's own restriction is applied first and then bounded by the owner's **current** access. Narrowing a user's group immediately narrows every token and grant they issued, even mid-session.
 
+API tokens, inference tokens and OAuth grants can also carry an expiry and an IP allowlist (up to 20 IPv4/IPv6 addresses or CIDR ranges; empty allows any address). An expired token, or a request from an address outside the list, is refused like a revoked token; the address is the client address Opfield resolves through its trusted proxies. Expired API and inference tokens are listed as Expired and removed by housekeeping after the Expired Tokens period (7 days by default). For an integration with a fixed egress address, suggest both.
+
 ## Tokens, grants, and what MCP cannot do
 
 - `manage_api_token` and `manage_oauth_authorization` are browser-session tools for the current user's own tokens and grants, and are **not exposed over MCP**. An MCP agent cannot mint an API token or approve an OAuth client. When a user asks for a token, send them to the Console; do not look for a workaround.

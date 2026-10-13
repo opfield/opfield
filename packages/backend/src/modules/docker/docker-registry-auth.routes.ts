@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { container } from '@/container.js';
+import { getClientIpForContext } from '@/lib/request-ip.js';
 import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { demoRestriction, isDemoMode } from '@/modules/demo/demo-mode.js';
@@ -61,7 +62,9 @@ dockerRegistryAuthRoutes.get('/token', async (c) => {
     throw new AppError(403, 'REGISTRY_SERVICE_DENIED', 'Registry token audience is not allowed');
   }
   const rawToken = basicPassword(c.req.header('Authorization'));
-  const authenticated = rawToken ? await container.resolve(TokensService).validateToken(rawToken) : null;
+  const authenticated = rawToken
+    ? await container.resolve(TokensService).validateToken(rawToken, { clientIp: await getClientIpForContext(c) })
+    : null;
   if (!authenticated) {
     c.header('WWW-Authenticate', 'Basic realm="Opfield Internal Registry"');
     c.header('Cache-Control', 'no-store');

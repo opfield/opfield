@@ -43,6 +43,7 @@ import {
   syncInferenceProviderConnectionRoute,
   updateInferenceProviderConnectionRoute,
   updateInferenceProviderRoutingRoute,
+  updateInferenceTokenRoute,
 } from './inference.docs.js';
 import {
   CompleteInferenceOAuthSchema,
@@ -55,6 +56,7 @@ import {
   StartInferenceOAuthSchema,
   UpdateInferenceProviderConnectionSchema,
   UpdateInferenceProviderRoutingSchema,
+  UpdateInferenceTokenSchema,
 } from './inference.schemas.js';
 import { InferenceTokenService } from './inference-token.service.js';
 import { InferenceModelService } from './models/inference-model.service.js';
@@ -89,6 +91,14 @@ inferenceManagementRoutes.openapi(createInferenceTokenRoute, async (c) => {
   const input = CreateInferenceTokenSchema.parse(await c.req.json());
   const token = await container.resolve(InferenceTokenService).createToken(user.id, input);
   return c.json(token, 201);
+});
+
+inferenceManagementRoutes.openapi(updateInferenceTokenRoute, async (c) => {
+  assertNotImpersonating(c, 'Inference tokens cannot be changed while impersonating');
+  const user = c.get('user')!;
+  const input = UpdateInferenceTokenSchema.parse(await c.req.json());
+  const token = await container.resolve(InferenceTokenService).updateToken(user.id, c.req.param('id')!, input);
+  return c.json(token);
 });
 
 inferenceManagementRoutes.openapi(revokeInferenceTokenRoute, async (c) => {

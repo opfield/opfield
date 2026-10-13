@@ -60,6 +60,9 @@ export const HousekeepingConfigUpdateSchema = z
       .object({ enabled: z.boolean().optional(), retentionDays: z.number().int().min(1).max(3650).optional() })
       .optional(),
     oauthCleanup: z.object({ enabled: z.boolean().optional() }).optional(),
+    expiredTokens: z
+      .object({ enabled: z.boolean().optional(), retentionDays: z.number().int().min(0).max(365).optional() })
+      .optional(),
   })
   .strict();
 

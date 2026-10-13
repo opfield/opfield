@@ -268,6 +268,18 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
             if (scopes.length === 0) throw new Error('scopes are required');
             return oauthService.updateUserAuthorizationScopes(user, authorizationId, scopes);
           }
+          case 'update': {
+            const authorizationId = String(a.authorizationId ?? '');
+            if (!authorizationId) throw new Error('authorizationId is required (the id from list)');
+            // Validated like PATCH /api/oauth/authorizations/:id.
+            const { OAuthAuthorizationScopesSchema } = await import('@/modules/oauth/oauth.schemas.js');
+            const input = OAuthAuthorizationScopesSchema.parse({
+              scopes: a.scopes,
+              expiresAt: a.expiresAt,
+              allowedIps: a.allowedIps,
+            });
+            return oauthService.updateUserAuthorization(user, authorizationId, input);
+          }
           case 'revoke': {
             const authorizationId = String(a.authorizationId ?? '');
             if (!authorizationId) throw new Error('authorizationId is required (the id from list)');
@@ -290,6 +302,8 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
               name: a.name,
               scopes: a.scopes,
               registryAccess: a.registryAccess,
+              expiresAt: a.expiresAt,
+              allowedIps: a.allowedIps,
             });
             const input = { ...parsed, scopes: resolveRequestedTokenScopes(parsed.scopes, user.scopes, 'create') };
             if (!isScopeSubset(authorizeRequestedRegistryAccess(input, user.scopes), user.scopes)) {
@@ -304,6 +318,8 @@ export abstract class AIServiceAdministrationTools extends AIServiceInteractionT
               name: a.name,
               scopes: a.scopes,
               registryAccess: a.registryAccess,
+              expiresAt: a.expiresAt,
+              allowedIps: a.allowedIps,
             });
             const input = {
               ...parsed,

@@ -10,6 +10,7 @@ import { nodes } from '@/db/schema/nodes.js';
 import { settings } from '@/db/schema/settings.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { AISandboxArtifactService } from '@/modules/ai/ai.sandbox-artifact.service.js';
+import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
 import type { DockerManagementService } from '@/modules/docker/docker.service.js';
 import {
@@ -22,6 +23,12 @@ import type { LoggingFeatureService } from '@/modules/logging/logging-feature.se
 import type { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance.service.js';
 import type { NotificationDeliveryService } from '@/modules/notifications/notification-delivery.service.js';
 import type { DockerService } from './docker.service.js';
+import type { EventBusService } from './event-bus.service.js';
+import {
+  countExpiredTokens,
+  DEFAULT_EXPIRED_TOKEN_RETENTION_DAYS,
+  purgeExpiredTokens,
+} from './expired-token-retention.js';
 import type { NodeDispatchService } from './node-dispatch.service.js';
 import {
   cleanOperationHistory,
@@ -61,6 +68,8 @@ export interface HousekeepingConfig {
   operationHistory: { enabled: boolean; retentionDays: number };
   /** Expired OAuth codes and tokens, and registered clients left without grants. */
   oauthCleanup: { enabled: boolean };
+  /** Expired API and inference tokens, removed `retentionDays` after they expired (0: at once). */
+  expiredTokens: { enabled: boolean; retentionDays: number };
 }
 
 export interface CategoryResult {
@@ -108,6 +117,7 @@ export interface HousekeepingStats {
   dockerImages: { oldImageCount: number; reclaimableBytes: number };
   operationHistory: { count: number };
   oauthCleanup: { count: number };
+  expiredTokens: { count: number };
   lastRun: HousekeepingRunResult | null;
   isRunning: boolean;
 }
@@ -142,6 +152,8 @@ const KEYS = {
   operationHistoryEnabled: 'housekeeping:operation_history:enabled',
   operationHistoryRetention: 'housekeeping:operation_history:retention_days',
   oauthCleanupEnabled: 'housekeeping:oauth_cleanup:enabled',
+  expiredTokensEnabled: 'housekeeping:expired_tokens:enabled',
+  expiredTokensRetention: 'housekeeping:expired_tokens:retention_days',
   lastRunResult: 'housekeeping:last_run_result',
   runHistory: 'housekeeping:run_history',
 } as const;
@@ -171,6 +183,8 @@ const DEFAULTS: Record<string, unknown> = {
   [KEYS.operationHistoryEnabled]: true,
   [KEYS.operationHistoryRetention]: 90,
   [KEYS.oauthCleanupEnabled]: true,
+  [KEYS.expiredTokensEnabled]: true,
+  [KEYS.expiredTokensRetention]: DEFAULT_EXPIRED_TOKEN_RETENTION_DAYS,
 };
 
 const MAX_HISTORY = 20;
@@ -281,6 +295,10 @@ export class HousekeepingService {
         enabled: get(KEYS.operationHistoryEnabled, DEFAULTS[KEYS.operationHistoryEnabled] as boolean),
         retentionDays: get(KEYS.operationHistoryRetention, DEFAULTS[KEYS.operationHistoryRetention] as number),
       },
+      expiredTokens: {
+        enabled: get(KEYS.expiredTokensEnabled, DEFAULTS[KEYS.expiredTokensEnabled] as boolean),
+        retentionDays: get(KEYS.expiredTokensRetention, DEFAULTS[KEYS.expiredTokensRetention] as number),
+      },
       oauthCleanup: {
         enabled: get(KEYS.oauthCleanupEnabled, DEFAULTS[KEYS.oauthCleanupEnabled] as boolean),
       },
@@ -336,6 +354,10 @@ export class HousekeepingService {
       updates.push([KEYS.operationHistoryRetention, partial.operationHistory.retentionDays]);
     if (partial.oauthCleanup?.enabled !== undefined)
       updates.push([KEYS.oauthCleanupEnabled, partial.oauthCleanup.enabled]);
+    if (partial.expiredTokens?.enabled !== undefined)
+      updates.push([KEYS.expiredTokensEnabled, partial.expiredTokens.enabled]);
+    if (partial.expiredTokens?.retentionDays !== undefined)
+      updates.push([KEYS.expiredTokensRetention, partial.expiredTokens.retentionDays]);
 
     await this.db.transaction(async (tx) => {
       for (const [key, value] of updates) {
@@ -369,6 +391,7 @@ export class HousekeepingService {
       docker,
       operationHistory,
       oauthCleanup,
+      expiredTokens,
       lastRun,
     ] = await Promise.all([
       this.getNginxLogStats(),
@@ -384,6 +407,7 @@ export class HousekeepingService {
       this.getDockerImageStats(),
       this.getOperationHistoryStats(),
       this.getOAuthCleanupStats(),
+      this.getExpiredTokenStats(),
       this.getLastRunResult(),
     ]);
 
@@ -411,6 +435,7 @@ export class HousekeepingService {
       dockerImages: docker,
       operationHistory,
       oauthCleanup,
+      expiredTokens,
       lastRun,
       isRunning: this.running,
     };
@@ -514,6 +539,11 @@ export class HousekeepingService {
       }
       if (config.oauthCleanup?.enabled) {
         categories.push(await this.runCategory('Expired OAuth Grants', () => this.cleanExpiredOAuthGrants()));
+      }
+      if (config.expiredTokens?.enabled) {
+        categories.push(
+          await this.runCategory('Expired Tokens', () => this.cleanExpiredTokens(config.expiredTokens.retentionDays))
+        );
       }
 
       const completedAt = new Date().toISOString();
@@ -631,6 +661,32 @@ export class HousekeepingService {
     const history = await cleanOperationHistory(this.db, retentionDays);
     if (history.total > 0) logger.info('Removed old operation history', { retentionDays, ...history.removed });
     return { itemsCleaned: tasks + history.total };
+  }
+
+  private auditService?: Pick<AuditService, 'log'>;
+  private eventBus?: Pick<EventBusService, 'publish'>;
+  /** Expired-token removals are audited and refresh their owners' token lists. */
+  setTokenCleanupServices(auditService: Pick<AuditService, 'log'>, eventBus: Pick<EventBusService, 'publish'>) {
+    this.auditService = auditService;
+    this.eventBus = eventBus;
+  }
+
+  private async cleanExpiredTokens(retentionDays: number): Promise<{ itemsCleaned: number }> {
+    const purged = await purgeExpiredTokens(this.db, retentionDays, {
+      auditService: this.auditService,
+      eventBus: this.eventBus,
+    });
+    if (purged.total > 0) logger.info('Removed expired tokens', { retentionDays, ...purged });
+    return { itemsCleaned: purged.total };
+  }
+
+  private async getExpiredTokenStats(): Promise<{ count: number }> {
+    try {
+      const config = await this.getConfig();
+      return { count: await countExpiredTokens(this.db, config.expiredTokens.retentionDays) };
+    } catch {
+      return { count: 0 };
+    }
   }
 
   private async cleanExpiredOAuthGrants(): Promise<{ itemsCleaned: number }> {

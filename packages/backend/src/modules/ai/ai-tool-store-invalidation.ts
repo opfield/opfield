@@ -105,9 +105,9 @@ export function resolveToolStoreInvalidations(
     if (['create', 'add', 'update', 'edit', 'patch', 'delete', 'remove', 'destroy'].includes(loggingOperation)) {
       stores.add(normalizedResource === 'token' || normalizedResource === 'ingest_token' ? 'loggingTokens' : 'logging');
     }
-  } else if (toolName === 'manage_inference_token' && ['create', 'revoke'].includes(operation)) {
+  } else if (toolName === 'manage_inference_token' && ['create', 'update', 'revoke'].includes(operation)) {
     stores.add('inferenceTokens');
-  } else if (toolName === 'manage_oauth_authorization' && ['update_scopes', 'revoke'].includes(operation)) {
+  } else if (toolName === 'manage_oauth_authorization' && ['update', 'update_scopes', 'revoke'].includes(operation)) {
     stores.add('oauthAuthorizations');
   } else if (toolName === 'manage_api_token' && ['create', 'update', 'revoke'].includes(operation)) {
     stores.add('apiTokens');

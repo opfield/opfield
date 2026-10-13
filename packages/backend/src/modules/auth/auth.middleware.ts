@@ -3,6 +3,8 @@ import { getCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { container } from '@/container.js';
 import { hasScopeBase } from '@/lib/permissions.js';
+import { getClientIpForContext } from '@/lib/request-ip.js';
+import type { TokenRequestContext } from '@/lib/token-limits.js';
 import { hasTokenPrefix } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { runWithIdempotency } from '@/middleware/idempotency.js';
@@ -116,10 +118,17 @@ function allowsImpersonationRecoveryPath(c: Context<AppEnv>): boolean {
   return path === '/auth/csrf' || path === '/auth/me' || path === '/auth/logout' || path === '/auth/impersonation/stop';
 }
 
-export async function authenticateBearerToken(rawToken: string): Promise<AuthenticatedBearer | null> {
+/**
+ * Validates an API or OAuth bearer token for a request from `context.clientIp`: an expired token, or one limited to
+ * other addresses, is refused like a revoked one.
+ */
+export async function authenticateBearerToken(
+  rawToken: string,
+  context: TokenRequestContext = {}
+): Promise<AuthenticatedBearer | null> {
   if (hasTokenPrefix(rawToken, 'api')) {
     const tokensService = container.resolve(TokensService);
-    const result = await tokensService.validateToken(rawToken);
+    const result = await tokensService.validateToken(rawToken, context);
     if (!result) return null;
     return {
       type: 'api-token',
@@ -132,7 +141,10 @@ export async function authenticateBearerToken(rawToken: string): Promise<Authent
 
   if (hasTokenPrefix(rawToken, 'oauthAccess')) {
     const oauthService = container.resolve(OAuthService);
-    const result = await oauthService.validateAccessToken(rawToken, { resource: oauthService.getApiResourceUrl() });
+    const result = await oauthService.validateAccessToken(rawToken, {
+      resource: oauthService.getApiResourceUrl(),
+      clientIp: context.clientIp,
+    });
     if (!result) return null;
     return {
       type: 'oauth-token',
@@ -174,7 +186,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
 
   if (credential.type === 'api-token' || credential.type === 'oauth-token') {
-    const result = await authenticateBearerToken(credential.value);
+    const result = await authenticateBearerToken(credential.value, { clientIp: await getClientIpForContext(c) });
     if (!result) {
       throw new HTTPException(401, { message: 'Invalid or expired bearer token' });
     }
@@ -254,7 +266,7 @@ export const optionalAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next)
 
   if (credential) {
     if (credential.type === 'api-token' || credential.type === 'oauth-token') {
-      const result = await authenticateBearerToken(credential.value);
+      const result = await authenticateBearerToken(credential.value, { clientIp: await getClientIpForContext(c) });
       if (result) {
         applyBearerContext(c, result);
       }

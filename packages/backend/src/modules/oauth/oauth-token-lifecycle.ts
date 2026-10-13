@@ -4,6 +4,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { oauthAccessTokens, oauthClients, oauthRefreshTokens } from '@/db/schema/index.js';
 import { expandFolderScopes } from '@/lib/folder-scopes.js';
 import { canonicalizeInboundScopes, canonicalizeScopes, isValidInboundScope } from '@/lib/scopes.js';
+import { isClientIpAllowed, isTokenExpired, type TokenRequestContext } from '@/lib/token-limits.js';
 import { TOKEN_PREFIXES } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -83,6 +84,20 @@ function activeAccessTokenWhere(now: Date) {
   return or(isNull(oauthAccessTokens.expiresAt), gt(oauthAccessTokens.expiresAt, now));
 }
 
+/** What the owner may change on a grant besides its scopes; undefined keeps the current value. */
+export interface OAuthGrantLimitsUpdate {
+  scopes?: string[];
+  /** The grant's expiry: no token of it works after this moment; null removes the limit. */
+  grantExpiresAt?: Date | null;
+  /** Canonical addresses or CIDR ranges (lib/token-limits.ts normalizeAllowedIps); empty allows any address. */
+  allowedIps?: string[];
+}
+
+/** A token of a grant is no longer valid: its own expiry or the grant's expiry passed. */
+function grantTokenExpired(token: { expiresAt: Date | null; grantExpiresAt: Date | null }, now = Date.now()) {
+  return isTokenExpired(token.expiresAt, now) || isTokenExpired(token.grantExpiresAt, now);
+}
+
 export class OAuthTokenLifecycle {
   constructor(private readonly deps: OAuthTokenLifecycleDeps) {}
 
@@ -90,12 +105,21 @@ export class OAuthTokenLifecycle {
     return resource === this.deps.getMcpResourceUrl();
   }
 
-  async exchangeRefreshToken(input: OAuthTokenRequest): Promise<OAuthTokenResponse> {
+  async exchangeRefreshToken(input: OAuthTokenRequest, context: TokenRequestContext = {}): Promise<OAuthTokenResponse> {
     if (!input.refresh_token) throw new AppError(400, 'INVALID_REQUEST', 'Refresh token is required');
     const existing = await this.deps.db.query.oauthRefreshTokens.findFirst({
       where: eq(oauthRefreshTokens.tokenHash, hashSecret(input.refresh_token)),
     });
-    if (!existing || existing.clientId !== input.client_id || existing.expiresAt.getTime() < Date.now()) {
+    if (
+      !existing ||
+      existing.clientId !== input.client_id ||
+      existing.expiresAt.getTime() < Date.now() ||
+      isTokenExpired(existing.grantExpiresAt)
+    ) {
+      throw new AppError(400, 'INVALID_GRANT', 'Invalid refresh token');
+    }
+    // The grant's address limit covers the refresh too: a token stolen elsewhere cannot be renewed.
+    if (!isClientIpAllowed(existing.allowedIps, context.clientIp)) {
       throw new AppError(400, 'INVALID_GRANT', 'Invalid refresh token');
     }
     if (existing.revokedAt || existing.replacedByTokenId) {
@@ -138,6 +162,8 @@ export class OAuthTokenLifecycle {
             userId: existing.userId,
             scopes,
             resource,
+            grantExpiresAt: existing.grantExpiresAt,
+            allowedIps: existing.allowedIps ?? [],
           },
           tx
         );
@@ -159,12 +185,21 @@ export class OAuthTokenLifecycle {
   }
 
   async issueTokens(
-    input: { clientId: string; userId: string; scopes: string[]; resource: string },
+    input: {
+      clientId: string;
+      userId: string;
+      scopes: string[];
+      resource: string;
+      /** Limits of the grant a refresh renews; a new consent has none. */
+      grantExpiresAt?: Date | null;
+      allowedIps?: string[];
+    },
     db: Pick<DrizzleClient, 'insert'> = this.deps.db
   ): Promise<IssuedTokens> {
     const accessToken = randomSecret(TOKEN_PREFIXES.oauthAccess);
     const now = Date.now();
     const scopes = canonicalizeScopes(input.scopes);
+    const limits = { grantExpiresAt: input.grantExpiresAt ?? null, allowedIps: input.allowedIps ?? [] };
     if (this.isMcpResource(input.resource)) {
       // Accepted MCP design: access-only, long-lived bearer token. MCP clients do
       // not use refresh-token rotation during normal operation; explicit
@@ -178,6 +213,7 @@ export class OAuthTokenLifecycle {
         scopes,
         resource: input.resource,
         expiresAt: null,
+        ...limits,
       });
       await markOAuthClientGranted(this.deps.db, input.clientId);
 
@@ -202,6 +238,7 @@ export class OAuthTokenLifecycle {
         scopes,
         resource: input.resource,
         expiresAt: new Date(now + REFRESH_TOKEN_TTL_SECONDS * 1000),
+        ...limits,
       })
       .returning();
     await db.insert(oauthAccessTokens).values({
@@ -213,6 +250,7 @@ export class OAuthTokenLifecycle {
       scopes,
       resource: input.resource,
       expiresAt: new Date(now + ACCESS_TOKEN_TTL_SECONDS * 1000),
+      ...limits,
     });
     await markOAuthClientGranted(this.deps.db, input.clientId);
 
@@ -228,12 +266,14 @@ export class OAuthTokenLifecycle {
     };
   }
 
-  async validateAccessToken(rawToken: string, options: { resource?: string } = {}) {
+  async validateAccessToken(rawToken: string, options: { resource?: string } & TokenRequestContext = {}) {
     const token = await this.deps.db.query.oauthAccessTokens.findFirst({
       where: and(eq(oauthAccessTokens.tokenHash, hashSecret(rawToken)), isNull(oauthAccessTokens.revokedAt)),
     });
-    if (!token || (token.expiresAt && token.expiresAt.getTime() < Date.now())) return null;
+    if (!token || grantTokenExpired(token)) return null;
     if (options.resource && (token.resource ?? this.deps.getApiResourceUrl()) !== options.resource) return null;
+    // A grant limited to addresses is refused from any other one, like a revoked token.
+    if (!isClientIpAllowed(token.allowedIps, options.clientIp)) return null;
 
     const user = await resolveLiveUser(this.deps.db, token.userId);
     if (!user || user.isBlocked) return null;
@@ -328,6 +368,10 @@ export class OAuthTokenLifecycle {
       accessTokenIds: string[];
       createdAt: Date;
       expiresAt: Date | null;
+      grantExpiresAt: Date | null;
+      allowedIps: string[];
+      /** Creation time of the token the limits were read from: the newest token's limits win. */
+      limitsFrom: Date;
       lastUsedAt: Date | null;
       activeAccessTokens: number;
       activeRefreshTokens: number;
@@ -345,6 +389,9 @@ export class OAuthTokenLifecycle {
           accessTokenIds: [],
           createdAt,
           expiresAt: null,
+          grantExpiresAt: null,
+          allowedIps: [],
+          limitsFrom: new Date(0),
           lastUsedAt: null,
           activeAccessTokens: 0,
           activeRefreshTokens: 0,
@@ -358,8 +405,19 @@ export class OAuthTokenLifecycle {
       user ? this.deps.grantScopes(user, resource, scopes ?? []) : [];
 
     const chainCreatedAt = new Map(allRefreshTokens.map((token) => [token.id, token.createdAt]));
+    // The tokens of one grant carry the same limits (set together by updateUserAuthorization).
+    const takeLimits = (
+      grant: Grant,
+      token: { grantExpiresAt: Date | null; allowedIps: string[] | null; createdAt: Date }
+    ) => {
+      if (token.createdAt < grant.limitsFrom) return;
+      grant.limitsFrom = token.createdAt;
+      grant.grantExpiresAt = token.grantExpiresAt;
+      grant.allowedIps = token.allowedIps ?? [];
+    };
+    const nowMs = now.getTime();
     for (const token of allRefreshTokens) {
-      if (token.revokedAt || token.expiresAt <= now) continue;
+      if (token.revokedAt || token.expiresAt <= now || isTokenExpired(token.grantExpiresAt, nowMs)) continue;
       const root = rootOf(token.id);
       const resource = token.resource ?? apiResource;
       const grant = ensure(root, token.clientId, resource, chainCreatedAt.get(root) ?? token.createdAt);
@@ -367,8 +425,10 @@ export class OAuthTokenLifecycle {
       grant.refreshTokenIds.push(token.id);
       grant.activeRefreshTokens += 1;
       if (!grant.expiresAt || token.expiresAt > grant.expiresAt) grant.expiresAt = token.expiresAt;
+      takeLimits(grant, token);
     }
     for (const token of accessTokens) {
+      if (isTokenExpired(token.grantExpiresAt, nowMs)) continue;
       const resource = token.resource ?? apiResource;
       const id = token.refreshTokenId ? rootOf(token.refreshTokenId) : token.id;
       const grant = ensure(id, token.clientId, resource, chainCreatedAt.get(id) ?? token.createdAt);
@@ -378,6 +438,13 @@ export class OAuthTokenLifecycle {
       if (token.expiresAt && (!grant.expiresAt || token.expiresAt > grant.expiresAt)) grant.expiresAt = token.expiresAt;
       if (token.lastUsedAt && (!grant.lastUsedAt || token.lastUsedAt > grant.lastUsedAt)) {
         grant.lastUsedAt = token.lastUsedAt;
+      }
+      takeLimits(grant, token);
+    }
+    // A grant ends at its own expiry when that comes first (an MCP grant has no other).
+    for (const grant of grants.values()) {
+      if (grant.grantExpiresAt && (!grant.expiresAt || grant.grantExpiresAt < grant.expiresAt)) {
+        grant.expiresAt = grant.grantExpiresAt;
       }
     }
     return grants;
@@ -409,6 +476,9 @@ export class OAuthTokenLifecycle {
           createdAt: grant.createdAt.toISOString(),
           lastUsedAt: grant.lastUsedAt?.toISOString() ?? null,
           expiresAt: grant.expiresAt?.toISOString() ?? null,
+          /** The expiry the owner set on the grant (null: none); expiresAt is when it really ends. */
+          grantExpiresAt: grant.grantExpiresAt?.toISOString() ?? null,
+          allowedIps: grant.allowedIps,
         };
       })
       .sort((a, b) => {
@@ -470,6 +540,11 @@ export class OAuthTokenLifecycle {
   }
 
   async updateUserAuthorizationScopes(user: User, grantId: string, requestedScopes: string[]) {
+    return this.updateUserAuthorization(user, grantId, { scopes: requestedScopes });
+  }
+
+  /** Changes a grant's scopes, expiry and allowed addresses; every token of the grant gets them. */
+  async updateUserAuthorization(user: User, grantId: string, update: OAuthGrantLimitsUpdate) {
     const grant = await this.findGrant(user.id, grantId);
     const client = await this.deps.getClient(grant.clientId);
     if (!client) throw new AppError(404, 'OAUTH_CLIENT_NOT_FOUND', 'OAuth client not found');
@@ -478,35 +553,45 @@ export class OAuthTokenLifecycle {
       throw new AppError(400, 'INVALID_TARGET', 'OAuth authorization is not available for this resource');
     }
 
-    // Retired scope names from older clients are rewritten to the current catalog.
-    const canonicalRequestedScopes = canonicalizeInboundScopes(stripNonDelegableMcpScope(requestedScopes));
-    if (canonicalRequestedScopes.length === 0) {
-      throw new AppError(400, 'INVALID_SCOPE', 'At least one scope is required');
+    const patch: { scopes?: string[]; grantExpiresAt?: Date | null; allowedIps?: string[] } = {};
+    if (update.scopes !== undefined) {
+      const requestedScopes = update.scopes;
+      // Retired scope names from older clients are rewritten to the current catalog.
+      const canonicalRequestedScopes = canonicalizeInboundScopes(stripNonDelegableMcpScope(requestedScopes));
+      if (canonicalRequestedScopes.length === 0) {
+        throw new AppError(400, 'INVALID_SCOPE', 'At least one scope is required');
+      }
+
+      const invalidScopes = requestedScopes.filter((scope) => !isValidInboundScope(scope));
+      if (invalidScopes.length > 0) {
+        throw new AppError(400, 'INVALID_SCOPE', `Scopes are not recognized: ${invalidScopes.join(', ')}`);
+      }
+
+      this.deps.assertResourceAllowed(user, resource);
+      const scopes = this.deps.grantScopes(user, resource, canonicalRequestedScopes);
+      if (scopes.length === 0) {
+        throw new AppError(400, 'INVALID_SCOPE', `No selected scopes are grantable for resource ${resource}`);
+      }
+      patch.scopes = scopes;
+    }
+    if (update.grantExpiresAt !== undefined) patch.grantExpiresAt = update.grantExpiresAt;
+    if (update.allowedIps !== undefined) patch.allowedIps = update.allowedIps;
+    if (Object.keys(patch).length === 0) {
+      throw new AppError(400, 'INVALID_REQUEST', 'Nothing to update');
     }
 
-    const invalidScopes = requestedScopes.filter((scope) => !isValidInboundScope(scope));
-    if (invalidScopes.length > 0) {
-      throw new AppError(400, 'INVALID_SCOPE', `Scopes are not recognized: ${invalidScopes.join(', ')}`);
-    }
-
-    this.deps.assertResourceAllowed(user, resource);
-    const scopes = this.deps.grantScopes(user, resource, canonicalRequestedScopes);
-    if (scopes.length === 0) {
-      throw new AppError(400, 'INVALID_SCOPE', `No selected scopes are grantable for resource ${resource}`);
-    }
-
-    // Only this grant's tokens change; other grants of the same client keep their own scopes.
+    // Only this grant's tokens change; other grants of the same client keep their own scopes and limits.
     await Promise.all([
       grant.refreshTokenIds.length
         ? this.deps.db
             .update(oauthRefreshTokens)
-            .set({ scopes })
+            .set(patch)
             .where(and(eq(oauthRefreshTokens.userId, user.id), inArray(oauthRefreshTokens.id, grant.refreshTokenIds)))
         : null,
       grant.accessTokenIds.length
         ? this.deps.db
             .update(oauthAccessTokens)
-            .set({ scopes })
+            .set(patch)
             .where(and(eq(oauthAccessTokens.userId, user.id), inArray(oauthAccessTokens.id, grant.accessTokenIds)))
         : null,
     ]);
@@ -516,7 +601,21 @@ export class OAuthTokenLifecycle {
       action: 'oauth.authorization_update',
       resourceType: 'oauth-client',
       resourceId: grant.clientId,
-      details: { clientName: client.clientName, resource, scopes, authorizationId: grant.id },
+      details: {
+        clientName: client.clientName,
+        resource,
+        authorizationId: grant.id,
+        ...(patch.scopes !== undefined ? { scopes: patch.scopes } : {}),
+        ...(patch.grantExpiresAt !== undefined
+          ? {
+              previousExpiresAt: grant.grantExpiresAt?.toISOString() ?? null,
+              expiresAt: patch.grantExpiresAt?.toISOString() ?? null,
+            }
+          : {}),
+        ...(patch.allowedIps !== undefined
+          ? { previousAllowedIps: grant.allowedIps, allowedIps: patch.allowedIps }
+          : {}),
+      },
     });
 
     const [authorization] = (await this.listUserAuthorizations(user.id)).filter((item) => item.id === grant.id);

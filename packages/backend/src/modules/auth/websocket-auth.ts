@@ -19,6 +19,8 @@ export type WebSocketCredential =
   | {
       type: 'bearer';
       value: string;
+      /** The client address of the upgrade request, resolved when it arrived (token address limits). */
+      clientIp?: Promise<string | undefined>;
     };
 
 export type WebSocketAuthResult = {
@@ -76,10 +78,15 @@ export function getProgrammaticWebSocketCredential(
   cookieHeader: string | undefined,
   origin: string | undefined,
   authorizationHeader: string | undefined,
-  isAllowedOrigin: (origin: string | undefined) => boolean
+  isAllowedOrigin: (origin: string | undefined) => boolean,
+  resolveClientIp?: () => Promise<string | undefined>
 ): WebSocketCredential | null {
   const bearerToken = getBearerToken(authorizationHeader);
-  if (bearerToken) return { type: 'bearer', value: bearerToken };
+  if (bearerToken) {
+    // Read while the upgrade request is at hand; a token limited to addresses is checked against it.
+    const clientIp = resolveClientIp?.().catch(() => undefined);
+    return { type: 'bearer', value: bearerToken, ...(clientIp ? { clientIp } : {}) };
+  }
   return getSessionWebSocketCredential(cookieHeader, origin, isAllowedOrigin);
 }
 
@@ -124,7 +131,7 @@ export async function resolveWebSocketCredentialContext(
             impersonation: value.impersonation,
           };
         })
-      : await authenticateBearerToken(credential.value);
+      : await authenticateBearerToken(credential.value, { clientIp: await credential.clientIp });
   if (!result || result.user.isBlocked) return null;
   return {
     user: result.user,

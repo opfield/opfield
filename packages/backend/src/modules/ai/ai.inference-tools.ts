@@ -15,6 +15,7 @@ import {
   StartInferenceOAuthSchema,
   UpdateInferenceProviderConnectionSchema,
   UpdateInferenceProviderRoutingSchema,
+  UpdateInferenceTokenSchema,
 } from '@/modules/inference/inference.schemas.js';
 import { InferenceTokenService } from '@/modules/inference/inference-token.service.js';
 import { InferenceModelService } from '@/modules/inference/models/inference-model.service.js';
@@ -255,7 +256,18 @@ async function manageToken(user: User, args: Record<string, unknown>) {
   }
   if (operation === 'create') {
     requireScope(user, 'feat:ai:use');
-    return service.createToken(user.id, CreateInferenceTokenSchema.parse({ name: args.name }));
+    return service.createToken(
+      user.id,
+      CreateInferenceTokenSchema.parse({ name: args.name, expiresAt: args.expiresAt, allowedIps: args.allowedIps })
+    );
+  }
+  if (operation === 'update') {
+    requireScope(user, 'feat:ai:use');
+    return service.updateToken(
+      user.id,
+      requiredString(args.tokenId, 'tokenId'),
+      UpdateInferenceTokenSchema.parse({ name: args.name, expiresAt: args.expiresAt, allowedIps: args.allowedIps })
+    );
   }
   if (operation === 'revoke') {
     requireScope(user, 'feat:ai:use');

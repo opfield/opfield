@@ -94,7 +94,7 @@ No restart is required. If inference is disabled, inference tools fail instead o
 - \`manage_inference_provider\`: list templates/connections, connect API keys, start or inspect supported authorization flows, sync, rename, enable/disable, configure quota reserves/API budgets/routing, or disconnect.
 - \`manage_inference_model\`: list models, inspect account suggestions, atomically create/replace a complete model configuration, or delete a model.
 - \`manage_inference_limits\`: list default/per-user policies and configure or remove overrides. The current Assistant tool does not reset accumulated usage baselines.
-- \`manage_inference_token\`: list, create, or revoke the current user's \`opfi_\` tokens. It cannot issue a token for another user.
+- \`manage_inference_token\`: list, create, update (name, expiresAt, allowedIps), or revoke the current user's \`opfi_\` tokens. It cannot issue a token for another user. expiresAt is an ISO date-time in the future (null: no expiry); allowedIps holds up to 20 IPv4/IPv6 addresses or CIDR ranges ([] allows any). An expired token is refused and removed by housekeeping after the Expired Tokens period.
 
 Always inspect current state before mutation. Use \`internal_documentation({ topic: "inference" })\` before multi-step inference work.
 
@@ -137,7 +137,7 @@ Users need \`feat:ai:use\` for Opfield Inference access, personal usage visibili
 Token options:
 
 - UI: **Profile > Authorizations > Inference API tokens**;
-- AI: \`manage_inference_token({ operation: "create", name: "Laptop" })\` for the current user.
+- AI: \`manage_inference_token({ operation: "create", name: "Laptop", expiresAt?, allowedIps? })\` for the current user.
 
 The \`opfi_\` secret is shown once. Never repeat it after creation, store it in assistant history, or expose it to another user.
 

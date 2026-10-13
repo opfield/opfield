@@ -361,7 +361,8 @@ describe('authMiddleware browser session credentials', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ userId: USER.id });
-    expect(validateToken).toHaveBeenCalledWith(token);
+    // The request's client address goes along for the token's address limit (none in a test request).
+    expect(validateToken).toHaveBeenCalledWith(token, { clientIp: undefined });
   });
 
   it('allows an unsatisfied local session until its MFA grace deadline', async () => {

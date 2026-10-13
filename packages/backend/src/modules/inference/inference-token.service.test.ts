@@ -108,6 +108,20 @@ describe('InferenceTokenService', () => {
     expect(demoted).toBeNull();
   });
 
+  it('refuses an expired token and one used from an address outside its list', async () => {
+    const validate = (token: Record<string, unknown>, clientIp?: string) =>
+      new InferenceTokenService(
+        liveUserDb({ id: TOKEN_ID, userId: USER_ID, tokenPrefix: 'gwi_12345678', ...token }) as never,
+        { log: vi.fn() } as never
+      ).validateToken('gwi_test', { clientIp });
+
+    await expect(validate({ expiresAt: new Date(Date.now() - 1000) })).resolves.toBeNull();
+    await expect(validate({ expiresAt: new Date(Date.now() + 60_000) })).resolves.not.toBeNull();
+    await expect(validate({ allowedIps: ['10.20.0.0/16'] }, '10.20.4.17')).resolves.not.toBeNull();
+    await expect(validate({ allowedIps: ['10.20.0.0/16'] }, '198.51.100.7')).resolves.toBeNull();
+    await expect(validate({ allowedIps: ['10.20.0.0/16'] })).resolves.toBeNull();
+  });
+
   it('rejects revoked, unknown, and wrong-prefix credentials', async () => {
     const service = new InferenceTokenService(liveUserDb(null) as never, { log: vi.fn() } as never);
     await expect(service.validateToken('gwi_revoked')).resolves.toBeNull();

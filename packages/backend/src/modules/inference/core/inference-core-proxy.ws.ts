@@ -35,6 +35,8 @@ export interface InferenceCoreWebSocketAuth {
   tokenPrefix: string;
   /** Raw token is retained only per connection to revalidate each new turn. */
   rawToken: string;
+  /** The client address of the upgrade request; each turn's revalidation checks the token's address limit. */
+  clientIp?: string;
 }
 
 interface ConnectionState {
@@ -737,9 +739,17 @@ function endTurn(state: ConnectionState, outcome: 'completed' | 'failed' | 'canc
 }
 
 async function revalidateAuth(auth: InferenceCoreWebSocketAuth): Promise<InferenceCoreWebSocketAuth | null> {
-  const fresh = await container.resolve(InferenceTokenService).validateToken(auth.rawToken);
+  const fresh = await container
+    .resolve(InferenceTokenService)
+    .validateToken(auth.rawToken, { clientIp: auth.clientIp });
   if (!fresh || fresh.tokenId !== auth.tokenId) return null;
-  return { user: fresh.user, tokenId: fresh.tokenId, tokenPrefix: fresh.tokenPrefix, rawToken: auth.rawToken };
+  return {
+    user: fresh.user,
+    tokenId: fresh.tokenId,
+    tokenPrefix: fresh.tokenPrefix,
+    rawToken: auth.rawToken,
+    clientIp: auth.clientIp,
+  };
 }
 
 function isAccessRevocation(payload: unknown): boolean {

@@ -21,6 +21,7 @@ import {
   StartInferenceOAuthSchema,
   UpdateInferenceProviderConnectionSchema,
   UpdateInferenceProviderRoutingSchema,
+  UpdateInferenceTokenSchema,
 } from './inference.schemas.js';
 
 export const inferenceDataPlaneUsageRoute = appRoute({
@@ -63,6 +64,15 @@ export const createInferenceTokenRoute = appRoute({
   summary: 'Create a copy-once inference token',
   request: jsonBody(CreateInferenceTokenSchema),
   responses: createdJson(CreateInferenceTokenResponseSchema),
+});
+
+export const updateInferenceTokenRoute = appRoute({
+  method: 'patch',
+  path: '/tokens/{id}',
+  tags: ['Inference'],
+  summary: 'Rename an inference token or change its expiry and allowed addresses',
+  request: { params: IdParamSchema, ...jsonBody(UpdateInferenceTokenSchema) },
+  responses: okJson(InferenceTokenResponseSchema),
 });
 
 export const revokeInferenceTokenRoute = appRoute({

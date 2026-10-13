@@ -8,6 +8,13 @@ import { expandFolderScopes } from '@/lib/folder-scopes.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { boundScopes, hasScope as permissionHasScope, withDelegableCleanupAdditions } from '@/lib/permissions.js';
 import { canonicalizeInboundScopes, canonicalizeScopes, isApiTokenScope } from '@/lib/scopes.js';
+import {
+  isClientIpAllowed,
+  isTokenExpired,
+  normalizeAllowedIps,
+  parseTokenExpiry,
+  type TokenRequestContext,
+} from '@/lib/token-limits.js';
 import { TOKEN_PREFIXES } from '@/lib/token-prefixes.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -42,6 +49,15 @@ function assertNotImpersonatedRequest(): void {
       'API tokens cannot be managed while impersonating'
     );
   }
+}
+
+/** The expiry and address limits of a token as the API shows them. */
+function serializeTokenLimits(token: { expiresAt: Date | null; allowedIps: string[] | null }) {
+  return {
+    expiresAt: token.expiresAt?.toISOString() ?? null,
+    expired: isTokenExpired(token.expiresAt),
+    allowedIps: token.allowedIps ?? [],
+  };
 }
 
 function hashToken(raw: string): string {
@@ -111,6 +127,8 @@ export class TokensService {
     const scopes = requested.scopes;
     const registryAccess = mergeRegistryAccess(input.registryAccess, requested.registryAccess);
     assertTokenNotEmpty(scopes, registryAccess);
+    const expiresAt = parseTokenExpiry(input.expiresAt) ?? null;
+    const allowedIps = normalizeAllowedIps(input.allowedIps);
 
     const [token] = await this.db
       .insert(apiTokens)
@@ -121,6 +139,8 @@ export class TokensService {
         tokenPrefix,
         scopes,
         registryAccess,
+        expiresAt,
+        allowedIps,
       })
       .returning();
 
@@ -130,7 +150,13 @@ export class TokensService {
       action: 'api_token.create',
       resourceType: 'api-token',
       resourceId: token.id,
-      details: { name: token.name, scopes: token.scopes, registryAccess },
+      details: {
+        name: token.name,
+        scopes: token.scopes,
+        registryAccess,
+        expiresAt: expiresAt?.toISOString() ?? null,
+        allowedIps,
+      },
     });
     this.eventBus?.publish(apiTokenChangedChannel(userId), { action: 'create', id: token.id, userId });
 
@@ -140,6 +166,7 @@ export class TokensService {
       tokenPrefix: token.tokenPrefix,
       scopes: token.scopes.filter(isApiTokenScope),
       registryAccess,
+      ...serializeTokenLimits(token),
       lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
       createdAt: token.createdAt.toISOString(),
       token: raw,
@@ -164,6 +191,7 @@ export class TokensService {
         (scope) => isApiTokenScope(scope) && !isLegacyRegistryScope(scope)
       ),
       registryAccess: tokenRegistryAccess(t),
+      ...serializeTokenLimits(t),
       lastUsedAt: t.lastUsedAt?.toISOString() ?? null,
       createdAt: t.createdAt.toISOString(),
     }));
@@ -181,6 +209,9 @@ export class TokensService {
     if (!token) throw new AppError(404, 'TOKEN_NOT_FOUND', 'Token not found');
     const patch: Partial<typeof apiTokens.$inferInsert> = {};
     if (input.name !== undefined) patch.name = input.name;
+    const expiresAt = parseTokenExpiry(input.expiresAt);
+    if (expiresAt !== undefined) patch.expiresAt = expiresAt;
+    if (input.allowedIps !== undefined) patch.allowedIps = normalizeAllowedIps(input.allowedIps);
     const storedLegacy = (token.scopes ?? []).some(isLegacyRegistryScope);
     let requestedRegistryAccess: TokenRegistryAccess = {};
     if (input.scopes !== undefined) {
@@ -206,7 +237,11 @@ export class TokensService {
       patch.registryAccess ?? tokenRegistryAccess(token)
     );
     await this.db.update(apiTokens).set(patch).where(eq(apiTokens.id, tokenId));
-    const changed = input.scopes !== undefined || input.registryAccess !== undefined;
+    const changed =
+      input.scopes !== undefined ||
+      input.registryAccess !== undefined ||
+      patch.expiresAt !== undefined ||
+      patch.allowedIps !== undefined;
     await this.auditService.log({
       userId,
       action: changed ? 'api_token.update' : 'api_token.rename',
@@ -217,6 +252,15 @@ export class TokensService {
         ...(patch.scopes !== undefined ? { previousScopes: token.scopes, scopes: patch.scopes } : {}),
         ...(patch.registryAccess !== undefined
           ? { previousRegistryAccess: tokenRegistryAccess(token), registryAccess: patch.registryAccess }
+          : {}),
+        ...(patch.expiresAt !== undefined
+          ? {
+              previousExpiresAt: token.expiresAt?.toISOString() ?? null,
+              expiresAt: patch.expiresAt?.toISOString() ?? null,
+            }
+          : {}),
+        ...(patch.allowedIps !== undefined
+          ? { previousAllowedIps: token.allowedIps ?? [], allowedIps: patch.allowedIps }
           : {}),
       },
     });
@@ -244,7 +288,14 @@ export class TokensService {
     this.eventBus?.publish(apiTokenChangedChannel(userId), { action: 'revoke', id: tokenId, userId });
   }
 
-  async validateToken(rawToken: string): Promise<{
+  /**
+   * The owner and scopes of a raw token used by a request from `context.clientIp`, or null. An expired token, or one
+   * limited to other addresses, is refused like a revoked one.
+   */
+  async validateToken(
+    rawToken: string,
+    context: TokenRequestContext = {}
+  ): Promise<{
     user: User;
     scopes: string[];
     registryAccess: TokenRegistryAccess;
@@ -258,6 +309,8 @@ export class TokensService {
     });
 
     if (!token) return null;
+    if (isTokenExpired(token.expiresAt)) return null;
+    if (!isClientIpAllowed(token.allowedIps, context.clientIp)) return null;
 
     this.db
       .update(apiTokens)

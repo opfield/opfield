@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { container } from '@/container.js';
 import { hasScope } from '@/lib/permissions.js';
+import { getClientIpForContext } from '@/lib/request-ip.js';
 import { assertDemoRequestAllowed } from '@/modules/demo/demo-mode.js';
 import { OAuthService } from '@/modules/oauth/oauth.service.js';
 import type { AppEnv } from '@/types.js';
@@ -36,7 +37,10 @@ export const mcpAuthMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   // legacy-name: gwo_ OAuth access token prefix — remove once no gwo_ tokens remain
   if (token.startsWith('opfo_') || token.startsWith('gwo_')) {
-    const result = await oauthService.validateAccessToken(token, { resource: oauthService.getMcpResourceUrl() });
+    const result = await oauthService.validateAccessToken(token, {
+      resource: oauthService.getMcpResourceUrl(),
+      clientIp: await getClientIpForContext(c),
+    });
     if (!result) {
       challenge('invalid_token', 'Invalid OAuth access token');
       throw new HTTPException(401, { message: 'Invalid OAuth access token' });
