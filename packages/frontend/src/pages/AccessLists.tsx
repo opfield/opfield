@@ -93,8 +93,13 @@ export function AccessLists() {
     {
       id: "description",
       header: "Description",
+      // max-w-0: the description takes the free width of the table and ends in an ellipsis
+      // instead of widening it.
+      cellClassName: "max-w-0",
       render: (al) => (
-        <p className="line-clamp-1 text-sm text-muted-foreground">{al.description || "—"}</p>
+        <p className="truncate text-sm text-muted-foreground" title={al.description || undefined}>
+          {al.description || "—"}
+        </p>
       ),
     },
     {

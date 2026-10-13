@@ -144,7 +144,10 @@ export function AIProviderControls({
                 <DropdownMenuSubTrigger className="[&>svg:last-child]:ml-0">
                   <Bot className="h-4 w-4" />
                   <span>Model</span>
-                  <span className="ml-auto min-w-0 max-w-28 truncate text-right text-sm text-muted-foreground">
+                  <span
+                    className="ml-auto min-w-0 truncate text-right text-sm text-muted-foreground"
+                    title={selectedModelLabel}
+                  >
                     {selectedModelLabel}
                   </span>
                 </DropdownMenuSubTrigger>
@@ -168,7 +171,7 @@ export function AIProviderControls({
                 <DropdownMenuSubTrigger className="[&>svg:last-child]:ml-0">
                   <Brain className="h-4 w-4" />
                   <span>Reasoning</span>
-                  <span className="ml-auto min-w-0 max-w-24 truncate text-right text-sm capitalize text-muted-foreground">
+                  <span className="ml-auto min-w-0 truncate text-right text-sm capitalize text-muted-foreground">
                     {reasoningLabel}
                   </span>
                 </DropdownMenuSubTrigger>

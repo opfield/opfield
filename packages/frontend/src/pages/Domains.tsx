@@ -419,7 +419,9 @@ export function Domains() {
             )}
           </div>
           {d.description && (
-            <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{d.description}</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground" title={d.description}>
+              {d.description}
+            </p>
           )}
         </div>
       ),

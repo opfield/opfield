@@ -412,6 +412,19 @@ export const RULES = [
     },
   },
   {
+    id: "single-line-truncate",
+    source: "owner report 2026-10-13 (Add Access: \"Unicorns · every...\" with free space left)",
+    description:
+      "One-line text ends in an ellipsis with truncate, not line-clamp-1: line-clamp cuts after the last whole word and leaves free space. line-clamp-2 and up stay for real multi-line clamps.",
+    visit(node, report) {
+      const opening = openingOf(node);
+      if (!opening) return;
+      if (classNameStrings(opening).some((text) => /(?:^|\s)(?:\S+:)?line-clamp-1(?=\s|$)/.test(text))) {
+        report(opening, "clamps one line with line-clamp-1; use truncate (with the full text in title)");
+      }
+    },
+  },
+  {
     id: "shared-date-format",
     source: "design corrections #19 (one date language)",
     description:

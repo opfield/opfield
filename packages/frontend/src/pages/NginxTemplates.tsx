@@ -179,7 +179,10 @@ export function NginxTemplates({
             {template.isBuiltin && <Badge size="inline">Built-in</Badge>}
           </div>
           {template.description && (
-            <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+            <p
+              className="mt-0.5 truncate text-xs text-muted-foreground"
+              title={template.description}
+            >
               {template.description}
             </p>
           )}
