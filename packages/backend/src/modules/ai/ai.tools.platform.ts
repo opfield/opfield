@@ -6,7 +6,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_nodes',
     description:
-      'List daemon nodes with their type, status, and connection info. Without nodes:details, pass type to discover destination nodes: type nginx for route or Pages creators, docker for Docker grants, databases or storage for database and storage creators; those results carry only the node summary.',
+      'List daemon nodes with their type, status, and connection info. type decides which tools accept a node and each row says so in usedFor: Docker tools (list_docker_*, manage_docker_*, containers, deployments, Compose) take only type docker nodes; routes and Pages take nginx nodes; managed databases and storage take storage (or legacy databases) nodes; builder, relay and monitoring nodes take none of them. Storage, databases and builder daemons report capabilities.daemonType "docker", which does not make them Docker nodes. Without nodes:details, pass type to discover destination nodes: type nginx for route or Pages creators, docker for Docker grants, databases or storage for database and storage creators; those results carry only the node summary.',
     parameters: {
       type: 'object',
       properties: {
@@ -28,7 +28,8 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_node',
-    description: 'Get detailed information about a specific node including live health, stats, and system info.',
+    description:
+      'Get detailed information about a specific node including live health, stats, and system info; usedFor says which tools accept it (Docker tools take only type docker nodes).',
     parameters: {
       type: 'object',
       properties: {

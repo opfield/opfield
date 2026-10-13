@@ -42,6 +42,7 @@ import { NodeRegistryService } from '@/services/node-registry.service.js';
 import type { User } from '@/types.js';
 import { inspectConsoleCommand, parseConsoleCommandResult } from './ai.console-safety.js';
 import { resolveNodeListAccess } from './ai.node-list-scopes.js';
+import { NODE_LIST_ROLE_NOTE, nodeRole } from './ai.node-roles.js';
 import { agentPage, agentPageLimit } from './ai.service-helpers.js';
 
 export const NODE_TOOL_NAMES = new Set([
@@ -75,6 +76,7 @@ function presentListedNode(node: ListedNode, compact: boolean) {
     ? {
         id: node.id,
         type: node.type,
+        usedFor: nodeRole(node.type),
         hostname: node.hostname,
         displayName: node.displayName,
         appearanceColor: node.appearanceColor,
@@ -87,6 +89,7 @@ function presentListedNode(node: ListedNode, compact: boolean) {
     : {
         id: node.id,
         type: node.type,
+        usedFor: nodeRole(node.type),
         hostname: node.hostname,
         displayName: node.displayName,
         appearanceColor: node.appearanceColor,
@@ -142,7 +145,7 @@ export async function executeNodeTool(
             data,
             total: data.length,
             types: byType.map(({ type }) => type),
-            note: `Your node access comes from Docker, folder or create grants, so nodes are listed for the types they target (${byType.map(({ type }) => type).join(', ')}). Pass type to narrow the list.`,
+            note: `Your node access comes from Docker, folder or create grants, so nodes are listed for the types they target (${byType.map(({ type }) => type).join(', ')}). Pass type to narrow the list. ${NODE_LIST_ROLE_NOTE}`,
           };
         }
         throw new Error(
@@ -163,10 +166,16 @@ export async function executeNodeTool(
         },
         access.allowedIds ? { allowedIds: access.allowedIds } : undefined
       );
-      return { ...result, data: result.data.map((node) => presentListedNode(node, access.compact)) };
+      return {
+        ...result,
+        data: result.data.map((node) => presentListedNode(node, access.compact)),
+        note: NODE_LIST_ROLE_NOTE,
+      };
     }
-    case 'get_node':
-      return context.nodesService.get(a.nodeId);
+    case 'get_node': {
+      const node = await context.nodesService.get(a.nodeId);
+      return node && typeof node === 'object' ? { ...node, usedFor: nodeRole((node as { type?: string }).type) } : node;
+    }
     case 'execute_node_console_command':
       return executeNodeConsoleCommand(context, user, a);
     case 'create_node': {

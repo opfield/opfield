@@ -7,6 +7,7 @@ import {
 import { container } from '@/container.js';
 import { withLimitedAccessGuidance } from '@/lib/access-denied.js';
 import { accessSummaryDatabase } from '@/lib/access-summary-resolver.js';
+import { deniedNodeTargetText, nodeDirectoryFor } from '@/modules/ai/ai.node-target-guidance.js';
 import { AIService } from '@/modules/ai/ai.service.js';
 import { redactArgsForAudit } from '@/modules/ai/ai.service.tool-helpers.js';
 import { AI_TOOLS, validateAIToolArguments } from '@/modules/ai/ai.tools.js';
@@ -600,7 +601,11 @@ export function registerMcpToolHandlers(server: McpAuthContext['server'], auth: 
       if (tool && visible && validation?.ok && tool.requiredScope) {
         // The tool is listed but not for this target: a folder-, node- or resource-limited grant, not "no access".
         const guided = await withLimitedAccessGuidance(
-          `${denied}: "${tool.requiredScope}" is not granted for this target.`,
+          `${denied}: "${tool.requiredScope}" is not granted ${await deniedNodeTargetText(
+            validation.arguments,
+            auth.scopes,
+            nodeDirectoryFor(accessSummaryDatabase())
+          )}.`,
           auth.scopes,
           accessSummaryDatabase()
         );

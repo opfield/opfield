@@ -11,7 +11,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         image: { type: 'string', description: 'Image reference (e.g. nginx:latest, ubuntu:24.04)' },
         registryId: {
           type: 'string',
@@ -90,16 +90,20 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'list_docker_containers',
-    description: 'List Docker containers on a specific node with their status, image, ports, and resource usage.',
+    description:
+      'List Docker containers with their status, image, ports, and resource usage, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted.',
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID (required)' },
+        nodeId: {
+          type: 'string',
+          description:
+            'Docker node ID (a node of type docker in list_nodes). Omit to list across every Docker node you can see; each row then carries nodeId and nodeName.',
+        },
         search: { type: 'string', description: 'Optional search over container ID, name, image, status, and ports' },
         excludeAppMembers: { type: 'boolean', description: 'Leave out resources that belong to an app.' },
         appId: { type: 'string', description: 'Only resources of this app (any environment).' },
       },
-      required: ['nodeId'],
     },
     destructive: false,
     category: 'Docker',
@@ -113,7 +117,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
       },
       required: ['nodeId', 'containerId'],
@@ -130,7 +134,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         command: {
           type: 'array',
@@ -149,16 +153,19 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_deployments',
     description:
-      'List blue/green Docker deployments on a specific node. Use this before acting on managed deployment containers; deployment rows include activeSlot, slots, routes, status, and health.',
+      'List blue/green Docker deployments on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Use this before acting on managed deployment containers; deployment rows include activeSlot, slots, routes, status, and health.',
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID (required)' },
+        nodeId: {
+          type: 'string',
+          description:
+            'Docker node ID (a node of type docker in list_nodes). Omit to list across every Docker node you can see; each row then carries nodeId and nodeName.',
+        },
         search: { type: 'string', description: 'Optional search over deployment name, image, status, and routes' },
         excludeAppMembers: { type: 'boolean', description: 'Leave out resources that belong to an app.' },
         appId: { type: 'string', description: 'Only resources of this app (any environment).' },
       },
-      required: ['nodeId'],
     },
     destructive: false,
     category: 'Docker',
@@ -172,7 +179,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
@@ -189,7 +196,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
@@ -206,7 +213,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
@@ -223,7 +230,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
@@ -240,7 +247,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
       },
       required: ['nodeId', 'deploymentId'],
@@ -257,7 +264,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
         image: { type: 'string', description: 'Optional full image reference to deploy' },
         tag: { type: 'string', description: 'Optional tag applied to the current deployment image repository' },
@@ -287,7 +294,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
         slot: { type: 'string', enum: ['blue', 'green'], description: 'Target slot to make active' },
         force: { type: 'boolean', description: 'Force switch even if health checks are not healthy (default false)' },
@@ -306,7 +313,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
         force: { type: 'boolean', description: 'Force rollback even if health checks are not healthy (default false)' },
       },
@@ -324,7 +331,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID' },
         slot: { type: 'string', enum: ['blue', 'green'], description: 'Inactive slot to stop' },
       },
@@ -341,7 +348,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
       },
       required: ['nodeId', 'containerId'],
@@ -358,7 +365,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         timeout: {
           type: 'integer',
@@ -381,7 +388,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         timeout: {
           type: 'integer',
@@ -404,7 +411,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         force: {
           type: 'boolean',
@@ -425,7 +432,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         imageTag: { type: 'string', description: 'New image tag (e.g. "1.25", "latest", "v2.0.0")' },
       },
@@ -442,7 +449,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         name: { type: 'string', description: 'New container name' },
       },
@@ -460,7 +467,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         name: { type: 'string', description: 'Name for the new container' },
         folderId: { type: 'string', description: 'Optional authorized destination container folder UUID.' },
@@ -479,7 +486,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
       },
       required: ['nodeId', 'containerId'],
@@ -495,7 +502,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         tail: { type: 'integer', minimum: 1, maximum: 1000, description: 'Number of lines from the end (default 100)' },
         timestamps: { type: 'boolean', description: 'Include timestamps (default false)' },
@@ -512,14 +519,18 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   // ── Docker: Images ──
   {
     name: 'list_docker_images',
-    description: 'List Docker images on a specific node with their tags, size, and creation date.',
+    description:
+      'List Docker images with their tags, size, and creation date, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted.',
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID (required)' },
+        nodeId: {
+          type: 'string',
+          description:
+            'Docker node ID (a node of type docker in list_nodes). Omit to list across every Docker node you can see; each row then carries nodeId and nodeName.',
+        },
         search: { type: 'string', description: 'Optional search over image ID, tags, and digests' },
       },
-      required: ['nodeId'],
     },
     destructive: false,
     category: 'Docker',
@@ -533,7 +544,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         imageRef: { type: 'string', description: 'Image reference (e.g. nginx:latest, ghcr.io/org/app:v2)' },
         registryId: {
           type: 'string',
@@ -568,7 +579,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         imageId: { type: 'string', description: 'Image ID or reference (e.g. sha256:abc... or nginx:1.25)' },
         force: { type: 'boolean', description: 'Force remove even if in use (default false)' },
       },
@@ -585,7 +596,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
       },
       required: ['nodeId'],
     },
@@ -599,14 +610,17 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_volumes',
     description:
-      'List Opfield-managed volumes plus legacy volumes still attached to visible Opfield containers on a specific node. Orphaned unmanaged volumes are hidden.',
+      'List Opfield-managed volumes plus legacy volumes still attached to visible Opfield containers, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Orphaned unmanaged volumes are hidden.',
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID (required)' },
+        nodeId: {
+          type: 'string',
+          description:
+            'Docker node ID (a node of type docker in list_nodes). Omit to list across every Docker node you can see; each row then carries nodeId and nodeName.',
+        },
         search: { type: 'string', description: 'Optional search over volume name, driver, mountpoint, and users' },
       },
-      required: ['nodeId'],
     },
     destructive: false,
     category: 'Docker',
@@ -615,14 +629,18 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'list_docker_networks',
-    description: 'List Docker networks on a specific node.',
+    description:
+      'List Docker networks on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted.',
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID (required)' },
+        nodeId: {
+          type: 'string',
+          description:
+            'Docker node ID (a node of type docker in list_nodes). Omit to list across every Docker node you can see; each row then carries nodeId and nodeName.',
+        },
         search: { type: 'string', description: 'Optional search over network ID, name, driver, and scope' },
       },
-      required: ['nodeId'],
     },
     destructive: false,
     category: 'Docker',
@@ -1129,7 +1147,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         operation: { type: 'string', enum: ['create', 'update', 'delete'] },
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         deploymentId: { type: 'string', description: 'Opfield deployment ID for update and delete' },
         payload: {
           type: 'object',
@@ -1151,7 +1169,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         signal: { type: 'string', description: 'Signal name, for example SIGKILL or SIGTERM. Defaults to SIGKILL.' },
       },
@@ -1199,7 +1217,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
             'archive_plan_import',
           ],
         },
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
         containerId: { type: 'string', description: STABLE_CONTAINER_REFERENCE_DESCRIPTION },
         containerName: {
           type: 'string',
@@ -1392,7 +1410,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         operation: { type: 'string', enum: ['preflight', 'install'] },
-        nodeId: { type: 'string', description: 'Docker node ID' },
+        nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
       },
       required: ['operation', 'nodeId'],
       additionalProperties: false,

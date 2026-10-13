@@ -449,6 +449,16 @@ Nodes are remote servers running Opfield daemons. Each daemon type manages diffe
 - **databases**: Legacy restricted docker-daemon profile for Opfield-managed Postgres, key-value stores, and ClickHouse. It remains database-only; new unified stateful capacity belongs on a Storage node.
 - **relay**: Secure Link Relay Pool node — runs the signed relay supervisor and worker on a separate physical host. It uses the standard node enrollment lifecycle, requires an advertised address reachable by participating managed hosts on its service port (TCP 9443 unless created with another \`servicePort\`; daemons dial the port the relay worker reports), and appears in the Relay Pool only after enrollment succeeds.
 
+## Which Tools Take Which Node
+A node's \`type\` decides which tools accept it; \`list_nodes\` and \`get_node\` return it with a one-line \`usedFor\`.
+- \`docker\`: every Docker tool (containers, deployments, Compose, images, volumes, networks, Git sources).
+- \`nginx\`: routes, Pages and ingress groups.
+- \`storage\` and legacy \`databases\`: managed databases and managed storage.
+- \`builder\`: Git builds only (\`manage_docker_build\`); Docker tools refuse it.
+- \`relay\`: the Relay Pool (\`manage_relay_pool\`).
+- Every type: \`get_node\`, console and files.
+\`capabilities.daemonType\` is the daemon build, not the role: storage, databases and builder nodes report \`docker\` there and Docker tools still refuse them. A call on a node of the wrong type is refused with the node's type and the nodes of the right type you can use.
+
 ## How to Enroll a New Node (Step by Step)
 
 ### Step 1: Create the node in Opfield UI

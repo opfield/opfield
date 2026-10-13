@@ -1,6 +1,6 @@
 # Docker tool catalog
 
-Exact tool names in the MCP `docker` toolset. All require `nodeId` unless noted. The connected instance's tool schemas are authoritative; re-read them when an argument is rejected.
+Exact tool names in the MCP `docker` toolset. All require the `nodeId` of a Node with `type: "docker"` unless noted; the five `list_docker_*` tools list across every Docker Node you can see when `nodeId` is omitted. A refusal on a Node of another type names the Docker Nodes you can use. The connected instance's tool schemas are authoritative; re-read them when an argument is rejected.
 
 ## Standalone Containers
 

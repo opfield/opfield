@@ -1,3 +1,4 @@
+import { HTTPException } from 'hono/http-exception';
 import { AppError, isInvalidUuidError, isZodError, validationErrorDetails } from '@/middleware/error-handler.js';
 
 /**
@@ -19,6 +20,13 @@ export interface ToolError {
 /** Tool helpers report a refusal as a plain error that starts with its code (`PERMISSION_DENIED: ...`). */
 const CODE_PREFIX = /^([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+):\s/;
 const DETAILS_MAX_LENGTH = 2000;
+const HTTP_EXCEPTION_CODES: Readonly<Record<number, string>> = {
+  400: 'VALIDATION_ERROR',
+  401: 'UNAUTHORIZED',
+  403: 'PERMISSION_DENIED',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT',
+};
 
 export function describeToolError(err: unknown): ToolError {
   if (err instanceof AppError) {
@@ -35,6 +43,12 @@ export function describeToolError(err: unknown): ToolError {
     };
   }
   if (isInvalidUuidError(err)) return { code: 'NOT_FOUND', message: 'Resource not found', expected: true };
+  // Route middleware reused by tools (Docker resource access) refuses with an HTTPException: report it with the
+  // code the REST API would give it, so a missing scope reads as PERMISSION_DENIED instead of a failure.
+  if (err instanceof HTTPException) {
+    const code = HTTP_EXCEPTION_CODES[err.status] ?? (err.status < 500 ? 'REQUEST_REFUSED' : undefined);
+    return { code, message: err.message || 'Request failed', expected: err.status < 500 };
+  }
   const message = err instanceof Error ? err.message : 'Tool execution failed';
   const code = CODE_PREFIX.exec(message)?.[1];
   return code ? { code, message, expected: true } : { message, expected: false };
