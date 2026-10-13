@@ -83,6 +83,10 @@ export interface AppSummary {
   running: number;
   failing: number;
   degraded: number;
+  /** Members stopped on request: shown, but they do not change the health. */
+  stopped?: number;
+  /** Open warnings (a nearly full disk, 5xx errors): each makes the environment degraded. */
+  warnings?: number;
 }
 
 /** Visible members of an environment by type. */
@@ -250,7 +254,11 @@ export type AppOverviewRange = "1h" | "24h";
 
 export interface AppOverviewIssue {
   family: AppMemberFamily;
-  state: "failing" | "degraded";
+  /**
+   * stopped: stopped on request; disabled, maintenance (routes) and starting (a health check that has not reported):
+   * shown, but they do not change the health.
+   */
+  state: "failing" | "degraded" | "stopped" | "disabled" | "maintenance" | "starting";
   count: number;
 }
 
@@ -270,9 +278,13 @@ export interface AppOverviewContainers {
   checkedHealthy: number;
   /** Workloads without a health check (running counts as healthy, so the Healthy card leaves them out). */
   noHealthCheck: number;
-  cpuPercent: number;
+  /** Workloads with a health check that count (running, not stopped, the check has reported). */
+  checked?: number;
+  /** Workloads stopped on request. */
+  stopped?: number;
+  cpuPercent: number | null;
   cpuHistory: Array<number | null>;
-  memoryBytes: number;
+  memoryBytes: number | null;
   memoryLimitBytes: number | null;
   memoryHistory: Array<number | null>;
   /** Restarts since sampling began within the range; null until the sampler has a reading. */
@@ -282,7 +294,7 @@ export interface AppOverviewContainers {
   restartsHistory: Array<number | null>;
   /** Percent of healthy workloads per point. */
   healthyHistory: Array<number | null>;
-  /** Names of containers that are not healthy. */
+  /** Names of containers that are not healthy (one stopped on request is not listed). */
   unhealthy: string[];
 }
 
@@ -290,7 +302,10 @@ export interface AppOverviewDatabase {
   id: string;
   slug: string;
   name: string;
+  type?: "postgres" | "redis" | "clickhouse";
   diskBytes: number | null;
+  /** The size limit; null without one. */
+  diskLimitBytes?: number | null;
   diskPercent: number | null;
   diskHistory: Array<number | null>;
   connections: number | null;
@@ -311,6 +326,8 @@ export interface AppOverviewStorage {
   slug: string;
   name: string;
   diskBytes: number | null;
+  /** The quota (the storage's disk); null when unknown. */
+  diskTotalBytes?: number | null;
   diskPercent: number | null;
   diskHistory: Array<number | null>;
   objects: number | null;
@@ -324,15 +341,16 @@ export interface AppOverviewStorage {
 
 export interface AppOverviewRoutes {
   total: number;
-  requestsPerSecond: number;
+  /** Latest minute of the routes' access logs; null without a recent sample. */
+  requestsPerSecond: number | null;
   requestsHistory: Array<number | null>;
-  errorsPerSecond: number;
+  errorsPerSecond: number | null;
   errorsHistory: Array<number | null>;
   latencyMs: number | null;
   latencyHistory: Array<number | null>;
   /** Request p95 with traffic, health-check probes when idle, null without either. */
   latencySource: "traffic" | "probe" | null;
-  trafficBytesPerSecond: number;
+  trafficBytesPerSecond: number | null;
   trafficHistory: Array<number | null>;
 }
 
@@ -341,6 +359,8 @@ export interface AppOverviewPage {
   slug: string;
   name: string;
   activeDeployment: { id: string; createdAt: string } | null;
+  /** Routes that serve the project; its requests are theirs. */
+  routes?: number;
   requestsPerSecond: number | null;
   requestsHistory: Array<number | null>;
 }

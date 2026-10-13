@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AppOverviewContainers, AppOverviewEnvironment } from "@/types";
-import { healthyCard, restartsCard } from "./OverviewTab";
+import { coverage, healthyCard, restartsCard, sparkScale } from "./OverviewTab";
 
 vi.mock("@/services/api", () => ({ api: {} }));
 vi.mock("@/hooks/use-realtime", () => ({ useRealtime: () => undefined }));
@@ -86,5 +86,35 @@ describe("app overview healthy card", () => {
     expect(
       healthyCard([view({ total: 2, healthy: 2, checkedHealthy: 2, noHealthCheck: 0 })])
     ).toMatchObject({ value: "2/2", subtitle: "Every container is healthy" });
+  });
+});
+
+describe("app overview chart coverage and scale", () => {
+  it("drops the points before a series starts and says since when", () => {
+    const measuredAt = new Date(2026, 9, 12, 10, 0).toISOString();
+    const history = [...Array(12).fill(null), ...Array(12).fill(5)];
+    const result = coverage(history, "1h", measuredAt);
+    expect(result.history).toEqual(Array(12).fill(5));
+    expect(result.since).toBe(new Date(2026, 9, 12, 9, 30).toISOString());
+    expect(coverage([1, null, 2], "1h", measuredAt)).toEqual({
+      history: [1, null, 2],
+      since: null,
+    });
+    expect(coverage([], "1h", measuredAt)).toEqual({ history: [], since: null });
+  });
+
+  it("scales to a known ceiling, and draws a flat series at half height", () => {
+    expect(sparkScale([100, 100], 512)).toBe(512);
+    expect(sparkScale([100, 101, 100])).toBe(202);
+    expect(sparkScale([1, 50, 10])).toBeUndefined();
+    expect(sparkScale([0, 0])).toBeUndefined();
+  });
+});
+
+describe("app overview healthy card with stopped containers", () => {
+  it("leaves containers stopped on request out of the checked count", () => {
+    expect(
+      healthyCard([view({ total: 3, healthy: 2, checkedHealthy: 2, noHealthCheck: 0, stopped: 1 })])
+    ).toMatchObject({ value: "2/2", subtitle: "1 container stopped" });
   });
 });
