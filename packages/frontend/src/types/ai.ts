@@ -740,6 +740,8 @@ export type WSServerMessage =
       runId: string;
       content: string;
       version: number;
+      /** The content is the whole draft, replacing what was streamed (a retried model call). */
+      replace?: boolean;
     }
   | {
       type: "assistant.comment_delta";
@@ -747,6 +749,8 @@ export type WSServerMessage =
       runId: string;
       content: string;
       version: number;
+      /** The content is the whole draft, replacing what was streamed (a retried model call). */
+      replace?: boolean;
     }
   | {
       type: "assistant.comment_done";

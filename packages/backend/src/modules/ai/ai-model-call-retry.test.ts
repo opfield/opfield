@@ -79,11 +79,35 @@ describe('model call retry', () => {
     expect(describeModelCallError(error)).toBe('Anthropic returned a server error. Opfield tried 3 times.');
   });
 
-  it('does not retry once text reached the user', async () => {
+  it('retries a stream that broke after some text and tells the caller to drop that text', async () => {
     const provider = scriptedProvider([{ partial: 'Removing', error: upstream5xx() }, finalResponse]);
 
-    await expect(collect(provider.session())).rejects.toThrow('Upstream inference request failed');
-    expect(provider.attempts()).toBe(1);
+    const events = await collect(provider.session());
+
+    expect(events).toEqual([
+      { type: 'text_delta', content: 'Removing' },
+      { type: 'text_reset', discardedChars: 'Removing'.length },
+      ...finalResponse,
+    ]);
+    expect(provider.attempts()).toBe(2);
+  });
+
+  it('does not retry once the final response with its tool calls was handed out', async () => {
+    let attempt = 0;
+    const failing = streamModelCallWithRetry({
+      createAttempt: async function* () {
+        attempt += 1;
+        yield toolCallResponse;
+        throw upstream5xx();
+      },
+      requestId: 'run-1',
+      model: 'claude-sonnet-5.5',
+      signal: new AbortController().signal,
+      wait: async () => undefined,
+    });
+
+    await expect(collect(failing)).rejects.toThrow('Upstream inference request failed');
+    expect(attempt).toBe(1);
   });
 
   it('does not retry a request the provider rejected', async () => {

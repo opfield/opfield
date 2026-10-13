@@ -20,7 +20,9 @@ export interface AIModelTool {
 
 export type ModelProviderEvent =
   | { type: 'text_delta'; content: string }
-  | { type: 'model_response'; response: NormalizedModelResponse };
+  | { type: 'model_response'; response: NormalizedModelResponse }
+  /** A retried model call: drop the text the failed attempt streamed (its last `discardedChars` characters). */
+  | { type: 'text_reset'; discardedChars: number };
 
 interface StreamModelOptions {
   client: OpenAI;

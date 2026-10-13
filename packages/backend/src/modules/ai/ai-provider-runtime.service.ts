@@ -299,6 +299,7 @@ export class AIProviderRuntimeService {
       { maxOutputTokens: CONVERSATION_TITLE_MAX_OUTPUT_TOKENS }
     )) {
       if (event.type === 'text_delta') streamedContent += event.content;
+      if (event.type === 'text_reset') streamedContent = '';
       if (event.type === 'model_response') finalContent = event.response.content;
     }
     const title = normalizeGeneratedConversationTitle(finalContent || streamedContent);

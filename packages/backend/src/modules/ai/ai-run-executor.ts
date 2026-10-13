@@ -651,6 +651,21 @@ export class AIRunExecutor extends AIRunExecutorRuntime {
       return { assistantContent, assistantMessageWritten, done: false };
     }
 
+    if (event.type === 'text_reset') {
+      if (!event.comment) {
+        assistantContent = assistantContent.slice(0, Math.max(0, assistantContent.length - event.discardedChars));
+      }
+      const draft = this.assistantLiveDrafts.truncate(run.id, event.discardedChars);
+      if (draft) {
+        if (event.comment) {
+          this.publishAssistantCommentDelta(user.id, run.conversationId, run.id, draft.content, draft.version, true);
+        } else {
+          this.publishAssistantDelta(user.id, run.conversationId, run.id, draft.content, draft.version, true);
+        }
+      }
+      return { assistantContent, assistantMessageWritten, done: false };
+    }
+
     if (event.type === 'assistant_comment_delta') {
       const draft = this.appendAssistantDraft(run.id, run.conversationId, event.content);
       this.publishAssistantCommentDelta(user.id, run.conversationId, run.id, event.content, draft.version);

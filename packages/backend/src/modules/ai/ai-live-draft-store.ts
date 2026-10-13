@@ -24,6 +24,17 @@ export class AssistantLiveDraftStore {
     return { ...draft, version };
   }
 
+  /** Drop the last `chars` characters of a run's draft (a retried model call); null when there is no draft. */
+  truncate(runId: string, chars: number): AssistantLiveDraft | null {
+    const previous = this.drafts.get(runId);
+    if (!previous) return null;
+    const version = (this.versions.get(runId) ?? 0) + 1;
+    this.versions.set(runId, version);
+    const draft = { ...previous, content: previous.content.slice(0, Math.max(0, previous.content.length - chars)) };
+    this.drafts.set(runId, draft);
+    return { ...draft, version };
+  }
+
   get(runId: string): AssistantLiveDraft | null {
     const draft = this.drafts.get(runId);
     if (!draft) return null;

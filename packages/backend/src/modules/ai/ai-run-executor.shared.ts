@@ -47,7 +47,9 @@ export type PublishAssistantDelta = (
   conversationId: string,
   runId: string,
   content: string,
-  version: number
+  version: number,
+  /** The content is the whole draft and replaces what was streamed. */
+  replace?: boolean
 ) => void;
 export type PublishAssistantCommentDelta = PublishAssistantDelta;
 export type PublishAssistantCommentDone = (userId: string, conversationId: string, runId: string) => void;

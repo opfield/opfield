@@ -342,6 +342,9 @@ export class AIServiceContinuation extends AIServiceStreaming {
               requestId,
               content: event.content,
             };
+          } else if (event.type === 'text_reset') {
+            contentBuffer = contentBuffer.slice(0, Math.max(0, contentBuffer.length - event.discardedChars));
+            yield { type: 'text_reset', requestId, discardedChars: event.discardedChars, comment: commentRequired };
           } else {
             contentBuffer = event.response.content;
             toolCalls = event.response.toolCalls;
@@ -612,6 +615,8 @@ export class AIServiceContinuation extends AIServiceStreaming {
       for await (const event of provider.stream(messages, [])) {
         if (event.type === 'text_delta') {
           yield { type: 'text_delta', requestId, content: event.content };
+        } else if (event.type === 'text_reset') {
+          yield { type: 'text_reset', requestId, discardedChars: event.discardedChars, comment: false };
         }
       }
     } catch (err) {

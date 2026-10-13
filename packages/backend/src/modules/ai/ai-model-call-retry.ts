@@ -43,23 +43,26 @@ export interface ModelCallRetryInput {
 
 /**
  * Runs one model call and retries it on a transient provider failure, up to MODEL_CALL_MAX_ATTEMPTS tries.
- * Only the model call is repeated: a retry happens only while nothing of the attempt has reached the caller,
- * so no streamed text is duplicated and no tool call has been handed out for execution yet.
+ * Only the model call is repeated, and only before its final response (tool calls come only with it): when
+ * the stream broke after some text, a `text_reset` first tells the caller to drop that text, so the retried
+ * answer replaces it instead of following it.
  */
 export async function* streamModelCallWithRetry(input: ModelCallRetryInput): AsyncGenerator<ModelProviderEvent> {
   const wait = input.wait ?? waitForModelCallRetry;
   const random = input.random ?? Math.random;
   for (let attempt = 1; ; attempt += 1) {
-    let emittedOutput = false;
+    let streamedChars = 0;
+    let responded = false;
     try {
       for await (const event of input.createAttempt()) {
-        emittedOutput = true;
+        if (event.type === 'text_delta') streamedChars += event.content.length;
+        if (event.type === 'model_response') responded = true;
         yield event;
       }
       return;
     } catch (error) {
       const delayMs = retryDelayMs(error, attempt, random);
-      if (input.signal.aborted || emittedOutput || delayMs === null) {
+      if (input.signal.aborted || responded || delayMs === null) {
         throw attempt > 1 ? withAttempts(error, attempt) : error;
       }
       logger.warn('Retrying a model call after a transient provider failure', {
@@ -71,8 +74,10 @@ export async function* streamModelCallWithRetry(input: ModelCallRetryInput): Asy
         delayMs,
         code: error instanceof InferenceProtocolError ? error.code : undefined,
         status: error instanceof InferenceProtocolError ? error.status : undefined,
+        discardedChars: streamedChars,
       });
       await wait(delayMs, input.signal);
+      if (streamedChars > 0) yield { type: 'text_reset', discardedChars: streamedChars };
     }
   }
 }

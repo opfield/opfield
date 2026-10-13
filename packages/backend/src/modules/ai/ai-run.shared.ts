@@ -61,6 +61,7 @@ export interface AIAssistantDeltaEvent {
   runId: string;
   content: string;
   version: number;
+  replace?: true;
 }
 
 export interface AIAssistantCommentDeltaEvent {
@@ -70,6 +71,7 @@ export interface AIAssistantCommentDeltaEvent {
   runId: string;
   content: string;
   version: number;
+  replace?: true;
 }
 
 export interface AIAssistantCommentDoneEvent {

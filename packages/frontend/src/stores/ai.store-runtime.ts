@@ -689,6 +689,26 @@ export function queueAssistantDelta(
   const buffered = assistantDeltaBuffers.get(message.runId);
   const appliedVersion = assistantDraftVersions.get(message.runId) ?? 0;
   if (message.version <= Math.max(appliedVersion, buffered?.version ?? 0)) return;
+  if (message.replace) {
+    // The whole draft after a retried model call: what is still buffered is part of the text it replaces.
+    if (buffered) {
+      clearTimeout(buffered.timer);
+      assistantDeltaBuffers.delete(message.runId);
+    }
+    set((state) => ({
+      messages:
+        kind === "assistant"
+          ? applyAssistantDeltaToMessages(
+              state.messages,
+              message as Extract<WSServerMessage, { type: "assistant.delta" }>
+            )
+          : applyAssistantCommentDeltaToMessages(
+              state.messages,
+              message as Extract<WSServerMessage, { type: "assistant.comment_delta" }>
+            ),
+    }));
+    return;
+  }
   if (buffered && buffered.kind !== kind) flushAssistantDelta(message.runId, set, get);
   const active = assistantDeltaBuffers.get(message.runId);
   const timer =
@@ -766,8 +786,8 @@ export function applyAssistantDeltaToMessages(
   const current = nextMessages[targetIndex];
   nextMessages[targetIndex] = {
     ...current,
-    content: `${current.content}${delta.content}`,
-    streamingChunk: delta.content,
+    content: delta.replace ? delta.content : `${current.content}${delta.content}`,
+    streamingChunk: delta.replace ? "" : delta.content,
     isStreaming: true,
   };
   return sortMessagesBySequence(
@@ -821,8 +841,8 @@ export function applyAssistantCommentDeltaToMessages(
   const current = nextMessages[targetIndex];
   nextMessages[targetIndex] = {
     ...current,
-    content: `${current.content}${delta.content}`,
-    streamingChunk: delta.content,
+    content: delta.replace ? delta.content : `${current.content}${delta.content}`,
+    streamingChunk: delta.replace ? "" : delta.content,
     isStreaming: true,
   };
   return sortMessagesBySequence(nextMessages);

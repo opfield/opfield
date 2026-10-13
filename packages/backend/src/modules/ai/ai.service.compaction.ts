@@ -114,6 +114,8 @@ export class AIServiceCompaction extends AIServiceLifecycleTools {
     for await (const event of provider.stream(messages, [], { maxOutputTokens: summaryOutputBudget })) {
       if (event.type === 'text_delta') {
         summary += event.content;
+      } else if (event.type === 'text_reset') {
+        summary = '';
       } else {
         summary = event.response.content;
       }

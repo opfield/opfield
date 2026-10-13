@@ -380,6 +380,8 @@ export type WSServerMessage =
   | { type: 'auth_ok'; userId: string }
   | { type: 'auth_error'; message: string }
   | { type: 'text_delta'; requestId: string; content: string }
+  /** A retried model call: drop the last `discardedChars` characters of text (or comment) streamed for it. */
+  | { type: 'text_reset'; requestId: string; discardedChars: number; comment: boolean }
   | { type: 'assistant_comment_delta'; requestId: string; content: string }
   | { type: 'assistant_comment'; requestId: string; content: string }
   | {
@@ -465,8 +467,23 @@ export type WSServerMessage =
       plan: AIPlanRuntimeSnapshot;
       revision?: number;
     }
-  | { type: 'assistant.delta'; conversationId: string; runId: string; content: string; version: number }
-  | { type: 'assistant.comment_delta'; conversationId: string; runId: string; content: string; version: number }
+  /** `replace`: the content is the whole draft, replacing what was streamed (a retried model call). */
+  | {
+      type: 'assistant.delta';
+      conversationId: string;
+      runId: string;
+      content: string;
+      version: number;
+      replace?: true;
+    }
+  | {
+      type: 'assistant.comment_delta';
+      conversationId: string;
+      runId: string;
+      content: string;
+      version: number;
+      replace?: true;
+    }
   | { type: 'assistant.comment_done'; conversationId: string; runId: string }
   | {
       type: 'credential.required';

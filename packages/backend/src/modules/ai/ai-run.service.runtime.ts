@@ -68,10 +68,10 @@ export abstract class AIRunServiceRuntime {
       db,
       (userId, conversationId, invalidatedStores) =>
         this.publishConversationChanged(userId, conversationId, invalidatedStores),
-      (userId, conversationId, runId, content, version) =>
-        this.publishAssistantDelta(userId, conversationId, runId, content, version),
-      (userId, conversationId, runId, content, version) =>
-        this.publishAssistantCommentDelta(userId, conversationId, runId, content, version),
+      (userId, conversationId, runId, content, version, replace) =>
+        this.publishAssistantDelta(userId, conversationId, runId, content, version, replace),
+      (userId, conversationId, runId, content, version, replace) =>
+        this.publishAssistantCommentDelta(userId, conversationId, runId, content, version, replace),
       (userId, conversationId, runId) => this.publishAssistantCommentDone(userId, conversationId, runId),
       conversationSearchService,
       (userId, conversationId, runId, challenge) =>
@@ -754,7 +754,8 @@ export abstract class AIRunServiceRuntime {
     conversationId: string,
     runId: string,
     content: string,
-    version: number
+    version: number,
+    replace = false
   ): void {
     const event = {
       type: 'assistant.delta',
@@ -763,6 +764,7 @@ export abstract class AIRunServiceRuntime {
       runId,
       content,
       version,
+      ...(replace ? { replace: true as const } : {}),
     } satisfies AIAssistantDeltaEvent;
     this.eventBus?.publish(aiUserConversationsChangedChannel(userId), event);
   }
@@ -772,7 +774,8 @@ export abstract class AIRunServiceRuntime {
     conversationId: string,
     runId: string,
     content: string,
-    version: number
+    version: number,
+    replace = false
   ): void {
     const event = {
       type: 'assistant.comment_delta',
@@ -781,6 +784,7 @@ export abstract class AIRunServiceRuntime {
       runId,
       content,
       version,
+      ...(replace ? { replace: true as const } : {}),
     } satisfies AIAssistantCommentDeltaEvent;
     this.eventBus?.publish(aiUserConversationsChangedChannel(userId), event);
   }

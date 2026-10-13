@@ -141,6 +141,9 @@ export abstract class AIServiceStreaming extends AIServiceCompaction {
               requestId,
               content: event.content,
             };
+          } else if (event.type === 'text_reset') {
+            contentBuffer = contentBuffer.slice(0, Math.max(0, contentBuffer.length - event.discardedChars));
+            yield { type: 'text_reset', requestId, discardedChars: event.discardedChars, comment: commentRequired };
           } else {
             contentBuffer = event.response.content;
             toolCalls = event.response.toolCalls;

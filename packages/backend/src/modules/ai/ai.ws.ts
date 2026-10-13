@@ -155,6 +155,7 @@ function subscribeToUserRuntime(ws: WSContext, state: WSConnectionState, userId:
       runId?: string;
       content?: string;
       version?: number;
+      replace?: boolean;
       invalidatedStores?: string[];
       challenge?: Extract<WSServerMessage, { type: 'credential.required' }>['challenge'];
       action?: Record<string, unknown>;
@@ -223,6 +224,7 @@ function subscribeToUserRuntime(ws: WSContext, state: WSConnectionState, userId:
           runId: event.runId,
           content: event.content,
           version: event.version,
+          ...(event.replace === true ? { replace: true as const } : {}),
         });
       }
       return;
