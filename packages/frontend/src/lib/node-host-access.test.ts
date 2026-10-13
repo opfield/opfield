@@ -73,6 +73,22 @@ describe("node host access", () => {
     );
   });
 
+  it("names the config file a relay of its version reads", () => {
+    const relay = (daemonVersion: string | null) => ({ ...node("relay", {}), daemonVersion });
+    expect(nodeHostFeatureDisabledMessage(relay("2.12.0"), "console")).toContain(
+      "(/etc/gateway-relay-supervisor/config.yaml)"
+    );
+    expect(nodeHostFeatureDisabledMessage(relay("v2.12.1-rc.2"), "console")).toContain(
+      "(/etc/gateway-relay-supervisor/config.yaml)"
+    );
+    expect(nodeHostFeatureDisabledMessage(relay("v2.12.1"), "console")).toContain(
+      "(/etc/opfield-relay/config.yaml)"
+    );
+    expect(nodeHostFeatureDisabledMessage(relay(null), "console")).toContain(
+      "(/etc/opfield-relay/config.yaml)"
+    );
+  });
+
   it("explains a console the daemon refuses because console.user needs root", () => {
     expect(nodeConsoleUnavailableMessage(node("nginx", {}))).toBeNull();
     expect(nodeConsoleUnavailableMessage(node("nginx", { nodeConsoleDisabled: true }))).toContain(

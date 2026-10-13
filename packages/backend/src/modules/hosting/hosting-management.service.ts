@@ -35,7 +35,8 @@ const SERVICES: Record<string, string> = {
 };
 
 // legacy-name: gateway-relay-supervisor unit — a relay installed before 2.12.1 keeps running under it until its next
-// start, and the new unit refuses to start while the old unit file exists; remove once every relay reports none.
+// start. The new unit refuses to start while the old one is enabled, and a moved relay keeps the old unit file, disabled,
+// until its cleanup; remove once every relay reports none.
 const LEGACY_SERVICES: Record<string, string> = { 'opfield-relay-supervisor': 'gateway-relay-supervisor' };
 export function hostingRecoveryScript(roles: string[]): string {
   const services = [...new Set(roles.map((role) => SERVICES[role]))];
@@ -55,10 +56,20 @@ unit_exists() {
     [ -e "/etc/init.d/$1" ]
   fi
 }
+# The old unit still owns the host while it runs or is enabled: the new unit's guard refuses to start then.
+unit_in_charge() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl is-active --quiet "$1" || systemctl is-enabled --quiet "$1"
+  else
+    rc-service "$1" status >/dev/null 2>&1 || ls /etc/runlevels/*/"$1" >/dev/null 2>&1
+  fi
+}
 for names in ${candidates.map(shellArgument).join(' ')}; do
   service=\${names##*:}
   legacy=\${names%%:*}
-  if [ "$legacy" != "$service" ] && unit_exists "$legacy"; then service=$legacy; fi
+  if [ "$legacy" != "$service" ] && unit_exists "$legacy" && { unit_in_charge "$legacy" || ! unit_exists "$service"; }; then
+    service=$legacy
+  fi
   if command -v systemctl >/dev/null 2>&1; then
     systemctl restart "$service"
   elif command -v rc-service >/dev/null 2>&1; then

@@ -1,7 +1,7 @@
 import { getEnv } from '@/config/env.js';
 import { INSTALLER_RELEASES_URL } from '@/config/vendor-urls.js';
 import { container } from '@/container.js';
-import { RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
+import { compareSemver, RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { DaemonUpdateService, daemonTypeForNodeType } from '@/services/daemon-update.service.js';
 import { RelayPoolService } from '@/services/relay-pool.service.js';
@@ -12,6 +12,11 @@ const RELEASE_DOWNLOADS = `${INSTALLER_RELEASES_URL}/download`;
 // An unreleased build has no release assets of its own, so its commands run the installers from main.
 const MAIN_INSTALLERS = 'https://raw.githubusercontent.com/opfield/opfield/main/scripts';
 const INSTALLER_CHECKSUMS = 'opfield-node-installers.sha256';
+// legacy-name: checksum list of releases before 2.12.1, whose relay installer a pool on such a release needs — remove
+// once every relay pool runs 2.12.1 or later
+const LEGACY_INSTALLER_CHECKSUMS = 'gateway-daemon-installers.sha256';
+// The first relay release this release's relay installer installs (setup-relay-node.sh MIN_RELAY_VERSION).
+const OPFIELD_RELAY_INSTALLER_MIN = 'v2.12.1-rc.3';
 
 export const NODE_INSTALLERS: Readonly<Record<string, string>> = {
   nginx: 'setup-node.sh',
@@ -112,6 +117,8 @@ export function nodeInstallCommand(input: {
   args: ReadonlyArray<readonly [flag: string, value?: string]>;
   /** One line, for a command shown inline instead of in a copy block. */
   oneLine?: boolean;
+  /** The release's checksum list; releases before 2.12.1 publish only the old name. */
+  checksums?: string;
 }): string {
   const argBreak = input.oneLine ? ' ' : ' \\\n  ';
   const args = input.args
@@ -122,13 +129,14 @@ export function nodeInstallCommand(input: {
     return `${input.transport === 'curl' ? `curl -sSL ${url}` : `wget -qO- ${url}`} | sudo bash -s --${args}`;
   }
   const base = `${RELEASE_DOWNLOADS}/${input.release}`;
+  const checksums = input.checksums ?? INSTALLER_CHECKSUMS;
   const download = (file: string) =>
     input.transport === 'curl' ? `curl -fsSL -o ${file} ${base}/${file}` : `wget -qO ${file} ${base}/${file}`;
   return [
     'cd "$(mktemp -d)"',
     download(input.installer),
-    download(INSTALLER_CHECKSUMS),
-    `grep ' ${input.installer}$' ${INSTALLER_CHECKSUMS} | sha256sum -c -`,
+    download(checksums),
+    `grep ' ${input.installer}$' ${checksums} | sha256sum -c -`,
     `sudo bash ${input.installer}${args}`,
   ].join(input.oneLine ? ' && ' : ' && \\\n');
 }
@@ -189,9 +197,21 @@ export function nodeInstallCommands(input: {
       ? [{ target: 'local' as const, label: input.targets.local.label, address: input.targets.local.address }]
       : []),
   ];
+  // A relay installs the release its pool runs. This release's relay installer refuses relays before the Opfield
+  // layout, so a pool still on such a release gets that release's own installer, which takes only the old flags.
+  const legacyRelay =
+    input.nodeType === 'relay' &&
+    !!input.release &&
+    !!input.daemonVersion &&
+    RELEASE_VERSION_PATTERN.test(input.daemonVersion) &&
+    compareSemver(input.daemonVersion, OPFIELD_RELAY_INSTALLER_MIN) < 0;
+  const release = legacyRelay ? `v${(input.daemonVersion as string).replace(/^v/, '')}` : input.release;
   return targets.flatMap(({ target, label, address }) => {
     if (!address) return [];
-    const flags = enrollmentFlags(installer);
+    const flags = legacyRelay
+      ? // legacy-name: --gateway flags of a relay installer before 2.12.1 — remove once every relay pool runs 2.12.1+
+        { address: '--gateway', certificate: '--gateway-cert-sha256' }
+      : enrollmentFlags(installer);
     const args: Array<readonly [string, string]> = [
       [flags.address, address],
       ['--token', input.token],
@@ -204,7 +224,13 @@ export function nodeInstallCommands(input: {
       args.push(['--service-port', String(input.servicePort)]);
     if (input.daemonVersion) args.push(['--version', input.daemonVersion]);
     const command = (transport: InstallTransport) =>
-      nodeInstallCommand({ installer, release: input.release, transport, args });
+      nodeInstallCommand({
+        installer,
+        release,
+        transport,
+        args,
+        checksums: legacyRelay ? LEGACY_INSTALLER_CHECKSUMS : undefined,
+      });
     return [{ target, label, address, curl: command('curl'), wget: command('wget') }];
   });
 }

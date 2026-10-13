@@ -12,15 +12,15 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-/** Runs the script with a stub systemctl that knows `units` and logs every restart. */
-function run(roles: string[], units: string[]): string[] {
+/** Runs the script with a stub systemctl that knows `units` (`enabled` of them enabled) and logs every restart. */
+function run(roles: string[], units: string[], enabled: string[] = units): string[] {
   const dir = mkdtempSync(join(tmpdir(), 'opfield-recovery-'));
   dirs.push(dir);
   const log = join(dir, 'log');
   writeFileSync(log, '');
   writeFileSync(
     join(dir, 'systemctl'),
-    `#!/bin/bash\ncase "$1" in\n  cat) for u in ${units.join(' ')}; do [ "$u" = "$2" ] && exit 0; done; exit 1 ;;\n  restart) echo "$2" >> ${log} ;;\nesac\n`
+    `#!/bin/bash\ncase "$1" in\n  cat) for u in ${units.join(' ')}; do [ "$u" = "$2" ] && exit 0; done; exit 1 ;;\n  is-active) exit 1 ;;\n  is-enabled) for u in ${enabled.join(' ')}; do [ "$u" = "$3" ] && exit 0; done; exit 1 ;;\n  restart) echo "$2" >> ${log} ;;\nesac\n`
   );
   chmodSync(join(dir, 'systemctl'), 0o755);
   const script = join(dir, 'recover.sh');
@@ -34,10 +34,20 @@ describe('hosting recovery script', () => {
     expect(run(['relay'], ['opfield-relay-supervisor'])).toEqual(['opfield-relay-supervisor']);
   });
 
-  it('restarts the pre-2.12.1 relay unit while its unit file still exists', () => {
+  it('restarts the pre-2.12.1 relay unit while it is still enabled', () => {
     expect(run(['relay'], ['gateway-relay-supervisor', 'opfield-relay-supervisor'])).toEqual([
       'gateway-relay-supervisor',
     ]);
+  });
+
+  it('restarts the Opfield relay unit once the old one is disabled, even while its file is left', () => {
+    expect(
+      run(['relay'], ['gateway-relay-supervisor', 'opfield-relay-supervisor'], ['opfield-relay-supervisor'])
+    ).toEqual(['opfield-relay-supervisor']);
+  });
+
+  it('restarts the pre-2.12.1 relay unit on a relay without the Opfield unit', () => {
+    expect(run(['relay'], ['gateway-relay-supervisor'], [])).toEqual(['gateway-relay-supervisor']);
   });
 
   it('restarts daemon units by their own names', () => {

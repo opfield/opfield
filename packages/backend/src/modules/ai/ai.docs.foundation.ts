@@ -474,7 +474,7 @@ For **storage** nodes, run setup-storage-node.sh with the generated Opfield addr
 
 The setup script:
 1. Downloads the daemon binary to \`/usr/local/bin/<type>-daemon\`
-2. On a fresh generic Docker node, preflights and attempts to install the optional Secure Runtime before enrollment, and installs the lease watchdog (\`opfield-lease-watchdog\` service) that stops an Availability lease-mode copy past its lease deadline. Storage and legacy database nodes skip both. A Docker daemon running as root with systemd or OpenRC installs a missing watchdog itself; otherwise re-run the installer, or Availability lists the node under excludedNodes.
+2. On a fresh generic Docker node, preflights and attempts to install the optional Secure Runtime before enrollment, and installs the lease watchdog (\`opfield-lease-watchdog\` service; \`gateway-lease-watchdog\` on nodes installed before 2.12.1 until it updates itself) that stops an Availability lease-mode copy past its lease deadline. Storage and legacy database nodes skip both. A Docker daemon running as root with systemd or OpenRC installs a missing watchdog itself; otherwise re-run the installer, or Availability lists the node under excludedNodes.
 3. Creates config at \`/etc/<type>-daemon/config.yaml\` with the Opfield address, token, and certificate fingerprint
 4. Creates a systemd service and enables it
 5. Starts the daemon — it connects to Opfield and completes mTLS enrollment automatically

@@ -31,6 +31,28 @@ const DAEMON_CONFIG_PATHS: Partial<Record<NodeType, string>> = {
   relay: "/etc/opfield-relay/config.yaml",
 };
 
+// legacy-name: config path of relay supervisors before 2.12.1 (v2.12.1-rc.3) — remove once every relay reports none
+const LEGACY_RELAY_CONFIG_PATH = "/etc/gateway-relay-supervisor/config.yaml";
+
+function beforeOpfieldRelayLayout(version: string | null | undefined): boolean {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?/.exec(version ?? "");
+  if (!match) return false;
+  const [major, minor, patch] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  if (major !== 2) return major < 2;
+  if (minor !== 12) return minor < 12;
+  if (patch !== 1) return patch < 1;
+  return match[4] !== undefined && Number(match[4]) < 3;
+}
+
+function daemonConfigPath(
+  node: (Pick<Node, "type"> & { daemonVersion?: string | null }) | null | undefined
+): string | undefined {
+  if (!node) return undefined;
+  if (node.type === "relay" && beforeOpfieldRelayLayout(node.daemonVersion))
+    return LEGACY_RELAY_CONFIG_PATH;
+  return DAEMON_CONFIG_PATHS[node.type];
+}
+
 /**
  * Protected mode: the owner of the machine a relay runs on turned it on in the relay's local config
  * (`relay-supervisor protected on`). Opfield cannot open a console, run commands, read or write files or collect host
@@ -64,11 +86,11 @@ export function isNodeHostFeatureDisabled(
 
 /** Why the feature is unavailable and where the node operator turns it back on. */
 export function nodeHostFeatureDisabledMessage(
-  node: Pick<Node, "type"> | null | undefined,
+  node: (Pick<Node, "type"> & { daemonVersion?: string | null }) | null | undefined,
   feature: NodeHostFeature
 ): string {
   const { key, label } = FEATURES[feature];
-  const path = node ? DAEMON_CONFIG_PATHS[node.type] : undefined;
+  const path = daemonConfigPath(node);
   const file = path ? `the daemon config (${path})` : "the daemon config file";
   return `${label} disabled in this node's daemon configuration. To enable it, set ${key}: true in ${file} on the node and restart the daemon.`;
 }
@@ -89,7 +111,7 @@ export function nodeConsoleUnavailableMessage(
     (Array.isArray(capabilities.capabilities) &&
       capabilities.capabilities.includes("node_console_user_unavailable_v1"));
   if (!unavailable) return null;
-  const path = node ? DAEMON_CONFIG_PATHS[node.type] : undefined;
+  const path = daemonConfigPath(node);
   const file = path ? `the daemon config (${path})` : "the daemon config file";
   return `The daemon config sets console.user to another user, but the daemon does not run as root and cannot start console sessions as that user. Remove console.user from ${file} on the node, or run the daemon as root, and restart the daemon.`;
 }

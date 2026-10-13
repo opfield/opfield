@@ -340,7 +340,10 @@
         "packages/daemons/docker/internal/docker/**",
         "packages/daemons/docker/internal/builder/**",
         "scripts/setup-*.sh",
-        "packages/backend/src/modules/hosting/**"
+        "packages/backend/src/modules/hosting/**",
+        "packages/backend/src/modules/ai/ai.docs.foundation.ts",
+        "packages/backend/src/modules/ai/ai.docs.infrastructure.ts",
+        "skills/high-availability/SKILL.md"
       ],
       "pattern": "/var/lib/gateway(?:-relay-supervisor)?\\b[\\w/.-]*|/run/gateway-lease-watchdog[\\w/.-]*|gateway-lease-watchdog[\\w.-]*|gateway-volume-images?\\b[\\w.-]*|gateway-link-listeners[\\w.-]*|gateway-builder[\\w./-]*|GATEWAY_BUILDER_\\w*|gateway-builds0|\\.gateway-launcher[\\w.-]*|gateway-daemon\\b[\\w.-]*",
       "reason": "legacy-name: pre-Opfield host paths and units moved on the first confirmed start (old names stay as links / guarded until removed).",

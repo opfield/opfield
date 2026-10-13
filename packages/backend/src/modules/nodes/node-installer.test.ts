@@ -120,24 +120,47 @@ describe('node setup commands', () => {
   it('give a relay its address, a non-default port and the pool release, and skip targets without an address', () => {
     const commands = nodeInstallCommands({
       nodeType: 'relay',
-      release: 'v2.11.0',
-      token: 'gw_node_v2_token',
+      release: 'v2.12.1',
+      token: 'opf_node_v2_token',
       opfieldCertSha256: CERT,
       targets: { public: { label: 'Public node', address: null }, local: { label: 'Local node', address: null } },
-      fallbackOpfield: 'gateway.example.com:9443',
+      fallbackOpfield: 'opfield.example.com:9443',
       advertiseAddress: 'relay.example.com',
       servicePort: 9444,
-      daemonVersion: 'v2.11.0-rc.20',
+      daemonVersion: 'v2.12.1-rc.3',
     });
 
     expect(commands.map((command) => command.target)).toEqual(['public']);
-    expect(commands[0]?.curl).toContain(`${RELEASE}/setup-relay-node.sh`);
+    expect(commands[0]?.curl).toContain('/download/v2.12.1/setup-relay-node.sh');
+    expect(commands[0]?.curl).toContain('/download/v2.12.1/opfield-node-installers.sha256');
     expect(commands[0]?.curl).toMatch(
-      /--opfield gateway\.example\.com:9443 \\\n.*\n.*\n {2}--advertise-address relay\.example\.com \\\n {2}--service-port 9444 \\\n {2}--version v2\.11\.0-rc\.20$/
+      /--opfield opfield\.example\.com:9443 \\\n.*\n.*\n {2}--advertise-address relay\.example\.com \\\n {2}--service-port 9444 \\\n {2}--version v2\.12\.1-rc\.3$/
     );
-    // The relay installer of this release takes the Opfield flag names; installers not yet renamed keep --gateway.
     expect(commands[0]?.curl).toContain(`--opfield-cert-sha256 ${CERT}`);
     expect(commands[0]?.curl).not.toContain('--gateway');
+  });
+
+  it('give a relay pool before 2.12.1 the installer of its own release with the flags it takes', () => {
+    const [command] = nodeInstallCommands({
+      nodeType: 'relay',
+      release: 'v2.12.1',
+      token: 'opf_node_v2_token',
+      opfieldCertSha256: CERT,
+      targets: { public: { label: 'Public node', address: 'opfield.example.com:9443' } },
+      advertiseAddress: 'relay.example.com',
+      daemonVersion: '2.12.0',
+    });
+
+    expect(command?.curl).toContain('/download/v2.12.0/setup-relay-node.sh');
+    expect(command?.curl).toContain(
+      "/download/v2.12.0/gateway-daemon-installers.sha256 && \\\ngrep ' setup-relay-node.sh$' gateway-daemon-installers.sha256"
+    );
+    expect(command?.curl).toContain('--gateway opfield.example.com:9443');
+    expect(command?.curl).toContain(`--gateway-cert-sha256 ${CERT}`);
+    expect(command?.curl).toMatch(/--version 2\.12\.0$/);
+  });
+
+  it('give no node without an enrollment address a command', () => {
     expect(
       nodeInstallCommands({
         nodeType: 'builder',
