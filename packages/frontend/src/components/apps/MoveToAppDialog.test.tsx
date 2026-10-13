@@ -4,11 +4,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppDetail, AppEnvironmentDetail, AppSummary } from "@/types";
 import { MoveToAppDialog } from "./MoveToAppDialog";
 
-const api = vi.hoisted(() => ({
-  listApps: vi.fn(),
-  getApp: vi.fn(),
-  placeAppMembers: vi.fn(),
-}));
+const api = vi.hoisted(() => {
+  const cache = new Map<string, unknown>();
+  return {
+    cache,
+    listApps: vi.fn(),
+    getApp: vi.fn(),
+    placeAppMembers: vi.fn(),
+    getCached: vi.fn((key: string) => cache.get(key)),
+    setCache: vi.fn((key: string, data: unknown) => void cache.set(key, data)),
+  };
+});
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 const bootstrap = vi.hoisted(() => ({
   snapshot: {
@@ -103,6 +109,7 @@ function renderDialog() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  api.cache.clear();
   window.localStorage.clear();
   api.listApps.mockResolvedValue([summary(shop), summary(blog)]);
   api.getApp.mockImplementation(async (id: string) => (id === "shop" ? shop : blog));
@@ -117,6 +124,29 @@ describe("MoveToAppDialog", () => {
     expect(screen.queryByRole("button", { name: "Blog" })).not.toBeInTheDocument();
     // Not in an app yet: "No app" is the current state, so there is nothing to move.
     expect(screen.getByRole("button", { name: "Move" })).toBeDisabled();
+  });
+
+  it("opens again with the apps it loaded before, without waiting for them", async () => {
+    const first = render(
+      <MoveToAppDialog
+        open
+        onOpenChange={onOpenChange}
+        members={[{ type: "container", nodeId: "node-1", resourceKey: "web" }]}
+        resourceLabel="web"
+      />
+    );
+    expect(await screen.findByRole("button", { name: "Shop" })).toBeInTheDocument();
+    first.unmount();
+    let finishRefresh: (apps: AppSummary[]) => void = () => undefined;
+    api.listApps.mockReturnValue(new Promise<AppSummary[]>((resolve) => (finishRefresh = resolve)));
+
+    renderDialog();
+
+    // The refresh is still running: the list is the one loaded before.
+    expect(screen.getByRole("button", { name: "Shop" })).toBeInTheDocument();
+    expect(screen.queryByText("Loading apps…")).not.toBeInTheDocument();
+    finishRefresh([summary(shop), summary(blog)]);
+    expect(await screen.findByRole("button", { name: "Shop" })).toBeInTheDocument();
   });
 
   it("starts at the last used environment and places the member there", async () => {
