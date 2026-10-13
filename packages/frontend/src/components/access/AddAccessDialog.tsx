@@ -249,6 +249,10 @@ function sortTypes(types: readonly AccessTypeId[]) {
   return ACCESS_TYPE_IDS.filter((type) => types.includes(type));
 }
 
+/** A kind select and its value side by side: the kind is sized to its text (at most half the
+ *  row), the value takes the rest, so a long app or folder name is not cut at half the row. */
+const SPLIT_ROW_CLASS = "grid-cols-[fit-content(50%)_minmax(0,1fr)]";
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -542,11 +546,12 @@ export function AddAccessDialog({
                 </p>
               </Field>
               <Field label="Where">
-                {/* Everywhere has no second choice: the select takes the whole row. */}
+                {/* Everywhere has no second choice: the select takes the whole row. Otherwise the
+                    kind keeps its own width (at most half) and the place gets the rest. */}
                 <div
                   className={cn(
                     "grid gap-2",
-                    draft.where === "everywhere" ? "grid-cols-1" : "grid-cols-2"
+                    draft.where === "everywhere" ? "grid-cols-1" : SPLIT_ROW_CLASS
                   )}
                 >
                   <Select
@@ -578,7 +583,10 @@ export function AddAccessDialog({
                     />
                   ) : draft.where === "app" ? (
                     <Select value={draft.app} onValueChange={(value) => update({ app: value })}>
-                      <SelectTrigger aria-label="App environment">
+                      <SelectTrigger
+                        aria-label="App environment"
+                        title={apps.find((option) => option.value === draft.app)?.label}
+                      >
                         <SelectValue placeholder="Pick an app environment" />
                       </SelectTrigger>
                       <SelectContent>
@@ -694,7 +702,12 @@ export function AddAccessDialog({
                 </Select>
               </Field>
               <Field label="Repositories">
-                <div className="grid grid-cols-2 gap-2">
+                <div
+                  className={cn(
+                    "grid gap-2",
+                    draft.repositories === "all" ? "grid-cols-1" : SPLIT_ROW_CLASS
+                  )}
+                >
                   <Select
                     value={draft.repositories}
                     onValueChange={(value) => update({ repositories: value as RepositoriesKind })}

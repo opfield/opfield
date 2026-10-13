@@ -195,7 +195,9 @@ export function SidebarPinnedResources({
               )}
             >
               <Globe className="h-4 w-4 shrink-0" />
-              <span className="truncate">{proxy.domainNames[0]}</span>
+              <span className="truncate" title={proxy.domainNames[0]}>
+                {proxy.domainNames[0]}
+              </span>
               <span className={statusDot(health, "proxy")} />
             </Link>
           );
@@ -212,7 +214,9 @@ export function SidebarPinnedResources({
               )}
             >
               <Server className="h-4 w-4 shrink-0" />
-              <span className="truncate">{node.displayName || node.hostname}</span>
+              <span className="truncate" title={node.displayName || node.hostname}>
+                {node.displayName || node.hostname}
+              </span>
               <span className={statusDot(effectiveNodeStatus(node), "node")} />
             </Link>
           );
@@ -231,7 +235,9 @@ export function SidebarPinnedResources({
               )}
             >
               <Database className="h-4 w-4 shrink-0" />
-              <span className="truncate">{meta.name}</span>
+              <span className="truncate" title={meta.name}>
+                {meta.name}
+              </span>
               <span className={statusDot(meta.healthStatus, "database")} />
             </Link>
           );
@@ -249,7 +255,9 @@ export function SidebarPinnedResources({
               )}
             >
               <Database className="h-4 w-4 shrink-0" />
-              <span className="truncate">{storage.name}</span>
+              <span className="truncate" title={storage.name}>
+                {storage.name}
+              </span>
               <span className={statusDot(storage.healthStatus, "database")} />
             </Link>
           );
@@ -279,7 +287,9 @@ export function SidebarPinnedResources({
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{meta.name}</span>
+              <span className="truncate" title={meta.name}>
+                {meta.name}
+              </span>
               <span className={statusDot(meta.state, "docker")} />
             </Link>
           );

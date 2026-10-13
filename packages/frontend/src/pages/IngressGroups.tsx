@@ -74,11 +74,18 @@ export function IngressGroups() {
     {
       id: "name",
       header: "Name",
+      // max-w-0: a long description ends in an ellipsis at the column's edge instead of
+      // widening the table.
+      cellClassName: "max-w-0",
       render: (group) => (
         <div className="min-w-0">
-          <p className="text-sm font-medium">{group.name}</p>
+          <p className="truncate text-sm font-medium" title={group.name}>
+            {group.name}
+          </p>
           {group.description && (
-            <p className="line-clamp-1 text-xs text-muted-foreground">{group.description}</p>
+            <p className="truncate text-xs text-muted-foreground" title={group.description}>
+              {group.description}
+            </p>
           )}
         </div>
       ),

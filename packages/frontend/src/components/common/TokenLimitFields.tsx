@@ -150,7 +150,10 @@ export function ExpiryField({
       <label className="text-sm font-medium" htmlFor={`${id}-expiry`}>
         Expires
       </label>
-      <div className={custom ? "grid gap-2 sm:grid-cols-2" : undefined}>
+      {/* The preset keeps its own width (at most half); the date field gets the rest. */}
+      <div
+        className={custom ? "grid gap-2 sm:grid-cols-[fit-content(50%)_minmax(0,1fr)]" : undefined}
+      >
         <Select
           value={value.choice}
           onValueChange={(next) => onChange({ ...value, choice: next as ExpiryValue["choice"] })}

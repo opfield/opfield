@@ -57,6 +57,8 @@ export function AccessPanel({
             const from = view.from ? `· from ${view.from}` : null;
             // Long titles and details end in an ellipsis (full text on hover), the group a line
             // comes from stays in view; a row never widens the panel or the dialog around it.
+            // Detail and group share the line: a short one shows in full and the other gets the
+            // rest; two long ones get half each.
             return (
               <div key={view.key} className="flex items-center justify-between gap-3 p-3">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -66,11 +68,11 @@ export function AccessPanel({
                       {view.title}
                     </p>
                     <p
-                      className="flex min-w-0 gap-1 text-xs text-muted-foreground"
+                      className="grid min-w-0 auto-cols-[minmax(0,auto)] grid-flow-col justify-start gap-1 text-xs text-muted-foreground"
                       title={from ? `${view.detail} ${from}` : view.detail}
                     >
                       <span className="truncate">{view.detail}</span>
-                      {from ? <span className="max-w-[50%] shrink-0 truncate">{from}</span> : null}
+                      {from ? <span className="truncate">{from}</span> : null}
                     </p>
                     {view.note ? (
                       <p className="mt-1 text-xs text-warning-foreground">{view.note}</p>

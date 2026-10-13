@@ -43,11 +43,13 @@ describe("access dialog layout", () => {
     // The body holds only the access list: no grid sized by its widest line.
     expect(body.className).not.toMatch(/\bgrid\b/);
 
-    // The detail ends in an ellipsis inside rows that may shrink; the group it comes from stays.
+    // The detail ends in an ellipsis inside rows that may shrink. Detail and group share the line
+    // by content (auto columns): a short group stays whole, two long ones get half each.
     const detail = screen.getByText(LONG_DETAIL);
     expect(detail.className).toMatch(/\btruncate\b/);
-    expect(screen.getByText("· from operator").className).toMatch(/\bshrink-0\b/);
+    expect(screen.getByText("· from operator").className).toMatch(/\btruncate\b/);
     let row = detail.parentElement!;
+    expect(row.className).toContain("auto-cols-[minmax(0,auto)]");
     expect(row.getAttribute("title")).toBe(`${LONG_DETAIL} · from operator`);
     for (let level = 0; level < 3; level += 1) {
       expect(row.className).toMatch(/\bmin-w-0\b/);
