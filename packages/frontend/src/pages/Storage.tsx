@@ -46,7 +46,7 @@ import type {
 import { ManagedStorageCreateDialog } from "./storage-create/ManagedStorageCreateDialog";
 import { StorageConnectionCreateDialog } from "./storage-create/StorageConnectionCreateDialog";
 import { isManagedStorageFull } from "./storage-detail/managed-storage-engine";
-import { formatProviderLabel } from "./storage-detail/shared";
+import { formatProviderLabel, storageEndpointLabel } from "./storage-detail/shared";
 
 const HEALTH_BADGE: Record<string, "success" | "secondary" | "warning" | "destructive"> = {
   online: "success",
@@ -236,7 +236,7 @@ function StorageContent() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{row.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {row.endpoint || formatProviderLabel(row.provider)}
+                  {storageEndpointLabel(row, node ? node.displayName || node.hostname : null)}
                   {row.defaultBucket ? ` · ${row.defaultBucket}` : ""}
                 </p>
               </div>

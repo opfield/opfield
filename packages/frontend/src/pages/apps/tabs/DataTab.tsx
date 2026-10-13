@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { databaseTypeLabel } from "@/lib/database-type";
 import { nodeIconClassNames } from "@/lib/node-appearance";
+import { databaseEndpointLabel } from "@/lib/private-endpoint";
 import { databaseRoute, loggingEnvironmentRoute, storageRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
-import { formatProviderLabel } from "@/pages/storage-detail/shared";
+import { formatProviderLabel, storageEndpointLabel } from "@/pages/storage-detail/shared";
 import { useSystemConfigStore } from "@/stores/system-config";
 import type {
   AppDetail,
@@ -97,6 +98,11 @@ export function DataTab({
     (row) => row.app?.environmentId
   );
 
+  const nodeName = (nodeId: string | undefined) => {
+    const node = nodeId ? nodesById.get(nodeId) : undefined;
+    return node ? node.displayName || node.hostname : null;
+  };
+
   const nameCell = (
     Icon: typeof Database,
     nodeId: string | undefined,
@@ -126,7 +132,7 @@ export function DataTab({
           row.managed ? DatabaseZap : Database,
           row.managed?.nodeId,
           row.name,
-          `${row.host}:${row.port}${row.databaseName ? ` · ${row.databaseName}` : ""}`
+          `${databaseEndpointLabel(row, nodeName(row.managed?.nodeId))}${row.databaseName ? ` · ${row.databaseName}` : ""}`
         ),
     },
     {
@@ -199,7 +205,7 @@ export function DataTab({
           row.managed ? HardDriveDownload : HardDrive,
           row.managed?.nodeId,
           row.name,
-          `${row.endpoint || formatProviderLabel(row.provider)}${row.defaultBucket ? ` · ${row.defaultBucket}` : ""}`
+          `${storageEndpointLabel(row, nodeName(row.managed?.nodeId))}${row.defaultBucket ? ` · ${row.defaultBucket}` : ""}`
         ),
     },
     {

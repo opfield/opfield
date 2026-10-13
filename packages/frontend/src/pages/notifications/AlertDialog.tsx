@@ -506,7 +506,9 @@ export function AlertDialog({
         setAvailableResources(
           databases.map((database) => ({
             id: database.id,
-            label: `${database.name} (${database.host}:${database.port})`,
+            label: database.managed
+              ? database.name
+              : `${database.name} (${database.host}:${database.port})`,
           }))
         );
       }

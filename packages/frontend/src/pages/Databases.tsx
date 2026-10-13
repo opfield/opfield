@@ -45,6 +45,7 @@ import { DATABASE_TYPE_LABELS, databaseTypeLabel } from "@/lib/database-type";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
+import { databaseEndpointLabel } from "@/lib/private-endpoint";
 import { databaseRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -363,7 +364,7 @@ function DatabasesContent({
                   {row.app && <AppMemberBadge app={row.app} />}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">
-                  {row.host}:{row.port}
+                  {databaseEndpointLabel(row, node ? node.displayName || node.hostname : null)}
                   {row.databaseName ? ` · ${row.databaseName}` : ""}
                 </p>
               </div>

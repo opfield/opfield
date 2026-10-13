@@ -1,3 +1,4 @@
+import { privateThroughRelayLabel } from "@/lib/private-endpoint";
 import { formatBytes } from "@/lib/utils";
 import type { ObjectStorageConnection } from "@/types";
 
@@ -47,4 +48,20 @@ export function formatHealthStatusLabel(
 
 export function formatProviderLabel(provider: ObjectStorageConnection["provider"]): string {
   return PROVIDER_LABELS[provider] ?? provider;
+}
+
+/** A managed storage reached through the relay: its endpoint names only the loopback the relay opens per boot. */
+export function isRelayStorageEndpoint(
+  storage: Pick<ObjectStorageConnection, "endpoint" | "managed">
+) {
+  return !!storage.managed && /^https?:\/\/127\.0\.0\.1(:\d+)?\/?$/.test(storage.endpoint ?? "");
+}
+
+/** The endpoint line of a storage: "Private · through relay · <node>" for a relay storage, else its address. */
+export function storageEndpointLabel(
+  storage: Pick<ObjectStorageConnection, "endpoint" | "managed" | "provider">,
+  nodeName?: string | null
+) {
+  if (isRelayStorageEndpoint(storage)) return privateThroughRelayLabel(nodeName);
+  return storage.endpoint || formatProviderLabel(storage.provider);
 }

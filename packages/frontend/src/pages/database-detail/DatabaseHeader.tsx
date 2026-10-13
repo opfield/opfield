@@ -269,7 +269,7 @@ export function DatabaseHeader({
       description={
         <span className="break-all">
           {database.managed
-            ? `${managedTitle} ${managedDatabaseVersionLabel({ type: database.type, version: database.managed.version, engine: database.managed.engine })} · ${database.managed.publishedPort === null ? "private" : `TCP ${database.managed.publishedPort}${database.type === "clickhouse" && database.managed.publishedNativePort != null ? ` · native ${database.managed.publishedNativePort}` : ""}`}`
+            ? `${managedTitle} ${managedDatabaseVersionLabel({ type: database.type, version: database.managed.version, engine: database.managed.engine })} · ${database.managed.publishedPort === null ? "Private · through relay" : `TCP ${database.managed.publishedPort}${database.type === "clickhouse" && database.managed.publishedNativePort != null ? ` · native ${database.managed.publishedNativePort}` : ""}`}`
             : `${database.host}:${database.port}${database.databaseName ? ` · ${database.databaseName}` : ""}`}
           {database.app ? (
             <>

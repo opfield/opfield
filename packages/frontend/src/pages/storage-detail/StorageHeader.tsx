@@ -10,6 +10,7 @@ import {
 import { AppMembershipLink } from "@/components/apps/AppMembership";
 import { PageBackButton } from "@/components/common/PageBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
+import { useNodeLabel } from "@/components/ingress-groups/RouteIngressPlacementPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +21,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ObjectStorageConnection } from "@/types";
-import { formatHealthStatusLabel, formatProviderLabel, HEALTH_BADGE } from "./shared";
+import {
+  formatHealthStatusLabel,
+  formatProviderLabel,
+  HEALTH_BADGE,
+  storageEndpointLabel,
+} from "./shared";
 
 interface StorageHeaderProps {
   storage: ObjectStorageConnection;
@@ -102,7 +108,11 @@ export function StorageHeader({
     </>
   );
 
-  const endpointLabel = storage.endpoint || formatProviderLabel(storage.provider);
+  const nodeLabel = useNodeLabel();
+  const endpointLabel = storageEndpointLabel(
+    storage,
+    storage.managed ? nodeLabel(storage.managed.nodeId) : null
+  );
 
   return (
     <PageHeader

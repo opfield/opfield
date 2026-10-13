@@ -5,8 +5,10 @@ import { ManagedCertificateDetailRow } from "@/components/common/ManagedCertific
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
+import { useNodeLabel } from "@/components/ingress-groups/RouteIngressPlacementPanel";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
+import { cn } from "@/lib/utils";
 import type {
   ManagedCertificateStatus,
   ObjectStorageConnection,
@@ -22,7 +24,9 @@ import {
   formatMetricValue,
   formatProviderLabel,
   HEALTH_BADGE,
+  isRelayStorageEndpoint,
   METRIC_COLORS,
+  storageEndpointLabel,
 } from "./shared";
 
 interface StorageOverviewTabProps {
@@ -43,6 +47,7 @@ export function StorageOverviewTab({
   monitoringLoading,
   certificateStatus,
 }: StorageOverviewTabProps) {
+  const nodeLabel = useNodeLabel();
   const latest = history.at(-1);
   const engine = managedStorageEngine(storage);
   const showMonitoring = canViewMonitoring && healthStatus !== "offline";
@@ -130,8 +135,13 @@ export function StorageOverviewTab({
           <DetailRow
             label="Endpoint"
             value={
-              <span className="block break-all font-mono">
-                {storage.endpoint || formatProviderLabel(storage.provider)}
+              <span
+                className={cn("block break-all", !isRelayStorageEndpoint(storage) && "font-mono")}
+              >
+                {storageEndpointLabel(
+                  storage,
+                  storage.managed ? nodeLabel(storage.managed.nodeId) : null
+                )}
               </span>
             }
           />
