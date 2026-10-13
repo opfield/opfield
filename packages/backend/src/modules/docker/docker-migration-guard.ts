@@ -45,11 +45,9 @@ export class DockerMigrationGuard {
       .select()
       .from(dockerMigrations)
       .where(or(eq(dockerMigrations.sourceNodeId, nodeId), eq(dockerMigrations.targetNodeId, nodeId)));
-    return rows.filter(
-      (row) =>
-        GUARDED_STATUSES.has(row.status) ||
-        (row.status === 'completed' && row.keepSource && row.sourceNodeId === nodeId)
-    );
+    // Only a migration that still runs locks its resources. The copy a completed migration kept on the source node is
+    // an ordinary stopped container again: its owner can start it as a fallback, rename or remove it.
+    return rows.filter((row) => GUARDED_STATUSES.has(row.status));
   }
 
   private block(identity: string): never {

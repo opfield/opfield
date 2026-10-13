@@ -483,11 +483,15 @@ export function NodeDetailsTab({
     {
       id: "status",
       header: "Status",
-      render: (host) => (
-        <Badge variant={host.enabled ? "success" : "secondary"}>
-          {host.enabled ? "active" : "disabled"}
-        </Badge>
-      ),
+      // An enabled route is not served on this node while its nginx is stopped.
+      render: (host) =>
+        host.enabled && nginxState === "stopped" ? (
+          <Badge variant="warning">not served</Badge>
+        ) : (
+          <Badge variant={host.enabled ? "success" : "secondary"}>
+            {host.enabled ? "active" : "disabled"}
+          </Badge>
+        ),
     },
   ];
 
