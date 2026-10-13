@@ -33,7 +33,7 @@ import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { WebhookDelivery } from "@/types";
 import {
@@ -219,11 +219,7 @@ export function DeliveryLogTab({
     );
   }, [deliveries, search]);
 
-  const deliveryFooterText = loadingMore
-    ? "Loading more..."
-    : !hasMore && deliveries.length > 0
-      ? "End of logs"
-      : null;
+  const deliveryFooterText = loadingMore ? "Loading more..." : null;
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -273,7 +269,10 @@ export function DeliveryLogTab({
           <div ref={scrollRef} className="max-h-[calc(100dvh-18rem)] overflow-auto">
             <ResourceListTable
               columns={DELIVERY_COLUMNS}
-              bodyClassName="[&>tr:last-child]:border-b-0"
+              bodyClassName={cn(
+                "[&>tr:last-child]:border-b-0",
+                !deliveryFooterText && "[&>tr:nth-last-child(2)]:border-b-0"
+              )}
             >
               {filteredDeliveries.length === 0 ? (
                 <ResourceListRow className="opacity-100">

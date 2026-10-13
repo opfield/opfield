@@ -37,7 +37,7 @@ import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { handleLicenseApiError, requireLicenseFeature } from "@/stores/license-paywall";
 import type { SiemDelivery, SiemDeliveryStatus, SiemDestination } from "@/types";
@@ -268,7 +268,7 @@ export function SiemDeliveryLogTab({
     );
   }, [deliveries, search]);
 
-  const deliveryFooterText = loadingMore ? "Loading more..." : !hasMore ? "End of logs" : null;
+  const deliveryFooterText = loadingMore ? "Loading more..." : null;
 
   const changeDestinationFilter = (value: string) => {
     setDestinationFilter(value);
@@ -341,7 +341,10 @@ export function SiemDeliveryLogTab({
           <div ref={scrollRef} className="max-h-[calc(100dvh-18rem)] overflow-auto">
             <ResourceListTable
               columns={DELIVERY_COLUMNS}
-              bodyClassName="[&>tr:last-child]:border-b-0"
+              bodyClassName={cn(
+                "[&>tr:last-child]:border-b-0",
+                !deliveryFooterText && "[&>tr:nth-last-child(2)]:border-b-0"
+              )}
             >
               {filteredDeliveries.length === 0 ? (
                 <ResourceListRow className="opacity-100">

@@ -727,10 +727,6 @@ function SandboxArtifactsPanel() {
                     >
                       {allLoading ? "Loading more…" : "Scroll to load older artifacts"}
                     </div>
-                  ) : allArtifacts.length > 0 ? (
-                    <div className="py-3 text-center text-xs text-muted-foreground">
-                      End of artifacts
-                    </div>
                   ) : null
                 }
               />

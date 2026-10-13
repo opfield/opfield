@@ -346,10 +346,6 @@ export function AvailabilityOperationsPanel({
                   <div ref={sentinelRef} className="py-3 text-center text-xs text-muted-foreground">
                     {loading ? "Loading more…" : "Scroll to load older operations"}
                   </div>
-                ) : rows.length > 0 ? (
-                  <div className="py-3 text-center text-xs text-muted-foreground">
-                    End of operations
-                  </div>
                 ) : null
               }
             />

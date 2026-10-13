@@ -345,10 +345,6 @@ export function InferenceActivityPanel({ refreshToken = 0 }: { refreshToken?: nu
                     >
                       {loading ? "Loading more…" : "Scroll to load older requests"}
                     </div>
-                  ) : rows.length > 0 ? (
-                    <div className="py-3 text-center text-xs text-muted-foreground">
-                      End of activity
-                    </div>
                   ) : null
                 }
               />
