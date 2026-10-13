@@ -1,4 +1,6 @@
+import { motion } from "framer-motion";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { Combobox, type ComboboxOption } from "@/components/common/Combobox";
 import {
   type GitScopeTargetOption,
@@ -549,8 +551,10 @@ export function AddAccessDialog({
               <TabsTrigger value="git">Git repositories</TabsTrigger>
             </TabsList>
           </Tabs>
+          {/* The tabs switch their content in place: old and new cross-fade while the height follows. */}
+          <AnimatedSwitch>
           {draft.tab === "resources" ? (
-            <>
+              <motion.div key="resources" {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
               <Field label="Role">
                 <Select
                   value={draft.role}
@@ -703,11 +707,17 @@ export function AddAccessDialog({
                   onCheckedChange={(manageFolders) => update({ manageFolders })}
                 />
               )}
-            </>
+              </motion.div>
           ) : connectorOptions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No Git connectors you can see.</p>
+              <motion.p
+                key="git-none"
+                {...CONTENT_SWITCH_ANIMATION}
+                className="text-sm text-muted-foreground"
+              >
+                No Git connectors you can see.
+              </motion.p>
           ) : (
-            <>
+              <motion.div key="git" {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
               <Field label="Connector">
                 <Select
                   value={draft.connector}
@@ -759,7 +769,11 @@ export function AddAccessDialog({
                       onValueChange={(value) => {
                         const option = groups.options.find((item) => item.id === value);
                         if (option)
-                          rememberGitLabel(provider, qualifierOf("container", value), option.path);
+                            rememberGitLabel(
+                              provider,
+                              qualifierOf("container", value),
+                              option.path
+                            );
                         update({ group: value });
                       }}
                       onQueryChange={setGroupQuery}
@@ -778,7 +792,11 @@ export function AddAccessDialog({
                         for (const id of value) {
                           const option = repos.options.find((item) => item.id === id);
                           if (option)
-                            rememberGitLabel(provider, qualifierOf("repository", id), option.path);
+                              rememberGitLabel(
+                                provider,
+                                qualifierOf("repository", id),
+                                option.path
+                              );
                         }
                         update({ repos: value });
                       }}
@@ -819,8 +837,9 @@ export function AddAccessDialog({
                   {GIT_LEVELS.find((level) => level.value === draft.level)?.hint}
                 </p>
               </Field>
-            </>
+              </motion.div>
           )}
+          </AnimatedSwitch>
           {note ? <p className="text-xs text-warning-foreground">{note}</p> : null}
         </div>
         <AccessDialogFooter

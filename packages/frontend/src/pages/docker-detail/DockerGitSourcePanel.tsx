@@ -741,30 +741,6 @@ export function DockerGitSourcePanel({
     }
   };
 
-  if (suppliedLoading ?? loading) {
-    // The first load keeps the tab hidden; a retry keeps the panel header in place.
-    return (
-      <PanelShell
-        icon={<GitBranch className="h-4 w-4" />}
-        title="Repository"
-        description="Loading repository delivery settings…"
-      />
-    );
-  }
-
-  if (error && !source) {
-    return (
-      <PanelShell
-        icon={<GitBranch className="h-4 w-4" />}
-        title="Repository"
-        description="Repository delivery settings could not be loaded."
-      >
-        <EmptyState message={error} actionLabel="Retry" onAction={onRetry} embedded />
-      </PanelShell>
-    );
-  }
-
-  if (!source) {
     const repositorySourceFields = (
       <RepositorySourceFields
         loading={connectorsLoading}
@@ -888,33 +864,12 @@ export function DockerGitSourcePanel({
       </div>
     );
 
-    return (
-      <>
-        <PanelShell
-          icon={<GitBranch className="h-4 w-4" />}
-          title="Repository"
-          description="Build and deploy this resource directly from a Git repository."
-          actions={
-            canEdit ? (
-              <Button type="button" onClick={openConnect}>
-                <Plus className="h-4 w-4" />
-                Connect repository
-              </Button>
-            ) : undefined
-          }
-        >
-          <EmptyState
-            message={
-              pagesTarget
-                ? "No repository connected. This Project continues to accept manual Deployments."
-                : "No repository connected. This resource continues to use its configured image."
-            }
-            actionLabel={canEdit ? "Connect repository" : undefined}
-            onAction={canEdit ? openConnect : undefined}
-            embedded
-          />
-        </PanelShell>
+  // One Connect Repository dialog for every state of the panel, kept by its key in the same root
+  // element, so connecting (which turns the empty panel into the repository settings) or a reload
+  // does not unmount it while it closes.
+  const connectDialog = (
         <Dialog
+      key="connect-repository"
           open={connectOpen}
           onOpenChange={(open) => {
             setConnectOpen(open);
@@ -1044,7 +999,66 @@ export function DockerGitSourcePanel({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </>
+  );
+
+  if (suppliedLoading ?? loading) {
+    // The first load keeps the tab hidden; a retry keeps the panel header in place.
+    return (
+      <div className="flex flex-col gap-4">
+        <PanelShell
+          icon={<GitBranch className="h-4 w-4" />}
+          title="Repository"
+          description="Loading repository delivery settings…"
+        />
+        {connectDialog}
+      </div>
+    );
+  }
+
+  if (error && !source) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PanelShell
+          icon={<GitBranch className="h-4 w-4" />}
+          title="Repository"
+          description="Repository delivery settings could not be loaded."
+        >
+          <EmptyState message={error} actionLabel="Retry" onAction={onRetry} embedded />
+        </PanelShell>
+        {connectDialog}
+      </div>
+    );
+  }
+
+  if (!source) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PanelShell
+          icon={<GitBranch className="h-4 w-4" />}
+          title="Repository"
+          description="Build and deploy this resource directly from a Git repository."
+          actions={
+            canEdit ? (
+              <Button type="button" onClick={openConnect}>
+                <Plus className="h-4 w-4" />
+                Connect repository
+              </Button>
+            ) : undefined
+          }
+        >
+          <EmptyState
+            message={
+              pagesTarget
+                ? "No repository connected. This Project continues to accept manual Deployments."
+                : "No repository connected. This resource continues to use its configured image."
+            }
+            actionLabel={canEdit ? "Connect repository" : undefined}
+            onAction={canEdit ? openConnect : undefined}
+            embedded
+          />
+        </PanelShell>
+        {connectDialog}
+      </div>
     );
   }
 
@@ -1775,6 +1789,7 @@ export function DockerGitSourcePanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {connectDialog}
     </div>
   );
 }

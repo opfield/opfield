@@ -1,7 +1,7 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AnimatedHeight } from "@/components/common/AnimatedHeight";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { CopyCodeBlock } from "@/components/common/CopyCodeBlock";
 import { OneTimeSecretDialog } from "@/components/common/OneTimeSecretDialog";
@@ -38,7 +38,6 @@ import {
   withHostAccessInstallFlags,
 } from "@/lib/node-host-access";
 import { canCreateInFolder } from "@/lib/scope-utils";
-import { STEP_ANIMATION } from "@/pages/notifications/template-editor";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { handleLicenseApiError } from "@/stores/license-paywall";
@@ -381,117 +380,111 @@ export function NodeEnrollmentDialog({
                   </TabsList>
                 </Tabs>
               )}
-              <AnimatedHeight>
-                <AnimatePresence initial={false} mode="wait">
-                  <motion.div key={effectiveMode} {...STEP_ANIMATION}>
-                    {effectiveMode === "external" ? (
-                      <div className="space-y-4">
-                        {/* The folder list loads when the dialog opens. */}
-                        <ContentLoading loading={foldersLoading} />
-                        <div className="space-y-1.5">
-                          <label className="text-sm font-medium">Node Type</label>
-                          <Select
-                            value={type}
-                            onValueChange={(value) => setType(value as NodeType)}
-                            disabled={lockType}
-                          >
-                            <SelectTrigger aria-label="Node Type">
-                              <SelectValue>{selectedType.label}</SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="w-[min(28rem,calc(100vw-2rem))]">
-                              {NODE_ENROLLMENT_TYPES.map((option) => (
-                                <SelectItem
-                                  key={option.value}
-                                  value={option.value}
-                                  textValue={option.label}
-                                  description={option.description}
-                                  className="items-start py-2"
-                                >
-                                  {option.label}
+              <AnimatedSwitch>
+                <motion.div key={effectiveMode} {...CONTENT_SWITCH_ANIMATION}>
+                  {effectiveMode === "external" ? (
+                    <div className="space-y-4">
+                      {/* The folder list loads when the dialog opens. */}
+                      <ContentLoading loading={foldersLoading} />
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Node Type</label>
+                        <Select
+                          value={type}
+                          onValueChange={(value) => setType(value as NodeType)}
+                          disabled={lockType}
+                        >
+                          <SelectTrigger aria-label="Node Type">
+                            <SelectValue>{selectedType.label}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="w-[min(28rem,calc(100vw-2rem))]">
+                            {NODE_ENROLLMENT_TYPES.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                                textValue={option.label}
+                                description={option.description}
+                                className="items-start py-2"
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">{selectedType.description}</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Folder</label>
+                        <Select
+                          value={
+                            folderId ||
+                            (canCreateInFolder(user?.scopes ?? [], "nodes:create", null)
+                              ? "__none__"
+                              : "")
+                          }
+                          onValueChange={(value) => setFolderId(value === "__none__" ? "" : value)}
+                          disabled={foldersLoading}
+                        >
+                          <SelectTrigger aria-label="Folder" aria-busy={foldersLoading}>
+                            <SelectValue placeholder="Select a folder" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {canCreateInFolder(user?.scopes ?? [], "nodes:create", null) && (
+                              <SelectItem value="__none__">No folder</SelectItem>
+                            )}
+                            {folderOptions
+                              .filter((folder) =>
+                                canCreateInFolder(user?.scopes ?? [], "nodes:create", folder.id)
+                              )
+                              .map((folder) => (
+                                <SelectItem key={folder.id} value={folder.id}>
+                                  {"  ".repeat(folder.depth) + folder.name}
                                 </SelectItem>
                               ))}
-                            </SelectContent>
-                          </Select>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Node Name</label>
+                        <Input
+                          value={displayName}
+                          onChange={(event) => setDisplayName(event.target.value)}
+                          placeholder={type === "relay" ? "EU Relay" : "US-East Ingress"}
+                        />
+                      </div>
+                      {type === "relay" && (
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium">Relay Address</label>
+                          <Input
+                            value={relayAddress}
+                            onChange={(event) => setRelayAddress(event.target.value)}
+                            placeholder="relay.example.com"
+                          />
                           <p className="text-xs text-muted-foreground">
-                            {selectedType.description}
+                            Reachable IP or hostname advertised to participating nodes.
                           </p>
                         </div>
+                      )}
+                      {type === "relay" && (
                         <div className="space-y-1.5">
-                          <label className="text-sm font-medium">Folder</label>
-                          <Select
-                            value={
-                              folderId ||
-                              (canCreateInFolder(user?.scopes ?? [], "nodes:create", null)
-                                ? "__none__"
-                                : "")
-                            }
-                            onValueChange={(value) =>
-                              setFolderId(value === "__none__" ? "" : value)
-                            }
-                            disabled={foldersLoading}
-                          >
-                            <SelectTrigger aria-label="Folder" aria-busy={foldersLoading}>
-                              <SelectValue placeholder="Select a folder" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {canCreateInFolder(user?.scopes ?? [], "nodes:create", null) && (
-                                <SelectItem value="__none__">No folder</SelectItem>
-                              )}
-                              {folderOptions
-                                .filter((folder) =>
-                                  canCreateInFolder(user?.scopes ?? [], "nodes:create", folder.id)
-                                )
-                                .map((folder) => (
-                                  <SelectItem key={folder.id} value={folder.id}>
-                                    {"  ".repeat(folder.depth) + folder.name}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-sm font-medium">Node Name</label>
+                          <label className="text-sm font-medium">Relay Port</label>
                           <Input
-                            value={displayName}
-                            onChange={(event) => setDisplayName(event.target.value)}
-                            placeholder={type === "relay" ? "EU Relay" : "US-East Ingress"}
+                            value={relayPort}
+                            onChange={(event) => setRelayPort(event.target.value)}
+                            inputMode="numeric"
+                            placeholder={String(DEFAULT_RELAY_PORT)}
                           />
+                          <p className="text-xs text-muted-foreground">
+                            TCP port the relay listens on. It must be reachable from participating
+                            nodes.
+                          </p>
                         </div>
-                        {type === "relay" && (
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Relay Address</label>
-                            <Input
-                              value={relayAddress}
-                              onChange={(event) => setRelayAddress(event.target.value)}
-                              placeholder="relay.example.com"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Reachable IP or hostname advertised to participating nodes.
-                            </p>
-                          </div>
-                        )}
-                        {type === "relay" && (
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-medium">Relay Port</label>
-                            <Input
-                              value={relayPort}
-                              onChange={(event) => setRelayPort(event.target.value)}
-                              inputMode="numeric"
-                              placeholder={String(DEFAULT_RELAY_PORT)}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              TCP port the relay listens on. It must be reachable from participating
-                              nodes.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      body
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-              </AnimatedHeight>
+                      )}
+                    </div>
+                  ) : (
+                    body
+                  )}
+                </motion.div>
+              </AnimatedSwitch>
               <DialogFooter>
                 {effectiveMode === "external" ? (
                   <>

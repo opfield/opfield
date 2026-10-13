@@ -1,7 +1,8 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { ScopeList } from "@/components/common/ScopeList";
 import {
@@ -37,8 +38,6 @@ import {
   type NotificationWebhook,
 } from "@/types";
 import {
-  AnimatedHeight,
-  STEP_ANIMATION,
   TemplateCheatsheetLink,
   TemplateEditor,
   type TemplateEditorHandle,
@@ -720,12 +719,11 @@ export function AlertDialog({
           Step {step} of 3 — {STEP_LABELS[step - 1]}
         </DialogDescription>
 
-        <AnimatedHeight>
           <ContentLoading loading={categoriesLoading || webhooksLoading || resourcesLoading} />
-          <AnimatePresence initial={false} mode="wait">
+        <AnimatedSwitch>
             {/* ── Step 1: Configuration ── */}
             {step === 1 && (
-              <motion.div key="step-1" {...STEP_ANIMATION} className="space-y-5">
+            <motion.div key="step-1" {...CONTENT_SWITCH_ANIMATION} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium">Name</label>
@@ -787,9 +785,7 @@ export function AlertDialog({
                         {cat && cat.metrics.length > 0 && (
                           <SelectItem value="threshold">Threshold</SelectItem>
                         )}
-                        {cat && cat.events.length > 0 && (
-                          <SelectItem value="event">Event</SelectItem>
-                        )}
+                      {cat && cat.events.length > 0 && <SelectItem value="event">Event</SelectItem>}
                       </SelectContent>
                     </Select>
                   </div>
@@ -994,8 +990,7 @@ export function AlertDialog({
                           onChange={(e) => setFireThresholdPercent(e.target.value)}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Alert fires when the event state is observed this often in the fire
-                          window.
+                        Alert fires when the event state is observed this often in the fire window.
                         </p>
                       </div>
                       <div className="space-y-1.5">
@@ -1071,7 +1066,7 @@ export function AlertDialog({
 
             {/* ── Step 2: Scope & Webhooks ── */}
             {step === 2 && (
-              <motion.div key="step-2" {...STEP_ANIMATION} className="space-y-5">
+            <motion.div key="step-2" {...CONTENT_SWITCH_ANIMATION} className="space-y-5">
                 {/* Scope */}
                 <div className="space-y-3">
                   <SwitchCard
@@ -1218,7 +1213,7 @@ export function AlertDialog({
 
             {/* ── Step 3: Message ── */}
             {step === 3 && (
-              <motion.div key="step-3" {...STEP_ANIMATION} className="space-y-5">
+            <motion.div key="step-3" {...CONTENT_SWITCH_ANIMATION} className="space-y-5">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Message Template</label>
                   <TemplateEditor
@@ -1254,8 +1249,7 @@ export function AlertDialog({
                 )}
               </motion.div>
             )}
-          </AnimatePresence>
-        </AnimatedHeight>
+        </AnimatedSwitch>
 
         <DialogFooter className="shrink-0">
           {step === 1 && (

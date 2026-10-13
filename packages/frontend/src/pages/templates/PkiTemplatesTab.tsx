@@ -1,6 +1,8 @@
+import { motion } from "framer-motion";
 import { FileText, FolderPlus, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { type SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { CreateFolderSelect } from "@/components/common/CreateFolderSelect";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -499,7 +501,9 @@ export function PkiTemplatesTab({
             </div>
 
             {/* Step content */}
-            <fieldset className="-mx-1 min-w-0 space-y-4 border-0 px-1 pb-1" disabled={viewOnly}>
+            <fieldset className="-mx-1 min-w-0 border-0 px-1 pb-1" disabled={viewOnly}>
+              <AnimatedSwitch>
+                <motion.div key={step} {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
               {step === 0 && (
                 <StepGeneral
                   name={name}
@@ -579,6 +583,8 @@ export function PkiTemplatesTab({
                   setCustomExtensions={setCustomExtensions}
                 />
               )}
+                </motion.div>
+              </AnimatedSwitch>
             </fieldset>
 
             <DialogFooter>

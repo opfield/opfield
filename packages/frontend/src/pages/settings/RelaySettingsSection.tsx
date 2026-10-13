@@ -47,6 +47,7 @@ import {
   withHostAccessInstallFlags,
 } from "@/lib/node-host-access";
 import { relayRemovalWaitNote } from "@/lib/relay-removal";
+import { activeRelayUpdateStep, relayStatusBadge } from "@/lib/relay-update-step";
 import { formatBytes, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -106,19 +107,6 @@ function admissionLabel(state: string | undefined) {
     default:
       return "Unknown";
   }
-}
-
-/**
- * The update step a relay is in while a Relay Pool rollout is working on it. Only for a relay that
- * is online during an unfinished rollout: an offline relay shows offline, never a stale step.
- */
-function activeUpdateStep(instance: DashboardRelayInstance, rolloutActive: boolean): string | null {
-  if (!rolloutActive || ["offline", "error"].includes(instance.state)) return null;
-  const step = instance.updateStep?.state;
-  return step &&
-    !["pending", "ready", "completed", "failed", "rolled_back", "skipped"].includes(step)
-    ? step
-    : null;
 }
 
 /**
@@ -573,40 +561,12 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       id: "state",
       header: "State",
       render: (row) => {
-        const policyExpired = Boolean(
-          row.kind === "remote" &&
-            row.policyExpiresAt &&
-            Date.parse(row.policyExpiresAt) <= Date.now()
-        );
         const removalWait = relayRemovalWaitNote(row);
-        const unreachable =
-          row.state === "ready" && !policyExpired && row.dataPlaneFailing === true;
+        const badge = relayStatusBadge(row, rolloutActive);
+        const { unreachable } = badge;
         return (
           <div className="space-y-1">
-            {activeUpdateStep(row, rolloutActive) ? (
-              // A relay in a rollout drains, restarts and rejoins: show the step, not each passing state.
-              <Badge variant="warning">updating · {activeUpdateStep(row, rolloutActive)}</Badge>
-            ) : (
-              <Badge
-                variant={
-                  row.state === "ready" && !policyExpired && !unreachable
-                    ? "success"
-                    : row.state === "draining" || row.state === "synchronizing" || row.reconnecting
-                      ? "warning"
-                      : "destructive"
-                }
-              >
-                {row.state === "offline"
-                  ? "offline"
-                  : policyExpired
-                    ? "policy expired"
-                    : row.reconnecting
-                      ? "reconnecting"
-                      : unreachable
-                        ? "unreachable"
-                        : row.state}
-              </Badge>
-            )}
+            <Badge variant={badge.variant}>{badge.label}</Badge>
             {unreachable && (
               <div className="text-xs text-muted-foreground">
                 Nodes cannot reach{" "}
@@ -660,9 +620,9 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
               </p>
             )}
             {removalWait && <p className="max-w-md text-xs text-muted-foreground">{removalWait}</p>}
-            {!row.policyTrust && row.state !== "ready" && row.health?.lastError && (
+            {badge.showLastError && (
               <p className="max-w-md break-words text-xs text-muted-foreground">
-                {row.health.lastError}
+                {row.health?.lastError}
               </p>
             )}
           </div>
@@ -750,7 +710,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
                 Renew certificate
               </Button>
             )}
-            {canReenroll(row) && !activeUpdateStep(row, rolloutActive) && (
+            {canReenroll(row) && !activeRelayUpdateStep(row, rolloutActive) && (
               <Button
                 variant={row.policyTrust?.state === "reenrollment_required" ? "default" : "outline"}
                 pending={poolAction === `reenroll:${row.id}`}
@@ -760,7 +720,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
                 Re-enroll
               </Button>
             )}
-            {!activeUpdateStep(row, rolloutActive) && (
+            {!activeRelayUpdateStep(row, rolloutActive) && (
               <Button
                 variant="outline"
                 pending={poolAction === `drain:${row.id}`}
@@ -770,7 +730,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
                 {row.state === "draining" ? "Resume" : "Drain"}
               </Button>
             )}
-            {!activeUpdateStep(row, rolloutActive) &&
+            {!activeRelayUpdateStep(row, rolloutActive) &&
               ["draining", "offline", "error"].includes(row.state) &&
               (row.state === "offline" ||
                 (metric(row.health?.activeTunnels) === 0 &&

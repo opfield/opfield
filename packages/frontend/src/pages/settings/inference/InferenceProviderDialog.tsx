@@ -95,6 +95,7 @@ export function InferenceProviderDialog({
     setApiMonthlyLimitUsd(formatUsdInput(connection.apiMonthlyLimitMicrodollars));
   }, [connection, open]);
 
+  // close-reset-ok: the connection is retained once shown, so this is null only before the first opening
   if (!displayedConnection) return null;
 
   const subscription = displayedProvider?.subscription === true;

@@ -1,7 +1,8 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
@@ -20,7 +21,6 @@ import { createClientUuid } from "@/lib/client-id";
 import { formatHostingAmount } from "@/lib/hosting-money";
 import { nodeTypeLabel } from "@/lib/node-appearance";
 import { canCreateInFolder } from "@/lib/scope-utils";
-import { AnimatedHeight, STEP_ANIMATION } from "@/pages/notifications/template-editor";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { useAuthStore } from "@/stores/auth";
@@ -414,8 +414,8 @@ export function HostingNodeWizard({
       ? () => setStep(step === "resources" ? "role" : "resources")
       : undefined;
   const body = (
-    <AnimatePresence initial={false} mode="wait">
-      <motion.div key={step} {...STEP_ANIMATION} className="space-y-4">
+    <AnimatedSwitch>
+      <motion.div key={step} {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
         <ContentLoading loading={optionsLoading} />
         {step === "role" && (
           <div className="space-y-4">
@@ -861,7 +861,7 @@ export function HostingNodeWizard({
           </PanelShell>
         )}
       </motion.div>
-    </AnimatePresence>
+    </AnimatedSwitch>
   );
   const footer = (
     <>
@@ -903,7 +903,7 @@ export function HostingNodeWizard({
     render({ body, footer })
   ) : (
     <>
-      <AnimatedHeight>{body}</AnimatedHeight>
+      {body}
       <DialogFooter>{footer}</DialogFooter>
     </>
   );

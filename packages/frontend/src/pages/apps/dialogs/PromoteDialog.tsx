@@ -1,8 +1,10 @@
 // Promote <source> to <target> (canvas frames env-promote, env-promote-summary): step 1 lists what
 // runs in the source per paired member with a switch each, step 2 summarises what happens in the
 // target, then each item's progress.
+import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, ArrowUpFromLine, Box, Boxes, Globe2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow, SettingsInlineControl } from "@/components/common/SettingsControlRow";
@@ -239,206 +241,210 @@ export function PromoteDialog({
         </DialogHeader>
         <DialogDescription>{description}</DialogDescription>
 
-        {step === 1 && (
-          <div className="space-y-4">
-            {targets.length > 1 && (
-              <SettingsInlineControl label="Promote to">
-                <Select value={targetId ?? undefined} onValueChange={setTargetId}>
-                  <SelectTrigger aria-label="Promote to">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {targets.map((env) => (
-                      <SelectItem key={env.id} value={env.id}>
-                        {env.isProduction ? `${env.name} · Production` : env.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </SettingsInlineControl>
-            )}
-            <p className="text-sm text-muted-foreground">
-              {targetName} will run exactly what runs in {source.name}: the same image digests, the
-              same Compose revision and the same Pages artifact. Nothing is rebuilt. Variables and
-              secrets stay per environment and are not promoted.
-            </p>
-            {loading || !preview ? (
+        <AnimatedSwitch>
+          {step === 1 && (
+            <motion.div key="step-1" {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
+              {targets.length > 1 && (
+                <SettingsInlineControl label="Promote to">
+                  <Select value={targetId ?? undefined} onValueChange={setTargetId}>
+                    <SelectTrigger aria-label="Promote to">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {targets.map((env) => (
+                        <SelectItem key={env.id} value={env.id}>
+                          {env.isProduction ? `${env.name} · Production` : env.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </SettingsInlineControl>
+              )}
               <p className="text-sm text-muted-foreground">
-                Reading what runs in both environments…
+                {targetName} will run exactly what runs in {source.name}: the same image digests,
+                the same Compose revision and the same Pages artifact. Nothing is rebuilt. Variables
+                and secrets stay per environment and are not promoted.
               </p>
-            ) : differing.length === 0 ? (
-              <Notice
-                tone="success"
-                title={`${targetName} already runs what runs in ${source.name}`}
-              />
-            ) : (
-              <>
-                {images.length > 0 && (
-                  <PanelShell
-                    title="Containers and deployments"
-                    icon={<Box className="h-4 w-4" />}
-                    description="Same image digest, no rebuild"
-                  >
-                    {images.map((item) => (
-                      <SettingsControlRow
-                        key={item.pairKey}
-                        title={`${item.targetName} · ${TYPE_LABEL[item.type].toLowerCase()}`}
-                        description={
-                          <>
-                            <span className="block font-mono">
-                              {item.from ?? "not running"} → {item.to}
-                            </span>
-                            {item.build ? (
-                              <span className="block">
-                                Commit {item.build.commitSha.slice(0, 7)}
+              {loading || !preview ? (
+                <p className="text-sm text-muted-foreground">
+                  Reading what runs in both environments…
+                </p>
+              ) : differing.length === 0 ? (
+                <Notice
+                  tone="success"
+                  title={`${targetName} already runs what runs in ${source.name}`}
+                />
+              ) : (
+                <>
+                  {images.length > 0 && (
+                    <PanelShell
+                      title="Containers and deployments"
+                      icon={<Box className="h-4 w-4" />}
+                      description="Same image digest, no rebuild"
+                    >
+                      {images.map((item) => (
+                        <SettingsControlRow
+                          key={item.pairKey}
+                          title={`${item.targetName} · ${TYPE_LABEL[item.type].toLowerCase()}`}
+                          description={
+                            <>
+                              <span className="block font-mono">
+                                {item.from ?? "not running"} → {item.to}
                               </span>
-                            ) : null}
-                            <span className="block">
-                              {item.promotable
-                                ? `Rollout: ${item.rollout}`
-                                : (item.reason ?? "Not promotable")}
+                              {item.build ? (
+                                <span className="block">
+                                  Commit {item.build.commitSha.slice(0, 7)}
+                                </span>
+                              ) : null}
+                              <span className="block">
+                                {item.promotable
+                                  ? `Rollout: ${item.rollout}`
+                                  : (item.reason ?? "Not promotable")}
+                              </span>
+                            </>
+                          }
+                        >
+                          {itemSwitch(item)}
+                        </SettingsControlRow>
+                      ))}
+                    </PanelShell>
+                  )}
+                  {composeItems.map((item) => (
+                    <PanelShell
+                      key={item.pairKey}
+                      title={`Compose project · ${item.targetName}`}
+                      icon={<Boxes className="h-4 w-4" />}
+                      description={`Compose file ${item.from ?? "none"} → ${item.to}`}
+                      actions={itemSwitch(item)}
+                    >
+                      {(item.compose?.services ?? []).map((service) => (
+                        <SettingsControlRow
+                          key={service.name}
+                          title={service.name}
+                          description={
+                            <span className="font-mono">
+                              {service.changed
+                                ? `${service.from ?? "not running"} → ${service.to ?? "not running"}`
+                                : service.to}
                             </span>
-                          </>
-                        }
-                      >
-                        {itemSwitch(item)}
-                      </SettingsControlRow>
-                    ))}
-                  </PanelShell>
-                )}
-                {composeItems.map((item) => (
-                  <PanelShell
-                    key={item.pairKey}
-                    title={`Compose project · ${item.targetName}`}
-                    icon={<Boxes className="h-4 w-4" />}
-                    description={`Compose file ${item.from ?? "none"} → ${item.to}`}
-                    actions={itemSwitch(item)}
-                  >
-                    {(item.compose?.services ?? []).map((service) => (
-                      <SettingsControlRow
-                        key={service.name}
-                        title={service.name}
-                        description={
-                          <span className="font-mono">
-                            {service.changed
-                              ? `${service.from ?? "not running"} → ${service.to ?? "not running"}`
-                              : service.to}
-                          </span>
-                        }
-                      >
-                        <Badge variant={service.changed ? "warning" : "secondary"} size="inline">
-                          {service.changed ? "Changed" : "Same"}
-                        </Badge>
-                      </SettingsControlRow>
-                    ))}
-                    {(item.compose?.changes ?? []).map((change) => (
-                      <SettingsControlRow
-                        key={change.path}
-                        title={<span className="font-mono text-xs">{change.path}</span>}
-                        description={
-                          <span className="font-mono">
-                            − {change.from ?? "none"} · + {change.to ?? "none"}
-                          </span>
-                        }
-                      >
-                        <Badge variant="outline" size="inline">
-                          Compose file
-                        </Badge>
-                      </SettingsControlRow>
-                    ))}
-                  </PanelShell>
-                ))}
-                {pagesItems.length > 0 && (
-                  <PanelShell
-                    title="Pages"
-                    icon={<Globe2 className="h-4 w-4" />}
-                    description="Active deployment"
-                  >
-                    {pagesItems.map((item) => (
-                      <SettingsControlRow
-                        key={item.pairKey}
-                        title={`${item.targetName} · Pages project`}
-                        description={
-                          <span className="font-mono">
-                            {item.from ?? "none"} → {item.to}
-                          </span>
-                        }
-                      >
-                        {itemSwitch(item)}
-                      </SettingsControlRow>
-                    ))}
-                  </PanelShell>
-                )}
-              </>
-            )}
-            {preview && (
-              <p className="text-xs text-muted-foreground">
-                {[
-                  preview.unchanged.length > 0
-                    ? `${preview.unchanged.join(", ")} ${preview.unchanged.length === 1 ? "is" : "are"} unchanged.`
-                    : null,
-                  preview.unpaired.length > 0
-                    ? `${preview.unpaired.map((entry) => `${entry.name} (${entry.message})`).join(", ")} ${preview.unpaired.length === 1 ? "is" : "are"} not promoted.`
-                    : null,
-                  "Databases, storage, their data and schema are never promoted.",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              </p>
-            )}
-          </div>
-        )}
+                          }
+                        >
+                          <Badge variant={service.changed ? "warning" : "secondary"} size="inline">
+                            {service.changed ? "Changed" : "Same"}
+                          </Badge>
+                        </SettingsControlRow>
+                      ))}
+                      {(item.compose?.changes ?? []).map((change) => (
+                        <SettingsControlRow
+                          key={change.path}
+                          title={<span className="font-mono text-xs">{change.path}</span>}
+                          description={
+                            <span className="font-mono">
+                              − {change.from ?? "none"} · + {change.to ?? "none"}
+                            </span>
+                          }
+                        >
+                          <Badge variant="outline" size="inline">
+                            Compose file
+                          </Badge>
+                        </SettingsControlRow>
+                      ))}
+                    </PanelShell>
+                  ))}
+                  {pagesItems.length > 0 && (
+                    <PanelShell
+                      title="Pages"
+                      icon={<Globe2 className="h-4 w-4" />}
+                      description="Active deployment"
+                    >
+                      {pagesItems.map((item) => (
+                        <SettingsControlRow
+                          key={item.pairKey}
+                          title={`${item.targetName} · Pages project`}
+                          description={
+                            <span className="font-mono">
+                              {item.from ?? "none"} → {item.to}
+                            </span>
+                          }
+                        >
+                          {itemSwitch(item)}
+                        </SettingsControlRow>
+                      ))}
+                    </PanelShell>
+                  )}
+                </>
+              )}
+              {preview && (
+                <p className="text-xs text-muted-foreground">
+                  {[
+                    preview.unchanged.length > 0
+                      ? `${preview.unchanged.join(", ")} ${preview.unchanged.length === 1 ? "is" : "are"} unchanged.`
+                      : null,
+                    preview.unpaired.length > 0
+                      ? `${preview.unpaired.map((entry) => `${entry.name} (${entry.message})`).join(", ")} ${preview.unpaired.length === 1 ? "is" : "are"} not promoted.`
+                      : null,
+                    "Databases, storage, their data and schema are never promoted.",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                </p>
+              )}
+            </motion.div>
+          )}
 
-        {step === 2 && (
-          <div className="space-y-4">
-            <Notice
-              tone="info"
-              title={`${plural(chosen.length, "item")} promoted into ${targetName}`}
-            >
-              {targetName} then runs what {source.name} runs now. An entry is added to the app's
-              Activity.
-            </Notice>
-            <PanelShell
-              title={`What happens in ${targetName}`}
-              icon={<ArrowUpFromLine className="h-4 w-4" />}
-              description="Each uses its normal rollout"
-            >
-              {chosen.map((item) => (
-                <SettingsControlRow
-                  key={item.pairKey}
-                  title={item.targetName}
-                  description={rolloutText(item)}
-                >
-                  <Badge variant="secondary" size="inline">
-                    {TYPE_LABEL[item.type]}
-                  </Badge>
-                </SettingsControlRow>
-              ))}
-            </PanelShell>
-          </div>
-        )}
-
-        {step === 3 && promotion && (
-          <PanelShell
-            title={`Promoting into ${targetName}`}
-            icon={<ArrowUpFromLine className="h-4 w-4" />}
-            description="One item after another; a failure does not stop the others"
-          >
-            {promotion.items.map((item) => (
-              <SettingsControlRow
-                key={item.pairKey}
-                title={item.targetName}
-                description={
-                  item.error ?? item.detail ?? `${item.from ?? "not running"} → ${item.to}`
-                }
+          {step === 2 && (
+            <motion.div key="step-2" {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
+              <Notice
+                tone="info"
+                title={`${plural(chosen.length, "item")} promoted into ${targetName}`}
               >
-                <Badge variant={STATUS_BADGE[item.status].variant} size="inline">
-                  {STATUS_BADGE[item.status].label}
-                </Badge>
-              </SettingsControlRow>
-            ))}
-          </PanelShell>
-        )}
+                {targetName} then runs what {source.name} runs now. An entry is added to the app's
+                Activity.
+              </Notice>
+              <PanelShell
+                title={`What happens in ${targetName}`}
+                icon={<ArrowUpFromLine className="h-4 w-4" />}
+                description="Each uses its normal rollout"
+              >
+                {chosen.map((item) => (
+                  <SettingsControlRow
+                    key={item.pairKey}
+                    title={item.targetName}
+                    description={rolloutText(item)}
+                  >
+                    <Badge variant="secondary" size="inline">
+                      {TYPE_LABEL[item.type]}
+                    </Badge>
+                  </SettingsControlRow>
+                ))}
+              </PanelShell>
+            </motion.div>
+          )}
+
+          {step === 3 && promotion && (
+            <motion.div key="step-3-promotion" {...CONTENT_SWITCH_ANIMATION}>
+              <PanelShell
+                title={`Promoting into ${targetName}`}
+                icon={<ArrowUpFromLine className="h-4 w-4" />}
+                description="One item after another; a failure does not stop the others"
+              >
+                {promotion.items.map((item) => (
+                  <SettingsControlRow
+                    key={item.pairKey}
+                    title={item.targetName}
+                    description={
+                      item.error ?? item.detail ?? `${item.from ?? "not running"} → ${item.to}`
+                    }
+                  >
+                    <Badge variant={STATUS_BADGE[item.status].variant} size="inline">
+                      {STATUS_BADGE[item.status].label}
+                    </Badge>
+                  </SettingsControlRow>
+                ))}
+              </PanelShell>
+            </motion.div>
+          )}
+        </AnimatedSwitch>
 
         <DialogFooter>
           {step === 1 && (

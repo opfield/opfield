@@ -5,14 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { nodeTypeLabel } from "@/lib/node-appearance";
 import { nodeRoute } from "@/lib/resource-routes";
 import type { Node } from "@/types";
-import { effectiveNodeStatus } from "@/types";
+import { nodeDisplayStatus } from "@/types";
 
 interface NodesCardProps {
   nodesList: Node[];
 }
 
 function dashboardNodePriority(node: Node): number {
-  const status = effectiveNodeStatus(node);
+  const status = nodeDisplayStatus(node);
   if (status === "offline" || status === "error") return 0;
   if (status === "degraded") return 1;
   if (status === "pending") return 2;
@@ -65,8 +65,8 @@ export function NodesCard({ nodesList }: NodesCardProps) {
                   {node.daemonVersion}
                 </Badge>
               )}
-              <Badge variant={nodeStatusTone(effectiveNodeStatus(node))} size="inline">
-                {effectiveNodeStatus(node)}
+              <Badge variant={nodeStatusTone(nodeDisplayStatus(node))} size="inline">
+                {nodeDisplayStatus(node)}
               </Badge>
             </Link>
           ))}

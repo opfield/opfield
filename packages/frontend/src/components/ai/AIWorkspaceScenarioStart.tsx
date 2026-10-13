@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { FinalizeSetupFlow } from "@/pages/dashboard/FinalizeSetupFlow";
 import {
   type ConnectorSetupRequest,
@@ -63,24 +64,33 @@ export function AIWorkspaceAssistantConnectorSetup({
   setup: AssistantConnectorSetup | null;
   onFinished: (setup: AssistantConnectorSetup, status: "configured" | "cancelled") => void;
 }) {
-  if (!setup) return null;
-  if (setup.connector === "ssh") {
+  // The last setup stays while its dialog closes: a finished setup turns `setup` null, which
+  // closes the dialog instead of unmounting it.
+  const shown = useRetainedDialogValue(setup, setup !== null);
+  // close-reset-ok: no setup was started yet, so there is no dialog to close
+  if (!shown) return null;
+  const open = setup !== null;
+  if (shown.connector === "ssh") {
     return (
       <ExternalSshConnectorDialog
-        open
-        initialHost={setup.host}
-        onOpenChange={(open) => {
-          if (!open) onFinished(setup, "cancelled");
+        open={open}
+        initialHost={shown.host}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && setup) onFinished(setup, "cancelled");
         }}
-        onCreated={() => onFinished(setup, "configured")}
+        onCreated={() => {
+          if (setup) onFinished(setup, "configured");
+        }}
       />
     );
   }
   return (
     <IntegrationsSetupWizard
-      open
-      directSetup={setup}
-      onFinished={(status) => onFinished(setup, status)}
+      open={open}
+      directSetup={shown}
+      onFinished={(status) => {
+        if (setup) onFinished(setup, status);
+      }}
     />
   );
 }

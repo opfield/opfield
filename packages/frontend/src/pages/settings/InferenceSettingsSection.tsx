@@ -1,5 +1,5 @@
 import { Boxes, Network } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { useInferenceCoreStatus } from "@/hooks/use-inference-core-status";
@@ -62,6 +62,11 @@ export function InferenceSettingsSection() {
   // Provider/model panels stay disabled with an explanation unless the core is
   // compatible and ready.
   const coreStatusKnown = core.status !== null || core.error !== null;
+  // Once shown, the provider and model panels stay mounted (hidden) while the core is briefly not
+  // ready, so a dialog open in them closes with its animation instead of vanishing with the panel.
+  const coreWasReady = useRef(false);
+  if (coreReady) coreWasReady.current = true;
+  const providersMounted = coreReady || coreWasReady.current;
   // The tab stays hidden until the core status is known: the panels that wait
   // for it mount in the same commit and report their own loads before this
   // one ends, so nothing appears after the tab is revealed.
@@ -93,33 +98,35 @@ export function InferenceSettingsSection() {
       )}
       {canViewProviders && <InferenceEndpointSettingsPanel />}
       {canViewUsage && <InferenceOverview refreshToken={usageRevision} />}
-      {canViewProviders &&
-        coreStatusKnown &&
-        (coreReady ? (
+      {canViewProviders && coreStatusKnown && !coreReady && (
+        <CorePrerequisiteNotice
+          title="Providers"
+          description="Connected accounts and API credentials. Higher connections are used first by Sequential routing; Balanced distributes evenly."
+          status={core.status}
+          icon={<Network className="h-4 w-4" />}
+        />
+      )}
+      {canViewProviders && providersMounted && (
+        <div hidden={!coreReady}>
           <InferenceProvidersPanel
             refreshToken={catalogRevision}
             onConnectionsChanged={() => setProviderRevision((value) => value + 1)}
           />
-        ) : (
-          <CorePrerequisiteNotice
-            title="Providers"
-            description="Connected accounts and API credentials. Higher connections are used first by Sequential routing; Balanced distributes evenly."
-            status={core.status}
-            icon={<Network className="h-4 w-4" />}
-          />
-        ))}
-      {canManageModels &&
-        (!canViewProviders || coreStatusKnown) &&
-        (canViewProviders && !coreReady ? (
-          <CorePrerequisiteNotice
-            title="Models"
-            description="Models exposed to users and the provider account group serving each model"
-            status={core.status}
-            icon={<Boxes className="h-4 w-4" />}
-          />
-        ) : (
+        </div>
+      )}
+      {canManageModels && canViewProviders && coreStatusKnown && !coreReady && (
+        <CorePrerequisiteNotice
+          title="Models"
+          description="Models exposed to users and the provider account group serving each model"
+          status={core.status}
+          icon={<Boxes className="h-4 w-4" />}
+        />
+      )}
+      {canManageModels && (!canViewProviders || providersMounted) && (
+        <div hidden={canViewProviders && !coreReady}>
           <InferenceModelsPanel refreshToken={catalogRevision + providerRevision} />
-        ))}
+        </div>
+      )}
       {(canViewUsage || canManageLimits) && (
         <InferenceUsersTable
           canManage={canManageLimits}

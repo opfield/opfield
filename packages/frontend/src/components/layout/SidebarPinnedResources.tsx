@@ -33,7 +33,7 @@ import { usePinnedDatabasesStore } from "@/stores/pinned-databases";
 import { usePinnedNodesStore } from "@/stores/pinned-nodes";
 import { usePinnedProxiesStore } from "@/stores/pinned-proxies";
 import { usePinnedStorageStore } from "@/stores/pinned-storage";
-import { effectiveNodeStatus } from "@/types";
+import { nodeDisplayStatus } from "@/types";
 import { SIDEBAR_ITEM_FADE, SIDEBAR_ITEM_FILL, SIDEBAR_ITEM_HOVER_FILL } from "./sidebar-item-fill";
 
 /**
@@ -242,7 +242,7 @@ export function SidebarPinnedResources({
               <span className="truncate" title={node.displayName || node.hostname}>
                 {node.displayName || node.hostname}
               </span>
-              <span className={statusDot(effectiveNodeStatus(node), "node")} />
+              <span className={statusDot(nodeDisplayStatus(node), "node")} />
             </Link>
           );
         })}

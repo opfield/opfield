@@ -1,7 +1,8 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowLeft, Check, KeyRound, Network, RefreshCw, Server, Settings2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { Combobox } from "@/components/common/Combobox";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -19,7 +20,6 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toastApiError } from "@/lib/api-error-toast";
-import { AnimatedHeight, STEP_ANIMATION } from "@/pages/notifications/template-editor";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import {
@@ -454,750 +454,744 @@ export function HostingConnectorDialog({
         {loading ? (
           <ContentLoading loading />
         ) : (
-          <AnimatedHeight>
-            <AnimatePresence initial={false} mode="wait">
-              <motion.div key={step} {...STEP_ANIMATION} className="space-y-5">
-                {step === 1 && (
-                  <PanelShell
-                    title="Connection"
-                    icon={<Server className="h-4 w-4" />}
-                    description="Hosting provider, account and API credentials."
+          <AnimatedSwitch>
+            <motion.div key={step} {...CONTENT_SWITCH_ANIMATION} className="space-y-5">
+              {step === 1 && (
+                <PanelShell
+                  title="Connection"
+                  icon={<Server className="h-4 w-4" />}
+                  description="Hosting provider, account and API credentials."
+                >
+                  <SettingsControlRow
+                    title="Provider"
+                    description="Service that hosts your virtual machines."
+                    help="A saved connector stays bound to its provider."
                   >
+                    <Combobox
+                      ariaLabel="Provider"
+                      value={provider}
+                      disabled={!!connector || locked}
+                      options={Object.entries(HOSTING_PROVIDER_LABELS).map(([value, label]) => ({
+                        value,
+                        label,
+                      }))}
+                      onValueChange={(value) => {
+                        const next = value as HostingProvider;
+                        setProvider(next);
+                        setBaseUrl(HOSTING_API_ORIGINS[next]);
+                        setSettings(DEFAULT_HOSTING_SETTINGS);
+                        setProvisioning(true);
+                        invalidateConnection();
+                        setTls("system");
+                      }}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="Connector name"
+                    description="Display name used throughout Opfield."
+                  >
+                    <Input
+                      aria-label="Connector name"
+                      placeholder="Production hosting"
+                      value={name}
+                      disabled={locked}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="API origin"
+                    description={
+                      pve
+                        ? "HTTPS address of your Proxmox API."
+                        : "Official API address for this provider."
+                    }
+                    help="Enter only the HTTPS origin and port, without an API path."
+                  >
+                    <Input
+                      aria-label="API origin"
+                      placeholder="https://pve.example.com:8006"
+                      value={pve ? baseUrl : HOSTING_API_ORIGINS[provider]}
+                      disabled={locked || !pve}
+                      onChange={(e) => {
+                        setBaseUrl(e.target.value);
+                        invalidateConnection();
+                      }}
+                    />
+                  </SettingsControlRow>
+                  {pve && (
                     <SettingsControlRow
-                      title="Provider"
-                      description="Service that hosts your virtual machines."
-                      help="A saved connector stays bound to its provider."
-                    >
-                      <Combobox
-                        ariaLabel="Provider"
-                        value={provider}
-                        disabled={!!connector || locked}
-                        options={Object.entries(HOSTING_PROVIDER_LABELS).map(([value, label]) => ({
-                          value,
-                          label,
-                        }))}
-                        onValueChange={(value) => {
-                          const next = value as HostingProvider;
-                          setProvider(next);
-                          setBaseUrl(HOSTING_API_ORIGINS[next]);
-                          setSettings(DEFAULT_HOSTING_SETTINGS);
-                          setProvisioning(true);
-                          invalidateConnection();
-                          setTls("system");
-                        }}
-                      />
-                    </SettingsControlRow>
-                    <SettingsControlRow
-                      title="Connector name"
-                      description="Display name used throughout Opfield."
+                      title="Token ID"
+                      description="User, realm and name of the API token."
+                      help="This identifier is not the secret. Enter its secret in API token below."
                     >
                       <Input
-                        aria-label="Connector name"
-                        placeholder="Production hosting"
-                        value={name}
+                        aria-label="Token ID"
+                        placeholder="opfield@pve!hosting"
+                        value={settings.tokenId ?? ""}
                         disabled={locked}
-                        onChange={(e) => setName(e.target.value)}
-                      />
-                    </SettingsControlRow>
-                    <SettingsControlRow
-                      title="API origin"
-                      description={
-                        pve
-                          ? "HTTPS address of your Proxmox API."
-                          : "Official API address for this provider."
-                      }
-                      help="Enter only the HTTPS origin and port, without an API path."
-                    >
-                      <Input
-                        aria-label="API origin"
-                        placeholder="https://pve.example.com:8006"
-                        value={pve ? baseUrl : HOSTING_API_ORIGINS[provider]}
-                        disabled={locked || !pve}
                         onChange={(e) => {
-                          setBaseUrl(e.target.value);
+                          set({ tokenId: e.target.value });
                           invalidateConnection();
                         }}
                       />
                     </SettingsControlRow>
-                    {pve && (
-                      <SettingsControlRow
-                        title="Token ID"
-                        description="User, realm and name of the API token."
-                        help="This identifier is not the secret. Enter its secret in API token below."
-                      >
-                        <Input
-                          aria-label="Token ID"
-                          placeholder="opfield@pve!hosting"
-                          value={settings.tokenId ?? ""}
-                          disabled={locked}
-                          onChange={(e) => {
-                            set({ tokenId: e.target.value });
-                            invalidateConnection();
-                          }}
-                        />
-                      </SettingsControlRow>
-                    )}
-                    <SettingsControlRow
-                      title={
+                  )}
+                  <SettingsControlRow
+                    title={
+                      provider === "hostkey"
+                        ? connector
+                          ? "Replacement API key"
+                          : "API key"
+                        : connector
+                          ? "Replacement token"
+                          : "API token"
+                    }
+                    description={
+                      provider === "hostkey"
+                        ? "Original HOSTKEY API key, not its displayed hash or a session token. Opfield manages session authorization automatically."
+                        : connector?.provider === "hetzner"
+                          ? "Create a new connector to change the Hetzner project token."
+                          : connector
+                            ? "Leave blank to retain the saved token. Re-enter it to change the API address or TLS policy."
+                            : "API credential for the provider account."
+                    }
+                    help={
+                      provider === "hostkey"
+                        ? "Create a dedicated key in Invapi → API keys. For an existing connector, leave blank to retain its saved key. Credentials are encrypted and never displayed."
+                        : provider === "cloudblast"
+                          ? "Create a token in CloudBlast Account Settings → API. New servers get Opfield over SSH with a one-time key that is deleted after installation. Saved credentials are encrypted and never displayed."
+                          : "Use a dedicated scoped token. Saved credentials are encrypted and never displayed."
+                    }
+                  >
+                    <Input
+                      aria-label={provider === "hostkey" ? "API key" : "API token"}
+                      type="password"
+                      placeholder={
                         provider === "hostkey"
                           ? connector
-                            ? "Replacement API key"
-                            : "API key"
+                            ? "Leave blank to keep the saved key"
+                            : "Original HOSTKEY API key"
                           : connector
-                            ? "Replacement token"
-                            : "API token"
+                            ? "Leave blank to keep the saved token"
+                            : "Provider API token"
                       }
-                      description={
-                        provider === "hostkey"
-                          ? "Original HOSTKEY API key, not its displayed hash or a session token. Opfield manages session authorization automatically."
-                          : connector?.provider === "hetzner"
-                            ? "Create a new connector to change the Hetzner project token."
-                            : connector
-                              ? "Leave blank to retain the saved token. Re-enter it to change the API address or TLS policy."
-                              : "API credential for the provider account."
-                      }
-                      help={
-                        provider === "hostkey"
-                          ? "Create a dedicated key in Invapi → API keys. For an existing connector, leave blank to retain its saved key. Credentials are encrypted and never displayed."
-                          : provider === "cloudblast"
-                            ? "Create a token in CloudBlast Account Settings → API. New servers get Opfield over SSH with a one-time key that is deleted after installation. Saved credentials are encrypted and never displayed."
-                            : "Use a dedicated scoped token. Saved credentials are encrypted and never displayed."
-                      }
-                    >
-                      <Input
-                        aria-label={provider === "hostkey" ? "API key" : "API token"}
-                        type="password"
-                        placeholder={
-                          provider === "hostkey"
-                            ? connector
-                              ? "Leave blank to keep the saved key"
-                              : "Original HOSTKEY API key"
-                            : connector
-                              ? "Leave blank to keep the saved token"
-                              : "Provider API token"
-                        }
-                        value={token}
-                        autoComplete="new-password"
-                        disabled={locked || (!!connector && provider === "hetzner")}
-                        onChange={(e) => {
-                          setToken(e.target.value);
-                          invalidateConnection();
-                        }}
-                      />
-                    </SettingsControlRow>
-                    {connector && (
-                      <SettingsControlRow
-                        title="Enabled"
-                        description="Allow Opfield to use this connector."
-                        help="Disabling it does not stop or delete provider VMs."
-                      >
-                        <Switch
-                          ariaLabel="Enabled"
-                          checked={enabled}
-                          disabled={locked}
-                          onChange={setEnabled}
-                        />
-                      </SettingsControlRow>
-                    )}
-                  </PanelShell>
-                )}
-                {pve && step === 2 && (
-                  <PanelShell
-                    title="Proxmox host and trust"
-                    icon={<KeyRound className="h-4 w-4" />}
-                    description="One physical host per connector; cluster identity is detected by Opfield."
-                  >
+                      value={token}
+                      autoComplete="new-password"
+                      disabled={locked || (!!connector && provider === "hetzner")}
+                      onChange={(e) => {
+                        setToken(e.target.value);
+                        invalidateConnection();
+                      }}
+                    />
+                  </SettingsControlRow>
+                  {connector && (
                     <SettingsControlRow
-                      title="Certificate verification"
-                      description="How Opfield verifies the Proxmox HTTPS certificate."
-                      help="Use system trust, your private CA, or an independently verified fingerprint. TLS verification cannot be disabled."
-                    >
-                      <Combobox
-                        ariaLabel="Certificate verification"
-                        value={tls}
-                        disabled={locked}
-                        options={[
-                          { value: "system", label: "System trust" },
-                          { value: "ca", label: "Private CA certificate" },
-                          { value: "pin", label: "Verified certificate fingerprint" },
-                        ]}
-                        onValueChange={(value) => {
-                          setTls(value as typeof tls);
-                          invalidateConnection();
-                        }}
-                      />
-                    </SettingsControlRow>
-                    {tls === "ca" && (
-                      <SettingsControlRow
-                        title="Trusted CA certificate"
-                        description="PEM certificate of your private certificate authority."
-                        help="Verify the CA independently before trusting certificates it signs."
-                      >
-                        <Textarea
-                          aria-label="CA certificate"
-                          placeholder="-----BEGIN CERTIFICATE-----"
-                          rows={4}
-                          value={settings.caCertificate ?? ""}
-                          disabled={locked}
-                          onChange={(e) => {
-                            set({ caCertificate: e.target.value });
-                            invalidateConnection();
-                          }}
-                        />
-                      </SettingsControlRow>
-                    )}
-                    {tls === "pin" && (
-                      <SettingsControlRow
-                        title="Certificate SHA-256 pin"
-                        description="Fingerprint of the Proxmox API certificate."
-                        help="Verify this fingerprint on the Proxmox server through a trusted channel; do not trust an unknown certificate automatically."
-                      >
-                        <Input
-                          aria-label="Certificate SHA-256 pin"
-                          placeholder="64 hexadecimal characters"
-                          value={settings.certificateFingerprint ?? ""}
-                          disabled={locked}
-                          onChange={(e) => {
-                            set({ certificateFingerprint: e.target.value });
-                            invalidateConnection();
-                          }}
-                        />
-                      </SettingsControlRow>
-                    )}
-                    <SettingsControlRow
-                      title="Physical host"
-                      description="Test the connection to load available Proxmox hosts."
-                      help="New VMs stay on this host. VMIDs remain unique across the entire cluster."
-                    >
-                      <Combobox
-                        ariaLabel="Physical host"
-                        value={host}
-                        disabled={locked || !discovery}
-                        options={options(discovery?.hosts ?? [])}
-                        onValueChange={(value) => {
-                          set({ proxmoxHost: value });
-                          updatePlacement({
-                            nodes: [value],
-                            storage: "",
-                            imageStorage: "",
-                            seedStorage: "",
-                            bridge: "",
-                          });
-                        }}
-                      />
-                    </SettingsControlRow>
-                    <SettingsControlRow
-                      title="VM provisioning"
-                      description="Create new VMs using a saved host and network profile."
-                      help="Turn off to connect existing VM/CT inventory and automatic adoption only."
+                      title="Enabled"
+                      description="Allow Opfield to use this connector."
+                      help="Disabling it does not stop or delete provider VMs."
                     >
                       <Switch
-                        ariaLabel="VM provisioning"
-                        checked={provisioning}
+                        ariaLabel="Enabled"
+                        checked={enabled}
                         disabled={locked}
-                        onChange={setProvisioning}
+                        onChange={setEnabled}
                       />
                     </SettingsControlRow>
-                  </PanelShell>
-                )}
-                {pve && provisioning && step === 3 && (
-                  <PanelShell
-                    title="Infrastructure"
-                    icon={<Settings2 className="h-4 w-4" />}
-                    description="Choose disk, image import and seed ISO storage, allowed VMIDs and optional aggregate budgets."
+                  )}
+                </PanelShell>
+              )}
+              {pve && step === 2 && (
+                <PanelShell
+                  title="Proxmox host and trust"
+                  icon={<KeyRound className="h-4 w-4" />}
+                  description="One physical host per connector; cluster identity is detected by Opfield."
+                >
+                  <SettingsControlRow
+                    title="Certificate verification"
+                    description="How Opfield verifies the Proxmox HTTPS certificate."
+                    help="Use system trust, your private CA, or an independently verified fingerprint. TLS verification cannot be disabled."
                   >
+                    <Combobox
+                      ariaLabel="Certificate verification"
+                      value={tls}
+                      disabled={locked}
+                      options={[
+                        { value: "system", label: "System trust" },
+                        { value: "ca", label: "Private CA certificate" },
+                        { value: "pin", label: "Verified certificate fingerprint" },
+                      ]}
+                      onValueChange={(value) => {
+                        setTls(value as typeof tls);
+                        invalidateConnection();
+                      }}
+                    />
+                  </SettingsControlRow>
+                  {tls === "ca" && (
                     <SettingsControlRow
-                      title="Disk storage"
-                      description="Storage for VM disks; it must provide images content."
-                      help="Choose storage on the selected host that can hold imported VM disks."
+                      title="Trusted CA certificate"
+                      description="PEM certificate of your private certificate authority."
+                      help="Verify the CA independently before trusting certificates it signs."
                     >
-                      <Combobox
-                        ariaLabel="Disk storage"
-                        value={placement.storage}
-                        disabled={locked}
-                        options={options(diskStorages)}
-                        onValueChange={(storage) => updatePlacement({ storage })}
-                      />
-                    </SettingsControlRow>
-                    <SettingsControlRow
-                      title="Image storage"
-                      description="Storage for temporary OS images; it must support import content."
-                      help="Use dedicated storage. Proxmox requires Datastore.AllocateTemplate to upload and Datastore.Allocate to clean up operation-owned files."
-                    >
-                      <Combobox
-                        ariaLabel="Image storage"
-                        value={placement.imageStorage ?? ""}
-                        disabled={locked}
-                        options={options(imageStorages)}
-                        onValueChange={(imageStorage) => updatePlacement({ imageStorage })}
-                      />
-                    </SettingsControlRow>
-                    <SettingsControlRow
-                      title="Seed storage"
-                      description="Storage for per-VM NoCloud seed ISOs; it must provide iso content."
-                      help="Use dedicated ISO storage. Proxmox requires Datastore.Allocate on this storage for automatic cleanup after enrollment; do not grant global administrator access."
-                    >
-                      <Combobox
-                        ariaLabel="Seed storage"
-                        value={placement.seedStorage ?? ""}
-                        disabled={locked}
-                        options={options(seedStorages)}
-                        onValueChange={(seedStorage) => updatePlacement({ seedStorage })}
-                      />
-                    </SettingsControlRow>
-                    <SettingsControlRow
-                      title="Allowed VMIDs"
-                      description={
-                        vmidError ??
-                        `Comma-separated IDs and ranges, combined as needed. ${vmids.length} allowed · ${vmids.filter((id) => discovery?.usedVmids?.includes(id)).length} occupied · ${vmids.filter((id) => !discovery?.usedVmids?.includes(id)).length} available at last check.`
-                      }
-                      help="Opfield creates only inside this pool and skips occupied IDs across the cluster. Maximum 1000 unique IDs."
-                    >
-                      <Input
-                        aria-label="Allowed VMIDs"
-                        placeholder="250-260,271,273-280"
-                        value={placement.vmidRange ?? ""}
-                        disabled={locked}
-                        onChange={(e) => updatePlacement({ vmidRange: e.target.value })}
-                      />
-                    </SettingsControlRow>
-                    {(
-                      [
-                        [
-                          "maxCpu",
-                          "Maximum CPU budget (cores)",
-                          "Unlimited",
-                          "vCPU budget for Opfield-created or adopted resources, including pending operations.",
-                          "Leave blank for unrestricted total CPU.",
-                        ],
-                        [
-                          "maxMemoryMb",
-                          "Maximum memory budget (MiB)",
-                          "Unlimited",
-                          "Memory budget for Opfield-created or adopted resources, including pending operations.",
-                          "Leave blank for unrestricted total memory.",
-                        ],
-                        [
-                          "maxDiskGb",
-                          "Maximum disk budget (GiB)",
-                          "Unlimited",
-                          "Disk budget for Opfield-created or adopted resources, including pending operations.",
-                          "Leave blank for unrestricted total disk.",
-                        ],
-                      ] as const
-                    ).map(([key, label, placeholder, description, help]) => (
-                      <SettingsControlRow
-                        key={key}
-                        title={label}
-                        description={description}
-                        help={help}
-                      >
-                        <Input
-                          aria-label={label}
-                          type="number"
-                          min={1}
-                          placeholder={placeholder}
-                          value={placement[key] ?? ""}
-                          disabled={locked}
-                          onChange={(e) =>
-                            updatePlacement({
-                              [key]: e.target.value ? Number(e.target.value) : undefined,
-                            })
-                          }
-                        />
-                      </SettingsControlRow>
-                    ))}
-                    <SettingsControlRow
-                      title="Resource pool"
-                      description="Optional existing Proxmox pool for new VMs."
-                    >
-                      <Input
-                        aria-label="Resource pool"
-                        placeholder="opfield-nodes"
-                        value={placement.pool ?? ""}
-                        disabled={locked}
-                        onChange={(e) => updatePlacement({ pool: e.target.value })}
-                      />
-                    </SettingsControlRow>
-                  </PanelShell>
-                )}
-                {pve && provisioning && step === 4 && (
-                  <PanelShell
-                    title="Network defaults"
-                    icon={<Network className="h-4 w-4" />}
-                    description="Applied to new VMs only; existing guests and hypervisor networks stay unchanged."
-                  >
-                    <SettingsControlRow
-                      title="Bridge"
-                      description="Existing bridge for the VM network interface."
-                      help="This is the bridge on the hypervisor, not the interface name inside Linux."
-                    >
-                      <Combobox
-                        ariaLabel="Bridge"
-                        value={placement.bridge}
-                        disabled={locked}
-                        options={options(
-                          (discovery?.bridges ?? []).filter((item) => item.host === host)
-                        )}
-                        onValueChange={(bridge) => updatePlacement({ bridge })}
-                      />
-                    </SettingsControlRow>
-                    <SettingsControlRow
-                      title="VLAN"
-                      description="VLAN tag, or leave blank for untagged networking."
-                      help="The bridge and upstream network must already support this VLAN. Opfield does not reconfigure them."
-                    >
-                      <Input
-                        aria-label="VLAN"
-                        type="number"
-                        min={1}
-                        max={4094}
-                        placeholder="Untagged"
-                        value={placement.vlan ?? ""}
-                        disabled={locked}
-                        onChange={(e) =>
-                          updatePlacement({ vlan: e.target.value ? Number(e.target.value) : null })
-                        }
-                      />
-                    </SettingsControlRow>
-                    <SettingsControlRow
-                      title="Address assignment"
-                      description="DHCP or automatic allocation from a static IPv4 pool."
-                    >
-                      <Combobox
-                        ariaLabel="Address assignment"
-                        value={placement.network}
-                        disabled={locked}
-                        options={[
-                          { value: "dhcp", label: "DHCP" },
-                          { value: "static", label: "Static IPv4 pool" },
-                        ]}
-                        onValueChange={(network) =>
-                          updatePlacement({ network: network as Placement["network"] })
-                        }
-                      />
-                    </SettingsControlRow>
-                    {placement.network === "static" && (
-                      <>
-                        <SettingsControlRow
-                          title="IP pool"
-                          description="IPv4 addresses and full ranges reserved exclusively for Opfield."
-                          help="Exclude these addresses from DHCP and manual assignment. Opfield rejects addresses outside the subnet, the gateway, network and broadcast addresses; silence on ping is not proof an IP is free."
-                        >
-                          <Input
-                            aria-label="IP pool"
-                            placeholder="192.0.2.100-192.0.2.119,192.0.2.150"
-                            value={placement.ipRange ?? ""}
-                            disabled={locked}
-                            onChange={(e) => updatePlacement({ ipRange: e.target.value })}
-                          />
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Address capacity">
-                          <span className="text-sm text-muted-foreground">
-                            {ipError ??
-                              `${ips.length} addresses for ${vmids.length} VMIDs${ips.length < vmids.length ? " — more addresses required" : ""}`}
-                          </span>
-                        </SettingsControlRow>
-                        {(
-                          [
-                            [
-                              "subnet",
-                              "Subnet",
-                              "192.0.2.0/24",
-                              "CIDR subnet containing the entire IP pool.",
-                            ],
-                            [
-                              "gateway",
-                              "Gateway",
-                              "192.0.2.1",
-                              "Default router in the selected subnet.",
-                            ],
-                          ] as const
-                        ).map(([key, label, placeholder, description]) => (
-                          <SettingsControlRow key={key} title={label} description={description}>
-                            <Input
-                              aria-label={label}
-                              placeholder={placeholder}
-                              value={placement[key] ?? ""}
-                              disabled={locked}
-                              onChange={(e) => updatePlacement({ [key]: e.target.value })}
-                            />
-                          </SettingsControlRow>
-                        ))}
-                      </>
-                    )}
-                    <SettingsControlRow
-                      title="DNS servers"
-                      description="Optional comma-separated resolver addresses."
-                      help="Applied via cloud-init. If omitted, DNS comes from DHCP or the selected cloud image."
-                    >
-                      <Input
-                        aria-label="DNS servers"
-                        placeholder="192.0.2.53,192.0.2.54"
-                        value={dns}
+                      <Textarea
+                        aria-label="CA certificate"
+                        placeholder="-----BEGIN CERTIFICATE-----"
+                        rows={4}
+                        value={settings.caCertificate ?? ""}
                         disabled={locked}
                         onChange={(e) => {
-                          setDns(e.target.value);
-                          updatePlacement({ dnsServers: entries(e.target.value) });
+                          set({ caCertificate: e.target.value });
+                          invalidateConnection();
                         }}
                       />
                     </SettingsControlRow>
+                  )}
+                  {tls === "pin" && (
                     <SettingsControlRow
-                      title="Search domain"
-                      description="Optional DNS search suffix."
+                      title="Certificate SHA-256 pin"
+                      description="Fingerprint of the Proxmox API certificate."
+                      help="Verify this fingerprint on the Proxmox server through a trusted channel; do not trust an unknown certificate automatically."
                     >
                       <Input
-                        aria-label="Search domain"
-                        placeholder="nodes.example.com"
-                        value={placement.searchDomain ?? ""}
+                        aria-label="Certificate SHA-256 pin"
+                        placeholder="64 hexadecimal characters"
+                        value={settings.certificateFingerprint ?? ""}
                         disabled={locked}
-                        onChange={(e) => updatePlacement({ searchDomain: e.target.value })}
+                        onChange={(e) => {
+                          set({ certificateFingerprint: e.target.value });
+                          invalidateConnection();
+                        }}
                       />
                     </SettingsControlRow>
+                  )}
+                  <SettingsControlRow
+                    title="Physical host"
+                    description="Test the connection to load available Proxmox hosts."
+                    help="New VMs stay on this host. VMIDs remain unique across the entire cluster."
+                  >
+                    <Combobox
+                      ariaLabel="Physical host"
+                      value={host}
+                      disabled={locked || !discovery}
+                      options={options(discovery?.hosts ?? [])}
+                      onValueChange={(value) => {
+                        set({ proxmoxHost: value });
+                        updatePlacement({
+                          nodes: [value],
+                          storage: "",
+                          imageStorage: "",
+                          seedStorage: "",
+                          bridge: "",
+                        });
+                      }}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="VM provisioning"
+                    description="Create new VMs using a saved host and network profile."
+                    help="Turn off to connect existing VM/CT inventory and automatic adoption only."
+                  >
+                    <Switch
+                      ariaLabel="VM provisioning"
+                      checked={provisioning}
+                      disabled={locked}
+                      onChange={setProvisioning}
+                    />
+                  </SettingsControlRow>
+                </PanelShell>
+              )}
+              {pve && provisioning && step === 3 && (
+                <PanelShell
+                  title="Infrastructure"
+                  icon={<Settings2 className="h-4 w-4" />}
+                  description="Choose disk, image import and seed ISO storage, allowed VMIDs and optional aggregate budgets."
+                >
+                  <SettingsControlRow
+                    title="Disk storage"
+                    description="Storage for VM disks; it must provide images content."
+                    help="Choose storage on the selected host that can hold imported VM disks."
+                  >
+                    <Combobox
+                      ariaLabel="Disk storage"
+                      value={placement.storage}
+                      disabled={locked}
+                      options={options(diskStorages)}
+                      onValueChange={(storage) => updatePlacement({ storage })}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="Image storage"
+                    description="Storage for temporary OS images; it must support import content."
+                    help="Use dedicated storage. Proxmox requires Datastore.AllocateTemplate to upload and Datastore.Allocate to clean up operation-owned files."
+                  >
+                    <Combobox
+                      ariaLabel="Image storage"
+                      value={placement.imageStorage ?? ""}
+                      disabled={locked}
+                      options={options(imageStorages)}
+                      onValueChange={(imageStorage) => updatePlacement({ imageStorage })}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="Seed storage"
+                    description="Storage for per-VM NoCloud seed ISOs; it must provide iso content."
+                    help="Use dedicated ISO storage. Proxmox requires Datastore.Allocate on this storage for automatic cleanup after enrollment; do not grant global administrator access."
+                  >
+                    <Combobox
+                      ariaLabel="Seed storage"
+                      value={placement.seedStorage ?? ""}
+                      disabled={locked}
+                      options={options(seedStorages)}
+                      onValueChange={(seedStorage) => updatePlacement({ seedStorage })}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="Allowed VMIDs"
+                    description={
+                      vmidError ??
+                      `Comma-separated IDs and ranges, combined as needed. ${vmids.length} allowed · ${vmids.filter((id) => discovery?.usedVmids?.includes(id)).length} occupied · ${vmids.filter((id) => !discovery?.usedVmids?.includes(id)).length} available at last check.`
+                    }
+                    help="Opfield creates only inside this pool and skips occupied IDs across the cluster. Maximum 1000 unique IDs."
+                  >
+                    <Input
+                      aria-label="Allowed VMIDs"
+                      placeholder="250-260,271,273-280"
+                      value={placement.vmidRange ?? ""}
+                      disabled={locked}
+                      onChange={(e) => updatePlacement({ vmidRange: e.target.value })}
+                    />
+                  </SettingsControlRow>
+                  {(
+                    [
+                      [
+                        "maxCpu",
+                        "Maximum CPU budget (cores)",
+                        "Unlimited",
+                        "vCPU budget for Opfield-created or adopted resources, including pending operations.",
+                        "Leave blank for unrestricted total CPU.",
+                      ],
+                      [
+                        "maxMemoryMb",
+                        "Maximum memory budget (MiB)",
+                        "Unlimited",
+                        "Memory budget for Opfield-created or adopted resources, including pending operations.",
+                        "Leave blank for unrestricted total memory.",
+                      ],
+                      [
+                        "maxDiskGb",
+                        "Maximum disk budget (GiB)",
+                        "Unlimited",
+                        "Disk budget for Opfield-created or adopted resources, including pending operations.",
+                        "Leave blank for unrestricted total disk.",
+                      ],
+                    ] as const
+                  ).map(([key, label, placeholder, description, help]) => (
                     <SettingsControlRow
-                      title="MTU"
-                      description="Optional interface MTU; blank preserves the template value."
-                      help="Only override if the entire network path supports the chosen MTU."
+                      key={key}
+                      title={label}
+                      description={description}
+                      help={help}
                     >
                       <Input
-                        aria-label="MTU"
+                        aria-label={label}
                         type="number"
-                        min={576}
-                        max={65520}
-                        placeholder="Proxmox default"
-                        value={placement.mtu ?? ""}
+                        min={1}
+                        placeholder={placeholder}
+                        value={placement[key] ?? ""}
                         disabled={locked}
                         onChange={(e) =>
                           updatePlacement({
-                            mtu: e.target.value ? Number(e.target.value) : undefined,
+                            [key]: e.target.value ? Number(e.target.value) : undefined,
                           })
                         }
+                      />
+                    </SettingsControlRow>
+                  ))}
+                  <SettingsControlRow
+                    title="Resource pool"
+                    description="Optional existing Proxmox pool for new VMs."
+                  >
+                    <Input
+                      aria-label="Resource pool"
+                      placeholder="opfield-nodes"
+                      value={placement.pool ?? ""}
+                      disabled={locked}
+                      onChange={(e) => updatePlacement({ pool: e.target.value })}
+                    />
+                  </SettingsControlRow>
+                </PanelShell>
+              )}
+              {pve && provisioning && step === 4 && (
+                <PanelShell
+                  title="Network defaults"
+                  icon={<Network className="h-4 w-4" />}
+                  description="Applied to new VMs only; existing guests and hypervisor networks stay unchanged."
+                >
+                  <SettingsControlRow
+                    title="Bridge"
+                    description="Existing bridge for the VM network interface."
+                    help="This is the bridge on the hypervisor, not the interface name inside Linux."
+                  >
+                    <Combobox
+                      ariaLabel="Bridge"
+                      value={placement.bridge}
+                      disabled={locked}
+                      options={options(
+                        (discovery?.bridges ?? []).filter((item) => item.host === host)
+                      )}
+                      onValueChange={(bridge) => updatePlacement({ bridge })}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="VLAN"
+                    description="VLAN tag, or leave blank for untagged networking."
+                    help="The bridge and upstream network must already support this VLAN. Opfield does not reconfigure them."
+                  >
+                    <Input
+                      aria-label="VLAN"
+                      type="number"
+                      min={1}
+                      max={4094}
+                      placeholder="Untagged"
+                      value={placement.vlan ?? ""}
+                      disabled={locked}
+                      onChange={(e) =>
+                        updatePlacement({ vlan: e.target.value ? Number(e.target.value) : null })
+                      }
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="Address assignment"
+                    description="DHCP or automatic allocation from a static IPv4 pool."
+                  >
+                    <Combobox
+                      ariaLabel="Address assignment"
+                      value={placement.network}
+                      disabled={locked}
+                      options={[
+                        { value: "dhcp", label: "DHCP" },
+                        { value: "static", label: "Static IPv4 pool" },
+                      ]}
+                      onValueChange={(network) =>
+                        updatePlacement({ network: network as Placement["network"] })
+                      }
+                    />
+                  </SettingsControlRow>
+                  {placement.network === "static" && (
+                    <>
+                      <SettingsControlRow
+                        title="IP pool"
+                        description="IPv4 addresses and full ranges reserved exclusively for Opfield."
+                        help="Exclude these addresses from DHCP and manual assignment. Opfield rejects addresses outside the subnet, the gateway, network and broadcast addresses; silence on ping is not proof an IP is free."
+                      >
+                        <Input
+                          aria-label="IP pool"
+                          placeholder="192.0.2.100-192.0.2.119,192.0.2.150"
+                          value={placement.ipRange ?? ""}
+                          disabled={locked}
+                          onChange={(e) => updatePlacement({ ipRange: e.target.value })}
+                        />
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Address capacity">
+                        <span className="text-sm text-muted-foreground">
+                          {ipError ??
+                            `${ips.length} addresses for ${vmids.length} VMIDs${ips.length < vmids.length ? " — more addresses required" : ""}`}
+                        </span>
+                      </SettingsControlRow>
+                      {(
+                        [
+                          [
+                            "subnet",
+                            "Subnet",
+                            "192.0.2.0/24",
+                            "CIDR subnet containing the entire IP pool.",
+                          ],
+                          [
+                            "gateway",
+                            "Gateway",
+                            "192.0.2.1",
+                            "Default router in the selected subnet.",
+                          ],
+                        ] as const
+                      ).map(([key, label, placeholder, description]) => (
+                        <SettingsControlRow key={key} title={label} description={description}>
+                          <Input
+                            aria-label={label}
+                            placeholder={placeholder}
+                            value={placement[key] ?? ""}
+                            disabled={locked}
+                            onChange={(e) => updatePlacement({ [key]: e.target.value })}
+                          />
+                        </SettingsControlRow>
+                      ))}
+                    </>
+                  )}
+                  <SettingsControlRow
+                    title="DNS servers"
+                    description="Optional comma-separated resolver addresses."
+                    help="Applied via cloud-init. If omitted, DNS comes from DHCP or the selected cloud image."
+                  >
+                    <Input
+                      aria-label="DNS servers"
+                      placeholder="192.0.2.53,192.0.2.54"
+                      value={dns}
+                      disabled={locked}
+                      onChange={(e) => {
+                        setDns(e.target.value);
+                        updatePlacement({ dnsServers: entries(e.target.value) });
+                      }}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="Search domain"
+                    description="Optional DNS search suffix."
+                  >
+                    <Input
+                      aria-label="Search domain"
+                      placeholder="nodes.example.com"
+                      value={placement.searchDomain ?? ""}
+                      disabled={locked}
+                      onChange={(e) => updatePlacement({ searchDomain: e.target.value })}
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="MTU"
+                    description="Optional interface MTU; blank preserves the template value."
+                    help="Only override if the entire network path supports the chosen MTU."
+                  >
+                    <Input
+                      aria-label="MTU"
+                      type="number"
+                      min={576}
+                      max={65520}
+                      placeholder="Proxmox default"
+                      value={placement.mtu ?? ""}
+                      disabled={locked}
+                      onChange={(e) =>
+                        updatePlacement({
+                          mtu: e.target.value ? Number(e.target.value) : undefined,
+                        })
+                      }
+                    />
+                  </SettingsControlRow>
+                  <SettingsControlRow
+                    title="Interface firewall"
+                    description="Firewall flag for the new VM network interface."
+                    help="Default leaves the interface flag to Proxmox. This does not create firewall rules or change the host firewall."
+                  >
+                    <Combobox
+                      ariaLabel="Interface firewall"
+                      value={
+                        placement.firewall === undefined ? "inherit" : String(placement.firewall)
+                      }
+                      disabled={locked}
+                      options={[
+                        { value: "inherit", label: "Proxmox default" },
+                        { value: "true", label: "Enabled" },
+                        { value: "false", label: "Disabled" },
+                      ]}
+                      onValueChange={(value) =>
+                        updatePlacement({
+                          firewall: value === "inherit" ? undefined : value === "true",
+                        })
+                      }
+                    />
+                  </SettingsControlRow>
+                </PanelShell>
+              )}
+              {last && (
+                <>
+                  {pve && provisioning && (
+                    <PanelShell
+                      title="Profile summary"
+                      icon={<Check className="h-4 w-4" />}
+                      description="Nothing is provisioned when saving this connector. Node role, OS and resources are chosen when a VM is created."
+                    >
+                      <SettingsControlRow title="Physical host">
+                        <span className="text-sm text-muted-foreground">{host}</span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Disk storage">
+                        <span className="text-sm text-muted-foreground">{placement.storage}</span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Image storage">
+                        <span className="text-sm text-muted-foreground">
+                          {placement.imageStorage}
+                        </span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Seed storage">
+                        <span className="text-sm text-muted-foreground">
+                          {placement.seedStorage}
+                        </span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="VMIDs">
+                        <span className="text-sm text-muted-foreground">{placement.vmidRange}</span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Total CPU limit">
+                        <span className="text-sm text-muted-foreground">
+                          {placement.maxCpu == null ? "Unlimited" : `${placement.maxCpu} cores`}
+                        </span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Total memory limit">
+                        <span className="text-sm text-muted-foreground">
+                          {placement.maxMemoryMb == null
+                            ? "Unlimited"
+                            : `${placement.maxMemoryMb.toLocaleString()} MiB`}
+                        </span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Total disk limit">
+                        <span className="text-sm text-muted-foreground">
+                          {placement.maxDiskGb == null
+                            ? "Unlimited"
+                            : `${placement.maxDiskGb.toLocaleString()} GiB`}
+                        </span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Network bridge">
+                        <span className="text-sm text-muted-foreground">{placement.bridge}</span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="VLAN">
+                        <span className="text-sm text-muted-foreground">
+                          {placement.vlan ?? "Untagged"}
+                        </span>
+                      </SettingsControlRow>
+                      <SettingsControlRow title="Address assignment">
+                        <span className="text-sm text-muted-foreground">
+                          {placement.network === "static" ? "Static" : "DHCP"}
+                        </span>
+                      </SettingsControlRow>
+                      {placement.network === "static" && (
+                        <SettingsControlRow
+                          title="IP pool"
+                          description={`${ips.length} reserved addresses`}
+                        >
+                          <span className="text-sm text-muted-foreground">{placement.ipRange}</span>
+                        </SettingsControlRow>
+                      )}
+                      <SettingsControlRow
+                        title="Guest connectivity"
+                        description="New VMs must reach Opfield or a relay, DNS and installation sources."
+                        help="Connectivity can only be verified after a guest starts; saving a connector does not provision a VM."
+                      >
+                        <span className="text-sm text-muted-foreground">
+                          Verified after provisioning
+                        </span>
+                      </SettingsControlRow>
+                    </PanelShell>
+                  )}
+                  <PanelShell
+                    title="Synchronization and scope"
+                    icon={<RefreshCw className="h-4 w-4" />}
+                    description="Inventory refresh and automatic matching of existing Opfield nodes."
+                  >
+                    <SettingsControlRow
+                      title="Automatic sync"
+                      description="Refresh provider inventory on a schedule."
+                      help="Existing Opfield monitoring remains unchanged."
+                    >
+                      <Switch
+                        ariaLabel="Automatic sync"
+                        checked={settings.autoSyncEnabled}
+                        disabled={locked}
+                        onChange={(autoSyncEnabled) => set({ autoSyncEnabled })}
                       />
                     </SettingsControlRow>
                     <SettingsControlRow
-                      title="Interface firewall"
-                      description="Firewall flag for the new VM network interface."
-                      help="Default leaves the interface flag to Proxmox. This does not create firewall rules or change the host firewall."
+                      title="Sync interval (seconds)"
+                      description="Time between scheduled inventory refreshes."
+                      help="Choose 60–86400 seconds; shorter intervals make more API requests."
                     >
-                      <Combobox
-                        ariaLabel="Interface firewall"
-                        value={
-                          placement.firewall === undefined ? "inherit" : String(placement.firewall)
-                        }
+                      <Input
+                        aria-label="Sync interval"
+                        type="number"
+                        min={60}
+                        max={86400}
+                        placeholder="300"
+                        value={settings.autoSyncIntervalSeconds}
                         disabled={locked}
-                        options={[
-                          { value: "inherit", label: "Proxmox default" },
-                          { value: "true", label: "Enabled" },
-                          { value: "false", label: "Disabled" },
-                        ]}
-                        onValueChange={(value) =>
-                          updatePlacement({
-                            firewall: value === "inherit" ? undefined : value === "true",
-                          })
-                        }
+                        onChange={(e) => set({ autoSyncIntervalSeconds: Number(e.target.value) })}
                       />
                     </SettingsControlRow>
-                  </PanelShell>
-                )}
-                {last && (
-                  <>
-                    {pve && provisioning && (
-                      <PanelShell
-                        title="Profile summary"
-                        icon={<Check className="h-4 w-4" />}
-                        description="Nothing is provisioned when saving this connector. Node role, OS and resources are chosen when a VM is created."
-                      >
-                        <SettingsControlRow title="Physical host">
-                          <span className="text-sm text-muted-foreground">{host}</span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Disk storage">
-                          <span className="text-sm text-muted-foreground">{placement.storage}</span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Image storage">
-                          <span className="text-sm text-muted-foreground">
-                            {placement.imageStorage}
-                          </span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Seed storage">
-                          <span className="text-sm text-muted-foreground">
-                            {placement.seedStorage}
-                          </span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="VMIDs">
-                          <span className="text-sm text-muted-foreground">
-                            {placement.vmidRange}
-                          </span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Total CPU limit">
-                          <span className="text-sm text-muted-foreground">
-                            {placement.maxCpu == null ? "Unlimited" : `${placement.maxCpu} cores`}
-                          </span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Total memory limit">
-                          <span className="text-sm text-muted-foreground">
-                            {placement.maxMemoryMb == null
-                              ? "Unlimited"
-                              : `${placement.maxMemoryMb.toLocaleString()} MiB`}
-                          </span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Total disk limit">
-                          <span className="text-sm text-muted-foreground">
-                            {placement.maxDiskGb == null
-                              ? "Unlimited"
-                              : `${placement.maxDiskGb.toLocaleString()} GiB`}
-                          </span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Network bridge">
-                          <span className="text-sm text-muted-foreground">{placement.bridge}</span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="VLAN">
-                          <span className="text-sm text-muted-foreground">
-                            {placement.vlan ?? "Untagged"}
-                          </span>
-                        </SettingsControlRow>
-                        <SettingsControlRow title="Address assignment">
-                          <span className="text-sm text-muted-foreground">
-                            {placement.network === "static" ? "Static" : "DHCP"}
-                          </span>
-                        </SettingsControlRow>
-                        {placement.network === "static" && (
-                          <SettingsControlRow
-                            title="IP pool"
-                            description={`${ips.length} reserved addresses`}
-                          >
-                            <span className="text-sm text-muted-foreground">
-                              {placement.ipRange}
-                            </span>
-                          </SettingsControlRow>
-                        )}
-                        <SettingsControlRow
-                          title="Guest connectivity"
-                          description="New VMs must reach Opfield or a relay, DNS and installation sources."
-                          help="Connectivity can only be verified after a guest starts; saving a connector does not provision a VM."
-                        >
-                          <span className="text-sm text-muted-foreground">
-                            Verified after provisioning
-                          </span>
-                        </SettingsControlRow>
-                      </PanelShell>
-                    )}
-                    <PanelShell
-                      title="Synchronization and scope"
-                      icon={<RefreshCw className="h-4 w-4" />}
-                      description="Inventory refresh and automatic matching of existing Opfield nodes."
+                    <SettingsControlRow
+                      title="Automatic adoption"
+                      description="Link existing nodes automatically when identity evidence is unambiguous."
+                      help="Opfield preserves node identity and workloads; ambiguous matches remain unlinked without a manual picker."
                     >
+                      <Switch
+                        ariaLabel="Automatic adoption"
+                        checked={settings.adoptionEnabled}
+                        disabled={locked}
+                        onChange={(adoptionEnabled) => set({ adoptionEnabled })}
+                      />
+                    </SettingsControlRow>
+                    {!pve && (
                       <SettingsControlRow
-                        title="Automatic sync"
-                        description="Refresh provider inventory on a schedule."
-                        help="Existing Opfield monitoring remains unchanged."
-                      >
-                        <Switch
-                          ariaLabel="Automatic sync"
-                          checked={settings.autoSyncEnabled}
-                          disabled={locked}
-                          onChange={(autoSyncEnabled) => set({ autoSyncEnabled })}
-                        />
-                      </SettingsControlRow>
-                      <SettingsControlRow
-                        title="Sync interval (seconds)"
-                        description="Time between scheduled inventory refreshes."
-                        help="Choose 60–86400 seconds; shorter intervals make more API requests."
+                        title="Node scope"
+                        description="Optional comma-separated Opfield node UUIDs."
+                        help="Limits which existing Opfield nodes can be automatically linked. Empty means all authorized nodes, not provider VMIDs."
                       >
                         <Input
-                          aria-label="Sync interval"
-                          type="number"
-                          min={60}
-                          max={86400}
-                          placeholder="300"
-                          value={settings.autoSyncIntervalSeconds}
+                          aria-label="Node scope"
+                          placeholder="Opfield node UUIDs"
+                          value={nodeScope}
                           disabled={locked}
-                          onChange={(e) => set({ autoSyncIntervalSeconds: Number(e.target.value) })}
+                          onChange={(e) => {
+                            setNodeScope(e.target.value);
+                            set({ adoptionNodeIds: entries(e.target.value) });
+                          }}
                         />
                       </SettingsControlRow>
+                    )}
+                    {pve && settings.adoptionNodeIds.length > 0 && (
                       <SettingsControlRow
-                        title="Automatic adoption"
-                        description="Link existing nodes automatically when identity evidence is unambiguous."
-                        help="Opfield preserves node identity and workloads; ambiguous matches remain unlinked without a manual picker."
+                        title="Existing adoption restriction"
+                        description="The saved restriction to these Opfield nodes remains unchanged."
                       >
-                        <Switch
-                          ariaLabel="Automatic adoption"
-                          checked={settings.adoptionEnabled}
-                          disabled={locked}
-                          onChange={(adoptionEnabled) => set({ adoptionEnabled })}
-                        />
+                        <span className="text-sm text-muted-foreground">
+                          {settings.adoptionNodeIds.join(", ")}
+                        </span>
                       </SettingsControlRow>
-                      {!pve && (
+                    )}
+                    {!pve &&
+                      (
+                        [
+                          [
+                            "defaultLocation",
+                            "Default location",
+                            "Provider location ID",
+                            "Optional location preselected for new VMs.",
+                          ],
+                          [
+                            "defaultSize",
+                            "Default size",
+                            "Provider size ID",
+                            "Optional VM size preselected for new VMs.",
+                          ],
+                          [
+                            "defaultImage",
+                            "Default image",
+                            "Provider image ID",
+                            "Optional OS image preselected for new VMs.",
+                          ],
+                        ] as const
+                      ).map(([key, label, placeholder, description]) => (
                         <SettingsControlRow
-                          title="Node scope"
-                          description="Optional comma-separated Opfield node UUIDs."
-                          help="Limits which existing Opfield nodes can be automatically linked. Empty means all authorized nodes, not provider VMIDs."
+                          key={key}
+                          title={label}
+                          description={description}
+                          help="Use an ID from the provider catalog. The node wizard validates defaults before ordering."
                         >
                           <Input
-                            aria-label="Node scope"
-                            placeholder="Opfield node UUIDs"
-                            value={nodeScope}
+                            aria-label={label}
+                            placeholder={placeholder}
+                            value={settings[key] ?? ""}
                             disabled={locked}
-                            onChange={(e) => {
-                              setNodeScope(e.target.value);
-                              set({ adoptionNodeIds: entries(e.target.value) });
-                            }}
+                            onChange={(e) => set({ [key]: e.target.value })}
                           />
                         </SettingsControlRow>
-                      )}
-                      {pve && settings.adoptionNodeIds.length > 0 && (
-                        <SettingsControlRow
-                          title="Existing adoption restriction"
-                          description="The saved restriction to these Opfield nodes remains unchanged."
-                        >
-                          <span className="text-sm text-muted-foreground">
-                            {settings.adoptionNodeIds.join(", ")}
-                          </span>
-                        </SettingsControlRow>
-                      )}
-                      {!pve &&
-                        (
-                          [
-                            [
-                              "defaultLocation",
-                              "Default location",
-                              "Provider location ID",
-                              "Optional location preselected for new VMs.",
-                            ],
-                            [
-                              "defaultSize",
-                              "Default size",
-                              "Provider size ID",
-                              "Optional VM size preselected for new VMs.",
-                            ],
-                            [
-                              "defaultImage",
-                              "Default image",
-                              "Provider image ID",
-                              "Optional OS image preselected for new VMs.",
-                            ],
-                          ] as const
-                        ).map(([key, label, placeholder, description]) => (
-                          <SettingsControlRow
-                            key={key}
-                            title={label}
-                            description={description}
-                            help="Use an ID from the provider catalog. The node wizard validates defaults before ordering."
-                          >
-                            <Input
-                              aria-label={label}
-                              placeholder={placeholder}
-                              value={settings[key] ?? ""}
-                              disabled={locked}
-                              onChange={(e) => set({ [key]: e.target.value })}
-                            />
-                          </SettingsControlRow>
-                        ))}
-                    </PanelShell>
-                  </>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          </AnimatedHeight>
+                      ))}
+                  </PanelShell>
+                </>
+              )}
+            </motion.div>
+          </AnimatedSwitch>
         )}
         <DialogFooter>
           {step === connectionStep && (

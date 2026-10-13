@@ -68,6 +68,7 @@ export {
   isNodeUpdateQueued,
   isNodeUpdateWaitingForTasks,
   isNodeUpdating,
+  nodeDisplayStatus,
 } from "./nodes";
 export type * from "./notifications";
 export * from "./object-storage";
