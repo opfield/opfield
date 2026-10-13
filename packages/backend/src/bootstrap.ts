@@ -50,6 +50,7 @@ import { AppIncidentRunner } from '@/modules/apps/app-incident-runner.js';
 import { AppIncidentTargetsReader } from '@/modules/apps/app-incident-targets.js';
 import { AppIncidentsRepo } from '@/modules/apps/app-incidents.repo.js';
 import { AppIncidentService } from '@/modules/apps/app-isolation.service.js';
+import { AppListFolderService } from '@/modules/apps/app-list-folders.service.js';
 import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
 import { AppMaintenanceAccessService } from '@/modules/apps/app-maintenance-access.js';
 import { AppMemberFreeze } from '@/modules/apps/app-member-freeze.js';
@@ -1843,6 +1844,9 @@ export async function initializeContainer(): Promise<void> {
   const nginxTemplateFolderService = new NginxTemplateFolderService(db, auditService);
   nginxTemplateFolderService.setEventBus(eventBus);
   container.registerInstance(NginxTemplateFolderService, nginxTemplateFolderService);
+  const appListFolderService = new AppListFolderService(db, auditService);
+  appListFolderService.setEventBus(eventBus);
+  container.registerInstance(AppListFolderService, appListFolderService);
 
   // Monitoring services
   const monitoringService = new MonitoringService(db);

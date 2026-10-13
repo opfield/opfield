@@ -121,13 +121,14 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 ### Apps
 | Scope | Description |
 |-------|-------------|
-| apps:view | View apps, environments, overview and activity (resource-scopable: <appId> or env/<envId>); members still need their own view scopes. Without it an app is still listed when you can view one of its members (own grants, including folder grants on its environment or app folders), limited to the environments holding those members and to those members (access members) |
-| apps:create | Create apps |
+| apps:view | View apps, environments, overview and activity (resource-scopable: <appId>, env/<envId> or folder/<id> of the Apps list); members still need their own view scopes. Without it an app is still listed when you can view one of its members (own grants, including folder grants on its environment or app folders), limited to the environments holding those members and to those members (access members) |
+| apps:create | Create apps (folder-scopable: folder/<id> of the Apps list creates there) |
 | apps:edit | Rename the app, create, rename and delete environments, move the Production marker (resource-scopable: <appId>) |
 | apps:delete | Delete an app; members keep running and leave it (resource-scopable: <appId>) |
 | apps:env:manage | Environment variables and secrets, allowed nodes, environment maintenance and access codes, moving resources in or out together with the resource's own edit scope (resource-scopable: <appId> or env/<envId>) |
 | apps:promote | Promote one environment into another (resource-scopable on the target: <appId> or env/<envId>) |
 | apps:operate | Shutdown, start and isolation; the app maintenance override needs it on the whole app (resource-scopable: <appId> or env/<envId>) |
+| apps:folders:manage | Manage folders of the Apps list; moving an app also needs apps:edit on it. App action scopes also take folder/<id> and then cover every app in that folder and its subfolders |
 
 ### Administration
 | Scope | Description |

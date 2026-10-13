@@ -84,6 +84,7 @@ async function manageApp(service: AppsService, actor: AppActor, args: Record<str
         CreateAppSchema.parse({
           name: args.name,
           ...(args.description !== undefined ? { description: args.description } : {}),
+          ...(args.folderId !== undefined ? { folderId: args.folderId } : {}),
         })
       );
     case 'update': {

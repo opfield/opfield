@@ -1,9 +1,9 @@
 import { and, asc, eq, inArray, max, or, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
-import { appEnvironmentNodes, appEnvironments, apps } from '@/db/schema/index.js';
+import { appEnvironmentNodes, appEnvironments, appFolders, apps } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { createChildLogger } from '@/lib/logger.js';
-import { hasScope } from '@/lib/permissions.js';
+import { hasScope, hasScopeForCreation } from '@/lib/permissions.js';
 import { announceResourceScopeChanges, removeDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -347,6 +347,9 @@ export class AppsService {
         name: app.name,
         description: app.description,
         logoUrl: app.logoUrl,
+        /** Folder of the Apps list (null at the top level) and the position in it. */
+        folderId: app.folderId,
+        sortOrder: app.sortOrder,
         /** `members`: visible only through members the caller can view; everything shown is computed from them. */
         access,
         environments: envs.map((env) => ({
@@ -416,6 +419,7 @@ export class AppsService {
       name: app.name,
       description: app.description,
       logoUrl: app.logoUrl,
+      folderId: app.folderId,
       /**
        * `full`: apps:view on the app or an environment. `members`: visible only through members the caller can view;
        * app-level blocks (settings, variables, nodes, maintenance, promote) need apps:view and are left out.
@@ -539,8 +543,17 @@ export class AppsService {
   // ── App changes ────────────────────────────────────────────────────
 
   async create(actor: AppActor, input: CreateAppInput) {
-    if (!hasScope(actor.scopes, APP_CREATE_SCOPE)) {
+    // Broadly, or as a grant on the Apps list folder the app is created in.
+    if (!hasScopeForCreation(actor.scopes, APP_CREATE_SCOPE, input.folderId ?? null)) {
       throw new AppError(403, 'FORBIDDEN', `Missing ${APP_CREATE_SCOPE}`, { requiredScope: APP_CREATE_SCOPE });
+    }
+    if (input.folderId) {
+      const [folder] = await this.db
+        .select({ id: appFolders.id })
+        .from(appFolders)
+        .where(eq(appFolders.id, input.folderId))
+        .limit(1);
+      if (!folder) throw new AppError(404, 'FOLDER_NOT_FOUND', 'Folder not found');
     }
     const name = input.name.trim();
     let created: { app: AppRow; env: AppEnvironmentRow };
@@ -558,6 +571,7 @@ export class AppsService {
             name,
             slug: uniqueSlug(base, new Set(taken.map((row) => row.slug))),
             description: input.description || null,
+            folderId: input.folderId ?? null,
             createdById: actor.userId,
           })
           .returning();
@@ -582,7 +596,10 @@ export class AppsService {
       }
       throw error;
     }
-    await grantCreatedResourcePermissions(actor.userId, 'apps', created.app.id, { folderId: null, nodeId: null });
+    await grantCreatedResourcePermissions(actor.userId, 'apps', created.app.id, {
+      folderId: input.folderId ?? null,
+      nodeId: null,
+    });
     await this.auditService.log({
       userId: actor.userId,
       action: 'app.create',

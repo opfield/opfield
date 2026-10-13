@@ -1,23 +1,16 @@
 // Apps: the top-level list (canvas frames apps-list, apps-empty, apps-new-app).
 // Same page frame and rows as Databases and Docker containers.
-import { Plus, RefreshCw } from "lucide-react";
+import { FolderPlus, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppMark } from "@/components/apps/AppMark";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
+import { FolderedResourceList } from "@/components/common/FolderedResourceList";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
-import {
-  ResourceListCell,
-  type ResourceListColumn,
-  ResourceListFrame,
-  ResourceListHeaderTable,
-  ResourceListRow,
-  ResourceListTable,
-} from "@/components/common/ResourceListLayout";
+import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
-import { SearchFilterBar } from "@/components/common/SearchFilterBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -122,7 +116,10 @@ const columns: ResourceListColumn<AppSummary>[] = [
 
 export function AppsList() {
   const navigate = useNavigate();
-  const canCreate = useAuthStore((state) => state.hasScope("apps:create"));
+  const canCreate = useAuthStore((state) => state.hasScopedAccess("apps:create"));
+  const canEdit = useAuthStore((state) => state.hasScopedAccess("apps:edit"));
+  const canManageFolders = useCanManageSomeFolders("apps:folders:manage");
+  const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
   const [apps, setApps] = useState<AppSummary[]>(
     () => api.getCached<AppSummary[]>(APPS_LIST_CACHE_KEY) ?? []
   );
@@ -181,6 +178,15 @@ export function AppsList() {
       icon: <RefreshCw className="h-4 w-4" />,
       onClick: () => void refresh(),
     },
+    ...(canManageFolders && createFolderAction
+      ? [
+          {
+            label: "Add Folder",
+            icon: <FolderPlus className="h-4 w-4" />,
+            onClick: createFolderAction,
+          },
+        ]
+      : []),
     ...(canCreate
       ? [{ label: "New App", icon: <Plus className="h-4 w-4" />, onClick: () => setNewOpen(true) }]
       : []),
@@ -205,6 +211,12 @@ export function AppsList() {
               >
                 <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
               </Button>
+              {canManageFolders && createFolderAction && (
+                <Button variant="outline" onClick={() => createFolderAction()}>
+                  <FolderPlus className="h-4 w-4" />
+                  Add Folder
+                </Button>
+              )}
               {canCreate && (
                 <Button onClick={() => setNewOpen(true)}>
                   <Plus className="h-4 w-4" />
@@ -216,14 +228,18 @@ export function AppsList() {
         />
 
         {initialLoading ? null : (
-          <div className="space-y-3">
-            <SearchFilterBar
-              placeholder="Search apps..."
-              search={search}
-              onSearchChange={setSearch}
-              hasActiveFilters={hasActiveFilters}
-              onReset={resetFilters}
-              filters={
+          <FolderedResourceList<AppSummary>
+            resourceType="app"
+            realtimeChannel="apps.folder.changed"
+            resources={visibleApps}
+            columns={columns}
+            search={{
+              search,
+              onSearchChange: setSearch,
+              placeholder: "Search apps...",
+              hasActiveFilters,
+              onReset: resetFilters,
+              filters: (
                 <Select
                   value={statusFilter}
                   onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
@@ -240,47 +256,35 @@ export function AppsList() {
                     ))}
                   </SelectContent>
                 </Select>
-              }
-            />
-            {apps.length === 0 ? (
-              <EmptyState
-                message="No apps yet. An app keeps the containers, databases, storage, routes and Pages of one application together."
-                {...(canCreate
-                  ? { actionLabel: "Create an app", onAction: () => setNewOpen(true) }
-                  : {})}
-              />
-            ) : visibleApps.length === 0 ? (
-              <EmptyState
-                message="No apps match the search or filters."
-                hasActiveFilters={hasActiveFilters}
-                onReset={resetFilters}
-              />
-            ) : (
-              <ResourceListFrame minWidth={920}>
-                <ResourceListHeaderTable columns={columns} />
-                <ResourceListTable columns={columns}>
-                  {visibleApps.map((app) => (
-                    <ResourceListRow
-                      key={app.id}
-                      interactive
-                      className="last:border-b-0"
-                      onClick={() => navigate(appRoute(app.slug))}
-                    >
-                      {columns.map((column) => (
-                        <ResourceListCell
-                          key={column.id}
-                          align={column.align}
-                          contentClassName={column.cellContentClassName}
-                        >
-                          {column.renderCell?.(app)}
-                        </ResourceListCell>
-                      ))}
-                    </ResourceListRow>
-                  ))}
-                </ResourceListTable>
-              </ResourceListFrame>
-            )}
-          </div>
+              ),
+            }}
+            loading={loading}
+            loadingLabel="Loading apps..."
+            emptyState={
+              apps.length === 0 ? (
+                <EmptyState
+                  message="No apps yet. An app keeps the containers, databases, storage, routes and Pages of one application together."
+                  {...(canCreate
+                    ? { actionLabel: "Create an app", onAction: () => setNewOpen(true) }
+                    : {})}
+                />
+              ) : (
+                <EmptyState
+                  message="No apps match the search or filters."
+                  hasActiveFilters={hasActiveFilters}
+                  onReset={resetFilters}
+                />
+              )
+            }
+            minWidth={920}
+            canManageFolders={canManageFolders}
+            // Moving an app between folders needs apps:edit on it (the server checks the destination too).
+            canReorganizeItem={(app) => app.access !== "members" && (canManageFolders || canEdit)}
+            getResourceLabel={(app) => app.name}
+            onItemClick={(app) => navigate(appRoute(app.slug))}
+            onRefresh={load}
+            onCreateFolderRef={(fn) => setCreateFolderAction(() => fn)}
+          />
         )}
       </div>
       <NewAppDialog

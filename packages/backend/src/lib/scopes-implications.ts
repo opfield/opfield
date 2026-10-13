@@ -36,6 +36,7 @@ const STANDALONE_SCOPES = new Set<string>([
   'domains:folders:manage',
   'proxy:folders:manage',
   'pages:folders:manage',
+  'apps:folders:manage',
   'ssl:cert:folders:manage',
   'pki:ca:folders:manage',
   'pki:cert:folders:manage',

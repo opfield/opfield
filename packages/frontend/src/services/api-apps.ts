@@ -25,6 +25,8 @@ import type {
   PageProject,
   PaginatedResponse,
   ProxyHost,
+  ResourceFolder,
+  ResourceFolderTreeNode,
 } from "@/types";
 import type { ApiClientBaseConstructor } from "./api-mixins";
 
@@ -45,10 +47,63 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
       return this.unwrapData(this.request<{ data: AppSummary[] }>("/apps"));
     }
 
-    async createApp(data: { name: string; description?: string }): Promise<AppDetail> {
+    async createApp(data: {
+      name: string;
+      description?: string;
+      folderId?: string | null;
+    }): Promise<AppDetail> {
       return this.unwrapData(
         this.request<{ data: AppDetail }>("/apps", { method: "POST", body: JSON.stringify(data) })
       );
+    }
+
+    // ── Folders of the Apps list ───────────────────────────────────
+
+    async listAppFolders(): Promise<ResourceFolderTreeNode[]> {
+      return this.unwrapData(this.request<{ data: ResourceFolderTreeNode[] }>("/apps/folders"));
+    }
+
+    async createAppFolder(data: { name: string; parentId?: string }): Promise<ResourceFolder> {
+      return this.unwrapData(
+        this.request<{ data: ResourceFolder }>("/apps/folders", {
+          method: "POST",
+          body: JSON.stringify(data),
+        })
+      );
+    }
+
+    async updateAppFolder(id: string, data: { name: string }): Promise<ResourceFolder> {
+      return this.unwrapData(
+        this.request<{ data: ResourceFolder }>(`/apps/folders/${seg(id)}`, {
+          method: "PUT",
+          body: JSON.stringify(data),
+        })
+      );
+    }
+
+    async deleteAppFolder(id: string): Promise<void> {
+      await this.request(`/apps/folders/${seg(id)}`, { method: "DELETE" });
+    }
+
+    async reorderAppFolders(items: { id: string; sortOrder: number }[]): Promise<void> {
+      await this.request("/apps/folders/reorder", {
+        method: "PUT",
+        body: JSON.stringify({ items }),
+      });
+    }
+
+    async moveAppsToFolder(ids: string[], folderId: string | null): Promise<void> {
+      await this.request("/apps/folders/move-apps", {
+        method: "POST",
+        body: JSON.stringify({ ids, folderId }),
+      });
+    }
+
+    async reorderApps(items: { id: string; sortOrder: number }[]): Promise<void> {
+      await this.request("/apps/folders/reorder-apps", {
+        method: "PUT",
+        body: JSON.stringify({ items }),
+      });
     }
 
     async getApp(idOrSlug: string): Promise<AppDetail> {

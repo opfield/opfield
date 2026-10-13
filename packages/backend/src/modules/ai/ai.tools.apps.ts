@@ -30,7 +30,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_app',
     description:
-      'Create, update or delete an app. create (name, optional description; needs apps:create) makes the app with one environment, production, marked as Production. update (appId, name, description and/or maintenanceOverride): renaming and the description (one line under the name, up to 200 characters; empty string or null clears it) need apps:edit on the app; maintenanceOverride true shows the maintenance page on every proxy route of every environment (apps:operate on the app), false restores each route to its own setting. remove_logo (appId; apps:edit on the app) removes the uploaded logo so the app shows its default icon; a logo is uploaded in the console (Settings > General) or with PUT /api/apps/{id}/logo (multipart field logo, square PNG/JPEG/WebP up to 1 MiB). delete (appId; apps:delete on the app): members keep running and leave the app, environment variables, secrets and allowed nodes are deleted.',
+      'Create, update or delete an app. create (name, optional description, optional folderId of an Apps list folder from list_resource_folders resourceType apps; needs apps:create broadly or on that folder) makes the app with one environment, production, marked as Production. update (appId, name, description and/or maintenanceOverride): renaming and the description (one line under the name, up to 200 characters; empty string or null clears it) need apps:edit on the app; maintenanceOverride true shows the maintenance page on every proxy route of every environment (apps:operate on the app), false restores each route to its own setting. remove_logo (appId; apps:edit on the app) removes the uploaded logo so the app shows its default icon; a logo is uploaded in the console (Settings > General) or with PUT /api/apps/{id}/logo (multipart field logo, square PNG/JPEG/WebP up to 1 MiB). delete (appId; apps:delete on the app): members keep running and leave the app, environment variables, secrets and allowed nodes are deleted.',
     parameters: {
       type: 'object',
       properties: {
@@ -43,6 +43,11 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
             'create, update: one-line app description, up to 200 characters; on update an empty string or null clears it.',
         },
         maintenanceOverride: { type: 'boolean', description: 'update: app-wide maintenance override.' },
+        folderId: {
+          type: ['string', 'null'],
+          description:
+            'create: Apps list folder to create the app in (null or omitted: top level). Move an existing app with manage_resource_folder resourceType apps.',
+        },
       },
       required: ['operation'],
     },

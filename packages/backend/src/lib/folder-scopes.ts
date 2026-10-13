@@ -2,6 +2,8 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   adminUserFolders,
+  appFolders,
+  apps,
   certificateAuthorities,
   certificates,
   certificateTemplates,
@@ -347,6 +349,7 @@ function familyForBaseScope(baseScope: string) {
   if (baseScope.startsWith('pki:ca:')) return 'pki-cas';
   if (baseScope.startsWith('pki:cert:')) return 'pki-certificates';
   if (baseScope.startsWith('pages:')) return 'pages';
+  if (baseScope.startsWith('apps:')) return 'apps';
   if (baseScope.startsWith('ssl:cert:')) return 'ssl';
   if (baseScope.startsWith('nodes:')) return 'nodes';
   if (baseScope.startsWith('ingress:groups:')) return 'ingress-groups';
@@ -495,6 +498,7 @@ export async function expandFolderScopes(db: DrizzleClient, scopes: readonly str
     expandSimpleFamily(db, byFamily.get('domains') ?? [], domainFolders, domains),
     expandSimpleFamily(db, byFamily.get('proxy') ?? [], proxyHostFolders, proxyHosts),
     expandSimpleFamily(db, byFamily.get('pages') ?? [], pageProjectFolders, pageProjects),
+    expandSimpleFamily(db, byFamily.get('apps') ?? [], appFolders, apps),
     expandSimpleFamily(db, byFamily.get('ssl') ?? [], sslCertificateFolders, sslCertificates),
     expandPkiCaFamily(db, byFamily.get('pki-cas') ?? []),
     expandSimpleFamily(db, byFamily.get('pki-certificates') ?? [], pkiCertificateFolders, certificates),

@@ -42,6 +42,7 @@ const VIEW_SCOPE: Record<StoredFolderType, string> = {
   "admin-user": "admin:users",
   "admin-group": "admin:groups",
   "pages-project": "pages:view",
+  app: "apps:view",
 };
 
 /** Folder management scope of each list (a folder grant manages that folder's subfolders), then broad alternatives. */
@@ -60,6 +61,7 @@ const MANAGE_SCOPES: Record<StoredFolderType, string[]> = {
   "admin-user": ["admin:users:folders:manage", "admin:system"],
   "admin-group": ["admin:groups:folders:manage", "admin:system"],
   "pages-project": ["pages:folders:manage"],
+  app: ["apps:folders:manage"],
 };
 
 /**

@@ -112,7 +112,8 @@ export const ALL_SCOPES = [
   'ingress:groups:view',
   'ingress:groups:manage',
   // ── Apps ─────────────────────────────────────────────────────────
-  // Qualifiers: `<appId>` (whole app) and `env/<envId>` (view, env:manage, promote, operate); create is broad only.
+  // Qualifiers: `<appId>` (whole app), `env/<envId>` (view, env:manage, promote, operate) and `folder/<id>` (an
+  // Apps list folder; create takes the destination folder).
   'apps:view',
   'apps:create',
   'apps:edit',
@@ -120,6 +121,7 @@ export const ALL_SCOPES = [
   'apps:env:manage',
   'apps:promote',
   'apps:operate',
+  'apps:folders:manage',
   // ── Administration ───────────────────────────────────────────────
   'admin:users',
   'admin:users:impersonate',

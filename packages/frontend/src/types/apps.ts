@@ -62,6 +62,9 @@ export interface AppSummary {
   description?: string | null;
   /** Uploaded logo (square image); null shows the default app icon. */
   logoUrl?: string | null;
+  /** Folder of the Apps list (null at the top level) and the position in it. */
+  folderId?: string | null;
+  sortOrder?: number;
   access?: AppAccess;
   environments: AppSummaryEnvironment[];
   /** The Production environment's health. */

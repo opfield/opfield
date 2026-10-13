@@ -5,6 +5,7 @@ import {
   accessLists,
   adminUserFolders,
   appEnvironments,
+  appFolders,
   apps,
   certificateAuthorities,
   certificates,
@@ -238,6 +239,7 @@ const FOLDER_TABLES: Record<AccessFolderResourceType, any> = {
   routes: proxyHostFolders,
   docker: dockerContainerFolders,
   pages: pageProjectFolders,
+  apps: appFolders,
 };
 
 type FolderInfo = { name: string | null; path: string | null; parentId: string | null };

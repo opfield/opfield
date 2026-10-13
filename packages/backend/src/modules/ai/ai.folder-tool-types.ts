@@ -18,6 +18,7 @@ export const FOLDER_TOOL_RESOURCE_TYPES = [
   'routes',
   'docker',
   'pages',
+  'apps',
 ] as const satisfies readonly AccessFolderResourceType[];
 
 export type FolderToolResourceType = (typeof FOLDER_TOOL_RESOURCE_TYPES)[number];

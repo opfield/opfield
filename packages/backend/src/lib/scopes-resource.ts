@@ -15,6 +15,7 @@ export const FOLDER_CREATION_SCOPES = [
   'docker:networks:create',
   'docker:volumes:create',
   'docker:images:pull',
+  'apps:create',
 ] as const;
 
 /**
@@ -40,6 +41,7 @@ export const FOLDER_MANAGE_SCOPES = [
   'pages:folders:manage',
   'logs:environments:folders:manage',
   'logs:schemas:folders:manage',
+  'apps:folders:manage',
 ] as const;
 
 export const RESOURCE_SCOPABLE: readonly string[] = [
@@ -277,6 +279,13 @@ export const FOLDER_SCOPABLE: readonly string[] = [
   // Ingress groups live in node folders; a folder grant covers the groups in it and its subfolders.
   'ingress:groups:view',
   'ingress:groups:manage',
+  // Apps: a folder grant of the Apps list covers the apps in it and its subfolders.
+  'apps:view',
+  'apps:edit',
+  'apps:delete',
+  'apps:env:manage',
+  'apps:promote',
+  'apps:operate',
   // Docker containers and deployments
   'docker:containers:view',
   'docker:containers:edit',

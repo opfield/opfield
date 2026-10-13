@@ -449,6 +449,12 @@ export const CORE_TOKEN_SCOPES = [
     desc: "Shut down, start and isolate app environments and set app maintenance",
     group: "Apps",
   },
+  {
+    value: "apps:folders:manage",
+    label: "Manage App Folders",
+    desc: "Create, reorder, and remove folders of the Apps list",
+    group: "Apps",
+  },
   // Administration
   {
     value: "admin:users",

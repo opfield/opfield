@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   boolean,
   index,
   integer,
@@ -18,6 +19,27 @@ import { users } from './users.js';
  * An app groups resources of several types into environments. Members live in hidden folders of their own type
  * (`app_id` set on the folder row): one app-root folder per family, one environment folder per environment below it.
  */
+/** Folders of the Apps list (the apps themselves; an app's members live in hidden folders of their own type). */
+export const appFolders = pgTable(
+  'app_folders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    parentId: uuid('parent_id').references((): AnyPgColumn => appFolders.id, { onDelete: 'cascade' }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    depth: integer('depth').notNull().default(0),
+    createdById: uuid('created_by_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('app_folders_parent_idx').on(table.parentId),
+    index('app_folders_sort_idx').on(table.parentId, table.sortOrder),
+  ]
+);
+
 export const apps = pgTable(
   'apps',
   {
@@ -31,6 +53,9 @@ export const apps = pgTable(
     maintenanceOverride: boolean('maintenance_override').notNull().default(false),
     maintenanceOverrideAt: timestamp('maintenance_override_at', { withTimezone: true }),
     maintenanceOverrideBy: uuid('maintenance_override_by').references(() => users.id, { onDelete: 'set null' }),
+    /** Folder of the Apps list; null at the top level. */
+    folderId: uuid('folder_id').references(() => appFolders.id, { onDelete: 'set null' }),
+    sortOrder: integer('sort_order').notNull().default(0),
     createdById: uuid('created_by_id')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
@@ -40,6 +65,7 @@ export const apps = pgTable(
   (table) => [
     uniqueIndex('apps_slug_unique').on(table.slug),
     uniqueIndex('apps_name_lower_unique').on(sql`lower(${table.name})`),
+    index('apps_folder_idx').on(table.folderId),
   ]
 );
 

@@ -20,7 +20,8 @@ export type AccessFolderResourceType =
   | 'permission_groups'
   | 'routes'
   | 'docker'
-  | 'pages';
+  | 'pages'
+  | 'apps';
 
 export type AccessDockerFolderType = 'container' | 'compose' | 'image' | 'volume' | 'network';
 
@@ -267,14 +268,15 @@ export const ACCESS_AREAS: readonly AccessAreaDefinition[] = [
     createHint: 'pass folderId to the create operation of manage_ingress_group',
   },
   {
-    // Apps: grants are broad, `<appId>` or `env/<envId>`; members follow their own resource grants.
+    // Apps: grants are broad, `<appId>`, `env/<envId>` or an Apps list folder; members follow their own resource grants.
     id: 'apps',
     title: 'Apps',
     action: prefixed('apps:'),
     viewScope: 'apps:view',
     createScope: 'apps:create',
+    folderResourceType: 'apps',
     createHint:
-      'call manage_app with operation create; create resources inside an environment with folderId from get_app placementFolderIds',
+      'call manage_app with operation create (pass folderId to create it in an Apps list folder); create resources inside an environment with folderId from get_app placementFolderIds',
   },
   {
     id: 'hosting',

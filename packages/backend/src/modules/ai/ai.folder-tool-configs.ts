@@ -1,6 +1,8 @@
 import { container } from '@/container.js';
 import { getResourceScopedIds } from '@/lib/permissions.js';
 import { AdminUserFolderService } from '@/modules/admin/admin-user-folders.service.js';
+import { APP_SCOPES } from '@/modules/apps/app-access.js';
+import { AppListFolderService } from '@/modules/apps/app-list-folders.service.js';
 import { DatabaseFolderService } from '@/modules/databases/database-folders.service.js';
 import { DomainFolderService } from '@/modules/domains/domain-folders.service.js';
 import { PermissionGroupFolderService } from '@/modules/groups/permission-group-folders.service.js';
@@ -155,6 +157,25 @@ export function genericFolderConfig(resourceType: GenericFolderResourceType): Ge
         createScope: 'pages:create',
         reorderItemScope: 'pages:edit',
         visibleResourceIds: (scopes) => visiblePageProjectIds(scopes) ?? [],
+      };
+    case 'apps':
+      // Folders of the Apps list hold apps; an app's members keep their own hidden folders.
+      return {
+        service: container.resolve(AppListFolderService),
+        viewScope: 'apps:view',
+        manageScope: 'apps:folders:manage',
+        listScopes: ['apps:create'],
+        moveEditScope: 'apps:edit',
+        resourceMoveScope: 'apps:edit',
+        createScope: 'apps:create',
+        reorderItemScope: 'apps:edit',
+        visibleResourceIds: (scopes) => [
+          ...new Set(
+            APP_SCOPES.filter((scope) => scope !== 'apps:create').flatMap((scope) =>
+              getResourceScopedIds(scopes, scope)
+            )
+          ),
+        ],
       };
     case 'pki_cas':
       // A folder holds whole hierarchies: only root CAs move, their intermediates follow.

@@ -1772,6 +1772,13 @@
       "when": 1793467037000,
       "tag": "0252_token_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1793553437000,
+      "tag": "0253_app_folders",
+      "breakpoints": true
     }
   ]
 }

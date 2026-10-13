@@ -52,6 +52,7 @@ const RESOURCE_TYPES: ResourceFolderType[] = [
   "admin-user",
   "admin-group",
   "pages-project",
+  "app",
 ];
 const EXPANDED_STORAGE_KEY = "resource-folder-expanded";
 
@@ -296,6 +297,8 @@ function folderBasePath(type: ResourceFolderType): string {
       return "/admin/groups/folders";
     case "pages-project":
       return "/pages/folders";
+    case "app":
+      return "/apps/folders";
   }
 }
 
@@ -330,6 +333,8 @@ function listFolders(type: ResourceFolderType): Promise<ResourceFolderTreeNode[]
       return api.listAdminGroupFolders();
     case "pages-project":
       return api.listPageProjectFolders();
+    case "app":
+      return api.listAppFolders();
   }
 }
 
@@ -368,6 +373,8 @@ function createFolderByType(
       return api.createAdminGroupFolder(data);
     case "pages-project":
       return api.createPageProjectFolder(data);
+    case "app":
+      return api.createAppFolder(data);
   }
 }
 
@@ -407,6 +414,8 @@ function updateFolderByType(
       return api.updateAdminGroupFolder(id, data);
     case "pages-project":
       return api.updatePageProjectFolder(id, data);
+    case "app":
+      return api.updateAppFolder(id, data);
   }
 }
 
@@ -442,6 +451,8 @@ function deleteFolderByType(type: ResourceFolderType, id: string): Promise<void>
       return api.deleteAdminGroupFolder(id);
     case "pages-project":
       return api.deletePageProjectFolder(id);
+    case "app":
+      return api.deleteAppFolder(id);
   }
 }
 
@@ -480,6 +491,8 @@ function reorderFoldersByType(
       return api.reorderAdminGroupFolders(items);
     case "pages-project":
       return api.reorderPageProjectFolders(items);
+    case "app":
+      return api.reorderAppFolders(items);
   }
 }
 
@@ -519,6 +532,8 @@ function moveResourcesToFolderByType(
       return api.moveAdminGroupsToFolder(ids, folderId);
     case "pages-project":
       return api.movePageProjectsToFolder(ids, folderId);
+    case "app":
+      return api.moveAppsToFolder(ids, folderId);
   }
 }
 
@@ -557,6 +572,8 @@ function reorderResourcesByType(
       return api.reorderAdminGroups(items);
     case "pages-project":
       return api.reorderPageProjects(items);
+    case "app":
+      return api.reorderApps(items);
   }
 }
 function isSnapshotType(type: ResourceFolderType): type is `hosting-snapshot:${string}` {

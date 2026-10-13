@@ -17,7 +17,14 @@ const description = z
   .pipe(z.string().max(APP_DESCRIPTION_MAX))
   .nullable();
 
-export const CreateAppSchema = z.object({ name: name(255), description: description.optional() }).strict();
+export const CreateAppSchema = z
+  .object({
+    name: name(255),
+    description: description.optional(),
+    /** Apps list folder to create the app in; omitted or null at the top level. */
+    folderId: z.string().uuid().nullable().optional(),
+  })
+  .strict();
 
 export const UpdateAppSchema = z
   .object({

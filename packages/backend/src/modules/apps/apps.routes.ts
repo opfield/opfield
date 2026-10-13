@@ -3,10 +3,20 @@ import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { authMiddleware, requireAnyScopeBase } from '@/modules/auth/auth.middleware.js';
+import { appFolderRouteDocs } from '@/modules/resource-folders/resource-folder.docs.js';
+import { registerResourceFolderRoutes } from '@/modules/resource-folders/resource-folder.routes.js';
 import type { AppEnv } from '@/types.js';
-import { APP_MEMBER_VIEW_SCOPES, APP_SCOPES } from './app-access.js';
+import {
+  APP_CREATE_SCOPE,
+  APP_EDIT_SCOPE,
+  APP_FOLDERS_MANAGE_SCOPE,
+  APP_MEMBER_VIEW_SCOPES,
+  APP_SCOPES,
+  APP_VIEW_SCOPE,
+} from './app-access.js';
 import { registerAppActivityRoutes } from './app-activity.routes.js';
 import { registerAppIncidentRoutes } from './app-incident.routes.js';
+import { AppListFolderService } from './app-list-folders.service.js';
 import { registerAppMaintenanceRoutes } from './app-maintenance.routes.js';
 import { registerAppMembersRoutes } from './app-members.routes.js';
 import { registerAppNodesRoutes } from './app-nodes.routes.js';
@@ -39,10 +49,22 @@ export const appsRoutes: AppsRouter = new OpenAPIHono<AppEnv>({ defaultHook: ope
 appsRoutes.use('*', authMiddleware);
 // Any app permission reaches the API, and so does a member view permission (an app shows through the members the caller
 // can view); every action checks the app, environment or member it touches.
-appsRoutes.use('*', requireAnyScopeBase(...APP_SCOPES, ...APP_MEMBER_VIEW_SCOPES));
+appsRoutes.use('*', requireAnyScopeBase(...APP_SCOPES, APP_FOLDERS_MANAGE_SCOPE, ...APP_MEMBER_VIEW_SCOPES));
 
-// Static paths first: `/members/place` must not be read as an app id.
+// Static paths first: `/members/place` and `/folders` must not be read as an app id.
 registerAppMembersRoutes(appsRoutes);
+
+// Folders of the Apps list. Moving an app needs apps:edit on it and on the destination (broadly or as a folder grant).
+registerResourceFolderRoutes(appsRoutes, {
+  docs: appFolderRouteDocs,
+  service: () => container.resolve(AppListFolderService),
+  manageScope: APP_FOLDERS_MANAGE_SCOPE,
+  viewScope: APP_VIEW_SCOPE,
+  listScopes: [APP_CREATE_SCOPE],
+  visibleResourceScopes: APP_SCOPES.filter((scope) => scope !== APP_CREATE_SCOPE),
+  folderGrantScopes: APP_SCOPES,
+  placementScope: APP_EDIT_SCOPE,
+});
 
 appsRoutes.openapi(listAppsRoute, async (c) => {
   return c.json({ data: await container.resolve(AppsService).list(appActor(c).scopes) });

@@ -8,6 +8,8 @@ export const APP_DELETE_SCOPE = 'apps:delete';
 export const APP_ENV_MANAGE_SCOPE = 'apps:env:manage';
 export const APP_PROMOTE_SCOPE = 'apps:promote';
 export const APP_OPERATE_SCOPE = 'apps:operate';
+/** Folders of the Apps list: create, rename, move and delete them and place apps in them (with apps:edit on the app). */
+export const APP_FOLDERS_MANAGE_SCOPE = 'apps:folders:manage';
 
 /** Every app scope; holding any of them (any qualifier) lets a caller reach the apps API. */
 export const APP_SCOPES = [

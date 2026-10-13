@@ -16,6 +16,7 @@ export const FOLDER_CREATION_SCOPES = [
   "docker:networks:create",
   "docker:volumes:create",
   "docker:images:pull",
+  "apps:create",
 ] as const;
 
 /**
@@ -64,6 +65,7 @@ export const FOLDER_MANAGE_SCOPES = [
   "pages:folders:manage",
   "logs:environments:folders:manage",
   "logs:schemas:folders:manage",
+  "apps:folders:manage",
 ] as const;
 
 export const RESOURCE_SCOPABLE_SCOPES = [
@@ -135,7 +137,7 @@ export const RESOURCE_SCOPABLE_SCOPES = [
   "nodes:lock",
   "ingress:groups:view",
   "ingress:groups:manage",
-  // Apps: <appId> or env/<envId>
+  // Apps: <appId>, env/<envId> or an Apps list folder
   "apps:view",
   "apps:edit",
   "apps:delete",
@@ -269,6 +271,12 @@ export const FOLDER_SCOPABLE_SCOPES = [
   "nodes:lock",
   "ingress:groups:view",
   "ingress:groups:manage",
+  "apps:view",
+  "apps:edit",
+  "apps:delete",
+  "apps:env:manage",
+  "apps:promote",
+  "apps:operate",
   "docker:containers:view",
   "docker:containers:edit",
   "docker:containers:manage",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,6 +28,8 @@ export function AppNameDialog({
   placeholder,
   submitLabel,
   withDescription = false,
+  children,
+  submitDisabled = false,
   onSubmit,
 }: {
   open: boolean;
@@ -39,6 +41,10 @@ export function AppNameDialog({
   submitLabel: string;
   /** Adds an optional Description field (New App). */
   withDescription?: boolean;
+  /** More fields after the name and description (the folder of a new app). */
+  children?: ReactNode;
+  /** Keeps the submit button off while the extra fields are not valid. */
+  submitDisabled?: boolean;
   /** Throw to keep the dialog open (the caller shows the error). `description` is trimmed, empty when not given. */
   onSubmit: (name: string, description: string) => Promise<void>;
 }) {
@@ -58,7 +64,7 @@ export function AppNameDialog({
 
   const submit = async () => {
     const trimmed = name.trim();
-    if (!trimmed || submitting) return;
+    if (!trimmed || submitting || submitDisabled) return;
     setSubmitting(true);
     try {
       await onSubmit(trimmed, withDescription ? descriptionText.trim() : "");
@@ -112,11 +118,16 @@ export function AppNameDialog({
             />
           </div>
         )}
+        {children}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={() => void submit()} pending={submitting} disabled={!name.trim()}>
+          <Button
+            onClick={() => void submit()}
+            pending={submitting}
+            disabled={!name.trim() || submitDisabled}
+          >
             {submitLabel}
           </Button>
         </DialogFooter>

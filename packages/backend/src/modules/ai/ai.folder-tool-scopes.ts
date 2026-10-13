@@ -35,6 +35,8 @@ export const FOLDER_TOOL_REQUIREMENT_SCOPES = [
   'docker:compose:view',
   'pages:view',
   'pages:folders:manage',
+  'apps:view',
+  'apps:folders:manage',
   // Creation scopes also list every folder of their module, like the HTTP folder list routes.
   'nodes:create',
   'proxy:create',
@@ -47,6 +49,7 @@ export const FOLDER_TOOL_REQUIREMENT_SCOPES = [
   'logs:environments:create',
   'logs:schemas:create',
   'pages:create',
+  'apps:create',
   'docker:containers:create',
   'docker:images:pull',
   'docker:networks:create',

@@ -103,6 +103,7 @@ describe('generated scope implications', () => {
       'proxy:templates:folders:manage',
       'ssl:cert:folders:manage',
       'nodes:folders:manage',
+      'apps:folders:manage',
       'admin:users',
       'admin:users:impersonate',
       'admin:users:folders:manage',

@@ -13,7 +13,8 @@ export type ResourceFolderType =
   | "logging-schema"
   | "admin-user"
   | "admin-group"
-  | "pages-project";
+  | "pages-project"
+  | "app";
 
 export interface ResourceFolder {
   id: string;

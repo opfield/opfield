@@ -91,6 +91,7 @@ export function requiredScopeFor(channel: string): string | null {
   if (channel === 'node.slug.changed') return 'nodes:details';
   if (channel === 'node.changed' || channel === 'node.folder.changed') return 'nodes:details';
   if (channel === 'ingress_group.changed') return 'ingress:groups:view';
+  if (channel === 'apps.folder.changed') return 'apps:view';
   if (channel === 'apps') return 'apps:view';
   if (channel === 'user.changed') return 'admin:users';
   if (channel === 'audit.changed') return 'admin:audit';
@@ -252,6 +253,10 @@ export function hasChannelAccess(scopes: string[], channel: string): boolean {
   }
   if (channel === 'node.folder.changed') {
     return hasScopeBase(scopes, 'nodes:details') || hasScopeBase(scopes, 'nodes:folders:manage');
+  }
+  if (channel === 'apps.folder.changed') {
+    // Only an action and a folder id travel; the folder tree request applies the grants.
+    return canReachApps(scopes) || hasScopeBase(scopes, 'apps:folders:manage');
   }
   if (channel === 'apps') {
     // Only {appId, action} travels; the app requests apply the app, environment and member grants.

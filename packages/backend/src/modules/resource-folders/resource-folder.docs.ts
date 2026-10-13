@@ -111,3 +111,10 @@ export const nginxTemplateFolderRouteDocs = resourceFolderRouteDocs({
   plural: 'nginx templates',
   segment: 'templates',
 });
+
+export const appFolderRouteDocs = resourceFolderRouteDocs({
+  tag: 'Apps',
+  noun: 'app',
+  plural: 'apps',
+  segment: 'apps',
+});
