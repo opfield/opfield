@@ -14,7 +14,11 @@ import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { InferenceCoreOperationPhase, InferenceCoreStatus } from "@/types/inference-core";
+import type {
+  InferenceCoreOperation,
+  InferenceCoreOperationPhase,
+  InferenceCoreStatus,
+} from "@/types/inference-core";
 
 const PHASE_LABELS: Record<InferenceCoreOperationPhase, string> = {
   resolving: "Resolving release",
@@ -61,8 +65,30 @@ export function inferenceCoreBlockedReason(status: InferenceCoreStatus | null): 
   }
 }
 
+/** The label of a running operation: an update reads "Updating" from its first step, not once the image is pulled. */
+const RUNNING_OPERATION_LABELS: Record<InferenceCoreOperation["kind"], string> = {
+  install: "Installing",
+  update: "Updating",
+  repair: "Repairing",
+  rollback: "Rolling back",
+};
+
+/** A running install, update, repair or rollback, which the state catches up with only at a later step. */
+function runningOperation(status: InferenceCoreStatus) {
+  return status.operation?.status === "running" ? status.operation : null;
+}
+
 function stateBadge(status: InferenceCoreStatus) {
   const className = "shrink-0 whitespace-nowrap";
+  const operation = runningOperation(status);
+  if (operation) {
+    const rollingBack = operation.kind === "rollback" || operation.phase === "rolling_back";
+    return (
+      <Badge variant={rollingBack ? "warning" : "info"} size="inline" className={className}>
+        {rollingBack ? "Rolling back" : RUNNING_OPERATION_LABELS[operation.kind]}
+      </Badge>
+    );
+  }
   if (status.installed && status.compatibility === "update_required") {
     return (
       <Badge variant="warning" size="inline" className={className}>
@@ -490,7 +516,7 @@ export function InferenceCoreLifecyclePanel({
         icon={<Cpu className="h-4 w-4" />}
         aria-label="Inference core status"
         className={
-          status.state === "updating"
+          status.state === "updating" || operationActive
             ? "border-link"
             : updateAvailable
               ? "border-warning"
