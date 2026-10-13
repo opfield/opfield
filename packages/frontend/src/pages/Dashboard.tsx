@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { useLoadDashboardBootstrap } from "@/hooks/use-dashboard-bootstrap";
 import { usePinnedApps } from "@/hooks/use-pinned-apps";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { dockerResourceKey } from "@/lib/dashboard-attention";
@@ -361,6 +362,8 @@ function DashboardSkeleton() {
 export function Dashboard() {
   const navigate = useNavigate();
   const { user, hasScope, hasScopedAccess, logout } = useAuthStore();
+  // Cards that open global sections ignore grants held only through app places.
+  const globalAccess = useGlobalSectionAccess();
   const dashboardPinnedIds = usePinnedNodesStore((s) => s.dashboardNodeIds);
   const dashboardPinnedProxyIds = usePinnedProxiesStore((s) => s.dashboardProxyIds);
   const dashboardPinnedDatabaseIds = usePinnedDatabasesStore((s) => s.dashboardDatabaseIds);
@@ -815,7 +818,7 @@ export function Dashboard() {
           <QuickStatsCard
             displayStats={displayStats}
             nodesList={nodesList}
-            hasScopedAccess={hasScopedAccess}
+            hasScopedAccess={globalAccess.hasScopedAccess}
             pkiEnabled={pkiEnabled}
           />
 
@@ -867,7 +870,10 @@ export function Dashboard() {
 
           <CertificateExpiryCard expiringItems={expiringItemsForCard} />
 
-          <HealthOverviewCard healthHosts={visibleHealthHosts} />
+          <HealthOverviewCard
+            healthHosts={visibleHealthHosts}
+            canOpenRoutes={globalAccess.hasScopedAccess("proxy:view")}
+          />
 
           <NodesCard nodesList={visibleNodesForCards} />
 

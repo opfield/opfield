@@ -26,6 +26,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useLoadDashboardBootstrap } from "@/hooks/use-dashboard-bootstrap";
+import { useAppOnlyScopeBases } from "@/hooks/use-global-section-scopes";
 import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { toastApiError } from "@/lib/api-error-toast";
 import { visibleNavigationGroups } from "@/lib/app-navigation";
@@ -150,6 +151,7 @@ export function SidebarContent({
   const appsByMembers = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.appsByMembers ?? false
   );
+  const appOnlyScopeBases = useAppOnlyScopeBases();
   const pkiEnabled = usePkiAvailable();
   const siemEnabled = useSiemAvailable();
   const loggingEnabled = useSystemConfigStore((s) => s.config.features.loggingEnabled);
@@ -195,6 +197,7 @@ export function SidebarContent({
     pagesEnabled,
     hasCloudflareIntegration,
     appsByMembers,
+    appOnlyScopeBases,
     hasNginxNodes,
     hasDockerNodes:
       dockerNodes.length > 0 ||

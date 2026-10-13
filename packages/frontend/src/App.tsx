@@ -22,6 +22,7 @@ import {
   type LicenseFeatureFrame,
 } from "@/components/license/LicenseFeatureBoundary";
 import { Button } from "@/components/ui/button";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { hasDashboardContent } from "@/lib/app-navigation";
 import { getLoginRedirectUrl } from "@/lib/auth-return-to";
@@ -182,6 +183,9 @@ function scoped(scope: string, element: React.ReactElement) {
 
 function DashboardPageGuard() {
   const scopes = useAuthStore((state) => state.user?.scopes ?? []);
+  const canOpenApps = useAuthStore(
+    (state) => state.hasScopedAccess("apps:view") || state.hasScope("apps:create")
+  );
   const features = useSystemConfigStore((state) => state.config.features);
   const uiBootstrap = useUIBootstrapStore((state) => state.snapshot);
   const dashboardBootstrap = useDashboardBootstrapStore((state) => state.snapshot);
@@ -197,9 +201,14 @@ function DashboardPageGuard() {
     statusPageEnabled: uiBootstrap?.navigation.statusPageEnabled ?? false,
     pagesEnabled: uiBootstrap?.navigation.pagesEnabled ?? false,
     hasCloudflareIntegration: uiBootstrap?.navigation.hasCloudflareIntegration ?? false,
+    appOnlyScopeBases: uiBootstrap?.navigation.appOnlyScopeBases,
   });
 
   if (canAccess) return <Dashboard />;
+  // A user limited to apps starts on Apps (global sections they reach only through apps redirect here).
+  if (canOpenApps || uiBootstrap?.navigation.appsByMembers === true) {
+    return <Navigate to="/apps" replace />;
+  }
   return <Navigate to="/profile" replace />;
 }
 
@@ -527,8 +536,7 @@ const STATUS_PAGE_FRAME: LicenseFeatureFrame = {
 const PAGES_FRAME: LicenseFeatureFrame = { kind: "page", title: "Pages" };
 
 function PagesPageGuard() {
-  const hasScope = useAuthStore((state) => state.hasScope);
-  const hasScopedAccess = useAuthStore((state) => state.hasScopedAccess);
+  const { hasScope, hasScopedAccess } = useGlobalSectionAccess();
   const license = useUIBootstrapStore((state) => state.snapshot?.license);
   const entitled = license ? license.entitlements.features.includes("pages") : null;
   if (
@@ -685,7 +693,7 @@ function NodesPageGuard() {
 }
 
 function DockerPageGuard() {
-  const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
+  const { hasScopedAccess } = useGlobalSectionAccess();
 
   const canAccessDocker =
     hasScopedAccess("docker:containers:view") ||
@@ -731,8 +739,7 @@ function AppsPageGuard({ children }: { children: React.ReactElement }) {
 }
 
 function DatabasesPageGuard() {
-  const hasScope = useAuthStore((s) => s.hasScope);
-  const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
+  const { hasScope, hasScopedAccess } = useGlobalSectionAccess();
 
   // Create-only (for example folder-scoped) grants open the page so the user can create.
   const canAccessDatabases =
@@ -780,8 +787,7 @@ function DatabaseDetailGuard() {
 }
 
 function StoragePageGuard() {
-  const hasScope = useAuthStore((s) => s.hasScope);
-  const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
+  const { hasScope, hasScopedAccess } = useGlobalSectionAccess();
 
   const canAccessStorage =
     hasScopedAccess("storage:view") ||

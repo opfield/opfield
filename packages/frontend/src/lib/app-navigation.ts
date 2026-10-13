@@ -22,7 +22,7 @@ import {
   ROUTES_HUB,
   visibleHubTabs,
 } from "@/lib/navigation-hubs";
-import { hasScopeBase, scopeMatches } from "@/lib/scope-utils";
+import { extractBaseScope, hasScopeBase, scopeMatches } from "@/lib/scope-utils";
 
 export type AppNavigationGroupId = "main" | "reverse-proxy" | "resources" | "management";
 
@@ -73,6 +73,11 @@ export interface AppNavigationVisibility {
   hasDockerNodes?: boolean;
   /** Some app is visible only through members the user can view (UI bootstrap). */
   appsByMembers?: boolean;
+  /**
+   * Scope bases held only through app places (UI bootstrap). Global sections ignore them, so a user
+   * limited to an app works through Apps.
+   */
+  appOnlyScopeBases?: readonly string[];
   /** False when the plan lacks multi-node availability (hides the Ingress Groups tab). */
   ingressGroupsInPlan?: boolean;
   /** Items the current license plan does not grant; hidden from navigation. */
@@ -276,11 +281,35 @@ const SETTINGS_SCOPES = [
   "feat:ai:configure",
 ] as const;
 
+/**
+ * The scopes that open global sections (Docker, Routes, Databases, Storage, Pages and their links):
+ * without the bases the user holds only through app places. Their grants still open the app and the
+ * member pages reached from it.
+ */
+export function globalSectionScopes(
+  scopes: readonly string[],
+  appOnlyScopeBases: readonly string[] | undefined
+): readonly string[] {
+  if (!appOnlyScopeBases?.length) return scopes;
+  const appOnly = new Set(appOnlyScopeBases);
+  return scopes.filter((scope) => !appOnly.has(extractBaseScope(scope)));
+}
+
+function withGlobalScopes(context: AppNavigationVisibility): AppNavigationVisibility {
+  if (!context.appOnlyScopeBases?.length) return context;
+  return {
+    ...context,
+    scopes: globalSectionScopes(context.scopes, context.appOnlyScopeBases),
+    appOnlyScopeBases: undefined,
+  };
+}
+
 function hasAnyScope(scopes: readonly string[], required: readonly string[]): boolean {
   return required.some((scope) => scopeMatches(scopes, scope));
 }
 
-export function hasDashboardContent(context: AppNavigationVisibility): boolean {
+export function hasDashboardContent(visibility: AppNavigationVisibility): boolean {
+  const context = withGlobalScopes(visibility);
   const { scopes } = context;
   return (
     hasScopeBase(scopes, "proxy:view") ||
@@ -297,8 +326,9 @@ export function hasDashboardContent(context: AppNavigationVisibility): boolean {
 
 export function canAccessNavigationItem(
   item: AppNavigationItem,
-  context: AppNavigationVisibility
+  visibility: AppNavigationVisibility
 ): boolean {
+  const context = withGlobalScopes(visibility);
   const { scopes } = context;
   if (context.unlicensedItems?.includes(item.id)) return false;
   switch (item.id) {
@@ -401,13 +431,14 @@ const HUB_BY_NAVIGATION_ITEM: Partial<Record<AppNavigationItemId, NavigationHub>
 function withVisibleHref(item: AppNavigationItem, context: AppNavigationVisibility) {
   const hub = HUB_BY_NAVIGATION_ITEM[item.id];
   if (!hub) return item;
-  const tabs = visibleHubTabs(hub, hubContext(context));
+  const tabs = visibleHubTabs(hub, hubContext(withGlobalScopes(context)));
   const href = tabs[0]?.path ?? item.href;
   if (href === item.href) return item;
   return { ...item, href, activePaths: [item.href, ...(item.activePaths ?? [])] };
 }
 
-export function visibleNavigationGroups(context: AppNavigationVisibility): AppNavigationGroup[] {
+export function visibleNavigationGroups(visibility: AppNavigationVisibility): AppNavigationGroup[] {
+  const context = withGlobalScopes(visibility);
   return APP_NAVIGATION_GROUPS.map((group) => ({
     ...group,
     items: group.items
@@ -416,7 +447,10 @@ export function visibleNavigationGroups(context: AppNavigationVisibility): AppNa
   })).filter((group) => group.items.length > 0);
 }
 
-export function keyboardNavigationRoutes(context: AppNavigationVisibility): Record<string, string> {
+export function keyboardNavigationRoutes(
+  visibility: AppNavigationVisibility
+): Record<string, string> {
+  const context = withGlobalScopes(visibility);
   return Object.fromEntries(
     APP_NAVIGATION_GROUPS.flatMap((group) => group.items)
       .filter(

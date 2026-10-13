@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   APP_NAVIGATION_GROUPS,
   type AppNavigationVisibility,
+  globalSectionScopes,
+  hasDashboardContent,
+  keyboardNavigationRoutes,
   visibleNavigationGroups,
 } from "./app-navigation";
 import { isSidebarNavigationActive } from "./sidebar-navigation";
@@ -94,5 +97,92 @@ describe("Routes and Certificates items", () => {
       expect(active(routes, path)).toBe(false);
     }
     expect(active(routes, "/routesx")).toBe(false);
+  });
+});
+
+describe("global sections for users limited to apps", () => {
+  // Effective scopes of an "In an app environment" line: the folder grants on the environment's
+  // hidden folders and the resource grants they expand to, plus the app scopes.
+  const APP_LINE = [
+    "apps:view:env/env-1",
+    "docker:containers:view:folder/env-docker",
+    "docker:containers:view:node-1/container-1",
+    "docker:compose:view:folder/env-compose",
+    "proxy:view:folder/env-routes",
+    "proxy:view:route-1",
+    "proxy:create:folder/env-routes",
+    "databases:view:folder/env-databases",
+    "databases:view:database-1",
+    "storage:view:folder/env-storage",
+    "storage:view:storage-1",
+    "pages:view:folder/env-pages",
+  ];
+  // What the UI bootstrap reports for those scopes alone.
+  const APP_ONLY = [
+    "databases:view",
+    "docker:compose:view",
+    "docker:containers:view",
+    "pages:view",
+    "proxy:create",
+    "proxy:view",
+    "storage:view",
+  ];
+  const GLOBAL_IDS = ["proxy-hosts", "docker", "pages", "databases", "storage"];
+  const ids = (ctx: AppNavigationVisibility) => items(ctx).map((entry) => entry.id);
+  const appUser = (scopes: string[], appOnlyScopeBases: string[]) =>
+    context(scopes, { pagesEnabled: true, appOnlyScopeBases });
+
+  it("shows Apps only, without the sections the app grants reach", () => {
+    expect(ids(appUser(APP_LINE, APP_ONLY))).toEqual(["apps"]);
+    expect(hasDashboardContent(appUser(APP_LINE, APP_ONLY))).toBe(false);
+    expect(keyboardNavigationRoutes(appUser(APP_LINE, APP_ONLY))).toEqual({});
+  });
+
+  it("showed those sections before the bootstrap could tell app places apart", () => {
+    expect(ids(context(APP_LINE, { pagesEnabled: true }))).toEqual(
+      expect.arrayContaining(["apps", ...GLOBAL_IDS])
+    );
+  });
+
+  it("keeps a section the user also reaches outside the app", () => {
+    // Storage also granted on a user folder: the bootstrap keeps storage:view.
+    const mixed = appUser(
+      [...APP_LINE, "storage:view:folder/team-folder"],
+      APP_ONLY.filter((base) => base !== "storage:view")
+    );
+    expect(ids(mixed)).toEqual(["apps", "storage"]);
+    // A resource grant outside the app: the bootstrap keeps databases:view, and only that family.
+    expect(
+      ids(
+        appUser(
+          [...APP_LINE, "databases:view:database-9"],
+          APP_ONLY.filter((base) => base !== "databases:view")
+        )
+      )
+    ).toEqual(["apps", "databases"]);
+  });
+
+  it("keeps every section for broad scopes", () => {
+    const broad = [...APP_LINE, "proxy:view", "docker:containers:view", "storage:view"];
+    const bases = APP_ONLY.filter(
+      (base) => !["proxy:view", "docker:containers:view", "storage:view"].includes(base)
+    );
+    expect(ids(appUser(broad, bases))).toEqual(
+      expect.arrayContaining(["dashboard", "apps", "proxy-hosts", "docker", "storage"])
+    );
+    expect(ids(appUser(broad, bases))).not.toContain("databases");
+    expect(keyboardNavigationRoutes(appUser(broad, bases))).toMatchObject({
+      "3": "/routes",
+      "8": "/docker",
+    });
+  });
+
+  it("filters only the app-only bases, so an implied global view still counts", () => {
+    const scopes = ["storage:edit:folder/env-storage", "storage:edit:storage-1", "storage:view:x"];
+    expect(globalSectionScopes(scopes, ["storage:edit"])).toEqual(["storage:view:x"]);
+    expect(globalSectionScopes(scopes, [])).toBe(scopes);
+    expect(globalSectionScopes(scopes, undefined)).toBe(scopes);
+    // An app-only edit grant does not open Storage through the view it implies.
+    expect(ids(appUser(["storage:edit:folder/env-storage"], ["storage:edit"]))).toEqual([]);
   });
 });

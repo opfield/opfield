@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
-import { container } from '@/container.js';
+import { container, TOKENS } from '@/container.js';
+import type { DrizzleClient } from '@/db/client.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { getResourceScopedIds, hasScope, hasScopeBase } from '@/lib/permissions.js';
+import { canonicalizeScopes } from '@/lib/scopes.js';
 import type { AISettingsService } from '@/modules/ai/ai.settings.service.js';
 import type { AIProviderRuntimeService } from '@/modules/ai/ai-provider-runtime.service.js';
 import { hasAppsSectionScope } from '@/modules/apps/app-access.js';
+import { resolveAppOnlyScopeBases } from '@/modules/apps/app-place-scopes.js';
 import { AppsService } from '@/modules/apps/apps.service.js';
 import { DEMO_MODE_CTA_URL, isDemoMode } from '@/modules/demo/demo-mode.js';
 import { dockerScopedNodeIds } from '@/modules/docker/docker-access-resource.service.js';
@@ -82,6 +85,11 @@ export interface UIBootstrapShell {
      * section is shown for those apps.
      */
     appsByMembers: boolean;
+    /**
+     * Scope bases the caller holds only through app places (grants on apps' hidden folders). The global sections
+     * (Docker, Routes, Databases, Storage, Pages) ignore them: such a user works through Apps.
+     */
+    appOnlyScopeBases: string[];
     dockerNodes: ShellNode[];
     nodes: ResourceSnapshotEnvelope<ShellNode[]>;
   };
@@ -152,6 +160,7 @@ export class UIBootstrapService {
       license,
       pagesEnabled,
       appsByMembers,
+      appOnlyScopeBases,
     ] = await Promise.all([
       this.getNodeSnapshot(),
       this.getConfigSnapshot(),
@@ -166,6 +175,7 @@ export class UIBootstrapService {
         ? (this.pageProfile?.isEnabled() ?? Promise.resolve(false))
         : Promise.resolve(false),
       this.appsByMembers(scopes),
+      this.appOnlyScopeBases(user, scopes),
     ]);
     const config = configSnapshot.data;
     const canViewOpfieldSettings = hasScope(scopes, 'settings:opfield:view');
@@ -208,6 +218,7 @@ export class UIBootstrapService {
         statusPageEnabled: hasScope(scopes, 'status-page:view') && statusPageSnapshot.data.enabled,
         pagesEnabled: pagesEnabled && entitlementsIncludeFeature(license.entitlements.features, 'pages'),
         appsByMembers,
+        appOnlyScopeBases,
         dockerNodes,
         nodes: { ...nodeSnapshot, data: visibleNodes },
       },
@@ -406,6 +417,24 @@ export class UIBootstrapService {
     } catch (error) {
       logger.warn('Failed to read apps visible through members', { error });
       return false;
+    }
+  }
+
+  /**
+   * Classified from the scopes as assigned (group and additional), not the folder-expanded ones: an app folder grant
+   * expands to resource grants that would otherwise look like grants outside the app. A failure hides nothing.
+   */
+  private async appOnlyScopeBases(user: User, scopes: string[]): Promise<string[]> {
+    const effective = new Set(scopes);
+    const assigned = canonicalizeScopes([...(user.groupScopes ?? []), ...(user.additionalScopes ?? [])]).filter(
+      (scope) => effective.has(scope)
+    );
+    if (assigned.length === 0) return [];
+    try {
+      return await resolveAppOnlyScopeBases(container.resolve<DrizzleClient>(TOKENS.DrizzleClient), assigned);
+    } catch (error) {
+      logger.warn('Failed to read scopes held only through apps', { error });
+      return [];
     }
   }
 
