@@ -14,13 +14,14 @@ import {
   Plus,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { AppMark } from "@/components/apps/AppMark";
 import type { AppCreateContext } from "@/components/apps/app-create-context";
 import { openAppIncidents } from "@/components/apps/app-incidents";
 import { IsolatedNotice } from "@/components/apps/IsolatedNotice";
 import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
+import { LeavePageRedirect } from "@/components/common/LeavePageRedirect";
 import { PageBackButton } from "@/components/common/PageBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
@@ -84,8 +85,15 @@ const NEW_ITEMS: Array<{
 ];
 
 export function AppRouteFailure({ error }: { error: unknown }) {
+  const { appSlug } = useParams<{ appSlug: string }>();
   if (error instanceof ApiRequestError && (error.status === 403 || error.status === 404)) {
-    return <Navigate to="/apps" replace />;
+    // Deleted or hidden: back to where the app was opened from, never to its other pages.
+    return (
+      <LeavePageRedirect
+        fallback={appsRoute()}
+        gonePath={appSlug ? appRoute(appSlug) : undefined}
+      />
+    );
   }
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">

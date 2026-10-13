@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
@@ -259,6 +260,8 @@ export function DockerContainerDetail({
   const [containerId, setContainerId] = useState(resolvedContainerId ?? params.containerId);
   const navigate = useStableNavigate();
   const backTarget = getReturnNavigationTarget(location.state, "/docker");
+  const leavePage = useLeavePage();
+  const leave = useCallback(() => leavePage("/docker"), [leavePage]);
   const [container, setContainer] = useState<InspectData | null>(resolvedContainer ?? null);
   // Opfield adds the container's app (when it is a member) next to the inspect data.
   const containerApp = (container?.app ??
@@ -797,21 +800,20 @@ export function DockerContainerDetail({
         }
         if (!silent) {
           toast.error("Failed to load container");
-          if (!migrationHandoff) navigate(backTarget);
+          if (!migrationHandoff) leave();
         }
       } finally {
         if (!silent) setIsLoading(false);
       }
     },
     [
-      backTarget,
+      leave,
       adoptReplacementContainerId,
       clearMutationTransition,
       nodeId,
       nodeSlug,
       containerId,
       migrationHandoff,
-      navigate,
       updateMeta,
       routeContainerName,
       logicalWorkloadIdentity,
@@ -1073,6 +1075,7 @@ export function DockerContainerDetail({
     routeContainerName,
     activeTab,
     navigate: navigatePreservingContext,
+    leave,
     refreshContainer,
     transition: backendTransition,
     clearMutationTransition,
@@ -1174,7 +1177,7 @@ export function DockerContainerDetail({
         pending ? "Container will be removed once it has stopped" : "Container removed"
       );
       invalidate("containers", "tasks");
-      navigate(backTarget);
+      leave();
     } catch (err) {
       toastApiError(err, "Failed to remove");
       removingRef.current = false;

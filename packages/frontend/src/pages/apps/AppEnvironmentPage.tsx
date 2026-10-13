@@ -2,7 +2,7 @@
 // allowlist (canvas section "envs": env-live, env-staging, env-live-maintenance, env-allow-node,
 // env-live-overridden, env-access-code) and Promote (env-promote, env-promote-summary).
 import { ChevronRight, KeyRound, Plus, RefreshCw, Server, Wrench } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { IsolatedNotice } from "@/components/apps/IsolatedNotice";
@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
-import { appRoute } from "@/lib/app-routes";
+import { appEnvironmentRoute, appRoute } from "@/lib/app-routes";
 import { nodeRoute } from "@/lib/resource-routes";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -52,14 +52,23 @@ import { useNodeIndex } from "./use-node-index";
 export function AppEnvironmentPage() {
   const { appSlug, envSlug } = useParams<{ appSlug: string; envSlug: string }>();
   const { app, loading, error, version, refresh } = useAppDetail(appSlug);
+  // The environment this page showed last, so a rename made elsewhere follows its new slug.
+  const shownEnvIdRef = useRef<string | null>(null);
   if (!app) {
     if (error) return <AppRouteFailure error={error} />;
     if (loading) return <DetailPageSkeleton label="Loading environment" />;
     return null;
   }
   const env = app.environments.find((item) => item.slug === envSlug || item.id === envSlug);
-  // A renamed or deleted environment, or one seen only through members (its page is its settings): back to its app.
+  const renamed = env
+    ? undefined
+    : app.environments.find((item) => item.id === shownEnvIdRef.current);
+  if (renamed && renamed.access !== "members") {
+    return <Navigate to={appEnvironmentRoute(app.slug, renamed.slug)} replace />;
+  }
+  // A deleted environment, or one seen only through members (its page is its settings): back to its app.
   if (!env || env.access === "members") return <Navigate to={appRoute(app.slug)} replace />;
+  shownEnvIdRef.current = env.id;
   return <EnvironmentContent app={app} env={env} version={version} refresh={refresh} />;
 }
 

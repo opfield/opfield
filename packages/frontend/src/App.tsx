@@ -13,6 +13,7 @@ import {
 import { AppStatusGate, clearMaintenanceAutoReloadGuard } from "@/components/common/AppStatusGate";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { LeavePageRedirect } from "@/components/common/LeavePageRedirect";
 import { RequireScope } from "@/components/common/RequireScope";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
@@ -301,7 +302,8 @@ function DetailRouteFailure({
     error instanceof ApiRequestError &&
     (error.status === 403 || (error.status === 404 && !preserveNotFound))
   ) {
-    if (!unavailable) return <Navigate to={fallbackPath} replace />;
+    // Deleted or hidden: back to where it was opened from (an app tab, a node...), else the list.
+    if (!unavailable) return <LeavePageRedirect fallback={fallbackPath} />;
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <p className="text-sm text-muted-foreground">{unavailable.message}</p>

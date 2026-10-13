@@ -36,6 +36,7 @@ import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdow
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { toastApiError } from "@/lib/api-error-toast";
 import { appEnvironmentRoute, appRoute, appsRoute } from "@/lib/app-routes";
 import { api } from "@/services/api";
@@ -69,6 +70,7 @@ export function SettingsTab({
   routeCount: number | null;
 }) {
   const navigate = useNavigate();
+  const leavePage = useLeavePage();
   const [name, setName] = useState(app.name);
   const [description, setDescription] = useState(app.description ?? "");
   const [saving, setSaving] = useState(false);
@@ -517,7 +519,7 @@ export function SettingsTab({
         app={app}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        onDeleted={() => navigate(appsRoute(), { replace: true })}
+        onDeleted={() => leavePage(appsRoute(), { gonePaths: [appRoute(app.slug)] })}
       />
     </div>
   );

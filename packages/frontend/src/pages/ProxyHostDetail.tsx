@@ -27,6 +27,7 @@ import {
 import { HealthBars } from "@/components/ui/health-bars";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
@@ -103,6 +104,7 @@ export function ProxyHostDetail({
   const id = resolvedProxyHostId ?? params.id;
   const routeSlug = resolvedProxySlug ?? params.proxySlug ?? params.id ?? "";
   const navigate = useStableNavigate();
+  const leavePage = useLeavePage();
   const { hasScope } = useAuthStore();
   const opfieldPublicUrl = useUIBootstrapStore(
     (state) => state.snapshot?.systemConfig.publicUrl ?? null
@@ -293,13 +295,13 @@ export function ProxyHostDetail({
         }
         if (!silent) {
           toast.error("Failed to load route");
-          navigate("/routes");
+          leavePage("/routes");
         }
       } finally {
         if (!silent) setIsLoading(false);
       }
     },
-    [id, navigate, syncHostState]
+    [id, leavePage, syncHostState]
   );
 
   useEffect(() => {
@@ -315,7 +317,7 @@ export function ProxyHostDetail({
     }
     if (ev.action === "deleted") {
       toast.info("Route was deleted");
-      navigate("/routes");
+      leavePage("/routes");
       return;
     }
     loadHost(true);
@@ -814,7 +816,7 @@ export function ProxyHostDetail({
     usePinnedProxiesStore.getState().removePin(deletingHostId);
     useFolderStore.getState().removeHost(deletingHostId);
     toast.success("Route deleted");
-    navigate("/routes");
+    leavePage("/routes");
   };
 
   const handleMaintenance = async () => {

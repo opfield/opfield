@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
@@ -176,6 +177,8 @@ export function DockerDeploymentDetail({
   const navigate = useStableNavigate();
   const location = useLocation();
   const backTarget = getReturnNavigationTarget(location.state, "/docker");
+  const leavePage = useLeavePage();
+  const leave = useCallback(() => leavePage("/docker"), [leavePage]);
   const { hasScope, hasScopedAccess } = useAuthStore();
   const hasDeploymentScope = (baseScope: string) =>
     !!nodeId && !!deploymentId && hasScope(`${baseScope}:${nodeId}/${deploymentId}`);
@@ -291,10 +294,10 @@ export function DockerDeploymentDetail({
         if (availabilityHandoff.current || cutoverSeen.current) return;
         if (reason === "removed") toast.info("Deployment was removed");
         else toast.error("Failed to load deployment");
-        navigate(backTarget);
+        leave();
       }, MIGRATION_RELOCATION_GRACE_MS);
     },
-    [backTarget, navigate]
+    [leave]
   );
 
   useEffect(() => () => clearRemovalFallback(), [clearRemovalFallback]);
@@ -424,22 +427,13 @@ export function DockerDeploymentDetail({
         else if (deploymentRef.current) scheduleRemovalFallback("failed");
         else {
           toastApiError(err, "Failed to load deployment");
-          navigate(backTarget);
+          leave();
         }
       } finally {
         setLoading(false);
       }
     },
-    [
-      deploymentId,
-      migrationHandoff,
-      backTarget,
-      navigate,
-      nodeId,
-      nodeSlug,
-      scheduleRemovalFallback,
-      updateMeta,
-    ]
+    [deploymentId, migrationHandoff, leave, nodeId, nodeSlug, scheduleRemovalFallback, updateMeta]
   );
 
   useEffect(() => {
@@ -1041,7 +1035,7 @@ export function DockerDeploymentDetail({
       await api.deleteDockerDeployment(nodeId, deployment.id);
       usePinnedContainersStore.getState().removePin(deployment.id);
       toast.success("Deployment removed");
-      navigate(backTarget);
+      leave();
     });
   };
 

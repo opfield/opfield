@@ -1,5 +1,6 @@
 import { matchPath } from "react-router-dom";
 import { hubTabForPath } from "@/lib/navigation-hubs";
+import { isSafeInternalPath } from "@/lib/return-navigation";
 
 /**
  * The in-console navigation trail behind the page back arrow.
@@ -279,6 +280,76 @@ export function planBackStep(
   };
 }
 
+function pathOfUrl(url: string): string {
+  const end = url.search(/[?#]/);
+  return normalizePath(end >= 0 ? url.slice(0, end) : url);
+}
+
+function isUnderPath(path: string, prefix: string): boolean {
+  const base = normalizePath(prefix);
+  return path === base || path.startsWith(base === "/" ? "/" : `${base}/`);
+}
+
+export interface LeavePlanInput {
+  trail: NavigationTrailState;
+  /** Path of the page being left (its resource is gone or moved away). */
+  pathname: string;
+  /** Browser history index of the current entry, when the router exposes one. */
+  historyIdx: number | undefined;
+  /** `returnTo` of the current link state, already checked by the caller or not. */
+  returnTo: string | null;
+  /** The page's list or logical parent, used when nothing else applies. */
+  fallback: string;
+  /** Further paths that are gone with the page (pages of a deleted node, app, ...). */
+  gonePaths?: readonly string[];
+}
+
+export type LeaveStep =
+  | { kind: "history"; url: string }
+  | { kind: "url"; url: string; nextState?: NavigationTrailState };
+
+/**
+ * Where a page goes when its resource is deleted or otherwise gone: the page the user opened it
+ * from (an app tab, an environment, a node, a folder, search...), skipping pages that are gone
+ * too, then a `returnTo` link state, then the fallback. Only console paths are ever returned.
+ * A `url` step replaces the current history entry, so Back never lands on the deleted page.
+ */
+export function planLeaveStep(input: LeavePlanInput): LeaveStep {
+  const currentKey = pageKeyForPath(pathOfUrl(input.pathname));
+  const gonePaths = input.gonePaths ?? [];
+  const isGone = (url: string) => {
+    if (!isSafeInternalPath(url)) return true;
+    const path = pathOfUrl(url);
+    if (pageKeyForPath(path) === currentKey) return true;
+    return gonePaths.some((prefix) => isUnderPath(path, prefix));
+  };
+
+  const { trail } = input;
+  const current = trail.entries[trail.index];
+  if (current && current.key === currentKey) {
+    for (let position = trail.index - 1; position >= 0; position -= 1) {
+      const candidate = trail.entries[position];
+      if (isGone(candidate.url)) continue;
+      if (
+        position === trail.index - 1 &&
+        input.historyIdx !== undefined &&
+        current.historyIdx === input.historyIdx &&
+        candidate.historyIdx === input.historyIdx - 1
+      ) {
+        return { kind: "history", url: candidate.url };
+      }
+      return {
+        kind: "url",
+        url: candidate.url,
+        nextState: { entries: trail.entries.slice(0, position + 1), index: position },
+      };
+    }
+  }
+
+  if (input.returnTo && !isGone(input.returnTo)) return { kind: "url", url: input.returnTo };
+  return { kind: "url", url: isSafeInternalPath(input.fallback) ? input.fallback : "/" };
+}
+
 /** Parses a persisted trail, dropping anything malformed. */
 export function parseNavigationTrail(value: unknown): NavigationTrailState {
   if (!value || typeof value !== "object") return EMPTY_NAVIGATION_TRAIL;
@@ -287,13 +358,7 @@ export function parseNavigationTrail(value: unknown): NavigationTrailState {
   const entries: NavigationTrailEntry[] = [];
   for (const item of raw.entries) {
     const candidate = item as Partial<NavigationTrailEntry> | null;
-    if (
-      !candidate ||
-      typeof candidate.key !== "string" ||
-      typeof candidate.url !== "string" ||
-      !candidate.url.startsWith("/") ||
-      candidate.url.startsWith("//")
-    ) {
+    if (!candidate || typeof candidate.key !== "string" || !isSafeInternalPath(candidate.url)) {
       return EMPTY_NAVIGATION_TRAIL;
     }
     entries.push({
@@ -305,4 +370,35 @@ export function parseNavigationTrail(value: unknown): NavigationTrailState {
   if (entries.length === 0) return EMPTY_NAVIGATION_TRAIL;
   const index = Math.min(Math.max(0, Math.trunc(raw.index)), entries.length - 1);
   return capTrail({ entries, index });
+}
+
+/** Pages of a resource that can be an app member, opened from an app or from another such page. */
+const APP_MEMBER_PAGE_IDS = new Set([
+  "route",
+  "page-project",
+  "database",
+  "storage-detail",
+  "docker-compose",
+  "docker-container",
+  "docker-deployment",
+  "docker-volume",
+]);
+
+function pageIdOf(key: string): string {
+  return key.split("|")[0];
+}
+
+/**
+ * The app page a member page was opened from: the current page is a member resource reached from an app (or
+ * an environment) through member pages only. The sidebar then keeps Apps selected. Null when the page was reached
+ * from its own list, the dashboard or anything else, and for every page that is not a member resource.
+ */
+export function appContextOf(state: NavigationTrailState): string | null {
+  for (let position = state.index; position >= 0; position -= 1) {
+    const id = pageIdOf(state.entries[position].key);
+    if (id === "app" || id === "app-environment")
+      return position === state.index ? null : state.entries[position].url;
+    if (!APP_MEMBER_PAGE_IDS.has(id)) return null;
+  }
+  return null;
 }

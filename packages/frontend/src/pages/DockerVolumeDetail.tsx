@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { StatCard } from "@/components/ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
@@ -103,6 +104,7 @@ export function DockerVolumeDetail({
   const navigate = useStableNavigate();
   const location = useLocation();
   const backTarget = getReturnNavigationTarget(location.state, "/docker/volumes");
+  const leavePage = useLeavePage();
   const { hasScope } = useAuthStore();
   const decodedVolumeName = volumeName ?? "";
   const [activeTab, setActiveTab] = useUrlTab(["files", "settings"], "files", (tab) =>
@@ -511,14 +513,14 @@ export function DockerVolumeDetail({
     try {
       await api.removeVolume(nodeId, decodedVolumeName);
       toast.success("Volume removed");
-      navigate(backTarget);
+      leavePage("/docker/volumes");
     } catch (err) {
       toastApiError(err, "Failed to remove volume");
     } finally {
       setActionLoading(false);
       setPendingAction(null);
     }
-  }, [backTarget, decodedVolumeName, navigate, nodeId]);
+  }, [decodedVolumeName, leavePage, nodeId]);
 
   const handleSaveLabels = useCallback(async () => {
     if (!nodeId || !decodedVolumeName || !labelsChanged || isUsed) return;

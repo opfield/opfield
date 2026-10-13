@@ -53,11 +53,21 @@ const DASHBOARD_RESOURCES = new Set([
   "system",
 ]);
 
+/** Resources that can be app members: deleting one changes its app's pages. */
+const APP_MEMBER_RESOURCES = new Set([
+  "databases",
+  "docker",
+  "nodes",
+  "object-storage",
+  "pages",
+  "proxy-hosts",
+]);
+
 /**
  * Resolve request-cache and independently warmed projection namespaces that
  * become stale after a successful API mutation.
  */
-export function mutationCachePrefixes(url: string): string[] {
+export function mutationCachePrefixes(url: string, method = "POST"): string[] {
   const pathname = new URL(url, "http://opfield.local").pathname;
   const apiPath = pathname.startsWith("/api/") ? pathname.slice(5) : pathname.replace(/^\//, "");
   const resource = apiPath.split("/")[0];
@@ -67,6 +77,10 @@ export function mutationCachePrefixes(url: string): string[] {
     `req:/api/${resource}`,
     ...(RESOURCE_PROJECTIONS[resource] ?? []),
   ]);
+  // A deleted member must not linger on its app's page served from the cache.
+  if (method.toUpperCase() === "DELETE" && APP_MEMBER_RESOURCES.has(resource)) {
+    prefixes.add("apps:");
+  }
   if (DASHBOARD_RESOURCES.has(resource)) {
     prefixes.add("req:/api/monitoring/dashboard");
     prefixes.add("req:/api/monitoring/health-status");

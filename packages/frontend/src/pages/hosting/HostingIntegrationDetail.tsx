@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
@@ -88,6 +89,7 @@ export function HostingIntegrationDetail({
 }: HostingIntegrationDetailProps) {
   const { connectorId } = useParams<{ connectorId?: string }>();
   const navigate = useStableNavigate();
+  const leavePage = useLeavePage();
   const location = useLocation();
   const returnTo = getReturnNavigationTarget(location.state, "/settings/integrations");
   const [adoptOpen, setAdoptOpen] = useState(false);
@@ -346,7 +348,7 @@ export function HostingIntegrationDetail({
               try {
                 await api.deleteHostingConnector(connector.id);
                 toast.success("Hosting connector deleted");
-                navigate(returnTo);
+                leavePage("/settings/integrations");
               } catch (cause) {
                 toastApiError(cause, "Failed to delete hosting connector.");
               } finally {

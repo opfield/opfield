@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { HealthBars } from "@/components/ui/health-bars";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
@@ -70,6 +71,7 @@ function StorageDetailContent({
   const id = resolvedStorageId ?? params.id;
   const routeSlug = resolvedStorageSlug ?? params.storageSlug ?? params.id ?? "";
   const navigate = useStableNavigate();
+  const leavePage = useLeavePage();
   const { hasScope } = useAuthStore();
   const [storage, setStorage] = useState<ObjectStorageConnection | null>(null);
   // The open incident of the storage's app environment refuses removing it.
@@ -153,11 +155,11 @@ function StorageDetailContent({
     } catch (error) {
       if (generation !== loadGeneration.current) return;
       toastApiError(error, "Failed to load storage");
-      navigate("/storage");
+      leavePage("/storage");
     } finally {
       if (generation === loadGeneration.current) setLoading(false);
     }
-  }, [id, navigate]);
+  }, [id, leavePage]);
 
   useEffect(() => {
     void load();
@@ -220,7 +222,7 @@ function StorageDetailContent({
       return;
     }
     if (event.action === "deleted") {
-      navigate("/storage");
+      leavePage("/storage");
       return;
     }
     if (event.action === "health.sampled") {
@@ -279,7 +281,7 @@ function StorageDetailContent({
       }
       usePinnedStorageStore.getState().removePin(id);
       toast.success("Storage deleted");
-      navigate("/storage");
+      leavePage("/storage");
     } catch (error) {
       toastApiError(error, "Failed to delete storage");
     }

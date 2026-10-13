@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
@@ -189,6 +190,7 @@ export function DockerGitSourcePanel({
   pendingContainer = false,
 }: DockerGitSourcePanelProps) {
   const navigate = useNavigate();
+  const leavePage = useLeavePage();
   const [source, setSource] = useState<DockerSourceBinding | null>(suppliedSource ?? null);
   const [loading, setLoading] = useState(suppliedSource === undefined);
   const [savingSection, setSavingSection] = useState<SettingsSection | null>(null);
@@ -729,7 +731,7 @@ export function DockerGitSourcePanel({
       onSourceChange?.(null);
       setBuildSecrets([]);
       toast.success("Repository disconnected");
-      if (pendingContainer) navigate("/docker/containers", { replace: true });
+      if (pendingContainer) leavePage("/docker/containers");
     } catch (error) {
       if (!handleLicenseApiError(error, "Git push-to-deploy")) {
         toastApiError(error, "Failed to disconnect repository");

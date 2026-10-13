@@ -16,6 +16,7 @@ import { IngressGroupRoutesPanel } from "@/components/ingress-groups/IngressGrou
 import { groupHealthBadge } from "@/components/ingress-groups/ingress-group-format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { ingressGroupsRoute } from "@/lib/resource-routes";
@@ -29,6 +30,7 @@ const NO_SCOPES: string[] = [];
 export function IngressGroupDetail() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
+  const leavePage = useLeavePage();
   const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
   const [group, setGroup] = useState<IngressGroupDetailData | null>(null);
   const [missing, setMissing] = useState(false);
@@ -84,7 +86,7 @@ export function IngressGroupDetail() {
     try {
       await api.deleteIngressGroup(group.id);
       toast.success("Ingress group deleted");
-      navigate(ingressGroupsRoute());
+      leavePage(ingressGroupsRoute());
     } catch (error) {
       toastApiError(error, "Failed to delete the ingress group");
     }

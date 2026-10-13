@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { daysUntil, formatDate, formatSerialNumber, hoursUntil } from "@/lib/utils";
@@ -42,6 +43,7 @@ const INSTALL_COMMAND_CLASS = "min-h-0 whitespace-pre-wrap break-all font-mono t
 export function CADetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const leavePage = useLeavePage();
   const { hasScope } = useAuthStore();
   const { selectedCA, selectCA, fetchCAs, cas } = useCAStore();
   const canViewSystemCertificates = useAuthStore((s) => s.hasScope("admin:details:certificates"));
@@ -98,7 +100,7 @@ export function CADetail() {
     }
     if (ev?.id === id && ev.action === "deleted") {
       toast.info("Certificate Authority was deleted");
-      navigate("/certificates/authorities");
+      leavePage("/certificates/authorities");
     }
   });
 

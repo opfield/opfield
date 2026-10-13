@@ -554,7 +554,7 @@ export class ApiClientBase {
     // before a long-running mutation allows an intervening GET to repopulate
     // stale data while the write is still in progress.
     const data = await this.fetchRaw<T>(url, options);
-    for (const prefix of mutationCachePrefixes(url)) this.invalidateCache(prefix);
+    for (const prefix of mutationCachePrefixes(url, method)) this.invalidateCache(prefix);
     return data;
   }
 
