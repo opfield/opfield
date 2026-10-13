@@ -93,6 +93,11 @@ export interface AttachedContainer {
   id: string;
   name: string;
   aliases: string[];
+  /**
+   * The earlier network is the container's own network mode (`docker run --network gateway_default`). Docker refuses to
+   * connect such a container anywhere, or to start it, once that network is gone, so it stays on it.
+   */
+  pinned?: boolean;
 }
 
 export interface HostMovePlan {
@@ -143,6 +148,8 @@ export interface NetworkMember {
   name: string;
   aliases: string[];
   labels: Record<string, string>;
+  /** HostConfig.NetworkMode: the network the container was created on. */
+  networkMode: string;
 }
 
 /** What the move needs from the host; foundation/host-move-host.ts implements it with Docker and the filesystem. */
@@ -284,7 +291,12 @@ export async function planHostMove(host: HostMoveHost, target: HostMoveTarget): 
     .filter((member) => !projectContainerIds.has(member.id) && member.name !== clickhouse?.container.name)
     .filter((member) => member.labels['com.docker.compose.project'] !== target.project)
     .filter((member) => member.name !== HOST_MOVE_CONTAINER_NAME)
-    .map(({ id, name, aliases }) => ({ id, name, aliases }));
+    .map(({ id, name, aliases, networkMode }) => ({
+      id,
+      name,
+      aliases,
+      ...(networkMode === target.network ? { pinned: true } : {}),
+    }));
 
   const staging = path.join(oldDir, HOST_MOVE_DIR);
   await host.mkdir(staging, 0o700);
@@ -773,7 +785,11 @@ async function attachAttached(host: HostMoveHost, network: string, attached: Att
 
 async function removeOldStack(host: HostMoveHost, state: HostMoveState): Promise<void> {
   const { plan } = state;
-  await detachAttached(host, plan.oldNetwork, plan.attached);
+  await detachAttached(
+    host,
+    plan.oldNetwork,
+    plan.attached.filter((container) => !container.pinned)
+  );
   if (plan.clickhouse) {
     const container = await host.containerByName(plan.clickhouse.name);
     if (container) {
@@ -783,7 +799,15 @@ async function removeOldStack(host: HostMoveHost, state: HostMoveState): Promise
   }
   // From here Secure Links through the local relay are down until the new relay is up.
   await removeProjectContainers(host, plan.oldProject);
-  await host.removeNetwork(plan.oldNetwork);
+  // legacy-name: the earlier project network stays while a container created on it exists — remove once none does
+  if (!(await pinnedContainerExists(host, plan.attached))) await host.removeNetwork(plan.oldNetwork);
+}
+
+async function pinnedContainerExists(host: HostMoveHost, attached: AttachedContainer[]): Promise<boolean> {
+  for (const container of attached) {
+    if (container.pinned && (await host.containerByName(container.name))) return true;
+  }
+  return false;
 }
 
 async function moveDirectory(host: HostMoveHost, state: HostMoveState): Promise<void> {

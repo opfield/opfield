@@ -17,6 +17,7 @@ interface RawContainer {
     Binds?: string[] | null;
     RestartPolicy?: { Name?: string };
     LogConfig?: { Type: string; Config?: Record<string, string> };
+    NetworkMode?: string;
   };
   NetworkSettings: { Networks?: Record<string, { Aliases?: string[] | null }> };
 }
@@ -231,6 +232,7 @@ export class DockerHostMoveHost implements HostMoveHost {
         name: raw.Name.replace(/^\//, ''),
         aliases: (raw.NetworkSettings.Networks?.[network]?.Aliases ?? []).filter((alias) => alias !== shortId),
         labels: raw.Config.Labels ?? {},
+        networkMode: raw.HostConfig.NetworkMode ?? '',
       });
     }
     return members;

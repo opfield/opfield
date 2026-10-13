@@ -40,6 +40,8 @@ interface Container {
   binds: string[];
   restartPolicy: string;
   networks: Map<string, string[]>;
+  /** Docker's HostConfig.NetworkMode: the network the container was created on (`docker run --network`). */
+  networkMode?: string;
   /** Postgres or ClickHouse data volume. */
   dataVolume?: string;
   database?: { role: string; database: string };
@@ -410,12 +412,17 @@ class FakeHost implements HostMoveHost {
         name: item.name,
         aliases: [...item.networks.get(network)!],
         labels: { ...item.labels },
+        networkMode: item.networkMode ?? 'default',
       }));
   }
   async connectNetwork(network: string, id: string, aliases: string[]) {
     this.mutate('connect', `${network} ${id}`);
     if (!this.networks.has(network)) throw new Error(`network ${network} not found`);
-    this.get(id).networks.set(network, [...aliases]);
+    const container = this.get(id);
+    // Docker resolves the container's own network mode on connect.
+    if (container.networkMode && container.networkMode !== 'default' && !this.networks.has(container.networkMode))
+      throw new Error(`could not find a network matching network mode ${container.networkMode}`);
+    container.networks.set(network, [...aliases]);
   }
   async disconnectNetwork(network: string, id: string) {
     this.mutate('disconnect', `${network} ${id}`);
@@ -537,6 +544,32 @@ async function legacyInstallation(): Promise<FakeHost> {
   return host;
 }
 
+/** A container someone ran with `docker run --network gateway_default` (Mailpit on the e2e stand). */
+function addPinnedMailpit(host: FakeHost): void {
+  host.containers.set('mail', {
+    id: 'mail',
+    name: 'gateway-e2e-mailpit',
+    labels: {},
+    running: true,
+    env: [],
+    image: 'axllent/mailpit',
+    binds: [],
+    restartPolicy: 'unless-stopped',
+    networks: new Map([['gateway_default', ['mailpit']]]),
+    networkMode: 'gateway_default',
+    ports: [],
+  });
+  host.operations = 0;
+}
+
+function expectPinnedMailpit(host: FakeHost, networks: string[]): void {
+  const snapshot = host.snapshot();
+  expect(snapshot.networks).toEqual(networks);
+  expect(snapshot.containers.find((item) => item.name === 'gateway-e2e-mailpit')!.networks).toEqual(
+    Object.fromEntries(networks.map((network) => [network, ['mailpit']]))
+  );
+}
+
 const TARGET = { dir: OLD_DIR, project: 'gateway', network: 'gateway_default' };
 
 /** Runs the move like Docker runs its container: a crashed run is started again until the move reaches its end. */
@@ -623,6 +656,40 @@ describe('host move to the Opfield layout', () => {
     const operations = host.operations;
     expect(await runToEnd(host)).toBe('done');
     expect(host.operations).toBe(operations);
+  });
+
+  it('keeps the earlier network for a container created on it and joins it to the new one too', async () => {
+    const host = await legacyInstallation();
+    addPinnedMailpit(host);
+    expect(await runToEnd(host)).toBe('done');
+    expectPinnedMailpit(host, ['gateway_default', 'opfield_default']);
+    expect(host.snapshot().containers.find((item) => item.name === 'sandbox-run-1')!.networks).toEqual({
+      opfield_default: ['sandbox-run'],
+    });
+  });
+
+  it('moves with a container created on the earlier network through a crash at any point', async () => {
+    const reference = await legacyInstallation();
+    addPinnedMailpit(reference);
+    await runToEnd(reference);
+    const total = reference.operations;
+    for (let crashAt = 1; crashAt <= total; crashAt += 1) {
+      const host = await legacyInstallation();
+      addPinnedMailpit(host);
+      host.crashAt = crashAt;
+      expect(await runToEnd(host), `crash before operation ${crashAt}`).toBe('done');
+      expectPinnedMailpit(host, ['gateway_default', 'opfield_default']);
+    }
+  });
+
+  it('goes back with a container created on the earlier network still on it', async () => {
+    const host = await legacyInstallation();
+    addPinnedMailpit(host);
+    const before = host.snapshot();
+    host.failing = (operation, detail) => operation === 'compose' && detail === 'opfield up --detach';
+    expect(await runToEnd(host)).toBe('rolled_back');
+    host.failing = null;
+    expect(host.snapshot()).toEqual(before);
   });
 
   it('resumes after a crash before any of its operations and still ends in the Opfield layout', async () => {
