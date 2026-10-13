@@ -16,7 +16,7 @@
 	"vars": {
 		"GITHUB_OWNER": "opfield",
 		"GITHUB_OPFIELD_REPO": "opfield",
-		"GITHUB_INFERENCE_CORE_REPO": "inference-core"
+		"GITHUB_INFERENCE_CORE_REPO": "opfield-inference"
 	},
 	"observability": {
 		"enabled": true,

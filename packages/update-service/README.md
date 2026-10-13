@@ -18,15 +18,15 @@ It exposes:
 - `GET|HEAD /gateway/license-endpoints.json`: the signed list of license service addresses
   (`scripts/release/license-endpoints.mjs`), an asset of the latest stable release (cached for 5 minutes)
 
-`stable` is the default and excludes GitHub prereleases. `preview` additionally accepts release-candidate tags such as `v2.10.0-rc.1`, `v2.10.0-rc.1-relay`, and matching daemon component tags. Component-aware requests return the newest patch on the current minor first, otherwise the baseline release of the next minor; no update returns `204` with `Cache-Control: no-store`. Inference Core ignores the requested channel and remains stable-only. Its tags are `vX.Y.Z-opfield.N`, earlier `-thesqlabs.N` and `-wiolett.N`; on the same base version every build of a later line is newer than every build of an earlier one.
+`stable` is the default and excludes GitHub prereleases. `preview` additionally accepts release-candidate tags such as `v2.10.0-rc.1`, `v2.10.0-rc.1-relay`, and matching daemon component tags. Component-aware requests return the newest patch on the current minor first, otherwise the baseline release of the next minor; no update returns `204` with `Cache-Control: no-store`. The inference core answers under two component ids: `opfield-inference` (Opfield 2.12.1 and later ask for it first) and its earlier name `inference-core` (Opfield 2.11.5 to 2.12.0 ask only for it; it keeps answering). Both read the same core repository and give the same answer. The core ignores the requested channel and remains stable-only. Its tags are `vX.Y.Z-opfield.N`, earlier `-thesqlabs.N` and `-wiolett.N`; on the same base version every build of a later line is newer than every build of an earlier one. Core artifacts: `/gateway/opfield-inference/<tag>/opfield-inference-image.update.json` or `.../opencodex-image.update.json`, and `/gateway/inference-core/<tag>/opencodex-image.update.json` only.
 
 GitHub lists releases newest first, 100 per page. The Worker reads further pages only until the answer is settled: a component request stops at the first page that reaches a candidate not newer than `current` (any candidate without `current`), the list stops once it holds an Opfield release on the channel. It reads at most 10 pages per repository.
 
 The Worker aggregates GitHub Releases from the public
 `opfield/opfield` repository and the private
-`opfield/inference-core` repository (`GITHUB_OWNER`, `GITHUB_OPFIELD_REPO` and `GITHUB_INFERENCE_CORE_REPO` in
-`wrangler.jsonc`; deploy them only after both repositories moved to the opfield organization, GitHub redirects the
-old names but not the new ones before the move). It keeps the GitHub token only in
+`opfield/opfield-inference` repository, earlier `opfield/inference-core` (`GITHUB_OWNER`, `GITHUB_OPFIELD_REPO` and
+`GITHUB_INFERENCE_CORE_REPO` in `wrangler.jsonc`; deploy a new name only after the repository was renamed, GitHub
+redirects the old names but not the new ones before the rename). It keeps the GitHub token only in
 the `GITHUB_INFERENCE_CORE_TOKEN` Worker secret. The token provides private core
 access and authenticated reads of the public Opfield repository that avoid shared anonymous
 rate limits. The service does not use R2. Release metadata is cached briefly,

@@ -63,6 +63,7 @@ interface NextUpdateResponse {
 
 // Inference core release lines, oldest first (see parseReleaseVersion).
 const CORE_RELEASE_LINES = ["wiolett", "thesqlabs", "opfield"];
+const CORE_TAG_PATTERN = /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/;
 
 const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 	gateway: /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/,
@@ -73,7 +74,10 @@ const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 	// The lease watchdog ships on its own line, independent of docker-daemon.
 	"lease-watchdog": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-watchdog$/,
 	"relay-supervisor": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-relay$/,
-	"inference-core": /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/,
+	// The inference core under its current name (Opfield 2.12.1 and later) and its earlier one, which Opfield 2.11.5 to
+	// 2.12.0 ask for and which keeps answering.
+	"opfield-inference": CORE_TAG_PATTERN,
+	"inference-core": CORE_TAG_PATTERN,
 	// Witness binaries (availability set Keeper voters relays run) ship as assets of the Opfield release.
 	"witness-clickhouse-keeper": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/,
 };
@@ -91,6 +95,9 @@ const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
 		/^(lease-watchdog-linux-(amd64|arm64)(\.update\.json)?|checksums\.txt)$/,
 	"relay-supervisor":
 		/^(relay-(supervisor|worker)-linux-(amd64|arm64)(\.update\.json)?|checksums\.txt)$/,
+	// Core releases from the rename on carry both manifests; earlier ones only opencodex-image.update.json.
+	"opfield-inference":
+		/^(opfield-inference-image|opencodex-image)\.update\.json$/,
 	"inference-core": /^opencodex-image\.update\.json$/,
 	"witness-clickhouse-keeper":
 		/^witness-clickhouse-keeper-\d+(?:\.\d+){2,3}-linux-(amd64|arm64)(\.update\.json)?$/,
@@ -166,8 +173,15 @@ function inferenceCoreRepository(env: Env): GitHubRepository {
 	};
 }
 
+/** Whether a component or artifact package is the inference core, under either of its names. */
+function isInferenceCore(packageName: string): boolean {
+	return (
+		packageName === "opfield-inference" || packageName === "inference-core"
+	);
+}
+
 function repositoryForPackage(env: Env, packageName: string): GitHubRepository {
-	return packageName === "inference-core"
+	return isInferenceCore(packageName)
 		? inferenceCoreRepository(env)
 		: opfieldRepository(env);
 }
@@ -201,7 +215,7 @@ function parseReleaseVersion(
 	value: string,
 ): ParsedReleaseVersion | null {
 	const clean = value.replace(/^v/, "");
-	if (component === "inference-core") {
+	if (isInferenceCore(component)) {
 		const match =
 			/^(\d+)\.(\d+)\.(\d+)-(wiolett|thesqlabs|opfield)\.(\d+)$/.exec(clean);
 		if (!match) return null;
@@ -329,7 +343,7 @@ function selectNextRelease(
 		return latest ? { release: latest.release, reason: "latest" } : null;
 	}
 
-	if (component === "inference-core") {
+	if (isInferenceCore(component)) {
 		const latest = candidates.sort((a, b) =>
 			compareReleaseVersions(b.version, a.version),
 		)[0];
@@ -436,8 +450,7 @@ async function handleReleaseList(
 		if (!(componentValue in TAG_PATTERNS))
 			return jsonResponse({ error: "invalid_component" }, 400);
 		const component = componentValue as UpdateComponent;
-		const componentChannel =
-			component === "inference-core" ? "stable" : channel;
+		const componentChannel = isInferenceCore(component) ? "stable" : channel;
 		const current = url.searchParams.get("current");
 		const currentVersion = current
 			? parseReleaseVersion(component, current)

@@ -4,7 +4,7 @@ import { handleRequest } from "./index.js";
 const env = {
 	GITHUB_OWNER: "opfield",
 	GITHUB_OPFIELD_REPO: "opfield",
-	GITHUB_INFERENCE_CORE_REPO: "inference-core",
+	GITHUB_INFERENCE_CORE_REPO: "opfield-inference",
 	GITHUB_INFERENCE_CORE_TOKEN: "private-core-token",
 } as Env;
 
@@ -461,6 +461,56 @@ describe("gateway update facade", () => {
 		expect(current.status).toBe(204);
 	});
 
+	it.each([
+		"opfield-inference",
+		"inference-core",
+	])("answers the %s core component from the core repository, stable only", async (component) => {
+		const fetcher = vi
+			.fn<typeof fetch>()
+			.mockImplementation(async () =>
+				Response.json([
+					release("v2.62.0-opfield.1", true),
+					release("v2.61.0-opfield.2"),
+					release("v2.61.0-thesqlabs.9"),
+				]),
+			);
+		for (const query of [
+			`component=${component}`,
+			`component=${component}&channel=preview`,
+		]) {
+			const response = await handleRequest(
+				new Request(`https://get.opfield.dev/gateway/releases?${query}`),
+				env,
+				fetcher,
+			);
+			await expect(response.json()).resolves.toMatchObject({
+				component,
+				current: null,
+				reason: "latest",
+				target: { tag_name: "v2.61.0-opfield.2" },
+			});
+		}
+		const upToDate = await handleRequest(
+			new Request(
+				`https://get.opfield.dev/gateway/releases?component=${component}&current=v2.61.0-opfield.2`,
+			),
+			env,
+			fetcher,
+		);
+		expect(upToDate.status).toBe(204);
+		const invalid = await handleRequest(
+			new Request(
+				`https://get.opfield.dev/gateway/releases?component=${component}&current=v2.61.0`,
+			),
+			env,
+			fetcher,
+		);
+		expect(invalid.status).toBe(400);
+		expect(fetcher.mock.calls[0]?.[0]).toBe(
+			"https://api.github.com/repos/opfield/opfield-inference/releases?per_page=100&page=1",
+		);
+	});
+
 	it("returns the latest component release when current is omitted", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()
@@ -764,10 +814,66 @@ describe("gateway update facade", () => {
 		);
 		expect(response.status).toBe(200);
 		expect(fetcher.mock.calls[0]?.[0]).toBe(
-			"https://api.github.com/repos/opfield/inference-core/releases/tags/v2.25.0-wiolett.21",
+			"https://api.github.com/repos/opfield/opfield-inference/releases/tags/v2.25.0-wiolett.21",
 		);
 		const headers = new Headers(fetcher.mock.calls[0]?.[1]?.headers);
 		expect(headers.get("Authorization")).toBe("Bearer private-core-token");
+	});
+
+	it("serves both core manifests under opfield-inference and only the earlier one under inference-core", async () => {
+		const fetcher = vi.fn<typeof fetch>().mockImplementation(async () =>
+			Response.json({
+				...release("v2.61.0-opfield.2"),
+				assets: [
+					{
+						id: 790,
+						name: "opfield-inference-image.update.json",
+						size: 2048,
+						content_type: "application/json",
+					},
+					{
+						id: 791,
+						name: "opencodex-image.update.json",
+						size: 2048,
+						content_type: "application/json",
+					},
+				],
+			}),
+		);
+		for (const path of [
+			"opfield-inference/v2.61.0-opfield.2/opfield-inference-image.update.json",
+			"opfield-inference/v2.61.0-opfield.2/opencodex-image.update.json",
+			"opfield-inference/v2.60.0-thesqlabs.6/opencodex-image.update.json",
+			"inference-core/v2.61.0-opfield.2/opencodex-image.update.json",
+		]) {
+			const response = await handleRequest(
+				new Request(`https://get.opfield.dev/gateway/${path}`, {
+					method: "HEAD",
+				}),
+				env,
+				fetcher,
+			);
+			expect(response.status, path).toBe(200);
+		}
+		expect(fetcher.mock.calls.map((call) => call[0])).toEqual([
+			"https://api.github.com/repos/opfield/opfield-inference/releases/tags/v2.61.0-opfield.2",
+			"https://api.github.com/repos/opfield/opfield-inference/releases/tags/v2.61.0-opfield.2",
+			"https://api.github.com/repos/opfield/opfield-inference/releases/tags/v2.60.0-thesqlabs.6",
+			"https://api.github.com/repos/opfield/opfield-inference/releases/tags/v2.61.0-opfield.2",
+		]);
+		for (const path of [
+			"inference-core/v2.61.0-opfield.2/opfield-inference-image.update.json",
+			"opfield-inference/v2.61.0/opfield-inference-image.update.json",
+			"opfield-inference/v2.61.0-opfield.2/gateway-image.update.json",
+		]) {
+			const refused = await handleRequest(
+				new Request(`https://get.opfield.dev/gateway/${path}`),
+				env,
+				fetcher,
+			);
+			expect(refused.status, path).toBe(404);
+		}
+		expect(fetcher).toHaveBeenCalledTimes(4);
 	});
 
 	it("serves witness artifacts from the Opfield release", async () => {
