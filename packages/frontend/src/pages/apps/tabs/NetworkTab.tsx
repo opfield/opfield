@@ -239,7 +239,7 @@ export function NetworkTab({
                 void withToggle(
                   host,
                   () => api.toggleProxyHost(host.id, enabled),
-                  enabled ? "Proxy host enabled" : "Proxy host disabled",
+                  enabled ? "Route enabled" : "Route disabled",
                   "Failed to toggle route"
                 )
               }

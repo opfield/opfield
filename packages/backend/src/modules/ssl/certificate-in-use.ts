@@ -20,7 +20,7 @@ export function rethrowCertificateInUse(error: unknown): never {
       (candidate.code === '23001' || candidate.code === '23503') &&
       candidate.constraint === PROXY_HOST_SSL_CERTIFICATE_FK
     ) {
-      throw new AppError(409, 'CERT_IN_USE', 'Certificate is in use by proxy hosts');
+      throw new AppError(409, 'CERT_IN_USE', 'Certificate is in use by routes');
     }
     current = candidate.cause;
   }

@@ -84,7 +84,7 @@ export async function resolveHttp01Ingress(
       throw new AppError(
         409,
         'HTTP01_INGRESS_AMBIGUOUS',
-        'Existing Proxy Hosts for this domain use different Nginx nodes; register the domain before using HTTP-01',
+        'Existing Routes for this domain use different Nginx nodes; register the domain before using HTTP-01',
         { domain, nodeIds: legacyHosts.map((host) => host.nodeId).filter((id): id is string => !!id) }
       );
     }

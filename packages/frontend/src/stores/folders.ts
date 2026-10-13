@@ -255,7 +255,7 @@ export const useFolderStore = create<FolderState>()((set, get) => ({
       });
     } catch (err) {
       if (requestId !== fetchGroupedHostsRequestId) return;
-      const message = err instanceof Error ? err.message : "Failed to fetch proxy hosts";
+      const message = err instanceof Error ? err.message : "Failed to fetch routes";
       set({ error: message, isLoading: false });
     }
   },

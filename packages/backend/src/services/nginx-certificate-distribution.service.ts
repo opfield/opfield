@@ -1185,7 +1185,7 @@ export class NginxCertificateDistributionService {
       throw new AppError(
         409,
         'NGINX_TLS_DAEMON_UPDATE_REQUIRED',
-        'Update the selected Nginx daemon before changing this TLS proxy host'
+        'Update the selected Nginx daemon before changing this TLS route'
       );
     }
 
@@ -1223,7 +1223,7 @@ export class NginxCertificateDistributionService {
     throw new AppError(
       409,
       'NGINX_TLS_DAEMON_UPDATE_REQUIRED',
-      'Update the selected Nginx daemon before changing this TLS proxy host'
+      'Update the selected Nginx daemon before changing this TLS route'
     );
   }
 

@@ -28,12 +28,12 @@ const SECURE_LINK_TELEMETRY_STALE_AFTER_MS = 30_000;
 export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
   protected async requireManagedProxyHost(id: string): Promise<ProxyHostRow> {
     const host = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, id) });
-    if (!host || host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!host || host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     if (host.type !== 'proxy' || host.rawConfigEnabled) {
       throw new AppError(
         409,
         'ADDITIONAL_SECURE_LINK_UNAVAILABLE',
-        'Additional Secure Links require a managed proxy host'
+        'Additional Secure Links require a managed route'
       );
     }
     return host;
@@ -60,9 +60,9 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
         rateLimitOptions: true,
       },
     });
-    if (!host || host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!host || host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     if (!isDockerUpstream(host.upstreamKind)) {
-      throw new AppError(409, 'SECURE_LINK_NOT_APPLICABLE', 'Proxy host does not use a Docker Secure Link');
+      throw new AppError(409, 'SECURE_LINK_NOT_APPLICABLE', 'Route does not use a Docker Secure Link');
     }
 
     const sourceNodeIds = await this.ingressNodesOf(host);

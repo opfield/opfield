@@ -9,7 +9,7 @@ describe('resolve messages', () => {
   it('tells the recovery for the rule, with how long the alert lasted', () => {
     const proxyDown = { name: 'Proxy host down', type: 'event', category: 'proxy', eventPattern: 'health.offline' };
     expect(defaultResolveMessage(proxyDown, 'shop.example.com', { fired: { duration: 782 } })).toBe(
-      'Proxy host shop.example.com is back online after 13m 2s.'
+      'Route shop.example.com is back online after 13m 2s.'
     );
     expect(
       defaultResolveMessage(

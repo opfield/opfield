@@ -645,7 +645,7 @@ export abstract class ProxyServiceCore {
       await this.requireManagedProxyHost(proxyHostId);
       await this.secureLinks?.assertAdditionalReferences(proxyHostId, snippet);
     } else if (/\{\{additionalSecureLinks\./.test(snippet)) {
-      return { valid: false, errors: ['Select a proxy host before validating additional Secure Link variables'] };
+      return { valid: false, errors: ['Select a route before validating additional Secure Link variables'] };
     }
 
     try {

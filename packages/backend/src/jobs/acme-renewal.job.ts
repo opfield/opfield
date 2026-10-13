@@ -171,7 +171,7 @@ export class ACMERenewalJob {
       type: 'expiry_warning',
       resourceType: 'ssl_certificate',
       resourceId: cert.id,
-      message: `Certificate "${cert.name}" was renewed, but not every proxy host received it: ${renewalError.slice(SSL_DISTRIBUTION_ERROR_PREFIX.length)}`,
+      message: `Certificate "${cert.name}" was renewed, but not every route received it: ${renewalError.slice(SSL_DISTRIBUTION_ERROR_PREFIX.length)}`,
     });
   }
 }

@@ -41,7 +41,7 @@ export class ProxyMaintenanceAccessService {
 
   async issue(hostId: string, userId: string): Promise<{ code: string; expiresInSeconds: number }> {
     const host = await this.requireMaintainedHost(hostId);
-    if (!host.nodeId) throw new AppError(409, 'MAINTENANCE_ACCESS_UNAVAILABLE', 'Proxy host has no nginx node');
+    if (!host.nodeId) throw new AppError(409, 'MAINTENANCE_ACCESS_UNAVAILABLE', 'Route has no nginx node');
     await this.requireSupportedNode(host.nodeId);
     // A render failure leaves the decision to the page: the code is issued as before.
     if (this.routeOffersAccess && !(await this.routeOffersAccess(hostId).catch(() => true))) {

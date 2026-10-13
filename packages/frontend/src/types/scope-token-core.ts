@@ -348,7 +348,7 @@ export const CORE_TOKEN_SCOPES = [
   {
     value: "nodes:lock",
     label: "Lock Service Creation",
-    desc: "Prevent new proxy hosts or containers on selected nodes",
+    desc: "Prevent new routes or containers on selected nodes",
     group: "Nodes",
   },
   {

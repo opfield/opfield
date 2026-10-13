@@ -74,7 +74,7 @@ export const useProxyStore = create<ProxyState>()((set, get) => ({
       });
     } catch (err) {
       if (requestId !== fetchProxyHostsRequestId) return;
-      const message = err instanceof Error ? err.message : "Failed to fetch proxy hosts";
+      const message = err instanceof Error ? err.message : "Failed to fetch routes";
       set({ error: message, isLoading: false });
     }
   },
@@ -88,7 +88,7 @@ export const useProxyStore = create<ProxyState>()((set, get) => ({
       const host = await api.getProxyHost(id);
       set({ selectedProxyHost: host });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to fetch proxy host";
+      const message = err instanceof Error ? err.message : "Failed to fetch route";
       set({ error: message });
     }
   },

@@ -885,7 +885,7 @@ nodesRoutes.openapi({ ...nodeNginxLogsRoute, middleware: requireScopeForResource
 
     if (visibleHostIds.size === 0) {
       await stream.writeSSE({
-        data: JSON.stringify({ message: 'No proxy hosts are assigned to this nginx node' }),
+        data: JSON.stringify({ message: 'No routes are assigned to this nginx node' }),
         event: 'log-error',
       });
     }

@@ -42,7 +42,7 @@ export async function assertNoProxyDomainOverlap(
   throw new AppError(
     409,
     'PROXY_HOST_DOMAIN_CONFLICT',
-    `Another enabled proxy host on this node already serves ${overlapping.join(', ') || 'these domains'}`,
+    `Another enabled route on this node already serves ${overlapping.join(', ') || 'these domains'}`,
     { proxyHostId: conflict.id, nodeId, domains: overlapping }
   );
 }
@@ -108,7 +108,7 @@ export async function rethrowProxyHostDomainConflict(db: DrizzleClient, error: u
   throw new AppError(
     409,
     'PROXY_HOST_DOMAIN_CONFLICT',
-    `Another enabled proxy host on this node already serves ${domain ?? 'these domains'}`,
+    `Another enabled route on this node already serves ${domain ?? 'these domains'}`,
     { ...(proxyHostId ? { proxyHostId } : {}), nodeId, domains: domain ? [domain] : [] }
   );
 }

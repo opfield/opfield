@@ -286,7 +286,7 @@ export class ProxySecureLinkService {
     input: AvailabilitySecureLinkMemberInput
   ): Promise<ProxyAdditionalSecureLinkRow> {
     if (!host.nodeId || host.type !== 'proxy' || host.rawConfigEnabled) {
-      throw new AppError(409, 'AVAILABILITY_INGRESS_UNAVAILABLE', 'Availability requires a managed Proxy Host');
+      throw new AppError(409, 'AVAILABILITY_INGRESS_UNAVAILABLE', 'Availability requires a managed Route');
     }
     const availabilitySources = await this.hostSources(host);
     if (!(await this.nodesSupportSecureLinks([...availabilitySources, input.dockerNodeId], availabilitySources))) {
@@ -562,7 +562,7 @@ export class ProxySecureLinkService {
       throw new AppError(
         409,
         'ADDITIONAL_SECURE_LINK_UNAVAILABLE',
-        'Additional Secure Links require a managed proxy host'
+        'Additional Secure Links require a managed route'
       );
     }
     if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(input.name)) {
@@ -663,7 +663,7 @@ export class ProxySecureLinkService {
     input: CreateProxyAdditionalSecureLinkInput
   ): Promise<ProxyAdditionalSecureLinkRow> {
     if (host.type !== 'proxy' || host.rawConfigEnabled || !host.nodeId) {
-      throw new AppError(409, 'ADDITIONAL_ROUTE_UNAVAILABLE', 'Additional Routes require a managed proxy host');
+      throw new AppError(409, 'ADDITIONAL_ROUTE_UNAVAILABLE', 'Additional Routes require a managed route');
     }
     const target = await this.resolveAdditionalTarget(input);
     const routeSources = await this.hostSources(host);

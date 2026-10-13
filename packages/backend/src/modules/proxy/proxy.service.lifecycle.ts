@@ -34,9 +34,9 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
     const existing = await this.db.query.proxyHosts.findFirst({
       where: eq(proxyHosts.id, id),
     });
-    if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     if (existing.isSystem && !options.abandonOfflineNode) {
-      throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot be deleted');
+      throw new AppError(403, 'SYSTEM_HOST', 'System routes cannot be deleted');
     }
     // Capture child keys before cleanup removes the bindings from persistence.
     const additionalLinks = (await this.secureLinks?.listAdditional?.(id)) ?? [];
@@ -107,7 +107,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
       },
     });
 
-    logger.info('Deleted proxy host', { hostId: id, domains: existing.domainNames });
+    logger.info('Deleted route', { hostId: id, domains: existing.domainNames });
     this.emitHost(id, 'deleted', existing.domainNames?.[0]);
     this.reconcileMaintenanceAlerts(id);
   }
@@ -120,8 +120,8 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
     const host = await this.db.query.proxyHosts.findFirst({
       where: eq(proxyHosts.id, id),
     });
-    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
-    if (host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
+    if (host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
 
     // Resolve relations
     const sslCert = host.sslCertificateId
@@ -224,7 +224,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
       where: eq(proxyHosts.slug, slug),
       columns: { id: true, isSystem: true },
     });
-    if (!host || host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!host || host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     return this.getProxyHost(host.id);
   }
 
@@ -233,8 +233,8 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
       where: eq(proxyHosts.id, id),
       columns: { id: true, isSystem: true, healthHistory: true },
     });
-    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
-    if (host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
+    if (host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     return host.healthHistory ?? [];
   }
 

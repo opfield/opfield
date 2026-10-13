@@ -1131,7 +1131,7 @@ export class NginxTemplateService {
       .where(eq(proxyHosts.nginxTemplateId, id));
 
     if (Number(usageCount) > 0) {
-      throw new AppError(400, 'TEMPLATE_IN_USE', `Template is used by ${usageCount} proxy host(s)`);
+      throw new AppError(400, 'TEMPLATE_IN_USE', `Template is used by ${usageCount} route(s)`);
     }
 
     await transactionWithScopeCleanup(this.db, (tx) => tx.delete(nginxTemplates).where(eq(nginxTemplates.id, id)));

@@ -321,7 +321,7 @@ export function SettingsTab({
                 variant="outline"
                 onClick={onTlsResync}
                 pending={isTlsResyncing}
-                aria-label={`Retry TLS sync for ${host.domainNames[0] || "proxy host"}`}
+                aria-label={`Retry TLS sync for ${host.domainNames[0] || "route"}`}
               >
                 <RefreshCw />
                 Retry TLS Sync
@@ -363,7 +363,7 @@ export function SettingsTab({
         >
           <SettingsControlRow
             title="Policy"
-            description="Access policy applied to this proxy host"
+            description="Access policy applied to this route"
             help="Applies the selected reusable Access List before traffic reaches the upstream. A policy may restrict client IP addresses, require Basic Authentication, or require both."
           >
             <Combobox

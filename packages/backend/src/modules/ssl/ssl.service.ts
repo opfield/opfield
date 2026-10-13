@@ -261,7 +261,7 @@ export class SSLService {
 
   private recordHostSyncFailure(certId: string, hostId: string, error: unknown): ProxyHostSyncFailure {
     const message = error instanceof Error ? error.message : 'unknown error';
-    logger.error('TLS certificate could not be delivered to a proxy host', { certId, hostId, error: message });
+    logger.error('TLS certificate could not be delivered to a route', { certId, hostId, error: message });
     return { hostId, error: message };
   }
 
@@ -286,7 +286,7 @@ export class SSLService {
     await this.db
       .update(sslCertificates)
       .set({
-        renewalError: `${SSL_DISTRIBUTION_ERROR_PREFIX}${failures.length} proxy host(s) did not receive the current certificate (${first.error})`,
+        renewalError: `${SSL_DISTRIBUTION_ERROR_PREFIX}${failures.length} route(s) did not receive the current certificate (${first.error})`,
         updatedAt: new Date(),
       })
       .where(eq(sslCertificates.id, certId));
@@ -1848,7 +1848,7 @@ export class SSLService {
       });
 
       if (referencingHosts.length > 0) {
-        throw new AppError(409, 'CERT_IN_USE', 'Certificate is in use by proxy hosts', {
+        throw new AppError(409, 'CERT_IN_USE', 'Certificate is in use by routes', {
           proxyHostIds: referencingHosts.map((h) => h.id),
         });
       }

@@ -541,15 +541,15 @@ export class ProxyServiceReconciliation extends ProxyServiceListing {
 
   private async resyncTlsHostLocked(id: string, userId: string) {
     const host = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, id) });
-    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     if (!host.sslEnabled || !this.certificateDistribution.referenceForHost(host)) {
-      throw new AppError(409, 'TLS_NOT_CONFIGURED', 'This proxy host has no TLS certificate to synchronize');
+      throw new AppError(409, 'TLS_NOT_CONFIGURED', 'This route has no TLS certificate to synchronize');
     }
     if (!host.enabled) {
       throw new AppError(
         409,
         'PROXY_HOST_DISABLED',
-        'Enable the proxy host before synchronizing its TLS configuration'
+        'Enable the route before synchronizing its TLS configuration'
       );
     }
 
@@ -571,7 +571,7 @@ export class ProxyServiceReconciliation extends ProxyServiceListing {
     const host = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, id) });
     if (!host) return { orphanedConfigPossible: false };
     if (host.nodeId === sourceNodeId || (await this.servesOn(host, sourceNodeId))) {
-      throw new AppError(409, 'PROXY_HOST_NOT_MIGRATED', 'Proxy host still belongs to the source Nginx node');
+      throw new AppError(409, 'PROXY_HOST_NOT_MIGRATED', 'Route still belongs to the source Nginx node');
     }
 
     const connected = this.nodeDispatch.isNodeConnected(sourceNodeId);
@@ -600,8 +600,8 @@ export class ProxyServiceReconciliation extends ProxyServiceListing {
     const host = await this.db.query.proxyHosts.findFirst({
       where: eq(proxyHosts.id, id),
     });
-    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
-    if (host.isSystem) throw new AppError(403, 'SYSTEM_HOST', 'System proxy host config cannot be rendered here');
+    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
+    if (host.isSystem) throw new AppError(403, 'SYSTEM_HOST', 'System route config cannot be rendered here');
 
     const certPaths = await this.resolveCertPaths(host, { prepare: false });
     const accessList = await this.resolveAccessList(host.accessListId);

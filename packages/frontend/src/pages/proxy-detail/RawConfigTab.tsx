@@ -45,7 +45,7 @@ export function RawConfigTab({
     return (
       <PanelShell
         title="Raw Config"
-        description="Full custom Nginx config for this proxy host"
+        description="Full custom Nginx config for this route"
         dirty={dirty}
         actions={
           canManage ? (
@@ -83,7 +83,7 @@ export function RawConfigTab({
   return (
     <PanelShell
       title="Rendered Config"
-      description="Generated Nginx config for this proxy host"
+      description="Generated Nginx config for this route"
       actions={
         <Button variant="outline" onClick={onRefreshRendered} disabled={isLoadingRaw}>
           <RefreshCw className={cn("h-4 w-4", isLoadingRaw && "animate-spin")} />

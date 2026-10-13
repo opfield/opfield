@@ -475,7 +475,7 @@ export function AdditionalRoutesPanel({
     void confirmAction(
       {
         title: "Delete Additional Route?",
-        description: `The managed route ${route.path} will be removed from this proxy host.`,
+        description: `The managed route ${route.path} will be removed from this route.`,
         confirmLabel: "Delete",
         variant: "destructive",
       },

@@ -303,16 +303,16 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
           label="Opfield upstream URL"
           description={
             upstreamManaged
-              ? "Internal Opfield URL used by the generated proxy host · Managed by Opfield Cloud"
-              : "Internal Opfield URL used by the generated proxy host"
+              ? "Internal Opfield URL used by the generated route · Managed by Opfield Cloud"
+              : "Internal Opfield URL used by the generated route"
           }
           help="Address the selected ingress node uses to reach Opfield. Use an internal address that is reachable from that node, not necessarily the public browser URL. Leave empty to use loopback on the Opfield host, or the Opfield address nodes enroll with (local first) from any other node."
         >
           {upstreamManaged && !upstreamInUse ? (
             <span className="block text-sm text-muted-foreground">
               {upstream?.consoleDirect
-                ? "No generated proxy host: Opfield serves the console directly on port 443."
-                : "No generated proxy host yet: it is created when the status page is enabled."}
+                ? "No generated route: Opfield serves the console directly on port 443."
+                : "No generated route yet: it is created when the status page is enabled."}
             </span>
           ) : (
             <Input
@@ -372,7 +372,7 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
         </SettingsRow>
         <SettingsRow
           label="Proxy template"
-          description="Optional nginx template override for the generated proxy host"
+          description="Optional nginx template override for the generated route"
           help="Uses a custom Nginx configuration template instead of Opfield's default status-page proxy. Leave it on Default unless the route requires specialized proxy behavior."
         >
           <Select
@@ -603,7 +603,7 @@ export function ServiceDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="node">Node</SelectItem>
-                    <SelectItem value="proxy_host">Proxy Host</SelectItem>
+                    <SelectItem value="proxy_host">Route</SelectItem>
                     <SelectItem value="database">Database</SelectItem>
                     <SelectItem value="docker">Docker Container or Deployment</SelectItem>
                     <SelectItem value="docker_compose_project">Docker Compose Project</SelectItem>

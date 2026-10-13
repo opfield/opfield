@@ -574,7 +574,7 @@ export class FolderService {
       .from(proxyHosts)
       .where(inArray(proxyHosts.id, input.hostIds));
     if (selectedHosts.some((host) => host.isSystem)) {
-      throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot be moved');
+      throw new AppError(403, 'SYSTEM_HOST', 'System routes cannot be moved');
     }
     if ((await this.hiddenFolderIds(selectedHosts.map((host) => host.folderId))).size > 0) throw resourceInAppError();
 
@@ -613,7 +613,7 @@ export class FolderService {
         )
       );
     if (selectedHosts.some((host) => host.isSystem)) {
-      throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot be reordered');
+      throw new AppError(403, 'SYSTEM_HOST', 'System routes cannot be reordered');
     }
 
     for (const item of input.items) {

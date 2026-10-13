@@ -46,7 +46,7 @@ function inUseError(host: { id: string; domainNames: string[] }) {
   return new AppError(
     409,
     'PROXY_UPSTREAM_IN_USE',
-    `Resource is used by proxy host "${label}". Change or delete the proxy host first.`
+    `Resource is used by route "${label}". Change or delete the route first.`
   );
 }
 

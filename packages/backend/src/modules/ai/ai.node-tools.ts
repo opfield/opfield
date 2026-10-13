@@ -370,7 +370,7 @@ async function readNginxLogSnapshot(nodeId: string, args: Record<string, unknown
     for (const entry of getNginxLogHistory(hostId)) collect(entry);
   }
 
-  let streamError: string | null = hostIds.size === 0 ? 'No proxy hosts are assigned to this nginx node' : null;
+  let streamError: string | null = hostIds.size === 0 ? 'No routes are assigned to this nginx node' : null;
   if (hostIds.size > 0) {
     const registry = container.resolve(NodeRegistryService);
     logRelay.on('log', collect);

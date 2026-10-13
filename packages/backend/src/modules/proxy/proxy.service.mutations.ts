@@ -279,7 +279,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       };
     }
     if (!request.nodeId) {
-      throw new AppError(400, 'NODE_REQUIRED', 'A node must be selected for the proxy host');
+      throw new AppError(400, 'NODE_REQUIRED', 'A node must be selected for the route');
     }
     return { nodeId: request.nodeId, ingressGroupId: null, servingNodeIds: [request.nodeId] };
   }
@@ -355,7 +355,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         throw new AppError(
           400,
           'INVALID_SECURE_LINK_REFERENCE',
-          'Provision additional Secure Links after creating the proxy host'
+          'Provision additional Secure Links after creating the route'
         );
       }
       const validation = this.configGenerator.validateAdvancedConfig(input.advancedConfig);
@@ -487,7 +487,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         }
       } catch (error) {
         // 4. If nginx fails, delete the DB row and throw
-        logger.error('Failed to apply nginx config for new proxy host, rolling back DB insert', {
+        logger.error('Failed to apply nginx config for new route, rolling back DB insert', {
           hostId: host.id,
           error,
         });
@@ -570,7 +570,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       details: { type: host.type, domainNames: host.domainNames, ...rawConfigAuditDetails(input, options) },
     });
 
-    logger.info('Created proxy host', { hostId: host.id, domains: host.domainNames });
+    logger.info('Created route', { hostId: host.id, domains: host.domainNames });
     await grantCreatedResourcePermissions(userId, 'proxy', host.id, {
       folderId: host.folderId ?? null,
       nodeId: host.nodeId ?? null,
@@ -656,7 +656,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     const existing = await this.db.query.proxyHosts.findFirst({
       where: eq(proxyHosts.id, id),
     });
-    if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     // A change between one node and an ingress group (or between groups) is a planned placement change that keeps
     // the route served throughout; the other fields of the request are applied afterwards.
     const placementChange = requestedPlacementChange(existing, input);
@@ -712,7 +712,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       );
     }
     if (existing.isSystem && !(options.allowSystemNodeMove && Object.keys(input).every((key) => key === 'nodeId'))) {
-      throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot be edited');
+      throw new AppError(403, 'SYSTEM_HOST', 'System routes cannot be edited');
     }
     if (input.advancedConfig !== undefined) {
       await this.secureLinks?.assertAdditionalReferences(existing.id, input.advancedConfig);
@@ -745,14 +745,14 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         throw new AppError(
           409,
           'ADDITIONAL_SECURE_LINK_NODE_MOVE_BLOCKED',
-          'Remove additional Secure Link bindings before moving this proxy host to another node'
+          'Remove additional Secure Link bindings before moving this route to another node'
         );
       }
       await assertNodeAllowsServiceCreation(this.db, input.nodeId, 'nginx');
       await assertAppPlacement(this.db, 'routes', existing.folderId, [input.nodeId]);
     }
     const effectiveNodeId = input.nodeId ?? existing.nodeId;
-    if (!effectiveNodeId) throw new AppError(400, 'NODE_REQUIRED', 'A node must be selected for the proxy host');
+    if (!effectiveNodeId) throw new AppError(400, 'NODE_REQUIRED', 'A node must be selected for the route');
     const domainAssignmentChanged =
       (input.nodeId !== undefined && input.nodeId !== existing.nodeId) ||
       (input.domainNames !== undefined && !sameDomainNames(input.domainNames, existing.domainNames));
@@ -1013,7 +1013,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
           await this.removeConfigFromNode(id, updated.nodeId);
           await this.certificateDistribution.deactivateHost(id, updated.nodeId);
         } catch (cleanupError) {
-          logger.warn('Failed to remove new-node config after proxy host move rollback', {
+          logger.warn('Failed to remove new-node config after route move rollback', {
             hostId: id,
             nodeId: updated.nodeId,
             cleanupError,
@@ -1023,7 +1023,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
           try {
             await this.restoreConfigOnNode(existing);
           } catch (restoreError) {
-            logger.error('Failed to restore former-node config after proxy host move rollback', {
+            logger.error('Failed to restore former-node config after route move rollback', {
               hostId: id,
               nodeId: existing.nodeId,
               restoreError,
@@ -1128,7 +1128,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       details: { changes: Object.keys(input), ...rawConfigAuditDetails(input, options) },
     });
 
-    logger.info('Updated proxy host', { hostId: id });
+    logger.info('Updated route', { hostId: id });
     this.emitHost(
       id,
       'updated',

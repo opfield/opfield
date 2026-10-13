@@ -30,7 +30,7 @@ export const listStatusPageSourcesRoute = appRoute({
   tags: ['Status Page'],
   summary: 'List resources the caller may expose on the status page',
   description:
-    'Nodes, proxy hosts with health checks, databases, Docker containers and deployments with health checks, Compose projects and Pages projects that the caller can view. Creating or editing an exposed service requires view access to its source.',
+    'Nodes, routes with health checks, databases, Docker containers and deployments with health checks, Compose projects and Pages projects that the caller can view. Creating or editing an exposed service requires view access to its source.',
   responses: okJson(UnknownDataResponseSchema),
 });
 export const updateStatusPageSettingsRoute = appRoute({

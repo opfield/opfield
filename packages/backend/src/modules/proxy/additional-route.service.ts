@@ -31,14 +31,14 @@ export * from './additional-route.service.shared.js';
 export class AdditionalRouteService extends AdditionalRouteServiceRuntime {
   async requireHost(hostId: string): Promise<ProxyHostRow> {
     const host = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, hostId) });
-    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+    if (!host) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     return host;
   }
 
   /** Service-level gate used by CRUD and by direct ProxyService callers. */
   async assertHostCanUse(host: ProxyHostRow): Promise<void> {
     if (host.type !== 'proxy' || host.rawConfigEnabled) {
-      throw new AppError(409, 'ADDITIONAL_ROUTES_UNAVAILABLE', 'Additional Routes require a managed proxy host');
+      throw new AppError(409, 'ADDITIONAL_ROUTES_UNAVAILABLE', 'Additional Routes require a managed route');
     }
     if (host.nginxTemplateId) {
       const template = await this.db.query.nginxTemplates.findFirst({

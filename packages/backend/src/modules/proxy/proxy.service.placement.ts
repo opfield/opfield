@@ -67,7 +67,7 @@ export abstract class ProxyServicePlacement extends ProxyServiceDelivery {
   ): Promise<ProxyHostRow> {
     return withProxyLocks([proxyHostLockKey(id)], async () => {
       const existing = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, id) });
-      if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+      if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
       return this.changeRoutePlacementLocked(existing, change, userId, options);
     });
   }
@@ -79,7 +79,7 @@ export abstract class ProxyServicePlacement extends ProxyServiceDelivery {
     options: Pick<ProxyValidationOptions, 'skipDomainNodeValidation' | 'allowSystemNodeMove'> = {}
   ): Promise<ProxyHostRow> {
     if (existing.isSystem && !options.allowSystemNodeMove) {
-      throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot be edited');
+      throw new AppError(403, 'SYSTEM_HOST', 'System routes cannot be edited');
     }
     const before = await this.ingressNodesOf(existing);
     let target: { nodeId: string; ingressGroupId: string | null; servingNodeIds: string[] };
@@ -129,7 +129,7 @@ export abstract class ProxyServicePlacement extends ProxyServiceDelivery {
         .where(eq(proxyHosts.id, existing.id))
         .returning()
         .catch((error) => rethrowProxyHostDomainConflict(this.db, error));
-      if (!moved) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
+      if (!moved) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
       try {
         // 2. Secure-link sources, Pages artifacts, config and certificates on every serving node.
         await this.secureLinks?.syncHostSources(moved, before);

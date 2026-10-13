@@ -169,7 +169,7 @@ export class AccessListService {
       columns: { id: true, domainNames: true, nodeId: true, ingressGroupId: true },
     });
     if (affectedHosts.length > 0 && !this.hostRuntime) {
-      throw new AppError(503, 'PROXY_SERVICE_UNAVAILABLE', 'Proxy host re-apply is unavailable');
+      throw new AppError(503, 'PROXY_SERVICE_UNAVAILABLE', 'Route re-apply is unavailable');
     }
 
     // 3. Commit, then re-apply every enabled host through the normal proxy
@@ -178,7 +178,7 @@ export class AccessListService {
     const [updated] = await this.db.update(accessLists).set(updateData).where(eq(accessLists.id, id)).returning();
 
     if (affectedHosts.length > 0) {
-      logger.info('Re-applying proxy hosts that use the updated access list', {
+      logger.info('Re-applying routes that use the updated access list', {
         accessListId: id,
         hostCount: affectedHosts.length,
       });
@@ -294,7 +294,7 @@ export class AccessListService {
       try {
         await this.hostRuntime?.reapplyHostConfig(host.id);
       } catch (error) {
-        logger.error('Failed to restore proxy host config after access list rollback', {
+        logger.error('Failed to restore route config after access list rollback', {
           accessListId: existing.id,
           hostId: host.id,
           error,
@@ -324,7 +324,7 @@ export class AccessListService {
       throw new AppError(
         409,
         'ACCESS_LIST_IN_USE',
-        `Cannot delete access list: it is referenced by ${referencingHosts.length} proxy host(s)`,
+        `Cannot delete access list: it is referenced by ${referencingHosts.length} route(s)`,
         { proxyHosts: hostNames }
       );
     }

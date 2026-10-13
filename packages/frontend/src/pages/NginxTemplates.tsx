@@ -252,7 +252,7 @@ export function NginxTemplates({
         {!embedded && (
           <PageHeader
             title="Config Templates"
-            description="Nginx server block templates for proxy hosts"
+            description="Nginx server block templates for routes"
             actions={
               <ResponsiveHeaderActions
                 actions={[

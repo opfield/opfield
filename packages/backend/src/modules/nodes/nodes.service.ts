@@ -827,8 +827,8 @@ export class NodesService {
           offlineNginxNode ? 409 : 400,
           offlineNginxNode ? 'OFFLINE_NGINX_NODE_HAS_HOSTS' : 'NODE_HAS_HOSTS',
           offlineNginxNode
-            ? `Offline Nginx node has ${assignedHosts.length} assigned proxy host(s). Confirm cascade removal to continue.`
-            : `Cannot delete node with ${assignedHosts.length} assigned proxy host(s). Reassign or delete them first.`,
+            ? `Offline Nginx node has ${assignedHosts.length} assigned route(s). Confirm cascade removal to continue.`
+            : `Cannot delete node with ${assignedHosts.length} assigned route(s). Reassign or delete them first.`,
           { proxyHostCount: assignedHosts.length }
         );
       }
@@ -836,14 +836,14 @@ export class NodesService {
         throw new AppError(
           409,
           'PROXY_HOST_CASCADE_NOT_ALLOWED',
-          'Proxy hosts can only be cascaded with an offline Nginx node'
+          'Routes can only be cascaded with an offline Nginx node'
         );
       }
       if (this.registry.getNode(id)) {
-        throw new AppError(409, 'NODE_CONNECTED', 'Disconnect the Nginx node before cascading its proxy hosts');
+        throw new AppError(409, 'NODE_CONNECTED', 'Disconnect the Nginx node before cascading its routes');
       }
       if (!this.proxyService) {
-        throw new AppError(503, 'PROXY_SERVICE_UNAVAILABLE', 'Proxy host cleanup is unavailable');
+        throw new AppError(503, 'PROXY_SERVICE_UNAVAILABLE', 'Route cleanup is unavailable');
       }
     }
 
@@ -927,7 +927,7 @@ export class NodesService {
     if (assignedHosts.length > 0) {
       const proxyService = this.proxyService;
       if (!proxyService) {
-        throw new AppError(503, 'PROXY_SERVICE_UNAVAILABLE', 'Proxy host cleanup is unavailable');
+        throw new AppError(503, 'PROXY_SERVICE_UNAVAILABLE', 'Route cleanup is unavailable');
       }
       for (const host of assignedHosts) {
         await proxyService.deleteProxyHost(host.id, userId, { abandonOfflineNode: true });

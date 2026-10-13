@@ -226,7 +226,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
     try {
       await this.deliverHost(host);
     } catch (error) {
-      logger.error('Failed to apply status page system proxy host config', {
+      logger.error('Failed to apply status page system route config', {
         hostId: host.id,
         error,
       });
@@ -272,7 +272,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
       await this.withdrawHost(existing);
       await this.db.delete(proxyHosts).where(eq(proxyHosts.id, existing.id));
     } catch (error) {
-      logger.error('Failed to remove status page system proxy host config', {
+      logger.error('Failed to remove status page system route config', {
         hostId: existing.id,
         error,
       });
@@ -412,7 +412,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
         }
       }
     } catch (error) {
-      logger.error('Failed to apply internal registry system proxy host config', { hostId: host.id, error });
+      logger.error('Failed to apply internal registry system route config', { hostId: host.id, error });
       if (createdNew) {
         await this.db.delete(proxyHosts).where(eq(proxyHosts.id, host.id));
       } else if (existing) {
@@ -455,7 +455,7 @@ export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
       await this.certificateDistribution.deactivateHost(existing.id, existing.nodeId);
       await this.db.delete(proxyHosts).where(eq(proxyHosts.id, existing.id));
     } catch (error) {
-      logger.error('Failed to remove internal registry system proxy host config', { hostId: existing.id, error });
+      logger.error('Failed to remove internal registry system route config', { hostId: existing.id, error });
       throw new AppError(
         500,
         'NGINX_CONFIG_FAILED',

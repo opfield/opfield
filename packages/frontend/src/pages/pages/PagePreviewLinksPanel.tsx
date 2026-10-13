@@ -108,7 +108,7 @@ export function PagePreviewLinksPanel({
       <SettingsControlRow
         title="Access list"
         description="IP rules and basic authentication applied to every preview host of this Project."
-        help="Uses the same reusable Access Lists as proxy hosts. Requires an up-to-date Nginx daemon; custom-domain Routes keep their own access list."
+        help="Uses the same reusable Access Lists as routes. Requires an up-to-date Nginx daemon; custom-domain Routes keep their own access list."
       >
         <Combobox
           value={accessListId}

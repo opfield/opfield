@@ -257,7 +257,7 @@ export class InternalCertificateRenewalService {
         repaired += 1;
         for (const hostId of hostIds) {
           await this.proxyService?.resyncTlsHost(hostId, SYSTEM_USER_ID).catch((error: unknown) =>
-            logger.warn('Proxy host did not receive the internal certificate issuer chain', {
+            logger.warn('Route did not receive the internal certificate issuer chain', {
               certificateId,
               hostId,
               error: errorMessage(error),
@@ -338,7 +338,7 @@ export class InternalCertificateRenewalService {
       );
     }
     if (source.type !== 'tls-server') {
-      throw new AppError(400, 'PKI_CERT_NOT_SERVER', 'Only TLS server certificates can be reissued for proxy hosts');
+      throw new AppError(400, 'PKI_CERT_NOT_SERVER', 'Only TLS server certificates can be reissued for routes');
     }
     const [ca] = await this.db
       .select({
@@ -418,7 +418,7 @@ export class InternalCertificateRenewalService {
           trigger
         );
         for (const failure of applied.failures) {
-          deliveryFailures.push({ target: `proxy host ${failure.hostId}`, error: failure.error });
+          deliveryFailures.push({ target: `route ${failure.hostId}`, error: failure.error });
         }
       } catch (error) {
         deliveryFailures.push({ target: `SSL certificate ${row.id}`, error: errorMessage(error) });
@@ -441,18 +441,18 @@ export class InternalCertificateRenewalService {
         await this.certificateDistribution.upsertOpfieldAsset({ type: 'internal', id: replacement.id });
         for (const host of directHosts) {
           if (!this.proxyService) {
-            deliveryFailures.push({ target: `proxy host ${host.id}`, error: 'Proxy service unavailable' });
+            deliveryFailures.push({ target: `route ${host.id}`, error: 'Proxy service unavailable' });
             continue;
           }
           try {
             await this.proxyService.resyncTlsHost(host.id, userId);
           } catch (error) {
-            deliveryFailures.push({ target: `proxy host ${host.id}`, error: errorMessage(error) });
+            deliveryFailures.push({ target: `route ${host.id}`, error: errorMessage(error) });
           }
         }
       } catch (error) {
         for (const host of directHosts) {
-          deliveryFailures.push({ target: `proxy host ${host.id}`, error: errorMessage(error) });
+          deliveryFailures.push({ target: `route ${host.id}`, error: errorMessage(error) });
         }
       }
     }

@@ -1594,6 +1594,6 @@ export class NodeDispatchService {
 
   async resolveNodeId(proxyHostNodeId: string | null): Promise<string> {
     if (proxyHostNodeId) return proxyHostNodeId;
-    throw new Error('No node assigned to this proxy host');
+    throw new Error('No node assigned to this route');
   }
 }

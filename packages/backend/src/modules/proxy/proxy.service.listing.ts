@@ -134,8 +134,8 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     const existing = await this.db.query.proxyHosts.findFirst({
       where: eq(proxyHosts.id, id),
     });
-    if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
-    if (existing.isSystem) throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot be toggled');
+    if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
+    if (existing.isSystem) throw new AppError(403, 'SYSTEM_HOST', 'System routes cannot be toggled');
     if (!enabled && (await this.isOpfieldPublicRoute(existing))) {
       throw new AppError(
         409,
@@ -209,7 +209,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
             .where(eq(proxyHosts.id, id))
         );
       } catch (rollbackError) {
-        logger.error('Failed to roll back the proxy host after a toggle failed; it may not match nginx', {
+        logger.error('Failed to roll back the route after a toggle failed; it may not match nginx', {
           hostId: id,
           rollbackError,
         });
@@ -230,7 +230,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
       resourceId: id,
     });
 
-    logger.info('Toggled proxy host', { hostId: id, enabled });
+    logger.info('Toggled route', { hostId: id, enabled });
     this.emitHost(id, 'updated', existing.domainNames?.[0]);
     if (exitsMaintenance) this.reconcileMaintenanceAlerts(id);
 
@@ -297,8 +297,8 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     const existing = await this.db.query.proxyHosts.findFirst({
       where: eq(proxyHosts.id, id),
     });
-    if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Proxy host not found');
-    if (existing.isSystem) throw new AppError(403, 'SYSTEM_HOST', 'System proxy hosts cannot enter maintenance');
+    if (!existing) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
+    if (existing.isSystem) throw new AppError(403, 'SYSTEM_HOST', 'System routes cannot enter maintenance');
     if (enabled && (await this.isOpfieldPublicRoute(existing))) {
       throw new AppError(
         409,
@@ -311,13 +311,13 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     }
     if (enabled) {
       if (!existing.enabled) {
-        throw new AppError(409, 'MAINTENANCE_HOST_DISABLED', 'Enable the proxy host before entering maintenance');
+        throw new AppError(409, 'MAINTENANCE_HOST_DISABLED', 'Enable the route before entering maintenance');
       }
       if (existing.type !== 'proxy' || existing.rawConfigEnabled) {
         throw new AppError(
           409,
           'MAINTENANCE_UNSUPPORTED_HOST',
-          'Maintenance is available only for managed proxy hosts without raw mode'
+          'Maintenance is available only for managed routes without raw mode'
         );
       }
     }
@@ -380,7 +380,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
       resourceId: id,
       details: { domainNames: existing.domainNames },
     });
-    logger.info('Toggled proxy host maintenance', { hostId: id, enabled });
+    logger.info('Toggled route maintenance', { hostId: id, enabled });
     this.emitHost(id, 'updated', existing.domainNames?.[0], { maintenanceEnabled: enabled });
     this.reconcileMaintenanceAlerts(id);
 

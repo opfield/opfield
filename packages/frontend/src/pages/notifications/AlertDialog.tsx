@@ -1248,7 +1248,7 @@ export function AlertDialog({
                     />
                     <p className="text-xs text-muted-foreground">
                       Sent when the alert resolves. Leave empty to use Opfield's text for this
-                      alert, such as "Proxy host example.com is back online after 13m 2s."
+                      alert, such as "Route example.com is back online after 13m 2s."
                     </p>
                   </div>
                 )}

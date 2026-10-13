@@ -39,7 +39,7 @@ import {
 
 export const RESOURCE_LABELS: Record<ResourceSearchType, string> = {
   node: "Node",
-  proxy_host: "Proxy host",
+  proxy_host: "Route",
   proxy_template: "Nginx template",
   ssl_certificate: "SSL certificate",
   domain: "Domain",

@@ -432,7 +432,7 @@ proxyRoutes.openapi(updateProxyHostRoute, async (c) => {
   }
   const rawOnlyUpdate = requestOnlyUpdatesRawProxyConfig(input);
   if (!rawOnlyUpdate && !hasScope(scopes, `proxy:edit:${id}`)) {
-    throw new AppError(403, 'FORBIDDEN', 'Editing proxy host settings requires proxy:edit scope');
+    throw new AppError(403, 'FORBIDDEN', 'Editing route settings requires proxy:edit scope');
   }
   if (
     (input.pageProjectId !== undefined || input.pageTagId !== undefined) &&

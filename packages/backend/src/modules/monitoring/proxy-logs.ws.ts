@@ -201,7 +201,7 @@ async function authenticateAndStartStream(
 
   const nodeIds = await resolveHostNodes(hostId);
   if (nodeIds.length === 0) {
-    send(ws, { type: 'error', message: 'Proxy host has no nginx node assigned' });
+    send(ws, { type: 'error', message: 'Route has no nginx node assigned' });
     ws.close(1011, 'Node not connected');
     return;
   }

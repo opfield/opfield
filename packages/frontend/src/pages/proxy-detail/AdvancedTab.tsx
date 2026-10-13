@@ -29,7 +29,7 @@ export function AdvancedTab({
   return (
     <PanelShell
       title="Advanced Config"
-      description="Additional Nginx directives for this proxy host"
+      description="Additional Nginx directives for this route"
       dirty={dirty}
       actions={
         canManage ? (

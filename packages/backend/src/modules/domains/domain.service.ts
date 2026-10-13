@@ -155,7 +155,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
 
   async migrateIngress(id: string, input: DomainIngressMigrationInput, userId: string, actorScopes: string[] = []) {
     if (!this.proxyService) {
-      throw new AppError(503, 'PROXY_SERVICE_UNAVAILABLE', 'Proxy host migration is unavailable');
+      throw new AppError(503, 'PROXY_SERVICE_UNAVAILABLE', 'Route migration is unavailable');
     }
 
     const impact = await this.buildIngressMigrationImpact(id, input.targetNodeId);
@@ -175,7 +175,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
         )
         .limit(1);
       if (systemHost) {
-        throw new AppError(403, 'FORBIDDEN', 'Moving system proxy hosts requires admin:system scope');
+        throw new AppError(403, 'FORBIDDEN', 'Moving system routes requires admin:system scope');
       }
     }
     if (impact.pending) return this.completeIngressMigration(impact, userId);
@@ -732,7 +732,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
     const usage = await this.getUsage(row.domain);
 
     if (usage.proxyHosts.length > 0) {
-      throw new AppError(409, 'DOMAIN_IN_USE', 'Domain is in use by proxy hosts', {
+      throw new AppError(409, 'DOMAIN_IN_USE', 'Domain is in use by routes', {
         proxyHostCount: usage.proxyHosts.length,
         proxyHostIds: usage.proxyHosts.map((h) => h.id),
       });
@@ -1060,7 +1060,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
       throw new AppError(
         409,
         'DOMAIN_INGRESS_HOST_SPLIT',
-        'A related proxy host is assigned to a different Nginx node',
+        'A related route is assigned to a different Nginx node',
         { proxyHostId: inconsistentHost.id }
       );
     }
@@ -1237,7 +1237,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
         throw new AppError(
           409,
           'DOMAIN_INGRESS_TARGET_DOMAIN_CONFLICT',
-          `Proxy host ${host.domainNames[0] ?? host.id} cannot move to ${targetName}: an enabled proxy host there already serves ${domainList}`,
+          `Route ${host.domainNames[0] ?? host.id} cannot move to ${targetName}: an enabled route there already serves ${domainList}`,
           {
             proxyHostId: host.id,
             conflictingProxyHostId: conflict.proxyHostId ?? null,

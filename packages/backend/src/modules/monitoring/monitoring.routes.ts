@@ -972,7 +972,7 @@ monitoringRoutes.openapi(
       .where(eq(proxyHosts.id, hostId))
       .limit(1);
 
-    if (!host) return c.json({ code: 'NOT_FOUND', message: 'Proxy host not found' }, 404);
+    if (!host) return c.json({ code: 'NOT_FOUND', message: 'Route not found' }, 404);
 
     return streamSSE(c, async (stream) => {
       await stream.writeSSE({
@@ -982,7 +982,7 @@ monitoringRoutes.openapi(
 
       if (!host.nodeId) {
         await stream.writeSSE({
-          data: JSON.stringify({ message: 'Proxy host has no nginx node assigned' }),
+          data: JSON.stringify({ message: 'Route has no nginx node assigned' }),
           event: 'log-error',
         });
         return;

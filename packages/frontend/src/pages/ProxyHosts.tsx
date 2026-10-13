@@ -218,7 +218,7 @@ export function ProxyHosts({
     try {
       await api.toggleProxyHost(id, !currentEnabled);
       api.invalidateCache();
-      toast.success(currentEnabled ? "Proxy host disabled" : "Proxy host enabled");
+      toast.success(currentEnabled ? "Route disabled" : "Route enabled");
       await fetchGroupedHosts();
     } catch (err) {
       toastApiError(err, "Failed to toggle route");

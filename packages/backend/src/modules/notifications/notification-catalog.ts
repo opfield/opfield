@@ -384,7 +384,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   },
   {
     id: 'proxy',
-    label: 'Proxy Host',
+    label: 'Route',
     metrics: [],
     events: [
       { id: 'health.offline', label: 'Health Offline', defaultSeverity: 'critical', supportsThreshold: true },
@@ -403,7 +403,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     ],
     variables: [
       { name: '{{resource.name}}', description: 'Domain name(s)' },
-      { name: '{{resource.id}}', description: 'Proxy host ID' },
+      { name: '{{resource.id}}', description: 'Route ID' },
       { name: '{{resource.key}}', description: 'Internal alert resource key' },
       { name: '{{health.status}}', description: 'Health status' },
       { name: '{{event.name}}', description: 'Event pattern/name' },
