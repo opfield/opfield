@@ -16,6 +16,10 @@ and distribution for permitted purposes, including internal
 business use. It does not permit providing to others a product
 marketed as a substitute for Opfield. See LICENSE.md.
 
+The logging SDK in packages/logging-sdk, published on npm as
+@opfield/logger, is licensed under the MIT License instead; see
+packages/logging-sdk/LICENSE.
+
 PAID KEY TERMS
 --------------
 A Personal, Business, or Enterprise key issued by the Licensor
