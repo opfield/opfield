@@ -17,6 +17,7 @@ import {
 import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
 import { effectiveMaintenance } from '@/modules/proxy/effective-maintenance.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
+import { certificateMemberHealths } from './app-certificate-health.js';
 import type { AppMember, AppMembersReader } from './app-members.service.js';
 import type { AppHealth, AppHealthProvider, EnvironmentHealthSummary } from './apps.service.js';
 
@@ -267,6 +268,7 @@ export class AppHealthService implements AppHealthProvider {
       ...new Set(members.filter((member) => member.nodeId).map((member) => member.nodeId!)),
     ]);
 
+    const certificates = await certificateMemberHealths(this.db, ids('certificate'));
     const byId = <T extends { id: string }>(rows: T[]) => new Map(rows.map((row) => [row.id, row]));
     const routeById = byId(routes);
     const databaseById = byId(databases);
@@ -300,6 +302,8 @@ export class AppHealthService implements AppHealthProvider {
           };
         case 'pages':
           return { ...base, health: 'none' };
+        case 'certificate':
+          return { ...base, ...(certificates.get(member.id) ?? { health: 'none' }) };
         case 'compose':
           return { ...base, health: composeHealth(composeById.get(member.id)?.status) };
         case 'deployment': {

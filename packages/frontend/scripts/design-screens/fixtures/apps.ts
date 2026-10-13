@@ -22,6 +22,8 @@ const folders = (seed: number) => ({
   databases: uuid(seed + 4),
   storage: uuid(seed + 5),
   pages: uuid(seed + 6),
+  certificates: uuid(seed + 7),
+  logging: uuid(seed + 8),
 });
 
 const production: AppEnvironmentDetail = {

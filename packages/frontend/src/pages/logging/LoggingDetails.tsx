@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { AppMembershipLink } from "@/components/apps/AppMembership";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PageBackButton } from "@/components/common/PageBackButton";
@@ -369,6 +370,12 @@ export function LoggingEnvironmentDetail({
             <span className="block truncate">
               {environment.slug} · {environment.schemaName ?? "No schema attached"} ·{" "}
               {environment.retentionDays}d retention
+              {environment.app ? (
+                <>
+                  {" · "}
+                  <AppMembershipLink app={environment.app} />
+                </>
+              ) : null}
             </span>
           }
           actions={

@@ -195,7 +195,13 @@ class ApiClient extends withAppsApi(
       auth.hasScopedAccess("ssl:cert:view"),
       "ssl-certificates",
       cache(`ssl:list:${showSystem ? "system" : "default"}`, () =>
-        this.listSSLCertificates({ page: 1, limit: 25, status: "active", showSystem })
+        this.listSSLCertificates({
+          page: 1,
+          limit: 25,
+          status: "active",
+          showSystem,
+          ...NORMAL_LIST_FILTER,
+        })
       )
     );
     add(

@@ -2,6 +2,7 @@ import { FolderPlus, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import {
   CreateFolderSelect,
@@ -33,7 +34,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
+import { withoutAppMembers } from "@/lib/app-members";
 import { loggingEnvironmentRoute, loggingSchemaRoute } from "@/lib/resource-routes";
 import { scopeMatches } from "@/lib/scope-utils";
 import { cn } from "@/lib/utils";
@@ -113,6 +116,11 @@ export function Logging({
       api.getCached<LoggingSchema[]>("logging:schemas") === undefined
   );
   const [environmentDialogOpen, setEnvironmentDialogOpen] = useState(false);
+  const [moveToAppEnvironment, setMoveToAppEnvironment] = useState<LoggingEnvironment | null>(null);
+  const shownMoveToAppEnvironment = useRetainedDialogValue(
+    moveToAppEnvironment,
+    moveToAppEnvironment !== null
+  );
   const [schemaDialogOpen, setSchemaDialogOpen] = useState(false);
   const [createEnvironmentFolderAction, setCreateEnvironmentFolderAction] = useState<
     (() => void) | null
@@ -226,10 +234,12 @@ export function Logging({
     void load();
   });
 
+  // App members live on their app's page; the list keeps them only for their detail pages.
   const filteredEnvironments = useMemo(() => {
     const needle = environmentSearch.trim().toLowerCase();
-    if (!needle) return visibleEnvironments;
-    return visibleEnvironments.filter(
+    const listed = withoutAppMembers(visibleEnvironments);
+    if (!needle) return listed;
+    return listed.filter(
       (environment) =>
         environment.name.toLowerCase().includes(needle) ||
         environment.slug.toLowerCase().includes(needle) ||
@@ -467,6 +477,10 @@ export function Logging({
               onOpen={(environment) => navigate(loggingEnvironmentRoute(environment.slug, "logs"))}
               onRefresh={load}
               onCreateFolderRef={(fn) => setCreateEnvironmentFolderAction(() => fn)}
+              canMoveToApp={(environment) =>
+                hasAnyScope(`logs:environments:edit:${environment.id}`)
+              }
+              onMoveToApp={setMoveToAppEnvironment}
             />
           </TabsContent>
 
@@ -492,6 +506,17 @@ export function Logging({
           </TabsContent>
         </Tabs>
 
+        <MoveToAppDialog
+          open={moveToAppEnvironment !== null}
+          onOpenChange={(open) => {
+            if (!open) setMoveToAppEnvironment(null);
+          }}
+          members={
+            shownMoveToAppEnvironment ? [{ type: "logging", id: shownMoveToAppEnvironment.id }] : []
+          }
+          resourceLabel={shownMoveToAppEnvironment?.name ?? "the logging environment"}
+          onMoved={() => void load()}
+        />
         <LoggingEnvironmentDialog
           open={environmentDialogOpen}
           environment={null}

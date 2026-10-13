@@ -17,11 +17,13 @@ import type {
   DockerComposeProject,
   DockerComposeProjectSummary,
   DockerContainer,
+  LoggingEnvironment,
   ManagedDatabaseBinding,
   ManagedStorageBinding,
   ObjectStorageConnection,
   PageProject,
   ProxyHost,
+  SSLCertificate,
 } from "@/types";
 
 export const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
@@ -45,9 +47,15 @@ export interface AppMemberAccess {
   containers: boolean;
   compose: boolean;
   routes: boolean;
+  certificates?: boolean;
 }
 
-const FULL_ACCESS: AppMemberAccess = { containers: true, compose: true, routes: true };
+const FULL_ACCESS: AppMemberAccess = {
+  containers: true,
+  compose: true,
+  routes: true,
+  certificates: true,
+};
 
 export interface AppCompute {
   /** Containers and deployments (kind "deployment"). */
@@ -73,6 +81,7 @@ async function whenAllowed<T>(allowed: boolean, request: () => Promise<T>): Prom
 export interface AppData {
   databases: DatabaseConnection[];
   storage: ObjectStorageConnection[];
+  logging: LoggingEnvironment[];
 }
 
 /** A private connection a member workload starts: a container link or a DB/storage binding. */
@@ -90,6 +99,7 @@ export interface AppLinkRow {
 
 export interface AppNetwork {
   routes: ProxyHost[];
+  certificates: SSLCertificate[];
   links: AppLinkRow[];
   hidden: AppHiddenMembers[];
 }
@@ -129,19 +139,39 @@ export async function loadAppCompute(
   return { containers, compose, hidden };
 }
 
-/** Databases and storage of the app; a family the license plan lacks or the user may not view is not requested. */
-export async function loadAppData(appId: string): Promise<AppData> {
+export function serviceName(container: DockerContainer): string {
+  return container.labels?.[COMPOSE_SERVICE_LABEL] ?? container.name;
+}
+
+/**
+ * Databases, storage and logging environments of the app; a family the license plan lacks or the
+ * user may not view is not requested.
+ */
+export async function loadAppData(
+  appId: string,
+  options: { loggingEnabled: boolean }
+): Promise<AppData> {
   // A family the user may not view is not requested (the app can be visible through other members).
   const auth = useAuthStore.getState();
-  const [databases, storage] = await Promise.all([
+  const [databases, storage, logging] = await Promise.all([
     planIncludes("external-database-connections") && auth.hasScopedAccess("databases:view")
       ? api.listAppDatabases(appId)
       : [],
     planIncludes("storage-connections") && auth.hasScopedAccess("storage:view")
       ? api.listAppStorage(appId)
       : [],
+    options.loggingEnabled && canListAppLogging() ? api.listAppLoggingEnvironments(appId) : [],
   ]);
-  return { databases, storage };
+  return { databases, storage, logging };
+}
+
+/** Logging is in the plan and the user may view some environment (logs:read lists them too). */
+function canListAppLogging(): boolean {
+  const auth = useAuthStore.getState();
+  return (
+    planIncludes("structured-logging") &&
+    (auth.hasScopedAccess("logs:environments:view") || auth.hasScopedAccess("logs:read"))
+  );
 }
 
 /** Pages projects of the app; none without the Pages plan feature. */
@@ -168,12 +198,14 @@ export async function loadAppNetwork(
   appId: string,
   access: AppMemberAccess = FULL_ACCESS
 ): Promise<AppNetwork> {
-  const [routes, compute] = await Promise.all([
+  const [routes, certificates, compute] = await Promise.all([
     whenAllowed(access.routes, () => api.listAppRoutes(appId)),
+    whenAllowed(access.certificates !== false, () => api.listAppCertificates(appId)),
     loadAppCompute(appId, access),
   ]);
   const hidden: AppHiddenMembers[] = [
     ...(routes === null ? [{ title: "Routes", scope: "proxy:view" }] : []),
+    ...(certificates === null ? [{ title: "SSL certificates", scope: "ssl:cert:view" }] : []),
     ...compute.hidden.map((entry) => ({
       title: `Links from ${entry.title.toLowerCase()}`,
       scope: entry.scope,
@@ -330,7 +362,12 @@ export async function loadAppNetwork(
     ),
   ]);
 
-  return { routes: routes ?? [], links: [...rows, ...bindingRows.flat()], hidden };
+  return {
+    routes: routes ?? [],
+    certificates: certificates ?? [],
+    links: [...rows, ...bindingRows.flat()],
+    hidden,
+  };
 }
 
 /** Loads with `loader` whenever `key` or `version` changes; keeps the last rows while refreshing. */

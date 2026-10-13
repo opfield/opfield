@@ -61,6 +61,8 @@ function app(incidents: Record<string, AppIncident[]> = {}, operate = true): App
       databases: null,
       storage: null,
       pages: null,
+      certificates: null,
+      logging: null,
     },
     allowedNodeIds: [],
     incidents: incidents[id] ?? [],

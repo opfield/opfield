@@ -93,7 +93,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_app_members',
     description:
-      'Members of an app. list (appId, optional environmentId): the members you may view with type, id, name, environmentId and nodeIds. place (target {appId, environmentId} or null, members [{type, id} or {type: container, id: name, nodeId}]): import or move each member into the environment, or take it out of its app with target null (it returns to the top level of its list). Types: container, deployment, compose, database, storage, route, pages. Needs apps:env:manage on the target environment and on the environment a member leaves, plus edit permission on each member. Refused per member: system routes (ROUTE_NOT_PLACEABLE), a node the environment does not allow (APP_NODE_NOT_ALLOWED, APP_ENV_NO_ALLOWED_NODE), a deployment slot or Compose service container (move the deployment or project), no permission. Returns placed and refused lists.',
+      'Members of an app. list (appId, optional environmentId): the members you may view with type, id, name, environmentId and nodeIds. place (target {appId, environmentId} or null, members [{type, id} or {type: container, id: name, nodeId}]): import or move each member into the environment, or take it out of its app with target null (it returns to the top level of its list). Types: container, deployment, compose, database, storage, route, pages, certificate (SSL certificate), logging (logging environment). Needs apps:env:manage on the target environment and on the environment a member leaves, plus edit permission on each member. Refused per member: system routes (ROUTE_NOT_PLACEABLE), system certificates (CERTIFICATE_NOT_PLACEABLE), a node the environment does not allow (APP_NODE_NOT_ALLOWED, APP_ENV_NO_ALLOWED_NODE), a deployment slot or Compose service container (move the deployment or project), no permission. Returns placed and refused lists.',
     parameters: {
       type: 'object',
       properties: {
@@ -113,7 +113,17 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
             properties: {
               type: {
                 type: 'string',
-                enum: ['container', 'deployment', 'compose', 'database', 'storage', 'route', 'pages'],
+                enum: [
+                  'container',
+                  'deployment',
+                  'compose',
+                  'database',
+                  'storage',
+                  'route',
+                  'pages',
+                  'certificate',
+                  'logging',
+                ],
               },
               id: { type: 'string', description: 'Resource id; containers: the container name.' },
               nodeId: { type: 'string', description: 'Containers: the Docker node.' },
@@ -127,7 +137,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
     destructive: true,
     category: 'Apps',
     requiredScope: 'apps:view',
-    invalidateStores: ['apps', 'proxy', 'containers', 'databases', 'pages', 'folders'],
+    invalidateStores: ['apps', 'proxy', 'containers', 'databases', 'pages', 'ssl', 'folders'],
   },
   {
     name: 'manage_app_variables',

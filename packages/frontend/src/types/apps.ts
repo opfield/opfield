@@ -25,7 +25,9 @@ export type AppMemberFamily =
   | "routes"
   | "databases"
   | "storage"
-  | "pages";
+  | "pages"
+  | "certificates"
+  | "logging";
 
 export type AppMemberType =
   | "container"
@@ -34,7 +36,11 @@ export type AppMemberType =
   | "database"
   | "storage"
   | "route"
-  | "pages";
+  | "pages"
+  /** An SSL certificate. */
+  | "certificate"
+  /** A logging environment. */
+  | "logging";
 
 /** The `app` field of a resource in normal lists and detail responses. */
 export interface AppMembershipRef {

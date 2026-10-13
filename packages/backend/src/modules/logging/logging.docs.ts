@@ -69,7 +69,15 @@ export const listLoggingEnvironmentsRoute = appRoute({
   path: '/environments',
   tags: ['Logging'],
   summary: 'List logging environments',
-  request: { query: z.object({ search: z.string().optional() }) },
+  request: {
+    query: z.object({
+      search: z.string().optional(),
+      /** Leave out environments that belong to an app (the normal list). */
+      excludeAppMembers: z.enum(['true', 'false', '1', '0']).optional(),
+      /** Only the environments of this app (any environment of it). */
+      appId: z.string().uuid().optional(),
+    }),
+  },
   responses: okJson(UnknownDataResponseSchema),
 });
 export const createLoggingEnvironmentRoute = appRoute({

@@ -5,6 +5,7 @@ import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope, hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appForMember } from '@/modules/apps/app-membership.js';
 import {
   authMiddleware,
   requireAnyScopeBase,
@@ -210,6 +211,8 @@ sslRoutes.openapi({ ...listSslCertificatesRoute, middleware: requireScopeBase('s
     status: c.req.query('status'),
     search: c.req.query('search'),
     showSystem: c.req.query('showSystem'),
+    excludeAppMembers: c.req.query('excludeAppMembers'),
+    appId: c.req.query('appId'),
   });
   const scopes = c.get('effectiveScopes') || [];
   if (query.showSystem && !hasScope(scopes, 'admin:details:certificates')) {
@@ -229,7 +232,7 @@ sslRoutes.openapi(
     const sslService = container.resolve(SSLService);
     const id = c.req.param('id')!;
     const cert = await sslService.getCert(id);
-    return c.json({ data: cert });
+    return c.json({ data: { ...cert, app: await appForMember({ type: 'certificate', id }) } });
   }
 );
 

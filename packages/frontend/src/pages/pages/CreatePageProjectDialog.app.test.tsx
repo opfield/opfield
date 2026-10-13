@@ -35,6 +35,8 @@ const environment: AppEnvironmentDetail = {
     databases: null,
     storage: null,
     pages: "folder-pages-staging",
+    certificates: null,
+    logging: null,
   },
   allowedNodeIds: ["edge-2"],
 };

@@ -11,6 +11,7 @@ import { removeDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { DatabaseFolderService } from '@/modules/databases/database-folders.service.js';
 import { DockerFolderService } from '@/modules/docker/docker-folder.service.js';
 import { FolderService } from '@/modules/proxy/folder.service.js';
+import { APP_FAMILIES } from './app-families.js';
 import { AppFolderService } from './app-folders.service.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
@@ -81,7 +82,7 @@ describe.skipIf(!url)('hidden app folders on disposable PostgreSQL', () => {
 
   it('creates one root and one environment folder per family', async () => {
     const { folders, roots } = await createApp('Shop');
-    for (const family of ['containers', 'compose', 'routes', 'databases', 'storage', 'pages'] as const) {
+    for (const family of APP_FAMILIES) {
       expect(roots[family], family).toBeTruthy();
       expect(folders[family], family).toBeTruthy();
     }

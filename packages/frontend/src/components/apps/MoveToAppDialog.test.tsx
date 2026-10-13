@@ -49,6 +49,8 @@ function environment(id: string, name: string, isProduction = false): AppEnviron
       databases: null,
       storage: null,
       pages: null,
+      certificates: null,
+      logging: null,
     },
     allowedNodeIds: [],
   };

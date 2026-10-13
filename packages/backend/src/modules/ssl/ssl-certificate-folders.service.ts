@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { sslCertificateFolders, sslCertificates } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { assertAppDestination } from '@/modules/apps/app-placement-guard.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type {
   MoveResourceFolderInput,
@@ -25,6 +26,12 @@ export class SSLCertificateFolderService extends FolderedResourceService {
       auditMovedResourceType: 'ssl_certificate',
       eventName: 'ssl.cert.folder.changed',
     });
+  }
+
+  /** A create into an app environment folder is refused while the environment is isolated by the kill switch. */
+  override async assertFolderExists(id: string | null | undefined): Promise<void> {
+    await super.assertFolderExists(id);
+    await assertAppDestination(this.database, 'certificates', id);
   }
 
   override async moveResourcesToFolder(input: MoveResourcesToFolderInput, userId: string) {

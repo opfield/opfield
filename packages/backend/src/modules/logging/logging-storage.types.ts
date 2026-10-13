@@ -1,4 +1,5 @@
 import type { LoggingFieldDefinition, LoggingSchemaMode } from '@/db/schema/index.js';
+import type { AppMemberRef } from '@/modules/apps/app-membership.js';
 
 export type LoggingSeverity = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
@@ -31,6 +32,10 @@ export interface LoggingEnvironmentView {
   createdById: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Its app and environment when it is an app member (null outside apps). */
+  app?: AppMemberRef | null;
+  /** Last time one of its ingest tokens was used (null: never). */
+  lastIngestAt?: string | null;
 }
 
 export interface LoggingSchemaView {

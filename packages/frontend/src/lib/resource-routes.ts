@@ -12,6 +12,9 @@ export const ingressGroupsRoute = () => "/routes/ingress-groups";
 export const ingressGroupRoute = (id: string) => `/ingress-groups/${segment(id)}`;
 export const pageProjectRoute = (slug: string, tab?: string) =>
   withTab(`/pages/${segment(slug)}`, tab);
+/** The certificates list with the certificate's details open. */
+export const sslCertificateRoute = (id: string) =>
+  `/certificates?${new URLSearchParams({ certificate: id })}`;
 export const loggingEnvironmentRoute = (slug: string, tab?: string) =>
   withTab(`/logging/environments/${segment(slug)}`, tab);
 export const loggingSchemaRoute = (slug: string, tab?: string) =>

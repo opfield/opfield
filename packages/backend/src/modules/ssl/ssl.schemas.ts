@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryFlag } from '@/modules/apps/app-membership.js';
 
 const domainRegex = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 
@@ -46,6 +47,10 @@ export const SSLCertListQuerySchema = z.object({
   status: z.enum(['active', 'expired', 'pending', 'error']).optional(),
   search: z.string().optional(),
   showSystem: z.preprocess((v) => (v === 'true' ? true : v === 'false' ? false : undefined), z.boolean().optional()),
+  /** Leave out certificates that belong to an app (the normal list). */
+  excludeAppMembers: z.preprocess(queryFlag, z.boolean().optional()),
+  /** Only the certificates of this app (any environment). */
+  appId: z.string().uuid().optional(),
 });
 
 export type RequestACMECertInput = z.output<typeof RequestACMECertSchema>;

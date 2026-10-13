@@ -47,6 +47,8 @@ const APP_MEMBER_NOUNS: Record<AppMemberFamily, [string, string]> = {
   databases: ["database", "databases"],
   storage: ["storage", "storage"],
   pages: ["Pages project", "Pages projects"],
+  certificates: ["SSL certificate", "SSL certificates"],
+  logging: ["logging environment", "logging environments"],
 };
 
 /** Places chosen for a section, per folder family of its scopes. Empty or absent: everywhere. */

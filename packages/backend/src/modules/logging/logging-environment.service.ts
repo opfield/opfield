@@ -17,7 +17,12 @@ export class LoggingEnvironmentService {
   ) {}
   setEventBus(_eventBus: EventBusService): void {}
   setLicensePolicyService(_service: LicensePolicyService): void {}
-  async list(_query?: { search?: string; allowedIds?: string[] }): Promise<LoggingEnvironmentView[]> {
+  async list(_query?: {
+    search?: string;
+    allowedIds?: string[];
+    appId?: string | null;
+    excludeAppMembers?: boolean;
+  }): Promise<LoggingEnvironmentView[]> {
     return [];
   }
   async get(_id: string): Promise<LoggingEnvironmentView> {

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { AppCreateContext } from "@/components/apps/app-create-context";
 import { CreateProxyHostDialog } from "@/components/proxy/CreateProxyHostDialog";
+import { SSLCertificateCreateDialog } from "@/components/ssl/SSLCertificateCreateDialog";
 import {
   Dialog,
   DialogContent,
@@ -8,14 +10,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
+import { api } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
 import { type LicenseFeature, requireLicenseFeature } from "@/stores/license-paywall";
+import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import type { AppMemberFamily } from "@/types";
 import { ComposeProjectEditor } from "../compose/ComposeProjectEditor";
 import { DockerDeployDialog } from "../DockerDeployDialog";
 import { DatabaseConnectionCreateDialog } from "../database-create/DatabaseConnectionCreateDialog";
 import { ManagedDatabaseCreateDialog } from "../database-create/ManagedDatabaseCreateDialog";
 import { AppContainerLinkDialog } from "../docker-detail/AppContainerLinkDialog";
+import { LoggingEnvironmentDialog } from "../logging/LoggingEnvironmentDialog";
 import { CreatePageProjectDialog } from "../pages/CreatePageProjectDialog";
 import { ManagedStorageCreateDialog } from "../storage-create/ManagedStorageCreateDialog";
 import { StorageConnectionCreateDialog } from "../storage-create/StorageConnectionCreateDialog";
@@ -28,6 +35,8 @@ export type AppCreateType =
   | "storage"
   | "route"
   | "pages"
+  | "certificate"
+  | "logging"
   | "container-link";
 
 export interface AppCreateRequest {
@@ -50,6 +59,8 @@ type DialogKey =
   | "storage-external"
   | "route"
   | "pages"
+  | "certificate"
+  | "logging"
   | "container-link";
 
 function dialogKey(request: Pick<AppCreateRequest, "type" | "variant">): DialogKey {
@@ -67,6 +78,7 @@ const LICENSE_GATES: Partial<Record<DialogKey, [LicenseFeature, string]>> = {
   "storage-managed": ["managed-storage", "Managed storage"],
   "storage-external": ["storage-connections", "Storage connections"],
   pages: ["pages", "Pages"],
+  logging: ["structured-logging", "Logging environments"],
   "container-link": ["container-links", "Container links"],
 };
 
@@ -88,6 +100,7 @@ export const IMPORT_LICENSE_FEATURES: Partial<Record<AppMemberFamily, LicenseFea
   databases: "external-database-connections",
   storage: "storage-connections",
   pages: "pages",
+  logging: "structured-logging",
 };
 
 /**
@@ -198,6 +211,25 @@ export function AppCreateDialogs({
         onCreated={created}
       />
 
+      <AppCertificateCreateDialog
+        open={active === "certificate"}
+        onOpenChange={openChange}
+        appContext={appContext}
+        onCreated={created}
+      />
+
+      <LoggingEnvironmentDialog
+        open={active === "logging"}
+        onOpenChange={openChange}
+        appContext={appContext}
+        onSave={async (data) => {
+          await api.createLoggingEnvironment(data);
+          api.invalidateCache("logging:environments");
+          toast.success("Logging environment created");
+          created();
+        }}
+      />
+
       <AppContainerLinkDialog
         open={active === "container-link"}
         onOpenChange={openChange}
@@ -205,5 +237,87 @@ export function AppCreateDialogs({
         onCreated={created}
       />
     </>
+  );
+}
+
+/**
+ * Add SSL Certificate from an app. Like the certificates page it first checks for registered
+ * domains (Let's Encrypt needs one) and a ready Cloudflare connector (automatic DNS-01).
+ */
+function AppCertificateCreateDialog({
+  open,
+  onOpenChange,
+  appContext,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  appContext: AppCreateContext;
+  onCreated: () => void;
+}) {
+  const canViewDomains = useAuthStore((state) => state.hasScopedAccess("domains:view"));
+  const canInspectCloudflare = useAuthStore(
+    (state) =>
+      state.hasScope("integrations:cloudflare:view") ||
+      state.hasScope("integrations:cloudflare:manage")
+  );
+  const hasCloudflareIntegration = useUIBootstrapStore(
+    (state) => state.snapshot?.navigation.hasCloudflareIntegration ?? false
+  );
+  const pkiEnabled = usePkiAvailable();
+  const [checked, setChecked] = useState<{
+    hasDomains: boolean;
+    cloudflare: boolean | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setChecked(null);
+      return;
+    }
+    let cancelled = false;
+    void Promise.all([
+      canViewDomains
+        ? api.listDomains({ page: 1, limit: 1 }).catch(() => null)
+        : Promise.resolve(null),
+      canInspectCloudflare
+        ? api.listCloudflareConnectors({ enabled: true }).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([domains, connectors]) => {
+      if (cancelled) return;
+      setChecked({
+        hasDomains: (domains?.pagination.total ?? 0) > 0,
+        cloudflare:
+          connectors === null
+            ? null
+            : connectors.some(
+                (connector) =>
+                  connector.enabled &&
+                  connector.syncStatus !== "error" &&
+                  (connector.zones?.length ?? 0) > 0
+              ),
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [canInspectCloudflare, canViewDomains, open]);
+
+  return (
+    <SSLCertificateCreateDialog
+      open={open && checked !== null}
+      onOpenChange={onOpenChange}
+      onCreated={onCreated}
+      hasDomains={checked?.hasDomains ?? false}
+      pkiEnabled={pkiEnabled}
+      initialTab={checked?.hasDomains ? "acme" : "upload"}
+      cloudflareConfigured={checked?.cloudflare ?? hasCloudflareIntegration}
+      onCloudflareRequired={() =>
+        toast.error(
+          "Automatic DNS validation requires a configured Cloudflare integration. Add and enable a Cloudflare connector in Settings first."
+        )
+      }
+      appContext={appContext}
+    />
   );
 }

@@ -439,11 +439,14 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   // ── SSL Certificates ──
   {
     name: 'list_ssl_certificates',
-    description: 'List SSL/TLS certificates (ACME, uploaded, internal). Shows name, type, domains, expiry.',
+    description:
+      'List SSL/TLS certificates (ACME, uploaded, internal). Shows name, type, domains, expiry and app (its app and environment, or null).',
     parameters: {
       type: 'object',
       properties: {
         search: { type: 'string', description: 'Search by name or domain' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out certificates that belong to an app.' },
+        appId: { type: 'string', description: 'Only certificates of this app (any environment).' },
         type: { type: 'string', enum: ['acme', 'upload', 'internal'] },
         status: { type: 'string', enum: ['active', 'expired', 'pending', 'error'] },
         showSystem: {
@@ -488,7 +491,11 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
           description:
             'Auto-renew before expiry. Defaults true for HTTP-01 and Cloudflare DNS-01; manual DNS-01 cannot auto-renew.',
         },
-        folderId: { type: ['string', 'null'], description: 'Folder UUID for organizing this certificate.' },
+        folderId: {
+          type: ['string', 'null'],
+          description:
+            'Folder UUID for organizing this certificate; get_app placementFolderIds.certificates creates it inside an app environment.',
+        },
       },
       required: ['domains', 'challengeType'],
     },
@@ -507,7 +514,11 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
       properties: {
         internalCertId: { type: 'string', description: 'The PKI certificate UUID to import as SSL certificate' },
         name: { type: 'string', description: 'Display name for the SSL certificate (optional, defaults to cert CN)' },
-        folderId: { type: ['string', 'null'], description: 'Folder UUID for organizing this certificate.' },
+        folderId: {
+          type: ['string', 'null'],
+          description:
+            'Folder UUID for organizing this certificate; get_app placementFolderIds.certificates creates it inside an app environment.',
+        },
       },
       required: ['internalCertId'],
     },
@@ -535,7 +546,11 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
         certificatePem: { type: 'string' },
         privateKeyPem: { type: 'string' },
         chainPem: { type: 'string' },
-        folderId: { type: ['string', 'null'], description: 'Folder UUID for an upload operation.' },
+        folderId: {
+          type: ['string', 'null'],
+          description:
+            'Folder UUID for an upload operation; get_app placementFolderIds.certificates uploads it into an app environment.',
+        },
         enabled: { type: 'boolean', description: 'Enable or disable auto-renewal when operation is set_auto_renew' },
         provider: {
           type: 'string',

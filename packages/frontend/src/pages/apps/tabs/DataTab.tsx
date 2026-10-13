@@ -1,5 +1,5 @@
-// Data: databases and storage grouped by environment (canvas frame app-data).
-import { Database, DatabaseZap, HardDrive, HardDriveDownload } from "lucide-react";
+// Data: databases, storage and logging environments grouped by environment (canvas frame app-data).
+import { Database, DatabaseZap, HardDrive, HardDriveDownload, ScrollText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { RelativeTime } from "@/components/common/RelativeTime";
@@ -9,10 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { databaseTypeLabel } from "@/lib/database-type";
 import { nodeIconClassNames } from "@/lib/node-appearance";
-import { databaseRoute, storageRoute } from "@/lib/resource-routes";
+import { databaseRoute, loggingEnvironmentRoute, storageRoute } from "@/lib/resource-routes";
+import { parseResourceTag, resourceTagBadgeProps } from "@/lib/resource-tags";
 import { cn } from "@/lib/utils";
 import { formatProviderLabel } from "@/pages/storage-detail/shared";
-import type { AppDetail, DatabaseConnection, ObjectStorageConnection } from "@/types";
+import { useSystemConfigStore } from "@/stores/system-config";
+import type {
+  AppDetail,
+  DatabaseConnection,
+  LoggingEnvironment,
+  ObjectStorageConnection,
+} from "@/types";
 import { loadAppData, useAppLoad } from "../app-resources";
 import { groupByEnvironment, groupTotal, RowMenu } from "../app-shared";
 import { useNodeIndex } from "../use-node-index";
@@ -68,7 +75,11 @@ export function DataTab({
 }) {
   const navigate = useNavigate();
   const { byId: nodesById } = useNodeIndex(version);
-  const data = useAppLoad(`data:${app.id}`, version, () => loadAppData(app.id));
+  // Logging environments are listed only while logging is on for this Opfield.
+  const loggingEnabled = useSystemConfigStore((state) => state.config.features.loggingEnabled);
+  const data = useAppLoad(`data:${app.id}:${loggingEnabled}`, version, () =>
+    loadAppData(app.id, { loggingEnabled })
+  );
   if (data.loading) return <ContentLoading loading />;
 
   const databases = groupByEnvironment(
@@ -79,6 +90,11 @@ export function DataTab({
   const storage = groupByEnvironment(
     app.environments,
     data.data?.storage ?? [],
+    (row) => row.app?.environmentId
+  );
+  const logging = groupByEnvironment(
+    app.environments,
+    data.data?.logging ?? [],
     (row) => row.app?.environmentId
   );
 
@@ -241,13 +257,92 @@ export function DataTab({
     },
   ];
 
-  if (groupTotal(databases) + groupTotal(storage) === 0) {
+  const loggingColumns: ResourceListColumn<LoggingEnvironment>[] = [
+    {
+      id: "name",
+      label: "Name",
+      width: "36%",
+      renderCell: (row) =>
+        nameCell(
+          ScrollText,
+          undefined,
+          row.name,
+          `${row.slug}${row.description ? ` · ${row.description}` : ""}`
+        ),
+    },
+    {
+      id: "schema",
+      label: "Schema",
+      width: "30%",
+      align: "right",
+      renderCell: (row) => (
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          <Badge variant="outline" className="max-w-[180px]" title={row.schemaName ?? undefined}>
+            {row.schemaName ?? "No schema"}
+          </Badge>
+          <span className="inline-flex shrink-0">
+            <Badge variant="outline">{row.retentionDays}d</Badge>
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: "lastIngest",
+      label: "Last Ingest",
+      width: "13%",
+      align: "center",
+      renderCell: (row) => (
+        <Badge variant="outline">
+          <RelativeTime value={row.lastIngestAt ?? null} fallback="Never" />
+        </Badge>
+      ),
+    },
+    {
+      id: "status",
+      label: "Status",
+      width: "13%",
+      align: "center",
+      renderCell: (row) => (
+        <Badge variant={row.enabled ? "success" : "secondary"}>
+          {row.enabled ? "Enabled" : "Disabled"}
+        </Badge>
+      ),
+    },
+    {
+      id: "actions",
+      label: "Actions",
+      width: "5rem",
+      align: "right",
+      renderCell: (row) => (
+        <RowMenu label={`Actions for ${row.name}`}>
+          <DropdownMenuItem onClick={() => navigate(loggingEnvironmentRoute(row.slug, "logs"))}>
+            Logs
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate(loggingEnvironmentRoute(row.slug, "tokens"))}>
+            Tokens
+          </DropdownMenuItem>
+          <MemberMenuItems
+            member={{
+              type: "logging",
+              id: row.id,
+              nodeId: null,
+              name: row.name,
+              environmentId: row.app?.environmentId ?? "",
+            }}
+            actions={actions}
+          />
+        </RowMenu>
+      ),
+    },
+  ];
+
+  if (groupTotal(databases) + groupTotal(storage) + groupTotal(logging) === 0) {
     return (
       <EmptyGroup
         title="Data"
         icon={<Database className="h-4 w-4" />}
-        types={[TYPES.databases, TYPES.storage]}
-        message="No databases or storage yet."
+        types={[TYPES.databases, TYPES.storage, TYPES.logging]}
+        message="No databases, storage or logging environments yet."
         actions={actions}
       />
     );
@@ -285,11 +380,27 @@ export function DataTab({
           onRowClick={(row) => navigate(storageRoute(row))}
         />
       )}
+      {groupTotal(logging) > 0 && (
+        <TypeSection
+          app={app}
+          title={TYPES.logging.title}
+          description="Log ingestion by environment"
+          icon={<ScrollText className="h-4 w-4" />}
+          headerActions={
+            actions.canCreate ? <TypeActions type={TYPES.logging} actions={actions} /> : undefined
+          }
+          columns={loggingColumns}
+          groups={logging}
+          rowKey={(row) => row.id}
+          onRowClick={(row) => navigate(loggingEnvironmentRoute(row.slug, "logs"))}
+        />
+      )}
       {actions.canCreate && (
         <AddRow
           types={present([
             groupTotal(databases) === 0 && TYPES.databases,
             groupTotal(storage) === 0 && TYPES.storage,
+            groupTotal(logging) === 0 && TYPES.logging,
           ])}
           actions={actions}
         />

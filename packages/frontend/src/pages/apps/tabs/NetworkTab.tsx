@@ -1,6 +1,6 @@
-// Network: routes and the private connections member workloads start (container links, database
-// and storage bindings), grouped by environment (canvas frame app-network).
-import { Globe, Link2 } from "lucide-react";
+// Network: routes, their TLS certificates and the private connections member workloads start
+// (container links, database and storage bindings), grouped by environment (canvas frame app-network).
+import { Globe, Link2, Lock } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -8,18 +8,20 @@ import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ProxyUpstreamTarget } from "@/components/proxy/ProxyUpstreamTarget";
+import { SSLStatusBadge, SSLTypeBadge } from "@/components/ssl/ssl-badges";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { isOpfieldPublicRoute } from "@/lib/proxy-route-protection";
-import { proxyHostRoute } from "@/lib/resource-routes";
+import { proxyHostRoute, sslCertificateRoute } from "@/lib/resource-routes";
+import { cn, daysUntil, formatDate } from "@/lib/utils";
 import { HEALTH_BADGE, HEALTH_LABEL, TYPE_BADGE } from "@/pages/proxy-detail/helpers";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
-import type { AppDetail, ProxyHost } from "@/types";
+import type { AppDetail, ProxyHost, SSLCertificate } from "@/types";
 import { type AppLinkRow, loadAppNetwork, useAppLoad } from "../app-resources";
 import {
   groupByEnvironment,
@@ -57,6 +59,7 @@ export function NetworkTab({
   );
   const canViewCompose = useAuthStore((state) => state.hasScopedAccess("docker:compose:view"));
   const canViewRoutes = useAuthStore((state) => state.hasScopedAccess("proxy:view"));
+  const canViewCertificates = useAuthStore((state) => state.hasScopedAccess("ssl:cert:view"));
   const opfieldPublicUrl = useUIBootstrapStore(
     (state) => state.snapshot?.systemConfig.publicUrl ?? null
   );
@@ -68,6 +71,7 @@ export function NetworkTab({
       containers: canViewContainers,
       compose: canViewCompose,
       routes: canViewRoutes,
+      certificates: canViewCertificates,
     })
   );
   if (network.loading) return <ContentLoading loading />;
@@ -120,6 +124,11 @@ export function NetworkTab({
   const routes = groupByEnvironment(
     app.environments,
     network.data?.routes ?? [],
+    (row) => row.app?.environmentId
+  );
+  const certificates = groupByEnvironment(
+    app.environments,
+    network.data?.certificates ?? [],
     (row) => row.app?.environmentId
   );
   const links = groupByEnvironment(
@@ -288,15 +297,95 @@ export function NetworkTab({
     },
   ];
 
+  const certificateColumns: ResourceListColumn<SSLCertificate>[] = [
+    {
+      id: "name",
+      label: "Name",
+      renderCell: (cert) => (
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{cert.name}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {cert.domainNames.join(", ") || "No domains"}
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "type",
+      label: "Type",
+      width: "7rem",
+      renderCell: (cert) => <SSLTypeBadge type={cert.type} />,
+    },
+    {
+      id: "expires",
+      label: "Expires",
+      width: "11rem",
+      cellClassName: "whitespace-nowrap",
+      renderCell: (cert) => {
+        if (!cert.notAfter) return <span className="text-sm text-muted-foreground">—</span>;
+        const days = daysUntil(cert.notAfter);
+        return (
+          <span
+            className={cn(
+              "text-sm",
+              days <= 7
+                ? "font-medium text-destructive"
+                : days <= 30
+                  ? "text-warning-foreground"
+                  : "text-muted-foreground"
+            )}
+          >
+            {formatDate(cert.notAfter)}
+            {days > 0 && <span className="ml-1">({days}d)</span>}
+          </span>
+        );
+      },
+    },
+    {
+      id: "status",
+      label: "Status",
+      width: "8rem",
+      renderCell: (cert) =>
+        cert.status === "active" && cert.renewalError ? (
+          <Badge variant="warning">Renewal failed</Badge>
+        ) : (
+          <SSLStatusBadge status={cert.status} />
+        ),
+    },
+    {
+      id: "actions",
+      label: "Actions",
+      width: "5rem",
+      align: "right",
+      renderCell: (cert) => (
+        <RowMenu label={`Certificate actions for ${cert.name}`}>
+          <DropdownMenuItem onClick={() => navigate(sslCertificateRoute(cert.id))}>
+            Open
+          </DropdownMenuItem>
+          <MemberMenuItems
+            member={{
+              type: "certificate",
+              id: cert.id,
+              nodeId: null,
+              name: cert.name,
+              environmentId: cert.app?.environmentId ?? "",
+            }}
+            actions={actions}
+          />
+        </RowMenu>
+      ),
+    },
+  ];
+
   // Named only when the app has members of that type the user cannot see.
   const hidden = presentHiddenMembers(app, network.data?.hidden ?? []);
-  if (groupTotal(routes) + groupTotal(links) === 0) {
+  if (groupTotal(routes) + groupTotal(certificates) + groupTotal(links) === 0) {
     const empty = (
       <EmptyGroup
         title="Network"
         icon={<Globe className="h-4 w-4" />}
-        types={[TYPES.routes, TYPES.links]}
-        message="No routes or container links yet."
+        types={[TYPES.routes, TYPES.certificates, TYPES.links]}
+        message="No routes, SSL certificates or container links yet."
         actions={actions}
       />
     );
@@ -327,6 +416,23 @@ export function NetworkTab({
           onRowClick={(row) => navigate(proxyHostRoute(row.slug))}
         />
       )}
+      {groupTotal(certificates) > 0 && (
+        <TypeSection
+          app={app}
+          title={TYPES.certificates.title}
+          description="TLS certificates by environment"
+          icon={<Lock className="h-4 w-4" />}
+          headerActions={
+            actions.canCreate ? (
+              <TypeActions type={TYPES.certificates} actions={actions} />
+            ) : undefined
+          }
+          columns={certificateColumns}
+          groups={certificates}
+          rowKey={(row) => row.id}
+          onRowClick={(row) => navigate(sslCertificateRoute(row.id))}
+        />
+      )}
       {groupTotal(links) > 0 && (
         <TypeSection
           app={app}
@@ -348,6 +454,7 @@ export function NetworkTab({
         <AddRow
           types={present([
             groupTotal(routes) === 0 && TYPES.routes,
+            groupTotal(certificates) === 0 && TYPES.certificates,
             groupTotal(links) === 0 && TYPES.links,
           ])}
           actions={actions}

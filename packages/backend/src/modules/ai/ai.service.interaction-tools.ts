@@ -2,6 +2,7 @@ import { container } from '@/container.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { hasScope, hasScopeBase, hasScopeForCreation } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appForMember } from '@/modules/apps/app-membership.js';
 import {
   CreateNginxTemplateSchema,
   PreviewNginxTemplateSchema,
@@ -239,6 +240,8 @@ export abstract class AIServiceInteractionTools extends AIServiceExecution {
           type: a.type,
           status: a.status,
           showSystem: a.showSystem === true ? 'true' : undefined,
+          excludeAppMembers: a.excludeAppMembers === true ? 'true' : undefined,
+          appId: typeof a.appId === 'string' && a.appId ? a.appId : undefined,
           page: agentPage(a.page),
           limit: agentPageLimit(a.limit),
         });
@@ -273,7 +276,8 @@ export abstract class AIServiceInteractionTools extends AIServiceExecution {
       case 'manage_ssl_certificate': {
         if (a.operation === 'get') {
           this.ensureToolScopeForResource(user, 'ssl:cert:view', String(a.sslCertificateId));
-          return this.sslService.getCert(a.sslCertificateId);
+          const cert = await this.sslService.getCert(a.sslCertificateId);
+          return { ...cert, app: await appForMember({ type: 'certificate', id: cert.id }) };
         }
         if (a.operation === 'upload') {
           const input = UploadCertSchema.parse(args);
