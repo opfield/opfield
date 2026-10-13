@@ -94,6 +94,13 @@ export function NginxTemplateEdit() {
   const [content, setContent] = useState("");
   const [variables, setVariables] = useState<TemplateVariableDef[]>([]);
   const [folderId, setFolderId] = useState("");
+  /** The template as last loaded or saved: what the editor compares against for unsaved changes. */
+  const [saved, setSaved] = useState<{
+    name: string;
+    description: string;
+    content: string;
+    variables: string;
+  } | null>(null);
   const scopes = useAuthStore((s) => s.user?.scopes);
   const templateFolders = useResourceFolderStore((state) => state.foldersByType["nginx-template"]);
   const foldersLoading = useResourceFolderStore((state) => state.loadingByType["nginx-template"]);
@@ -137,6 +144,12 @@ export function NginxTemplateEdit() {
       setContent(t.content);
       setVariables(t.variables || []);
       setIsBuiltin(t.isBuiltin);
+      setSaved({
+        name: t.name,
+        description: t.description || "",
+        content: t.content,
+        variables: JSON.stringify(t.variables || []),
+      });
     } catch {
       toast.error("Failed to load template");
       navigate(backHref);
@@ -159,6 +172,14 @@ export function NginxTemplateEdit() {
     }
     loadTemplate();
   });
+
+  // Unsaved changes of an existing template, per field: the warning border of a changed value.
+  const nameChanged = saved !== null && name !== saved.name;
+  const descriptionChanged = saved !== null && description !== saved.description;
+  const contentChanged = saved !== null && content !== saved.content;
+  const variablesChanged = saved !== null && JSON.stringify(variables) !== saved.variables;
+  const dirty = isNew || nameChanged || descriptionChanged || contentChanged || variablesChanged;
+  const changedStyle = { borderColor: "var(--color-warning)" };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -191,6 +212,7 @@ export function NginxTemplateEdit() {
           content,
           variables: validVars,
         });
+        setSaved({ name, description, content, variables: JSON.stringify(variables) });
         toast.success("Template saved");
       }
     } catch (err) {
@@ -272,7 +294,7 @@ export function NginxTemplateEdit() {
             id: "template:save",
             label: isSaving ? "Saving template" : "Save template",
             icon: <Save className="h-4 w-4" />,
-            disabled: isSaving || !name.trim() || !content.trim(),
+            disabled: isSaving || !dirty || !name.trim() || !content.trim(),
             onClick: handleSave,
           },
         ]
@@ -342,7 +364,7 @@ export function NginxTemplateEdit() {
                 <Button
                   variant="outline"
                   onClick={handleSave}
-                  disabled={!name.trim() || !content.trim()}
+                  disabled={!dirty || !name.trim() || !content.trim()}
                   pending={isSaving}
                 >
                   <Save className="h-4 w-4" />
@@ -374,6 +396,7 @@ export function NginxTemplateEdit() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={isBuiltin}
+              style={nameChanged ? changedStyle : undefined}
               placeholder="Template name"
             />
           </div>
@@ -383,6 +406,7 @@ export function NginxTemplateEdit() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={isBuiltin}
+              style={descriptionChanged ? changedStyle : undefined}
               placeholder="Optional description"
             />
           </div>
@@ -424,6 +448,7 @@ export function NginxTemplateEdit() {
             value={content}
             onChange={setContent}
             readOnly={isBuiltin}
+            className={contentChanged ? "!border-warning" : ""}
             errorLines={templateDiagnostics.errorLines}
             errorRanges={templateDiagnostics.errorRanges}
             showGutterBorder={false}
@@ -478,6 +503,7 @@ export function NginxTemplateEdit() {
             </DialogDescription>
             <PanelShell
               title="Custom Variables"
+              dirty={variablesChanged}
               description={
                 <>
                   Use them inside the template as{" "}

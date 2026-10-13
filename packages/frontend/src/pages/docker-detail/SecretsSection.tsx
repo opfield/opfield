@@ -29,6 +29,8 @@ interface SecretsSectionProps {
   invalidKeyPattern: RegExp;
   hiddenKeys?: Set<string>;
   description?: string;
+  /** Unsaved edits: the warning border of a changed block. */
+  dirty?: boolean;
 }
 
 export function SecretsSection({
@@ -45,6 +47,7 @@ export function SecretsSection({
   invalidKeyPattern,
   hiddenKeys = new Set(),
   description,
+  dirty = false,
 }: SecretsSectionProps) {
   const [revealedSecrets, setRevealedSecrets] = useState<Set<number>>(new Set());
   const visibleSecretRows = secretRows
@@ -89,6 +92,7 @@ export function SecretsSection({
         </span>
       }
       description={description ?? "Encrypted at rest — injected as env vars on container start"}
+      dirty={dirty}
       actions={
         canManageSecrets ? (
           <div className="flex items-center gap-2">

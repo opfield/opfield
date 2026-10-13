@@ -97,6 +97,7 @@ export function RuntimeSection({
       description={
         appliesLive ? "Applied instantly without restart" : "Saved with container configuration"
       }
+      dirty={hasRuntimeChanges}
       actions={
         canEdit ? (
           <Button

@@ -936,6 +936,7 @@ export function EnvironmentTab({
         {canEdit && (
           <PanelShell
             title="Environment Variables"
+            dirty={hasEnvChanges}
             description={
               environmentDescription ??
               (onSaveServiceEnv
@@ -1051,6 +1052,7 @@ export function EnvironmentTab({
             invalidKeyPattern={invalidKeyPattern}
             hiddenKeys={replacementDatabaseVariableNames}
             description={secretsDescription}
+            dirty={hasSecretsChanges}
           />
         )}
       </fieldset>
