@@ -21,6 +21,8 @@ Start with `using-opfield` for connection, discovery, and safety rules; its inst
 | `monitoring` | Lightweight system metrics; no nginx or Docker required |
 | `relay` | Secure Link Relay Pool worker; needs an advertised address reachable by participating hosts |
 
+A Node's `type` decides which tools accept it (`list_nodes` and `get_node` say so in `usedFor`): Docker tools take only `docker` Nodes, Routes and Pages only `nginx` Nodes, managed databases and storage only `storage` or `databases` Nodes. `capabilities.daemonType` is the daemon build, not the role: storage, databases, and builder Nodes report `docker` there and are still not Docker Nodes.
+
 Enroll only the roles the workload needs.
 
 ## Enroll a Node

@@ -1,3 +1,4 @@
+import { HTTPException } from 'hono/http-exception';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { AppError } from '@/middleware/error-handler.js';
@@ -26,6 +27,15 @@ describe('tool errors', () => {
     expect(formatToolError(rejected)).toBe(
       'NGINX_CONFIG_FAILED: Failed to apply Nginx config: unknown directive "bogus_directive"'
     );
+  });
+
+  it('report a route middleware refusal (HTTPException) with its REST code', () => {
+    const denied = describeToolError(
+      new HTTPException(403, { message: 'Missing required scope: docker:volumes:view:node-1/data' })
+    );
+    expect(denied.expected).toBe(true);
+    expect(formatToolError(denied)).toBe('PERMISSION_DENIED: Missing required scope: docker:volumes:view:node-1/data');
+    expect(describeToolError(new HTTPException(502, { message: 'Bad gateway' })).expected).toBe(false);
   });
 
   it('report AppError details, except the permission metadata a 403 message already names', () => {

@@ -26,6 +26,16 @@ import { executeHostingTool, HOSTING_TOOL_NAMES } from './ai.hosting-tools.js';
 import { executeInferenceTool, INFERENCE_TOOL_NAMES } from './ai.inference-tools.js';
 import { executeIngressGroupTool, INGRESS_GROUP_TOOL_NAMES } from './ai.ingress-group-tools.js';
 import { executeIntegrationTool, INTEGRATION_TOOL_NAMES } from './ai.integration-tools.js';
+import {
+  assertDockerToolNode,
+  DOCKER_LIST_TOOLS,
+  deniedNodeTargetText,
+  hasNodeIdArgument,
+  listDockerAcrossNodes,
+  type NodeDirectory,
+  nodeDirectoryFor,
+  withNodeTargetGuidance,
+} from './ai.node-target-guidance.js';
 import { executeNodeTool, NODE_TOOL_NAMES } from './ai.node-tools.js';
 import {
   executeNotificationTool,
@@ -118,6 +128,28 @@ function isExistingPaidToolCall(toolName: string, args: Record<string, unknown>)
   return PAID_EXISTING_OPERATIONS[toolName]?.has(String(args.operation ?? '')) ?? false;
 }
 
+function toolNodeDirectory(): NodeDirectory | null {
+  return nodeDirectoryFor(accessSummaryDatabase());
+}
+
+/** Node-type guidance for a refused call; the plain message when the lookup is unavailable or fails. */
+async function withNodeGuidance(
+  message: string,
+  code: string | undefined,
+  toolName: string,
+  args: Record<string, unknown>,
+  scopes: string[]
+): Promise<string> {
+  const directory = toolNodeDirectory();
+  if (!directory) return message;
+  try {
+    return await withNodeTargetGuidance({ message, code, toolName, args, scopes, directory });
+  } catch (error) {
+    logger.warn('Failed to add node guidance to a tool error', { toolName, error });
+    return message;
+  }
+}
+
 export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
   protected abstract executeInteractionTool(
     user: User,
@@ -200,7 +232,7 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
       if (toolDef.requiredScope && hasScopeBase(executionUser.scopes, toolDef.requiredScope)) {
         return {
           error: await withLimitedAccessGuidance(
-            `PERMISSION_DENIED: "${toolDef.requiredScope}" is not granted for this target.`,
+            `PERMISSION_DENIED: "${toolDef.requiredScope}" is not granted ${await deniedNodeTargetText(args, executionUser.scopes, toolNodeDirectory())}.`,
             executionUser.scopes,
             accessSummaryDatabase()
           ),
@@ -316,9 +348,11 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
           },
         });
       }
-      // Folder-, node- and resource-limited callers learn where they can act instead of reading "no access".
+      // Folder-, node- and resource-limited callers learn where they can act instead of reading "no access",
+      // and a call on a node of the wrong type learns which nodes take it.
+      const guided = await withNodeGuidance(message, toolError.code, toolName, args, executionUser.scopes);
       return {
-        error: await withLimitedAccessGuidance(message, executionUser.scopes, accessSummaryDatabase()),
+        error: await withLimitedAccessGuidance(guided, executionUser.scopes, accessSummaryDatabase()),
         invalidateStores: [],
       };
     }
@@ -481,17 +515,23 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
       return executeResourceSetupTool(user, toolName, args);
     }
     if (DOCKER_TOOL_NAMES.has(toolName)) {
-      return executeDockerTool(
-        {
-          dockerService: this.dockerService,
-          ensureToolScope: (executionUser, scope) => this.ensureToolScope(executionUser, scope),
-          ensureToolScopeForResource: (executionUser, baseScope, resourceId) =>
-            this.ensureToolScopeForResource(executionUser, baseScope, resourceId),
-        },
-        user,
-        toolName,
-        args
-      );
+      const dockerContext = {
+        dockerService: this.dockerService,
+        ensureToolScope: (executionUser: User, scope: string) => this.ensureToolScope(executionUser, scope),
+        ensureToolScopeForResource: (executionUser: User, baseScope: string, resourceId: string) =>
+          this.ensureToolScopeForResource(executionUser, baseScope, resourceId),
+      };
+      const directory = toolNodeDirectory();
+      if (directory) {
+        // A Docker list without nodeId lists every Docker node the caller can see instead of failing.
+        if (DOCKER_LIST_TOOLS.has(toolName) && !hasNodeIdArgument(args)) {
+          return listDockerAcrossNodes(user.scopes, directory, (nodeId) =>
+            executeDockerTool(dockerContext, user, toolName, { ...args, nodeId })
+          );
+        }
+        await assertDockerToolNode(toolName, args, directory);
+      }
+      return executeDockerTool(dockerContext, user, toolName, args);
     }
     if (NOTIFICATION_TOOL_NAMES.has(toolName)) {
       if (SIEM_NOTIFICATION_TOOL_NAMES.has(toolName)) {
