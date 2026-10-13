@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appContextOf,
   EMPTY_NAVIGATION_TRAIL,
   NAVIGATION_TRAIL_LIMIT,
   type NavigationTrailState,
@@ -176,5 +177,31 @@ describe("parseNavigationTrail", () => {
       entries: [{ key: "apps", url: "/apps" }],
       index: 0,
     });
+  });
+});
+
+describe("appContextOf", () => {
+  const trail = (...paths: string[]) =>
+    paths.reduce(
+      (state, pathname) => recordNavigation(state, { action: "PUSH", pathname }),
+      EMPTY_NAVIGATION_TRAIL
+    );
+
+  it("keeps the app for a member opened from an app tab and for members opened from it", () => {
+    expect(appContextOf(trail("/apps/shop/compute", "/docker/containers/edge/web"))).toBe(
+      "/apps/shop/compute"
+    );
+    expect(
+      appContextOf(
+        trail("/apps/shop/env/staging", "/docker/containers/edge/web", "/databases/shop-db")
+      )
+    ).toBe("/apps/shop/env/staging");
+  });
+
+  it("is null for the app itself and for members reached from anywhere else", () => {
+    expect(appContextOf(trail("/apps/shop"))).toBeNull();
+    expect(appContextOf(trail("/databases", "/databases/shop-db"))).toBeNull();
+    expect(appContextOf(trail("/apps/shop", "/databases", "/databases/shop-db"))).toBeNull();
+    expect(appContextOf(trail("/apps/shop", "/nodes/edge"))).toBeNull();
   });
 });

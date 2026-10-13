@@ -371,3 +371,34 @@ export function parseNavigationTrail(value: unknown): NavigationTrailState {
   const index = Math.min(Math.max(0, Math.trunc(raw.index)), entries.length - 1);
   return capTrail({ entries, index });
 }
+
+/** Pages of a resource that can be an app member, opened from an app or from another such page. */
+const APP_MEMBER_PAGE_IDS = new Set([
+  "route",
+  "page-project",
+  "database",
+  "storage-detail",
+  "docker-compose",
+  "docker-container",
+  "docker-deployment",
+  "docker-volume",
+]);
+
+function pageIdOf(key: string): string {
+  return key.split("|")[0];
+}
+
+/**
+ * The app page a member page was opened from: the current page is a member resource reached from an app (or
+ * an environment) through member pages only. The sidebar then keeps Apps selected. Null when the page was reached
+ * from its own list, the dashboard or anything else, and for every page that is not a member resource.
+ */
+export function appContextOf(state: NavigationTrailState): string | null {
+  for (let position = state.index; position >= 0; position -= 1) {
+    const id = pageIdOf(state.entries[position].key);
+    if (id === "app" || id === "app-environment")
+      return position === state.index ? null : state.entries[position].url;
+    if (!APP_MEMBER_PAGE_IDS.has(id)) return null;
+  }
+  return null;
+}

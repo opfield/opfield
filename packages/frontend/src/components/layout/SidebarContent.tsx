@@ -30,6 +30,7 @@ import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-featur
 import { toastApiError } from "@/lib/api-error-toast";
 import { visibleNavigationGroups } from "@/lib/app-navigation";
 import { hasLowInferenceUsage } from "@/lib/inference-self-usage";
+import { appContextOf } from "@/lib/navigation-trail";
 import { isSidebarNavigationActive } from "@/lib/sidebar-navigation";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -37,6 +38,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
 import { useDockerStore } from "@/stores/docker";
 import { usePlanIncludes, useUnlicensedNavigationItems } from "@/stores/license-paywall";
+import { useNavigationTrailStore } from "@/stores/navigation-trail";
 import { useSystemConfigStore } from "@/stores/system-config";
 import { useUIStore } from "@/stores/ui";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -112,6 +114,9 @@ export function SidebarContent({
   hasNginxNodes = true,
 }: SidebarContentProps) {
   const location = useLocation();
+  // A member resource opened from an app keeps Apps selected, like the app page it belongs to.
+  const inAppContext = useNavigationTrailStore((state) => appContextOf(state.trail) !== null);
+  const activePathname = inAppContext ? "/apps" : location.pathname;
   const navigate = useNavigate();
   const { user, hasScope, hasScopedAccess, logout } = useAuthStore();
   const [stoppingImpersonation, setStoppingImpersonation] = useState(false);
@@ -252,11 +257,8 @@ export function SidebarContent({
                         className={cn(
                           // The button's own hover stays; the active fill fades like the expanded items'.
                           "transition-[color,background-color,box-shadow] shadow-[inset_0_0_0_100vmax_transparent]",
-                          isSidebarNavigationActive(
-                            location.pathname,
-                            item.href,
-                            item.activePaths
-                          ) && SIDEBAR_ITEM_FILL
+                          isSidebarNavigationActive(activePathname, item.href, item.activePaths) &&
+                            SIDEBAR_ITEM_FILL
                         )}
                         onClick={() => navigate(item.href)}
                       >
@@ -453,7 +455,7 @@ export function SidebarContent({
                     )}
                     {group.items.map((item) => {
                       const isActive = isSidebarNavigationActive(
-                        location.pathname,
+                        activePathname,
                         item.href,
                         item.activePaths
                       );
