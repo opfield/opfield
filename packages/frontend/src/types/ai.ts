@@ -63,6 +63,8 @@ export interface AIResourceReference {
 
 export interface AIMessage {
   id: string;
+  /** The stored message id when `id` is a client-side key kept for rendering (an optimistic send). */
+  serverId?: string;
   role: "user" | "assistant";
   content: string;
   sequence?: number;

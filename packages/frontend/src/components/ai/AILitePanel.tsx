@@ -195,6 +195,7 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
     renameConversation,
     rollbackToMessage,
     retryMessage,
+    retryingMessageId,
     providerStatus,
     selectedModel,
     selectedReasoningEffort,
@@ -743,7 +744,12 @@ export function AILitePanel({ onOpenMobileMenu }: { onOpenMobileMenu?: () => voi
                 onReject={rejectTool}
                 onAnswer={answerQuestion}
                 onEditUserMessage={handleEditUserMessage}
-                onRetryUserMessage={(messageId) => void retryMessage(messageId)}
+                onRetryUserMessage={(messageId) => {
+                  retryMessage(messageId).catch((error: unknown) =>
+                    toastApiError(error, "Couldn't retry the message")
+                  );
+                }}
+                retryingMessageId={retryingMessageId}
                 retryDisabled={currentConversationStreaming || isCompactingContext}
                 editUserMessageDisabled={isCompactingContext || isCompactionRetryQuestion}
               />

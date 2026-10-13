@@ -21,6 +21,12 @@ import { redactOneTimeSecretToolResult } from './ai-secret-result-redaction.js';
 
 const RETAIN_FULL_TOOL_OUTPUT_COUNT = 10;
 const DEFAULT_PERSISTENT_TOOL_OUTPUT_MAX_BYTES = 16000;
+const MESSAGE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Whether an id can name a stored conversation message (client-side placeholder ids cannot). */
+export function isConversationMessageId(value: string): boolean {
+  return MESSAGE_ID_RE.test(value);
+}
 const ACTIVE_RUN_STATUSES = [
   'queued',
   'running',
@@ -35,6 +41,8 @@ const TOOL_HISTORY_RETENTION_BY_NAME = new Map(
 );
 
 interface LoadedConversationMessage {
+  id: string;
+  sequence: number;
   role: string;
   uiMessage: Record<string, unknown>;
   createdAt: Date;
@@ -173,7 +181,10 @@ export class AIConversationService {
         .limit(1),
     ]);
     const allMessages = messageRows.map((message) => message.uiMessage);
-    const messages = allMessages.filter((message) => !isHiddenSystemMessage(message));
+    // Messages carry their row id, as in the live snapshot: rollback and edit address a message by it.
+    const messages = messageRows
+      .filter((message) => !isHiddenSystemMessage(message.uiMessage))
+      .map((message) => ({ ...message.uiMessage, id: message.id, sequence: message.sequence }));
     return {
       id: row.id,
       title: row.title,
@@ -374,6 +385,8 @@ export class AIConversationService {
     conversationId: string,
     messageId: string
   ): Promise<{ message: unknown; conversation: AIConversationDetail } | null> {
+    // Only stored messages can be returned to; a client-side id is not one (and not a uuid).
+    if (!isConversationMessageId(messageId)) return null;
     const existing = await this.getOwnedConversation(userId, conversationId);
     if (!existing) return null;
 
@@ -382,7 +395,9 @@ export class AIConversationService {
       .from(aiRuns)
       .where(and(eq(aiRuns.conversationId, conversationId), inArray(aiRuns.status, [...ACTIVE_RUN_STATUSES])))
       .limit(1);
-    if (activeRun) throw new Error('Conversation already has an active AI run');
+    if (activeRun) {
+      throw new AppError(409, 'AI_RUN_ACTIVE', 'The assistant is still working in this chat. Stop it and try again.');
+    }
 
     const [target] = await this.db
       .select({
@@ -484,6 +499,8 @@ export class AIConversationService {
   private async loadMessageRows(conversationId: string): Promise<LoadedConversationMessage[]> {
     const rows = await this.db
       .select({
+        id: aiConversationMessages.id,
+        sequence: aiConversationMessages.sequence,
         role: aiConversationMessages.role,
         uiMessage: aiConversationMessages.uiMessage,
         createdAt: aiConversationMessages.createdAt,
@@ -730,7 +747,9 @@ function extractToolResults(toolCalls: unknown[] | null): unknown {
   });
 }
 
-export function getLastUserMessageAt(messages: LoadedConversationMessage[]): Date | null {
+export function getLastUserMessageAt(
+  messages: Array<Pick<LoadedConversationMessage, 'role' | 'uiMessage' | 'createdAt'>>
+): Date | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message.role === 'user') return message.createdAt;

@@ -76,6 +76,9 @@ import {
 
 export * from "./ai.store-shared";
 
+/** Stored conversation messages have uuid ids; optimistic and placeholder ids never do. */
+const STORED_MESSAGE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const useAIStore = create<AIState>()((set, get) => ({
   messages: [],
   queuedInputs: [],
@@ -91,6 +94,7 @@ export const useAIStore = create<AIState>()((set, get) => ({
   connectionError: null,
   isEnabled: null,
   retryAfter: null,
+  retryingMessageId: null,
   savedName: null,
   activeConversationId: null,
   sidebarActiveConversationId: null,
@@ -1106,14 +1110,28 @@ export const useAIStore = create<AIState>()((set, get) => ({
 
   rollbackToMessage: async (messageId: string) => {
     const state = get();
-    if (!state.activeConversationId || state.isCompactingContext) return null;
+    if (!state.activeConversationId) throw new Error("Open the chat first.");
+    if (state.isCompactingContext) {
+      throw new Error("The chat context is being compacted. Try again when it finishes.");
+    }
     const existing = state.messages.find((message) => message.id === messageId);
-    if (!existing || existing.role !== "user") return null;
+    if (!existing || existing.role !== "user") {
+      throw new Error("This message is no longer in the chat.");
+    }
+    // An optimistic send keeps its client key for rendering; the server knows the stored id.
+    const storedMessageId = existing.serverId ?? existing.id;
+    if (!STORED_MESSAGE_ID.test(storedMessageId)) {
+      throw new Error("This message is not saved yet. Try again in a moment.");
+    }
 
     const activeRunId = state.activeRunId;
     const result = activeRunId
-      ? await rollbackConversationToMessage(state.activeConversationId, messageId, activeRunId)
-      : await rollbackConversationToMessage(state.activeConversationId, messageId);
+      ? await rollbackConversationToMessage(
+          state.activeConversationId,
+          storedMessageId,
+          activeRunId
+        )
+      : await rollbackConversationToMessage(state.activeConversationId, storedMessageId);
     const messages = normalizeConversationMessages(
       result.conversation.messages,
       result.conversation.id
@@ -1162,10 +1180,23 @@ export const useAIStore = create<AIState>()((set, get) => ({
 
   retryMessage: async (messageId: string) => {
     const state = get();
-    if (state.isStreaming || state.isCompactingContext) return;
-    const message = await get().rollbackToMessage(messageId);
-    if (!message) return;
-    get().sendMessage(message.content, get().lastContext ?? undefined, message.attachments ?? []);
+    if (state.retryingMessageId) return;
+    if (state.isStreaming) {
+      throw new Error("The assistant is still working in this chat. Stop it first, then retry.");
+    }
+    if (state.isCompactingContext) {
+      throw new Error("The chat context is being compacted. Try again when it finishes.");
+    }
+    set({ retryingMessageId: messageId });
+    try {
+      const message = await get().rollbackToMessage(messageId);
+      if (!message) throw new Error("This message is no longer in the chat.");
+      const block = getConversationBlock(get().messages);
+      if (block) throw new Error(block.reason);
+      get().sendMessage(message.content, get().lastContext ?? undefined, message.attachments ?? []);
+    } finally {
+      set({ retryingMessageId: null });
+    }
   },
 
   setEnabled: (enabled: boolean) => {
@@ -1497,6 +1528,7 @@ export function resetAIStateForAuthChange() {
     isConnecting: false,
     connectionError: null,
     retryAfter: null,
+    retryingMessageId: null,
     savedName: null,
     activeConversationId: null,
     sidebarActiveConversationId: null,

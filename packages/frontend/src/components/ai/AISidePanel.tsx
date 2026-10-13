@@ -231,6 +231,7 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
     renameConversation,
     rollbackToMessage,
     retryMessage,
+    retryingMessageId,
     providerStatus,
     selectedModel,
     selectedReasoningEffort,
@@ -832,7 +833,12 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
                 onReject={rejectTool}
                 onAnswer={answerQuestion}
                 onEditUserMessage={handleEditUserMessage}
-                onRetryUserMessage={(messageId) => void retryMessage(messageId)}
+                onRetryUserMessage={(messageId) => {
+                  retryMessage(messageId).catch((error: unknown) =>
+                    toastApiError(error, "Couldn't retry the message")
+                  );
+                }}
+                retryingMessageId={retryingMessageId}
                 retryDisabled={currentConversationStreaming || isCompactingContext}
                 editUserMessageDisabled={isCompactingContext || isCompactionRetryQuestion}
               />
