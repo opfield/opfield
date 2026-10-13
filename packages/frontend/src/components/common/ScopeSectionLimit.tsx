@@ -38,6 +38,7 @@ export const FOLDER_FAMILY_LABELS: Record<FolderFamily, string> = {
   storage: "Storage",
   "logging-environments": "Logging environments",
   "logging-schemas": "Logging schemas",
+  apps: "Apps",
 };
 
 const APP_MEMBER_NOUNS: Record<AppMemberFamily, [string, string]> = {

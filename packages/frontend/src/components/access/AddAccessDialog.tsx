@@ -41,6 +41,7 @@ import {
   accessApp,
   accessFolderPaths,
   accessType,
+  appListFolderId,
   appMemberCount,
   coversLabel,
   folderPathLabel,
@@ -553,162 +554,168 @@ export function AddAccessDialog({
           </Tabs>
           {/* The tabs switch their content in place: old and new cross-fade while the height follows. */}
           <AnimatedSwitch>
-          {draft.tab === "resources" ? (
+            {draft.tab === "resources" ? (
               <motion.div key="resources" {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
-              <Field label="Role">
-                <Select
-                  value={draft.role}
-                  onValueChange={(value) => update({ role: value as AccessRole })}
-                >
-                  <SelectTrigger aria-label="Role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ACCESS_ROLES.map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {ACCESS_ROLES.find((role) => role.id === draft.role)?.summary}
-                </p>
-              </Field>
-              <Field label="Where">
-                {/* Everywhere has no second choice: the select takes the whole row. Otherwise the
-                    kind keeps its own width (at most half) and the place gets the rest. */}
-                <div
-                  className={cn(
-                    "grid gap-2",
-                    draft.where === "everywhere" ? "grid-cols-1" : SPLIT_ROW_CLASS
-                  )}
-                >
+                <Field label="Role">
                   <Select
-                    value={draft.where}
-                    onValueChange={(value) => update({ where: value as WhereKind })}
+                    value={draft.role}
+                    onValueChange={(value) => update({ role: value as AccessRole })}
                   >
-                    <SelectTrigger aria-label="Where">
+                    <SelectTrigger aria-label="Role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="everywhere">Everywhere</SelectItem>
-                      <SelectItem value="folder" disabled={folderPaths.length === 0}>
-                        In a project folder
-                      </SelectItem>
-                      <SelectItem value="app" disabled={apps.length === 0}>
-                        In an app environment
-                      </SelectItem>
-                      <SelectItem value="resources">Specific resources</SelectItem>
+                      {ACCESS_ROLES.map((role) => (
+                        <SelectItem key={role.id} value={role.id}>
+                          {role.title}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  {draft.where === "folder" ? (
-                    <Combobox
-                      ariaLabel="Folder"
-                      value={draft.folder}
-                      options={folderOptions}
-                      onValueChange={(value) => update({ folder: value })}
-                      placeholder="Pick a folder"
-                      searchPlaceholder="Search folders..."
-                    />
-                  ) : draft.where === "app" ? (
-                    <Select value={draft.app} onValueChange={(value) => update({ app: value })}>
-                      <SelectTrigger
-                        aria-label="App environment"
-                        title={apps.find((option) => option.value === draft.app)?.label}
-                      >
-                        <SelectValue placeholder="Pick an app environment" />
+                  <p className="text-xs text-muted-foreground">
+                    {ACCESS_ROLES.find((role) => role.id === draft.role)?.summary}
+                  </p>
+                </Field>
+                <Field label="Where">
+                  {/* Everywhere has no second choice: the select takes the whole row. Otherwise the
+                    kind keeps its own width (at most half) and the place gets the rest. */}
+                  <div
+                    className={cn(
+                      "grid gap-2",
+                      draft.where === "everywhere" ? "grid-cols-1" : SPLIT_ROW_CLASS
+                    )}
+                  >
+                    <Select
+                      value={draft.where}
+                      onValueChange={(value) => update({ where: value as WhereKind })}
+                    >
+                      <SelectTrigger aria-label="Where">
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {apps.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="everywhere">Everywhere</SelectItem>
+                        <SelectItem value="folder" disabled={folderPaths.length === 0}>
+                          In a project folder
+                        </SelectItem>
+                        <SelectItem value="app" disabled={apps.length === 0}>
+                          In an app environment
+                        </SelectItem>
+                        <SelectItem value="resources">Specific resources</SelectItem>
                       </SelectContent>
                     </Select>
+                    {draft.where === "folder" ? (
+                      <Combobox
+                        ariaLabel="Folder"
+                        value={draft.folder}
+                        options={folderOptions}
+                        onValueChange={(value) => update({ folder: value })}
+                        placeholder="Pick a folder"
+                        searchPlaceholder="Search folders..."
+                      />
+                    ) : draft.where === "app" ? (
+                      <Select value={draft.app} onValueChange={(value) => update({ app: value })}>
+                        <SelectTrigger
+                          aria-label="App environment"
+                          title={apps.find((option) => option.value === draft.app)?.label}
+                        >
+                          <SelectValue placeholder="Pick an app environment" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {apps.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : draft.where === "resources" ? (
+                      <Combobox
+                        multiple
+                        ariaLabel="Resources"
+                        value={draft.resources}
+                        options={resourceOptions}
+                        onValueChange={(value) => update({ resources: value })}
+                        placeholder={resources === null ? "Loading resources..." : "Pick resources"}
+                        searchPlaceholder="Search resources..."
+                        emptyMessage="No resources of these types."
+                        disabled={resources === null}
+                        selectionLabel={(values) =>
+                          values.length <= 2
+                            ? values.map(resourceLabel).join(", ")
+                            : `${values.length} resources`
+                        }
+                      />
+                    ) : null}
+                  </div>
+                  {missingFolderTypes.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No folder {folderPathLabel(draft.folder)} for {typesText(missingFolderTypes)}:{" "}
+                      {missingFolderTypes.length === 1 ? "it is" : "they are"} left out.
+                    </p>
+                  ) : draft.where === "folder" &&
+                    draft.folder &&
+                    appListFolderId(ctx, draft.folder) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Apps in the Apps folder {folderPathLabel(draft.folder)} get this role too.
+                    </p>
+                  ) : appHint ? (
+                    <p className="text-xs text-muted-foreground">{appHint}</p>
                   ) : draft.where === "resources" ? (
-                    <Combobox
-                      multiple
-                      ariaLabel="Resources"
-                      value={draft.resources}
-                      options={resourceOptions}
-                      onValueChange={(value) => update({ resources: value })}
-                      placeholder={resources === null ? "Loading resources..." : "Pick resources"}
-                      searchPlaceholder="Search resources..."
-                      emptyMessage="No resources of these types."
-                      disabled={resources === null}
-                      selectionLabel={(values) =>
-                        values.length <= 2
-                          ? values.map(resourceLabel).join(", ")
-                          : `${values.length} resources`
-                      }
-                    />
+                    <p className="text-xs text-muted-foreground">
+                      Only these resources, whatever folder they are in.
+                    </p>
                   ) : null}
-                </div>
-                {missingFolderTypes.length > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    No folder {folderPathLabel(draft.folder)} for {typesText(missingFolderTypes)}:{" "}
-                    {missingFolderTypes.length === 1 ? "it is" : "they are"} left out.
-                  </p>
-                ) : appHint ? (
-                  <p className="text-xs text-muted-foreground">{appHint}</p>
-                ) : draft.where === "resources" ? (
-                  <p className="text-xs text-muted-foreground">
-                    Only these resources, whatever folder they are in.
-                  </p>
-                ) : null}
-              </Field>
-              <Field label="Covers">
-                <Combobox
-                  multiple
-                  ariaLabel="Covers"
-                  value={coveredTypes}
-                  options={ACCESS_TYPES.filter((type) => typeChoices.includes(type.id)).map(
-                    (type) => ({ value: type.id, label: type.title })
-                  )}
-                  onValueChange={(value) =>
-                    update({
-                      // Types an app line cannot cover stay picked for the other places.
-                      types: sortTypes([
-                        ...draft.types.filter((type) => !typeChoices.includes(type)),
-                        ...(value as AccessTypeId[]),
-                      ]),
-                    })
-                  }
-                  placeholder="Pick resource types"
-                  searchPlaceholder="Search resource types..."
-                  selectionLabel={(values) =>
-                    values.length > 0 ? coversLabel(values as AccessTypeId[], typeChoices) : ""
-                  }
-                />
-              </Field>
-              <SwitchCard
-                label="May delete resources"
-                description={
-                  roleCanDelete(draft.role)
-                    ? "Off: the role can change resources but not delete them."
-                    : "Developer and Operator only."
-                }
-                checked={draft.mayDelete && roleCanDelete(draft.role)}
-                onCheckedChange={(mayDelete) => update({ mayDelete })}
-                disabled={!roleCanDelete(draft.role)}
-              />
-              {draft.where === "folder" && typesManagingFolders(draft.types).length > 0 && (
+                </Field>
+                <Field label="Covers">
+                  <Combobox
+                    multiple
+                    ariaLabel="Covers"
+                    value={coveredTypes}
+                    options={ACCESS_TYPES.filter((type) => typeChoices.includes(type.id)).map(
+                      (type) => ({ value: type.id, label: type.title })
+                    )}
+                    onValueChange={(value) =>
+                      update({
+                        // Types an app line cannot cover stay picked for the other places.
+                        types: sortTypes([
+                          ...draft.types.filter((type) => !typeChoices.includes(type)),
+                          ...(value as AccessTypeId[]),
+                        ]),
+                      })
+                    }
+                    placeholder="Pick resource types"
+                    searchPlaceholder="Search resource types..."
+                    selectionLabel={(values) =>
+                      values.length > 0 ? coversLabel(values as AccessTypeId[], typeChoices) : ""
+                    }
+                  />
+                </Field>
                 <SwitchCard
-                  label="Manage subfolders"
+                  label="May delete resources"
                   description={
-                    <>
-                      Create, rename, move and delete folders inside this folder (
-                      {typesText(typesManagingFolders(draft.types))}).
-                    </>
+                    roleCanDelete(draft.role)
+                      ? "Off: the role can change resources but not delete them."
+                      : "Developer and Operator only."
                   }
-                  checked={draft.manageFolders}
-                  onCheckedChange={(manageFolders) => update({ manageFolders })}
+                  checked={draft.mayDelete && roleCanDelete(draft.role)}
+                  onCheckedChange={(mayDelete) => update({ mayDelete })}
+                  disabled={!roleCanDelete(draft.role)}
                 />
-              )}
+                {draft.where === "folder" && typesManagingFolders(draft.types).length > 0 && (
+                  <SwitchCard
+                    label="Manage subfolders"
+                    description={
+                      <>
+                        Create, rename, move and delete folders inside this folder (
+                        {typesText(typesManagingFolders(draft.types))}).
+                      </>
+                    }
+                    checked={draft.manageFolders}
+                    onCheckedChange={(manageFolders) => update({ manageFolders })}
+                  />
+                )}
               </motion.div>
-          ) : connectorOptions.length === 0 ? (
+            ) : connectorOptions.length === 0 ? (
               <motion.p
                 key="git-none"
                 {...CONTENT_SWITCH_ANIMATION}
@@ -716,129 +723,129 @@ export function AddAccessDialog({
               >
                 No Git connectors you can see.
               </motion.p>
-          ) : (
+            ) : (
               <motion.div key="git" {...CONTENT_SWITCH_ANIMATION} className="space-y-4">
-              <Field label="Connector">
-                <Select
-                  value={draft.connector}
-                  onValueChange={(value) =>
-                    update({ connector: value, repositories: "all", group: "", repos: [] })
-                  }
-                >
-                  <SelectTrigger aria-label="Connector">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {connectorOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Repositories">
-                <div
-                  className={cn(
-                    "grid gap-2",
-                    draft.repositories === "all" ? "grid-cols-1" : SPLIT_ROW_CLASS
-                  )}
-                >
+                <Field label="Connector">
                   <Select
-                    value={draft.repositories}
-                    onValueChange={(value) => update({ repositories: value as RepositoriesKind })}
+                    value={draft.connector}
+                    onValueChange={(value) =>
+                      update({ connector: value, repositories: "all", group: "", repos: [] })
+                    }
                   >
-                    <SelectTrigger aria-label="Repositories">
+                    <SelectTrigger aria-label="Connector">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Every repository</SelectItem>
-                      <SelectItem value="group" disabled={!kinds || !connectorId}>
-                        {containerNoun === "owner" ? "An owner" : "A group"}
-                      </SelectItem>
-                      <SelectItem value="some" disabled={!kinds || !connectorId}>
-                        Some repositories
-                      </SelectItem>
+                      {connectorOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  {draft.repositories === "group" ? (
-                    <Combobox
-                      ariaLabel={containerNoun === "owner" ? "Owner" : "Group"}
-                      value={draft.group}
-                      options={groupOptions}
-                      onValueChange={(value) => {
-                        const option = groups.options.find((item) => item.id === value);
-                        if (option)
+                </Field>
+                <Field label="Repositories">
+                  <div
+                    className={cn(
+                      "grid gap-2",
+                      draft.repositories === "all" ? "grid-cols-1" : SPLIT_ROW_CLASS
+                    )}
+                  >
+                    <Select
+                      value={draft.repositories}
+                      onValueChange={(value) => update({ repositories: value as RepositoriesKind })}
+                    >
+                      <SelectTrigger aria-label="Repositories">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Every repository</SelectItem>
+                        <SelectItem value="group" disabled={!kinds || !connectorId}>
+                          {containerNoun === "owner" ? "An owner" : "A group"}
+                        </SelectItem>
+                        <SelectItem value="some" disabled={!kinds || !connectorId}>
+                          Some repositories
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {draft.repositories === "group" ? (
+                      <Combobox
+                        ariaLabel={containerNoun === "owner" ? "Owner" : "Group"}
+                        value={draft.group}
+                        options={groupOptions}
+                        onValueChange={(value) => {
+                          const option = groups.options.find((item) => item.id === value);
+                          if (option)
                             rememberGitLabel(
                               provider,
                               qualifierOf("container", value),
                               option.path
                             );
-                        update({ group: value });
-                      }}
-                      onQueryChange={setGroupQuery}
-                      showAllOptionsOnFocus
-                      placeholder={`Pick a ${containerNoun}`}
-                      searchPlaceholder="Search by name or path..."
-                      emptyMessage={groups.hint ?? undefined}
-                    />
-                  ) : draft.repositories === "some" ? (
-                    <Combobox
-                      multiple
-                      ariaLabel="Repositories to grant"
-                      value={draft.repos}
-                      options={repoOptions}
-                      onValueChange={(value) => {
-                        for (const id of value) {
-                          const option = repos.options.find((item) => item.id === id);
-                          if (option)
+                          update({ group: value });
+                        }}
+                        onQueryChange={setGroupQuery}
+                        showAllOptionsOnFocus
+                        placeholder={`Pick a ${containerNoun}`}
+                        searchPlaceholder="Search by name or path..."
+                        emptyMessage={groups.hint ?? undefined}
+                      />
+                    ) : draft.repositories === "some" ? (
+                      <Combobox
+                        multiple
+                        ariaLabel="Repositories to grant"
+                        value={draft.repos}
+                        options={repoOptions}
+                        onValueChange={(value) => {
+                          for (const id of value) {
+                            const option = repos.options.find((item) => item.id === id);
+                            if (option)
                               rememberGitLabel(
                                 provider,
                                 qualifierOf("repository", id),
                                 option.path
                               );
+                          }
+                          update({ repos: value });
+                        }}
+                        onQueryChange={setRepoQuery}
+                        showAllOptionsOnFocus
+                        placeholder="Pick repositories"
+                        searchPlaceholder="Search by name or path..."
+                        emptyMessage={repos.hint ?? undefined}
+                        selectionLabel={(values) =>
+                          values.length <= 2
+                            ? values.map(repoLabel).join(", ")
+                            : `${values.length} repositories`
                         }
-                        update({ repos: value });
-                      }}
-                      onQueryChange={setRepoQuery}
-                      showAllOptionsOnFocus
-                      placeholder="Pick repositories"
-                      searchPlaceholder="Search by name or path..."
-                      emptyMessage={repos.hint ?? undefined}
-                      selectionLabel={(values) =>
-                        values.length <= 2
-                          ? values.map(repoLabel).join(", ")
-                          : `${values.length} repositories`
-                      }
-                    />
+                      />
+                    ) : null}
+                  </div>
+                  {repositoryHint ? (
+                    <p className="text-xs text-muted-foreground">{repositoryHint}</p>
                   ) : null}
-                </div>
-                {repositoryHint ? (
-                  <p className="text-xs text-muted-foreground">{repositoryHint}</p>
-                ) : null}
-              </Field>
-              <Field label="Access">
-                <Select
-                  value={draft.level}
-                  onValueChange={(value) => update({ level: value as GitLevel })}
-                >
-                  <SelectTrigger aria-label="Git access">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GIT_LEVELS.map((level) => (
-                      <SelectItem key={level.value} value={level.value}>
-                        {level.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {GIT_LEVELS.find((level) => level.value === draft.level)?.hint}
-                </p>
-              </Field>
+                </Field>
+                <Field label="Access">
+                  <Select
+                    value={draft.level}
+                    onValueChange={(value) => update({ level: value as GitLevel })}
+                  >
+                    <SelectTrigger aria-label="Git access">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GIT_LEVELS.map((level) => (
+                        <SelectItem key={level.value} value={level.value}>
+                          {level.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {GIT_LEVELS.find((level) => level.value === draft.level)?.hint}
+                  </p>
+                </Field>
               </motion.div>
-          )}
+            )}
           </AnimatedSwitch>
           {note ? <p className="text-xs text-warning-foreground">{note}</p> : null}
         </div>

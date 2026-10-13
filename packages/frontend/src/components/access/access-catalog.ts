@@ -246,7 +246,9 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
     setResources(null);
     resourcesRequested.current = false;
     let cancelled = false;
-    void Promise.all(ACCESS_TYPES.map((type) => loadFolderFamily(type.family))).then((loaded) => {
+    // A folder line covers the Apps list folder of its path too.
+    const families = [...ACCESS_TYPES.map((type) => type.family), "apps" as const];
+    void Promise.all(families.map((family) => loadFolderFamily(family))).then((loaded) => {
       if (!cancelled) setFolders(loaded.flat());
     });
     void loadAppScopeCatalog().then((loaded) => {

@@ -295,6 +295,17 @@ export const APP_ROLE_SCOPES: Readonly<Record<AccessRole, readonly string[]>> = 
   operator: ["apps:view", "apps:promote", "apps:env:manage", "apps:operate"],
 };
 
+/**
+ * The app scopes a folder line adds in the Apps list folder of the same path, so a project folder
+ * covers its apps too: the app-line role, plus creating and editing apps from Developer up.
+ */
+const APP_FOLDER_ROLE_SCOPES: Readonly<Record<AccessRole, readonly string[]>> = {
+  viewer: APP_ROLE_SCOPES.viewer,
+  deployer: APP_ROLE_SCOPES.deployer,
+  developer: [...APP_ROLE_SCOPES.developer, "apps:create", "apps:edit"],
+  operator: [...APP_ROLE_SCOPES.operator, "apps:create", "apps:edit"],
+};
+
 const APP_LINE_SCOPES = [...new Set(ROLE_IDS.flatMap((role) => APP_ROLE_SCOPES[role]))].sort(
   (a, b) => b.length - a.length
 );
@@ -500,6 +511,22 @@ function folderId(ctx: AccessContext, family: FolderFamily, path: string): strin
   return index.get(`${family}:${path}`) ?? null;
 }
 
+/** The Apps list folder at `path`, which a folder line on that path covers too. */
+export function appListFolderId(ctx: AccessContext, path: string): string | null {
+  return folderId(ctx, "apps", path);
+}
+
+/** The app scopes of a folder line in the Apps list folder of its path; none without that folder. */
+function appFolderScopes(line: ResourceAccessLine, path: string, ctx: AccessContext): string[] {
+  const id = appListFolderId(ctx, path);
+  if (!id) return [];
+  return [
+    ...APP_FOLDER_ROLE_SCOPES[line.role],
+    ...(line.mayDelete && roleCanDelete(line.role) ? ["apps:delete"] : []),
+    ...(line.manageFolders ? ["apps:folders:manage"] : []),
+  ].map((scope) => `${scope}:folder/${id}`);
+}
+
 /** Folder paths of the given types' trees, sorted, each once. */
 export function accessFolderPaths(
   ctx: AccessContext,
@@ -607,10 +634,13 @@ export function lineScopes(line: AccessLine, ctx: AccessContext): string[] {
       )
     );
   }
-  return line.types.flatMap((typeId) => [
-    ...typeScopesAt(accessType(typeId), line.role, line.mayDelete, where, ctx),
-    ...(line.manageFolders ? folderManageScopes(accessType(typeId), where, ctx) : []),
-  ]);
+  return [
+    ...line.types.flatMap((typeId) => [
+      ...typeScopesAt(accessType(typeId), line.role, line.mayDelete, where, ctx),
+      ...(line.manageFolders ? folderManageScopes(accessType(typeId), where, ctx) : []),
+    ]),
+    ...(where.kind === "folder" ? appFolderScopes(line, where.path, ctx) : []),
+  ];
 }
 
 /** The folder management scope of a type in a folder line ("Manage subfolders"). */

@@ -146,6 +146,7 @@ const folderLookupPermissions: Partial<Record<FolderFamily, string>> = {
   "docker-volume": "docker:volumes:view",
   "docker-image": "docker:images:view",
   "docker-compose": "docker:compose:view",
+  apps: "apps:view",
 };
 
 export async function allResourcePages<T>(
@@ -562,7 +563,8 @@ export type FolderFamily =
   | "databases"
   | "storage"
   | "logging-environments"
-  | "logging-schemas";
+  | "logging-schemas"
+  | "apps";
 
 interface FolderTreeLike {
   id: string;
@@ -620,6 +622,7 @@ export function folderFamilyForScope(scope: string): FolderFamily | null {
   if (scope.startsWith("storage:")) return "storage";
   if (scope.startsWith("logs:schemas:")) return "logging-schemas";
   if (isLoggingEnvironmentScope(scope)) return "logging-environments";
+  if (scope.startsWith(APP_SCOPE_PREFIX)) return "apps";
   return null;
 }
 
@@ -714,6 +717,8 @@ export async function loadFolderFamily(family: FolderFamily): Promise<FolderOpti
       return flattenFolderTree(await load(api.listCertificateFolders()), family);
     case "nginx-templates":
       return flattenFolderTree(await load(api.listNginxTemplateFolders()), family);
+    case "apps":
+      return flattenFolderTree(await load(api.listAppFolders()), family);
   }
 }
 
