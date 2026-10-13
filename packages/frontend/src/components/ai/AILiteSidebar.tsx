@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { OpfieldMark } from "@/components/common/OpfieldMark";
+import { OpfieldLockup } from "@/components/common/OpfieldLockup";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import {
   dashboardAttentionDotClass,
@@ -671,10 +671,7 @@ export function AILiteSidebar({
                 mobileMenu ? undefined : { paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }
               }
             >
-              <span className="flex items-center gap-1.5 whitespace-nowrap pl-1 text-sm font-semibold text-foreground/80">
-                <OpfieldMark className="h-5 w-5" />
-                Opfield AI
-              </span>
+              <OpfieldLockup suffix="AI" className="pl-1" />
               <div className="flex items-center gap-0.5">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

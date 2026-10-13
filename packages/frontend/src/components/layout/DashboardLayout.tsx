@@ -12,7 +12,7 @@ import {
 import { InterfaceChoiceDialog } from "@/components/ai/InterfaceChoiceDialog";
 import { CommandPalette } from "@/components/common/CommandPalette";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import { OpfieldMark } from "@/components/common/OpfieldMark";
+import { OpfieldLockup } from "@/components/common/OpfieldLockup";
 import { PageTransition } from "@/components/common/PageTransition";
 import { DemoModeDialog } from "@/components/demo/DemoModeDialog";
 import { LicenseUpgradeDialog } from "@/components/license/LicenseUpgradeDialog";
@@ -656,10 +656,7 @@ export function DashboardLayout() {
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <span className="ml-2 flex items-center gap-1.5 font-display text-sm font-semibold">
-                <OpfieldMark className="h-5 w-5" />
-                opfield
-              </span>
+              <OpfieldLockup className="ml-2" />
               <div className="ml-2">
                 <AIButton />
               </div>

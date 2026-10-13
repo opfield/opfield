@@ -11,7 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AIButton } from "@/components/ai/AIButton";
-import { OpfieldMark } from "@/components/common/OpfieldMark";
+import { OpfieldLockup } from "@/components/common/OpfieldLockup";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -387,11 +387,7 @@ export function SidebarContent({
               className="flex items-center justify-between px-2"
               style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }}
             >
-              {/* The lockup: mark and the lowercase wordmark in the display face, as in the brand files. */}
-              <span className="flex items-center gap-1.5 font-display text-base font-semibold text-foreground/80 whitespace-nowrap pl-1">
-                <OpfieldMark className="h-6 w-6" />
-                opfield
-              </span>
+              <OpfieldLockup className="pl-1" />
 
               <div className="flex items-center gap-0.5">
                 <AIButton />
