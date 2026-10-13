@@ -116,7 +116,6 @@ function NodeCellBadge({ name, color }: { name?: string; color?: DockerContainer
 }
 
 /** Name 28 %, image 22 %, node 15 % plus status, health and actions: narrower, the list scrolls sideways. */
-const COMPUTE_MIN_WIDTH = 1080;
 
 export function ComputeTab({
   app,
@@ -232,7 +231,6 @@ export function ComputeTab({
     {
       id: "name",
       label: "Name",
-      width: "28%",
       renderCell: (row) => (
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -261,7 +259,7 @@ export function ComputeTab({
     {
       id: "image",
       label: "Image",
-      width: "22%",
+      width: "12rem",
       renderCell: (row) => {
         const image = workloadImageLabel(row);
         return (
@@ -274,7 +272,7 @@ export function ComputeTab({
     {
       id: "node",
       label: "Node",
-      width: "15%",
+      width: "8rem",
       renderCell: (row) => <NodeCellBadge name={row._nodeName} color={row._nodeColor} />,
     },
     {
@@ -369,9 +367,9 @@ export function ComputeTab({
   ];
 
   const composeColumns: ResourceListColumn<AppComposeRow>[] = [
-    { id: "name", label: "Project / service", width: "28%" },
-    { id: "image", label: "Image", width: "22%" },
-    { id: "node", label: "Node", width: "15%" },
+    { id: "name", label: "Project / service" },
+    { id: "image", label: "Image", width: "12rem" },
+    { id: "node", label: "Node", width: "8rem" },
     { id: "status", label: "Status", width: "8.5rem" },
     { id: "health", label: "Health", width: "7rem" },
     { id: "actions", label: "Actions", width: "7.5rem", align: "right" },
@@ -490,7 +488,6 @@ export function ComputeTab({
     {
       id: "name",
       label: "Project",
-      width: "30%",
       renderCell: (project) => {
         const icon = nodeIconClassNames(project.appearanceColor);
         return (
@@ -509,21 +506,21 @@ export function ComputeTab({
     {
       id: "deployments",
       label: "Deployments",
-      width: "16%",
+      width: "8rem",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (project) => project.deploymentCount,
     },
     {
       id: "tags",
       label: "Tags",
-      width: "10%",
+      width: "5rem",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (project) => project.tagCount,
     },
     {
       id: "storage",
       label: "Storage",
-      width: "16%",
+      width: "10rem",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (project) =>
         `${formatPageBytes(project.storageUsedBytes)} / ${formatPageBytes(project.storageQuotaBytes)}`,
@@ -531,6 +528,7 @@ export function ComputeTab({
     {
       id: "updated",
       label: "Updated",
+      width: "7.5rem",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (project) => <RelativeTime value={project.updatedAt} />,
     },
@@ -598,7 +596,6 @@ export function ComputeTab({
           }
           columns={containerColumns}
           groups={containers}
-          minWidth={COMPUTE_MIN_WIDTH}
           rowKey={(row) => `${nodeIdOf(row)}:${row.id}`}
           onRowClick={(row) => openContainer(row)}
         />
@@ -615,7 +612,6 @@ export function ComputeTab({
           <GroupedList
             appSlug={app.slug}
             columns={composeColumns}
-            minWidth={COMPUTE_MIN_WIDTH}
             groups={compose}
             rowKey={(row) => row.project.id}
             renderRows={composeRows}

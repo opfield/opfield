@@ -18,7 +18,6 @@ const environmentColumns: ResourceListColumn<LoggingEnvironment>[] = [
   {
     id: "name",
     label: "Environment",
-    width: "minmax(0, 1.5fr)",
     renderCell: (environment) => (
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center bg-muted">
@@ -37,7 +36,7 @@ const environmentColumns: ResourceListColumn<LoggingEnvironment>[] = [
   {
     id: "schema",
     label: "Schema",
-    width: "minmax(8rem, 0.8fr)",
+    width: "10rem",
     align: "right",
     renderCell: (environment) => (
       <Badge variant="outline">{environment.schemaName ?? "No schema"}</Badge>
@@ -118,7 +117,6 @@ export function LoggingEnvironmentsTab({
           onReset={() => onSearchChange("")}
         />
       }
-      minWidth={920}
       canManageFolders={canManageFolders}
       canReorganizeItem={() => canManageFolders}
       getResourceLabel={(environment) => environment.name}
@@ -144,7 +142,6 @@ function schemaColumns({
     {
       id: "name",
       label: "Schema",
-      width: "minmax(0, 1.6fr)",
       renderCell: (schema) => (
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center bg-muted">
@@ -287,7 +284,6 @@ export function LoggingSchemasTab({
           onReset={() => onSearchChange("")}
         />
       }
-      minWidth={920}
       canManageFolders={canManageFolders}
       canViewItem={canOpen}
       canReorganizeItem={() => canManageFolders}

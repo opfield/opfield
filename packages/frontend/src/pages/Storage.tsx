@@ -1,5 +1,5 @@
 import { FolderPlus, HardDrive, HardDriveDownload, Plus, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { MoveToAppRowMenu } from "@/components/apps/MoveToAppRowMenu";
@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
+import { ResourceTagSummary } from "@/components/common/ResourceTagSummary";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -32,12 +32,6 @@ import {
 } from "@/lib/managed-database-nodes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { storageRoute } from "@/lib/resource-routes";
-import {
-  estimateMoreTagsWidth,
-  estimateResourceTagWidth,
-  parseResourceTag,
-  resourceTagBadgeProps,
-} from "@/lib/resource-tags";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -88,93 +82,12 @@ function StorageTagSummary({
   tags: string[];
   provider: ObjectStorageConnection["provider"];
 }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const typeRef = useRef<HTMLSpanElement | null>(null);
-  const [containerWidth, setContainerWidth] = useState<number | null>(null);
-  const [typeWidth, setTypeWidth] = useState<number | null>(null);
-  const parsedTags = useMemo(() => tags.map(parseResourceTag), [tags]);
-  const visibleCount = useMemo(() => {
-    if (parsedTags.length <= 2 && containerWidth === null) return parsedTags.length;
-    if (containerWidth === null || containerWidth <= 0) return Math.min(2, parsedTags.length);
-
-    const gapWidth = 8;
-    const availableWidth = Math.max(0, containerWidth - (typeWidth ?? 0) - gapWidth);
-    let usedWidth = 0;
-    let count = 0;
-
-    for (let index = 0; index < parsedTags.length; index += 1) {
-      const remaining = parsedTags.length - index - 1;
-      const tagWidth = estimateResourceTagWidth(parsedTags[index]!);
-      const moreWidth = remaining > 0 ? estimateMoreTagsWidth(remaining) + gapWidth : 0;
-      const nextWidth = usedWidth + (count > 0 ? gapWidth : 0) + tagWidth;
-      if (nextWidth + moreWidth > availableWidth) break;
-      usedWidth = nextWidth;
-      count += 1;
-    }
-
-    return Math.max(1, count);
-  }, [containerWidth, parsedTags, typeWidth]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const typeBadge = typeRef.current;
-    if (!container || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      setContainerWidth(container.getBoundingClientRect().width);
-      if (typeBadge) setTypeWidth(typeBadge.getBoundingClientRect().width);
-    });
-    observer.observe(container);
-    if (typeBadge) observer.observe(typeBadge);
-    return () => observer.disconnect();
-  }, []);
-
-  const visibleTags = parsedTags.slice(0, visibleCount);
-  const hiddenTags = parsedTags.slice(visibleCount);
-
   return (
-    <div ref={containerRef} className="flex min-w-0 flex-1 items-center justify-end gap-2">
-      <span ref={typeRef} className="inline-flex shrink-0">
-        <Badge variant="secondary">{formatProviderLabel(provider)}</Badge>
-      </span>
-      {visibleTags.map((tag, index) => {
-        const badge = resourceTagBadgeProps(tag.color);
-        return (
-          <Badge
-            key={`${tag.raw}:${index}`}
-            variant={badge.variant}
-            className={cn("max-w-[180px]", badge.className)}
-            title={tag.raw}
-          >
-            {tag.label}
-          </Badge>
-        );
-      })}
-      {hiddenTags.length > 0 && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="secondary" className="shrink-0">
-              +{hiddenTags.length}
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">
-            <div className="flex flex-wrap gap-1.5">
-              {hiddenTags.map((tag, index) => {
-                const badge = resourceTagBadgeProps(tag.color);
-                return (
-                  <Badge
-                    key={`${tag.raw}:${visibleCount + index}`}
-                    variant={badge.variant}
-                    className={cn("max-w-[180px]", badge.className)}
-                  >
-                    {tag.label}
-                  </Badge>
-                );
-              })}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      )}
-    </div>
+    <ResourceTagSummary
+      tags={tags}
+      typeFirst
+      typeBadge={<Badge variant="secondary">{formatProviderLabel(provider)}</Badge>}
+    />
   );
 }
 
@@ -310,7 +223,6 @@ function StorageContent() {
       {
         id: "name",
         label: "Name",
-        width: "38%",
         renderCell: (row) => {
           const Icon = row.managed ? HardDriveDownload : HardDrive;
           const node = row.managed ? storageNodeById.get(row.managed.nodeId) : undefined;
@@ -335,14 +247,14 @@ function StorageContent() {
       {
         id: "tags",
         label: "Tags",
-        width: "34%",
+        width: "16rem",
         align: "right",
         renderCell: (row) => <StorageTagSummary tags={row.tags} provider={row.provider} />,
       },
       {
         id: "lastCheck",
         label: "Last Check",
-        width: "14%",
+        width: "8.5rem",
         align: "right",
         renderCell: (row) => (
           <Badge variant="outline">
@@ -353,7 +265,7 @@ function StorageContent() {
       {
         id: "health",
         label: "Health",
-        width: "14%",
+        width: "8rem",
         align: "right",
         renderCell: (row) => {
           if (row.managed && isManagedStorageFull(row)) {
@@ -540,7 +452,6 @@ function StorageContent() {
               }}
             />
           }
-          minWidth={920}
           canManageFolders={canManageFolders}
           canViewItem={(row) => hasScope("storage:view") || hasScope(`storage:view:${row.id}`)}
           canReorganizeItem={(row) => canManageFolders && !row.app}

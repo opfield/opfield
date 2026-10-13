@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
+import { ResourceTagSummary } from "@/components/common/ResourceTagSummary";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
@@ -46,12 +46,6 @@ import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { databaseRoute } from "@/lib/resource-routes";
-import {
-  estimateMoreTagsWidth,
-  estimateResourceTagWidth,
-  parseResourceTag,
-  resourceTagBadgeProps,
-} from "@/lib/resource-tags";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -107,95 +101,15 @@ function formatHealthLabel(status: DatabaseConnection["healthStatus"] | "paused"
 }
 
 function DatabaseTagSummary({ tags, type }: { tags: string[]; type: DatabaseConnection["type"] }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const typeRef = useRef<HTMLSpanElement | null>(null);
-  const [containerWidth, setContainerWidth] = useState<number | null>(null);
-  const [typeWidth, setTypeWidth] = useState<number | null>(null);
-  const parsedTags = useMemo(() => tags.map(parseResourceTag), [tags]);
-  const visibleCount = useMemo(() => {
-    if (parsedTags.length <= 2 && containerWidth === null) return parsedTags.length;
-    if (containerWidth === null || containerWidth <= 0) return Math.min(2, parsedTags.length);
-
-    const gapWidth = 8;
-    const availableWidth = Math.max(0, containerWidth - (typeWidth ?? 0) - gapWidth);
-    let usedWidth = 0;
-    let count = 0;
-
-    for (let index = 0; index < parsedTags.length; index += 1) {
-      const remaining = parsedTags.length - index - 1;
-      const tagWidth = estimateResourceTagWidth(parsedTags[index]!);
-      const moreWidth = remaining > 0 ? estimateMoreTagsWidth(remaining) + gapWidth : 0;
-      const nextWidth = usedWidth + (count > 0 ? gapWidth : 0) + tagWidth;
-      if (nextWidth + moreWidth > availableWidth) break;
-      usedWidth = nextWidth;
-      count += 1;
-    }
-
-    return Math.max(1, count);
-  }, [containerWidth, parsedTags, typeWidth]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const typeBadge = typeRef.current;
-    if (!container || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      setContainerWidth(container.getBoundingClientRect().width);
-      if (typeBadge) setTypeWidth(typeBadge.getBoundingClientRect().width);
-    });
-    observer.observe(container);
-    if (typeBadge) observer.observe(typeBadge);
-    return () => observer.disconnect();
-  }, []);
-
-  const visibleTags = parsedTags.slice(0, visibleCount);
-  const hiddenTags = parsedTags.slice(visibleCount);
-
   return (
-    <div ref={containerRef} className="flex min-w-0 flex-1 items-center justify-end gap-2">
-      {visibleTags.map((tag, index) => {
-        const badge = resourceTagBadgeProps(tag.color);
-        return (
-          <Badge
-            key={`${tag.raw}:${index}`}
-            variant={badge.variant}
-            className={cn("max-w-[180px]", badge.className)}
-            title={tag.raw}
-          >
-            {tag.label}
-          </Badge>
-        );
-      })}
-      {hiddenTags.length > 0 && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="secondary" className="shrink-0">
-              +{hiddenTags.length}
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">
-            <div className="flex flex-wrap gap-1.5">
-              {hiddenTags.map((tag, index) => {
-                const badge = resourceTagBadgeProps(tag.color);
-                return (
-                  <Badge
-                    key={`${tag.raw}:${visibleCount + index}`}
-                    variant={badge.variant}
-                    className={cn("max-w-[180px]", badge.className)}
-                  >
-                    {tag.label}
-                  </Badge>
-                );
-              })}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      )}
-      <span ref={typeRef} className="inline-flex shrink-0">
+    <ResourceTagSummary
+      tags={tags}
+      typeBadge={
         <Badge variant="outline" className="uppercase">
           {databaseTypeLabel(type)}
         </Badge>
-      </span>
-    </div>
+      }
+    />
   );
 }
 
@@ -433,7 +347,6 @@ function DatabasesContent({
       {
         id: "name",
         label: "Name",
-        width: "38%",
         renderCell: (row) => {
           const Icon = row.managed ? DatabaseZap : DatabaseIcon;
           const node = row.managed ? databaseNodeById.get(row.managed.nodeId) : undefined;
@@ -461,14 +374,14 @@ function DatabasesContent({
       {
         id: "tags",
         label: "Tags",
-        width: "34%",
+        width: "16rem",
         align: "right",
         renderCell: (row) => <DatabaseTagSummary tags={row.tags} type={row.type} />,
       },
       {
         id: "lastCheck",
         label: "Last Check",
-        width: "14%",
+        width: "8.5rem",
         align: "right",
         renderCell: (row) => (
           <Badge variant="outline">
@@ -479,7 +392,7 @@ function DatabasesContent({
       {
         id: "health",
         label: "Health",
-        width: "14%",
+        width: "8rem",
         align: "right",
         renderCell: (row) => {
           const node = row.managed ? databaseNodeById.get(row.managed.nodeId) : undefined;
@@ -654,7 +567,6 @@ function DatabasesContent({
               }}
             />
           }
-          minWidth={920}
           canManageFolders={canManageFolders}
           canViewItem={(row) => hasScope("databases:view") || hasScope(`databases:view:${row.id}`)}
           canReorganizeItem={(row) => canManageFolders && !row.app}

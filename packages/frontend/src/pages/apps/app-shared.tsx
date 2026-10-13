@@ -1,6 +1,6 @@
 // Shared pieces of the Apps pages (canvas `.design/canvas/apps/screens/AppPage.tsx`).
 import { MoreHorizontal, MoreVertical } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Notice } from "@/components/common/Notice";
 import {
@@ -11,6 +11,7 @@ import {
   ResourceListRow,
   ResourceListSectionHeader,
   ResourceListTable,
+  resourceListMinWidth,
 } from "@/components/common/ResourceListLayout";
 import { type StatusTone, statusDotClass } from "@/components/common/resource-status";
 import { Badge } from "@/components/ui/badge";
@@ -168,7 +169,7 @@ export function GroupedList<T>({
   rowKey,
   onRowClick,
   renderRows,
-  minWidth = 860,
+  minWidth,
 }: {
   appSlug: string;
   columns: ResourceListColumn<T>[];
@@ -177,10 +178,10 @@ export function GroupedList<T>({
   onRowClick?: (row: T) => void;
   /** Custom rows (Compose projects with their services). */
   renderRows?: (rows: T[]) => ReactNode;
-  minWidth?: number;
+  minWidth?: CSSProperties["minWidth"];
 }) {
   return (
-    <ResourceListFrame minWidth={minWidth} className="border-0">
+    <ResourceListFrame minWidth={minWidth ?? resourceListMinWidth(columns)} className="border-0">
       <ResourceListHeaderTable columns={columns} />
       {groups
         .filter((group) => group.rows.length > 0)
@@ -225,16 +226,16 @@ export function FlatList<T>({
   rows,
   rowKey,
   onRowClick,
-  minWidth = 860,
+  minWidth,
 }: {
   columns: ResourceListColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string;
   onRowClick?: (row: T) => void;
-  minWidth?: number;
+  minWidth?: CSSProperties["minWidth"];
 }) {
   return (
-    <ResourceListFrame minWidth={minWidth} className="border-0">
+    <ResourceListFrame minWidth={minWidth ?? resourceListMinWidth(columns)} className="border-0">
       <ResourceListHeaderTable columns={columns} />
       <ResourceListTable columns={columns}>
         {rows.map((row) => (

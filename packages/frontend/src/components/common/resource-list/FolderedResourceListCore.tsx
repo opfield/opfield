@@ -232,7 +232,7 @@ export function FolderedResourceListCore<TItem extends FolderedListItem, TRef>({
   loadingLabel,
   emptyState,
   afterSearch,
-  minWidth = 900,
+  minWidth,
   embedded = false,
   notifyOnMove = true,
   canManageFolders,

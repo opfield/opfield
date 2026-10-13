@@ -49,7 +49,6 @@ const projectColumns: ResourceListColumn<PageProject>[] = [
   {
     id: "name",
     label: "Project",
-    width: "34%",
     renderCell: (project) => {
       const iconClassNames = nodeIconClassNames(project.appearanceColor);
       return (
@@ -68,21 +67,21 @@ const projectColumns: ResourceListColumn<PageProject>[] = [
   {
     id: "deployments",
     label: "Releases",
-    width: "14%",
+    width: "6.5rem",
     align: "right",
     renderCell: (project) => <Badge variant="secondary">{project.deploymentCount}</Badge>,
   },
   {
     id: "tags",
     label: "Tags",
-    width: "10%",
+    width: "5rem",
     align: "right",
     renderCell: (project) => <Badge variant="secondary">{project.tagCount}</Badge>,
   },
   {
     id: "storage",
     label: "Storage",
-    width: "20%",
+    width: "10rem",
     align: "right",
     renderCell: (project) => (
       <Badge variant="secondary">
@@ -93,7 +92,7 @@ const projectColumns: ResourceListColumn<PageProject>[] = [
   {
     id: "updated",
     label: "Updated",
-    width: "22%",
+    width: "7.5rem",
     align: "right",
     cellContentClassName: "text-sm text-muted-foreground",
     renderCell: (project) => <RelativeTime value={project.updatedAt} />,
@@ -381,7 +380,6 @@ export function Pages() {
                 onReset={() => setSearch("")}
               />
             }
-            minWidth={720}
             canManageFolders={canManageFolders}
             canReorganizeItem={(project) => !project.app && (canManageFolders || canEdit)}
             getResourceLabel={(project) => project.name}

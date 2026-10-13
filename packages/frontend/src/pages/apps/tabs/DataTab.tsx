@@ -4,12 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
+import { ResourceTagSummary } from "@/components/common/ResourceTagSummary";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { databaseTypeLabel } from "@/lib/database-type";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { databaseRoute, storageRoute } from "@/lib/resource-routes";
-import { parseResourceTag, resourceTagBadgeProps } from "@/lib/resource-tags";
 import { cn } from "@/lib/utils";
 import { formatProviderLabel } from "@/pages/storage-detail/shared";
 import type { AppDetail, DatabaseConnection, ObjectStorageConnection } from "@/types";
@@ -43,32 +43,17 @@ const HEALTH_BADGE: Record<string, "success" | "secondary" | "warning" | "destru
 
 const label = (status: string) => status.charAt(0).toUpperCase() + status.slice(1);
 
-/** The list's tags (up to three) and the type badge. */
+/** The row's tags that fit the column and the type badge. */
 function TagSummary({ tags, type }: { tags: string[]; type: string }) {
-  const shown = tags.slice(0, 3);
   return (
-    <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-      {shown.map((raw) => {
-        const tag = parseResourceTag(raw);
-        const badge = resourceTagBadgeProps(tag.color);
-        return (
-          <Badge
-            key={raw}
-            variant={badge.variant}
-            className={cn("max-w-[180px]", badge.className)}
-            title={raw}
-          >
-            {tag.label}
-          </Badge>
-        );
-      })}
-      {tags.length > shown.length && <Badge variant="outline">+{tags.length - shown.length}</Badge>}
-      <span className="inline-flex shrink-0">
+    <ResourceTagSummary
+      tags={tags}
+      typeBadge={
         <Badge variant="outline" className="uppercase">
           {type}
         </Badge>
-      </span>
-    </div>
+      }
+    />
   );
 }
 
@@ -121,7 +106,6 @@ export function DataTab({
     {
       id: "name",
       label: "Name",
-      width: "36%",
       renderCell: (row) =>
         nameCell(
           row.managed ? DatabaseZap : Database,
@@ -133,14 +117,14 @@ export function DataTab({
     {
       id: "tags",
       label: "Tags",
-      width: "30%",
+      width: "16rem",
       align: "right",
       renderCell: (row) => <TagSummary tags={row.tags} type={databaseTypeLabel(row.type)} />,
     },
     {
       id: "lastCheck",
       label: "Last Check",
-      width: "13%",
+      width: "8.5rem",
       align: "center",
       renderCell: (row) => (
         <Badge variant="outline">
@@ -151,7 +135,7 @@ export function DataTab({
     {
       id: "health",
       label: "Health",
-      width: "13%",
+      width: "8rem",
       align: "center",
       renderCell: (row) => {
         const status = row.managed?.status === "paused" ? "paused" : row.healthStatus;
@@ -195,7 +179,6 @@ export function DataTab({
     {
       id: "name",
       label: "Name",
-      width: "36%",
       renderCell: (row) =>
         nameCell(
           row.managed ? HardDriveDownload : HardDrive,
@@ -207,14 +190,14 @@ export function DataTab({
     {
       id: "tags",
       label: "Tags",
-      width: "30%",
+      width: "16rem",
       align: "right",
       renderCell: (row) => <TagSummary tags={row.tags} type={formatProviderLabel(row.provider)} />,
     },
     {
       id: "lastCheck",
       label: "Last Check",
-      width: "13%",
+      width: "8.5rem",
       align: "center",
       renderCell: (row) => (
         <Badge variant="outline">
@@ -225,7 +208,7 @@ export function DataTab({
     {
       id: "health",
       label: "Health",
-      width: "13%",
+      width: "8rem",
       align: "center",
       renderCell: (row) => {
         const status = row.managed?.status ?? row.healthStatus;

@@ -330,7 +330,6 @@ export function DockerComposeProjects({
       {
         id: "name",
         label: "Project",
-        width: "minmax(0, 1.4fr)",
         renderCell: (project) => (
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -351,7 +350,7 @@ export function DockerComposeProjects({
             {
               id: "node",
               label: "Node",
-              width: "minmax(0, 1fr)",
+              width: "8rem",
               align: "right",
               renderCell: (project: DockerComposeProjectSummary) => (
                 <Badge variant="secondary" className={nodeBadgeClassName(project._nodeColor)}>
@@ -586,7 +585,6 @@ export function DockerComposeProjects({
             onAction={canCreate ? openCreate : undefined}
           />
         }
-        minWidth={fixedNodeId ? "720px" : "980px"}
         fixedNodeId={fixedNodeId}
         canManageFolders={canManageFolders}
         canReorganizeItem={(project) => !project.app}

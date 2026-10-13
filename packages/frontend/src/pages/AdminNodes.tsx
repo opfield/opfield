@@ -319,7 +319,6 @@ export function AdminNodes() {
       {
         id: "name",
         label: "Name",
-        width: "34%",
         renderCell: (node) => {
           const iconClassNames = nodeIconClassNames(node.appearanceColor);
           return (
@@ -348,14 +347,14 @@ export function AdminNodes() {
       {
         id: "type",
         label: "Type",
-        width: "13%",
+        width: "8.5rem",
         align: "right",
         renderCell: (node) => <Badge variant="secondary">{nodeTypeLabel(node.type)}</Badge>,
       },
       {
         id: "lock",
         label: "Lock",
-        width: "13%",
+        width: "8rem",
         align: "right",
         renderCell: (node) =>
           isNodeProtected(node) ? (
@@ -369,7 +368,7 @@ export function AdminNodes() {
       {
         id: "lastSeen",
         label: "Last Seen",
-        width: "16%",
+        width: "8.5rem",
         align: "right",
         renderCell: (node) => (
           <Badge variant="outline">
@@ -380,7 +379,7 @@ export function AdminNodes() {
       {
         id: "status",
         label: "Status",
-        width: "14%",
+        width: "9rem",
         align: "right",
         renderCell: (node) => {
           if (isNodeUpdating(node)) {
@@ -674,7 +673,6 @@ export function AdminNodes() {
                   }}
                 />
               }
-              minWidth={900}
               canManageFolders={canManageFolders}
               canViewItem={(node) =>
                 hasScope("nodes:details") || hasScope(`nodes:details:${node.id}`)

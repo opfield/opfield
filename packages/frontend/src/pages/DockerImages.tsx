@@ -368,7 +368,6 @@ export function DockerImages({
       {
         id: "tag",
         label: "Repository:Tag",
-        width: "minmax(0, 1.45fr)",
         renderCell: (img) => {
           const tags = img.repoTags ?? [];
           const tag = tags.length > 0 ? formatDisplayImageRef(tags[0]) : "<none>:<none>";
@@ -392,7 +391,7 @@ export function DockerImages({
       {
         id: "node",
         label: "Node",
-        width: "minmax(0, 1.15fr)",
+        width: "8rem",
         align: "right" as const,
         renderCell: (img) => (
           <div className="min-w-0">
@@ -672,7 +671,6 @@ export function DockerImages({
             onReset={() => setSearch("")}
           />
         }
-        minWidth={fixedNodeId ? "760px" : "900px"}
         fixedNodeId={fixedNodeId}
         canManageFolders={canManageFolders}
         getResourceKey={(img) => img.id}

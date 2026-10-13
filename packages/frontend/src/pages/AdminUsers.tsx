@@ -449,7 +449,6 @@ function AdminUsersContent({
     {
       id: "user",
       label: "User",
-      width: "minmax(16rem, 1fr)",
       renderCell: (user) => {
         const isSelf = currentUser?.id === user.id;
         const isSystemUser = user.oidcSubject?.startsWith("system:");
@@ -500,7 +499,7 @@ function AdminUsersContent({
     {
       id: "group",
       label: "Groups",
-      width: "20rem",
+      width: "14rem",
       align: "right",
       renderCell: (user) => {
         const isSelf = currentUser?.id === user.id;
@@ -715,7 +714,6 @@ function AdminUsersContent({
             onReset={() => setSearch("")}
           />
         }
-        minWidth={720}
         canManageFolders={canManageFolders}
         canReorganizeItem={() => canManageFolders}
         getResourceLabel={(user) => user.name || user.email}

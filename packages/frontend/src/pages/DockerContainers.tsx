@@ -822,7 +822,6 @@ export function DockerContainers({
     {
       id: "name",
       label: "Name",
-      width: showNodeColumn ? "28%" : "32%",
       cellContentClassName: "gap-3",
       renderCell: (container) => (
         <div className="flex min-w-0 items-center gap-3">
@@ -858,7 +857,7 @@ export function DockerContainers({
     {
       id: "image",
       label: "Image",
-      width: showNodeColumn ? "22%" : "28%",
+      width: "12rem",
       align: "right",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (container) => {
@@ -875,7 +874,7 @@ export function DockerContainers({
           {
             id: "node",
             label: "Node",
-            width: "15%",
+            width: "8rem",
             align: "right" as const,
             renderCell: (container: DockerContainerListItem) => (
               <Badge variant="secondary" className={nodeBadgeClassName(container._nodeColor)}>

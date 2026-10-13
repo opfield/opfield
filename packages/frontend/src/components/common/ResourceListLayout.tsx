@@ -14,6 +14,27 @@ export interface ResourceListColumn<TItem = unknown> {
   renderCell?: (item: TItem) => React.ReactNode;
 }
 
+const REM_PX = 16;
+
+/**
+ * The narrowest a list gets before it scrolls sideways: the fixed column widths (rem or px) plus
+ * `flexibleRem` for each column without a width (the name), which takes the rest of the row.
+ */
+export function resourceListMinWidth<TItem>(
+  columns: ResourceListColumn<TItem>[],
+  flexibleRem = 12
+): string {
+  let rem = 0;
+  for (const column of columns) {
+    const width = column.width;
+    if (width === undefined) rem += flexibleRem;
+    else if (typeof width === "number") rem += width / REM_PX;
+    else if (width.endsWith("rem")) rem += Number.parseFloat(width);
+    else if (width.endsWith("px")) rem += Number.parseFloat(width) / REM_PX;
+  }
+  return `${Math.ceil(rem * 4) / 4}rem`;
+}
+
 interface ResourceListFrameProps {
   children: React.ReactNode;
   minWidth?: React.CSSProperties["minWidth"];

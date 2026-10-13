@@ -400,7 +400,6 @@ export function DockerNetworks({
       {
         id: "name",
         label: "Name",
-        width: "minmax(0, 1.35fr)",
         renderCell: (net) => (
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-muted shrink-0">
@@ -441,7 +440,7 @@ export function DockerNetworks({
       {
         id: "node",
         label: "Node",
-        width: "minmax(0, 1.15fr)",
+        width: "8rem",
         align: "right" as const,
         renderCell: (n) => (
           <div className="min-w-0">
@@ -688,7 +687,6 @@ export function DockerNetworks({
             onAction={hasScopedAccess("docker:networks:create") ? () => openCreate() : undefined}
           />
         }
-        minWidth={fixedNodeId ? "720px" : "860px"}
         fixedNodeId={fixedNodeId}
         canManageFolders={canManageFolders}
         getResourceKey={(network) => network.id}
