@@ -676,6 +676,7 @@ func (m *managedDatabaseManager) runtimeStats(ctx context.Context, record manage
 	normalized := statsResponseToProto(&stats, &inspect.Container)
 	swapLimit := managedDatabaseSwapLimit(inspect.Container.HostConfig)
 	swapUsage := int64(stats.MemoryStats.Stats["swap"])
+	diskUsed, diskTotal, _ := managedDatabaseDiskUsage(record.MountPath)
 	return marshalManagedDatabaseRuntimeStats(managedDatabaseRuntimeStats{
 		Status:           "ready",
 		CPUPercent:       normalized.CpuPercent,
@@ -684,6 +685,8 @@ func (m *managedDatabaseManager) runtimeStats(ctx context.Context, record manage
 		SwapUsageBytes:   swapUsage,
 		SwapLimitBytes:   swapLimit,
 		Pids:             normalized.Pids,
+		DiskUsedBytes:    diskUsed,
+		DiskTotalBytes:   diskTotal,
 	})
 }
 

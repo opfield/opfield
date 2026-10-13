@@ -13,6 +13,9 @@ export interface ManagedDatabaseRuntimeStats {
   swapUsageBytes: number;
   swapLimitBytes: number;
   pids: number;
+  /** The data image's filesystem (used, and used plus available); null when the daemon does not report it. */
+  diskUsedBytes?: number | null;
+  diskTotalBytes?: number | null;
 }
 export interface ManagedDatabaseLogTarget {
   managedDatabaseId: string;

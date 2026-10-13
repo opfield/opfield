@@ -299,6 +299,10 @@ type managedDatabaseRuntimeStats struct {
 	SwapUsageBytes   int64   `json:"swapUsageBytes,omitempty"`
 	SwapLimitBytes   int64   `json:"swapLimitBytes,omitempty"`
 	Pids             int64   `json:"pids,omitempty"`
+	// DiskUsedBytes and DiskTotalBytes: the filesystem of the data image (see
+	// managedDatabaseDiskUsage); absent when it cannot be read.
+	DiskUsedBytes  int64 `json:"diskUsedBytes,omitempty"`
+	DiskTotalBytes int64 `json:"diskTotalBytes,omitempty"`
 }
 
 type managedDatabaseManager struct {
