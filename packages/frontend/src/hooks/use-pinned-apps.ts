@@ -1,12 +1,30 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRealtime } from "@/hooks/use-realtime";
 import { api } from "@/services/api";
 import { APPS_LIST_CACHE_KEY } from "@/services/api-apps";
 import { usePinnedAppsStore } from "@/stores/pinned-apps";
-import type { AppSummary } from "@/types";
+import { APPS_REALTIME_CHANNEL, type AppSummary } from "@/types";
+
+/** One app list request shared by the sidebar and the dashboard when an app changes. */
+let loading: Promise<AppSummary[]> | null = null;
+
+function loadApps(): Promise<AppSummary[]> {
+  loading ??= api
+    .listApps()
+    .then((list) => {
+      api.setCache(APPS_LIST_CACHE_KEY, list);
+      return list;
+    })
+    .finally(() => {
+      loading = null;
+    });
+  return loading;
+}
 
 /**
  * The pinned apps the caller may still see, in pin order, from the server's app list (cached like the Apps page):
- * an app that was deleted or is no longer visible simply doesn't show.
+ * an app that was deleted or is no longer visible simply doesn't show. Any app change (a new logo, a rename, its
+ * health, a deletion) reloads the list.
  */
 export function usePinnedApps(place: "dashboard" | "sidebar"): AppSummary[] {
   const ids = usePinnedAppsStore((s) =>
@@ -16,11 +34,9 @@ export function usePinnedApps(place: "dashboard" | "sidebar"): AppSummary[] {
     () => api.getCached<AppSummary[]>(APPS_LIST_CACHE_KEY) ?? []
   );
   const wanted = ids.length > 0;
-  useEffect(() => {
-    if (!wanted) return;
+  const reload = useCallback(() => {
     let cancelled = false;
-    api
-      .cachedRequest(APPS_LIST_CACHE_KEY, () => api.listApps())
+    loadApps()
       .then((list) => {
         if (!cancelled) setApps(list);
       })
@@ -28,7 +44,13 @@ export function usePinnedApps(place: "dashboard" | "sidebar"): AppSummary[] {
     return () => {
       cancelled = true;
     };
-  }, [wanted]);
+  }, []);
+  useEffect(() => {
+    if (wanted) return reload();
+  }, [wanted, reload]);
+  useRealtime(wanted ? APPS_REALTIME_CHANNEL : null, () => void reload(), {
+    onReconnect: () => void reload(),
+  });
   const byId = new Map(apps.map((app) => [app.id, app]));
   return ids.flatMap((id) => {
     const app = byId.get(id);
