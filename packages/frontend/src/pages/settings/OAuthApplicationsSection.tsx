@@ -1,12 +1,14 @@
 import { ExternalLink, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { AccessDialogFooter } from "@/components/access/AccessDialogFooter";
+import { AccessSection } from "@/components/access/AccessSection";
+import { useAccessEditor } from "@/components/access/use-access-editor";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
-import { SCOPE_PICKER_VIEWPORT, ScopePicker } from "@/components/common/ScopePicker";
 import {
   AllowedAddressesRow,
   currentTokenExpiry,
@@ -24,7 +26,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -33,11 +34,9 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import {
-  buildFinalScopes,
   deriveAllowedResourceIdsByScope,
   hasSelectableScopeBase,
   parseScopesForForm,
-  requiresResourceSelection,
 } from "@/lib/scope-utils";
 import { formatDate } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -51,7 +50,9 @@ import type {
   OAuthAuthorization,
   ProxyHost,
 } from "@/types";
-import { API_TOKEN_SCOPES, MCP_TOKEN_SCOPES, RESOURCE_SCOPABLE_SCOPES } from "@/types";
+import { MCP_TOKEN_SCOPES, RESOURCE_SCOPABLE_SCOPES } from "@/types";
+
+const NO_SCOPES: string[] = [];
 
 interface OAuthApplicationsSectionProps {
   nodesList: Node[];
@@ -76,14 +77,6 @@ function resourceLabel(resource: string): string {
     return url.pathname || url.host;
   } catch {
     return resource;
-  }
-}
-
-function isMcpResource(resource: string): boolean {
-  try {
-    return new URL(resource).pathname.replace(/\/+$/, "") === "/api/mcp";
-  } catch {
-    return false;
   }
 }
 
@@ -121,11 +114,7 @@ export function OAuthApplicationsSection({
   } = useDeferredDialogState<OAuthAuthorization>();
   // The dialog shows the last application until it opens again, not only for the close delay.
   const selectedAuthorization = useRetainedDialogValue(storedAuthorization, authorizationOpen);
-  const [editableBaseScopes, setEditableBaseScopes] = useState<string[]>([]);
-  const [editableResourceScopes, setEditableResourceScopes] = useState<Record<string, string[]>>(
-    {}
-  );
-  const [initialResourceLimitedScopes, setInitialResourceLimitedScopes] = useState<string[]>([]);
+  const [scopesOpen, setScopesOpen] = useState(false);
   const [savingScopes, setSavingScopes] = useState(false);
   const [expiry, setExpiry] = useState<ExpiryValue>(() => currentTokenExpiry(null));
   const [initialExpiry, setInitialExpiry] = useState<ExpiryValue>(() => currentTokenExpiry(null));
@@ -136,35 +125,19 @@ export function OAuthApplicationsSection({
     [userScopes]
   );
 
-  const editableScopeCatalog = useMemo(
-    () =>
-      selectedAuthorization && isMcpResource(selectedAuthorization.resource)
-        ? MCP_TOKEN_SCOPES
-        : API_TOKEN_SCOPES,
-    [selectedAuthorization]
-  );
-  const finalEditableScopes = useMemo(
-    () => buildFinalScopes(editableBaseScopes, editableResourceScopes),
-    [editableBaseScopes, editableResourceScopes]
-  );
-  const scopesChanged = useMemo(() => {
-    if (!selectedAuthorization) return false;
-    return (
-      selectedAuthorization.scopes.slice().sort().join("\n") !== finalEditableScopes.join("\n")
-    );
-  }, [finalEditableScopes, selectedAuthorization]);
+  // The grant as access lines, bounded by the user's own access the way a token is: a line wider
+  // than the user saves as the user's part of it (its note says so), as Opfield bounds the grant.
+  const access = useAccessEditor({
+    open: authorizationOpen,
+    scopes: selectedAuthorization?.scopes ?? NO_SCOPES,
+    ownerScopes: userScopes,
+  });
   // The grant's own expiry and addresses are sent (and the expiry checked) only when changed.
   const expiryChanged = !sameExpiry(expiry, initialExpiry);
   const allowedIpsChanged =
     !!selectedAuthorization && !sameAddresses(allowedIps, selectedAuthorization.allowedIps ?? []);
   const expiryInvalid = expiryChanged && expiryError(expiry) !== null;
-  const visibleScopes = useMemo(() => {
-    return editableScopeCatalog.filter((scope) => {
-      return (
-        editableBaseScopes.includes(scope.value) || hasSelectableScopeBase(userScopes, scope.value)
-      );
-    });
-  }, [editableBaseScopes, editableScopeCatalog, userScopes]);
+  const selectedBaseScopes = new Set(parseScopesForForm(access.scopes).baseScopes);
   const selectedLogoUri = safeHttpUrl(selectedAuthorization?.logoUri);
 
   const load = useCallback(async () => {
@@ -194,61 +167,16 @@ export function OAuthApplicationsSection({
   };
 
   const openDetails = (authorization: OAuthAuthorization) => {
-    const parsed = parseScopesForForm(authorization.scopes);
     setSelectedAuthorization(authorization);
-    setEditableBaseScopes(parsed.baseScopes);
-    setEditableResourceScopes(parsed.resources);
-    setInitialResourceLimitedScopes(Object.keys(parsed.resources));
     resetLimits(authorization);
   };
 
-  const toggleScope = (scope: string) => {
-    setEditableBaseScopes((current) => {
-      if (current.includes(scope)) {
-        setEditableResourceScopes((resources) => {
-          const next = { ...resources };
-          delete next[scope];
-          return next;
-        });
-        return current.filter((item) => item !== scope);
-      }
-
-      const allowedResourceIds = allowedResourceIdsByScope[scope];
-      if (allowedResourceIds?.length) {
-        setEditableResourceScopes((resources) => ({ ...resources, [scope]: allowedResourceIds }));
-      }
-      return [...current, scope];
-    });
-  };
-
-  const toggleResourceScope = (scope: string, resourceId: string) => {
-    setEditableResourceScopes((current) => {
-      const selected = current[scope] ?? [];
-      const hasResource = selected.includes(resourceId);
-      return {
-        ...current,
-        [scope]: hasResource
-          ? selected.filter((item) => item !== resourceId)
-          : [...selected, resourceId],
-      };
-    });
-  };
-
   const saveScopes = async () => {
-    if (!selectedAuthorization || finalEditableScopes.length === 0 || expiryInvalid) return;
-    for (const scope of editableBaseScopes) {
-      if (
-        requiresResourceSelection(scope, allowedResourceIdsByScope, initialResourceLimitedScopes) &&
-        (editableResourceScopes[scope]?.length ?? 0) === 0
-      ) {
-        toast.error(`Select at least one resource for ${scope}`);
-        return;
-      }
-    }
+    if (!selectedAuthorization || access.scopes.length === 0 || expiryInvalid) return;
     setSavingScopes(true);
     try {
       const updated = await api.updateOAuthAuthorization(selectedAuthorization.id, {
-        ...(scopesChanged ? { scopes: finalEditableScopes } : {}),
+        ...(access.changed ? { scopes: access.scopes } : {}),
         ...(expiryChanged ? { expiresAt: expiryRequestValue(expiry) } : {}),
         ...(allowedIpsChanged ? { allowedIps } : {}),
       });
@@ -257,12 +185,8 @@ export function OAuthApplicationsSection({
         api.setCache("settings:oauth-authorizations", next);
         return next;
       });
-      const parsed = parseScopesForForm(updated.scopes);
-      setSelectedAuthorization(updated);
-      setEditableBaseScopes(parsed.baseScopes);
-      setEditableResourceScopes(parsed.resources);
-      setInitialResourceLimitedScopes(Object.keys(parsed.resources));
-      resetLimits(updated);
+      // Like a token: saved and closed; the next opening reads the grant as Opfield stored it.
+      setSelectedAuthorization(null);
       toast.success("OAuth application updated");
     } catch (error) {
       toastApiError(error, "Failed to update OAuth application");
@@ -363,6 +287,7 @@ export function OAuthApplicationsSection({
                       {authorization.expiresAt
                         ? ` · Expires ${formatDate(authorization.expiresAt)}`
                         : " · No expiry"}
+                      {` · Scopes: ${authorization.scopes.length}`}
                       <TokenLimitsMeta withExpiry={false} allowedIps={authorization.allowedIps} />
                     </p>
                   </div>
@@ -386,7 +311,7 @@ export function OAuthApplicationsSection({
       </PanelShell>
 
       <Dialog open={authorizationOpen} onOpenChange={onAuthorizationOpenChange}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>OAuth Application</DialogTitle>
           </DialogHeader>
@@ -413,7 +338,7 @@ export function OAuthApplicationsSection({
                 </div>
               </div>
 
-              {/* One line of facts, so the scope list keeps the room in a laptop window. */}
+              {/* One line of facts, so the access list keeps the room in a laptop window. */}
               <p className="text-xs text-muted-foreground">
                 Authorized <RelativeTime value={selectedAuthorization.createdAt} /> · Last used{" "}
                 <RelativeTime value={selectedAuthorization.lastUsedAt} fallback="Never" /> ·{" "}
@@ -430,28 +355,37 @@ export function OAuthApplicationsSection({
               <ExpiryField value={expiry} onChange={setExpiry} showError={expiryChanged} />
               <AllowedAddressesRow value={allowedIps} onChange={setAllowedIps} />
 
-              <ScopePicker
-                header={<span className="text-sm font-medium">Scopes</span>}
-                scopes={visibleScopes}
-                selected={editableBaseScopes}
-                onToggle={toggleScope}
-                resources={editableResourceScopes}
-                onResourcesChange={setEditableResourceScopes}
-                onToggleResource={toggleResourceScope}
-                cas={cas}
-                nodes={nodesList}
-                proxyHosts={proxyHostsList}
-                databases={databasesList}
-                loggingSchemas={loggingSchemasList}
-                restrictableScopes={RESOURCE_SCOPABLE_SCOPES}
-                allowedResourceIds={allowedResourceIdsByScope}
-                viewportClassName={SCOPE_PICKER_VIEWPORT}
-                footer={`${finalEditableScopes.length} scope${finalEditableScopes.length !== 1 ? "s" : ""}`}
+              <AccessSection
+                editor={access}
+                subject={selectedAuthorization.clientName}
+                description="Never more than you can do."
+                mode={{ kind: "token", ownerScopes: userScopes }}
+                scopesOpen={scopesOpen}
+                onScopesOpenChange={setScopesOpen}
+                picker={{
+                  // A grant never carries mcp:use (MCP access comes from the account), so neither
+                  // an API nor an MCP grant offers it.
+                  scopes: MCP_TOKEN_SCOPES.filter(
+                    (scope) =>
+                      selectedBaseScopes.has(scope.value) ||
+                      hasSelectableScopeBase(userScopes, scope.value)
+                  ),
+                  cas,
+                  nodes: nodesList,
+                  proxyHosts: proxyHostsList,
+                  databases: databasesList,
+                  loggingSchemas: loggingSchemasList,
+                  restrictableScopes: RESOURCE_SCOPABLE_SCOPES,
+                  allowedResourceIds: allowedResourceIdsByScope,
+                }}
               />
             </div>
           )}
           {selectedAuthorization && (
-            <DialogFooter>
+            <AccessDialogFooter
+              scopeCount={access.scopes.length}
+              onReviewScopes={() => setScopesOpen(true)}
+            >
               <Button variant="outline" onClick={() => setSelectedAuthorization(null)}>
                 Close
               </Button>
@@ -459,14 +393,14 @@ export function OAuthApplicationsSection({
                 onClick={() => void saveScopes()}
                 pending={savingScopes}
                 disabled={
-                  !(scopesChanged || expiryChanged || allowedIpsChanged) ||
-                  finalEditableScopes.length === 0 ||
+                  !(access.changed || expiryChanged || allowedIpsChanged) ||
+                  access.scopes.length === 0 ||
                   expiryInvalid
                 }
               >
                 Save
               </Button>
-            </DialogFooter>
+            </AccessDialogFooter>
           )}
         </DialogContent>
       </Dialog>

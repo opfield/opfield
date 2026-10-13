@@ -183,10 +183,12 @@ export function OAuthConsent() {
     () => deriveAllowedResourceIdsByScope(preview?.grantableScopes ?? []),
     [preview?.grantableScopes]
   );
-  // The request as access lines; the scope picker narrows it.
+  // The request as access lines, narrowed by removing a line or in the scope picker. What it
+  // approves stays within what the request may grant (Opfield refuses anything wider).
   const access = useAccessEditor({
     open: preview !== null && accountResolved,
     scopes: defaultScopes,
+    ownerScopes: preview?.grantableScopes,
   });
   const finalSelectedScopes = access.scopes;
   const hasManualApprovalScopes = (preview?.manualApprovalScopes.length ?? 0) > 0;
@@ -383,7 +385,8 @@ export function OAuthConsent() {
               <section className="p-5">
                 <AccessPanel
                   views={access.views}
-                  description={`What ${preview.client.name} asks for.`}
+                  description={`What ${preview.client.name} asks for. Remove what it should not get.`}
+                  onRemove={isSubmitting ? undefined : access.removeLine}
                 />
               </section>
             </div>
