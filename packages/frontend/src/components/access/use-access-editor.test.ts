@@ -142,4 +142,28 @@ describe("access editor", () => {
     rerender({ open: true });
     await waitFor(() => expect(result.current.lines).toEqual([viewerEverywhere]));
   });
+
+  it("narrows an OAuth request by removing a line, within the request and keeping custom scopes", async () => {
+    const custom = ["admin:audit", "nodes:details"];
+    const grantable = [...linesToScopes([viewerEverywhere, operatorOnWeb], ctx), ...custom].sort();
+    const { result } = renderHook(() =>
+      useAccessEditor({ open: true, scopes: grantable, ownerScopes: grantable })
+    );
+    await waitFor(() => expect(result.current.lines).toHaveLength(3));
+    expect(result.current.scopes).toEqual(grantable);
+    expect(result.current.views.every((view) => view.note === undefined)).toBe(true);
+
+    const operatorIndex = result.current.lines.findIndex(
+      (line) => line.kind === "resources" && line.role === "operator"
+    );
+    act(() => result.current.removeLine(operatorIndex));
+    expect(result.current.lines.find((line) => line.kind === "custom")).toEqual({
+      kind: "custom",
+      scopes: custom,
+    });
+    expect(result.current.scopes.every((scope) => grantable.includes(scope))).toBe(true);
+    expect(result.current.scopes).toEqual(
+      [...linesToScopes([viewerEverywhere], ctx), ...custom].sort()
+    );
+  });
 });
