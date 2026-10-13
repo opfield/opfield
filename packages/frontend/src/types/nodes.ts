@@ -1,3 +1,5 @@
+import { effectiveNodeStatus } from "@/lib/dashboard-attention";
+
 export type NodeType =
   | "nginx"
   | "bastion"
@@ -424,4 +426,14 @@ export function getNodeUpdateTargetVersion(node: Node | NodeDetail): string | nu
 }
 
 /** Effective node status from recent health history; the Dashboard dot uses the same rule. */
-export { effectiveNodeStatus } from "@/lib/dashboard-attention";
+export { effectiveNodeStatus };
+
+/**
+ * The status a node shows in short lists (Dashboard, pinned sidebar items): `updating` while its update restarts the
+ * daemon, which takes it offline for a moment, otherwise its effective status. A queued update has restarted nothing
+ * yet, so the node shows its real state.
+ */
+export function nodeDisplayStatus(node: Node | NodeDetail, now = Date.now()): string {
+  if (isNodeUpdating(node) && !isNodeUpdateQueued(node)) return "updating";
+  return effectiveNodeStatus(node, now);
+}

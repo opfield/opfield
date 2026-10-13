@@ -15,7 +15,7 @@ export function proxyHealthTone(status: string | null | undefined): StatusTone {
 /** Node status, usually from `effectiveNodeStatus`. */
 export function nodeStatusTone(status: string | null | undefined): StatusTone {
   if (status === "online") return "success";
-  if (status === "degraded") return "warning";
+  if (status === "degraded" || status === "updating") return "warning";
   if (status === "offline" || status === "error") return "destructive";
   return "secondary";
 }
