@@ -55,7 +55,16 @@ export const toLegacyNginxNames = replacer(0);
 /** Replaces the pre-Opfield names in a config by the Opfield ones. */
 export const toOpfieldNginxNames = replacer(1);
 
+/**
+ * The access log format the route templates log with. A node still on the pre-Opfield names defines it as
+ * `gateway_combined`; a node on the Opfield names defines `opfield_combined` (and keeps `gateway_combined` while a
+ * config on it uses it), so the format is not one of the name pairs the daemon renames in nginx.conf.
+ */
+const ACCESS_LOG_FORMAT_PATTERN = / opfield_combined;/g;
+
 /** The config with the names of a node: Opfield ones when it reports the capability, else the pre-Opfield ones. */
 export function nginxNamesForNode(config: string, opfieldNames: boolean): string {
-  return opfieldNames ? toOpfieldNginxNames(config) : toLegacyNginxNames(config);
+  return opfieldNames
+    ? toOpfieldNginxNames(config)
+    : toLegacyNginxNames(config).replace(ACCESS_LOG_FORMAT_PATTERN, ' gateway_combined;');
 }

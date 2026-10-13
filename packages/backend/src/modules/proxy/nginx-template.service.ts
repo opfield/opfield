@@ -458,7 +458,7 @@ server {
 {{/if}}
 
 {{/if}}
-    access_log {{logPath}}.access.log;
+    access_log {{logPath}}.access.log opfield_combined;
     error_log {{logPath}}.error.log warn;
 
 {{#unless sslForced}}
@@ -646,7 +646,7 @@ const BUILTIN_REDIRECT_TEMPLATE = `server {
     listen [::]:80;
     server_name {{serverNames}};
 
-    access_log {{logPath}}.access.log;
+    access_log {{logPath}}.access.log opfield_combined;
     error_log {{logPath}}.error.log warn;
 
     location /.well-known/acme-challenge/ {
@@ -688,7 +688,7 @@ server {
     ssl_trusted_certificate {{sslChainPath}};
 {{/if}}
 
-    access_log {{logPath}}.access.log;
+    access_log {{logPath}}.access.log opfield_combined;
     error_log {{logPath}}.error.log warn;
 
     location / {
@@ -707,7 +707,7 @@ const BUILTIN_DEAD_TEMPLATE = `server {
     listen [::]:80;
     server_name {{serverNames}};
 
-    access_log {{logPath}}.access.log;
+    access_log {{logPath}}.access.log opfield_combined;
     error_log {{logPath}}.error.log warn;
 
     location /.well-known/acme-challenge/ {
@@ -740,7 +740,7 @@ server {
     ssl_trusted_certificate {{sslChainPath}};
 {{/if}}
 
-    access_log {{logPath}}.access.log;
+    access_log {{logPath}}.access.log opfield_combined;
     error_log {{logPath}}.error.log warn;
 
     location / {
