@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { useLoadDashboardBootstrap } from "@/hooks/use-dashboard-bootstrap";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { dockerResourceKey } from "@/lib/dashboard-attention";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { formatDateTime } from "@/lib/utils";
@@ -375,6 +376,9 @@ export function Dashboard() {
   const [pinnedProxyHosts, setPinnedProxyHosts] = useState<ProxyHost[]>([]);
   const [loggingHealth, setLoggingHealth] = useState<LoggingMaintenanceSnapshot | null>(null);
   const [finalizeSetup, setFinalizeSetup] = useState<FinalizeSetupState | null>(null);
+  // The setup dialogs stay mounted once shown: the last finished step clears the state while its
+  // wizard is still closing.
+  const shownFinalizeSetup = useRetainedDialogValue(finalizeSetup, finalizeSetup !== null);
   const [finalizeSetupOpen, setFinalizeSetupOpen] = useState(false);
   const [activeFinalizeWizard, setActiveFinalizeWizard] = useState<FinalizeSetupRootStep | null>(
     null
@@ -861,11 +865,12 @@ export function Dashboard() {
 
           <RecentActivityCard activity={activity} hasScope={hasScope} />
         </div>
-        {finalizeSetup && (
+        {/* close-reset-ok: shownFinalizeSetup keeps the last state, so finishing setup does not unmount an open wizard */}
+        {shownFinalizeSetup && (
           <>
             <FinalizeSetupDialog
-              open={finalizeSetupOpen && activeFinalizeWizard === null}
-              state={finalizeSetup}
+              open={finalizeSetupOpen && activeFinalizeWizard === null && finalizeSetup !== null}
+              state={shownFinalizeSetup}
               userId={user?.id ?? ""}
               busy={finalizeSetupBusy}
               canInviteUsers={inviteUserMethods !== null}
@@ -913,7 +918,7 @@ export function Dashboard() {
             />
             <IntegrationsSetupWizard
               open={activeFinalizeWizard === "integrations"}
-              state={finalizeSetup}
+              state={shownFinalizeSetup}
               onBack={() => {
                 setActiveFinalizeWizard(null);
                 setFinalizeSetupOpen(true);

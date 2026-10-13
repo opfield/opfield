@@ -739,155 +739,298 @@ export function DockerGitSourcePanel({
     }
   };
 
+  const repositorySourceFields = (
+    <RepositorySourceFields
+      loading={connectorsLoading}
+      loadErrors={loadErrors}
+      repositoriesLoading={repositoriesLoading}
+      repositoriesHint={repositoriesHint}
+      onRepositorySearch={onRepositorySearch}
+      connectorId={connectorId}
+      connectorOptions={connectorOptions}
+      repositories={repositories}
+      repositoryOptions={repositories.map((repository) => ({
+        value: repository.projectId,
+        label: repository.fullPath,
+        keywords: `${repository.name} ${repository.fullPath}`,
+      }))}
+      projectId={projectId}
+      branch={connectBranch}
+      dockerfilePath={connectDockerfilePath}
+      contextPath={connectContextPath}
+      composeFilePath={composeTarget ? connectComposeFilePath : undefined}
+      pages={pagesTarget}
+      autoBuild={connectAutoBuild}
+      autoDeploy={connectAutoDeploy}
+      onConnectorChange={(value) => {
+        setConnectorId(value);
+        setProjectId("");
+        if (pagesTarget) clearPagesBuildDiscovery();
+      }}
+      onProjectChange={(value) => {
+        setProjectId(value);
+        if (pagesTarget) clearPagesBuildDiscovery();
+      }}
+      onBranchChange={(value) => {
+        setConnectBranch(value);
+        if (pagesTarget) clearPagesBuildDiscovery();
+      }}
+      onDockerfilePathChange={setConnectDockerfilePath}
+      onContextPathChange={setConnectContextPath}
+      onComposeFilePathChange={composeTarget ? setConnectComposeFilePath : undefined}
+      onAutoBuildChange={setConnectAutoBuild}
+      onAutoDeployChange={setConnectAutoDeploy}
+    />
+  );
+
+  const pagesBuildFields = (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Package manager</label>
+        <Select
+          value={connectPackageManager}
+          onValueChange={(value) => setConnectPackageManager(value as "npm" | "pnpm" | "yarn")}
+        >
+          <SelectTrigger aria-label="Package manager">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(discoveryManagers.length > 0
+              ? discoveryManagers
+              : (["npm", "pnpm", "yarn"] as const)
+            ).map((manager) => (
+              <SelectItem key={manager} value={manager}>
+                {manager}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Node.js</label>
+        <Select
+          value={connectNodeVersion}
+          onValueChange={(value) => setConnectNodeVersion(value as "20" | "22" | "24")}
+        >
+          <SelectTrigger aria-label="Node.js version">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="20">Node.js 20</SelectItem>
+            <SelectItem value="22">Node.js 22</SelectItem>
+            <SelectItem value="24">Node.js 24</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Build script</label>
+        <Select value={connectBuildScript} onValueChange={setConnectBuildScript}>
+          <SelectTrigger aria-label="Build script">
+            <SelectValue placeholder="Select build script" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(discoveryScripts).map(([name, command]) => (
+              <SelectItem key={name} value={name} description={command}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium" htmlFor="pages-artifact-directory">
+          Artifact directory
+        </label>
+        <Input
+          id="pages-artifact-directory"
+          value={connectArtifactDirectory}
+          onChange={(event) => setConnectArtifactDirectory(event.target.value)}
+          placeholder="dist"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium" htmlFor="pages-publish-tag">
+          Publish Tag
+        </label>
+        <Input
+          id="pages-publish-tag"
+          value={connectPublishTag}
+          onChange={(event) => setConnectPublishTag(event.target.value)}
+          placeholder="production"
+        />
+      </div>
+    </div>
+  );
+
+  // One Connect Repository dialog for every state of the panel, kept by its key in the same root
+  // element, so connecting (which turns the empty panel into the repository settings) or a reload
+  // does not unmount it while it closes.
+  const connectDialog = (
+    <Dialog
+      key="connect-repository"
+      open={connectOpen}
+      onOpenChange={(open) => {
+        setConnectOpen(open);
+      }}
+    >
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Connect Repository</DialogTitle>
+        </DialogHeader>
+        <DialogDescription>
+          {pagesTarget
+            ? connectStep === 1
+              ? "Choose the repository and application root for this Pages Project."
+              : "Configure how Opfield builds and publishes the Pages artifact."
+            : composeTarget
+              ? "Build every Compose service that declares build and apply the project only after all artifacts pass policy."
+              : "Build and deploy this Docker resource from an allowlisted repository."}
+        </DialogDescription>
+        {pagesTarget ? (
+          <AnimatedHeight>
+            <AnimatePresence initial={false} mode="popLayout">
+              {connectStep === 1 ? (
+                <motion.div
+                  key="pages-source-step"
+                  {...CONNECT_STEP_ANIMATION}
+                  className="space-y-4"
+                >
+                  {repositorySourceFields}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium" htmlFor="pages-application-root">
+                      Application root
+                    </label>
+                    <Input
+                      id="pages-application-root"
+                      value={connectApplicationRoot}
+                      onChange={(event) => {
+                        setConnectApplicationRoot(event.target.value);
+                        clearPagesBuildDiscovery();
+                      }}
+                      placeholder="."
+                    />
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div key="pages-build-step" {...CONNECT_STEP_ANIMATION}>
+                  {pagesBuildFields}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </AnimatedHeight>
+        ) : (
+          repositorySourceFields
+        )}
+        {connectError && (
+          <p ref={connectErrorRef} role="alert" className="text-sm text-destructive">
+            {connectError}
+          </p>
+        )}
+        <DialogFooter>
+          {pagesTarget && connectStep === 1 ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setConnectOpen(false)}
+                disabled={discovering}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => void continuePagesConnect()}
+                pending={discovering}
+                disabled={
+                  !connectorId ||
+                  !projectId ||
+                  !connectBranch.trim() ||
+                  !connectApplicationRoot.trim()
+                }
+              >
+                {discovering ? (
+                  "Loading package.json…"
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (pagesTarget) setConnectStep(1);
+                  else setConnectOpen(false);
+                }}
+                disabled={connecting}
+              >
+                {pagesTarget ? (
+                  <>
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                  </>
+                ) : (
+                  "Cancel"
+                )}
+              </Button>
+              <Button
+                onClick={() => void connectSource()}
+                pending={connecting}
+                disabled={
+                  !connectorId ||
+                  !projectId ||
+                  !connectBranch.trim() ||
+                  (composeTarget && !connectComposeFilePath.trim()) ||
+                  (pagesTarget &&
+                    (!connectBuildScript ||
+                      !connectApplicationRoot.trim() ||
+                      !connectArtifactDirectory.trim() ||
+                      !connectPublishTag.trim()))
+                }
+              >
+                Connect
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (suppliedLoading ?? loading) {
     // The first load keeps the tab hidden; a retry keeps the panel header in place.
     return (
-      <PanelShell
-        icon={<GitBranch className="h-4 w-4" />}
-        title="Repository"
-        description="Loading repository delivery settings…"
-      />
+      <div className="flex flex-col gap-4">
+        <PanelShell
+          icon={<GitBranch className="h-4 w-4" />}
+          title="Repository"
+          description="Loading repository delivery settings…"
+        />
+        {connectDialog}
+      </div>
     );
   }
 
   if (error && !source) {
     return (
-      <PanelShell
-        icon={<GitBranch className="h-4 w-4" />}
-        title="Repository"
-        description="Repository delivery settings could not be loaded."
-      >
-        <EmptyState message={error} actionLabel="Retry" onAction={onRetry} embedded />
-      </PanelShell>
+      <div className="flex flex-col gap-4">
+        <PanelShell
+          icon={<GitBranch className="h-4 w-4" />}
+          title="Repository"
+          description="Repository delivery settings could not be loaded."
+        >
+          <EmptyState message={error} actionLabel="Retry" onAction={onRetry} embedded />
+        </PanelShell>
+        {connectDialog}
+      </div>
     );
   }
 
   if (!source) {
-    const repositorySourceFields = (
-      <RepositorySourceFields
-        loading={connectorsLoading}
-        loadErrors={loadErrors}
-        repositoriesLoading={repositoriesLoading}
-        repositoriesHint={repositoriesHint}
-        onRepositorySearch={onRepositorySearch}
-        connectorId={connectorId}
-        connectorOptions={connectorOptions}
-        repositories={repositories}
-        repositoryOptions={repositories.map((repository) => ({
-          value: repository.projectId,
-          label: repository.fullPath,
-          keywords: `${repository.name} ${repository.fullPath}`,
-        }))}
-        projectId={projectId}
-        branch={connectBranch}
-        dockerfilePath={connectDockerfilePath}
-        contextPath={connectContextPath}
-        composeFilePath={composeTarget ? connectComposeFilePath : undefined}
-        pages={pagesTarget}
-        autoBuild={connectAutoBuild}
-        autoDeploy={connectAutoDeploy}
-        onConnectorChange={(value) => {
-          setConnectorId(value);
-          setProjectId("");
-          if (pagesTarget) clearPagesBuildDiscovery();
-        }}
-        onProjectChange={(value) => {
-          setProjectId(value);
-          if (pagesTarget) clearPagesBuildDiscovery();
-        }}
-        onBranchChange={(value) => {
-          setConnectBranch(value);
-          if (pagesTarget) clearPagesBuildDiscovery();
-        }}
-        onDockerfilePathChange={setConnectDockerfilePath}
-        onContextPathChange={setConnectContextPath}
-        onComposeFilePathChange={composeTarget ? setConnectComposeFilePath : undefined}
-        onAutoBuildChange={setConnectAutoBuild}
-        onAutoDeployChange={setConnectAutoDeploy}
-      />
-    );
-
-    const pagesBuildFields = (
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Package manager</label>
-          <Select
-            value={connectPackageManager}
-            onValueChange={(value) => setConnectPackageManager(value as "npm" | "pnpm" | "yarn")}
-          >
-            <SelectTrigger aria-label="Package manager">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(discoveryManagers.length > 0
-                ? discoveryManagers
-                : (["npm", "pnpm", "yarn"] as const)
-              ).map((manager) => (
-                <SelectItem key={manager} value={manager}>
-                  {manager}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Node.js</label>
-          <Select
-            value={connectNodeVersion}
-            onValueChange={(value) => setConnectNodeVersion(value as "20" | "22" | "24")}
-          >
-            <SelectTrigger aria-label="Node.js version">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="20">Node.js 20</SelectItem>
-              <SelectItem value="22">Node.js 22</SelectItem>
-              <SelectItem value="24">Node.js 24</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Build script</label>
-          <Select value={connectBuildScript} onValueChange={setConnectBuildScript}>
-            <SelectTrigger aria-label="Build script">
-              <SelectValue placeholder="Select build script" />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(discoveryScripts).map(([name, command]) => (
-                <SelectItem key={name} value={name} description={command}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium" htmlFor="pages-artifact-directory">
-            Artifact directory
-          </label>
-          <Input
-            id="pages-artifact-directory"
-            value={connectArtifactDirectory}
-            onChange={(event) => setConnectArtifactDirectory(event.target.value)}
-            placeholder="dist"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium" htmlFor="pages-publish-tag">
-            Publish Tag
-          </label>
-          <Input
-            id="pages-publish-tag"
-            value={connectPublishTag}
-            onChange={(event) => setConnectPublishTag(event.target.value)}
-            placeholder="production"
-          />
-        </div>
-      </div>
-    );
-
     return (
-      <>
+      <div className="flex flex-col gap-4">
         <PanelShell
           icon={<GitBranch className="h-4 w-4" />}
           title="Repository"
@@ -912,137 +1055,8 @@ export function DockerGitSourcePanel({
             embedded
           />
         </PanelShell>
-        <Dialog
-          open={connectOpen}
-          onOpenChange={(open) => {
-            setConnectOpen(open);
-          }}
-        >
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Connect Repository</DialogTitle>
-            </DialogHeader>
-            <DialogDescription>
-              {pagesTarget
-                ? connectStep === 1
-                  ? "Choose the repository and application root for this Pages Project."
-                  : "Configure how Opfield builds and publishes the Pages artifact."
-                : composeTarget
-                  ? "Build every Compose service that declares build and apply the project only after all artifacts pass policy."
-                  : "Build and deploy this Docker resource from an allowlisted repository."}
-            </DialogDescription>
-            {pagesTarget ? (
-              <AnimatedHeight>
-                <AnimatePresence initial={false} mode="popLayout">
-                  {connectStep === 1 ? (
-                    <motion.div
-                      key="pages-source-step"
-                      {...CONNECT_STEP_ANIMATION}
-                      className="space-y-4"
-                    >
-                      {repositorySourceFields}
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium" htmlFor="pages-application-root">
-                          Application root
-                        </label>
-                        <Input
-                          id="pages-application-root"
-                          value={connectApplicationRoot}
-                          onChange={(event) => {
-                            setConnectApplicationRoot(event.target.value);
-                            clearPagesBuildDiscovery();
-                          }}
-                          placeholder="."
-                        />
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div key="pages-build-step" {...CONNECT_STEP_ANIMATION}>
-                      {pagesBuildFields}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </AnimatedHeight>
-            ) : (
-              repositorySourceFields
-            )}
-            {connectError && (
-              <p ref={connectErrorRef} role="alert" className="text-sm text-destructive">
-                {connectError}
-              </p>
-            )}
-            <DialogFooter>
-              {pagesTarget && connectStep === 1 ? (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => setConnectOpen(false)}
-                    disabled={discovering}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => void continuePagesConnect()}
-                    pending={discovering}
-                    disabled={
-                      !connectorId ||
-                      !projectId ||
-                      !connectBranch.trim() ||
-                      !connectApplicationRoot.trim()
-                    }
-                  >
-                    {discovering ? (
-                      "Loading package.json…"
-                    ) : (
-                      <>
-                        Continue
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (pagesTarget) setConnectStep(1);
-                      else setConnectOpen(false);
-                    }}
-                    disabled={connecting}
-                  >
-                    {pagesTarget ? (
-                      <>
-                        <ArrowLeft className="h-4 w-4" />
-                        Back
-                      </>
-                    ) : (
-                      "Cancel"
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => void connectSource()}
-                    pending={connecting}
-                    disabled={
-                      !connectorId ||
-                      !projectId ||
-                      !connectBranch.trim() ||
-                      (composeTarget && !connectComposeFilePath.trim()) ||
-                      (pagesTarget &&
-                        (!connectBuildScript ||
-                          !connectApplicationRoot.trim() ||
-                          !connectArtifactDirectory.trim() ||
-                          !connectPublishTag.trim()))
-                    }
-                  >
-                    Connect
-                  </Button>
-                </>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
+        {connectDialog}
+      </div>
     );
   }
 
@@ -1773,6 +1787,7 @@ export function DockerGitSourcePanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {connectDialog}
     </div>
   );
 }

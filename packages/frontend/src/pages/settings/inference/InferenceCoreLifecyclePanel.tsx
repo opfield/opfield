@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -324,6 +325,9 @@ export function InferenceCoreLifecyclePanel({
 }) {
   const [acting, setActing] = useState<string | null>(null);
   const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
+  // An update that finishes clears `latest`; the release notes dialog keeps it while it closes.
+  const latestWithNotes = status?.latest?.releaseNotesUrl ? status.latest : null;
+  const releaseNotes = useRetainedDialogValue(latestWithNotes, latestWithNotes !== null);
   const initialLoading = loading && !status;
   useContentLoading(initialLoading);
 
@@ -570,21 +574,21 @@ export function InferenceCoreLifecyclePanel({
         </div>
       </PanelShell>
 
-      {status.latest?.releaseNotesUrl && (
+      {releaseNotes?.releaseNotesUrl && (
         <Dialog open={releaseNotesOpen} onOpenChange={setReleaseNotesOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Release Notes</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground break-words [overflow-wrap:anywhere]">
-              Release notes for inference core {status.latest.version} are published at{" "}
+              Release notes for inference core {releaseNotes.version} are published at{" "}
               <a
-                href={status.latest.releaseNotesUrl}
+                href={releaseNotes.releaseNotesUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="text-[color:var(--color-link)] hover:underline"
               >
-                {status.latest.releaseNotesUrl}
+                {releaseNotes.releaseNotesUrl}
               </a>
             </p>
           </DialogContent>

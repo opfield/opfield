@@ -1,5 +1,5 @@
 import { Loader2, MoreHorizontal, Plus, ServerCog, ShieldCheck, Users } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirmAction } from "@/components/common/ConfirmDialog";
 import { CopyValueField } from "@/components/common/CopyValueField";
@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import {
   isManagedStorageCandidateNode,
@@ -233,6 +234,9 @@ export function AvailabilityPanel({
     onChangedRef.current?.();
   }, [load]);
 
+  // The dialogs stay mounted across the switch between one server and an availability set (a
+  // convert or a disable that just finished), so the one that did it closes with its animation.
+  const shownView = useRetainedDialogValue(view ?? null, Boolean(view));
   useContentLoading(view === undefined);
   if (view === undefined) return null;
 
@@ -249,10 +253,63 @@ export function AvailabilityPanel({
     </span>
   );
 
+  const canConvert = canManage && planIncludesAvailability;
+  // One keyed set of dialogs in the same root element for both states, so React keeps it mounted.
+  const dialogs = (
+    <Fragment key="availability-dialogs">
+      {canConvert ? (
+        <ConvertDialog
+          open={convertOpen}
+          onOpenChange={setConvertOpen}
+          owner={stableOwner}
+          engine={engine}
+          originNodeId={originNodeId}
+          nodes={nodes}
+          onDone={refresh}
+        />
+      ) : null}
+      {canManage && shownView ? (
+        <>
+          <MakePrimaryDialog
+            owner={stableOwner}
+            view={shownView}
+            member={promote}
+            resourceName={resourceName}
+            onClose={() => setPromote(null)}
+            onDone={refresh}
+          />
+          <AddMemberDialog
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            owner={stableOwner}
+            view={shownView}
+            nodes={nodes}
+            onDone={refresh}
+          />
+          <AvailabilitySettingsDialog
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            owner={stableOwner}
+            engine={engine}
+            view={shownView}
+            onDone={refresh}
+          />
+          <DisableAvailabilityDialog
+            open={disableOpen}
+            onOpenChange={setDisableOpen}
+            owner={stableOwner}
+            view={shownView}
+            resourceName={resourceName}
+            onDone={refresh}
+          />
+        </>
+      ) : null}
+    </Fragment>
+  );
+
   if (view === null) {
-    const canConvert = canManage && planIncludesAvailability;
     return (
-      <>
+      <div className="space-y-4">
         <PanelShell
           title={title(null)}
           icon={<ShieldCheck className="h-4 w-4" />}
@@ -277,18 +334,8 @@ export function AvailabilityPanel({
             onAction={canConvert ? openConvert : undefined}
           />
         </PanelShell>
-        {canConvert ? (
-          <ConvertDialog
-            open={convertOpen}
-            onOpenChange={setConvertOpen}
-            owner={stableOwner}
-            engine={engine}
-            originNodeId={originNodeId}
-            nodes={nodes}
-            onDone={refresh}
-          />
-        ) : null}
-      </>
+        {dialogs}
+      </div>
     );
   }
 
@@ -554,42 +601,7 @@ export function AvailabilityPanel({
 
       <AvailabilityEvents events={events} />
 
-      {canManage ? (
-        <>
-          <MakePrimaryDialog
-            owner={stableOwner}
-            view={view}
-            member={promote}
-            resourceName={resourceName}
-            onClose={() => setPromote(null)}
-            onDone={refresh}
-          />
-          <AddMemberDialog
-            open={addOpen}
-            onOpenChange={setAddOpen}
-            owner={stableOwner}
-            view={view}
-            nodes={nodes}
-            onDone={refresh}
-          />
-          <AvailabilitySettingsDialog
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            owner={stableOwner}
-            engine={engine}
-            view={view}
-            onDone={refresh}
-          />
-          <DisableAvailabilityDialog
-            open={disableOpen}
-            onOpenChange={setDisableOpen}
-            owner={stableOwner}
-            view={view}
-            resourceName={resourceName}
-            onDone={refresh}
-          />
-        </>
-      ) : null}
+      {dialogs}
     </div>
   );
 }
