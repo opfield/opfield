@@ -45,6 +45,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { useAppOnlyScopeBases, useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { type AppNavigationItemId, visibleNavigationGroups } from "@/lib/app-navigation";
 import { hasCreationDestination } from "@/lib/creation-folders";
@@ -238,6 +239,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const appsByMembers = useUIBootstrapStore(
     (state) => state.snapshot?.navigation.appsByMembers ?? false
   );
+  const appOnlyScopeBases = useAppOnlyScopeBases();
+  // Global sections and their links ignore grants held only through app places.
+  const globalAccess = useGlobalSectionAccess();
   const recentPages = useUIStore((state) => state.recentPages);
   const commandActionUsage = useUIStore((state) => state.commandActionUsage);
   const recordCommandActionUsage = useUIStore((state) => state.recordCommandActionUsage);
@@ -447,8 +451,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         pagesEnabled,
         hasCloudflareIntegration,
         appsByMembers,
+        appOnlyScopeBases,
       }),
     [
+      appOnlyScopeBases,
       appsByMembers,
       dashboardInferenceUsage,
       hasCloudflareIntegration,
@@ -516,7 +522,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             icon: link.icon,
             keywords: link.keywords,
             visible: tab.canAccess({
-              scopes: user?.scopes ?? [],
+              scopes: globalAccess.scopes,
               pkiEnabled,
               ingressGroupsInPlan,
             }),
@@ -529,7 +535,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/docker/containers",
         icon: Box,
         parentId: "docker",
-        visible: hasScopedAccess("docker:containers:view"),
+        visible: globalAccess.hasScopedAccess("docker:containers:view"),
       },
       {
         id: "docker-images",
@@ -537,7 +543,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/docker/images",
         icon: Image,
         parentId: "docker",
-        visible: hasScopedAccess("docker:images:view"),
+        visible: globalAccess.hasScopedAccess("docker:images:view"),
       },
       {
         id: "docker-volumes",
@@ -545,7 +551,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/docker/volumes",
         icon: HardDrive,
         parentId: "docker",
-        visible: hasScopedAccess("docker:volumes:view"),
+        visible: globalAccess.hasScopedAccess("docker:volumes:view"),
       },
       {
         id: "docker-networks",
@@ -553,7 +559,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/docker/networks",
         icon: Network,
         parentId: "docker",
-        visible: hasScopedAccess("docker:networks:view"),
+        visible: globalAccess.hasScopedAccess("docker:networks:view"),
       },
       {
         id: "docker-tasks",
@@ -561,7 +567,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/docker/tasks",
         icon: ListTodo,
         parentId: "docker",
-        visible: hasScopedAccess("docker:tasks"),
+        visible: globalAccess.hasScopedAccess("docker:tasks"),
       },
       {
         id: "logging-environments",
@@ -750,6 +756,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         action: () => navigate(link.href),
       }));
   }, [
+    globalAccess,
     hasAnyScope,
     hasScope,
     hasScopedAccess,
@@ -758,7 +765,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     navigate,
     navigationGroups,
     pkiEnabled,
-    user?.scopes,
     ingressGroupsInPlan,
   ]);
 
@@ -886,7 +892,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         action: toggleSidebar,
       },
     ];
-    if (hasScopedAccess("proxy:create")) {
+    if (globalAccess.hasScopedAccess("proxy:create")) {
       actions.push({
         id: "action:new-proxy",
         label: "New route",
@@ -931,7 +937,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       },
     });
     return actions;
-  }, [canCreateSslCertificate, hasScope, hasScopedAccess, navigate, pkiEnabled, toggleSidebar]);
+  }, [canCreateSslCertificate, globalAccess, hasScope, navigate, pkiEnabled, toggleSidebar]);
 
   const adaptiveQuickActions = useMemo(() => {
     const candidates = [...currentPageActions, ...contextActions, ...primaryActions].filter(

@@ -9,6 +9,8 @@ import type { ProxyHost } from "@/types";
 
 interface HealthOverviewCardProps {
   healthHosts: ProxyHost[];
+  /** The Routes section is open to the viewer (not only through app places): "View all" links there. */
+  canOpenRoutes?: boolean;
 }
 
 function healthOverviewPriority(host: ProxyHost): number {
@@ -32,7 +34,7 @@ export function sortHealthOverviewHosts(hosts: ProxyHost[]): ProxyHost[] {
   });
 }
 
-export function HealthOverviewCard({ healthHosts }: HealthOverviewCardProps) {
+export function HealthOverviewCard({ healthHosts, canOpenRoutes = true }: HealthOverviewCardProps) {
   // The server sends only what the viewer may see, and this panel explains the Dashboard dot: no
   // second scope check on the cached scopes. Omit the panel when there is nothing to show.
   if (healthHosts.length === 0) return null;
@@ -41,9 +43,11 @@ export function HealthOverviewCard({ healthHosts }: HealthOverviewCardProps) {
     <PanelShell
       title="Health Overview"
       actions={
-        <Link to="/routes" className="text-sm text-muted-foreground hover:text-foreground">
-          View all
-        </Link>
+        canOpenRoutes ? (
+          <Link to="/routes" className="text-sm text-muted-foreground hover:text-foreground">
+            View all
+          </Link>
+        ) : undefined
       }
     >
       <div className="divide-y divide-border -mb-px [&>*:last-child]:border-b [&>*:last-child]:border-border">

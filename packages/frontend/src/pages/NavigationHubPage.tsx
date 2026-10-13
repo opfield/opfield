@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { HubTabsProvider } from "@/components/common/HubTabs";
 import { PageTransition } from "@/components/common/PageTransition";
 import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBoundary";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import {
   legacyNavigationRedirect,
@@ -18,11 +19,8 @@ import { IngressGroups } from "@/pages/IngressGroups";
 import { ProxyHosts } from "@/pages/ProxyHosts";
 import { SSLCertificates } from "@/pages/SSLCertificates";
 import { TemplatesPage } from "@/pages/TemplatesPage";
-import { useAuthStore } from "@/stores/auth";
 import { type LicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
 import { useSystemConfigStore } from "@/stores/system-config";
-
-const NO_SCOPES: string[] = [];
 
 /** Page titles of the plan-gated tabs, kept when the plan notice replaces the tab body. */
 const PLAN_TAB_TITLES: Record<string, string> = {
@@ -87,7 +85,8 @@ export function NavigationHubPage({
   tab: string;
   create?: boolean;
 }) {
-  const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
+  // Grants held only through app places open the app, not this section.
+  const { scopes } = useGlobalSectionAccess();
   const pkiSwitchedOn = useSystemConfigStore((state) => state.config.features.pkiEnabled);
   const pkiEnabled = usePkiAvailable();
   const ingressGroupsInPlan = usePlanIncludes("multi-node-availability");
@@ -157,7 +156,8 @@ function HubTabBody({
 /** Old page URLs (before Routes and Certificates had tabs) go to their tab, keeping query and hash. */
 export function LegacyNavigationRedirect() {
   const location = useLocation();
-  const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
+  // Grants held only through app places open the app, not this section.
+  const { scopes } = useGlobalSectionAccess();
   const pkiEnabled = usePkiAvailable();
   const ingressGroupsInPlan = usePlanIncludes("multi-node-availability");
   const target =

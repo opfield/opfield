@@ -37,6 +37,8 @@ export interface UIBootstrapShell {
     pagesEnabled: boolean;
     /** No apps:view or apps:create, but some app is visible through members the user can view. */
     appsByMembers?: boolean;
+    /** Scope bases held only through app places; global sections ignore them. */
+    appOnlyScopeBases?: string[];
     dockerNodes: Node[];
     nodes: ReadModelSnapshot<Node[]>;
   };
