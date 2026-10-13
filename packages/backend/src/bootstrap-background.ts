@@ -16,8 +16,10 @@ import { UpdateCheckJob } from '@/jobs/update-check.job.js';
 import { logger } from '@/lib/logger.js';
 import { repairDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { AppHealthService } from '@/modules/apps/app-health.service.js';
 import { AppIncidentRunner } from '@/modules/apps/app-incident-runner.js';
 import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
+import { AppMembersReader } from '@/modules/apps/app-members.service.js';
 import { AlertService } from '@/modules/audit/alert.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
@@ -71,6 +73,7 @@ import { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance
 import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
 import { NODE_MONITORING_CADENCE_MS } from '@/modules/nodes/node-monitoring.service.js';
 import { NotificationAlertRuleService } from '@/modules/notifications/notification-alert-rule.service.js';
+import { ALERT_SOURCES_INTERVAL_MS, AlertSourceMonitor } from '@/modules/notifications/notification-alert-sources.js';
 import { NotificationDeliveryService } from '@/modules/notifications/notification-delivery.service.js';
 import { NotificationDispatcherService } from '@/modules/notifications/notification-dispatcher.service.js';
 import { NotificationEvaluatorService } from '@/modules/notifications/notification-evaluator.service.js';
@@ -462,6 +465,17 @@ export async function initializeBackgroundServices(): Promise<void> {
   scheduler.registerInterval('proxy-maintenance-alerts', env.HEALTH_CHECK_INTERVAL_SECONDS * 1000, () =>
     notifEvaluatorService.reconcileProxyMaintenance()
   );
+  // Route and app request metrics, app states, container restarts, backups and domain DNS for alert rules.
+  const alertSourceMonitor = new AlertSourceMonitor({
+    db,
+    evaluator: notifEvaluatorService,
+    dispatch: nodeDispatch,
+    registry: nodeRegistry,
+    appMembers: () => (container.isRegistered(AppMembersReader) ? container.resolve(AppMembersReader) : null),
+    appHealth: () => (container.isRegistered(AppHealthService) ? container.resolve(AppHealthService) : null),
+    containerDetails: (nodeId) => dockerSnapshotService.getDetails(nodeId, 'container-detail'),
+  });
+  scheduler.registerInterval('alert-sources', ALERT_SOURCES_INTERVAL_MS, () => alertSourceMonitor.tick());
   scheduler.registerInterval('docker-health-check', 10000, () => dockerHealthCheckService.runDueChecks());
   scheduler.registerInterval('docker-availability-controller', 5000, () =>
     dockerAvailabilityService.processPendingOperations()

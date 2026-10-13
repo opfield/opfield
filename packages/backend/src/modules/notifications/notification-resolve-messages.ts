@@ -44,6 +44,13 @@ const EVENT_RESOLVE_TEXT: Record<string, (name: string) => string> = {
   'database_redis:health.offline': (name) => `Database ${name} is back online`,
   'database_redis:health.degraded': (name) => `Database ${name} is healthy again`,
   'managed_storage:storage.full': (name) => `Storage ${name} takes uploads again`,
+  'app:health.failing': (name) => `${name} is no longer failing`,
+  'app:health.degraded': (name) => `${name} is healthy again`,
+  'app:kill_switch.on': (name) => `The kill switch of ${name} is off`,
+  'app:shutdown.active': (name) => `${name} runs again`,
+  'app:maintenance.active': (name) => `${name} is out of maintenance`,
+  'backup:backup.failed': (name) => `Backups of ${name} succeed again`,
+  'domain:dns.not_pointing': (name) => `DNS of ${name} points to Opfield again`,
   ...Object.fromEntries(
     (['database_postgres', 'database_clickhouse', 'database_redis', 'managed_storage'] as const).flatMap((category) => {
       const noun = category === 'managed_storage' ? 'Storage' : 'Database';
@@ -89,6 +96,8 @@ export function defaultResolveMessage(
     const value = details.metric?.value;
     if (rule.category === 'certificate' && rule.metric === 'days_until_expiry') {
       text = `Certificate ${resourceName} no longer expires soon`;
+    } else if (rule.category === 'backup' && rule.metric === 'hours_since_last_backup') {
+      text = `A backup of ${resourceName} succeeded`;
     } else {
       text = `${label} on ${resourceName} is back to normal`;
       if (typeof value === 'number' && Number.isFinite(value)) {
