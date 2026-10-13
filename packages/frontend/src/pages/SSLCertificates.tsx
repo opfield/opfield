@@ -525,7 +525,6 @@ export function SSLCertificates() {
     {
       id: "name",
       label: "Name",
-      width: "minmax(200px, 1.25fr)",
       renderCell: (cert) => (
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-sm font-medium">{cert.name}</p>
@@ -540,21 +539,21 @@ export function SSLCertificates() {
     {
       id: "status",
       label: "Status",
-      width: "120px",
+      width: "7.5rem",
       align: "right",
       renderCell: (cert) => <SSLStatusBadge status={cert.status} />,
     },
     {
       id: "tls",
       label: "Deployments",
-      width: "minmax(130px, 0.7fr)",
+      width: "10rem",
       align: "right",
       renderCell: (cert) => <TLSDeploymentBadge distribution={cert.distribution} />,
     },
     {
       id: "expires",
       label: "Expires",
-      width: "190px",
+      width: "11rem",
       align: "right",
       cellClassName: "whitespace-nowrap",
       renderCell: (cert) => {
@@ -855,7 +854,6 @@ export function SSLCertificates() {
                 }}
               />
             }
-            minWidth={860}
             canManageFolders={canManageFolders}
             canReorganizeItem={(certificate) => canManageFolders && !certificate.isSystem}
             getResourceLabel={(certificate) => certificate.name}

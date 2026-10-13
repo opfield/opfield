@@ -165,7 +165,7 @@ export function NetworkTab({
     {
       id: "upstream",
       label: "Target",
-      width: "22%",
+      width: "10rem",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (host) =>
         host.type === "proxy" ? (
@@ -179,7 +179,7 @@ export function NetworkTab({
     {
       id: "ingress-node",
       label: "Ingress Node",
-      width: "10rem",
+      width: "9rem",
       renderCell: (host) => {
         const node = host.nodeId ? nodesById.get(host.nodeId) : undefined;
         return (

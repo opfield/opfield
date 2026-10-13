@@ -156,7 +156,7 @@ export function Certificates() {
     {
       id: "issuing-ca",
       label: "Issuing CA",
-      width: "15rem",
+      width: "12rem",
       align: "right",
       renderCell: (cert) => <IssuingCABadge certificate={cert} ca={casById.get(cert.caId)} />,
     },
@@ -170,7 +170,7 @@ export function Certificates() {
     {
       id: "expires",
       label: "Expires",
-      width: "190px",
+      width: "11rem",
       align: "right",
       cellClassName: "whitespace-nowrap",
       renderCell: (cert) => {
@@ -329,7 +329,6 @@ export function Certificates() {
               }}
             />
           }
-          minWidth={900}
           canManageFolders={canManageFolders}
           canReorganizeItem={(cert) =>
             canManageFolders && !cert.isSystem && hasScope(`pki:cert:issue:${cert.caId}`)

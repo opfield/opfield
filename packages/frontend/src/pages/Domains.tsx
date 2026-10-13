@@ -630,7 +630,6 @@ export function Domains() {
               }}
             />
           }
-          minWidth={800}
           canManageFolders={canManageFolders}
           canReorganizeItem={() => canManageFolders}
           getResourceLabel={(domain) => domain.domain}

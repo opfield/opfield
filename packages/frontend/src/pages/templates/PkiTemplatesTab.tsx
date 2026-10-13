@@ -447,7 +447,6 @@ export function PkiTemplatesTab({
               onReset={() => setSearch("")}
             />
           }
-          minWidth={760}
           canManageFolders={canManageFolders}
           canViewItem={canOpenTemplate}
           canReorganizeItem={(template) =>

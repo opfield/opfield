@@ -490,7 +490,7 @@ export function ProxyHosts({
     {
       id: "upstream",
       label: "Target",
-      width: "22%",
+      width: "10rem",
       align: "right",
       cellContentClassName: "text-sm text-muted-foreground",
       renderCell: (host) =>
@@ -505,7 +505,7 @@ export function ProxyHosts({
     {
       id: "ingress-node",
       label: "Ingress Node",
-      width: "10rem",
+      width: "9rem",
       align: "right",
       renderCell: (host) => {
         const node = host.nodeId ? ingressNodeById.get(host.nodeId) : undefined;

@@ -1,6 +1,10 @@
 import { DndContext, MeasuringStrategy } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ResourceListFrame, ResourceListHeaderTable } from "@/components/common/ResourceListLayout";
+import {
+  ResourceListFrame,
+  ResourceListHeaderTable,
+  resourceListMinWidth,
+} from "@/components/common/ResourceListLayout";
 import { ResourceDragOverlay } from "@/components/common/resource-list/ResourceDragOverlay";
 import { ResourceFolderGroup } from "@/components/common/resource-list/ResourceFolderGroup";
 import { ResourceUngroupedSection } from "@/components/common/resource-list/ResourceUngroupedSection";
@@ -16,7 +20,7 @@ export function ResourceListForm<TFolder, TItem>({
   folders,
   items,
   dnd,
-  minWidth = 900,
+  minWidth,
   embedded = false,
   loading,
   loadingLabel = "Loading...",
@@ -30,7 +34,10 @@ export function ResourceListForm<TFolder, TItem>({
   const showLoading = initialLoading && !hasContent;
   useContentLoading(initialLoading);
   const frame = (
-    <ResourceListFrame minWidth={minWidth} className={embedded ? "border-0 text-sm" : undefined}>
+    <ResourceListFrame
+      minWidth={minWidth ?? resourceListMinWidth(columns)}
+      className={embedded ? "border-0 text-sm" : undefined}
+    >
       <ResourceListHeaderTable columns={columns} />
       {topLevelFolders.length > 0 && (
         <SortableContext

@@ -503,7 +503,6 @@ function AdminGroupsContent({
     {
       id: "group",
       label: "Group",
-      width: "minmax(16rem, 1fr)",
       renderCell: (group) => {
         const parent = group.parentId
           ? groups.find((candidate) => candidate.id === group.parentId)
@@ -695,7 +694,6 @@ function AdminGroupsContent({
               onReset={() => setListSearch("")}
             />
           }
-          minWidth={760}
           canManageFolders={canManageFolders}
           canViewItem={(group) => group.isBuiltin || canManageGroup(group)}
           canReorganizeItem={(group) => canManageFolders && !group.isBuiltin}

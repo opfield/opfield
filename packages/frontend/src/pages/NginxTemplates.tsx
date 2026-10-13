@@ -317,7 +317,6 @@ export function NginxTemplates({
               onReset={() => setSearch("")}
             />
           }
-          minWidth={600}
           canManageFolders={canManageFolders}
           canViewItem={(template) => {
             const access = templateAccess(template);

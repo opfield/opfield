@@ -306,7 +306,6 @@ export function CAs() {
               onReset={resetFilters}
             />
           }
-          minWidth={760}
           canManageFolders={canManageFolders}
           // A folder holds whole hierarchies: root CAs move, their intermediates follow.
           canReorganizeItem={(ca) =>

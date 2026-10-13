@@ -62,7 +62,6 @@ const columns: ResourceListColumn<AppSummary>[] = [
   {
     id: "name",
     label: "Name",
-    width: "30%",
     renderCell: (app) => (
       <div className="flex min-w-0 items-center gap-4">
         <AppMark logoUrl={app.logoUrl} />
@@ -78,6 +77,7 @@ const columns: ResourceListColumn<AppSummary>[] = [
   {
     id: "environments",
     label: "Environments",
+    width: "14rem",
     align: "right",
     cellContentClassName: "text-sm text-muted-foreground",
     renderCell: (app) => (
@@ -276,7 +276,6 @@ export function AppsList() {
                 />
               )
             }
-            minWidth={920}
             canManageFolders={canManageFolders}
             // Moving an app between folders needs apps:edit on it (the server checks the destination too).
             canReorganizeItem={(app) => app.access !== "members" && (canManageFolders || canEdit)}

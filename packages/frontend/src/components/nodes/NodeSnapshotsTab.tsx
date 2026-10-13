@@ -574,7 +574,6 @@ export function NodeSnapshotsTab({
     {
       id: "name",
       label: "Snapshot",
-      width: "30%",
       renderCell: (s) => (
         <p className="truncate font-medium" title={s.name}>
           {s.name}
@@ -584,11 +583,13 @@ export function NodeSnapshotsTab({
     {
       id: "created",
       label: "Created",
+      width: "8rem",
       renderCell: (s) => <RelativeTime value={s.createdAt} />,
     },
     {
       id: "size",
       label: "Size",
+      width: "7rem",
       renderCell: (s) =>
         s.sizeGb === null
           ? "—"
@@ -599,6 +600,7 @@ export function NodeSnapshotsTab({
           {
             id: "cost",
             label: "Est. monthly storage",
+            width: "12rem",
             renderCell: (s: SnapshotRow) =>
               s.monthlyCost
                 ? `${formatHostingAmount(s.monthlyCost.amount)} ${s.monthlyCost.currency} / month`
@@ -609,6 +611,7 @@ export function NodeSnapshotsTab({
     {
       id: "status",
       label: "Status",
+      width: "7rem",
       renderCell: (s) => (
         <Badge variant={hostingSnapshotBadgeVariant(s.status)}>
           {hostingSnapshotLabel(s.status)}
