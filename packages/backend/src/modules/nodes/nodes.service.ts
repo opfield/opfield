@@ -4,6 +4,7 @@ import { and, asc, count, eq, ilike, inArray, isNotNull, notInArray, or, type SQ
 import type { DrizzleClient, DrizzleExecutor, DrizzleTransaction } from '@/db/client.js';
 import {
   dockerDeployments,
+  dockerMigrations,
   domains,
   hostingNodeBindings,
   hostingOperations,
@@ -868,6 +869,26 @@ export class NodesService {
         409,
         'NODE_HAS_MANAGED_DATABASES',
         `Cannot delete node with ${managedDatabaseCount.count} managed database(s). Reassign or delete them first.`
+      );
+    }
+
+    // A finished migration's history stays (it keeps the node's id); one still running needs both of its nodes.
+    const [runningMigration] = await this.db
+      .select({ id: dockerMigrations.id })
+      .from(dockerMigrations)
+      .where(
+        and(
+          or(eq(dockerMigrations.sourceNodeId, id), eq(dockerMigrations.targetNodeId, id)),
+          inArray(dockerMigrations.status, ['pending', 'running', 'waiting', 'cancelling'])
+        )
+      )
+      .limit(1);
+    if (runningMigration) {
+      throw new AppError(
+        409,
+        'NODE_HAS_RUNNING_MIGRATION',
+        'Cannot delete a node while a Docker migration from or to it runs. Wait for it to finish or cancel it first.',
+        { migrationId: runningMigration.id }
       );
     }
 

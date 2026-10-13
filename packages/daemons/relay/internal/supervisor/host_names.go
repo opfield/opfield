@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
@@ -54,11 +55,46 @@ func warnHostNamesNeedInstaller(logger *slog.Logger, legacy hostnames.LegacyCoun
 		return
 	}
 	attrs := []any{"run_user", runUser}
+	var left []string
+	var total uint32
 	for _, kind := range slices.Sorted(maps.Keys(legacy)) {
 		attrs = append(attrs, kind, legacy[kind])
+		total += legacy[kind]
+		left = append(left, legacyKindName(kind, legacy[kind]))
 	}
-	logger.Warn("relay host keeps its pre-Opfield paths, service and configuration: a relay running as its own user cannot move them; "+
+	them := "them"
+	if total == 1 {
+		them = "it"
+	}
+	logger.Warn("relay host keeps its pre-Opfield "+joinWords(left)+": a relay running as its own user cannot move "+them+"; "+
 		"run the relay installer of this release again as root with OPFIELD_RELAY_RUN_USER="+runUser+" (it keeps the enrollment)", attrs...)
+}
+
+// legacyKindName names a kind of what is left under the old names (R-4: the
+// warning names only the kinds that are left).
+func legacyKindName(kind string, count uint32) string {
+	switch kind {
+	case "paths":
+		if count == 1 {
+			return "path"
+		}
+		return "paths"
+	case "services":
+		if count == 1 {
+			return "service"
+		}
+		return "services"
+	case "users":
+		return "witness user"
+	}
+	return kind
+}
+
+func joinWords(words []string) string {
+	if len(words) <= 1 {
+		return strings.Join(words, "")
+	}
+	return strings.Join(words[:len(words)-1], ", ") + " and " + words[len(words)-1]
 }
 
 func currentUserName() string {

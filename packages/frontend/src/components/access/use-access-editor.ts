@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useDialogPresence } from "@/components/ui/dialog";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canonicalizeScopeSelection } from "@/lib/scope-utils";
 import { type AccessCatalog, useAccessCatalog } from "./access-catalog";
 import {
@@ -83,17 +82,23 @@ export function useAccessEditor({
   const [lines, setLines] = useState<AccessLine[] | null>(null);
   const initialKey = canonicalizeScopeSelection(initialScopes).join("\n");
 
-  // Parse the stored scopes once per opening, when the folders they name are known.
-  // The parsed lines stay while the dialog closes; they are dropped once it is gone.
-  const present = useDialogPresence(open);
+  // Parse the stored scopes once per opening, when the folders they name are known (the catalog
+  // loads them again at each opening). The parsed lines stay while the dialog closes, so its
+  // content does not empty before the close animation ends; the next opening drops them.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!present) {
-      setLines(null);
+    const opening = open && !wasOpen.current;
+    wasOpen.current = open;
+    if (!open) return;
+    if (!ready) {
+      if (opening) setLines(null);
       return;
     }
-    if (!ready) return;
-    setLines((current) => current ?? scopesToLines(initialKey ? initialKey.split("\n") : [], ctx));
-  }, [present, ready, ctx, initialKey]);
+    setLines(
+      (current) =>
+        (opening ? null : current) ?? scopesToLines(initialKey ? initialKey.split("\n") : [], ctx)
+    );
+  }, [open, ready, ctx, initialKey]);
 
   const ownLines = useMemo(() => lines ?? [], [lines]);
   const scopes = useMemo(() => {

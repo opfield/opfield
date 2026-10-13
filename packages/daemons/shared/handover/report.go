@@ -101,9 +101,11 @@ type Tracker struct {
 	mu       sync.Mutex
 	pending  *Report
 	sessions []*relayresume.Session
-	// lost are the sessions whose local connection ended before they
-	// resumed, or failed before the counts were final (CutLocalClosed).
+	// lost are the sessions whose local connection failed before the counts
+	// were final (CutLocalClosed); closed those whose local side ended its
+	// connection itself before they resumed: neither kept nor cut (P-1).
 	lost    map[*relayresume.Session]bool
+	closed  map[*relayresume.Session]bool
 	tracked map[*relayresume.Session]bool
 	kept    int
 	cut     map[string]int
@@ -166,11 +168,12 @@ func (t *Tracker) Track(session *relayresume.Session) {
 
 // localEnded hears that the local connection of a bridged session ended (err
 // nil: its end of stream). For a stream taken over whose counts are not final
-// yet, an end before the stream resumed (the local peer gave up, or something
-// closed it, during the pause) or a failure at any time means the update did
-// not keep the connection: a stream that resumed carries nothing to a local
-// connection that is gone (stand rc.7 F-1, a truncated download reported
-// kept).
+// yet, a failure at any time means the update did not keep the connection: a
+// stream that resumed carries nothing to a local connection that is gone
+// (stand rc.7 F-1, a truncated download reported kept). An end of stream
+// before the stream resumed is the local side closing its connection itself
+// during the pause (a short-lived client that was done): it is not kept, and
+// not counted as cut either (P-1).
 func (t *Tracker) localEnded(session *relayresume.Session, err error) {
 	if t == nil {
 		return
@@ -180,7 +183,13 @@ func (t *Tracker) localEnded(session *relayresume.Session, err error) {
 	if t.pending == nil || !t.tracked[session] {
 		return
 	}
-	if _, resumed, _ := session.HandoverPause(); resumed && err == nil {
+	if err == nil {
+		if _, resumed, _ := session.HandoverPause(); !resumed {
+			if t.closed == nil {
+				t.closed = map[*relayresume.Session]bool{}
+			}
+			t.closed[session] = true
+		}
 		return
 	}
 	if t.lost == nil {
@@ -292,7 +301,7 @@ func (t *Tracker) finish(pending *Report, sessions []*relayresume.Session, ended
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	var pauses []time.Duration
-	lost, failed, peerEnded := 0, 0, 0
+	lost, failed, uncounted := 0, 0, 0
 	now := time.Now()
 	for _, session := range sessions {
 		pause, resumed, ended := session.HandoverPause()
@@ -304,9 +313,12 @@ func (t *Tracker) finish(pending *Report, sessions []*relayresume.Session, ended
 		case !resumed && ended && endedByPeer(session.State(), session.Err(), at.Sub(pending.StartedAt)):
 			// The far end ended it (its own update cut it, in the same batch):
 			// that node's report counts it, not this one's (stand rc.11 O-1).
-			peerEnded++
+			uncounted++
 		case t.lost[session]:
 			lost++
+		case t.closed[session]:
+			// Closed by its local side: neither kept nor cut.
+			uncounted++
 		case resumed:
 			pauses = append(pauses, pause)
 		default:
@@ -327,7 +339,7 @@ func (t *Tracker) finish(pending *Report, sessions []*relayresume.Session, ended
 	report.AddCut(CutLocalClosed, lost)
 	// What the previous process handed over and this one never saw (a
 	// snapshot that did not come over) is cut too.
-	accounted := report.Kept + failed + lost + peerEnded
+	accounted := report.Kept + failed + lost + uncounted
 	for _, n := range t.cut {
 		accounted += n
 	}

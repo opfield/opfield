@@ -548,3 +548,31 @@ describe('Availability runtime name prefix migration', () => {
     });
   });
 });
+
+describe('Docker migration history node references', () => {
+  it('drops the restrict foreign keys so a node with migration history can be deleted', () => {
+    const migration = readFileSync(
+      join(process.cwd(), 'src/db/migrations/0251_opfield_migration_history_nodes.sql'),
+      'utf8'
+    );
+    const statements = migration
+      .split('--> statement-breakpoint')
+      .map((statement) => statement.replace(/^--.*$/gm, '').trim());
+    expect(statements).toEqual([
+      'ALTER TABLE "docker_migrations" DROP CONSTRAINT "docker_migrations_source_node_id_nodes_id_fk";',
+      'ALTER TABLE "docker_migrations" DROP CONSTRAINT "docker_migrations_target_node_id_nodes_id_fk";',
+    ]);
+
+    const previous = JSON.parse(readFileSync(join(process.cwd(), 'src/db/migrations/meta/0250_snapshot.json'), 'utf8'));
+    const current = JSON.parse(readFileSync(join(process.cwd(), 'src/db/migrations/meta/0251_snapshot.json'), 'utf8'));
+    expect(current.prevId).toBe(previous.id);
+    const table = current.tables['public.docker_migrations'];
+    expect(Object.keys(table.foreignKeys).sort()).toEqual([
+      'docker_migrations_cancellation_requested_by_id_users_id_fk',
+      'docker_migrations_created_by_id_users_id_fk',
+    ]);
+    // The history keeps the node ids.
+    expect(table.columns.source_node_id).toMatchObject({ type: 'uuid', notNull: true });
+    expect(table.columns.target_node_id).toMatchObject({ type: 'uuid', notNull: true });
+  });
+});

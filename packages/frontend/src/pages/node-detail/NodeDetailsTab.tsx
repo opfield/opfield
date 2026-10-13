@@ -18,7 +18,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { isDevForceUpdatesEnabled } from "@/lib/dev-force-updates";
-import { nodeTypeLabel } from "@/lib/node-appearance";
+import { nginxProcessState, nodeTypeLabel } from "@/lib/node-appearance";
 import {
   carriesUpdateConnections,
   lastUpdateConnectionsText,
@@ -258,6 +258,7 @@ export function NodeDetailsTab({
   } | null>(null);
   const [ipAddressesOpen, setIpAddressesOpen] = useState(false);
   const h: NodeHealthReport | null = node.liveHealthReport ?? node.lastHealthReport;
+  const nginxState = nginxProcessState(node);
   const caps = (node.capabilities ?? {}) as Record<string, unknown>;
   const reportedRuntimeStatus = caps.dockerRuntimeStatus as DockerRuntimeStatus | undefined;
   const [runtimeStatus, setRuntimeStatus] = useState<DockerRuntimeStatus | undefined>(
@@ -847,6 +848,16 @@ export function NodeDetailsTab({
             node.type,
             (!nodeUpdating && daemonUpdate.available && !pendingUpdate) || updateWaitsForTasks
           ) === "runtime" && updateConnectionsRow("Next Update")}
+          {nginxState && (
+            <DetailRow
+              label="Nginx"
+              value={
+                <Badge variant={nginxState === "running" ? "success" : "destructive"}>
+                  {nginxState === "running" ? "Running" : "Stopped"}
+                </Badge>
+              }
+            />
+          )}
           {node.type === "nginx" && (
             <DetailRow label="Nginx Version" value={String(caps.nginxVersion ?? "Unknown")} />
           )}

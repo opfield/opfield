@@ -108,4 +108,26 @@ describe("access editor", () => {
     expect(result.current.scopes).toHaveLength(13);
     expect(result.current.views[0]?.note).toMatch(/^Works as /);
   });
+
+  it("keeps its lines while the dialog closes and starts again from the stored scopes at the next opening", async () => {
+    const stored = linesToScopes([viewerEverywhere], ctx);
+    const { result, rerender } = renderHook(
+      ({ open }) => useAccessEditor({ open, scopes: stored }),
+      {
+        initialProps: { open: true },
+      }
+    );
+    await waitFor(() => expect(result.current.lines).toHaveLength(1));
+    act(() => result.current.saveLine(developerInBilling));
+    expect(result.current.lines).toHaveLength(2);
+
+    rerender({ open: false });
+    // Past any close animation: the content is what it was until the next opening.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(result.current.lines).toHaveLength(2);
+    expect(result.current.views).toHaveLength(2);
+
+    rerender({ open: true });
+    await waitFor(() => expect(result.current.lines).toEqual([viewerEverywhere]));
+  });
 });

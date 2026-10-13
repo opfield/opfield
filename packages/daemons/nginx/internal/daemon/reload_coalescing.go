@@ -15,6 +15,13 @@ const (
 	deferredReloadMax   = 10 * time.Second
 )
 
+// A Pages deploy or deletion sends several Pages commands within a second (preview, tag route, `latest`): each is
+// written and tested at once, and they load with one reload shortly after the last of them (F-9).
+const (
+	pagesReloadQuiet = 400 * time.Millisecond
+	pagesReloadMax   = 2 * time.Second
+)
+
 // commitChange makes a tested change live: at once, or with the reload of its batch.
 func (h *Handler) commitChange(deferred bool) error {
 	if deferred {
@@ -55,16 +62,29 @@ func (h *Handler) settleUnchanged(deferred bool) error {
 }
 
 func (h *Handler) scheduleDeferredReload() {
+	h.scheduleReloadWithin(deferredReloadQuiet, deferredReloadMax)
+}
+
+// schedulePagesReload loads a tested Pages change: with the reload of its batch (defer_reload), or shortly after
+// the last Pages change.
+func (h *Handler) schedulePagesReload(batch bool) {
+	if batch {
+		h.scheduleDeferredReload()
+		return
+	}
+	h.scheduleReloadWithin(pagesReloadQuiet, pagesReloadMax)
+}
+
+// scheduleReloadWithin reloads once no change came for quiet, and at the latest maxWait after the first change
+// that still waits (the earliest deadline of the waiting changes wins).
+func (h *Handler) scheduleReloadWithin(quiet, maxWait time.Duration) {
 	h.deferredMu.Lock()
 	defer h.deferredMu.Unlock()
 	now := time.Now()
-	if h.deferredSince.IsZero() {
-		h.deferredSince = now
+	if deadline := now.Add(maxWait); h.deferredDeadline.IsZero() || deadline.Before(h.deferredDeadline) {
+		h.deferredDeadline = deadline
 	}
-	delay := deferredReloadQuiet
-	if latest := h.deferredSince.Add(deferredReloadMax).Sub(now); latest < delay {
-		delay = max(latest, 0)
-	}
+	delay := max(min(quiet, h.deferredDeadline.Sub(now)), 0)
 	if h.deferredTimer != nil {
 		h.deferredTimer.Stop()
 	}
@@ -78,7 +98,7 @@ func (h *Handler) cancelDeferredReload() {
 		h.deferredTimer.Stop()
 		h.deferredTimer = nil
 	}
-	h.deferredSince = time.Time{}
+	h.deferredDeadline = time.Time{}
 }
 
 // flushDeferredReload loads the deferred changes no command loaded.
@@ -86,7 +106,7 @@ func (h *Handler) flushDeferredReload() {
 	h.mutationMu.Lock()
 	defer h.mutationMu.Unlock()
 	h.deferredMu.Lock()
-	h.deferredSince = time.Time{}
+	h.deferredDeadline = time.Time{}
 	h.deferredMu.Unlock()
 	if !h.mgr.ReloadPending() {
 		return

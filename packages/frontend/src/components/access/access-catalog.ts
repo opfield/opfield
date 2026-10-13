@@ -15,7 +15,6 @@ import {
   loadFolderFamily,
   reportScopeLoadError,
 } from "@/components/common/scope-list-helpers";
-import { useDialogPresence } from "@/components/ui/dialog";
 import { extractBaseScope } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -231,18 +230,21 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
   const scopesRef = useRef(scopes);
   scopesRef.current = scopes;
 
-  // Loaded catalogs stay while the dialog closes; they are dropped once it is gone.
-  const present = useDialogPresence(open);
+  // Each opening loads current folders and resources again. What the last opening loaded stays
+  // while the dialog closes, so its content does not empty before the close animation ends; the
+  // render that opens the dialog still holds it and is not ready.
+  const openSeen = useRef(false);
+  const opening = open && !openSeen.current;
   useEffect(() => {
-    if (!present) {
-      // Each opening loads current folders and resources again.
-      setFolders(null);
-      setApps(null);
-      setGitConnectors(null);
-      setResources(null);
-      resourcesRequested.current = false;
-      return;
-    }
+    openSeen.current = open;
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    setFolders(null);
+    setApps(null);
+    setGitConnectors(null);
+    setResources(null);
+    resourcesRequested.current = false;
     let cancelled = false;
     void Promise.all(ACCESS_TYPES.map((type) => loadFolderFamily(type.family))).then((loaded) => {
       if (!cancelled) setFolders(loaded.flat());
@@ -256,7 +258,7 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
     return () => {
       cancelled = true;
     };
-  }, [present]);
+  }, [open]);
 
   const loadResources = useCallback(() => {
     if (resourcesRequested.current) return;
@@ -325,6 +327,7 @@ export function useAccessCatalog(open: boolean, scopes: readonly string[]): Acce
   const needsResources = namesResources(scopesKey ? scopesKey.split("\n") : []);
   return {
     ready:
+      !opening &&
       folders !== null &&
       apps !== null &&
       gitConnectors !== null &&

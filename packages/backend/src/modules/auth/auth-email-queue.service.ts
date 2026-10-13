@@ -2,10 +2,16 @@ import { Queue, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CryptoService } from '@/services/crypto.service.js';
+import { firstShutdownReport, isShuttingDown } from '@/services/shutdown-state.js';
 import type { AuthEmailInput } from './auth-email.templates.js';
 
 const logger = createChildLogger('AuthEmailQueue');
 const AUTH_EMAIL_QUEUE_NAME = 'auth-email-delivery';
+/**
+ * How long close waits for BullMQ. At a host shutdown dockerd stops Redis together with the app, and BullMQ's close
+ * then waits for Redis to come back (the shutdown held its whole budget, O-R1); after this the connections are dropped.
+ */
+export const AUTH_EMAIL_QUEUE_CLOSE_WAIT_MS = 3_000;
 
 export type SecurityAuthEmailInput = Exclude<AuthEmailInput, { kind: 'smtp_configuration' }>;
 
@@ -57,6 +63,12 @@ export class AuthEmailQueueService {
       { connection: this.workerConnection as never, concurrency: 2 }
     );
     this.worker.on('error', (error) => {
+      if (isShuttingDown()) {
+        if (firstShutdownReport('auth_email_queue')) {
+          logger.info('Auth email queue lost Redis while Opfield shuts down', { error: error.message });
+        }
+        return;
+      }
       logger.error('Auth email queue worker error', { error: error.message });
     });
     this.worker.on('failed', (job, error) => {
@@ -74,9 +86,21 @@ export class AuthEmailQueueService {
   }
 
   async close(): Promise<void> {
-    await this.worker?.close();
+    const worker = this.worker;
     this.worker = null;
-    await this.queue.close();
-    await this.workerConnection.quit();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const closed = await Promise.race([
+      Promise.allSettled([worker?.close(), this.queue.close()]).then(() => true),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), AUTH_EMAIL_QUEUE_CLOSE_WAIT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (!closed) {
+      logger.info('Auth email queue closed without Redis');
+      await Promise.allSettled([worker?.disconnect(), this.queue.disconnect()]);
+    }
+    // The worker's own connection: quit would wait for a Redis that is gone.
+    this.workerConnection.disconnect();
   }
 }

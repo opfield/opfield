@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import {
   buildFinalScopes,
@@ -103,10 +104,12 @@ export function OAuthApplicationsSection({
   const [revokingKey, setRevokingKey] = useState<string | null>(null);
   const {
     open: authorizationOpen,
-    value: selectedAuthorization,
+    value: storedAuthorization,
     setValue: setSelectedAuthorization,
     onOpenChange: onAuthorizationOpenChange,
   } = useDeferredDialogState<OAuthAuthorization>();
+  // The dialog shows the last application until it opens again, not only for the close delay.
+  const selectedAuthorization = useRetainedDialogValue(storedAuthorization, authorizationOpen);
   const [editableBaseScopes, setEditableBaseScopes] = useState<string[]>([]);
   const [editableResourceScopes, setEditableResourceScopes] = useState<Record<string, string[]>>(
     {}

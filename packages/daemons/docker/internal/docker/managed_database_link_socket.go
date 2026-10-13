@@ -103,19 +103,49 @@ func (m *managedDatabaseManager) removeLinkSocketDir(record managedDatabaseRecor
 
 var errNoLinkSocket = errors.New("the database has no link socket")
 
-// dialLinkSocket connects to record's link socket. The host path is longer
-// than a socket address may be, so the connection goes through the
-// directory's descriptor (/proc/self/fd/N/.s.PGSQL.5432).
+// dialLinkSocket connects to record's link socket. Every dial looks at the
+// socket itself, not at record.PostgresLinkSocket: a relay dial reads the
+// record without the manager lock, and while a recreate runs the record on
+// disk is still the previous container's (it is saved when the command ends),
+// so the flag can say "no socket" for a container that already serves one
+// (R-5). A socket only exists in a container created with the scram pg_hba;
+// a stale one nobody listens on is refused and the link falls back. The host
+// path is longer than a socket address may be, so the connection goes through
+// the directory's descriptor (/proc/self/fd/N/.s.PGSQL.5432).
 func (m *managedDatabaseManager) dialLinkSocket(ctx context.Context, record managedDatabaseRecord) (net.Conn, error) {
-	if !record.PostgresLinkSocket || record.AvailabilitySetID != "" {
+	if record.AvailabilitySetID != "" {
 		return nil, errNoLinkSocket
 	}
 	return dialSocketIn(ctx, m.linkSocketDir(record), pgLinkSocketName)
 }
 
+// noteLinkSocketDial logs a link that falls back to TLS over the bridge, once
+// per database and reason (a link socket that answers again resets it).
+func (m *managedDatabaseManager) noteLinkSocketDial(record managedDatabaseRecord, err error) {
+	if err == nil {
+		m.linkFallbacks.Delete(record.ID)
+		return
+	}
+	reason := err.Error()
+	if previous, loaded := m.linkFallbacks.Swap(record.ID, reason); loaded && previous == reason {
+		return
+	}
+	if m.logger == nil {
+		return
+	}
+	if errors.Is(err, errNoLinkSocket) && !record.PostgresLinkSocket {
+		m.logger.Info("managed PostgreSQL links use TLS over the bridge: the container has no link socket yet (it gets one when it is next recreated)", "id", record.ID)
+		return
+	}
+	m.logger.Warn("managed PostgreSQL link falls back to TLS over the bridge: the link socket did not answer", "id", record.ID, "error", err)
+}
+
 // dialSocketIn connects to the unix socket name in dir.
 func dialSocketIn(ctx context.Context, dir, name string) (net.Conn, error) {
 	fd, err := unix.Open(dir, unix.O_PATH|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if errors.Is(err, unix.ENOENT) {
+		return nil, fmt.Errorf("%w: no directory %s", errNoLinkSocket, dir)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -32,7 +32,7 @@ type PreviewFallback struct {
 	URL         string
 	Access      *PreviewAccess
 	// DeferReload loads the preview with the reload of its batch
-	// (SetDeferredReload) instead of at once.
+	// (SetDeferredReload) instead of shortly after the last Pages change.
 	DeferReload bool
 }
 
@@ -48,12 +48,11 @@ func (r *Runtime) applyConfig(configPath string, next []byte) error {
 	return r.applyConfigWith(configPath, next, false)
 }
 
-// applyConfigWith writes, tests and loads a config: at once, or with deferred
-// (and SetDeferredReload) with the reload of its batch, which the next
-// command that reloads nginx or the handler's deferred reload runs (F-9: a
-// Pages reconcile of four previews reloaded nginx four times).
-func (r *Runtime) applyConfigWith(configPath string, next []byte, deferred bool) error {
-	deferred = deferred && r.beginChange != nil && r.scheduleReload != nil
+// applyConfigWith writes and tests a config; with SetDeferredReload the
+// handler loads it (with deferred, with the reload of its batch), without it
+// nginx reloads at once.
+func (r *Runtime) applyConfigWith(configPath string, next []byte, batch bool) error {
+	deferred := r.beginChange != nil && r.scheduleReload != nil
 	old, err := os.ReadFile(configPath)
 	oldExists := err == nil
 	if err != nil && !os.IsNotExist(err) {
@@ -95,7 +94,7 @@ func (r *Runtime) applyConfigWith(configPath string, next []byte, deferred bool)
 		return fmt.Errorf("nginx config test failed: %s", output)
 	}
 	if deferred {
-		r.scheduleReload()
+		r.scheduleReload(batch)
 		return nil
 	}
 	if err := r.nginx.Reload(); err != nil {

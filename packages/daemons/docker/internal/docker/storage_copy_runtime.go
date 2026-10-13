@@ -820,10 +820,9 @@ func (r *storageCopyRuntime) runRunner(ctx context.Context, jobID string, payloa
 			NetworkMode: "host", ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 			Resources: container.Resources{Memory: payload.Limits.MemoryMB * 1024 * 1024, NanoCPUs: payload.Limits.CPUCores * 1_000_000_000, PidsLimit: &pids},
 			Tmpfs:     map[string]string{"/tmp": "rw,noexec,nosuid,size=64m"},
-			Mounts: []mount.Mount{
-				{Type: mount.TypeBind, Source: configDir, Target: "/run/opfield-backup", ReadOnly: true},
-				{Type: mount.TypeBind, Source: resultDir, Target: "/work"},
-			},
+			Mounts: append(backupRunnerConfigMounts(configDir),
+				mount.Mount{Type: mount.TypeBind, Source: resultDir, Target: "/work"},
+			),
 		},
 	})
 	if err != nil {

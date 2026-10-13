@@ -58,12 +58,9 @@ export const dockerMigrations = pgTable(
     resourceType: text('resource_type').$type<DockerMigrationResourceType>().notNull(),
     resourceName: text('resource_name').notNull(),
     deploymentId: uuid('deployment_id'),
-    sourceNodeId: uuid('source_node_id')
-      .notNull()
-      .references(() => nodes.id, { onDelete: 'restrict' }),
-    targetNodeId: uuid('target_node_id')
-      .notNull()
-      .references(() => nodes.id, { onDelete: 'restrict' }),
+    // No foreign key (0251): the history keeps the ids of the nodes a migration ran between after one is deleted.
+    sourceNodeId: uuid('source_node_id').notNull(),
+    targetNodeId: uuid('target_node_id').notNull(),
     keepSource: boolean('keep_source').notNull().default(false),
     sourceState: text('source_state').notNull(),
     sourceFingerprint: text('source_fingerprint').notNull(),

@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -134,8 +135,8 @@ func TestManagedPostgresLinkFallsBackToTLSOverTheBridge(t *testing.T) {
 	}
 }
 
-// The dial choice: only a single-node database whose container was created
-// with the link socket is dialed there.
+// The dial choice: a single-node database is dialed over its link socket
+// when the socket answers, whatever the record says.
 func TestLinkSocketDialChoice(t *testing.T) {
 	root := sockettest.Dir(t)
 	m := &managedDatabaseManager{root: root}
@@ -172,6 +173,15 @@ func TestLinkSocketDialChoice(t *testing.T) {
 		t.Fatal(err)
 	}
 	conn.Close()
+	// R-5: the record a relay dial reads during a recreate is still the
+	// previous container's (no flag); the socket that answers decides.
+	stale := record
+	stale.PostgresLinkSocket = false
+	conn, err = m.dialLinkSocket(context.Background(), stale)
+	if err != nil {
+		t.Fatalf("a record not yet saved after the recreate: %v", err)
+	}
+	conn.Close()
 	record.AvailabilitySetID = "set1"
 	if _, err := m.dialLinkSocket(context.Background(), record); !errors.Is(err, errNoLinkSocket) {
 		t.Fatalf("an availability set member: %v", err)
@@ -179,6 +189,33 @@ func TestLinkSocketDialChoice(t *testing.T) {
 	m.removeLinkSocketDir(record)
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Fatalf("the deleted database's socket directory stays: %v", err)
+	}
+}
+
+// A link that falls back to TLS over the bridge is logged once per database
+// and reason; a socket that answers again lets the next fallback be logged.
+func TestLinkSocketFallbackIsLoggedOnce(t *testing.T) {
+	var logs bytes.Buffer
+	m := &managedDatabaseManager{logger: slog.New(slog.NewTextHandler(&logs, nil))}
+	record := managedDatabaseRecord{ID: "db1", Type: "postgres", TLSEnabled: true}
+	m.noteLinkSocketDial(record, errNoLinkSocket)
+	m.noteLinkSocketDial(record, errNoLinkSocket)
+	if got := strings.Count(logs.String(), "level=INFO"); got != 1 || !strings.Contains(logs.String(), "no link socket yet") {
+		t.Fatalf("a container without the socket logged %d times:\n%s", got, logs.String())
+	}
+	logs.Reset()
+	record.PostgresLinkSocket = true
+	refused := errors.New("connection refused")
+	m.noteLinkSocketDial(record, refused)
+	m.noteLinkSocketDial(record, refused)
+	if got := strings.Count(logs.String(), "level=WARN"); got != 1 || !strings.Contains(logs.String(), "connection refused") {
+		t.Fatalf("a failing link socket logged %d times:\n%s", got, logs.String())
+	}
+	logs.Reset()
+	m.noteLinkSocketDial(record, nil)
+	m.noteLinkSocketDial(record, refused)
+	if got := strings.Count(logs.String(), "level=WARN"); got != 1 {
+		t.Fatalf("a fallback after the socket answered again logged %d times:\n%s", got, logs.String())
 	}
 }
 

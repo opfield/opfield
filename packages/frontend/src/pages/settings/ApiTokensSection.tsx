@@ -17,7 +17,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  useDialogPresence,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -136,12 +135,10 @@ export function ApiTokensSection({
     loadTokens();
   }, [loadTokens]);
 
-  const createDialogPresent = useDialogPresence(createDialogOpen);
-  useEffect(() => {
-    if (!createDialogPresent) setRegistryExternalAccess(null);
-  }, [createDialogPresent]);
+  // Asked again at each opening; the last answer stays while the dialog closes.
   useEffect(() => {
     if (!createDialogOpen) return;
+    setRegistryExternalAccess(null);
     let cancelled = false;
     api
       .getTokenRegistryAccess()

@@ -53,15 +53,17 @@ type Runtime struct {
 	workerUID       func() (int, error)
 	// beginChange and scheduleReload: see SetDeferredReload.
 	beginChange    func() (func(), error)
-	scheduleReload func()
+	scheduleReload func(batch bool)
 }
 
-// SetDeferredReload lets a change made with deferReload load with the reload
-// of its batch, as the handler's route configs do: beginChange marks the
-// configuration on disk ahead of nginx before the write (its result takes the
-// mark back after a rollback), scheduleReload arranges the batch's reload.
-// Without it every change reloads at once.
-func (r *Runtime) SetDeferredReload(beginChange func() (func(), error), scheduleReload func()) {
+// SetDeferredReload lets the handler load Pages changes: each change is
+// written and tested at once, beginChange marks the configuration on disk
+// ahead of nginx before the write (its result takes the mark back after a
+// rollback), and scheduleReload arranges the reload, with batch (deferReload)
+// that of its batch, otherwise one shortly after the last Pages change (F-9:
+// one deploy reloaded nginx three times). Without it every change reloads at
+// once.
+func (r *Runtime) SetDeferredReload(beginChange func() (func(), error), scheduleReload func(batch bool)) {
 	r.beginChange, r.scheduleReload = beginChange, scheduleReload
 }
 

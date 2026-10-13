@@ -23,12 +23,15 @@ type migrationFilesystemCapacity struct {
 }
 
 type dockerMigrationCapabilities struct {
-	Protocol          string                      `json:"protocol"`
-	EngineVersion     string                      `json:"engineVersion"`
-	APIVersion        string                      `json:"apiVersion"`
-	OSType            string                      `json:"osType"`
-	Architecture      string                      `json:"architecture"`
-	StorageDriver     string                      `json:"storageDriver"`
+	Protocol      string `json:"protocol"`
+	EngineVersion string `json:"engineVersion"`
+	APIVersion    string `json:"apiVersion"`
+	OSType        string `json:"osType"`
+	Architecture  string `json:"architecture"`
+	StorageDriver string `json:"storageDriver"`
+	// ImageStore: "containerd" (Docker's containerd image store) or "classic". The stores name an image by different
+	// digests, and a migration matches its image by them (P-6).
+	ImageStore        string                      `json:"imageStore"`
 	DockerRootDir     migrationFilesystemCapacity `json:"dockerRootDir"`
 	StateDir          migrationFilesystemCapacity `json:"stateDir"`
 	Runtimes          []string                    `json:"runtimes"`
@@ -143,12 +146,21 @@ func (p *DockerPlugin) migrationCapabilities(ctx context.Context) (dockerMigrati
 	sort.Strings(runtimes)
 	return dockerMigrationCapabilities{
 		Protocol: dockerMigrationCapability, EngineVersion: version.Version, APIVersion: version.APIVersion,
-		OSType: info.OSType, Architecture: info.Architecture, StorageDriver: info.Driver,
+		OSType: info.OSType, Architecture: info.Architecture, StorageDriver: info.Driver, ImageStore: dockerImageStore(info.DriverStatus),
 		DockerRootDir: dockerCapacity, StateDir: stateCapacity, Runtimes: runtimes,
 		VolumePlugins: append([]string(nil), info.Plugins.Volume...), NetworkPlugins: append([]string(nil), info.Plugins.Network...),
 		SecurityOptions: append([]string(nil), info.SecurityOptions...), MaxChunkBytes: migrationChunkBytes,
 		ArtifactMaxAgeSec: int64(migrationArtifactMaxAge.Seconds()), ManifestValidation: true,
 	}, nil
+}
+
+func dockerImageStore(driverStatus [][2]string) string {
+	for _, entry := range driverStatus {
+		if entry[0] == "driver-type" && entry[1] == "io.containerd.snapshotter.v1" {
+			return "containerd"
+		}
+	}
+	return "classic"
 }
 
 func filesystemCapacity(path string) (migrationFilesystemCapacity, error) {

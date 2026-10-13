@@ -165,6 +165,13 @@ func (h *Handler) handlePagesCleanupDeployment(cmd *pb.PagesCleanupDeploymentCom
 	if h.pagesUnavailable(result) {
 		return
 	}
+	// Pages changes that still wait for their reload may move nginx off this release: load them before its files go.
+	if h.mgr != nil {
+		if err := h.settleUnchanged(false); err != nil {
+			h.pagesCommandError(result, "release cleanup", err)
+			return
+		}
+	}
 	if err := h.pagesRuntime.CleanupDeployment(cmd.DeploymentId); err != nil {
 		h.pagesCommandError(result, "release cleanup", err)
 	}

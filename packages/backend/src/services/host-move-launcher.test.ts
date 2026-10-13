@@ -86,7 +86,11 @@ describe('when the app starts the host move', () => {
     expect(hostMoveLaunchDecision({ ...moved, moveContainer: 'exited' })).toMatchObject({
       launch: false,
       removeFinished: true,
+      moved: true,
     });
+    // A moved installation waits for nothing: the launcher logs no waiting message for it.
+    expect(hostMoveLaunchDecision({ ...moved, moveContainer: null })).toMatchObject({ launch: false, moved: true });
+    expect(hostMoveLaunchDecision({ ...settled, uptimeMs: 0 })).not.toHaveProperty('moved');
     expect(hostMoveLaunchDecision({ ...moved, moveContainer: 'running' })).not.toHaveProperty('removeFinished');
     expect(hostMoveLaunchDecision({ ...moved, moveContainer: null })).not.toHaveProperty('removeFinished');
   });

@@ -415,36 +415,46 @@ func (m *Manager) configureArgument(prefix string) (string, error) {
 	return "", nil
 }
 
+// procRoot is /proc (replaceable in tests).
+var procRoot = "/proc"
+
+// processStartTime is when pid started: its start in clock ticks after boot
+// (/proc/<pid>/stat) plus the boot time (btime in /proc/stat). Both count
+// from the host's boot, in an LXC container too, whose /proc/uptime is the
+// container's own (P-5: comparing the two gave no uptime there).
 func processStartTime(pid int) (time.Time, error) {
-	statData, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	statData, err := os.ReadFile(filepath.Join(procRoot, strconv.Itoa(pid), "stat"))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("read nginx master process stat: %w", err)
 	}
-	fields := strings.Fields(string(statData))
-	if len(fields) < 22 {
+	// The command name (field 2) may hold spaces; starttime is field 22, the
+	// 20th after the name.
+	stat := string(statData)
+	fields := strings.Fields(stat[strings.LastIndexByte(stat, ')')+1:])
+	if len(fields) < 20 {
 		return time.Time{}, fmt.Errorf("unexpected nginx master process stat format")
 	}
-	startTicks, err := strconv.ParseInt(fields[21], 10, 64)
+	startTicks, err := strconv.ParseInt(fields[19], 10, 64)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("parse nginx master process start time: %w", err)
 	}
-	uptimeData, err := os.ReadFile("/proc/uptime")
+	systemStat, err := os.ReadFile(filepath.Join(procRoot, "stat"))
 	if err != nil {
-		return time.Time{}, fmt.Errorf("read system uptime: %w", err)
+		return time.Time{}, fmt.Errorf("read system stat: %w", err)
 	}
-	uptimeFields := strings.Fields(string(uptimeData))
-	if len(uptimeFields) == 0 {
-		return time.Time{}, fmt.Errorf("unexpected system uptime format")
+	for _, line := range strings.Split(string(systemStat), "\n") {
+		value, found := strings.CutPrefix(line, "btime ")
+		if !found {
+			continue
+		}
+		bootTime, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("parse boot time: %w", err)
+		}
+		// Clock ticks per second: USER_HZ, 100 on Linux.
+		return time.Unix(bootTime, 0).Add(time.Duration(startTicks) * (time.Second / 100)), nil
 	}
-	systemUptime, err := strconv.ParseFloat(uptimeFields[0], 64)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("parse system uptime: %w", err)
-	}
-	processUptime := systemUptime - float64(startTicks)/100
-	if processUptime < 0 || processUptime > systemUptime {
-		return time.Time{}, fmt.Errorf("nginx master process start time is outside system uptime")
-	}
-	return time.Now().Add(-time.Duration(processUptime * float64(time.Second))), nil
+	return time.Time{}, fmt.Errorf("system stat has no boot time")
 }
 
 func (m *Manager) GetUptime() (time.Duration, error) {
@@ -460,45 +470,15 @@ func (m *Manager) GetUptime() (time.Duration, error) {
 	if err != nil {
 		return 0, fmt.Errorf("parse pid: %w", err)
 	}
-	// Read process start time from /proc
-	statPath := fmt.Sprintf("/proc/%d/stat", pid)
-	statData, err := os.ReadFile(statPath)
+	started, err := processStartTime(pid)
 	if err != nil {
-		return 0, fmt.Errorf("read proc stat: %w", err)
+		return 0, err
 	}
-	// Field 22 (0-indexed: 21) is starttime in clock ticks
-	fields := strings.Fields(string(statData))
-	if len(fields) < 22 {
-		return 0, fmt.Errorf("unexpected stat format")
+	uptime := time.Since(started)
+	if uptime < 0 {
+		return 0, fmt.Errorf("process start time is in the future")
 	}
-	startTicks, err := strconv.ParseInt(fields[21], 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parse start time: %w", err)
-	}
-
-	// Get system uptime
-	uptimeData, err := os.ReadFile("/proc/uptime")
-	if err != nil {
-		return 0, fmt.Errorf("read uptime: %w", err)
-	}
-	uptimeFields := strings.Fields(string(uptimeData))
-	if len(uptimeFields) < 1 {
-		return 0, fmt.Errorf("unexpected uptime format")
-	}
-	systemUptime, err := strconv.ParseFloat(uptimeFields[0], 64)
-	if err != nil {
-		return 0, fmt.Errorf("parse system uptime: %w", err)
-	}
-
-	// Clock ticks per second (typically 100 on Linux)
-	clkTck := int64(100)
-	processStartSec := float64(startTicks) / float64(clkTck)
-	processUptime := systemUptime - processStartSec
-	if processUptime < 0 || processUptime > systemUptime {
-		return 0, fmt.Errorf("process start time is outside system uptime")
-	}
-
-	return time.Duration(processUptime * float64(time.Second)), nil
+	return uptime, nil
 }
 
 func (m *Manager) GetWorkerCount() (int, error) {

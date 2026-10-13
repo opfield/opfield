@@ -298,7 +298,7 @@ func validateGwcaExportSupport(config *container.Config, host *container.HostCon
 	if host.AutoRemove || host.PublishAllPorts || host.ReadonlyRootfs || len(host.Tmpfs) > 0 || customRuntime || customShmSize {
 		unsupported = append(unsupported, "unsupported runtime settings")
 	}
-	if host.MemoryReservation != 0 || host.MemorySwappiness != nil || host.OomKillDisable != nil || len(host.Ulimits) > 0 ||
+	if host.MemoryReservation != 0 || host.MemorySwappiness != nil || (host.OomKillDisable != nil && *host.OomKillDisable) || len(host.Ulimits) > 0 ||
 		host.BlkioWeight != 0 || len(host.BlkioWeightDevice) > 0 || len(host.BlkioDeviceReadBps) > 0 ||
 		len(host.BlkioDeviceWriteBps) > 0 || len(host.BlkioDeviceReadIOps) > 0 || len(host.BlkioDeviceWriteIOps) > 0 ||
 		host.CPUPeriod != 0 || host.CPUQuota != 0 || host.CPURealtimePeriod != 0 || host.CPURealtimeRuntime != 0 ||

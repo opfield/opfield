@@ -337,7 +337,9 @@ func TestLiveHandoverKeepsConnectorEgressAcrossSourceUpdate(t *testing.T) {
 }
 
 // A workload connection whose local side the update ends (here: a connector that closes its listeners at the next
-// process's first sync, as before the fix) is never reported kept: its stream resumes, but what it carries is cut.
+// process's first sync, as before the fix) is never reported kept: its stream resumes, but what it carries is lost.
+// Its local side ends with an end of stream before the stream resumes, as a client that closes by itself during the
+// pause does, so it is not counted as cut either (P-1); a local connection that fails would be (CutLocalClosed).
 func TestLiveHandoverReportsLocalConnectionsItLost(t *testing.T) {
 	pair := newEgressHandoverPair(t)
 	app := pair.dial()
@@ -354,8 +356,8 @@ func TestLiveHandoverReportsLocalConnectionsItLost(t *testing.T) {
 		t.Fatalf("the connection the connector closed still reads (%d bytes)", n)
 	}
 	report := pair.settled()
-	if report.HandedOver != 1 || report.Kept != 0 || report.Cut[handover.CutLocalClosed] != 1 {
-		t.Fatalf("update report %+v, want the connection cut as %s", report, handover.CutLocalClosed)
+	if report.HandedOver != 1 || report.Kept != 0 || len(report.Cut) != 0 {
+		t.Fatalf("update report %+v, want the connection neither kept nor cut", report)
 	}
 }
 

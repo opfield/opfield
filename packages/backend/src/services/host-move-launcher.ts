@@ -51,7 +51,7 @@ export interface HostMoveLaunchInput {
 }
 
 export type HostMoveLaunchDecision =
-  | { launch: false; reason: string; removeFinished?: boolean }
+  | { launch: false; reason: string; removeFinished?: boolean; moved?: true }
   | { launch: true; retry: boolean; removeContainer: boolean };
 
 /** Whether the installation still uses (part of) the layout of the releases before 2.12.1. */
@@ -77,6 +77,8 @@ export function hostMoveLaunchDecision(input: HostMoveLaunchInput): HostMoveLaun
     return {
       launch: false,
       reason: 'the installation has the Opfield layout',
+      // Nothing waits: there is no move to make.
+      moved: true,
       ...(input.moveContainer === 'exited' ? { removeFinished: true } : {}),
     };
   }
@@ -224,7 +226,8 @@ export class HostMoveLauncher {
       }
       if (decision.reason !== this.lastReason) {
         this.lastReason = decision.reason;
-        logger.info('The move to the Opfield layout waits', { reason: decision.reason });
+        if (decision.moved) logger.debug('No move to the Opfield layout is needed', { reason: decision.reason });
+        else logger.info('The move to the Opfield layout waits', { reason: decision.reason });
       }
       return;
     }

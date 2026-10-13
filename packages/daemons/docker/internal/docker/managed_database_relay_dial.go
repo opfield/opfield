@@ -79,8 +79,12 @@ func (m *managedDatabaseManager) prepareLinkConnection(ctx context.Context, conn
 		return nil, err
 	}
 	var plain func(context.Context) (net.Conn, error)
-	if record.PostgresLinkSocket {
-		plain = func(ctx context.Context) (net.Conn, error) { return m.dialLinkSocket(ctx, record) }
+	if record.AvailabilitySetID == "" {
+		plain = func(ctx context.Context) (net.Conn, error) {
+			socket, err := m.dialLinkSocket(ctx, record)
+			m.noteLinkSocketDial(record, err)
+			return socket, err
+		}
 	}
 	linked, err := negotiateManagedPostgresLink(ctx, connection, stream, cancel, config, plain)
 	if err != nil {

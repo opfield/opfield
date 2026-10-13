@@ -255,14 +255,14 @@ func (p *DockerPlugin) openArchiveImport(ctx context.Context, archiveID, artifac
 	}
 	imageEmbedded := req.ImageEmbedded == nil || *req.ImageEmbedded
 	if !imageEmbedded {
-		introduced, err := p.prepareRegistryBackedArchiveImage(ctx, req, imagesBefore)
+		imageID, introduced, err := p.prepareRegistryBackedArchiveImage(ctx, req, imagesBefore)
 		if err != nil {
 			return err
 		}
 		done := make(chan archiveImportResult, 1)
 		emptyDigest := sha256.Sum256(nil)
 		done <- archiveImportResult{
-			ImageID: req.ExpectedImageID, ArtifactDigest: hex.EncodeToString(emptyDigest[:]), SizeBytes: 0,
+			ImageID: imageID, ArtifactDigest: hex.EncodeToString(emptyDigest[:]), SizeBytes: 0,
 		}
 		close(done)
 		cleanup := func() { p.removeArchiveImages(introduced) }
@@ -291,17 +291,20 @@ func (p *DockerPlugin) openArchiveImport(ctx context.Context, archiveID, artifac
 		counter := &countingWriter{}
 		loadReader, loadWriter := io.Pipe()
 		sanitizeDone := make(chan error, 1)
+		names := archiveImageNames{}
 		go func() {
 			err := stripDockerArchiveRepoTags(
 				io.TeeReader(reader, io.MultiWriter(hasher, counter)),
 				loadWriter,
+				names,
 			)
 			_ = loadWriter.CloseWithError(err)
 			sanitizeDone <- err
 		}()
+		var loadedIDs []string
 		loadResult, err := p.client.cli.ImageLoad(context.Background(), loadReader)
 		if err == nil {
-			_, err = io.Copy(io.Discard, loadResult)
+			loadedIDs, err = readDockerImageLoad(loadResult)
 			closeErr := loadResult.Close()
 			if err == nil {
 				err = closeErr
@@ -312,19 +315,23 @@ func (p *DockerPlugin) openArchiveImport(ctx context.Context, archiveID, artifac
 			err = fmt.Errorf("strip archive image tags: %w", sanitizeErr)
 		}
 		_ = reader.Close()
+		imageID := ""
+		if err == nil {
+			imageID, err = names.loadedImage(req.ExpectedImageID, loadedIDs)
+		}
 		if imagesAfter, listErr := p.archiveImageIDs(context.Background()); listErr != nil && err == nil {
 			err = fmt.Errorf("list images after archive import: %w", listErr)
 		} else if listErr == nil {
 			introduced = introducedArchiveImageIDs(imagesBefore, imagesAfter)
 		}
 		unexpected := make([]string, 0)
-		for _, imageID := range introduced {
-			if imageID != req.ExpectedImageID {
-				unexpected = append(unexpected, imageID)
+		for _, introducedID := range introduced {
+			if introducedID != imageID {
+				unexpected = append(unexpected, introducedID)
 			}
 		}
 		done <- archiveImportResult{
-			ImageID: req.ExpectedImageID, ArtifactDigest: hex.EncodeToString(hasher.Sum(nil)), SizeBytes: counter.n,
+			ImageID: imageID, ArtifactDigest: hex.EncodeToString(hasher.Sum(nil)), SizeBytes: counter.n,
 			UnexpectedImageIDs: unexpected, Err: err,
 		}
 		close(done)
@@ -336,16 +343,17 @@ func (p *DockerPlugin) prepareRegistryBackedArchiveImage(
 	ctx context.Context,
 	req archiveImportRequest,
 	imagesBefore map[string]struct{},
-) ([]string, error) {
+) (string, []string, error) {
 	if _, present := imagesBefore[req.ExpectedImageID]; present {
-		return nil, nil
+		return req.ExpectedImageID, nil, nil
 	}
 	pullReference, err := reference.ParseNormalizedNamed(strings.TrimSpace(req.PullReference))
 	if err != nil {
-		return nil, fmt.Errorf("parse registry-backed archive image reference: %w", err)
+		return "", nil, fmt.Errorf("parse registry-backed archive image reference: %w", err)
 	}
-	if _, ok := pullReference.(reference.Digested); !ok {
-		return nil, fmt.Errorf("registry-backed archive image reference must use an immutable digest")
+	digested, ok := pullReference.(reference.Digested)
+	if !ok {
+		return "", nil, fmt.Errorf("registry-backed archive image reference must use an immutable digest")
 	}
 	authCandidates := req.RegistryAuthCandidates
 	if len(authCandidates) == 0 {
@@ -357,22 +365,29 @@ func (p *DockerPlugin) prepareRegistryBackedArchiveImage(
 			lastErr = err
 			continue
 		}
-		if _, err := p.client.cli.ImageInspect(ctx, req.ExpectedImageID); err == nil {
+		// The classic image store names an image by its config digest, the containerd image store by the digest it
+		// was pulled by (P-6). The pulled image is the expected one when either store's name matches: a source on
+		// the classic store reported the config digest, one on the containerd image store the pinned digest itself.
+		pinned := digested.Digest().String()
+		pulled, err := p.client.cli.ImageInspect(ctx, pullReference.String())
+		if err == nil && (pulled.ID == req.ExpectedImageID || pulled.ID == pinned || req.ExpectedImageID == pinned) {
 			after, listErr := p.archiveImageIDs(ctx)
 			if listErr != nil {
-				_, _ = p.client.cli.ImageRemove(ctx, req.ExpectedImageID, mobyclient.ImageRemoveOptions{Force: true})
-				return nil, fmt.Errorf("list pulled archive images: %w", listErr)
+				_, _ = p.client.cli.ImageRemove(ctx, pulled.ID, mobyclient.ImageRemoveOptions{Force: true})
+				return "", nil, fmt.Errorf("list pulled archive images: %w", listErr)
 			}
-			return introducedArchiveImageIDs(imagesBefore, after), nil
-		} else {
-			lastErr = fmt.Errorf("pulled image does not provide expected image ID %s: %w", req.ExpectedImageID, err)
+			return pulled.ID, introducedArchiveImageIDs(imagesBefore, after), nil
 		}
+		if err == nil {
+			err = fmt.Errorf("pulled image ID is %s", pulled.ID)
+		}
+		lastErr = fmt.Errorf("pulled image does not provide expected image ID %s: %w", req.ExpectedImageID, err)
 		after, listErr := p.archiveImageIDs(ctx)
 		if listErr == nil {
 			p.removeArchiveImages(introducedArchiveImageIDs(imagesBefore, after))
 		}
 	}
-	return nil, fmt.Errorf("pull registry-backed archive image %q: %w", pullReference.String(), lastErr)
+	return "", nil, fmt.Errorf("pull registry-backed archive image %q: %w", pullReference.String(), lastErr)
 }
 
 func (p *DockerPlugin) archiveImageIDs(ctx context.Context) (map[string]struct{}, error) {
@@ -411,7 +426,7 @@ type countingWriter struct{ n int64 }
 
 func (w *countingWriter) Write(p []byte) (int, error) { w.n += int64(len(p)); return len(p), nil }
 
-func stripDockerArchiveRepoTags(source io.Reader, destination io.Writer) (err error) {
+func stripDockerArchiveRepoTags(source io.Reader, destination io.Writer, names archiveImageNames) (err error) {
 	input := tar.NewReader(source)
 	output := tar.NewWriter(destination)
 	seenMetadata := make(map[string]struct{}, 2)
@@ -447,7 +462,22 @@ func stripDockerArchiveRepoTags(source io.Reader, destination io.Writer) (err er
 			if readErr != nil {
 				return readErr
 			}
+			if namesErr := names.addManifestConfigs(manifest); namesErr != nil {
+				return namesErr
+			}
 			sanitized, sanitizeErr := sanitizeDockerArchiveManifest(manifest)
+			if sanitizeErr != nil {
+				return sanitizeErr
+			}
+			if writeErr := writeDockerArchiveEntry(output, header, sanitized); writeErr != nil {
+				return writeErr
+			}
+		case "index.json":
+			index, readErr := readDockerArchiveManifest(input, header.Size)
+			if readErr != nil {
+				return readErr
+			}
+			sanitized, sanitizeErr := names.sanitizeDockerArchiveIndex(index)
 			if sanitizeErr != nil {
 				return sanitizeErr
 			}
@@ -473,8 +503,8 @@ func stripDockerArchiveRepoTags(source io.Reader, destination io.Writer) (err er
 	}
 }
 
-// dockerArchiveTagMetadataEntryName identifies the two root metadata entries
-// Docker consumes for image tags. Reject aliases instead of copying them: the
+// dockerArchiveTagMetadataEntryName identifies the root metadata entries
+// Docker consumes for image tags (index.json: the containerd image store). Reject aliases instead of copying them: the
 // Docker loader normalizes tar paths during extraction, so an absolute or
 // otherwise non-canonical name could become root metadata after this stream
 // has already decided it was an ordinary file.
@@ -482,7 +512,7 @@ func dockerArchiveTagMetadataEntryName(header *tar.Header) (string, error) {
 	// Normalize against an extraction root. This catches aliases such as
 	// "/../manifest.json" and "../../repositories" as well as leading slashes.
 	cleanName := strings.TrimPrefix(path.Clean("/"+header.Name), "/")
-	if cleanName != "manifest.json" && cleanName != "repositories" {
+	if cleanName != "manifest.json" && cleanName != "repositories" && cleanName != "index.json" {
 		return "", nil
 	}
 	if header.Name != cleanName {

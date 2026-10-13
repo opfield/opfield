@@ -1,6 +1,6 @@
 import { isOpfieldVersionNewer } from "@/lib/opfield-update-reload";
 import { cn } from "@/lib/utils";
-import type { NodeAppearanceColor, NodeType } from "@/types";
+import type { NodeAppearanceColor, NodeHealthReport, NodeType } from "@/types";
 
 export const NODE_TYPE_LABELS: Record<NodeType, string> = {
   nginx: "Ingress",
@@ -15,6 +15,23 @@ export const NODE_TYPE_LABELS: Record<NodeType, string> = {
 
 export function nodeTypeLabel(type: NodeType | string): string {
   return NODE_TYPE_LABELS[type as NodeType] ?? type;
+}
+
+/** Whether the nginx of an online Ingress node runs, as its health reports it; null when it reports none. */
+export function nginxProcessState(node: {
+  type: string;
+  status: string;
+  liveHealthReport?: Pick<NodeHealthReport, "nginxRunning"> | null;
+  lastHealthReport?: Pick<NodeHealthReport, "nginxRunning"> | null;
+}): "running" | "stopped" | null {
+  const health = node.liveHealthReport ?? node.lastHealthReport;
+  if (
+    node.type !== "nginx" ||
+    node.status !== "online" ||
+    typeof health?.nginxRunning !== "boolean"
+  )
+    return null;
+  return health.nginxRunning ? "running" : "stopped";
 }
 
 export function daemonTypeForNode(type: NodeType | string): string {

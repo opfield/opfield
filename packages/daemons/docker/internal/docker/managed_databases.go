@@ -311,6 +311,9 @@ type managedDatabaseManager struct {
 	reserve int64
 	// dialTargets answers relay dials while dockerd does not (B-26).
 	dialTargets dialTargetLookups
+	// linkFallbacks is the last logged reason, by database id, why its links
+	// use TLS over the bridge instead of the link socket.
+	linkFallbacks sync.Map
 	// probeServed overrides the served-certificate probe (tests).
 	probeServed func(ctx context.Context, address, protocol string) (servedCertificate, error)
 	mu          sync.Mutex

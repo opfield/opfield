@@ -96,9 +96,10 @@ const (
 	// CutRevoked: handed over, but its route was revoked meanwhile.
 	CutRevoked = "revoked"
 	// CutLocalClosed: handed over, and its stream resumed or could have, but
-	// its local connection ended before the stream resumed in the next
-	// process, or failed before the update's counts were final: what the
-	// stream carried did not reach it, so the update did not keep it.
+	// its local connection failed before the update's counts were final:
+	// what the stream carried did not reach it, so the update did not keep
+	// it. A local side that ended its connection itself before the stream
+	// resumed is neither kept nor cut (P-1).
 	CutLocalClosed = "local_closed"
 	// CutUncounted: an update that handed nothing over cut every connection
 	// of the daemon, but the process that stopped (2.11.4-rc.7 or earlier)

@@ -57,10 +57,10 @@ type Handler struct {
 	}
 	// mutationMu serializes the changes to the nginx configuration: commands, the deferred reload and the
 	// daemon's own background changes (see reload_coalescing.go).
-	mutationMu    sync.Mutex
-	deferredMu    sync.Mutex
-	deferredTimer *time.Timer
-	deferredSince time.Time
+	mutationMu       sync.Mutex
+	deferredMu       sync.Mutex
+	deferredTimer    *time.Timer
+	deferredDeadline time.Time
 }
 
 // prepareSecureLinkListeners runs before a config is tested and reloaded: every
@@ -81,9 +81,9 @@ func (h *Handler) prepareSecureLinkListeners(configs ...string) {
 func NewHandler(cfg *config.Config, mgr *nginx.Manager, st *sharedstate.State, logger *slog.Logger, secureLinkState *securelink.StateStore, pagesRuntime *pages.Runtime, pagesRuntimeConfigAvailable bool) *Handler {
 	h := &Handler{cfg: cfg, mgr: mgr, state: st, logger: logger, secureLinkState: secureLinkState, pagesRuntime: pagesRuntime, pagesRuntimeConfigAvailable: pagesRuntimeConfigAvailable}
 	if pagesRuntime != nil && mgr != nil {
-		// Pages configs sent with defer_reload load with the reload of their batch, as route configs do
-		// (pagesDeferredReloadCapability).
-		pagesRuntime.SetDeferredReload(mgr.BeginChange, h.scheduleDeferredReload)
+		// Pages configs load with one reload shortly after the last Pages change, or with defer_reload with the
+		// reload of their batch, as route configs do (pagesDeferredReloadCapability).
+		pagesRuntime.SetDeferredReload(mgr.BeginChange, h.schedulePagesReload)
 	}
 	return h
 }

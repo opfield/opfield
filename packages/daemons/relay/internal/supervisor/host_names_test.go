@@ -22,6 +22,21 @@ func TestNonRootRelayWarnsThatItKeepsItsOldNames(t *testing.T) {
 			t.Fatalf("warning %q lacks %q", line, want)
 		}
 	}
+	if !strings.Contains(line, "pre-Opfield paths and service: a relay running as its own user cannot move them") {
+		t.Fatalf("warning %q does not name the kinds left", line)
+	}
+	// R-4: one path left names only that.
+	out.Reset()
+	warnHostNamesNeedInstaller(logger, hostnames.LegacyCount{"paths": 1}, "gwsvc")
+	if line := out.String(); !strings.Contains(line, "pre-Opfield path: a relay running as its own user cannot move it;") ||
+		strings.Contains(line, "service") || strings.Contains(line, "configuration") {
+		t.Fatalf("one path left: %q", line)
+	}
+	out.Reset()
+	warnHostNamesNeedInstaller(logger, hostnames.LegacyCount{"paths": 2, "services": 1, "users": 1}, "gwsvc")
+	if line := out.String(); !strings.Contains(line, "pre-Opfield paths, service and witness user:") {
+		t.Fatalf("all kinds left: %q", line)
+	}
 	out.Reset()
 	warnHostNamesNeedInstaller(logger, hostnames.LegacyCount{}, "gwsvc")
 	if out.Len() != 0 {
