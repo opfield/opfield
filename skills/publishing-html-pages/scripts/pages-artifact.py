@@ -38,7 +38,7 @@ def file_digest(path: Path) -> tuple[int, str]:
 
 
 def detect_format(path: Path) -> str:
-    """Mirror Gateway's detection: gzip magic bytes are an archive, leading markup is one HTML page."""
+    """Mirror Opfield's detection: gzip magic bytes are an archive, leading markup is one HTML page."""
     with path.open("rb") as handle:
         head = handle.read(SNIFF_BYTES)
     if len(head) >= 2 and head[0] == 0x1F and head[1] == 0x8B:
@@ -117,7 +117,7 @@ def prepare(source_arg: str, output_arg: str) -> None:
         fail("Pages archive output must be outside the source directory")
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.NamedTemporaryFile(dir=output.parent, prefix=".gateway-pages-", delete=False) as handle:
+    with tempfile.NamedTemporaryFile(dir=output.parent, prefix=".opfield-pages-", delete=False) as handle:
         temporary = Path(handle.name)
     file_count = 0
     try:

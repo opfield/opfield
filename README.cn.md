@@ -17,24 +17,39 @@ AI-first 但不依赖 AI 的自托管基础设施控制平面，用于 nginx ing
 
 ## 为什么需要 Opfield
 
-Opfield 为小型基础设施团队提供一个产品，用来处理日常工作中通常分散在 nginx 配置、shell 脚本、Docker 主机、证书目录、数据库客户端、仪表盘和告警工具里的任务。
+Opfield 取代你自托管的基础设施技术栈。入口流量、TLS、容器、部署、故障转移、数据库、对象存储、备份、监控、日志、告警、状态页、私有网络和访问控制：一个产品、一次安装、一套权限模型、一份审计日志。
 
-AI Workspace 是推荐的 intent-driven 界面：从完整 Scenario 开始或描述期望结果，查看建议计划，然后决定是否执行。Operations Console 仍然是管理同一基础设施的完整独立界面，因此 Opfield 的安装、运维、自动化和恢复都不依赖 AI。
+AI Workspace 把目标或现成的 Scenario 变成由你审阅的计划，只有在你确认后才执行。Operations Console 本身就是完整的界面：Opfield 的安装、运维、自动化和恢复从不依赖 AI。
 
-当你希望做到以下事情时，可以使用 Opfield：
+使用 Opfield，你可以：
 
-- 管理多个 proxy、Docker 和 monitoring 节点，而不需要在这些节点上开放入站 management 端口。
-- 给运维人员一个聚焦的 UI 和 API 来处理 production 任务，而不需要给他们 root shell access。
-- 集中管理 TLS、内部 PKI、ACME 证书、域名、状态页、通知和审计历史。
-- 在一个地方管理 Docker containers、deployments、portable 或 registry-backed `.gwca` archives、logs、files、consoles、secrets 和 registry workflows。
-- 通过 API tokens、OAuth、CI/CD webhooks 和 MCP clients 提供受控自动化。
-- 从 AI Workspace Scenario 开始，或使用 Plan Mode 在明确确认执行之前研究并验证多步骤变更。
+- 运行 proxy、Docker、存储和监控节点，节点上无需开放任何入站管理端口。
+- 为运维人员提供处理生产任务的 UI 和 API，而不是 root shell 访问。
+- 在一处集中管理 TLS、内部 PKI、ACME 证书、域名、状态页、通知和审计历史。
+- 跨所有节点管理 Docker 容器、Compose 项目、部署、`.gwca` 归档、日志、文件、控制台、secrets 和镜像仓库。
+- 通过 API tokens、OAuth、CI/CD webhooks 和 MCP 客户端实现自动化，权限范围与人工操作相同。
+- 在 AI Workspace 中规划多步骤变更，并在明确确认后执行。
+
+## Opfield 取代什么
+
+| 原来使用 | Opfield 提供 |
+|----------|--------------|
+| nginx 或 Traefik、certbot、cert-manager | 带自动 ACME 证书、内部 PKI、访问列表和维护页面的 Routes 与 Domains |
+| Portainer 等 Docker 面板 | 所有节点上的容器、Compose 项目、镜像、卷、网络、日志、文件和控制台 |
+| Coolify、Dokku、Heroku 式 PaaS | Git 构建、支持 slot 切换和回滚的部署、带环境的 Apps、用于静态站点的 Pages |
+| 为故障转移而用的 Kubernetes | Docker Availability：某个节点故障时工作负载迁移到另一个节点，无需维护集群 |
+| 数据库 operator 和托管数据库 | 具备高可用和私有连接的托管 PostgreSQL、key-value 存储、ClickHouse 和 S3 对象存储 |
+| 备份脚本和备份服务 | 定时数据库备份到 S3、FTP、FTPS 或 SFTP，恢复从不覆盖源数据库，加密导出可恢复整个安装 |
+| VPN、堡垒机、开放的管理端口 | Secure Links 和 relay：节点主动出站连接，工作负载和数据库无需开放端口 |
+| Prometheus、Grafana、Loki、Alertmanager | 节点和容器指标、集中日志、告警规则和通知 |
+| Statuspage、Uptime Kuma | 带组件和事件的状态页 |
+
+每一项为何更简单、更好：见 [Why Opfield](https://docs.opfield.dev/en/getting-started/why-opfield/)。主机操作系统和网络边界由你负责，工作单元是容器或 Compose 项目。
 
 ## 首批集成伙伴
 
-Opfield 已被集成到产品、企业、交易和金融科技基础设施中：
+Opfield 运行在以下产品、企业、交易和金融科技环境中：
 
-- [Wiolett Industries](https://docs.opfield.dev/en/success-stories/wiolett-industries/) — 产品工程与基础设施交付。
 - [Remedy Trade](https://docs.opfield.dev/en/success-stories/remedy-trade/) — 系统化交易运营。
 - [Just Working](https://docs.opfield.dev/en/success-stories/just-working/) — 企业平台与云集成。
 - [DFK Algotrade](https://docs.opfield.dev/en/success-stories/dfk-algotrade/) — 金融科技工程与投资组合基础设施。
@@ -61,7 +76,7 @@ curl -fsSL https://get.opfield.dev | bash
 | `80/tcp` | HTTP 和 ACME HTTP-01 challenge，仅在使用该 challenge mode 时需要。 |
 | `9443/tcp` | managed daemon control 与 tunnel connections 使用的公开 relay-backed gRPC endpoint。Opfield app 的 gRPC listener 仅在内部使用。 |
 
-在 NAT 或已有外部 reverse proxy 后面时，只在本地网络发布 `3000/tcp`，并配置外部 proxy 将 Opfield 公共域名转发到选定的 HTTP 或 HTTPS transport（`<gateway-lan-ip>:3000`）。Managed nodes 仍会 outbound 连接 Opfield 的 `9443/tcp`；它们不需要入站 management ports。
+在 NAT 或已有外部 reverse proxy 后面时，只在本地网络发布 `3000/tcp`，并配置外部 proxy 将 Opfield 公共域名转发到选定的 HTTP 或 HTTPS transport（`<opfield-lan-ip>:3000`）。Managed nodes 仍会 outbound 连接 Opfield 的 `9443/tcp`；它们不需要入站 management ports。
 
 新的交互式安装在 shell 中只询问一个问题：端口 `3000` 使用 native HTTPS 还是 HTTP。所有产品配置都在 browser wizard 中完成；更新是非交互式的，并保留现有设置。
 
@@ -130,7 +145,7 @@ curl -fsSL https://get.opfield.dev | bash
 | Integrations | GitLab project、repository、CI/CD、variable、webhook、registry 和 sandbox workflows；GitHub repository 与 Actions workflows；generic Git connectors；external SSH connectors；以及 Cloudflare DNS/ACME automation。Connector credentials 会加密保存，访问受 scopes 限制。GitLab integration 需要 Personal 及以上计划。 |
 | Relay | Long-lived local relay 负责公开 `9443/tcp` 上的 daemon control 与 managed tunnel traffic。Relay Pool 可增加 remote supervisor/worker pairs、显式 placement/rebalancing、drain 与 rolling signed updates，同时保持一个逻辑 Secure Link。Opfield、local relay 和 remote relay 的证书在运行中自动续期。 |
 | AI Workspace | 可选的 intent-driven operations，包含引导式 Scenarios、Plan Mode、permission-aware tools、approvals、sandboxed execution、进度跟踪和最终验证。在明确确认之前，规划不会执行任何变更。Scenarios、Plan Mode 和 sandboxed execution 需要 Personal 及以上计划。 |
-| Inference | 可选的 multi-provider model gateway，包含独立 tokens、usage controls、仅在 output 开始前进行的 capability-compatible cross-provider fallback、OpenAI/Anthropic-compatible APIs，以及通过 `@sqgateway/inference` 管理且可选 user-session auto-start 的 Codex 或 Claude Code 配置。 |
+| Inference | 可选的 multi-provider model gateway，包含独立 tokens、usage controls、仅在 output 开始前进行的 capability-compatible cross-provider fallback，以及面向 Codex、Claude Code 和其他 harness 的 OpenAI/Anthropic-compatible APIs。 |
 | Administration | OIDC、password、email-code 和 passkey login，group-based 和 per-user additional permissions, scoped programmatic access, audit logs, setup state, updates 和 license controls。 |
 
 ## 工作方式
@@ -161,11 +176,13 @@ Opfield 每小时检查其 gRPC、web 和 local relay 证书，并在到期前 3
 
 可以在 **Settings > Relay** 中把本地 relay 扩展为一个逻辑 Relay Pool。额外的 relay 节点由专用 supervisor 管理，控制连接仍然只需 outbound 到 Opfield，并且只向参与的 managed hosts 暴露配置的 relay data endpoint（默认 TCP `9443`）。Opfield 不修改 firewall、不提供 NAT traversal，也不创建 overlay network。Relay Pool 稳定后，Opfield 会自动把 placements 迁移到新的 relay（管理员也可以手动执行 **Rebalance**），并且只有在 workload 的主机确认能访问新 relay 后才切换；之后新连接会分散到 workload 预先验证的 active relay 集合中，而用户仍然看到一个逻辑 Secure Link。Remote relay 证书会在到期前自动续期；无法恢复的 remote relay 可以在同一页面重新注册，而 local relay 的 policy trust 由 Opfield 自动修复。
 
+生产环境中，请在 Opfield 主机之外、位于不同故障域的主机上运行至少两个 relay。某个 relay 故障时，它承载的流会在另一个 relay 上继续，两端的 socket 不会察觉；如果只有本地 relay，Secure Links 和数据库连接都依赖 Opfield 主机。见 [How many Relays](https://docs.opfield.dev/en/nodes/relay-pool/#how-many-relays)。
+
 节点不需要入站 management 端口。你对外提供服务时仍然需要 public traffic ports，例如 nginx nodes 上的 `80` 和 `443`。
 
 ## Security Model
 
-Opfield 的设计目标是让自托管基础设施控制平面默认更安全：
+Opfield 默认安全：
 
 - 用户登录支持 OIDC、password、email code 和 passkeys。Local authentication 需要已验证的 SMTP delivery，group MFA policy 会在 primary credential 后生效。
 - Managed nodes 通过 gRPC 和 mTLS outbound 连接 Opfield。首次 enrollment 需要一次性 token 和生成的 Opfield gRPC certificate fingerprint，daemon 会在发送 token 前验证 Opfield TLS leaf。Enrollment 完成后，daemon commands 需要由 Opfield internal node CA 签发的 client certificate。
@@ -174,7 +191,7 @@ Opfield 的设计目标是让自托管基础设施控制平面默认更安全：
 - API tokens、OAuth grants、MCP access、database credentials、certificate exports 和 secret reveal operations 都受 scope 限制，不能超过拥有者当前 permissions，并且会被审计。
 - Private key material 和保存的 infrastructure credentials 使用配置的 `PKI_MASTER_KEY` 进行 at rest 加密。
 
-最终形成的是 PKI-backed trust model：short-lived enrollment tokens 只有在 daemon 确认自己正在与 pinned Opfield certificate 通信后才会让节点进入系统，长期信任则基于 certificate identity，而不是 reusable shared secrets。这让 Opfield 对 setup 期间的 token interception 和 enrollment 后的 node hijacking 都具备更强的默认防护。完整说明和 hardening checklist 见 [security model](docs/security.md)。
+最终形成的是 PKI-backed trust model：short-lived enrollment tokens 只有在 daemon 确认自己正在与 pinned Opfield certificate 通信后才会让节点进入系统，长期信任则基于 certificate identity，而不是 reusable shared secrets。daemon 绝不会把 setup token 交给冒充的服务器，已注册的节点以证书而不是可复用的共享密钥来识别。完整说明和 hardening checklist 见 [security model](docs/security.md)。
 
 ## 验证版本
 
@@ -195,9 +212,9 @@ cosign verify ghcr.io/opfield/opfield:v2.12.0 \
 ## FAQ
 
 <details>
-<summary><strong>Opfield 是 Kubernetes 的替代品吗？</strong></summary>
+<summary><strong>故障转移需要 Kubernetes 吗？</strong></summary>
 
-不是。Opfield 面向直接的基础设施操作：nginx hosts、Docker hosts、certificates、domains、databases、logs、monitoring 和 automation。它可以与 Kubernetes 并存，但并不试图成为 Kubernetes control plane。
+不需要。Docker Availability 在一组节点上运行工作负载，某个节点故障时把它迁移到另一个节点，无需 etcd、CNI、ingress controller、operators 或 YAML。托管数据库和对象存储同样可以运行在多台服务器上，在见证者（relay 或第三台服务器）投票后自动切换到副本。工作单元是容器或 Compose 项目；Opfield 不运行 Kubernetes manifests 或 Helm charts。
 </details>
 
 <details>

@@ -17,24 +17,39 @@ AI-first, но не AI-dependent платформа управления инф�
 
 ## Зачем нужен Opfield
 
-Opfield дает небольшим инфраструктурным командам один продукт для ежедневной работы, которая обычно разбросана между nginx-конфигами, shell-скриптами, Docker-хостами, папками с сертификатами, клиентами баз данных, дашбордами и alert-инструментами.
+Opfield заменяет стек инфраструктуры на ваших серверах. Входящий трафик, TLS, контейнеры, развёртывания, отказоустойчивость, базы данных, объектное хранилище, бэкапы, мониторинг, логи, алерты, статус-страницы, приватная сеть и права доступа: один продукт, одна установка, одна модель прав, один журнал аудита.
 
-AI Workspace — рекомендуемый intent-driven интерфейс: начните с полноценного Scenario или опишите желаемый результат, просмотрите предложенный план и решите, выполнять ли его. Operations Console остаётся полноценным независимым интерфейсом для той же инфраструктуры, поэтому установка, эксплуатация, автоматизация и восстановление Opfield не зависят от AI.
+AI Workspace превращает цель или готовый Scenario в план, который вы проверяете, и выполняет его только после подтверждения. Operations Console — полноценный интерфейс сам по себе: установка, эксплуатация, автоматизация и восстановление Opfield никогда не зависят от AI.
 
-Используйте Opfield, если хотите:
+С Opfield вы:
 
-- Управлять несколькими proxy, Docker и monitoring узлами без открытия входящих management-портов на этих узлах.
-- Дать операторам сфокусированный UI и API для production-задач без выдачи root shell access.
-- Централизовать TLS, внутреннюю PKI, ACME-сертификаты, домены, статус-страницы, уведомления и audit history.
-- Управлять Docker-контейнерами, deployments, portable и registry-backed `.gwca` archives, логами, файлами, консолями, secrets и registry workflows из одного места.
-- Предоставить контролируемую автоматизацию через API tokens, OAuth, CI/CD webhooks и MCP clients.
-- Начать с готового Scenario в AI Workspace или использовать Plan Mode, чтобы исследовать и проверить многошаговое изменение до явного подтверждения выполнения.
+- Ведёте прокси, Docker-, storage- и monitoring-ноды без входящих портов управления на них.
+- Даёте операторам интерфейс и API для рабочих задач вместо root-доступа к серверам.
+- Держите TLS, внутренний PKI, ACME-сертификаты, домены, статус-страницы, уведомления и журнал аудита в одном месте.
+- Управляете Docker-контейнерами, Compose-проектами, развёртываниями, архивами `.gwca`, логами, файлами, консолями, секретами и реестрами на всех нодах.
+- Автоматизируете работу через API-токены, OAuth, CI/CD-вебхуки и MCP-клиентов с теми же ограниченными правами.
+- Планируете многошаговое изменение в AI Workspace и выполняете его после явного подтверждения.
+
+## Что заменяет Opfield
+
+| Вместо | В Opfield |
+|--------|-----------|
+| nginx или Traefik, certbot, cert-manager | Маршруты и домены с автоматическими сертификатами ACME, внутренний PKI, списки доступа и страницы обслуживания |
+| Portainer и другие панели Docker | Контейнеры, Compose-проекты, образы, тома, сети, логи, файлы и консоли на всех нодах |
+| Coolify, Dokku, PaaS в стиле Heroku | Сборки из Git, развёртывания с переключением слотов и откатом, приложения с окружениями, Pages для статических сайтов |
+| Kubernetes ради отказоустойчивости | Docker Availability: приложения переезжают на другую ноду, если одна отказала, без кластера, который нужно обслуживать |
+| Операторы баз данных и облачные базы | Managed PostgreSQL, key-value хранилища, ClickHouse и S3-хранилище с отказоустойчивостью и приватными подключениями |
+| Скрипты и сервисы бэкапов | Бэкапы баз по расписанию в S3, FTP, FTPS или SFTP, восстановление, которое никогда не перезаписывает исходную базу, и зашифрованный экспорт, который восстанавливает всю установку |
+| VPN, bastion-хосты, открытые порты управления | Secure Links и relay: ноды подключаются сами, приложениям и базам не нужны открытые порты |
+| Prometheus, Grafana, Loki, Alertmanager | Метрики нод и контейнеров, централизованные логи, правила алертов и уведомления |
+| Statuspage, Uptime Kuma | Статус-страницы с компонентами и инцидентами |
+
+Почему каждая замена проще и лучше: [Зачем нужен Opfield](https://docs.opfield.dev/ru/getting-started/why-opfield/). Операционная система серверов и сетевой периметр остаются за вами, а единица работы — контейнер или Compose-проект.
 
 ## Первые интеграторы
 
-Opfield уже интегрируют в продуктовую, enterprise-, trading- и fintech-инфраструктуру:
+Opfield работает в продуктовой, корпоративной, торговой и финтех-инфраструктуре:
 
-- [Wiolett Industries](https://docs.opfield.dev/ru/success-stories/wiolett-industries/) — продуктовая разработка и инфраструктурная доставка.
 - [Remedy Trade](https://docs.opfield.dev/ru/success-stories/remedy-trade/) — эксплуатация системной торговли.
 - [Just Working](https://docs.opfield.dev/ru/success-stories/just-working/) — enterprise-платформы и cloud-интеграции.
 - [DFK Algotrade](https://docs.opfield.dev/ru/success-stories/dfk-algotrade/) — fintech-разработка и портфельная инфраструктура.
@@ -61,7 +76,7 @@ Installer запускает Opfield и выводит одноразовый к
 | `80/tcp` | HTTP и ACME HTTP-01 challenge, только если используется этот challenge mode. |
 | `9443/tcp` | Публичный relay-backed gRPC endpoint для control и tunnel connections managed daemons. gRPC listener приложения Opfield остаётся внутренним. |
 
-За NAT или существующим внешним reverse proxy публикуйте `3000/tcp` только в локальной сети и настройте внешний proxy на передачу публичного домена Opfield к выбранному HTTP- или HTTPS-транспорту на `<gateway-lan-ip>:3000`. Managed nodes все равно подключаются исходяще к Opfield на `9443/tcp`; входящие management-порты им не нужны.
+За NAT или существующим внешним reverse proxy публикуйте `3000/tcp` только в локальной сети и настройте внешний proxy на передачу публичного домена Opfield к выбранному HTTP- или HTTPS-транспорту на `<opfield-lan-ip>:3000`. Managed nodes все равно подключаются исходяще к Opfield на `9443/tcp`; входящие management-порты им не нужны.
 
 При новой интерактивной установке единственный shell-вопрос — использовать ли native HTTPS или HTTP на порту `3000`. Вся настройка продукта выполняется в browser wizard; обновления неинтерактивны и сохраняют настройки.
 
@@ -130,7 +145,7 @@ Installer запускает Opfield и выводит одноразовый к
 | Integrations | GitLab workflows для projects, repositories, CI/CD, variables, webhooks, registry и sandbox; GitHub repositories и Actions; generic Git connectors; external SSH connectors; Cloudflare DNS/ACME automation. Credentials connectors шифруются, а доступ ограничен scopes. GitLab integration доступна в Personal и выше. |
 | Relay | Long-lived local relay владеет публичным `9443/tcp` для daemon control и managed tunnel traffic. Relay Pool добавляет remote supervisor/worker pairs, явное placement и rebalancing, drain и rolling signed updates, сохраняя один логический Secure Link. Сертификаты Opfield, local relay и remote relay обновляются без перезапуска. |
 | AI Workspace | Опциональные intent-driven operations с готовыми Scenarios, Plan Mode, permission-aware tools, approvals, sandboxed execution, отслеживанием прогресса и финальной проверкой. До явного подтверждения планирование не выполняет изменений. Scenarios, Plan Mode и sandboxed execution доступны в Personal и выше. |
-| Inference | Опциональный multi-provider model gateway с отдельными tokens, usage controls, capability-compatible cross-provider fallback до начала output, OpenAI- и Anthropic-compatible API и управляемой настройкой Codex или Claude Code с опциональным user-session auto-start через `@sqgateway/inference`. |
+| Inference | Опциональный multi-provider model gateway с отдельными tokens, usage controls, capability-compatible cross-provider fallback до начала output и OpenAI- и Anthropic-compatible API для Codex, Claude Code и других harness. |
 | Administration | OIDC, password, email-code и passkey login, group-based и дополнительные per-user permissions, scoped programmatic access, audit logs, setup state, updates и license controls. |
 
 ## Как это работает
@@ -161,11 +176,13 @@ Opfield раз в час проверяет свои сертификаты gRPC
 
 Локальный relay можно расширить до единого Relay Pool в **Settings > Relay**. Дополнительные relay-ноды подключаются через отдельный supervisor, исходяще соединяются с Opfield для управления и публикуют только настроенный data endpoint relay (по умолчанию TCP `9443`) для участвующих managed hosts. Opfield не меняет firewall, не выполняет NAT traversal и не создаёт overlay network. Opfield сам переносит placements на новый relay, когда pool стабилен (или когда администратор запускает **Rebalance**), и переключает workload только после того, как его хосты достучались до нового relay; новые соединения затем распределяются по заранее проверенному активному набору relay workload-а, а пользователь по-прежнему видит один логический Secure Link. Сертификаты remote relay обновляются автоматически до истечения; remote relay, который не может восстановиться, можно заново подключить на той же странице, а policy trust локального relay Opfield восстанавливает сам.
 
+В продакшене запускайте не меньше двух relay на серверах, отличных от сервера Opfield, в разных доменах отказа. Когда relay отказывает, его потоки продолжаются через другой relay, и сокеты на обоих концах этого не замечают; с одним локальным relay Secure Links и подключения к базам зависят от сервера Opfield. См. [Сколько нужно Relay](https://docs.opfield.dev/ru/nodes/relay-pool/#сколько-нужно-relay).
+
 Узлам не нужны входящие management-порты. Public traffic ports, например `80` и `443` на nginx nodes, все еще нужны для сервисов, которые вы публикуете.
 
 ## Security Model
 
-Opfield по умолчанию ориентирован на безопасную работу как infrastructure control plane:
+Opfield безопасен по умолчанию:
 
 - Вход поддерживает OIDC, пароль, email-коды и passkeys. Local authentication требует проверенной SMTP-доставки, а group MFA policy применяется после primary credential.
 - Managed nodes подключаются к Opfield исходяще по gRPC с mTLS. Первая регистрация требует одноразовый token и сгенерированный fingerprint gRPC-сертификата Opfield, а daemon проверяет TLS leaf Opfield перед отправкой token. После enrollment daemon-команды требуют client certificate, выпущенный внутренней node CA Opfield.
@@ -174,7 +191,7 @@ Opfield по умолчанию ориентирован на безопасну
 - API tokens, OAuth grants, MCP access, database credentials, certificate exports и secret reveal operations ограничены scopes, не превышают текущие permissions владельца и аудируются.
 - Private key material и сохраненные infrastructure credentials шифруются at rest с настроенным `PKI_MASTER_KEY`.
 
-Итог - PKI-backed trust model: short-lived enrollment tokens вводят узел в систему только после того, как daemon подтвердит, что говорит с pinned Opfield certificate, а долгосрочное доверие основано на certificate identity вместо reusable shared secrets. Это дает Opfield сильную базовую защиту от token interception во время setup и node hijacking после enrollment. Полное объяснение и hardening checklist см. в [security model](docs/security.md).
+Итог - PKI-backed trust model: short-lived enrollment tokens вводят узел в систему только после того, как daemon подтвердит, что говорит с pinned Opfield certificate, а долгосрочное доверие основано на certificate identity вместо reusable shared secrets. Daemon никогда не отдаёт токен установки подменному серверу, а подключённая нода опознаётся по сертификату, а не по общему секрету. Полное объяснение и hardening checklist см. в [security model](docs/security.md).
 
 ## Проверка релизов
 
@@ -195,9 +212,9 @@ cosign verify ghcr.io/opfield/opfield:v2.12.0 \
 ## FAQ
 
 <details>
-<summary><strong>Opfield заменяет Kubernetes?</strong></summary>
+<summary><strong>Нужен ли Kubernetes для отказоустойчивости?</strong></summary>
 
-Нет. Opfield предназначен для прямых инфраструктурных операций: nginx hosts, Docker hosts, certificates, domains, databases, logs, monitoring и automation. Он может использоваться рядом с Kubernetes, но не пытается быть Kubernetes control plane.
+Нет. Docker Availability запускает приложение на наборе нод и переносит его на другую ноду, если одна отказала, без etcd, CNI, ingress-контроллера, операторов и YAML. Управляемые базы данных и объектное хранилище работают на нескольких серверах и сами переключаются на копию, когда за это голосует свидетель (relay или третий сервер). Единица работы — контейнер или Compose-проект; манифесты Kubernetes и Helm-чарты Opfield не использует.
 </details>
 
 <details>

@@ -16,17 +16,17 @@ From the UI:
 
 A restart interrupts blue/green deploys, drains, Availability and Compose operations, build rollouts, and Docker migrations, so Opfield first waits for those that are running or queued. The update screen lists them and the latest time it waits: 15 minutes by default, longer when a running operation announces a later deadline, but never more than an hour. New operations of these kinds are refused until the update has finished. **Update now** stops waiting; Opfield then resumes or reconciles the interrupted operations after the restart, and it does the same when the wait runs out. A restart during the wait keeps the current version. This wait, and the database snapshot below, belong to the updater of the running version: they apply to updates started from 2.11 on, not to the update from 2.10 (see [Updating from 2.10](#updating-from-210)).
 
-Opfield verifies the signed release manifest, pulls the selected image by its immutable digest, runs the target image's foundation migrator, updates `GATEWAY_IMAGE_REF`, and recreates its own container. Relay has an independent immutable `GATEWAY_RELAY_IMAGE_REF`; Compose leaves it running when the digest is unchanged and replaces it when the signed `relayImageRef` changes. Automatic gateway updates fail closed when the signed manifest is missing, invalid, or does not match the requested version and running image repository.
+Opfield verifies the signed release manifest, pulls the selected image by its immutable digest, runs the target image's foundation migrator, updates `OPFIELD_IMAGE_REF`, and recreates its own container. Relay has an independent immutable `OPFIELD_RELAY_IMAGE_REF`; Compose leaves it running when the digest is unchanged and replaces it when the signed `relayImageRef` changes. Automatic Opfield updates fail closed when the signed manifest is missing, invalid, or does not match the requested version and running image repository.
 
 The installation-wide **Update channel** is configured under **Settings > General > Features and updates**. `stable` is the default and accepts production releases only. `preview` also allows GitHub prereleases tagged as `vX.Y.Z-rc.N` for Opfield and with the required component suffix for Relay and managed node daemons, for example `vX.Y.Z-rc.N-relay` or `vX.Y.Z-rc.N-docker`. Switching back to `stable` immediately hides cached release-candidate offers. Component-aware resolution prefers a newer patch on the current minor, otherwise the baseline release of the next minor. Daemon checks stage one target per daemon type from that type's oldest compatible installed cohort. Inference Core keeps its independent stable signed release channel and is not changed by this setting.
 
-If the new version does not become healthy within about five minutes, the update container rolls back. It restores `.env` and `docker-compose.yml` from `.gateway-foundation-backups/pre-update-<time>/` and restores the Opfield database from a snapshot taken just before the new app started, so the previous version never runs on a schema changed by the new version's migrations. Data written after the snapshot is lost. The snapshot is a `pg_dump` custom-format file, `gateway-db.dump`, in the same backup directory. It is deleted once the update or the restore succeeds, and a leftover one is deleted by a later update once it is older than 7 days. To restore it, the rollback stops every Compose service except `postgres`, drops the `gateway` database and recreates it from the dump.
+If the new version does not become healthy within about five minutes, the update container rolls back. It restores `.env` and `docker-compose.yml` from `.opfield-foundation-backups/pre-update-<time>/` and restores the Opfield database from a snapshot taken just before the new app started, so the previous version never runs on a schema changed by the new version's migrations. Data written after the snapshot is lost. The snapshot is a `pg_dump` custom-format file, `opfield-db.dump`, in the same backup directory. It is deleted once the update or the restore succeeds, and a leftover one is deleted by a later update once it is older than 7 days. To restore it, the rollback stops every Compose service except `postgres`, drops the `opfield` database and recreates it from the dump. An update started from 2.12.0 or earlier is run by that version's updater, which uses `.gateway-foundation-backups`, `gateway-db.dump` and the database and role `gateway`.
 
 The update needs free space for the snapshot on the filesystem holding the Opfield directory: the database size plus 10% plus 256 MiB. With less, the update stops before the app is replaced, and the update container logs say how much space is needed. If the migrated database cannot be dropped, the previous version starts on it as before and the dump is kept. If the restore fails after the drop, Opfield is left stopped and the dump is kept. Fix the cause shown in the update container logs, then restore from the Opfield directory:
 
 ```bash
-docker compose exec -T postgres psql -U gateway -d postgres -c 'DROP DATABASE IF EXISTS gateway WITH (FORCE)'
-docker compose exec -T postgres pg_restore --create --exit-on-error -U gateway -d postgres < .gateway-foundation-backups/pre-update-<time>/gateway-db.dump
+docker compose exec -T postgres psql -U opfield -d postgres -c 'DROP DATABASE IF EXISTS opfield WITH (FORCE)'
+docker compose exec -T postgres pg_restore --create --exit-on-error -U opfield -d postgres < .opfield-foundation-backups/pre-update-<time>/opfield-db.dump
 docker compose up -d
 ```
 
@@ -38,7 +38,7 @@ Manual update:
 
 ```bash
 # Edit .env first, for example:
-# GATEWAY_IMAGE_REF=ghcr.io/opfield/opfield:v2.12.1
+# OPFIELD_IMAGE_REF=ghcr.io/opfield/opfield:v2.12.1
 docker compose pull
 docker compose up -d
 ```
@@ -116,11 +116,11 @@ The installer writes infrastructure/bootstrap values to `.env`. Product settings
 | `PORT` | HTTP port inside the app container. |
 | `DATABASE_URL` | PostgreSQL connection URL. |
 | `REDIS_URL` | Redis connection URL. |
-| `GATEWAY_IMAGE_REF` | Opfield image reference used by Compose. The installer writes the selected release tag; signed self-updates replace it with `image@sha256:<digest>`. |
-| `GATEWAY_DEPLOYMENT_MODE` | Immutable process mode: `standard` (default) or `demo`. Demo enables the dedicated public demo OTP flow and centrally denies visitor mutations, secret access, consoles, AI/MCP/OAuth, and automation tokens. Invalid values fail startup; changing the mode requires recreating the Opfield process. |
-| `GATEWAY_RELAY_IMAGE_REF` | Independently pinned immutable image reference used by relay. Only a digest change updates relay. |
-| `GATEWAY_RELAY_BUILD_VERSION` | Expected build version reported by the pinned relay image. |
-| `GATEWAY_RELAY_PROTOCOL_MAJOR` | Supported relay wire-protocol major. |
+| `OPFIELD_IMAGE_REF` | Opfield image reference used by Compose. The installer writes the selected release tag; signed self-updates replace it with `image@sha256:<digest>`. |
+| `OPFIELD_DEPLOYMENT_MODE` | Immutable process mode: `standard` (default) or `demo`. Demo enables the dedicated public demo OTP flow and centrally denies visitor mutations, secret access, consoles, AI/MCP/OAuth, and automation tokens. Invalid values fail startup; changing the mode requires recreating the Opfield process. |
+| `OPFIELD_RELAY_IMAGE_REF` | Independently pinned immutable image reference used by relay. Only a digest change updates relay. |
+| `OPFIELD_RELAY_BUILD_VERSION` | Expected build version reported by the pinned relay image. |
+| `OPFIELD_RELAY_PROTOCOL_MAJOR` | Supported relay wire-protocol major. |
 | `SETUP_BOOTSTRAP` | Installer-only flag that permits a fresh empty database to enter first-run setup. |
 | `WEB_TLS_BOOTSTRAP_MODE` | Seeds `http` or `https` only when no persisted web-transport choice exists. |
 | `WEB_TLS_AUTO_DIR` | Persistent directory for the native web TLS leaf and private key. |
@@ -192,10 +192,12 @@ Opfield supports browser sessions, REST API tokens, OAuth access tokens, MCP acc
 
 | Prefix | Token family | Purpose |
 |--------|--------------|---------|
-| `gw_` | API token | REST API automation. |
-| `gwo_` | OAuth access token | Opfield API or Opfield MCP resource. |
-| `gwl_` | Logging ingest token | Write-only structured log ingestion. |
-| `gwi_` | Inference runtime token | Opfield Inference data-plane requests. |
+| `opf_` | API token | REST API automation. |
+| `opfo_` | OAuth access token | Opfield API or Opfield MCP resource. |
+| `opfl_` | Logging ingest token | Write-only structured log ingestion. |
+| `opfi_` | Inference runtime token | Opfield Inference data-plane requests. |
+
+Tokens issued before 2.12.1 start with `gw_`, `gwo_`, `gwl_` or `gwi_` and keep working until they are revoked or expire.
 
 ### API Tokens
 
@@ -211,7 +213,7 @@ Important behavior:
 - API tokens are not accepted by the MCP endpoint.
 - **Limit selected scopes to folder…** in the token's scope editor (and on the OAuth consent screen) narrows the selected scopes to one folder and its subfolders. A token's folder and node grants are expanded first and then bounded by the owner's current permissions, so a token never reaches a resource its owner cannot.
 
-API tokens and OAuth grants can do everything a user can do with Opfield resources, including node enrollment and global nginx config, raw route config, users and permission groups, Opfield and environment settings, integration and hosting connectors, hosting VMs, inference administration, relay drain/rebalance/force-disconnect, and updates. They can also manage the owner's personal `gwi_` inference keys when they hold `feat:ai:use`. They cannot carry the user-only AI Workspace, AI sandbox, and `mcp:use` scopes, `admin:users:impersonate`, or `integrations:gitlab:sandbox:clone`, and they cannot call browser/identity-bound routes: sign-in, password, MFA, passkeys, the caller's own sessions and preferences, starting impersonation, OAuth consent, API token and OAuth authorization management, per-user Git credentials, AI Workspace chat, UI bootstrap, and the post-setup onboarding checklist. See [SCOPES.md](../SCOPES.md#api-token-delegation).
+API tokens and OAuth grants can do everything a user can do with Opfield resources, including node enrollment and global nginx config, raw route config, users and permission groups, Opfield and environment settings, integration and hosting connectors, hosting VMs, inference administration, relay drain/rebalance/force-disconnect, and updates. They can also manage the owner's personal `opfi_` inference keys when they hold `feat:ai:use`. They cannot carry the user-only AI Workspace, AI sandbox, and `mcp:use` scopes, `admin:users:impersonate`, or `integrations:gitlab:sandbox:clone`, and they cannot call browser/identity-bound routes: sign-in, password, MFA, passkeys, the caller's own sessions and preferences, starting impersonation, OAuth consent, API token and OAuth authorization management, per-user Git credentials, AI Workspace chat, UI bootstrap, and the post-setup onboarding checklist. See [SCOPES.md](../SCOPES.md#api-token-delegation).
 
 ### OAuth
 
@@ -225,8 +227,8 @@ OAuth access tokens are resource-bound:
 
 | Resource | URL | Accepted by |
 |----------|-----|-------------|
-| Opfield API | `https://<gateway>/api` | REST API routes. |
-| Opfield MCP | `https://<gateway>/api/mcp` | Remote MCP endpoint. |
+| Opfield API | `https://<opfield>/api` | REST API routes. |
+| Opfield MCP | `https://<opfield>/api/mcp` | Remote MCP endpoint. |
 
 An OAuth access token for the API resource cannot call MCP. An OAuth access token for the MCP resource cannot call normal REST API routes.
 
@@ -246,9 +248,9 @@ The remote MCP endpoint is intended for AI and MCP clients.
 MCP accepts only OAuth access tokens issued for the Opfield MCP resource. It rejects:
 
 - Browser cookies.
-- `gw_` API tokens.
-- `gwl_` logging tokens.
-- `gwi_` inference tokens.
+- `opf_` API tokens.
+- `opfl_` logging tokens.
+- `opfi_` inference tokens.
 - OAuth tokens issued for the Opfield API resource.
 
 The `mcp:use` scope is a user-account capability gate. The owning user must have it for MCP access.
@@ -261,15 +263,15 @@ The `Ingress` toolset covers Domains, Routes, route folders, nginx templates, ac
 
 The same scoped automation surface includes managed database provisioning and container/deployment/Compose-service bindings; first-class Compose discovery, revisions, lifecycle operations, secrets, activity and Git-source builds; Page Projects, Deployments, Tags, deploy tokens, runtime configuration and Git-source builds; Build Worker-filtered job history with logs/cancel/retry; path-based Additional Routes; and independent Additional Secure Link Bindings. Remote MCP clients can also upload Pages artifact bytes with the authenticated `upload_pages_artifact` tool (a one-time curl upload link, or begin/chunk/finalize), while ordinary API clients can use the resumable deploy API.
 
-MCP clients can read the same permission-filtered internal operator documentation used by AI Workspace through `read_gateway_documentation` or the `gateway://docs` resource tree. General topics are available to any valid MCP authorization; subsystem topics are listed and readable only when the delegated OAuth scopes grant that subsystem.
+MCP clients can read the same permission-filtered internal operator documentation used by AI Workspace through `read_opfield_documentation` or the `opfield://docs` resource tree. General topics are available to any valid MCP authorization; subsystem topics are listed and readable only when the delegated OAuth scopes grant that subsystem.
 
 Extended compatibility can expose hundreds of schemas. Disable it only for clients that correctly handle `notifications/tools/list_changed` and need the smaller discovery-driven context.
 
 ### Access Summary, Skills, And Idempotent Retries
 
-`GET /api/auth/me/access` summarizes what the caller can reach, grouped by product area: broad access, or the granted folders (with their paths), nodes, accounts, and single resources with their actions, and where the caller may create. API tokens and OAuth grants are reported as bounded by their owner's current access. MCP clients get the same summary from the `get_my_access` tool, which is always listed, and the `gateway://access` resource; when a connection's access is limited, a short form of it is also part of the MCP server instructions. Folder-, node-, and resource-limited access is normal: work inside the listed grants and pass `folderId` (and `nodeId`) when creating.
+`GET /api/auth/me/access` summarizes what the caller can reach, grouped by product area: broad access, or the granted folders (with their paths), nodes, accounts, and single resources with their actions, and where the caller may create. API tokens and OAuth grants are reported as bounded by their owner's current access. MCP clients get the same summary from the `get_my_access` tool, which is always listed, and the `opfield://access` resource; when a connection's access is limited, a short form of it is also part of the MCP server instructions. Folder-, node-, and resource-limited access is normal: work inside the listed grants and pass `folderId` (and `nodeId`) when creating.
 
-The MCP endpoint also serves the agent skills shipped with this Opfield release as `gateway://skills/<name>` resources and `skill-<name>` prompts, so a connected agent reads the version that matches the installation.
+The MCP endpoint also serves the agent skills shipped with this Opfield release as `opfield://skills/<name>` resources and `skill-<name>` prompts, so a connected agent reads the version that matches the installation.
 
 Create operations marked in the API reference accept an optional `Idempotency-Key` header (1 to 255 printable ASCII characters, for example a UUID). The key is bound to the token or browser session, its current scopes, the method, and the path, and results are kept encrypted for 24 hours:
 
@@ -325,18 +327,18 @@ Opfield stores logs in one shared ClickHouse table. Each logging environment can
 Single event:
 
 ```bash
-curl -H "Authorization: Bearer gwl_xxx" \
+curl -H "Authorization: Bearer opfl_xxx" \
   -H "Content-Type: application/json" \
-  -X POST https://gw.example.com/api/logging/ingest \
+  -X POST https://opfield.example.com/api/logging/ingest \
   -d '{"severity":"info","message":"hello from curl","service":"demo"}'
 ```
 
 Batch:
 
 ```bash
-curl -H "Authorization: Bearer gwl_xxx" \
+curl -H "Authorization: Bearer opfl_xxx" \
   -H "Content-Type: application/json" \
-  -X POST https://gw.example.com/api/logging/ingest/batch \
+  -X POST https://opfield.example.com/api/logging/ingest/batch \
   -d '{"logs":[{"severity":"info","message":"started","service":"api"},{"severity":"error","message":"failed","service":"api","fields":{"statusCode":500}}]}'
 ```
 
@@ -344,25 +346,25 @@ Search:
 
 ```bash
 curl -H "Content-Type: application/json" \
-  -H "Authorization: Bearer gw_xxx" \
-  -X POST https://gw.example.com/api/logging/environments/<environment-id>/search \
+  -H "Authorization: Bearer opf_xxx" \
+  -X POST https://opfield.example.com/api/logging/environments/<environment-id>/search \
   -d '{"from":"2026-04-27T00:00:00.000Z","to":"2026-04-27T23:59:59.999Z","severities":["error","fatal"],"message":"failed","limit":100}'
 ```
 
 ### TypeScript SDK
 
-Opfield publishes the official TypeScript logging SDK as [`@sqgateway/logger`](https://www.npmjs.com/package/@sqgateway/logger). Install it in Node services that need structured log delivery with batching, retries, fallback handling, and trace/span context:
+Opfield publishes the official TypeScript logging SDK as [`@opfield/logger`](https://www.npmjs.com/package/@opfield/logger). Install it in Node services that need structured log delivery with batching, retries, fallback handling, and trace/span context:
 
 ```bash
-pnpm add @sqgateway/logger
+pnpm add @opfield/logger
 ```
 
 ```ts
-import { GatewayLogger } from "@sqgateway/logger";
+import { OpfieldLogger } from "@opfield/logger";
 
-const logger = new GatewayLogger({
-  endpoint: "https://gw.example.com",
-  token: process.env.GATEWAY_LOGGING_TOKEN!,
+const logger = new OpfieldLogger({
+  endpoint: "https://opfield.example.com",
+  token: process.env.OPFIELD_LOGGING_TOKEN!,
   service: "billing-api",
   source: "worker-1",
   labels: { app: "billing", region: "eu" },
@@ -380,7 +382,7 @@ await logger.flush();
 await logger.close();
 ```
 
-`gwl_` tokens are server-side write-only secrets. Do not expose them in browser code.
+`opfl_` tokens are server-side write-only secrets. Do not expose them in browser code.
 
 ## AI Workspace
 
@@ -460,7 +462,7 @@ Configure SIEM collectors in **Notifications → SIEM**. Opfield keeps delivery 
 
 The feature flag is enabled by default where the Enterprise `siem-export` entitlement is available. Use **Settings > General > Features and updates > SIEM audit export** to turn it off installation-wide: this hides the SIEM screens, makes the SIEM API and AI tools unavailable, stops new outbox rows, and pauses delivery without restarting Opfield. Existing destinations, terminal history, and queued records stay in PostgreSQL; queued records resume after re-enabling the feature. Once a license grace period ends, SIEM forwarding pauses: new audit events are not queued, and the configuration, delivery history, and queued records are kept and resume on renewal.
 
-Each request sends `{ "schemaVersion": 1, "events": [...] }` to an HTTPS endpoint using either `Authorization: Bearer <token>`, one validated custom request header, or HMAC headers `X-Gateway-Timestamp` and `X-Gateway-Signature-256`. The HMAC is `sha256=<hex>` over `timestamp + "." + exact raw JSON request body`; the collector should reject stale timestamps and use constant-time comparison. A successful `2xx` completes the batch. Network errors, `408`, `429`, and `5xx` retry after 30 seconds, 2 minutes, 8 minutes, 30 minutes, 2 hours, 6 hours, and 12 hours, with at most eight attempts. Other `4xx` responses are terminal failures.
+Each request sends `{ "schemaVersion": 1, "events": [...] }` to an HTTPS endpoint using either `Authorization: Bearer <token>`, one validated custom request header, or HMAC headers `X-Opfield-Timestamp` and `X-Opfield-Signature-256`. The HMAC is `sha256=<hex>` over `timestamp + "." + exact raw JSON request body`; the collector should reject stale timestamps and use constant-time comparison. A successful `2xx` completes the batch. Network errors, `408`, `429`, and `5xx` retry after 30 seconds, 2 minutes, 8 minutes, 30 minutes, 2 hours, 6 hours, and 12 hours, with at most eight attempts. Other `4xx` responses are terminal failures.
 
 Use **Send test event** after configuring a collector. It sends a synthetic event only and creates neither an audit-log record nor a queued delivery. The delivery log intentionally shows safe status, timing, retry information, error text, and the reduced event only; it never stores or displays collector response bodies. Terminal delivery history follows the Audit Log retention setting in **Settings > Features > Housekeeping**.
 
@@ -510,7 +512,7 @@ If Opfield cannot start:
 
 If Opfield runs but is slow or misbehaves:
 
-- Ask the AI assistant or an MCP client to use `manage_gateway_diagnostics`. It needs `diagnostics:view`, or `diagnostics:logs` for logs; both are held by the built-in admin groups. It shows:
+- Ask the AI assistant or an MCP client to use `manage_opfield_diagnostics`. It needs `diagnostics:view`, or `diagnostics:logs` for logs; both are held by the built-in admin groups. It shows:
   - Opfield's host CPU, memory and disk;
   - the backend process and event-loop delay;
   - PostgreSQL and Redis;
@@ -521,9 +523,9 @@ If Opfield runs but is slow or misbehaves:
 
 If a node does not connect:
 
-- Verify the node can reach `gw.example.com:9443`.
+- Verify the node can reach `opfield.example.com:9443`.
 - Confirm the enrollment token was copied before it expired or was used.
-- If logs mention an Opfield certificate fingerprint mismatch, delete the pending node and create a new node in Opfield, then rerun the generated command. You may change `--gateway` to a direct `9443/tcp` endpoint, but keep the generated `--gateway-cert-sha256` value.
+- If logs mention an Opfield certificate fingerprint mismatch, delete the pending node and create a new node in Opfield, then rerun the generated command. You may change `--opfield` to a direct `9443/tcp` endpoint, but keep the generated `--gateway-cert-sha256` value.
 - Check the daemon systemd logs.
 - Confirm system time is sane on both Opfield and the node.
 

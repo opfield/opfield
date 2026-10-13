@@ -9,7 +9,7 @@ Opfield Pages serves static output as **Page Projects** that hold immutable **De
 
 Pages serves browser-delivered static output only. An API process, worker, or server-side state belongs in a Docker workload (`deploying-workloads`) behind a Route (`ingress-and-domains`).
 
-Start with `using-opfield` for connection, discovery, and safety rules. Before an unfamiliar Pages workflow, read `read_gateway_documentation({ topic: "pages" })`; it reflects the connected release.
+Start with `using-opfield` for connection, discovery, and safety rules. Before an unfamiliar Pages workflow, read `read_opfield_documentation({ topic: "pages" })`; it reflects the connected release.
 
 ## Recipe: build, upload, share
 

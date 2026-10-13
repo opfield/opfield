@@ -11,30 +11,38 @@ English | [Русский](README.ru.md) | [中文](README.cn.md)
 
 ## Why Opfield
 
-Opfield gives infrastructure, platform, and SRE teams one product for the daily work that usually lives across nginx configs, shell scripts, Docker hosts, certificate folders, database clients, dashboards, and alert tools.
+Opfield replaces your self-hosted infrastructure stack. Ingress, TLS, containers, deployments, failover, databases, object storage, backups, monitoring, logs, alerts, status pages, private networking, and access control: one product, one install, one permission model, one audit log.
 
-AI Workspace is the recommended intent-driven interface: start from a complete Scenario or describe the desired outcome, review a proposed plan, and decide whether to execute it. The Operations Console remains a complete independent interface for the same infrastructure, so installing, operating, automating, and recovering Opfield does not depend on AI.
+AI Workspace turns a goal or a ready Scenario into a plan you review, and runs it only after you confirm. The Operations Console is a complete interface on its own: installing, operating, automating, and recovering Opfield never depends on AI.
 
-Use it when you want to:
+With Opfield you:
 
-- Operate multiple proxy, Docker, and monitoring nodes without opening inbound management ports on those nodes.
-- Give operators a focused UI and API for production tasks without giving them root shell access.
-- Centralize TLS, internal PKI, ACME certificates, domains, status pages, notifications, and audit history.
-- Manage Docker containers, deployments, portable or registry-backed `.gwca` archives, logs, files, consoles, secrets, and registry workflows from one place.
-- Expose controlled automation through API tokens, OAuth, CI/CD webhooks, and MCP clients.
-- Start from an AI Workspace Scenario or use Plan Mode to research and validate a multi-step change before explicitly confirming execution.
+- Run proxy, Docker, storage, and monitoring nodes with no inbound management ports on them.
+- Give operators a UI and API for production work instead of root shell access.
+- Get TLS, internal PKI, ACME certificates, domains, status pages, notifications, and audit history in one place.
+- Manage Docker containers, Compose projects, deployments, `.gwca` archives, logs, files, consoles, secrets, and registries across every node.
+- Automate through API tokens, OAuth, CI/CD webhooks, and MCP clients under the same scoped permissions.
+- Plan a multi-step change in AI Workspace and run it after explicit confirmation.
 
-## Where Opfield Fits
+## What Opfield Replaces
 
-Opfield is not a lightweight Docker panel for one virtual machine and two containers. At that scale, Docker Compose and direct host administration are usually simpler.
+| Instead of | You get in Opfield |
+|------------|--------------------|
+| nginx or Traefik, certbot, cert-manager | Routes and Domains with automatic ACME certificates, internal PKI, access lists, and maintenance pages |
+| Portainer and other Docker panels | Containers, Compose projects, images, volumes, networks, logs, files, and consoles on every node |
+| Coolify, Dokku, Heroku-style PaaS | Git builds, deployments with slot switching and rollback, Apps with environments, Pages for static sites |
+| Kubernetes for failover | Docker Availability: workloads move to another node when one fails, with no cluster to run |
+| Database operators and hosted databases | Managed PostgreSQL, key-value stores, ClickHouse, and S3 object storage with availability and private links |
+| Backup scripts and backup services | Scheduled database backups to S3, FTP, FTPS, or SFTP, restore that never overwrites the source, and an encrypted export that restores the whole installation |
+| VPN, bastion hosts, open management ports | Secure Links and relays: nodes connect outbound, workloads and databases need no open ports |
+| Prometheus, Grafana, Loki, Alertmanager | Node and container metrics, centralized logs, alert rules, and notifications |
+| Statuspage, Uptime Kuma | Status pages with components and incidents |
 
-It is also not a replacement for Kubernetes, infrastructure-as-code, a professional observability or SIEM platform, backup and disaster-recovery systems, or specialist database tooling. Opfield works alongside those systems instead of pretending to collapse every infrastructure discipline into one product.
-
-Opfield is the operational control plane between them: one governed place for everyday ingress, workload, certificate, database, node, access, audit, and automation workflows across production fleets—without requiring every operator to assemble those workflows from root shells and disconnected tools.
+Why each one is simpler and better: [Why Opfield](https://docs.opfield.dev/en/getting-started/why-opfield/). The host operating system and the network perimeter stay with you, and the unit of work is a container or a Compose project.
 
 ## Early Integrators
 
-Opfield is already being integrated into product, enterprise, trading, and fintech environments by:
+Opfield runs in product, enterprise, trading, and fintech environments at:
 
 - [Remedy Trade](https://docs.opfield.dev/en/success-stories/remedy-trade/) — systematic trading operations.
 - [Just Working](https://docs.opfield.dev/en/success-stories/just-working/) — enterprise platforms and cloud integration.
@@ -62,7 +70,7 @@ Expose the ports that match your deployment:
 | `80/tcp` | HTTP and ACME HTTP-01 challenge, only if that challenge mode is used. |
 | `9443/tcp` | Public relay-backed gRPC endpoint for managed daemon control and tunnel connections. The Opfield app's gRPC listener is internal. |
 
-Behind NAT or an existing external reverse proxy, publish `3000/tcp` only on the local network and configure the external proxy to forward the public Opfield domain to the selected native HTTP or HTTPS transport on `<gateway-lan-ip>:3000`. Managed nodes still connect outbound to Opfield on `9443/tcp`; they do not need inbound management ports.
+Behind NAT or an existing external reverse proxy, publish `3000/tcp` only on the local network and configure the external proxy to forward the public Opfield domain to the selected native HTTP or HTTPS transport on `<opfield-lan-ip>:3000`. Managed nodes still connect outbound to Opfield on `9443/tcp`; they do not need inbound management ports.
 
 On a fresh interactive install, the only shell prompt selects native HTTPS or HTTP for port `3000`. All product configuration happens in the browser wizard; updates are non-interactive and preserve persisted settings.
 
@@ -132,7 +140,7 @@ For flags, non-interactive installs, custom SSL, OIDC details, updates, and node
 | Integrations | GitLab project, repository, CI/CD, variable, webhook, registry, and sandbox workflows; GitHub repository and Actions workflows; generic Git connectors; external SSH connectors; and Cloudflare DNS/ACME automation. Connector credentials are encrypted and access is scope-gated. GitLab integration requires Personal or higher. |
 | Relay | A long-lived local relay owns public `9443/tcp` for daemon control and managed tunnel traffic. Relay Pool can add remote supervisor/worker pairs, explicit placement and rebalancing, draining, and rolling signed updates while preserving one logical Secure Link. Opfield, local relay, and remote relay certificates renew while running. |
 | AI Workspace | Opt-in intent-driven operations with guided Scenarios, Plan Mode, permission-aware tools, approvals, sandboxed execution, progress tracking, and final verification. Planning never performs mutations before explicit confirmation. Scenarios, Plan Mode, and sandboxed execution require Personal or higher. |
-| Inference | Optional multi-provider model gateway with dedicated tokens, usage controls, capability-compatible cross-provider fallback before output begins, OpenAI- and Anthropic-compatible APIs, and managed Codex or Claude Code setup with optional user-session auto-start through `@sqgateway/inference`. |
+| Inference | Optional multi-provider model gateway with dedicated tokens, usage controls, capability-compatible cross-provider fallback before output begins, and OpenAI- and Anthropic-compatible APIs for Codex, Claude Code, and other harnesses. |
 | Administration | OIDC, password, email-code and passkey login, group-based and per-user additional permissions, scoped programmatic access, audit logs, setup state, updates, and license controls. |
 
 ## How It Works
@@ -163,11 +171,13 @@ Opfield checks its gRPC, web, and local relay certificates hourly and renews eac
 
 Opfield can extend that local relay into one logical Relay Pool from **Settings > Relay**. Additional relay nodes are enrolled with a dedicated supervisor, keep management outbound-only to Opfield, and expose only their configured relay data endpoint (TCP `9443` by default) to participating managed hosts. Opfield does not open firewalls, provide NAT traversal, or create an overlay network. Opfield rebalances placements onto a new relay by itself once the pool is stable (or when an administrator starts **Rebalance**) and switches a workload only after its hosts reached the new relay; new connections then spread across the workload's pre-verified active relay set while the UI continues to show one logical Secure Link. Remote relay certificates renew automatically before they expire; a remote relay that cannot recover can be re-enrolled from the same page, while Opfield repairs the local relay's policy trust on its own.
 
+In production, run at least two relays on hosts other than the Opfield host, in different failure domains. When a relay fails, its streams resume on another relay without the sockets on either end noticing; with only the local relay, Secure Links and database links depend on the Opfield host. See [How many Relays](https://docs.opfield.dev/en/nodes/relay-pool/#how-many-relays).
+
 Nodes do not need inbound management ports. Public traffic ports, such as `80` and `443` on nginx nodes, are still required for the services you expose.
 
 ## Security Model
 
-Opfield is designed to be secure by default as an infrastructure control plane:
+Opfield is secure by default:
 
 - User login supports OIDC, password, email codes, and passkeys. Local authentication requires verified SMTP delivery, and group MFA policy is enforced after the primary credential.
 - Managed nodes connect outbound to Opfield over gRPC with mTLS. First enrollment requires a one-time token plus the generated Opfield gRPC certificate fingerprint, and the daemon verifies the Opfield TLS leaf before sending the token. After enrollment, daemon commands require a client certificate issued by Opfield's internal node CA.
@@ -176,7 +186,7 @@ Opfield is designed to be secure by default as an infrastructure control plane:
 - API tokens, OAuth grants, MCP access, database credentials, certificate exports, and secret reveal operations are scope-gated, bounded by the owning user's current permissions, and audited.
 - Private key material and stored infrastructure credentials are encrypted at rest with the configured `PKI_MASTER_KEY`.
 
-The result is a PKI-backed trust model: short-lived enrollment tokens get a node into the system only after the daemon confirms it is talking to the pinned Opfield certificate, and long-term trust is based on certificate identity rather than reusable shared secrets. This gives Opfield a strong default posture against token interception during setup and node hijacking after enrollment. Read the [security model](docs/security.md) for the full explanation and deployment hardening checklist.
+The result is a PKI-backed trust model: short-lived enrollment tokens get a node into the system only after the daemon confirms it is talking to the pinned Opfield certificate, and long-term trust is based on certificate identity rather than reusable shared secrets. The daemon never hands its setup token to an impostor, and an enrolled node is identified by its certificate, not by a reusable secret. Read the [security model](docs/security.md) for the full explanation and deployment hardening checklist.
 
 ## Verifying Releases
 
@@ -197,9 +207,9 @@ See [Verifying releases](docs/verify-releases.md) for every image, SBOM checks, 
 ## FAQ
 
 <details>
-<summary><strong>Is Opfield a Kubernetes replacement?</strong></summary>
+<summary><strong>Do I need Kubernetes for failover?</strong></summary>
 
-No. Opfield is for direct infrastructure operations: nginx hosts, Docker hosts, certificates, domains, databases, logs, monitoring, and automation. It can live beside Kubernetes, but it does not try to be a Kubernetes control plane.
+No. Docker Availability runs a workload on a set of nodes and moves it to another node when one fails, without etcd, CNI, an ingress controller, operators, or YAML. Managed databases and object storage run on several servers and fail over to a copy automatically once a witness votes (a Relay or a third server). The unit of work is a container or a Compose project; Opfield does not run Kubernetes manifests or Helm charts.
 </details>
 
 <details>

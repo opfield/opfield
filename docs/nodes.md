@@ -41,21 +41,21 @@ Opfield daemons have a small resource footprint compared with the services they 
 5. Copy the setup command from the dialog.
 6. Run it on the target host.
 
-The command in the dialog belongs to the Opfield installation that shows it. It downloads the installer from that Opfield version's GitHub release, runs it only after `sha256sum` matches the release's `gateway-daemon-installers.sha256`, and pins with `--version` the newest daemon release of the same minor version (a relay gets the release its Relay Pool runs). A development build without a release version runs the installer from the `main` branch instead. The AI assistant and MCP tools return the same commands as `installCommands`.
+The command in the dialog belongs to the Opfield installation that shows it. It downloads the installer from that Opfield version's GitHub release, runs it only after `sha256sum` matches the release's `opfield-node-installers.sha256`, and pins with `--version` the newest daemon release of the same minor version (a relay gets the release its Relay Pool runs). A development build without a release version runs the installer from the `main` branch instead. The AI assistant and MCP tools return the same commands as `installCommands`.
 
-The commands below install from the latest stable release. To match an older Opfield version, replace `latest/download` with `download/<gateway-version>`, for example `download/v2.11.0`.
+The commands below install from the latest stable release. To match an older Opfield version, replace `latest/download` with `download/<opfield-version>`, for example `download/v2.11.0`.
 
 Universal setup command:
 
 ```bash
 curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-daemon.sh | \
-  sudo bash -s -- --type nginx --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<FINGERPRINT>
+  sudo bash -s -- --type nginx --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 > [!IMPORTANT]
 > Daemons must reach the public Opfield relay endpoint directly on `9443/tcp`; the app-side gRPC listener is internal. During Opfield browser setup, select the direct public gRPC host or IP that should appear in enrollment commands; an optional local gRPC IP can be selected for nodes on the same private network. If the address changes later, update it in **Settings > General > Access and limits** and generate a fresh node command instead of maintaining a manual edit workflow.
 
-The wrapper downloads the daemon-specific installer from the same release, checks it against the release's checksums, and forwards all other arguments. Its own `--version` selects the release the installers come from, not the daemon version; to pin the daemon version, set `GATEWAY_NODE_DAEMON_VERSION`, or use the daemon-specific installer with `--version`.
+The wrapper downloads the daemon-specific installer from the same release, checks it against the release's checksums, and forwards all other arguments. Its own `--version` selects the release the installers come from, not the daemon version; to pin the daemon version, set `OPFIELD_NODE_DAEMON_VERSION`, or use the daemon-specific installer with `--version`.
 
 ## Daemon-Specific Setup
 
@@ -63,14 +63,14 @@ Nginx node:
 
 ```bash
 curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-node.sh | \
-  sudo bash -s -- --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<FINGERPRINT>
+  sudo bash -s -- --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 Docker node:
 
 ```bash
 curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-docker-node.sh | \
-  sudo bash -s -- --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<FINGERPRINT>
+  sudo bash -s -- --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 **Alpine, OpenRC and LXC requirements.** Docker nodes need Docker to be able to give its containers the `memory`, `pids` and `cpu` cgroup controllers, because the Secure Link connector and managed workloads run with memory, CPU and pids limits. The installer checks this after Docker is present and refuses to enroll the node when a controller is missing. On an LXC guest running Alpine with OpenRC the root cgroup can have no controllers enabled: `cat /sys/fs/cgroup/cgroup.subtree_control` is empty, and OpenRC's `cgroups` service reports `Resource busy` because every process sits in the root cgroup. Docker and plain containers still start there, but a container with limits fails with `pids.max: no such file or directory`. The host cgroup setup has to enable the controllers before the node is installed; verify with `cat /sys/fs/cgroup/cgroup.subtree_control /sys/fs/cgroup/docker/cgroup.controllers`, which must list `memory`, `pids` and `cpu`. The installer does not change the host's cgroup setup. On an Alpine LXC guest, let OpenRC's `cgroups` service move the processes out of the root cgroup before it enables the controllers: run `rc-update add cgroups boot`, put the following into `/etc/conf.d/cgroups`, and reboot the guest:
@@ -102,7 +102,7 @@ Storage node:
 
 ```bash
 curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-storage-node.sh | \
-  sudo bash -s -- --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<FINGERPRINT>
+  sudo bash -s -- --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 See [Storage nodes, external storage and database backups](storage-and-backups.md) for what runs on a Storage node.
@@ -111,7 +111,7 @@ Monitoring node:
 
 ```bash
 curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-monitoring-node.sh | \
-  sudo bash -s -- --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<FINGERPRINT>
+  sudo bash -s -- --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 ## Docker Secure Runtime
@@ -149,7 +149,7 @@ Secure Runtime requires:
 - the Docker CLI and a Docker service that the installer can restart;
 - root privileges for installation.
 
-Installation registers `runsc` in `/etc/docker/daemon.json` and restarts Docker. In an existing file only `runtimes.runsc` is added or updated; every other key and value stays exactly as written, and the original file is saved once as `/etc/docker/daemon.json.gateway-backup` before the first change. A file that already registers this `runsc` is not rewritten.
+Installation registers `runsc` in `/etc/docker/daemon.json` and restarts Docker. In an existing file only `runtimes.runsc` is added or updated; every other key and value stays exactly as written, and the original file is saved once as `/etc/docker/daemon.json.opfield-backup` before the first change (nodes set up before Opfield 2.12.1 keep their `daemon.json.gateway-backup`). A file that already registers this `runsc` is not rewritten.
 
 KVM is not required. A compatible LXC guest can use Secure Runtime when nested Docker, service management, and the required host capabilities are available; LXC compatibility is therefore host-configuration dependent rather than universal.
 
@@ -188,16 +188,16 @@ The GPU must appear as attachable on the node before it can be selected. A devic
 
 ## Lease Watchdog
 
-Docker Availability runs failover in the data plane once a policy is in lease mode (see [Data-Plane Failover](capabilities.md#data-plane-failover-lease-mode)). There, a node that loses its lease must stop its copy of the workload even if the Docker daemon or `dockerd` hangs. The lease watchdog enforces that: `gateway-lease-watchdog` is a separate service on every general Docker node (installer mode `docker`; Build Workers and Storage nodes do not need it).
+Docker Availability runs failover in the data plane once a policy is in lease mode (see [Data-Plane Failover](capabilities.md#data-plane-failover-lease-mode)). There, a node that loses its lease must stop its copy of the workload even if the Docker daemon or `dockerd` hangs. The lease watchdog enforces that: `opfield-lease-watchdog` is a separate service on every general Docker node (installer mode `docker`; Build Workers and Storage nodes do not need it).
 
-- **What it does.** The Docker daemon writes a deadline record for every lease-mode container to a tmpfs directory, `/run/gateway-lease-watchdog`. The watchdog checks those records four times a second and, once a container's lease deadline has passed, kills every process in that container's cgroup without going through the Docker daemon or `dockerd`. It keeps doing so on every pass, so a late start of that container dies too. It stops only containers that have such a record, opens no network listener, and runs as root because it must kill container processes of any user.
+- **What it does.** The Docker daemon writes a deadline record for every lease-mode container to a tmpfs directory, `/run/opfield-lease-watchdog`. The watchdog checks those records four times a second and, once a container's lease deadline has passed, kills every process in that container's cgroup without going through the Docker daemon or `dockerd`. It keeps doing so on every pass, so a late start of that container dies too. It stops only containers that have such a record, opens no network listener, and runs as root because it must kill container processes of any user.
 - **Heartbeat.** The watchdog writes a heartbeat every second. A Docker daemon whose watchdog heartbeat is older than 3 seconds does not acquire a lease or start a lease-mode container; when it is older than 10 seconds the daemon treats the watchdog as gone, stops its lease-mode copies, releases their slots, and reports the node as `watchdog_missing`.
-- **Independent of the daemon.** It has its own binary (`/usr/local/bin/gateway-lease-watchdog`), its own systemd unit or OpenRC service (`gateway-lease-watchdog`), and its own release line (`vX.Y.Z-watchdog`), so updating, downgrading, or removing the Docker daemon never disarms it. Records stay enforced while no lease-aware Docker daemon runs and are removed only after 10 minutes without any sign of one, for example after a rollback to a daemon without leases.
-- **Installation.** The Docker node installer downloads it, verifies its checksum, and starts it in `docker` mode; `GATEWAY_LEASE_WATCHDOG_VERSION` pins a release instead of the latest one. If no release can be downloaded or no service manager is found, the installer warns and the node simply stays out of lease mode. On nodes installed before the watchdog existed, a 2.11 Docker daemon installs it by itself when it runs as root and finds systemd or OpenRC, and no watchdog binary, service file, or heartbeat is present yet; it verifies the signed release manifest first and retries with backoff if that fails. The daemon never updates, stops, or replaces an existing watchdog.
+- **Independent of the daemon.** It has its own binary (`/usr/local/bin/opfield-lease-watchdog`), its own systemd unit or OpenRC service (`opfield-lease-watchdog`), and its own release line (`vX.Y.Z-watchdog`), so updating, downgrading, or removing the Docker daemon never disarms it. Records stay enforced while no lease-aware Docker daemon runs and are removed only after 10 minutes without any sign of one, for example after a rollback to a daemon without leases.
+- **Installation.** The Docker node installer downloads it, verifies its checksum, and starts it in `docker` mode; `OPFIELD_LEASE_WATCHDOG_VERSION` pins a release instead of the latest one. If no release can be downloaded or no service manager is found, the installer warns and the node simply stays out of lease mode. On nodes installed before the watchdog existed, a 2.11 Docker daemon installs it by itself when it runs as root and finds systemd or OpenRC, and no watchdog binary, service file, or heartbeat is present yet; it verifies the signed release manifest first and retries with backoff if that fails. The daemon never updates, stops, or replaces an existing watchdog.
 - **Updates.** The watchdog checks for a newer release of its own line about every 6 hours (with jitter), verifies it, and never moves to an older release or from `stable` to a release candidate. A Docker daemon running as root keeps the watchdog on the daemon's own channel (`preview` for a release-candidate daemon, otherwise `stable`).
 - **Non-root nodes.** A Docker daemon installed with `--user <non-root user>`, or one on a host without systemd or OpenRC, cannot install the watchdog itself. It reports that, and Availability lists the node under **Excluded nodes** (`lease.excludedNodes`) with `watchdog_missing`; when all nodes that would hold the workload have this problem, the policy's lease reason is `watchdog_missing` too. Re-run the Docker node installer on the host with `sudo`: an enrolled node needs no new token, and the installer installs the watchdog as a root service for the daemon's user. Pass the same `--user <non-root user>` again, because a non-interactive run otherwise rewrites the daemon service to run as root.
 
-To check a node, run `sudo gateway-lease-watchdog status`: it prints whether the heartbeat is fresh and every deadline record with its policy, slot, and remaining time. `systemctl status gateway-lease-watchdog` (or `rc-service gateway-lease-watchdog status`) shows the service. An excluded node gets no new standby and takes no slot until the watchdog runs again; a holder whose watchdog stops running ends its own copy, and the next candidate takes over.
+To check a node, run `sudo opfield-lease-watchdog status`: it prints whether the heartbeat is fresh and every deadline record with its policy, slot, and remaining time. `systemctl status opfield-lease-watchdog` (or `rc-service opfield-lease-watchdog status`) shows the service. An excluded node gets no new standby and takes no slot until the watchdog runs again; a holder whose watchdog stops running ends its own copy, and the next candidate takes over.
 
 ## Installer Options
 
@@ -205,45 +205,45 @@ Common daemon setup options:
 
 | Option | Purpose |
 |--------|---------|
-| `--gateway <host:port>` | Opfield gRPC address. |
+| `--opfield <host:port>` | Opfield gRPC address. |
 | `--token <token>` | One-time enrollment token generated by Opfield. |
-| `--gateway-cert-sha256 <sha256:hex>` | Opfield gRPC TLS leaf certificate fingerprint generated with the token. Required for first enrollment. |
-| `--host <host>` / `--port <port>` | Alternative to `--gateway` when specifying the Opfield address in separate parts. |
+| `--opfield-cert-sha256 <sha256:hex>` | Opfield gRPC TLS leaf certificate fingerprint generated with the token. Required for first enrollment. |
+| `--host <host>` / `--port <port>` | Alternative to `--opfield` when specifying the Opfield address in separate parts. |
 | `--version <tag>` | Install a specific daemon version (default: the latest stable daemon release, but never older than the installed daemon; see below). |
 | `--user <username>` | Run nginx, Docker, or monitoring daemons as a specific user (see [Running Daemons Without Root](#running-daemons-without-root)). Storage nodes (including legacy database nodes) accept only `--user root`. |
 | `--mode <profile>` | Docker installer only: `docker` (default), `builder`, or `storage`; `databases` is accepted as a legacy alias of the Storage profile. |
 | `--builder-egress <profile>` | Docker installer with `--mode builder` only: `internet` (default) permits public dependency downloads while blocking metadata, private, and control-plane ranges; `offline` disables build-step egress. |
 | `--secure-runtime` | Docker installer, `docker` profile only: install [Secure Runtime](#setup-and-compatibility) on an existing install too, and fail when it cannot. A fresh install sets it up anyway. |
 | `--nginx-mode <mode>` / `--skip-nginx` | Nginx installer only: `managed` or `integrate` (see [Nginx Node Modes](#nginx-node-modes)); `--skip-nginx` reuses an installed nginx 1.25.1 or newer. |
-| `--disable-console` / `--disable-files` | Turn the host console or host file access off on this node (writes `console.enabled: false` / `files.enabled: false`, see [Host Console And File Access](#host-console-and-file-access)). Environment: `GATEWAY_NODE_DISABLE_CONSOLE=1`, `GATEWAY_NODE_DISABLE_FILES=1`. |
-| `--protected` | Relay installer only: install the relay in [protected mode](#protected-relays) (writes `protected.enabled: true`). Environment: `GATEWAY_RELAY_PROTECTED=1`. |
+| `--disable-console` / `--disable-files` | Turn the host console or host file access off on this node (writes `console.enabled: false` / `files.enabled: false`, see [Host Console And File Access](#host-console-and-file-access)). Environment: `OPFIELD_NODE_DISABLE_CONSOLE=1`, `OPFIELD_NODE_DISABLE_FILES=1`. |
+| `--protected` | Relay installer only: install the relay in [protected mode](#protected-relays) (writes `protected.enabled: true`). Environment: `OPFIELD_RELAY_PROTECTED=1`. |
 | `--dry-run` | Validate inputs and show the plan without changing the host. |
 | `-y`, `--yes` | Non-interactive mode. An installation that is declined at "Proceed with installation?" or stopped after the summary exits with a non-zero code. Without it the installer asks on the terminal and stops when it cannot read an answer (no terminal, or `sudo` with its output piped through `tee`), instead of using the defaults. |
 | `--help` | Show all supported options. |
 
-A re-run without `--version` (and without `GATEWAY_NODE_DAEMON_VERSION`) never installs an older daemon than the one installed, for example when the node runs a newer pre-release than the stable release `latest` resolves to. The installer then prints the installed version and the release `latest` resolves to, keeps the installed version, and continues; to install the older release, name it with `--version`. The Docker (including the Build Worker and Storage profiles), nginx, monitoring, and relay installers all behave this way.
+A re-run without `--version` (and without `OPFIELD_NODE_DAEMON_VERSION`) never installs an older daemon than the one installed, for example when the node runs a newer pre-release than the stable release `latest` resolves to. The installer then prints the installed version and the release `latest` resolves to, keeps the installed version, and continues; to install the older release, name it with `--version`. The Docker (including the Build Worker and Storage profiles), nginx, monitoring, and relay installers all behave this way.
 
-Every option also has an environment variable (`GATEWAY_NODE_ADDRESS`, `GATEWAY_NODE_TOKEN`, `GATEWAY_DOCKER_MODE`, and so on; `--help` lists them). `GATEWAY_LEASE_WATCHDOG_VERSION` pins the [lease watchdog](#lease-watchdog) release that the Docker installer installs in `docker` mode (default: the latest release).
+Every option also has an environment variable (`OPFIELD_NODE_ADDRESS`, `OPFIELD_NODE_TOKEN`, `OPFIELD_DOCKER_MODE`, and so on; `--help` lists them). `OPFIELD_LEASE_WATCHDOG_VERSION` pins the [lease watchdog](#lease-watchdog) release that the Docker installer installs in `docker` mode (default: the latest release).
 
 The installers verify downloaded daemon binaries with SHA256 checksums and back up existing binaries during upgrades.
 
 ## Running Daemons Without Root
 
-The monitoring, Docker (`docker` profile), nginx, and relay daemons can run as an existing non-root user: `--user <username>` for the monitoring, Docker, and nginx installers, and `GATEWAY_RELAY_RUN_USER` (optionally `GATEWAY_RELAY_RUN_GROUP`) for the relay installer. The installer itself still runs with `sudo`. The Storage profile (including legacy database nodes) and the builder profile run only as root; their installers stop with an error for any other user.
+The monitoring, Docker (`docker` profile), nginx, and relay daemons can run as an existing non-root user: `--user <username>` for the monitoring, Docker, and nginx installers, and `OPFIELD_RELAY_RUN_USER` (optionally `OPFIELD_RELAY_RUN_GROUP`) for the relay installer. The installer itself still runs with `sudo`. The Storage profile (including legacy database nodes) and the builder profile run only as root; their installers stop with an error for any other user.
 
 In non-root mode every installer:
 
 - stops before changing the host when the user does not exist; the service group defaults to the user's primary group;
 - gives the user the daemon's configuration, state, and library directories, and writes the configuration as that user;
-- installs the daemon binary in `/usr/local/lib/<daemon>/bin`, owned by the user, so the daemon can update itself (for the relay: `/usr/local/lib/gateway-relay/bin/relay-supervisor`). `/usr/local/bin/<daemon>` is a root-owned wrapper that runs it; called as root (for example with `sudo`), the wrapper switches to the user first, so root never runs a binary that user can replace. The installers run their root-only steps from a root-owned copy;
-- gives the daemon a copy of the host identity in its state directory (`host_identity_path` in its configuration). The shared `/var/lib/gateway/host-identity` stays root-owned and readable only by root. The installer creates the shared file when it is missing, so root daemons installed later on the host report the same identity;
+- installs the daemon binary in `/usr/local/lib/<daemon>/bin`, owned by the user, so the daemon can update itself (for the relay: `/usr/local/lib/opfield-relay/bin/relay-supervisor`). `/usr/local/bin/<daemon>` is a root-owned wrapper that runs it; called as root (for example with `sudo`), the wrapper switches to the user first, so root never runs a binary that user can replace. The installers run their root-only steps from a root-owned copy;
+- gives the daemon a copy of the host identity in its state directory (`host_identity_path` in its configuration). The shared `/var/lib/opfield/host-identity` stays root-owned and readable only by root. The installer creates the shared file when it is missing, so root daemons installed later on the host report the same identity;
 - otherwise behaves as a root install.
 
-Every installer, root or not, and every re-run on an enrolled node succeeds only when the daemon it started runs under the service manager and Opfield accepted its connection. Otherwise it exits with an error that names the daemon log (`journalctl -u <unit>`, the OpenRC log, or the manual launcher log) and prints its last lines: when the service does not start, when enrollment fails, or when the daemon has not connected in time (90 s; `GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS`, `GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS`, or `GATEWAY_RELAY_ENROLLMENT_WAIT_SECONDS`). The installers use manual mode (a detached launcher that does not survive a reboot) only on hosts without systemd or OpenRC. Re-running a node's own setup command, with its already used token, keeps the enrollment and runs as a re-run without a token. A different token on an enrolled host is not used: the Docker and monitoring installers stop with an error and change nothing (on a node enrolled before 2.11.1 they warn and continue the update), and the nginx installer enrolls with the new token but keeps the previous enrollment when Opfield refuses it. To enroll the host as another node, stop the daemon, move its `certs` directory and `state.json` aside, and run the new command.
+Every installer, root or not, and every re-run on an enrolled node succeeds only when the daemon it started runs under the service manager and Opfield accepted its connection. Otherwise it exits with an error that names the daemon log (`journalctl -u <unit>`, the OpenRC log, or the manual launcher log) and prints its last lines: when the service does not start, when enrollment fails, or when the daemon has not connected in time (90 s; `OPFIELD_NODE_ENROLLMENT_WAIT_SECONDS`, `OPFIELD_MONITORING_ENROLLMENT_WAIT_SECONDS`, or `OPFIELD_RELAY_ENROLLMENT_WAIT_SECONDS`). The installers use manual mode (a detached launcher that does not survive a reboot) only on hosts without systemd or OpenRC. Re-running a node's own setup command, with its already used token, keeps the enrollment and runs as a re-run without a token. A different token on an enrolled host is not used: the Docker and monitoring installers stop with an error and change nothing (on a node enrolled before 2.11.1 they warn and continue the update), and the nginx installer enrolls with the new token but keeps the previous enrollment when Opfield refuses it. To enroll the host as another node, stop the daemon, move its `certs` directory and `state.json` aside, and run the new command.
 
-To switch a node to another user, or back to root, re-run its installer with the other `--user` (no `--user` means root; for the relay, `GATEWAY_RELAY_RUN_USER`). The node keeps its enrollment and host identity. An enrolled relay needs no `--token` for such a re-run: the relay installer then keeps its identity and takes the Opfield address, certificate pin, advertised address, and port from its configuration unless you give them; a new relay still needs every argument. On Docker and nginx nodes the installer prepares everything while the daemon keeps serving and stops it right before the new process starts; the monitoring daemon and the relay supervisor are stopped first. The daemon is stopped before any of its files change owner. The switch restarts the daemon service once and, unlike a daemon update (see [Daemon Updates](#daemon-updates)), does not hand open connections to the new process. What is open through the daemon at that moment is closed once: database, storage, and container link connections (clients reconnect within about 1.5 seconds), and WebSockets and long responses through Route Secure Links to or from this node. New connections only wait: for Docker and nginx nodes under systemd the daemon keeps its listening sockets in systemd's file descriptor store through the switch, and the new process accepts them. On a Docker node whose storage links still use per-link sidecars from before 2.11.1, the switch also recreates those sidecars. The installer then gives its configuration, state, and library directories to the new user (back to root: only what the previous user owned there), discards the launcher copies the previous user wrote, and replaces `/usr/local/bin/<daemon>` with a root binary or a wrapper for the new user. The previous user keeps any group membership the installer gave it, such as `docker`; remove it with `gpasswd -d <user> docker` when it is no longer needed.
+To switch a node to another user, or back to root, re-run its installer with the other `--user` (no `--user` means root; for the relay, `OPFIELD_RELAY_RUN_USER`). The node keeps its enrollment and host identity. An enrolled relay needs no `--token` for such a re-run: the relay installer then keeps its identity and takes the Opfield address, certificate pin, advertised address, and port from its configuration unless you give them; a new relay still needs every argument. On Docker and nginx nodes the installer prepares everything while the daemon keeps serving and stops it right before the new process starts; the monitoring daemon and the relay supervisor are stopped first. The daemon is stopped before any of its files change owner. The switch restarts the daemon service once and, unlike a daemon update (see [Daemon Updates](#daemon-updates)), does not hand open connections to the new process. What is open through the daemon at that moment is closed once: database, storage, and container link connections (clients reconnect within about 1.5 seconds), and WebSockets and long responses through Route Secure Links to or from this node. New connections only wait: for Docker and nginx nodes under systemd the daemon keeps its listening sockets in systemd's file descriptor store through the switch, and the new process accepts them. On a Docker node whose storage links still use per-link sidecars from before 2.11.1, the switch also recreates those sidecars. The installer then gives its configuration, state, and library directories to the new user (back to root: only what the previous user owned there), discards the launcher copies the previous user wrote, and replaces `/usr/local/bin/<daemon>` with a root binary or a wrapper for the new user. The previous user keeps any group membership the installer gave it, such as `docker`; remove it with `gpasswd -d <user> docker` when it is no longer needed.
 
-A daemon whose state directory is not accessible to it keeps launcher supervision and self-update by placing its launcher in `~/.cache/gateway-daemon/<type>` or `/tmp/gateway-daemon-<uid>/<type>`.
+A daemon whose state directory is not accessible to it keeps launcher supervision and self-update by placing its launcher in `~/.cache/opfield-daemon/<type>` or `/tmp/opfield-daemon-<uid>/<type>`.
 
 | Daemon | Requires | Not available without root |
 |--------|----------|----------------------------|
@@ -265,7 +265,7 @@ Example:
 
 ```bash
 curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-daemon.sh | \
-  sudo bash -s -- --type nginx --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<FINGERPRINT> --nginx-mode integrate
+  sudo bash -s -- --type nginx --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT> --nginx-mode integrate
 ```
 
 Use `managed` for fresh ingress nodes where Opfield should own nginx. Use `integrate` when nginx is already used by other workloads on the same host.
@@ -278,7 +278,7 @@ Opfield routes require nginx `1.25.1` or newer. On a fresh host, the installer a
 
 On first start, the daemon:
 
-1. Connects to Opfield and verifies the presented gRPC TLS leaf certificate matches `gateway.cert_sha256`.
+1. Connects to Opfield and verifies the presented gRPC TLS leaf certificate matches `opfield.cert_sha256`.
 2. Sends the one-time enrollment token only after the certificate pin matches.
 3. Receives an mTLS client certificate issued by Opfield's internal CA.
 4. Clears the enrollment token from its local config.
@@ -332,7 +332,7 @@ A relay installed on a machine that belongs to someone else (a partner or custom
 
 What Opfield can still do: route traffic through the relay, drain and resume it, renew its certificate, read its own logs and counters, and update it. Updates install only official releases signed with the release key built into the relay, as on every node, and a protected relay accepts no update to an older release than the one it runs (an older release could predate protected mode). A protected relay also refuses a policy that names a built-in local service: only the local relay next to Opfield serves those.
 
-Protected mode is the machine owner's setting. It lives only in the relay's local configuration, `/etc/gateway-relay-supervisor/config.yaml` (readable by root, and by the relay's run user on a non-root install). Opfield has no command that changes it, and a protected relay refuses every command that could write that file.
+Protected mode is the machine owner's setting. It lives only in the relay's local configuration, `/etc/opfield-relay/config.yaml` (readable by root, and by the relay's run user on a non-root install). Opfield has no command that changes it, and a protected relay refuses every command that could write that file.
 
 - Install a new relay protected: add `--protected` to the generated command (the relay setup dialogs offer **Protected relay**, which adds it). Re-running the installer keeps protected mode on; the installer never turns it off.
 - Turn it on or off on an existing relay, as root on the relay host:
@@ -340,7 +340,7 @@ Protected mode is the machine owner's setting. It lives only in the relay's loca
   ```bash
   relay-supervisor protected status
   relay-supervisor protected on      # or: relay-supervisor protected off
-  systemctl restart gateway-relay-supervisor   # OpenRC: rc-service gateway-relay-supervisor restart
+  systemctl restart opfield-relay-supervisor   # OpenRC: rc-service opfield-relay-supervisor restart
   ```
 
   `relay-supervisor protected on|off` writes the setting into the configuration file and keeps everything else in it. Editing the file by hand works the same way:
@@ -364,10 +364,10 @@ Daemons store config under `/etc/<daemon-name>/config.yaml`.
 Example nginx daemon config:
 
 ```yaml
-gateway:
-  address: "gw.example.com:9443"
+opfield:
+  address: "opfield.example.com:9443"
   token: ""
-  cert_sha256: "sha256:<gateway-grpc-leaf-fingerprint>"
+  cert_sha256: "sha256:<opfield-grpc-leaf-fingerprint>"
 
 tls:
   ca_cert: "/etc/nginx-daemon/certs/ca.pem"
@@ -375,13 +375,13 @@ tls:
   client_key: "/etc/nginx-daemon/certs/node-key.pem"
 
 nginx:
-  config_dir: "/etc/nginx/gateway/conf.d"
+  config_dir: "/etc/nginx/opfield/conf.d"
   certs_dir: "/etc/nginx/certs"
   logs_dir: "/var/log/nginx"
   global_config: "/etc/nginx/nginx.conf"
   binary: "/usr/sbin/nginx"
   stub_status_url: "http://127.0.0.1/nginx_status"
-  htpasswd_dir: "/etc/nginx/gateway/htpasswd"
+  htpasswd_dir: "/etc/nginx/opfield/htpasswd"
   acme_challenge_dir: "/var/www/acme-challenge"
 
 console:
@@ -498,7 +498,7 @@ install -m 755 /tmp/nginx-daemon-linux-amd64 /usr/local/bin/nginx-daemon
 Then enroll and start:
 
 ```bash
-nginx-daemon install --gateway gw.example.com:9443 --token <TOKEN> --gateway-cert-sha256 sha256:<FINGERPRINT>
+nginx-daemon install --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 systemctl enable --now nginx-daemon
 ```
 
@@ -514,7 +514,7 @@ It rejects a host that cannot complete the same fixed-size storage lifecycle use
 
 VM and bare-metal hosts normally expose the required loop and mount capabilities directly. An LXC Storage node is supported only when its outer host explicitly passes `/dev/loop-control` plus a loop-device pool and permits loop block devices and mounts. The installer detects an ordinary LXC guest without those capabilities and stops before enrollment with that remediation; it never falls back to an unbounded Docker volume. Each managed database, object storage member and running backup holds one loop device while it exists (as does each disk-image volume on a Docker node), so size the passed pool for all of them: when it is exhausted, a create fails with "node has no free loop device", and the daemon releases devices left by deleted instances on its own.
 
-The Storage installer runs `docker-daemon` only as root and shows a local-disk selector in an interactive terminal. Choose an eligible mounted filesystem or a custom path; the selected location becomes the storage root. For automation, pass `--storage-root <path>` (or set `GATEWAY_DATABASE_STORAGE_ROOT`) together with the normal enrollment flags and `--yes`. The preflight runs before enrollment, and `--dry-run` performs no storage preparation or other host mutation.
+The Storage installer runs `docker-daemon` only as root and shows a local-disk selector in an interactive terminal. Choose an eligible mounted filesystem or a custom path; the selected location becomes the storage root. For automation, pass `--storage-root <path>` (or set `OPFIELD_DATABASE_STORAGE_ROOT`) together with the normal enrollment flags and `--yes`. The preflight runs before enrollment, and `--dry-run` performs no storage preparation or other host mutation.
 
 Managed database links, managed storage links, and container links run through one shared secure-link connector per Docker node, each link on its own internal network. Opfield does not deploy a per-link connector container or open a host listener. After the 2.11.1 Docker daemon update, each workload with a database link, or with a storage link created before 2.11.1, is recreated once to move to the shared connector, one at a time per node (Deployments blue/green, without downtime); rolling the daemon back to 2.11.0 moves the links back the same way. At most four workloads per node are recreated at once (the daemon's concurrent command limit). See [Updating To 2.11.1](operations.md#updating-to-2111).
 

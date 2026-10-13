@@ -5,11 +5,11 @@ description: Work with Opfield observability, including Opfield's own health, re
 
 # Observability
 
-Start with `using-opfield` for connection, discovery, and safety rules. For an incident, begin with its diagnosis reference and use this skill for the logs, alerts, and audit evidence. Read `read_gateway_documentation({ topic })` with `logging`, `notifications`, `siem`, `status-page`, or `audit` before an unfamiliar workflow.
+Start with `using-opfield` for connection, discovery, and safety rules. For an incident, begin with its diagnosis reference and use this skill for the logs, alerts, and audit evidence. Read `read_opfield_documentation({ topic })` with `logging`, `notifications`, `siem`, `status-page`, or `audit` before an unfamiliar workflow.
 
 ## Opfield itself
 
-`manage_gateway_diagnostics` reads the control plane, not managed nodes:
+`manage_opfield_diagnostics` reads the control plane, not managed nodes:
 
 - `snapshot`: now. Opfield's host (CPU, memory, load, disk of the data volume), the backend process (memory, CPU, event-loop delay), Postgres and Redis (reachability, latency, pool, size, long queries), the stack containers (app, postgres, redis, relay, registry: state, health, restarts, CPU, memory), failing background jobs, API latency and 5xx.
 - `history`: one-minute samples kept 48 hours. `from`/`to` take ISO or durations such as `6h`; `metrics` are dotted paths such as `host.cpuPercent`, `requests.p95Ms`, `postgres.poolWaiting`, `containers.postgres.memoryBytes` (the result lists `availableMetrics`).
@@ -33,7 +33,7 @@ Opfield ingests structured logs from external services into ClickHouse-backed **
 
 Schemas: `schemaMode` is `loose` (accept unknown labels and fields), `strip` (drop them), or `reject` (reject the event). `fieldSchema` entries have `key`, `location` (`label` or `field`), `type` (labels are `string`; fields may be `string`, `number`, `boolean`, `datetime`, or `json`), and `required`.
 
-Ingest tokens (`gwl_`) are shown once by `create` (`payload: { name, expiresAt? }`), and `logs:tokens:create` is a manual-approval scope. Prefer letting the user create the token in the Console; if you create one to configure an ingest client, write it straight into that client's secret store and never print it.
+Ingest tokens (`opfl_`) are shown once by `create` (`payload: { name, expiresAt? }`), and `logs:tokens:create` is a manual-approval scope. Prefer letting the user create the token in the Console; if you create one to configure an ingest client, write it straight into that client's secret store and never print it.
 
 Retention is a per-environment TTL plus optional Housekeeping caps on rows and disk size. Enable "ClickHouse Internals" cleanup only for a ClickHouse instance dedicated to Opfield.
 

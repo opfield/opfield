@@ -116,7 +116,7 @@ Common `unavailable` reasons:
 
 ## Without the helper
 
-When the bundled script is unavailable (for example, when this skill is read from `gateway://skills`):
+When the bundled script is unavailable (for example, when this skill is read from `opfield://skills`):
 
 - size: `wc -c < <file>`; SHA-256: `shasum -a 256 <file>` or `sha256sum <file>`;
 - archive: `COPYFILE_DISABLE=1 tar -C <site-dir> -czf <out>.tar.gz .` keeps `index.html` at the root and, on macOS, skips AppleDouble files;

@@ -49,7 +49,7 @@ curl -fsSL https://get.opfield.dev | bash -s -- --https
 curl -fsSL https://get.opfield.dev | bash -s -- --http
 ```
 
-Supported options are `--install-dir`, `--image`, `--source-dir`, `--http`, `--https`, `--dry-run`, and `--restore` (with `--public-url` and `--grpc-target`). `--source-dir` builds a fresh test installation from a local Opfield checkout instead of discovering and pulling a release; it cannot update an existing installation. A source build needs 8 GB RAM, or swap on a 4 GB host. `--dry-run` verifies the selected signed release and renders the planned flow without creating files, building or pulling images, or starting services. Run with `--help` for syntax. The installer has no domain, nginx, Cloudflare, OIDC, SMTP, or ClickHouse prompts.
+The installer puts Opfield in `/opt/opfield` (Compose project `opfield`). Supported options are `--install-dir`, `--image`, `--source-dir`, `--http`, `--https`, `--dry-run`, and `--restore` (with `--public-url` and `--grpc-target`). `--source-dir` builds a fresh test installation from a local Opfield checkout instead of discovering and pulling a release; it cannot update an existing installation. A source build needs 8 GB RAM, or swap on a 4 GB host. `--dry-run` verifies the selected signed release and renders the planned flow without creating files, building or pulling images, or starting services. Run with `--help` for syntax. The installer has no domain, nginx, Cloudflare, OIDC, SMTP, or ClickHouse prompts. Its settings can also come from the environment (`OPFIELD_INSTALL_DIR`, `OPFIELD_IMAGE`, `OPFIELD_WEB_TRANSPORT`, `OPFIELD_RESTORE_PASSPHRASE`); the `GATEWAY_*` names of earlier releases still work.
 
 ## Browser Setup Wizard
 
@@ -72,7 +72,7 @@ Open Opfield and enter the code. The wizard then configures:
 6. Structured logging as disabled, Opfield-managed local ClickHouse, or external ClickHouse.
 7. Optional AI Workspace setup. AI Workspace is the recommended intent-driven interface, while the Operations Console remains complete without it. Opfield Inference configuration is nested inside this step.
 
-When the UI/API is behind Cloudflare or another web proxy, choose a direct host or IP as the public gRPC target. Generated enrollment commands contain the selected endpoint, so normal node setup does not require editing `--gateway` by hand.
+When the UI/API is behind Cloudflare or another web proxy, choose a direct host or IP as the public gRPC target. Generated enrollment commands contain the selected endpoint, so normal node setup does not require editing `--opfield` by hand.
 
 Finish the wizard before using Opfield. The setup session and one-time code are invalidated at completion.
 
@@ -103,7 +103,7 @@ When you disconnect the installation from Opfield Cloud, the account disconnects
 
 ## Native HTTPS And Reverse Proxies
 
-Native HTTPS and HTTP use the same port, `3000`. Native HTTPS uses a dedicated `gateway-web` leaf certificate issued by the existing Opfield System CA; it does not create a second root CA.
+Native HTTPS and HTTP use the same port, `3000`. Native HTTPS uses a dedicated `opfield-web` leaf certificate issued by the existing Opfield System CA; it does not create a second root CA.
 
 A reverse proxy can connect to either internal protocol. Configure the proxy to trust the Opfield System CA when it verifies the native HTTPS upstream. The wizard records the Opfield addresses used by node enrollment; ingress addresses, public certificates, Cloudflare connectors, DNS records, and ACME workflows remain product configuration after the base stack is installed.
 
@@ -133,9 +133,30 @@ On the first compatible update, legacy `OIDC_*`, `CLICKHOUSE_*`, and `APP_URL` v
 
 The migration removes the old Compose ClickHouse service definition but does not delete its container or volume. When migrated settings select local mode, Opfield adopts the legacy container. Manual Compose deployments may retain legacy env keys until the operator runs an installer-managed or in-app update.
 
+### Moving To /opt/opfield
+
+Installations made before 2.12.1 live in `/opt/gateway` under the Compose project `gateway`, with the database and role `gateway`. After the update to 2.12.1 has settled (about ten minutes after the new version became healthy), Opfield moves itself to the current layout once:
+
+- the directory becomes `/opt/opfield`; `/opt/gateway` stays as a link to it;
+- the Compose project, containers (`opfield-app-1`, …) and network (`opfield_default`) get the new name;
+- the database and its role are renamed to `opfield`; settings in `.env` are named `OPFIELD_*`;
+- the managed local ClickHouse becomes `opfield-clickhouse` with the database `opfield_logs`;
+- the Docker volumes keep their names (`gateway_gateway_data`, `gateway_postgres_data`, …): `docker-compose.yml` binds them by name, so no data is copied.
+
+During the move Opfield is unavailable for about a minute, and Secure Links through the relay on this host stop once for a few tens of seconds while the stack is recreated. Running orchestration operations finish first. Updating with the installer does the move right after the update and prints the new directory.
+
+The move runs in the `opfield-host-move` container and records each step in `.opfield-host-move/state.json` of the install directory. After a crash or a reboot Docker starts it again and it continues where it stopped. If a step keeps failing, it undoes the steps it made and Opfield runs from `/opt/gateway` as before; it tries again later, at most three times. `docker logs opfield-host-move` shows what happened. To try again by hand:
+
+```bash
+docker rm opfield-host-move
+cd /opt/gateway && curl -fsSL https://get.opfield.dev | bash
+```
+
+Rolling back to 2.12.0 after the move is not supported. System CAs show their new names (*Opfield Node CA*, *Opfield Database CA*, *Opfield Storage CA*); their certificates are not replaced, so nodes, relays and applications that trust them keep working.
+
 ## Restoring An Export
 
-`install.sh --restore <file>` installs the Opfield version that made a [configuration export](configuration-transfer.md) into a fresh directory and restores it. It asks for the passphrase (or reads `OPFIELD_RESTORE_PASSPHRASE`) and for this host's public URL and gRPC address. The setup wizard of a fresh installation can restore an export too.
+`install.sh --restore <file>` installs the Opfield version that made a [configuration export](configuration-transfer.md) into a fresh directory and restores it. An export of a release before 2.12.1 is installed in the layout that release expects; updating it to 2.12.1 or later then moves it as described above. It asks for the passphrase (or reads `OPFIELD_RESTORE_PASSPHRASE`) and for this host's public URL and gRPC address. The setup wizard of a fresh installation can restore an export too.
 
 ## Backups
 
@@ -143,12 +164,14 @@ A [configuration export](configuration-transfer.md) is the supported way to move
 
 - PostgreSQL;
 - Redis if active browser/setup sessions matter;
-- the `gateway_data` volume containing auto-issued TLS material;
-- the `gateway_relay_identity` volume containing relay service identity material;
-- the `gateway_relay_state` volume containing the durable relay policy and signing-key keyring;
-- the `gateway_registry_data` and `gateway_registry_auth` volumes containing the internal registry's images and its token signing material;
+- the `app_data` volume containing auto-issued TLS material;
+- the `relay_identity` volume containing relay service identity material;
+- the `relay_state` volume containing the durable relay policy and signing-key keyring;
+- the `registry_data` and `registry_auth` volumes containing the internal registry's images and its token signing material;
 - the managed ClickHouse volume when local structured logging is enabled;
 - `.env`, especially `PKI_MASTER_KEY` and database credentials.
+
+The volume keys are those of `docker-compose.yml`. A fresh installation names the volumes `opfield_app_data` and so on; an installation moved from `/opt/gateway` keeps the names it had (`gateway_gateway_data`, …), which `docker-compose.yml` lists under `name:`.
 
 Losing `PKI_MASTER_KEY` makes encrypted OIDC, SMTP, ClickHouse, PKI, and other stored secrets unrecoverable.
 

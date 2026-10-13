@@ -9,7 +9,7 @@ Internal PKI is a private trust domain that Opfield operates for you: certificat
 
 Enterprise is required to create authorities, issue certificates, or change templates. After a license grace period ends, existing authorities, certificates, and templates stay viewable, revocable, and exportable; creating, issuing, and editing templates need the plan again.
 
-Start with `using-opfield` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "pki" })` before an unfamiliar workflow.
+Start with `using-opfield` for connection, discovery, and safety rules. Read `read_opfield_documentation({ topic: "pki" })` before an unfamiliar workflow.
 
 ## Certificate authorities
 

@@ -14,7 +14,7 @@
 ## Networks and folders
 
 - `manage_docker_network` lists, creates, removes, connects, and disconnects networks.
-- `list_resource_folders({ resourceType: "docker", dockerResourceType })` and `manage_resource_folder` organize Containers, Compose Projects, images, networks, and volumes. See `read_gateway_documentation({ topic: "folders" })`.
+- `list_resource_folders({ resourceType: "docker", dockerResourceType })` and `manage_resource_folder` organize Containers, Compose Projects, images, networks, and volumes. See `read_opfield_documentation({ topic: "folders" })`.
 
 ## Cross-node migration
 

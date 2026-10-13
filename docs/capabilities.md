@@ -2,7 +2,7 @@
 
 [Back to README](../README.md)
 
-Opfield is an AI-first but not AI-dependent infrastructure control plane. Operators can work through AI Workspace or use the complete Operations Console, REST API, OAuth, and MCP surfaces without AI. The product is built around a central web app and host daemons that connect outbound to the app, so operators can manage common infrastructure workflows without direct shell access to every server.
+Opfield is an AI-first but not AI-dependent infrastructure control plane. Operators can work through AI Workspace or use the complete Operations Console, REST API, OAuth, and MCP surfaces without AI. The product is built around a central web app and host daemons that connect outbound to the app, so operators run the fleet without shell access to each server.
 
 Feature availability and plan limits are documented separately in [Plans and licensing](licensing.md). Capabilities marked `In development` are not generally available runtime features until released.
 
@@ -50,7 +50,7 @@ An ingress group is a set of nginx ingress nodes, normally one per site, that se
 - A Route or Domain targets either one node or one group, and a route uses the same target as its registered domain. Converting an existing route or domain onto a group sends configuration and certificates to the new members first and changes DNS last; moving back to one node changes DNS first and cleans up the other members afterwards. A domain that backs the Pages wildcard preview profile stays on one node.
 - Groups live in node folders and have their own permissions, granted broadly or on a node folder (which covers its subfolders): viewing needs `ingress:groups:view`, changes need `ingress:groups:manage` (which includes viewing), and adding a member also needs `nodes:manage` on that node. Node permissions alone do not show ingress groups. The built-in admin group has both, the built-in operator group has `ingress:groups:view`. Placing a route or domain on a group needs `ingress:groups:view` on the group and the create permission for every member; the route and domain forms offer only the groups you can view. On upgrade, custom groups, user permissions, API tokens and OAuth grants holding `nodes:details` or `nodes:manage` (broadly or on a folder) receive the matching ingress group permissions.
 - DNS failover mode `none` is the only mode: the Cloudflare records of a group's domains list the address of every active member (round robin). Plain DNS records are not health-checked, so an unreachable member keeps receiving its share of clients until it leaves the group. External DNS stays operator-managed; list the members' addresses there.
-- For health-based failover, put a load balancer in front of the members, for example Cloudflare Load Balancing; Opfield does not create it. Every Opfield-rendered server block and the node's default servers answer `/.well-known/gateway-ingress-health` with `200` and a JSON status while nginx runs the current configuration (and, on a node with Secure Link sources, at least one relay connection is usable), `503` otherwise, and `502` when the nginx daemon is not running. A probe that addresses a member by IP uses the host name `ingress-health.gateway.invalid` (as SNI and `Host`; the node answers it on ports 80 and 443 with a self-signed certificate), because the TLS catch-all refuses other unknown names.
+- For health-based failover, put a load balancer in front of the members, for example Cloudflare Load Balancing; Opfield does not create it. Every Opfield-rendered server block and the node's default servers answer `/.well-known/opfield-ingress-health` (and its earlier name `/.well-known/gateway-ingress-health`, which keeps working for existing probes) with `200` and a JSON status while nginx runs the current configuration (and, on a node with Secure Link sources, at least one relay connection is usable), `503` otherwise, and `502` when the nginx daemon is not running. A probe that addresses a member by IP uses the host name `ingress-health.opfield.invalid` (as SNI and `Host`; the node answers it on ports 80 and 443 with a self-signed certificate), because the TLS catch-all refuses other unknown names.
 - Certificates for names on a Cloudflare-managed group domain are issued and renewed with DNS-01 through the Cloudflare connector, so they do not depend on any one member. HTTP-01 challenges go to every online member.
 - Route health is checked through every member: a route is degraded when some members fail it and offline when none serves it. The route shows which configuration and certificate each member confirmed, and its log view merges the members' nginx logs by time.
 
@@ -66,7 +66,7 @@ Pages workflows:
 - Give every Tag a stable preview link, `https://<project hash>-<tag>.<Pages domain>`, that follows the Tag to each later Deployment and serves the Tag's runtime configuration. Protect a Project's previews with an access list (requires a Pages node daemon that supports preview access lists) and revoke every preview link at once by rotating the Project's links.
 - Accept a build folder archive or a single HTML file as an upload, let uploaded Deployments expire after 5 minutes to 1 year, and cancel an unfinished upload.
 - Enable or disable Pages globally from Settings. Disabled Pages is removed from navigation; Community users can inspect and edit the form, but saving opens the shared Personal upgrade flow.
-- Serve public runtime configuration at `/_gateway/pages/config.js` as `window.runtime.config`. It is capped at 64 KiB, served with `no-store`, and does not change Deployment identity or artifact hashes.
+- Serve public runtime configuration at `/_opfield/pages/config.js` as `window.runtime.config` (pages that load the earlier `/_gateway/pages/config.js` get the same script). It is capped at 64 KiB, served with `no-store`, and does not change Deployment identity or artifact hashes.
 - Re-authorize resumable upload append/finalize requests and deploy-token Tag policy; publication verifies generation/status and rollback state before cleanup.
 - Integrate Pages with scopes, folders, EventBus/WebSocket, notifications, audit/SIEM, retention, navigation, search, cache, and resource context.
 - Operate Projects, Deployments, Tags, runtime configuration, placement migration, and profile settings through the scoped AI Workspace and remote MCP Pages toolset. Remote MCP clients upload artifact bytes with the authenticated `upload_pages_artifact` tool: a one-time upload link that a shell streams an archive or packed build folder to with curl, or the begin/chunk/finalize workflow (maximum 1 MiB decoded per chunk, no credential argument); ordinary API clients can keep using the resumable deploy API.
@@ -102,7 +102,7 @@ Container workflows:
 - Run durable cross-node migrations on Personal and higher for eligible containers and blue/green deployments, including image and volume transfer, capacity preflight, verification, cutover, cancellation, and cleanup recovery. GPU-attached workloads are intentionally not portable in v1.
 - A migration reproduces the running workload on the target and needs a Docker daemon with `docker_migration_v2` on both nodes; the preflight names a node whose daemon must be updated first. A container's own environment moves with it, its image defaults come from the same image on the target, and its saved environment variables and secrets must be the ones it runs: the preflight refuses a variable or secret saved without a recreate (`MIGRATION_ENV_PENDING`, naming the keys) until the container is recreated. A deployment carries the environment its slots run; its saved environment applies at the next deploy as before. Local volumes created with driver options (a host path, a network share, tmpfs) and Secure Runtime workloads are not migratable.
 - Move resource-scoped grants with a container or deployment during migration. Recreates preserve the stable access identity; explicit deletion removes its grants so a later same-name resource starts without inherited access.
-- Edit image, command, environment variables, secrets, labels, ports, restart policy, and runtime limits. Labels under `com.docker.compose.`, `wiolett.gateway.`, `net.wiolett.gateway.` and `com.wiolett.gateway.`, and `gateway.sandbox`, are reserved: create refuses them, recreate keeps existing ones only unchanged, and duplicates leave them out (a Docker daemon without `docker_duplicate_label_filter_v1` refuses to duplicate a container that carries them). A duplicate copies the container's own secrets but not its database or storage links: the variables they inject are left out of the copy (a Docker daemon without `docker_duplicate_env_removal_v1` refuses to duplicate a linked container). A name held by a Git source still waiting for its first build cannot be taken by create, duplicate, rename or archive import (`409 NAME_IN_USE`).
+- Edit image, command, environment variables, secrets, labels, ports, restart policy, and runtime limits. Labels under `com.docker.compose.` and `net.opfield.`, the earlier namespaces `wiolett.gateway.`, `net.wiolett.gateway.` and `com.wiolett.gateway.`, and `gateway.sandbox`, are reserved: create refuses them, recreate keeps existing ones only unchanged, and duplicates leave them out (a Docker daemon without `docker_duplicate_label_filter_v1` refuses to duplicate a container that carries them). A duplicate copies the container's own secrets but not its database or storage links: the variables they inject are left out of the copy (a Docker daemon without `docker_duplicate_env_removal_v1` refuses to duplicate a linked container). A name held by a Git source still waiting for its first build cannot be taken by create, duplicate, rename or archive import (`409 NAME_IN_USE`).
 - Attach Opfield-managed local volumes with `docker:volumes:view` on each volume and the workload's own create or edit; changing legacy host bind mounts needs the dedicated `docker:containers:mounts` scope. New and changed mounts accept only Opfield-managed local volumes; new host bind mounts are rejected. Existing legacy mounts are preserved during normal image, environment, and webhook updates.
 - Browse container logs with search and follow mode.
 - On Community and every paid plan, discover externally created Docker Compose projects from canonical labels and inspect their inventory, status, monitoring, and logs as read-only Compose Projects. Opfield can adopt a project only after the user supplies its complete single-file YAML; Opfield never reads host Compose files from label paths.
@@ -335,7 +335,7 @@ Logging features:
 - UI-managed environments.
 - Per-environment schemas.
 - Retention settings.
-- Write-only `gwl_` ingest tokens.
+- Write-only `opfl_` ingest tokens.
 - Single-event and batch ingestion APIs.
 - Severity validation.
 - Payload, token, environment, and global rate limits.
@@ -343,13 +343,13 @@ Logging features:
 - Search UI with filters and event detail inspection.
 - Housekeeping caps by total rows and approximate on-disk size, in addition to per-environment TTL.
 - Always-on ClickHouse health and internal-log budget guard with Dashboard warnings.
-- Official TypeScript SDK published as [`@sqgateway/logger`](https://www.npmjs.com/package/@sqgateway/logger), with source in `packages/logging-sdk`.
+- Official TypeScript SDK published as [`@opfield/logger`](https://www.npmjs.com/package/@opfield/logger), with source in `packages/logging-sdk`.
 
 Logging is optional. When structured logging is set to **Disabled** in Opfield settings, logging routes report that logging is disabled and the frontend hides the Logging section.
 
 ## Integrations, Notifications, And Status Pages
 
-Opfield includes connector and operational communication surfaces:
+Opfield includes connectors, notifications, alerts, and status pages:
 
 - Cloudflare connectors for managed A/AAAA records, DNS inspection, and automated DNS-01 certificate workflows.
 - GitLab connectors with project/group allowlists, scheduled project synchronization, repository and CI operations, variables, webhooks, sandbox clone support, and automatic container-registry discovery and import. GitLab integration requires Personal or higher; GitHub, generic Git, external SSH, and Cloudflare connectors are available on Community.
@@ -411,7 +411,7 @@ Inference features:
 - Enforce default and per-user five-hour, weekly, monthly, and API-spend budgets.
 - Show each user a 30-day usage overview and let administrators reset one user's usage baselines without deleting immutable accounting history.
 - Expose a base OpenAI-compatible API plus optional Codex- and Anthropic-specific adapters.
-- Issue dedicated `gwi_` runtime tokens that are accepted only by inference data-plane routes.
+- Issue dedicated `opfi_` runtime tokens that are accepted only by inference data-plane routes.
 - Connect any harness natively (DeepSeek harness recommended) from **Set Up an Inference Harness**: OpenAI- and Anthropic-compatible base URLs, a key created for the user and shown once, and the user's models.
 
 Inference is disabled by default. See the [inference guide](inference.md) for provider, model, limit, token, and client setup.
@@ -422,23 +422,23 @@ Opfield has four token families:
 
 | Prefix | Purpose |
 |--------|---------|
-| `gw_` | Opfield REST API tokens. |
-| `gwo_` | OAuth access tokens for Opfield API or Opfield MCP resources. |
-| `gwl_` | Write-only logging ingest tokens. |
-| `gwi_` | Dedicated Opfield Inference runtime tokens. |
+| `opf_` | Opfield REST API tokens. |
+| `opfo_` | OAuth access tokens for Opfield API or Opfield MCP resources. |
+| `opfl_` | Write-only logging ingest tokens. |
+| `opfi_` | Dedicated Opfield Inference runtime tokens. |
 
 OAuth uses public-client Authorization Code + PKCE and resource-bound access tokens:
 
-- Opfield API resource: `https://<gateway>/api`
-- Opfield MCP resource: `https://<gateway>/api/mcp`
+- Opfield API resource: `https://<opfield>/api`
+- Opfield MCP resource: `https://<opfield>/api/mcp`
 
-REST API routes accept browser sessions, `gw_` API tokens, and `gwo_` OAuth tokens issued for the Opfield API resource. The MCP endpoint accepts only `gwo_` OAuth tokens issued for the Opfield MCP resource. Inference data-plane routes accept only `gwi_` tokens and never accept REST, OAuth, logging, or browser credentials.
+REST API routes accept browser sessions, `opf_` API tokens, and `opfo_` OAuth tokens issued for the Opfield API resource. The MCP endpoint accepts only `opfo_` OAuth tokens issued for the Opfield MCP resource. Inference data-plane routes accept only `opfi_` tokens and never accept REST, OAuth, logging, or browser credentials.
 
 API tokens and MCP agents can perform every resource and management operation their delegated scopes allow, including node enrollment and config, user and group administration, Opfield settings, integrations, hosting, inference administration, and personal inference keys. Only AI Workspace chat and sandbox access, impersonation, OAuth consent, API token and OAuth authorization minting, and the caller's own sign-in, MFA, and session management remain browser-only.
 
-Callers can see what they can reach with `GET /api/auth/me/access`, and MCP agents with the always-listed `get_my_access` tool and the `gateway://access` resource. Create operations marked in the API reference accept an `Idempotency-Key` header, and MCP create tools an `idempotencyKey` argument, so a retry after a timeout does not create a second resource (see [Access Summary, Skills, And Idempotent Retries](operations.md#access-summary-skills-and-idempotent-retries)).
+Callers can see what they can reach with `GET /api/auth/me/access`, and MCP agents with the always-listed `get_my_access` tool and the `opfield://access` resource. Create operations marked in the API reference accept an `Idempotency-Key` header, and MCP create tools an `idempotencyKey` argument, so a retry after a timeout does not create a second resource (see [Access Summary, Skills, And Idempotent Retries](operations.md#access-summary-skills-and-idempotent-retries)).
 
-Opfield MCP exposes permission-filtered operator documentation through `read_gateway_documentation` and the `gateway://docs` resource tree. It also serves the agent skills of the installed release as `gateway://skills` resources and `skill-<name>` prompts. General topics are readable by any valid MCP authorization; subsystem topics require the corresponding delegated OAuth scope. Extended compatibility lists every granted tool by default, while discovery mode can be enabled for clients that correctly refresh `tools/list` after `notifications/tools/list_changed`.
+Opfield MCP exposes permission-filtered operator documentation through `read_opfield_documentation` and the `opfield://docs` resource tree. It also serves the agent skills of the installed release as `opfield://skills` resources and `skill-<name>` prompts. General topics are readable by any valid MCP authorization; subsystem topics require the corresponding delegated OAuth scope. Extended compatibility lists every granted tool by default, while discovery mode can be enabled for clients that correctly refresh `tools/list` after `notifications/tools/list_changed`.
 
 For scope rules and delegation details, see [SCOPES.md](../SCOPES.md).
 

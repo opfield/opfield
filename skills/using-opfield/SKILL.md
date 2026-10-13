@@ -26,7 +26,7 @@ It is not another Docker panel for one host. It is one control plane for many no
 
 - Use Opfield tools, not shell access to nodes: a change made around Opfield is not permission-checked or audited, and Opfield may overwrite it.
 - Find anything by name, domain, image or ID with `find_resource`; see what you may do, and where, with `get_my_access`.
-- Read `read_gateway_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers, `logging` and `notifications` for monitoring, `permissions` for access.
+- Read `read_opfield_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers, `logging` and `notifications` for monitoring, `permissions` for access.
 
 ## Connect and discover
 
@@ -34,14 +34,14 @@ Use existing Opfield MCP tools when they are already available. If no usable Opf
 
 Never ask the user to paste an OAuth token, API token, setup code, Node enrollment token, deploy token, registry password, database credential, or other secret into chat.
 
-- **Tools.** With Extended MCP compatibility (the default) every scoped tool is listed. Otherwise activate only the toolsets the request needs with `discover_tools({ category })` and list tools again; `find_resource`, `get_my_access`, and `read_gateway_documentation` are always visible. Toolset IDs and exclusions: [MCP toolsets](references/mcp-toolsets.md).
-- **Your access.** Read the server instructions: when the connection is limited to folders, Nodes, or resources, they end with a short summary of those grants. `get_my_access` (also the `gateway://access` resource) returns the full picture by area: broad or limited, the granted folders (id, name, path), Nodes and resources with their actions, and where you may create.
-- **Documentation.** Before complex or recently added operations, read `read_gateway_documentation({ topic })` or `gateway://docs/<topic>` instead of relying on remembered arguments. The connected release is the source of truth.
+- **Tools.** With Extended MCP compatibility (the default) every scoped tool is listed. Otherwise activate only the toolsets the request needs with `discover_tools({ category })` and list tools again; `find_resource`, `get_my_access`, and `read_opfield_documentation` are always visible. Toolset IDs and exclusions: [MCP toolsets](references/mcp-toolsets.md).
+- **Your access.** Read the server instructions: when the connection is limited to folders, Nodes, or resources, they end with a short summary of those grants. `get_my_access` (also the `opfield://access` resource) returns the full picture by area: broad or limited, the granted folders (id, name, path), Nodes and resources with their actions, and where you may create.
+- **Documentation.** Before complex or recently added operations, read `read_opfield_documentation({ topic })` or `opfield://docs/<topic>` instead of relying on remembered arguments. The connected release is the source of truth.
 - **Resources.** Use `find_resource` for names, domains, images, containers, deployments, Compose Projects, Page Projects, certificates, Nodes, databases, and builds. Never invent resource IDs.
 
 ## Route the request
 
-Each domain has its own skill in this package. If one is not installed, install the set with `npx skills add opfield/opfield-skills`, or read it from the connected Opfield at `gateway://skills/<name>/SKILL.md` when that release serves skills.
+Each domain has its own skill in this package. If one is not installed, install the set with `npx skills add opfield/opfield-skills`, or read it from the connected Opfield at `opfield://skills/<name>/SKILL.md` when that release serves skills.
 
 - New control plane, unfinished onboarding, or missing first Nodes: [New instance setup](references/instance-setup.md).
 - MCP connection, OAuth, or missing tools: [MCP connection](references/connection.md) and [MCP toolsets](references/mcp-toolsets.md).

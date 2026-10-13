@@ -27,7 +27,7 @@ The new host keeps its own values for:
 
 - the public URL and the gRPC address nodes connect to: the restore asks for them;
 - database and registry passwords: the new installation makes its own;
-- `PUBLIC_IPV4`, `PUBLIC_IPV6`, `GATEWAY_LOCAL_HOSTS` and `GRPC_TLS_*` overrides in `.env`;
+- `PUBLIC_IPV4`, `PUBLIC_IPV6`, `OPFIELD_LOCAL_HOSTS` and `GRPC_TLS_*` overrides in `.env`;
 - the sandbox workspace directory and Docker logging of the new host;
 - reverse proxy, firewall and DNS records in front of Opfield.
 
@@ -63,12 +63,12 @@ The restored copy is not linked to an Opfield account: the cloud link of the exp
 
 ## Nodes And Relays
 
-Enrolled nodes and remote relays keep their identities: the restored installation has the same System CA, so their certificates stay valid. They reconnect to the address in their daemon configuration (`gateway.address`).
+Enrolled nodes and remote relays keep their identities: the restored installation has the same System CA, so their certificates stay valid. They reconnect to the address in their daemon configuration (`opfield.address`; nodes set up before 2.12.1 may still have it under `gateway.address`).
 
 - **Same address.** Point the address (DNS name or IP) at the new host. Daemons reconnect on their own.
 - **New address.** Before you shut the old installation down, open **Settings > General > Move nodes to a new address** on it and enter the new gRPC address (`host:port`, port 9443 by default). Every connected node and relay keeps it next to its current address. A daemon switches only after its current address stayed unreachable for 10 minutes and the new address presents a certificate of the same System CA, that is, once the old installation is down and the restored one answers. It then writes the new address into its configuration. Nodes that connect while the address is announced are told within a minute. The panel lists which nodes were told, which are offline and which run a daemon too old for it; update those daemons first. **Withdraw** takes the address back.
-- **Old installation gone.** Nodes that were not told keep trying the old address. Point that address at the new host, or set `gateway.address` in the daemon configuration on the node (`/etc/docker-daemon/config.yaml`, `/etc/nginx-daemon/config.yaml`, `/etc/monitoring-daemon/config.yaml` or `/etc/gateway-relay-supervisor/config.yaml`) and restart the daemon. The node keeps its identity; no new enrollment is needed.
+- **Old installation gone.** Nodes that were not told keep trying the old address. Point that address at the new host, or set `opfield.address` (or `gateway.address` on a node that still has that section) in the daemon configuration on the node (`/etc/docker-daemon/config.yaml`, `/etc/nginx-daemon/config.yaml`, `/etc/monitoring-daemon/config.yaml` or `/etc/gateway-relay-supervisor/config.yaml`) and restart the daemon. The node keeps its identity; no new enrollment is needed.
 
 Keep the old installation stopped once nodes have moved: two installations with the same identity must not run at the same time.
 
-API: `GET` and `PUT /api/system/configuration-export/move` with `{ "address": "host:port" }` or `{ "address": null }`. MCP: `manage_configuration_export` `move_status`, `announce_move`, `withdraw_move`. Audited as `system.gateway_move_announced` and `system.gateway_move_withdrawn`.
+API: `GET` and `PUT /api/system/configuration-export/move` with `{ "address": "host:port" }` or `{ "address": null }`. MCP: `manage_configuration_export` `move_status`, `announce_move`, `withdraw_move`. Audited as `system.opfield_move_announced` and `system.opfield_move_withdrawn`.

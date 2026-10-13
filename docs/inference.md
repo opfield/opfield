@@ -1,8 +1,8 @@
 # Multi-provider inference proxy
 
-Opfield exposes a standalone OpenAI- and Anthropic-compatible inference data plane. It is isolated from AI Workspace and the MCP runtime: it uses dedicated provider credentials, `gwi_` user tokens, model access rules, accounting, and a usage ledger.
+Opfield exposes a standalone OpenAI- and Anthropic-compatible inference data plane. It is isolated from AI Workspace and the MCP runtime: it uses dedicated provider credentials, `opfi_` user tokens, model access rules, accounting, and a usage ledger.
 
-The data plane is served by a managed OpenCodex inference core that Opfield installs and updates on the host as a supervised container. Opfield remains the control plane: provider connections, models, limits, tokens, pricing, and accounting stay in the Opfield UI and database, and are delegated to the core automatically. The connector baseline is OpenCodex; Cursor, Kiro, and OpenCodex desktop lifecycle features are intentionally excluded.
+The data plane is served by the managed inference core, `opfield-inference` (built from OpenCodex), that Opfield installs and updates on the host as a supervised container. Opfield remains the control plane: provider connections, models, limits, tokens, pricing, and accounting stay in the Opfield UI and database, and are delegated to the core automatically. The connector baseline is OpenCodex; Cursor, Kiro, and OpenCodex desktop lifecycle features are intentionally excluded.
 
 The provider registry covers OpenAI/Codex, Anthropic, xAI, Kimi/Moonshot, Google Gemini, Google Antigravity, GitHub Copilot, Umans, OpenCode, NeuralWatt, OrcaRouter, DeepSeek, Fire Pass, NVIDIA, Z.AI, SiliconFlow, Qwen, Tencent, Alibaba, ZenMux, LiteLLM, Ollama, vLLM, LM Studio, MiniMax, MiMo, Cloudflare Workers AI, OpenRouter, Groq, Cerebras, Together, Hugging Face, Mistral, Azure OpenAI, and generic OpenAI-compatible endpoints. Google Antigravity uses Cloud Code Assist project discovery and its request envelope. Provider-specific capabilities remain explicit in the registry, so an unavailable surface fails closed instead of silently using the wrong wire format.
 
@@ -16,7 +16,7 @@ Apply database migrations before enabling the flag. Roll out admin scopes first,
 
 ## Inference core lifecycle
 
-The managed core is a single `inference-core` container supervised by Opfield. It listens only on the internal Docker network; clients never reach it directly. All client traffic enters through Opfield's `/api/inference/v1` proxy, which authenticates the `gwi_` token, admits the request against budgets, and forwards it to the core with a signed per-request context. The core reports admission and settlement back to Opfield over an authenticated internal callback channel, so PostgreSQL remains the source of truth for usage and billing.
+The managed core is a single `inference-core` container supervised by Opfield. It listens only on the internal Docker network; clients never reach it directly. All client traffic enters through Opfield's `/api/inference/v1` proxy, which authenticates the `opfi_` token, admits the request against budgets, and forwards it to the core with a signed per-request context. The core reports admission and settlement back to Opfield over an authenticated internal callback channel, so PostgreSQL remains the source of truth for usage and billing.
 
 Administrators manage the core from **Settings > Inference** (and during initial setup from the setup wizard):
 
@@ -27,7 +27,7 @@ Administrators manage the core from **Settings > Inference** (and during initial
 
 Only one lifecycle operation runs at a time. Operations interrupted by an Opfield restart are marked failed and reconciled from observed container state on boot.
 
-Opfield and inference-core upgrades do not invalidate provider connections, inference tokens, or harnesses already connected with them.
+Opfield and inference core upgrades do not invalidate provider connections, inference tokens, or harnesses already connected with them.
 
 ## Administrator setup
 
@@ -52,21 +52,21 @@ Users need `feat:ai:use` for Opfield Inference access, personal usage visibility
 
 To connect a harness, open **Set up a harness** on the Inference usage panel or in **Settings > Inference**. The **Set Up an Inference Harness** dialog shows the values to paste into the harness's own provider settings:
 
-- **OpenAI-compatible base URL**: `https://gateway.example.com/api/inference/v1`;
-- **Anthropic-compatible base URL**: `https://gateway.example.com/api/inference`. Anthropic clients append `/v1/messages` themselves;
-- **API key**: a new `gwi_` token that the dialog creates for this harness. It is shown once;
+- **OpenAI-compatible base URL**: `https://opfield.example.com/api/inference/v1`;
+- **Anthropic-compatible base URL**: `https://opfield.example.com/api/inference`. Anthropic clients append `/v1/messages` themselves;
+- **API key**: a new `opfi_` token that the dialog creates for this harness. It is shown once;
 - **Model**: any model available to you.
 
 The recommended harness is [DeepSeek harness](https://www.deepseek.com/en/harness/): add Opfield as a provider in its settings with these values. Any other harness or tool that accepts an OpenAI- or Anthropic-compatible provider works the same way.
 
-Each opening of the dialog creates a token named `Harness — <date>` and revokes earlier dialog tokens that no client has used. Tokens a harness has used are kept. To create a token without the dialog, use **Profile > Authorizations > Inference API tokens**; the `gwi_` secret is also shown once.
+Each opening of the dialog creates a token named `Harness — <date>` and revokes earlier dialog tokens that no client has used. Tokens a harness has used are kept. To create a token without the dialog, use **Profile > Authorizations > Inference API tokens**; the `opfi_` secret is also shown once.
 
 All clients use the same base URLs:
 
 ```text
-OpenAI SDK baseURL:    https://gateway.example.com/api/inference/v1
-Anthropic SDK baseURL: https://gateway.example.com/api/inference
-API key:               gwi_...
+OpenAI SDK baseURL:    https://opfield.example.com/api/inference/v1
+Anthropic SDK baseURL: https://opfield.example.com/api/inference
+API key:               opfi_...
 ```
 
 The `/api/inference/v1` endpoint exposes the OpenAI-compatible Models, Responses, Chat Completions, Anthropic Messages, images, search, and realtime surfaces. Anthropic SDKs append `/v1` themselves, so their `baseURL` omits that segment.
@@ -87,7 +87,7 @@ Supported primary operations include:
 - `POST /alpha/search`
 - `POST /realtime/calls` and `POST /live`
 
-Responses, Chat Completions, and Messages support unary and SSE responses. Responses also supports an end-to-end WebSocket transport: Opfield keeps the client socket open across turns, forwards each turn to the managed core over WebSocket, and issues fresh signed admission context per turn without converting the stream through SSE or disk files. Realtime sideband/audio WebSockets are not supported. Authentication accepts only a dedicated `gwi_` token through `Authorization: Bearer` or `x-api-key`; browser sessions and regular `gw_`/`gwo_` credentials cannot enter the data plane.
+Responses, Chat Completions, and Messages support unary and SSE responses. Responses also supports an end-to-end WebSocket transport: Opfield keeps the client socket open across turns, forwards each turn to the managed core over WebSocket, and issues fresh signed admission context per turn without converting the stream through SSE or disk files. Realtime sideband/audio WebSockets are not supported. Authentication accepts only a dedicated `opfi_` token through `Authorization: Bearer` or `x-api-key`; browser sessions and regular `opf_`/`opfo_` credentials cannot enter the data plane.
 
 `GET /usage` is authenticated but does not consume inference concurrency or rate-limit admission. It returns user-visible percentage windows plus lifetime and UTC daily token totals used by compatible harness usage views; raw administrator accounting remains on management surfaces.
 
@@ -171,7 +171,7 @@ Troubleshooting:
 To disable inference:
 
 1. Turn off **Settings > General > Features and updates > Inference**. The change applies immediately.
-2. Revoke routing/user scopes or individual `gwi_` tokens if required.
+2. Revoke routing/user scopes or individual `opfi_` tokens if required.
 3. Keep provider credentials and immutable accounting/audit rows unless an administrator explicitly disconnects a provider.
 4. Do not delete inference tables as part of rollback.
 

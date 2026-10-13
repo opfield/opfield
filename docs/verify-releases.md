@@ -44,17 +44,19 @@ cosign verify ghcr.io/opfield/opfield/backup-runner:v2.12.0 \
 A signature on a mirrored third-party image means that Opfield's workflow copied exactly that upstream digest. It
 does not mean Opfield built the image.
 
-The inference core is released from its own repository:
+The inference core, `opfield-inference`, is released from its own repository, `opfield/opfield-inference` (named
+`opfield/inference-core` before the rename):
 
 ```bash
-cosign verify ghcr.io/opfield/inference-core:v2.60.0-opfield.1 \
-  --certificate-identity-regexp '^https://github\.com/opfield/inference-core/\.github/workflows/inference-release\.yml@refs/tags/v.+$' \
+cosign verify ghcr.io/opfield/opfield-inference:<tag> \
+  --certificate-identity-regexp '^https://github\.com/opfield/(opfield-inference|inference-core)/\.github/workflows/inference-release\.yml@refs/tags/v.+$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Releases are also published with the same digests under `ghcr.io/the-square-labs/gateway` and
-`ghcr.io/the-square-labs/inference-core`, the repositories earlier versions use. Those copies carry their own
-signatures from the same workflows, so the commands above work with either repository name.
+Releases are also published with the same digests under `ghcr.io/the-square-labs/gateway`, and core releases under
+`ghcr.io/opfield/inference-core` and `ghcr.io/the-square-labs/inference-core`, the repositories earlier versions use.
+Core releases from before the rename exist only under those two. The copies carry their own signatures from the same
+workflows, so the commands above work with any of the repository names.
 
 To verify the exact digest a release names, use `repository@sha256:<digest>` instead of a tag. The digest is the
 `imageRef` in the release's signed manifest, for example `gateway-image.update.json` (see below).
@@ -69,7 +71,7 @@ publishes:
 | Opfield `vX.Y.Z` | `opfield-vX.Y.Z.spdx.json`, `backup-runner-vX.Y.Z-linux-amd64.spdx.json`, `backup-runner-vX.Y.Z-linux-arm64.spdx.json` |
 | Relay `vX.Y.Z-relay` | `relay-vX.Y.Z-relay.spdx.json`, `secure-link-connector-vX.Y.Z-relay.spdx.json`, `relay-supervisor-linux-<arch>.spdx.json`, `relay-worker-linux-<arch>.spdx.json` |
 | Daemons (`-nginx`, `-docker`, `-monitoring`, `-watchdog`) | `<daemon>-linux-<arch>.spdx.json` |
-| Inference core | `inference-core-<tag>-linux-amd64.spdx.json`, `inference-core-<tag>-linux-arm64.spdx.json` |
+| Inference core | `opfield-inference-<tag>-linux-amd64.spdx.json`, `opfield-inference-<tag>-linux-arm64.spdx.json` (`inference-core-<tag>-…` before the rename) |
 
 The same SBOMs are attached to the images as signed in-toto attestations (predicate type `spdxjson`). For a
 multi-architecture image the attestation is on each platform image, so look up the platform digest first:
@@ -99,7 +101,8 @@ openssl pkey -pubin -in update-signing-public-key.pem -outform DER | sha256sum
 ```
 
 Each release carries its manifests as `*.update.json` assets (`gateway-image.update.json`, `relay-image.update.json`,
-`<daemon>-linux-<arch>.update.json`; `opencodex-image.update.json` for the inference core). A manifest is a JSON
+`<daemon>-linux-<arch>.update.json`; `opfield-inference-image.update.json` for the inference core, which also
+publishes `opencodex-image.update.json` for earlier Opfield versions). A manifest is a JSON
 envelope whose `payload` and `signature` are unpadded base64url. To check one by hand (OpenSSL 3.0 or later):
 
 ```bash

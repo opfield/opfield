@@ -10,7 +10,7 @@ Opfield has two kinds of storage:
 - **External connections**: AWS S3, R2, MinIO-compatible, FTP, FTPS, or SFTP endpoints Opfield points at. SFTP requires a pinned host-key fingerprint.
 - **Managed storage**: clusters Opfield runs on a `storage` Node. New clusters are single-node **SeaweedFS**, S3 API only (no FTP or SFTP), with at least 512 MiB of memory and a Node daemon that advertises SeaweedFS support. Existing **MinIO** clusters (`engine: "minio"`) are legacy: still manageable, but they cannot be created any more. Managed storage is private by default through the authenticated relay; a public S3 listener is an explicit opt-in.
 
-Start with `using-opfield` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "storage" })` before an unfamiliar workflow.
+Start with `using-opfield` for connection, discovery, and safety rules. Read `read_opfield_documentation({ topic: "storage" })` before an unfamiliar workflow.
 
 ## External connections
 
@@ -37,7 +37,7 @@ Bucket and object operations, the MCP-only `download_storage_object` link and ch
 
 ## Migrating legacy MinIO to SeaweedFS
 
-Only on the user's explicit request. It is a guided procedure run one tool step at a time, not a button: preflight, build the target, bulk copy, cutover, verify, retire, with a rollback path. Read [MinIO to SeaweedFS migration](references/minio-to-seaweedfs-migration.md) and `read_gateway_documentation({ topic: "storage-migration" })` first. Report each step's result, and ask before the cutover (it opens a write-restriction window) and before retiring the old cluster.
+Only on the user's explicit request. It is a guided procedure run one tool step at a time, not a button: preflight, build the target, bulk copy, cutover, verify, retire, with a rollback path. Read [MinIO to SeaweedFS migration](references/minio-to-seaweedfs-migration.md) and `read_opfield_documentation({ topic: "storage-migration" })` first. Report each step's result, and ask before the cutover (it opens a write-restriction window) and before retiring the old cluster.
 
 ## Verify
 

@@ -7,7 +7,7 @@ description: Deploy and operate Docker workloads on Opfield, including standalon
 
 Opfield manages Docker on enrolled Docker Nodes and adds three native models: blue/green **Deployments**, **Compose Projects** with immutable revisions, and **Git sources** that build digest-pinned artifacts into Opfield's internal registry. Every Docker tool needs a `nodeId`; resolve names, images, and domains with `find_resource` first.
 
-Start with `using-opfield` for connection, discovery, and safety rules. Read `read_gateway_documentation({ topic: "docker" })` before a multi-step workflow; it documents argument shapes this skill only summarizes. Exact tool names and operation enums: [Docker tool catalog](references/docker-tools.md).
+Start with `using-opfield` for connection, discovery, and safety rules. Read `read_opfield_documentation({ topic: "docker" })` before a multi-step workflow; it documents argument shapes this skill only summarizes. Exact tool names and operation enums: [Docker tool catalog](references/docker-tools.md).
 
 ## Pick the resource model
 

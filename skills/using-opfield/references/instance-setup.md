@@ -9,7 +9,7 @@ Use this reference when the user has no usable Opfield control plane, receives `
 - Wizard complete but no suitable Nodes: enroll only the roles required by the workload.
 - Instance and Nodes ready but MCP unavailable: continue with [MCP connection](connection.md).
 
-When MCP is already connected, use `read_gateway_documentation` for the current installation and Node requirements. Before MCP exists, use the checked-out Opfield installation documentation and UI-generated enrollment commands as the source of truth.
+When MCP is already connected, use `read_opfield_documentation` for the current installation and Node requirements. Before MCP exists, use the checked-out Opfield installation documentation and UI-generated enrollment commands as the source of truth.
 
 ## Install the control plane
 

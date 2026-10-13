@@ -86,6 +86,12 @@ Adoption preserves node ID, host identity, PKI, configuration and workloads. Mul
 
 Resource and node scopes constrain discovery; they are not manual matching choices. Newly provisioned VMs are admitted into a restricted resource scope by their exact returned provider ID. Reused provider IDs with a different incarnation do not inherit management authority from the old VM.
 
+## Ownership markers
+
+Every VM Opfield creates carries an opaque operation marker `gw-<uuid>`: in the Proxmox VM description (`Opfield hosting gw-…`) and SMBIOS UUID, a Hetzner `marker` label, a DigitalOcean tag, or the CloudBlast and HOSTKEY hostname suffix. Owned firewall objects carry deterministic names or comments: DigitalOcean `opfield-fw-…`, CloudBlast `gw-fw-…` (described `Managed by Opfield`), Proxmox `gwfw…` security groups with `Opfield firewall …` comments. Do not edit or remove these markers; Opfield uses them to recognize its resources after a lost response.
+
+Releases before 2.12.1 wrote `Gateway hosting …`, the Hetzner `gateway-marker` label, DigitalOcean `gateway-fw-…` and `Gateway firewall …` comments. They are still recognized. On sync and firewall reconciliation Opfield rewrites them in place on VMs it created (description, label, firewall name or comment only; nothing is recreated). This needs the same write permissions as normal management; without them the old names simply stay. CloudBlast security group descriptions and rule comments are not edited in place: rules get the new comment when they next change, an older group keeps its `Managed by Gateway` description. CloudBlast ownership is decided by the group name only.
+
 ## Management and destructive operations
 
 - Start, graceful shutdown, reboot and resize are exposed according to resource support and permissions. Proxmox resize/destruction requires a stopped guest; disk shrinking is not supported.

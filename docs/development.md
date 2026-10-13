@@ -49,7 +49,7 @@ Use [.env.example](../.env.example) as the local development reference.
 Important local defaults:
 
 ```env
-DATABASE_URL=postgres://dev:dev@localhost:55432/gateway
+DATABASE_URL=postgres://dev:dev@localhost:55432/opfield
 REDIS_URL=redis://localhost:6379
 SETUP_BOOTSTRAP=false
 WEB_TLS_BOOTSTRAP_MODE=http
@@ -64,18 +64,17 @@ Configure the canonical URL, authentication, and structured logging through the 
 | `pnpm dev:all` | Start backend, frontend, and status page in parallel. |
 | `pnpm dev:infra` | Build the connector images and start local Postgres, Redis, ClickHouse, and the internal registry. |
 | `pnpm dev:infra:down` | Stop local infrastructure. |
-| `pnpm build` | Build backend, frontend, status page, logging SDK, inference companion, and update service. |
+| `pnpm build` | Build backend, frontend, status page, logging SDK, and update service. |
 | `pnpm build:all` | Build app packages and daemon binaries. |
 | `pnpm build:daemon` | Build all Go daemon binaries. |
-| `pnpm test` | Run the light suite: the backend, frontend, inference companion, update service, daemon, and Relay tests that guard authorization, authentication, update trust, data integrity, untrusted input, and lease safety. Behaviour is covered by the end-to-end run on a stand before a stable release. |
+| `pnpm test` | Run the light suite: the backend, frontend, update service, daemon, and Relay tests that guard authorization, authentication, update trust, data integrity, untrusted input, and lease safety. Behaviour is covered by the end-to-end run on a stand before a stable release. |
 | `pnpm test:backend` | Run backend tests. |
-| `pnpm test:gateway-inference` | Run inference companion tests. |
 | `pnpm test:daemon` | Run the Go daemon tests of the light suite. |
 | `pnpm test:relay` | Run local Relay tests. |
 | `pnpm test:release-upgrade -- --candidate vX.Y.Z --ssh root@host` | Prove a release candidate before a stable tag on a disposable Docker-capable Debian/Ubuntu host: install the last stable release, update through the product, update daemons and relay, force the old updater's rollback, update again, then install the candidate fresh. Prints PASS/FAIL per check and removes everything it created; `--help` lists the options. |
 | `pnpm lint` | Run frontend/backend/package lint (the frontend also runs its UI rules, `pnpm --filter frontend lint:ui-rules`) and Go vet for daemons and Relay. |
 | `pnpm lint:daemon` | Run Go vet for daemons. |
-| `pnpm typecheck` | Type-check backend, logging SDK, inference companion, and update service. |
+| `pnpm typecheck` | Type-check backend, frontend, status page, logging SDK, and update service. |
 | `pnpm proto` | Regenerate protobuf stubs. |
 | `pnpm db:generate` | Generate a Drizzle ORM migration. |
 | `pnpm db:migrate` | Run database migrations. |
@@ -85,13 +84,12 @@ Configure the canonical URL, authentication, and structured logging through the 
 ## Repository Layout
 
 ```text
-gateway/
+opfield/
 +-- packages/
 |   +-- backend/          # Hono backend, REST API, OAuth, MCP, gRPC, jobs
 |   +-- frontend/         # React + Vite Opfield UI
 |   +-- status-page/      # Public status page frontend
 |   +-- logging-sdk/      # TypeScript structured logging client
-|   +-- gateway-inference/ # Interactive Codex/Claude Code inference companion
 |   +-- update-service/    # Cloudflare Worker for GitHub release discovery and signed assets
 |   +-- relay/            # Local long-lived Opfield relay worker
 |   +-- daemons/
@@ -105,7 +103,7 @@ gateway/
 |       +-- shared/       # shared Go packages and generated protobuf
 +-- proto/                # protobuf service definitions
 +-- scripts/              # Opfield and daemon installers
-+-- skills/               # agent skills served as gateway://skills (synced from opfield-skills)
++-- skills/               # agent skills served as opfield://skills (synced from opfield-skills)
 +-- docker-compose.yml    # production compose stack
 +-- docker-compose.dev.yml
 ```
@@ -194,7 +192,7 @@ Regenerate stubs:
 pnpm proto
 ```
 
-Generated Go stubs are committed under `packages/daemons/shared/gatewayv1` and `packages/daemons/shared/relayv1`.
+Generated Go stubs are committed under `packages/daemons/shared/opfieldv1` and `packages/daemons/shared/relayv1`.
 
 ## Database Migrations
 
@@ -252,10 +250,10 @@ Workflows `Image` and `Release` publish every image (`…/relay`, `…/secure-li
 | Setting | Kind | Effect |
 | --- | --- | --- |
 | `OPFIELD_GHCR` | repository variable | `true` once the opfield organization publishes images: `ghcr.io/opfield/opfield` becomes the primary repository (main builds, release tags) and `ghcr.io/the-square-labs/gateway` the mirror, which receives every release tag (`vX.Y.Z`, `X.Y.Z`, `latest`), the patched SeaweedFS builds and the third-party mirrors with the same digests. Unset: everything goes to `ghcr.io/the-square-labs/gateway` only. |
-| `GATEWAY_SIGNED_IMAGE` | repository variable | The repository signed release manifests name, which installs then pull from. Defaults to the primary repository: `ghcr.io/opfield/opfield` with `OPFIELD_GHCR=true`. Installs from 2.11.5 accept both repositories, and the update feed takes every 2.11 install to 2.11.5 before 2.12. |
-| `GATEWAY_IMAGE`, `GATEWAY_IMAGE_MIRROR` | repository variables | Override the primary repository and the mirror (forks). |
+| `OPFIELD_SIGNED_IMAGE` | repository variable | The repository signed release manifests name, which installs then pull from. Defaults to the primary repository: `ghcr.io/opfield/opfield` with `OPFIELD_GHCR=true`. Installs from 2.11.5 accept both repositories, and the update feed takes every 2.11 install to 2.11.5 before 2.12. |
+| `OPFIELD_IMAGE`, `OPFIELD_IMAGE_MIRROR` | repository variables | Override the primary repository and the mirror (forks). The workflows still read the earlier names `GATEWAY_IMAGE`, `GATEWAY_IMAGE_MIRROR` and `GATEWAY_SIGNED_IMAGE` while the new ones are unset. |
 | `GHCR_PUSH_TOKEN` | repository secret | A token that can write packages in both organizations (a classic token with `write:packages`). Needed while the repository and one of the image repositories live in different organizations. Without it the workflow token is used. |
-| `COMMERCIAL_REPOSITORY` | repository variable | The private commercial core repository CI and releases dispatch to. Defaults to `opfield/opfield-commercial` in the opfield organization, `<owner>/gateway-commercial` elsewhere. |
+| `COMMERCIAL_REPOSITORY` | repository variable | The private commercial core repository CI and releases dispatch to. Defaults to `opfield/opfield-commercial` in the opfield organization, `<owner>/opfield-commercial` elsewhere. |
 | `SIGN_IMAGES` | repository variable | `true` signs every published image keyless with cosign (GitHub OIDC, `id-token: write`, no secret), attaches SPDX SBOM attestations made with syft, and adds the SBOMs to the release assets (`scripts/release/supply-chain.sh`). Turn it on once the repository publishes from the opfield organization, so the signing identity is the one [Verifying releases](verify-releases.md) documents; the first Image run then also signs the builds that already exist. The Ed25519 update manifests do not depend on it. |
 
 Docker nodes and the installer pull the third-party mirrors and the patched SeaweedFS from

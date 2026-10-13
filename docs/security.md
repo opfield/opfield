@@ -2,7 +2,7 @@
 
 [Back to README](../README.md)
 
-Opfield is a privileged infrastructure control plane, so its security model is built around strong identity, narrow network exposure, encrypted secrets, auditable actions, and explicit permissions. The goal is not to make infrastructure magic; it is to make the dangerous parts visible, authenticated, scoped, and recoverable.
+Opfield is a privileged infrastructure control plane, so its security model is built around strong identity, narrow network exposure, encrypted secrets, auditable actions, and explicit permissions. Opfield makes the dangerous parts visible, authenticated, scoped, and recoverable.
 
 ## Secure-By-Default Principles
 
@@ -62,9 +62,9 @@ Relay nodes are the deliberate exception to the no-inbound-service-port rule: th
 Long-term daemon trust is based on Opfield's internal node PKI:
 
 1. An operator creates a node in Opfield.
-2. Opfield creates a one-time enrollment token, stores only a hash, and returns the current Opfield gRPC TLS leaf certificate fingerprint as `gatewayCertSha256`.
-3. The setup command writes the token and fingerprint to daemon config as `gateway.token` and `gateway.cert_sha256`.
-4. The unenrolled daemon connects to Opfield and verifies the presented TLS leaf certificate matches `gateway.cert_sha256`.
+2. Opfield creates a one-time enrollment token, stores only a hash, and returns the current Opfield gRPC TLS leaf certificate fingerprint as `opfieldCertSha256`.
+3. The setup command writes the token and fingerprint to daemon config as `opfield.token` and `opfield.cert_sha256`.
+4. The unenrolled daemon connects to Opfield and verifies the presented TLS leaf certificate matches `opfield.cert_sha256`.
 5. Only after that fingerprint check passes, the daemon sends the enrollment token.
 6. Opfield validates the token and issues a node client certificate from the internal Opfield Node CA.
 7. The daemon writes the CA certificate, client certificate, and private key to its local config path.
@@ -90,7 +90,7 @@ A reusable shared secret is easy to copy, leak, or leave behind. Opfield avoids 
 
 This gives every node a cryptographic identity anchored in Opfield's internal CA. A random host cannot join the fleet without a valid enrollment token and the matching Opfield certificate endpoint, and an enrolled daemon cannot impersonate a different node without that node's private key.
 
-For best enrollment assurance, run the setup command against a direct Opfield `9443/tcp` endpoint that you control. If the web UI is behind Cloudflare or another proxy, you may replace `--gateway <host>:9443` with the direct Opfield host/IP for daemon enrollment, but keep the generated `--gateway-cert-sha256` value. Replacing the fingerprint defeats the pin and should only happen after creating a new node command from the Opfield UI/API.
+For best enrollment assurance, run the setup command against a direct Opfield `9443/tcp` endpoint that you control. If the web UI is behind Cloudflare or another proxy, you may replace `--opfield <host>:9443` with the direct Opfield host/IP for daemon enrollment, but keep the generated `--opfield-cert-sha256` value. Replacing the fingerprint defeats the pin and should only happen after creating a new node command from the Opfield UI/API.
 
 ## PKI Responsibilities
 
@@ -140,12 +140,14 @@ Opfield intentionally separates token families:
 
 | Token | Purpose |
 |-------|---------|
-| `gw_` | REST API automation token. |
-| `gwo_` | OAuth access token for one resource, either Opfield API or Opfield MCP. |
-| `gwl_` | Write-only structured logging ingest token. |
-| `gwi_` | Dedicated Opfield Inference runtime token. |
+| `opf_` | REST API automation token. |
+| `opfo_` | OAuth access token for one resource, either Opfield API or Opfield MCP. |
+| `opfl_` | Write-only structured logging ingest token. |
+| `opfi_` | Dedicated Opfield Inference runtime token. |
 
-REST API tokens are not accepted by the MCP endpoint. MCP accepts only OAuth access tokens issued for the Opfield MCP resource. Logging ingest tokens can write logs only to their logging environment. Inference data-plane routes accept only `gwi_` tokens and reject browser sessions plus `gw_`, `gwo_`, and `gwl_` credentials.
+Tokens issued before 2.12.1 start with `gw_`, `gwo_`, `gwl_` or `gwi_` and keep working until they are revoked or expire.
+
+REST API tokens are not accepted by the MCP endpoint. MCP accepts only OAuth access tokens issued for the Opfield MCP resource. Logging ingest tokens can write logs only to their logging environment. Inference data-plane routes accept only `opfi_` tokens and reject browser sessions plus `opf_`, `opfo_`, and `opfl_` credentials.
 
 API tokens and OAuth/MCP grants may carry every scope except the user-only AI Workspace, AI sandbox, and `mcp:use` scopes, `admin:users:impersonate`, and `integrations:gitlab:sandbox:clone`. Delegated scopes are always bounded by the owner's live permissions, and a token can never create API tokens or OAuth authorizations. Identity-bound routes (sign-in, MFA, passkeys, own sessions, impersonation start, OAuth consent, token management, AI Workspace chat) require a browser session.
 
@@ -172,7 +174,7 @@ Docker registry credentials are sent to a Bearer token service only when the cha
 
 ## Network Exposure
 
-The intended deployment model is narrow:
+Network exposure is narrow:
 
 - Public users reach Opfield UI/API over HTTPS.
 - Daemons connect outbound to Opfield gRPC on `9443/tcp`.
@@ -183,7 +185,7 @@ For webhook delivery, Opfield has outbound network policy controls. Loopback, li
 
 ## Auditability
 
-Opfield records administrative and automation actions in the audit log. This matters because a control plane should not only prevent unauthorized work; it should also explain who changed what when something goes wrong.
+Opfield records administrative and automation actions in the audit log. When something goes wrong, the audit log shows who changed what.
 
 Examples of audited areas include:
 
@@ -200,9 +202,9 @@ SIEM export is outbound HTTPS push from Opfield to an authenticated collector; i
 
 The SIEM feature flag is enabled by default where the Enterprise `siem-export` entitlement is available. In **Settings > General > Features and updates**, disabling **SIEM audit export** hides the SIEM screens, blocks the SIEM API and AI tools, prevents new audit events from entering the SIEM outbox, and pauses the delivery scheduler. Destination configuration, delivery history, and already queued records are retained; queued records resume when SIEM is enabled again. SIEM forwarding also runs through every license grace period and pauses once it ends: new audit events are not queued and the scheduler sends nothing, while the feature flag, destinations, history, and queued records stay unchanged and resume on renewal. Existing destinations and deliveries stay viewable and deletable after the grace period; creating, changing, testing, and replaying need the current plan.
 
-Destinations require HTTPS without URL credentials, query strings, or fragments. They reuse the outbound-webhook policy: unsafe address ranges are blocked unless explicitly permitted, DNS addresses are pinned for each request, and redirects are not followed. Each destination uses bearer-token, HMAC-SHA256, or validated custom-header authentication; its secret or custom-header value is envelope-encrypted at rest and is never returned through the UI, API, audit log, AI tools, or application logs. Custom header names must be valid HTTP field names and cannot override Opfield transport headers such as `Host`, `Content-Type`, or `X-Gateway-*`; `Authorization` remains available for collectors with a non-Bearer scheme.
+Destinations require HTTPS without URL credentials, query strings, or fragments. They reuse the outbound-webhook policy: unsafe address ranges are blocked unless explicitly permitted, DNS addresses are pinned for each request, and redirects are not followed. Each destination uses bearer-token, HMAC-SHA256, or validated custom-header authentication; its secret or custom-header value is envelope-encrypted at rest and is never returned through the UI, API, audit log, AI tools, or application logs. Custom header names must be valid HTTP field names and cannot override Opfield transport headers such as `Host`, `Content-Type`, or `X-Opfield-*`; `Authorization` remains available for collectors with a non-Bearer scheme.
 
-For HMAC-SHA256, Opfield sends `X-Gateway-Timestamp` and `X-Gateway-Signature-256: sha256=<hex>`, where the signature is calculated over `timestamp + "." + raw JSON request body`. A collector must verify the exact raw body, compare the HMAC in constant time, and reject stale timestamps to limit replay.
+For HMAC-SHA256, Opfield sends `X-Opfield-Timestamp` and `X-Opfield-Signature-256: sha256=<hex>`, where the signature is calculated over `timestamp + "." + raw JSON request body`. A collector must verify the exact raw body, compare the HMAC in constant time, and reject stale timestamps to limit replay.
 
 `audit:siem:view` allows destination and delivery-history visibility. `audit:siem:manage` controls configuration, tests, deletion, and replay of failed records; it is an explicit OAuth consent scope. Disabling an individual destination pauses its outstanding work, deletion discards outstanding work, and only terminal failed records may be replayed.
 
@@ -221,7 +223,7 @@ Use this baseline for production:
 - On nodes where nobody should reach the host through Opfield, set `console.enabled: false` and `files.enabled: false` in the daemon config (or install with `--disable-console --disable-files`). Opfield cannot turn these back on remotely. To remove host access, disable both: with only the console off, writing files as the daemon user (root by default) can still run code on the host through systemd units, cron jobs, or `authorized_keys`, and can rewrite the daemon config to turn the console back on. See [Host Console And File Access](nodes.md#host-console-and-file-access).
 - For a relay on a machine that belongs to someone else, install it with `--protected` (or run `relay-supervisor protected on` there and restart the relay supervisor). The relay then refuses console, file access, command execution and host diagnostics from Opfield, and accepts only official signed updates to the same or a newer release. Only the machine owner can turn it off. See [Protected Relays](nodes.md#protected-relays).
 - Keep daemon setup tokens and generated fingerprints short-lived operationally: copy once, enroll, and do not store setup commands in tickets or chat.
-- Enroll daemons against a direct trusted `9443/tcp` Opfield endpoint, and keep the generated `--gateway-cert-sha256` value when changing only the endpoint host.
+- Enroll daemons against a direct trusted `9443/tcp` Opfield endpoint, and keep the generated `--opfield-cert-sha256` value when changing only the endpoint host.
 - Keep Opfield and daemons updated through signed release manifests. Automatic updates fail closed when the manifest is missing, invalid, or does not match the exact Opfield image digest or daemon binary checksum.
 - Review audit logs after sensitive changes.
 
@@ -233,11 +235,11 @@ Opfield and daemon self-updates use a compiled Ed25519 public key to verify sign
 
 License states are signed separately. Each Opfield release pins the license server's Ed25519 public keys by key ID in `modules/license/license-attestation.ts` and applies a license state only when it is signed by a pinned key for this installation, for the request that asked for it (purpose and a random per-request nonce), and within 15 minutes of the local clock. Redirecting the license server hostname, replaying a captured response, or copying another installation's state therefore cannot unlock a plan; Opfield rejects such a response and keeps its last valid signed state, with the ordinary 100-day offline grace counted from that state's signed issue time. Stored license states are verified again on every read, so editing the cached license in the database does not raise the plan. The license server's private signing keys live only in its `LICENSE_SIGNING_KEYS` secret. This protects official, unmodified releases; an operator who modifies Opfield's source to skip these checks is outside what signatures can prevent and violates the Paid Key Terms.
 
-Opfield does not remove the need for host security:
+Host security stays with you:
 
 - A root compromise of the Opfield host can compromise the control plane.
 - A root compromise of a managed host can access that daemon's local certificate and whatever the host itself can access.
 - Losing `PKI_MASTER_KEY` means encrypted PKI and private key material cannot be decrypted.
 - The production Docker socket mount is an intentional product requirement, not an accidental exposure. It makes the Opfield app and Docker host one trust domain, so Opfield must run on isolated infrastructure.
 
-These are the normal boundaries for an infrastructure control plane. Opfield's design makes those boundaries explicit and gives operators tools to keep access narrow, observable, and PKI-backed.
+Every infrastructure control plane has these boundaries. Opfield makes them explicit and keeps access narrow, observable, and PKI-backed.

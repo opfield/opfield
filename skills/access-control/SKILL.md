@@ -5,7 +5,7 @@ description: Administer Opfield identity and access, including users, permission
 
 # Access Control
 
-Start with `using-opfield` for connection, discovery, and safety rules; its connection reference explains how scopes bound an MCP session. Read `read_gateway_documentation({ topic: "permissions" })` (also `users`, `authentication`) before changing access, and check a specific scope in the [Scopes reference](https://docs.opfield.dev/en/identity/scopes-reference/) instead of guessing its name.
+Start with `using-opfield` for connection, discovery, and safety rules; its connection reference explains how scopes bound an MCP session. Read `read_opfield_documentation({ topic: "permissions" })` (also `users`, `authentication`) before changing access, and check a specific scope in the [Scopes reference](https://docs.opfield.dev/en/identity/scopes-reference/) instead of guessing its name.
 
 ## Users and groups
 
@@ -19,7 +19,7 @@ Every user belongs to exactly one permission group. Built-in groups (`system-adm
 - `delete_user` is a soft delete: access and tokens are revoked immediately and the user disappears from operational lists, but audit and usage history remain. Only a system administrator can restore a user, and a restored user stays blocked until unblocked. Do not tell anyone the account is "gone".
 - `list_groups`, `create_group`, `update_group`, `delete_group` need `admin:groups`.
 
-Authentication itself (OIDC, passwords, email one-time codes, passkeys, MFA, a user's sessions) is browser-bound; see `read_gateway_documentation({ topic: "authentication" })`.
+Authentication itself (OIDC, passwords, email one-time codes, passkeys, MFA, a user's sessions) is browser-bound; see `read_opfield_documentation({ topic: "authentication" })`.
 
 ## How scopes apply
 
@@ -35,7 +35,7 @@ Each scope family has one view scope that its action scopes imply (`proxy:edit` 
 
 ## Check what a principal can reach
 
-If you can't see or do something at the root, check `get_my_access`; folder-limited access is normal, so work inside the granted folders. It (also `gateway://access` over MCP, and `GET /api/auth/me/access` for a REST token) groups the calling principal's access by area: whether it is broad, which folders (id, name, path), Nodes, accounts and resources are granted with which actions, and where it may create (`create.atRoot`, `create.folders`, `create.nodes`). A token or OAuth grant is reported as bounded by its owner (`principal: { credential, boundedByOwner: true }`) and carries no owner identity; only browser sessions and the in-product assistant also get the user's id, name, email and group. When the connection is limited, MCP also adds a short version of this summary to its server instructions at connect time.
+If you can't see or do something at the root, check `get_my_access`; folder-limited access is normal, so work inside the granted folders. It (also `opfield://access` over MCP, and `GET /api/auth/me/access` for a REST token) groups the calling principal's access by area: whether it is broad, which folders (id, name, path), Nodes, accounts and resources are granted with which actions, and where it may create (`create.atRoot`, `create.folders`, `create.nodes`). A token or OAuth grant is reported as bounded by its owner (`principal: { credential, boundedByOwner: true }`) and carries no owner identity; only browser sessions and the in-product assistant also get the user's id, name, email and group. When the connection is limited, MCP also adds a short version of this summary to its server instructions at connect time.
 
 Use it before reporting a permission problem: a denial at the root, or a refusal that names folders or Nodes, means the access is limited, not missing. Only when it shows no grant for the action anywhere is the user missing a scope; then name the exact scope and restriction to ask an administrator for.
 
@@ -50,7 +50,7 @@ A token or grant's own restriction is applied first and then bounded by the owne
 ## Tokens, grants, and what MCP cannot do
 
 - `manage_api_token` and `manage_oauth_authorization` are browser-session tools for the current user's own tokens and grants, and are **not exposed over MCP**. An MCP agent cannot mint an API token or approve an OAuth client. When a user asks for a token, send them to the Console; do not look for a workaround.
-- API tokens and OAuth grants can hold every scope a user can, except user-account-only scopes: `ai:workspace:use`, `feat:ai:configure`, `ai:skills:manage`, `ai:sandbox:*`, `mcp:use`, `inference:setup`, `admin:users:impersonate`, and `integrations:gitlab:sandbox:clone`.
+- API tokens and OAuth grants can hold every scope a user can, except user-account-only scopes: `ai:workspace:use`, `feat:ai:configure`, `ai:skills:manage`, `ai:sandbox:*`, `mcp:use`, `admin:users:impersonate`, and `integrations:gitlab:sandbox:clone`.
 - Retired scope names from before 2.11 are still accepted for two releases and rewritten to their replacements; see [retired scope names](https://docs.opfield.dev/en/identity/scopes-reference/#retired-scope-names) before trusting a name from older examples.
 
 ## Impersonation
