@@ -371,7 +371,7 @@ export function StatusPageSection({ nodesList }: StatusPageSectionProps) {
           </Select>
         </SettingsRow>
         <SettingsRow
-          label="Proxy template"
+          label="Nginx template"
           description="Optional nginx template override for the generated route"
           help="Uses a custom Nginx configuration template instead of Opfield's default status-page proxy. Leave it on Default unless the route requires specialized proxy behavior."
         >

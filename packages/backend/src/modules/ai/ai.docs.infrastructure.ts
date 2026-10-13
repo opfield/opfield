@@ -277,7 +277,7 @@ Pages serves immutable static Deployments owned by a Page Project. Use \`find_re
 
 ## Options
 - Expiry: \`expiresAt\` (ISO 8601, 5 minutes to 1 year ahead) or \`expiresInHours\` (1-8760) at \`link\`, \`begin\` or \`finalize\`, also on the REST deploy API. Maintenance deletes an expired Deployment with its previews and files and clears Tags that pointed at it (their Tag preview goes away). Pinned Deployments, and Deployments a custom-domain Route still serves, are not expired. A Deployment without an expiry is never expired.
-- Access list: \`project_update\` with \`accessListId\` protects every preview host of the Project (Deployment and Tag previews) with the list's IP rules and basic authentication, exactly like a proxy host. It needs pages:edit and acl:view on the list, and a Pages node daemon that supports preview access lists; \`accessListId: null\` removes it.
+- Access list: \`project_update\` with \`accessListId\` protects every preview host of the Project (Deployment and Tag previews) with the list's IP rules and basic authentication, exactly like a route. It needs pages:edit and acl:view on the list, and a Pages node daemon that supports preview access lists; \`accessListId: null\` removes it.
 - Rotate links: \`project_rotate_preview_hash\` gives the Project a new hash and new Deployment slugs, revokes every old preview link at once, republishes the new ones, and is audit logged. Use it when a preview link leaked.
 - Tag names are lowercase DNS labels; new Tags are at most 50 characters so \`<hash>-<tag>\` stays one DNS label. Older longer Tags keep working but report \`label_too_long\` for their preview link.
 

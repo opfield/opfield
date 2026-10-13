@@ -441,7 +441,7 @@ export class InternalCertificateRenewalService {
         await this.certificateDistribution.upsertOpfieldAsset({ type: 'internal', id: replacement.id });
         for (const host of directHosts) {
           if (!this.proxyService) {
-            deliveryFailures.push({ target: `route ${host.id}`, error: 'Proxy service unavailable' });
+            deliveryFailures.push({ target: `route ${host.id}`, error: 'Route service unavailable' });
             continue;
           }
           try {

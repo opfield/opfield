@@ -257,7 +257,7 @@ export async function probeDirectProxyUpstream(
   deps: DirectProxyProbeDeps = {}
 ): Promise<DirectProxyProbeResult> {
   const url = resolveProxyHealthCheckUrl(host);
-  if (!url) return { status: 'offline', error: 'Proxy upstream endpoint is unavailable' };
+  if (!url) return { status: 'offline', error: 'Route upstream endpoint is unavailable' };
   const checkTarget = deps.checkTarget ?? checkProxyHealthTargetFromContainer;
   let target: OutboundWebhookTargetCheck;
   try {

@@ -164,7 +164,7 @@ export const CORE_TOKEN_SCOPES = [
   },
   {
     value: "proxy:advanced",
-    label: "Advanced Proxy Config",
+    label: "Advanced Route Config",
     desc: "Use advanced proxy configuration",
     group: "Routes",
   },
@@ -270,19 +270,19 @@ export const CORE_TOKEN_SCOPES = [
     value: "proxy:templates:view",
     label: "View Nginx Templates",
     desc: "View nginx templates",
-    group: "Proxy Templates",
+    group: "Nginx Templates",
   },
   {
     value: "proxy:templates:manage",
     label: "Manage Nginx Templates",
     desc: "Create, edit, and delete nginx templates, including template content",
-    group: "Proxy Templates",
+    group: "Nginx Templates",
   },
   {
     value: "proxy:templates:folders:manage",
     label: "Manage Nginx Template Folders",
     desc: "Organize custom nginx templates into folders",
-    group: "Proxy Templates",
+    group: "Nginx Templates",
   },
   // SSL Certificates
   {

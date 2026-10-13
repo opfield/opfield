@@ -748,7 +748,7 @@ export abstract class AdditionalRouteServiceRuntime {
   ): Promise<AdditionalRouteRow> {
     if (!route.enabled) return route;
     if (isDockerKind(target.targetKind)) {
-      if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+      if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Route Secure Links are unavailable');
       const binding = await this.secureLinks.createManagedRoute(host, route.id, this.asSecureLinkInput(target));
       if (binding.status !== 'active') {
         return (

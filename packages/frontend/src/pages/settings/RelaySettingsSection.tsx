@@ -96,7 +96,7 @@ function admissionLabel(state: string | undefined) {
     case "normal":
       return "No throttling";
     case "proxy_throttled":
-      return "Proxy fair-share";
+      return "Route fair-share";
     case "database_reserved":
       return "Database reserve";
     case "hard_pressure":
@@ -956,7 +956,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             subtitle="Current logical streams"
           />
           <StatCard
-            label="Proxy tunnels"
+            label="Route tunnels"
             value={metric(status?.activeProxyTunnels).toLocaleString()}
             icon={Network}
             history={history.map((sample) => metric(sample.activeProxyTunnels))}
@@ -1038,7 +1038,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
         <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Admission & runtime</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            label="Proxy throttled"
+            label="Route throttled"
             value={metric(status?.throttledProxyTotal).toLocaleString()}
             icon={Ban}
             history={history.map((sample) => metric(sample.throttledProxyTotal))}
@@ -1157,7 +1157,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
           />
         </SettingsControlRow>
         <SettingsControlRow
-          title="Proxy pressure target"
+          title="Route pressure target"
           description="Start fair-share admission for dominant proxy routes at this measured pressure"
           help="Percentage of measured relay pressure where fair-share throttling begins for new streams on dominant proxy routes."
         >

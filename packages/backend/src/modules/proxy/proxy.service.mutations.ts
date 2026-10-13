@@ -466,7 +466,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
           const pageNodes = host.ingressGroupId ? await this.ingressNodesOf(host) : host.nodeId!;
           await this.pageRoutes.activateNewHost(host.id, pageNodes, input.pageProjectId, input.pageTagId);
         } else if (isDockerUpstream(host.upstreamKind)) {
-          if (!this.secureLinks) throw new Error('Proxy Secure Links are unavailable');
+          if (!this.secureLinks) throw new Error('Route Secure Links are unavailable');
           // Availability first, as the Docker reconciliation does (C-1): after a failover the original copy is
           // stopped, and a link of the route's own to it can never be provisioned.
           const availabilityHost = await this.projectAvailabilityIngress(host.id);
@@ -886,7 +886,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         managesSecureLink && updated.enabled && !updatedUsesRawMode ? await this.projectAvailabilityIngress(id) : null;
       if (availabilityHost) updated = availabilityHost;
       if (managesSecureLink && !availabilityHost) {
-        if (!this.secureLinks) throw new Error('Proxy Secure Links are unavailable');
+        if (!this.secureLinks) throw new Error('Route Secure Links are unavailable');
         const requiresSecureLink =
           !updatedUsesRawMode &&
           (existing.upstreamKind === 'manual' ||

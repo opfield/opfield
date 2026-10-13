@@ -474,7 +474,7 @@ export function NginxTemplateEdit() {
               <DialogTitle>Template Settings</DialogTitle>
             </DialogHeader>
             <DialogDescription>
-              Configure custom variables that proxy hosts can fill when using this template.
+              Configure custom variables that routes can fill when using this template.
             </DialogDescription>
             <PanelShell
               title="Custom Variables"

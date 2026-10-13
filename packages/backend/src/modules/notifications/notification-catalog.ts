@@ -391,8 +391,8 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { id: 'health.degraded', label: 'Health Degraded', defaultSeverity: 'warning', supportsThreshold: true },
       { id: 'health.online', label: 'Health Online', defaultSeverity: 'info', supportsThreshold: true, recovery: true },
       { id: 'maintenance.active', label: 'Maintenance Active', defaultSeverity: 'warning', supportsThreshold: true },
-      { id: 'created', label: 'Proxy Created', defaultSeverity: 'info' },
-      { id: 'deleted', label: 'Proxy Deleted', defaultSeverity: 'info' },
+      { id: 'created', label: 'Route Created', defaultSeverity: 'info' },
+      { id: 'deleted', label: 'Route Deleted', defaultSeverity: 'info' },
       { id: 'secure_link.provisioning_failed', label: 'Secure Link Provisioning Failed', defaultSeverity: 'critical' },
       {
         id: 'secure_link.reconciliation_failed',

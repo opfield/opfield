@@ -240,7 +240,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
 
   async listAdditionalSecureLinks(id: string) {
     await this.requireManagedProxyHost(id);
-    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Route Secure Links are unavailable');
     const [bindings, routes] = await Promise.all([
       this.secureLinks.listAllAdditional(id),
       this.additionalRoutes?.list(id) ?? Promise.resolve([]),
@@ -262,7 +262,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
     actorScopes?: string[]
   ) {
     const host = await this.requireManagedProxyHost(id);
-    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Route Secure Links are unavailable');
     await this.appFreeze?.assertRoute(id);
     await this.assertUpstreamNotAppFrozen(input);
     const binding = await this.secureLinks.createAdditional(host, input, actorScopes);
@@ -278,7 +278,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
 
   async retryAdditionalSecureLink(id: string, bindingId: string, userId: string, actorScopes?: string[]) {
     const host = await this.requireManagedProxyHost(id);
-    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Route Secure Links are unavailable');
     await this.appFreeze?.assertRoute(id);
     const binding = await this.secureLinks.retryAdditional(host, bindingId, actorScopes);
     await this.auditService.log({
@@ -307,7 +307,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
     actorScopes?: string[]
   ) {
     const host = await this.requireManagedProxyHost(id);
-    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Route Secure Links are unavailable');
     await this.appFreeze?.assertRoute(id);
     await this.assertUpstreamNotAppFrozen(input);
     const before = (await this.secureLinks.listAdditional(id)).find((binding) => binding.id === bindingId);
@@ -348,7 +348,7 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
 
   async deleteAdditionalSecureLink(id: string, bindingId: string, userId: string) {
     const host = await this.requireManagedProxyHost(id);
-    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Proxy Secure Links are unavailable');
+    if (!this.secureLinks) throw new AppError(503, 'SECURE_LINK_UNAVAILABLE', 'Route Secure Links are unavailable');
     await this.appFreeze?.assertRoute(id);
     await this.secureLinks.deleteAdditional(host, bindingId);
     this.forgetSecureLinkRuntime(`additional:${bindingId}`);
