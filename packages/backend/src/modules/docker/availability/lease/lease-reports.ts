@@ -68,7 +68,7 @@ function reportedTime(value: string | number | undefined | null): Date | null {
 /**
  * A running voter hears the holder at least every renewal (5 s). One that first stores a new holder's commit within
  * three renewals of its own start may be catching up on a takeover that happened while it was down (stand run rc20
- * B-14: the local relay, restarted with Gateway, reported its first sighting 86 s after the takeover).
+ * B-14: the local relay, restarted with Opfield, reported its first sighting 86 s after the takeover).
  */
 export const LEASE_VOTER_RESTART_GRACE_MS = 15_000;
 
@@ -82,14 +82,14 @@ function reporterStartedAt(incarnation: string | number | undefined | null): Dat
 }
 
 /**
- * N-15: how far a daemon's wall clock is from Gateway's, measured on the report itself: the daemon's clock when it
- * built the report against Gateway's when the report arrived. A VM resumed from suspend runs minutes behind until NTP
+ * N-15: how far a daemon's wall clock is from Opfield's, measured on the report itself: the daemon's clock when it
+ * built the report against Opfield's when the report arrived. A VM resumed from suspend runs minutes behind until NTP
  * steps it (stand run rc20pre3 i: 101 s), and every time the daemon reports is on that clock.
  */
 export interface LeaseReporterClock {
   /** The daemon's wall clock (Unix ms) from its health report; resolution one second. */
   healthTimestampMs?: number;
-  /** Gateway's wall clock when the report arrived. */
+  /** Opfield's wall clock when the report arrived. */
   receivedAtMs: number;
 }
 
@@ -97,7 +97,7 @@ export interface LeaseReporterClock {
 export const LEASE_REPORTER_CLOCK_TOLERANCE_MS = 2_000;
 
 /**
- * The reporter's clock offset (its clock minus Gateway's) in ms; null when the report arrived with a clock that cannot
+ * The reporter's clock offset (its clock minus Opfield's) in ms; null when the report arrived with a clock that cannot
  * be measured, so its reported times are not used (voters decide). Without a clock at all (a replayed report) the
  * times are taken as reported.
  */
@@ -113,7 +113,7 @@ export function leaseReporterClockOffset(
   return Number.isSafeInteger(coarse) && coarse > 0 ? coarse + 500 - clock.receivedAtMs : null;
 }
 
-/** A time the reporter stated on its own clock, on Gateway's clock; null when the offset is unknown. */
+/** A time the reporter stated on its own clock, on Opfield's clock; null when the offset is unknown. */
 function onOpfieldClock(reported: Date | null, offsetMs: number | null): Date | null {
   if (!reported || offsetMs === null) return null;
   if (Math.abs(offsetMs) <= LEASE_REPORTER_CLOCK_TOLERANCE_MS) return reported;
@@ -162,7 +162,7 @@ export class AvailabilityLeaseReports {
     };
     const reporterRoles = new Map<string, { policyId: string; slot: number; role: string }>();
     const startedAt = reporterStartedAt(report.incarnation);
-    // N-15: a daemon states times on its own wall clock; they are moved onto Gateway's by the measured offset, and not
+    // N-15: a daemon states times on its own wall clock; they are moved onto Opfield's by the measured offset, and not
     // used at all when it cannot be measured. Relays keep their times (their reports carry no clock yet).
     const offsetMs = sender.kind === 'relay' ? 0 : leaseReporterClockOffset(report, clock);
     const daemonTime = (value: string | number | undefined | null) => onOpfieldClock(reportedTime(value), offsetMs);
@@ -234,7 +234,7 @@ export class AvailabilityLeaseReports {
       }
       // An open relay gate names the holder of a verified commit that renewed within the last gate window (A11, A15),
       // also where the relay does not vote: the local relay only shadow-accepts. Its health report is the first lease
-      // view Gateway gets after a restart, long before the nodes' control sessions reconnect (stand run ha18/b).
+      // view Opfield gets after a restart, long before the nodes' control sessions reconnect (stand run ha18/b).
       const gateBallot = normalizeLeaseBallot(view.gateBallot);
       if (sender.kind === 'relay' && view.gateOpen && view.gateHolderId && gateBallot) {
         addCandidate(view.policyId, view.slot, {
@@ -390,7 +390,7 @@ export class AvailabilityLeaseReports {
         .innerJoin(leasePolicies, eq(leasePolicies.id, dockerAvailabilityLeaseState.policyId))
         .where(eq(dockerAvailabilityLeaseState.policyId, policyId))
         .limit(1);
-      // Reports about a policy the Gateway never put in lease mode are not recorded.
+      // Reports about a policy Opfield never put in lease mode are not recorded.
       if (!state) return null;
       const [stored] = await tx
         .select()

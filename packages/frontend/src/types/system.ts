@@ -7,12 +7,12 @@ export interface UpdateStatus {
   releaseUrl: string | null;
   lastCheckedAt: string | null;
   relay: RelayUpdateStatus;
-  /** Absent on Gateways that predate the update gate. */
+  /** Absent on Opfield releases that predate the update gate. */
   opfieldOperation?: OpfieldUpdateOperation | null;
 }
 
 /**
- * An accepted Gateway update, waiting for running orchestration operations first,
+ * An accepted Opfield update, waiting for running orchestration operations first,
  * or (`failed`) one that was rolled back or never replaced the running version.
  */
 export interface OpfieldUpdateOperation {

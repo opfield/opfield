@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// A non-root daemon that cannot enter a directory on the way names the permission error, so Gateway answers 403.
+// A non-root daemon that cannot enter a directory on the way names the permission error, so Opfield answers 403.
 func TestWriteUnderAnUnenterableDirectoryNamesThePermissionError(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root enters every directory")
@@ -32,7 +32,7 @@ func TestWriteUnderAnUnenterableDirectoryNamesThePermissionError(t *testing.T) {
 	}
 }
 
-// Saving a file that was deleted meanwhile names the missing file, so Gateway answers 404.
+// Saving a file that was deleted meanwhile names the missing file, so Opfield answers 404.
 func TestWriteOfADeletedFileNamesTheMissingFile(t *testing.T) {
 	err := writeNodeFile(filepath.Join(t.TempDir(), "gone.txt"), []byte("y"), false)
 	if err == nil || !strings.Contains(err.Error(), "no such file or directory") {

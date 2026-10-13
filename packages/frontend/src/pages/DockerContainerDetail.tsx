@@ -260,7 +260,7 @@ export function DockerContainerDetail({
   const navigate = useStableNavigate();
   const backTarget = getReturnNavigationTarget(location.state, "/docker");
   const [container, setContainer] = useState<InspectData | null>(resolvedContainer ?? null);
-  // Gateway adds the container's app (when it is a member) next to the inspect data.
+  // Opfield adds the container's app (when it is a member) next to the inspect data.
   const containerApp = (container?.app ??
     resolvedContainer?.app ??
     null) as AppMembershipRef | null;

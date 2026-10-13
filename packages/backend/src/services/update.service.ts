@@ -82,7 +82,7 @@ export interface UpdateStatus {
 }
 
 /**
- * A Gateway self-update this process accepted and has not handed off yet, or
+ * An Opfield self-update this process accepted and has not handed off yet, or
  * (`failed`) a handed-off update that did not replace this version.
  */
 export interface OpfieldUpdateOperation {
@@ -129,7 +129,7 @@ const OPFIELD_UPDATE_ATTEMPT_KEY = 'update:gateway:attempt';
  * long, so the version it rolls back to still finds the record and reports it.
  */
 const OPFIELD_UPDATE_TARGET_GRACE_MS = 10 * 60_000;
-/** Marks the container that runs a Gateway self-update, so it is removed once it has finished. */
+/** Marks the container that runs an Opfield self-update, so it is removed once it has finished. */
 const UPDATE_SIDECAR_LABEL = 'net.opfield.role';
 const UPDATE_SIDECAR_ROLE = 'opfield-update-sidecar';
 // legacy-name: gateway-update-sidecar — sidecars started by releases before 2.12.1; only cleaned up — remove once no
@@ -154,7 +154,7 @@ interface OpfieldUpdateAttempt {
   targetStartedAt?: string | null;
 }
 
-/** States in which a Relay Pool update run is being driven by a Gateway process. */
+/** States in which a Relay Pool update run is being driven by an Opfield process. */
 const ACTIVE_RELAY_POOL_RUN_STATES = ['preflight', 'draining', 'updating', 'verifying', 'rolling_back'] as const;
 /** How soon a Relay Pool run that failed is checked for an outcome that could not be recorded. */
 const ORPHANED_RELAY_POOL_RUN_CHECK_MS = 30_000;
@@ -472,7 +472,7 @@ export class UpdateService {
     return this.opfieldUpdateInProgress;
   }
 
-  /** Refuses a Gateway update (or paid-feature activation) that would interrupt another update. */
+  /** Refuses an Opfield update (or paid-feature activation) that would interrupt another update. */
   async assertOpfieldUpdateAllowed(): Promise<void> {
     if (this.opfieldUpdateInProgress) {
       throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
@@ -482,7 +482,7 @@ export class UpdateService {
     }
   }
 
-  /** True while a Gateway update or a running Relay update is in flight. */
+  /** True while an Opfield update or a running Relay update is in flight. */
   async isAnyUpdateRunning(): Promise<boolean> {
     return this.opfieldUpdateInProgress || (await this.isRelayUpdateRunning());
   }
@@ -819,7 +819,7 @@ export class UpdateService {
 
   /**
    * Runs once at startup. No update runs in a process that just started, so an
-   * unfinished Gateway attempt or Relay Pool run in the database was
+   * unfinished Opfield attempt or Relay Pool run in the database was
    * interrupted: report it and release what it holds.
    */
   async recoverInterruptedUpdates(): Promise<void> {
@@ -973,7 +973,7 @@ export class UpdateService {
     this.targetGraceTimer.unref?.();
   }
 
-  /** Persists, audits and reports a Gateway update that did not replace this version. */
+  /** Persists, audits and reports an Opfield update that did not replace this version. */
   private async reportFailedOpfieldUpdate(error: string, known?: OpfieldUpdateAttempt): Promise<void> {
     const attempt = known ?? (await this.readOpfieldUpdateAttempt());
     const targetVersion = attempt?.targetVersion ?? this.opfieldUpdateOperation?.targetVersion;

@@ -137,7 +137,7 @@ export interface DashboardRelaySnapshot {
   }>;
   blockers?: string[];
   /**
-   * Advisory conditions: links whose node reaches no relay off the Gateway host (the pool stays healthy), relays
+   * Advisory conditions: links whose node reaches no relay off the Opfield host (the pool stays healthy), relays
    * offline for a day or more that are still availability lease members.
    */
   warnings?: Array<
@@ -186,7 +186,7 @@ export interface DashboardRelayInstance {
   retainedAssignments?: number;
   /** `error`: what the step could not avoid, or what its streams did; `drainDeadlineAt`: when its drain ends. */
   updateStep?: { state: string; error: string | null; drainDeadlineAt?: string | null } | null;
-  /** An offline remote relay: when Gateway allows its removal (policy expired, 90 s silent). */
+  /** An offline remote relay: when Opfield allows its removal (policy expired, 90 s silent). */
   removableAfter?: string | null;
   /** Most nodes that measure this relay cannot reach its relay port; it gets no connections meanwhile. */
   dataPlaneFailing?: boolean;
@@ -197,7 +197,7 @@ export interface DashboardRelayInstance {
     /** The relay's last reported problem, such as why it is not ready. */
     lastError?: string;
   } | null;
-  /** Why this relay refuses Gateway policy and what repairs it; null when trust is fine. */
+  /** Why this relay refuses Opfield policy and what repairs it; null when trust is fine. */
   policyTrust?: RelayPolicyTrustStatus | null;
   /** Certificate expiry or renewal problems; null when the certificate is fine. */
   certificate?: RelayCertificateStatus | null;
@@ -205,7 +205,7 @@ export interface DashboardRelayInstance {
   revocation?: RelayRevocationStatus | null;
   /** Its control stream ended with the local relay and has not come back yet. */
   reconnecting?: boolean;
-  /** Its machine owner turned protected mode on: no console, files, commands or host diagnostics from Gateway. */
+  /** Its machine owner turned protected mode on: no console, files, commands or host diagnostics from Opfield. */
   protected?: boolean;
   /** Whether availability witnesses may run here (admin flag and the relay's local state). */
   witnessHosting?: RelayWitnessHosting;

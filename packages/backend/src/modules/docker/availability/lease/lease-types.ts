@@ -63,7 +63,7 @@ export interface DockerAvailabilityLeaseHolderView {
 /**
  * Why a Docker candidate cannot hold a slot or receive a standby right now (D3). A per-node condition never changes the
  * policy's mode: the node is only left out.
- * - offline: its daemon has no control connection to Gateway;
+ * - offline: its daemon has no control connection to Opfield;
  * - watchdog_missing: its lease watchdog is not running (or cannot be installed), so the daemon refuses to hold;
  * - daemon_outdated: its daemon does not advertise availability_lease_v2;
  * - identity_pending: its daemon has not reported a lease identity key yet.

@@ -32,7 +32,7 @@ export interface MemberStatus {
   memoryLimitBytes: number | null;
   /** Docker runtime container name: the container itself, or the active slot of a deployment. */
   runtimeName?: string | null;
-  /** A container or deployment with an enabled Gateway health check (without one, running counts as healthy). */
+  /** A container or deployment with an enabled Opfield health check (without one, running counts as healthy). */
   hasHealthCheck?: boolean;
 }
 
@@ -72,7 +72,7 @@ export function withAvailabilityState(
   return health;
 }
 
-/** A container from its runtime state and its Gateway health check. */
+/** A container from its runtime state and its Opfield health check. */
 export function containerHealth(state: string | null | undefined, check: string | null | undefined): MemberHealth {
   const runtime = String(state ?? '').toLowerCase();
   if (runtime === 'running') {

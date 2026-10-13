@@ -1,4 +1,4 @@
-/** What Gateway's main thread and its tunnel worker exchange (see rpc.ts); every byte array may arrive as Uint8Array. */
+/** What Opfield's main thread and its tunnel worker exchange (see rpc.ts); every byte array may arrive as Uint8Array. */
 
 export interface WireGrant {
   keyId: string;
@@ -39,7 +39,7 @@ export interface WireDialResult {
   key?: Uint8Array;
 }
 
-/** One of the worker's resumable streams, for the return to the nearest relay (gateway-relay-paths). */
+/** One of the worker's resumable streams, for the return to the nearest relay (opfield-relay-paths). */
 export interface StreamView {
   id: number;
   routeId: string;

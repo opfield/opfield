@@ -272,7 +272,7 @@ export class NodesService {
 
   /**
    * The status a node is shown with. A stream that closed moments ago keeps its status through the reconnect grace,
-   * as the DB does, and so does a node that has not reconnected yet to a Gateway that started moments ago; a node
+   * as the DB does, and so does a node that has not reconnected yet to an Opfield that started moments ago; a node
    * away for its daemon update stays reconnecting for the whole update, as does one away while the local relay
    * restarts.
    */
@@ -1037,13 +1037,13 @@ export class NodesService {
     }
   }
 
-  /** `userId`: the reading user, audited; Gateway's own reads pass none. */
+  /** `userId`: the reading user, audited; Opfield's own reads pass none. */
   async listFiles(nodeId: string, path: string, userId?: string) {
     await this.validateConnectedNode(nodeId);
     return listNodeFiles(this.nodeFileOperationContext(), nodeId, path, userId);
   }
 
-  /** `userId`: the reading user, audited; Gateway's own reads pass none. */
+  /** `userId`: the reading user, audited; Opfield's own reads pass none. */
   async readFile(nodeId: string, path: string, userId?: string) {
     await this.validateConnectedNode(nodeId);
     return readNodeFile(this.nodeFileOperationContext(), nodeId, path, userId);

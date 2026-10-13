@@ -22,23 +22,23 @@ import (
 
 // Availability HTTP health.
 //
-// Gateway's health watch hands this node the HTTP health checks of the
+// Opfield's health watch hands this node the HTTP health checks of the
 // Availability copy it runs: the health check of every Route that serves the
 // workload, and a blue/green deployment's own health check. The node probes
 // the copy directly (the container's address, as a deployment's readiness
 // check does) at each check's interval, in the background, so the command
 // that sets the checks returns at once with the latest results.
 //
-// Gateway decides from the results, because only it sees every copy of the
+// Opfield decides from the results, because only it sees every copy of the
 // policy: it never takes out the last copy that serves. When it takes one out
 // it sets the policy dormant here (its member endpoints register dormant and
 // their tunnels end, so the Route stops sending requests) and, in lease mode,
 // asks the holder to release its slot for health (lease.ReleaseUnhealthy):
 // the copy is restarted, or a standby takes over. It stays dormant until
-// Gateway sees the check pass again and lifts it.
+// Opfield sees the check pass again and lifts it.
 //
-// Every check and the dormant state expire unless Gateway renews them: with
-// Gateway down the copy is judged by its Docker state alone, as without an
+// Every check and the dormant state expire unless Opfield renews them: with
+// Opfield down the copy is judged by its Docker state alone, as without an
 // HTTP health check.
 
 const (
@@ -171,7 +171,7 @@ func newAvailabilityHealth(probe func(context.Context, availabilityHealthCheckSp
 	}
 }
 
-// dormant reports whether Gateway took the policy's copy on this node out.
+// dormant reports whether Opfield took the policy's copy on this node out.
 func (h *availabilityHealth) dormant(policyID string) bool {
 	if h == nil {
 		return false
@@ -303,7 +303,7 @@ func availabilityHealthSpecKey(spec availabilityHealthCheckSpec) string {
 	return string(data)
 }
 
-// run probes the due checks until ctx ends and drops the policies Gateway
+// run probes the due checks until ctx ends and drops the policies Opfield
 // stopped renewing.
 func (h *availabilityHealth) run(ctx context.Context) {
 	ticker := time.NewTicker(availabilityHealthTick)

@@ -2,7 +2,7 @@ import { AppError } from '@/middleware/error-handler.js';
 
 /** The daemon's result when the node's `nginx -t` rejects a config it was asked to apply. */
 const CONFIG_TEST_FAILURE_RE = /^nginx config test failed: /;
-/** `nginx -t` refusing the certificate or key of a TLS bundle: Gateway's material, not the route's config. */
+/** `nginx -t` refusing the certificate or key of a TLS bundle: Opfield's material, not the route's config. */
 const TLS_MATERIAL_FAILURE_RE = /cannot load certificate|SSL_CTX_use_|PEM_read_bio/;
 
 /**

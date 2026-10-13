@@ -100,7 +100,7 @@ export function certificateAttentionTitle(attention: CertificateAttention, daysR
 /**
  * Loads the TLS certificate status of a managed storage cluster or managed
  * database. `loading` is true until the first answer while enabled; a
- * resource without TLS (or an older Gateway) answers with no status.
+ * resource without TLS (or an older Opfield) answers with no status.
  */
 export function useManagedCertificateStatus(
   load: () => Promise<ManagedCertificateStatusView>,
@@ -113,7 +113,7 @@ export function useManagedCertificateStatus(
     try {
       setStatus(await load());
     } catch {
-      // TLS off, no permission, or an older Gateway: nothing to show.
+      // TLS off, no permission, or an older Opfield: nothing to show.
       setStatus(null);
     } finally {
       setSettled(true);

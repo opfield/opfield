@@ -112,7 +112,7 @@ export interface InferenceDiscoveredModel {
   available: boolean;
 }
 
-/** provider: live provider API; fallback: built-in catalog; derived: calculated by Gateway from provider limits. */
+/** provider: live provider API; fallback: built-in catalog; derived: calculated by Opfield from provider limits. */
 export type InferenceModelMetadataSource = "provider" | "fallback" | "derived";
 export type InferenceModelMetadataField =
   | "displayName"

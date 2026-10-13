@@ -22,7 +22,7 @@ var legacySystemdUnits = map[string]string{
 }
 
 // retireLegacyUpdateGuard removes only artifacts produced by the retired
-// Gateway systemd update guard. It is intentionally outside the launcher
+// Opfield systemd update guard. It is intentionally outside the launcher
 // process: protocol-v1 launchers never inspect or mutate init-system state.
 func retireLegacyUpdateGuard(daemonType, binaryPath string) error {
 	var failures []error

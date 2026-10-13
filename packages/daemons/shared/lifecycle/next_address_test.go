@@ -414,7 +414,7 @@ func TestConnectorProbeVerifiesTheServerName(t *testing.T) {
 	}
 }
 
-// Lanes to the relay at the Gateway address that are down when Opfield moved
+// Lanes to the relay at the Opfield address that are down when Opfield moved
 // are rebuilt for the new address.
 func TestRelayPoolLocalLanesFollowTheControlAddress(t *testing.T) {
 	pki := newRelayTestPKI(t)

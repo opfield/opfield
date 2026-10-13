@@ -85,7 +85,7 @@ function withoutComposeLogging(composeYaml: Buffer | undefined, normalizedModelJ
   return { composeYaml: yaml, normalizedModelJson: JSON.stringify(model) };
 }
 
-/** The maintenance field of a route apply: sent only when Gateway knows the node keeps maintenance flags. */
+/** The maintenance field of a route apply: sent only when Opfield knows the node keeps maintenance flags. */
 export {
   parseRelayGrantEgressStatuses,
   SECURE_LINK_EGRESS_CAPABILITY,
@@ -113,7 +113,7 @@ export class NodeDispatchService {
     return !!nodeId && !!this.registry.getNode(nodeId);
   }
 
-  /** The node is not connected but is expected back: its stream closed moments ago, or Gateway just started. */
+  /** The node is not connected but is expected back: its stream closed moments ago, or Opfield just started. */
   isNodeReconnecting(nodeId: string): boolean {
     return this.registry.isReconnecting(nodeId);
   }
@@ -1471,7 +1471,7 @@ export class NodeDispatchService {
     } = {},
     timeoutMs?: number
   ): Promise<CommandResult> {
-    // ensure-host-identity is Gateway's own fixed operation, not host file access.
+    // ensure-host-identity is Opfield's own fixed operation, not host file access.
     if (action !== 'ensure-host-identity') assertNodeHostFeatureEnabled(this.registry, nodeId, 'files');
     if (!['list', 'read'].includes(action)) {
       await this.assertNodeMutable(nodeId);

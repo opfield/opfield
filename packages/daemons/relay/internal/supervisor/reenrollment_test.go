@@ -92,7 +92,7 @@ func TestEnrollmentTokenRejectedClassifiesOpfieldRefusals(t *testing.T) {
 }
 
 // Enrollment is what authorizes policy trust. A relay locked out with trust
-// only in keys Gateway destroyed is repaired by enrolling again: the worker's
+// only in keys Opfield destroyed is repaired by enrolling again: the worker's
 // pinned trust and identity rotation state are moved aside and the stashed
 // supervisor identity is dropped.
 func TestPersistEnrollmentBundleResetsWorkerPolicyTrust(t *testing.T) {
@@ -162,7 +162,7 @@ func validEnrollResponse(t *testing.T) *pb.EnrollResponse {
 	}
 }
 
-// Gateway binds the new identity as soon as it answers the enrollment. When
+// Opfield binds the new identity as soon as it answers the enrollment. When
 // persisting it fails on the relay, the next start completes it instead of
 // leaving the relay half re-enrolled.
 func TestInterruptedEnrollmentIsCompletedOnTheNextStart(t *testing.T) {

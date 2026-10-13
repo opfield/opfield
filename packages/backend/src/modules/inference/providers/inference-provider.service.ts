@@ -138,7 +138,7 @@ export class InferenceProviderService {
       ...serializeConnection(connection),
       credential:
         credentials.find((credential) => credential.connectionId === connection.id) ??
-        // Core-managed rows never hold a Gateway credential; surface a presence
+        // Core-managed rows never hold an Opfield credential; surface a presence
         // indicator so the UI does not render them as missing-key legacy rows.
         (connection.metadata[CORE_MANAGED_METADATA_KEY] === true
           ? {
@@ -402,7 +402,7 @@ export class InferenceProviderService {
 
   // ----------------------------------------------------- core-managed paths
   // Core-managed variants: credentials and routing live in the managed core,
-  // Gateway rows stay the browser-facing record (plan T4). No dual writes:
+  // Opfield rows stay the browser-facing record (plan T4). No dual writes:
   // these paths replace the legacy credential store instead of mirroring it.
 
   private async createCoreKeyConnection(
@@ -540,7 +540,7 @@ export class InferenceProviderService {
             const known = knownProviderModel(connection.providerId, row.id);
             const live = liveById.get(row.id);
             // Record where every technical value came from so the admin UI can tell a live
-            // provider answer apart from a built-in fallback value or a Gateway calculation.
+            // provider answer apart from a built-in fallback value or an Opfield calculation.
             const coreSource = (field: string) => row.metadataSources?.[field] ?? (liveModels ? 'fallback' : undefined);
             // A value equal to the live answer is provider-reported. A core value that differs from
             // it was changed by operator configuration, so it is left unlabeled.
@@ -625,7 +625,7 @@ export class InferenceProviderService {
             };
             const pricing = coreModelPricing(row);
             return {
-              // Gateway owns the provider/account selection. Keep the upstream
+              // Opfield owns the provider/account selection. Keep the upstream
               // model id account-agnostic so identical models from multiple
               // connections pool together and no core provider name leaks into
               // the admin UI or public model ids.
@@ -805,7 +805,7 @@ export class InferenceProviderService {
     if (connection.authType === 'oauth') {
       // OAuth accounts share the canonical core provider entry; per-account
       // pausing exists only for the ChatGPT pool. Other providers keep core
-      // state untouched — the Gateway data plane never routes disabled
+      // state untouched — the Opfield data plane never routes disabled
       // connections, and account selection stays core-internal.
       if (connection.providerId === 'openai') {
         const accountId = connection.metadata[CORE_ACCOUNT_METADATA_KEY];
@@ -828,7 +828,7 @@ export class InferenceProviderService {
       client = await this.coreBridge!.requireClient();
     } catch (error) {
       // An unreachable core must not trap administrator cleanup; the leftover
-      // entry is inert without Gateway traffic and repair owns orphans.
+      // entry is inert without Opfield traffic and repair owns orphans.
       if (error instanceof AppError) return;
       throw error;
     }

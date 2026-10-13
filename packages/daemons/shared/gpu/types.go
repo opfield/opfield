@@ -32,7 +32,7 @@ type Metrics struct {
 
 // Device keeps the private host details required by the Docker daemon next to
 // the safe node-facing inventory. DevicePaths and GroupIDs are never accepted
-// from a Gateway request; they are derived from the selected discovered ID.
+// from an Opfield request; they are derived from the selected discovered ID.
 type Device struct {
 	ID                string
 	Vendor            Vendor

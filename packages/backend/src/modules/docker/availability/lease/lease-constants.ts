@@ -1,11 +1,11 @@
 /**
  * Availability data-plane lease constants. The protocol timing is fixed in daemon-shared/availabilitylease
- * (timing.go, D5 amended by A1/A3); the values here only mirror what the Gateway needs to wait for.
+ * (timing.go, D5 amended by A1/A3); the values here only mirror what Opfield needs to wait for.
  */
 
 /**
  * Capability every lease participant (docker daemon, nginx daemon, relay) of this release advertises, and the one the
- * Gateway requires (D3 of the rc.20 fixes): peer-time freeze detection, release after a confirmed fence and the other
+ * Opfield requires (D3 of the rc.20 fixes): peer-time freeze detection, release after a confirmed fence and the other
  * lease timing fixes only exist from v2 on. A participant that advertises only availability_lease_v1 is outdated.
  */
 export const AVAILABILITY_LEASE_CAPABILITY = 'availability_lease_v2';
@@ -65,7 +65,7 @@ const DRIFTED_ACCEPTOR_HOLD_MS = Math.ceil((ACCEPTOR_HOLD_MS * 10) / 9);
 /**
  * A joint epoch settles only after both majorities persisted it, every active lease renewed under it, and at least
  * T x 1.1 / 0.9 (about 37 s) passed since those acks (A16): the time bound keeps settlement safe even when the
- * Gateway's view of active leases is incomplete.
+ * Opfield's view of active leases is incomplete.
  */
 export const EPOCH_SETTLE_MS = DRIFTED_ACCEPTOR_HOLD_MS + 2_000;
 
@@ -106,7 +106,7 @@ export const LEASE_IMPOSSIBLE_HYSTERESIS_MS = 2 * 60_000;
 /**
  * A legacy policy enters lease mode only after every participant it needs (candidate docker nodes, ingress nginx
  * nodes, carrying relays, witnesses) has been fully capable this long without a break and without a restart, so a
- * fleet in the middle of a rolling update (Gateway first, then the nodes one by one) never enters lease mode.
+ * fleet in the middle of a rolling update (Opfield first, then the nodes one by one) never enters lease mode.
  */
 export const LEASE_ENTRY_STABLE_MS = 2 * 60_000;
 
@@ -135,7 +135,7 @@ export const ACTIVE_LEASE_ROLES: ReadonlySet<string> = new Set([
 
 /**
  * Graceful close: the role of a slot's named holder once a majority of every quorum set of the closed manifest
- * confirmed the close to it (gateway.v1 AvailabilityLeaseHeld.retained). Its copy keeps running without a lease.
+ * confirmed the close to it (opfield.v1 AvailabilityLeaseHeld.retained). Its copy keeps running without a lease.
  */
 export const RETAINED_LEASE_ROLE = 'retained';
 

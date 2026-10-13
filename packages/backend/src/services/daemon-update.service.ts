@@ -29,12 +29,12 @@ import type { NodeRegistryService } from '@/services/node-registry.service.js';
 const logger = createChildLogger('DaemonUpdateService');
 /**
  * The longest a node's launcher keeps an updated daemon on trial before it restores the previous one: local readiness
- * within 30 s, then Gateway control readiness within 3 min (the daemon launcher's launcherLocalReadyLimit and
+ * within 30 s, then Opfield control readiness within 3 min (the daemon launcher's launcherLocalReadyLimit and
  * launcherControlReadyLimit).
  */
 export const LAUNCHER_CANDIDATE_TRIAL_LIMIT_MS = 30_000 + 3 * 60_000;
 /**
- * How long Gateway waits for the daemon after it took the update: the launcher's whole trial, plus a whole-service
+ * How long Opfield waits for the daemon after it took the update: the launcher's whole trial, plus a whole-service
  * restart (up to 25 s) and the restored daemon's reconnect. A rollback then reports itself ("came back on …") instead
  * of the node being declared gone and offline while its launcher still waits for the new daemon.
  */
@@ -82,7 +82,7 @@ export interface NodeLastUpdate {
   targetVersion: string;
   /**
    * The update was rolled back: the launcher put this previous daemon back (it came back on it instead of the target).
-   * completedAt is when Gateway saw it come back, and the connections are what the rollback did to them.
+   * completedAt is when Opfield saw it come back, and the connections are what the rollback did to them.
    */
   rolledBackTo?: string;
   completedAt: string;
@@ -159,9 +159,9 @@ function withoutConnectorRetired(cut: Record<string, number>): Record<string, nu
 /**
  * The connections of an update whose daemon could not hand them over (it predates daemon_stream_handover_v1, or the
  * one a rollback put back does): it cut every connection of the node, and no daemon reports it, since the stopping
- * one wrote no report (2.11.3 and earlier) or the one taking over cannot read it. Gateway records it as all connections
+ * one wrote no report (2.11.3 and earlier) or the one taking over cannot read it. Opfield records it as all connections
  * cut (class uncounted), so the update never shows without its cut. Null when the daemon it updated from hands over,
- * or when that is unknown (an update started before Gateway recorded it).
+ * or when that is unknown (an update started before Opfield recorded it).
  */
 export function preHandoverUpdateConnections(
   metadata: Record<string, unknown>,
@@ -189,7 +189,7 @@ function hasHandoverCapability(capabilities: unknown): boolean {
   return Array.isArray(advertised) && advertised.includes(DAEMON_STREAM_HANDOVER_CAPABILITY);
 }
 
-/** A report may start this much after Gateway completed its update (clocks of node and Gateway differ). */
+/** A report may start this much after Opfield completed its update (clocks of node and Opfield differ). */
 const UPDATE_REPORT_CLOCK_SLACK_MS = 2 * 60 * 1000;
 
 function sameVersion(a: unknown, b: unknown): boolean {
@@ -206,13 +206,13 @@ function updateWarnings(metadata: Record<string, unknown>): string[] {
 export const SERVICE_RESTART_CUT_CLASS = 'service_restart';
 
 /**
- * How long after Gateway completed an update from a daemon without live handover the new daemon may restart its whole
+ * How long after Opfield completed an update from a daemon without live handover the new daemon may restart its whole
  * service for it: it waits for its update to commit (up to 5 min) and a launcher trial in progress (up to 3 min).
  */
 const AFTER_UPDATE_RESTART_WINDOW_MS = 15 * 60 * 1000;
 
 /**
- * An update from a daemon that cannot hand connections over (Gateway's `uncounted` record, see
+ * An update from a daemon that cannot hand connections over (Opfield's `uncounted` record, see
  * preHandoverUpdateConnections) is followed by one restart of the whole service: the new daemon starts its own launcher
  * at once (lifecycle launcher_after_update.go, 2.11.3 to 2.11.4), and reports that restart's cut as the same update's.
  * The record then tells both: every connection cut by the previous daemon, then the restart's cut. Null for any other
@@ -249,7 +249,7 @@ function afterUpdateRestartConnections(
 
 /**
  * The connections of a daemon's last update to keep in the node's update result (metadata.lastUpdate.connections).
- * 'pending' while the update the report belongs to has not completed on Gateway's side yet; 'skip' when the result
+ * 'pending' while the update the report belongs to has not completed on Opfield's side yet; 'skip' when the result
  * already holds this report or belongs to another update.
  */
 export function lastUpdateConnectionsToRecord(
@@ -277,7 +277,7 @@ export function lastUpdateConnectionsToRecord(
     return 'skip';
   if (lastUpdate.connections?.finishedAtUnixMs === reported.finishedAtUnixMs) return 'skip';
   // A report that finished before the recorded one is older than this result (a report a daemon kept from an earlier
-  // update, after Gateway recorded an update that cut everything).
+  // update, after Opfield recorded an update that cut everything).
   if (lastUpdate.connections && reported.finishedAtUnixMs < lastUpdate.connections.finishedAtUnixMs) return 'skip';
   // A result that holds this update's counts already is final: a later report of it (a connector replacement added to
   // its cut, see CONNECTOR_RETIRED_CUT_CLASS) does not change it.
@@ -539,10 +539,10 @@ export class DaemonUpdateService {
   }
 
   /**
-   * The daemon release a new node of this type installs: the newest one on the Gateway's own minor line and update
-   * channel, so a node set up from an older Gateway never gets a later line's daemon. Daemons are released only when
-   * they change, so the Gateway's own version usually has no daemon release of that name. Null for an unreleased
-   * Gateway, a line without a daemon release yet, or an unreachable release resolver: the installer then picks the
+   * The daemon release a new node of this type installs: the newest one on Opfield's own minor line and update
+   * channel, so a node set up from an older Opfield never gets a later line's daemon. Daemons are released only when
+   * they change, so Opfield's own version usually has no daemon release of that name. Null for an unreleased
+   * Opfield, a line without a daemon release yet, or an unreachable release resolver: the installer then picks the
    * latest stable daemon itself.
    */
   async installVersion(daemonType: DaemonType): Promise<string | null> {
@@ -591,9 +591,9 @@ export class DaemonUpdateService {
       waitForLeasePeers?: boolean;
       /** Long tasks of the node the update waits for first (phase waiting_for_tasks), before its lease peers. */
       waitForTasks?: NodeLongTask[];
-      /** When the task wait began, kept across a Gateway restart so the wait stays bounded. */
+      /** When the task wait began, kept across an Opfield restart so the wait stays bounded. */
       taskWaitStartedAt?: number;
-      /** Warnings the update carries into its result, kept across a Gateway restart. */
+      /** Warnings the update carries into its result, kept across an Opfield restart. */
       warnings?: string[];
     } = {}
   ): Promise<string> {
@@ -653,7 +653,7 @@ export class DaemonUpdateService {
     }
     if (options.warnings?.length) metadata.updateWarnings = options.warnings;
     // Whether the daemon updated from hands its connections over: when it does not, the update cuts them all and only
-    // Gateway can report it (see preHandoverUpdateConnections). Monitoring and relay daemons carry none.
+    // Opfield can report it (see preHandoverUpdateConnections). Monitoring and relay daemons carry none.
     if (node.type === 'docker' || node.type === 'nginx') {
       if (node.daemonVersion) metadata.updateFromVersion = node.daemonVersion;
       metadata.updateFromHandover = hasHandoverCapability(node.capabilities);
@@ -744,7 +744,7 @@ export class DaemonUpdateService {
 
   /**
    * The operator's "update now" for an update that waits for the long tasks of its node or for its lease peers: marks
-   * it so that it stops waiting (for both), also when it is taken up again after a Gateway restart. Null when no update
+   * it so that it stops waiting (for both), also when it is taken up again after an Opfield restart. Null when no update
    * of the node waits.
    */
   async requestNodeUpdateNow(
@@ -831,7 +831,7 @@ export class DaemonUpdateService {
   }
 
   /**
-   * Updates that wait (for the long tasks of their node or for lease peers), for a Gateway restart to take up again
+   * Updates that wait (for the long tasks of their node or for lease peers), for an Opfield restart to take up again
    * with what they carry: an operator's "update now", when their task wait began, their warnings.
    */
   async listQueuedNodeUpdates(): Promise<
@@ -1137,7 +1137,7 @@ export class DaemonUpdateService {
   }
 
   /**
-   * Expiry timers live in memory, so a Gateway restart loses them and no command result can arrive any more. Updates
+   * Expiry timers live in memory, so an Opfield restart loses them and no command result can arrive any more. Updates
    * that were sent before the restart wait for the daemon to register again: they move to `reconnecting` (a
    * registration from now on decides them) and get their timers back; the ones already past their deadline expire.
    */
@@ -1178,7 +1178,7 @@ export class DaemonUpdateService {
     if (!node) return false;
     const metadata = (node.metadata ?? {}) as Record<string, unknown>;
     const connections = lastUpdateConnectionsToRecord(metadata, report);
-    // The update completes on Gateway's side when the daemon registers on its target; the next report tries again.
+    // The update completes on Opfield's side when the daemon registers on its target; the next report tries again.
     if (connections === 'pending') return false;
     this.settledUpdateReports.set(nodeId, reportKey);
     const replaced = await this.recordConnectorReplacement(nodeId, metadata, report);
@@ -1242,7 +1242,7 @@ export class DaemonUpdateService {
     return updated.length > 0;
   }
 
-  /** Keeps why an update that is no longer running could not start again (for example after a Gateway restart). */
+  /** Keeps why an update that is no longer running could not start again (for example after an Opfield restart). */
   async recordNodeUpdateError(nodeId: string, error: string): Promise<void> {
     const [node] = await this.db.select({ metadata: nodes.metadata }).from(nodes).where(eq(nodes.id, nodeId)).limit(1);
     if (!node) return;

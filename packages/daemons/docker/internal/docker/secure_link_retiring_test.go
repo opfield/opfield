@@ -343,7 +343,7 @@ func TestEgressLeavesADrainingConnector(t *testing.T) {
 
 // The rc.3 stand (O-e): docker kill -s USR1 to the serving connector of a node whose workloads use it only for egress
 // closed its listeners, and the daemon replaced it only at its next sync, 27 s later; the workloads' connections were
-// refused meanwhile. The drain signal is followed now: the connector is replaced at once, without a sync from Gateway.
+// refused meanwhile. The drain signal is followed now: the connector is replaced at once, without a sync from Opfield.
 func TestDrainSignalReplacesTheServingConnectorAtOnce(t *testing.T) {
 	withRetireLimit(t, time.Minute)
 	events, stream := io.Pipe()

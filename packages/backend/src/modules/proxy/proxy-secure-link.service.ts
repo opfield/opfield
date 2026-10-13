@@ -1383,7 +1383,7 @@ export class ProxySecureLinkService {
 
   /**
    * Retire relay state when an offline Nginx source is being permanently
-   * removed from Gateway. The unavailable source cannot acknowledge a fresh
+   * removed from Opfield. The unavailable source cannot acknowledge a fresh
    * snapshot, so only target nodes are synchronized and their cleanup is best
    * effort after the central grants have been revoked.
    */
@@ -1455,7 +1455,7 @@ export class ProxySecureLinkService {
       if (binding.status !== 'provisioning') return binding;
       const sources = await this.bindingSources(binding, host);
       // Relay state that already carries this link to the same node may be serving right now: an Availability
-      // member whose holder took over while Gateway was away and is re-provisioned when Gateway returns (B-18), or
+      // member whose holder took over while Opfield was away and is re-provisioned when Opfield returns (B-18), or
       // a member re-provisioned in place. A failed attempt must never tear that path down (make-before-break): it
       // keeps the link active with its error for the next attempt, and revokes only relay state it created itself.
       const retained =
@@ -1943,7 +1943,7 @@ export class ProxySecureLinkService {
       .set({
         // A Docker-to-manual update clears the public Docker reference before
         // teardown. Retain the former node only while cleanup is pending so a
-        // retry after failure or Gateway restart can still remove its binding.
+        // retry after failure or Opfield restart can still remove its binding.
         dockerNodeId: host.dockerNodeId,
         secureLinkStatus: 'cleanup_pending',
         secureLinkLastError: null,

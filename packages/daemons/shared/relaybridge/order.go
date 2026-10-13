@@ -13,7 +13,7 @@ const (
 
 	// Relays of one role whose path cost is within this band of the nearest
 	// one count as equally near and share connections by load. It only orders
-	// tunnels; Gateway decides the roles with its own, hysteretic band.
+	// tunnels; Opfield decides the roles with its own, hysteretic band.
 	costBandRatio = 1.2
 	costBandFloor = 3 * time.Millisecond
 )
@@ -36,7 +36,7 @@ type TransportLoad struct {
 
 // OrderCandidates orders the relays to try for a new source tunnel: relays
 // with a connected transport first, then relays not demoted for their
-// admission pressure, then Gateway's primaries before its
+// admission pressure, then Opfield's primaries before its
 // standbys, then relays that did not fail the route recently, then the nearer
 // path (this node's own measured round trip plus the relay's round trip to
 // the endpoint), then fewer active tunnels, then round-robin from rotation.
@@ -97,7 +97,7 @@ const (
 )
 
 // candidatePlace is where one relay stands for a route: whether its transport
-// is up, Gateway's role for it, and its measured distance.
+// is up, Opfield's role for it, and its measured distance.
 type candidatePlace struct {
 	available bool
 	role      int
@@ -107,8 +107,8 @@ type candidatePlace struct {
 }
 
 // placeCandidates places every candidate. The cost is the full path cost
-// (pathCost) where Gateway reported the endpoint side; when it reported it for
-// no candidate at all (an endpoint Gateway has no latency data for), this
+// (pathCost) where Opfield reported the endpoint side; when it reported it for
+// no candidate at all (an endpoint Opfield has no latency data for), this
 // node's own round trip orders the relays instead, so the route still prefers
 // the nearer relay over the emptier one.
 func placeCandidates(candidates []*pb.RelayDataCandidate, transports map[string]TransportLoad, rtt func(string) (time.Duration, bool)) map[string]candidatePlace {
@@ -178,7 +178,7 @@ func costBand(nearest time.Duration) time.Duration {
 }
 
 // pathCost is this node's round trip to the relay plus the relay's round trip
-// to the endpoint. It is known only when Gateway reported the endpoint side
+// to the endpoint. It is known only when Opfield reported the endpoint side
 // and this node measured its side.
 func pathCost(candidate *pb.RelayDataCandidate, rtt func(string) (time.Duration, bool)) (time.Duration, bool) {
 	endpoint := candidate.GetTopology().GetEndpointRttMicros()
@@ -192,7 +192,7 @@ func pathCost(candidate *pb.RelayDataCandidate, rtt func(string) (time.Duration,
 	return own + time.Duration(endpoint)*time.Microsecond, true
 }
 
-// roleRank puts primaries (and candidates Gateway gave no role) before standbys.
+// roleRank puts primaries (and candidates Opfield gave no role) before standbys.
 func roleRank(candidate *pb.RelayDataCandidate) int {
 	if candidate.GetTopology().GetRole() == RoleStandby {
 		return 1

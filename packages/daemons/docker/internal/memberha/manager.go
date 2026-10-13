@@ -95,7 +95,7 @@ type member struct {
 	// gate mirrors what the lease callbacks need (they never take the manager's lock).
 	gateStopped  atomic.Bool
 	gateDataBusy atomic.Bool
-	// gatePaused mirrors cfg.Stopped (Gateway paused the set); gateHeld: the
+	// gatePaused mirrors cfg.Stopped (Opfield paused the set); gateHeld: the
 	// daemon holds the member to replace its container or files.
 	gatePaused atomic.Bool
 	gateHeld   atomic.Bool
@@ -602,7 +602,7 @@ func (m *Manager) Config(setID string) (Config, bool) {
 	return value.(Config), true
 }
 
-// Configure adds or updates this node's member of a set (Gateway's
+// Configure adds or updates this node's member of a set (Opfield's
 // configuration). A configuration older than the one applied is ignored.
 func (m *Manager) Configure(config Config) error {
 	if err := config.Validate(); err != nil {
@@ -720,7 +720,7 @@ func (m *Manager) forgetLocked(setID string) error {
 	return m.store.Delete(setID)
 }
 
-// AckEvents drops the events Gateway stored, up to through.
+// AckEvents drops the events Opfield stored, up to through.
 func (m *Manager) AckEvents(setID string, through uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -731,7 +731,7 @@ func (m *Manager) AckEvents(setID string, through uint64) error {
 	return m.saveLocked(mem)
 }
 
-// AssignPrimary records a manual pair's primary assignment Gateway signed; an
+// AssignPrimary records a manual pair's primary assignment Opfield signed; an
 // assignment not newer than the one recorded is ignored, an unverified one is
 // refused.
 func (m *Manager) AssignPrimary(setID string, assignment Assignment) error {
@@ -755,7 +755,7 @@ func (m *Manager) adoptAssignmentLocked(mem *member, assignment Assignment, sour
 	}
 	current := mem.state.Assignment
 	if assignment.Generation == current.Generation && assignment.PrimaryMemberID == current.PrimaryMemberID && current.Generation > 0 {
-		// The assignment this member holds, confirmed again by Gateway or the peer.
+		// The assignment this member holds, confirmed again by Opfield or the peer.
 		mem.manual.confirmedGen = current.Generation
 		return nil
 	}

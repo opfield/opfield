@@ -1170,7 +1170,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
         impact.sourceNode.id
       );
     } catch (error) {
-      // Target delivery is already live and Gateway retains the canonical artifact.
+      // Target delivery is already live and Opfield retains the canonical artifact.
       // An unavailable source can therefore be cleaned after it reconnects.
       cleanupPending = true;
       logger.warn('Pages preview source cleanup was deferred', {

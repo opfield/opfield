@@ -414,7 +414,7 @@ func inspectDatabase(t *testing.T, m *managedDatabaseManager, id string) map[str
 	return inspected
 }
 
-// Gateway must not show a database ready while its engine keeps failing:
+// Opfield must not show a database ready while its engine keeps failing:
 // two stops of its own within minutes, and it is reported stopped (engineExited)
 // even in the seconds it runs between two restarts. Its stops of the last day
 // are reported with it.

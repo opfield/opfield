@@ -75,7 +75,7 @@ export type CloudflareAddressRecord = {
 export type DomainIngressPlacement = {
   nginxNode: EligibleNginxNode;
   ingressGroupId: string | null;
-  /** Addresses Gateway publishes: the node's first effective address, or one per active group member. */
+  /** Addresses Opfield publishes: the node's first effective address, or one per active group member. */
   targetIps: string[];
   /** Addresses existing records may already use: every ingress address of the node or of each serving member. */
   allowedIps: string[];

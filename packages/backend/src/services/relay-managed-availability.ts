@@ -28,9 +28,9 @@ import { setLeaseCandidates } from '@/modules/docker/availability/lease/managed-
  * Client paths. The resource's existing endpoint (owner kind managed_database / managed_storage) stays and becomes the
  * client endpoint of the member on its node (the origin member), so turning availability on cuts no tunnel; every
  * other member gets its own client endpoint (owner kind managed_availability_member, owner id = member id, subject =
- * the member's node). Every route to the resource's endpoint (bindings, links, Gateway tools, backups) gets one member
+ * the member's node). Every route to the resource's endpoint (bindings, links, Opfield tools, backups) gets one member
  * route per other member (owner kind `set_member:<route's kind>`, owner id `<route id>:<member id>`, parent route =
- * the route), with the same source. The daemons and Gateway receive the routes as one lease group and open the
+ * the route), with the same source. The daemons and Opfield receive the routes as one lease group and open the
  * holder's route first; while the set's lease runs the relays admit only the holder (endpoint lease gate).
  *
  * Peer paths (engine to engine). Every member has one peer endpoint per port of its engine (owner kind
@@ -247,7 +247,7 @@ export async function loadSetRelayViews(
 
 /**
  * Whether a member's endpoint serves: the resource is up, and in manual mode only the primary's (the endpoint is
- * single-serving there and Gateway moves it on every switch). Peer endpoints of non-primary ports serve on every member.
+ * single-serving there and Opfield moves it on every switch). Peer endpoints of non-primary ports serve on every member.
  */
 export function setEndpointActive(view: SetRelayView, memberId: string, port: string | null): boolean {
   if (port !== null && !isPrimaryMemberPort(view.engine, port)) return true;
@@ -1107,7 +1107,7 @@ export async function setEndpointIds(db: DrizzleExecutor, setIds?: string[]): Pr
 
 /**
  * The routes a connection to a set's resource may take, holder first: the resource route itself (the origin member's)
- * and its member routes, ordered with `holderMemberId`'s route first, then by member rank. Used for Gateway's own
+ * and its member routes, ordered with `holderMemberId`'s route first, then by member rank. Used for Opfield's own
  * tunnels; daemons get the same group in their grant bundles.
  */
 export async function orderedSetRoutes(
@@ -1151,8 +1151,8 @@ export async function orderedSetRoutes(
 }
 
 /**
- * The member serving the set now, as Gateway knows it: the holder of the lease's primary slot (automatic), or the
- * primary of the manual pair; the set's recorded primary while no holder was observed. Only orders Gateway's attempts:
+ * The member serving the set now, as Opfield knows it: the holder of the lease's primary slot (automatic), or the
+ * primary of the manual pair; the set's recorded primary while no holder was observed. Only orders Opfield's attempts:
  * the relays admit the holder alone.
  */
 export async function setServingMemberId(db: DrizzleExecutor, view: SetRelayView): Promise<string | null> {

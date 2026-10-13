@@ -40,7 +40,7 @@ export const LEGACY_RELAY_POLICY_LEASE_SECONDS = 15 * 60;
 export const RELAY_LEASE_EXPIRY_CLOCK_SKEW_MS = 2 * 60 * 1000;
 /**
  * Advertised by relay builds that accept a policy lease and grant lifetime longer than the legacy
- * 15-minute lease / 48-hour grant caps (see policy.LongLeaseCapability in the relay). Gateway must
+ * 15-minute lease / 48-hour grant caps (see policy.LongLeaseCapability in the relay). Opfield must
  * not issue the longer lease or grant to an instance that has not reported this, or it refuses the
  * envelope outright.
  */
@@ -85,7 +85,7 @@ export interface GeneralSettings {
   relay: GeneralRelaySettings;
   shutdown: GeneralShutdownSettings;
   relayGrantTtlHours: number;
-  /** Lifetime of the signed policy envelope Gateway pushes to a relay; see relayGrantTtlHours. */
+  /** Lifetime of the signed policy envelope Opfield pushes to a relay; see relayGrantTtlHours. */
   relayPolicyLeaseHours: number;
   features: GeneralFeatureSettings;
 }

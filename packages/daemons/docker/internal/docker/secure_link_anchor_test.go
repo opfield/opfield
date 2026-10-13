@@ -137,10 +137,10 @@ func waitRemoved(t *testing.T, engine interface{ removedIDs() []string }, id str
 	}
 }
 
-// The daemon is updated before Gateway, which still sends the connector image of its release: an image without the
+// The daemon is updated before Opfield, which still sends the connector image of its release: an image without the
 // anchor label runs the connector in its own namespace as before (proxy ingress works, egress waits as pending). The
 // first image with the label moves the connector into a new anchor once, next to the serving one; an image without
-// it again (a Gateway rollback) moves it out, and the anchor no connector runs in goes.
+// it again (an Opfield rollback) moves it out, and the anchor no connector runs in goes.
 func TestConnectorAnchorFollowsTheImage(t *testing.T) {
 	engine := &egressFakeEngine{fakeConnectorEngine: newFakeConnectorEngine(t)}
 	engine.legacyImages = map[string]bool{replaceTestOldImage: true}
@@ -181,7 +181,7 @@ func TestConnectorAnchorFollowsTheImage(t *testing.T) {
 	}
 	waitRemoved(t, engine, "created-1")
 
-	// A Gateway rolled back to the earlier image sends no egress either.
+	// An Opfield rolled back to the earlier image sends no egress either.
 	previousWait := egressSuccessorTo
 	egressSuccessorTo = 50 * time.Millisecond
 	t.Cleanup(func() { egressSuccessorTo = previousWait })

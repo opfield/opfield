@@ -4,7 +4,7 @@ import { UpdateArtifactTrustError, verifySignedPayload } from '@/lib/update-arti
 import type { WitnessArtifactSource } from '@/services/relay-witness.service.js';
 
 /**
- * Witness process binaries published with every Gateway release (config/witness-artifacts.json, built and signed by
+ * Witness process binaries published with every Opfield release (config/witness-artifacts.json, built and signed by
  * scripts/release/witness-artifacts.sh). Keep both lists equal; a test checks it.
  */
 export const WITNESS_ARTIFACTS: readonly { kind: string; component: string; version: string; arches: string[] }[] = [
@@ -31,7 +31,7 @@ interface WitnessManifestPayload {
   sha256: string;
 }
 
-/** The witness version this Gateway release ships for a kind, or null when it ships none. */
+/** The witness version this Opfield release ships for a kind, or null when it ships none. */
 export function currentWitnessVersion(kind: string): string | null {
   return WITNESS_ARTIFACTS.find((entry) => entry.kind === kind)?.version ?? null;
 }
@@ -44,7 +44,7 @@ function normalizeArch(arch: string): string {
 }
 
 /**
- * Resolves witness artifacts of this Gateway release from the update service: the signed manifest
+ * Resolves witness artifacts of this Opfield release from the update service: the signed manifest
  * (<artifact>.update.json, kind witness-binary) is fetched, verified with the update key and checked against the
  * expected component, version, architecture and download URL. Relay supervisors verify it again before they run
  * anything. A development build (no release tag) has no witness artifacts.

@@ -95,8 +95,8 @@ const envSchema = z.object({
   ),
 
   // Managed inference core. The distribution image repository is derived from
-  // the Gateway's own image; the override exists for development/lab installs
-  // where the Gateway image is a local build without the production repo name.
+  // Opfield's own image; the override exists for development/lab installs
+  // where the Opfield image is a local build without the production repo name.
   INFERENCE_CORE_DISTRIBUTION_IMAGE: z.string().trim().optional(),
 
   // PKI Master Key — 32 bytes as 64-char hex string for envelope encryption

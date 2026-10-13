@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Exports the Good Gateway design system from the frontend sources into the
+// Exports the Good Opfield design system from the frontend sources into the
 // repository's foss-design system folder, .design/system/:
 //
 //   system.json                 name, description, and src/index.css as the stylesheet

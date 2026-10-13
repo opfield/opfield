@@ -9,9 +9,9 @@ import (
 )
 
 // forwardAvailabilityLease copies the worker's availability lease view into
-// the runtime report. relay.v1 AvailabilityLeaseReport mirrors gateway.v1
+// the runtime report. relay.v1 AvailabilityLeaseReport mirrors opfield.v1
 // AvailabilityLeaseReport field for field, so the encoded bytes decode as the
-// Gateway message; relay-only fields travel along as unknown fields.
+// Opfield message; relay-only fields travel along as unknown fields.
 func forwardAvailabilityLease(report *relayv1.AvailabilityLeaseReport, logger *slog.Logger) *pb.AvailabilityLeaseReport {
 	if report == nil {
 		return nil

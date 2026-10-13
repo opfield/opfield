@@ -1662,7 +1662,7 @@ describe('UpdateService interrupted updates', () => {
     expect(runtime.dispatchWorkerUpdate).toHaveBeenCalledTimes(1);
   });
 
-  // Regression: a run that failed without a Gateway restart left the relay drained.
+  // Regression: a run that failed without an Opfield restart left the relay drained.
   it('resumes the relay it drained when verification times out', async () => {
     const { service, runtime, verify, updates } = rolloutHarness();
     verify.mockRejectedValue(new Error('Relay relay-1 did not report v2.4.3 in time'));

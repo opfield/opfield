@@ -29,7 +29,7 @@ const (
 	secureLinkEgressTimeout    = 45 * time.Second
 )
 
-// Egress states reported to Gateway (C2).
+// Egress states reported to Opfield (C2).
 const (
 	egressStateReady   = "ready"
 	egressStatePending = "pending"
@@ -75,7 +75,7 @@ type egressDesired struct {
 	connectorAddress netip.Addr
 }
 
-// egressStatus is what Gateway hears of one egress (SyncRelayGrants ACK, egressStatuses).
+// egressStatus is what Opfield hears of one egress (SyncRelayGrants ACK, egressStatuses).
 type egressStatus struct {
 	State           string `json:"state"`
 	Address         string `json:"address,omitempty"`
@@ -254,7 +254,7 @@ func egressFromAssignment(assignment *pb.RelayGrantAssignment) (egressDesired, e
 	}, nil
 }
 
-// databaseLinkOnConnector reports a database link network whose binding Gateway moved to the connector: its connect
+// databaseLinkOnConnector reports a database link network whose binding Opfield moved to the connector: its connect
 // grant carries an egress on that network and either no host listener, or a host listener only for the consumers
 // not moved yet with consumers_use_alias set (desired state, F4, S1). Its consumers resolve the link alias through
 // Docker's DNS and get no ExtraHosts entry; a binding still only on the host listener keeps the entry.

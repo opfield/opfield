@@ -120,7 +120,7 @@ export class LoggingSettingsService {
     const rawPassword =
       input.password ?? (local && !previousWasLocal ? randomBytes(32).toString('base64url') : undefined);
     // The stored password is sent only where it was entered for: the same ClickHouse origin, or the bundled
-    // ClickHouse whose password Gateway generated. A new address needs the password again, like a SIEM destination.
+    // ClickHouse whose password Opfield generated. A new address needs the password again, like a SIEM destination.
     const storedPasswordApplies =
       !!previousUrl && (previousUrl.origin === url.origin || (previousWasLocal && isLocalClickHouseHost(url.hostname)));
     const password =

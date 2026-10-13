@@ -142,7 +142,7 @@ export class RelayTopologyService {
   }
 
   /**
-   * The remote relays of the pool that serve or may serve again, for Gateway to measure its own round trip to (its
+   * The remote relays of the pool that serve or may serve again, for Opfield to measure its own round trip to (its
    * local relay runs on its host). Its streams then know every relay's distance whenever they move.
    */
   async remoteLatencyTargets(): Promise<RelayLatencyTarget[]> {

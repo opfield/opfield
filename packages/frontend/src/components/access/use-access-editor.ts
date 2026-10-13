@@ -36,7 +36,7 @@ export interface AccessEditor {
   catalog: AccessCatalog;
   /** The own lines, once the catalog is ready. */
   lines: AccessLine[];
-  /** The own lines' scopes as Gateway stores them (for a token, bounded by its owner). */
+  /** The own lines' scopes as Opfield stores them (for a token, bounded by its owner). */
   scopes: string[];
   /** The scopes differ from the ones the dialog opened with. */
   changed: boolean;

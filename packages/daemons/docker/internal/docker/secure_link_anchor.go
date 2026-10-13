@@ -34,8 +34,8 @@ const (
 var secureLinkAnchorCommand = []string{"pause"}
 
 // secureLinkAnchorImageLabel marks a connector image that has the pause subcommand (its Dockerfile). The daemon is
-// updated before Gateway, which then still sends the connector image of its own release: without the label the
-// connector runs in its own network namespace as before, serving ingress, and the egress waits for Gateway's update.
+// updated before Opfield, which then still sends the connector image of its own release: without the label the
+// connector runs in its own network namespace as before, serving ingress, and the egress waits for Opfield's update.
 const (
 	secureLinkAnchorImageLabel   = "net.opfield.secure-link-connector.anchor"
 	secureLinkAnchorImageVersion = "v1"
@@ -97,7 +97,7 @@ func (m *dockerSecureLinkManager) networkHolder() string {
 }
 
 // removeUnusedAnchor removes an anchor no connector runs in any more: the connector image went back to one without
-// the anchor (a Gateway rollback), and the anchor's link aliases would answer for nothing.
+// the anchor (an Opfield rollback), and the anchor's link aliases would answer for nothing.
 func (m *dockerSecureLinkManager) removeUnusedAnchor(ctx context.Context) {
 	inspected, err := m.plugin.client.cli.ContainerInspect(ctx, secureLinkAnchorName, mobyclient.ContainerInspectOptions{})
 	if err != nil {
@@ -164,7 +164,7 @@ func (m *dockerSecureLinkManager) createAnchor(ctx context.Context, image string
 	created, err := m.plugin.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config: &container.Config{
 			Image: image, User: "65532:65532", Cmd: secureLinkAnchorCommand,
-			// The connector's label keeps it among Gateway's internal containers.
+			// The connector's label keeps it among Opfield's internal containers.
 			Labels: map[string]string{"net.opfield.managed": "secure-link-connector", secureLinkRoleLabel: secureLinkAnchorRole},
 		},
 		HostConfig: &container.HostConfig{

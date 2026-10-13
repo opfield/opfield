@@ -294,7 +294,7 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
         source === 'mcp' && err instanceof AppError && GIT_CREDENTIAL_REQUIRED_CODES.has(err.code)
           ? mcpGitCredentialRequiredMessage(err)
           : formatToolError(toolError);
-      // Refusals (permission, validation, not found, conflict) are answers to the caller, not failures of Gateway.
+      // Refusals (permission, validation, not found, conflict) are answers to the caller, not failures of Opfield.
       if (toolError.expected) {
         logger.warn(`Tool call refused: ${toolName}`, {
           code: toolError.code,

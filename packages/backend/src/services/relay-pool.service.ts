@@ -74,7 +74,7 @@ type RelayInstanceRow = typeof relayInstances.$inferSelect;
 /** A pool condition that needs an operator's attention. */
 export type RelayPoolWarning = OpfieldHostOnlyWarning | OfflineLeaseMemberWarning;
 
-/** A link whose node reaches no relay off the Gateway host; the pool stays healthy. */
+/** A link whose node reaches no relay off the Opfield host; the pool stays healthy. */
 interface OpfieldHostOnlyWarning {
   code: 'opfield_host_only';
   endpointId: string;
@@ -180,8 +180,8 @@ export function sourcesToProbe<T extends { sourceKind: string; sourceId: string 
  * An Availability member (serving or dormant standby) goes on every ready relay that runs the lease
  * protocol (D7): at a takeover the successor is then already registered wherever traffic may arrive,
  * and a single surviving relay carries it (stand run c). Every other endpoint keeps its configured
- * redundancy but includes a relay that is not co-located with Gateway whenever one is ready, so the
- * data plane survives the loss of the Gateway host.
+ * redundancy but includes a relay that is not co-located with Opfield whenever one is ready, so the
+ * data plane survives the loss of the Opfield host.
  */
 export function planRelays(
   endpointId: string,
@@ -191,7 +191,7 @@ export function planRelays(
   path: EndpointLatencyPath | undefined,
   reference: ReadonlyArray<{ relayInstanceId: string; role: string }>,
   availabilityMember = false,
-  /** Set when the endpoint's node reaches no relay off the Gateway host (see includeRemoteRelay). */
+  /** Set when the endpoint's node reaches no relay off the Opfield host (see includeRemoteRelay). */
   notes?: { opfieldHostOnly?: boolean },
   /** Relays that came back lately: they only fill free slots (RELAY_RETURN_HOLD_MS). */
   holdBack?: ReadonlySet<string>
@@ -297,7 +297,7 @@ export class RelayPoolService {
         const message = relayPoolErrorMessage(error);
         // The next pass retries it; the condition itself (a restarting relay, an unreachable node) is reported
         // where it lives.
-        // Also a pass that a Gateway stop cut short: its database connections close under it (stand rc.10, O-2).
+        // Also a pass that an Opfield stop cut short: its database connections close under it (stand rc.10, O-2).
         if (isTransientRelayPoolError(error) || isShuttingDown())
           logger.debug('Relay pool reconciliation deferred', { error: message });
         else logger.warn('Relay pool reconciliation failed', { error: message });
@@ -330,7 +330,7 @@ export class RelayPoolService {
   }
 
   /**
-   * The local relay's outages. Remote relays reach Gateway through it, so their control streams end with it: that
+   * The local relay's outages. Remote relays reach Opfield through it, so their control streams end with it: that
    * time does not count toward their disconnect grace, and the pool reads as one restarting local relay meanwhile.
    */
   setLocalRelayOutage(
@@ -651,7 +651,7 @@ export class RelayPoolService {
   }
 
   /**
-   * Links that stay on the Gateway host's relay because their node reaches no relay off it (includeRemoteRelay).
+   * Links that stay on the Opfield host's relay because their node reaches no relay off it (includeRemoteRelay).
    * Moving them would only fail the move's probes and keep the pool degraded; they keep working through the local
    * relay, and the pool status names them so an operator can open the network path.
    */
@@ -765,7 +765,7 @@ export class RelayPoolService {
       if (abandoned.length) {
         // Do not replay a partially acknowledged generation: stale acknowledgements
         // must never activate it ahead of the next full set of probes. An interrupted
-        // preparation (a Gateway restart) proved nothing about the placement either, so
+        // preparation (an Opfield restart) proved nothing about the placement either, so
         // it is rolled back as not attempted rather than failed.
         await this.deferStaging(
           abandoned.map(({ id }) => id),
@@ -854,9 +854,9 @@ export class RelayPoolService {
   /**
    * A remote relay that stopped reporting is offline, whatever its last report said. The control
    * stream's close hook marks it offline only in the process that held the stream, so a relay
-   * that died while Gateway restarted would stay ready forever: placement kept choosing it, its
+   * that died while Opfield restarted would stay ready forever: placement kept choosing it, its
    * drained generations never retired and it could not be removed. Reconnecting relays get the
-   * same grace after a Gateway start before they are judged.
+   * same grace after an Opfield start before they are judged.
    */
   async fenceSilentRemoteInstances(now = new Date()): Promise<number> {
     if (now.getTime() - this.startedAt < REMOTE_HEARTBEAT_TIMEOUT_MS) return 0;
@@ -1010,7 +1010,7 @@ export class RelayPoolService {
    * installer with it on the host makes the supervisor enroll again: the relay keeps its instance
    * and assignments, receives new certificates, moves its pinned policy trust aside and pins the
    * active signing key. That is the supported recovery for a relay whose trust holds only keys
-   * Gateway no longer has, and for expired relay certificates. Authorization comes from the
+   * Opfield no longer has, and for expired relay certificates. Authorization comes from the
    * token, which an administrator hands to the host out of band; the current identity keeps
    * working until the token is used, and an unused token expires.
    */
@@ -1455,7 +1455,7 @@ export class RelayPoolService {
                 : 'healthy',
       rebalanceAvailable,
       /**
-       * Advisory: links that depend on the Gateway host (the pool stays healthy), and relays offline for a day or more
+       * Advisory: links that depend on the Opfield host (the pool stays healthy), and relays offline for a day or more
        * that are still availability lease members.
        */
       warnings,
@@ -1468,9 +1468,9 @@ export class RelayPoolService {
       automaticRebalanceRetryAt: nextAutomaticRetry > Date.now() ? new Date(nextAutomaticRetry) : null,
       activeTunnels,
       /**
-       * Gateway's own relayed streams (database tools, storage browser, monitoring) per relay, as Gateway counts them.
+       * Opfield's own relayed streams (database tools, storage browser, monitoring) per relay, as Opfield counts them.
        * A relay's activeTunnels also count the source probes of a placement being prepared (one short tunnel per
-       * endpoint, source and relay), so this is where Gateway's own placement shows (stand rc.10, F-1).
+       * endpoint, source and relay), so this is where Opfield's own placement shows (stand rc.10, F-1).
        */
       opfieldStreams: this.opfieldStreamsByRelay(),
       registeredEndpoints,
@@ -1513,7 +1513,7 @@ export class RelayPoolService {
           dataPlaneFailing: dataPlaneFailing.has(instance.id),
           /** An offline remote relay: when its removal becomes possible (expired policy, 90 s silent). */
           removableAfter: instance.kind === 'remote' ? relayRemovableAfter(instance) : null,
-          /** Its machine owner turned protected mode on in the relay's local config (no host access from Gateway). */
+          /** Its machine owner turned protected mode on in the relay's local config (no host access from Opfield). */
           protected: instance.capabilities?.features?.includes(NODE_PROTECTED_CAPABILITY) === true,
           policyTrust: policyTrust.get(instance.id) ?? null,
           certificate: certificates.get(instance.id) ?? null,
@@ -2243,7 +2243,7 @@ export class RelayPoolService {
         'A Relay Pool update drained this relay; retry or abandon that update instead of resuming the relay'
       );
     }
-    // An operator drain is Gateway state: a relay that is not connected receives it when it reconnects
+    // An operator drain is Opfield state: a relay that is not connected receives it when it reconnects
     // (reconcileManualDrains), and keeps its offline state meanwhile. A resume or an update's drain needs the relay.
     const connected = this.policy.isRemoteInstanceConnected(instance.nodeId);
     if (!connected && !(enabled && manual)) {
@@ -2542,7 +2542,7 @@ export class RelayPoolService {
     }
     if (activated) {
       await this.policy.reconcileAndSync();
-      // Gateway's own streams look at the new assignment at once instead of at their next 30-s lookup.
+      // Opfield's own streams look at the new assignment at once instead of at their next 30-s lookup.
       this.policy.opfieldAssignmentsChanged?.();
       this.events.publish('system.relay.health.changed', { poolId: 'system', action: 'rebalance_activated' });
     }

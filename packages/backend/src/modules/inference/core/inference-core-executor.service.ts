@@ -24,7 +24,7 @@ import { coreRequestHeaders, newCoreRequestContext } from './inference-core-cont
 import { type InferenceCoreProxyService, shouldFailOverCoreResponse } from './inference-core-proxy.service.js';
 
 /**
- * The gateway↔core wire is always the OpenAI Responses protocol: the core is
+ * The Opfield↔core wire is always the OpenAI Responses protocol: the core is
  * the provider/protocol authority and translates to whatever the upstream
  * speaks. A synthetic definition keeps the shared wire helpers honest.
  */

@@ -60,7 +60,7 @@ func validateEnrollmentBundle(response *pb.EnrollResponse) (enrollmentBundle, er
 // resetWorkerPolicyState moves the worker's pinned policy trust and identity
 // rotation state aside. An enrollment is what authorizes policy trust: the
 // worker must pin only the key the new bundle carries. Trust left from an
-// earlier enrollment can hold only keys Gateway no longer signs with (the
+// earlier enrollment can hold only keys Opfield no longer signs with (the
 // lockout a re-enrollment repairs), and its rotation state would keep the
 // previous supervisor certificate authorized. The worker must not be running;
 // the files are kept beside the originals for inspection.

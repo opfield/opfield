@@ -96,7 +96,7 @@ export const ingressGroupMembers = pgTable(
 );
 
 /**
- * Per-member delivery state of a group route: the config and certificate version Gateway wants on each member and
+ * Per-member delivery state of a group route: the config and certificate version Opfield wants on each member and
  * what the member confirmed. A member that was offline keeps `pending` and converges on reconnect or through the
  * convergence reconciler. Single-node routes keep using `nginx_proxy_host_deployments` only.
  */

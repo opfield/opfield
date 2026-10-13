@@ -33,7 +33,7 @@ const (
 )
 
 type Options struct {
-	// NodeID is this daemon's voter/candidate id (its Gateway node id).
+	// NodeID is this daemon's voter/candidate id (its Opfield node id).
 	NodeID string
 	// StateDir holds the durable acceptor store.
 	StateDir string

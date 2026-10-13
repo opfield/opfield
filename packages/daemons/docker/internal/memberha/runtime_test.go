@@ -320,14 +320,14 @@ func TestManualPrimarySelfFencesWithoutOpfieldAndPeerAndResumes(t *testing.T) {
 	if log := h.calls.take(); indexOf(log, "engine.promote") < 0 || indexOf(log, "endpoints true") < 0 {
 		t.Fatalf("the assigned primary must promote and serve: %v", log)
 	}
-	// Only Gateway lost: writes continue.
+	// Only Opfield lost: writes continue.
 	h.gateway = false
 	h.peer = peerWith(signed(testMemberA, 1))
 	h.step(40, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.kill") >= 0 {
 		t.Fatalf("one failure must never stop writes: %v", log)
 	}
-	// Gateway and the peer lost for 30 s: the primary demotes itself.
+	// Opfield and the peer lost for 30 s: the primary demotes itself.
 	h.peer = nil
 	h.step(40, time.Second)
 	log := h.calls.take()
@@ -497,7 +497,7 @@ func TestReportsTellWhetherACopyCouldTakeOverAndReplicatesSynchronously(t *testi
 }
 
 // promotedPrimary is a manual pair whose member A was assigned and promoted
-// (Gateway's assignment, the engine running writable).
+// (Opfield's assignment, the engine running writable).
 func promotedPrimary(t *testing.T) *harness {
 	t.Helper()
 	h := newHarness(t, ModeManual)
@@ -513,9 +513,9 @@ func promotedPrimary(t *testing.T) *harness {
 	return h
 }
 
-// The self-fence counts from the last command that arrived from Gateway, not
+// The self-fence counts from the last command that arrived from Opfield, not
 // from a control session that is dead without knowing it yet: it fires at
-// its 30 s bound, inside Gateway's 45 s rule.
+// its 30 s bound, inside Opfield's 45 s rule.
 func TestManualPrimarySelfFencesThirtySecondsAfterTheLastOpfieldCommand(t *testing.T) {
 	h := promotedPrimary(t)
 	lastCommand := h.clock.now
@@ -535,7 +535,7 @@ func TestManualPrimarySelfFencesThirtySecondsAfterTheLastOpfieldCommand(t *testi
 }
 
 // A primary that self-fenced never promotes itself when contact returns: it
-// stays read-only until Gateway or the peer confirmed the newest assignment
+// stays read-only until Opfield or the peer confirmed the newest assignment
 // still names it, and a newer one naming the copy keeps it a copy.
 func TestASelfFencedPrimaryWaitsForAConfirmedAssignment(t *testing.T) {
 	h := promotedPrimary(t)
@@ -544,13 +544,13 @@ func TestASelfFencedPrimaryWaitsForAConfirmedAssignment(t *testing.T) {
 	if log := h.calls.take(); indexOf(log, "engine.kill") < 0 {
 		t.Fatalf("the isolated primary must fence: %v", log)
 	}
-	// Gateway reaches the node again, without an assignment yet.
+	// Opfield reaches the node again, without an assignment yet.
 	h.manager.deps.OpfieldContactAt = func() time.Duration { return h.clock.now }
 	h.step(20, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.promote") >= 0 {
 		t.Fatalf("a fenced primary must not promote on contact alone: %v", log)
 	}
-	// Gateway sends the current assignment again: it names A, A serves again.
+	// Opfield sends the current assignment again: it names A, A serves again.
 	if err := h.manager.AssignPrimary(testSet, signed(testMemberA, 1)); err != nil {
 		t.Fatal(err)
 	}
@@ -576,7 +576,7 @@ func TestASelfFencedPrimaryStaysACopyUnderANewerAssignment(t *testing.T) {
 }
 
 // After a restart the stored assignment is not enough to promote: the member
-// waits for Gateway or its peer.
+// waits for Opfield or its peer.
 func TestARestartedManualPrimaryPromotesOnlyAfterConfirmation(t *testing.T) {
 	h := promotedPrimary(t)
 	h.engine.status = EngineStatus{Answering: true} // the engine came back read-only

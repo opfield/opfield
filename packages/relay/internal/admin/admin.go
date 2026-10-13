@@ -143,7 +143,7 @@ func (s *Service) GetHealth(ctx context.Context, _ *relayv1.HealthRequest) (*rel
 	}, nil
 }
 
-// healthCapabilities lists what Gateway may rely on. Only the local relay
+// healthCapabilities lists what Opfield may rely on. Only the local relay
 // advertises the trust reset: a remote relay refuses it.
 func healthCapabilities(mode relayv1.RelayMode, availabilityLease bool) []string {
 	capabilities := []string{
@@ -161,10 +161,10 @@ func healthCapabilities(mode relayv1.RelayMode, availabilityLease bool) []string
 	return capabilities
 }
 
-// AvailabilityLeaseCapability tells Gateway the relay coordinates Docker
+// AvailabilityLeaseCapability tells Opfield the relay coordinates Docker
 // Availability data-plane leases (Coordinate, gate fencing, lease view). It is
 // versioned (D3): v2 sends clock beacons and carries its clock in lease frames
-// for peer-time freeze detection (D4). Gateway treats v1 as outdated. Relays
+// for peer-time freeze detection (D4). Opfield treats v1 as outdated. Relays
 // that run it also advertise availability_lease_v3 (availabilitylease.
 // CapabilityV3): they accept, persist and report certified holder state of
 // stateful policies.
@@ -210,7 +210,7 @@ func (s *Service) ApplySnapshot(ctx context.Context, request *relayv1.ApplySnaps
 	}
 	next, unchanged, err := s.broker.ApplySnapshot(request)
 	if err != nil {
-		// Gateway retries every few seconds: one line per reason a minute (F8).
+		// Opfield retries every few seconds: one line per reason a minute (F8).
 		if s.snapshotRefusals.allow(err.Error(), time.Now()) {
 			slog.Warn("relay refused a policy snapshot", "applied_revision", s.store.Current().Revision, "error", err)
 		}
@@ -243,9 +243,9 @@ func (s *Service) BootstrapPolicyTrust(ctx context.Context, request *relayv1.Boo
 	}, nil
 }
 
-// ResetLocalPolicyTrust lets the co-located Gateway re-pin policy trust on the
+// ResetLocalPolicyTrust lets the co-located Opfield re-pin policy trust on the
 // local combined relay, for example after relay.db was restored from a backup
-// older than every key Gateway can still sign with. The store refuses it in
+// older than every key Opfield can still sign with. The store refuses it in
 // remote mode, where trust changes only through signed rotation.
 func (s *Service) ResetLocalPolicyTrust(ctx context.Context, request *relayv1.ResetLocalPolicyTrustRequest) (*relayv1.ResetLocalPolicyTrustResponse, error) {
 	if err := s.authorize(ctx); err != nil {
@@ -314,7 +314,7 @@ func (s *Service) ReloadIdentity(ctx context.Context, request *relayv1.ReloadIde
 	}
 	// Existing upstream transports presented the previous relay client leaf.
 	// Force the next proxied RPC to establish TLS with the newly loaded leaf
-	// before Gateway commits its staged fingerprint trust.
+	// before Opfield commits its staged fingerprint trust.
 	if err := s.reloadApp(); err != nil {
 		return nil, status.Error(codes.Unavailable, "relay app client identity reload failed")
 	}

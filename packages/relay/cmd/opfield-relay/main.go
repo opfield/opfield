@@ -23,7 +23,7 @@ import (
 
 var buildVersion = "dev"
 
-// relayVersion is the version stamped at build time. The relay bundled in the Gateway image is
+// relayVersion is the version stamped at build time. The relay bundled in the Opfield image is
 // built once per commit and released under the tag's version, which the image carries as
 // APP_VERSION.
 func relayVersion() string {

@@ -18,7 +18,7 @@ import (
 const maxRelaysPerFrame = 2
 
 // LegacyLocalTarget is relaybridge.LegacyTargetID: the local relay reached
-// through the Gateway lanes without a pool relay instance id.
+// through the Opfield lanes without a pool relay instance id.
 const LegacyLocalTarget = "local"
 
 const streamQueueDepth = 512

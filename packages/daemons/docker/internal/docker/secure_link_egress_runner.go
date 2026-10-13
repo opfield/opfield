@@ -13,7 +13,7 @@ import (
 
 const (
 	// egressAckWait bounds how long a grant-sync ACK waits for the egress reconcile; what is not ready by then is
-	// reported pending and the reconcile finishes in the background. Gateway polls by sending the bundle again.
+	// reported pending and the reconcile finishes in the background. Opfield polls by sending the bundle again.
 	egressAckWait = 10 * time.Second
 	// egressFreshFor is how long a bundle with the same egress as the last applied one, all ready, is answered from
 	// the published statuses without touching the connector.
@@ -84,7 +84,7 @@ func (m *dockerSecureLinkManager) syncEgress(bundle *pb.SyncRelayGrantsCommand) 
 
 // runEgress applies the latest requested egress until none is left; requests made meanwhile collapse into one. The
 // runner is idle again (running false) in the same step that answers the last request: a bundle sent right after that
-// answer (Gateway's next poll with the same bundle) is answered from the published statuses, not applied once more.
+// answer (Opfield's next poll with the same bundle) is answered from the published statuses, not applied once more.
 func (m *dockerSecureLinkManager) runEgress() {
 	runner := &m.egressRun
 	runner.mu.Lock()

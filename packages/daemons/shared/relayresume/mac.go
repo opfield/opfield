@@ -83,7 +83,7 @@ func VerifyMAC(key, transcript []byte, got [MACLen]byte) bool {
 	return hmac.Equal(want[:], got[:])
 }
 
-// DeriveRouteKey is Gateway's route key derivation (the daemons only receive
+// DeriveRouteKey is Opfield's route key derivation (the daemons only receive
 // keys); it is here for the shared test vectors.
 func DeriveRouteKey(secret []byte, routeID string, keyVersion uint64) ([]byte, error) {
 	info := appendStr([]byte(transcriptDomain), routeID)

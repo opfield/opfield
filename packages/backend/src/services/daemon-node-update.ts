@@ -86,7 +86,7 @@ export interface NodeDaemonUpdateOptions {
    * for its lease peers (its result keeps a warning), and an update that already waits for either stops waiting.
    */
   now?: boolean;
-  /** What a waiting update carried before a Gateway restart (resumeQueuedDaemonUpdates). */
+  /** What a waiting update carried before an Opfield restart (resumeQueuedDaemonUpdates). */
   resume?: {
     /** When its task wait began: the wait stays bounded across the restart. */
     taskWaitStartedAt?: number;
@@ -401,12 +401,12 @@ export async function dispatchNodeDaemonUpdate(
   return { scheduled: true, targetVersion: release.version, waitingForTasks: tasks.length };
 }
 
-/** Nodes reconnect after a Gateway restart within seconds; queued updates are taken up again after that. */
+/** Nodes reconnect after an Opfield restart within seconds; queued updates are taken up again after that. */
 const QUEUED_UPDATE_RESUME_DELAY_MS = 60_000;
 
 /**
- * Waiting updates (for the long tasks of their node, or of lease members for their peers) live in memory; a Gateway
- * restart (for example the Gateway update itself) takes them up again from the node metadata, so they neither need an
+ * Waiting updates (for the long tasks of their node, or of lease members for their peers) live in memory; an Opfield
+ * restart (for example the Opfield update itself) takes them up again from the node metadata, so they neither need an
  * operator nor hang until their deadline.
  */
 export function scheduleQueuedDaemonUpdateResume(

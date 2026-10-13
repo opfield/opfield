@@ -21,7 +21,7 @@ import (
 
 // StatsCollector periodically collects per-container resource usage from the
 // Docker stats API. Running containers include live metrics; non-running
-// containers are still reported with zero metrics so the gateway can observe
+// containers are still reported with zero metrics so Opfield can observe
 // lifecycle state continuously.
 type StatsCollector struct {
 	client    *Client

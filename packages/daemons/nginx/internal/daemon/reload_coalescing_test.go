@@ -93,7 +93,7 @@ func tlsBundle(hostID, content, version, replicaGeneration string, deferred bool
 	}}}
 }
 
-// TestReconnectResyncOfUnchangedContentDoesNotReload: Gateway re-sends every route and TLS bundle when a
+// TestReconnectResyncOfUnchangedContentDoesNotReload: Opfield re-sends every route and TLS bundle when a
 // node reconnects; content nginx already runs causes no reload.
 func TestReconnectResyncOfUnchangedContentDoesNotReload(t *testing.T) {
 	h := newReloadTestHandler(t)

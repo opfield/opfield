@@ -34,7 +34,7 @@ func maintenanceApply(hostID, content string, flag pb.ProxyMaintenanceFlag) *pb.
 	return command
 }
 
-// TestMaintenanceFlagChangesWithoutReload: Gateway toggles maintenance by re-sending the route's unchanged config
+// TestMaintenanceFlagChangesWithoutReload: Opfield toggles maintenance by re-sending the route's unchanged config
 // with the new flag; only the flag file changes.
 func TestMaintenanceFlagChangesWithoutReload(t *testing.T) {
 	h := newMaintenanceFlagTestHandler(t)
@@ -52,7 +52,7 @@ func TestMaintenanceFlagChangesWithoutReload(t *testing.T) {
 	if err != nil || info.Mode().Perm() != 0o644 {
 		t.Fatalf("flag file mode = %v, %v; nginx workers must be able to see it", info, err)
 	}
-	// A command that does not carry the flag (an older Gateway, a certificate renewal) keeps it.
+	// A command that does not carry the flag (an older Opfield, a certificate renewal) keeps it.
 	h.run(t, applyConfig(reloadTestHostA, config, false))
 	if !h.flagged(reloadTestHostA) {
 		t.Fatal("an apply without a maintenance state cleared the flag")

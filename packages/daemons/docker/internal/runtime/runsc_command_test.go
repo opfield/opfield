@@ -8,8 +8,8 @@ import (
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
 )
 
-// F-R1: the daemon reports the local Secure Runtime command without its version, whatever that is, so older Gateways
-// recognise it too; the Gateway adds the node's daemon version when it shows it.
+// F-R1: the daemon reports the local Secure Runtime command without its version, whatever that is, so older Opfield releases
+// recognise it too; Opfield adds the node's daemon version when it shows it.
 func TestLocalInstallCommandNamesNoVersion(t *testing.T) {
 	previous := lifecycle.Version
 	t.Cleanup(func() { lifecycle.Version = previous })

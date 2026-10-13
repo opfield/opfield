@@ -4,7 +4,7 @@ import { createChildLogger } from '@/lib/logger.js';
 const logger = createChildLogger('SchedulerService');
 
 /**
- * A scheduled task. The scheduler always passes a signal that aborts when it stops (Gateway
+ * A scheduled task. The scheduler always passes a signal that aborts when it stops (Opfield
  * shutdown); a task that holds a long external session must end it on abort so shutdown does not
  * wait for it. The parameter is optional so wrappers may still call a task without one.
  */
@@ -24,7 +24,7 @@ interface IntervalJob {
   handle?: ReturnType<typeof setInterval>;
 }
 
-/** How a background job has been doing since Gateway started. */
+/** How a background job has been doing since Opfield started. */
 export interface SchedulerJobStats {
   name: string;
   /** Cron expression, or "every <n>ms" for an interval job. */

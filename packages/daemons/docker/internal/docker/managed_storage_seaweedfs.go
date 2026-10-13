@@ -37,7 +37,7 @@ const (
 	// seaweedfsUpstreamImage is listed in config/third-party-images.json, so
 	// EnsureThirdPartyImage tries the GHCR mirror before Docker Hub.
 	seaweedfsUpstreamImage = seaweedfsUpstreamRepo + "@" + seaweedfsImageDigest
-	// seaweedfsImage is the image storage containers run: Gateway's patched
+	// seaweedfsImage is the image storage containers run: Opfield's patched
 	// build of 4.47 (packages/daemons/seaweedfs-image), which the Image
 	// workflow publishes as <image repository>/seaweedfs-gateway (both
 	// ghcr.io/opfield/opfield and ghcr.io/the-square-labs/gateway once the
@@ -121,7 +121,7 @@ func isTrustedSeaweedFSImage(reference string) bool {
 }
 
 // seaweedfsImageCurrent reports whether a container created from reference
-// runs the image this daemon pins. Before Gateway's own build is pinned the
+// runs the image this daemon pins. Before Opfield's own build is pinned the
 // upstream image under either of its references is current; once it is
 // pinned only that build is, so existing storages move to it (data kept) at
 // their next update, restart or recreation.

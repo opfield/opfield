@@ -402,7 +402,7 @@ export async function reconcileExternalComposeProjects(
 const OBSERVED_RUN_STATUSES = ['running', 'degraded', 'stopped'] as const;
 
 /**
- * N-25: a managed project that should run follows what its containers do. A service stopped outside Gateway left the
+ * N-25: a managed project that should run follows what its containers do. A service stopped outside Opfield left the
  * project "running" (and the status page operational) although the route answered 502. Projects with a Compose
  * operation in flight (it sets the status itself) and projects Availability runs (their copies move between nodes)
  * are left alone.

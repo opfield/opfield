@@ -11,7 +11,7 @@ const OPFIELD_STORAGE_NETWORK =
 const OPFIELD_LINK_NETWORK = /^gateway-link-[0-9a-f]{16}$/;
 
 /**
- * Networks Gateway owns on a Docker node. Users can neither list, connect,
+ * Networks Opfield owns on a Docker node. Users can neither list, connect,
  * disconnect nor remove them, and a user container cannot be created on one:
  * the Secure Links management network, managed database link networks
  * (`gateway-db-*`), managed storage networks and container link networks. The link services attach
@@ -26,7 +26,7 @@ export function isOpfieldManagedDockerNetwork(name: string) {
   );
 }
 
-/** Names users may not give a network they create: every Gateway-managed name, now or later. */
+/** Names users may not give a network they create: every Opfield-managed name, now or later. */
 export function isReservedOpfieldNetworkName(name: string) {
   return (
     name === 'gateway-secure-links' ||

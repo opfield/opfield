@@ -9,7 +9,7 @@ type RelayInstanceRow = typeof relayInstances.$inferSelect;
 /**
  * Stand rc.7, F-3 (netem: NL 300 ms, UK 60 ms, the local relay next to the nodes; spread fixed 2). Every endpoint had
  * the local relay as its primary and a standby picked by hash, NL for about half of them, so during each local relay
- * outage and the local relay's drain in a Relay Pool update their streams (Gateway's own as well) could only go to
+ * outage and the local relay's drain in a Relay Pool update their streams (Opfield's own as well) could only go to
  * the 300-ms relay. The update also held back the relay it had just finished, so the local relay's workloads were
  * placed on NL, and the local relay itself only became a primary again 2 minutes after its own update.
  */

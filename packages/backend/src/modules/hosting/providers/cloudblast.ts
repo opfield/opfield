@@ -113,7 +113,7 @@ function parseAddress(value: unknown): HostingAddress {
 }
 /**
  * Neither the server list nor its details report a location (only an internal `node_id`), so this is
- * normally empty; Gateway then keeps the location it requested at creation.
+ * normally empty; Opfield then keeps the location it requested at creation.
  */
 function locationOf(object: Json): string {
   const location = optionalRecord(object.location);
@@ -327,7 +327,7 @@ export class CloudBlastHostingAdapter implements HostingProviderAdapter {
 
   /**
    * CloudBlast has no user data: register the operation's one-time public key and create the server
-   * with it; Gateway then installs over SSH with the matching private key.
+   * with it; Opfield then installs over SSH with the matching private key.
    */
   async create(request: HostingCreateRequest): Promise<HostingProviderOperation> {
     const name = hostname(input(request.name), input(request.marker));

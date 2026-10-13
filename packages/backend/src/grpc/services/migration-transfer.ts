@@ -529,7 +529,7 @@ export function createMigrationTransferHandlers(deps: GrpcServerDeps) {
         stream.resume();
       })().catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
-        // Opened right after Register, the stream can arrive before the registration finished (every Gateway or
+        // Opened right after Register, the stream can arrive before the registration finished (every Opfield or
         // daemon restart); the daemon opens it again. Only a real rejection is worth a warning.
         if (message === DOCKER_NODE_NOT_CONNECTED) {
           logger.debug('Docker migration transfer stream rejected', { nodeId, error: message });

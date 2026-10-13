@@ -16,7 +16,7 @@ export interface DockerGpuInventoryDevice {
   renderNode?: string;
 }
 
-/** True only for Docker daemons that explicitly understand Gateway GPU config. */
+/** True only for Docker daemons that explicitly understand Opfield GPU config. */
 export function hasDockerGpuV1Capability(value: unknown): boolean {
   const capabilities = record(value);
   if (!capabilities) return false;
@@ -111,7 +111,7 @@ function normalizedAttachment(value: unknown): DockerGpuAttachment | null {
 
 /**
  * Translate Docker's heterogeneous GPU host configuration into a narrow,
- * Gateway-owned attachment. A mapping only becomes manageable when it can be
+ * Opfield-owned attachment. A mapping only becomes manageable when it can be
  * resolved against the node's reported physical inventory. Everything else is
  * explicitly read-only instead of being guessed from host paths.
  */
@@ -181,7 +181,7 @@ export function deriveDockerGpuAttachment(inspect: unknown, inventoryInput: unkn
     if (matched.vendor === 'amd') sawAMDRenderNode = true;
   }
 
-  // Gateway's AMD mapping consists of a render node plus KFD. A partial or
+  // Opfield's AMD mapping consists of a render node plus KFD. A partial or
   // mismatched mapping is not safe to replace, even if one path was known.
   if (sawKFD && !sawAMDRenderNode) external = true;
   if (sawAMDRenderNode && !sawKFD) external = true;

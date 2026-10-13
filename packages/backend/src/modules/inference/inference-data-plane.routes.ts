@@ -12,7 +12,7 @@ import { inferenceProtocolError } from './protocol/inference-protocol.error.js';
 
 /**
  * The single stable public data plane (plan T5): /api/inference/v1 with the
- * standard route set. Gateway middleware keeps auth/limits; handlers proxy to
+ * standard route set. Opfield middleware keeps auth/limits; handlers proxy to
  * the managed core verbatim. Harness-specific prefixes and client-version
  * catalogs are gone.
  */

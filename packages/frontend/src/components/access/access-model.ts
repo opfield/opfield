@@ -413,7 +413,7 @@ export function accessApp(ctx: AccessContext, appId: string) {
 
 /**
  * The hidden folders an app line grants a type in: the environment's folder; for every
- * environment the app-root folder (it covers environments added later), or, where Gateway does not
+ * environment the app-root folder (it covers environments added later), or, where Opfield does not
  * report it, each current environment's folder. Empty when the app or folder is unknown.
  */
 export function appLineFolderIds(
@@ -604,7 +604,7 @@ function folderManageScopes(type: AccessType, where: AccessWhere, ctx: AccessCon
 }
 
 /**
- * The scopes the lines save as, sorted: Gateway keeps a broad scope and drops its folder- and
+ * The scopes the lines save as, sorted: Opfield keeps a broad scope and drops its folder- and
  * resource-qualified forms ("Viewer everywhere" covers the view scopes of "Developer in folder
  * orders"), so the count is what is stored.
  */
@@ -656,7 +656,7 @@ function sameScopes(a: readonly string[], b: readonly string[]) {
 
 /**
  * The role a type holds in a place. A scope is held as stored, or, in a folder or on a resource,
- * through its broad form: Gateway keeps `docker:containers:view` and drops
+ * through its broad form: Opfield keeps `docker:containers:view` and drops
  * `docker:containers:view:folder/<id>` and `docker:containers:view:<node>/<id>` (backend
  * `canonicalizeScopes`; nothing else counts). A role matches only if it holds a scope as stored,
  * so a line is never read out of broad scopes alone.
@@ -750,7 +750,7 @@ function typeOrder(a: AccessTypeId, b: AccessTypeId) {
  * then on single resources; Git levels per connector, group or repositories; whatever is left is
  * one "Custom scopes" line. A folder or resource line counts the scopes a broad stored scope
  * covers (see `matchType`). `linesToScopes` of the result gives the same scopes back, in the
- * form Gateway stores them.
+ * form Opfield stores them.
  */
 export function scopesToLines(scopes: readonly string[], ctx: AccessContext): AccessLine[] {
   const canonical = canonicalizeScopeSelection(scopes);
@@ -1305,7 +1305,7 @@ export function boundAccessScopes(
 /**
  * The scopes a token saves as: its lines' scopes the owner holds, a wider line narrowed to the
  * owner's part (the backend refuses scopes the owner lacks), in stored form. The token dialog asks
- * Gateway to store exactly these (`exactScopes`), so nothing is added for older scripts.
+ * Opfield to store exactly these (`exactScopes`), so nothing is added for older scripts.
  */
 export function tokenStoredScopes(
   scopes: readonly string[],

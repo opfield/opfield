@@ -24,7 +24,7 @@ func ownRTT(rtts map[string]time.Duration) func(string) (time.Duration, bool) {
 	}
 }
 
-// placed is a candidate of generation with Gateway's role and its relay's round trip to the endpoint (0: unknown).
+// placed is a candidate of generation with Opfield's role and its relay's round trip to the endpoint (0: unknown).
 func placed(relayID string, generation uint64, state, role string, endpointRTT time.Duration) *pb.RelayDataCandidate {
 	candidate := &pb.RelayDataCandidate{RelayInstanceId: relayID, AssignmentGeneration: generation, AssignmentState: state,
 		Capabilities: []string{PoolCapability}, Grant: &pb.RelaySignedGrant{KeyId: "k"}}
@@ -63,19 +63,19 @@ func TestEmptyFarRelayNeverBeatsMeasuredNearerRelay(t *testing.T) {
 			placed(relayUK, 1, "active", RoleStandby, 62*time.Millisecond),
 			placed(relayLocal, 1, "active", RolePrimary, 700*time.Microsecond),
 		}},
-		// The far relay just came back: Gateway has no endpoint round trip for it yet.
+		// The far relay just came back: Opfield has no endpoint round trip for it yet.
 		{"far relay unknown", []*pb.RelayDataCandidate{
 			placed(relayNL, 1, "active", RoleStandby, 0),
 			placed(relayUK, 1, "active", RoleStandby, 62*time.Millisecond),
 			placed(relayLocal, 1, "active", RolePrimary, 700*time.Microsecond),
 		}},
-		// Gateway placed the endpoint without latency data: no endpoint side at all.
+		// Opfield placed the endpoint without latency data: no endpoint side at all.
 		{"no endpoint side", []*pb.RelayDataCandidate{
 			placed(relayNL, 1, "active", RolePrimary, 0),
 			placed(relayUK, 1, "active", RolePrimary, 0),
 			placed(relayLocal, 1, "active", RolePrimary, 0),
 		}},
-		// An older Gateway sent no topology for such an endpoint.
+		// An older Opfield sent no topology for such an endpoint.
 		{"no topology", []*pb.RelayDataCandidate{
 			placed(relayNL, 1, "active", "", 0),
 			placed(relayUK, 1, "active", "", 0),
@@ -316,7 +316,7 @@ func TestLatencyTrackerReportsHowLongARelayFails(t *testing.T) {
 
 // The rc.3 stand (F-1): the daemons stopped reporting a relay whose relay port
 // was dead 2.5-3 minutes into the failure, once its last round trip aged out,
-// and Gateway placed it again. A relay the daemon keeps failing to reach stays
+// and Opfield placed it again. A relay the daemon keeps failing to reach stays
 // in the report, its round trip unknown once stale, until the daemon stops
 // trying it or reaches it again.
 func TestLatencyTrackerKeepsReportingARelayItCannotReach(t *testing.T) {

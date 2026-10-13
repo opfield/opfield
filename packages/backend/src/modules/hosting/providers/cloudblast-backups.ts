@@ -36,7 +36,7 @@ function parseBackup(value: unknown): Backup {
   };
 }
 
-/** CloudBlast backups are Gateway VM snapshots: full-disk, per server, restorable in place. */
+/** CloudBlast backups are Opfield VM snapshots: full-disk, per server, restorable in place. */
 export class CloudBlastBackupsAdapter implements HostingSnapshotAdapter {
   constructor(private readonly api: CloudBlastApi) {}
 

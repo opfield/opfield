@@ -30,7 +30,7 @@ export interface IngressPlacement {
   ingressGroupId: string | null;
 }
 
-/** Registered Gateway domains (exact or covering wildcard) that apply to these route domain names. */
+/** Registered Opfield domains (exact or covering wildcard) that apply to these route domain names. */
 export async function findRegisteredDomainNodes(
   db: DrizzleClient,
   domainNames: string[]
@@ -52,7 +52,7 @@ export async function assertRegisteredDomainsUseNode(
 }
 
 /**
- * Every registered Gateway domain of a route must be served where the route is: the same ingress group, or the same
+ * Every registered Opfield domain of a route must be served where the route is: the same ingress group, or the same
  * node when neither is on a group.
  */
 export async function assertRegisteredDomainsUseTarget(
@@ -97,7 +97,7 @@ export async function assertRegisteredDomainsUseTarget(
 
 /**
  * The ingress node the registered domains of a new route pin, or null when none of its names is a
- * registered Gateway domain. Every registered domain must name the same resolved node, as
+ * registered Opfield domain. Every registered domain must name the same resolved node, as
  * {@link assertRegisteredDomainsUseNode} requires for an explicit node.
  */
 export function registeredDomainsIngressNodeId(registered: readonly RegisteredDomainNode[]): string | null {
@@ -106,7 +106,7 @@ export function registeredDomainsIngressNodeId(registered: readonly RegisteredDo
 
 /**
  * The placement (node or ingress group) the registered domains of a new route pin, or null when none of its names is
- * a registered Gateway domain. Every registered domain must name the same placement.
+ * a registered Opfield domain. Every registered domain must name the same placement.
  */
 export function registeredDomainsIngressPlacement(
   registered: readonly RegisteredDomainNode[]

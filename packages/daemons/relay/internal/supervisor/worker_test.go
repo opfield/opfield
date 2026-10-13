@@ -191,7 +191,7 @@ func TestWorkerUpdateRestartsAWorkerStillOnThePreviousVersionOnce(t *testing.T) 
 	}
 }
 
-// Gateway dispatches the update again on this message.
+// Opfield dispatches the update again on this message.
 func TestWorkerUpdateReportsTheVersionTheWorkerKeepsRunning(t *testing.T) {
 	h := newWorkerUpdateHarness(t, 2)
 

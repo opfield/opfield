@@ -41,7 +41,7 @@ export class LicenseModuleService {
         'COMMERCIAL_MODULE_ACTIVATION_UNAVAILABLE',
         'Automatic activation requires a released Opfield version'
       );
-    // Activation restarts Gateway through the update path: never start it on top of a running update.
+    // Activation restarts Opfield through the update path: never start it on top of a running update.
     this.assertNoUpdateInProgress();
     const grant = await this.license.authorizeCommercialUpdate(version);
     if (grant.edition !== 'commercial')
@@ -53,7 +53,7 @@ export class LicenseModuleService {
     await this.updates.acknowledgeOpfieldUpdateFailure();
     this.events.publish('system.update.changed', { updating: true, component: 'opfield', targetVersion: version });
     // Send the activation response before the update can replace this process.
-    // performUpdate stages/verifies private files while this Gateway still serves traffic.
+    // performUpdate stages/verifies private files while this Opfield still serves traffic.
     this.schedule(() => {
       void this.updates.performUpdate(version, artifact).catch((error) => {
         this.preparation = undefined;

@@ -7,7 +7,7 @@ import (
 
 // Holder statements: a stateful key's holder signs an application request
 // with its identity key (for example the activation of a standby ClickHouse
-// Keeper witness while Gateway is down, decision 8 of the availability plan),
+// Keeper witness while Opfield is down, decision 8 of the availability plan),
 // and any voter or shadow acceptor of the policy checks that the signer is the
 // holder its latest verified commit names. The domain must start with
 // HolderStatementDomainPrefix, so a statement can never be replayed as a lease

@@ -190,7 +190,7 @@ func TestForwardedManifestsAndSendersOutsideSharedPolicies(t *testing.T) {
 	if node.ManifestVersion("p9") != 0 {
 		t.Fatal("a forwarded manifest that does not name the receiver was adopted")
 	}
-	// p8 names the stranger and r2 but not r1: the Gateway delivered it, so
+	// p8 names the stranger and r2 but not r1: Opfield delivered it, so
 	// the stranger authenticates, yet it shares no policy with r1.
 	if _, err := node.AdoptManifest(manifest("p8", 1, "r2", "s1")); err != nil {
 		t.Fatal(err)

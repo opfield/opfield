@@ -63,7 +63,7 @@ func TestStorageProfileRoutesAvailabilityCommands(t *testing.T) {
 			t.Fatalf("%s: member command refused: %+v", mode, member)
 		}
 
-		// Every daemon profile takes the daemon log stream toggle (Gateway sends it on every connect).
+		// Every daemon profile takes the daemon log stream toggle (Opfield sends it on every connect).
 		logs := plugin.HandleCommand(&pb.OpfieldCommand{Payload: &pb.OpfieldCommand_SetDaemonLogStream{
 			SetDaemonLogStream: &pb.SetDaemonLogStreamCommand{Enabled: false, MinLevel: "info"}}})
 		if !logs.Success || logs.Error != "" {

@@ -95,7 +95,7 @@ export interface SqlExecutionResult {
 
 export interface SqlExecutionOptions {
   maxRows?: number;
-  /** Absolute Gateway deadline shared by every statement in this console run. */
+  /** Absolute Opfield deadline shared by every statement in this console run. */
   deadlineMs?: number;
   /** Cancels the active database operation when the HTTP client disconnects. */
   signal?: AbortSignal;

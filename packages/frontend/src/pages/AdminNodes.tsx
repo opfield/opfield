@@ -249,7 +249,7 @@ export function AdminNodes() {
       void loadDaemonUpdates({ force: true });
     },
     {
-      // Events sent while the socket was away (a Gateway restart during updates) are lost.
+      // Events sent while the socket was away (an Opfield restart during updates) are lost.
       onReconnect: () => {
         useNodesStore.getState().invalidate();
         void loadDaemonUpdates({ force: true });

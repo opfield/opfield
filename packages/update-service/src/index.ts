@@ -74,7 +74,7 @@ const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 	"lease-watchdog": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-watchdog$/,
 	"relay-supervisor": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-relay$/,
 	"inference-core": /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/,
-	// Witness binaries (availability set Keeper voters relays run) ship as assets of the Gateway release.
+	// Witness binaries (availability set Keeper voters relays run) ship as assets of the Opfield release.
 	"witness-clickhouse-keeper": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/,
 };
 
@@ -476,7 +476,7 @@ async function handleReleaseList(
 			"public, max-age=30, s-maxage=60",
 		);
 	}
-	// Each list reaches at least one release on the channel: a Gateway release from the Gateway
+	// Each list reaches at least one release on the channel: an Opfield release from Opfield
 	// repository, any stable build from the inference core repository.
 	const [opfieldReleases, coreReleases] = await Promise.all([
 		fetchReleases(env, opfieldRepository(env), fetcher, (read) =>

@@ -74,7 +74,7 @@ export interface AuditEntry {
   ipAddress?: string;
   userAgent?: string;
   /**
-   * When the audited event happened, for events Gateway learns about afterwards (an autonomous lease failover while
+   * When the audited event happened, for events Opfield learns about afterwards (an autonomous lease failover while
    * it was down). Defaults to now; a future time is ignored.
    */
   occurredAt?: Date;
@@ -160,7 +160,7 @@ export class AuditService {
 
   /**
    * Writes one audit row. Every write is tracked for shutdown, which waits for it before closing
-   * the database pool: rows events produce while Gateway stops (node.disconnected) are not lost.
+   * the database pool: rows events produce while Opfield stops (node.disconnected) are not lost.
    */
   log(entry: AuditEntry, options: AuditLogOptions = {}): Promise<boolean> {
     return backgroundWrites.track(this.writeEntry(entry, options));

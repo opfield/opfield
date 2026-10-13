@@ -150,7 +150,7 @@ export class GitLabUserCredentialsService {
   /**
    * Every valid credential of a user who is not blocked (token maintenance:
    * expiry, rotation and shared-token detection). A blocked user's token is
-   * never rotated, so Gateway does not keep it alive.
+   * never rotated, so Opfield does not keep it alive.
    */
   async listValid(): Promise<CredentialRow[]> {
     const rows = await this.db

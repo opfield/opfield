@@ -17,7 +17,7 @@ import (
 )
 
 // Node-local control of availability set members for the operator CLI
-// (`docker-daemon availability ...`), which must work while Gateway is down
+// (`docker-daemon availability ...`), which must work while Opfield is down
 // (AS10: a forced promotion through the lease when no copy is eligible). A
 // unix socket in the state directory, owner-only.
 

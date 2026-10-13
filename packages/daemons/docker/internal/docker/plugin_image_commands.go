@@ -47,7 +47,7 @@ func (p *DockerPlugin) handleImageCommand(cmd *pb.DockerImageCommand, result *pb
 		if cmd.Action == "ensure" {
 			err = p.client.EnsureImage(ctx, imageRef, registryAuth)
 		} else {
-			// The pull goes on when the session that asked for it drops; pull_status tells Gateway how it ended.
+			// The pull goes on when the session that asked for it drops; pull_status tells Opfield how it ended.
 			finish := p.imagePulls.begin(result.CommandId, imageRef)
 			err = p.client.PullImage(ctx, imageRef, registryAuth)
 			finish(err)
@@ -60,7 +60,7 @@ func (p *DockerPlugin) handleImageCommand(cmd *pb.DockerImageCommand, result *pb
 		result.Detail = imageRef
 
 	case "pull_status":
-		// The pulls of image_ref this daemon process ran or runs, by the command that asked for each: Gateway asks
+		// The pulls of image_ref this daemon process ran or runs, by the command that asked for each: Opfield asks
 		// when it lost a pull's answer (it restarted, or the session dropped while the pull ran on).
 		if cmd.ImageRef == "" {
 			result.Success = false

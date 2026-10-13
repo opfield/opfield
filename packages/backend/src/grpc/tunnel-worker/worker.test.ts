@@ -8,7 +8,7 @@ import { RelayControlClient } from '../relay-control.client.js';
 import { loadRelayV1Proto } from '../relay-proto.js';
 import { RelayTunnelHost } from './host.js';
 
-/** A CA with a server leaf for 127.0.0.1 and a client leaf, as the local relay and Gateway present them. */
+/** A CA with a server leaf for 127.0.0.1 and a client leaf, as the local relay and Opfield present them. */
 function issueIdentities() {
   const keypair = () => forge.pki.rsa.generateKeyPair(2048);
   const certificate = (

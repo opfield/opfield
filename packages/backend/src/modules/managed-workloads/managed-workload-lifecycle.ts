@@ -176,7 +176,7 @@ export class ManagedWorkloadLifecycle<TRow extends WorkloadRow, TCredentials> {
     try {
       await this.dispatch.beforeDelete?.(row, userId);
     } catch (error) {
-      // The Gateway-side cleanup (links, keys, routes) failed; the delete
+      // The Opfield-side cleanup (links, keys, routes) failed; the delete
       // keeps its pending operation and the reconciliation pass retries it.
       return this.markWaiting(row, 'delete', error instanceof Error ? error.message : undefined);
     }

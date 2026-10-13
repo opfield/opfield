@@ -133,7 +133,7 @@ export async function loadPolicyRelays(db: DrizzleClient, policyIds: string[]): 
 
 /**
  * The relays that carry each availability set's lease policy traffic (AS12/M7): every relay assigned to a member
- * endpoint of the set. Every route of a set (bindings, links, Gateway tools, backups, monitoring, member peer routes)
+ * endpoint of the set. Every route of a set (bindings, links, Opfield tools, backups, monitoring, member peer routes)
  * targets a member endpoint, so these are all the relays that carry it; each of them shadow-accepts the policy.
  */
 export async function loadManagedSetLeaseRelays(

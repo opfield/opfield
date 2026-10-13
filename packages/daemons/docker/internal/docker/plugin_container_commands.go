@@ -369,7 +369,7 @@ func (p *DockerPlugin) handleContainerCommand(cmd *pb.DockerContainerCommand, re
 			result.Error = "container_id is required for task_status"
 			return
 		}
-		// The ID is the task's, or that of the Gateway command that started it (TaskCommandLookupCapability).
+		// The ID is the task's, or that of the Opfield command that started it (TaskCommandLookupCapability).
 		task, ok := p.taskMgr.Get(cmd.ContainerId)
 		if !ok {
 			result.Success = false

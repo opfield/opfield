@@ -129,10 +129,10 @@ type Deps struct {
 	Engine func(config Config) (Engine, error)
 	// Async runs background operations; default: a goroutine.
 	Async func(func())
-	// OpfieldConnected reports whether the Gateway control session is up
+	// OpfieldConnected reports whether the Opfield control session is up
 	// (manual mode self-fence when OpfieldContactAt is nil).
 	OpfieldConnected func() bool
-	// OpfieldContactAt is when Gateway last reached this node (a command
+	// OpfieldContactAt is when Opfield last reached this node (a command
 	// arrived), on Clock; 0 when never. A manual primary counts its contact
 	// from it (not from a session that may be dead without knowing it yet).
 	OpfieldContactAt func() time.Duration
@@ -142,7 +142,7 @@ type Deps struct {
 	// peerStateWired: PeerState reaches the peers (a runtime without it does
 	// not check a switchover's successor).
 	peerStateWired bool
-	// VerifyAssignment checks Gateway's signature of a manual pair's primary
+	// VerifyAssignment checks Opfield's signature of a manual pair's primary
 	// assignment (AssignmentStatement under AssignmentDomain, a trusted relay
 	// policy key). Nil refuses every assignment.
 	VerifyAssignment func(setID string, assignment Assignment) error

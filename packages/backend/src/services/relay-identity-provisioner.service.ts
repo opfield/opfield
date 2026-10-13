@@ -39,13 +39,13 @@ export interface AppRelayIdentity {
 }
 
 export interface InstalledRelayCertificatePaths {
-  /** Copy of Gateway's gRPC listener certificate, served by the relay to daemons. */
+  /** Copy of Opfield's gRPC listener certificate, served by the relay to daemons. */
   externalServer: string;
-  /** Served by Gateway's own gRPC listener to the relay. */
+  /** Served by Opfield's own gRPC listener to the relay. */
   appInternalServer: string;
-  /** Gateway's client certificate toward the relay admin and broker. */
+  /** Opfield's client certificate toward the relay admin and broker. */
   appRelayClient: string;
-  /** The relay's client certificate toward Gateway. */
+  /** The relay's client certificate toward Opfield. */
   relayAppClient: string;
 }
 
@@ -195,7 +195,7 @@ export class RelayIdentityProvisionerService {
         previousAppClientPrivateKey: resolve(this.identityDir, 'app-relay-client.previous.key'),
       };
       // A running relay trusts the client pair it loaded, and it reloads only when a client it
-      // trusts asks. Keep the pair a renewal replaces, so Gateway can still ask.
+      // trusts asks. Keep the pair a renewal replaces, so Opfield can still ask.
       const files = new IdentityFileSet(directory);
       const installedClient = readIfExists(paths.appClientCertificate);
       const installedKey = readIfExists(paths.appClientPrivateKey);
@@ -287,7 +287,7 @@ export class RelayIdentityProvisionerService {
     }
   }
 
-  /** The certificates installed for the local relay and Gateway's internal listener, for expiry checks. */
+  /** The certificates installed for the local relay and Opfield's internal listener, for expiry checks. */
   installedCertificatePaths(): InstalledRelayCertificatePaths {
     return {
       externalServer: resolve(this.identityDir, 'external-server.crt'),

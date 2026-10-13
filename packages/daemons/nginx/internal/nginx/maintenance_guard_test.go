@@ -82,7 +82,7 @@ func applyMap(rules []mapRule, input string) string {
 	return input
 }
 
-// TestMaintenanceCookieMapsLeaveNoEmptyOrLeadingSeparator: the upstream gets the request's cookies without Gateway's
+// TestMaintenanceCookieMapsLeaveNoEmptyOrLeadingSeparator: the upstream gets the request's cookies without Opfield's
 // access cookies, wherever they stood, and never an empty name (a leading or doubled ";").
 func TestMaintenanceCookieMapsLeaveNoEmptyOrLeadingSeparator(t *testing.T) {
 	sig := cookieMapRules(t, "opfield_maintenance_cookie_sig")

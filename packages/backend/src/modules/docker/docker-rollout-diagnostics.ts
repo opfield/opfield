@@ -6,12 +6,12 @@ export const DOCKER_ROLLOUT_RAW_LIMIT = 32 * 1024;
 export const DOCKER_ROLLOUT_RESPONSE_LIMIT = 1024 * 1024;
 const DOCKER_ROLLOUT_ENV_ENTRIES_MAX = 256;
 const DOCKER_ROLLOUT_LOG_LINES_MAX = 60;
-/** The shortest environment value treated as a possible credential when Gateway does not store it as a secret. */
+/** The shortest environment value treated as a possible credential when Opfield does not store it as a secret. */
 const DOCKER_ROLLOUT_CREDENTIAL_MIN_LENGTH = 8;
 const oversized = '[Oversized diagnostic field omitted]';
 
 /**
- * Whether an environment value that is not a Gateway secret may still be a credential: long enough, and not a plain
+ * Whether an environment value that is not an Opfield secret may still be a credential: long enough, and not a plain
  * number. Short and numeric values (PYTHONUNBUFFERED=1, PORT=3000) stay readable, and with them the exit code, the
  * restart count and the log lines that contain the same digits.
  */
@@ -68,14 +68,14 @@ function runtimeLine(inspect: any): string {
  * log lines, and so is every other environment value long enough to be a credential; the runtime line holds no
  * environment values and is never redacted. Each field has its own limit, so a large inspect (many labels, mounts or
  * networks) still yields the evidence, and the log lines are kept when the inspect cannot be read (redacted then with
- * the values Gateway stores for the container). Never holds up recovery: one short budget.
+ * the values Opfield stores for the container). Never holds up recovery: one short budget.
  */
 export async function collectDockerRolloutDiagnostics(read: {
   inspect: (timeoutMs: number) => Promise<any>;
   logs: (timeoutMs: number) => Promise<unknown>;
-  /** Which `KEY=value` entries of the inspected environment carry a Gateway secret; null when none do. */
+  /** Which `KEY=value` entries of the inspected environment carry an Opfield secret; null when none do. */
   secretEntries?: (inspect: any) => Promise<((entry: string) => boolean) | null>;
-  /** Environment and secret values Gateway stores for the container, redacted when its inspect is unavailable. */
+  /** Environment and secret values Opfield stores for the container, redacted when its inspect is unavailable. */
   storedValues?: () => Promise<{ environment: string[]; secrets: string[] }>;
 }): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -90,7 +90,7 @@ export async function collectDockerRolloutDiagnostics(read: {
       /* The log lines are still evidence. */
     }
     if (Date.now() >= deadline) return 'Runtime diagnostics timed out';
-    // The values to redact: the runtime environment, or without an inspect the values Gateway stores for it.
+    // The values to redact: the runtime environment, or without an inspect the values Opfield stores for it.
     const env = inspect ? redactable(Array.isArray(inspect.Config?.Env) ? inspect.Config.Env : []) : [];
     const storedValues =
       inspect || !read.storedValues
@@ -99,7 +99,7 @@ export async function collectDockerRolloutDiagnostics(read: {
     const stored = storedValues
       ? redactable([...storedValues.secrets, ...storedValues.environment.filter(mayBeCredential)])
       : [];
-    // When Gateway cannot tell which entries are secrets, every value is redacted.
+    // When Opfield cannot tell which entries are secrets, every value is redacted.
     let isSecret: ((entry: string) => boolean) | null = null;
     if (inspect && read.secretEntries) {
       isSecret = await read.secretEntries(inspect).catch(() => () => true);

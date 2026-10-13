@@ -8,7 +8,7 @@ export const LEGACY_APP_STATUS_STORAGE_KEY = "gateway-app-status";
 export interface OpfieldUpdateError {
   message: string;
   targetVersion: string | null;
-  /** The update restarted Gateway, which came back on the previous version. */
+  /** The update restarted Opfield, which came back on the previous version. */
   rolledBack?: boolean;
 }
 

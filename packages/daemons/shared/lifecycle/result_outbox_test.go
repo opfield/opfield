@@ -24,7 +24,7 @@ func (f *fakeSession) Send(msg *pb.DaemonMessage) error {
 
 // A result whose send fails as the control session ends (stand rc.9: EOF at the launcher's planned reconnect), and
 // one produced before the next session is accepted, are delivered on that session, oldest first; results after it
-// go out at once. Results the gateway long stopped waiting for are dropped.
+// go out at once. Results Opfield long stopped waiting for are dropped.
 func TestResultOutboxCarriesResultsAcrossAReconnect(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	var outbox resultOutbox

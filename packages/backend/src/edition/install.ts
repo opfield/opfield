@@ -5,7 +5,7 @@ import { verifyCommercialRelease } from './loader.js';
 import { COMMERCIAL_RELEASE_ID } from './manifest.js';
 
 /** Stage and verify the complete package before changing the active pointer.
- * Activation takes effect on restart; this does not execute migrations or restart Gateway.
+ * Activation takes effect on restart; this does not execute migrations or restart Opfield.
  */
 export async function installCommercialRelease(options: {
   source: string;

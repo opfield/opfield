@@ -52,8 +52,8 @@ export async function pullImage(
   folderId?: string | null
 ) {
   const task = await context.createTask(nodeId, '', imageRef, 'pull');
-  // The pull runs as a command Gateway names, so the daemon can tell how it ended should Gateway lose its answer
-  // (Gateway restarted, or the node's control stream dropped while the pull ran on): the task is then settled with
+  // The pull runs as a command Opfield names, so the daemon can tell how it ended should Opfield lose its answer
+  // (Opfield restarted, or the node's control stream dropped while the pull ran on): the task is then settled with
   // the node instead of failing while the node still pulls (DockerTaskReconciler).
   const commandId = randomUUID();
   await trackDockerTask(

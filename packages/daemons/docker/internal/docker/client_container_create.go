@@ -94,7 +94,7 @@ func dockerPortMappings(mappings []containerPortMapping) (network.PortSet, netwo
 	return exposedPorts, portBindings, nil
 }
 
-// GPUConfig is a node-scoped, Gateway-owned selection. Empty deviceIds is an
+// GPUConfig is a node-scoped, Opfield-owned selection. Empty deviceIds is an
 // explicit detach request during recreate; an omitted GPU field preserves the
 // existing HostConfig mapping.
 type GPUConfig struct {
@@ -172,7 +172,7 @@ func (c *Client) applyResolvedGPUSelection(containerCfg *container.Config, hostC
 	setManagedGPUGroupIDs(containerCfg, nextManagedGroupIDs)
 }
 
-// applyGPUSelection only changes Gateway-managed GPU entries. It deliberately
+// applyGPUSelection only changes Opfield-managed GPU entries. It deliberately
 // leaves unrelated HostConfig devices intact so a GPU edit cannot become a
 // generic host-device rewrite.
 func applyGPUSelection(hostCfg *container.HostConfig, devices []gpu.Device, previousManagedGroupIDs []string) []string {
@@ -624,7 +624,7 @@ func isUnsetWorkloadLogConfig(cfg container.LogConfig) bool {
 }
 
 // isOpfieldDefaultLogConfig reports whether cfg holds only json-file rotation
-// options (max-size, max-file), such as the Gateway workload default. These
+// options (max-size, max-file), such as the Opfield workload default. These
 // are portable and carry no secrets, unlike other log driver options.
 func isOpfieldDefaultLogConfig(cfg container.LogConfig) bool {
 	if (cfg.Type != "" && cfg.Type != jsonFileLogDriver) || len(cfg.Config) == 0 {
@@ -768,8 +768,8 @@ func httpProbeBodyMatches(body string, expected string, mode string) bool {
 
 // reservedDockerLabelPrefixes are the label namespaces Opfield and Docker Compose read to place, group, hide
 // or admit a container (the backend's docker-reserved-labels.ts holds the same set). A user workload carrying
-// them would join another Compose project (and its root-level folder), disappear behind a Gateway
-// implementation marker or pass for a Gateway deployment, so duplicates never copy them and Compose
+// them would join another Compose project (and its root-level folder), disappear behind an Opfield
+// implementation marker or pass for an Opfield deployment, so duplicates never copy them and Compose
 // services may not set them.
 var reservedDockerLabelPrefixes = []string{
 	"com.docker.compose.",

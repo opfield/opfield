@@ -29,7 +29,7 @@ type ContainerInfo struct {
 
 // Host is what the engine needs from the docker daemon for one member.
 type Host interface {
-	// Config is the member's current configuration (Gateway may have changed
+	// Config is the member's current configuration (Opfield may have changed
 	// the members since the engine was opened).
 	Config() memberha.Config
 	Container(ctx context.Context, role Role) (ContainerInfo, error)

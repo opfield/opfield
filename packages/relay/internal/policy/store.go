@@ -21,24 +21,24 @@ import (
 
 const (
 	// MaxPolicyLease is the longest lease this relay build accepts between a
-	// policy envelope's issuedAt and expiresAt. Gateway normally issues shorter
+	// policy envelope's issuedAt and expiresAt. Opfield normally issues shorter
 	// leases (see the relayPolicyLeaseHours setting); this is only the cap a
 	// relay enforces so a compromised or misconfigured signer cannot mint one
 	// that outlives it by an unbounded amount.
 	MaxPolicyLease    = 7 * 24 * time.Hour
 	IssuedAtClockSkew = 5 * time.Minute
-	// LeaseExpiryClockSkew lets a relay whose clock runs ahead of Gateway keep a
-	// lease Gateway still considers current. It only delays how long a relay
-	// keeps admitting after Gateway stopped refreshing its policy; what the
+	// LeaseExpiryClockSkew lets a relay whose clock runs ahead of Opfield keep a
+	// lease Opfield still considers current. It only delays how long a relay
+	// keeps admitting after Opfield stopped refreshing its policy; what the
 	// policy admits is unchanged, and revocations arrive as new snapshots.
 	LeaseExpiryClockSkew = 2 * time.Minute
 	PoolCapability       = "relay_pool_v1"
-	// TrustResetCapability tells Gateway that this local relay implements
+	// TrustResetCapability tells Opfield that this local relay implements
 	// ResetLocalPolicyTrust, so a trust lockout can be repaired without an operator.
 	TrustResetCapability = "policy_trust_reset_v1"
-	// LongLeaseCapability tells Gateway that this relay build accepts a policy
+	// LongLeaseCapability tells Opfield that this relay build accepts a policy
 	// lease up to MaxPolicyLease and a grant up to grant.MaxTTL, instead of the
-	// legacy 15-minute lease / 48-hour grant caps. Gateway must not issue the
+	// legacy 15-minute lease / 48-hour grant caps. Opfield must not issue the
 	// longer lease or grant to a relay that does not advertise it, or an older
 	// relay instance rejects the envelope outright.
 	LongLeaseCapability = "policy_long_lease_v1"
@@ -127,8 +127,8 @@ type Store struct {
 	now         func() time.Time
 	policyTrust map[string]trustedPolicyKey
 	// rebind is set by a local trust reset. The next accepted snapshot may then
-	// replace the serving one even if it names another Gateway instance or an
-	// older revision: both are what a Gateway restored from backup, or one that
+	// replace the serving one even if it names another Opfield instance or an
+	// older revision: both are what an Opfield restored from backup, or one that
 	// was reinstalled over an existing relay volume, sends after re-pinning.
 	// It is persisted until that snapshot applies (keyPolicyRebind).
 	rebind bool
@@ -372,7 +372,7 @@ func (s *Store) load() error {
 			// relay from starting, or it restarts forever: for example one
 			// written for another relay instance before a re-enrollment. The
 			// relay starts without a policy, admits nothing and keeps its
-			// pinned trust until Gateway sends a new snapshot.
+			// pinned trust until Opfield sends a new snapshot.
 			slog.Warn("ignoring persisted relay policy snapshot that no longer validates", "error", err)
 			continue
 		}

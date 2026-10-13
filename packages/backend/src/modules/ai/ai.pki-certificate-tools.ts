@@ -130,7 +130,7 @@ function requireIssueScope(user: User, caId: string) {
 /**
  * Mirrors POST /certificates/{id}/export: every format, the system-CA key
  * guard, and a mandatory `cert.export_key` audit record before key material
- * leaves Gateway. Binary formats are returned base64-encoded.
+ * leaves Opfield. Binary formats are returned base64-encoded.
  */
 async function exportCertificate(
   context: PkiCertificateToolContext,

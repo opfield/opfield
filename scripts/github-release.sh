@@ -23,8 +23,8 @@ source scripts/release-tag.sh
 source scripts/release/manifest-download-base.sh
 classify_release_tag "$tag"
 
-# Only a stable Gateway release is the repository's Latest: releases/latest/download serves the
-# Gateway installers, which a component release does not carry.
+# Only a stable Opfield release is the repository's Latest: releases/latest/download serves the
+# Opfield installers, which a component release does not carry.
 latest_args=(--latest=false)
 if [[ "$RELEASE_KIND" == "opfield" && "$RELEASE_PRERELEASE" != "true" ]]; then
   latest_args=(--latest)

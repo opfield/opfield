@@ -78,7 +78,7 @@ func (s *downstreamStream) RecvMsg(value any) error {
 	return nil
 }
 
-// echoUpstream answers every call with its first frame and records the metadata Gateway received.
+// echoUpstream answers every call with its first frame and records the metadata Opfield received.
 func echoUpstream(t *testing.T) (*grpc.ClientConn, func() metadata.MD, func()) {
 	t.Helper()
 	var mu sync.Mutex

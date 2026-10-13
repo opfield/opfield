@@ -1,5 +1,5 @@
 /**
- * Gateway settings: authentication/provisioning settings, the running version
+ * Opfield settings: authentication/provisioning settings, the running version
  * and the license status. Seeds 64600–64699.
  */
 import type {

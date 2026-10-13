@@ -65,7 +65,7 @@ async function nodeIsolatesConsoleSessions(nodeId: string): Promise<boolean> {
 /**
  * Creators of node console sessions on daemons that do not isolate sessions per user, keyed by
  * `${nodeId}\0${execId}`. Such a daemon hands every caller the node's existing shell, so only
- * the Gateway user who created it may attach again.
+ * the Opfield user who created it may attach again.
  */
 const unisolatedConsoleOwners = new Map<string, string>();
 

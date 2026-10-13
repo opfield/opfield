@@ -189,7 +189,7 @@ export function assertDockerMountChangeAllowed(args: {
   /**
    * Whether the change can run other code against the workload's host binds: another image, command,
    * entrypoint, user or runtime. Left out, it counts as a change. A recreate that keeps all of that and the
-   * mounts (only environment, secrets, labels or Gateway link networks differ) grants no new host access,
+   * mounts (only environment, secrets, labels or Opfield link networks differ) grants no new host access,
    * so it needs no mounts scope from anyone.
    */
   workloadChanged?: boolean;

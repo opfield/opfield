@@ -176,7 +176,7 @@ describe('lease witness (A19)', () => {
 
   it('never picks the local relay while another ready relay can witness, and moves off it (N-2)', () => {
     // Stand rc20: checkout/payments had the local relay as witness (it had RTT data first and stayed sticky), so the
-    // margin was 0 and losing the Gateway host plus one node fenced a slot.
+    // margin was 0 and losing the Opfield host plus one node fenced a slot.
     const pool = [
       witness('local', { local: true, rtt: { d1: 0.2, d2: 0.3 } }),
       witness('r136', { rtt: { d1: 0.6, d2: 0.7 } }),
@@ -414,7 +414,7 @@ describe('availability lease capability gating (D10, D3)', () => {
     expect(evaluateLeaseGating({ ...eligible, candidates: watchdogsMissing, heldSlots: 1 })).toEqual({
       eligible: true,
     });
-    // Every node offline to Gateway says nothing about the data plane.
+    // Every node offline to Opfield says nothing about the data plane.
     expect(
       evaluateLeaseGating({
         ...eligible,

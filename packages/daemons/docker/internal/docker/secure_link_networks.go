@@ -19,7 +19,7 @@ import (
 )
 
 // Link networks (C5): every new link network (container links, new storage and database links) gets an explicit /26
-// from Gateway's own pool instead of Docker's default address pools, so links never use up the subnets users'
+// from Opfield's own pool instead of Docker's default address pools, so links never use up the subnets users'
 // networks are given. The connector holds base+2 on it (its static address, outside the network's dynamic range);
 // workloads get the addresses Docker assigns from the upper /27 (managedConnectorIPAM): about 30 per link.
 const (

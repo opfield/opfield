@@ -21,7 +21,7 @@ func waitTaskStatus(t *testing.T, m *TaskManager, id string, want TaskStatus) Ta
 	return Task{}
 }
 
-// Gateway asks for an update's task by the command that started it when it lost the answer that named the task.
+// Opfield asks for an update's task by the command that started it when it lost the answer that named the task.
 func TestTaskManagerFindsTaskByItsOpfieldCommand(t *testing.T) {
 	m := NewTaskManager()
 	release := make(chan struct{})

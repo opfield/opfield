@@ -580,7 +580,7 @@ export class HostingManagementService {
           taskSucceeded = task.status === 'succeeded';
           if (taskSucceeded) {
             // QGA exec-status forgets an exited process after returning its result.
-            // Persist that one-shot receipt before waiting for fresh Gateway health.
+            // Persist that one-shot receipt before waiting for fresh Opfield health.
             row = await this.operations.update(row, { providerOperation: task });
           }
         }

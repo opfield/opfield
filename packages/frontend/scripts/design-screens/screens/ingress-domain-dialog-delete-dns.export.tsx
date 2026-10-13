@@ -17,7 +17,7 @@ it("ingress-domain-dialog-delete-dns", async () => {
       ...backgroundPrewarmHandlers(),
     ],
     before: () => {
-      // Gateway took over the existing Cloudflare records of the status page.
+      // Opfield took over the existing Cloudflare records of the status page.
       domainByName("status.example.com").dnsOwnership = "overwritten";
     },
     ready: async () => {

@@ -233,7 +233,7 @@ func TestReclaimSkipsAnEngineThatDoesNotAnswer(t *testing.T) {
 }
 
 // A serving storage whose disk is below the guard is reported full, so
-// Gateway can show it; one with room is not.
+// Opfield can show it; one with room is not.
 func TestInspectReportsAFullSeaweedFSStorage(t *testing.T) {
 	for _, tc := range []struct {
 		free int64

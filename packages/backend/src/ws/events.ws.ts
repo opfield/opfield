@@ -501,7 +501,7 @@ function subscribePerUser(ws: WSContext, state: ConnState) {
 /**
  * How long a connection with folder, node, provider, or account grants trusts its expanded scopes
  * before re-resolving them. Re-resolving costs 2 + E queries (E per expanded grant family), so doing
- * it for every event let a busy Gateway saturate the delivery queue.
+ * it for every event let a busy Opfield saturate the delivery queue.
  */
 const DYNAMIC_SCOPES_TTL_MS = 5_000;
 

@@ -32,7 +32,7 @@ var composeDependsOnConditions = map[string]bool{
 
 // composeActionStartsContainers reports the actions that create or start a
 // project's containers. Only they apply the rules that keep a project off the
-// host's and Gateway's networks and labels and its bindings off the compose
+// host's and Opfield's networks and labels and its bindings off the compose
 // client's settings (reservedPolicy): a project saved before those rules can
 // still be stopped and brought down, which joins and labels nothing, and the
 // sidecar's own environment is set last for every action.
@@ -353,7 +353,7 @@ var composeManagedDatabaseNetworkKey = regexp.MustCompile(`^gateway_db_[0-9a-f]{
 var composeContainerLinkNetworkKey = regexp.MustCompile(`^gateway_link_[0-9a-f]{16}$`)
 
 // validateComposeNetworkNames keeps Compose networks off the host's network
-// namespaces and off the networks Gateway owns on the node, which a user
+// namespaces and off the networks Opfield owns on the node, which a user
 // container may not join either (validateUserWorkloadNetworkMode, the
 // backend's isReservedOpfieldNetworkName). Docker Compose joins an existing
 // network by its name, external or not, so the name decides: name: when
@@ -391,7 +391,7 @@ func validateComposeNetworkNames(networks *yaml.Node) error {
 }
 
 // isReservedOpfieldNetworkName mirrors the backend's isReservedOpfieldNetworkName:
-// every name Gateway owns or will own on a node, the Secure Links management
+// every name Opfield owns or will own on a node, the Secure Links management
 // network and managed database and storage link networks.
 func isReservedOpfieldNetworkName(name string) bool {
 	return name == secureLinkManagementNetwork || strings.HasPrefix(name, "gateway-db-") || strings.HasPrefix(name, "gateway-storage-") ||
@@ -585,7 +585,7 @@ func isComposeNull(node *yaml.Node) bool {
 	return node != nil && node.Kind == yaml.ScalarNode && node.Tag == "!!null"
 }
 
-// validateServiceLabels refuses the labels Gateway and Docker Compose read. With
+// validateServiceLabels refuses the labels Opfield and Docker Compose read. With
 // reservedPolicy (actions that create or start containers) that is the full
 // reserved set and keys built from variables; otherwise only Compose's
 // ownership labels, as before the full set existed.
@@ -632,10 +632,10 @@ func validateServiceLabels(node *yaml.Node, reservedPolicy bool) error {
 	return nil
 }
 
-// composeServiceConfigDigests reads the configuration digest of each service that Gateway sends with the
+// composeServiceConfigDigests reads the configuration digest of each service that Opfield sends with the
 // normalized model (`serviceConfigDigests`). A service is labelled with its own digest, so a new revision changes
 // the label, and with it Compose's config hash, only of the services it changes: Compose recreates those and leaves
-// the others running. Without them (an older Gateway, Availability placements) every service carries the revision
+// the others running. Without them (an older Opfield, Availability placements) every service carries the revision
 // digest, and every new revision recreates every service.
 func composeServiceConfigDigests(normalizedModelJSON string) (map[string]string, error) {
 	var model struct {

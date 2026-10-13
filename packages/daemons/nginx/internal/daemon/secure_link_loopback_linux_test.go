@@ -18,7 +18,7 @@ import (
 	"github.com/opfield/opfield/daemon-shared/relayresume"
 )
 
-// freeLoopbackAddress is a free port on a 127.64.x.y address, like the ones Gateway allocates.
+// freeLoopbackAddress is a free port on a 127.64.x.y address, like the ones Opfield allocates.
 func freeLoopbackAddress(t *testing.T, host string) string {
 	t.Helper()
 	listener, err := net.Listen("tcp4", host+":0")

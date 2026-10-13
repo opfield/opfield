@@ -1,4 +1,4 @@
-/** An unreleased Gateway build has no release installers, so its setup commands use main: say so beside them. */
+/** An unreleased Opfield build has no release installers, so its setup commands use main: say so beside them. */
 export function UnreleasedInstallerNote({ installerRelease }: { installerRelease: string | null }) {
   if (installerRelease) return null;
   return (

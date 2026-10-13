@@ -17,7 +17,7 @@ const T0 = Date.parse('2026-09-27T10:00:00.000Z');
 const revokedRoute = { routeId: 'route-revoked', endpointId: 'endpoint-1', routeGeneration: 1, endpointGeneration: 1 };
 const keptRoute = { routeId: 'route-kept', endpointId: 'endpoint-1', routeGeneration: 1, endpointGeneration: 1 };
 
-/** Gateway state after route-revoked was deleted; route-kept is unchanged. */
+/** Opfield state after route-revoked was deleted; route-kept is unchanged. */
 function afterRevocation(overrides: Partial<ReconcileRevocationInput> = {}): ReconcileRevocationInput {
   return {
     acknowledgedRevision: 10,
@@ -30,7 +30,7 @@ function afterRevocation(overrides: Partial<ReconcileRevocationInput> = {}): Rec
   };
 }
 
-/** The relay applied revision 10 carrying both routes; Gateway then built revision 11 without the revoked one. */
+/** The relay applied revision 10 carrying both routes; Opfield then built revision 11 without the revoked one. */
 function builtAfterRevocation(): RelayPolicyRouteEntry[] {
   return projectBuiltRoutes(projectBuiltRoutes(null, [revokedRoute, keptRoute], 10), [keptRoute], 11);
 }

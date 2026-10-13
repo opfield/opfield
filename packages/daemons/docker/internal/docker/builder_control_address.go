@@ -13,7 +13,7 @@ var builderFenceRetry = time.Minute
 // reapplyBuilderEgressFence runs after the daemon switched its control
 // connection to the address Opfield moved to (lifecycle.OnControlAddressChanged).
 // A builder fences build steps off the control plane with its egress policy,
-// rendered from the Gateway address at Init. Of the two options, applying that
+// rendered from the Opfield address at Init. Of the two options, applying that
 // policy again for the new address or restarting the daemon, this is the
 // smaller one: only the egress unit runs again, containerd and BuildKit keep
 // running and builds in progress continue, and the daemon's relay tunnels stay

@@ -1,5 +1,5 @@
 /**
- * Parsing, filtering and redaction of Gateway container logs read through Docker. The app writes
+ * Parsing, filtering and redaction of Opfield container logs read through Docker. The app writes
  * winston JSON lines; other containers (Postgres, Redis, relay, registry) write plain text.
  */
 
@@ -42,7 +42,7 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
   ],
   [/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g, '[REDACTED JWT]'],
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/g, '$1 [REDACTED]'],
-  // URL userinfo, also without a user name (`redis://:password@host`, the form Gateway builds itself).
+  // URL userinfo, also without a user name (`redis://:password@host`, the form Opfield builds itself).
   [/\b([a-z][a-z0-9+.-]*:\/\/[^:/\s@]*):[^@\s/]+@/gi, '$1:[REDACTED]@'],
   // SQL as Postgres logs it: CREATE/ALTER ROLE … PASSWORD 'value'.
   [/\b(PASSWORD)\s+'(?:[^']|'')*'/gi, "$1 '[REDACTED]'"],

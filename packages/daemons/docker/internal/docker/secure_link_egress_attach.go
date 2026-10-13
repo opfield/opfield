@@ -17,7 +17,7 @@ import (
 )
 
 // The connector's address on a link network is kept: a client that resolved the link alias once (nginx with a
-// static proxy_pass) keeps using that address. The address is, in this order, the one Gateway names
+// static proxy_pass) keeps using that address. The address is, in this order, the one Opfield names
 // (connector_address: a storage link takes the address its sidecar had), the pool's reserved base+2, or the address
 // the connector got on that network the first time (recorded, so an anchor restart or recreate takes it back).
 const (
@@ -111,7 +111,7 @@ type egressAttach struct {
 }
 
 // attachEgressLocked joins the connector to the link network at its wanted address, with the link's alias unless
-// Gateway holds it back. A desired network the connector is not on is joined again (self-heal). A rejoin never leaves
+// Opfield holds it back. A desired network the connector is not on is joined again (self-heal). A rejoin never leaves
 // the connector off the network: when the new endpoint is refused, the previous one is put back.
 func (m *dockerSecureLinkManager) attachEgressLocked(ctx context.Context, desired egressDesired, endpoint *network.EndpointSettings) egressAttach {
 	info, known := m.egress.networks[desired.networkName]

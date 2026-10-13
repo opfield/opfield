@@ -16,8 +16,8 @@ const (
 	ReportRoleUnknown    = "unknown"
 )
 
-// Report is one member as the node reports it to Gateway (health report),
-// with the events Gateway has not acknowledged yet.
+// Report is one member as the node reports it to Opfield (health report),
+// with the events Opfield has not acknowledged yet.
 type Report struct {
 	SetID             string
 	MemberID          string
@@ -56,7 +56,7 @@ type ManualEligibility interface {
 }
 
 // manualEligibleLocked is a manual pair's copy eligibility for the report and
-// Gateway's view (rolling changes wait on it): no lease and no certified
+// Opfield's view (rolling changes wait on it): no lease and no certified
 // value, so it is what the copy observes itself: it runs as a copy, streams
 // from the primary within maxLagBytes and needs no rejoin.
 func (m *Manager) manualEligibleLocked(mem *member, now time.Duration) (bool, string) {
@@ -112,7 +112,7 @@ func (m *Manager) Reports() []Report {
 
 // reportEligibility is whether a copy could take the primary role over now,
 // under the latest verified commit (the lease asks only when it acquires, so
-// the last answer it got can be stale or missing): the report and Gateway's
+// the last answer it got can be stale or missing): the report and Opfield's
 // view of eligible copies. It is informational; no decision rests on it.
 func (m *Manager) reportEligibility(mem *member, commit CertifiedState) (bool, string, bool) {
 	if mem.state.Detached != nil {

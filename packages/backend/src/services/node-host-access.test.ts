@@ -85,7 +85,7 @@ describe('node host access switches', () => {
   });
 
   it('maps protected mode and its database witness switch to node capability flags', () => {
-    // A protected relay also advertises the console and file markers, for Gateways that know only those.
+    // A protected relay also advertises the console and file markers, for Opfield releases that know only those.
     expect(
       nodeHostAccessFlags([NODE_PROTECTED_CAPABILITY, NODE_CONSOLE_DISABLED_CAPABILITY, NODE_FILES_DISABLED_CAPABILITY])
     ).toEqual({ nodeProtected: true, nodeConsoleDisabled: true, nodeFilesDisabled: true });
@@ -117,7 +117,7 @@ describe('node host access switches', () => {
       });
     }
     expect(sent).toEqual([]);
-    // The fixed host identity read is Gateway's own file, not host access.
+    // The fixed host identity read is Opfield's own file, not host access.
     await expect(dispatch.sendNodeFileCommand('node-1', 'ensure-host-identity')).resolves.toMatchObject({
       success: true,
     });

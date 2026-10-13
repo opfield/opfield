@@ -15,7 +15,7 @@ import { getEffectiveNodeServiceAddress, getEffectivePublishedNodeIP } from '@/m
 
 const logger = createChildLogger('DatabaseConnectionService');
 
-/** Pools of external databases: a connection lost while a query session holds it fails that session, not Gateway. */
+/** Pools of external databases: a connection lost while a query session holds it fails that session, not Opfield. */
 class Pool extends pg.Pool {
   constructor(config?: pg.PoolConfig) {
     super(config);

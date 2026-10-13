@@ -16,8 +16,8 @@ import (
 
 const migrationChunkBytes = 1024 * 1024
 
-// errMigrationStreamClosed: Gateway ended the stream with no transfer on it,
-// as it does when the daemon or Gateway restarts, the control session moves
+// errMigrationStreamClosed: Opfield ended the stream with no transfer on it,
+// as it does when the daemon or Opfield restarts, the control session moves
 // (a daemon or relay update), or a newer stream of the node replaces it. The
 // daemon opens it again; that is no failure.
 var errMigrationStreamClosed = errors.New("migration transfer stream closed by Opfield")
@@ -60,7 +60,7 @@ func (p *DockerPlugin) RunMigrationStream(ctx context.Context, conn *grpc.Client
 			case errors.Is(err, errMigrationStreamClosed):
 				p.logger.Info("migration transfer stream closed by Opfield, opening it again")
 			case !errors.Is(err, io.EOF) && connector.PlannedDisconnect(err):
-				// Gateway or the relay on the way stopped gracefully (an
+				// Opfield or the relay on the way stopped gracefully (an
 				// update or restart). An EOF during a transfer stays a warning.
 				p.logger.Info("migration transfer stream disconnected", "error", err)
 			default:
@@ -184,7 +184,7 @@ func (p *DockerPlugin) runMigrationStream(ctx context.Context, conn *grpc.Client
 			}
 		case *pb.MigrationTransferControl_Ack:
 			// Read acknowledgements are advisory. Resumption always starts from the
-			// persisted offset supplied by the gateway on the next read request.
+			// persisted offset supplied by Opfield on the next read request.
 		default:
 			return fmt.Errorf("unsupported migration transfer control")
 		}

@@ -21,7 +21,7 @@ export const RELAY_MAX_FRAME_BYTES = 1024 * 1024;
 
 /**
  * Tunnel channels advertise a 16 MiB HTTP/2 window (stream and connection) instead of grpc-js's 64 KiB, which it never
- * grows: every byte from the relay to Gateway (storage browser downloads, query results) moved at most 64 KiB per round
+ * grows: every byte from the relay to Opfield (storage browser downloads, query results) moved at most 64 KiB per round
  * trip, 32-38 MB/s on the local relay and about 1 MB/s through a relay 60 ms away. RSv1 windows still bound what a
  * stream holds; grpc-go's own windows grow to 16 MiB the same way (BDP estimation).
  */
@@ -84,7 +84,7 @@ interface RelayTunnelMessage {
 
 /**
  * A received frame's bytes as a Buffer without copying them: gRPC decodes every message into memory of its own, which
- * nothing reuses. A copy per frame cost Gateway's storage downloads a few percent of the main thread plus its garbage.
+ * nothing reuses. A copy per frame cost Opfield's storage downloads a few percent of the main thread plus its garbage.
  */
 export function frameBytes(data: Uint8Array): Buffer {
   return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
@@ -182,7 +182,7 @@ class RelayResumePath implements AttachablePath {
     readonly relayId: string,
     private readonly channel: grpc.Channel | null,
     private readonly dispose: () => void,
-    /** A path through the local relay, on Gateway's own host. */
+    /** A path through the local relay, on Opfield's own host. */
     readonly local = false
   ) {
     stream.on('data', (message: RelayTunnelMessage) => {
@@ -334,7 +334,7 @@ export interface RelayHealthResponse {
   assignmentTunnels?: Array<{ endpointId: string; assignmentGeneration: string; activeTunnels: string }>;
   policyKeyIds?: string[];
   /**
-   * Acceptor and data-path gate view of a relay advertising availability_lease_v1, in the shape of gateway.v1
+   * Acceptor and data-path gate view of a relay advertising availability_lease_v1, in the shape of opfield.v1
    * AvailabilityLeaseReport (member_id is the relay instance id).
    */
   availabilityLease?: AvailabilityLeaseReport | null;
@@ -361,14 +361,14 @@ export interface RelayControlClientOptions {
   certificatePath: string;
   privateKeyPath: string;
   /**
-   * The client certificate the running relay may still trust after Gateway renewed its own at
+   * The client certificate the running relay may still trust after Opfield renewed its own at
    * start-up. The relay reloads its identity only when a client it trusts asks, so the first
    * admin call uses this one and then moves to the renewed certificate.
    */
   previousCertificatePath?: string;
   previousPrivateKeyPath?: string;
   /**
-   * The client identity to present instead of the files: Gateway's tunnel worker presents the identity the main
+   * The client identity to present instead of the files: Opfield's tunnel worker presents the identity the main
    * thread's client is on (until the relay confirmed a renewal that is the previous one, see previousCertificatePath).
    */
   identity?: ClientIdentity;
@@ -397,9 +397,9 @@ export interface RelayLoadedIdentity {
   appClientCertificateSha256: string;
 }
 
-/** The client identity Gateway moved to after the relay confirmed a reload. */
+/** The client identity Opfield moved to after the relay confirmed a reload. */
 export interface RelayIdentityActivation {
-  /** The client certificate Gateway presents to relays from now on. */
+  /** The client certificate Opfield presents to relays from now on. */
   certificate: Buffer;
   /** Its fingerprint, "sha256:<hex>", or null when it does not parse. */
   certificateSha256: string | null;
@@ -440,7 +440,7 @@ export class RelayControlClient {
   private pendingIdentityCommit?: string;
   /** Clients whose channel never left IDLE: their first call resolves the relay's address, so none is replaced. */
   private readonly unusedClients = new WeakSet<object>();
-  /** Gateway's tunnel worker follows the identity this client presents and its channel replacements. */
+  /** Opfield's tunnel worker follows the identity this client presents and its channel replacements. */
   private readonly identityListeners = new Set<(identity: ClientIdentity) => void>();
   private readonly reconnectListeners = new Set<() => void>();
 
@@ -557,7 +557,7 @@ export class RelayControlClient {
   }
 
   /**
-   * The settings Gateway's tunnel worker builds its own client from: the local relay, the system CA and the client
+   * The settings Opfield's tunnel worker builds its own client from: the local relay, the system CA and the client
    * identity presented now (followed through onIdentityChange).
    */
   tunnelClientSettings(): { target: string; systemCaPath: string; identity: ClientIdentity } {
@@ -591,14 +591,14 @@ export class RelayControlClient {
   }
 
   /**
-   * Called whenever the relay confirmed a reload and Gateway moved to the client identity on
+   * Called whenever the relay confirmed a reload and Opfield moved to the client identity on
    * disk, including a reload a later admin call converged.
    */
   setIdentityActivationListener(listener: (activation: RelayIdentityActivation) => void): void {
     this.identityActivationListener = listener;
   }
 
-  /** Fingerprint of the client certificate Gateway presents to relays now; grants must name it. */
+  /** Fingerprint of the client certificate Opfield presents to relays now; grants must name it. */
   activeClientCertificateSha256(): string | null {
     return certificateSha256(this.activeIdentity.certificate);
   }
@@ -738,7 +738,7 @@ export class RelayControlClient {
       result = (await this.unary('ReloadIdentity', { operationId: pending.operationId }, timeoutMs)) as typeof result;
     } catch (error) {
       // The relay no longer trusts the current client: it already loaded the renewed identity
-      // (it restarted, or another Gateway process reloaded it). Move to the renewed client
+      // (it restarted, or another Opfield process reloaded it). Move to the renewed client
       // once the relay accepts it; there is no rotation left to commit.
       if (!isClientIdentityRefusal(error)) throw error;
       await this.unaryWith(pending.admin, 'GetHealth', {}, timeoutMs);
@@ -847,26 +847,26 @@ export class RelayControlClient {
 
   /**
    * The route's target answered a HELLO with something else within the latch time: use raw streams. A new key id
-   * (Gateway turned the route's resumable streams back on) ends the latch.
+   * (Opfield turned the route's resumable streams back on) ends the latch.
    */
   isResumeLegacy(routeId: string, keyId?: string): boolean {
     return this.resumeRegistry.isLegacy(routeId, keyId);
   }
 
   /**
-   * Moves Gateway's resumable streams off a draining relay, spread until the deadline (unix ms; 0 or absent: over a
+   * Moves Opfield's resumable streams off a draining relay, spread until the deadline (unix ms; 0 or absent: over a
    * minute). Returns how many streams are affected.
    */
   migrateResumableTunnels(relayInstanceId: string, deadlineUnixMs = 0): number {
     return this.resumeRegistry.drainRelay(relayInstanceId, deadlineUnixMs);
   }
 
-  /** Telemetry for Gateway's own relayed streams. */
+  /** Telemetry for Opfield's own relayed streams. */
   relayResumeStats(): RelayResumeStatsSnapshot {
     return this.resumeRegistry.snapshot();
   }
 
-  /** Counts a raw (legacy) Gateway stream for telemetry while it is open. */
+  /** Counts a raw (legacy) Opfield stream for telemetry while it is open. */
   trackLegacyTunnel(tunnel: Duplex, relayInstanceId = LEGACY_RELAY_PATH_ID): Duplex {
     this.resumeRegistry.countLegacy(1, relayInstanceId);
     tunnel.once('close', () => this.resumeRegistry.countLegacy(-1, relayInstanceId));
@@ -881,7 +881,7 @@ export class RelayControlClient {
   private createCandidateBroker(address: string, candidate: RelayTunnelCandidate): any {
     const relayV1 = loadRelayV1Proto();
     const expectedFingerprint = normalizeCertificateFingerprint(candidate.certificateFingerprint);
-    // Present the identity the local clients present, which Gateway's tunnel grants name: until
+    // Present the identity the local clients present, which Opfield's tunnel grants name: until
     // the local relay confirmed a renewal it is the previous one, even with renewed files installed.
     const credentials = grpc.credentials.createSsl(
       readFileSync(this.options.systemCaPath),

@@ -59,7 +59,7 @@ export const CreateAlertRuleSchema = z
 
     // Message template
     messageTemplate: z.string().max(4096).optional(),
-    // Sent when the alert resolves; empty uses Gateway's resolve text for the rule
+    // Sent when the alert resolves; empty uses Opfield's resolve text for the rule
     resolveMessageTemplate: z.string().max(4096).nullable().optional(),
 
     // Webhooks to deliver to

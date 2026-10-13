@@ -19,7 +19,7 @@ func heldView(t *testing.T, report Report) Held {
 }
 
 // B-14: the holder reports when it acquired the key with every report, not
-// only in the acquired event. Reports built while Gateway is away drain that
+// only in the acquired event. Reports built while Opfield is away drain that
 // event, and the next voter to report after a restart only knows when it
 // first saw the holder.
 func TestHolderReportsItsAcquisitionTimeUntilItStopsHolding(t *testing.T) {
@@ -68,7 +68,7 @@ func TestHolderReportsItsAcquisitionTimeUntilItStopsHolding(t *testing.T) {
 	}
 }
 
-// N-15: Gateway measures a daemon's clock offset from ReportedAtUnixMs and
+// N-15: Opfield measures a daemon's clock offset from ReportedAtUnixMs and
 // moves the report's times by it, so every time in one report is on the wall
 // clock of that moment, also a transition collected before the wall clock was
 // stepped (a VM resumed from suspend runs behind until NTP steps it).
@@ -101,7 +101,7 @@ func TestReportTimesShareTheReportsWallClock(t *testing.T) {
 
 // M-5: a copy that kept running through a daemon restart continues its
 // holding. Its renewal is reported as recovered, without a start time, so
-// Gateway neither resets holderSince nor audits a re-acquisition. A key the
+// Opfield neither resets holderSince nor audits a re-acquisition. A key the
 // node acquires anew reports its start (TestHolderReportsItsAcquisitionTime...).
 func TestRecoveredKeyContinuesTheHoldingWithoutAStartTime(t *testing.T) {
 	w := twoCandidateWorld(t)

@@ -1,4 +1,4 @@
-// Disposable release smoke: resolve the default from the built Gateway image,
+// Disposable release smoke: resolve the default from the built Opfield image,
 // then execute that exact runner against real PostgreSQL and S3, without overrides.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';

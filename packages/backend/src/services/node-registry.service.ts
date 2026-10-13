@@ -26,7 +26,7 @@ export const MANAGED_LINK_RUNTIME_CAPABILITY = 'managed_link_runtime_v1';
 /** The node's link report counts the sessions that ended (completed_total), same-node ones included. */
 export const MANAGED_LINK_COMPLETED_CAPABILITY = 'managed_link_completed_v1';
 /**
- * After Gateway starts, nodes that were online reconnect to the new process within seconds (1–11 s on a test stand,
+ * After Opfield starts, nodes that were online reconnect to the new process within seconds (1–11 s on a test stand,
  * over the relay). Until then they count as reconnecting, not offline; one still missing after this long is shown
  * offline (stale-node detection marks it in the database later).
  */
@@ -561,7 +561,7 @@ export class NodeRegistryService {
 
   /**
    * The node is not connected but is expected back: its stream closed moments ago and it is still inside the
-   * reconnect grace, the local relay every stream runs through restarts (or restarted moments ago), or Gateway itself
+   * reconnect grace, the local relay every stream runs through restarts (or restarted moments ago), or Opfield itself
    * started moments ago and the node has not reconnected to it yet.
    */
   isReconnecting(nodeId: string, now = Date.now()): boolean {
@@ -769,8 +769,8 @@ export class NodeRegistryService {
       ...command,
       commandId,
       // The daemon drops a command that is already past the point where the
-      // gateway stops waiting for it. It judges the deadline against sentAt,
-      // on the gateway clock, so clock skew between hosts cannot expire it.
+      // Opfield stops waiting for it. It judges the deadline against sentAt,
+      // on the Opfield clock, so clock skew between hosts cannot expire it.
       // Older daemons ignore both fields.
       expiresAtUnixMs: String(sentAt + timeoutMs),
       sentAtUnixMs: String(sentAt),

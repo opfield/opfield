@@ -17,7 +17,7 @@ import (
 )
 
 // Enroll performs the initial enrollment with a PSK token.
-// The enrollment token is only sent after the Gateway TLS leaf certificate
+// The enrollment token is only sent after the Opfield TLS leaf certificate
 // matches the expected SHA-256 fingerprint.
 func Enroll(address, token, expectedOpfieldCertSHA256, hostname, nginxVersion, osInfo, daemonVersion, daemonType, hostIdentityID string) (*pb.EnrollResponse, error) {
 	expectedFingerprint, err := normalizeExpectedFingerprint(expectedOpfieldCertSHA256)

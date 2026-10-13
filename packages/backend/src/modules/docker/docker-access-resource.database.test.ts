@@ -12,7 +12,7 @@ const runtime = (digit: string) => digit.repeat(64);
 
 /**
  * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a container keeps its access identity, and the grants on it, across a
- * Gateway recreate whose task ended before anyone saw the replacement (no transition, no watcher), and a lagging
+ * Opfield recreate whose task ended before anyone saw the replacement (no transition, no watcher), and a lagging
  * snapshot that still lists the replaced runtime cannot take the identity back. A container nobody recreated under
  * the same name still gets a new identity without the previous one's grants.
  */

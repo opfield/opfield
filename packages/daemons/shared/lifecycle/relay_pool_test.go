@@ -32,7 +32,7 @@ import (
 
 // A re-enrolled relay comes back with a new certificate. Its lanes pinned the
 // old one and failed every handshake until the daemon restarted; they must be
-// rebuilt for the certificate Gateway hands out, while the lanes to the other
+// rebuilt for the certificate Opfield hands out, while the lanes to the other
 // relay stay as they are.
 func TestRelayPoolReplacesLanesOfAReEnrolledRelay(t *testing.T) {
 	pki := newRelayTestPKI(t)
@@ -226,7 +226,7 @@ func (r *testRelay) servedName(name string) bool {
 	return slices.Contains(r.served, name)
 }
 
-// target is what Gateway's grants name for the relay: its current certificate.
+// target is what Opfield's grants name for the relay: its current certificate.
 func (r *testRelay) target(id string) RelayTunnelTarget {
 	r.mu.Lock()
 	defer r.mu.Unlock()

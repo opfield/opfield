@@ -107,7 +107,7 @@ export interface LeaseObservationCandidate {
   stateHash?: string | null;
 }
 
-/** Where a takeover time came from: the holder itself, the earliest voter sighting, or when Gateway noticed it. */
+/** Where a takeover time came from: the holder itself, the earliest voter sighting, or when Opfield noticed it. */
 export type LeaseTakeoverSource = 'holder' | 'voters' | 'noticed';
 
 /**
@@ -123,7 +123,7 @@ export interface LeaseHolderChange {
   /** The same node took the slot again after it lapsed (M-5): a new holding, audited as such. */
   reacquired?: boolean;
   ballot: DockerAvailabilityLeaseBallot | null;
-  /** The takeover time: the holder's own, the earliest voter sighting, or when Gateway noticed it. */
+  /** The takeover time: the holder's own, the earliest voter sighting, or when Opfield noticed it. */
   holderSince?: Date;
   takeoverSource?: LeaseTakeoverSource;
   /** When the previous holder was last seen holding: no voter sighting of the takeover can be earlier. */
@@ -156,8 +156,8 @@ function leaseHoldingStart(holderId: string, candidates: LeaseObservationCandida
 }
 
 /**
- * N-5 / B-14: the takeover time of a new holder, not when Gateway noticed it (after an autonomous failover while
- * Gateway was down that can be minutes later). The holder's own acquisition time wins. Otherwise a voter sighting is an
+ * N-5 / B-14: the takeover time of a new holder, not when Opfield noticed it (after an autonomous failover while
+ * Opfield was down that can be minutes later). The holder's own acquisition time wins. Otherwise a voter sighting is an
  * upper bound (a voter cannot see the commit before it happened, but may see it late), so the earliest one counts; it
  * is never before the previous holder was last seen holding, nor in the future.
  */
@@ -246,7 +246,7 @@ export function mergeLeaseObservation(
   const lastKnown = previousHolder ?? stored?.lastHolderId ?? null;
   // The previous holder was last seen holding when it was last observed; a takeover cannot be earlier.
   const previousSeenAt = stored?.holderId ? stored.observedAt : null;
-  // When Gateway saw the last holder stop holding (a fence, a release), while the key has no holder since.
+  // When Opfield saw the last holder stop holding (a fence, a release), while the key has no holder since.
   const lapsedAt = !previousHolder && lastKnown && stored ? stored.observedAt : null;
   let takeoverSource: LeaseTakeoverSource | undefined;
   let reacquired = false;
@@ -254,7 +254,7 @@ export function mergeLeaseObservation(
     const order = compareLeaseBallots(best.ballot, next.ballot);
     if (order > 0) {
       if (next.holderId !== best.holderId && best.holderId === lastKnown && lapsedAt) {
-        // M-5: the node Gateway saw stop holding holds the key again. A new holding when a time proves it started after
+        // M-5: the node Opfield saw stop holding holds the key again. A new holding when a time proves it started after
         // that report: the node's own start, or a voter's first commit of it. A voter's sighting from before may date
         // from the holding that lapsed (stand run rc20pre2 d kept 15:10:04 for a re-acquisition at 15:37:06), and a
         // daemon that restarted reports its key before it recovered it, so without such a time nothing is audited and
@@ -295,9 +295,9 @@ export function mergeLeaseObservation(
     }
   }
   // B-14: the same holder's own acquisition time corrects a takeover time first taken from a voter that saw it late
-  // (one that restarted after the takeover) or from when Gateway noticed it. M-5: recorded times of one holding are
+  // (one that restarted after the takeover) or from when Opfield noticed it. M-5: recorded times of one holding are
   // never earlier than its acquisition, so a later acquisition is a new holding: the key lapsed and the same node took
-  // it again while Gateway was away or between two reports.
+  // it again while Opfield was away or between two reports.
   if (next.holderId && next.holderId === previousHolder) {
     const exact = leaseExactHolderSince(next.holderId, input.candidates, now);
     const started = leaseHoldingStart(next.holderId, input.candidates, now);

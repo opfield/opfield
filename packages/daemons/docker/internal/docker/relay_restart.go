@@ -57,7 +57,7 @@ func (p *DockerPlugin) AnnounceRestart() {
 drain:
 	if len(acks) > 0 {
 		p.logger.Info("announced the restart to the relays", "registrations", len(acks))
-		// The next process takes over the registrations the relays hold for it without waiting for Gateway.
+		// The next process takes over the registrations the relays hold for it without waiting for Opfield.
 		if err := writeRestartMarker(p.cfg.StateDir, time.Now()); err != nil {
 			p.logger.Warn("could not record the restart announcement; the next process waits for Opfield before it registers", "error", err)
 		}

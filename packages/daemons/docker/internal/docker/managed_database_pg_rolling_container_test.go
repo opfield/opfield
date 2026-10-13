@@ -51,7 +51,7 @@ func pgrtConfig(memberID, dbID string) memberha.Config {
 }
 
 // pgrtRuntime gives a node the real member runtime: the Postgres engine of
-// the daemon, Gateway always in contact, the peer's assignment over a direct
+// the daemon, Opfield always in contact, the peer's assignment over a direct
 // call (the member-control port), every assignment accepted as signed.
 func pgrtRuntime(t *testing.T, n *pgctNode, logger *slog.Logger, peer func() *memberha.Manager) *memberha.Manager {
 	t.Helper()
@@ -182,7 +182,7 @@ func TestPostgresRollingUpdate(t *testing.T) {
 		t.Fatalf("seed the single-node database: %v", err)
 	}
 
-	// Gateway's order: configure the members (the runtime opens the engines),
+	// Opfield's order: configure the members (the runtime opens the engines),
 	// ensure them, then name the primary.
 	if err := am.Configure(pgrtConfig(pgctA, pgctDBA)); err != nil {
 		t.Fatal(err)
@@ -239,7 +239,7 @@ func TestPostgresRollingUpdate(t *testing.T) {
 	}
 	pgctWait(t, "B replays A's write", time.Minute, func() bool { return b.count(t, "sync1") == 1 })
 
-	// Rolling update, copy first: Gateway sends the update with the new image
+	// Rolling update, copy first: Opfield sends the update with the new image
 	// while the runtime runs; the daemon holds the member, recreates its
 	// container on the same data and hands it back; the runtime starts it as a
 	// copy and it streams from the primary again. The primary keeps taking
@@ -304,7 +304,7 @@ func TestPostgresRollingUpdate(t *testing.T) {
 	}
 	pgctWait(t, "the updated copy replays A's write", time.Minute, func() bool { return b.count(t, "after_copy_update") == 1 })
 	t.Logf("copy updated: %s -> %s", before[:12], b.containerID(t)[:12])
-	// Gateway's rolling update waits for this report: the updated copy is an
+	// Opfield's rolling update waits for this report: the updated copy is an
 	// eligible copy, and the primary names it among its synchronous copies.
 	reportOf := func(m *memberha.Manager) memberha.Report {
 		for _, r := range m.Reports() {

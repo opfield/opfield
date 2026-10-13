@@ -17,11 +17,11 @@ type MemberState struct {
 	// Assignment is a manual pair's latest primary assignment.
 	Assignment Assignment `json:"assignment"`
 	// SelfFenced is the generation under which this member, as the manual
-	// primary, demoted itself (it reached neither Gateway nor its peer); 0
+	// primary, demoted itself (it reached neither Opfield nor its peer); 0
 	// when it did not. It serves again under that generation once it reaches
 	// either and no newer assignment exists.
 	SelfFenced uint64 `json:"selfFenced,omitempty"`
-	// Stopped: Gateway removes the member; it stays stopped.
+	// Stopped: Opfield removes the member; it stays stopped.
 	Stopped bool `json:"stopped,omitempty"`
 	// Held: this member held the primary role of the set's lease at least
 	// once (a detach before the first holder is refused afterwards, H2).
@@ -29,7 +29,7 @@ type MemberState struct {
 	// Detached: a detach before the first holder began (H2); the member
 	// takes no lease role any more until the daemon forgets it.
 	Detached *DetachState `json:"detached,omitempty"`
-	// Restart is a restart Gateway asked for (settings that need one, M4);
+	// Restart is a restart Opfield asked for (settings that need one, M4);
 	// cleared once it ran.
 	Restart *RestartRequest `json:"restart,omitempty"`
 	// RestartDone is the operation id of the last restart that finished, so a
@@ -112,8 +112,8 @@ func (s *Store) LoadAll() (map[string]storedMember, error) {
 	return out, nil
 }
 
-// Event kinds reported to Gateway (audit availability.*) and kept on disk
-// until Gateway acknowledges them.
+// Event kinds reported to Opfield (audit availability.*) and kept on disk
+// until Opfield acknowledges them.
 const (
 	EventPromoted        = "promoted"
 	EventFenced          = "fenced"

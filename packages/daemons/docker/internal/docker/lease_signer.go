@@ -146,7 +146,7 @@ func (k *identityKeys) OverlapEnded() {
 	_ = os.Remove(k.previousPath)
 }
 
-// publicKeyDER is the newest key, reported so the Gateway republishes the
+// publicKeyDER is the newest key, reported so Opfield republishes the
 // manifests naming this node with it.
 func (k *identityKeys) publicKeyDER() []byte {
 	current, err := k.reload()

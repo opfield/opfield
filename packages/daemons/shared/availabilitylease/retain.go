@@ -9,7 +9,7 @@ import (
 // Graceful close: leaving lease mode without stopping the serving copy.
 //
 // A closed manifest names, per slot, the retained holder: the committed
-// holder Gateway saw when it closed the lease. Every acceptor that adopted
+// holder Opfield saw when it closed the lease. Every acceptor that adopted
 // the closed manifest refuses every prepare and propose of the policy (as for
 // any closed manifest) and confirms the close to the slot's retained holder
 // when it asks (LeaseRetain -> LeaseRetained). Anyone else, or a named holder
@@ -29,7 +29,7 @@ import (
 // manifest does not name fences at once.
 //
 // Only a newer non-closed manifest ends the retained state (lease mode entered
-// again): Gateway then names the running copy's node the bootstrap holder
+// again): Opfield then names the running copy's node the bootstrap holder
 // (D1), which acquires while its copy keeps running.
 
 // retainRetry is how often a holder asks the members to confirm the close.
@@ -166,7 +166,7 @@ func (n *Node) onRetain(from string, msg *pb.LeaseRetain, now time.Duration) {
 
 // supersedesRetained reports whether this acceptor knows a commit or an
 // accept of another proposer after the named holder's latest ballot it knows
-// (or the one Gateway named): the named holder is stale, and the actual
+// (or the one Opfield named): the named holder is stale, and the actual
 // holder must not be outlived by a retained copy.
 func (n *Node) supersedesRetained(ak *acceptorKey, retained RetainedHolder, _ time.Duration) bool {
 	if ak == nil {

@@ -18,7 +18,7 @@ import (
 )
 
 // Relay clients of a managed database endpoint (database links from app
-// containers, the Gateway's own database tools) reach PostgreSQL as plain
+// containers, Opfield's own database tools) reach PostgreSQL as plain
 // protocol bytes: the relay is the transport security for that leg, and
 // application URIs carry no sslmode. A TLS-enabled managed PostgreSQL accepts
 // only hostssl connections, so for a client that does not negotiate TLS itself
@@ -44,8 +44,8 @@ var (
 	managedPostgresLinkServerTimeout = 10 * time.Second
 )
 
-// managedPostgresLinkIdentity is the common name the Gateway Database CA
-// issues a managed database leaf with (the Gateway checks the same identity).
+// managedPostgresLinkIdentity is the common name the Opfield Database CA
+// issues a managed database leaf with (Opfield checks the same identity).
 func managedPostgresLinkIdentity(managedDatabaseID string) string {
 	return "managed-db-" + managedDatabaseID
 }
@@ -138,7 +138,7 @@ func (m *managedDatabaseManager) dialRecord(ctx context.Context, managedDatabase
 // packet and returns the connection the relay bridge should use:
 //
 //   - SSLRequest: forwarded unchanged; the client negotiates TLS end to end
-//     with PostgreSQL (the Gateway's verified database tools, sslmode=require).
+//     with PostgreSQL (Opfield's verified database tools, sslmode=require).
 //   - GSSENCRequest: answered 'N' here; the client's next packet is read.
 //   - StartupMessage, CancelRequest or anything else: the daemon opens TLS to
 //     PostgreSQL itself and forwards the packet through it.
@@ -230,7 +230,7 @@ func startManagedPostgresTLS(ctx context.Context, connection net.Conn, config *t
 }
 
 // managedPostgresLinkTLSConfig verifies the served certificate against the
-// managed database's own CA material and the identity the Gateway issued it.
+// managed database's own CA material and the identity Opfield issued it.
 // The daemon dials the container's private bridge address, which is never a
 // certificate name (the leaf carries the node's service addresses), so the
 // hostname check is replaced by the chain and common-name check below.

@@ -33,7 +33,7 @@ export interface DockerDeploymentDesiredConfig {
   workingDir?: string;
   user?: string;
   labels?: Record<string, string>;
-  /** Internal, Gateway-owned private networks (for managed database connectors). */
+  /** Internal, Opfield-owned private networks (for managed database connectors). */
   networks?: string[];
   restartPolicy?: 'no' | 'always' | 'unless-stopped' | 'on-failure';
   runtimeProfile?: 'default' | 'secure';

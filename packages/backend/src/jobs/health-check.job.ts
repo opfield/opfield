@@ -44,7 +44,7 @@ const DAEMON_BUSY_ERROR = SECURE_LINK_PROBE_BUSY_ERROR;
 const SLOW_BASELINE_WINDOW_MS = 3 * 60 * 60 * 1000; // 3 hours of history for baseline avg
 const SLOW_RESPONSE_FLOOR_MS = 250;
 /**
- * Daemons re-register a few seconds after the Gateway starts, and the first health run can come
+ * Daemons re-register a few seconds after Opfield starts, and the first health run can come
  * first. Within this window a probe that failed only because its node has not reconnected yet is
  * retried on the next run instead of being recorded or reported.
  */
@@ -311,8 +311,8 @@ export class HealthCheckJob {
           id: host.id,
           name: host.domainNames?.[0] ?? host.id,
         },
-        // A probe Gateway sent itself that got no answer (DNS, connect, timeout): a route alert it raises folds
-        // under "Gateway lost outbound connectivity" while that alert fires.
+        // A probe Opfield sent itself that got no answer (DNS, connect, timeout): a route alert it raises folds
+        // under "Opfield lost outbound connectivity" while that alert fires.
         newStatus === 'offline' && unreachable
           ? { health_status: newStatus, probe_failure: 'unreachable' }
           : { health_status: newStatus },
@@ -471,7 +471,7 @@ export class HealthCheckJob {
 
   /**
    * Whether a probe failed only because its node is expected to be away: within the startup grace (nodes reconnect
-   * after a Gateway restart), while it reconnects (its stream just closed, or the local relay restarts) or while the
+   * after an Opfield restart), while it reconnects (its stream just closed, or the local relay restarts) or while the
    * node's daemon is being updated (it restarts on its own).
    */
   private async awaitingNodeReconnect(nodeId: string, errors: string[]): Promise<boolean> {
@@ -486,7 +486,7 @@ export class HealthCheckJob {
 
   /**
    * One health sample. A route on an ingress group is probed through every member (daemon probes) or once from
-   * Gateway with the members' ingress health folded in (direct upstreams); see proxy-group-health.
+   * Opfield with the members' ingress health folded in (direct upstreams); see proxy-group-health.
    */
   private async checkHost(
     host: typeof proxyHosts.$inferSelect,
@@ -496,7 +496,7 @@ export class HealthCheckJob {
     status: 'online' | 'offline' | 'degraded' | 'skipped' | 'deferred' | 'unknown';
     responseMs?: number;
     members?: GroupRouteHealth['members'];
-    /** Gateway probed the upstream itself and got no answer. */
+    /** Opfield probed the upstream itself and got no answer. */
     unreachable?: boolean;
   }> {
     if (!host.ingressGroupId || !servingNodeIds || servingNodeIds.length === 0) {
@@ -506,7 +506,7 @@ export class HealthCheckJob {
       const outcomes = await Promise.all(
         servingNodeIds.map(async (nodeId) => {
           if (this.nodeDispatch && !this.nodeDispatch.isNodeConnected(nodeId)) {
-            // Expected back (a Gateway start, a stream that just closed, a local relay restart): no sample yet.
+            // Expected back (an Opfield start, a stream that just closed, a local relay restart): no sample yet.
             const expectedBack =
               Date.now() - this.startedAt < NODE_RECONNECT_GRACE_MS || this.nodeDispatch.isNodeReconnecting?.(nodeId);
             return {
@@ -664,7 +664,7 @@ export class HealthCheckJob {
     }
     const probe = await probeDirectProxyUpstream(host, this.probeDeps);
     if (probe.status === 'blocked') {
-      // Not an upstream failure: the Gateway is not allowed to reach this target, so the health is unknown.
+      // Not an upstream failure: Opfield is not allowed to reach this target, so the health is unknown.
       if (host.healthStatus !== 'unknown') {
         logger.warn('Health check target blocked by outbound network policy', {
           hostId: host.id,

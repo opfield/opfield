@@ -123,7 +123,7 @@ export function withSystemApi<TBase extends ApiClientBaseConstructor>(Base: TBas
       );
     }
 
-    /** Stop reporting a Gateway update that was rolled back. */
+    /** Stop reporting an Opfield update that was rolled back. */
     async acknowledgeUpdateFailure(): Promise<{ acknowledged: boolean }> {
       return this.unwrapData(
         this.request<{ data: { acknowledged: boolean } }>("/system/update/acknowledge", {

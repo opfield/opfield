@@ -8,14 +8,14 @@ import (
 )
 
 const (
-	// imagePullRetention is how long a finished pull is remembered: Gateway asks for it once the node is connected
+	// imagePullRetention is how long a finished pull is remembered: Opfield asks for it once the node is connected
 	// again, which is seconds to minutes after its answer was lost.
 	imagePullRetention = time.Hour
 	// imagePullRecordLimit bounds the memory a burst of pulls can hold; the oldest finished pulls go first.
 	imagePullRecordLimit = 256
 )
 
-// imagePullRecord is one image pull this daemon process ran, by the Gateway command that asked for it.
+// imagePullRecord is one image pull this daemon process ran, by the Opfield command that asked for it.
 type imagePullRecord struct {
 	CommandID        string `json:"commandId"`
 	ImageRef         string `json:"imageRef"`
@@ -26,8 +26,8 @@ type imagePullRecord struct {
 }
 
 // imagePullTracker remembers the image pulls this daemon process runs and how its recent ones ended. A pull goes on
-// when the session that asked for it drops (Gateway restarted, or the control stream broke): its result can then not
-// be sent, and Gateway asks for it with the pull_status image action once the node is connected again. The zero
+// when the session that asked for it drops (Opfield restarted, or the control stream broke): its result can then not
+// be sent, and Opfield asks for it with the pull_status image action once the node is connected again. The zero
 // value is ready to use.
 type imagePullTracker struct {
 	mu    sync.Mutex

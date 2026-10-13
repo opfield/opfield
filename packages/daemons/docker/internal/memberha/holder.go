@@ -386,7 +386,7 @@ func (m *Manager) pauseStopLocked(mem *member) {
 	})
 }
 
-// pausedRestartLocked completes a restart Gateway asked for while the set is
+// pausedRestartLocked completes a restart Opfield asked for while the set is
 // paused: the engine is down, and it starts fresh when the pause ends.
 func (m *Manager) pausedRestartLocked(mem *member) {
 	if r := mem.state.Restart; r != nil {

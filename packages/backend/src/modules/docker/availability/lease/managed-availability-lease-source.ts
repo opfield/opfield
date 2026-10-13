@@ -28,7 +28,7 @@ export const MANAGED_AVAILABILITY_LEASE_CAPABILITIES = [
   MANAGED_AVAILABILITY_MEMBER_CAPABILITY,
 ] as const;
 
-/** Voters a set of 2 data members asks for, so one data node and one witness can be lost without Gateway. */
+/** Voters a set of 2 data members asks for, so one data node and one witness can be lost without Opfield. */
 export const TWO_MEMBER_PREFERRED_VOTERS = 5;
 
 /**

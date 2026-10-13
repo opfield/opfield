@@ -9,13 +9,13 @@ import (
 
 // grantSyncWorker applies relay grant bundles off the session's receive loop, one at a time. A grant sync can take
 // seconds (database link listeners, the connector's egress); run inline, it held every other command of the session
-// back, and Gateway's command timeouts expired one after the other (S6). Bundles that arrive while one is applied
+// back, and Opfield's command timeouts expired one after the other (S6). Bundles that arrive while one is applied
 // collapse into the newest of them, and every one of those commands is answered with its result.
 //
 // Syncs never overlap, across sessions either (the grant store, the listener and egress reconciles and the relay lane
 // rebuild assume one caller): every worker of a daemon shares serial. A run of a session that ended finishes before
 // the next session's first one starts, and its results are not sent: the session that took them is gone, and
-// Gateway sends the bundle again on the new one.
+// Opfield sends the bundle again on the new one.
 type grantSyncWorker struct {
 	ctx    context.Context
 	serial *sync.Mutex

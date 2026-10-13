@@ -12,7 +12,7 @@ import (
 
 var _ lifecycle.HealthRefreshPlugin = (*DockerPlugin)(nil)
 
-// Gateway learns a container's state from the health report: it compares the states of two reports and refreshes
+// Opfield learns a container's state from the health report: it compares the states of two reports and refreshes
 // its copy of each container that changed. The periodic report comes every 30 s and its states are as old as the
 // last metrics pass (every 10 s, longer with many running containers), so a container that exits on its own would
 // show as running for up to a minute. A container event sends a report at once instead.

@@ -254,7 +254,7 @@ const DEMO_ADMIN_EXCLUDED_SCOPES = new Set([
   'admin:audit',
   'audit:siem:view',
   'audit:siem:manage',
-  // Gateway's own logs can carry request details and internal errors.
+  // Opfield's own logs can carry request details and internal errors.
   'diagnostics:logs',
   'logs:tokens:view',
   'logs:tokens:create',

@@ -18,7 +18,7 @@ import { DockerTaskReconciler } from './docker-task-reconciler.js';
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
- * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): a Gateway restart keeps the Docker tasks a node may still run
+ * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): an Opfield restart keeps the Docker tasks a node may still run
  * (they have tracking) active, so a daemon update waiting for the node's tasks still sees them, and settles them
  * later; a task without tracking fails as before (F-1).
  */
@@ -57,14 +57,14 @@ describe.skipIf(!url)('Docker tasks across a Gateway restart', () => {
     const untracked = await service.create({ nodeId, containerName: 'app', type: 'start' });
     await service.update(untracked.id, { status: 'running' });
 
-    // The next Gateway process starts.
+    // The next Opfield process starts.
     const restarted = new DockerTaskService(db);
     expect(await restarted.detachActiveTasksOnStartup()).toEqual({ detached: 1, failed: 1 });
 
     const kept = await restarted.get(pull.id);
     expect(kept).toMatchObject({ status: 'running', progress: DETACHED_TASK_PROGRESS });
     expect(kept.detachedAt).toBeInstanceOf(Date);
-    // The API does not show what Gateway keeps to settle the task.
+    // The API does not show what Opfield keeps to settle the task.
     expect(kept).not.toHaveProperty('tracking');
     expect(kept).not.toHaveProperty('commandId');
     expect(await restarted.get(untracked.id)).toMatchObject({
@@ -114,7 +114,7 @@ describe.skipIf(!url)('Docker tasks across a Gateway restart', () => {
       error: 'Docker node disconnected during container operation',
     });
 
-    // A second restart keeps the time Gateway first lost track of it.
+    // A second restart keeps the time Opfield first lost track of it.
     const firstDetachedAt = (await service.get(stop.id)).detachedAt;
     await new DockerTaskService(db).detachActiveTasksOnStartup();
     expect((await service.get(stop.id)).detachedAt).toEqual(firstDetachedAt);
@@ -144,7 +144,7 @@ const sealed = {
 
 /**
  * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): an update's or recreate's env follow-ups are kept sealed with its task
- * until they ran once, and still run after a Gateway restart once the node settled the task.
+ * until they ran once, and still run after an Opfield restart once the node settled the task.
  */
 describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart', () => {
   let database: Awaited<ReturnType<typeof disposableDatabase>>;
@@ -198,7 +198,7 @@ describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart',
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
-    // Gateway restarts: the watch is gone; the next process keeps the task, and what it owes, sealed.
+    // Opfield restarts: the watch is gone; the next process keeps the task, and what it owes, sealed.
     vi.clearAllTimers();
     const restarted = new DockerTaskService(db);
     await restarted.detachActiveTasksOnStartup();
@@ -250,7 +250,7 @@ describe.skipIf(!url)('Env follow-ups of Docker tasks across a Gateway restart',
     const node = fakeDockerNode(OLD_ENV, NEW_IMAGE_ENV, { answer });
     const first = opfieldProcess(node, new DockerTaskService(db), environment, nodeId);
     void updateContainerEnv(first.ctx, nodeId, 'api', { API_KEY: NEW_SECRET }, undefined, 'user-1');
-    // Gateway dies while it waits for the daemon's answer, after it saved the env.
+    // Opfield dies while it waits for the daemon's answer, after it saved the env.
     for (let attempt = 0; attempt < 100; attempt++) {
       if ((await environment.getDecryptedMap(nodeId, 'api')).API_KEY === NEW_SECRET) break;
       await new Promise((resolve) => setTimeout(resolve, 20));

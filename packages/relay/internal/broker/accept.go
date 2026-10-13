@@ -105,7 +105,7 @@ func (b *Broker) closeEndpointSessionsLocked(code codes.Code, message, endpointI
 
 // drainRefuses tells whether a draining relay refuses new tunnels to the
 // endpoint. A drain moves workload endpoints to other relays; a built-in local
-// service (the Gateway internal registry) is served only by the local relay,
+// service (Opfield internal registry) is served only by the local relay,
 // so it keeps admitting tunnels to it. See DrainKeepsLocalServicesCapability.
 func drainRefuses(endpoint *relayv1.EndpointPolicy) bool {
 	// A relay-local endpoint (a witness this relay hosts) is served only here too.

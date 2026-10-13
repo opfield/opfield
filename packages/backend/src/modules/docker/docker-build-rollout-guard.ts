@@ -60,7 +60,7 @@ function matchesTarget(rollout: ActiveDockerBuildRollout, target: DockerBuildRol
 /**
  * A build rollout owns its target from the moment it is accepted (`deploying`)
  * until it succeeds, fails or is cancelled. Ownership is the build row and its
- * lease, so it survives a Gateway restart and lapses with the lease; recovery
+ * lease, so it survives an Opfield restart and lapses with the lease; recovery
  * then either resumes the rollout (re-leasing it) or settles the build.
  */
 export class DockerBuildRolloutGuard {

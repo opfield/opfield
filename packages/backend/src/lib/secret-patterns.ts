@@ -1,5 +1,5 @@
 /**
- * Shapes of secret material that Gateway recognizes in free text: the idempotency store refuses to keep results that
+ * Shapes of secret material that Opfield recognizes in free text: the idempotency store refuses to keep results that
  * carry them, and diagnostics logs and AI tool results mask them. Non-global, so `test` is stateless; build a global
  * copy (`new RegExp(pattern.source, 'g')`) to replace.
  */

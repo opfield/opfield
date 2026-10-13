@@ -61,7 +61,7 @@ const DOCKER_VOLUME_USED_BY_PREVIEW_MAX = 100;
 
 /**
  * Scope checks alone are not enough: a caller with broad volume scopes must
- * still not reach Gateway's own volumes, which listVolumes hides. Live routes
+ * still not reach Opfield's own volumes, which listVolumes hides. Live routes
  * verify against the daemon; snapshot-served routes verify against the cached
  * inventory so they keep working while a node is offline.
  */

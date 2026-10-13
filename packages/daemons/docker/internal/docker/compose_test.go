@@ -192,7 +192,7 @@ func TestComposeServicesCarryTheirOwnConfigurationDigest(t *testing.T) {
 		t.Fatalf("service revision labels = %#v", got)
 	}
 
-	// A service without a digest of its own, and a Gateway that sends none, label it with the revision digest.
+	// A service without a digest of its own, and an Opfield that sends none, label it with the revision digest.
 	command.NormalizedModelJson = `{"serviceConfigDigests":{"web":"` + web + `"}}`
 	if got := revisionLabels(command); got["web"] != web || got["worker"] != command.ConfigDigest {
 		t.Fatalf("partial service revision labels = %#v", got)

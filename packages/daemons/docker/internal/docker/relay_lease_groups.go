@@ -18,7 +18,7 @@ import (
 // Relay paths of database and storage availability sets (member mesh).
 //
 // A connection to a set's resource (a link, a backup run) has one route per
-// member, each to that member's endpoint; Gateway sends them as one connect
+// member, each to that member's endpoint; Opfield sends them as one connect
 // assignment with the group (lease_group). This daemon opens the route of the
 // member the relays' lease gate views name the holder first, then the others
 // by rank: while the set's lease runs the relays admit only the holder, so a

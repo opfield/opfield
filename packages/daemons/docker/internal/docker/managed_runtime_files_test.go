@@ -13,7 +13,7 @@ import (
 
 // A storage engine whose staged runtime files were lost is not started (it
 // would exit at once and be started again for ever) until a restart from
-// Gateway brings the files back.
+// Opfield brings the files back.
 func TestStorageEngineWithLostRuntimeFilesWaitsForRestage(t *testing.T) {
 	loops := newFakeLoops(t)
 	root := t.TempDir()
@@ -59,7 +59,7 @@ func TestStorageEngineWithLostRuntimeFilesWaitsForRestage(t *testing.T) {
 		t.Fatalf("inspect = %s, want stopped with the six missing files", detail)
 	}
 
-	// A restart without settings (an older Gateway) cannot restage them.
+	// A restart without settings (an older Opfield) cannot restage them.
 	if _, err := m.handle(ctx, "restart", id, ""); err == nil || !strings.Contains(err.Error(), "runtime files are missing") {
 		t.Fatalf("restart without settings: error = %v", err)
 	}
@@ -84,7 +84,7 @@ func TestStorageEngineWithLostRuntimeFilesWaitsForRestage(t *testing.T) {
 }
 
 // A database engine whose TLS files were lost is not started until they are
-// restaged from Gateway's settings.
+// restaged from Opfield's settings.
 func TestDatabaseEngineWithLostTLSFilesWaitsForRestage(t *testing.T) {
 	previousChown := managedDatabaseChown
 	managedDatabaseChown = func(string, int, int) error { return nil }

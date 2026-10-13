@@ -276,13 +276,13 @@ function resourceUiHref(resource: Omit<AIResourceReference, 'refId' | 'uiHref' |
   }
 }
 
-/** The kind of Gateway resource an AI or MCP tool call works on; null for tools outside Gateway navigation. */
+/** The kind of Opfield resource an AI or MCP tool call works on; null for tools outside Opfield navigation. */
 export function inferAIToolResourceType(
   toolName: string,
   args: Record<string, unknown>
 ): AIResourceReferenceType | null {
-  // GitLab resources are external to Gateway navigation. In particular, project
-  // webhooks must never be presented as Gateway notification webhooks.
+  // GitLab resources are external to Opfield navigation. In particular, project
+  // webhooks must never be presented as Opfield notification webhooks.
   if (toolName.startsWith('gitlab_')) return null;
   if (toolName.includes('docker_container') || toolName === 'execute_docker_container_console_command') {
     return 'docker_container';

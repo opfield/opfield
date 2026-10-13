@@ -1,4 +1,4 @@
-# Gateway's SeaweedFS runtime image: the upstream release image with its weed
+# Opfield's SeaweedFS runtime image: the upstream release image with its weed
 # binary rebuilt from the same upstream commit plus the patches in patches/.
 # Everything else (Alpine base, entrypoint, user, layout) is the upstream
 # image byte for byte. Build with scripts/build-seaweedfs-image.sh; the Image

@@ -13,7 +13,7 @@ import (
 )
 
 // Signature domains of availabilitylease/doc.go: the wire contract the
-// Gateway signs lease blocks and rotation links with.
+// Opfield signs lease blocks and rotation links with.
 const (
 	domainManifest    = "gateway-availability-lease/manifest/v1"
 	domainKeyRotation = "gateway-availability-lease/key-rotation/v1"

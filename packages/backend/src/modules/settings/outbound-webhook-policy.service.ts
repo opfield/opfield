@@ -13,8 +13,8 @@ export interface OutboundWebhookPolicy {
 
 export interface OutboundTargetCheckOptions {
   /**
-   * When set, a Gateway self address is refused only on these ports. Health checks use it so an
-   * upstream on the Gateway host's own LAN address stays reachable while the Gateway's own
+   * When set, an Opfield self address is refused only on these ports. Health checks use it so an
+   * upstream on the Opfield host's own LAN address stays reachable while Opfield's own
    * services on that address do not. Webhooks leave it unset and refuse every self address.
    */
   selfAddressBlockedPorts?: ReadonlySet<number>;

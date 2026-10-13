@@ -65,7 +65,7 @@ export async function ensureLeaseState(db: Executor, policyId: string): Promise<
     .where(eq(leasePolicies.id, policyId))
     .limit(1);
   if (!registered) await registerAvailabilityLeasePolicy(db, policyId);
-  // Dated on Gateway's clock like every later mode change.
+  // Dated on Opfield's clock like every later mode change.
   const now = new Date();
   await db
     .insert(dockerAvailabilityLeaseState)
@@ -94,12 +94,12 @@ export interface RelayConnectedMembers {
 }
 
 /**
- * Voters that can take part in a lease round without Gateway (D2 margin, stand runs ha18/b and c1):
- * - alive: its own report is fresh, or a relay reported its live Coordinate stream (after a Gateway restart the local
+ * Voters that can take part in a lease round without Opfield (D2 margin, stand runs ha18/b and c1):
+ * - alive: its own report is fresh, or a relay reported its live Coordinate stream (after an Opfield restart the local
  *   relay reports within seconds, before the nodes' control sessions reconnect); never while it abstains;
- * - a relay counts unless it is Gateway's local relay, which stops with Gateway;
+ * - a relay counts unless it is Opfield's local relay, which stops with Opfield;
  * - a daemon counts only with a stream to a relay other than the local one, once any such relay reported its
- *   streams: a vote that reaches the others only through Gateway does not help a failover without it.
+ *   streams: a vote that reaches the others only through Opfield does not help a failover without it.
  */
 export function leaseReachableMemberIds(input: {
   members: LeaseMemberRow[];

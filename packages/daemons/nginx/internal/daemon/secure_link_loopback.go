@@ -23,8 +23,8 @@ import (
 // a cut ends with a reset (RST), so nginx logs an upstream error and aborts
 // the client's response instead.
 //
-// Every link Gateway gives an address listens on its own loopback address
-// (127.a.b.c, allocated uniquely per link by Gateway, one port for all), next
+// Every link Opfield gives an address listens on its own loopback address
+// (127.a.b.c, allocated uniquely per link by Opfield, one port for all), next
 // to its Unix socket: the socket stays for configs rendered before the update,
 // a rollback, and the daemon's own probes. The TCP listener follows the Unix
 // one exactly (lease gate, rotation, handover to the next process).
@@ -39,11 +39,11 @@ import (
 // close passed on to nginx), nginx ended its side, or an idle keep-alive
 // connection is let go.
 
-// NginxSecureLinkLoopbackCapability tells Gateway that this daemon serves the
+// NginxSecureLinkLoopbackCapability tells Opfield that this daemon serves the
 // loopback endpoints, so the configs of its routes may use them.
 const NginxSecureLinkLoopbackCapability = "nginx_secure_link_loopback_tcp_v1"
 
-// parseSecureLinkLoopbackAddress validates a loopback endpoint Gateway sent:
+// parseSecureLinkLoopbackAddress validates a loopback endpoint Opfield sent:
 // an IPv4 loopback address other than 127.0.0.1 (shared with every other local
 // service) and a non-zero port.
 func parseSecureLinkLoopbackAddress(value string) (string, error) {
@@ -192,7 +192,7 @@ func (b *sourceLinkBinding) takeLoopbackFrom(m *sourceLinkManager, id string, pr
 }
 
 // secureLinkLoopbackReference matches a loopback endpoint an nginx upstream
-// server directive names (Gateway renders 127.a.b.c:port, never 127.0.0.1).
+// server directive names (Opfield renders 127.a.b.c:port, never 127.0.0.1).
 var secureLinkLoopbackReference = regexp.MustCompile(`\bserver\s+(127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}:[0-9]{1,5})\b`)
 
 // isLoopbackConn reports a connection accepted on a binding's loopback

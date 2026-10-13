@@ -14,7 +14,7 @@ import (
 )
 
 // keyPolicyRebind persists the rebind a local trust reset grants, so a relay
-// restarted before Gateway's next snapshot still accepts it (F12).
+// restarted before Opfield's next snapshot still accepts it (F12).
 var keyPolicyRebind = []byte("policy-trust-rebind")
 
 // BootstrapPolicyTrust is deliberately not a general key-add operation. The
@@ -51,15 +51,15 @@ func (s *Store) BootstrapPolicyTrust(keyID string, raw []byte, fingerprint strin
 
 // ResetLocalPolicyTrust replaces pinned policy trust with a single key. It exists
 // for the local combined relay only, whose relay.db can be restored from a
-// backup that predates every key Gateway can still sign with. The caller is the
-// co-located Gateway app over its authenticated admin channel, the same channel
+// backup that predates every key Opfield can still sign with. The caller is the
+// co-located Opfield app over its authenticated admin channel, the same channel
 // that bootstraps trust in the first place. A remote relay learns keys only
 // through signed rotation and never accepts this.
 //
 // A persisted signed snapshot is dropped unless the new key signed it, so a
-// restart before Gateway's next snapshot starts empty instead of refusing to
+// restart before Opfield's next snapshot starts empty instead of refusing to
 // load. The in-memory snapshot keeps serving until that next snapshot arrives,
-// and that snapshot may rebind the relay to Gateway's current instance and
+// and that snapshot may rebind the relay to Opfield's current instance and
 // revision sequence; the rebind is persisted until then. Repeating the reset
 // with the same key changes nothing else, so a retried call is safe.
 func (s *Store) ResetLocalPolicyTrust(keyID string, raw []byte, fingerprint string) ([]string, error) {
@@ -178,7 +178,7 @@ func persistTrust(bucket *bolt.Bucket, keys map[string]trustedPolicyKey) error {
 }
 
 func (key trustedPolicyKey) validAt(at time.Time) bool {
-	// Gateway stamps ValidFrom with its own clock when it promotes a key. Allow
+	// Opfield stamps ValidFrom with its own clock when it promotes a key. Allow
 	// the same skew as IssuedAt so a relay running slightly behind does not
 	// refuse the first snapshots the new key signs.
 	if !key.ValidFrom.IsZero() && at.Add(IssuedAtClockSkew).Before(key.ValidFrom) {

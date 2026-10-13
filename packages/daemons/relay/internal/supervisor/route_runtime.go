@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// relayRouteRuntimeCapability: the supervisor answers GetRelayRouteRuntimeCommand, so Gateway shows the runtime
+	// relayRouteRuntimeCapability: the supervisor answers GetRelayRouteRuntimeCommand, so Opfield shows the runtime
 	// of routes this relay carries instead of leaving its share unknown.
 	relayRouteRuntimeCapability = "relay_route_runtime_v1"
 	// maxRuntimeRoutes bounds one command: a link has one route per Availability placement, a route on an ingress
@@ -30,7 +30,7 @@ type routeRuntimeReport struct {
 }
 
 // routeRuntime asks the worker for the runtime of each route. A route the worker's policy does not hold is missing;
-// any other failure fails the whole answer, so Gateway never takes a partial one as complete.
+// any other failure fails the whole answer, so Opfield never takes a partial one as complete.
 func (m *workerManager) routeRuntime(ctx context.Context, routeIDs []string) (string, error) {
 	if len(routeIDs) == 0 || len(routeIDs) > maxRuntimeRoutes {
 		return "", fmt.Errorf("route runtime needs 1 to %d route ids", maxRuntimeRoutes)

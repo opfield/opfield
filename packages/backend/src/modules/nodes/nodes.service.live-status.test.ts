@@ -10,7 +10,7 @@ async function nodeView(metadata: Record<string, unknown>) {
   const row = { id: NODE, status: 'online', metadata, type: 'docker', healthHistory: [] };
   const db = { select: () => ({ from: () => ({ where: () => ({ limit: async () => [row] }) }) }) };
   const registry = new NodeRegistryService({} as never);
-  // A Gateway that started long ago: the startup reconnect grace is over.
+  // An Opfield that started long ago: the startup reconnect grace is over.
   registry.startAcceptingConnections(Date.now() - 10 * 60_000);
   const service = new NodesService(db as never, {} as never, registry, {} as never, {} as never);
   return (await service.get(NODE)) as { status: string; reconnecting: boolean; isConnected: boolean };

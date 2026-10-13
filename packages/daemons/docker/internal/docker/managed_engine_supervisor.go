@@ -55,7 +55,7 @@ func ensureEngineRestartPolicy(ctx context.Context, client *Client, containerID 
 }
 
 // engineStopped reports whether an engine container exists and is not running;
-// a missing container is left to the Gateway's repair.
+// a missing container is left to Opfield's repair.
 func engineStopped(ctx context.Context, client *Client, containerID string) (bool, error) {
 	inspect, err := client.cli.ContainerInspect(ctx, containerID, mobyclient.ContainerInspectOptions{})
 	if err != nil {

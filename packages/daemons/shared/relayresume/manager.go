@@ -94,7 +94,7 @@ type MigrationEvent struct {
 
 // Manager is the process-wide source side: the registry of resumable
 // streams, the migration workers (at most MaxMigrationsInFlight at a time),
-// the legacy latch and the counters reported to Gateway.
+// the legacy latch and the counters reported to Opfield.
 type Manager struct {
 	budget *WindowBudget
 	slots  chan struct{}
@@ -736,7 +736,7 @@ func (m *Manager) MarkLegacyKey(routeID, keyID string) {
 // NoteRouteKey records the resume key id an applied bundle gives routeID
 // ("" when the route has none). A key id other than the one the latched
 // HELLO carried, or other than the last one applied (absent → present
-// included), clears the route's legacy latch: Gateway turned the route on
+// included), clears the route's legacy latch: Opfield turned the route on
 // again for a target that is resume-aware now.
 func (m *Manager) NoteRouteKey(routeID, keyID string) {
 	m.mu.Lock()

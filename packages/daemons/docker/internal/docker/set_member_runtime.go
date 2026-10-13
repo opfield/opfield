@@ -20,12 +20,12 @@ import (
 // Availability set members on a storage-profile daemon: the member runtime
 // (internal/memberha) is the lease runtime's controller for the sets' lease
 // policies, the relay paths (relay_lease_groups.go) follow its serving state,
-// and Gateway configures it with AvailabilityMemberCommand and reads it from
+// and Opfield configures it with AvailabilityMemberCommand and reads it from
 // the health report.
 
 // managedAvailabilityMemberCapability: this daemon runs availability set
 // members (lease runtime with a live watchdog, the member runtime, and at least
-// one engine). Gateway makes a node a candidate of a set only with it.
+// one engine). Opfield makes a node a candidate of a set only with it.
 const managedAvailabilityMemberCapability = "managed_availability_member_v1"
 
 // managedAvailabilityMemberLifecycleCapability: the member runtime also takes
@@ -33,7 +33,7 @@ const managedAvailabilityMemberCapability = "managed_availability_member_v1"
 // every engine, and the member update rule (a copy's container is recreated
 // for a new image or settings fixed at creation; the primary refuses with
 // AVAILABILITY_SWITCHOVER_REQUIRED; a Postgres major change is refused with
-// POSTGRES_MAJOR_CHANGE). Gateway pauses, restarts and rolls a set's engine
+// POSTGRES_MAJOR_CHANGE). Opfield pauses, restarts and rolls a set's engine
 // only when every member node has it.
 const managedAvailabilityMemberLifecycleCapability = "managed_availability_member_lifecycle_v1"
 
@@ -103,13 +103,13 @@ type setMemberRuntimeAdapter struct {
 }
 
 // setMemberBackupPort is the peer port a backup run reads a database member
-// through (Gateway's backup source route of a copy, P3-T06): it reaches the
+// through (Opfield's backup source route of a copy, P3-T06): it reaches the
 // member's own engine client port, whatever its role (a Postgres copy is a hot
 // standby, a Valkey copy a replica, a ClickHouse copy read-only).
 const setMemberBackupPort = "db-backup"
 
 // managedAvailabilityBackupSourceCapability: database members serve
-// setMemberBackupPort; Gateway backs a set up from a copy only on nodes with it.
+// setMemberBackupPort; Opfield backs a set up from a copy only on nodes with it.
 const managedAvailabilityBackupSourceCapability = "managed_availability_backup_source_v1"
 
 func (a setMemberRuntimeAdapter) MemberServing(setID, memberID string) (bool, bool) {
@@ -166,7 +166,7 @@ func (a setMemberRuntimeAdapter) dialBackupSource(ctx context.Context, setID, me
 	return a.plugin.databaseManager.dial(ctx, config.OwnerID)
 }
 
-// NoteOpfieldContact records that Gateway reached the daemon now (a command
+// NoteOpfieldContact records that Opfield reached the daemon now (a command
 // arrived on the control stream).
 func (p *DockerPlugin) NoteOpfieldContact() {
 	p.opfieldContactAt.Store(int64(leasefence.Now()))
@@ -238,13 +238,13 @@ func (p *DockerPlugin) setMemberCapabilities() []string {
 	capabilities := []string{managedAvailabilityMemberCapability, managedAvailabilityMemberLifecycleCapability,
 		managedAvailabilityBackupSourceCapability, managedAvailabilitySeaweedFSImageMoveCapability}
 	for _, engine := range setMemberEngineNames() {
-		// Gateway's preflight requires the set's engine on every member node.
+		// Opfield's preflight requires the set's engine on every member node.
 		capabilities = append(capabilities, "managed_availability_"+engine+"_v1")
 	}
 	return capabilities
 }
 
-// handleAvailabilityMember applies Gateway's command for this node's member of a set.
+// handleAvailabilityMember applies Opfield's command for this node's member of a set.
 func (p *DockerPlugin) handleAvailabilityMember(command *pb.AvailabilityMemberCommand) error {
 	if p.setMembers == nil {
 		return errors.New("this daemon does not run availability set members")
@@ -320,7 +320,7 @@ func (p *DockerPlugin) availabilityMemberReports() []*pb.AvailabilityMemberRepor
 	out := make([]*pb.AvailabilityMemberReport, 0, len(reports))
 	for _, report := range reports {
 		if failed := p.setMesh().BindError(report.SetID); failed != "" {
-			// The member cannot reach its peers: never eligible, and Gateway shows why.
+			// The member cannot reach its peers: never eligible, and Opfield shows why.
 			report.LastError, report.Eligible, report.EligibilityReason = failed, false, "mesh_unavailable"
 		}
 		events := make([]*pb.AvailabilityMemberEvent, 0, len(report.Events))
@@ -331,7 +331,7 @@ func (p *DockerPlugin) availabilityMemberReports() []*pb.AvailabilityMemberRepor
 		position := report.Position
 		if p.storageManager != nil && p.storageManager.setImages.pending(report.SetID) {
 			// A container of this SeaweedFS member runs another image than
-			// the pinned one: Gateway rolls the set over to it.
+			// the pinned one: Opfield rolls the set over to it.
 			position = make(map[string]string, len(report.Position)+1)
 			for key, value := range report.Position {
 				position[key] = value
@@ -350,7 +350,7 @@ func (p *DockerPlugin) availabilityMemberReports() []*pb.AvailabilityMemberRepor
 	return out
 }
 
-// assignSetPrimary records a manual pair's primary assignment Gateway signed:
+// assignSetPrimary records a manual pair's primary assignment Opfield signed:
 // the policy keys it carries come over this authenticated stream and are
 // trusted directly (as in SyncAvailabilityLeaseCommand); the signature is
 // verified by the member runtime.

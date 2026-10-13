@@ -119,7 +119,7 @@ func (c *Coordinator) gateView(key availabilitylease.Key) *relayv1.LeaseGateView
 }
 
 // Report is the relay's lease view for GetHealth and the supervisor report,
-// in the gateway.v1 AvailabilityLeaseReport shape.
+// in the opfield.v1 AvailabilityLeaseReport shape.
 func (c *Coordinator) Report() *relayv1.AvailabilityLeaseReport {
 	c.observeSuspend()
 	c.mu.Lock()

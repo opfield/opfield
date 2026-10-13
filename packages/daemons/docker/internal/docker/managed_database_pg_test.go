@@ -26,7 +26,7 @@ func TestPGMemberAutoConfRunsAsACopyOfTheMeshPrimary(t *testing.T) {
 	values := pgMemberAutoConf(config, 8<<30)
 	conninfo := values["primary_conninfo"]
 	// The member authenticates to the primary with its leaf as the client
-	// certificate (Gateway issues set member leaves for server and client use)
+	// certificate (Opfield issues set member leaves for server and client use)
 	// and verifies the primary's against the database CA.
 	for _, want := range []string{"host=primary-pg-repl", "port=5432", "user=gw_repl_a", "application_name=" + config.MemberID, "sslmode=verify-ca", "passfile=",
 		"sslrootcert=" + pgContainerTLSDir + "/ca.pem", "sslcert=" + pgContainerTLSDir + "/cert.pem", "sslkey=" + pgContainerTLSDir + "/key.pem"} {
@@ -212,7 +212,7 @@ func TestKVLiftOfAPlainStoreIsDone(t *testing.T) {
 }
 
 // The signed assignment statement verifies with the lease node's keychain:
-// the same bytes Gateway signs (golden vector shared with the backend test).
+// the same bytes Opfield signs (golden vector shared with the backend test).
 func TestPrimaryAssignmentSignatureVerifiesWithTheLeaseKeychain(t *testing.T) {
 	seed := make([]byte, ed25519.SeedSize)
 	for i := range seed {

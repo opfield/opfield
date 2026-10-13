@@ -31,12 +31,12 @@ const ok = (detail: unknown) => ({ success: true, error: '', detail: JSON.string
 export interface FakeDockerNodeOptions {
   /** A daemon before 2.10: it replaces the container at once and answers with the new one. */
   syncAnswer?: boolean;
-  /** The daemon finds a task by the Gateway command that started it (TASK_COMMAND_LOOKUP_CAPABILITY); default on. */
+  /** The daemon finds a task by the Opfield command that started it (TASK_COMMAND_LOOKUP_CAPABILITY); default on. */
   commandLookup?: boolean;
   /**
-   * How an update's or recreate's command goes: `lost`: the daemon runs it, its answer never reaches Gateway;
+   * How an update's or recreate's command goes: `lost`: the daemon runs it, its answer never reaches Opfield;
    * `never-sent`: it never reaches the daemon; `disconnected`: the daemon runs it, the node's stream drops before the
-   * answer; `dropped-before`: the node's stream drops while Gateway reads the container, before anything is sent.
+   * answer; `dropped-before`: the node's stream drops while Opfield reads the container, before anything is sent.
    */
   answer?: 'normal' | 'lost' | 'never-sent' | 'disconnected' | 'dropped-before';
 }
@@ -120,7 +120,7 @@ type TaskStore = DockerContainerMutationContext['taskService'] & object;
 type EnvironmentStore = DockerContainerMutationContext['environmentService'] & object;
 
 /**
- * One Gateway process's container operations against `node`: the operations' own watches run here (until the test
+ * One Opfield process's container operations against `node`: the operations' own watches run here (until the test
  * stops the timers, as a restart does), and so does what the task reconciler of this process runs.
  */
 export function opfieldProcess(
@@ -200,7 +200,7 @@ export function opfieldProcess(
 
 /**
  * The task records DockerTaskService keeps, in memory, with its rules: only an active task keeps follow-ups, they are
- * taken once, and a task's end drops them. `restart` is what the next Gateway process does at startup.
+ * taken once, and a task's end drops them. `restart` is what the next Opfield process does at startup.
  */
 export function memoryTaskStore() {
   const rows = new Map<string, DockerTaskRow>();

@@ -60,7 +60,7 @@ export const databaseConnections = pgTable(
     // Verify the server certificate chain and hostname whenever the connection
     // uses TLS. False is an explicit, insecure opt-out: external rows that used
     // TLS before this setting existed are backfilled to false so upgrades keep
-    // connecting. Managed connections verify against the Gateway Database CA
+    // connecting. Managed connections verify against the Opfield Database CA
     // independently of this column.
     tlsVerifyCertificate: boolean('tls_verify_certificate').notNull().default(true),
     // Optional PEM bundle trusted instead of the public CA bundle for this
@@ -245,7 +245,7 @@ export const managedDatabaseInstances = pgTable(
     // queries run as the owner behind the server-function denylist.
     encryptedQueryWriterCredentials: text('encrypted_query_writer_credentials'),
     postgresQueryWriterVersion: integer('postgres_query_writer_version'),
-    // Identity v2 separates the Gateway control account from the stable
+    // Identity v2 separates the Opfield control account from the stable
     // application role used by direct-access and binding principals.
     bindingIdentityVersion: integer('binding_identity_version').notNull().default(0),
     applicationPrincipalName: varchar('application_principal_name', { length: 128 }),
@@ -259,7 +259,7 @@ export const managedDatabaseInstances = pgTable(
     storageSizeBytes: bigint('storage_size_bytes', { mode: 'number' }).notNull(),
     runtimeConfig: jsonb('runtime_config').$type<ManagedDatabaseRuntimeConfig>().notNull().default({}),
     // Database TLS material exists independently from the direct-publication
-    // toggle. The certificate's key is held only by Gateway and the daemon.
+    // toggle. The certificate's key is held only by Opfield and the daemon.
     certificateId: uuid('certificate_id').references(() => certificates.id, { onDelete: 'restrict' }),
     tlsEnabled: boolean('tls_enabled').notNull().default(true),
     publishedPort: integer('published_port'),

@@ -332,7 +332,7 @@ func (h *harness) events() []string {
 	return out
 }
 
-// testSignature stands in for Gateway's signature in tests.
+// testSignature stands in for Opfield's signature in tests.
 func testSignature(assignment Assignment) string {
 	return fmt.Sprintf("signed:%s:%d", assignment.PrimaryMemberID, assignment.Generation)
 }

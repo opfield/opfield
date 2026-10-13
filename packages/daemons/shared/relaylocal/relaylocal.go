@@ -1,4 +1,4 @@
-// Package relaylocal names the contract between Gateway, the relay worker and
+// Package relaylocal names the contract between Opfield, the relay worker and
 // the relay supervisor for traffic that starts or ends on the relay itself:
 // witness processes the supervisor runs (a ClickHouse Keeper voter of an
 // availability set) are reached through relay-local endpoints and reach the

@@ -283,7 +283,7 @@ export abstract class ProxyServiceListing extends ProxyServiceSecureLinks {
     });
   }
 
-  /** Whether a route serves the Gateway public URL (it never joins an app maintenance overlay or an app). */
+  /** Whether a route serves the Opfield public URL (it never joins an app maintenance overlay or an app). */
   async servesOpfieldPublicUrl(host: Pick<ProxyHostRow, 'domainNames'>): Promise<boolean> {
     return this.isOpfieldPublicRoute(host);
   }

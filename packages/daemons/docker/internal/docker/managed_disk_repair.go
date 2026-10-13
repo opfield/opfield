@@ -21,7 +21,7 @@ import (
 // image, runs `e2fsck -p` (the automatic repair of what is safe to repair),
 // mounts it again and starts the engine. A filesystem e2fsck -p cannot repair
 // stays unmounted and the instance reports the failed repair; a start or a
-// restart from Gateway tries again.
+// restart from Opfield tries again.
 const (
 	diskRepairRepairing = "repairing"
 	diskRepairRepaired  = "repaired"
@@ -122,7 +122,7 @@ type diskRepairJob struct {
 	fsck   func(ctx context.Context, image string) (int, string, error)
 	logger *slog.Logger
 	// load returns the instance, and false once it no longer wants its disk
-	// (deleted, removed, stopped by Gateway).
+	// (deleted, removed, stopped by Opfield).
 	load    func() (diskRepairTarget, bool, error)
 	persist func(repair managedDiskRepair) error
 	stop    func(ctx context.Context, containerID string) error

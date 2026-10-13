@@ -47,7 +47,7 @@ describe('rollout failure diagnostics', () => {
             Env: ['PYTHONUNBUFFERED=1', 'HOLD_CONNS=0', 'PORT=3000', 'PIN=271', 'API_KEY=ab12cd34ef56gh78'],
           },
         }),
-      // PIN is a Gateway secret, short as it is.
+      // PIN is an Opfield secret, short as it is.
       secretEntries: async () => (entry) => entry.startsWith('PIN='),
       logs: async () => [
         '{"t":"2026-10-01T20:56:13","port":3000,"restarts":10}',

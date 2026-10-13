@@ -845,7 +845,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       });
     }
 
-    // A protected relay offers no console or files: its machine owner locked Gateway out of the host.
+    // A protected relay offers no console or files: its machine owner locked Opfield out of the host.
     if (
       resource.resourceType === "node" &&
       !isNodeProtected(nodes.find((node) => node.id === resource.resourceId))
@@ -1104,7 +1104,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     for (const node of nodes) {
-      // A protected relay offers no console or files: its machine owner locked Gateway out of the host.
+      // A protected relay offers no console or files: its machine owner locked Opfield out of the host.
       if (isNodeProtected(node)) continue;
       if (
         node.status === "online" &&

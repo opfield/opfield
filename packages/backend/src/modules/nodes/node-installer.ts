@@ -56,7 +56,7 @@ export interface NodeInstallCommand {
 }
 
 export interface NodeInstallation {
-  /** Gateway release the installers come from; null for an unreleased build, whose commands use main. */
+  /** Opfield release the installers come from; null for an unreleased build, whose commands use main. */
   installerRelease: string | null;
   installCommands: NodeInstallCommand[];
 }
@@ -66,7 +66,7 @@ interface EnrollmentTargets {
   local?: { label: string; address: string | null };
 }
 
-/** The Gateway release tag this build was stamped with. Development and other unreleased builds have none. */
+/** The Opfield release tag this build was stamped with. Development and other unreleased builds have none. */
 export function installerRelease(appVersion: string): string | null {
   return RELEASE_VERSION_PATTERN.test(appVersion) ? `v${appVersion.replace(/^v/, '')}` : null;
 }
@@ -136,7 +136,7 @@ export function nodeInstallCommand(input: {
 /**
  * A docker-daemon running as its own user reports `sudo bash setup-docker-node.sh --user <user> --secure-runtime` as
  * its Secure Runtime command: root never runs that daemon's binary, which its user can replace, so the node installer
- * installs Secure Runtime from a copy it downloads and verifies. Gateway shows it as one line that fetches and checks
+ * installs Secure Runtime from a copy it downloads and verifies. Opfield shows it as one line that fetches and checks
  * this release's installer first, like the setup commands. Any other command is shown as the daemon reported it.
  */
 export function secureRuntimeLocalCommand(
@@ -211,7 +211,7 @@ export function nodeInstallCommands(input: {
 
 /**
  * The setup commands of an enrollment response, shared by the UI and the AI/MCP tools: the installer from this
- * Gateway's release, pinned to the daemon release that matches it. A relay installs the release its pool runs.
+ * Opfield's release, pinned to the daemon release that matches it. A relay installs the release its pool runs.
  */
 export async function nodeInstallation(input: {
   nodeType: string;

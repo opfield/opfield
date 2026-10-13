@@ -7,7 +7,7 @@ import (
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
-// CommandResultsResentCapability tells the gateway that results of commands
+// CommandResultsResentCapability tells Opfield that results of commands
 // still running when a control session ended are delivered on the next
 // session (resultOutbox), so it keeps those commands pending across the
 // reconnect instead of failing them.
@@ -16,7 +16,7 @@ const CommandResultsResentCapability = "command_results_resent_v1"
 const (
 	// outboxLimit bounds the results kept between sessions (the oldest go).
 	outboxLimit = 256
-	// outboxTTL drops a kept result the gateway has long stopped waiting for.
+	// outboxTTL drops a kept result Opfield has long stopped waiting for.
 	outboxTTL = 10 * time.Minute
 )
 
@@ -69,7 +69,7 @@ func (o *resultOutbox) keepLocked(result *pb.CommandResult, now time.Time) {
 	o.kept = append(o.kept, keptResult{result: result, at: now})
 }
 
-// attach makes writer the current session (the gateway accepted it) after
+// attach makes writer the current session (Opfield accepted it) after
 // delivering the kept results on it, oldest first. On a failed send the rest
 // stays kept and the session is not attached.
 func (o *resultOutbox) attach(writer resultSender, now time.Time) (delivered int, err error) {

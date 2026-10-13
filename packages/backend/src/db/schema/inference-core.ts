@@ -19,7 +19,7 @@ import type {
   InferenceCoreState,
 } from '@/modules/inference/core/inference-core.contract.js';
 
-/** The managed OpenCodex core is a singleton per Gateway installation. */
+/** The managed OpenCodex core is a singleton per Opfield installation. */
 export const INFERENCE_CORE_STATE_ID = 'default';
 
 export type InferenceCoreHealthStatus = 'healthy' | 'unhealthy' | 'unknown';

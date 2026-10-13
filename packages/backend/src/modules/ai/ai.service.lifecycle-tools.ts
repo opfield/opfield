@@ -78,7 +78,7 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
             if (updateService.isOpfieldUpdateInProgress()) {
               throw new AppError(409, 'UPDATE_IN_PROGRESS', 'An Opfield update is already in progress');
             }
-            // A running Relay Pool update refuses the Gateway update.
+            // A running Relay Pool update refuses the Opfield update.
             await updateService.assertOpfieldUpdateAllowed();
             const status = await updateService.getCachedStatus();
             if (!status.updateAvailable) throw new Error('No Opfield update is available');
@@ -359,7 +359,7 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
     }
     if (operation === 'local_policy_trust_status') {
       this.ensureToolScope(user, 'settings:opfield:view');
-      // Registered only when Gateway runs a local relay.
+      // Registered only when Opfield runs a local relay.
       const status = container.isRegistered(RelayPolicyService)
         ? container.resolve(RelayPolicyService).getLocalPolicyTrustStatus()
         : null;

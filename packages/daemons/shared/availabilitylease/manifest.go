@@ -44,7 +44,7 @@ type Manifest struct {
 // RetainedHolder is a closed manifest's retained holder of one slot.
 type RetainedHolder struct {
 	Holder string
-	// Ballot is the holder's committed ballot Gateway saw when it closed.
+	// Ballot is the holder's committed ballot Opfield saw when it closed.
 	Ballot Ballot
 }
 

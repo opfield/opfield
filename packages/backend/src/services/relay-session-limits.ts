@@ -20,7 +20,7 @@ export interface RelaySessionLimits {
 
 // HTTP traffic (proxy Secure Links, storage links) has no fixed session cap: relay admission bounds it by real load
 // (CPU, memory, file descriptors) and shares it fairly between routes under pressure. Grants and daemons read 0 as
-// "no limit named" (an older Gateway), so the absence of a cap is this value, far above any reachable connection count.
+// "no limit named" (an older Opfield), so the absence of a cap is this value, far above any reachable connection count.
 export const RELAY_UNCAPPED_SESSIONS = 1_000_000;
 
 // A container link carries every connection of its consumer to one port of its target, whatever the protocol
@@ -35,7 +35,7 @@ export const CONTAINER_LINK_RELAY_MAX_CONCURRENT_SESSIONS = 1024;
  */
 export const RELAY_REGISTRY_FAIR_SHARE_CAPABILITY = 'relay_registry_fair_share_v1';
 
-/** What a relay instance supports that changes the limits Gateway gives it. */
+/** What a relay instance supports that changes the limits Opfield gives it. */
 export interface RelaySessionLimitTarget {
   registryFairShare: boolean;
 }
@@ -52,7 +52,7 @@ export function relaySessionLimitTarget(features: unknown): RelaySessionLimitTar
 // accepts, so the database stays the limit and answers with its own error. This is the cap when the database is unknown.
 export const MANAGED_LINK_RELAY_MAX_CONCURRENT_SESSIONS = 64;
 
-// The database endpoint carries every link of the database plus Gateway's own connections; the extra sessions let a
+// The database endpoint carries every link of the database plus Opfield's own connections; the extra sessions let a
 // client past the database limit receive the database's own refusal instead of a relay reset.
 const MANAGED_DATABASE_ENDPOINT_HEADROOM = 64;
 
@@ -110,7 +110,7 @@ export async function loadRelaySessionLimits(
 }
 
 /**
- * The session limit Gateway puts into the relay policy and into every grant of a route or endpoint. The relay
+ * The session limit Opfield puts into the relay policy and into every grant of a route or endpoint. The relay
  * enforces the lower of the two, and daemons hold a link's whole node-side traffic at the grant's value. A policy and
  * the grants scoped to the same relay instance must use the same `target`; grants not scoped to one relay (legacy
  * grants) omit it.

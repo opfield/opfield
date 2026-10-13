@@ -9,11 +9,11 @@ import (
 
 // Managed engines read a few files the daemon keeps outside their data image:
 // a storage engine its staged root identity, configuration and TLS material,
-// a database engine its TLS material. They are written from what Gateway sends
+// a database engine its TLS material. They are written from what Opfield sends
 // with a create, update or restart, and a node that lost them (a filesystem
 // repair after a crash moves them away) cannot write them again on its own.
 // Such an engine is not started: it would only fail and be started again, for
-// ever. Inspect reports the missing files, and Gateway answers with a restart
+// ever. Inspect reports the missing files, and Opfield answers with a restart
 // that carries them; the daemon restages them before it starts the engine.
 
 // missingFiles lists the names under dir that are not a non-empty regular file.

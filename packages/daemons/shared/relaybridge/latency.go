@@ -69,7 +69,7 @@ func (t *LatencyTracker) Observe(relayInstanceID string, rtt time.Duration) {
 // Fail records that this daemon could not reach the relay: its lanes went
 // down or a probe went unanswered. The round trip measured before stays (the
 // relay's distance did not change), and the health report says for how long
-// the relay has been failing, which Gateway reads as a data-plane failure. A
+// the relay has been failing, which Opfield reads as a data-plane failure. A
 // relay never measured is reported failing too, without a round trip.
 func (t *LatencyTracker) Fail(relayInstanceID string) {
 	if relayInstanceID == "" {
@@ -123,7 +123,7 @@ func (s latencySample) failing(now time.Time) bool {
 // keeps failing to reach, for the health report. A failing relay stays in it
 // however long ago it was last measured (its round trip 0 once that is
 // stale): it is in this daemon's assignments or among the relays to measure,
-// and Gateway keeps it out of placement only while the daemons say so.
+// and Opfield keeps it out of placement only while the daemons say so.
 func (t *LatencyTracker) Samples() []*pb.RelayLatencySample {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -148,7 +148,7 @@ func (t *LatencyTracker) Samples() []*pb.RelayLatencySample {
 	return result
 }
 
-// LatencyTargets lists the pool relays Gateway asks this daemon to measure,
+// LatencyTargets lists the pool relays Opfield asks this daemon to measure,
 // with the relays its assignments use first so their details win.
 func LatencyTargets(bundle *pb.SyncRelayGrantsCommand) []Target {
 	byID := map[string]Target{}

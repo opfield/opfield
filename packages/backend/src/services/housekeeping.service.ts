@@ -550,7 +550,7 @@ export class HousekeepingService {
 
   private async rotateNginxLogs(_retentionDays: number): Promise<{ itemsCleaned: number; spaceFreedBytes?: number }> {
     // Log rotation is handled by each daemon node locally (7-day retention).
-    // Logs streamed to Gateway are stored in the database / log aggregation.
+    // Logs streamed to Opfield are stored in the database / log aggregation.
     logger.debug('Nginx log rotation is managed by daemon nodes');
     return { itemsCleaned: 0 };
   }
@@ -786,8 +786,8 @@ export class HousekeepingService {
   // ── Stats Helpers ───────────────────────────────────────────────
 
   private async getNginxLogStats(): Promise<HousekeepingStats['nginxLogs']> {
-    // Logs are managed by daemon nodes (7-day local retention) and streamed to Gateway
-    const logsPath = '/var/log/gateway-logs'; // Gateway-side log storage (future)
+    // Logs are managed by daemon nodes (7-day local retention) and streamed to Opfield
+    const logsPath = '/var/log/gateway-logs'; // Opfield-side log storage (future)
     try {
       const entries = await readdir(logsPath);
       let totalSize = 0;
@@ -896,7 +896,7 @@ export class HousekeepingService {
   }
 
   private async getAcmeChallengeStats(): Promise<HousekeepingStats['acmeChallenges']> {
-    // ACME challenge files are on daemon nodes, not accessible from Gateway
+    // ACME challenge files are on daemon nodes, not accessible from Opfield
     return { fileCount: 0, totalSizeBytes: 0 };
   }
 

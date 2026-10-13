@@ -12,11 +12,11 @@ import (
 
 const setGrantsVectorPath = "../../../../../proto/testdata/relay-grant-set-paths-v1.json"
 
-// Gateway's grant bundle with set paths, as its gRPC stream encodes it
+// Opfield's grant bundle with set paths, as its gRPC stream encodes it
 // (backend relay-grant-wire.test.ts), lands in the daemon's grant store with
 // the lease target of each peer route and the lease group of a link: the
 // member mesh finds the primary's replication route by them, and a link to a
-// set opens the holder's route. (A field-by-field copy on Gateway's side once
+// set opens the holder's route. (A field-by-field copy on Opfield's side once
 // dropped both, so the member mesh could not open any route.)
 func TestRelayGrantBundleCarriesSetPathsIntoTheGrantStore(t *testing.T) {
 	data, err := os.ReadFile(setGrantsVectorPath)

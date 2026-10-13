@@ -329,7 +329,7 @@ interface RenewOptions {
 }
 
 /**
- * Renews the TLS certificates Gateway issues to managed storage clusters and
+ * Renews the TLS certificates Opfield issues to managed storage clusters and
  * managed databases while they run. A due certificate is staged as `pending`,
  * delivered to the workload's daemon (which makes the engine reload it
  * without downtime where the engine supports it), verified by the fingerprint

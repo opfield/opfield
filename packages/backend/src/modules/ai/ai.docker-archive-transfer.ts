@@ -30,7 +30,7 @@ import { requiredToolString } from './ai.docker-tool-access.js';
 
 /**
  * MCP carries container and volume archives in bounded base64 chunks. Bytes
- * are spooled privately on the Gateway; only a verified spool reaches the
+ * are spooled privately on Opfield; only a verified spool reaches the
  * shared import/export operations the REST routes use. Files larger than a
  * few chunks go through one-time links instead (ai.docker-archive-link.ts).
  */

@@ -24,7 +24,7 @@ export function ComposeVariablesTab({
 }) {
   const activeRevision = project.activeRevision;
   // A Git project before its first revision takes links pending; its services come from the Compose file the
-  // source resolved, when Gateway has one.
+  // source resolved, when Opfield has one.
   const beforeFirstRevision = !activeRevision && project.managementState === "managed";
   const [sourceServiceNames, setSourceServiceNames] = useState<string[]>([]);
   useEffect(() => {

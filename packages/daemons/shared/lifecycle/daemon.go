@@ -43,18 +43,18 @@ type DaemonBase struct {
 	baseHandler           slog.Handler // original handler, never wrapped
 	tunnelIdentityChanged chan struct{}
 	// controlReconnect asks the running control session to reconnect, so the
-	// gateway sees a renewed certificate (and promotes it) before the relay
+	// Opfield sees a renewed certificate (and promotes it) before the relay
 	// tunnel switches to it.
 	controlReconnect chan struct{}
 	// tunnelIdentityPending is set after a renewal; the tunnel is told to
-	// switch identities once the gateway accepted the renewed certificate.
+	// switch identities once Opfield accepted the renewed certificate.
 	tunnelIdentityPending atomic.Bool
-	// sessionReceivedCommand is set by runSession once the gateway sent a
+	// sessionReceivedCommand is set by runSession once Opfield sent a
 	// command, i.e. accepted the registration. Only the Run loop reads it.
 	sessionReceivedCommand bool
 	prepareShutdownOnce    sync.Once
 	// launcherChanged reconnects the control session once the launcher
-	// updated itself in place, so the gateway sees its version and features.
+	// updated itself in place, so Opfield sees its version and features.
 	launcherChanged chan struct{}
 	// afterUpdateRestart is the service restart right after an update that
 	// carried no connection (launcher_after_update.go), once requested.
@@ -192,7 +192,7 @@ func (d *DaemonBase) Run(ctx context.Context) error {
 			d.logger.Error("Opfield rejected registration; retrying later", "reason", rejected.Message, "retry_in", delay)
 		} else {
 			// The relay can remain reachable while its app upstream is
-			// restarting, and a gateway can refuse a registration outright.
+			// restarting, and Opfield can refuse a registration outright.
 			// Both end the session immediately without any command, so the
 			// transport-level connector backoff is never reached. Back off
 			// exponentially until a session is accepted again.
@@ -215,9 +215,9 @@ func (d *DaemonBase) Run(ctx context.Context) error {
 
 // sessionEndExpected reports a control session end that is information, not a
 // warning (failingFor: how long the sessions have failed). The relay or
-// Gateway on the way stopped on purpose (its update or restart), or this
+// Opfield on the way stopped on purpose (its update or restart), or this
 // daemon reconnects on purpose: the session moves, nothing failed. Or a
-// Gateway or relay restarting for its update refuses the connection for a
+// Opfield or relay restarting for its update refuses the connection for a
 // while (stand rc.13 O-d): a longer outage warns, as the connector's own
 // retries do.
 func sessionEndExpected(err error, failingFor time.Duration) bool {
@@ -225,12 +225,12 @@ func sessionEndExpected(err error, failingFor time.Duration) bool {
 }
 
 const (
-	// A Gateway that comes back (restart, update, outage) hears from every
+	// An Opfield that comes back (restart, update, outage) hears from every
 	// node within 15 s: the cap before jitter (connector.Jitter, up to 1.5
 	// times). Availability lease reconciliation after a takeover waits for the
 	// voters' reports (stand run ha18/b: 33 s with a 60 s cap), and an attempt
-	// against a relay whose Gateway upstream is down fails at the relay
-	// without reaching the Gateway. The transport's own retry
+	// against a relay whose Opfield upstream is down fails at the relay
+	// without reaching Opfield. The transport's own retry
 	// (connector.MaxBackoff) has the same cap.
 	controlSessionMaxReconnectDelay = connector.MaxBackoff
 	// A session shorter than this that never received a command counts as a
@@ -241,9 +241,9 @@ const (
 )
 
 // controlSessionBackoff grows the reconnect delay while sessions keep failing
-// quickly without the gateway ever sending a command, and resets once a
+// quickly without Opfield ever sending a command, and resets once a
 // session was accepted. Every delay is jittered: the nodes that lost the same
-// Gateway or relay come back spread out, not in one burst.
+// Opfield or relay come back spread out, not in one burst.
 type controlSessionBackoff struct {
 	failures int
 	rejected int
@@ -402,7 +402,7 @@ func runProcessRelayTunnel(
 }
 
 // requestControlReconnect makes the control session reconnect with the
-// current credentials. The relay tunnel switches after the gateway accepted them.
+// current credentials. The relay tunnel switches after Opfield accepted them.
 func (d *DaemonBase) requestControlReconnect() {
 	d.tunnelIdentityPending.Store(true)
 	select {

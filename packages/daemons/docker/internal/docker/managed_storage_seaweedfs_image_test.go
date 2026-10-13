@@ -13,7 +13,7 @@ import (
 
 const testPatchedSeaweedFSImage = "ghcr.io/the-square-labs/gateway/seaweedfs-gateway@sha256:" + "ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12"
 
-// Before Gateway's own build is pinned the upstream image (either reference)
+// Before Opfield's own build is pinned the upstream image (either reference)
 // is current; once it is pinned only that build is, so existing storages move
 // to it at their next update or restart.
 func TestSeaweedFSImageCurrent(t *testing.T) {

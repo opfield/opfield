@@ -103,7 +103,7 @@ export const webInspect = {
     },
     Ports: { "80/tcp": [{ HostIp: "0.0.0.0", HostPort: "8080" }] },
   },
-  // Gateway decorations on top of the raw inspect.
+  // Opfield decorations on top of the raw inspect.
   nodeId: apps1.id,
   availability: "available" as const,
   scopeResourceId: webRow.scopeResourceId,

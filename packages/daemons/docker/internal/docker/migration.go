@@ -12,7 +12,7 @@ import (
 
 // dockerMigrationCapability names the migration contract this daemon speaks.
 // v2: the manifest's environment keys are the container's own environment
-// (manifest schema 2). A Gateway that requires v1 refuses the migration in its
+// (manifest schema 2). An Opfield that requires v1 refuses the migration in its
 // preflight instead of sending the whole runtime environment.
 const dockerMigrationCapability = "docker_migration_v2"
 
@@ -37,7 +37,7 @@ type dockerMigrationCapabilities struct {
 	SecurityOptions   []string                    `json:"securityOptions"`
 	MaxChunkBytes     int                         `json:"maxChunkBytes"`
 	ArtifactMaxAgeSec int64                       `json:"artifactMaxAgeSeconds"`
-	// ManifestValidation: the daemon answers validate_manifest, so Gateway's
+	// ManifestValidation: the daemon answers validate_manifest, so Opfield's
 	// preflight shows the manifest blockers before the migration starts.
 	ManifestValidation bool `json:"manifestValidation"`
 }

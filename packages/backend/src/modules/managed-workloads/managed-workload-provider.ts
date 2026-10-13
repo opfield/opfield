@@ -109,7 +109,7 @@ export interface CertificateContext {
   node: ManagedWorkloadNode;
   /**
    * Storage-kind only: when true, the issued cert's SAN list must also cover
-   * the gateway-local loopback (`127.0.0.1`/`localhost`) the S3 client
+   * the Opfield-local loopback (`127.0.0.1`/`localhost`) the S3 client
    * verifies against over a `ManagedStorageTunnelProxy` relay tunnel. Ignored
    * by the database provider. Defaults to false (unchanged SAN list) when
    * omitted.

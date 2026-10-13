@@ -85,7 +85,7 @@ export const MEMBER_RUNTIME_STOPPED_KEY = 'runtime.stopped';
 export const MEMBER_RUNTIME_PENDING_RESTART_KEY = 'runtime.pendingRestart';
 /** A manual pair's assigned primary that does not serve gets the current assignment again at most this often. */
 const ASSIGNMENT_CONFIRM_RETRY_MS = 10_000;
-/** How often Gateway asks the nodes of manual pairs for a report (their primaries' contact with Gateway). */
+/** How often Opfield asks the nodes of manual pairs for a report (their primaries' contact with Opfield). */
 export const MANUAL_CONTACT_INTERVAL_MS = 5_000;
 /** A node update waits at most this long for the set primaries on the node to hand over. */
 const NODE_UPDATE_HANDOFF_TIMEOUT_MS = 5 * 60_000;
@@ -102,7 +102,7 @@ export type PrimaryChangedListener = (
 ) => Promise<void> | void;
 
 /**
- * Engine-agnostic member plumbing of database and storage availability sets (open core): Gateway's configuration of
+ * Engine-agnostic member plumbing of database and storage availability sets (open core): Opfield's configuration of
  * each member's node (AvailabilityMemberCommand), and the member reports of the health stream
  * (HealthReport.availability_members): observed member fields, queued member events (delivered to the listeners,
  * acknowledged to the node only after every listener resolved, replays skipped by `last_event_at`) and holder
@@ -436,7 +436,7 @@ export class AvailabilityMembersService {
 
   /**
    * A manual pair's assigned primary that does not serve (it self-fenced, or its daemon restarted) promotes only once
-   * it confirmed the current assignment from Gateway or its peer: Gateway sends it again (at most every
+   * it confirmed the current assignment from Opfield or its peer: Opfield sends it again (at most every
    * ASSIGNMENT_CONFIRM_RETRY_MS per member).
    */
   private async maybeConfirmAssignment(
@@ -462,7 +462,7 @@ export class AvailabilityMembersService {
 
   /**
    * Asks the nodes of manual pairs for a health report every MANUAL_CONTACT_INTERVAL_MS: each request is the contact
-   * a manual primary needs to keep serving (it self-fences 30 s after the last one), and the reports keep Gateway's
+   * a manual primary needs to keep serving (it self-fences 30 s after the last one), and the reports keep Opfield's
    * view of it fresh (the 45 s rule of a lossy switch counts from the last report). Returns a stop function.
    */
   startManualPairContact(requestHealth: (nodeId: string) => void): () => void {

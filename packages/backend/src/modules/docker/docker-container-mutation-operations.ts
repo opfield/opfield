@@ -433,7 +433,7 @@ async function renameContainerSourceBinding(
 /**
  * Validate create-time networks with the same rules as the network connect
  * route: only existing, user-attachable networks. Shared namespaces
- * (`host`, `container:<id>`) and Gateway-managed networks are rejected.
+ * (`host`, `container:<id>`) and Opfield-managed networks are rejected.
  */
 async function resolveCreateNetworks(
   ctx: DockerContainerMutationContext,
@@ -474,10 +474,10 @@ async function resolveCreateNetworks(
 }
 
 /**
- * Baseline for the persisted user env. Once Gateway stores an env it is the
+ * Baseline for the persisted user env. Once Opfield stores an env it is the
  * source of truth and runtime-only values (image defaults) are not re-added.
  * A container without stored env starts from its runtime env, exactly as the
- * environment view seeds it, so nothing set outside Gateway is dropped.
+ * environment view seeds it, so nothing set outside Opfield is dropped.
  */
 async function storedEnvBaseline(
   ctx: DockerContainerMutationContext,
@@ -516,7 +516,7 @@ function asyncDaemonTaskId(data: any, expectedType: string): string | undefined 
 }
 
 /**
- * What tells an update's or recreate's end before it is dispatched under a command Gateway names: the daemon finds its
+ * What tells an update's or recreate's end before it is dispatched under a command Opfield names: the daemon finds its
  * task by that command, so the task can be settled with the node also when its answer is lost. `timeoutMs` is the
  * longest its watch may wait (an asynchronous daemon task's).
  */
@@ -770,7 +770,7 @@ export async function removeContainer(
   const stopping = await waitForStopInFlight(ctx, nodeId, name);
   if (stopping) {
     const task = await ctx.createTask(nodeId, containerId, name, 'remove');
-    // Gateway runs this removal itself: after a Gateway restart its task is settled by whether the container is gone.
+    // Opfield runs this removal itself: after an Opfield restart its task is settled by whether the container is gone.
     await trackDockerTask(ctx.taskService, task?.id, { kind: 'remove', containerId });
     void removeWhenStopped(ctx, nodeId, containerId, name, force, userId, task?.id, afterRemove);
     return { taskId: task?.id, containerId, name, pending: stopping };
@@ -1126,7 +1126,7 @@ export async function duplicateContainer(
 
 /**
  * POST .../update and the AI update. The node lost before the update was sent (its control stream dropped while
- * Gateway read the container) answers 503 NODE_UNAVAILABLE and records a failed task: nothing was changed. A lost
+ * Opfield read the container) answers 503 NODE_UNAVAILABLE and records a failed task: nothing was changed. A lost
  * answer once it was sent answers 504 NODE_ANSWER_LOST with the task that is settled with the node (see
  * nodeLossHttpError).
  */
@@ -1401,7 +1401,7 @@ export async function recreateWithConfig(
     delete config.env;
   }
   const inspect = await ctx.inspectContainer(nodeId, containerId);
-  // Labels are replaced wholesale: Compose and Gateway labels may only come back unchanged, or the
+  // Labels are replaced wholesale: Compose and Opfield labels may only come back unchanged, or the
   // recreated container would leave its folder (Compose re-homing) or hide from its users.
   assertNoReservedDockerLabelChanges(
     config.labels as Record<string, string> | undefined,

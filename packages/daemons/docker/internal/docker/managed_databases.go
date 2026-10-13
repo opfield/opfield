@@ -26,7 +26,7 @@ const (
 	minimumClickHouseBytes = 512 * 1024 * 1024
 	// Keep the daemon's bounded lifecycle operation and rollback shorter than
 	// the controller-side command timeout. This prevents an operation from
-	// continuing after the Gateway has already declared it failed.
+	// continuing after Opfield has already declared it failed.
 	managedDatabaseCommandTimeout    = 13 * time.Minute
 	managedDatabaseCleanupTimeout    = time.Minute
 	managedDatabaseReadinessTimeout  = 90 * time.Second
@@ -151,7 +151,7 @@ type managedDatabaseCommand struct {
 	// Internal runtime preparation must not replace the durable lifecycle
 	// operation ID used by controller reconciliation after a lost response.
 	PreserveLifecycleOperationID bool `json:"preserveLifecycleOperationId,omitempty"`
-	// Host ports other Gateway workloads on this node reserve. The node never
+	// Host ports other Opfield workloads on this node reserve. The node never
 	// picks one of them for a published port the controller leaves to it
 	// (PublishedPort or PublishedNativePort is 0): the port is free only while
 	// that workload is stopped.
@@ -179,7 +179,7 @@ type managedRedisConfig struct {
 	ActiveDefrag                 bool   `json:"activeDefrag"`
 }
 
-// managedPostgresConfig holds the PostgreSQL server settings Gateway exposes.
+// managedPostgresConfig holds the PostgreSQL server settings Opfield exposes.
 // A zero value keeps the engine default (max_connections 100).
 type managedPostgresConfig struct {
 	MaxConnections int `json:"maxConnections"`
@@ -198,7 +198,7 @@ type managedDatabaseBindingCommand struct {
 }
 
 // managedDatabasePrincipalV2Command is the fail-closed identity-v2 contract.
-// Principal and application-role names are persisted by Gateway before this
+// Principal and application-role names are persisted by Opfield before this
 // command is dispatched, so retries converge the same engine identities.
 type managedDatabasePrincipalV2Command struct {
 	OperationID              string `json:"operationId"`
@@ -448,7 +448,7 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 		return "", errors.New("invalid managed database id")
 	}
 	if action == "remove" && isLeftoverRemove(configJSON) {
-		// A member Gateway no longer has is removed before the member
+		// A member Opfield no longer has is removed before the member
 		// handlers, which refuse a plain remove of a member.
 		if member, err := m.removeLeftoverMember(ctx, id, configJSON); member {
 			if err != nil {
@@ -621,7 +621,7 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 		return marshalManagedDatabaseDetail(record, "ready")
 	case "remove":
 		if isLeftoverRemove(configJSON) {
-			// Gateway has no instance of the id (see managed_leftovers.go).
+			// Opfield has no instance of the id (see managed_leftovers.go).
 			if err := m.removeLeftover(ctx, id); err != nil {
 				return "", err
 			}

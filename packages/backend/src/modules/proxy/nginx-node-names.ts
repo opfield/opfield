@@ -1,5 +1,5 @@
 /**
- * The names Opfield gives files, directories and nginx identifiers on an ingress node, and the pre-Opfield (Gateway)
+ * The names Opfield gives files, directories and nginx identifiers on an ingress node, and the pre-Opfield (Opfield)
  * names a node keeps until its nginx daemon moved it (internal/naming in the nginx daemon).
  *
  * Configs are rendered with the Opfield names. A node whose daemon does not report NGINX_OPFIELD_NAMES_CAPABILITY

@@ -18,7 +18,7 @@ const STOPPABLE_CONTAINER_STATES = new Set(['running', 'restarting', 'paused', '
 
 /**
  * The error of a command whose node may still run it: the node's control stream dropped while the command was in
- * flight (`Node disconnected`, also when Gateway shuts down), or its answer did not come in time. A command that was
+ * flight (`Node disconnected`, also when Opfield shuts down), or its answer did not come in time. A command that was
  * never sent (`Node <id> is not connected`) fails with another error.
  */
 export function isLostTrackError(error: unknown): boolean {
@@ -46,7 +46,7 @@ type Outcome =
   | { status: 'running'; progress: string };
 
 /**
- * Settles the Docker tasks Gateway lost track of with their nodes (F-1). Gateway restarted, or a node's control
+ * Settles the Docker tasks Opfield lost track of with their nodes (F-1). Opfield restarted, or a node's control
  * stream dropped, while an image pull or a container stop, restart, kill, update or recreate ran on the node: the
  * work goes on there, so the task stays active (and a daemon update waiting for the node's tasks keeps waiting) until
  * the connected node tells how it ended. An update or recreate also gets the env follow-ups its watch would have run.
@@ -234,7 +234,7 @@ export class DockerTaskReconciler {
 
   /**
    * An update or recreate is done once a container of its name with another ID reached the expected state. Its daemon
-   * task is asked for by its ID, or, when Gateway lost the answer that named it, by the command it was sent under. A
+   * task is asked for by its ID, or, when Opfield lost the answer that named it, by the command it was sent under. A
    * daemon that has no task of it (one that finds tasks by command, or knew its ID) no longer runs it: the command never
    * reached it, or the daemon restarted. With the replaced container still in place the change then did not apply.
    */
@@ -330,7 +330,7 @@ export class DockerTaskReconciler {
     return { status: 'failed', error: 'Timed out' };
   }
 
-  /** Gateway runs this removal itself after a stop; without Gateway it did not run. */
+  /** Opfield runs this removal itself after a stop; without Opfield it did not run. */
   private async removeOutcome(
     ctx: DockerTaskReconcileContext,
     task: DockerTaskRow,

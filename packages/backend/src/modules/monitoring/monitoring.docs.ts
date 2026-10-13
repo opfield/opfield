@@ -13,7 +13,7 @@ export const dashboardStatsRoute = appRoute({
 /**
  * A single, user-scoped snapshot used by the Dashboard and its pinned-resource
  * surfaces.  The POST body carries client-local display preferences and pin
- * IDs, neither of which belongs in the persisted Gateway configuration.
+ * IDs, neither of which belongs in the persisted Opfield configuration.
  */
 export const dashboardBootstrapRoute = appRoute({
   method: 'post',

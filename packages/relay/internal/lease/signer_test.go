@@ -46,7 +46,7 @@ func TestRelayKeyRenewalKeepsItsVotesCounting(t *testing.T) {
 		t.Fatal("report does not carry the renewed identity key for the Gateway to publish")
 	}
 
-	// Gateway republishes the manifest with the relay's new key.
+	// Opfield republishes the manifest with the relay's new key.
 	next := h.signManifest([]string{"d1", "d2"}, false)
 	for id, node := range h.daemons {
 		if _, err := node.AdoptManifest(next); err != nil {

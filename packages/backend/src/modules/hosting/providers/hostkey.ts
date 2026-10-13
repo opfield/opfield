@@ -114,7 +114,7 @@ export class HostkeyHostingAdapter implements HostingProviderAdapter {
         !(allowNotReady && ['Not ready', 'Stage'].includes(string(result.result))))
     ) {
       // HOSTKEY reports failures in a JSON envelope. Its message can contain provider input, so only use it to
-      // classify an explicitly documented access denial and never include it in the error returned by Gateway.
+      // classify an explicitly documented access denial and never include it in the error returned by Opfield.
       const code = numeric(result.code) ?? numeric(result.result);
       const denied =
         code === -2 ||
@@ -401,7 +401,7 @@ export class HostkeyHostingAdapter implements HostingProviderAdapter {
 
   async getResource(remoteId: string): Promise<HostingResourceSnapshot | null> {
     // Only absence from a complete account inventory proves deletion. A type filter
-    // or an incomplete show response must never remove a still-existing Gateway node.
+    // or an incomplete show response must never remove a still-existing Opfield node.
     await this.client();
     const server = (await this.inventoryRows()).find((item) => string(item.id) === remoteId);
     if (!server) return null;

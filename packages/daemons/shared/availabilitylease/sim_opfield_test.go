@@ -39,7 +39,7 @@ type simPolicy struct {
 	candidates []string
 	closed     bool
 	// retained names the retained holder per slot of a closed manifest;
-	// adopted is the Gateway's placement per slot adopted as running when a
+	// adopted is Opfield's placement per slot adopted as running when a
 	// close retained it (kept across later closes until another holder).
 	retained map[uint32]RetainedHolder
 	adopted  map[uint32]string
@@ -159,7 +159,7 @@ func (g *simOpfield) adopt(n *simNode, block *pb.LeaseSignedBlock) {
 	}
 }
 
-// onNodeStart models enrollment trust plus, while the Gateway is up, the
+// onNodeStart models enrollment trust plus, while Opfield is up, the
 // CommandStream / policy snapshot redelivery on reconnect.
 func (g *simOpfield) onNodeStart(n *simNode) {
 	first := g.keys[0]
@@ -183,7 +183,7 @@ func (g *simOpfield) onNodeStart(n *simNode) {
 // sendChain delivers every rotation link in order over the authenticated
 // channel.
 func (g *simOpfield) sendChain(n *simNode) {
-	// CommandStream is authenticated: the Gateway hands over its signing key
+	// CommandStream is authenticated: Opfield hands over its signing key
 	// directly (A4); links let the node forward the chain to lagging peers.
 	if err := n.node.TrustPolicyKey(g.key().id, g.key().pub); err != nil {
 		g.w.fail("trust %s: %v", n.id, err)
@@ -206,7 +206,7 @@ func (g *simOpfield) resign() {
 	}
 }
 
-// rotateKey introduces a new policy key via a signed link. The Gateway only
+// rotateKey introduces a new policy key via a signed link. Opfield only
 // signs with it after a majority of voters trust it (A14); acked reports that.
 func (g *simOpfield) rotateKey(deliverP float64) {
 	if !g.alive {
@@ -319,7 +319,7 @@ func (g *simOpfield) changeVoters(policyID string, next []string, deliverP float
 
 // redeliverUntilAdopted sends the settled manifest again every second until
 // every running member of the new voter set adopted its epoch, as the
-// Gateway's distribution does (a daemon that has not reported the applied
+// Opfield's distribution does (a daemon that has not reported the applied
 // revision gets it again after a short retry interval; relays get every
 // policy snapshot). Without it a settle lost on the way to every live new
 // voter could never be learned: only members forward a policy's blocks.
@@ -371,7 +371,7 @@ func (g *simOpfield) republish(policyID string, deliverP float64) {
 }
 
 // closeLease publishes a closed manifest that names, per slot, the holder the
-// Gateway sees (graceful close); stale makes it name another candidate.
+// Opfield sees (graceful close); stale makes it name another candidate.
 func (g *simOpfield) closeLease(policyID string, stale bool, deliverP float64) {
 	p := g.policies[policyID]
 	if !g.alive || p.closed {
@@ -407,7 +407,7 @@ func (g *simOpfield) closeLease(policyID string, stale bool, deliverP float64) {
 		p.adopted = map[uint32]string{}
 	}
 	for slot := uint32(0); slot < p.slots; slot++ {
-		// The placement the Gateway records as running: the retained holder,
+		// The placement the Opfield records as running: the retained holder,
 		// else a pending bootstrap holder's legacy copy (D1), else the one
 		// recorded before.
 		if holder, ok := p.retained[slot]; ok {
@@ -433,7 +433,7 @@ func (g *simOpfield) reopenLease(policyID string, deliverP float64) {
 	named := map[string]bool{} // one slot per node
 	for slot := uint32(0); slot < p.slots; slot++ {
 		key := Key{PolicyID: policyID, Slot: slot}
-		// D1: the node running the slot's copy. The Gateway adopted a retained
+		// D1: the node running the slot's copy. Opfield adopted a retained
 		// holder's placement as running, so it names that node (even while
 		// its daemon is restarting) unless its host went down, which ends a
 		// lease-mode container; otherwise the copy a reachable node reports.

@@ -10,7 +10,7 @@ import (
 // managedAvailabilityRoutesCapability: this daemon opens the lease groups of
 // database and storage availability sets. A link to a set's resource (a
 // managed storage published through a proxy host) has one route per member;
-// Gateway sends them as the assignment's lease group. While the set's lease
+// Opfield sends them as the assignment's lease group. While the set's lease
 // runs the relays admit only the primary's route, so the others are refused
 // in one round trip; a manual pair's group has only its primary's route.
 const managedAvailabilityRoutesCapability = "managed_availability_routes_v1"

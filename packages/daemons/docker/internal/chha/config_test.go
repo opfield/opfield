@@ -175,7 +175,7 @@ func TestRenderUsersAndRole(t *testing.T) {
 	}
 }
 
-// The engine configuration Gateway builds (CORE engine-clickhouse.test.ts
+// The engine configuration Opfield builds (CORE engine-clickhouse.test.ts
 // "matches the daemon contract" pins the same document).
 func TestOpfieldEngineConfigContract(t *testing.T) {
 	document := `{"version":1,"loopbackHost":"127.48.54.1","keeperServerId":1,

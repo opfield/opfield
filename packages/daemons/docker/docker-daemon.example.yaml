@@ -1,6 +1,6 @@
 gateway:
   address: "gateway.example.com:9443"
-  # token: "gw_node_..." # Set during install, cleared after enrollment
+  # token: "opf_node_..." # Set during install, cleared after enrollment
   cert_sha256: "sha256:<gateway-grpc-leaf-fingerprint>"
 tls:
   ca_cert: "/etc/docker-daemon/certs/ca.pem"

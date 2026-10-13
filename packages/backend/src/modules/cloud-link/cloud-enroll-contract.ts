@@ -1,5 +1,5 @@
 /**
- * Contract between the provisioning of a managed installation (the account portal, through cloud-init) and Gateway.
+ * Contract between the provisioning of a managed installation (the account portal, through cloud-init) and Opfield.
  * Documented for the portal in .workflow/impl/cloud-sso.md; keep both in step.
  *
  * The provisioning leaves `/var/lib/gateway/cloud-enroll.json` (inside the app container) with:
@@ -20,14 +20,14 @@
  * issuer + sub, and marks setup complete, all or nothing. Without them the setup link flow stays as it is.
  */
 
-/** Gateway's OIDC callback, relative to the public URL. The portal registers `<publicUrl><OIDC_CALLBACK_PATH>`. */
+/** Opfield's OIDC callback, relative to the public URL. The portal registers `<publicUrl><OIDC_CALLBACK_PATH>`. */
 export const OIDC_CALLBACK_PATH = '/auth/callback';
 
 /** The OIDC client of this installation at the account portal. `clientSecret` is removed from the file once used. */
 export interface CloudEnrollSso {
   issuer: string;
   clientId: string;
-  /** Absent once Gateway stored it (encrypted) and removed it from the file. */
+  /** Absent once Opfield stored it (encrypted) and removed it from the file. */
   clientSecret?: string;
 }
 

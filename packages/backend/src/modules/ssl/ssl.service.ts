@@ -1096,7 +1096,7 @@ export class SSLService {
         internalCertId: input.internalCertId,
         notBefore: pkiCert.notBefore,
         notAfter: pkiCert.notAfter,
-        // Gateway holds the key: reissue from the same CA and template before
+        // Opfield holds the key: reissue from the same CA and template before
         // expiry. A CSR-issued leaf cannot be reissued here and only alerts.
         autoRenew: !!privateKeyPem,
         status: 'active',
@@ -1568,7 +1568,7 @@ export class SSLService {
         'The certificate or its ACME order changed while the renewal was starting'
       );
     }
-    // TXT records Gateway created for the order this one replaces are no longer needed.
+    // TXT records Opfield created for the order this one replaces are no longer needed.
     const currentRecordIds = new Set(pendingChallenges.flatMap((challenge) => challenge.cloudflare?.recordId ?? []));
     await this.cleanupCloudflareDnsChallenges(
       ((cert.acmePendingChallenges ?? []) as DNSChallenge[]).filter(

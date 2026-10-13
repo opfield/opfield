@@ -178,7 +178,7 @@ export class ProxyServiceReconciliation extends ProxyServiceListing {
 
   /**
    * Whether a raw-mode Route needs its Secure Link. It keeps the link it has; a link an earlier release tore
-   * down when the Route entered raw mode comes back while the raw config, or the config Gateway renders while no
+   * down when the Route entered raw mode comes back while the raw config, or the config Opfield renders while no
    * raw config is stored, still proxies to it.
    */
   protected async rawRouteUsesSecureLink(host: ProxyHostRow): Promise<boolean> {

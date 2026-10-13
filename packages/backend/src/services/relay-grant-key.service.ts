@@ -22,7 +22,7 @@ const PUBLIC_KEY_RETENTION_MS = 48 * 60 * 60 * 1000 + 5 * 60 * 1000;
 const RELAY_RUNTIME_GRANT_MAX_TTL_MS = 240 * 60 * 60 * 1000;
 /**
  * How long a pending grant key is published before it is even considered for activation. Remote
- * relays learn it from policy snapshots, which Gateway keeps pushing every 30 seconds while it is
+ * relays learn it from policy snapshots, which Opfield keeps pushing every 30 seconds while it is
  * reachable, so a relay that is currently online sees the pending key almost immediately; this is
  * only a floor so a relay that briefly dropped and reconnects also has time to get it. Activation
  * additionally waits on `everyInstanceAcknowledgedOrLeaseElapsed` (see below), which is what

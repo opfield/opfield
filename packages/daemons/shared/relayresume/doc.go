@@ -69,7 +69,7 @@
 // HELLO_ACK and RESUME_ACK use the key the HELLO or RESUME named.
 // path_relay_instance_id is the relay instance id of the candidate the path
 // runs through ("local" for a pre-pool relay). Route keys are derived by
-// Gateway only: key = HKDF-SHA256(ikm = gateway resume secret, salt = empty,
+// Opfield only: key = HKDF-SHA256(ikm = Opfield resume secret, salt = empty,
 // info = "gw-relay-resume/v1" || u16be(len(route_id)) || route_id ||
 // u64be(key_version), 32 bytes), key_id = "v" + decimal(key_version).
 //

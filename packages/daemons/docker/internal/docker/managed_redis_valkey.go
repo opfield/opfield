@@ -9,7 +9,7 @@ import (
 )
 
 // A managed key-value store (engine type "redis") runs Valkey from the
-// valkey-bundle image, or Redis when it was created before Gateway 2.12 and
+// valkey-bundle image, or Redis when it was created before Opfield 2.12 and
 // has not been moved to Valkey yet (managed_redis_move.go). Both speak the
 // Redis protocol and use the same data layout under /data, the same uid 999
 // and the redis-cli name (a symlink to valkey-cli in the bundle), so only the

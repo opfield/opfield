@@ -29,7 +29,7 @@ import { integrationConnectors } from './integration-connectors.js';
 import { nodes } from './nodes.js';
 import { users } from './users.js';
 
-/** Provider resources survive removal of a Gateway node/connector. No remote delete cascades. */
+/** Provider resources survive removal of an Opfield node/connector. No remote delete cascades. */
 export const hostingResources = pgTable(
   'hosting_resources',
   {

@@ -202,7 +202,7 @@ func (m *Manager) VerifyRuntime(ctx context.Context, pending Status) Status {
 	return status
 }
 
-// ReconcileInstalledConfig migrates Gateway-managed runsc installations from
+// ReconcileInstalledConfig migrates Opfield-managed runsc installations from
 // older daemon releases and restarts their running containers so the new
 // runtime arguments take effect immediately.
 func (m *Manager) ReconcileInstalledConfig(ctx context.Context) (bool, error) {
@@ -675,7 +675,7 @@ func localInstallCommand() string {
 	if account, err := user.LookupId(name); err == nil {
 		name = account.Username
 	}
-	// Without a version: every Gateway since 2.11.1 rc builds matches exactly this form to show the
+	// Without a version: every Opfield since 2.11.1 rc builds matches exactly this form to show the
 	// download-and-verify command, and adds the node's daemon version there itself (F-B6, F-R1).
 	return "sudo bash setup-docker-node.sh --user " + name + " --secure-runtime"
 }

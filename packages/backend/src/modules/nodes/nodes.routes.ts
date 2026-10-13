@@ -630,7 +630,7 @@ nodesRoutes.openapi(
   }
 );
 
-/** The command for a public target nobody configured yet uses the host the browser reached Gateway on. */
+/** The command for a public target nobody configured yet uses the host the browser reached Opfield on. */
 function requestFallbackOpfield(c: Context<AppEnv>): string | null {
   return browserHostOpfield(c.req.header('x-forwarded-host') ?? c.req.header('host'));
 }
@@ -741,7 +741,7 @@ nodesRoutes.openapi(updateNodeConfigRoute, async (c) => {
 
 // Test node's nginx config on the target node daemon.
 // Do not run a backend-local nginx -t first, because node configs can contain
-// valid host-specific includes/paths that do not exist inside the Gateway container.
+// valid host-specific includes/paths that do not exist inside the Opfield container.
 nodesRoutes.openapi(testNodeConfigRoute, async (c) => {
   const requiredScope = `nodes:manage:${c.req.param('id')!}`;
   if (!hasScope(c.get('effectiveScopes') || [], requiredScope)) {

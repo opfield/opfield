@@ -100,7 +100,7 @@ describe('relay supervisor: local relay outages', () => {
     await t.supervisor.probeNow();
     expect(t.supervisor.latestOutage()).toEqual({ since: T0 + 5_000, servingAgainAt: null, planned: false });
     expect(t.supervisor.getSnapshot(false)?.outage).toMatchObject({ phase: 'restarting', servingAgainAt: null });
-    // Recorded with the supervisor state, so another Gateway process and a restarted one see it.
+    // Recorded with the supervisor state, so another Opfield process and a restarted one see it.
     expect(t.persisted.at(-1)).toMatchObject({ outage: { servingAgainAt: null } });
 
     // Still down: the outage keeps its start.

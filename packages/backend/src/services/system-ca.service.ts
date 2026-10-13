@@ -31,10 +31,10 @@ const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 function collectGrpcServerSans(): string[] {
   // Do not infer the machine hostname here. In container deployments Docker
   // replaces it on every recreated app container, while the generated TLS
-  // files survive on the Gateway data volume. Treating that ephemeral value as
+  // files survive on the Opfield data volume. Treating that ephemeral value as
   // mandatory makes a healthy gRPC listener certificate look stale on every
   // restart. Stable listener names must come from APP_URL, public addresses,
-  // explicit extra SANs, or the saved Gateway endpoint settings below.
+  // explicit extra SANs, or the saved Opfield endpoint settings below.
   const values = ['localhost', '127.0.0.1', 'relay'];
 
   const appUrl = process.env.APP_URL;

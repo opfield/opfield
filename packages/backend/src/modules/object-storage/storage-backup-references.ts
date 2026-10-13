@@ -7,7 +7,7 @@ import { assertStorageHasNoActiveCopyJobs } from '@/modules/storage/storage-copy
 /**
  * What to do with finished backup history when its storage is deleted. History
  * blocks deletion unless the caller explicitly chooses `forget`: the records are
- * removed, Gateway can no longer restore or delete those backups, and their files
+ * removed, Opfield can no longer restore or delete those backups, and their files
  * stay where they are (or go with a deleted managed storage).
  */
 export type StorageBackupHistoryDisposition = 'forget';

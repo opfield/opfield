@@ -630,7 +630,7 @@ export class LicenseService {
   }
 
   /**
-   * LICENSE ENFORCEMENT: Gateway applies only the signed copy of a server state, and
+   * LICENSE ENFORCEMENT: Opfield applies only the signed copy of a server state, and
    * only when it is signed for this installation and this request. Unsigned, forged,
    * replayed, stale, or foreign states are rejected; the last signed state stays in force.
    */

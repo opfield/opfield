@@ -44,7 +44,7 @@ type EngineConfig struct {
 	RewindRole string     `json:"rewindRole"`
 	Parameters Parameters `json:"parameters,omitempty"`
 	// ReplicationPassword and RewindPassword are this member's secrets for
-	// its passfile (it streams, rewinds and rebuilds while Gateway is down).
+	// its passfile (it streams, rewinds and rebuilds while Opfield is down).
 	ReplicationPassword string `json:"replicationPassword,omitempty"`
 	RewindPassword      string `json:"rewindPassword,omitempty"`
 	// Identities are the HA principals the primary converges (every

@@ -198,7 +198,7 @@ func pgMemberHBA(replicationRoles []string, rewindRole string) string {
 }
 
 // pgMemberPassfile is the member's libpq password file: its own replication
-// role and the rewind role, so it streams, rewinds and rebuilds while Gateway
+// role and the rewind role, so it streams, rewinds and rebuilds while Opfield
 // is down.
 func pgMemberPassfile(replicationRole, replicationPassword, rewindRole, rewindPassword string) string {
 	escape := func(value string) string { return strings.NewReplacer(`\`, `\\`, `:`, `\:`).Replace(value) }

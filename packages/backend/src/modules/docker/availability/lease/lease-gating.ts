@@ -77,7 +77,7 @@ export const AVAILABILITY_DISABLED = {
   immediate: true,
 } as const;
 
-/** Exclusions that keep a candidate from holding for a reason of its own (not merely offline to Gateway). */
+/** Exclusions that keep a candidate from holding for a reason of its own (not merely offline to Opfield). */
 const CANNOT_HOLD: ReadonlySet<DockerAvailabilityLeaseExclusionReason> = new Set([
   'watchdog_missing',
   'daemon_outdated',

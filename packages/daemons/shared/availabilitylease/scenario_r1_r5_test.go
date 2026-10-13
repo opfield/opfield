@@ -211,7 +211,7 @@ func TestR4EpochChangeRejectsStaleProposerAndSpreadsNewerManifest(t *testing.T) 
 		if holder := w.waitHolder(t, keyP1, 60*time.Second); holder != "d1" {
 			t.Fatalf("holder %s, want d1", holder)
 		}
-		// P (d2) and B never hear from the Gateway again.
+		// P (d2) and B never hear from Opfield again.
 		policy := w.gw.policies["p1"]
 		policy.epoch, policy.sets = 2, [][]string{{"A", "B", "C"}, {"C", "D", "E"}}
 		joint := w.gw.buildManifest(policy)

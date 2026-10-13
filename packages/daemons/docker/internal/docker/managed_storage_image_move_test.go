@@ -155,7 +155,7 @@ func newMoveTest(t *testing.T, running string, local, pullable map[string]bool) 
 
 // After a daemon update that pins another SeaweedFS image, the new process
 // moves a running storage to it once (data kept) and the record, and so the
-// detail Gateway reads, names the pinned image. A node that cannot pull the
+// detail Opfield reads, names the pinned image. A node that cannot pull the
 // pinned image, and a storage already on it, are left alone.
 func TestStorageMovesToThePinnedImageAtStart(t *testing.T) {
 	ctx := context.Background()

@@ -363,7 +363,7 @@ export class NotificationDispatcherService {
   }
 
   /**
-   * Gateway's outbound connectivity is back: webhooks paused because their target could not be reached are tried
+   * Opfield's outbound connectivity is back: webhooks paused because their target could not be reached are tried
    * now, in order, instead of at the end of their backoff.
    */
   async resumePausedWebhooks(): Promise<void> {
@@ -379,7 +379,7 @@ export class NotificationDispatcherService {
 
   /**
    * Send one webhook's queue in order (seq), one delivery at a time, while holding the webhook's lease: one sender per
-   * webhook across Gateway instances, so a later delivery never overtakes an earlier one.
+   * webhook across Opfield instances, so a later delivery never overtakes an earlier one.
    *
    * - The target cannot be reached (network, DNS, timeout, HTTP 5xx, 408, 425): the whole webhook pauses on a backoff
    *   (UNREACHABLE_BACKOFF_SECONDS) and resumes with the same delivery; nothing behind it is sent meanwhile.
@@ -512,7 +512,7 @@ export class NotificationDispatcherService {
    * - a firing whose resolve is queued behind it while the webhook could not be reached (no answer, 5xx; this
    *   firing's own last try, or the backlog this drain sends after an outage): both are dropped, the reader never saw
    *   the alert. A webhook that answered 429 was up, so its firing and resolve are both sent;
-   * - a firing folded under another alert (Gateway lost outbound connectivity, its node is down) whose own firing
+   * - a firing folded under another alert (Opfield lost outbound connectivity, its node is down) whose own firing
    *   this webhook gets: the parent alert stands for it;
    * - a resolve whose firing never went out to this webhook (failed or dropped): there is nothing to resolve.
    */

@@ -73,7 +73,7 @@ func TestCloseRetainsTheServingCopy(t *testing.T) {
 	}
 }
 
-// A holder the closed manifest does not name (Gateway's view was stale)
+// A holder the closed manifest does not name (Opfield's view was stale)
 // fences at once; the named node, which has no copy, stays out.
 func TestCloseFencesAHolderItDoesNotName(t *testing.T) {
 	w := closeWorld(t)
@@ -146,7 +146,7 @@ func TestClosePartitionedHolderFencesAtItsTimeout(t *testing.T) {
 	w := closeWorld(t)
 	d1 := w.nodes["d1"]
 	d1.stopDelay = 300 * time.Millisecond
-	w.isolate("d1", true) // the Gateway still reaches it (CommandStream)
+	w.isolate("d1", true) // Opfield still reaches it (CommandStream)
 	w.gw.closeLease("p1", false, 1)
 	start := w.now
 	w.runUntil(w.now + FenceCompleteAfter + time.Second)

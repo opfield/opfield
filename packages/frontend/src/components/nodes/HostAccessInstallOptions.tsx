@@ -3,7 +3,7 @@ import type { HostAccessInstallOptions as Options } from "@/lib/node-host-access
 
 /**
  * Setup command options that turn host access off on the node being installed. The installer writes them to the
- * daemon config on the node, where Gateway cannot turn them back on.
+ * daemon config on the node, where Opfield cannot turn them back on.
  */
 export function HostAccessInstallOptions({
   value,

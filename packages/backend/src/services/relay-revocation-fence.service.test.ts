@@ -172,7 +172,7 @@ describe('RelayRevocationFenceService', () => {
     });
     expect(world.policyRoutes?.find(({ routeId }) => routeId === 'route-kept')).toEqual(kept);
 
-    // A report of a revision Gateway never issued acknowledges nothing.
+    // A report of a revision Opfield never issued acknowledges nothing.
     world.applied = 50;
     await expect(service.evaluate(new Date(T0 + 200_000))).resolves.toEqual({ transitions: [], nodeIds: [] });
     expect(world.policyRoutes?.some(({ staleAt }) => staleAt)).toBe(true);

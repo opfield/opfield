@@ -34,7 +34,7 @@ var faultNames = [...]string{
 }
 
 // scheduleChaos places random faults between 3 s and chaosEnd-5 s. The
-// Gateway dies at a random time in 30% of seeds.
+// Opfield dies at a random time in 30% of seeds.
 func scheduleChaos(w *simWorld, topo simTopology) {
 	if w.rng.Float64() < 0.3 {
 		w.at(w.randDuration(10*time.Second, chaosEnd), func() {
@@ -60,7 +60,7 @@ func scheduleChaos(w *simWorld, topo simTopology) {
 }
 
 // opfieldBootstrapLoop drops the bootstrap reservation once its holder
-// reported acquiring (A5), like the Gateway does on the lease report.
+// reported acquiring (A5), like Opfield does on the lease report.
 func opfieldBootstrapLoop(w *simWorld) {
 	policy := w.gw.policies["p1"]
 	if len(policy.bootstrap) == 0 || !w.gw.alive {
@@ -230,7 +230,7 @@ func applyFault(w *simWorld, topo simTopology, kind faultKind) {
 	case faultKeyRotation:
 		w.gw.rotateKey(0.7)
 		if w.rng.Float64() < 0.4 {
-			// A14 scenario: the Gateway signs one manifest with the new key,
+			// A14 scenario: Opfield signs one manifest with the new key,
 			// reaches only a few nodes, and dies.
 			w.after(w.randDuration(2*time.Second, 6*time.Second), func() {
 				if w.gw.alive && w.gw.signIdx == len(w.gw.keys)-1 {
@@ -260,7 +260,7 @@ func applyFault(w *simWorld, topo simTopology, kind faultKind) {
 		n.setRate(1 - MaxClockDrift + w.rng.Float64()*2*MaxClockDrift)
 	case faultClose:
 		// Graceful close and re-entry: leave lease mode (naming the holder
-		// the Gateway sees, sometimes a stale one), then enter it again.
+		// Opfield sees, sometimes a stale one), then enter it again.
 		stale := w.rng.Float64() < 0.2
 		w.gw.closeLease("p1", stale, 0.4+0.6*w.rng.Float64())
 		w.after(w.randDuration(5*time.Second, 40*time.Second), func() {
@@ -319,7 +319,7 @@ func quiet(w *simWorld, topo simTopology) {
 	}
 	policy := w.gw.policies["p1"]
 	if policy.closed {
-		// Only the Gateway enters lease mode again (a dead one leaves the
+		// Only Opfield enters lease mode again (a dead one leaves the
 		// policy closed: runRandomSeed then checks no failover).
 		w.gw.reopenLease("p1", 1)
 	}
@@ -328,7 +328,7 @@ func quiet(w *simWorld, topo simTopology) {
 		// container; the reservation stays until the holder acquired (A5).
 		return
 	}
-	// The Gateway drops a slot's bootstrap reservation once its named holder
+	// Opfield drops a slot's bootstrap reservation once its named holder
 	// no longer runs the legacy copy (it acquired, or the copy is gone); a
 	// holder that still runs it keeps its reservation.
 	dropped := false

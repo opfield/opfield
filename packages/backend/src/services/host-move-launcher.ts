@@ -40,7 +40,7 @@ export interface HostMoveLaunchInput {
   composeProject: string | null;
   databaseUrl: string;
   uptimeMs: number;
-  /** A Gateway update attempt is on record (its sidecar may still roll it back), or an update or relay update runs. */
+  /** An Opfield update attempt is on record (its sidecar may still roll it back), or an update or relay update runs. */
   updateBusy: boolean;
   /** An update sidecar container is still running. */
   sidecarRunning: boolean;

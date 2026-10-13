@@ -4,7 +4,7 @@ package chha
 
 // Container test of ClickHouse sets of 4 and 5 members (decision 14): the
 // first three members' embedded Keepers vote, the 4th and 5th are learners,
-// addressed as Gateway addresses them (clickhouse-keeper-addressing.ts: voter
+// addressed as Opfield addresses them (clickhouse-keeper-addressing.ts: voter
 // server id member index + 1, learner server id 201 + member index, raft port
 // 39500 + server id, interserver port 39000 + member index, one loopback host
 // per set from sha256(set id)). Each member runs the real engine (New) over a
@@ -50,7 +50,7 @@ var setMemberIDs = []string{testMemberA, testMemberB, testMemberC, testMemberD, 
 
 func setMemberName(index int) string { return fmt.Sprintf("ch%d", index+1) }
 
-// setLoopbackHost is Gateway's keeperLoopbackHost.
+// setLoopbackHost is Opfield's keeperLoopbackHost.
 func setLoopbackHost(setID string) string {
 	digest := sha256.Sum256([]byte(setID))
 	a, b := digest[0], digest[1]
@@ -60,7 +60,7 @@ func setLoopbackHost(setID string) string {
 	return fmt.Sprintf("127.%d.%d.1", a, b)
 }
 
-// setKeeperServerID is Gateway's memberKeeperServerId: the 4th and 5th
+// setKeeperServerID is Opfield's memberKeeperServerId: the 4th and 5th
 // members of an automatic set are learners.
 func setKeeperServerID(index int) uint32 {
 	if index >= 3 {
@@ -69,7 +69,7 @@ func setKeeperServerID(index int) uint32 {
 	return uint32(index) + 1
 }
 
-// setEngineConfig is the engine configuration Gateway computes for member self
+// setEngineConfig is the engine configuration Opfield computes for member self
 // of an n-member automatic set without a witness.
 func setEngineConfig(n, self int) EngineConfig {
 	ec := EngineConfig{Version: 1, LoopbackHost: setLoopbackHost(ctSetID), KeeperServerID: setKeeperServerID(self),

@@ -48,7 +48,7 @@ function parseRule(value: unknown): RemoteRule {
   const destination = canonical(optionalString(rule.destination));
   const address = direction === 'in' ? source : destination;
   const crossAddress = direction === 'in' ? destination : source;
-  // Selectors Gateway does not model could broaden or narrow an owned rule unnoticed.
+  // Selectors Opfield does not model could broaden or narrow an owned rule unnoticed.
   const supported =
     (action === 'ACCEPT' || action === 'DROP') &&
     crossAddress === null &&
@@ -90,7 +90,7 @@ function comparable(rule: Rule): Rule {
 function sameRules(left: Rule[], right: Rule[]): boolean {
   return JSON.stringify(left.map(comparable)) === JSON.stringify(right.map(comparable));
 }
-/** Explicit catch-alls keep the Gateway policy independent of the provider's default firewall policy. */
+/** Explicit catch-alls keep the Opfield policy independent of the provider's default firewall policy. */
 function compile(config: HostingFirewallConfig): Rule[] {
   const configured = config.rules.flatMap((rule) =>
     [...rule.addresses].sort().map(

@@ -410,7 +410,7 @@ export interface AppScopeApp {
   name: string;
   environments: AppScopeEnvironment[];
   /**
-   * The hidden app-root folder of each family, when Gateway reports it: a grant there covers every
+   * The hidden app-root folder of each family, when Opfield reports it: a grant there covers every
    * environment, also the ones added later.
    */
   rootFolderIds?: Partial<Record<AppMemberFamily, string>>;

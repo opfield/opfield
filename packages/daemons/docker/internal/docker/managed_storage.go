@@ -113,7 +113,7 @@ type managedStorageIAM struct {
 	Name            string `json:"name"`
 	Policy          string `json:"policy"`
 	ExpiresAt       string `json:"expiresAt"`
-	// Principal is the SeaweedFS IAM user that owns one Gateway-issued key
+	// Principal is the SeaweedFS IAM user that owns one Opfield-issued key
 	// (see managed_storage_seaweedfs_iam.go). MinIO ignores it.
 	Principal string `json:"principal,omitempty"`
 }
@@ -245,7 +245,7 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 		}
 		record, err := m.loadRecord(id)
 		if errors.Is(err, os.ErrNotExist) && input.Set != nil && !input.Set.Origin {
-			// A member Gateway added to the set: the set's update creates it.
+			// A member Opfield added to the set: the set's update creates it.
 			if err := validateSeaweedFSSetCommand(input, true); err != nil {
 				return "", err
 			}
@@ -304,8 +304,8 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 		if record.Removed {
 			return "", errors.New("managed storage was removed")
 		}
-		// Gateway sends the member's settings with a restart, so runtime files
-		// the node lost are restaged from them; an older Gateway sends none.
+		// Opfield sends the member's settings with a restart, so runtime files
+		// the node lost are restaged from them; an older Opfield sends none.
 		var input *managedStorageCommand
 		if configJSON != "" {
 			parsed, err := parseManagedStorageCommand(configJSON, false)
@@ -332,8 +332,8 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 		if len(missing) > 0 {
 			return "", runtimeFilesMissingError("managed storage", missing)
 		}
-		// The restart's operation is recorded, so Gateway sees it applied. A
-		// restart Gateway sends again for an operation the node already
+		// The restart's operation is recorded, so Opfield sees it applied. A
+		// restart Opfield sends again for an operation the node already
 		// applied (its answer was lost) does not stop the engine again.
 		operationID := ""
 		if action == "restart" && input != nil {
@@ -403,7 +403,7 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 			}
 		}
 		if isLeftoverRemove(configJSON) {
-			// Gateway has no instance of the id (see managed_leftovers.go).
+			// Opfield has no instance of the id (see managed_leftovers.go).
 			if err := m.removeLeftover(ctx, id, configJSON); err != nil {
 				return "", err
 			}

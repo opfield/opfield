@@ -35,8 +35,8 @@ const (
 
 var (
 	launcherLocalReadyLimit = 30 * time.Second
-	// A candidate that announced it will report gateway control readiness
-	// must receive its first gateway command within this window. Gateway
+	// A candidate that announced it will report Opfield control readiness
+	// must receive its first Opfield command within this window. Opfield
 	// waits for an updated daemon at least this plus launcherLocalReadyLimit
 	// (LAUNCHER_CANDIDATE_TRIAL_LIMIT_MS in daemon-update.service.ts): change
 	// both together.
@@ -72,7 +72,7 @@ type launcherReadinessEvent struct {
 	Type    string `json:"type"`
 	Version string `json:"version"`
 	// AwaitControl on local_ready announces that this daemon will also send
-	// control_ready once the gateway accepted it. Launchers that predate the
+	// control_ready once Opfield accepted it. Launchers that predate the
 	// field ignore it and keep committing on local readiness alone.
 	AwaitControl bool `json:"awaitControl,omitempty"`
 }
@@ -642,7 +642,7 @@ func superviseLauncherChild(ctx context.Context, spec LauncherSpec, initialState
 			return launcherChildOutcome{err: handleLauncherCandidateExit(spec, state, "local readiness timeout", err, logger)}
 		case <-controlTimeout:
 			// The candidate runs but never proved it can reach and be accepted
-			// by the gateway. Committing it would strand the node, so restore
+			// by Opfield. Committing it would strand the node, so restore
 			// the previous daemon now.
 			_ = terminateLauncherChild(child, done, launcherStopGrace)
 			if err := rollbackLauncherUpdate(spec.StateDir, state, "Opfield control readiness timeout"); err != nil {
@@ -722,7 +722,7 @@ func superviseLauncherChild(ctx context.Context, spec LauncherSpec, initialState
 				logger.Error("failed to persist candidate readiness; continuing stability check", "error", err, "version", state.TargetVersion)
 			}
 			if event.AwaitControl {
-				// Commit only after the candidate proved it reaches the gateway.
+				// Commit only after the candidate proved it reaches Opfield.
 				if controlTimer == nil && stabilityTimer == nil {
 					controlTimer = time.NewTimer(launcherControlReadyLimit)
 					controlTimeout = controlTimer.C
@@ -803,7 +803,7 @@ func normalizeOperatorStop(err error) error {
 }
 
 // NotifyLauncherLocalReady reports local readiness only. A launcher commits a
-// pending update after its stability window without waiting for the gateway.
+// pending update after its stability window without waiting for Opfield.
 func NotifyLauncherLocalReady(version string) {
 	localReadyOnce.Do(func() {
 		writeLauncherReadiness(launcherReadinessEvent{Type: launcherEventLocalReady, Version: version}, true)
@@ -823,7 +823,7 @@ func NotifyLauncherLocalReadyAwaitingControl(version string) {
 	})
 }
 
-// NotifyLauncherControlReady reports that the gateway accepted this daemon's
+// NotifyLauncherControlReady reports that Opfield accepted this daemon's
 // control session (its first command after Register arrived). It is a no-op
 // unless NotifyLauncherLocalReadyAwaitingControl announced it.
 func NotifyLauncherControlReady() {

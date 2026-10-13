@@ -587,7 +587,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
       // A Git-source container waiting for its first build has nothing to inspect or remove yet.
       await assertNotPendingSourceContainer(nodeId, containerId);
       await assertComposeChildMutationAllowed(nodeId, containerId);
-      // Gateway never removes an active container; a stopped one needs no force.
+      // Opfield never removes an active container; a stopped one needs no force.
       const removal = await service.removeContainer(nodeId, containerId, false, user.id);
       if (removal.pending) return c.json({ data: pendingOperationBody({ ...removal, pending: removal.pending }) }, 202);
       return c.json({ success: true });
@@ -648,7 +648,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
       const nodeId = c.req.param('nodeId')!;
       const containerId = c.req.param('containerId')!;
       const query = ContainerArchiveExportQuerySchema.parse(c.req.query());
-      // An archive with secrets carries their values out of Gateway.
+      // An archive with secrets carries their values out of Opfield.
       if (query.includeSecrets)
         assertNotImpersonating(c, 'Archives with secrets cannot be exported while impersonating');
       const archive = await openDockerContainerArchiveExport({

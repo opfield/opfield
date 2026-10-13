@@ -248,7 +248,7 @@ func (c *Client) CreateVolume(ctx context.Context, name string, driver string, l
 	return nil
 }
 
-// CreateManagedVolume creates a new Gateway-owned volume without adopting an
+// CreateManagedVolume creates a new Opfield-owned volume without adopting an
 // existing Docker volume with the same name. Docker's volume-create API is
 // idempotent by name, so the explicit inspection and serialized create prevent
 // a create request from silently claiming pre-existing data.

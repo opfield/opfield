@@ -37,7 +37,7 @@ const RETIRABLE_STATES = ['current', 'superseded', 'pending'] as const;
 const PENDING_REUSE_MIN_REMAINING_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
- * Owns the lifecycle of leaves issued by Gateway system CAs. The cleanup
+ * Owns the lifecycle of leaves issued by Opfield system CAs. The cleanup
  * predicate is deliberately based on explicit fields written here; a leaf
  * without this provenance is never touched automatically.
  */

@@ -2,7 +2,7 @@ import type { UpdateAuthProvisioningSettingsInput } from '@/modules/admin/admin.
 import { normalizePublicUrl } from '@/modules/settings/general-settings.service.js';
 
 /**
- * Settings that decide who can prove an identity to Gateway: the mail server
+ * Settings that decide who can prove an identity to Opfield: the mail server
  * that delivers password-reset and sign-in codes, the identity provider, the
  * public URL embedded in emailed links, and whether unverified IdP emails may
  * claim pre-created accounts. Changing any of them is equivalent to being able

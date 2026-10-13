@@ -65,7 +65,7 @@ func (m *Manager) nonHolderStepLocked(mem *member, status HolderStatus, leaseMod
 }
 
 // copyStepLocked keeps a member that is not the primary running as a copy:
-// stopped when Gateway removes it, started through standby at rest, rejoined
+// stopped when Opfield removes it, started through standby at rest, rejoined
 // when it diverged and a primary is known.
 func (m *Manager) copyStepLocked(mem *member, now time.Duration, primaryKnown bool) {
 	obs := mem.obs

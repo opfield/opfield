@@ -123,7 +123,7 @@ const STORAGE_SIZE_GB_RULE = 'Storage size is in GB from 0.1 to 16384 with at mo
 
 /**
  * Managed database disk size, the same at create and resize. The daemon allocates and grows the storage image to the
- * exact byte size (fallocate, then resize2fs to the device), so any 0.1 GB step works; Gateway rounds it to bytes once.
+ * exact byte size (fallocate, then resize2fs to the device), so any 0.1 GB step works; Opfield rounds it to bytes once.
  */
 const managedDatabaseStorageSizeGbSchema = z
   .number({ invalid_type_error: STORAGE_SIZE_GB_RULE })
@@ -166,7 +166,7 @@ export const ManagedAvailabilitySettingsSchema = z
       .min(64 * 1024)
       .max(1024 * 1024 * 1024)
       .optional(),
-    /** Lease witnesses of a set with automatic failover (null: Gateway picks them). */
+    /** Lease witnesses of a set with automatic failover (null: Opfield picks them). */
     witness: ManagedAvailabilityWitnessSchema.nullable().optional(),
   })
   .strict();

@@ -245,7 +245,7 @@ export const appAccessLogs: NginxLogEntry[] = [
 
 /**
  * The log tab reads a WebSocket; this stands in for it and answers with the
- * server's first frame (`initial`), like the gateway does on connect.
+ * server's first frame (`initial`), like Opfield does on connect.
  */
 export function installAccessLogStream(entries = appAccessLogs) {
   vi.spyOn(api, "createProxyLogStreamWebSocket").mockImplementation(() => {

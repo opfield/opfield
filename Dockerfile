@@ -75,7 +75,7 @@ COPY config/update-trust/opencodex-signing-public-key.pem ./dist/lib/opencodex-s
 # Copy proto file (loaded at runtime by @grpc/proto-loader)
 COPY proto/ /app/proto/
 
-# Agent skills served to MCP clients (gateway://skills)
+# Agent skills served to MCP clients (opfield://skills)
 COPY skills/ /app/skills/
 
 # Copy frontend build into public/ for the backend to serve
@@ -83,7 +83,7 @@ COPY --from=frontend-builder /app/packages/frontend/dist ./public
 
 # Copy public status page build into status-public/
 COPY --from=status-page-builder /app/packages/status-page/dist ./status-public
-# Pre-generic Gateway releases pass the signed app image to the relay service
+# Pre-generic Opfield releases pass the signed app image to the relay service
 # during the first self-update, so keep a one-hop relay binary in that image.
 # legacy-name: /gateway-relay is the entrypoint those releases start — remove once every install is past them
 COPY --from=relay-bridge-builder /gateway-relay /gateway-relay

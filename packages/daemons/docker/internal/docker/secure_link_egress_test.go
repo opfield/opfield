@@ -235,7 +235,7 @@ func TestEgressFollowsTheGrantBundle(t *testing.T) {
 	if !manager.egress.listeningOn(egressTestNetwork) {
 		t.Fatal("the link network is not reported as served by the connector")
 	}
-	// Gateway polls by sending the same bundle again: answered from the published state, without a connector sync.
+	// Opfield polls by sending the same bundle again: answered from the published state, without a connector sync.
 	syncs := engine.requestCount(connector)
 	if again := manager.syncEgress(egressTestBundle(egressTestAssignment(egressTestLinkID, egressTestNetwork),
 		egressTestAssignment(invalidID, "user-network"))); again[egressTestLinkID].State != egressStateReady || engine.requestCount(connector) != syncs {
@@ -298,7 +298,7 @@ func TestEgressFollowsTheGrantBundle(t *testing.T) {
 	}
 }
 
-// A database consumer recreated after Gateway moved its link to the connector (the grant carries an egress and no
+// A database consumer recreated after Opfield moved its link to the connector (the grant carries an egress and no
 // host listener) gets no ExtraHosts entry for the link alias: it resolves the alias through Docker's DNS to the
 // connector (C6, F4). A link still on, or moving off, the host listener keeps the entry.
 func TestDatabaseExtraHostsLeaveOutLinksServedByTheConnector(t *testing.T) {

@@ -11,10 +11,10 @@ import (
 // linkListenerBootSkipped reports the missing boot step once per process.
 var linkListenerBootSkipped sync.Once
 
-// nonRootCapability tells Gateway that this docker-daemon runs as a non-root
+// nonRootCapability tells Opfield that this docker-daemon runs as a non-root
 // user, so the features that need root are shown as unavailable with that
 // reason instead of being offered and failing: disk-image volumes, moving
-// volume data between nodes, installing Secure Runtime from Gateway, and the
+// volume data between nodes, installing Secure Runtime from Opfield, and the
 // boot step that opens database link listeners before Docker.
 const nonRootCapability = "docker_daemon_non_root_v1"
 

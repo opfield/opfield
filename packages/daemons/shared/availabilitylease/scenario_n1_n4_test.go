@@ -184,7 +184,7 @@ func TestN3HigherBallotNackRetriesInsteadOfFencing(t *testing.T) {
 	})
 }
 
-// N4: a policy key rotation does not stop failover when the Gateway dies
+// N4: a policy key rotation does not stop failover when Opfield dies
 // before every voter learned the new key: the chain travels with the block.
 func TestN4PolicyKeyRotationSurvivesOpfieldLoss(t *testing.T) {
 	w := newScenario(t, scenarioSpec{

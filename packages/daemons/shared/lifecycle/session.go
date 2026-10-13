@@ -36,12 +36,12 @@ const (
 )
 
 // commandExpiryTolerance is how far past its deadline a command may arrive,
-// on the gateway clock, before it is dropped. It absorbs delivery jitter.
+// on the Opfield clock, before it is dropped. It absorbs delivery jitter.
 const commandExpiryTolerance = 5 * time.Second
 
 const registrationRejectedCommandID = "__registration_rejected__"
 
-// RegistrationRejectedError reports that the gateway terminally rejected this
+// RegistrationRejectedError reports that Opfield terminally rejected this
 // daemon's registration (for example the node was removed). Retrying quickly
 // cannot succeed, so the daemon backs off for a long time instead.
 type RegistrationRejectedError struct {
@@ -63,11 +63,11 @@ func newAsyncCommandPool(size int, wait bool) *asyncCommandPool {
 	return &asyncCommandPool{slots: make(chan struct{}, size), wait: wait}
 }
 
-// commandClock judges command deadlines on the gateway clock, so a host whose
-// clock is off does not drop commands. The gateway stamps each command with
-// its send time. The smallest (local receive - gateway send) seen in a session
+// commandClock judges command deadlines on the Opfield clock, so a host whose
+// clock is off does not drop commands. Opfield stamps each command with
+// its send time. The smallest (local receive - Opfield send) seen in a session
 // is the clock offset plus the fastest delivery; subtracting it from local time
-// estimates the gateway clock, late only by the extra delay a command incurred.
+// estimates the Opfield clock, late only by the extra delay a command incurred.
 // Local time advances on the monotonic clock so a wall clock step on this host
 // during the session does not move the estimate.
 type commandClock struct {
@@ -103,7 +103,7 @@ func (c *commandClock) observe(cmd *pb.OpfieldCommand, receivedAt time.Time) {
 
 // remaining returns how long cmd may still wait before it expires, including
 // the tolerance. It is false when the command has no deadline or no send
-// time: an older gateway's deadline can only be compared against this host's
+// time: an older Opfield's deadline can only be compared against this host's
 // clock, which is unsafe, so such commands never expire.
 func (c *commandClock) remaining(cmd *pb.OpfieldCommand, now time.Time) (time.Duration, bool) {
 	expiresAt, sentAt := cmd.GetExpiresAtUnixMs(), cmd.GetSentAtUnixMs()
@@ -161,7 +161,7 @@ func uniqueCapabilities(values []string) []string {
 	return unique
 }
 
-// runSession connects to the gateway, registers, and runs the command loop.
+// runSession connects to Opfield, registers, and runs the command loop.
 func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error {
 	// Enable log streaming by default — backend can disable via SetDaemonLogStream command
 	stream.SetDaemonLogStreaming(true, "info")
@@ -184,7 +184,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 
 	d.logger.Info("connected to Opfield", "node_id", d.state.NodeID)
 
-	// Install gRPC log forwarder so daemon logs are streamed to the gateway
+	// Install gRPC log forwarder so daemon logs are streamed to Opfield
 	sessionLogger := slog.New(stream.NewGrpcLogHandlerWithWriter(writer, d.baseHandler))
 	d.logger = sessionLogger
 	// Update plugin's logger so its logs also forward to gRPC
@@ -233,7 +233,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 		go migrationStreamer.RunMigrationStream(sessionCtx, conn, d.state.NodeID)
 	}
 	// Async results go through the outbox: one produced while the control session reconnects (or whose send fails as
-	// the session ends) is delivered once the next session is accepted, and the gateway keeps its command pending
+	// the session ends) is delivered once the next session is accepted, and Opfield keeps its command pending
 	// meanwhile (CommandResultsResentCapability).
 	defer d.results.detach(writer)
 	sendAsyncResult := func(result *pb.CommandResult, what string) {
@@ -278,7 +278,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 					select {
 					case pool.slots <- struct{}{}:
 					case <-sessionCtx.Done():
-						// The gateway keeps the command pending across the reconnect: answer it on the next session.
+						// Opfield keeps the command pending across the reconnect: answer it on the next session.
 						sendAsyncResult(&pb.CommandResult{
 							CommandId: c.CommandId,
 							Success:   false,
@@ -336,7 +336,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			return &RegistrationRejectedError{Message: "no reason given"}
 		}
 
-		// Any other command proves the gateway accepted this registration
+		// Any other command proves Opfield accepted this registration
 		// (it always sends SetDaemonLogStream right after Register). A pending
 		// daemon update commits only after this.
 		if !controlReady {
@@ -359,7 +359,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			}
 		}
 
-		// A command the gateway already stopped waiting for must not run.
+		// A command Opfield already stopped waiting for must not run.
 		if clock.expired(cmd, receivedAt) {
 			d.logger.Warn("dropping expired Opfield command", "command_id", cmd.CommandId)
 			if cmd.CommandId != "" {
@@ -550,7 +550,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			continue
 		case *pb.OpfieldCommand_UpdateDaemon:
 			// Self-update: download new binary, replace it on disk, acknowledge the
-			// command to the gateway, then exit so systemd restarts the daemon.
+			// command to Opfield, then exit so systemd restarts the daemon.
 			updateCmd := cmd.GetUpdateDaemon()
 			result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 			var serviceRestart *launcherServiceRestart
@@ -578,7 +578,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 			})
 			if result.Success {
 				// The new binary is staged: restart even when the acknowledgement could not be sent (the
-				// stream broke during the download). The gateway treats a lost result as "wait for the
+				// stream broke during the download). Opfield treats a lost result as "wait for the
 				// reconnect", and a daemon that kept running the old binary would refuse every retry
 				// while its update stays pending.
 				if sendErr != nil {
@@ -603,7 +603,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 	}
 }
 
-// runHealthReporter periodically sends health reports to the gateway, and at once when the plugin asks for one.
+// runHealthReporter periodically sends health reports to Opfield, and at once when the plugin asks for one.
 func runHealthReporter(ctx context.Context, d *DaemonBase, writer *stream.Writer) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -862,7 +862,7 @@ func (d *DaemonBase) installRenewedClientCert(expiresAt int64) error {
 	if err := d.state.Save(); err != nil {
 		d.logger.Warn("cert renewal: state save failed", "error", err)
 	}
-	// The gateway promotes the renewed certificate (and tells relays its
+	// Opfield promotes the renewed certificate (and tells relays its
 	// fingerprint) when the control session registers with it. Reconnect
 	// that session first; the tunnel switches once it is accepted.
 	d.requestControlReconnect()

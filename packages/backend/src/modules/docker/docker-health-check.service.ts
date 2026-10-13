@@ -504,7 +504,7 @@ export class DockerHealthCheckService {
   }
 
   /**
-   * Whether a probe that never reached its node should be retried instead of recorded: Gateway started moments ago,
+   * Whether a probe that never reached its node should be retried instead of recorded: Opfield started moments ago,
    * the node's stream closed moments ago, or the node's daemon is being updated. Same graces as the route job.
    */
   private async nodeExpectedBack(nodeId: string): Promise<boolean> {

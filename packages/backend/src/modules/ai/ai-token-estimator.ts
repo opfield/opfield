@@ -11,7 +11,7 @@ export function estimateTextTokens(value: string): number {
   // Tool-heavy conversations contain JSON, source code, paths, and identifiers,
   // which tokenize materially denser than natural-language prose. A 4-byte
   // estimate allowed the provider context to cross the configured compaction
-  // threshold before Gateway initiated compaction.
+  // threshold before Opfield initiated compaction.
   return Math.max(0, Math.ceil(Buffer.byteLength(value, 'utf8') / TEXT_BYTES_PER_TOKEN));
 }
 

@@ -131,7 +131,7 @@ export interface LeaseRetainedSlot {
   slot: number;
   holderId: string;
   /**
-   * The committed ballot Gateway saw; null for a reserved bootstrap holder Gateway saw no commit of (the close may have
+   * The committed ballot Opfield saw; null for a reserved bootstrap holder Opfield saw no commit of (the close may have
    * raced its bootstrap commit: acceptors then confirm it on the commit they hold).
    */
   ballot: DockerAvailabilityLeaseBallot | null;

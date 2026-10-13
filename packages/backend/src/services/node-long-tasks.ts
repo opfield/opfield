@@ -29,7 +29,7 @@ interface ActiveTransfer extends NodeLongTask {
   startedAt: number;
 }
 
-/** Container archive transfers stream through Gateway and the daemon; they live only in this process. */
+/** Container archive transfers stream through Opfield and the daemon; they live only in this process. */
 const activeTransfers = new Map<string, Map<string, ActiveTransfer>>();
 
 /**

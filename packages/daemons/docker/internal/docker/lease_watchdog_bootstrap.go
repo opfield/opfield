@@ -21,7 +21,7 @@ import (
 	"github.com/opfield/opfield/daemon-shared/updateauth"
 )
 
-// watchdogMissingCapability tells the Gateway this node has no lease watchdog
+// watchdogMissingCapability tells Opfield this node has no lease watchdog
 // and cannot install one itself (non-root daemon or no service manager); the
 // policy mode reason then asks to re-run the node installer.
 const watchdogMissingCapability = "availability_lease_watchdog_missing_v1"

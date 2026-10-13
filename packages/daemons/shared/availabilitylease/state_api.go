@@ -20,7 +20,7 @@ const ForceWindow = 5 * time.Minute
 
 var (
 	// ErrNoManifest: this node holds no manifest for the key's policy (yet);
-	// it learns it from the Gateway or from a peer's frames.
+	// it learns it from Opfield or from a peer's frames.
 	ErrNoManifest = errors.New("no availability lease manifest for the policy on this node")
 	// ErrNotStateful: the key's policy is not stateful (or is lease closed).
 	ErrNotStateful = errors.New("availability lease policy is not stateful")

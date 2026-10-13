@@ -71,7 +71,7 @@ export interface AccessSummaryPrincipal {
 const SESSION_CREDENTIALS = new Set<AccessCredential>(['session', 'assistant']);
 
 /**
- * The principal block of an access summary. Gateway has no identity or profile scope, so the owner's
+ * The principal block of an access summary. Opfield has no identity or profile scope, so the owner's
  * id, name, email and group are returned only to browser sessions; API tokens and OAuth/MCP clients get
  * the access itself, never who owns it.
  */

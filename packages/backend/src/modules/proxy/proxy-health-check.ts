@@ -118,7 +118,7 @@ function stripBrackets(hostname: string): string {
   return hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
 }
 
-/** Hostnames of the Gateway's own compose services (database, cache, relay, registry, local ClickHouse). */
+/** Hostnames of Opfield's own compose services (database, cache, relay, registry, local ClickHouse). */
 function opfieldInternalServiceNames(env: Partial<Env>): Set<string> {
   const names = [
     urlHostname(env.DATABASE_URL),
@@ -145,7 +145,7 @@ function urlPort(raw: string | undefined, fallback: number): number | null {
   }
 }
 
-/** Ports the Gateway's own services listen on (API, gRPC, database, cache, relay, registry). */
+/** Ports Opfield's own services listen on (API, gRPC, database, cache, relay, registry). */
 export function opfieldServicePorts(env: Partial<Env>): Set<number> {
   const registryUrl = process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000';
   const ports = [
@@ -184,7 +184,7 @@ async function opfieldInternalServices(env: Partial<Env>): Promise<{ names: Set<
  * Proxy upstreams are internal services by nature (LAN hosts on 192.168/16, CGNAT/Tailscale on
  * 100.64/10, ULA), so health checks allow every private range instead of following the narrower
  * outbound webhook allowlist. Loopback, link-local/metadata, multicast and unspecified are still
- * always refused by checkOutboundWebhookTarget; the Gateway's own addresses are refused on its
+ * always refused by checkOutboundWebhookTarget; Opfield's own addresses are refused on its
  * service ports (see checkProxyHealthTarget).
  */
 export const PROXY_HEALTH_CHECK_POLICY: OutboundWebhookPolicy = Object.freeze({
@@ -200,11 +200,11 @@ export const PROXY_HEALTH_CHECK_POLICY: OutboundWebhookPolicy = Object.freeze({
 });
 
 /**
- * Health checks run inside the Gateway container against user-supplied upstreams, so they get
+ * Health checks run inside the Opfield container against user-supplied upstreams, so they get
  * the health-check outbound policy (loopback and link-local/metadata are always refused; every
- * private range is allowed) plus the Gateway's own compose services, which a proxy upstream never
- * legitimately points at. The Gateway's own addresses (including the LAN address its public URL
- * resolves to on one-box installs) are refused only on the Gateway's service ports, so an
+ * private range is allowed) plus Opfield's own compose services, which a proxy upstream never
+ * legitimately points at. Opfield's own addresses (including the LAN address its public URL
+ * resolves to on one-box installs) are refused only on Opfield's service ports, so an
  * upstream on the same host stays checkable.
  */
 export async function checkProxyHealthTarget(
@@ -245,7 +245,7 @@ function headerValue(value: string | string[] | undefined): string | undefined {
 }
 
 /**
- * Probe a direct upstream from the Gateway process through the health-check network policy, pinned
+ * Probe a direct upstream from the Opfield process through the health-check network policy, pinned
  * to the validated addresses. Redirects are followed up to PROXY_HEALTH_MAX_REDIRECTS hops: a
  * same-origin hop stays on the addresses already validated, and a hop to another origin (for
  * example a force-HTTPS redirect) is validated through the same policy and pinned to its own

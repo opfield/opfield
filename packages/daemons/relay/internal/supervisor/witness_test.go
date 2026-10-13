@@ -314,7 +314,7 @@ func TestWitnessUpdateRollsBackWhenNotHealthy(t *testing.T) {
 	if len(starts) != 3 || starts[0] != old.GetArtifact().GetSha256() || starts[1] != broken.GetArtifact().GetSha256() || starts[2] != old.GetArtifact().GetSha256() {
 		t.Fatalf("starts %v, want old, new, old", starts)
 	}
-	// The failed artifact is not retried until Gateway names another one.
+	// The failed artifact is not retried until Opfield names another one.
 	h.pass(time.Minute)
 	h.pass(time.Minute)
 	if got := len(h.rt.startedSHAs()); got != 3 {
@@ -654,9 +654,9 @@ func TestApplyWitnessesCommandAndProtectedGate(t *testing.T) {
 	}
 }
 
-// Gateway down: the set's lease holder activates a staged standby over its
+// Opfield down: the set's lease holder activates a staged standby over its
 // raft port; the relay worker checks the holder statement, the standby runs
-// as an active witness on the same port, survives a restart, and Gateway's
+// as an active witness on the same port, survives a restart, and Opfield's
 // later set (standby made active) ends the local activation.
 func TestStandbyWitnessActivationByTheHolder(t *testing.T) {
 	h := newWitnessHarness(t)
@@ -724,7 +724,7 @@ func TestStandbyWitnessActivationByTheHolder(t *testing.T) {
 	if role != witnessRoleActive {
 		t.Fatal("activation lost on restart")
 	}
-	// Gateway makes it active itself: the local activation is dropped.
+	// Opfield makes it active itself: the local activation is dropped.
 	active := keeperSpec(witnessID, "25.3.1", 39410)
 	active.SetId, active.LeasePolicyId = setID, policyID
 	h.apply(2, active)

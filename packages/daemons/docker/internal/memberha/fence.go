@@ -145,7 +145,7 @@ func (m *Manager) releaseLocked(mem *member, successorNode, operationID, eventKi
 	})
 }
 
-// Switchover is a planned handoff (AS11) Gateway asks of this node's holder:
+// Switchover is a planned handoff (AS11) Opfield asks of this node's holder:
 // the engine stops writes and lets the successor catch up, then the holder
 // releases to it in the A6 order. It returns once the release was started.
 func (m *Manager) Switchover(setID, successorMemberID, operationID string) error {

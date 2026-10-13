@@ -5,8 +5,8 @@ import type { AvailabilityPrimaryAssignment } from '@/grpc/generated/types.js';
 import type { RelayPolicySigningKeyService } from '@/services/relay-policy-signing-key.service.js';
 
 /**
- * Manual pairs' primary assignments (decision 6) are signed by Gateway with the relay policy signing key, like lease
- * manifests: a member accepts an assignment, from Gateway or relayed by its peer over member-control, only with a
+ * Manual pairs' primary assignments (decision 6) are signed by Opfield with the relay policy signing key, like lease
+ * manifests: a member accepts an assignment, from Opfield or relayed by its peer over member-control, only with a
  * valid signature of a key it trusts (docker daemon `memberha.AssignmentStatement`, verified with the lease keychain).
  */
 export const PRIMARY_ASSIGNMENT_DOMAIN = 'gateway-availability-member/primary-assignment/v1';

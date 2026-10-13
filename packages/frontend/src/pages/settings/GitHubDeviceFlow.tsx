@@ -67,7 +67,7 @@ export function GitHubDeviceFlow({
     setStarting(true);
     try {
       // Deliberately do not open GitHub here. The code must be visible before
-      // the user explicitly chooses to leave the Gateway tab.
+      // the user explicitly chooses to leave Opfield tab.
       setSession(await api.startGitHubOAuth(request));
       onActiveChange?.(true);
       setPollAttempt(0);

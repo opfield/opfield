@@ -123,7 +123,7 @@ describe('managed leftovers on nodes (rc.8 O-5)', () => {
     const { service, deps, advance } = repair({ list: [deleted], storage: [{ id: LIVE }] });
     await service.run();
     advance(LEFTOVER_CONFIRMATION_MS);
-    // A create took the id between the passes (Gateway rows come before the node's).
+    // A create took the id between the passes (Opfield rows come before the node's).
     const storage = [{ id: LIVE }, { id: DELETED }];
     (service as unknown as { db: unknown }).db = fakeDb({
       nodes: [{ id: NODE, type: 'storage' }],
@@ -142,7 +142,7 @@ describe('managed leftovers on nodes (rc.8 O-5)', () => {
     const items: ManagedLeftover[] = [
       // The database was deleted; this node's member stayed.
       { id: DELETED, record: 'member', setId: SET, memberId: MEMBER, imageBytes: 0, allocatedBytes: 0 },
-      // A live database whose member here is still Gateway's.
+      // A live database whose member here is still Opfield's.
       { id: LIVE, record: 'member', setId: SET, memberId: KEPT_MEMBER, imageBytes: 0, allocatedBytes: 0 },
       // A live database whose member on this node was removed while the node was unreachable.
       { id: ZEROED, record: 'member', setId: SET, memberId: MEMBER, imageBytes: 0, allocatedBytes: 0 },

@@ -7,7 +7,7 @@ import { useAuthStore } from "@/stores/auth";
 import { RECOMMENDED_POLICY_LEASE_HOURS } from "./availability-labels";
 
 /**
- * Failover runs without Gateway only as long as relay policies last (the relay policy lease).
+ * Failover runs without Opfield only as long as relay policies last (the relay policy lease).
  * Below 7 days the notice offers "Set to 7 days" to admins; it never changes it by itself.
  */
 export function PolicyLeaseNotice({ hours }: { hours: number | null }) {

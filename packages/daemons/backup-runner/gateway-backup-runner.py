@@ -354,7 +354,7 @@ def restore(config):
 
 
 # A managed PostgreSQL database is owned by a NOLOGIN application role that
-# binding and direct-access principals SET ROLE to, while Gateway restores as
+# binding and direct-access principals SET ROLE to, while Opfield restores as
 # its superuser control account. --no-owner makes every restored object owned
 # by that control account, which the application role cannot use. Hand them to
 # the database owner. Legacy managed databases (owner == restoring account) and
@@ -978,7 +978,7 @@ def sanitize(value):
 # ── Storage copy ────────────────────────────────────────────────────────────
 # A fixed program: copy or sync the selected buckets from one S3 connection to
 # another with rclone, then report `rclone check`. The daemon writes the
-# config (credentials and endpoints resolved by Gateway) and reads
+# config (credentials and endpoints resolved by Opfield) and reads
 # /work/progress.json while it runs and /work/result.json at the end.
 
 COPY_PROGRESS = WORK / "progress.json"

@@ -13,7 +13,7 @@ import type { User } from '@/types.js';
  * One-time download links for MCP: an agent's shell saves an object of any size with `curl -o`, where read_object
  * stops at 1 MiB and private managed storage refuses presigned URLs. A link is bound to its owner, the MCP token
  * scopes and one object; using it checks storage:objects:read again with those scopes bounded by the owner's
- * current grants, then streams the object through Gateway as GET /api/object-storage/{id}/objects/download does.
+ * current grants, then streams the object through Opfield as GET /api/object-storage/{id}/objects/download does.
  */
 
 export const STORAGE_OBJECT_LINK_PATH = '/api/storage-object-link';

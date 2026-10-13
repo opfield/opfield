@@ -246,7 +246,7 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	p.secureLinks.shedLog = p.secureLinkShedLog("proxy secure-link")
 	p.secureLinks.loopbackFailed = func(linkID, address string, err error) {
 		// The Unix socket serves on; a config that uses the endpoint gets refused connections (another local
-		// service holds the port: Gateway's SECURE_LINK_LOOPBACK_PORT moves every endpoint).
+		// service holds the port: Opfield's SECURE_LINK_LOOPBACK_PORT moves every endpoint).
 		logger.Warn("proxy secure-link loopback endpoint cannot listen", "link_id", linkID, "address", address, "error", err)
 	}
 	p.registryLinks.shedLog = p.secureLinkShedLog("registry ingress")

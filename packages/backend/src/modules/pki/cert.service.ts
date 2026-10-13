@@ -37,7 +37,7 @@ const MIN_CLAMPED_LEAF_VALIDITY_MS = 60 * 60 * 1000;
  * Resolve a leaf's notAfter against its issuing CA. A leaf that would outlive
  * the CA is either refused (VALIDITY_EXCEEDS_CA) or, when clamping applies,
  * shortened to end with the CA. System CAs always clamp: their leaves (node
- * mTLS, Gateway listeners, relays, managed storage and database TLS) must keep
+ * mTLS, Opfield listeners, relays, managed storage and database TLS) must keep
  * renewing through the CA's final year instead of failing outright.
  */
 export function resolveLeafNotAfter(

@@ -266,8 +266,8 @@ func TestGateViewReportsHolderEndpointReadiness(t *testing.T) {
 }
 
 // N-5: the relay reports when it first saw the committed holder, on its wall
-// clock, so Gateway records the takeover time of a failover it learns about
-// later (stand run rc20: the audit carried the time Gateway came back).
+// clock, so Opfield records the takeover time of a failover it learns about
+// later (stand run rc20: the audit carried the time Opfield came back).
 func TestReportCarriesWhenTheRelaySawTheHolderTakeOver(t *testing.T) {
 	h := newHarness(t, true)
 	h.ready("d1", "d2")

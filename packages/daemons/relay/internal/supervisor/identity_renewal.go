@@ -123,7 +123,7 @@ func planWorkerIdentity(identityDir string, renewal *pb.RenewRelayIdentityComman
 			return nil, fmt.Errorf("renewed relay server certificate: %w", err)
 		}
 		// Keep the certificate daemons pin, whichever file holds it now. When
-		// Gateway names none the worker holds, keep the one it serves today:
+		// Opfield names none the worker holds, keep the one it serves today:
 		// daemons were handed that one most recently.
 		type pair struct {
 			certificate, key []byte

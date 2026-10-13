@@ -80,10 +80,10 @@ type DaemonPlugin interface {
 	Init(cfg *BaseConfig, logger *slog.Logger) error
 
 	// BuildRegisterMessage constructs the registration message sent to the
-	// gateway when a new session begins.
+	// Opfield when a new session begins.
 	BuildRegisterMessage(nodeID string) *pb.RegisterMessage
 
-	// HandleCommand processes a gateway command and returns a result.
+	// HandleCommand processes an Opfield command and returns a result.
 	HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult
 
 	// CollectHealth enriches a base health report with plugin-specific metrics.
@@ -117,20 +117,20 @@ type EnrollmentBundlePlugin interface {
 // RegistrationRefreshPlugin is implemented by plugins whose registration
 // capabilities can change while the process runs (for example once a lease
 // watchdog becomes available): a signal reconnects the control session so
-// the gateway receives a fresh RegisterMessage.
+// Opfield receives a fresh RegisterMessage.
 type RegistrationRefreshPlugin interface {
 	RegistrationChanged() <-chan struct{}
 }
 
-// OpfieldContactPlugin is implemented by plugins that track when Gateway last reached the daemon: every command
-// received on the control stream (Gateway asks the nodes of manual availability pairs for a report every few
+// OpfieldContactPlugin is implemented by plugins that track when Opfield last reached the daemon: every command
+// received on the control stream (Opfield asks the nodes of manual availability pairs for a report every few
 // seconds) is a contact; a manual pair's primary self-fences when it had none for its bound.
 type OpfieldContactPlugin interface {
 	NoteOpfieldContact()
 }
 
 // HealthRefreshPlugin is implemented by plugins whose health report can change between the periodic reports in a
-// way the gateway should see at once (a container that exited on its own): each signal sends a report now.
+// way Opfield should see at once (a container that exited on its own): each signal sends a report now.
 type HealthRefreshPlugin interface {
 	HealthRefreshRequested() <-chan struct{}
 }
@@ -168,7 +168,7 @@ type RelayTunnelPlugin interface {
 }
 
 // RelayTunnelRuntimePlugin allows a source daemon to resize its physical
-// HTTP/2 lane pool from persisted Gateway settings without an environment
+// HTTP/2 lane pool from persisted Opfield settings without an environment
 // variable or process restart.
 type RelayTunnelRuntimePlugin interface {
 	RelayTunnelLaneCount() int
@@ -182,7 +182,7 @@ type RelayTunnelTarget struct {
 	CertificateFingerprint string
 }
 
-// RelayPoolTunnelPlugin separates the canonical Gateway control target from
+// RelayPoolTunnelPlugin separates the canonical Opfield control target from
 // the relay instances used for payload lanes. Targets are complete desired
 // state and every configured lane is opened independently per target.
 type RelayPoolTunnelPlugin interface {

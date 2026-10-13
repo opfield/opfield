@@ -112,7 +112,7 @@ export interface AppEnv {
     };
     mcpExtendedCompatibility?: boolean;
     requestId: string;
-    /** Whether Gateway setup is complete, read once per request by the host guard. */
+    /** Whether Opfield setup is complete, read once per request by the host guard. */
     setupComplete?: boolean;
     loggingIngest?: {
       tokenId: string;

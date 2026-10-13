@@ -8,7 +8,7 @@ import (
 
 const (
 	// selfFenceAfter: the manual primary demotes itself when it reached
-	// neither the Gateway session nor its peer for this long (decision 6).
+	// neither the Opfield session nor its peer for this long (decision 6).
 	selfFenceAfter = 30 * time.Second
 	// peerProbeInterval is how often a manual member asks its peer.
 	peerProbeInterval = 5 * time.Second
@@ -16,7 +16,7 @@ const (
 )
 
 type manualRuntime struct {
-	// lastContact is when this member last reached Gateway or its peer.
+	// lastContact is when this member last reached Opfield or its peer.
 	lastContact time.Duration
 	probing     bool
 	nextProbeAt time.Duration
@@ -25,14 +25,14 @@ type manualRuntime struct {
 	peerGeneration uint64
 	peerPrimary    string
 	peerAt         time.Duration
-	// confirmedGen is the assignment generation Gateway or the peer confirmed
+	// confirmedGen is the assignment generation Opfield or the peer confirmed
 	// to this process (in memory: a restart or a self-fence starts without
 	// one). A member promotes only under a confirmed assignment.
 	confirmedGen uint64
 }
 
 // manualStepLocked is the decision of one manual-pair member (decision 6):
-// no lease, no watchdog deadline; the primary is the member Gateway names in
+// no lease, no watchdog deadline; the primary is the member Opfield names in
 // the newest assignment this member knows.
 func (m *Manager) manualStepLocked(mem *member, now time.Duration) {
 	m.contactLocked(mem, now)
@@ -65,16 +65,16 @@ func (m *Manager) manualStepLocked(mem *member, now time.Duration) {
 	assignment := mem.state.Assignment
 	// A peer that serves under a newer generation than this member knows:
 	// this member steps down whatever it thought (the newer assignment
-	// reaches it from Gateway later).
+	// reaches it from Opfield later).
 	newerPeer := mem.manual.peerReachable && mem.manual.peerGeneration > assignment.Generation
 	primary := assignment.PrimaryMemberID == mem.cfg.MemberID && assignment.Generation > 0 && !newerPeer &&
 		!mem.state.Stopped
 	if primary && mem.state.SelfFenced == assignment.Generation {
-		// A self-fenced member never promotes on its own: only once Gateway or
+		// A self-fenced member never promotes on its own: only once Opfield or
 		// the peer confirmed that the newest assignment still names it (a
 		// newer one naming the copy may exist that it has not heard of).
 		if now-mem.manual.lastContact < selfFenceAfter && mem.manual.confirmedGen == assignment.Generation {
-			// Gateway or the peer is back and confirmed the assignment: serve again.
+			// Opfield or the peer is back and confirmed the assignment: serve again.
 			mem.state.SelfFenced = 0
 			if m.saveLocked(mem) != nil {
 				return
@@ -104,11 +104,11 @@ func (m *Manager) manualStepLocked(mem *member, now time.Duration) {
 }
 
 // manualPrimaryStepLocked keeps the assigned primary writable and serving,
-// and demotes it once it lost both Gateway and its peer for selfFenceAfter.
+// and demotes it once it lost both Opfield and its peer for selfFenceAfter.
 func (m *Manager) manualPrimaryStepLocked(mem *member, now time.Duration) {
 	assignment := mem.state.Assignment
 	if now-mem.manual.lastContact >= selfFenceAfter {
-		// One failure never stops writes; Gateway down and the peer down does.
+		// One failure never stops writes; Opfield down and the peer down does.
 		mem.state.SelfFenced = assignment.Generation
 		mem.manual.confirmedGen = 0
 		if m.saveLocked(mem) != nil {
@@ -138,9 +138,9 @@ func (m *Manager) manualPrimaryStepLocked(mem *member, now time.Duration) {
 			return
 		}
 		if mem.manual.confirmedGen != assignment.Generation {
-			// Promote only under an assignment Gateway or the peer confirmed to
+			// Promote only under an assignment Opfield or the peer confirmed to
 			// this process (after a restart or a fence the stored one may be
-			// stale); Gateway sends it again to an assigned primary that does
+			// stale); Opfield sends it again to an assigned primary that does
 			// not serve, the peer answers within peerProbeInterval.
 			return
 		}
@@ -163,7 +163,7 @@ func (m *Manager) manualPrimaryStepLocked(mem *member, now time.Duration) {
 		return
 	}
 	if mem.state.Restart != nil {
-		// A restart Gateway asked for: a clean stop, standby at rest and a
+		// A restart Opfield asked for: a clean stop, standby at rest and a
 		// start; the assigned primary is promoted again right after.
 		m.closeServingLocked(mem)
 		m.restartCopyLocked(mem)
@@ -196,7 +196,7 @@ func (m *Manager) demoteLocked(mem *member, kind, reason string) {
 	})
 }
 
-// contactLocked tracks the last contact with Gateway or the peer, and asks the
+// contactLocked tracks the last contact with Opfield or the peer, and asks the
 // peer for its assignment every peerProbeInterval.
 func (m *Manager) contactLocked(mem *member, now time.Duration) {
 	if mem.manual.lastContact == 0 {
@@ -205,7 +205,7 @@ func (m *Manager) contactLocked(mem *member, now time.Duration) {
 		mem.manual.lastContact = now
 	}
 	if m.deps.OpfieldContactAt != nil {
-		// The last command that arrived from Gateway: a session that is dead
+		// The last command that arrived from Opfield: a session that is dead
 		// without knowing it yet (keepalive) is no contact.
 		if at := m.deps.OpfieldContactAt(); at > 0 && at <= now && at > mem.manual.lastContact {
 			mem.manual.lastContact = at
@@ -230,7 +230,7 @@ func (m *Manager) contactLocked(mem *member, now time.Duration) {
 		ctx, cancel := context.WithTimeout(context.Background(), peerProbeTimeout)
 		state, ok := m.deps.PeerState(ctx, setID, peer.MemberID)
 		cancel()
-		// Only an assignment Gateway signed counts, whoever relays it.
+		// Only an assignment Opfield signed counts, whoever relays it.
 		var verified *Assignment
 		if ok && state.Assignment != nil && m.deps.VerifyAssignment(setID, *state.Assignment) == nil {
 			assignment := *state.Assignment

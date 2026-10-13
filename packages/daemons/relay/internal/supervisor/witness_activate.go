@@ -16,15 +16,15 @@ import (
 	"github.com/opfield/opfield/daemon-shared/witnessactivation"
 )
 
-// Standby witness activation while Gateway is down (decision 8 of the
+// Standby witness activation while Opfield is down (decision 8 of the
 // availability plan). A staged standby Keeper witness does not run; the
 // supervisor listens on its relay-local raft port instead. The set's lease
 // holder reaches that port over its witness route and sends an activation
 // request (a holder statement, daemon-shared/witnessactivation). The relay
 // worker checks that the committed holder of the set's lease policy signed it
 // (VerifyHolderStatement); the request must name this very standby, its set
-// and the policy of the spec Gateway applied. The supervisor then runs the
-// standby as an active witness (on the same port) until Gateway applies a set
+// and the policy of the spec Opfield applied. The supervisor then runs the
+// standby as an active witness (on the same port) until Opfield applies a set
 // that makes it active itself or removes it; the activation is kept on disk.
 
 // holderVerifier asks the relay worker to check a holder statement.
@@ -67,7 +67,7 @@ func (m *witnessManager) saveActivationsLocked() error {
 	return atomicfile.WriteFile(m.activatedPath(), data, 0o600)
 }
 
-// pruneActivationsLocked forgets activations Gateway caught up with: the
+// pruneActivationsLocked forgets activations Opfield caught up with: the
 // witness is active in the desired set, or no longer in it.
 func (m *witnessManager) pruneActivationsLocked() {
 	changed := false

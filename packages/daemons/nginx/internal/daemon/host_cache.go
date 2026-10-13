@@ -10,7 +10,7 @@ import (
 // hostCacheRoot holds the per-host proxy cache directories that proxy host
 // configs declare as proxy_cache_path /tmp/nginx-cache-<host id>: the cache of
 // a route with caching enabled and the stale cache that keeps the public status
-// page up while Gateway is unreachable. A variable so tests can move it.
+// page up while Opfield is unreachable. A variable so tests can move it.
 var hostCacheRoot = "/tmp"
 
 var hostCacheIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)

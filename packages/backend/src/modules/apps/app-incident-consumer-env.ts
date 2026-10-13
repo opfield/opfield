@@ -105,7 +105,7 @@ export class AppIncidentConsumerEnv {
   /**
    * The variables still to remove from one container of an incident: those recorded by the incident's binding and
    * link items whose binding or link is gone now, except names a current binding or link of the container claims and
-   * names stored as the container's secrets (Gateway puts those back on every recreate; they are the user's to remove).
+   * names stored as the container's secrets (Opfield puts those back on every recreate; they are the user's to remove).
    */
   async leftByGoneBindings(incidentId: string, nodeId: string, name: string): Promise<string[]> {
     const items = await this.db

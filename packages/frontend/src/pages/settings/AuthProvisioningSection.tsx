@@ -157,7 +157,7 @@ export function AuthProvisioningSection({
   } = useAuthProvisioningSettings(canEdit);
   const hasScope = useAuthStore((state) => state.hasScope);
   // SMTP, the OIDC provider, the public URL and verified-email enforcement decide who can prove
-  // an identity to Gateway, so the backend only lets admin:system change them.
+  // an identity to Opfield, so the backend only lets admin:system change them.
   const canEditIdentityTrust = canEdit && hasScope("admin:system");
   const identityTrustLocked = canEdit && !canEditIdentityTrust;
 

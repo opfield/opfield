@@ -11,15 +11,15 @@ const ACTIVE_TASK_STATUSES = ['pending', 'running'] as const;
 const COMPLETED_TASK_STATUSES = ['completed', 'succeeded', 'failed'] as const;
 const STALE_ACTIVE_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 const LOST_STARTUP_TRACKING_ERROR = 'Task tracking interrupted by backend restart';
-/** Progress of a task Gateway lost track of while the node may still run it. */
+/** Progress of a task Opfield lost track of while the node may still run it. */
 export const DETACHED_TASK_PROGRESS = 'Opfield lost track of it; checks with the node once it is connected';
 
 export type DockerTaskRow = typeof dockerTasks.$inferSelect;
-/** A task as the API shows it: without what Gateway keeps to settle it with its node and what it still owes then. */
+/** A task as the API shows it: without what Opfield keeps to settle it with its node and what it still owes then. */
 export type PublicDockerTask = Omit<DockerTaskRow, 'tracking' | 'commandId' | 'followUps'>;
 
 /**
- * Records a task's tracking without ever failing the operation it belongs to: tracking only lets Gateway settle the
+ * Records a task's tracking without ever failing the operation it belongs to: tracking only lets Opfield settle the
  * task later, should it lose track of it. Resolves whether it was recorded.
  */
 export function trackDockerTask(
@@ -215,7 +215,7 @@ export class DockerTaskService {
   }
 
   /**
-   * At startup no task has a watch in this process. A task Gateway can settle with its node (it has tracking: an image
+   * At startup no task has a watch in this process. A task Opfield can settle with its node (it has tracking: an image
    * pull, a stop, restart, kill, update or recreate the node runs on) stays active, detached, so a daemon update that
    * waits for the node's tasks still sees it; it is settled once the node is connected (DockerTaskReconciler). A task
    * without tracking fails as before.
@@ -259,7 +259,7 @@ export class DockerTaskService {
   }
 
   /**
-   * Records what settles the task with its node should Gateway lose track of it, the command the task runs as (a pull,
+   * Records what settles the task with its node should Opfield lose track of it, the command the task runs as (a pull,
    * update or recreate: the daemon tells by it how it ended), and what it owes once settled (an update's or recreate's
    * env follow-ups, kept until they ran or the task ended).
    */
@@ -271,7 +271,7 @@ export class DockerTaskService {
   }
 
   /**
-   * Gateway lost track of an active task the node may still run (the node's control stream dropped, or the answer
+   * Opfield lost track of an active task the node may still run (the node's control stream dropped, or the answer
    * did not come in time): it stays active, detached, and is settled with the node once that is connected again. A
    * task without tracking cannot be settled later and fails with `error`. Returns whether the task was kept.
    */
@@ -300,7 +300,7 @@ export class DockerTaskService {
     return false;
   }
 
-  /** The active tasks Gateway lost track of, oldest first. */
+  /** The active tasks Opfield lost track of, oldest first. */
   async listDetached(nodeId?: string): Promise<DockerTaskRow[]> {
     const conditions = [inArray(dockerTasks.status, [...ACTIVE_TASK_STATUSES]), isNotNull(dockerTasks.detachedAt)];
     if (nodeId) conditions.push(eq(dockerTasks.nodeId, nodeId));

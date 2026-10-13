@@ -1,8 +1,8 @@
 import type { RelayPolicyRouteEntry } from '@/db/schema/relay.js';
 
 /**
- * While Gateway is up, a relay must apply a policy that revokes a route this soon after the
- * revocation, the same bound Gateway gives a silent relay before it counts it offline. A relay
+ * While Opfield is up, a relay must apply a policy that revokes a route this soon after the
+ * revocation, the same bound Opfield gives a silent relay before it counts it offline. A relay
  * that misses it is stale for the revoked routes: daemons refuse those routes through it.
  */
 export const RELAY_REVOCATION_ACK_TIMEOUT_MS = 90_000;
@@ -42,7 +42,7 @@ function entryKey(entry: BuiltPolicyRoute): string {
 }
 
 /**
- * The route tuples a relay may admit after Gateway built a snapshot at `revision` for it: the
+ * The route tuples a relay may admit after Opfield built a snapshot at `revision` for it: the
  * built tuples, plus earlier ones the relay has not yet acknowledged dropping. A tuple leaves
  * only when the relay acknowledges a revision at or above the one that first dropped it.
  */
@@ -72,14 +72,14 @@ export function projectBuiltRoutes(
 }
 
 export interface ReconcileRevocationInput {
-  /** A revision the relay applied, trusted only when Gateway has issued it. */
+  /** A revision the relay applied, trusted only when Opfield has issued it. */
   acknowledgedRevision: number;
   /** The lowest pool revision any snapshot built from now on can carry. */
   nextRevision: number;
   routes: Map<string, CurrentPolicyRoute>;
   endpointGenerations: Map<string, number>;
   now: Date;
-  /** Deadlines never run from before this instant: Gateway start, when a relay could not be judged. */
+  /** Deadlines never run from before this instant: Opfield start, when a relay could not be judged. */
   judgeFrom: number;
 }
 
@@ -91,8 +91,8 @@ export interface ReconcileRevocationResult {
 }
 
 /**
- * The revision a relay's report acknowledges. A relay reporting a revision Gateway never issued
- * (Gateway's sequence was restored from a backup) has applied nothing Gateway built since.
+ * The revision a relay's report acknowledges. A relay reporting a revision Opfield never issued
+ * (Opfield's sequence was restored from a backup) has applied nothing Opfield built since.
  */
 export function trustedAcknowledgement(reported: number, issued: number): number {
   return Number.isSafeInteger(reported) && reported > 0 && reported <= issued ? reported : 0;
@@ -109,7 +109,7 @@ function isAllowed(entry: RelayPolicyRouteEntry, input: ReconcileRevocationInput
 }
 
 /**
- * Applies the relay's acknowledgement, records revocations Gateway made since the tuple was
+ * Applies the relay's acknowledgement, records revocations Opfield made since the tuple was
  * built and marks revocations stale once their deadline passed. Pure: the caller persists it.
  */
 export function reconcileRevocations(

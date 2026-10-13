@@ -71,7 +71,7 @@ export async function leaseLaneNodeIds(db: DrizzleClient): Promise<string[]> {
 /**
  * Lease lanes (stand run c1). A docker daemon exchanges lease frames only over the relay transports it holds, and it
  * used to hold transports only to relays that carry one of its Secure Link endpoints: a voter whose endpoints were all
- * assigned to the local relay could vote only through Gateway, so with Gateway down its vote was lost. Every node that
+ * assigned to the local relay could vote only through Opfield, so with Opfield down its vote was lost. Every node that
  * takes part in a lease-mode policy gets a transport to every relay the manifests list as a member (every capable
  * relay of the operator's pools, A18), independent of endpoint assignment. Empty for any other node.
  */

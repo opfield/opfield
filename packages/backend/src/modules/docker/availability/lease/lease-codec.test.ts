@@ -189,7 +189,7 @@ describe('availability lease codec', () => {
     );
     expect(leaseManifestDigest(manifest)).toBe(leaseManifestDigest({ ...manifest, retained: undefined }));
     expect(leaseManifestClosure(null)).toBeNull();
-    // A reserved bootstrap holder Gateway saw no commit of is named with an empty ballot.
+    // A reserved bootstrap holder Opfield saw no commit of is named with an empty ballot.
     const reserved = { ...closed, retained: [{ slot: 0, holderId: 'node-2', ballot: null }] };
     const reservedBlock = encodeLeaseSignedBlock(
       await signLeaseBlock('LEASE_BLOCK_KIND_MANIFEST', encodeLeaseManifest(reserved, 10), 'k1', signer)

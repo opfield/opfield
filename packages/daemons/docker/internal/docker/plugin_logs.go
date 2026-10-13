@@ -27,7 +27,7 @@ type logStreamOwner struct {
 var logStreamOwners sync.Map // logStreamOwnerKey -> logStreamOwner
 
 // isLogFollowStop reports whether a logs command asks to stop the container's
-// follow stream: a non-follow request with a negative tail. The gateway sends it
+// follow stream: a non-follow request with a negative tail. Opfield sends it
 // when the last viewer leaves; older daemons read 100 lines for it instead.
 func isLogFollowStop(cmd *pb.DockerLogsCommand) bool {
 	return !cmd.Follow && cmd.TailLines < 0
@@ -254,5 +254,5 @@ func (p *DockerPlugin) stopLogStream(containerID string) {
 	p.logStreamMu.Unlock()
 }
 
-// handleConfigPush processes a config push from the gateway, updating the
+// handleConfigPush processes a config push from Opfield, updating the
 // allowlist and storing registry credentials.

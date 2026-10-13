@@ -60,12 +60,12 @@ type ContainerIdentity = {
 };
 
 /**
- * Docker task types of the Gateway operations that replace a container's runtime under the same name (update,
+ * Docker task types of the Opfield operations that replace a container's runtime under the same name (update,
  * env change, recreate, link apply and removal). Their task records the runtime they replace.
  */
 export const DOCKER_RECREATE_TASK_TYPES = ['update', 'recreate'] as const;
 
-/** How long a Gateway recreate vouches for the runtime it replaced and the one it created. */
+/** How long an Opfield recreate vouches for the runtime it replaced and the one it created. */
 const RECREATE_LINEAGE_WINDOW = sql`now() - interval '1 hour'`;
 
 function containerName(container: Record<string, unknown>): string {
@@ -121,7 +121,7 @@ export class DockerAccessResourceService {
    * (`adoptReservation`). Any other runtime with the name gets no identity (''), so it never inherits the grants
    * of the reservation's creator.
    *
-   * A runtime that replaced the identity's runtime through a Gateway recreate keeps the identity, and a runtime such
+   * A runtime that replaced the identity's runtime through an Opfield recreate keeps the identity, and a runtime such
    * a recreate replaced (a lagging snapshot still lists it) never takes it back. Both are read from the recreate's
    * task, so they hold however the operation's in-memory transition and watcher end. Any other new runtime under
    * the name is a different container: it gets a new identity, and the grants of the previous one are removed.
@@ -195,7 +195,7 @@ export class DockerAccessResourceService {
   }
 
   /**
-   * How a runtime seen under a container name relates to the identity's runtime, from the Gateway recreates of that
+   * How a runtime seen under a container name relates to the identity's runtime, from Opfield recreates of that
    * name: `replacement` when a recreate replaced the identity's runtime (the new runtime is its result, even when
    * the operation's transition and watcher ended before anyone saw it), `superseded` when a recreate replaced the
    * seen runtime (a lagging snapshot), `unrelated` otherwise.

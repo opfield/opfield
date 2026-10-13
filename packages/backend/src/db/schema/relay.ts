@@ -91,7 +91,7 @@ export interface RelayInstanceHealth {
 
 /**
  * One route tuple a relay may admit, as the policy snapshots built for it carried it. A tuple
- * missing from a later snapshot stays until the relay acknowledges that snapshot. A tuple Gateway
+ * missing from a later snapshot stays until the relay acknowledges that snapshot. A tuple Opfield
  * no longer allows (route deleted, or its generation or target endpoint generation changed) is a
  * revocation; unacknowledged past the deadline, the relay is stale for that route.
  */
@@ -102,7 +102,7 @@ export interface RelayPolicyRouteEntry {
   endpointGeneration: number;
   /** First pool revision built without this tuple (or issued after it was revoked). */
   removedAtRevision?: number;
-  /** When Gateway first saw the tuple revoked while the relay could still admit it. */
+  /** When Opfield first saw the tuple revoked while the relay could still admit it. */
   revokedAt?: string;
   /** When the relay missed the acknowledgement deadline for the revocation. */
   staleAt?: string;
@@ -227,7 +227,7 @@ export const relayPolicyState = pgTable('relay_policy_state', {
   revision: bigint('revision', { mode: 'number' }).notNull().default(0),
   /**
    * The resumable relay stream (RSv1) secret every route resume key derives from, envelope-encrypted like the grant
-   * signing keys. Created once by Gateway; relays never see it or the keys.
+   * signing keys. Created once by Opfield; relays never see it or the keys.
    */
   resumeSecretEncrypted: text('resume_secret_encrypted'),
   resumeSecretDek: text('resume_secret_dek'),
@@ -404,7 +404,7 @@ export const relayInstances = pgTable(
 );
 
 /**
- * Per relay instance, Gateway-side policy bookkeeping written by snapshot builds: the route tuples
+ * Per relay instance, Opfield-side policy bookkeeping written by snapshot builds: the route tuples
  * the relay may admit (see RelayPolicyRouteEntry) and the content key, revision and lease of the
  * last snapshot built for it, so an unchanged policy is not rebuilt under a new revision.
  *

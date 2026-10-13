@@ -15,10 +15,10 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-// The relay port serves two kinds of clients: daemons and Gateway with a
-// verified certificate, and nodes that enroll without one (the Gateway
+// The relay port serves two kinds of clients: daemons and Opfield with a
+// verified certificate, and nodes that enroll without one (Opfield
 // enrollment RPC proxied by the local relay). gRPC bounds message sizes per
-// server, and the limit Gateway's proxied RPCs need (512 MiB) let any peer
+// server, and the limit Opfield's proxied RPCs need (512 MiB) let any peer
 // that reached the port make the relay assemble messages that large before a
 // handler saw them. The split listener completes each TLS handshake itself
 // and hands the connection to one of two gRPC servers: the full one, or one

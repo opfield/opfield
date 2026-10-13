@@ -11,7 +11,7 @@ import (
 	"github.com/moby/moby/client"
 )
 
-// thirdPartyMirrorRepository is the Gateway-owned GHCR namespace the release
+// thirdPartyMirrorRepository is the Opfield-owned GHCR namespace the release
 // pipeline mirrors digest-pinned third-party runtime images into
 // (scripts/mirror-third-party-images.mjs, config/third-party-images.json). The
 // mirror keeps the upstream index digest byte for byte, so the digest stays the

@@ -93,7 +93,7 @@ func TestAnUnsignedAssignmentIsRefusedFromOpfieldAndFromThePeer(t *testing.T) {
 	}
 	h.engine.container.Running = true
 	h.engine.status = EngineStatus{Answering: true, Writable: true}
-	// The peer claims a newer generation without Gateway's signature: ignored.
+	// The peer claims a newer generation without Opfield's signature: ignored.
 	h.peer = &PeerState{MemberID: testMemberB, Generation: 9, Primary: testMemberB}
 	h.step(10, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.kill") >= 0 || indexOf(log, "engine.stop_clean") >= 0 {

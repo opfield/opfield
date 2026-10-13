@@ -75,7 +75,7 @@ const STAGE = {
   rollingBack: 'Rolling back',
 } as const;
 
-/** Sealed runtime credential blob; never leaves the Gateway unencrypted. */
+/** Sealed runtime credential blob; never leaves Opfield unencrypted. */
 export interface InferenceCoreCredentials {
   dataCredential: string;
   managementCredential: string;
@@ -423,7 +423,7 @@ export class InferenceCoreRuntimeService {
       });
     }
 
-    // A Gateway process can die after draining the old core but before replacing
+    // An Opfield process can die after draining the old core but before replacing
     // it (for example while backing up its state volume). When the recorded
     // digest still matches, the old core is authoritative and safe to resume.
     if (row.state === 'updating' && row.installedVersion) {
@@ -915,7 +915,7 @@ export class InferenceCoreRuntimeService {
   }
 
   /**
-   * Back up the state volume into the Gateway data dir as a tar archive. The
+   * Back up the state volume into the Opfield data dir as a tar archive. The
    * size check runs in a one-shot container first; the archive itself is
    * streamed out of a stopped helper that only mounts the volume.
    */
@@ -1219,7 +1219,7 @@ export class InferenceCoreRuntimeService {
   }
 }
 
-/** Internal listener port for core → Gateway callbacks (T5 binds it). */
+/** Internal listener port for core → Opfield callbacks (T5 binds it). */
 export const INFERENCE_CORE_INTERNAL_PORT = 9410;
 
 /**

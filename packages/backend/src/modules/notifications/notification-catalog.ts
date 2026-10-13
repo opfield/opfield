@@ -97,7 +97,7 @@ export function isPerDeviceNodeMetric(metric: string): boolean {
 /**
  * Availability of a managed database or managed storage on several servers (one set): failovers and switches, the set
  * state (degraded, no automatic failover, restored) and member, sync and witness events. Events the servers queued
- * while Gateway was down arrive late; `{{details.occurred_at}}` is when they happened.
+ * while Opfield was down arrive late; `{{details.occurred_at}}` is when they happened.
  */
 const AVAILABILITY_EVENTS: EventDefinition[] = [
   { id: 'availability.failover', label: 'Failover Happened', defaultSeverity: 'warning' },
@@ -304,7 +304,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     metrics: [
       { id: 'cpu', label: 'CPU Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
       { id: 'memory', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
-      // Containers with Gateway's default rotation stay under 150 MB, so this
+      // Containers with Opfield's default rotation stay under 150 MB, so this
       // catches workloads whose logs are unbounded.
       { id: 'log_size', label: 'Log Size (MB)', unit: 'MB', defaultOperator: '>', defaultValue: 1024 },
     ],
@@ -464,7 +464,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
   {
     id: 'opfield',
     label: 'Opfield',
-    // Gateway's own host, process and dependencies, sampled once a minute by Gateway diagnostics.
+    // Opfield's own host, process and dependencies, sampled once a minute by Opfield diagnostics.
     metrics: [
       {
         id: 'host_cpu',
@@ -679,7 +679,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { id: 'renewal_failed', label: 'Certificate Renewal Failed', defaultSeverity: 'critical' },
       { id: 'expired', label: 'Certificate Expired', defaultSeverity: 'critical' },
       {
-        // Managed storage / managed database TLS certificates renewed by Gateway itself.
+        // Managed storage / managed database TLS certificates renewed by Opfield itself.
         id: 'internal.renewal_failed',
         label: 'Managed Service Certificate Renewal Failed',
         defaultSeverity: 'critical',

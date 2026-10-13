@@ -489,7 +489,7 @@ func TestLauncherRollsBackCandidateThatNeverReachesOpfieldControl(t *testing.T) 
 	if _, err := stageLauncherUpdate(stateDir, "docker", binary, "v1", "v2", time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	// Locally ready (and stable) but never accepted by the gateway.
+	// Locally ready (and stable) but never accepted by Opfield.
 	writeControlAwareLauncherTestExecutable(t, binary, "v2", false)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

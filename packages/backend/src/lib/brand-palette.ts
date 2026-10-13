@@ -1,4 +1,4 @@
-// The console palette (Opfield: graphite and paper, one amber accent) for HTML that Gateway renders
+// The console palette (Opfield: graphite and paper, one amber accent) for HTML that Opfield renders
 // outside the frontend: static nginx pages and emails. The frontend's own tokens live in
 // packages/frontend/src/index.css; these values match them. Keep every colour of server-rendered
 // HTML here.

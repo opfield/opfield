@@ -69,7 +69,7 @@ var errSecureLinkTargetUnavailable = errors.New("target container is unavailable
 
 // secureLinkTargetUnknownError is a target check dockerd did not answer: the
 // target may run or not. Every caller reads it as errSecureLinkTargetUnavailable
-// (the same text, which Gateway parses); apply keeps a link bound to that same
+// (the same text, which Opfield parses); apply keeps a link bound to that same
 // target instead (B-24).
 type secureLinkTargetUnknownError struct{ cause error }
 
@@ -278,7 +278,7 @@ func newDockerSecureLinkManager(plugin *DockerPlugin) (*dockerSecureLinkManager,
 }
 
 // restore re-applies the committed bindings after a daemon or connector
-// restart. Unlike a Gateway sync it works per binding: a link whose target
+// restart. Unlike an Opfield sync it works per binding: a link whose target
 // cannot be resolved (a container that is stopped or gone) is left out and
 // stays committed, and every other link on the node is bound. A later
 // restore, on dial or before a lease holder serves, binds it once it runs.
@@ -286,7 +286,7 @@ func (m *dockerSecureLinkManager) restore(command *pb.SyncProxySecureLinksComman
 	return m.apply(command, nil, nil, true)
 }
 
-// syncWithPersistence applies a Gateway sync: the complete target set must
+// syncWithPersistence applies an Opfield sync: the complete target set must
 // resolve (dormant standbys aside) before anything is saved or changed.
 func (m *dockerSecureLinkManager) syncWithPersistence(
 	command *pb.SyncProxySecureLinksCommand,
@@ -527,7 +527,7 @@ type skippedSecureLinkTarget struct {
 // committed state, and is bound by the restore that runs once this node serves
 // the lease: a dormant member targets a created, stopped standby (D7), and a
 // lease-gated member serves only while its node holds the lease (D8), which
-// Gateway learns after the fact. perBinding (restore) leaves out every binding
+// Opfield learns after the fact. perBinding (restore) leaves out every binding
 // whose target does not resolve, so one missing target cannot take the other
 // links of the node down with it.
 func resolveSecureLinkTargets(

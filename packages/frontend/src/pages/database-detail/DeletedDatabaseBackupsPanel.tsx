@@ -42,7 +42,7 @@ const leadingColumns: DataTableColumn<BackupRun>[] = [
 ];
 
 /**
- * Backups whose database was deleted: Gateway keeps their history and files. Shown on the
+ * Backups whose database was deleted: Opfield keeps their history and files. Shown on the
  * Databases page to callers with the unscoped backup view scope (deleting a database removes the
  * grants that name it), and only when there is such history.
  */

@@ -301,7 +301,7 @@ func (b *Broker) serveTunnel(stream tunnelServerStream, request tunnelRequest) (
 func localTarget(endpoint *relayv1.EndpointPolicy, snapshot *policy.Snapshot) (string, string, error) {
 	if endpoint.SubjectKind == localServiceSubjectKind {
 		if snapshot.Mode != relayv1.RelayMode_RELAY_MODE_LOCAL_COMBINED {
-			// Only the local relay next to the Gateway serves built-in local
+			// Only the local relay next to Opfield serves built-in local
 			// services. A remote relay would dial the service's fixed name on
 			// its own host's network, which no policy may make it do.
 			return "", refusalLocalService, fmt.Errorf("built-in local services are served only by the local relay")
@@ -331,7 +331,7 @@ func (t *activeTunnel) bridgeResult(err error) error {
 const errEndpointRestarting = "target endpoint is restarting"
 
 // incomingTunnel names the route the tunnel was admitted for, so an endpoint
-// can refuse a route Gateway revoked while this relay missed that policy.
+// can refuse a route Opfield revoked while this relay missed that policy.
 func incomingTunnel(sessionID, token string, deadline time.Time, session *activeTunnel) *relayv1.IncomingTunnel {
 	return &relayv1.IncomingTunnel{
 		SessionId: sessionID, AcceptToken: token, AcceptExpiresAtUnix: deadline.Unix(),

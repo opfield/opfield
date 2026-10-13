@@ -22,12 +22,12 @@ import (
 )
 
 // Managed-database actions of Postgres availability set members (the JSON
-// bodies are the contract with Gateway, contracts.md "ha-pg"), and the gate
+// bodies are the contract with Opfield, contracts.md "ha-pg"), and the gate
 // that keeps every other action from starting, restarting or recreating a
 // member outside the member runtime, or running principal SQL anywhere but on
 // the serving primary.
 //
-// Order: Gateway configures the member (AvailabilityMemberCommand configure,
+// Order: Opfield configures the member (AvailabilityMemberCommand configure,
 // engine "postgres") first, then sends availability_member_ensure; the member
 // runtime keeps off the container while the daemon prepares it.
 

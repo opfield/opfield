@@ -27,7 +27,7 @@ index 2177510..bdf11e2 100644
  }
  
 +// maybeCacheWindowBytes is how far MaybeCache looks ahead of a stream when
-+// 'count' chunks cover less (gateway patch, upstream issue #11674).
++// 'count' chunks cover less (Opfield patch, upstream issue #11674).
 +const maybeCacheWindowBytes = 16 << 20
 +
  // MaybeCache prefetches up to 'count' chunks ahead in parallel.

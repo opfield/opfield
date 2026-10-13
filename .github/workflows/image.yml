@@ -1,6 +1,6 @@
 name: Image
 
-# Builds the Gateway image once per main commit, next to CI and without gating it. A release
+# Builds the Opfield image once per main commit, next to CI and without gating it. A release
 # tag only stamps this image with its version (release.yml), so tagging never waits on a build.
 on:
   push:
@@ -156,7 +156,7 @@ jobs:
           digest=$(docker buildx imagetools inspect "${image}:tree-${TREE}" --format '{{json .Manifest}}' | jq -er '.digest')
           scripts/release/supply-chain.sh sign "${image}@${digest}"
 
-  # Gateway's patched SeaweedFS (packages/daemons/seaweedfs-image): rebuilt only when that tree
+  # Opfield's patched SeaweedFS (packages/daemons/seaweedfs-image): rebuilt only when that tree
   # changes. The docker daemon pins the digest of the tree's build, so a change to the image is
   # published here first and pinned in a following commit.
   seaweedfs:

@@ -4,7 +4,7 @@ package relay.v1;
 
 option go_package = "github.com/opfield/opfield/daemon-shared/relayv1";
 
-// TunnelBroker is deliberately resource agnostic. Gateway is the only
+// TunnelBroker is deliberately resource agnostic. Opfield is the only
 // component that maps endpoint and route identifiers to product resources.
 service TunnelBroker {
   rpc RegisterEndpoint(stream EndpointControl) returns (stream EndpointControl);
@@ -21,7 +21,7 @@ service TunnelBroker {
   rpc WatchLeaseGates(LeaseGateWatchRequest) returns (stream LeaseGateSnapshot);
 }
 
-// RelayAdmin is reachable on the same listener but only by the pinned Gateway
+// RelayAdmin is reachable on the same listener but only by the pinned Opfield
 // app service identity.
 service RelayAdmin {
   rpc GetHealth(HealthRequest) returns (HealthResponse);
@@ -109,7 +109,7 @@ message IncomingTunnel {
   IncomingTunnelRoute route = 4;
 }
 
-// An endpoint refuses a route Gateway revoked while this relay missed the
+// An endpoint refuses a route Opfield revoked while this relay missed the
 // revoking policy; the relay is trusted to report what it admitted, not to
 // hold current policy.
 message IncomingTunnelRoute {
@@ -204,7 +204,7 @@ message RoutePolicy {
   // routes keep the relay default when this field is false.
   bool disable_idle_timeout = 9;
   // Product classification used only for overload admission and reporting.
-  // The relay remains unaware of concrete Gateway resource identifiers.
+  // The relay remains unaware of concrete Opfield resource identifiers.
   string traffic_class = 10;
   uint64 assignment_generation = 11;
   // Availability policy whose lease gates the route's source, for managed-DB
@@ -322,7 +322,7 @@ message HealthResponse {
   repeated AssignmentTunnelCount assignment_tunnels = 30;
   repeated string policy_key_ids = 31;
   // Present when the relay runs availability lease coordination; the same
-  // shape as gateway.v1 AvailabilityLeaseReport.
+  // shape as opfield.v1 AvailabilityLeaseReport.
   AvailabilityLeaseReport availability_lease = 32;
 }
 
@@ -351,7 +351,7 @@ message RouteRuntimeResponse {
 message ReloadIdentityRequest { string operation_id = 1; }
 message ReloadIdentityResponse {
   bool reloaded = 1;
-  // Fingerprints ("sha256:<hex>") of the identity the relay loaded, so Gateway
+  // Fingerprints ("sha256:<hex>") of the identity the relay loaded, so Opfield
   // confirms a rotation only once the relay serves the files it installed.
   // Empty from relays built before these fields existed.
   string external_certificate_sha256 = 2;
@@ -761,7 +761,7 @@ message LeaseManifest {
   repeated LeaseQuorumSet quorum_sets = 15;
   // Graceful close (closed manifests only). Per slot, the holder that keeps
   // its copy running without a lease once a majority of every quorum set
-  // confirmed the close to it (LeaseRetained). Gateway names the committed
+  // confirmed the close to it (LeaseRetained). Opfield names the committed
   // holder it sees for the slot when it closes; an unheld slot has no entry.
   // A holder that is not named, or cannot reach such a majority, fences.
   repeated LeaseRetainedSlot retained = 16;
@@ -775,7 +775,7 @@ message LeaseRetainedSlot {
   uint32 slot = 1;
   // Candidate id of the holder; it must be listed in candidates as well.
   string holder_id = 2;
-  // The holder's committed ballot Gateway saw; empty when it saw none (a
+  // The holder's committed ballot Opfield saw; empty when it saw none (a
   // reserved bootstrap holder whose commit may have raced the close). Acceptors
   // refuse to confirm when they know a commit, open lease or accept of another
   // proposer above it and above every ballot of the holder they know.
@@ -851,11 +851,11 @@ enum LeaseHolderEndpoint {
   LEASE_HOLDER_ENDPOINT_RESTARTING = 3;
 }
 
-// The messages below mirror gateway.v1 AvailabilityLeaseReport and its parts
+// The messages below mirror opfield.v1 AvailabilityLeaseReport and its parts
 // field for field (same names, numbers and types), so the relay supervisor
 // forwards the report as RelayRuntimeStatus.availability_lease by re-decoding
-// the bytes, and the Gateway ingests relay views like daemon reports.
-// Numbers from 20 up are relay-only additions; gateway.v1 keeps them as
+// the bytes, and Opfield ingests relay views like daemon reports.
+// Numbers from 20 up are relay-only additions; opfield.v1 keeps them as
 // unknown fields.
 
 message AvailabilityLeaseReport {
@@ -909,7 +909,7 @@ message AvailabilityLeaseHeld {
   uint64 manifest_version = 6;
   string placement_id = 7;
   uint64 placement_generation = 8;
-  // Daemons only: graceful close (see gateway.v1).
+  // Daemons only: graceful close (see opfield.v1).
   bool retained = 9;
 }
 
@@ -935,7 +935,7 @@ message AvailabilityLeaseKeyView {
   // quorum set (shadow accepts only).
   bool abstaining = 24;
   // When this member first stored a commit of the committed ballot's
-  // proposer (its wall clock, Unix ms): the takeover time the Gateway records
+  // proposer (its wall clock, Unix ms): the takeover time the Opfield records
   // for a holder change it learns later, for example after it was down
   // (N-5). Zero when unknown.
   int64 holder_since_unix_ms = 25;

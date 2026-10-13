@@ -1793,7 +1793,7 @@ done
 [[ "$healthy" == 1 ]] || die "Opfield did not become healthy; run: docker compose logs app"
 
 # The first boot imports legacy OIDC_*, CLICKHOUSE_*, and APP_URL values into
-# encrypted Gateway settings. The guarded migration command verifies a complete
+# encrypted Opfield settings. The guarded migration command verifies a complete
 # legacy tuple before it removes anything from disk.
 if grep -Eq '^(OIDC_|CLICKHOUSE_|APP_URL=|SETUP_TOKEN=)' .env; then
   info "Finalizing legacy settings migration"

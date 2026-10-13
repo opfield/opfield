@@ -78,7 +78,7 @@ function normalizeRule(value: unknown, direction: 'in' | 'out'): FirewallRule {
     return unsafe();
   const endpoint = record(direction === 'in' ? rule.sources : rule.destinations);
   const addresses = strings(endpoint.addresses ?? []);
-  // Do not silently discard selectors added outside Gateway: they can broaden an Allow rule.
+  // Do not silently discard selectors added outside Opfield: they can broaden an Allow rule.
   const unsupportedSelectors = Object.fromEntries(
     Object.entries(endpoint)
       .filter(([key, value]) => key !== 'addresses' && value != null && !(Array.isArray(value) && !value.length))

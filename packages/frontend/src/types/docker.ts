@@ -70,7 +70,7 @@ export interface DockerContainer {
   app?: AppMembershipRef | null;
   pendingSourceBuild?: boolean;
   id: string;
-  /** Stable Gateway authorization identity. Unlike the Docker runtime ID, this survives recreate and migration. */
+  /** Stable Opfield authorization identity. Unlike the Docker runtime ID, this survives recreate and migration. */
   scopeResourceId?: string;
   name: string;
   image: string;
@@ -528,7 +528,7 @@ export interface DockerVolumeMetrics {
 
 export interface DockerNetwork {
   id: string;
-  /** Stable Gateway authorization identity; distinct from the raw Docker network ID. */
+  /** Stable Opfield authorization identity; distinct from the raw Docker network ID. */
   scopeResourceId?: string | null;
   name: string;
   driver: string;

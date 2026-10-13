@@ -1,4 +1,4 @@
-/** An OAuth client asking the signed-in operator for scoped Gateway API access. */
+/** An OAuth client asking the signed-in operator for scoped Opfield API access. */
 import { HttpResponse, http } from "msw";
 import type { OAuthConsentPreview } from "@/types";
 import { ok, wrapped } from "../../handlers";

@@ -26,7 +26,7 @@ import type { McpAuthContext } from './mcp-types.js';
 
 /**
  * MCP exposes every resource and management tool. Only browser- or identity-bound tools stay out:
- * AI chat internals, the AI sandbox, Gateway token/grant minting, and embedded-assistant UI actions.
+ * AI chat internals, the AI sandbox, Opfield token/grant minting, and embedded-assistant UI actions.
  */
 const MCP_EXCLUDED_CATEGORIES = new Set([
   'Planning',
@@ -71,7 +71,7 @@ const MCP_EXCLUDED_TOOLS = new Set([
   'kill_process',
   'list_sandbox_jobs',
   'gitlab_clone_repository_to_sandbox',
-  // A token must not mint Gateway credentials: API tokens or OAuth grants. Inference keys are resources.
+  // A token must not mint Opfield credentials: API tokens or OAuth grants. Inference keys are resources.
   'manage_api_token',
   'manage_oauth_authorization',
   // Embedded-assistant UI actions: setup dialogs and per-browser pin preferences.

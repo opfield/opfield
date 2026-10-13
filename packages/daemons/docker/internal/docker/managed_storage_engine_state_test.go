@@ -340,7 +340,7 @@ func TestStorageRestartIsAppliedOncePerOperation(t *testing.T) {
 		t.Fatalf("operationId = %q, want the restart's %q", got.OperationID, restartOperation)
 	}
 
-	// A restart without an operation (an older Gateway) restarts as before.
+	// A restart without an operation (an older Opfield) restarts as before.
 	if _, err := m.handle(ctx, "restart", id, ""); err != nil {
 		t.Fatal(err)
 	}

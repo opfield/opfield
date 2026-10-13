@@ -25,7 +25,7 @@ export const nginxProxyHostDeploymentStateEnum = pgEnum('nginx_proxy_host_deploy
 ]);
 
 /**
- * Gateway-owned canonical material for a Proxy Host TLS reference.
+ * Opfield-owned canonical material for a Proxy Host TLS reference.
  *
  * `referenceType`/`referenceId` intentionally stay polymorphic so legacy
  * direct PKI references can use the same distribution lifecycle as ordinary

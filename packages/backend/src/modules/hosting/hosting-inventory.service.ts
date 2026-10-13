@@ -660,7 +660,7 @@ export class HostingInventoryService {
           .for('update');
         if (!current?.enabled || current.syncStartedAt?.getTime() !== now.getTime())
           throw new AppError(409, 'HOSTING_SYNC_STALE', 'Hosting sync was superseded');
-        // Providers that never report a location keep the one requested when Gateway created the VM,
+        // Providers that never report a location keep the one requested when Opfield created the VM,
         // including rows whose location an older release already overwrote with an empty value.
         const requestedLocations = new Map<string, string>();
         if (snapshots.some((snapshot) => !snapshot.location)) {

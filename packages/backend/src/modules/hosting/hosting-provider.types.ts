@@ -190,7 +190,7 @@ export interface HostingCreateRequest {
   diskGb?: number;
   ipConfig?: string;
   sshPublicKey?: string;
-  /** Controller-owned history; never reuse a retired Gateway resource identity for a new VM. */
+  /** Controller-owned history; never reuse a retired Opfield resource identity for a new VM. */
   excludedRemoteIds?: string[];
   /** Reservation chosen at intent acceptance; Proxmox verifies it with /cluster/nextid before cloning. */
   vmid?: number;

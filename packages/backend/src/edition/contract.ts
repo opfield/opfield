@@ -122,7 +122,7 @@ export interface CommercialLifecycle {
   close(deadline: number): Promise<void>;
 }
 
-/** One kind of orchestration work that a Gateway restart would interrupt. */
+/** One kind of orchestration work that an Opfield restart would interrupt. */
 export interface CommercialOrchestrationActivity {
   kind: string;
   /** Short plural label, e.g. "Blue/green deployments". */

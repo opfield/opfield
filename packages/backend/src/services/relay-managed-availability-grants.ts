@@ -20,7 +20,7 @@ import {
 type EndpointRow = typeof relayEndpoints.$inferSelect;
 type RouteRow = typeof relayRoutes.$inferSelect;
 
-/** The relay.v1/gateway.v1 RelayLeaseTarget of a set member as grant bundles carry it. */
+/** The relay.v1/opfield.v1 RelayLeaseTarget of a set member as grant bundles carry it. */
 export interface SetLeaseTarget {
   setId: string;
   memberId: string;

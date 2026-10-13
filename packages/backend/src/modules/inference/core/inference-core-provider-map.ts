@@ -5,7 +5,7 @@ import type {
 } from '../providers/inference-provider.types.js';
 
 /**
- * Deterministic mapping between Gateway provider/connection records and core
+ * Deterministic mapping between Opfield provider/connection records and core
  * resources (plan T4). Two families exist:
  *
  * - API-key/local connections map 1:1 to a core provider entry named
@@ -15,7 +15,7 @@ import type {
  *   resolves OAuth tokens by provider entry name and its login flow upserts
  *   the canonical entry. They therefore map to the canonical core provider
  *   (`anthropic`, `kimi`, `xai`) or the ChatGPT account pool behind the
- *   built-in `openai` forward provider, and each Gateway connection row
+ *   built-in `openai` forward provider, and each Opfield connection row
  *   represents one account inside that core-side set.
  */
 
@@ -32,7 +32,7 @@ export type CoreOAuthTarget =
   | { kind: 'codex-pool'; coreProviderName: 'openai' }
   | { kind: 'core-oauth'; oauthProvider: string; coreProviderName: string };
 
-/** Canonical core OAuth target for a Gateway OAuth provider id, or null. */
+/** Canonical core OAuth target for an Opfield OAuth provider id, or null. */
 export function coreOAuthTarget(providerId: string): CoreOAuthTarget | null {
   switch (providerId) {
     case 'openai':
@@ -65,7 +65,7 @@ export function coreProviderRef(connection: { id: string; providerId: string; au
   return coreKeyProviderName(connection.id);
 }
 
-/** Gateway wire-protocol names map onto core adapter names. */
+/** Opfield wire-protocol names map onto core adapter names. */
 export function coreAdapterForWireProtocol(wireProtocol: string): string {
   switch (wireProtocol) {
     case 'openai-responses':
@@ -82,7 +82,7 @@ export function coreAdapterForWireProtocol(wireProtocol: string): string {
 /**
  * Core provider entry payload for an API-key/local connection. Secrets cross
  * only here — management POST /api/providers over the private network — and
- * are never persisted in Gateway storage.
+ * are never persisted in Opfield storage.
  */
 export function buildCoreProviderConfig(args: {
   definition: InferenceProviderDefinition;
@@ -178,7 +178,7 @@ function usdPerMillionToMicrodollars(value: number): number | undefined {
   return Number.isSafeInteger(converted) && converted >= 0 ? converted : undefined;
 }
 
-/** Convert the managed-core USD rates into Gateway's exact integer accounting units. */
+/** Convert the managed-core USD rates into Opfield's exact integer accounting units. */
 export function coreModelPricing(row: CoreModelRow): InferenceProviderModelPricing | undefined {
   if (!row.pricing) return undefined;
   const input = usdPerMillionToMicrodollars(row.pricing.inputUsdPerMillion);
@@ -200,7 +200,7 @@ export function coreModelPricing(row: CoreModelRow): InferenceProviderModelPrici
   };
 }
 
-/** Project OpenCodex catalog metadata onto Gateway's boolean capability map. */
+/** Project OpenCodex catalog metadata onto Opfield's boolean capability map. */
 export function coreModelCapabilities(row: CoreModelRow): Record<string, boolean> {
   const capabilities = Object.fromEntries((row.capabilities ?? []).map((capability) => [capability, true] as const));
   const modalities = new Set(row.inputModalities ?? []);
@@ -342,8 +342,8 @@ export function parseCoreQuotaReports(body: unknown): CoreQuotaReport[] {
 }
 
 /**
- * Project one core quota report into Gateway quota windows. Core percentages
- * are usage (0-100 used); Gateway windows store the remaining fraction.
+ * Project one core quota report into Opfield quota windows. Core percentages
+ * are usage (0-100 used); Opfield windows store the remaining fraction.
  */
 export function coreQuotaToWindows(report: CoreQuotaReport): Array<{
   dimension: string;
@@ -381,7 +381,7 @@ export function coreQuotaToWindows(report: CoreQuotaReport): Array<{
   usage(report.quota.weeklyPercent, report.quota.weeklyResetAt, '7d');
   usage(report.quota.monthlyPercent, report.quota.monthlyResetAt, '30d');
   // Only recognised model families are ingested: other providers reuse custom windows for
-  // limits whose duration and scope Gateway cannot interpret.
+  // limits whose duration and scope Opfield cannot interpret.
   // A provider can report several windows for one family (Anthropic sends a canonical "Opus"
   // bucket and may add a separately labelled scoped limit). One window is stored per family, so
   // the most constrained one wins: keeping the first would admit turns into an exhausted bucket.

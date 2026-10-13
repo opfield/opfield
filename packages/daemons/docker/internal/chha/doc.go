@@ -5,7 +5,7 @@
 //
 //   - Every member runs clickhouse-server with an embedded Keeper. With two
 //     data members the third Keeper voter is a witness Keeper on a relay (or
-//     a staged standby witness that the holder may activate while Gateway is
+//     a staged standby witness that the holder may activate while Opfield is
 //     down). Sets have 2 or 3 data members.
 //   - User databases use the Replicated database engine under /gw/db/<name>
 //     (the Keeper ensemble is the set's own, so the path needs no set id and
@@ -20,7 +20,7 @@
 // Addressing. Keeper keeps one endpoint string per server in its replicated
 // cluster configuration, so every node must reach every server under the
 // same host:port. All endpoints of a set use one loopback address
-// 127.a.b.1 (derived from the set id by Gateway) and a port per server: on a
+// 127.a.b.1 (derived from the set id by Opfield) and a port per server: on a
 // relay the supervisor binds forwarders there (WitnessPeer), and inside a
 // member's container the daemon binds forwarders in the container's network
 // namespace that carry each connection over the member mesh

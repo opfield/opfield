@@ -12,7 +12,7 @@ const OPEN_CREATE_NETWORKS = new Set(['default', 'bridge', 'none']);
  * Creating a container on a network joins that network, which the connect route allows only with
  * `docker:networks:edit` on the network and never for a Compose project's network. A create applies the same rule
  * to each requested network, so `docker:containers:create` alone cannot reach services on another team's or a
- * Compose project's network. Shared namespaces and Gateway-managed networks are refused by the create itself.
+ * Compose project's network. Shared namespaces and Opfield-managed networks are refused by the create itself.
  */
 export async function assertCreateNetworksAccess(
   scopes: readonly string[],

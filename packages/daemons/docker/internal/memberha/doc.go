@@ -9,7 +9,7 @@
 // calls Step every loop iteration; Step never blocks on Docker or the engine,
 // which run in background operations, one at a time per member. In manual
 // mode (a replicated pair without a witness) there is no lease: the primary is
-// the member Gateway names in the primary assignment.
+// the member Opfield names in the primary assignment.
 //
 // Safety rules implemented here:
 //
@@ -39,10 +39,10 @@
 //     policy recovers the key with the recorded deadline; a running primary
 //     without one is unowned and fenced.
 //   - Manual mode (decision 6): the assigned primary demotes itself (fence
-//     and restart as a copy) when it reached neither the Gateway session nor
+//     and restart as a copy) when it reached neither the Opfield session nor
 //     its peer for 30 s, and resumes when either comes back without a newer
-//     assignment; a member that sees a newer generation (from Gateway or the
+//     assignment; a member that sees a newer generation (from Opfield or the
 //     peer) than the one it served under steps down and rejoins.
 //   - Events (failover, fence, rejoin, ...) are kept on disk with their
-//     original time until Gateway acknowledges them (decision 18).
+//     original time until Opfield acknowledges them (decision 18).
 package memberha

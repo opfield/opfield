@@ -13,7 +13,7 @@ export type ManagedDatabaseStatus =
   | "error"
   | "deleting";
 
-/** A database provisioned on a dedicated Gateway databases node. Credentials are never returned here. */
+/** A database provisioned on a dedicated Opfield databases node. Credentials are never returned here. */
 export interface ManagedDatabase {
   id: string;
   databaseConnectionId: string;

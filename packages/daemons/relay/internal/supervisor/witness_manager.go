@@ -21,11 +21,11 @@ import (
 )
 
 // Witness hosting: the relay supervisor runs witness processes for
-// availability sets (a ClickHouse Keeper voter of a two-member set). Gateway
+// availability sets (a ClickHouse Keeper voter of a two-member set). Opfield
 // sends the desired set (ApplyWitnesses); the supervisor fetches and verifies
 // each artifact, runs it as an unprivileged user with a memory cap, restarts
 // it with backoff, updates it with a rollback and reports it. The last applied
-// set is kept on disk, so witnesses keep running while Gateway is down.
+// set is kept on disk, so witnesses keep running while Opfield is down.
 const (
 	// RelayWitnessCapability: this supervisor runs witnesses.
 	RelayWitnessCapability = "relay_witness_v1"
@@ -67,7 +67,7 @@ type fetchFailure struct {
 	at      time.Time
 }
 
-// Witness states reported to Gateway.
+// Witness states reported to Opfield.
 const (
 	witnessStateFetching = "fetching"
 	witnessStateStaged   = "staged"
@@ -133,7 +133,7 @@ type witnessManager struct {
 	stopped   chan struct{}
 	started   bool
 	// activated: staged standbys the set's lease holder activated while
-	// Gateway was down (witness_activate.go); activations listen on staged
+	// Opfield was down (witness_activate.go); activations listen on staged
 	// standbys' raft ports; verify checks holder statements (worker).
 	activated   map[string]bool
 	activations map[string]*activationListener
@@ -165,7 +165,7 @@ type witnessEntry struct {
 	rollbackVersion string
 	updateDeadline  time.Time
 	// failedSHA is an update that was rolled back; it is not retried until
-	// Gateway names another artifact.
+	// Opfield names another artifact.
 	failedSHA string
 
 	backoff   time.Duration
@@ -184,7 +184,7 @@ func newWitnessManager(dir, workRoot string, logger *slog.Logger, gate func() st
 
 func (m *witnessManager) desiredPath() string { return filepath.Join(m.dir, "desired.json") }
 
-// load restores the last applied set (witnesses run without Gateway).
+// load restores the last applied set (witnesses run without Opfield).
 func (m *witnessManager) load() error {
 	data, err := os.ReadFile(m.desiredPath())
 	if errors.Is(err, os.ErrNotExist) {
@@ -411,7 +411,7 @@ func (m *witnessManager) reconcileOne(id, hosting string, now time.Time) {
 		launchSHA, launchVersion, launchBinary := sha, spec.GetArtifact().GetVersion(), binary
 		if sha == entry.failedSHA && entry.rollbackSHA != "" {
 			// The named artifact already failed to become healthy: stay on
-			// the previous one until Gateway names another.
+			// the previous one until Opfield names another.
 			if previous, ok := m.artifactBySHA(entry.rollbackSHA); ok {
 				launchSHA, launchVersion, launchBinary = entry.rollbackSHA, entry.rollbackVersion, previous
 			}
@@ -432,7 +432,7 @@ func (m *witnessManager) reconcileOne(id, hosting string, now time.Time) {
 		m.launch(entry, sha, spec.GetArtifact().GetVersion(), binary, config, now)
 	default:
 		if sha == entry.procSHA && entry.failedSHA != "" {
-			// Gateway named the running artifact again: the failed update
+			// Opfield named the running artifact again: the failed update
 			// is no longer wanted.
 			m.mu.Lock()
 			entry.failedSHA = ""

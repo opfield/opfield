@@ -113,7 +113,7 @@ export function assertDockerContainerArchiveContentAccess(
 /**
  * Networks an imported container joins, after the import resolution is applied. The same rules as a direct create
  * (resolveCreateNetworks): no shared namespaces (`host`, `container:<id>`), `none` only on its own, and never a
- * Gateway-managed network. Reserved names are refused as a whole because the daemon creates a missing createable
+ * Opfield-managed network. Reserved names are refused as a whole because the daemon creates a missing createable
  * network under the archive's name.
  */
 export function assertArchiveNetworksAllowed(networks: ReadonlyArray<{ name: string }>) {

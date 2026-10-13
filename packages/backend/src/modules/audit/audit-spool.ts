@@ -2,7 +2,7 @@ import { appendFile, mkdir, readdir, readFile, rename, rm } from 'node:fs/promis
 import { join } from 'node:path';
 
 /**
- * Audit rows Gateway could not store because its database was already gone (M-7): at a host shutdown dockerd stops
+ * Audit rows Opfield could not store because its database was already gone (M-7): at a host shutdown dockerd stops
  * every container at once, so postgres can end before the app's shutdown drain wrote its last rows. They are kept in
  * a local file on the app's data volume and stored at the next start. A row keeps its id, so storing it twice (a start
  * that stopped halfway through the replay) adds it once.

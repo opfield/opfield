@@ -18,7 +18,7 @@ import (
 )
 
 // SeaweedFS IAM (embedded in the S3 port, AWS IAM query API signed with the
-// static root identity). One Gateway key owns one IAM user ("principal") with
+// static root identity). One Opfield key owns one IAM user ("principal") with
 // a single inline policy; revocation deletes the whole principal, which also
 // removes any extra keys the key holder minted for itself through the
 // self-service IAM actions.
@@ -208,7 +208,7 @@ func (l *seaweedfsStringList) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// validateSeaweedFSPolicy admits only the policy shape the Gateway SeaweedFS
+// validateSeaweedFSPolicy admits only the policy shape the Opfield SeaweedFS
 // policy builder produces: Allow statements over per-bucket (or all-bucket)
 // object read/write/delete and bucket listing. Anything else, including
 // s3:ListAllMyBuckets and wildcard or admin actions, is rejected.
@@ -276,7 +276,7 @@ func (c *seaweedfsIAMClient) createKey(ctx context.Context, iam managedStorageIA
 	if err != nil {
 		return "", err
 	}
-	// A principal belongs to exactly one Gateway key: a retried create (for
+	// A principal belongs to exactly one Opfield key: a retried create (for
 	// example after a lost response) converges by discarding whatever the
 	// previous attempt left behind.
 	if err := c.removePrincipal(ctx, iam.Principal); err != nil {
@@ -295,7 +295,7 @@ func (c *seaweedfsIAMClient) createKey(ctx context.Context, iam managedStorageIA
 		return abandon(err)
 	}
 	// SeaweedFS keeps inline policies of deleted users and re-attaches them
-	// when a user of the same name is created again. Only the Gateway policy
+	// when a user of the same name is created again. Only the Opfield policy
 	// may remain.
 	names, err := c.listUserPolicies(ctx, iam.Principal)
 	if err != nil {
@@ -360,7 +360,7 @@ func (c *seaweedfsIAMClient) createKey(ctx context.Context, iam managedStorageIA
 	return jsonString(result)
 }
 
-// updatePolicy replaces the Gateway inline policy of an existing principal.
+// updatePolicy replaces the Opfield inline policy of an existing principal.
 // The migration write freeze uses it to make a key read-only and to restore it
 // afterwards; the principal's access keys and service accounts keep their ids,
 // secrets and expiry. A missing principal is an error rather than being
@@ -458,7 +458,7 @@ func (c *seaweedfsIAMClient) findPrincipalForKey(ctx context.Context, accessKey 
 	return "", nil
 }
 
-// removePrincipal deletes a Gateway principal completely. SeaweedFS refuses to
+// removePrincipal deletes an Opfield principal completely. SeaweedFS refuses to
 // delete a user that still owns service accounts, and keeps inline policies of
 // deleted users, so both are removed first. A missing user is success.
 func (c *seaweedfsIAMClient) removePrincipal(ctx context.Context, principal string) error {

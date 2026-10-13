@@ -12,7 +12,7 @@ it("docker-compose-source-connect", async () => {
     group: "Docker",
     route: `/docker/compose/${composeIds.stack}/source`,
     handlers: [
-      // The same project deployed from Gateway-stored YAML only.
+      // The same project deployed from Opfield-stored YAML only.
       http.get("*/api/docker/nodes/:nodeId/compose-projects/:projectId/source", () =>
         wrapped(null)
       ),

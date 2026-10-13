@@ -9,7 +9,7 @@ import (
 	"github.com/opfield/opfield/daemon-shared/stream"
 )
 
-// fakeCommandStream records what the daemon sends Gateway on its control session.
+// fakeCommandStream records what the daemon sends Opfield on its control session.
 type fakeCommandStream struct {
 	pb.NodeControl_CommandStreamClient
 	mu   sync.Mutex
@@ -36,7 +36,7 @@ func (f *fakeCommandStream) logEntries(message string) []*pb.DaemonLogEntry {
 }
 
 // The host listener manager keeps the logger it got at Init. Once a control session starts, its refused connections
-// reach the Gateway's node logs like every other WARN of the daemon, and still the journal.
+// reach Opfield's node logs like every other WARN of the daemon, and still the journal.
 func TestComponentWarningsReachTheSessionLogStream(t *testing.T) {
 	journal, journalLines := newTestLogger()
 	plugin := &DockerPlugin{}

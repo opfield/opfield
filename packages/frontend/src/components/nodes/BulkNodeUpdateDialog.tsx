@@ -165,7 +165,7 @@ export function BulkNodeUpdateDialog({
     const chosen = selectable.filter((candidate) => selected.has(candidate.node.id));
     if (chosen.length === 0) return;
     setUpdating(true);
-    // Sent together on purpose: Gateway orders nodes that share an availability lease, the
+    // Sent together on purpose: Opfield orders nodes that share an availability lease, the
     // others restart at the same time.
     const results = await Promise.allSettled(
       chosen.map((candidate) => api.triggerDaemonUpdate(candidate.node.id))

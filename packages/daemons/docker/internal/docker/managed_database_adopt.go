@@ -110,7 +110,7 @@ func (m *managedDatabaseManager) removeLostRecord(ctx context.Context, id string
 }
 
 // missingRecordDetail answers an inspect of an id the node holds no record
-// of with what the node still has of it. Gateway retries a deployment from
+// of with what the node still has of it. Opfield retries a deployment from
 // it: a create where nothing is left provisions anew, and one where the
 // container is left adopts the instance (see adoptLostRecord).
 func (m *managedDatabaseManager) missingRecordDetail(ctx context.Context, id string) (string, error) {
@@ -128,7 +128,7 @@ func (m *managedDatabaseManager) missingRecordDetail(ctx context.Context, id str
 // adoptLostRecord takes over an instance whose record the node lost while
 // its container and storage image stayed (a filesystem repair can do that).
 // The image holds the data: it is mounted as it is and never formatted. The
-// container is replaced by one made from Gateway's settings, with the
+// container is replaced by one made from Opfield's settings, with the
 // previous one kept until the new one serves (see recreateContainer), and
 // the record is written once it does. Without the image the data is gone,
 // and the create is refused rather than starting the engine on an empty disk.

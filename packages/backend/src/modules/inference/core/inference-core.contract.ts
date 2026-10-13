@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * wiolett-core/v1 — the versioned internal contract between Gateway and the
+ * wiolett-core/v1 — the versioned internal contract between Opfield and the
  * managed OpenCodex core. The same literal values and wire shapes are
  * implemented by the OpenCodex integration module; the frozen fixtures under
  * ./fixtures are the shared source of truth protected by hash-pinned tests in
@@ -170,7 +170,7 @@ export const inferenceCoreHealthIdentitySchema = z.object({
 });
 export type InferenceCoreHealthIdentity = z.infer<typeof inferenceCoreHealthIdentitySchema>;
 
-/** Internal header names for the signed request context injected by Gateway. */
+/** Internal header names for the signed request context injected by Opfield. */
 export const INFERENCE_CORE_CONTEXT_HEADERS = {
   contract: 'x-opfield-contract',
   context: 'x-opfield-context',
@@ -185,13 +185,13 @@ export const LEGACY_INFERENCE_CORE_CONTEXT_HEADERS = {
   signature: 'x-wiolett-signature',
 } as const;
 
-/** Gateway internal listener paths the core calls for admission and settlement. */
+/** Opfield internal listener paths the core calls for admission and settlement. */
 export const INFERENCE_CORE_CALLBACK_PATHS = {
   admission: '/api/internal/inference-core/admission',
   settlement: '/api/internal/inference-core/settlement',
 } as const;
 
-/** Core -> Gateway callback authentication headers (HMAC over `${timestamp}.${body}`). */
+/** Core -> Opfield callback authentication headers (HMAC over `${timestamp}.${body}`). */
 export const INFERENCE_CORE_CALLBACK_HEADERS = {
   contract: 'x-opfield-contract',
   timestamp: 'x-opfield-timestamp',
@@ -206,7 +206,7 @@ export const LEGACY_INFERENCE_CORE_CALLBACK_HEADERS = {
 } as const;
 
 /**
- * Signed request-context claims. Gateway signs the base64url-encoded canonical
+ * Signed request-context claims. Opfield signs the base64url-encoded canonical
  * JSON of these claims with the internal data credential (HMAC-SHA256); the
  * core validates signature, expiry, nonce replay, and tenant consistency.
  */
@@ -259,7 +259,7 @@ export const inferenceCoreUsageSchema = z
   .strict();
 export type InferenceCoreUsage = z.infer<typeof inferenceCoreUsageSchema>;
 
-/** Core -> Gateway admission callback, invoked before every upstream dispatch. */
+/** Core -> Opfield admission callback, invoked before every upstream dispatch. */
 export const inferenceCoreAdmissionRequestSchema = z
   .object({
     contractId: z.literal(OPFIELD_CORE_CONTRACT_ID),
@@ -300,7 +300,7 @@ export const inferenceCoreAdmissionResponseSchema = z.discriminatedUnion('decisi
 export type InferenceCoreAdmissionResponse = z.infer<typeof inferenceCoreAdmissionResponseSchema>;
 
 /**
- * Core -> Gateway terminal settlement. Idempotent per attemptId: a repeated
+ * Core -> Opfield terminal settlement. Idempotent per attemptId: a repeated
  * delivery must carry an identical payload and is acknowledged without a
  * second ledger effect.
  */
@@ -326,7 +326,7 @@ export const inferenceCoreSettlementSchema = z
   .strict();
 export type InferenceCoreSettlement = z.infer<typeof inferenceCoreSettlementSchema>;
 
-/** Internal callback error envelope, aligned with the Gateway { code, message } error contract. */
+/** Internal callback error envelope, aligned with the Opfield { code, message } error contract. */
 export const inferenceCoreInternalErrorSchema = z
   .object({
     code: z.string().min(1),

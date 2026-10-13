@@ -16,7 +16,7 @@ import (
 // Engine is the memberha engine name.
 const Engine = "clickhouse"
 
-// Ports inside a member's container and the ranges Gateway allocates from.
+// Ports inside a member's container and the ranges Opfield allocates from.
 const (
 	// KeeperClientPort is the embedded Keeper's client port (the member's
 	// own ZooKeeper client and the daemon's probe use it).
@@ -35,7 +35,7 @@ const (
 	// RoleVoter is a desired Keeper voter.
 	RoleVoter = "voter"
 	// RoleStandby is a staged standby witness: not a voter; the holder may
-	// activate it while Gateway is down (decision 8) and then adds it.
+	// activate it while Opfield is down (decision 8) and then adds it.
 	RoleStandby = "standby"
 	// RoleLearner is a member's Keeper that replicates the log and serves its
 	// own member's ZooKeeper session but does not vote: the 4th and 5th data
@@ -43,7 +43,7 @@ const (
 	// it). A learner becomes a voter only through a rejoin with a wiped
 	// Keeper state (an in-place role change crashed Keeper 25.8).
 	RoleLearner = "learner"
-	// RoleLeaving is a server Gateway is removing: the holder removes it from
+	// RoleLeaving is a server Opfield is removing: the holder removes it from
 	// the Keeper configuration once every desired voter is in it.
 	RoleLeaving = "leaving"
 )
@@ -103,7 +103,7 @@ type InterserverPeer struct {
 }
 
 // EngineConfig is the ClickHouse part of a member's configuration
-// (AvailabilityMemberConfig.engine_config), computed by Gateway.
+// (AvailabilityMemberConfig.engine_config), computed by Opfield.
 type EngineConfig struct {
 	Version      int    `json:"version"`
 	LoopbackHost string `json:"loopbackHost"`

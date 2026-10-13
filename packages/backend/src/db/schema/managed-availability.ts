@@ -24,7 +24,7 @@ import { relayInstances } from './relay.js';
  * Database and storage availability: an availability set per managed database or managed storage cluster. It has 2–5
  * members on storage-profile nodes (one per host). automatic: a stateful lease policy (lease v3) whose single slot is
  * the primary role; voters are the candidate member hosts plus witnesses. manual: exactly 2 members, no witness, the
- * primary is named by a Gateway-signed primary assignment (generation), never promoted automatically.
+ * primary is named by an Opfield-signed primary assignment (generation), never promoted automatically.
  */
 export type ManagedAvailabilityOwnerKind = 'managed_database' | 'managed_storage';
 export type ManagedAvailabilityEngine = 'postgres' | 'valkey' | 'clickhouse' | 'seaweedfs';
@@ -76,7 +76,7 @@ export type ManagedAvailabilityOperationKind =
   | 'unpause'
   | 'disable';
 
-/** The orchestrated operation a set runs, durable across Gateway restarts; the reconciler resumes it by step. */
+/** The orchestrated operation a set runs, durable across Opfield restarts; the reconciler resumes it by step. */
 export interface ManagedAvailabilityOperation {
   id: string;
   kind: ManagedAvailabilityOperationKind;
@@ -124,7 +124,7 @@ export const managedAvailabilitySets = pgTable(
     leasePolicyId: uuid('lease_policy_id'),
     primaryMemberId: uuid('primary_member_id'),
     primarySince: timestamp('primary_since', { withTimezone: true }),
-    /** Manual mode: the generation of the Gateway-signed primary assignment; every switch increments it. */
+    /** Manual mode: the generation of the Opfield-signed primary assignment; every switch increments it. */
     primaryGeneration: bigint('primary_generation', { mode: 'number' }).notNull().default(0),
     rttP50Ms: numeric('rtt_p50_ms', { precision: 8, scale: 2, mode: 'number' }),
     rttMeasuredAt: timestamp('rtt_measured_at', { withTimezone: true }),

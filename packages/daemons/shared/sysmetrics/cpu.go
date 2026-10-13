@@ -10,7 +10,7 @@ import (
 )
 
 // minCPUSampleWindow is the shortest /proc/stat window that yields a CPU
-// percentage. The 30 s health ticker and Gateway's health requests share one
+// percentage. The 30 s health ticker and Opfield's health requests share one
 // CPUState; when they run close together the window is a few milliseconds and
 // a handful of ticks reads as 0 % or 100 %. Calls inside the window return the
 // last computed value and keep the older baseline.

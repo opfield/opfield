@@ -1,9 +1,9 @@
 import { AppError } from '@/middleware/error-handler.js';
 
 /**
- * Label namespaces Gateway and Docker Compose read to place, group or hide a container. A caller who
+ * Label namespaces Opfield and Docker Compose read to place, group or hide a container. A caller who
  * sets one can move a container out of its folder (a Compose project label re-homes it into that
- * project's root-level system folder) or hide it from every user (Gateway implementation markers), so
+ * project's root-level system folder) or hide it from every user (Opfield implementation markers), so
  * user-supplied labels never carry them.
  */
 const RESERVED_DOCKER_LABEL_PREFIXES = [

@@ -33,7 +33,7 @@ const DAEMON_CONFIG_PATHS: Partial<Record<NodeType, string>> = {
 
 /**
  * Protected mode: the owner of the machine a relay runs on turned it on in the relay's local config
- * (`relay-supervisor protected on`). Gateway cannot open a console, run commands, read or write files or collect host
+ * (`relay-supervisor protected on`). Opfield cannot open a console, run commands, read or write files or collect host
  * diagnostics on it, and cannot turn it off; it can only update the relay with official signed releases and route
  * traffic through it.
  */

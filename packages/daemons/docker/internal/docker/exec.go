@@ -80,7 +80,7 @@ type ExecManager struct {
 	logger   *slog.Logger
 	writer   *stream.Writer
 	mu       sync.Mutex
-	sessions map[string]*ExecSession // keyed by container ID and Gateway user session key
+	sessions map[string]*ExecSession // keyed by container ID and Opfield user session key
 }
 
 func NewExecManager(c *Client, writer *stream.Writer, logger *slog.Logger) *ExecManager {

@@ -29,7 +29,7 @@ export class AuthEmailQueueService {
     private readonly cryptoService: CryptoService
   ) {
     this.queue = new Queue<EncryptedAuthEmailJob, void, 'deliver'>(AUTH_EMAIL_QUEUE_NAME, {
-      // BullMQ bundles its own ioredis types, while Gateway owns the runtime connection.
+      // BullMQ bundles its own ioredis types, while Opfield owns the runtime connection.
       connection: redis as never,
       defaultJobOptions: {
         attempts: 3,

@@ -37,7 +37,7 @@ export interface SshInstallState {
   providerKeyError?: string;
   guestKey: 'pending' | 'removed' | 'failed' | 'retained';
   guestKeyAttempts: number;
-  /** Set once the installer was sent again after its first session was lost with a Gateway restart. */
+  /** Set once the installer was sent again after its first session was lost with an Opfield restart. */
   redispatched?: boolean;
   /** Tail of a failed installer's output, without colours or enrollment tokens. */
   diagnostics?: string;
@@ -150,7 +150,7 @@ type Deps = {
 };
 
 /**
- * Installs Gateway on a server created without user data: SSH as root with the operation's one-time key,
+ * Installs Opfield on a server created without user data: SSH as root with the operation's one-time key,
  * host key trusted on first use and pinned for the rest of the operation, then both key cleanups.
  */
 export class HostingSshInstaller {
@@ -238,7 +238,7 @@ export class HostingSshInstaller {
     } catch (error) {
       this.inFlight.delete(row.id);
       if (isSshOperationCancelled(error)) {
-        // Gateway is shutting down and ended the session. Before dispatch nothing was sent. After it,
+        // Opfield is shutting down and ended the session. Before dispatch nothing was sent. After it,
         // the installer outcome is unknown, exactly as after a crash: the operation stays dispatched
         // and completes when the node enrolls, or fails at its bootstrap deadline.
         if ((error as { sent?: boolean }).sent !== false)

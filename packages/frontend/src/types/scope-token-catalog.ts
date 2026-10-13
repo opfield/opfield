@@ -26,7 +26,7 @@ export const API_TOKEN_SCOPES = TOKEN_SCOPES.filter(
   (scope) => !PROGRAMMATIC_DENIED_SCOPE_VALUES.has(scope.value)
 );
 
-// Gateway MCP delegates exactly the API token scopes.
+// Opfield MCP delegates exactly the API token scopes.
 export const MCP_TOKEN_SCOPES = API_TOKEN_SCOPES.filter((scope) => scope.value !== "mcp:use");
 
 export const GROUP_ASSIGNABLE_SCOPES = TOKEN_SCOPES.filter(

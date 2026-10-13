@@ -71,7 +71,7 @@ interface Registry {
 
 /**
  * Pushes the desired Keeper witness containers to docker nodes (ApplyWitnesses, the same command relays take). The
- * daemon keeps the last applied set and runs it without Gateway.
+ * daemon keeps the last applied set and runs it without Opfield.
  */
 export class NodeKeeperWitnessService {
   private readonly pushed = new Map<string, { hash: string; revision: number; at: number }>();

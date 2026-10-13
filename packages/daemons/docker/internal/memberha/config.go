@@ -23,19 +23,19 @@ type Peer struct {
 	Removing    bool   `json:"removing,omitempty"`
 }
 
-// Assignment is a manual pair's primary assignment: Gateway names the primary
+// Assignment is a manual pair's primary assignment: Opfield names the primary
 // under a generation that grows with every switch.
 type Assignment struct {
 	PrimaryMemberID string `json:"primaryMemberId"`
 	Generation      uint64 `json:"generation"`
-	// SigningKeyID and Signature: Gateway signs every assignment with its
+	// SigningKeyID and Signature: Opfield signs every assignment with its
 	// relay policy key (AssignmentStatement); a member accepts one, from
-	// Gateway or from its peer, only once Deps.VerifyAssignment verified it.
+	// Opfield or from its peer, only once Deps.VerifyAssignment verified it.
 	SigningKeyID string `json:"signingKeyId,omitempty"`
 	Signature    []byte `json:"signature,omitempty"`
 }
 
-// Config is what Gateway configures for this node's member of one set.
+// Config is what Opfield configures for this node's member of one set.
 type Config struct {
 	SetID     string `json:"setId"`
 	MemberID  string `json:"memberId"`
@@ -56,11 +56,11 @@ type Config struct {
 	EngineConfig []byte `json:"engineConfig,omitempty"`
 	// PublishedPort is the member proxy's port (direct publication); 0: none.
 	PublishedPort uint32 `json:"publishedPort,omitempty"`
-	// Stopped: Gateway asks this member's engine to be stopped (the set is
+	// Stopped: Opfield asks this member's engine to be stopped (the set is
 	// paused, e.g. its app is shut down). A copy stops and is never started
 	// while it is set; the primary closes serving, stops its engine cleanly
 	// and keeps its role (lease or assignment). It is persisted, so it holds
-	// while Gateway is down.
+	// while Opfield is down.
 	Stopped bool `json:"stopped,omitempty"`
 }
 

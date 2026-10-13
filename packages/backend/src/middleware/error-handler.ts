@@ -192,7 +192,7 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
     return c.json<ApiError>({ code: 'NOT_FOUND', message: 'Resource not found' }, 404);
   }
 
-  // A node lost while the request read from it (its control stream dropped): the node is unavailable, not Gateway.
+  // A node lost while the request read from it (its control stream dropped): the node is unavailable, not Opfield.
   if (isNodeConnectionError(err)) {
     logger.warn('Node unavailable during a request', { requestId, path: c.req.path, message: (err as Error).message });
     return c.json<ApiError>(

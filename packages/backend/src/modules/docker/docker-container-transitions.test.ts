@@ -6,7 +6,7 @@ import { DockerContainerTransitions } from './docker-container-transitions.js';
 describe('container leases of an operation whose Gateway process is gone', () => {
   it('lets the follow-ups of its detached task take the lease over instead of waiting for it to lapse', async () => {
     const { db } = createFakeOperationLeaseDb();
-    // The process that ran the update; it is gone without releasing the lease (Gateway restarted).
+    // The process that ran the update; it is gone without releasing the lease (Opfield restarted).
     const before = new DockerContainerTransitions();
     before.setLeaseStore(new OperationLeaseStore(db));
     before.set('node-1', 'web', 'updating');

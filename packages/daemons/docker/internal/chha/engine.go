@@ -59,7 +59,7 @@ type Runtime interface {
 	Probe(ctx context.Context, alias string) error
 	// Config is the member's current configuration (false once forgotten).
 	Config() (memberha.Config, bool)
-	// OpfieldConnected reports the Gateway control session.
+	// OpfieldConnected reports the Opfield control session.
 	OpfieldConnected() bool
 	// Sign signs a holder statement with the node's identity key.
 	Sign(domain string, payload []byte) ([]byte, error)
@@ -1132,7 +1132,7 @@ func (e *engine) copyRoles(snap *configSnapshot, current map[uint32]keeperEntry,
 	reason := copyRejoinReason(snap.ec.KeeperServerID, current, e.wasLearner, notServing, voters, learners,
 		snap.config.Mode == memberha.ModeManual)
 	if running := e.runningID.Load(); reason == "" && running != 0 && running != snap.ec.KeeperServerID && e.wasLearner {
-		// Gateway gave this learner a voter's server id: it joins again under it.
+		// Opfield gave this learner a voter's server id: it joins again under it.
 		reason = "renumbered"
 	}
 	if reason != "" {
@@ -1271,7 +1271,7 @@ func (e *engine) requestLeadership(ctx context.Context, now time.Duration) {
 }
 
 // holderKeeper moves the Keeper membership toward the desired voters and,
-// while Gateway is down, activates the standby witness when the active one
+// while Opfield is down, activates the standby witness when the active one
 // is dead (decision 8).
 func (e *engine) holderKeeper(ctx context.Context, snap *configSnapshot, current map[uint32]keeperEntry, now time.Duration) {
 	e.mu.Lock()

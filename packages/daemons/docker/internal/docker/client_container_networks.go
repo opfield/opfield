@@ -136,7 +136,7 @@ func currentInspectNetworkMode(insp *container.InspectResponse) string {
 // prioritizeNetworkNames moves the network that becomes the container's network mode first: its current network mode
 // when the container is on it, otherwise the first user-defined network, otherwise the default bridge. A link network
 // (managed database binding, storage link, container link) is chosen only when the container is on nothing else:
-// Gateway removes a link network with its link, and a network mode that names a removed network keeps the container
+// Opfield removes a link network with its link, and a network mode that names a removed network keeps the container
 // from starting once it is on no other network.
 func prioritizeNetworkNames(netNames []string, currentMode string) []string {
 	preferred := ""

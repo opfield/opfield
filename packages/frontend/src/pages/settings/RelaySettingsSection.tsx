@@ -158,7 +158,7 @@ function revocationSummary(revocation: RelayRevocationStatus): string {
     : `Revocation of ${label} pending`;
 }
 
-/** A remote relay whose certificate Gateway should renew now. */
+/** A remote relay whose certificate Opfield should renew now. */
 function canRenewCertificate(instance: DashboardRelayInstance): boolean {
   return (
     instance.kind === "remote" &&

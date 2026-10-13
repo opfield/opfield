@@ -5,9 +5,9 @@ import { managedStorageClusters } from '@/db/schema/managed-storage.js';
 import { AppError } from '@/middleware/error-handler.js';
 
 /**
- * A migration write freeze (`freeze_writes`) makes every key Gateway issued on
- * a managed storage cluster read-only, but Gateway itself writes with the
- * cluster's root credentials. These helpers keep Gateway's own writers (object
+ * A migration write freeze (`freeze_writes`) makes every key Opfield issued on
+ * a managed storage cluster read-only, but Opfield itself writes with the
+ * cluster's root credentials. These helpers keep Opfield's own writers (object
  * browser, storage tools, MCP uploads, backups) from writing into a frozen
  * cluster, so nothing lands on it after the final copy. Copy jobs are exempt:
  * they are how the data moves.

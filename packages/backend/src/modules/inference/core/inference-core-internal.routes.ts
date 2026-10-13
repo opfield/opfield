@@ -18,7 +18,7 @@ import { InferenceCoreBridgeService } from './inference-core-bridge.service.js';
 const CALLBACK_TIMESTAMP_SKEW_SECONDS = 60;
 
 /**
- * Internal core → Gateway callback listener (admission + settlement). Served
+ * Internal core → Opfield callback listener (admission + settlement). Served
  * on a dedicated port that is never published to the host: only containers on
  * the installer-managed Compose network can reach it, and every call must
  * carry a valid HMAC signature keyed by the internal callback credential.

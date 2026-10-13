@@ -79,7 +79,7 @@ func TestKilledReplicaRestartsInPlaceWithinHalfAMinute(t *testing.T) {
 	}
 }
 
-// Gateway asks the holder to release for its failing HTTP health check: in
+// Opfield asks the holder to release for its failing HTTP health check: in
 // Failover the standby takes over, the released node does not take the slot
 // back, and a node that does not hold refuses the request.
 func TestReleaseUnhealthyHandsTheSlotToTheStandby(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 )
 
 // Host access switches live only in the daemon config file on the node, so
-// the Gateway cannot turn a disabled feature back on remotely. The daemon
-// advertises a disabled feature at registration so the Gateway refuses it
+// Opfield cannot turn a disabled feature back on remotely. The daemon
+// advertises a disabled feature at registration so Opfield refuses it
 // before dispatching a command.
 const (
 	NodeConsoleDisabledCapability = "node_console_disabled_v1"

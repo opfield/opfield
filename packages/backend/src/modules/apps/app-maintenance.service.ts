@@ -158,7 +158,7 @@ export class AppMaintenanceService implements AppMaintenanceHooks {
         ),
         incidentModes.get(route.id)
       );
-      // The route serving the Gateway public URL never enters maintenance.
+      // The route serving the Opfield public URL never enters maintenance.
       if (mode !== 'off' && proxy && (await proxy.servesOpfieldPublicUrl(route))) mode = 'off';
       if ((route.appMaintenanceMode ?? 'off') === mode) continue;
       try {

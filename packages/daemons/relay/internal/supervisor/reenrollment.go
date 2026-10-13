@@ -20,10 +20,10 @@ const stashedIdentitySuffix = ".reenroll-previous"
 
 // Reenrollment is a pending re-enrollment of an already enrolled supervisor.
 //
-// A relay whose pinned policy trust holds only keys Gateway can no longer sign
+// A relay whose pinned policy trust holds only keys Opfield can no longer sign
 // with cannot be repaired over the control channel: a remote relay accepts new
 // keys only through signed rotation. The supported way back is a fresh
-// enrollment token, which an administrator issues in Gateway and passes to the
+// enrollment token, which an administrator issues in Opfield and passes to the
 // relay installer. The installer writes the token into the configuration and
 // restarts the supervisor; finding a token while already enrolled starts a
 // re-enrollment. The current identity is kept aside until the new bundle is
@@ -86,7 +86,7 @@ func (r *Reenrollment) Restore() error {
 }
 
 // discardStashedIdentity drops the identity kept aside once the new
-// enrollment bundle is persisted: Gateway has already superseded it.
+// enrollment bundle is persisted: Opfield has already superseded it.
 func discardStashedIdentity(cfg *lifecycle.BaseConfig) {
 	for _, path := range identityPaths(cfg) {
 		if path != "" {
@@ -95,7 +95,7 @@ func discardStashedIdentity(cfg *lifecycle.BaseConfig) {
 	}
 }
 
-// EnrollmentTokenRejected reports whether Gateway refused the enrollment for a
+// EnrollmentTokenRejected reports whether Opfield refused the enrollment for a
 // reason a retry with the same token cannot fix: the token is invalid, used,
 // expired, or belongs to another kind of node or host.
 func EnrollmentTokenRejected(err error) bool {
@@ -122,7 +122,7 @@ type enrollmentResult struct {
 }
 
 // RecordEnrollmentOutcome writes the outcome of an enrollment attempt: nil
-// for an identity Gateway issued and this relay persisted, else the failure.
+// for an identity Opfield issued and this relay persisted, else the failure.
 func RecordEnrollmentOutcome(stateDir string, err error) error {
 	result := enrollmentResult{Outcome: "enrolled", At: time.Now().UTC().Format(time.RFC3339)}
 	if err != nil {

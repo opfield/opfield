@@ -10,7 +10,7 @@ import {
 const CONTEXT_TTL_SECONDS = 60;
 
 /**
- * Gateway side of the wiolett-core/v1 request context: mints the signed
+ * Opfield side of the wiolett-core/v1 request context: mints the signed
  * claims a proxied data-plane request carries. The core validates signature,
  * expiry, and nonce replay before any upstream dispatch; a nonce is consumed
  * on first use, so every request (and every WebSocket turn) needs a fresh one.
@@ -56,7 +56,7 @@ export function signCoreContext(contextB64: string, dataCredential: string): str
 /**
  * Headers injected on a proxied data-plane request: the core data credential
  * plus the signed context. Client-supplied copies are stripped upstream of
- * this point, so these values are always Gateway-issued.
+ * this point, so these values are always Opfield-issued.
  */
 export function coreRequestHeaders(
   claims: InferenceCoreRequestContext,

@@ -28,7 +28,7 @@ import { RpcError, type RpcErrorShape, RpcPort } from './rpc.js';
 
 export type { RemotePath } from './protocol.js';
 
-/** One of Gateway's resumable streams as the returner sees it (it lives in the tunnel worker). */
+/** One of Opfield's resumable streams as the returner sees it (it lives in the tunnel worker). */
 export interface OpfieldStream {
   readonly routeId: string;
   readonly relayId: string | null;
@@ -104,7 +104,7 @@ interface Runner {
 }
 
 /**
- * The main thread's side of Gateway's tunnel worker: starts it (again after a crash), and offers the tunnel
+ * The main thread's side of Opfield's tunnel worker: starts it (again after a crash), and offers the tunnel
  * operations RelayPolicyService orchestrates — loopback endpoints, relay paths, resumable and raw tunnels bound to a
  * connection, probes, drains — plus the stream counts and the legacy latch, without any tunnel byte on this thread.
  */
@@ -371,7 +371,7 @@ export class RelayTunnelHost {
     return this.stats.byRelay[relayInstanceId]?.resumable ?? 0;
   }
 
-  /** Telemetry for Gateway's own relayed streams, as the worker reported it last (at most a second old). */
+  /** Telemetry for Opfield's own relayed streams, as the worker reported it last (at most a second old). */
   relayResumeStats(): RelayResumeStatsSnapshot {
     return this.stats;
   }

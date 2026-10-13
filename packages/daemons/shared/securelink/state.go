@@ -49,7 +49,7 @@ func stateFile(stateDir, name string) statecompat.File {
 }
 
 // pruneDormantMembers drops dormant availability members from the copy older
-// daemons read: they know no dormant flag and would serve them. Gateway never
+// daemons read: they know no dormant flag and would serve them. Opfield never
 // sends them a dormant member either.
 func pruneDormantMembers(message proto.Message) {
 	command, ok := message.(*pb.SyncProxySecureLinksCommand)

@@ -12,7 +12,7 @@ export const MASKED_ENV_VALUE = '********';
 
 /** The sealed part of DockerTaskFollowUps: the env its follow-ups need, never in plaintext in the task row. */
 export interface DockerEnvFollowUpPayload {
-  /** The stored env the operation left. A follow-up Gateway runs after it lost track of the task needs it unchanged. */
+  /** The stored env the operation left. A follow-up Opfield runs after it lost track of the task needs it unchanged. */
   expectedEnv: Record<string, string>;
   /** The keys of `expectedEnv` whose value the replaced runtime had too (reconcileEnvAfterImageChange). */
   mirroredKeys?: string[];
@@ -20,7 +20,7 @@ export interface DockerEnvFollowUpPayload {
   restoreEnv?: Record<string, string>;
 }
 
-/** Tells Gateway that a docker daemon's task_status also finds a task by the Gateway command that started it. */
+/** Tells Opfield that a docker daemon's task_status also finds a task by the Opfield command that started it. */
 export const TASK_COMMAND_LOOKUP_CAPABILITY = 'docker_task_command_lookup_v1';
 
 type SealedEnv = DockerTaskFollowUps['sealed'];
@@ -104,7 +104,7 @@ export interface DockerEnvFollowUpPlan {
   /** Set when the update saves the env before it runs: put back should the update not apply. */
   restoreEnv?: Record<string, string>;
   /**
-   * The lease the operation holds the container with. Once Gateway lost track of the task (it restarted), the
+   * The lease the operation holds the container with. Once Opfield lost track of the task (it restarted), the
    * follow-ups take it over instead of waiting for it to lapse.
    */
   leaseToken?: string;
@@ -174,7 +174,7 @@ function followUpsRecord(
 
 /**
  * Writes ahead, before an update or recreate is dispatched (and before an update saves the env): the task's tracking,
- * the command it is sent under, and what it owes once settled (its env follow-ups, the env sealed). However Gateway
+ * the command it is sent under, and what it owes once settled (its env follow-ups, the env sealed). However Opfield
  * then loses track of it, even before the daemon answered, DockerTaskReconciler settles it with the node and runs
  * what it owes through runKeptEnvFollowUps; a command that never ran there gets nothing run but the env put back.
  * Never fails the operation: what could not be written runs only from the watch, as before. Nothing is kept for a
@@ -224,7 +224,7 @@ export type DockerTaskFollowUpTrigger =
   | { kind: 'not-applied' };
 
 /**
- * Runs what an update or recreate Gateway lost track of still owes, once DockerTaskReconciler settled it with the
+ * Runs what an update or recreate Opfield lost track of still owes, once DockerTaskReconciler settled it with the
  * node: the stored env reconciliation after an image change once the replacement succeeded, or the stored env restore
  * once the update did not apply (the daemon reported it failed, or it never ran there). It is taken from the task
  * first, so it runs once. Like the

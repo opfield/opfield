@@ -15,7 +15,7 @@ import (
 // Rolling updates and set-aware lifecycle (P3-T07): a paused set
 // (Config.Stopped), the restart command, the copy-only hold of a recreate.
 
-// pause applies Gateway's configuration with Stopped set as given.
+// pause applies Opfield's configuration with Stopped set as given.
 func pause(t *testing.T, h *harness, stopped bool) {
 	t.Helper()
 	config, ok := h.manager.Config(testSet)

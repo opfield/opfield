@@ -34,7 +34,7 @@ export class DatabaseConnectionService {
     _managedTunnelProxy?: ManagedDatabaseTunnelProxy | undefined
   ) {}
   setEventBus(_bus: EventBusService): void {}
-  /** Trust anchor for the TLS endpoints of managed databases Gateway provisions. */
+  /** Trust anchor for the TLS endpoints of managed databases Opfield provisions. */
   setDatabaseCA(_databaseCA: Pick<DatabaseCAService, 'getDatabaseCA'>): void {}
   async getDecryptedConfig(
     _id: string,

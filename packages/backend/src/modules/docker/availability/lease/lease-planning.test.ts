@@ -130,7 +130,7 @@ describe('availability lease observations', () => {
     expect(reacquired.change).toBeNull();
   });
 
-  // Stand run rc20 N-5: after a failover while Gateway was down, holderSince and the audit carried the time Gateway
+  // Stand run rc20 N-5: after a failover while Opfield was down, holderSince and the audit carried the time Opfield
   // noticed the new holder (09:54:13), not the takeover (09:53:04.86) the voters had seen.
   it('records the takeover time the voters report, never before the previous holder was seen nor in the future', () => {
     const first = mergeLeaseObservation(null, { candidates: [holding('n-1', 2)], now: NOW }).next;
@@ -155,7 +155,7 @@ describe('availability lease observations', () => {
     const bounded = mergeLeaseObservation(refreshed, { candidates: [reported(at(15))], now: at(120) });
     expect(bounded.next.holderSince).toEqual(at(40));
 
-    // A time from the future (a skewed wall clock) or no report at all fall back to when Gateway noticed it.
+    // A time from the future (a skewed wall clock) or no report at all fall back to when Opfield noticed it.
     expect(mergeLeaseObservation(first, { candidates: [reported(at(500))], now: at(120) }).next.holderSince).toEqual(
       at(120)
     );
@@ -164,7 +164,7 @@ describe('availability lease observations', () => {
     );
   });
 
-  // Stand run rc20 c (B-14): the local relay, restarted with Gateway after the takeover, reported first; its first
+  // Stand run rc20 c (B-14): the local relay, restarted with Opfield after the takeover, reported first; its first
   // sighting (86 s late) became the recorded time. The holder's own acquisition time is exact and wins.
   it('takes the holder its own acquisition time over any voter sighting, and corrects an earlier guess with it', () => {
     const first = mergeLeaseObservation(null, { candidates: [holding('n-1', 2)], now: NOW }).next;
@@ -201,7 +201,7 @@ describe('availability lease observations', () => {
 
   // Stand run rc20pre2 d: slot 1 of a replicated policy, fenced by a partition and re-acquired by the same node 27 min
   // later, kept holderSince 15:10:04 instead of 15:37:06. Soak M-5: the slot lapsed for 10 min and the same node took
-  // it again while Gateway was down; no audit row, holderSince unchanged. A re-acquisition is a new holding: recorded,
+  // it again while Opfield was down; no audit row, holderSince unchanged. A re-acquisition is a new holding: recorded,
   // audited and dated at the takeover.
   it('records a slot the same node acquired again after a lapse as a new holding (M-5)', () => {
     const own = (since: Date, round: number, holdingStart = true): LeaseObservationCandidate => ({
@@ -226,7 +226,7 @@ describe('availability lease observations', () => {
     }).next;
     expect(steady.holderSince).toEqual(at(0));
 
-    // The lapse and the re-acquisition fell while Gateway was away: the holder's own time starts a new holding.
+    // The lapse and the re-acquisition fell while Opfield was away: the holder's own time starts a new holding.
     const unseen = mergeLeaseObservation(steady, {
       candidates: [own(at(1_620), 14)],
       reporter: { id: 'n-1', role: 'holding' },
@@ -251,7 +251,7 @@ describe('availability lease observations', () => {
     });
     expect(recovered.change).toBeNull();
 
-    // A fence Gateway saw clears the holder. The same node holding again is a new holding once a time proves it
+    // A fence Opfield saw clears the holder. The same node holding again is a new holding once a time proves it
     // started after that report: its own start, or a voter's first commit of it.
     const fenced = mergeLeaseObservation(steady, {
       candidates: [],

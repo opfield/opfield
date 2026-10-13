@@ -101,7 +101,7 @@ function coreSettlementUsage(input: InferenceCoreSettlement['usage'], estimated:
 }
 
 /**
- * Gateway side of the wiolett-core/v1 admission/settlement contract (plan T5).
+ * Opfield side of the wiolett-core/v1 admission/settlement contract (plan T5).
  * The managed core calls admission before every upstream dispatch — root,
  * retry, compaction, and subagent attempts alike — and settles each attempt
  * exactly once. Both callbacks are idempotent per core attempt id; ledger
@@ -181,7 +181,7 @@ export class InferenceCoreAccountingService {
   }
 
   /**
-   * Authorize the next Gateway-selected route for the same logical request.
+   * Authorize the next Opfield-selected route for the same logical request.
    * Called only after a pre-output failure; the next signed context pins this
    * row before the core can admit the new attempt.
    */
@@ -329,7 +329,7 @@ export class InferenceCoreAccountingService {
     connection: ConnectionRow,
     limits: EffectiveInferenceLimits
   ): Promise<InferenceCoreAdmissionResponse> {
-    // Use one Gateway admission timestamp for both the window and its ledger
+    // Use one Opfield admission timestamp for both the window and its ledger
     // entry. The core's earlier callback timestamp can precede a new window.
     const admittedAt = new Date();
     const usage = await this.policies.usage(userId, limits, admittedAt, database, {
@@ -784,7 +784,7 @@ function assertPinnedRoute(
   // Authentication mode is not a billing authority: API keys may represent
   // subscription plans (for example Alibaba Token Plan). The persisted source
   // owns accounting classification; the core only has to preserve the exact
-  // Gateway-selected account and model route.
+  // Opfield-selected account and model route.
   if (!expectedAccountId || input.coreAccountId !== expectedAccountId || input.coreModelId !== source.coreModelId) {
     throw new AppError(409, 'core_route_mismatch', 'The core attempted a route not selected by Opfield');
   }

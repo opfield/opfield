@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 const IMMUTABLE_IMAGE = /^[^\s@]+@sha256:[0-9a-f]{64}$/;
 
-// Kept inside the signed Gateway image, not in the persistent host environment.
+// Kept inside the signed Opfield image, not in the persistent host environment.
 // Older Compose files pass BACKUP_RUNNER_IMAGE=""; that must retain the default.
 export function resolveBackupRunnerImage(
   override?: string,

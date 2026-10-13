@@ -11,7 +11,7 @@ import (
 
 // An imported archive names the networks its container joins. Like a direct
 // create, it may not take the host's or another container's namespace or a
-// network Gateway owns on the node; none only alone.
+// network Opfield owns on the node; none only alone.
 func TestGwcaImportRefusesHostAndOpfieldNetworks(t *testing.T) {
 	manifest := func(names ...string) gwcaContainerManifest {
 		result := gwcaContainerManifest{SchemaVersion: 1, Name: "app"}

@@ -46,7 +46,7 @@ export interface DockerLifecycleWatchContext {
 /** How a watched lifecycle operation ended; its task records the same outcome. */
 export type DockerTransitionOutcome = { completed: true } | { completed: false; reason: 'timeout' | 'disconnected' };
 
-/** What a watch knows beyond its arguments that settles its task with the node should Gateway lose track of it. */
+/** What a watch knows beyond its arguments that settles its task with the node should Opfield lose track of it. */
 export interface DockerTransitionTrackingHint {
   /** The container's State.StartedAt before a restart: the restart is done once it changed. */
   previousStartedAt?: string | null;

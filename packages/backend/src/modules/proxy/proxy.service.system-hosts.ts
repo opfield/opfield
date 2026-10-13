@@ -34,20 +34,20 @@ import { ProxyServiceReconciliation } from './proxy.service.reconciliation.js';
 export class ProxyServiceSystemHosts extends ProxyServiceReconciliation {
   protected webTransportSettings?: Pick<WebTransportSettingsService, 'getConfig'>;
 
-  /** Gateway's web listener protocol, which the default status page upstream follows. */
+  /** Opfield's web listener protocol, which the default status page upstream follows. */
   setWebTransportSettings(settings: Pick<WebTransportSettingsService, 'getConfig'>) {
     this.webTransportSettings = settings;
   }
 
   /**
    * Without a configured upstream URL, the status page ingress node reaches
-   * Gateway on loopback only when it runs on the Gateway host; any other node
-   * uses the Gateway address nodes enroll with.
+   * Opfield on loopback only when it runs on the Opfield host; any other node
+   * uses the Opfield address nodes enroll with.
    */
   private async resolveStatusPageUpstreamUrl(nodeId: string | null, upstreamUrl: string | null | undefined) {
     if (upstreamUrl) return upstreamUrl;
     // On an ingress group every member renders the same upstream, so it is the address nodes enroll with
-    // (a member on the Gateway host reaches it there too).
+    // (a member on the Opfield host reaches it there too).
     const node = nodeId
       ? await this.db.query.nodes.findFirst({
           where: eq(nodes.id, nodeId),

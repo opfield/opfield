@@ -73,7 +73,7 @@ func waitForPullState(t *testing.T, p *DockerPlugin, imageRef, commandID, state 
 	}
 }
 
-// TestPullStatusTellsHowALostPullEnded: Gateway lost the answer of a pull (it restarted while the pull ran on); it
+// TestPullStatusTellsHowALostPullEnded: Opfield lost the answer of a pull (it restarted while the pull ran on); it
 // asks with pull_status by image and finds its pull by command ID: running while it runs, then how it ended.
 func TestPullStatusTellsHowALostPullEnded(t *testing.T) {
 	release := make(chan string)

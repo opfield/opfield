@@ -232,7 +232,7 @@
   --color-qr: #ffffff;
   --color-on-warning: #141414;
 
-  /* The restart and update screens mirror the static restart page (backend gateway-error-pages),
+  /* The restart and update screens mirror the static restart page (backend opfield-error-pages),
      which is always graphite. */
   --color-static-page: #141414;
   --color-static-page-foreground: #f3f2ef;

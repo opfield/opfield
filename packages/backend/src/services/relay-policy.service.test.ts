@@ -1182,7 +1182,7 @@ describe('RelayPolicyService snapshots', () => {
     applied = 50;
     await sync(true);
 
-    // N-7: the relay lost its relay.db and reports no policy, while Gateway's stored report still names the
+    // N-7: the relay lost its relay.db and reports no policy, while Opfield's stored report still names the
     // snapshot it held. The live report decides: the snapshot goes out at once.
     (local as any).appliedPolicyRevision = poolRevision;
     applied = 0;
@@ -2331,7 +2331,7 @@ describe('RelayPolicyService remote pushes after the control plane returns (B-18
       .mockRejectedValueOnce(new Error('Node relay-137 is not connected'))
       .mockResolvedValue(1);
 
-    // Gateway returns before the relay node reconnected.
+    // Opfield returns before the relay node reconnected.
     await (pushing as any).pushChangedRemotePolicies(20);
     // A member endpoint changes right after the relay reconnected: its policy must reach the relay before the
     // daemons present grants for it, not a minute later.
@@ -2503,13 +2503,13 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     vi.spyOn(service, 'syncSnapshot').mockResolvedValue(1);
     const raise = (error: string) => (service as any).raiseRevisionAboveDaemon('node-1', error);
 
-    // An older bundle delivered late: the daemon holds a revision Gateway issued.
+    // An older bundle delivered late: the daemon holds a revision Opfield issued.
     await expect(raise('relay grant revision 30 is older than 35')).resolves.toBe(false);
     // One stale refusal without a revision is ordinary out-of-order delivery.
     await expect(raise('stale relay grant bundle')).resolves.toBe(false);
     await expect(raise('stale relay grant bundle')).resolves.toBe(false);
     expect(set).not.toHaveBeenCalled();
-    // A daemon that keeps refusing holds a sequence Gateway lost.
+    // A daemon that keeps refusing holds a sequence Opfield lost.
     await expect(raise('stale relay grant bundle')).resolves.toBe(true);
     expect(new PgDialect().sqlToQuery((set.mock.calls[0] as any)[0].revision).params).toEqual([1_000_041]);
 

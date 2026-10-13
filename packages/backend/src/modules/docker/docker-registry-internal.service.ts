@@ -284,7 +284,7 @@ export class DockerInternalRegistryService {
   async assertBuildAdmission(): Promise<void> {
     const state = await this.getState();
     if (state.status !== 'ready' || !state.writable || state.maintenancePhase !== 'idle') {
-      // Retryable: the registry is back within seconds after a Gateway update or restart, and an Availability heal
+      // Retryable: the registry is back within seconds after an Opfield update or restart, and an Availability heal
       // that failed here for good would leave the workload unavailable until someone retried it by hand.
       throw new AppError(
         503,

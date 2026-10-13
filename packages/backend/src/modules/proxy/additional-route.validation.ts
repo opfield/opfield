@@ -58,7 +58,7 @@ const locationValidator = new ConfigValidatorService();
  * Additional Route advanced config is inserted line by line into the route's location. Unless the caller holds
  * proxy:unrestricted on the Route it gets the deny-list of the Route's own advanced config, as written inside a
  * non-root location; either way it must consist of complete directives, so it cannot run into the directives
- * Gateway renders after it.
+ * Opfield renders after it.
  */
 export function additionalRouteAdvancedConfigErrors(value: string, unrestricted: boolean): string[] {
   return locationValidator.validateLocationSnippet(value, unrestricted).errors;

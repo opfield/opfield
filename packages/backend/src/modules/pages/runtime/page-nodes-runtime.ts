@@ -26,7 +26,7 @@ export interface PageNodeRuntimeOperations {
 
 /**
  * Pages Route bindings on every node that serves a Route: its node, or each member of its ingress group. Every member
- * holds its own replica and runtime config, so it keeps serving while Gateway or another member is down.
+ * holds its own replica and runtime config, so it keeps serving while Opfield or another member is down.
  *
  * A change reaches the members that are connected now. An offline member is skipped and converges later (the Pages
  * Route reconciliation re-applies bindings that do not match, and a reconnecting member gets the additional Routes of

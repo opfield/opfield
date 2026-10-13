@@ -73,7 +73,7 @@ export class InferenceBudgetPolicyService {
     const defaultPolicy = rows.find((row) => row.policyType === 'default');
     const userPolicy = rows.find((row) => row.policyType === 'user');
     const policy = userPolicy ?? defaultPolicy;
-    // A Gateway can have Inference enabled before an administrator configures
+    // An Opfield can have Inference enabled before an administrator configures
     // a default policy (notably older guided setups). Treat that as disabled
     // access instead of an infrastructure failure, so status and setup APIs
     // stay available to repair the configuration.

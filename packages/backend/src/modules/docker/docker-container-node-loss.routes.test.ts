@@ -20,7 +20,7 @@ function chain<T>(result: T) {
 
 /**
  * A connected Docker node whose container reads go through the real node registry: each read is a command waiting for
- * the node's answer, so dropping the node's control stream (deregister, as when its TCP connection to Gateway is cut)
+ * the node's answer, so dropping the node's control stream (deregister, as when its TCP connection to Opfield is cut)
  * rejects it with the registry's own "Node disconnected" (stand rc.8, F-4).
  */
 async function connectedNode(options: { answering?: boolean } = {}) {
@@ -51,7 +51,7 @@ async function connectedNode(options: { answering?: boolean } = {}) {
     resolveRuntimeAccessIdentity: vi.fn(async () => null),
     isContainerManaged: vi.fn(async () => false),
   } as never);
-  /** The node's TCP connection to Gateway is cut once a read is waiting for the node. */
+  /** The node's TCP connection to Opfield is cut once a read is waiting for the node. */
   const dropWhenReading = async () => {
     await vi.waitFor(() => expect(reads).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 5));

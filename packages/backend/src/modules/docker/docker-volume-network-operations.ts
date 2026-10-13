@@ -167,7 +167,7 @@ export async function listVolumes(context: DockerVolumeNetworkOperationContext, 
 
 /**
  * Per-volume user operations must apply the same visibility as listVolumes:
- * Gateway's own volumes (used only by Gateway-internal containers) are not
+ * Opfield's own volumes (used only by Opfield-internal containers) are not
  * user resources, even for callers with broad volume scopes.
  */
 export async function assertUserVolumeVisible(
@@ -642,7 +642,7 @@ export function isAnonymousDockerVolumeName(name: string): boolean {
 }
 
 /**
- * Whether Gateway manages the volume: it has a managed-volume row (created or adopted) or carries the Gateway
+ * Whether Opfield manages the volume: it has a managed-volume row (created or adopted) or carries Opfield
  * managed-volume label. Anonymous-volume cleanup must never remove such a volume.
  */
 export async function isOpfieldManagedVolume(
@@ -661,7 +661,7 @@ export async function isOpfieldManagedVolume(
   return rows.length > 0;
 }
 
-/** Names of the volumes Gateway manages on a node (created or adopted). */
+/** Names of the volumes Opfield manages on a node (created or adopted). */
 export async function opfieldManagedVolumeNames(db: DrizzleClient, nodeId: string): Promise<Set<string>> {
   const rows = await db
     .select({ volumeName: dockerManagedVolumes.volumeName })

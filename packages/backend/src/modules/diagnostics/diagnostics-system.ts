@@ -4,7 +4,7 @@ import os from 'node:os';
 import { type EventLoopUtilization, monitorEventLoopDelay, performance } from 'node:perf_hooks';
 
 /**
- * Host and process readings for Gateway diagnostics. Inside the app container /proc/loadavg,
+ * Host and process readings for Opfield diagnostics. Inside the app container /proc/loadavg,
  * /proc/meminfo, /proc/stat and /proc/uptime are not namespaced, so os.* and these files describe the
  * whole kernel: in an LXC that is the hypervisor. The installer therefore mounts the host's own files:
  * - /proc/meminfo, /proc/loadavg and /proc/stat at /host/proc. In an LXC, LXCFS serves them, but per the
@@ -16,7 +16,7 @@ import { type EventLoopUtilization, monitorEventLoopDelay, performance } from 'n
  *   them for `free` inside the LXC. On a bare host or VM the root cgroup has no memory.current, and
  *   /host/proc/meminfo is the kernel's.
  * - the host's /proc/1/stat at /host/proc/1/stat: in an LXC, the uptime is the time since its init started.
- * The host reading further narrows them to what binds Gateway: the CPUs it may run on (its affinity, which
+ * The host reading further narrows them to what binds Opfield: the CPUs it may run on (its affinity, which
  * an LXC's cpuset sets) and the cgroup limits of its container.
  */
 
@@ -26,7 +26,7 @@ export const HOST_PROC_DIR = '/host/proc';
 /** Where the installer mounts the host's /sys/fs/cgroup. */
 export const HOST_CGROUP_DIR = '/host/cgroup';
 
-/** Clock ticks per second of /proc/<pid>/stat times: USER_HZ, 100 on every Linux architecture Gateway runs on. */
+/** Clock ticks per second of /proc/<pid>/stat times: USER_HZ, 100 on every Linux architecture Opfield runs on. */
 const CLOCK_TICKS_PER_SECOND = 100;
 
 /** A /proc file of the host when it is mounted and readable, else the container's own; null when neither reads. */
@@ -47,11 +47,11 @@ export async function readProcFile(
 }
 
 export interface HostReading {
-  /** CPUs Gateway may run on: its CPU affinity (an LXC or container cpuset), capped by the CPU quotas of its container and of an LXC host. */
+  /** CPUs Opfield may run on: its CPU affinity (an LXC or container cpuset), capped by the CPU quotas of its container and of an LXC host. */
   cpuCount: number;
   /** CPUs of the host: the LXC's with the host /proc mounted, else the whole kernel's; can be more than cpuCount. */
   kernelCpuCount: number;
-  /** Busy share of the CPUs Gateway may run on since the previous reading; null on the first reading. */
+  /** Busy share of the CPUs Opfield may run on since the previous reading; null on the first reading. */
   cpuPercent: number | null;
   /** Load averages of the kernel: in an LXC the hypervisor's, which LXCFS does not virtualise by default. */
   loadAverage: [number, number, number];
@@ -61,7 +61,7 @@ export interface HostReading {
   memoryAvailableBytes: number;
   memoryUsedPercent: number;
   /**
-   * `cgroup`: the memory limit of Gateway's container and its use. `kernel`: the container has no limit, so the
+   * `cgroup`: the memory limit of Opfield's container and its use. `kernel`: the container has no limit, so the
    * figures are the host's: in an LXC its own cgroup's (as `free` shows inside it), on a bare host or VM its
    * /proc/meminfo; without the host mounts they are the whole kernel's, in an LXC the hypervisor's.
    */
@@ -71,7 +71,7 @@ export interface HostReading {
   /** Seconds since the host started: in an LXC since its init started, else since the kernel booted. */
   uptimeSeconds: number;
   kernel: string;
-  /** The filesystem that holds Gateway's data, which is usually Docker's data root. */
+  /** The filesystem that holds Opfield's data, which is usually Docker's data root. */
   disk: DiskReading | null;
 }
 

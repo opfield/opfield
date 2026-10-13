@@ -38,7 +38,7 @@ func TestNewAvailabilityLeaseCoordinatorToleratesNoObsoleteStateFile(t *testing.
 // TestAvailabilityLeaseCoordinatorApplyIsAnObserverNoOpThatTracksRevision
 // covers the observer-only contract (A18-A20): nginx never votes and adopts
 // no policy keys, voters or manifests, but it still echoes back the revision
-// it was asked to apply, so the Gateway's resend loop settles.
+// it was asked to apply, so Opfield's resend loop settles.
 func TestAvailabilityLeaseCoordinatorApplyIsAnObserverNoOpThatTracksRevision(t *testing.T) {
 	coordinator := newAvailabilityLeaseCoordinator(t.TempDir(), nil, nil)
 	defer coordinator.close()

@@ -81,7 +81,7 @@ func (h *Handler) handlePagesVerifyRelease(cmd *pb.PagesVerifyReleaseCommand, re
 	}
 	manifest, err := h.pagesRuntime.VerifyRelease(cmd.DeploymentId, cmd.Sha256)
 	if pages.IsReleaseNotStored(err) {
-		// Gateway asks before it uploads a release: not stored yet is the
+		// Opfield asks before it uploads a release: not stored yet is the
 		// answer that starts the upload, not a failure (N-23).
 		h.logger.Debug("Pages release is not stored on this node yet", "deployment_id", cmd.DeploymentId)
 		result.Success = false

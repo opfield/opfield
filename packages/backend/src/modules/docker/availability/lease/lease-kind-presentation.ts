@@ -78,7 +78,7 @@ export function leaseHolderAuditEntry(input: {
     resourceType: subject.resourceType,
     resourceId: subject.resourceId,
     // N-5 / B-14: the transition happened when the new holder took over, which after an autonomous failover while
-    // Gateway was down is well before Gateway learns about it.
+    // Opfield was down is well before Opfield learns about it.
     occurredAt: takeoverAt,
     details: {
       slot: notice.slot,
@@ -90,7 +90,7 @@ export function leaseHolderAuditEntry(input: {
       source: notice.source,
       takeoverAt: takeoverAt.toISOString(),
       // holder: the new holder's own acquisition time; voters: the earliest voter sighting; noticed: nobody reported
-      // a time, this is when Gateway noticed the change.
+      // a time, this is when Opfield noticed the change.
       takeoverSource: input.source,
       noticedAt: input.noticedAt.toISOString(),
       takeoverId: input.takeoverId,

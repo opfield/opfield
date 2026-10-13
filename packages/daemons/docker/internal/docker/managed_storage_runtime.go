@@ -463,7 +463,7 @@ func (m *managedStorageManager) records() (records []managedStorageRecord, unrea
 }
 
 // reconcile runs in every new daemon process (a cold start and the process an
-// update hands over to alike) before it serves Gateway. The SeaweedFS
+// update hands over to alike) before it serves Opfield. The SeaweedFS
 // storages it brings up are then moved to the image this daemon pins, in the
 // background (see moveStoragesToPinnedImage).
 func (m *managedStorageManager) reconcile(ctx context.Context) error {
@@ -478,7 +478,7 @@ func (m *managedStorageManager) reconcile(ctx context.Context) error {
 		}
 		id := strings.TrimSuffix(entry.Name(), ".json")
 		// One broken storage (container removed, volume missing, unreadable record) must not keep the whole node
-		// offline: the node comes up with the others, and Gateway sees this one as not running and can repair it.
+		// offline: the node comes up with the others, and Opfield sees this one as not running and can repair it.
 		record, err := m.loadRecord(id)
 		if err != nil {
 			m.logger.Warn("managed storage record could not be read at startup", "id", id, "path", m.recordPath(id), "error", err)
@@ -709,7 +709,7 @@ func (m *managedStorageManager) marshalManagedStorageDetail(ctx context.Context,
 		}
 		// A serving SeaweedFS storage that takes no new objects (its disk is
 		// full, or its master can create no volume) is shown degraded until it
-		// has room again; storageFull is what Gateways before 2.12.1 read.
+		// has room again; storageFull is what Opfield releases before 2.12.1 read.
 		if status == "ready" && record.engine() == managedStorageEngineSeaweedFS {
 			if capacity, ok := m.seaweedfsCapacity(record); ok {
 				detail["storageWritable"] = capacity.Writable

@@ -69,7 +69,7 @@ export const CreateManagedStorageSchema = z
     // (see `ManagedStorageService.create`). Defaults to false in the service
     // when omitted; a relay create forces it on.
     tlsEnabled: z.boolean().optional(),
-    // Opt-in gateway-local relay: the S3 client reaches the cluster over a
+    // Opt-in Opfield-local relay: the S3 client reaches the cluster over a
     // 127.0.0.1 loopback tunnel (`ManagedStorageTunnelProxy`) instead of a
     // publicly reachable S3 port (see `ManagedStorageService.create`).
     // Relay implies TLS: the service forces `tlsEnabled` on for a relay
@@ -126,7 +126,7 @@ export const UpdateManagedStorageSchema = z
 
 /**
  * Create-time schema for a managed storage IAM access key. `name` is a display
- * label only — the key id and secret are generated for the caller (by Gateway
+ * label only — the key id and secret are generated for the caller (by Opfield
  * on SeaweedFS, by MinIO on legacy clusters), never chosen by them: letting a
  * caller pick their own secret defeats the "shown once, strongly random"
  * guarantee the reveal-once UX relies on.
@@ -301,7 +301,7 @@ export interface ManagedStorageWriteFreezeResult {
   updated: Array<{ kind: 'access_key' | 'binding'; id: string; accessKeyId: string | null }>;
   skipped: Array<{ kind: 'access_key' | 'binding'; id: string; accessKeyId: string | null; reason: string }>;
   /**
-   * Keys the storage server reports that Gateway did not issue (freeze only;
+   * Keys the storage server reports that Opfield did not issue (freeze only;
    * `null` when the server could not be listed). They are not frozen.
    */
   unmanagedKeys: string[] | null;

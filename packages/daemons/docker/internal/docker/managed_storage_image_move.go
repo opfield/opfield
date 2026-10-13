@@ -8,7 +8,7 @@ import (
 
 // A daemon update that pins a new SeaweedFS image leaves the storages it finds
 // running the image the previous daemon pinned: nothing else recreates their
-// containers until Gateway updates or restarts them. The new daemon process
+// containers until Opfield updates or restarts them. The new daemon process
 // therefore moves each running one to the pinned image once, in the
 // background after its start (data kept, see recreate). A node that cannot
 // pull the pinned image (it falls back to the upstream one) moves nothing, so
@@ -17,7 +17,7 @@ import (
 
 // moveStoragesToPinnedImage moves the SeaweedFS storages among ids whose
 // container runs another image than the pinned one. Each move holds the
-// storage's locks, so it never runs alongside a Gateway command for it.
+// storage's locks, so it never runs alongside an Opfield command for it.
 func (m *managedStorageManager) moveStoragesToPinnedImage(ctx context.Context, ids []string) {
 	pinned := seaweedfsImage
 	due := false
@@ -89,7 +89,7 @@ func (m *managedStorageManager) moveStorageToPinnedImage(ctx context.Context, id
 		return
 	}
 	// A certificate reload that staged its files before this move sees the
-	// container changed and is retried by Gateway.
+	// container changed and is retried by Opfield.
 	m.generations.bump(id)
 	previousContainer := record.ContainerID
 	replacement := managedStorageCommand{

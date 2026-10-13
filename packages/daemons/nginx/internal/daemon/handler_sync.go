@@ -360,7 +360,7 @@ const orphanedHtpasswdMinAge = 10 * time.Minute
 // that no nginx config on the node references and no Pages preview uses: the
 // list was deleted, or its routes moved away or dropped it, while the node was
 // not connected. It runs after a full sync, which leaves the node with exactly
-// the configs Gateway serves from it. A config it cannot read keeps every file.
+// the configs Opfield serves from it. A config it cannot read keeps every file.
 func (h *Handler) removeOrphanedHtpasswd() {
 	dir := h.cfg.Nginx.HtpasswdDir
 	entries, err := os.ReadDir(dir)

@@ -38,12 +38,12 @@ export interface OpfieldIdentityRenewalDeps {
   env: Pick<Env, 'OPFIELD_RELAY_REQUIRED' | 'GRPC_TLS_CERT'>;
   grpcIdentity: Pick<GrpcIdentityService, 'resolve' | 'refresh' | 'markServed'>;
   grpcListener: GrpcListenerControl;
-  /** Present when Gateway runs behind its local relay. */
+  /** Present when Opfield runs behind its local relay. */
   relayIdentity?: Pick<RelayIdentityProvisionerService, 'refresh' | 'installedCertificatePaths'>;
   relayControl?: Pick<RelayControlClient, 'reloadIdentity' | 'setIdentityActivationListener'>;
   /** The relay identity provisioned at start-up, which the relay loaded as it started. */
   startupRelayIdentity?: Pick<AppRelayIdentity, 'materialDigest'>;
-  /** Tells Gateway's own relay tunnel clients which client certificate they now present. */
+  /** Tells Opfield's own relay tunnel clients which client certificate they now present. */
   onAppClientFingerprint?: (fingerprint: string) => void;
   webIdentity?: Pick<WebIdentityService, 'resolve' | 'reloadServed' | 'servedCertificate'>;
   /** True while enrollment tokens are outstanding: their install commands pin the gRPC certificate. */
@@ -101,7 +101,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Whether a relay reload moved Gateway onto the installed client for a relay that loaded the installed files. */
+/** Whether a relay reload moved Opfield onto the installed client for a relay that loaded the installed files. */
 function relayLoaded(pending: PendingRelayActivation, activation: RelayIdentityActivation): boolean {
   if (activation.certificateSha256 !== pending.appClientFingerprint) return false;
   const loaded = activation.loaded;
@@ -126,11 +126,11 @@ export async function hasUnexpiredEnrollmentTokens(db: DrizzleClient, now = new 
 }
 
 /**
- * Keeps Gateway's own TLS identities valid while it runs: the gRPC listener certificate, the
- * local relay's service identities (its external listener copy, Gateway's internal listener,
+ * Keeps Opfield's own TLS identities valid while it runs: the gRPC listener certificate, the
+ * local relay's service identities (its external listener copy, Opfield's internal listener,
  * and the client certificates both sides use toward each other), and the native web listener.
  *
- * They are issued for 365 days and were renewed only at start-up, so a Gateway running for a
+ * They are issued for 365 days and were renewed only at start-up, so an Opfield running for a
  * year broke. Now an hourly check renews anything within OPFIELD_IDENTITY_RENEW_BEFORE_MS of
  * expiry and switches the running listeners to it: new handshakes get the new certificate and
  * established daemon and relay connections keep theirs. Each step validates before it switches,
@@ -152,7 +152,7 @@ export class OpfieldIdentityRenewalService {
   /**
    * Re-resolves the gRPC identity and, behind the local relay, the relay service identities,
    * renewing what is due, and switches the running listener and relay to them. Shared by settings
-   * changes, first-run setup and renewal. Throws when Gateway's listener could not be switched; it
+   * changes, first-run setup and renewal. Throws when Opfield's listener could not be switched; it
    * keeps its current material then. A relay that does not confirm is not an error: both relay
    * client identities stay trusted and the reload is retried.
    */
@@ -205,7 +205,7 @@ export class OpfieldIdentityRenewalService {
 
   /**
    * Has the relay load the installed identity files. Only onRelayIdentityActivated confirms, for a
-   * relay that loaded exactly these files; until then Gateway trusts both relay client
+   * relay that loaded exactly these files; until then Opfield trusts both relay client
    * certificates and keeps its previous admin client, so neither side locks the other out.
    */
   private async activateRelayIdentity(): Promise<boolean> {
@@ -225,7 +225,7 @@ export class OpfieldIdentityRenewalService {
   }
 
   /**
-   * Gateway moved to a relay client identity. Its own tunnel clients follow whatever it presents
+   * Opfield moved to a relay client identity. Its own tunnel clients follow whatever it presents
    * now. When the relay loaded the installed files, the rotation is done: the relay serves the
    * installed external certificate, and its previous client certificate is no longer trusted.
    */

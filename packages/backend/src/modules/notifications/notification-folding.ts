@@ -1,5 +1,5 @@
 /**
- * Alert folding: a route alert explained by another firing alert (Gateway lost outbound connectivity, the route's node
+ * Alert folding: a route alert explained by another firing alert (Opfield lost outbound connectivity, the route's node
  * is down) is recorded with a pointer to that parent alert. Its notifications are not sent separately to a webhook
  * that gets the parent's, and it resolves with the parent. See NotificationEvaluatorService.foldingParent.
  */

@@ -11,7 +11,7 @@ import (
 // container decides; missing outranks stopped, which outranks restarting,
 // which outranks a failing health check; a growing restart count is a loop.
 // The daemon samples every 5 s and releases after 2 bad samples in a row.
-// Gateway can ask for the same release when the copy fails its HTTP health
+// Opfield can ask for the same release when the copy fails its HTTP health
 // check (ReleaseUnhealthy).
 const (
 	healthSampleEvery  = 5 * time.Second
@@ -28,7 +28,7 @@ const (
 	healthCooldownBase = 10 * time.Second
 	healthCooldownMax  = 5 * time.Minute
 	healthStableAfter  = 5 * time.Minute
-	// healthRequestTTL drops a release request from Gateway that could not
+	// healthRequestTTL drops a release request from Opfield that could not
 	// be acted on (the copy was busy or not serving) instead of applying it
 	// to a later copy.
 	healthRequestTTL = 30 * time.Second

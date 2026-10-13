@@ -10,7 +10,7 @@ import (
 )
 
 // Control sessions that keep failing back off to at most 15 s (10 s jittered by up to half), and an accepted session
-// reconnects after about a second; every delay is jittered so the nodes of one Gateway do not reconnect in step.
+// reconnects after about a second; every delay is jittered so the nodes of one Opfield do not reconnect in step.
 func TestControlSessionBackoffCapsWithJitter(t *testing.T) {
 	draw := 0.999999
 	backoff := controlSessionBackoff{random: func() float64 { return draw }}
@@ -43,7 +43,7 @@ func TestSessionEndExpected(t *testing.T) {
 		expected   bool
 	}{
 		{"planned end", status.Error(codes.Canceled, "grpc: the client connection is closing"), time.Hour, true},
-		// The monitoring daemon and the relay supervisor while Gateway restarted (stand rc.13 O-d).
+		// The monitoring daemon and the relay supervisor while Opfield restarted (stand rc.13 O-d).
 		{"refused while Gateway restarts", refused, 2 * time.Second, true},
 		{"refused for over a minute", refused, connector.RestartQuiet, false},
 		{"other failure", status.Error(codes.Unavailable, "connection error: desc = \"transport: Error while dialing: dial tcp 10.0.0.1:9443: i/o timeout\""), time.Second, false},

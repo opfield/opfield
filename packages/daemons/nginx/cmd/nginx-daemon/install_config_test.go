@@ -10,7 +10,7 @@ import (
 )
 
 // The manual setup writes config.yaml first and runs install after it: install keeps that configuration and only
-// sets the gateway address, token and certificate fingerprint (F-B14). A host without one gets the template.
+// sets the Opfield address, token and certificate fingerprint (F-B14). A host without one gets the template.
 func TestInstallKeepsAnExistingConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

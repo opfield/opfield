@@ -40,8 +40,8 @@ const archiveImageReferenceLabel = "net.opfield.archive.image.reference"
 
 // migrationManifestSchemaVersion 2: EnvKeys name the container's own
 // environment, not the image defaults it runs unchanged (see
-// migrationOwnEnvKeys). Gateway supplies the values of exactly these keys. A
-// Gateway that still sends the whole runtime environment cannot start a
+// migrationOwnEnvKeys). Opfield supplies the values of exactly these keys. A
+// Opfield that still sends the whole runtime environment cannot start a
 // migration with this daemon: the daemon advertises docker_migration_v2 only.
 const migrationManifestSchemaVersion = 2
 
@@ -63,7 +63,7 @@ func (c *Client) CaptureMigrationManifest(ctx context.Context, id string) (docke
 }
 
 // ValidateMigrationManifest runs the checks of the manifest capture for
-// Gateway's migration preflight. It reads the container and its image only,
+// Opfield's migration preflight. It reads the container and its image only,
 // and skips the writable layer size, which Docker computes by walking the
 // layer and which only adds a warning.
 func (c *Client) ValidateMigrationManifest(ctx context.Context, id string) (migrationManifestValidation, error) {
@@ -207,7 +207,7 @@ func migrationOwnEnvKeys(containerEnv, imageEnv []string, blockers []string) ([]
 	return keys, blockers
 }
 
-// validateMigrationEnv checks that Gateway supplied a value for exactly the
+// validateMigrationEnv checks that Opfield supplied a value for exactly the
 // environment keys of the manifest, naming every key that differs.
 func validateMigrationEnv(manifestKeys []string, env []string) error {
 	expected := make(map[string]bool, len(manifestKeys))

@@ -79,7 +79,7 @@ func TestCopyRejoinReasons(t *testing.T) {
 	if got := copyRejoinReason(1, divergedView, false, 0, adopted.Voters(), adopted.Learners(), true); got != "diverged" {
 		t.Fatalf("returning old voter: %q", got)
 	}
-	// Planned switch: the copy stays the voter Gateway names; nothing to do.
+	// Planned switch: the copy stays the voter Opfield names; nothing to do.
 	if got := copyRejoinReason(1, divergedView, false, 0, ec.Voters(), ec.Learners(), true); got != "" {
 		t.Fatalf("voter copy: %q", got)
 	}

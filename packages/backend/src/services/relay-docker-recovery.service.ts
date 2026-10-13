@@ -45,7 +45,7 @@ interface RelayOwnership {
   composeWorkingDir: string;
 }
 
-/** A Docker API call that does not answer must not hang Gateway start-up or a recovery cycle. */
+/** A Docker API call that does not answer must not hang Opfield start-up or a recovery cycle. */
 export const RELAY_DOCKER_ACTION_TIMEOUT_MS = 60_000;
 /** Compose may pull and recreate the relay; it gets longer. */
 export const RELAY_COMPOSE_TIMEOUT_MS = 5 * 60_000;

@@ -6,7 +6,7 @@
  * ordinary Data frames. The wire format, MAC transcripts and key derivation are frozen in
  * packages/daemons/shared/relayresume/doc.go; proto/testdata/relay-resume-v1.json holds the normative vectors.
  *
- * Gateway is only ever a source (it opens tunnels). The target role is here for the simulator and interop tests.
+ * Opfield is only ever a source (it opens tunnels). The target role is here for the simulator and interop tests.
  */
 import { createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Duplex } from 'node:stream';
@@ -508,7 +508,7 @@ export function routeKeyInfo(routeId: string, keyVersion: number | bigint): Buff
   return Buffer.concat([Buffer.from(TRANSCRIPT_DOMAIN, 'latin1'), str(routeId), u64(keyVersion)]);
 }
 
-/** Gateway's route resume key: HKDF-SHA256(ikm = resume secret, salt = empty, info), 32 bytes. */
+/** Opfield's route resume key: HKDF-SHA256(ikm = resume secret, salt = empty, info), 32 bytes. */
 export function deriveRouteKey(secret: Buffer, routeId: string, keyVersion: number | bigint): Buffer {
   return Buffer.from(hkdfSync('sha256', secret, Buffer.alloc(0), routeKeyInfo(routeId, keyVersion), KEY_LEN));
 }
@@ -544,7 +544,7 @@ export const realTimers: ResumeTimers = {
  */
 export interface ResumePathHandle {
   readonly relayId: string;
-  /** A path through the local relay, on Gateway's own host (its lane lost is a lane move, see attach). */
+  /** A path through the local relay, on Opfield's own host (its lane lost is a lane move, see attach). */
   readonly local?: boolean;
   readonly maxFrameBytes: number;
   /** Writes one TunnelData payload; false asks the session to wait for pathDrained(). */
@@ -1782,7 +1782,7 @@ export class RelayResumeRegistry {
     this.sessions.delete(session);
   }
 
-  /** The live sessions, for the return to the nearest relay (gateway-relay-paths). */
+  /** The live sessions, for the return to the nearest relay (opfield-relay-paths). */
   liveSessions(): ResumableRelayDuplex[] {
     return [...this.sessions];
   }
@@ -1797,7 +1797,7 @@ export class RelayResumeRegistry {
   }
 
   /**
-   * The route is latched to raw streams. A key id other than the one that latched it ends the latch: Gateway gives a
+   * The route is latched to raw streams. A key id other than the one that latched it ends the latch: Opfield gives a
    * route a new key version every time it turns resumable streams back on, so its targets are resume-aware again.
    */
   isLegacy(routeId: string, keyId?: string): boolean {
@@ -2038,9 +2038,9 @@ export class ResumableRelayDuplex extends Duplex {
       drained: () => this.session.pathDrained(path),
       laneLost: () => {
         if (this.session.currentRelayId === path.relayId) {
-          // The local relay runs on Gateway's host: a lost lane to it (its channel replaced at Gateway's start) is that
+          // The local relay runs on Opfield's host: a lost lane to it (its channel replaced at Opfield's start) is that
           // connection, not the relay, so the stream opens a new path on the best relay, the local one included. Moved
-          // off it, two streams sat on the 60-ms relay for ~26 s after a Gateway restart until the return (stand
+          // off it, two streams sat on the 60-ms relay for ~26 s after an Opfield restart until the return (stand
           // rc.11, O-4). A local relay that is really going down does not open, and the next relay takes the stream.
           const trigger = path.local ? 'lane' : 'goaway';
           this.registry.schedule(() => this.migrate(trigger, path.relayId));
@@ -2057,7 +2057,7 @@ export class ResumableRelayDuplex extends Duplex {
    * `fromRelayId` is the relay the move was asked to leave (a drain, a GOAWAY, a target's hint, the returner's
    * judgement): a stream no longer on it has moved already and stays where it is (relayresume plannedMove.stale).
    * Without that a drain move paced for later left whichever relay the stream had moved to meanwhile: the local relay's
-   * drain sent Gateway's streams that a target's hint had already moved to the 60-ms relay on to the 300-ms one
+   * drain sent Opfield's streams that a target's hint had already moved to the 60-ms relay on to the 300-ms one
    * (stand rc.9, F-2).
    */
   migrate(trigger: MigrationTrigger, fromRelayId?: string | null): Promise<void> {

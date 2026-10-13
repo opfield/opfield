@@ -4,7 +4,7 @@ import { type LocalRelayOutage, upWhenLocalRelayWentDown } from './local-relay-o
 
 type RelayInstanceRow = typeof relayInstances.$inferSelect;
 
-/** How an assignment serves: `active` when Gateway placed it without latency data. */
+/** How an assignment serves: `active` when Opfield placed it without latency data. */
 export type RelayAssignmentRole = 'primary' | 'fallback' | 'active';
 
 export interface PlannedRelayAssignment {
@@ -186,7 +186,7 @@ export function chooseRelayAssignments(
 
 /**
  * The standbys of an endpoint: the slots left after its primaries, filled nearest first. A standby carries the
- * endpoint's traffic whenever its primaries fail, drain or restart, and daemons and Gateway can only move to the
+ * endpoint's traffic whenever its primaries fail, drain or restart, and daemons and Opfield can only move to the
  * relays the assignment lists, so a standby picked by hash alone sent every stream of the endpoint to a 300-ms relay
  * while a 60-ms one served its neighbours (stand rc.7, F-3).
  *
@@ -281,12 +281,12 @@ function primaryGroup(
 }
 
 /**
- * Makes a placement include a relay that is not co-located with Gateway (the local relay is) whenever the endpoint's
+ * Makes a placement include a relay that is not co-located with Opfield (the local relay is) whenever the endpoint's
  * node can reach one, keeping its size: the local relay's slot goes to a remote relay in the same role. A placement of
- * the local relay alone does not survive the loss of the Gateway host (stand run c).
+ * the local relay alone does not survive the loss of the Opfield host (stand run c).
  *
  * Reachability comes from the round trips the endpoint node (and every reporting source node) measured: the nearest
- * measured remote relay is taken. When the node measured relays but none off the Gateway host, the placement stays as
+ * measured remote relay is taken. When the node measured relays but none off the Opfield host, the placement stays as
  * it is and `opfieldHostOnly` says so: moving it would only produce a generation that fails its probes. A node that
  * reports no measurement keeps a remote relay it already uses and is otherwise left alone.
  */
@@ -457,7 +457,7 @@ export function parseNodeRelayReachability(value: unknown): NodeRelayReachabilit
 /**
  * When a remote relay's disconnect grace starts: when it was last seen, or, for a relay that was up
  * when the local relay went down, once the local relay serves again. Every remote relay reaches
- * Gateway through the local relay, so its control stream ends with it; that time is not its own.
+ * Opfield through the local relay, so its control stream ends with it; that time is not its own.
  */
 export function disconnectGraceStart(
   lastSeenAt: number,
@@ -523,7 +523,7 @@ export function parseNodeRelayLatencies(value: unknown): Map<string, number> {
 }
 
 /**
- * The candidate role daemons see: a fallback assignment is a standby. An endpoint Gateway placed
+ * The candidate role daemons see: a fallback assignment is a standby. An endpoint Opfield placed
  * without latency data (`active`) has only equal relays, each a primary to daemons: its candidates
  * still carry the relay's round trip to the endpoint (attachEndpointRtts), so daemons order them by
  * distance rather than by load. Without it an empty far relay won every new tunnel.

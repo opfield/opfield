@@ -50,7 +50,7 @@ type managedDatabaseHostListenerConfig struct {
 	listenPort      uint16
 	allowedSources  []string
 	routeGeneration uint64
-	// maxConnections is the link's capacity: the session limit Gateway signed into the binding's grant. The listener
+	// maxConnections is the link's capacity: the session limit Opfield signed into the binding's grant. The listener
 	// is the link's single gate on the node and holds it there whichever relay of the pool carries a connection; each
 	// relay caps the route at the same limit, so any one of them can carry the whole link. A grant refresh changes it
 	// on the running listener; it is not part of the listener's identity (equal), so a new limit never drops a
@@ -422,7 +422,7 @@ func managedDatabaseHostListenerConfigFromAssignment(assignment *pb.RelayGrantAs
 	}, nil
 }
 
-// relayGrantSessionLimit reads the session limit Gateway signed into an assignment's grants, or fallback when they name
+// relayGrantSessionLimit reads the session limit Opfield signed into an assignment's grants, or fallback when they name
 // none. The relay verifies the grant and enforces the limit per route; the daemon holds the whole link at it.
 func relayGrantSessionLimit(assignment *pb.RelayGrantAssignment, fallback uint32) uint32 {
 	grants := []*pb.RelaySignedGrant{assignment.GetGrant()}

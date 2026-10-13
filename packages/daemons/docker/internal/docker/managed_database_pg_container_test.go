@@ -347,9 +347,9 @@ func pgctConfig(memberID, dbID string) memberha.Config {
 
 // pgctTLS is the database CA and the one leaf every member serves and
 // presents to the set roles (server and client use), with the profile
-// Gateway's Database CA issues set member leaves with (tls-server key usages,
+// Opfield's Database CA issues set member leaves with (tls-server key usages,
 // serverAuth and clientAuth: database-ca.service.ts). PGHA_CT_TLS_DIR runs
-// the test with leaves Gateway issued instead (ca.pem, cert.pem, key.pem).
+// the test with leaves Opfield issued instead (ca.pem, cert.pem, key.pem).
 func pgctTLS(t *testing.T) (ca, cert, key string) {
 	t.Helper()
 	if dir := os.Getenv("PGHA_CT_TLS_DIR"); dir != "" {

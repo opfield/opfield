@@ -25,7 +25,7 @@ export type {
 } from './types.js';
 export { OpfieldLoggerHook } from './types.js';
 
-// legacy-name: Gateway* names of @sqgateway/logger 1.x, kept as deprecated aliases so code moving to @opfield/logger
+// legacy-name: Opfield* names of @sqgateway/logger 1.x, kept as deprecated aliases so code moving to @opfield/logger
 // only changes the import path — remove in @opfield/logger 3.0.
 
 /** @deprecated Use OpfieldLogger. */

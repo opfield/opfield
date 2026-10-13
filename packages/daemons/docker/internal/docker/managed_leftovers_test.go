@@ -119,7 +119,7 @@ func TestStorageLeftoversAreListedAndRemovedOnlyWhenOpfieldConfirms(t *testing.T
 		t.Fatalf("container leftover %+v", deleted)
 	}
 
-	// A plain remove of the zeroed record is refused as before; one Gateway marks as a leftover removes it.
+	// A plain remove of the zeroed record is refused as before; one Opfield marks as a leftover removes it.
 	if _, err := m.handle(context.Background(), "remove", zeroedStorageID, ""); err == nil {
 		t.Fatal("a remove without confirmation removed an unreadable record")
 	}

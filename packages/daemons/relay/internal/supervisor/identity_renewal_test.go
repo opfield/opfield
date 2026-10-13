@@ -202,7 +202,7 @@ func TestFailedRenewalRollsTheIdentityBackCompletely(t *testing.T) {
 	oldFingerprint := fileFingerprint(t, filepath.Join(dir, workerServerCertificate))
 	plan, err := planWorkerIdentity(dir, &pb.RenewRelayIdentityCommand{
 		ServerCertificate: newServer, ServerKey: newServerKey, ServerIdentity: "relay-instance-r2",
-		// Gateway names a certificate the worker does not hold: keep the served one.
+		// Opfield names a certificate the worker does not hold: keep the served one.
 		RetainServerFingerprint: "sha256:unknown",
 	}, admin, adminKey, time.Now())
 	if err != nil {

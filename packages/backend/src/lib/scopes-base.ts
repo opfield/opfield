@@ -133,7 +133,7 @@ export const ALL_SCOPES = [
   'admin:details:certificates',
   'admin:update',
   'admin:alerts',
-  // ── Gateway Settings ─────────────────────────────────────────────
+  // ── Opfield Settings ─────────────────────────────────────────────
   'settings:opfield:view',
   'settings:opfield:edit',
   // ── Integrations: Git providers (GitLab, GitHub, generic Git) ────
@@ -184,9 +184,9 @@ export const ALL_SCOPES = [
   'housekeeping:view',
   'housekeeping:run',
   'housekeeping:configure',
-  // ── Gateway diagnostics ──────────────────────────────────────────
-  // Gateway's own state (host, process, database, cache, stack containers, background jobs, API
-  // latency and its history) and, separately, the logs of Gateway's own containers.
+  // ── Opfield diagnostics ──────────────────────────────────────────
+  // Opfield's own state (host, process, database, cache, stack containers, background jobs, API
+  // latency and its history) and, separately, the logs of Opfield's own containers.
   'diagnostics:view',
   'diagnostics:logs',
   // ── Licensing ────────────────────────────────────────────────────
@@ -307,7 +307,7 @@ export type Scope = (typeof ALL_SCOPES)[number];
 
 /**
  * AI Workspace chat, skills, sandbox, and the MCP account gate.
- * `feat:ai:use` is not here: it gates Gateway Inference (a resource, including personal `gwi_` keys).
+ * `feat:ai:use` is not here: it gates Opfield Inference (a resource, including personal `gwi_` keys).
  */
 export const USER_ONLY_SCOPES = [
   'ai:workspace:use',
@@ -321,7 +321,7 @@ export const USER_ONLY_SCOPES = [
 ] as const;
 /**
  * Scopes that API tokens and OAuth grants (REST and MCP) can never carry. Programmatic access may do
- * everything a user can do with Gateway resources; only browser- or identity-bound capabilities stay
+ * everything a user can do with Opfield resources; only browser- or identity-bound capabilities stay
  * here. Every other scope is delegable and stays bounded by the owner's live permissions.
  */
 export const PROGRAMMATIC_DENIED_BASE_SCOPES = [
@@ -336,7 +336,7 @@ export const PROGRAMMATIC_DENIED_SCOPE_SET = new Set<string>(PROGRAMMATIC_DENIED
 
 export const API_TOKEN_SCOPES = ALL_SCOPES.filter((scope) => !PROGRAMMATIC_DENIED_SCOPE_SET.has(scope));
 
-/** Gateway MCP delegates exactly the API token scopes; `mcp:use` is the user-account gate, never a grant. */
+/** Opfield MCP delegates exactly the API token scopes; `mcp:use` is the user-account gate, never a grant. */
 export const MCP_TOKEN_SCOPES = API_TOKEN_SCOPES.filter((scope) => scope !== 'mcp:use');
 
 /** System-admin group: every scope including admin:system (protected) */

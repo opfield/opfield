@@ -306,7 +306,7 @@ test('the installers take their settings from the environment', { skip: !linux }
   }
   const relay = dryRun('setup-relay-node.sh', relayArgs, { GATEWAY_RELAY_RUN_USER: nonRootUser });
   assert.match(relay.output, /CAP_NET_BIND_SERVICE for port 853/, relay.output);
-  // The Gateway address in two parts, as options.
+  // The Opfield address in two parts, as options.
   const parts = ['--host', 'gw.example.com', '--port', '9443', '--no-logo'];
   const credentials = ['--token', 'gw_node_test', '--gateway-cert-sha256', CERT, '--version', VERSION];
   for (const [script, extra] of [
@@ -1076,7 +1076,7 @@ test('the nginx service repair of a non-root install is planned before the promp
 
 // The relay installer re-runs like the monitoring, nginx and Docker installers: an enrolled relay re-run without a token
 // keeps its identity and takes what is not given from its configuration (the documented user switch is such a re-run);
-// with a token it re-enrolls, and when Gateway refuses the token the relay keeps running as it was but the install
+// with a token it re-enrolls, and when Opfield refuses the token the relay keeps running as it was but the install
 // fails; a new relay still needs every argument.
 test('an enrolled relay re-runs without a token and keeps its identity', { skip: !linux }, async () => {
   const host = path.join(work, 'host');
@@ -1107,7 +1107,7 @@ test('an enrolled relay re-runs without a token and keeps its identity', { skip:
       ].join('\n')
     );
     runShell(`mkdir -p '${path.dirname(config)}' '${path.dirname(identity)}' && cp '${path.join(work, 'relay-config.yaml')}' '${config}' && echo pem > '${identity}'`);
-    // Enrolled, no token: gateway, pin, advertised address and port come from the configuration.
+    // Enrolled, no token: Opfield address, pin, advertised address and port come from the configuration.
     const kept = dryRun('setup-relay-node.sh', relayArgs);
     assert.equal(kept.status, 0, kept.output);
     assert.match(kept.output, /for Opfield gw\.example\.com:9443, advertised at relay\.example\.com:853\./);
@@ -1554,7 +1554,7 @@ test('a run-user switch hands the lease watchdog records to the new daemon user'
   assert.match(source, /--records-owner \$\{RUN_USER\}.*--channel \$\(lease_watchdog_channel\)/);
 });
 
-// F-C5: re-running the generated nginx command with its used token moved the working enrollment aside, Gateway refused
+// F-C5: re-running the generated nginx command with its used token moved the working enrollment aside, Opfield refused
 // the token and the node was left without an enrollment. The refused run restores it and restarts the daemon on it, and
 // a re-run with the token a completed enrollment used keeps the enrollment from the start.
 test('the nginx installer keeps or restores the enrollment when its token was used', { skip: !linux }, async () => {
@@ -1952,7 +1952,7 @@ test('the monitoring and Docker installers refuse a new token on an enrolled hos
 
 // The daemons enroll when they first run, not at `install`: the digest of the token was looked for before the daemon
 // had its certificate and never written, so a new token on a host the current installer enrolled took the legacy path.
-// A fresh install through the whole run (stubbed downloads and a stub daemon that enrolls and records its Gateway
+// A fresh install through the whole run (stubbed downloads and a stub daemon that enrolls and records its Opfield
 // session when it runs) leaves the digest, and a re-run with another token is refused while the node's own token keeps it.
 test('a fresh monitoring install records its token, so a new token is refused afterwards', { skip: !linux || userInfo().uid !== 0 }, async () => {
   for (const script of ['setup-monitoring-node.sh', 'setup-docker-node.sh']) {
@@ -1969,7 +1969,7 @@ test('a fresh monitoring install records its token, so a new token is refused af
   const binaryName = `monitoring-daemon-linux-${arch}`;
   try {
     // The daemon: install writes its config; run starts as its own launcher, enrolls (certificate, state) and records
-    // the Gateway session, as the real daemon does on its first start.
+    // the Opfield session, as the real daemon does on its first start.
     const daemon = [
       '#!/bin/bash',
       'case "$1" in',

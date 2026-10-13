@@ -522,7 +522,7 @@ export function AdminNodeDetail({
   const canEditBuilderSettings = !!id && node?.type === "builder" && canManageNode;
   // Secure runtime setup restarts this node's Docker daemon: node manage (admin:update still works for one release).
   const canManageSecureRuntime = canManageNode || hasScope("admin:update");
-  // A protected relay: its machine owner locked Gateway out of the host, so it has no Files or Console tab.
+  // A protected relay: its machine owner locked Opfield out of the host, so it has no Files or Console tab.
   const nodeProtected = isNodeProtected(node);
   const canReadNodeFiles =
     !!id && !nodeProtected && (hasScope("nodes:files:read") || hasScope(`nodes:files:read:${id}`));
@@ -537,7 +537,7 @@ export function AdminNodeDetail({
     !nodeUpdating &&
     (node.status === "online" || node.status === "offline") &&
     canUseNodeConsole;
-  // The node operator turned these off in the daemon config file; Gateway cannot turn them back on.
+  // The node operator turned these off in the daemon config file; Opfield cannot turn them back on.
   const nodeConsoleUnavailable = nodeConsoleUnavailableMessage(node);
   const nodeFilesDisabled = isNodeHostFeatureDisabled(node, "files");
   const hostFileAccessWarning = nodeHostFileAccessWarning(node);
@@ -739,7 +739,7 @@ export function AdminNodeDetail({
       void loadDaemonUpdateStatus({ force: true });
     },
     {
-      // Events sent while the socket was away (a Gateway restart during an update) are lost.
+      // Events sent while the socket was away (an Opfield restart during an update) are lost.
       onReconnect: () => {
         loadNode(true);
         void loadDaemonUpdateStatus({ force: true });

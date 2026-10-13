@@ -14,7 +14,7 @@ import (
 )
 
 // RegistrationPolicyHold is how long a registration whose grant is ahead of
-// this relay's policy waits for that policy before it is refused: Gateway
+// this relay's policy waits for that policy before it is refused: Opfield
 // pushes the policy to the relays and the grants to the daemons at the same
 // time, and either may arrive first.
 var RegistrationPolicyHold = 10 * time.Second

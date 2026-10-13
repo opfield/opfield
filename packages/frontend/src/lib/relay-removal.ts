@@ -2,7 +2,7 @@ import { formatDateTime } from "@/lib/utils";
 import type { DashboardRelayInstance } from "@/types";
 
 /**
- * An offline remote relay can be removed once its signed policy has expired and it has been silent for 90 s; Gateway
+ * An offline remote relay can be removed once its signed policy has expired and it has been silent for 90 s; Opfield
  * reports that moment as `removableAfter`. Until then removal is refused, and this names when it becomes possible, in
  * the browser's local time. Null once the relay can be removed, or when it is not offline.
  */

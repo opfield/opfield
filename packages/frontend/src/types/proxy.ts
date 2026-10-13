@@ -357,7 +357,7 @@ export interface AccessList {
   usageCount?: number;
 }
 
-// Request types (Gateway)
+// Request types (Opfield)
 export interface CreateProxyHostRequest {
   type: ProxyHostType;
   /** Omitted: the ingress node of the registered domains, or the only node the caller may use. */

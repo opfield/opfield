@@ -439,7 +439,7 @@ export class InferenceOAuthService {
 
   // ------------------------------------------------------ core-backed logins
   // Core-backed OAuth: the login flow runs inside the managed core and the
-  // credential never crosses into Gateway storage. The Gateway session row
+  // credential never crosses into Opfield storage. The Opfield session row
   // still owns browser-facing lifecycle (ownership, expiry, UI polling).
 
   private async recordProviderTerms(tx: DrizzleTransaction, provider: InferenceProviderDefinition, userId: string) {
@@ -676,7 +676,7 @@ export class InferenceOAuthService {
   /**
    * Persist the browser-facing connection row for a core-held account. No
    * credential row is written — the secret stays inside the core; a legacy
-   * row reconnecting through the core loses its Gateway credential here.
+   * row reconnecting through the core loses its Opfield credential here.
    */
   private async persistCoreConnection(
     userId: string,

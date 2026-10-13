@@ -6,7 +6,7 @@ import (
 )
 
 // A relay that did not acknowledge a revoking policy in time may still admit
-// the revoked routes; Gateway fences it per endpoint. The relay is trusted to
+// the revoked routes; Opfield fences it per endpoint. The relay is trusted to
 // name the route it admitted, only not to hold current policy.
 const (
 	RefusalRevokedRoute = "route was revoked and the relay has not acknowledged the revocation"

@@ -17,7 +17,7 @@ export interface DockerSecretEnvOwner {
 /**
  * The secret owners a container's environment draws from: the container itself, the deployment it runs a slot of
  * (the deployment's secrets, its database and storage link credentials included), and the Compose project it runs a
- * service of. The labels are reserved for Gateway; one that names another owner only masks more.
+ * service of. The labels are reserved for Opfield; one that names another owner only masks more.
  */
 export function dockerSecretEnvOwners(nodeId: string, inspect: unknown): DockerSecretEnvOwner[] {
   const record = (inspect ?? {}) as Record<string, any>;

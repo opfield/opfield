@@ -55,7 +55,7 @@ const DOCKER_FILE_TRANSFER_BASE_TIMEOUT_MS = 30_000;
 const DOCKER_FILE_TRANSFER_MIN_BYTES_PER_SECOND = 256 * 1024;
 const DOCKER_FILE_TRANSFER_MAX_TIMEOUT_MS = 10 * 60 * 1000;
 
-/** Dispatch timeout for a file command that moves `bytes` between the gateway and a node. */
+/** Dispatch timeout for a file command that moves `bytes` between Opfield and a node. */
 export function dockerFileTransferTimeoutMs(bytes: number) {
   const transferMs = Math.ceil((Math.max(0, bytes) / DOCKER_FILE_TRANSFER_MIN_BYTES_PER_SECOND) * 1000);
   return Math.min(DOCKER_FILE_TRANSFER_BASE_TIMEOUT_MS + transferMs, DOCKER_FILE_TRANSFER_MAX_TIMEOUT_MS);

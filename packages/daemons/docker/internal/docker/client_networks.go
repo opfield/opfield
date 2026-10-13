@@ -336,7 +336,7 @@ func (c *Client) DisconnectContainerFromNetwork(ctx context.Context, networkID, 
 
 // ContainerName returns the canonical name of a container (without leading "/").
 
-// releaseSecureLinkConnector disconnects the Secure Link connector from a network Gateway removes. The connector
+// releaseSecureLinkConnector disconnects the Secure Link connector from a network Opfield removes. The connector
 // joins the networks of the link targets it serves; with them gone it serves nothing there, and its endpoint alone
 // kept the network (an Availability placement's deployment network: its replacement standby could never be prepared).
 // Unless always is set it leaves only a network it is the last container on. The connector's next link sync attaches

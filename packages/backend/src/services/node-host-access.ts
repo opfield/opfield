@@ -2,7 +2,7 @@ import { AppError } from '@/middleware/error-handler.js';
 
 /**
  * Host console and host file access can be turned off in a node's daemon config file (`console.enabled`,
- * `files.enabled`). The switch lives only on the node, so nobody can turn it back on from the Gateway; the daemon
+ * `files.enabled`). The switch lives only on the node, so nobody can turn it back on from Opfield; the daemon
  * advertises a disabled feature with these markers when it registers. Docker container consoles and container files
  * are not covered: they give no host access.
  */
@@ -15,8 +15,8 @@ export const NODE_FILES_DISABLED_CAPABILITY = 'node_files_disabled_v1';
 export const NODE_CONSOLE_USER_UNAVAILABLE_CAPABILITY = 'node_console_user_unavailable_v1';
 /**
  * Protected mode: the owner of the machine a relay runs on turned it on in the relay's local config. The relay refuses
- * console, command execution, file access and host diagnostics whatever Gateway sends; Gateway can only update it with
- * official signed releases and route traffic through it. Nobody can turn it off from Gateway.
+ * console, command execution, file access and host diagnostics whatever Opfield sends; Opfield can only update it with
+ * official signed releases and route traffic through it. Nobody can turn it off from Opfield.
  */
 export const NODE_PROTECTED_CAPABILITY = 'node_protected_v1';
 /** The owner of a protected relay allows database availability witness processes on it (off by default). */

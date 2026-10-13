@@ -20,7 +20,7 @@ export interface ManagedWorkloadLabels {
    */
   refused?: (operation: string, detail: string) => string;
   /**
-   * lastError text of a delete whose Gateway-side cleanup failed; it is
+   * lastError text of a delete whose Opfield-side cleanup failed; it is
    * retried with the pending operation. Defaults to `reconciling`.
    */
   waiting?: (operation: string, detail: string) => string;

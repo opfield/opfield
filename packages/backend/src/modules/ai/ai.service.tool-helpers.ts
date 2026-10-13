@@ -213,7 +213,7 @@ export function redactArgsForTool(toolName: string, args: Record<string, unknown
   if (toolName === 'manage_inference_provider' && redacted.callback !== undefined) {
     return { ...redacted, callback: '[REDACTED]' };
   }
-  // The cloud connection code is single use, but it enrols this Gateway until it is used or expires.
+  // The cloud connection code is single use, but it enrols this Opfield until it is used or expires.
   if (toolName === 'manage_cloud' && redacted.code !== undefined) {
     return { ...redacted, code: '[REDACTED]' };
   }

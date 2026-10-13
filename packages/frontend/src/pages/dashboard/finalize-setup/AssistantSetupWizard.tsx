@@ -101,7 +101,7 @@ export function AssistantSetupWizard({
     if (!present) setCompleted(false);
   }, [present]);
 
-  // Load the models once per choice of Gateway Inference: picking a model
+  // Load the models once per choice of Opfield Inference: picking a model
   // changes the draft and must not reload the list under the open Select.
   const draftRef = useRef(draft);
   draftRef.current = draft;

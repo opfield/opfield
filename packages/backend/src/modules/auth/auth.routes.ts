@@ -283,7 +283,7 @@ authRoutes.openapi(loginRoute, async (c) => {
   if (!state) throw new AppError(500, 'AUTH_ERROR', 'Failed to initiate login');
   // Bind the pending authorization to this browser. Without it, an attacker
   // could start a login with their own IdP account and hand the victim the
-  // callback URL, signing the victim into the attacker's Gateway account.
+  // callback URL, signing the victim into the attacker's Opfield account.
   // The cookie is read back on the callback, i.e. on the redirect URI's origin.
   const cookieOrigin = oidc?.redirectUri ?? (await getPublicUrl());
   setCookie(c, OIDC_STATE_COOKIE_NAME, hashOidcState(state), {

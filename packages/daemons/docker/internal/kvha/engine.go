@@ -393,7 +393,7 @@ func (e *Engine) ManualEligible(memberha.EngineStatus) (bool, string) {
 // ForcedValue is the value a forced promotion certifies (AS10): this copy's
 // own history and offset. An operator promotes it although it is not eligible
 // (another history, ACLs not mirrored): its data becomes the set's, and
-// Gateway applies the store's users to it again once it serves.
+// Opfield applies the store's users to it again once it serves.
 func (e *Engine) ForcedValue(string, memberha.EngineStatus) ([]byte, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

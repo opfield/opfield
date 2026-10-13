@@ -48,7 +48,7 @@ export interface ConsoleTlsDeps {
   bindHost: string;
   /** A dedicated ACME client (its challenge callbacks are set here); never the route certificate one. */
   acme: Pick<ACMEService, 'requestCertHTTP01' | 'onChallengeCreate' | 'onChallengeRemove'>;
-  /** The certificate served until Let's Encrypt issued one: the Gateway web identity (System CA). */
+  /** The certificate served until Let's Encrypt issued one: the Opfield web identity (System CA). */
   fallback: () => Promise<TlsMaterial>;
   publicUrl: { get: () => Promise<string | null>; set: (url: string) => Promise<void> };
   alert: (level: Exclude<ConsoleTlsAlertLevel, null>, message: string) => Promise<void>;
@@ -102,7 +102,7 @@ function validity(certPem: Buffer | string): CertificateValidity & { certificate
  * The console on its own domain: an HTTPS listener (published as 443) with a Let's Encrypt certificate this
  * installation obtains over HTTP-01 on its port-80 listener, stores in its data, renews well before the end and
  * switches to without a restart. Until a certificate exists, and whenever issuance fails, the listener keeps serving
- * what it has (the Gateway web identity at first); attempts repeat with backoff and never stop the app.
+ * what it has (the Opfield web identity at first); attempts repeat with backoff and never stop the app.
  */
 export class ConsoleTlsService {
   private readonly challenges = new Map<string, string>();

@@ -1,6 +1,6 @@
 /**
  * Health of a route served by an ingress group. Daemon probes (Secure Link and Pages routes) run through every
- * member; a direct upstream is probed once from Gateway and the members' own ingress health is folded in. The route
+ * member; a direct upstream is probed once from Opfield and the members' own ingress health is folded in. The route
  * is `online` when every member serves it, `degraded` when some member fails, and `offline` when none does.
  */
 export type MemberProbeStatus = 'online' | 'offline' | 'skipped' | 'deferred' | 'unknown';
@@ -22,7 +22,7 @@ export interface GroupRouteHealth {
 
 /**
  * Combines per-member probe outcomes. Members whose probe could not run this time (`skipped`: daemon busy,
- * `deferred`: reconnecting after a Gateway start) do not count; when nothing could run the sample is skipped (or
+ * `deferred`: reconnecting after an Opfield start) do not count; when nothing could run the sample is skipped (or
  * deferred). A member whose probe is `unknown` (the probe is unavailable there) does not count either.
  */
 export function aggregateMemberOutcomes(outcomes: readonly MemberProbeOutcome[]): GroupRouteHealth {
@@ -48,7 +48,7 @@ export function aggregateMemberOutcomes(outcomes: readonly MemberProbeOutcome[])
 }
 
 /**
- * A direct upstream is probed once from Gateway; the route still depends on every member serving it. A member that
+ * A direct upstream is probed once from Opfield; the route still depends on every member serving it. A member that
  * is disconnected or whose ingress health endpoint reports it is not serving makes an `online` route `degraded`. A
  * disconnected member expected back (`reconnecting`: its stream just closed, or the local relay restarts) is not
  * judged yet.

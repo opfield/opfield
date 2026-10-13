@@ -37,7 +37,7 @@ import {
   filterNodesForAppFolder,
 } from './app-placement-guard.js';
 
-/** Apps are wired in the running Gateway (bootstrap); unit tests of the core run without them and see no apps. */
+/** Apps are wired in the running Opfield (bootstrap); unit tests of the core run without them and see no apps. */
 function wired(): boolean {
   return container.isRegistered(AppMembershipService);
 }
@@ -202,7 +202,7 @@ export const appsHostRuntime = {
     if (!container.isRegistered(AppMemberFreeze)) return false;
     return (await container.resolve(AppMemberFreeze).frozenEnvironment(target)) !== null;
   },
-  /** Containers (standalone and Availability-managed): the same plan, merge and record as Gateway's own paths. */
+  /** Containers (standalone and Availability-managed): the same plan, merge and record as Opfield's own paths. */
   planContainerLayer,
   layerValues,
   layerRemovals,

@@ -303,7 +303,7 @@ export abstract class ProxyServiceCore {
     });
     let succeeded = 0;
     let failed = 0;
-    // Routes of nodes without a control session (at Gateway start the built-in templates are updated before the
+    // Routes of nodes without a control session (at Opfield start the built-in templates are updated before the
     // nodes reconnect) are rendered from the current templates by the node's reconnect sync; pushing them now can
     // only fail.
     let deferred = 0;
@@ -634,7 +634,7 @@ export abstract class ProxyServiceCore {
     if (!staticResult.valid) return staticResult;
 
     // Do not run backend-local nginx -t for raw mode. Raw configs can contain
-    // valid node-specific includes/paths that do not exist inside the Gateway
+    // valid node-specific includes/paths that do not exist inside Opfield
     // container, so local syntax checks produce false failures. The actual
     // node-side validation still happens during save/apply.
     if (rawMode) {

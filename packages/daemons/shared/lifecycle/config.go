@@ -15,7 +15,7 @@ type ControlConfig struct {
 	Address    string `yaml:"address"`
 	Token      string `yaml:"token"`
 	CertSHA256 string `yaml:"cert_sha256"`
-	// NextAddress is the address Opfield announced it moves to (gateway next
+	// NextAddress is the address Opfield announced it moves to (next
 	// address). The daemon switches Address to it once Address stayed
 	// unreachable for a while and NextAddress answers.
 	NextAddress string `yaml:"next_address,omitempty"`
@@ -133,7 +133,7 @@ func LoadBaseConfig(path string) (*BaseConfig, error) {
 // legacy-name: gateway: config section — remove once every node reports none
 var ControlSectionKeys = []string{"opfield", "gateway"}
 
-// ResolveControlSection makes Gateway the section in effect: opfield: when the
+// ResolveControlSection makes Opfield the section in effect: opfield: when the
 // file has one with an address, else the pre-Opfield gateway: section.
 func (c *BaseConfig) ResolveControlSection() {
 	if strings.TrimSpace(c.Opfield.Address) != "" {

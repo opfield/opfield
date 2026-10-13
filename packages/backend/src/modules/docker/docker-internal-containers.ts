@@ -19,7 +19,7 @@ function containerLabels(container: Record<string, any>): Record<string, unknown
 }
 
 /**
- * Gateway-owned implementation containers must remain available to internal
+ * Opfield-owned implementation containers must remain available to internal
  * reconciliation, but must not be exposed as user-managed Docker resources.
  */
 export function isOpfieldInternalContainer(container: Record<string, any>): boolean {

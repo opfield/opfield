@@ -130,6 +130,6 @@ export function resetClientSessionState({ preserveShell = false }: AuthContextRe
     sidebarContainerIds: [],
     containerMeta: {},
   });
-  // System feature flags/upload limits are gateway-wide, not user-private data.
+  // System feature flags/upload limits are Opfield-wide, not user-private data.
   if (!preserveShell) useSystemConfigStore.getState().reset();
 }

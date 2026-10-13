@@ -118,7 +118,7 @@ export function providerModelKey(providerId: string, remoteModelId: string) {
 const PROVIDERS_WITH_LIVE_REASONING_EFFORTS = new Set(["openai", "anthropic"]);
 
 /**
- * A model can be offered for publishing only when every account reports the limits Gateway
+ * A model can be offered for publishing only when every account reports the limits Opfield
  * needs to route and compact requests. On subscriptions whose live roster reports effort
  * levels, a reasoning model that only has built-in catalog levels is not offered either:
  * the provider no longer lists it with reasoning support. Other providers publish ids only,

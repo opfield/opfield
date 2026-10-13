@@ -179,7 +179,7 @@ async function main() {
     const statusPageService = container.resolve(StatusPageService);
     await statusPageService.primePublicHost();
     // The local relay's state and an outage the previous process saw, before the API or a node reads them: started
-    // during an outage, Gateway reports and handles it from its first answer, not after the relay startup.
+    // during an outage, Opfield reports and handles it from its first answer, not after the relay startup.
     await container.resolve(RelaySupervisorService).restore();
 
     // Console on its own domain (OPFIELD_CONSOLE_DOMAIN): the public URL follows it before any listener resolves
@@ -191,7 +191,7 @@ async function main() {
     const { app, injectWebSocket, wss } = createApp();
 
     // Start exactly one web protocol on the public port. Native HTTPS uses a
-    // dedicated leaf issued by the existing Gateway system CA.
+    // dedicated leaf issued by the existing Opfield system CA.
     const webTransport = await container.resolve(WebTransportSettingsService).getConfig();
     const server = webTransport.tlsEnabled
       ? await (async () => {
@@ -218,7 +218,7 @@ async function main() {
     // Inject WebSocket support into the HTTP server
     injectWebSocket(server);
 
-    // Internal core → Gateway callback listener (admission/settlement). Bound
+    // Internal core → Opfield callback listener (admission/settlement). Bound
     // inside the container only; the port is never published to the host, so
     // just the installer-managed Compose network can reach it.
     const coreInternalServer = await startInferenceCoreInternalServer();

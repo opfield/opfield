@@ -170,7 +170,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeControlClient interface {
-	// Bidirectional stream: daemon connects, Gateway pushes commands
+	// Bidirectional stream: daemon connects, Opfield pushes commands
 	CommandStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[DaemonMessage, OpfieldCommand], error)
 }
 
@@ -199,7 +199,7 @@ type NodeControl_CommandStreamClient = grpc.BidiStreamingClient[DaemonMessage, O
 // All implementations must embed UnimplementedNodeControlServer
 // for forward compatibility.
 type NodeControlServer interface {
-	// Bidirectional stream: daemon connects, Gateway pushes commands
+	// Bidirectional stream: daemon connects, Opfield pushes commands
 	CommandStream(grpc.BidiStreamingServer[DaemonMessage, OpfieldCommand]) error
 	mustEmbedUnimplementedNodeControlServer()
 }
@@ -480,7 +480,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LogStreamClient interface {
-	// Daemon streams log entries to Gateway
+	// Daemon streams log entries to Opfield
 	StreamLogs(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[LogStreamMessage, LogStreamControl], error)
 }
 
@@ -509,7 +509,7 @@ type LogStream_StreamLogsClient = grpc.BidiStreamingClient[LogStreamMessage, Log
 // All implementations must embed UnimplementedLogStreamServer
 // for forward compatibility.
 type LogStreamServer interface {
-	// Daemon streams log entries to Gateway
+	// Daemon streams log entries to Opfield
 	StreamLogs(grpc.BidiStreamingServer[LogStreamMessage, LogStreamControl]) error
 	mustEmbedUnimplementedLogStreamServer()
 }

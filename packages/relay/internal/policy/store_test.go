@@ -246,7 +246,7 @@ func TestSignedPolicyLeaseReplayAndRestart(t *testing.T) {
 	if err := store.AdmissionError(now.Add(MaxPolicyLease - time.Second)); err != nil {
 		t.Fatalf("policy expired early: %v", err)
 	}
-	// A relay clock running slightly ahead of Gateway keeps the lease.
+	// A relay clock running slightly ahead of Opfield keeps the lease.
 	if err := store.AdmissionError(now.Add(MaxPolicyLease + LeaseExpiryClockSkew - time.Second)); err != nil {
 		t.Fatalf("policy expired within the clock skew allowance: %v", err)
 	}
@@ -431,7 +431,7 @@ func TestPromotedKeyValidFromAllowsIssuedAtClockSkew(t *testing.T) {
 	newPublic, newPrivate, _ := ed25519.GenerateKey(nil)
 	grantPublic, _, _ := ed25519.GenerateKey(nil)
 	opfieldNow := time.Unix(1_800_000_000, 0)
-	relayNow := opfieldNow.Add(-2 * time.Minute) // relay clock runs behind Gateway
+	relayNow := opfieldNow.Add(-2 * time.Minute) // relay clock runs behind Opfield
 	dir := t.TempDir()
 	store := remoteStore(t, dir, &relayNow)
 	if _, err := store.BootstrapPolicyTrust("old", oldPublic, PublicKeyFingerprint(oldPublic)); err != nil {
@@ -443,7 +443,7 @@ func TestPromotedKeyValidFromAllowsIssuedAtClockSkew(t *testing.T) {
 	if _, _, err := store.Apply(pending); err != nil {
 		t.Fatal(err)
 	}
-	// Gateway promotes "new" at opfieldNow; the relay is still two minutes earlier.
+	// Opfield promotes "new" at opfieldNow; the relay is still two minutes earlier.
 	promoted := []*relayv1.PolicySigningKey{
 		policyKeyWindow("old", oldPublic, "verification_only", time.Time{}, opfieldNow.Add(30*time.Minute)),
 		policyKeyWindow("new", newPublic, "active", opfieldNow, time.Time{}),
@@ -475,7 +475,7 @@ func TestLeaseExpiryAllowsRelayClockAheadOfOpfield(t *testing.T) {
 	policyPublic, policyPrivate, _ := ed25519.GenerateKey(nil)
 	grantPublic, _, _ := ed25519.GenerateKey(nil)
 	opfieldNow := time.Unix(1_800_000_000, 0)
-	// Gateway issued the lease a full lease ago by the relay's clock, which runs ahead.
+	// Opfield issued the lease a full lease ago by the relay's clock, which runs ahead.
 	relayNow := opfieldNow.Add(MaxPolicyLease + time.Minute)
 	store := remoteStore(t, t.TempDir(), &relayNow)
 	defer store.Close()
@@ -534,7 +534,7 @@ func TestPersistedSnapshotLoadsAfterSignerWindowCloses(t *testing.T) {
 }
 
 // A relay that missed the whole pending window still pins only the old key.
-// Gateway keeps that key's private half and signs this relay's snapshot with
+// Opfield keeps that key's private half and signs this relay's snapshot with
 // it; the payload carries the active key, so the relay learns it through
 // signed rotation and accepts the active signer from then on.
 func TestLaggingRelayLearnsActiveKeyFromRetainedOldSigner(t *testing.T) {
@@ -575,7 +575,7 @@ func TestLaggingRelayLearnsActiveKeyFromRetainedOldSigner(t *testing.T) {
 	}
 }
 
-// Supervisors re-bootstrap their enrollment key on every health loop. Gateway
+// Supervisors re-bootstrap their enrollment key on every health loop. Opfield
 // keeps that key in each relay's trust as an expired verification-only entry:
 // re-pinning an existing key checks only its material, never its window, and
 // the expired entry cannot sign anything.
@@ -654,7 +654,7 @@ func TestResetLocalPolicyTrustIsLocalOnly(t *testing.T) {
 	if _, _, err := local.Apply(signedSnapshot(t, oldPrivate, "old", oldPublic, grantPublic, 5, now)); err != nil {
 		t.Fatal(err)
 	}
-	// relay.db restored from a backup: Gateway's active key is one it never saw.
+	// relay.db restored from a backup: Opfield's active key is one it never saw.
 	if _, err := local.BootstrapPolicyTrust("new", newPublic, PublicKeyFingerprint(newPublic)); err == nil {
 		t.Fatal("expected unsigned bootstrap of a second key to be refused")
 	}
@@ -674,7 +674,7 @@ func TestResetLocalPolicyTrustIsLocalOnly(t *testing.T) {
 	if unchanged, err := local.BootstrapPolicyTrust("new", newPublic, PublicKeyFingerprint(newPublic)); err != nil || !unchanged {
 		t.Fatalf("re-bootstrap after reset failed: unchanged=%v err=%v", unchanged, err)
 	}
-	// A restart before Gateway's next snapshot must not fail on the old signer.
+	// A restart before Opfield's next snapshot must not fail on the old signer.
 	local.Close()
 	local, err = OpenWithOptions(dir, options)
 	if err != nil {
@@ -692,7 +692,7 @@ func TestResetLocalPolicyTrustIsLocalOnly(t *testing.T) {
 	}
 }
 
-// A Gateway restored from backup, or reinstalled over an existing relay volume,
+// An Opfield restored from backup, or reinstalled over an existing relay volume,
 // re-pins its key and then signs snapshots for another instance or from an
 // older revision sequence. The first snapshot after a reset may rebind the
 // relay; later ones are held to the usual rules again.
@@ -740,7 +740,7 @@ func TestResetLocalPolicyTrustRebindsNextSnapshot(t *testing.T) {
 	}
 }
 
-// F12: the rebind a reset grants survives a relay restart before Gateway's
+// F12: the rebind a reset grants survives a relay restart before Opfield's
 // next snapshot, here with a persisted snapshot the re-pinned key signed (it
 // is kept), and ends with the snapshot that uses it.
 func TestResetLocalPolicyTrustRebindSurvivesRestart(t *testing.T) {

@@ -132,7 +132,7 @@ export interface RelayRouteRuntime {
   connections?: ManagedLinkConnections | null;
   /**
    * False when a relay that holds the route did not answer (a relay daemon without relay_route_runtime_v1, a timeout,
-   * a relay out of touch with Gateway): failedTotal, setupLatencyP95Ms, averageDurationMs and lastActivityAt then cover
+   * a relay out of touch with Opfield): failedTotal, setupLatencyP95Ms, averageDurationMs and lastActivityAt then cover
    * only the relays that answered, and so do the other counters the link's nodes do not report.
    */
   relayCountersComplete: boolean;
@@ -151,7 +151,7 @@ const HOLDS_ANY_ROUTE = '$[*] ? (@.routeId == $ids[*] && !exists(@.removedAtRevi
 const logger = createChildLogger('RelayPolicyService');
 
 /**
- * One of Gateway's own connections opened on a relay after the nearer ones in its order did not open: where it went and
+ * One of Opfield's own connections opened on a relay after the nearer ones in its order did not open: where it went and
  * why, so a stream on a farther relay is accounted for (stand rc.10, F-1).
  */
 function logOpfieldPathPastNearer(
@@ -162,7 +162,7 @@ function logOpfieldPathPastNearer(
   logger.info('Opfield relay path opened past a nearer relay', { routeId, relayId, passed });
 }
 
-/** What a loopback endpoint of Gateway's own tunnels leads to (see RelayPolicyService.opfieldTunnelEndpoint). */
+/** What a loopback endpoint of Opfield's own tunnels leads to (see RelayPolicyService.opfieldTunnelEndpoint). */
 export type OpfieldTunnelTarget =
   | { kind: 'database'; managedDatabaseId: string; lane?: 'interactive' | 'monitoring' }
   | { kind: 'storage'; clusterId: string };
@@ -265,7 +265,7 @@ export function managedDatabaseListenerConfigsEqual(
 /**
  * How a relay treats a route's tunnels. HTTP traffic (proxy Secure Links, storage links) shares the proxy class: no
  * fixed cap, fair share between routes under pressure, and it yields to database traffic first. Workload links keep
- * their pooled connections open however long they idle; Gateway's own short-lived routes keep the idle timeout that
+ * their pooled connections open however long they idle; Opfield's own short-lived routes keep the idle timeout that
  * reaps leaked sessions. Container links (any protocol, pooled connections) join the registry class, fair-shared
  * without a fixed cap, on relays that report RELAY_REGISTRY_FAIR_SHARE_CAPABILITY; elsewhere they stay in the
  * database class with their cap. Only the class and caps change, never a generation, so open tunnels stay.
@@ -411,8 +411,8 @@ function isSignedRotationRefusal(error: unknown): boolean {
 
 /**
  * A snapshot refusal only a local trust reset repairs. The relay pins the signer but not a
- * window that covers now (its pinned entry aged out, for example after Gateway's database was
- * restored), or it is bound to another Gateway instance (Gateway reinstalled over an existing
+ * window that covers now (its pinned entry aged out, for example after Opfield's database was
+ * restored), or it is bound to another Opfield instance (Opfield reinstalled over an existing
  * relay volume). Neither changes by retrying.
  */
 function isLocalPolicyLockout(error: unknown): boolean {
@@ -443,7 +443,7 @@ const PENDING_GRANT_REFRESH_REPORT_MS = 5 * 60 * 1000;
 /** Largest revision floor a relay report may impose; beyond it JavaScript numbers lose precision. */
 const MAX_REVISION_FLOOR = Number.MAX_SAFE_INTEGER - 1_000_000;
 /**
- * How far one report may move a revision sequence. A database restore leaves Gateway behind by
+ * How far one report may move a revision sequence. A database restore leaves Opfield behind by
  * at most the policy changes and snapshots since the backup, far below this; a relay or daemon,
  * even a compromised one, cannot push the sequence toward the precision limit of its column.
  */
@@ -464,7 +464,7 @@ export type RelayPolicyTrustState =
   | 'recovery_failed'
   | 'reenrollment_required';
 
-/** Why a relay refuses Gateway's policy and what repairs it, for health surfaces. */
+/** Why a relay refuses Opfield's policy and what repairs it, for health surfaces. */
 export interface RelayPolicyTrustStatus {
   state: RelayPolicyTrustState;
   message: string;
@@ -495,7 +495,7 @@ export class RelayPolicyService {
   private readonly grantKeys: RelayGrantKeyService;
   private readonly policyKeys: RelayPolicySigningKeyService;
   private readonly streamResume: RelayStreamResumeService;
-  /** The local relay's instance id, once its identity was checked: Gateway's pre-pool streams run through it. */
+  /** The local relay's instance id, once its identity was checked: Opfield's pre-pool streams run through it. */
   private localRelayInstanceId: string | null = null;
   private relaySettingsSync: Promise<void> = Promise.resolve();
   private snapshotSync: Promise<unknown> = Promise.resolve();
@@ -537,9 +537,9 @@ export class RelayPolicyService {
     endpoints: Array<{ id: string; ownerKind: string; ownerId: string }>,
     routes: Array<{ id: string; ownerKind: string; ownerId: string }>
   ) => Promise<{ endpoints: Map<string, string>; routes: Map<string, string> }>;
-  /** How Gateway's own relayed streams choose relays and return to the nearest (O-1); made on first use. */
+  /** How Opfield's own relayed streams choose relays and return to the nearest (O-1); made on first use. */
   private opfieldRelayPaths?: OpfieldRelayPaths;
-  /** The data plane of Gateway's own tunnels (the tunnel worker); set at start-up, made on this thread otherwise. */
+  /** The data plane of Opfield's own tunnels (the tunnel worker); set at start-up, made on this thread otherwise. */
   private opfieldTunnelHost?: RelayTunnelHost;
   /** Loopback endpoints in the tunnel worker the database drivers and the S3 client connect to. */
   private readonly opfieldEndpoints = new Map<
@@ -551,7 +551,7 @@ export class RelayPolicyService {
     }
   >();
   private opfieldLocalRelay?: Pick<LocalRelayOutageSignal, 'latestOutage'>;
-  /** The client certificate each Gateway route was opened with, to look its candidates up again. */
+  /** The client certificate each Opfield route was opened with, to look its candidates up again. */
   private readonly opfieldRouteFingerprints = new Map<string, string>();
   /** What the nodes running managed links' workloads report about the links' connections. */
   private managedLinkReports?: Pick<NodeRegistryService, 'managedLinkReport' | 'requestHealthReport'> &
@@ -580,27 +580,27 @@ export class RelayPolicyService {
     this.grantIssuer.setResumeSecretSource(() => this.streamResume.secret());
   }
 
-  /** The local relay's outages (its supervisor): Gateway's own streams leave it meanwhile and return once it is stable. */
+  /** The local relay's outages (its supervisor): Opfield's own streams leave it meanwhile and return once it is stable. */
   setLocalRelayOutage(signal: Pick<LocalRelayOutageSignal, 'latestOutage'>): void {
     this.opfieldLocalRelay = signal;
     this.opfieldRelayPaths?.setLocalRelay(signal);
   }
 
   /**
-   * Starts measuring Gateway's round trip to every remote relay of the pool, at once and every interval, so its own
+   * Starts measuring Opfield's round trip to every remote relay of the pool, at once and every interval, so its own
    * streams know each relay's distance whenever they move, however long they ran without a new path (F-3).
    */
   measureOpfieldRelayPaths(): void {
     this.opfieldPaths().startMeasuring();
   }
 
-  /** An assignment generation became active: Gateway's own streams judge their relays on it at once. */
+  /** An assignment generation became active: Opfield's own streams judge their relays on it at once. */
   opfieldAssignmentsChanged(): void {
     this.opfieldRelayPaths?.assignmentsChanged();
   }
 
   /**
-   * Hands Gateway's own tunnels to `host` (the tunnel worker). Called once at start-up, before any tunnel opens.
+   * Hands Opfield's own tunnels to `host` (the tunnel worker). Called once at start-up, before any tunnel opens.
    */
   setOpfieldTunnels(host: RelayTunnelHost): void {
     this.opfieldTunnelHost = host;
@@ -623,8 +623,8 @@ export class RelayPolicyService {
 
   /**
    * A loopback endpoint (127.0.0.1, any port) for a managed database lane or storage cluster: every connection to it
-   * runs through a Gateway relay tunnel opened for that connection, in the tunnel worker, so its bytes never pass this
-   * thread. `fingerprint` names the client certificate Gateway presents at the time of each connection.
+   * runs through an Opfield relay tunnel opened for that connection, in the tunnel worker, so its bytes never pass this
+   * thread. `fingerprint` names the client certificate Opfield presents at the time of each connection.
    */
   opfieldTunnelEndpoint(
     target: OpfieldTunnelTarget,
@@ -663,7 +663,7 @@ export class RelayPolicyService {
     );
   }
 
-  /** Stops Gateway's tunnel worker (shutdown): endpoints close, connections and streams end. */
+  /** Stops Opfield's tunnel worker (shutdown): endpoints close, connections and streams end. */
   async closeOpfieldTunnels(): Promise<void> {
     this.opfieldEndpoints.clear();
     await this.opfieldTunnelHost?.close();
@@ -732,7 +732,7 @@ export class RelayPolicyService {
     this.managedLinkReports = reports;
   }
 
-  /** The relay stream sessions (RSv1) daemons reported recently, plus Gateway's own; empty when none reports them. */
+  /** The relay stream sessions (RSv1) daemons reported recently, plus Opfield's own; empty when none reports them. */
   relayStreamReports(): RelayStreamReports {
     const reports = [...(this.managedLinkReports?.relayStreamReports?.() ?? [])];
     try {
@@ -750,7 +750,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * Moves Gateway's own resumable streams (database tools, storage browser) off a relay that started draining, paced
+   * Moves Opfield's own resumable streams (database tools, storage browser) off a relay that started draining, paced
    * to its drain deadline. Daemons learn the same from their grant bundles.
    */
   migrateOpfieldStreams(relayInstanceId: string, drainDeadlineAt: Date | null): void {
@@ -997,7 +997,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * Delivers the relay's policy snapshot. `force` sends it even when Gateway's records say the relay holds it: a
+   * Delivers the relay's policy snapshot. `force` sends it even when Opfield's records say the relay holds it: a
    * relay that (re)connects may have lost its state (relay.db renamed or restored) and would refuse every
    * registration with "policy snapshot is required" until the next policy change or lease refresh (N-7).
    */
@@ -1249,7 +1249,7 @@ export class RelayPolicyService {
           .where(eq(relayInstances.id, local.id));
       }
       const trustedKeyIds = await this.ensureLocalPolicyTrust(health);
-      // The relay refuses a revision below the one it applied. After Gateway's database was
+      // The relay refuses a revision below the one it applied. After Opfield's database was
       // restored from a backup its sequence is behind; continue above the relay's instead.
       const revisionFloor = Number(health.appliedRevision || 0);
       // The live report says what the relay holds now; the stored one may predate a relay that lost its state
@@ -1271,7 +1271,7 @@ export class RelayPolicyService {
           response = await this.applyLocalSnapshot(signed);
         } catch (retryError) {
           if (errorMessage(retryError).includes('snapshot gateway instance changed')) {
-            // The reset took, but this relay build cannot rebind to this Gateway instance.
+            // The reset took, but this relay build cannot rebind to this Opfield instance.
             this.setLocalPolicyTrust(
               'recovery_unsupported',
               LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE,
@@ -1316,8 +1316,8 @@ export class RelayPolicyService {
   /**
    * Pins the active policy key on the local relay and returns the key ids it trusts, which
    * choose the signer of its next snapshot. The local relay refuses an unsigned new key once
-   * it trusts any key. If it still trusts an old key whose private half Gateway retains, that
-   * key signs a snapshot carrying the active one. If it trusts none that Gateway can sign
+   * it trusts any key. If it still trusts an old key whose private half Opfield retains, that
+   * key signs a snapshot carrying the active one. If it trusts none that Opfield can sign
    * with, typically because relay.db was restored from a backup older than the active key,
    * the local-only reset re-pins the active key. Remote relays never take that path.
    */
@@ -1341,7 +1341,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * Re-pins the active key on the local relay after it refused Gateway's policy for a reason
+   * Re-pins the active key on the local relay after it refused Opfield's policy for a reason
    * only a reset repairs. Runs at most once per cooldown, is audited, and never touches a
    * remote relay: the relay itself accepts the call only in local combined mode. A relay
    * build without the call leaves an actionable status instead of a silent sync failure.
@@ -1358,7 +1358,7 @@ export class RelayPolicyService {
       throw refusal;
     }
     // Every relay build with the reset call advertises it, and only such a build can rebind to
-    // another Gateway instance. Asking an older build starts no cooldown, so the relay is
+    // another Opfield instance. Asking an older build starts no cooldown, so the relay is
     // recovered on the first sync after it is updated, well inside the update's health wait.
     if (!health.capabilities?.includes(LOCAL_POLICY_TRUST_RESET_CAPABILITY)) {
       this.setLocalPolicyTrust('recovery_unsupported', LOCAL_POLICY_TRUST_UNSUPPORTED_MESSAGE, trustedKeyIds);
@@ -1446,7 +1446,7 @@ export class RelayPolicyService {
 
   /**
    * Policy trust status per relay for health surfaces. The local relay reports what automatic
-   * recovery saw. A remote relay whose reported trust holds no key Gateway can still sign with
+   * recovery saw. A remote relay whose reported trust holds no key Opfield can still sign with
    * is locked out for good: only a re-enrollment repairs it.
    */
   async describePolicyTrust(
@@ -2408,7 +2408,7 @@ export class RelayPolicyService {
       endpointId
     );
     await this.syncSnapshot();
-    // Gateway reads its route at every open: turned on at the target here, its streams are resumable from the first.
+    // Opfield reads its route at every open: turned on at the target here, its streams are resumable from the first.
     await this.streamResume.enableBeforeSourceSync({ routeIds: [routeId] }).catch((error) => {
       logger.warn('Resumable streams for a Opfield relay route deferred to the next reconcile', {
         routeId,
@@ -2419,7 +2419,7 @@ export class RelayPolicyService {
     return routeId;
   }
 
-  /** A tunnel from Gateway to a managed database; its bytes cross from the tunnel worker (see opfieldTunnelEndpoint). */
+  /** A tunnel from Opfield to a managed database; its bytes cross from the tunnel worker (see opfieldTunnelEndpoint). */
   async openOpfieldTunnel(managedDatabaseId: string, appCertificateFingerprint: string): Promise<Duplex> {
     const routeId = await this.opfieldDatabaseRoute(managedDatabaseId, appCertificateFingerprint);
     const set = await setOfOwner(this.db, 'managed_database', managedDatabaseId);
@@ -2428,7 +2428,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * A tunnel from Gateway to the member of an availability set that serves now: the resource's Gateway route of
+   * A tunnel from Opfield to the member of an availability set that serves now: the resource's Opfield route of
    * `lane` (database tools or the storage browser), tried on the serving member's route first, then on the others by
    * rank (the relays admit only the lease holder; a manual pair's primary is the only serving endpoint).
    */
@@ -2525,7 +2525,7 @@ export class RelayPolicyService {
     return endpointId;
   }
 
-  /** The managed database's Gateway route, made on first use; throws while the database is not up. */
+  /** The managed database's Opfield route, made on first use; throws while the database is not up. */
   private async opfieldDatabaseRoute(managedDatabaseId: string, appCertificateFingerprint: string): Promise<string> {
     const [database] = await this.db
       .select({ nodeId: managedDatabaseInstances.nodeId, status: managedDatabaseInstances.status })
@@ -2547,7 +2547,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * A tunnel from Gateway on its route for a reader on this thread (the managed tunnel proxies of a commercial module
+   * A tunnel from Opfield on its route for a reader on this thread (the managed tunnel proxies of a commercial module
    * from before opfieldTunnelEndpoint): the tunnel runs in the tunnel worker, this end is a loopback connection to it.
    */
   private async openOpfieldRouteTunnel(routeId: string, appCertificateFingerprint: string): Promise<Duplex> {
@@ -2563,7 +2563,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * A tunnel from Gateway itself on its route, for the connection in the tunnel worker's `slotId`. Resumable (RSv1)
+   * A tunnel from Opfield itself on its route, for the connection in the tunnel worker's `slotId`. Resumable (RSv1)
    * when the connect assignment carries stream_resume: the stream then moves to another relay (or the same one back)
    * on drain, GOAWAY or path failure, reissuing the assignment for every new path. A target that turns out not to be
    * resume-aware latches the route raw for a while.
@@ -2636,7 +2636,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * One relay path of a resumable Gateway stream: active and staging candidates (a staging one is registered on both
+   * One relay path of a resumable Opfield stream: active and staging candidates (a staging one is registered on both
    * ends: when the only active relay drains or was force-disconnected the stream moves there instead of being cut),
    * the relay it leaves last; reachable relays first, then by role and measured distance, an active candidate before a
    * staging one only among equally near ones (orderOpfieldRelayCandidates; O-1, rc.10 F-1). The path opens in the
@@ -2864,7 +2864,7 @@ export class RelayPolicyService {
       endpointId
     );
     await this.syncSnapshot();
-    // Gateway reads its route at every open: turned on at the target here, its streams are resumable from the first.
+    // Opfield reads its route at every open: turned on at the target here, its streams are resumable from the first.
     await this.streamResume.enableBeforeSourceSync({ routeIds: [routeId] }).catch((error) => {
       logger.warn('Resumable streams for a Opfield relay route deferred to the next reconcile', {
         routeId,
@@ -2875,7 +2875,7 @@ export class RelayPolicyService {
     return routeId;
   }
 
-  /** A tunnel from Gateway to a managed storage cluster; its bytes cross from the tunnel worker (see opfieldTunnelEndpoint). */
+  /** A tunnel from Opfield to a managed storage cluster; its bytes cross from the tunnel worker (see opfieldTunnelEndpoint). */
   async openStorageOpfieldTunnel(clusterId: string, appCertificateFingerprint: string): Promise<Duplex> {
     const routeId = await this.opfieldStorageRoute(clusterId, appCertificateFingerprint);
     const set = await setOfOwner(this.db, 'managed_storage', clusterId);
@@ -2883,7 +2883,7 @@ export class RelayPolicyService {
     return this.openOpfieldRouteTunnel(routeId, appCertificateFingerprint);
   }
 
-  /** The storage cluster's Gateway route, made on first use; throws while the cluster is not up. */
+  /** The storage cluster's Opfield route, made on first use; throws while the cluster is not up. */
   private async opfieldStorageRoute(clusterId: string, appCertificateFingerprint: string): Promise<string> {
     const [database] = await this.db
       .select({ nodeId: managedStorageClusters.nodeId, status: managedStorageClusters.status })
@@ -3150,7 +3150,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * A daemon refuses a grant bundle older than the one it holds. That happens after Gateway's
+   * A daemon refuses a grant bundle older than the one it holds. That happens after Opfield's
    * database was restored from a backup: its revision sequence went back while daemons kept
    * newer bundles, and no grant could reach them until the sequence caught up. Continue the
    * sequence above the daemon's, then resend. Rate-limited, since every change bumps it anyway.
@@ -3159,7 +3159,7 @@ export class RelayPolicyService {
     const message = error ?? '';
     const olderRevision = message.match(/relay grant revision \d+ is older than (\d+)/);
     // This daemon names no revision. One such refusal is ordinary out-of-order delivery; only a
-    // daemon that keeps refusing every bundle holds a sequence Gateway lost to a restore.
+    // daemon that keeps refusing every bundle holds a sequence Opfield lost to a restore.
     const staleWithoutRevision = /stale relay grant bundle/.test(message);
     if (!olderRevision && !staleWithoutRevision) {
       this.staleGrantRefusals.delete(nodeId);
@@ -3169,7 +3169,7 @@ export class RelayPolicyService {
     let floor: number;
     if (olderRevision) {
       const held = Number(olderRevision[1]);
-      // At or below Gateway's own revision this is an older bundle delivered late, not a restore.
+      // At or below Opfield's own revision this is an older bundle delivered late, not a restore.
       if (!Number.isSafeInteger(held) || held <= current) return false;
       floor = Math.min(held, current + MAX_REVISION_JUMP);
     } else {
@@ -3270,7 +3270,7 @@ export class RelayPolicyService {
   }
 
   /**
-   * The Gateway route a tunnel can open through as it is: it names this Gateway and its
+   * The Opfield route a tunnel can open through as it is: it names this Opfield and its
    * certificate, and targets the owner's active endpoint on the owner's node with that node's
    * current certificate and a live assignment. Opening a tunnel then only issues a grant,
    * instead of re-ensuring the endpoint and route, pushing policy twice and re-sending the
@@ -3677,7 +3677,7 @@ export class RelayPolicyService {
         ? await tx.select().from(relayRoutes).where(inArray(relayRoutes.targetEndpointId, endpointIds))
         : [];
       const sessionLimits = await loadRelaySessionLimits(tx, endpoints);
-      // A relay refuses any revision below the one it applied, and Gateway's own sequence can
+      // A relay refuses any revision below the one it applied, and Opfield's own sequence can
       // fall behind it (a database restored from a backup). Continue above what the relay
       // reports, or has reported, so it is never locked out until the sequence catches up.
       // The floor comes from a relay's report; one report moves the sequence by a bounded jump.

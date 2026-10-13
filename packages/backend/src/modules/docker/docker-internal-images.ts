@@ -40,7 +40,7 @@ function normalizedReference(reference: string): string {
   return reference.replace(/^index\.docker\.io\//, 'docker.io/');
 }
 
-/** Whether a repository is `<name>` under a Gateway image repository: any `…/gateway/<name>`, or an official one. */
+/** Whether a repository is `<name>` under an Opfield image repository: any `…/gateway/<name>`, or an official one. */
 function isOpfieldComponentRepository(repository: string, name: string): boolean {
   return (
     repository.endsWith(`/gateway/${name}`) ||

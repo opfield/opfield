@@ -18,7 +18,7 @@ export const PLATFORM_TOKEN_SCOPES = [
     desc: "Edit housekeeping configuration and schedule",
     group: "Housekeeping",
   },
-  // Gateway diagnostics
+  // Opfield diagnostics
   {
     value: "diagnostics:view",
     label: "View Opfield Diagnostics",

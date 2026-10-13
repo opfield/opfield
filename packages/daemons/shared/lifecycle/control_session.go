@@ -27,13 +27,13 @@ type controlSessionRecord struct {
 	PID         int    `json:"pid"`
 	Version     string `json:"version"`
 	ConnectedAt int64  `json:"connected_at,omitempty"`
-	// EnrollmentRefused: Gateway refused the enrollment token (used, expired,
+	// EnrollmentRefused: Opfield refused the enrollment token (used, expired,
 	// or for another node or host), so retrying it cannot succeed.
 	EnrollmentRefused bool   `json:"enrollment_refused,omitempty"`
 	EnrollmentError   string `json:"enrollment_error,omitempty"`
 }
 
-// recordControlSession notes that Gateway accepted this process's control
+// recordControlSession notes that Opfield accepted this process's control
 // session at the given time.
 func recordControlSession(stateDir string, connectedAt time.Time) error {
 	return writeControlSessionRecord(stateDir, controlSessionRecord{ConnectedAt: connectedAt.Unix()})
@@ -47,7 +47,7 @@ func recordEnrollmentFailure(stateDir string, enrollErr error) error {
 	})
 }
 
-// enrollmentTokenRefused reports whether Gateway answered the enrollment and
+// enrollmentTokenRefused reports whether Opfield answered the enrollment and
 // refused its token, rather than not being reached.
 func enrollmentTokenRefused(err error) bool {
 	switch status.Code(err) {

@@ -107,7 +107,7 @@ type minioServiceAccountUpdater interface {
 }
 
 // updateMinIOServiceAccountPolicy replaces the inline policy of one service
-// account of the root user: a Gateway access key or a workload-link key. The
+// account of the root user: an Opfield access key or a workload-link key. The
 // migration write freeze uses it to make such keys read-only and to restore
 // them afterwards; the key keeps its id, secret and expiry. The root user has
 // no inline policy and cannot be addressed here, so it keeps full access.

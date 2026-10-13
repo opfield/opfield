@@ -7,7 +7,7 @@ import (
 )
 
 // Report is the lease part of the daemon health report. Field for field it
-// maps onto T3's gateway.v1 AvailabilityLeaseReport (see the T4 report for
+// maps onto T3's opfield.v1 AvailabilityLeaseReport (see the T4 report for
 // the wiring).
 type Report struct {
 	MemberID            string
@@ -23,7 +23,7 @@ type Report struct {
 	Events             []ReportEvent
 	LeaseRevision      uint64
 	// ReportedAtUnixMs is the wall clock the report's times were converted
-	// with; Gateway measures this daemon's clock offset from it (N-15).
+	// with; Opfield measures this daemon's clock offset from it (N-15).
 	ReportedAtUnixMs int64
 }
 
@@ -60,8 +60,8 @@ type Held struct {
 	PlacementGeneration uint64
 	// SinceUnixMs is when this node acquired the key for its current holding,
 	// on its wall clock; zero when unknown (a key recovered after a restart).
-	// It is exact and survives reports lost while Gateway was away, unlike the
-	// drained acquired event: the takeover time Gateway audits (N-5, B-14).
+	// It is exact and survives reports lost while Opfield was away, unlike the
+	// drained acquired event: the takeover time Opfield audits (N-5, B-14).
 	SinceUnixMs int64
 }
 
@@ -85,7 +85,7 @@ type ReportEvent struct {
 	Reason    string
 	AtUnixMs  int64
 	// at is the transition on the lease clock; the report converts it with the
-	// same wall clock as ReportedAtUnixMs, so Gateway's offset applies to it.
+	// same wall clock as ReportedAtUnixMs, so Opfield's offset applies to it.
 	at time.Duration
 }
 

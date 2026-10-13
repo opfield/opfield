@@ -59,7 +59,7 @@ export interface MaintenanceAccessReply {
   sessionToken: string;
 }
 
-// ─── Daemon Messages (daemon → gateway) ─────────────────────────────
+// ─── Daemon Messages (daemon → Opfield) ─────────────────────────────
 
 export interface DaemonMessage {
   register?: RegisterMessage;
@@ -368,13 +368,13 @@ export interface StatsReport {
   timestamp: string;
 }
 
-// ─── Gateway Commands (gateway → daemon) ────────────────────────────
+// ─── Opfield Commands (Opfield → daemon) ────────────────────────────
 
 export interface OpfieldCommand {
   commandId: string;
   /** Optional absolute dispatch deadline (Unix ms, int64 as string). Omitted or zero means no deadline. */
   expiresAtUnixMs?: string;
-  /** Optional gateway send time (Unix ms, int64 as string). Daemons judge expiresAtUnixMs against it. */
+  /** Optional Opfield send time (Unix ms, int64 as string). Daemons judge expiresAtUnixMs against it. */
   sentAtUnixMs?: string;
   applyConfig?: ApplyConfigCommand;
   removeConfig?: RemoveConfigCommand;
@@ -1463,10 +1463,10 @@ export interface AvailabilityPrimaryAssignment {
   setId: string;
   primaryMemberId: string;
   generation: string;
-  /** Gateway's relay policy key signature (see the proto). */
+  /** Opfield's relay policy key signature (see the proto). */
   signingKeyId?: string;
   signature?: Buffer;
-  /** Policy keys the daemon trusts directly (Gateway only). */
+  /** Policy keys the daemon trusts directly (Opfield only). */
   policyKeys?: AvailabilityLeasePolicyKey[];
 }
 

@@ -4,8 +4,8 @@ import { domains } from '@/db/schema/domains.js';
 import { getRegisteredDomainCandidates } from '@/modules/proxy/proxy-domain-node.js';
 
 /**
- * Whether certificate names belong to registered Gateway domains that an ingress group serves and whose DNS
- * Gateway manages through Cloudflare. With DNS listing several members, an HTTP-01 validation may reach any of them
+ * Whether certificate names belong to registered Opfield domains that an ingress group serves and whose DNS
+ * Opfield manages through Cloudflare. With DNS listing several members, an HTTP-01 validation may reach any of them
  * (including one that is offline); DNS-01 through the Cloudflare connector does not depend on any ingress node, so
  * such certificates are issued and renewed with DNS-01 automatically.
  */

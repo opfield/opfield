@@ -45,7 +45,7 @@ type seedResult struct {
 	transitions, forces int
 }
 
-// buildRandomWorld creates a seeded topology, clocks, network and Gateway.
+// buildRandomWorld creates a seeded topology, clocks, network and Opfield.
 func buildRandomWorld(seed int64, wire bool) (*simWorld, simTopology) {
 	return buildWorld(seed, wire, false)
 }
@@ -189,7 +189,7 @@ func runSeed(seed int64, trace, wire, stateful bool) (*simWorld, seedResult) {
 	if w.violation == "" {
 		quiet(w, topo)
 		if w.gw.policies["p1"].closed {
-			// Closed with the Gateway gone: nothing can fail over; the
+			// Closed with Opfield gone: nothing can fail over; the
 			// invariants still ran through the whole quiet phase.
 			w.runUntil(w.now + healTimeout)
 			result.kind = "closed"
@@ -274,9 +274,9 @@ func (w *simWorld) successorsInformed(topo simTopology, holder string) bool {
 }
 
 // canLearnManifest is false when no ready candidate holds a lease-mode
-// manifest and config and no Gateway is left to deliver them: a daemon that
-// lost its state, or only holds a closed manifest, while the Gateway is down
-// waits for the Gateway (documented limit).
+// manifest and config and no Opfield is left to deliver them: a daemon that
+// lost its state, or only holds a closed manifest, while Opfield is down
+// waits for Opfield (documented limit).
 func (w *simWorld) canLearnManifest(policyID string) bool {
 	if w.gw.alive {
 		return true
@@ -284,8 +284,8 @@ func (w *simWorld) canLearnManifest(policyID string) bool {
 	for _, id := range w.gw.policies[policyID].candidates {
 		n := w.nodes[id]
 		// A candidate that only holds a closed manifest does not talk to the
-		// members, so it never learns a reopening manifest the Gateway sent
-		// to others before it died: it waits for the Gateway (documented).
+		// members, so it never learns a reopening manifest Opfield sent
+		// to others before it died: it waits for Opfield (documented).
 		if n.processUp() && n.node.LeaseMode(policyID) && n.node.Epoch(policyID) > 0 {
 			return true
 		}
@@ -308,7 +308,7 @@ func (w *simWorld) describeCandidates(topo simTopology, key Key) string {
 }
 
 // bootstrapStuck reports the designed outcome where the named bootstrap
-// holder died before acquiring and no Gateway is left to reissue (A5).
+// holder died before acquiring and no Opfield is left to reissue (A5).
 func bootstrapStuck(w *simWorld, topo simTopology) bool {
 	return topo.bootstrap && !w.gw.alive && w.gw.policies["p1"].bootstrap[0] != ""
 }

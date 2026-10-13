@@ -522,7 +522,7 @@ export const CORE_TOKEN_SCOPES = [
     desc: "View and manage alerts",
     group: "Administration",
   },
-  // Gateway Settings
+  // Opfield Settings
   {
     value: "settings:opfield:view",
     label: "View Opfield Settings",

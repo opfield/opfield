@@ -8,7 +8,7 @@ package docker
 //
 //   - three daemons (DockerPlugin): member nodes A and B (storage profile)
 //     and witness node W (a plain docker node), each with the relay grant
-//     bundle Gateway sends (P1-T05 shapes: peer endpoints
+//     bundle Opfield sends (P1-T05 shapes: peer endpoints
 //     managed_availability_peer "<member>:<port>", peer routes
 //     managed_member_peer "<src>><dst>:<port>", the witness endpoint
 //     managed_availability_witness and the witness routes managed_witness_peer
@@ -22,10 +22,10 @@ package docker
 //   - the witness: the node's Keeper witness runtime (handleApplyKeeperWitnesses,
 //     reconcile: pinned clickhouse-keeper container, forwarders in its network
 //     namespace bridged over its witness routes, dialWitness for its endpoint)
-//     with the spec Gateway's NodeKeeperWitnessService plans.
+//     with the spec Opfield's NodeKeeperWitnessService plans.
 //
 // Faked: the relay itself (miniRelay: an in-process TunnelBroker with the
-// relay's frame semantics, no signed grants or policy checks), Gateway (the
+// relay's frame semantics, no signed grants or policy checks), Opfield (the
 // bundles and the witness spec are built here), the member runtime
 // (memberha.Manager: the test samples status, starts, kills and promotes
 // members; its SetMemberRuntime adapter is a test adapter over the engine's
@@ -92,7 +92,7 @@ const (
 	mwWitnessRaft   = 39433
 )
 
-// mwLoopbackHost is Gateway's keeperLoopbackHost.
+// mwLoopbackHost is Opfield's keeperLoopbackHost.
 func mwLoopbackHost(setID string) string {
 	digest := sha256.Sum256([]byte(setID))
 	a, b := digest[0], digest[1]
@@ -173,7 +173,7 @@ func mwBundles() (map[string][]*pb.RelayGrantAssignment, []*pb.RelayGrantAssignm
 	return members, witness, routes
 }
 
-// mwEngineConfig is the pair's engine configuration Gateway computes: two
+// mwEngineConfig is the pair's engine configuration Opfield computes: two
 // voting members and the node witness at its relay-local raft port.
 func mwEngineConfig(self int) chha.EngineConfig {
 	ec := chha.EngineConfig{Version: 1, LoopbackHost: mwLoopbackHost(mwSetID), KeeperServerID: uint32(self + 1), Databases: []string{"app"}}
@@ -688,7 +688,7 @@ func TestNodeKeeperWitnessMeshContainer(t *testing.T) {
 		return len(missing) == 0, strings.Join(missing, ",")
 	})
 
-	// The witness: ApplyWitnesses as Gateway sends it, then the node's reconcile pass every 5 s (keeperWitnessTick).
+	// The witness: ApplyWitnesses as Opfield sends it, then the node's reconcile pass every 5 s (keeperWitnessTick).
 	result := &pb.CommandResult{}
 	witnessNode.handleApplyKeeperWitnesses(&pb.ApplyWitnessesCommand{Revision: 1, Witnesses: []*pb.WitnessSpec{mwWitnessSpec()}}, result)
 	if !result.Success {
@@ -818,7 +818,7 @@ func TestNodeKeeperWitnessMeshContainer(t *testing.T) {
 		t.Fatal("the witness and the members exchanged no tunnel over the witness routes")
 	}
 	// Every direction of the mesh, probed from inside each container's network namespace: a connection to a
-	// server's loopback endpoint there is carried over the route Gateway named for it.
+	// server's loopback endpoint there is carried over the route Opfield named for it.
 	pidOf := func(name string) int {
 		out, _ := h.run("inspect", "-f", "{{.State.Pid}}", name)
 		pid, _ := strconv.Atoi(out)

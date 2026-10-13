@@ -262,7 +262,7 @@ func (w *world) closeLease() {
 }
 
 // closeGracefully publishes a closed manifest that names the committed holder
-// of every slot retained, as Gateway does (graceful close).
+// of every slot retained, as Opfield does (graceful close).
 func (w *world) closeGracefully() {
 	w.retained = map[uint32]availabilitylease.RetainedHolder{}
 	for _, h := range w.daemons {

@@ -394,7 +394,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
       // A daemon starts streaming (logs, build events, results) right after
       // Register. Those messages are held until the async registration
       // validation finishes and replayed in order; ending the stream instead
-      // made every Gateway restart flap the node and fail running builds.
+      // made every Opfield restart flap the node and fail running builds.
       const messagesDuringRegistration: DaemonMessage[] = [];
       let droppedDuringRegistration = 0;
       const rejectRegistration = (reason: string) => {
@@ -715,7 +715,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
             for (const queued of messagesDuringRegistration.splice(0)) void handleMessage(queued);
 
             // Update DB with latest info — do NOT overwrite configVersionHash
-            // (the gateway's stored hash is authoritative, set by FullSync)
+            // (Opfield's stored hash is authoritative, set by FullSync)
             const { getEnv } = await import('@/config/env.js');
             const appVersion = getEnv().APP_VERSION;
             const versionMismatch =
@@ -856,7 +856,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 try {
                   if (!isClaimedStreamCurrent(claimedNodeId)) return;
                   // Forced: the relay may have restarted without its state and hold no policy, while
-                  // Gateway's records still say it holds the current one (N-7).
+                  // Opfield's records still say it holds the current one (N-7).
                   await deps.relayPolicy!.syncRemoteInstancePolicy(claimedNodeId, undefined, { force: true });
                 } catch (error) {
                   const message = error instanceof Error ? error.message : String(error);
@@ -1547,7 +1547,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
 
       // A stream the gRPC server cut (its force stop at shutdown) is only cancelled and emits neither of the above.
       // The node is gone all the same: commands still waiting for its answer fail now instead of at their timeout,
-      // which held the module drains of a stopping Gateway until its hard deadline.
+      // which held the module drains of a stopping Opfield until its hard deadline.
       stream.on('cancelled', () => {
         closed = true;
         if (nodeId) logger.info('Node stream cancelled', { nodeId });

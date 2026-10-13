@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Writes the signed license endpoints document: the license service addresses of config/license-service.json, signed
 // with the update signing key like every update manifest (schema 1, key wiolett-update-v1) and valid for a limited
-// time. The release workflow attaches it to each Gateway release and .github/workflows/license-endpoints.yml re-signs
+// time. The release workflow attaches it to each Opfield release and .github/workflows/license-endpoints.yml re-signs
 // it on the latest one weekly; the update Worker serves it as /gateway/license-endpoints.json and installations
 // fetch it daily (packages/backend/src/modules/license/license-endpoints.ts).
 //

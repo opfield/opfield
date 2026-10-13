@@ -23,7 +23,7 @@ type engineIncident struct {
 // engineIncidents records, per instance, the stops of its engine nobody asked
 // for. The supervisor starts such an engine again within seconds, so without
 // them an engine the kernel kills for memory every few minutes would look
-// healthy whenever Gateway asks.
+// healthy whenever Opfield asks.
 type engineIncidents struct {
 	mu     sync.Mutex
 	events map[string][]engineIncident

@@ -15,7 +15,7 @@ func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 		return base
 	}
 	base.DockerVersion = p.version
-	// Lease state goes first: it must reach the Gateway even when Docker
+	// Lease state goes first: it must reach Opfield even when Docker
 	// itself does not answer.
 	base.AvailabilityLease = p.availabilityLeaseReport()
 	base.AvailabilityMembers = p.availabilityMemberReports()
@@ -48,7 +48,7 @@ func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 		base.ContainerStats = p.statsCollector.GetStats()
 	}
 	// GPU inventory is daemon-authoritative. The Docker client adds runtime
-	// readiness (notably NVIDIA Container Toolkit) before it reaches Gateway.
+	// readiness (notably NVIDIA Container Toolkit) before it reaches Opfield.
 	base.GpuDevices = make([]*pb.GpuDevice, 0)
 	for _, device := range p.client.GPUDevices(ctx) {
 		base.GpuDevices = append(base.GpuDevices, device.ToProto())

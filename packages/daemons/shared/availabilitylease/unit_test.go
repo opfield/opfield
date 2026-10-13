@@ -32,7 +32,7 @@ func TestBallotOrderingPutsRoundFirst(t *testing.T) {
 	}
 }
 
-// The accept statement is part of the wire contract: the Gateway or any
+// The accept statement is part of the wire contract: Opfield or any
 // other implementation verifying QCs must produce these exact bytes.
 func TestAcceptStatementGolden(t *testing.T) {
 	got := hex.EncodeToString(acceptStatement(Key{PolicyID: "p", Slot: 1}, Ballot{Round: 2, Incarnation: 3, Proposer: "d"}, 4, 5, "r", 6))

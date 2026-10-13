@@ -100,7 +100,7 @@ function normalizeVersion(version: string | null | undefined): string {
   return (version ?? "").replace(/^v/, "");
 }
 
-/** An update waits this long at most for the running tasks of its node (Gateway's limit). */
+/** An update waits this long at most for the running tasks of its node (Opfield's limit). */
 const UPDATE_TASK_WAIT_MS = 30 * 60_000;
 
 function plural(count: number, noun: string): string {

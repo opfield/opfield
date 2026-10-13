@@ -419,7 +419,7 @@ func TestHolderEndpointReadinessFollowsRegistrations(t *testing.T) {
 }
 
 // reapply replaces the fixture's policy snapshot, binding plain-ep to leasePolicy
-// ("" keeps it outside lease mode), as Gateway does when a policy enters or
+// ("" keeps it outside lease mode), as Opfield does when a policy enters or
 // leaves lease mode.
 func (f *leaseFixture) reapply(t *testing.T, revision uint64, leasePolicy string) {
 	t.Helper()
@@ -481,7 +481,7 @@ func TestModeFlipsKeepTheServingRegistrationAndItsTunnels(t *testing.T) {
 		t.Fatalf("holder endpoint after the flip = %v", got)
 	}
 
-	// Closing: Gateway takes the policy out of lease mode (legacy admission on
+	// Closing: Opfield takes the policy out of lease mode (legacy admission on
 	// the relay) before any lease is released; the daemon renews the link as a
 	// plain one; then the lease goes. Registration and tunnel stay throughout.
 	f.reapply(t, 3, "")

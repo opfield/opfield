@@ -18,7 +18,7 @@ import (
 	grpcpeer "google.golang.org/grpc/peer"
 )
 
-// A highly available managed database as the Gateway publishes it: one
+// A highly available managed database as Opfield publishes it: one
 // endpoint per member (subject = the member's node, lease_policy_id = the
 // database's lease policy), one binding route per member from the app node, and
 // replication routes from every member node to every other member's endpoint.
@@ -206,7 +206,7 @@ func TestDatabaseTrafficReachesOnlyTheLeaseHolder(t *testing.T) {
 		t.Fatalf("pending sessions = %d, want the binding and the replication tunnel", len(sessions))
 	}
 
-	// Failover without the Gateway: the gate moves to node-b. node-a is
+	// Failover without Opfield: the gate moves to node-b. node-a is
 	// partitioned and still registered SERVING; its sessions are closed and no
 	// new tunnel reaches it.
 	f.holds("node-b")
@@ -236,7 +236,7 @@ func TestDatabaseTrafficReachesOnlyTheLeaseHolder(t *testing.T) {
 	}
 }
 
-// Before the lease gates (HA being enabled: the Gateway publishes the member
+// Before the lease gates (HA being enabled: Opfield publishes the member
 // endpoints without lease_policy_id), only the serving registration takes
 // traffic: the origin serves, seeding standbys stay dormant.
 func TestDatabaseMembersWithoutAGateServeOnlyTheServingMember(t *testing.T) {

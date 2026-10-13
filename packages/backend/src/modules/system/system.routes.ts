@@ -223,7 +223,7 @@ systemRoutes.openapi(performSystemUpdateRoute, async (c) => {
   if (updateService.isOpfieldUpdateInProgress()) {
     return c.json({ code: 'UPDATE_IN_PROGRESS', message: 'An Opfield update is already in progress' }, 409);
   }
-  // A running Relay Pool update refuses the Gateway update with a 409.
+  // A running Relay Pool update refuses the Opfield update with a 409.
   await updateService.assertOpfieldUpdateAllowed();
 
   // Verify update is actually available and version matches
@@ -279,7 +279,7 @@ systemRoutes.openapi(proceedSystemUpdateRoute, async (c) => {
   return c.json({ data: { status: 'updating' } });
 });
 
-// POST /update/acknowledge — stop reporting a Gateway update that was rolled back (admin only)
+// POST /update/acknowledge — stop reporting an Opfield update that was rolled back (admin only)
 systemRoutes.openapi(acknowledgeSystemUpdateFailureRoute, async (c) => {
   const forbidden = requireUpdateScope(c);
   if (forbidden) return forbidden;

@@ -398,7 +398,7 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       category: 'opfield',
       eventId: 'relay.unavailable',
       // Only the relay supervisor's own reports carry its state. A revocation report concerns one relay instance, and
-      // pool and relay runtime events say nothing of the Gateway relay: read as healthy, they resolved its alert
+      // pool and relay runtime events say nothing of the Opfield relay: read as healthy, they resolved its alert
       // during a local relay outage.
       match: (p) => p.action !== 'revocation_fence' && typeof p.state === 'string',
       extractResource: () => ({ type: 'opfield', id: 'opfield-relay', name: 'Opfield relay' }),
@@ -872,7 +872,7 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
   ],
   'managed-storage.changed': [
     // Published when a serving storage stops taking uploads (`full`) and when it takes them again (`writable`),
-    // and once after Gateway starts.
+    // and once after Opfield starts.
     {
       category: 'managed_storage',
       eventId: 'storage.full',

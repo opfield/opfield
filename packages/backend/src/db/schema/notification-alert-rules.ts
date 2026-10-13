@@ -41,7 +41,7 @@ export const notificationAlertRules = pgTable(
 
     // Message template — rendered with event-specific variables, injected into webhook's body as {{message}}
     messageTemplate: text('message_template'),
-    // Resolve message template — the message sent when the alert resolves; empty uses Gateway's text for the rule
+    // Resolve message template — the message sent when the alert resolves; empty uses Opfield's text for the rule
     resolveMessageTemplate: text('resolve_message_template'),
 
     // Webhooks — which webhooks to deliver to

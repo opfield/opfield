@@ -35,7 +35,7 @@ func poolCandidates(assignment *pb.RelayGrantAssignment, includeStaging, include
 		return nil
 	}
 	// A candidate this daemon cannot use (malformed, a relay without the pool
-	// capability, a state a newer Gateway added) is skipped on its own: the
+	// capability, a state a newer Opfield added) is skipped on its own: the
 	// assignment's other relays keep their lanes and carry its tunnels.
 	result := make([]*pb.RelayDataCandidate, 0, len(assignment.GetCandidates()))
 	for _, candidate := range assignment.GetCandidates() {

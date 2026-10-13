@@ -2,7 +2,7 @@ import { ALERT_CATEGORIES } from './notification-catalog.js';
 import { formatDurationSeconds } from './notification-templates.js';
 
 /**
- * Gateway's resolve texts: what a reader is told once an alert clears, for rules without a resolve message. They name
+ * Opfield's resolve texts: what a reader is told once an alert clears, for rules without a resolve message. They name
  * the recovery ("... is back online"), never repeat the firing message, and end with how long the alert lasted.
  */
 const EVENT_RESOLVE_TEXT: Record<string, (name: string) => string> = {

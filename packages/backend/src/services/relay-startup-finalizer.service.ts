@@ -64,7 +64,7 @@ export class RelayStartupFinalizerService {
         return { status: 'active', action: null, buildVersion: initial.buildVersion };
       }
       // A relay that answers but is not ready lacks only a current policy: its lease ran out
-      // while Gateway was down, or it refused the last one. Deliver it before judging the
+      // while Opfield was down, or it refused the last one. Deliver it before judging the
       // container; recreating a live relay for that would only drop its sessions.
       if (!initial && this.options.syncPolicy && (await this.probeLive())) {
         await this.options.syncPolicy().catch((error) => {

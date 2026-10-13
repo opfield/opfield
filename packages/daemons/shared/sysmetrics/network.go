@@ -83,7 +83,7 @@ func interfaceIPAddresses(name string) []string {
 
 // GetInterfaceIPAddresses returns usable addresses assigned to active,
 // non-loopback host interfaces, split into local and publicly routable groups.
-// CIDR prefixes are intentionally omitted because Gateway displays these as
+// CIDR prefixes are intentionally omitted because Opfield displays these as
 // node identities rather than route definitions.
 func GetInterfaceIPAddresses() (local []string, public []string) {
 	interfaces, err := net.Interfaces()

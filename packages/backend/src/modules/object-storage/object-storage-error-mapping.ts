@@ -105,7 +105,7 @@ export function mapObjectStorageError(error: unknown, operation: ObjectStorageOp
   if (isUnparsableResponse(message)) return unparsableResponseError(err, operation);
 
   if (AUTH_ERROR_NAMES.has(name) || lower.includes('access denied') || lower.includes('signature')) {
-    // Not 401: that status means the Gateway session itself is invalid and signs the user out.
+    // Not 401: that status means the Opfield session itself is invalid and signs the user out.
     return new AppError(422, 'STORAGE_AUTH_FAILED', message);
   }
 

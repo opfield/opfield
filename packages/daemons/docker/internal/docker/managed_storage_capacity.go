@@ -10,7 +10,7 @@ import (
 // full ("No writable volumes and no free volumes left"): below
 // -volume.minFreeSpace its volume server reports every volume read-only and
 // creates none, and the master creates no volume once every volume slot is
-// used. Its health checks and ListBuckets keep answering, so Gateway showed
+// used. Its health checks and ListBuckets keep answering, so Opfield showed
 // such a storage online while every upload failed.
 //
 // The storage's detail says whether it takes writes, without writing

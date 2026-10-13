@@ -30,7 +30,7 @@ type intelSampler func(context.Context, string) ([]byte, error)
 
 // Collector is intentionally rooted in normal Linux host interfaces. Vendor
 // CLI tools are optional telemetry enrichments; device discovery and direct
-// device readiness do not require Gateway to install anything on the host.
+// device readiness do not require Opfield to install anything on the host.
 type Collector struct {
 	run          commandRunner
 	glob         func(string) ([]string, error)
@@ -69,7 +69,7 @@ func (c *Collector) Collect(ctx context.Context) []Device {
 }
 
 // Resolve accepts only node-discovered device IDs. This is the daemon-side
-// boundary that prevents Gateway API callers from supplying host paths.
+// boundary that prevents Opfield API callers from supplying host paths.
 func (c *Collector) Resolve(ctx context.Context, ids []string) ([]Device, error) {
 	if len(ids) == 0 {
 		return []Device{}, nil

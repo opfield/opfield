@@ -14,7 +14,7 @@ const memberConfigVectorsPath = "../../../../../proto/testdata/availability-memb
 
 // The member configurations a node takes or refuses: the vectors are shared
 // with the backend's mirror (services/availability-member-config.rules.ts),
-// so Gateway never sends a configuration the node is bound to refuse (an
+// so Opfield never sends a configuration the node is bound to refuse (an
 // automatic member without its set's lease policy looped a convert forever).
 func TestAvailabilityMemberConfigVectors(t *testing.T) {
 	data, err := os.ReadFile(memberConfigVectorsPath)

@@ -30,7 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// TunnelBroker is deliberately resource agnostic. Gateway is the only
+// TunnelBroker is deliberately resource agnostic. Opfield is the only
 // component that maps endpoint and route identifiers to product resources.
 type TunnelBrokerClient interface {
 	RegisterEndpoint(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EndpointControl, EndpointControl], error)
@@ -130,7 +130,7 @@ type TunnelBroker_WatchLeaseGatesClient = grpc.ServerStreamingClient[LeaseGateSn
 // All implementations must embed UnimplementedTunnelBrokerServer
 // for forward compatibility.
 //
-// TunnelBroker is deliberately resource agnostic. Gateway is the only
+// TunnelBroker is deliberately resource agnostic. Opfield is the only
 // component that maps endpoint and route identifiers to product resources.
 type TunnelBrokerServer interface {
 	RegisterEndpoint(grpc.BidiStreamingServer[EndpointControl, EndpointControl]) error
@@ -288,7 +288,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// RelayAdmin is reachable on the same listener but only by the pinned Gateway
+// RelayAdmin is reachable on the same listener but only by the pinned Opfield
 // app service identity.
 type RelayAdminClient interface {
 	GetHealth(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
@@ -431,7 +431,7 @@ func (c *relayAdminClient) VerifyHolderStatement(ctx context.Context, in *Verify
 // All implementations must embed UnimplementedRelayAdminServer
 // for forward compatibility.
 //
-// RelayAdmin is reachable on the same listener but only by the pinned Gateway
+// RelayAdmin is reachable on the same listener but only by the pinned Opfield
 // app service identity.
 type RelayAdminServer interface {
 	GetHealth(context.Context, *HealthRequest) (*HealthResponse, error)

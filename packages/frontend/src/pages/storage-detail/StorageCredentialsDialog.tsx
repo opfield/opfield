@@ -101,7 +101,7 @@ interface QuickStartInput {
   accessKey: string;
   secretKey: string;
   engine: ManagedStorageEngine;
-  /** CA file for a TLS endpoint signed by the Gateway Storage CA. */
+  /** CA file for a TLS endpoint signed by the Opfield Storage CA. */
   caBundle?: string;
 }
 

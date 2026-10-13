@@ -40,7 +40,7 @@ import { WebTransportSettingsService } from '@/services/web-transport-settings.s
 import type { User } from '@/types.js';
 
 /**
- * Gateway settings (auth, SMTP, OIDC, logging backend, MCP, general, network and
+ * Opfield settings (auth, SMTP, OIDC, logging backend, MCP, general, network and
  * outbound webhook policy) shared by /api/admin/auth-settings and the AI/MCP
  * tools, so both apply the same privilege boundaries, side effects and audit.
  */
@@ -453,7 +453,7 @@ export async function updateOpfieldSettings(
       ]);
 
     // The settings form sends the Public URL with every save. Only a changed URL
-    // refreshes the web identity, which restarts Gateway.
+    // refreshes the web identity, which restarts Opfield.
     const shouldRefreshWebIdentity = Boolean(
       mayRefreshWebIdentity &&
         previousGeneralSettings &&

@@ -5,7 +5,7 @@ import type { TunnelWorkerData } from './protocol.js';
 import { asBuffer, RpcPort } from './rpc.js';
 
 /**
- * Gateway's tunnel worker: the data plane of Gateway's own Secure Link tunnels (see RelayTunnelEngine). It presents
+ * Opfield's tunnel worker: the data plane of Opfield's own Secure Link tunnels (see RelayTunnelEngine). It presents
  * the main thread's relay client identity and follows its changes; it makes no admin calls.
  */
 if (!parentPort) throw new Error('The Opfield tunnel worker runs only as a worker thread');

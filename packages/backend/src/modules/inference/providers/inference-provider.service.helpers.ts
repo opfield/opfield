@@ -258,7 +258,7 @@ export function consistentTokenLimits(input: {
 
 /**
  * Where a model's technical value came from: the provider's live API, the built-in catalog,
- * or a Gateway calculation from provider-reported limits (for example 90% of the input limit).
+ * or an Opfield calculation from provider-reported limits (for example 90% of the input limit).
  */
 export type InferenceModelMetadataSource = 'provider' | 'fallback' | 'derived';
 
@@ -291,7 +291,7 @@ function modelVersion(id: string): { family: string; minor: number } | null {
 
 /**
  * A provider can list a new version of a model family by id and name alone: xAI's subscription
- * roster reported grok-4.7 that way, so Gateway published it without reasoning or image input.
+ * roster reported grok-4.7 that way, so Opfield published it without reasoning or image input.
  * Such a model takes its input modalities and reasoning levels from the newest earlier version
  * of the same family on the same account. Only the fields the model has no source for are filled,
  * a variant id such as grok-4.7-build-fast never matches, and the copied values stay labelled as

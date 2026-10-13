@@ -125,7 +125,7 @@ export function isApiTokenScope(scope: string): boolean {
   return isValidBaseScope(scope) && !PROGRAMMATIC_DENIED_SCOPE_SET.has(extractBaseScope(scope));
 }
 
-/** Gateway MCP grants carry the same delegable scopes as API tokens. */
+/** Opfield MCP grants carry the same delegable scopes as API tokens. */
 export function isMcpTokenScope(scope: string): boolean {
   return isApiTokenScope(scope) && extractBaseScope(scope) !== 'mcp:use';
 }

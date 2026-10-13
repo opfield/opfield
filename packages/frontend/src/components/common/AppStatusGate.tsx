@@ -39,7 +39,7 @@ export function clearMaintenanceAutoReloadGuard(): void {
 
 /**
  * The maintenance and restart screens mirror OPFIELD_RESTARTING_HTML in
- * packages/backend/src/lib/gateway-error-pages.ts. While Gateway is down the
+ * packages/backend/src/lib/gateway-error-pages.ts. While Opfield is down the
  * browser reloads onto that static page, which is always dark, so these screens
  * keep its fixed palette (and the dark theme for their controls) instead of the
  * current theme: the swap then does not flash between themes.
@@ -265,7 +265,7 @@ export function buildOpfieldRestartTargetUrl(targetBase: string, currentHref: st
   return target.toString();
 }
 
-/** The update waits for running orchestration operations before it restarts Gateway. */
+/** The update waits for running orchestration operations before it restarts Opfield. */
 function OpfieldUpdateWaitingScreen({ operation }: { operation: OpfieldUpdateOperation }) {
   const canUpdate = useAuthStore((state) => state.hasScope("admin:update"));
   const proceedWithUpdate = useUpdateStore((state) => state.proceedWithUpdate);
@@ -353,7 +353,7 @@ function OpfieldOperationScreen() {
       reloadOpfieldClient(reload.id);
     };
 
-    // Gateway runs, but not the target version: the update was rolled back,
+    // Opfield runs, but not the target version: the update was rolled back,
     // failed, or never happened. Leave the screen instead of waiting forever.
     const leaveUnfinishedUpdate = (runningVersion: string | null) => {
       if (navigating || !targetVersion) return;
@@ -464,7 +464,7 @@ function OpfieldOperationScreen() {
           else if (updatingActive || targetVersion) {
             completeSameOriginRestart(health.version ?? null, "opfield-restart-recovered");
           } else {
-            // A regular Gateway restart has no new client assets to load.
+            // A regular Opfield restart has no new client assets to load.
             // Keep the current document alive so the event stream and active
             // route can recover without repeating the full startup prewarm.
             clearOpfieldRestarting();

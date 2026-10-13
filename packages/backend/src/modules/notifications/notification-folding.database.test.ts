@@ -14,8 +14,8 @@ const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /**
  * Opt-in (OPFIELD_MIGRATION_TEST_DATABASE_URL): one cause is one alert. A route alert explained by its node's "node
- * down" alert or by "Gateway lost outbound connectivity" is not sent separately and resolves with it; the built-in
- * outbound rule exists after migration; resolves carry Gateway's back-online text.
+ * down" alert or by "Opfield lost outbound connectivity" is not sent separately and resolves with it; the built-in
+ * outbound rule exists after migration; resolves carry Opfield's back-online text.
  */
 describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
   let database: Awaited<ReturnType<typeof disposableDatabase>>;
@@ -220,7 +220,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
           [id]
         )
       ).rows;
-    // The node is not connected to this Gateway: alerts name it from the database, not by its id (O-5).
+    // The node is not connected to this Opfield: alerts name it from the database, not by its id (O-5).
     (evaluator as any).nodeRegistry = { getNode: () => undefined };
     const hostname = (await q(`select hostname from nodes where id = $1`, [nodeId])).rows[0].hostname;
 

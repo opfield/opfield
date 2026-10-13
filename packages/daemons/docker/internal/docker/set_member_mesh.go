@@ -262,7 +262,7 @@ func (s *setMesh) ExtraHosts(setID string) []string {
 	return out
 }
 
-// Gateway is the address the set's containers reach the daemon at.
+// Opfield is the address the set's containers reach the daemon at.
 func (s *setMesh) Gateway(setID string) (netip.Addr, bool) {
 	s.mu.Lock()
 	entry := s.sets[setID]

@@ -30,11 +30,11 @@ func relayGrantStateFile(stateDir string) statecompat.File {
 }
 
 // relayGrantRestoreHold bounds how long a restarted daemon keeps its endpoint
-// registrations back for the first grant bundle from Gateway. Policy may have
+// registrations back for the first grant bundle from Opfield. Policy may have
 // changed while the daemon was down (a link deleted or re-issued), and the relay
-// refuses a registration whose grant its current policy no longer lists. Gateway
+// refuses a registration whose grant its current policy no longer lists. Opfield
 // sends the bundle right after the node registers, well within this bound; when
-// Gateway is unreachable the restored bundle is used once the hold runs out.
+// Opfield is unreachable the restored bundle is used once the hold runs out.
 const relayGrantRestoreHold = 10 * time.Second
 
 // relayGrantListenerReconcileTimeout bounds the database link listener reconcile of one grant sync.
@@ -49,7 +49,7 @@ type relayGrantStore struct {
 	index   map[relaybridge.AssignmentKey]*pb.RelayGrantAssignment
 	changed chan struct{}
 	// restoredUntil is set while current came from disk and this process has not
-	// accepted a bundle from Gateway yet.
+	// accepted a bundle from Opfield yet.
 	restoredUntil time.Time
 }
 
@@ -65,7 +65,7 @@ func newRelayGrantStore(stateDir string) (*relayGrantStore, error) {
 	}
 	store.current, store.index = command, relaybridge.IndexAssignments(command)
 	// After a restart announced to the relays (B-13) they hold this daemon's registrations for the next process: it
-	// takes them over at once, with the grants they were made with, instead of leaving them waiting for Gateway.
+	// takes them over at once, with the grants they were made with, instead of leaving them waiting for Opfield.
 	if !consumeRestartMarker(stateDir, time.Now()) {
 		store.restoredUntil = time.Now().Add(relayGrantRestoreHold)
 	}
@@ -73,7 +73,7 @@ func newRelayGrantStore(stateDir string) (*relayGrantStore, error) {
 }
 
 // registrationHold is how long endpoint registrations should still wait for
-// Gateway's first bundle; zero means they may register now.
+// Opfield's first bundle; zero means they may register now.
 func (s *relayGrantStore) registrationHold(now time.Time) time.Duration {
 	if s == nil {
 		return 0
@@ -234,7 +234,7 @@ func (p *DockerPlugin) SyncRelayGrants(command *pb.SyncRelayGrantsCommand) (stri
 }
 
 // reconcileAfterRestoreHold registers the restored bundle's endpoints once the
-// hold runs out without a bundle from Gateway. A bundle that arrives first
+// hold runs out without a bundle from Opfield. A bundle that arrives first
 // reconciles every router itself, and this later pass then only renews.
 func (r *relayTunnelRouter) reconcileAfterRestoreHold(ctx context.Context) {
 	hold := r.plugin.relayGrants.registrationHold(time.Now())

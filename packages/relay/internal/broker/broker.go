@@ -28,14 +28,14 @@ const (
 	// EndpointRestartCapability tells daemons that this relay keeps a
 	// restarting endpoint's registration (ENDPOINT_SERVING_STATE_RESTARTING).
 	EndpointRestartCapability = "endpoint_restart_v1"
-	// DrainKeepsLocalServicesCapability tells Gateway that a draining relay
+	// DrainKeepsLocalServicesCapability tells Opfield that a draining relay
 	// refuses new tunnels only to workload endpoints and keeps serving its
 	// built-in local services (the internal registry), which no other relay
-	// serves. Gateway drains the local relay for an update only then.
+	// serves. Opfield drains the local relay for an update only then.
 	DrainKeepsLocalServicesCapability = "drain_keeps_local_services_v1"
-	// RegistryFairShareCapability tells Gateway that this relay shares the
+	// RegistryFairShareCapability tells Opfield that this relay shares the
 	// registry traffic class fairly between its routes under pressure, as it
-	// does the proxy class. Gateway moves container links into that class,
+	// does the proxy class. Opfield moves container links into that class,
 	// without a fixed session cap, only on relays that advertise it.
 	RegistryFairShareCapability = "relay_registry_fair_share_v1"
 	localServiceSubjectKind     = "local_service"

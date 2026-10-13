@@ -301,7 +301,7 @@ func TestManagedDatabaseHostListenerHoldsTheLinkAtItsGrantLimit(t *testing.T) {
 	}
 }
 
-// The Gateway update re-signs the grant with the new session limit (16 to 64). The running listener takes it without
+// The Opfield update re-signs the grant with the new session limit (16 to 64). The running listener takes it without
 // closing its connections.
 func TestManagedDatabaseHostListenerTakesANewGrantLimitInPlace(t *testing.T) {
 	h := newListenerHarness(t)
@@ -326,7 +326,7 @@ func TestManagedDatabaseHostListenerTakesANewGrantLimitInPlace(t *testing.T) {
 	}
 }
 
-// A grant without a session limit (an older Gateway) gets the link default.
+// A grant without a session limit (an older Opfield) gets the link default.
 func TestManagedDatabaseHostListenerDefaultsToTheLinkLimit(t *testing.T) {
 	h := newListenerHarness(t)
 	h.reconcile(h.assignment(testListenerBindingA, 3, 0))

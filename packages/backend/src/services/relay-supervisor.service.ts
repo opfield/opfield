@@ -178,7 +178,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
   /** The on-demand check of confirmLocalRelay in flight. */
   private confirming: Promise<void> | null = null;
   private stopping = false;
-  /** Resolves when stop() is called, so recovery waits end at once instead of holding a stopping Gateway. */
+  /** Resolves when stop() is called, so recovery waits end at once instead of holding a stopping Opfield. */
   private stopped: Promise<void>;
   private signalStopped: () => void = () => undefined;
   private readonly probeIntervalMs: number;
@@ -226,7 +226,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
 
   /**
    * Loads the state the previous process persisted, once. Called before the API answers and before nodes connect: a
-   * Gateway started during a local relay outage shows and handles that outage from its first answer, rather than
+   * Opfield started during a local relay outage shows and handles that outage from its first answer, rather than
    * reading as a relay never seen (unavailable, migration pending, no outage) until its relay startup ended (O-5).
    */
   async restore(): Promise<void> {
@@ -613,7 +613,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
   }
 
   /**
-   * The relay serves again: Gateway's other channels to it (tunnels, policy, link reconciliation) reconnect now
+   * The relay serves again: Opfield's other channels to it (tunnels, policy, link reconciliation) reconnect now
    * rather than after their reconnect backoff, during which they failed with UNAVAILABLE for up to 24 s while the
    * nodes were already back (F-2). Logged every time, also when the return watch had already replaced the channels
    * during the outage, so each recovery shows in the log.
@@ -747,7 +747,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
         continue;
       }
       const healthy = await this.waitForReadiness();
-      // A stopping Gateway ends the wait; the next start judges the relay again.
+      // A stopping Opfield ends the wait; the next start judges the relay again.
       if (!healthy && this.stopping) return;
       if (healthy) {
         this.updateAttempt(attempt, { result: 'healthy' });

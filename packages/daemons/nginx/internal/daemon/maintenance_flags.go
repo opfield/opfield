@@ -12,11 +12,11 @@ import (
 	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
-// Maintenance without a reload (proxy_maintenance_flag_v1). Gateway renders every managed route on this node with a
+// Maintenance without a reload (proxy_maintenance_flag_v1). Opfield renders every managed route on this node with a
 // guard that checks, per request, whether the file <maintenanceFlagDir>/<host id> exists, and answers with the
 // maintenance page only then. Entering and leaving maintenance is the creation and removal of that file: nginx keeps
 // running its configuration, and the idle keep-alive connections of every other route stay open (a reload closes
-// them). The directory is fixed because the configs Gateway renders name it, and it persists across restarts so a
+// them). The directory is fixed because the configs Opfield renders name it, and it persists across restarts so a
 // route stays in maintenance while the daemon is down.
 const maintenanceFlagCapability = "proxy_maintenance_flag_v1"
 
@@ -40,7 +40,7 @@ func (h *Handler) maintenanceFlagSet(hostID string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-// setMaintenanceFlag brings a route's flag to the state Gateway sent. It returns the function that restores the
+// setMaintenanceFlag brings a route's flag to the state Opfield sent. It returns the function that restores the
 // previous state, for a command that fails after it. UNSPECIFIED, and a daemon without the flag directory, keep the
 // flag as it is.
 func (h *Handler) setMaintenanceFlag(hostID string, flag pb.ProxyMaintenanceFlag) (func(), error) {
@@ -118,7 +118,7 @@ func (h *Handler) retainMaintenanceFlags(hostIDs []string) {
 }
 
 // ensureMaintenanceGuardMaps writes the shared maps of the flag-checked maintenance guard and reports whether nginx
-// must reload to use them. A first copy needs no reload of its own: only route configs Gateway renders for this
+// must reload to use them. A first copy needs no reload of its own: only route configs Opfield renders for this
 // capability use the maps, and the reload that loads those configs loads them. A changed copy (a daemon update) is
 // loaded at once, since the routes already use the maps; one nginx does not accept is replaced by the copy before it.
 func (p *NginxPlugin) ensureMaintenanceGuardMaps(logger *slog.Logger) (reload bool) {

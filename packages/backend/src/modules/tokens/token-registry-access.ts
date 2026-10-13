@@ -5,7 +5,7 @@ import { AppError } from '@/middleware/error-handler.js';
 
 /**
  * Internal registry access of an API token: what `docker login` with the token may pull or push from outside
- * Gateway. It belongs to the token, not to a user scope. The owner may give a token pull when they can view a
+ * Opfield. It belongs to the token, not to a user scope. The owner may give a token pull when they can view a
  * Docker workload or image anywhere, and push when they can change a workload; every request rechecks that against
  * the owner's current permissions. `all` covers every repository; a list narrows the token to exactly those
  * repository names (no prefix match), like the per-repository registry scopes did. An absent action is not granted.

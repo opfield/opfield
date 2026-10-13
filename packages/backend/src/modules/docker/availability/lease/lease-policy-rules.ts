@@ -47,7 +47,7 @@ export const SOURCE_MISSING: DockerAvailabilityLeaseReason = {
   message: 'The lease policy is published but its source no longer lists it; it keeps running as last published',
 };
 
-/** D3 exclusion of a candidate node; a node Gateway has no docker row for cannot be reached at all. */
+/** D3 exclusion of a candidate node; a node Opfield has no docker row for cannot be reached at all. */
 export function participantExclusion(participants: LeaseParticipants, nodeId: string) {
   const participant = participants.byId.get(nodeId);
   return participant ? participant.exclusion : ('offline' as const);
@@ -60,9 +60,9 @@ export function impossibleSince(reason: DockerAvailabilityLeaseReason | null | u
 }
 
 /**
- * Graceful close: the retained holders a new closed manifest names, one per slot: the committed holder Gateway sees
+ * Graceful close: the retained holders a new closed manifest names, one per slot: the committed holder Opfield sees
  * for the slot now (its ballot is the one it proposed with). Closing from bootstrapping also names each slot's
- * reserved holder Gateway saw no commit of, with an empty ballot: if its bootstrap commit raced the close the acceptors
+ * reserved holder Opfield saw no commit of, with an empty ballot: if its bootstrap commit raced the close the acceptors
  * confirm it on the commit they hold and its copy is retained instead of fenced; if it never committed nothing changes
  * (its legacy copy was never lease-bound). Any other unheld slot has none; its holder, if any, fences.
  */

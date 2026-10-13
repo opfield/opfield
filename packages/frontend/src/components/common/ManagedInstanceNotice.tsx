@@ -2,7 +2,7 @@ import { Notice, type NoticeTone } from "@/components/common/Notice";
 
 /**
  * What a managed database's or storage's node reports about its engine and
- * disk, as Gateway records it in the instance's `lastError` with a code
+ * disk, as Opfield records it in the instance's `lastError` with a code
  * prefix (see the backend's managed-engine-condition): a disk repair in
  * progress or failed, the engine's out-of-memory kills or other restarts, a
  * disk repaired lately, or a node disk promised more than it holds.

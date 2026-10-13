@@ -127,7 +127,7 @@ export function getEffectiveNodeServiceAddress(node: {
 
 /**
  * Returns the address exposed by a published managed database. When TLS is
- * enabled this must be an IP literal, because Gateway-issued database
+ * enabled this must be an IP literal, because Opfield-issued database
  * certificates intentionally contain all reported node IP SANs, never an
  * arbitrary configured hostname.
  */
@@ -139,7 +139,7 @@ export function getEffectivePublishedNodeIP(node: {
   const configured = getConfiguredNodeServiceAddresses(node)[0];
   if (configured && isIP(configured) !== 0) return configured;
   // Automatic service-address selection is local-first everywhere else in
-  // Gateway. Keep published TLS endpoints consistent with that choice; all
+  // Opfield. Keep published TLS endpoints consistent with that choice; all
   // reported IPs are included in the database certificate SANs. A configured
   // hostname cannot be a TLS endpoint identity, so retain the public-first
   // fallback for that explicit direct-access intent.

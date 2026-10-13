@@ -58,7 +58,7 @@ export function createLogStreamHandlers(deps: GrpcServerDeps) {
         const initialConnectionId = initialConnectedNode?.connectionId;
         if (!initialConnectedNode || !initialConnectionId) {
           // A daemon opens its log stream right after it sent Register; the registration may not have finished
-          // yet (every Gateway or daemon restart). The daemon opens it again, so this is not worth a warning.
+          // yet (every Opfield or daemon restart). The daemon opens it again, so this is not worth a warning.
           logger.debug('Log stream rejected: node is not connected yet', { nodeId });
           stream.end();
           return;

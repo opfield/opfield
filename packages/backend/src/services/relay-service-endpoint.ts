@@ -25,11 +25,11 @@ export interface RelayServiceEndpoint {
 }
 
 /**
- * Where a relay supervisor's runtime status says daemons reach its worker, when that differs from what Gateway holds;
+ * Where a relay supervisor's runtime status says daemons reach its worker, when that differs from what Opfield holds;
  * null when it does not. The supervisor reports the port its worker listens on, and that port is what daemons must
  * dial, whatever was chosen when the node was created. An operator may list more addresses than the one the installer
- * advertised (a NAT address, a second interface), so Gateway keeps its list while the report names only addresses on
- * it. A report naming an address Gateway does not list means the relay was installed again with another address: the
+ * advertised (a NAT address, a second interface), so Opfield keeps its list while the report names only addresses on
+ * it. A report naming an address Opfield does not list means the relay was installed again with another address: the
  * reported addresses replace the list.
  */
 export function reportedRelayServiceEndpoint(

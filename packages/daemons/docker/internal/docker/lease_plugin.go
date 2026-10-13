@@ -17,7 +17,7 @@ import (
 const (
 	// availabilityLeaseCapability is versioned (D3): v2 carries the sender
 	// clock in lease frames (peer-time freeze detection, D4) and releases
-	// after a confirmed local fence. Gateway treats v1 as outdated.
+	// after a confirmed local fence. Opfield treats v1 as outdated.
 	availabilityLeaseCapability = "availability_lease_v2"
 	// leaseWatchdogStartupWait lets a watchdog that boots after the daemon
 	// prove itself before the registration capabilities are computed.
@@ -69,8 +69,8 @@ type leaseIntegration struct {
 }
 
 // initAvailabilityLease starts the lease runtime on a general Docker node.
-// It runs for the life of the process, independent of the Gateway session:
-// fencing and failover must keep working while the Gateway is down.
+// It runs for the life of the process, independent of the Opfield session:
+// fencing and failover must keep working while Opfield is down.
 func (p *DockerPlugin) initAvailabilityLease() {
 	stored, err := state.Load(p.cfg.StateDir)
 	if err != nil || stored.NodeID == "" {
@@ -190,7 +190,7 @@ func (l *leaseIntegration) stop() {
 // leaseCapabilities advertises availability_lease_v2 whenever the lease
 // runtime runs: it names the protocol this daemon speaks, not the node's
 // state. Watchdog readiness travels in every lease report (watchdog_ready)
-// and Gateway excludes a node without a live watchdog from holding (D3,
+// and Opfield excludes a node without a live watchdog from holding (D3,
 // watchdog_missing), so a watchdog restart no longer changes the
 // registration. The missing-watchdog marker is added when this daemon cannot
 // install one, so the exclusion reason asks to re-run the node installer.

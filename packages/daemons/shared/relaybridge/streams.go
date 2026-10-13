@@ -72,7 +72,7 @@ func PlaceStream(assignment *pb.RelayGrantAssignment, relayID string, generation
 	case stays && own != nil && own.GetDrainDeadlineUnixMs() == 0:
 		// Placement drained the generation and the relay serves the new one:
 		// the stream stays on its path. The relay keeps a draining
-		// generation's tunnels, and Gateway retires a generation only once no
+		// generation's tunnels, and Opfield retires a generation only once no
 		// tunnel uses it. Re-pathing every stream onto the same relay under the
 		// new grant moved all of them whenever a relay joined or left the
 		// assignment, also one that carried none of them (stand 2.12 R-5, N-2).

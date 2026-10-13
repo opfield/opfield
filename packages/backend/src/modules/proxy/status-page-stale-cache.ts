@@ -1,15 +1,15 @@
 import { escapeNginxReturnText, opfieldStatusPageUnavailableHtml } from '@/lib/opfield-error-pages.js';
 
 /**
- * Status page routes (C-2). A status page must stay up exactly when things are down, but its upstream is Gateway
- * itself: every Gateway update used to answer 502 for 11-12 s on the public status page. The ingress node now keeps
+ * Status page routes (C-2). A status page must stay up exactly when things are down, but its upstream is Opfield
+ * itself: every Opfield update used to answer 502 for 11-12 s on the public status page. The ingress node now keeps
  * the last good responses of the route (the page, its assets and the status API it polls, all served through the
- * same route) and serves them while Gateway refuses connections, times out or answers 5xx/429; a page that was never
+ * same route) and serves them while Opfield refuses connections, times out or answers 5xx/429; a page that was never
  * cached gets a small self-reloading fallback instead of a bare 502.
  *
  * Freshness: a cached response counts as fresh for STATUS_PAGE_CACHE_VALID_SECONDS only; after that every request goes
- * to Gateway again and gets live data (no background update, which would always answer with the previous copy). The
- * stale copies stay on disk for STATUS_PAGE_CACHE_INACTIVE so a long outage still shows the last good page. Gateway
+ * to Opfield again and gets live data (no background update, which would always answer with the previous copy). The
+ * stale copies stay on disk for STATUS_PAGE_CACHE_INACTIVE so a long outage still shows the last good page. Opfield
  * marks the page no-store for browsers; the ingress cache ignores that header for itself but passes it on, so browsers
  * still never keep a copy. Responses that set a cookie are never cached.
  *
@@ -17,7 +17,7 @@ import { escapeNginxReturnText, opfieldStatusPageUnavailableHtml } from '@/lib/o
  */
 export const STATUS_PAGE_CACHE_VALID_SECONDS = 5;
 export const STATUS_PAGE_CACHE_INACTIVE = '7d';
-/** Gateway down means a refused connection or no answer; a status page does not wait a minute for it. */
+/** Opfield down means a refused connection or no answer; a status page does not wait a minute for it. */
 const STATUS_PAGE_TIMEOUTS = {
   proxy_connect_timeout: '5s',
   proxy_send_timeout: '15s',
@@ -110,7 +110,7 @@ function fallbackLocation(hostId: string, indent: string, hideExternalBranding: 
 }
 
 /**
- * Adds the stale-serving cache to every location of the rendered status page config that proxies to Gateway, plus
+ * Adds the stale-serving cache to every location of the rendered status page config that proxies to Opfield, plus
  * the cache zone (http level) and one fallback location per server block. A config whose template manages caching
  * itself, or that has no proxying location (a redirect), is returned unchanged.
  */

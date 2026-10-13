@@ -8,14 +8,14 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// RelayProtectedWitnessAllowedCapability tells Gateway that the owner of a
+// RelayProtectedWitnessAllowedCapability tells Opfield that the owner of a
 // protected relay allows database availability witness processes on it
 // (protected.allow_database_witness). A protected relay without it must not
 // get one.
 const RelayProtectedWitnessAllowedCapability = "relay_protected_witness_allowed_v1"
 
 // localServiceSubjectKind is the policy endpoint kind of a built-in local
-// service (the internal registry next to the Gateway). Only the local relay
+// service (the internal registry next to Opfield). Only the local relay
 // serves one; a remote relay would dial its fixed name on its own host's
 // network.
 const localServiceSubjectKind = "local_service"

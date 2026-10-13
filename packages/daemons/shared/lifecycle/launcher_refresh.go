@@ -6,7 +6,7 @@ package lifecycle
 // it, so a node keeps the launcher code it was first installed with. A refresh
 // moves the copy forward without ever exposing a node to an unproven launcher:
 //
-//  1. stage: once the gateway accepted a committed daemon, the daemon copies
+//  1. stage: once Opfield accepted a committed daemon, the daemon copies
 //     its own binary to <launcher>.next and journals a trial. The launcher copy
 //     itself is untouched, and nothing is staged while an update is pending.
 //  2. trial: the running launcher execs <launcher>.next in place at a safe
@@ -433,7 +433,7 @@ func fallBackFromLauncherTrial(spec LauncherSpec, trial *launcherRefreshTrial, l
 }
 
 // scheduleLauncherRefresh stages this daemon's binary as the next launcher
-// once its update, if any, is committed. It runs after the gateway accepted
+// once its update, if any, is committed. It runs after Opfield accepted
 // the daemon, so only a committed daemon that reached control is staged.
 func scheduleLauncherRefresh(version string, logger *slog.Logger) {
 	if launcherManagedFromEnvironment() != "1" || strings.TrimSpace(version) == "" {

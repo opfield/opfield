@@ -9,7 +9,7 @@ import (
 )
 
 // maxHostPortPicks bounds how often a picked host port is skipped (another
-// Gateway workload reserves it, or it was taken before Docker bound it)
+// Opfield workload reserves it, or it was taken before Docker bound it)
 // before a managed database create fails.
 const maxHostPortPicks = 16
 

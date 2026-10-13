@@ -18,7 +18,7 @@ const (
 	TaskFailed    TaskStatus = "failed"
 )
 
-// TaskCommandLookupCapability tells Gateway that task_status also finds a task by the Gateway command that started it,
+// TaskCommandLookupCapability tells Opfield that task_status also finds a task by the Opfield command that started it,
 // and that a command this daemon process has no task of did not run here (it never arrived, or the daemon restarted).
 const TaskCommandLookupCapability = "docker_task_command_lookup_v1"
 
@@ -28,7 +28,7 @@ type Task struct {
 	Status    TaskStatus `json:"status"`
 	Container string     `json:"container"`
 	Type      string     `json:"type"`
-	// CommandID is the Gateway command that started the task: Gateway asks for the task by it when it lost the answer
+	// CommandID is the Opfield command that started the task: Opfield asks for the task by it when it lost the answer
 	// that named the task (it restarted, or the control stream dropped before the answer arrived).
 	CommandID  string     `json:"commandId,omitempty"`
 	Error      string     `json:"error,omitempty"`
@@ -42,7 +42,7 @@ type Task struct {
 type TaskManager struct {
 	mu        sync.Mutex
 	tasks     map[string]*Task
-	byCommand map[string]string // Gateway command ID to task ID
+	byCommand map[string]string // Opfield command ID to task ID
 	inFlight  map[string]bool   // keyed by container identifier
 	cancels   map[string]context.CancelFunc
 	done      map[string]chan struct{}
@@ -68,7 +68,7 @@ func (m *TaskManager) Submit(containerID, taskType string, timeout time.Duration
 	return m.SubmitForCommand("", containerID, taskType, timeout, fn)
 }
 
-// SubmitForCommand is Submit for the Gateway command commandID: Get then also finds the task by that ID. An empty
+// SubmitForCommand is Submit for the Opfield command commandID: Get then also finds the task by that ID. An empty
 // commandID records none.
 func (m *TaskManager) SubmitForCommand(commandID, containerID, taskType string, timeout time.Duration, fn func(ctx context.Context) error) (*Task, error) {
 	m.mu.Lock()
@@ -148,7 +148,7 @@ func (m *TaskManager) CancelAndWait(containerID string, timeout time.Duration) b
 	}
 }
 
-// Get returns a snapshot of the task with the given ID, or of the task the Gateway command with that ID started.
+// Get returns a snapshot of the task with the given ID, or of the task the Opfield command with that ID started.
 func (m *TaskManager) Get(id string) (Task, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

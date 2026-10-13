@@ -233,7 +233,7 @@ export async function loadLeaseUpdateView(
   const nodeUpdating = new Map(
     nodeRows.map((row) => {
       const metadata = (row.metadata ?? {}) as Record<string, unknown>;
-      // An update past its deadline (for example one a Gateway restart left behind) no longer holds its peers.
+      // An update past its deadline (for example one an Opfield restart left behind) no longer holds its peers.
       const deadlineAt =
         typeof metadata.updateDeadlineAt === 'string' ? Date.parse(metadata.updateDeadlineAt) : Number.NaN;
       return [

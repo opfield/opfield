@@ -83,7 +83,7 @@ type relayEndpointRegistration struct {
 	// done closes when the registration stream and its tunnels have ended.
 	done chan struct{}
 	// The assignment and serving state last handed to the registration. An identical pair is not
-	// renewed again: Gateway resends unchanged bundles, and each renewal is a relay round trip.
+	// renewed again: Opfield resends unchanged bundles, and each renewal is a relay round trip.
 	latest *pb.RelayGrantAssignment
 	state  relayv1.EndpointServingState
 	// restartAck closes once the relay confirmed a RESTARTING renewal (B-13);
@@ -101,7 +101,7 @@ type relayRegistrationUpdate struct {
 // BackupRelayRoute is a daemon-local TCP entrypoint for one signed, per-run
 // relay connect grant. It accepts concurrent helper connections until Close;
 // it neither opens a host port nor accepts an upstream endpoint supplied by
-// Gateway.
+// Opfield.
 type BackupRelayRoute struct {
 	Address  string
 	listener net.Listener
@@ -196,7 +196,7 @@ func (r *relayTunnelRouter) reconcileRegistrations() []chan struct{} {
 	r.enforceRevocationFences(bundle)
 	if r.plugin.relayGrants.registrationHold(time.Now()) > 0 {
 		// Grants restored from disk may predate the relay's policy and no
-		// registration exists yet: wait for Gateway's bundle (relayGrantRestoreHold).
+		// registration exists yet: wait for Opfield's bundle (relayGrantRestoreHold).
 		return nil
 	}
 	desired := map[string]relayRegistrationUpdate{}
@@ -380,7 +380,7 @@ const (
 	relayRegistrationRetryMax     = 15 * time.Second
 	// A registration refused because its grant and the relay's policy do not
 	// match yet is retried every relayPolicyCatchUpRetry (jittered) for
-	// relayPolicyCatchUpWindow: Gateway pushes the policy to the relays and
+	// relayPolicyCatchUpWindow: Opfield pushes the policy to the relays and
 	// the grants to the daemons at once, and the slower of the two follows
 	// within seconds. Longer than that, the regular backoff applies.
 	relayPolicyCatchUpRetry  = 400 * time.Millisecond
@@ -517,7 +517,7 @@ func (r *relayTunnelRouter) runRegistration(ctx context.Context, update relayReg
 			// down or keeps refusing are not (838 lines in 2 min, stand run c).
 			log = r.plugin.logger.Debug
 		case relayRegistrationPlannedEnd(err):
-			// A relay that stops for its update, or a registration Gateway's
+			// A relay that stops for its update, or a registration Opfield's
 			// policy moved (an update of this daemon or a Relay Pool update
 			// moving the endpoint to another generation), registers again at
 			// once: no failure (rc.10 upgrade run F-4, stand rc.10 O-2).
@@ -603,7 +603,7 @@ func (r *relayTunnelRouter) acceptIncoming(ctx context.Context, assignment *pb.R
 	setup()
 	dialed, err := r.dialEndpoint(ctx, assignment)
 	if err == nil && dialed.postgres != nil {
-		// Links and the Gateway's database tools: TLS-enabled PostgreSQL gets
+		// Links and Opfield's database tools: TLS-enabled PostgreSQL gets
 		// TLS from this daemon unless the client negotiates it itself.
 		dialed.conn, err = r.plugin.databaseManager.prepareLinkConnection(ctx, dialed.conn, *dialed.postgres, tunnel, cancel)
 	}
@@ -622,7 +622,7 @@ func (r *relayTunnelRouter) acceptIncoming(ctx context.Context, assignment *pb.R
 		return
 	}
 	connection := dialed.conn
-	// A raw stream (a source without RSv1, or a route Gateway did not make resumable) lives in this process.
+	// A raw stream (a source without RSv1, or a route Opfield did not make resumable) lives in this process.
 	rawClass := cutRawStream
 	if _, terminated := connection.(*tls.Conn); terminated {
 		rawClass = cutPostgresTLS
@@ -651,7 +651,7 @@ func (r *relayTunnelRouter) acceptIncoming(ctx context.Context, assignment *pb.R
 		return
 	}
 	// No idle limit of its own: the endpoint serves link routes, whose pooled connections stay open while idle, and
-	// Gateway's own and backup routes, whose idle tunnels the relay ends by their route policy. Only the relay knows
+	// Opfield's own and backup routes, whose idle tunnels the relay ends by their route policy. Only the relay knows
 	// which route a tunnel is for.
 	_ = bridgeRelayConnection(connection, tunnel, int(first.GetReady().MaxFrameBytes), r.plugin.relayReadChunk(), 0, cancel)
 }
@@ -1101,7 +1101,7 @@ type relayBridgeResult struct {
 	err      error
 }
 
-// bridgeRelayConnection carries connection over stream, reading at most readChunk bytes per frame (Gateway's relay
+// bridgeRelayConnection carries connection over stream, reading at most readChunk bytes per frame (Opfield's relay
 // read chunk; 0: the frame limit): a 1 MiB buffer per connection and 1 MiB frames on a lane shared with small requests
 // were the old default. idle ends the tunnel once the connection carried no byte for that long. With 0 an idle
 // tunnel stays open, and a peer that is gone still ends it: the relay ends the stream when the other side's lane

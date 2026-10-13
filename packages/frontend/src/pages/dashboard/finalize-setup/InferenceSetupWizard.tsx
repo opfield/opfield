@@ -43,7 +43,7 @@ type SourceOption = {
 
 // The guided setup enables subscription-backed providers without imposing a
 // spending cap. API-backed sources remain disabled until an administrator
-// explicitly configures an API budget in Gateway Inference settings.
+// explicitly configures an API budget in Opfield Inference settings.
 const ONBOARDING_DEFAULT_LIMITS: InferenceLimitInput = {
   enabled: true,
   credits5hEnabled: false,

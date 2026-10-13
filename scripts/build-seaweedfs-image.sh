@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Gateway's patched SeaweedFS runtime image (packages/daemons/seaweedfs-image).
+# Builds Opfield's patched SeaweedFS runtime image (packages/daemons/seaweedfs-image).
 #   scripts/build-seaweedfs-image.sh                 local image for this machine's platform, loaded into Docker
 #   scripts/build-seaweedfs-image.sh --push <tag>    multi-arch image pushed as <tag> (CI)
 set -euo pipefail

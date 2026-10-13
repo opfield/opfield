@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Env } from '@/config/env.js';
 import { checkOutboundWebhookTarget, DEFAULT_OUTBOUND_WEBHOOK_POLICY } from './outbound-webhook-policy.service.js';
 
-// The Gateway hostname resolves to a public address without asking real DNS, which can outlast the test timeout in CI.
+// The Opfield hostname resolves to a public address without asking real DNS, which can outlast the test timeout in CI.
 vi.mock('node:dns/promises', () => ({
   lookup: vi.fn(async () => [{ address: '203.0.113.1', family: 4 }]),
 }));

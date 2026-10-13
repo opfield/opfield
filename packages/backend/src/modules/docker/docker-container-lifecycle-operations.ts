@@ -27,7 +27,7 @@ function signalEndsProcess(signal: string): boolean {
 
 /**
  * How long a lifecycle request waits for its result before it answers that the operation still runs: well below the
- * 60 s read timeout of a reverse proxy in front of Gateway, so a slow stop never ends in a proxy timeout.
+ * 60 s read timeout of a reverse proxy in front of Opfield, so a slow stop never ends in a proxy timeout.
  */
 export const LIFECYCLE_ANSWER_WAIT_MS = 45_000;
 
@@ -332,7 +332,7 @@ export async function killContainer(
   await ctx.validateDockerNode(nodeId);
   // A trusted stable name is supplied only for an already-authorized lifecycle
   // transition whose runtime may be temporarily absent. Direct kill requests
-  // must still prove that the target is not a Gateway-owned container.
+  // must still prove that the target is not an Opfield-owned container.
   if (!trustedStableName) await ctx.assertNotManagedDeploymentInternal(nodeId, containerId);
   const name = trustedStableName ?? (await ctx.resolveContainerName(nodeId, containerId));
   if (!(await containerHasProcessToStop(ctx, nodeId, containerId))) {

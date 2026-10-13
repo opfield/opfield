@@ -190,7 +190,7 @@ export type AIResourceReferenceRelation = 'read' | 'created' | 'updated' | 'dele
 export type AIResourceAppearanceColor = 'blue' | 'red' | 'green' | 'yellow' | 'purple' | 'pink' | 'orange';
 
 /**
- * Server-issued identity for an internal Gateway resource mentioned by the model.
+ * Server-issued identity for an internal Opfield resource mentioned by the model.
  * The frontend derives href/icon/color from this allowlisted data; the model never supplies an href.
  */
 export interface AIResourceReference {
@@ -203,7 +203,7 @@ export interface AIResourceReference {
   nodeSlug?: string;
   slug?: string;
   appearanceColor?: AIResourceAppearanceColor;
-  /** Canonical Gateway route issued by the backend; absent only on legacy stored references. */
+  /** Canonical Opfield route issued by the backend; absent only on legacy stored references. */
   uiHref?: string;
   workspaceEmbeddable?: boolean;
 }
@@ -419,7 +419,7 @@ export type WSServerMessage =
       rejected?: boolean;
       /** Internal control payload. Persisted/published separately from model-visible tool output. */
       clientAction?: Record<string, unknown>;
-      /** Trusted internal Gateway resource identities derived from this tool result. */
+      /** Trusted internal Opfield resource identities derived from this tool result. */
       resourceReferences?: AIResourceReference[];
     }
   | {

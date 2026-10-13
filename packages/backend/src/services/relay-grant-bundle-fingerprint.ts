@@ -29,7 +29,7 @@ function grantContent(grant: SignedRelayGrant | undefined): unknown {
  * Two bundles with the same fingerprint carry the same assignments, candidates, fences and runtime
  * settings; only the freshness of their grants can differ. The revision stays in: bundles also
  * reach daemons outside syncNodeGrantBundle (managed storage links send theirs directly), so a
- * bundle Gateway recorded may no longer be the one a daemon holds once the policy moved on.
+ * bundle Opfield recorded may no longer be the one a daemon holds once the policy moved on.
  */
 export function relayGrantBundleFingerprint(bundle: RelayGrantBundle): string {
   const content = {

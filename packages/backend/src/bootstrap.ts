@@ -740,7 +740,7 @@ export async function initializeContainer(): Promise<void> {
     });
     container.registerInstance(RelayControlClient, relayControlClient);
     relayPolicyService = new RelayPolicyService(db, cryptoService, generalSettingsService, relayControlClient);
-    // Gateway's own tunnels (database tools, storage browser, copy jobs) move their bytes in a worker thread.
+    // Opfield's own tunnels (database tools, storage browser, copy jobs) move their bytes in a worker thread.
     const tunnelLogger = createChildLogger('RelayTunnelWorker');
     relayPolicyService.setOpfieldTunnels(
       RelayTunnelHost.inWorker(relayControlClient, {
@@ -753,7 +753,7 @@ export async function initializeContainer(): Promise<void> {
 
   const webIdentityService = new WebIdentityService(env, systemCA);
   container.registerInstance(WebIdentityService, webIdentityService);
-  // Renews Gateway's own TLS identities while it runs and hot-reloads them; also the one
+  // Renews Opfield's own TLS identities while it runs and hot-reloads them; also the one
   // refresh path settings changes and first-run setup use.
   const opfieldIdentityRenewal = new OpfieldIdentityRenewalService({
     env,
@@ -1186,7 +1186,7 @@ export async function initializeContainer(): Promise<void> {
   nginxTemplateService.setEventBus(eventBus);
   dockerRegistryService.setEventBus(eventBus);
 
-  // Grants for Gateway's own tunnels name the client certificate the relay client presents. After
+  // Grants for Opfield's own tunnels name the client certificate the relay client presents. After
   // a restart that is the previous one until the local relay confirms the renewed identity.
   appRelayClientFingerprint = relayControlClient?.activeClientCertificateSha256() ?? appRelayClientFingerprint;
   const managedDatabaseTunnelProxy = commercialEdition.createManagedDatabase(
@@ -1546,7 +1546,7 @@ export async function initializeContainer(): Promise<void> {
   // Members of database and storage availability sets: node configuration and health-stream reports.
   const availabilityMembers = new AvailabilityMembersService(db, nodeDispatch);
   availabilityMembers.setAssignmentSigner(container.resolve(AvailabilityAssignmentSigner));
-  // Manual pairs' primaries keep serving only while they hear from Gateway (or their copy): asked every 5 s.
+  // Manual pairs' primaries keep serving only while they hear from Opfield (or their copy): asked every 5 s.
   availabilityMembers.startManualPairContact((nodeId) => nodeRegistry.requestHealthReport(nodeId, 4_000));
   container.registerInstance(AvailabilityMembersService, availabilityMembers);
   // Database and storage availability sets run on one shared orchestration; both get the same host parts.
@@ -2159,9 +2159,9 @@ export async function initializeContainer(): Promise<void> {
     });
   });
   relayPoolService?.setLocalRelayOutage(relaySupervisor, nodeRegistry);
-  // Gateway's own relayed streams avoid the local relay while it does not serve, and return to it once it is stable.
+  // Opfield's own relayed streams avoid the local relay while it does not serve, and return to it once it is stable.
   relayPolicyService?.setLocalRelayOutage(relaySupervisor);
-  // They take the nearest remote relay then: Gateway measures every one of the pool all the time, as daemons do.
+  // They take the nearest remote relay then: Opfield measures every one of the pool all the time, as daemons do.
   relayPolicyService?.measureOpfieldRelayPaths();
 
   // Update service
@@ -2401,7 +2401,7 @@ export async function initializeContainer(): Promise<void> {
       },
     });
   }
-  // Report a rolled-back Gateway update and fail Relay Pool runs this restart interrupted.
+  // Report a rolled-back Opfield update and fail Relay Pool runs this restart interrupted.
   updateService.setAuditLog(auditService);
   await updateService.recoverInterruptedUpdates();
 

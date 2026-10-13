@@ -18,7 +18,7 @@ export function containerAnonymousVolumes(inspect: Record<string, any> | null | 
 
 /**
  * Removes the anonymous volumes of a removed container. Docker keeps them, and nothing reaches them afterwards (the
- * volume list hides anonymous volumes). A volume another container still uses stays, and so does one Gateway manages
+ * volume list hides anonymous volumes). A volume another container still uses stays, and so does one Opfield manages
  * (an adopted anonymous volume keeps its data); a failure never fails the container removal that already happened.
  */
 export async function removeContainerAnonymousVolumes(

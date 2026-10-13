@@ -11,7 +11,7 @@
  *   registration: it proves the path as well, and a load that passes by itself must not fail the placement (stand 2.12
  *   N-1).
  * - A transient condition proves nothing about the placement either: the daemon was busy, a node or the local relay
- *   was briefly unreachable, or a Gateway restart interrupted the preparation. Such a generation is rolled back as
+ *   was briefly unreachable, or an Opfield restart interrupted the preparation. Such a generation is rolled back as
  *   not attempted and retried shortly, instead of being recorded as a failure.
  * - Everything else (a relay that refuses the grant, a missing candidate grant, a source that cannot reach the relay)
  *   is a genuine failure and stays visible.
@@ -42,9 +42,9 @@ const DISPATCH_REFUSED = [
 
 /** Transient, but already slow to surface: retried by a later attempt rather than within the preparation. */
 const TRANSIENT_LATER = [
-  // Gateway's command deadline; the daemon did not answer in time.
+  // Opfield's command deadline; the daemon did not answer in time.
   /^Command \S+ timed out after \d+ms$/,
-  // Gateway's own gRPC channel to the local relay while it restarts (grpc-js status 14).
+  // Opfield's own gRPC channel to the local relay while it restarts (grpc-js status 14).
   /\b14 UNAVAILABLE\b/,
   /Channel has been shut down/i,
   // The local relay has not applied the policy revision the grants were signed for yet.

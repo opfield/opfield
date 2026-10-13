@@ -423,7 +423,7 @@ func (m *managedStorageManager) createSetContainer(ctx context.Context, record m
 		return "", fmt.Errorf("create the SeaweedFS %s container: %w", role, err)
 	}
 	if role == swha.RoleFiler {
-		// Links and Gateway's tools reach S3 on the storage network, as for a
+		// Links and Opfield's tools reach S3 on the storage network, as for a
 		// single node.
 		if _, err := m.client.cli.NetworkConnect(ctx, record.NetworkName, mobyclient.NetworkConnectOptions{
 			Container: created.ID, EndpointConfig: &network.EndpointSettings{Aliases: []string{"s3"}},
@@ -451,7 +451,7 @@ func (m *managedStorageManager) createSetStorageNetwork(ctx context.Context, rec
 
 // createSetMember creates a new member of a set (a copy): its disk, staged
 // files and containers; the volume server and filer start, the master is only
-// created. The member runtime takes it over once Gateway configures it.
+// created. The member runtime takes it over once Opfield configures it.
 func (m *managedStorageManager) createSetMember(ctx context.Context, id string, input managedStorageCommand) (managedStorageRecord, error) {
 	set := *input.Set
 	input.MemberIndex = int(set.MemberIndex)

@@ -530,7 +530,7 @@ func engineEnvironment(input managedDatabaseCommand) []string {
 			"CLICKHOUSE_USER=" + input.OwnerUsername,
 			"CLICKHOUSE_PASSWORD=" + input.OwnerPassword,
 			"CLICKHOUSE_DB=" + input.DatabaseName,
-			// Gateway's internal owner creates and revokes the isolated users used
+			// Opfield's internal owner creates and revokes the isolated users used
 			// by direct publication and secure bindings. The official image keeps
 			// SQL access management disabled unless this flag is explicit.
 			"CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1",
@@ -675,7 +675,7 @@ func marshalManagedDatabaseRuntimeStats(stats managedDatabaseRuntimeStats) (stri
 // the storage is really gone: container, then mount, then loop device (waiting
 // until the kernel has released it), then image and record. A step that fails
 // is reported and leaves the record marked Deleting, so a repeated delete or
-// the repair pass completes it instead of the Gateway losing track of a mount
+// the repair pass completes it instead of Opfield losing track of a mount
 // or loop device that is still held.
 func (m *managedDatabaseManager) remove(ctx context.Context, record managedDatabaseRecord) error {
 	if !record.Deleting {
@@ -829,7 +829,7 @@ func (m *managedDatabaseManager) reconcile(ctx context.Context) error {
 		}
 		id := strings.TrimSuffix(entry.Name(), ".json")
 		// One broken database (container removed, volume missing, unreadable record) must not keep the whole node
-		// offline: the node comes up with the others, and Gateway sees this one as not running and can repair it.
+		// offline: the node comes up with the others, and Opfield sees this one as not running and can repair it.
 		record, err := m.loadRecord(id)
 		if err != nil {
 			m.logger.Warn("managed database record could not be read at startup", "id", id, "path", m.recordPath(id), "error", err)

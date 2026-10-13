@@ -120,7 +120,7 @@ describe('relay session limits', () => {
 
   it('gives a database link its database limit and leaves HTTP links uncapped', () => {
     expect(effectiveRelayMaxConcurrentSessions(databaseLinkRoute, sessionLimits)).toBe(500);
-    // A database Gateway does not know (no limits loaded) keeps the link capacity.
+    // A database Opfield does not know (no limits loaded) keeps the link capacity.
     expect(effectiveRelayMaxConcurrentSessions(databaseLinkRoute)).toBe(MANAGED_LINK_RELAY_MAX_CONCURRENT_SESSIONS);
     expect(effectiveRelayMaxConcurrentSessions(databaseEndpoint, sessionLimits)).toBe(564);
     expect(effectiveRelayMaxConcurrentSessions(databaseEndpoint)).toBe(256);

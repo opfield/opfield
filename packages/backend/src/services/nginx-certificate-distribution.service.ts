@@ -165,7 +165,7 @@ function repairDelayMs(repairAttempts: number): number {
 }
 
 /** A failed/pending replica is retried only after its backoff elapsed. */
-/** A legacy replica that received an older version than the canonical Gateway asset. */
+/** A legacy replica that received an older version than the canonical Opfield asset. */
 function isLegacyReplicaOutdated(
   replica: Pick<ReplicaRow, 'appliedVersion' | 'desiredVersion'>,
   asset: Pick<AssetRow, 'state' | 'version'>
@@ -192,7 +192,7 @@ function deployedReplicasOnly<T extends Pick<ReplicaRow, 'cleanupAfter' | 'statu
 }
 
 /**
- * Owns the Gateway-side canonical asset and all node-local replica lifecycle.
+ * Owns the Opfield-side canonical asset and all node-local replica lifecycle.
  * No caller receives private material; it is used only to form a bounded daemon
  * command over the existing mTLS control stream.
  */
@@ -217,7 +217,7 @@ export class NginxCertificateDistributionService {
   }
 
   /**
-   * Delivers Gateway material to a daemon without TLS distribution v2 using
+   * Delivers Opfield material to a daemon without TLS distribution v2 using
    * the legacy deployCert command, which writes the fixed legacy paths the
    * host config already references, then re-applies the host config(s) so
    * nginx reloads. Returns `not_legacy` when the node has the v2 capability
@@ -336,7 +336,7 @@ export class NginxCertificateDistributionService {
     let asset = await this.findAsset(reference);
     if (!asset) {
       // Assets created after the migration snapshot are v2 and originate from
-      // Gateway material, never a daemon export.
+      // Opfield material, never a daemon export.
       asset = await this.upsertOpfieldAsset(reference);
     }
 
@@ -547,7 +547,7 @@ export class NginxCertificateDistributionService {
     }
   }
 
-  /** The node already runs this exact bundle as far as Gateway recorded it: the deployment and a ready replica. */
+  /** The node already runs this exact bundle as far as Opfield recorded it: the deployment and a ready replica. */
   private async bundleIsActive(
     hostId: string,
     nodeId: string,

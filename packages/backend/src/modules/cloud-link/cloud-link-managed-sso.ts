@@ -19,7 +19,7 @@ import { type CloudEnrollOwner, type CloudEnrollSso, OIDC_CALLBACK_PATH } from '
 
 const logger = createChildLogger('CloudManagedSso');
 
-/** Subject namespaces Gateway writes itself (see AuthService); an owner from the file can never claim them. */
+/** Subject namespaces Opfield writes itself (see AuthService); an owner from the file can never claim them. */
 const RESERVED_SUBJECT_PREFIXES = ['manual:', 'system:'];
 /** General settings the managed set-up writes, and so the only ones its rollback restores. */
 const GENERAL_FIELDS = ['publicUrl', 'grpcPublicTarget'] as const;

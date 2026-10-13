@@ -162,7 +162,7 @@ export interface NodeHealthReport {
  * postgres_tls, registry, backup, no_handover, service_restart, handshake, over_limit, resume_failed, busy,
  * idle_closed, local_closed, connector_retired, ...). In a last update, `uncounted` stands for every connection of the
  * node: the update handed nothing over and no daemon counted what it cut, because the daemon updated from (or the one
- * a rollback put back) cannot hand connections over (2.11.3 and earlier; Gateway records it), or the daemon it left
+ * a rollback put back) cannot hand connections over (2.11.3 and earlier; Opfield records it), or the daemon it left
  * (2.11.4-rc.7 or earlier) did not count them.
  */
 export interface NodeUpdateConnectionsReport {
@@ -231,7 +231,7 @@ export interface NodeManagedLinkReport {
   /** The binding id; an Availability placement id for a placement's link. */
   ownerId: string;
   activeConnections: number;
-  /** The session limit Gateway signed into the link's grant. */
+  /** The session limit Opfield signed into the link's grant. */
   connectionLimit: number;
   /** Connections the node refused at the link's or the node's limit since its daemon started. */
   rejectedTotal: number;

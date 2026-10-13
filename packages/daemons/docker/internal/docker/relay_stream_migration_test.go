@@ -717,7 +717,7 @@ func TestResumableSourceFallsBackToRawTarget(t *testing.T) {
 		t.Fatal("latched route opened a resumable stream")
 	}
 	echoExact(t, app2, 64*1024)
-	// Gateway turns the route on again with a new key once the target is
+	// Opfield turns the route on again with a new key once the target is
 	// resume-aware: the latch clears with that bundle.
 	source, target := testBundles(5, map[string]string{"relay-a": "active", "relay-b": "active"}, true, true)
 	source.GetGrants()[0].GetStreamResume().KeyId = "v2"
@@ -750,7 +750,7 @@ func TestRawSourceReachesResumableTarget(t *testing.T) {
 	echoExact(t, app, 1<<20)
 }
 
-// A route Gateway no longer assigns ends its resumable streams.
+// A route Opfield no longer assigns ends its resumable streams.
 func TestResumableSourceEndsWhenRouteRevoked(t *testing.T) {
 	pair := newStreamPair(t, true, true)
 	app, tunnel := pair.open()

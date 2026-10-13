@@ -654,7 +654,7 @@ export function AlertDialog({
         severity,
         cooldownSeconds: cooldownNum,
         messageTemplate: messageTemplate || undefined,
-        // Only alerts that resolve send it; empty stores null, so Gateway's resolve text is used.
+        // Only alerts that resolve send it; empty stores null, so Opfield's resolve text is used.
         resolveMessageTemplate:
           resolvable && resolveMessageTemplate.trim() ? resolveMessageTemplate : null,
         webhookIds: selectedWebhookIds,

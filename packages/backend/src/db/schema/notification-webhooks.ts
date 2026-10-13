@@ -20,7 +20,7 @@ export const notificationWebhooks = pgTable(
 
     // Delivery queue. While the target cannot be reached the whole webhook pauses (deliveryPausedUntil) and resumes in
     // order; deliveryFailures counts the unreachable sends in a row (the backoff step). One sender at a time holds the
-    // lease, so deliveries go out in order also with several Gateway instances.
+    // lease, so deliveries go out in order also with several Opfield instances.
     deliveryPausedUntil: timestamp('delivery_paused_until', { withTimezone: true }),
     deliveryFailures: integer('delivery_failures').notNull().default(0),
     deliveryLeaseUntil: timestamp('delivery_lease_until', { withTimezone: true }),

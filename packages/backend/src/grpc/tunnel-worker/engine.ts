@@ -65,7 +65,7 @@ function connectionGone(): Error {
 }
 
 /**
- * One connection of Gateway's own: a loopback socket (a database driver's or the S3 client's connection to an
+ * One connection of Opfield's own: a loopback socket (a database driver's or the S3 client's connection to an
  * endpoint, or the main thread's bridge connection) and the relay tunnel the main thread chose for it.
  */
 interface Slot {
@@ -97,7 +97,7 @@ function candidateOf(candidate: WireCandidate): RelayTunnelCandidate & { relayIn
 }
 
 /**
- * The data plane of Gateway's own Secure Link tunnels, run in the tunnel worker: the relay lane channels (grpc-js,
+ * The data plane of Opfield's own Secure Link tunnels, run in the tunnel worker: the relay lane channels (grpc-js,
  * TLS), RSv1 sessions and the loopback listeners the database drivers and the S3 client connect to, so their bytes
  * never touch the main thread. The main thread decides every placement (assignments, relay order, resumable or raw)
  * and tells the engine what to open; the engine reports accepted connections, dials and stats.
@@ -352,7 +352,7 @@ export class RelayTunnelEngine {
           keyId: config.keyId,
           key: asBuffer(config.key),
           ...(config.halfCloseTimeoutMs !== undefined ? { halfCloseTimeoutMs: config.halfCloseTimeoutMs } : {}),
-          // Where Gateway's own streams go is checked in every Relay Pool update and relay outage: each move is logged.
+          // Where Opfield's own streams go is checked in every Relay Pool update and relay outage: each move is logged.
           onEvent: (event, detail) => {
             if (event === 'migration')
               this.log('info', 'Opfield relay stream moved', { routeId: config.routeId, ...detail });

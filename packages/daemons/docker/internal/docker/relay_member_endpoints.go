@@ -31,8 +31,8 @@ import (
 // ready once its router reaches the active colour's app (an app health check,
 // when it has one, must pass as well). Readiness is probed in the background
 // (never on the data path) and a probe that cannot reach dockerd is no evidence
-// either way: the last result stands. A copy Gateway took out for failing its
-// HTTP health check is not ready until Gateway puts it back
+// either way: the last result stands. A copy Opfield took out for failing its
+// HTTP health check is not ready until Opfield puts it back
 // (availability_http_health.go).
 
 var errMemberEndpointDormant = errors.New("availability member endpoint is dormant")
@@ -138,7 +138,7 @@ func (p *DockerPlugin) decideMemberEndpointState(linkID string) relayv1.Endpoint
 		return relayv1.EndpointServingState_ENDPOINT_SERVING_STATE_DORMANT
 	}
 	if p.availabilityHealth.dormant(policyID) {
-		// Gateway took the copy out: it fails its HTTP health check while
+		// Opfield took the copy out: it fails its HTTP health check while
 		// another copy serves.
 		return relayv1.EndpointServingState_ENDPOINT_SERVING_STATE_DORMANT
 	}

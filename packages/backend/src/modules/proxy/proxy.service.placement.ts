@@ -28,7 +28,7 @@ export interface RoutePlacementChange {
 /**
  * Whether an update request changes a route's placement between a node and an ingress group. A plain node move of a
  * single-node route is not a placement change (the ingress migration path handles it). A group route refuses a
- * different `nodeId` without `ingressGroupId: null`: its node is the group's primary member, maintained by Gateway.
+ * different `nodeId` without `ingressGroupId: null`: its node is the group's primary member, maintained by Opfield.
  */
 export function requestedPlacementChange(
   existing: Pick<ProxyHostRow, 'nodeId' | 'ingressGroupId'>,

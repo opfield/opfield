@@ -283,7 +283,7 @@ async function createWorkspaceDir(): Promise<string> {
     await fs.chmod(workspaceDir, 0o700);
   } catch {
     // Docker Desktop and non-root dev setups may not allow chown. The parent
-    // directory remains private to the gateway process; this keeps the bind
+    // directory remains private to the Opfield process; this keeps the bind
     // writable from the sandbox user in development.
     await fs.chmod(workspaceDir, 0o777).catch(() => {});
   }

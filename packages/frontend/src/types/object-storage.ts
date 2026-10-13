@@ -47,7 +47,7 @@ export interface ManagedObjectStorageCatalogEntry {
   versions: string[];
 }
 
-/** An object storage service provisioned on a dedicated Gateway object-storage node. Credentials are never returned here. */
+/** An object storage service provisioned on a dedicated Opfield object-storage node. Credentials are never returned here. */
 export interface ManagedObjectStorage {
   id: string;
   name: string;

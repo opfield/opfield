@@ -72,7 +72,7 @@ func (PagesRuntimeConfigBindingKind) EnumDescriptor() ([]byte, []int) {
 
 // Maintenance of a route on a daemon that reports proxy_maintenance_flag_v1. Its config carries a guard that answers
 // with the maintenance page only while the daemon keeps the route's flag file, so maintenance starts and ends without
-// an nginx reload. UNSPECIFIED (older gateways, certificate renewals) leaves the flag as it is.
+// an nginx reload. UNSPECIFIED (older Opfield releases, certificate renewals) leaves the flag as it is.
 type ProxyMaintenanceFlag int32
 
 const (
@@ -595,7 +595,7 @@ func (x *MaintenanceAccessReply) GetSessionToken() string {
 	return ""
 }
 
-// Messages FROM daemon TO Gateway
+// Messages FROM daemon TO Opfield
 type DaemonMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
@@ -1170,7 +1170,7 @@ type HealthReport struct {
 	// every managed database and storage link this node serves workloads of.
 	ManagedLinks []*ManagedLinkRuntime `protobuf:"bytes,37,rep,name=managed_links,json=managedLinks,proto3" json:"managed_links,omitempty"`
 	// Smoothed round-trip time from this node to each relay it measured
-	// recently. Gateway places relay assignments by network distance with it.
+	// recently. Opfield places relay assignments by network distance with it.
 	RelayLatencies []*RelayLatencySample `protobuf:"bytes,40,rep,name=relay_latencies,json=relayLatencies,proto3" json:"relay_latencies,omitempty"`
 	// Daemons advertising relay_stream_resume_v1: their relay stream sessions.
 	RelayStreams *RelayStreamStats `protobuf:"bytes,41,opt,name=relay_streams,json=relayStreams,proto3" json:"relay_streams,omitempty"`
@@ -2079,7 +2079,7 @@ type ManagedLinkRuntime struct {
 	// The binding id; an Availability placement id for a placement's link.
 	OwnerId           string `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	ActiveConnections uint32 `protobuf:"varint,3,opt,name=active_connections,json=activeConnections,proto3" json:"active_connections,omitempty"`
-	// The session limit Gateway signed into the link's grant.
+	// The session limit Opfield signed into the link's grant.
 	ConnectionLimit uint32 `protobuf:"varint,4,opt,name=connection_limit,json=connectionLimit,proto3" json:"connection_limit,omitempty"`
 	// Connections this node refused since the daemon started because the link
 	// or the node was at its limit. The relays count their own refusals.
@@ -2214,7 +2214,7 @@ type RelayLatencySample struct {
 	RttMicros uint32 `protobuf:"varint,2,opt,name=rtt_micros,json=rttMicros,proto3" json:"rtt_micros,omitempty"`
 	// How long this daemon has failed to reach the relay (its lanes are down,
 	// or its probes go unanswered), in milliseconds; 0 while it reaches it.
-	// Gateway takes a relay whose control stream ended out of placement at
+	// Opfield takes a relay whose control stream ended out of placement at
 	// once when the daemons that measure it all fail to reach it.
 	FailingMs     uint32 `protobuf:"varint,3,opt,name=failing_ms,json=failingMs,proto3" json:"failing_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2564,17 +2564,17 @@ func (x *NetworkInterface) GetIpAddresses() []string {
 	return nil
 }
 
-// Messages FROM Gateway TO daemon
+// Messages FROM Opfield TO daemon
 type OpfieldCommand struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	CommandId string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
 	// Optional absolute dispatch deadline in Unix milliseconds. Zero means no
-	// deadline (older gateways). A daemon rejects a command that has already
-	// expired when it is received instead of executing work the gateway no
+	// deadline (older Opfield releases). A daemon rejects a command that has already
+	// expired when it is received instead of executing work Opfield no
 	// longer waits for; older daemons ignore the field.
 	ExpiresAtUnixMs int64 `protobuf:"varint,72,opt,name=expires_at_unix_ms,json=expiresAtUnixMs,proto3" json:"expires_at_unix_ms,omitempty"`
-	// Gateway wall clock in Unix milliseconds when the command was sent. Lets a
-	// daemon judge expires_at_unix_ms against the gateway clock instead of its
+	// Opfield wall clock in Unix milliseconds when the command was sent. Lets a
+	// daemon judge expires_at_unix_ms against the Opfield clock instead of its
 	// own, so clock skew between the two does not expire commands. A daemon
 	// skips the deadline check when this is zero; older daemons ignore it.
 	SentAtUnixMs int64 `protobuf:"varint,73,opt,name=sent_at_unix_ms,json=sentAtUnixMs,proto3" json:"sent_at_unix_ms,omitempty"`
@@ -3566,7 +3566,7 @@ type OpfieldCommand_DockerRuntime struct {
 }
 
 type OpfieldCommand_PagesUploadInit struct {
-	// Gateway Pages v1. Nginx daemon accepts these only as its bounded Pages
+	// Opfield Pages v1. Nginx daemon accepts these only as its bounded Pages
 	// runtime, which owns all paths below nginx.pages_root.
 	PagesUploadInit *PagesUploadInitCommand `protobuf:"bytes,42,opt,name=pages_upload_init,json=pagesUploadInit,proto3,oneof"`
 }
@@ -3616,7 +3616,7 @@ type OpfieldCommand_PagesDeployCertificate struct {
 }
 
 type OpfieldCommand_PagesStageRuntimeConfig struct {
-	// Gateway Pages runtime configuration v1. These commands only accept
+	// Opfield Pages runtime configuration v1. These commands only accept
 	// opaque route IDs or validated preview hostnames; the daemon derives all
 	// runtime-config paths below nginx.pages_root.
 	PagesStageRuntimeConfig *PagesStageRuntimeConfigCommand `protobuf:"bytes,54,opt,name=pages_stage_runtime_config,json=pagesStageRuntimeConfig,proto3,oneof"`
@@ -3681,7 +3681,7 @@ type OpfieldCommand_DockerBuildEventAck struct {
 }
 
 type OpfieldCommand_DockerAvailability struct {
-	// Generation-fenced placement lifecycle for Gateway-owned multi-node
+	// Generation-fenced placement lifecycle for Opfield-owned multi-node
 	// Availability. Accepted only by a general Docker daemon advertising
 	// docker_availability_v1; nodes never form a peer cluster.
 	DockerAvailability *DockerAvailabilityCommand `protobuf:"bytes,69,opt,name=docker_availability,json=dockerAvailability,proto3,oneof"`
@@ -3931,7 +3931,7 @@ func (x *SetOpfieldNextAddressCommand) GetAddress() string {
 // ClickHouse Keeper voter of a two-member set). The list is the full desired
 // set: a witness not listed is stopped and its data removed. The supervisor
 // keeps the last applied set across restarts, so witnesses keep running while
-// Gateway is down.
+// Opfield is down.
 type ApplyWitnessesCommand struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Increases with every change for this relay; an older or equal revision
@@ -4532,7 +4532,7 @@ type AvailabilityMemberCommand_AckEvents struct {
 }
 
 type AvailabilityMemberCommand_AssignPrimary struct {
-	// Manual pairs: the primary assignment (Gateway names the primary under a
+	// Manual pairs: the primary assignment (Opfield names the primary under a
 	// generation that grows with every switch).
 	AssignPrimary *AvailabilityPrimaryAssignment `protobuf:"bytes,4,opt,name=assign_primary,json=assignPrimary,proto3,oneof"`
 }
@@ -4592,7 +4592,7 @@ type AvailabilityMemberConfig struct {
 	// The set is paused (e.g. its app is shut down): this member's engine is
 	// stopped cleanly and never started while set. A copy reports eligible
 	// false (reason "stopped"); the primary closes serving, stops and keeps
-	// its role (lease or assignment). Gateway sets it on the copies first,
+	// its role (lease or assignment). Opfield sets it on the copies first,
 	// then the primary, and clears it on the primary first, then the copies.
 	Stopped       bool `protobuf:"varint,16,opt,name=stopped,proto3" json:"stopped,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -4822,16 +4822,16 @@ type AvailabilityPrimaryAssignment struct {
 	SetId           string                 `protobuf:"bytes,1,opt,name=set_id,json=setId,proto3" json:"set_id,omitempty"`
 	PrimaryMemberId string                 `protobuf:"bytes,2,opt,name=primary_member_id,json=primaryMemberId,proto3" json:"primary_member_id,omitempty"`
 	Generation      uint64                 `protobuf:"varint,3,opt,name=generation,proto3" json:"generation,omitempty"`
-	// Gateway signs every assignment with its relay policy signing key: Ed25519
+	// Opfield signs every assignment with its relay policy signing key: Ed25519
 	// over "gateway-availability-member/primary-assignment/v1" || 0x00 ||
 	// u32be(len(set_id)) || set_id || u32be(len(primary_member_id)) ||
 	// primary_member_id || u64be(generation). A member accepts an assignment,
-	// from Gateway or relayed by its peer, only with a valid signature of a key
+	// from Opfield or relayed by its peer, only with a valid signature of a key
 	// it trusts.
 	SigningKeyId string `protobuf:"bytes,4,opt,name=signing_key_id,json=signingKeyId,proto3" json:"signing_key_id,omitempty"`
 	Signature    []byte `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
 	// The policy signing keys, delivered over this authenticated stream (as in
-	// SyncAvailabilityLeaseCommand): the daemon trusts them directly. Gateway
+	// SyncAvailabilityLeaseCommand): the daemon trusts them directly. Opfield
 	// only; a peer-relayed assignment verifies against keys already trusted.
 	PolicyKeys    []*AvailabilityLeasePolicyKey `protobuf:"bytes,6,rep,name=policy_keys,json=policyKeys,proto3" json:"policy_keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -5087,7 +5087,7 @@ type AvailabilityMemberRestart struct {
 	SetId       string                 `protobuf:"bytes,1,opt,name=set_id,json=setId,proto3" json:"set_id,omitempty"`
 	MemberId    string                 `protobuf:"bytes,2,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
 	OperationId string                 `protobuf:"bytes,3,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
-	// Restart the primary in place (normally Gateway switches over first).
+	// Restart the primary in place (normally Opfield switches over first).
 	AllowPrimary  bool `protobuf:"varint,4,opt,name=allow_primary,json=allowPrimary,proto3" json:"allow_primary,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -5151,7 +5151,7 @@ func (x *AvailabilityMemberRestart) GetAllowPrimary() bool {
 	return false
 }
 
-// One member as its node reports it, with the events Gateway has not
+// One member as its node reports it, with the events Opfield has not
 // acknowledged yet (kept on disk with the time they happened).
 type AvailabilityMemberReport struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
@@ -5986,7 +5986,7 @@ func (x *RelayAssignmentTunnelCount) GetActiveTunnels() uint64 {
 	return 0
 }
 
-// Gateway Pages v1 commands intentionally expose no operator-controlled
+// Opfield Pages v1 commands intentionally expose no operator-controlled
 // filesystem paths or nginx snippets. IDs are opaque UUIDs and hostnames are
 // DNS names validated by the daemon. The daemon derives all locations from its
 // configured Pages root and its nginx config directory.
@@ -6453,7 +6453,7 @@ func (x *PagesPreviewIpRule) GetValue() string {
 }
 
 // Stages and atomically activates a versioned certificate for a Pages-only
-// preview. Gateway obtains version and replica_generation from its existing
+// preview. Opfield obtains version and replica_generation from its existing
 // certificate distribution state. This must be used instead of deploy_cert,
 // whose legacy layout has no current/versions tree.
 type PagesDeployCertificateCommand struct {
@@ -6584,12 +6584,12 @@ func (x *PagesRemovePreviewCommand) GetHostname() string {
 	return ""
 }
 
-// Writes an atomically switched root fragment that a normal Gateway Route
+// Writes an atomically switched root fragment that a normal Opfield Route
 // includes from <nginx.config_dir>/pages/routes/<route_id>.inc. The fragment
 // permits the Route to retain its existing TLS, ACL, headers, rewrites and
 // other host-level settings while a Tag moves between immutable deployments.
 // On success CommandResult.data is JSON with the daemon-derived includePath;
-// Gateway validates its fixed /pages/routes/<route UUID>.inc suffix before
+// Opfield validates its fixed /pages/routes/<route UUID>.inc suffix before
 // placing it in a generated host config.
 type PagesActivateTagRouteCommand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -7177,7 +7177,7 @@ func (x *RelayLatencyTarget) GetPort() uint32 {
 	return 0
 }
 
-// A relay that may still admit routes Gateway revoked for one endpoint. A
+// A relay that may still admit routes Opfield revoked for one endpoint. A
 // relay that does not name the route of an incoming tunnel is refused
 // entirely for this endpoint while the fence stands.
 type RelayRevocationFence struct {
@@ -8134,7 +8134,7 @@ type RelayDataCandidate struct {
 	// Draining candidates: resumable streams leave this relay before this time
 	// (unix ms), spread over the time left. 0: as soon as possible.
 	DrainDeadlineUnixMs int64 `protobuf:"varint,11,opt,name=drain_deadline_unix_ms,json=drainDeadlineUnixMs,proto3" json:"drain_deadline_unix_ms,omitempty"`
-	// Absent when Gateway placed the endpoint without latency data.
+	// Absent when Opfield placed the endpoint without latency data.
 	Topology      *RelayCandidateTopology `protobuf:"bytes,20,opt,name=topology,proto3" json:"topology,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -8440,7 +8440,7 @@ type ProxySecureLinkBinding struct {
 	LinkId     string                 `protobuf:"bytes,1,opt,name=link_id,json=linkId,proto3" json:"link_id,omitempty"`
 	Role       string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"` // "source" or "target"
 	Generation uint64                 `protobuf:"varint,3,opt,name=generation,proto3" json:"generation,omitempty"`
-	// Source-only. Gateway allocates and persists this loopback port; the
+	// Source-only. Opfield allocates and persists this loopback port; the
 	// nginx daemon validates and binds it before the generated config uses it.
 	ListenerPort uint32 `protobuf:"varint,4,opt,name=listener_port,json=listenerPort,proto3" json:"listener_port,omitempty"`
 	// Target-only. Docker daemon attaches the node connector to target_network
@@ -8466,7 +8466,7 @@ type ProxySecureLinkBinding struct {
 	// Availability members only. A dormant member belongs to a standby
 	// placement (D7): the source keeps its socket closed and the target keeps
 	// its connector prepared until the member's candidate holds the lease.
-	// Older daemons ignore these fields; Gateway never sends a dormant member to
+	// Older daemons ignore these fields; Opfield never sends a dormant member to
 	// a daemon without availability_lease_v1.
 	Dormant bool `protobuf:"varint,14,opt,name=dormant,proto3" json:"dormant,omitempty"`
 	// Availability members only: the lease policy and the candidate id (the
@@ -8476,7 +8476,7 @@ type ProxySecureLinkBinding struct {
 	// Source-only. The loopback TCP endpoint ("127.a.b.c:port") the daemon
 	// serves this link on next to its Unix socket, for nginx peers only. Unlike
 	// a Unix socket, a cut stream ends with a TCP reset there, so nginx reports
-	// an upstream error instead of a clean end. Gateway allocates it uniquely
+	// an upstream error instead of a clean end. Opfield allocates it uniquely
 	// per link and renders it only for nodes reporting
 	// nginx_secure_link_loopback_tcp_v1. Empty: Unix socket only.
 	LoopbackAddress string `protobuf:"bytes,17,opt,name=loopback_address,json=loopbackAddress,proto3" json:"loopback_address,omitempty"`
@@ -8832,7 +8832,7 @@ type NodeExecCommand struct {
 	Tty           bool                   `protobuf:"varint,3,opt,name=tty,proto3" json:"tty,omitempty"`
 	Rows          int32                  `protobuf:"varint,4,opt,name=rows,proto3" json:"rows,omitempty"`
 	Cols          int32                  `protobuf:"varint,5,opt,name=cols,proto3" json:"cols,omitempty"`
-	SessionKey    string                 `protobuf:"bytes,6,opt,name=session_key,json=sessionKey,proto3" json:"session_key,omitempty"` // authenticated Gateway user ID
+	SessionKey    string                 `protobuf:"bytes,6,opt,name=session_key,json=sessionKey,proto3" json:"session_key,omitempty"` // authenticated Opfield user ID
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9118,7 +9118,7 @@ func (x *RemoveConfigCommand) GetHostId() string {
 	return ""
 }
 
-// Cert deployment does NOT auto-reload nginx. Gateway sends a separate
+// Cert deployment does NOT auto-reload nginx. Opfield sends a separate
 // ApplyConfigCommand or TestConfigCommand + reload when ready.
 type DeployCertCommand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -9368,7 +9368,7 @@ func (x *VersionedCertBundle) GetReplicaGeneration() string {
 }
 
 // Both inspection and export are scoped to references explicitly supplied by
-// Gateway; neither command is a directory listing or generic file API.
+// Opfield; neither command is a directory listing or generic file API.
 type InspectCertificatesCommand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CertIds       []string               `protobuf:"bytes,1,rep,name=cert_ids,json=certIds,proto3" json:"cert_ids,omitempty"`
@@ -11200,7 +11200,7 @@ type AvailabilityLeaseHandoffCommand struct {
 	OperationId string `protobuf:"bytes,4,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	// Placement generation the successor serves under (D12).
 	SuccessorGeneration uint64 `protobuf:"varint,5,opt,name=successor_generation,json=successorGeneration,proto3" json:"successor_generation,omitempty"`
-	// Manifest version the Gateway planned against; a holder with an older
+	// Manifest version Opfield planned against; a holder with an older
 	// manifest refuses the handoff until it adopted this version.
 	ManifestVersion uint64 `protobuf:"varint,6,opt,name=manifest_version,json=manifestVersion,proto3" json:"manifest_version,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -11361,7 +11361,7 @@ type AvailabilityLeaseReport struct {
 	// True while the acceptor abstains after a start or a fresh state (A3).
 	AcceptorAbstaining bool `protobuf:"varint,9,opt,name=acceptor_abstaining,json=acceptorAbstaining,proto3" json:"acceptor_abstaining,omitempty"`
 	// Docker daemons: the watchdog heartbeat is fresh (A12.4). A daemon without
-	// it must not acquire, so Gateway treats it as not capable.
+	// it must not acquire, so Opfield treats it as not capable.
 	WatchdogReady bool `protobuf:"varint,10,opt,name=watchdog_ready,json=watchdogReady,proto3" json:"watchdog_ready,omitempty"`
 	// Transitions since the previous report, oldest first (D9 audit).
 	Events []*AvailabilityLeaseEvent `protobuf:"bytes,11,rep,name=events,proto3" json:"events,omitempty"`
@@ -11369,13 +11369,13 @@ type AvailabilityLeaseReport struct {
 	LeaseRevision uint64 `protobuf:"varint,12,opt,name=lease_revision,json=leaseRevision,proto3" json:"lease_revision,omitempty"`
 	// Relays only, as in relay.v1 (the relay supervisor forwards the relay's
 	// report as is): members with a live Coordinate stream to this relay. The
-	// Gateway derives voter reachability from them.
+	// Opfield derives voter reachability from them.
 	ConnectedMemberIds []string `protobuf:"bytes,21,rep,name=connected_member_ids,json=connectedMemberIds,proto3" json:"connected_member_ids,omitempty"`
 	// Docker daemons: the daemon's wall clock (Unix ms) when it built this
-	// report, the clock every *_unix_ms time in it was converted with. Gateway
+	// report, the clock every *_unix_ms time in it was converted with. Opfield
 	// measures the daemon's clock offset from it and corrects those times (a VM
 	// resumed from suspend runs minutes behind until NTP steps it; N-15).
-	// gateway.v1 only; 30 is unused in relay.v1, whose reports are forwarded as is.
+	// opfield.v1 only; 30 is unused in relay.v1, whose reports are forwarded as is.
 	ReportedAtUnixMs int64 `protobuf:"varint,30,opt,name=reported_at_unix_ms,json=reportedAtUnixMs,proto3" json:"reported_at_unix_ms,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -11515,8 +11515,8 @@ type AvailabilityLeaseManifestAck struct {
 	ManifestVersion uint64                 `protobuf:"varint,2,opt,name=manifest_version,json=manifestVersion,proto3" json:"manifest_version,omitempty"`
 	Closed          bool                   `protobuf:"varint,3,opt,name=closed,proto3" json:"closed,omitempty"`
 	// Per-policy voter epoch persisted with the manifest (A18; Node.Epoch(policy)).
-	// The A4 ack the Gateway waits for before it settles a joint voter change.
-	// Relays fill it; daemons should too. Zero means unknown: the Gateway then
+	// The A4 ack Opfield waits for before it settles a joint voter change.
+	// Relays fill it; daemons should too. Zero means unknown: Opfield then
 	// falls back to manifest_version.
 	VoterEpoch uint64 `protobuf:"varint,20,opt,name=voter_epoch,json=voterEpoch,proto3" json:"voter_epoch,omitempty"`
 	// This member is in a quorum set of the policy (relays: it is the witness).
@@ -11620,7 +11620,7 @@ type AvailabilityLeaseHeld struct {
 	Retained bool `protobuf:"varint,9,opt,name=retained,proto3" json:"retained,omitempty"`
 	// Docker daemons: when this node acquired the key for its current holding
 	// (its own acquired transition), Unix ms on its wall clock; 0 when unknown.
-	// Gateway audits it as the takeover time (N-5, B-14). gateway.v1 only:
+	// Opfield audits it as the takeover time (N-5, B-14). opfield.v1 only:
 	// relays report no held keys.
 	HeldSinceUnixMs int64 `protobuf:"varint,10,opt,name=held_since_unix_ms,json=heldSinceUnixMs,proto3" json:"held_since_unix_ms,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -11744,7 +11744,7 @@ type AvailabilityLeaseKeyView struct {
 	GateOpen bool `protobuf:"varint,10,opt,name=gate_open,json=gateOpen,proto3" json:"gate_open,omitempty"`
 	// Relays only, as in relay.v1: the holder and committed ballot the gate
 	// admits. An open gate names a fresh holder even where the relay does not
-	// vote, so the Gateway records it as a holder observation.
+	// vote, so the Opfield records it as a holder observation.
 	GateHolderId string                   `protobuf:"bytes,20,opt,name=gate_holder_id,json=gateHolderId,proto3" json:"gate_holder_id,omitempty"`
 	GateBallot   *AvailabilityLeaseBallot `protobuf:"bytes,21,opt,name=gate_ballot,json=gateBallot,proto3" json:"gate_ballot,omitempty"`
 	// As in relay.v1 (same field number): when this member first stored a
@@ -12916,7 +12916,7 @@ type DockerExecCommand struct {
 	Rows          int32                  `protobuf:"varint,6,opt,name=rows,proto3" json:"rows,omitempty"`
 	Cols          int32                  `protobuf:"varint,7,opt,name=cols,proto3" json:"cols,omitempty"`
 	User          string                 `protobuf:"bytes,8,opt,name=user,proto3" json:"user,omitempty"`
-	SessionKey    string                 `protobuf:"bytes,9,opt,name=session_key,json=sessionKey,proto3" json:"session_key,omitempty"` // authenticated Gateway user ID
+	SessionKey    string                 `protobuf:"bytes,9,opt,name=session_key,json=sessionKey,proto3" json:"session_key,omitempty"` // authenticated Opfield user ID
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -13566,7 +13566,7 @@ func (x *ContainerStats) GetLogBytesAvailable() bool {
 }
 
 // A node-scoped physical GPU. `id` is stable for the lifetime of the device
-// on this node and is the only identifier accepted by Gateway GPU attachment
+// on this node and is the only identifier accepted by Opfield GPU attachment
 // requests. Host paths are informational only and never executable input.
 type GpuDevice struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
@@ -14363,7 +14363,7 @@ func (x *DockerMigrationCommand) GetConfigJson() string {
 }
 
 // Database control intentionally carries a typed managed database id, rather
-// than allowing the Gateway to issue arbitrary container commands to a
+// than allowing Opfield to issue arbitrary container commands to a
 // database node. The opaque config is validated by the database profile.
 type DockerDatabaseCommand struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
@@ -14425,7 +14425,7 @@ func (x *DockerDatabaseCommand) GetConfigJson() string {
 	return ""
 }
 
-// Managed object-storage control intentionally names a Gateway-owned storage
+// Managed object-storage control intentionally names an Opfield-owned storage
 // resource. The daemon validates the opaque config against its MinIO runtime
 // contract and derives all Docker paths, names and arguments itself.
 type DockerStorageCommand struct {

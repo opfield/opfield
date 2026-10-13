@@ -6,7 +6,7 @@ export interface DomainPermissions {
 }
 
 /**
- * Gateway-managed domain actions are authorized exclusively by domains:*
+ * Opfield-managed domain actions are authorized exclusively by domains:*
  * scopes. Cloudflare scopes only control whether the UI may inspect connector
  * status; they never enable a domain action.
  */

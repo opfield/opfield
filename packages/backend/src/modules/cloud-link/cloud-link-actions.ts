@@ -24,7 +24,7 @@ import { createCloudSsoRevoker } from './cloud-link-sso-revoke.js';
 
 const logger = createChildLogger('CloudLinkActions');
 
-/** The actor Gateway records for what the cloud account does over the link (not a user account). */
+/** The actor Opfield records for what the cloud account does over the link (not a user account). */
 export const CLOUD_LINK_ACTOR = 'cloud-link';
 const DEFAULT_NODE_NAME = 'Node';
 const MAX_NODE_NAME_LENGTH = 255;

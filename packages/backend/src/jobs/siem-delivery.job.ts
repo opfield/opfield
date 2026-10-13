@@ -6,7 +6,7 @@ const logger = createChildLogger('SiemDeliveryJob');
 
 /**
  * Thin scheduler adapter. Delivery state, leases, and retries live in the
- * database service so every Gateway replica can safely run this job.
+ * database service so every Opfield replica can safely run this job.
  */
 export class SiemDeliveryJob {
   constructor(

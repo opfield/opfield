@@ -60,7 +60,7 @@ describe('OpfieldIdentityRenewalService', () => {
     };
   }
 
-  /** A Gateway without a local relay whose gRPC listener serves `grpc.crt`. */
+  /** An Opfield without a local relay whose gRPC listener serves `grpc.crt`. */
   function standalone(options: { expiresInMs: number; operatorSupplied?: boolean; pendingEnrollments?: boolean }) {
     const certPath = join(directory, 'grpc.crt');
     const keyPath = join(directory, 'grpc.key');
@@ -88,7 +88,7 @@ describe('OpfieldIdentityRenewalService', () => {
     return { service, grpcIdentity, grpcListener, audit, hasPendingEnrollments, certPath, served: () => served };
   }
 
-  /** A Gateway behind its local relay; the relay loads whatever is installed when it is asked. */
+  /** An Opfield behind its local relay; the relay loads whatever is installed when it is asked. */
   function behindRelay(options: { relayClientExpiresInMs: number; externalExpiresInMs?: number }) {
     const external = { certPath: join(directory, 'grpc.crt'), keyPath: join(directory, 'grpc.key') };
     const paths = {
@@ -312,7 +312,7 @@ describe('OpfieldIdentityRenewalService', () => {
     expect(relayControl.reloadIdentity.mock.invocationCallOrder[0]).toBeLessThan(
       commitTrust.mock.invocationCallOrder[0]!
     );
-    // Daemons reach Gateway through the relay: enrollment commands now pin what it confirmed serving.
+    // Daemons reach Opfield through the relay: enrollment commands now pin what it confirmed serving.
     expect(grpcIdentity.markServed).toHaveBeenCalledWith('sha256:external-1');
   });
 
@@ -324,7 +324,7 @@ describe('OpfieldIdentityRenewalService', () => {
       renewed: [],
       failed: [{ identity: 'grpc', message: 'secure context rejected' }],
     });
-    // A relay restarting now presents the renewed client certificate, which Gateway already trusts.
+    // A relay restarting now presents the renewed client certificate, which Opfield already trusts.
     expect(grpcListener.stageRelayTrust).toHaveBeenCalledWith('sha256:relay-1');
     expect(commitTrust).not.toHaveBeenCalled();
     expect(relayControl.reloadIdentity).not.toHaveBeenCalled();

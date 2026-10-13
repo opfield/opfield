@@ -176,7 +176,7 @@ export function legacyEnvironmentOverrides(
 /**
  * The stored row over the defaults. Tolerant of rows other releases wrote: a key it lacks (a partial import, an older
  * release) takes the default, a key this release does not know (a newer release before a rollback) is dropped, and a
- * value this release would not accept takes the default too, so a stored row never keeps Gateway from starting.
+ * value this release would not accept takes the default too, so a stored row never keeps Opfield from starting.
  */
 export function normalizeEnvironmentSettings(value: unknown): EnvironmentSettings {
   const stored = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};

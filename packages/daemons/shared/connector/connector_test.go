@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// A node retries a relay or Gateway that stays down at most every 15 s (10 s cap, jittered by up to half), so it is
+// A node retries a relay or Opfield that stays down at most every 15 s (10 s cap, jittered by up to half), so it is
 // back within that long once its peer is: with the former 60 s cap nodes came back up to 70 s after the local relay.
 func TestRetryBackoffCapsAtTenSecondsWithJitter(t *testing.T) {
 	backoff := InitialBackoff

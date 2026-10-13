@@ -26,13 +26,13 @@ import (
 // restored on another host tells every node its new address before the old
 // host is shut down.
 //
-// The daemon keeps the address next to its current one (gateway.next_address
+// The daemon keeps the address next to its current one (opfield.next_address
 // in its config file) and changes nothing while the current address works.
 // Once the control session has failed for nextAddressAfter, it tries the next
 // address once every nextAddressProbeInterval with its own mTLS identity and
 // the usual server verification: the restored Opfield has the same System CA,
 // and its certificate names the new address. When that connection becomes
-// ready the next address becomes gateway.address, on disk and in the running
+// ready the next address becomes opfield.address, on disk and in the running
 // process: the control session dials it on its next attempt. Relay lanes and
 // tunnel connections that are up are not touched, and no daemon restarts.
 const OpfieldNextAddressCapability = "gateway_next_address_v1"
@@ -50,10 +50,10 @@ const (
 	nextAddressTick = 10 * time.Second
 )
 
-// activeControlAddress is the Gateway address the daemon dials now.
+// activeControlAddress is the Opfield address the daemon dials now.
 var activeControlAddress atomic.Pointer[string]
 
-// ControlAddress returns the Gateway address the daemon's control session
+// ControlAddress returns the Opfield address the daemon's control session
 // dials now, or fallback before the daemon lifecycle started. Plugins that
 // open their own control connections (the nginx maintenance access channel)
 // use it so they follow a move of Opfield to another address.
@@ -187,7 +187,7 @@ func sameOpfieldAddress(left, right string) bool {
 // controlConfigFileMu serializes the edits of the daemon config file.
 var controlConfigFileMu sync.Mutex
 
-// editControlConfigFile changes keys of the gateway section of the config
+// editControlConfigFile changes keys of the control section of the config
 // file at path: every key in set gets its value, every key in remove goes.
 // Everything else in the file (other keys, their order and comments) stays,
 // and the file keeps its permissions. The file is replaced atomically.
@@ -285,7 +285,7 @@ type opfieldMove struct {
 	mu      sync.Mutex
 	current string
 	next    string
-	// connected is set while a control session the Gateway accepted runs.
+	// connected is set while a control session Opfield accepted runs.
 	connected bool
 	// failingSince is when the last accepted session ended, or the start.
 	failingSince time.Time
@@ -453,7 +453,7 @@ func (d *DaemonBase) startOpfieldMove(ctx context.Context) {
 }
 
 // switchControlAddress makes the control session (and the lanes to the relay
-// at the Gateway address, once they are down) dial address from the next
+// at the Opfield address, once they are down) dial address from the next
 // attempt on. Open connections keep their target.
 func (d *DaemonBase) switchControlAddress(address string) {
 	d.connector.SetAddress(address)

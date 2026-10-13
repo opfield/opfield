@@ -29,7 +29,7 @@ type trustedKey struct {
 	PublicKey ed25519.PublicKey `json:"publicKey"`
 }
 
-// keyChain holds the Gateway policy signing keys this node trusts (A14):
+// keyChain holds the Opfield policy signing keys this node trusts (A14):
 // keys delivered over an authenticated channel plus keys reachable from them
 // through signed rotation links.
 type keyChain struct {
@@ -162,7 +162,7 @@ func (c *keyChain) encode() []byte {
 
 func (c *keyChain) decode(data []byte) error { return json.Unmarshal(data, &c.keys) }
 
-// SignPolicyBlock signs a lease block with a policy key. The Gateway signs in
+// SignPolicyBlock signs a lease block with a policy key. Opfield signs in
 // TypeScript; this helper exists for tests and tooling.
 func SignPolicyBlock(keyID string, privateKey ed25519.PrivateKey, kind pb.LeaseBlockKind, payload []byte) *pb.LeaseSignedBlock {
 	return &pb.LeaseSignedBlock{
@@ -182,7 +182,7 @@ func SignPolicyKeyRotation(previousKeyID string, previous ed25519.PrivateKey, ke
 
 func blockDomain(pb.LeaseBlockKind) string { return domainManifest }
 
-// VerifyOpfieldSigned verifies a statement Gateway signed with a policy key
+// VerifyOpfieldSigned verifies a statement Opfield signed with a policy key
 // this node trusts, outside the lease blocks (for example a manual pair's
 // primary assignment): signature over domain || 0x00 || payload. The domain
 // must differ from every lease domain.

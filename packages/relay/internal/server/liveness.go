@@ -25,7 +25,7 @@ import (
 // retries the requests in flight on the next member where that is safe.
 //
 // Only an unreachable host is detected this fast. The peer's kernel
-// acknowledges TCP data whatever its process does, so a daemon or Gateway
+// acknowledges TCP data whatever its process does, so a daemon or Opfield
 // that is merely busy, or an application that takes long to answer a
 // request, never loses its connection: that needs peerPingTimeout without
 // an answer to a ping from a host that still acknowledges.

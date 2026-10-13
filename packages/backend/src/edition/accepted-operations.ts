@@ -11,7 +11,7 @@ export const acceptedOperations = {
     return context.getStore()?.active === true;
   },
   /**
-   * Work a stopping Gateway left to durable recovery: it keeps running until the process exits, but must
+   * Work a stopping Opfield left to durable recovery: it keeps running until the process exits, but must
    * not record anything, such as a failure caused only by the shutdown, that would keep recovery from resuming it.
    */
   isAbandoned(): boolean {

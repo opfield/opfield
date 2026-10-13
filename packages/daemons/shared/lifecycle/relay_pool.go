@@ -170,8 +170,8 @@ func runRelayPoolTarget(
 		laneEnded := make(chan struct{}, laneCount)
 		laneDropped := make(chan struct{}, 1)
 		addresses := rotatedRelayAddresses(target.Addresses, addressOffset)
-		// A target without addresses is the relay at the Gateway address. When
-		// Opfield moved to another address (gateway next address), lanes that
+		// A target without addresses is the relay at the Opfield address. When
+		// Opfield moved to another address (next address), lanes that
 		// are down are rebuilt for the new one; lanes that are up stay up.
 		var controlMoved <-chan struct{}
 		if len(addresses) == 0 {
@@ -343,7 +343,7 @@ type RelayLaneStatePlugin interface {
 // laneLeftReady is what a lane leaving the connected state does: the plugin
 // moves its streams, and once every lane of the relay is down the relay is
 // failing for this daemon (relaybridge.LatencyTracker.Fail), which the next
-// health report tells Gateway.
+// health report tells Opfield.
 func laneLeftReady(plugin RelayPoolTunnelPlugin, relayInstanceID string, conn *grpc.ClientConn) func() {
 	hook, _ := plugin.(RelayLaneStatePlugin)
 	return func() {

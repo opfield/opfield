@@ -386,7 +386,7 @@ describe('connections of the last update', () => {
     expect(lastUpdateConnectionsToRecord({ lastUpdate: { ...lastUpdate, targetVersion: 'v2.12.0' } }, report)).toBe(
       'skip'
     );
-    // The daemon reports before Gateway saw it register on the target: try again with the next report.
+    // The daemon reports before Opfield saw it register on the target: try again with the next report.
     expect(lastUpdateConnectionsToRecord({ updateInProgress: true, updateTargetVersion: 'v2.12.1' }, report)).toBe(
       'pending'
     );
@@ -425,7 +425,7 @@ describe('connections of the last update', () => {
       pauseP99Ms: 1300,
       pauseMaxMs: 1300,
     };
-    // Its report comes while Gateway still waits for the update: it may belong to it.
+    // Its report comes while Opfield still waits for the update: it may belong to it.
     await expect(service.recordLastUpdateConnections(NODE_ID, rolledBack)).resolves.toBe(false);
     const cameBack = new Date('2026-10-09T20:39:08.000Z');
     await expect(service.clearNodeUpdateInProgressOnReconnect(NODE_ID, 'v2.11.4-rc.7', cameBack)).resolves.toBe(true);

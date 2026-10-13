@@ -38,7 +38,7 @@ func poolRole(relay string) string {
 	return relaybridge.RoleStandby
 }
 
-// poolBundles builds the source and target bundles of the test route from candidates, each with Gateway's role and
+// poolBundles builds the source and target bundles of the test route from candidates, each with Opfield's role and
 // the relay's round trip to the endpoint.
 func poolBundles(revision uint64, candidates ...poolCandidate) (*pb.SyncRelayGrantsCommand, *pb.SyncRelayGrantsCommand) {
 	var connectCandidates, endpointCandidates []*pb.RelayDataCandidate
@@ -149,7 +149,7 @@ func newPoolPair(t *testing.T) *streamPair {
 	return pair
 }
 
-// apply delivers one revision of the placement to both daemons, the target first as Gateway's grant sync does.
+// apply delivers one revision of the placement to both daemons, the target first as Opfield's grant sync does.
 func (pair *streamPair) apply(revision uint64, placement ...[]poolCandidate) {
 	pair.t.Helper()
 	source, target := poolBundles(revision, candidates(placement...)...)
@@ -245,7 +245,7 @@ func TestGenerationChangeKeepsStreamsOnTheNearestRelay(t *testing.T) {
 		t.Fatalf("tunnels on the remote relays: UK %d, NL %d", pair.relays[poolUK].activeTunnels(), pair.relays[poolNL].activeTunnels())
 	}
 
-	// Gateway retires generation 1 only once no tunnel uses it. The streams leave it when their path is opened again
+	// Opfield retires generation 1 only once no tunnel uses it. The streams leave it when their path is opened again
 	// for another reason, here a lane rotation: the new path goes to the nearest relay under the current grant.
 	for _, session := range sessions {
 		pair.source.relayStreams().sources.MoveOffLane(session)
@@ -375,7 +375,7 @@ func TestDrainHintForARelayThatStaysMovesNothing(t *testing.T) {
 	}
 }
 
-// Stand 2.12 R-5: draining and resuming a relay that carries none of the streams moves none of them. Gateway keeps the
+// Stand 2.12 R-5: draining and resuming a relay that carries none of the streams moves none of them. Opfield keeps the
 // drained relay in the active generation, draining there, instead of placing every workload on a new generation
 // without it (and on another one with it once resumed), which re-pathed every stream onto a new grant twice.
 func TestDrainAndResumeOfAnEmptyRelayMoveNothing(t *testing.T) {

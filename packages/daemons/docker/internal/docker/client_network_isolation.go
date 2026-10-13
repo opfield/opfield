@@ -64,7 +64,7 @@ type NetworkRestoreResult struct {
 	FallbackNetwork string `json:"fallbackNetwork,omitempty"`
 }
 
-// IsolateContainerNetworks disconnects a container from every network it is attached to, Gateway-managed ones
+// IsolateContainerNetworks disconnects a container from every network it is attached to, Opfield-managed ones
 // included, and returns the endpoints it removed. A failed disconnect reconnects the endpoints already removed.
 func (c *Client) IsolateContainerNetworks(ctx context.Context, containerRef string) (*NetworkIsolateResult, error) {
 	insp, err := c.cli.ContainerInspect(ctx, containerRef, client.ContainerInspectOptions{})

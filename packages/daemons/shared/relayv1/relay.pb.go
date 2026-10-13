@@ -1001,7 +1001,7 @@ func (x *IncomingTunnel) GetRoute() *IncomingTunnelRoute {
 	return nil
 }
 
-// An endpoint refuses a route Gateway revoked while this relay missed the
+// An endpoint refuses a route Opfield revoked while this relay missed the
 // revoking policy; the relay is trusted to report what it admitted, not to
 // hold current policy.
 type IncomingTunnelRoute struct {
@@ -1893,7 +1893,7 @@ type RoutePolicy struct {
 	// routes keep the relay default when this field is false.
 	DisableIdleTimeout bool `protobuf:"varint,9,opt,name=disable_idle_timeout,json=disableIdleTimeout,proto3" json:"disable_idle_timeout,omitempty"`
 	// Product classification used only for overload admission and reporting.
-	// The relay remains unaware of concrete Gateway resource identifiers.
+	// The relay remains unaware of concrete Opfield resource identifiers.
 	TrafficClass         string `protobuf:"bytes,10,opt,name=traffic_class,json=trafficClass,proto3" json:"traffic_class,omitempty"`
 	AssignmentGeneration uint64 `protobuf:"varint,11,opt,name=assignment_generation,json=assignmentGeneration,proto3" json:"assignment_generation,omitempty"`
 	// Availability policy whose lease gates the route's source, for managed-DB
@@ -2785,7 +2785,7 @@ type HealthResponse struct {
 	AssignmentTunnels      []*AssignmentTunnelCount `protobuf:"bytes,30,rep,name=assignment_tunnels,json=assignmentTunnels,proto3" json:"assignment_tunnels,omitempty"`
 	PolicyKeyIds           []string                 `protobuf:"bytes,31,rep,name=policy_key_ids,json=policyKeyIds,proto3" json:"policy_key_ids,omitempty"`
 	// Present when the relay runs availability lease coordination; the same
-	// shape as gateway.v1 AvailabilityLeaseReport.
+	// shape as opfield.v1 AvailabilityLeaseReport.
 	AvailabilityLease *AvailabilityLeaseReport `protobuf:"bytes,32,opt,name=availability_lease,json=availabilityLease,proto3" json:"availability_lease,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -3328,7 +3328,7 @@ func (x *ReloadIdentityRequest) GetOperationId() string {
 type ReloadIdentityResponse struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Reloaded bool                   `protobuf:"varint,1,opt,name=reloaded,proto3" json:"reloaded,omitempty"`
-	// Fingerprints ("sha256:<hex>") of the identity the relay loaded, so Gateway
+	// Fingerprints ("sha256:<hex>") of the identity the relay loaded, so Opfield
 	// confirms a rotation only once the relay serves the files it installed.
 	// Empty from relays built before these fields existed.
 	ExternalCertificateSha256    string `protobuf:"bytes,2,opt,name=external_certificate_sha256,json=externalCertificateSha256,proto3" json:"external_certificate_sha256,omitempty"`
@@ -5764,7 +5764,7 @@ type LeaseManifest struct {
 	QuorumSets []*LeaseQuorumSet `protobuf:"bytes,15,rep,name=quorum_sets,json=quorumSets,proto3" json:"quorum_sets,omitempty"`
 	// Graceful close (closed manifests only). Per slot, the holder that keeps
 	// its copy running without a lease once a majority of every quorum set
-	// confirmed the close to it (LeaseRetained). Gateway names the committed
+	// confirmed the close to it (LeaseRetained). Opfield names the committed
 	// holder it sees for the slot when it closes; an unheld slot has no entry.
 	// A holder that is not named, or cannot reach such a majority, fences.
 	Retained []*LeaseRetainedSlot `protobuf:"bytes,16,rep,name=retained,proto3" json:"retained,omitempty"`
@@ -5930,7 +5930,7 @@ type LeaseRetainedSlot struct {
 	Slot  uint32                 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"`
 	// Candidate id of the holder; it must be listed in candidates as well.
 	HolderId string `protobuf:"bytes,2,opt,name=holder_id,json=holderId,proto3" json:"holder_id,omitempty"`
-	// The holder's committed ballot Gateway saw; empty when it saw none (a
+	// The holder's committed ballot Opfield saw; empty when it saw none (a
 	// reserved bootstrap holder whose commit may have raced the close). Acceptors
 	// refuse to confirm when they know a commit, open lease or accept of another
 	// proposer above it and above every ballot of the holder they know.
@@ -6660,7 +6660,7 @@ type AvailabilityLeaseHeld struct {
 	ManifestVersion     uint64                   `protobuf:"varint,6,opt,name=manifest_version,json=manifestVersion,proto3" json:"manifest_version,omitempty"`
 	PlacementId         string                   `protobuf:"bytes,7,opt,name=placement_id,json=placementId,proto3" json:"placement_id,omitempty"`
 	PlacementGeneration uint64                   `protobuf:"varint,8,opt,name=placement_generation,json=placementGeneration,proto3" json:"placement_generation,omitempty"`
-	// Daemons only: graceful close (see gateway.v1).
+	// Daemons only: graceful close (see opfield.v1).
 	Retained      bool `protobuf:"varint,9,opt,name=retained,proto3" json:"retained,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6782,7 +6782,7 @@ type AvailabilityLeaseKeyView struct {
 	// quorum set (shadow accepts only).
 	Abstaining bool `protobuf:"varint,24,opt,name=abstaining,proto3" json:"abstaining,omitempty"`
 	// When this member first stored a commit of the committed ballot's
-	// proposer (its wall clock, Unix ms): the takeover time the Gateway records
+	// proposer (its wall clock, Unix ms): the takeover time the Opfield records
 	// for a holder change it learns later, for example after it was down
 	// (N-5). Zero when unknown.
 	HolderSinceUnixMs int64 `protobuf:"varint,25,opt,name=holder_since_unix_ms,json=holderSinceUnixMs,proto3" json:"holder_since_unix_ms,omitempty"`

@@ -39,7 +39,7 @@ func statefulFault(w *simWorld, topo simTopology, kind faultKind) bool {
 	switch kind {
 	case faultClose:
 		// A stateful policy is never reopened on the same policy id: the
-		// Gateway closes it once and enables again with a fresh id (M10).
+		// Opfield closes it once and enables again with a fresh id (M10).
 		return true
 	case faultManifestBump:
 		if w.rng.Intn(2) == 0 {
@@ -142,7 +142,7 @@ func checkStatefulFailover(w *simWorld, topo simTopology, result *seedResult) {
 	holder := ""
 	for attempt := 0; attempt < 5 && holder == ""; attempt++ {
 		// The holder can be lost after the heal with no KNOWN majority left
-		// (two voters wiped while the Gateway is gone): after 30 s without
+		// (two voters wiped while Opfield is gone): after 30 s without
 		// one the operator forces again, the documented recovery as above.
 		var lostSince time.Duration = -1
 		if !w.waitFor(90*time.Second, func() bool {

@@ -53,7 +53,7 @@ func (e *managedStorageImageError) Unwrap() error { return e.Cause }
 // ensureEngineImage returns the local reference a storage container of the
 // given engine must be created from, pulling it when needed.
 //
-// SeaweedFS is pulled by digest from the Gateway GHCR mirror first and Docker
+// SeaweedFS is pulled by digest from the Opfield GHCR mirror first and Docker
 // Hub second. The legacy MinIO image can no longer be pulled from its public
 // registries: an existing node keeps using its cached copy, and anything that
 // needs a pull fails with MANAGED_STORAGE_ENGINE_IMAGE_UNAVAILABLE before any
@@ -91,7 +91,7 @@ func (m *managedStorageManager) ensureEngineImage(ctx context.Context, engine st
 }
 
 // ensureSeaweedFSImage returns the SeaweedFS image a container is created
-// from. Gateway's own build (pinned) is used when it is present or pulls; a
+// from. Opfield's own build (pinned) is used when it is present or pulls; a
 // node that cannot reach it keeps the upstream image, mirror first and Docker
 // Hub second, so storage never stops for want of the patched build.
 func (m *managedStorageManager) ensureSeaweedFSImage(ctx context.Context, pinned string) (string, error) {

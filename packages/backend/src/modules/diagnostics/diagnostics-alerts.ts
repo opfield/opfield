@@ -8,7 +8,7 @@ const MIN_REQUESTS_FOR_ERROR_RATE = 20;
 /** A job that failed is watched this long after its last error, so its alert can resolve. */
 const JOB_WATCH_MS = 60 * 60_000;
 
-/** Hands each minute of Gateway diagnostics to the alert evaluator (category gateway). */
+/** Hands each minute of Opfield diagnostics to the alert evaluator (category opfield). */
 export function createOpfieldAlertObserver(
   evaluator: Pick<
     NotificationEvaluatorService,
@@ -45,7 +45,7 @@ export function createOpfieldAlertObserver(
     );
 
     if (containers.available) {
-      // Only the Compose stack: other Gateway-managed containers (inference core, managed ClickHouse) can be
+      // Only the Compose stack: other Opfield-managed containers (inference core, managed ClickHouse) can be
       // stopped on purpose.
       const seen = new Set<string>();
       for (const container of containers.containers) {

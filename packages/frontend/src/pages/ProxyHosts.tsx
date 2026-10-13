@@ -450,7 +450,7 @@ export function ProxyHosts({
   // edit access on the route and on the destination.
   const canMoveHost = (host: ProxyHost) =>
     !host.app && canManageFolders && canEditHost(host) && canManageFolderAt(host.folderId ?? null);
-  // System routes and the Gateway public route never join an app (the server refuses them too).
+  // System routes and the Opfield public route never join an app (the server refuses them too).
   const canMoveHostToApp = (host: ProxyHost) =>
     !host.app &&
     !host.isSystem &&

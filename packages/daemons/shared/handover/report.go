@@ -18,7 +18,7 @@ import (
 // Every update reports what it did to the connections the daemon carried (the
 // measure for the stand and the field): the stopping process records what it
 // handed over and what it cut, the next one adds what resumed, and reports the
-// result to Gateway in its health reports until the next update.
+// result to Opfield in its health reports until the next update.
 
 const (
 	// pendingReportFile is written by the stopping process for the next one.
@@ -210,7 +210,7 @@ func (t *Tracker) Cut(class string, n int) {
 // CutAfter counts n connections of class that a consequence of an update cut
 // after the update itself (a replaced connector removed at its retirement
 // limit): they join the last update's report, which becomes a new final
-// report (FinishedAt now) for Gateway to take again. It reports false when
+// report (FinishedAt now) for Opfield to take again. It reports false when
 // there is no report to join: the daemon has not been updated since it
 // reports them.
 func (t *Tracker) CutAfter(class string, n int) bool {
@@ -391,7 +391,7 @@ func (t *Tracker) Last() *Report {
 	return t.last
 }
 
-// Proto is the report for Gateway.
+// Proto is the report for Opfield.
 func (r *Report) Proto() *pb.DaemonUpdateConnectionReport {
 	if r == nil {
 		return nil

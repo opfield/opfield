@@ -131,8 +131,8 @@ func New(config memberha.Config, pg Postgres, store *Store, clock Clock, logger 
 	return &Engine{pg: pg, store: store, clock: clock, logger: logger, cfg: cfg, state: state}, nil
 }
 
-// Reconfigure takes Gateway's newer configuration; settings apply at the
-// next start (Gateway orders restarts), durability through the sync manager.
+// Reconfigure takes Opfield's newer configuration; settings apply at the
+// next start (Opfield orders restarts), durability through the sync manager.
 func (e *Engine) Reconfigure(config memberha.Config) error {
 	cfg, err := ParseConfig(config)
 	if err != nil {
@@ -417,7 +417,7 @@ func (e *Engine) engineStatusLocked(now time.Duration) memberha.EngineStatus {
 	}
 	out.Position = map[string]string{"timeline": strconv.FormatUint(uint64(st.Timeline), 10)}
 	if st.SystemID != "" {
-		// Gateway compares the members' clusters (a planned switchover never
+		// Opfield compares the members' clusters (a planned switchover never
 		// promotes another cluster).
 		out.Position["systemId"] = st.SystemID
 	}
@@ -439,7 +439,7 @@ func (e *Engine) engineStatusLocked(now time.Duration) memberha.EngineStatus {
 		if e.obs.peersOK {
 			// The copies the primary's walsenders confirm synchronously: a
 			// standby cannot see its own sync_state (manual pairs certify
-			// nothing, so Gateway reads it here).
+			// nothing, so Opfield reads it here).
 			var syncCopies []string
 			for _, peer := range e.cfg.ActiveOthers() {
 				if row, found := findPeer(e.obs.peers, peer); found && (row.SyncState == "sync" || row.SyncState == "quorum") {

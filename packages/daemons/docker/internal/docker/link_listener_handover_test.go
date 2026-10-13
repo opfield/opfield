@@ -205,7 +205,7 @@ func TestRelaySourceWaitsForLanesOnlyAfterTheStart(t *testing.T) {
 }
 
 // After a restart it announced to the relays, the next process registers its endpoints at once; otherwise it waits
-// for Gateway's first bundle.
+// for Opfield's first bundle.
 func TestAnnouncedRestartSkipsTheRegistrationHold(t *testing.T) {
 	stateDir := t.TempDir()
 	if err := relayGrantStateFile(stateDir).Write(&pb.SyncRelayGrantsCommand{PolicyRevision: 1}); err != nil {

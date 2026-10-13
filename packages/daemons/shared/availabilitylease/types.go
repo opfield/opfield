@@ -167,7 +167,7 @@ type HolderStatus struct {
 	Retaining bool
 }
 
-// EventKind classifies lease transitions reported to the Gateway (D9 audit).
+// EventKind classifies lease transitions reported to Opfield (D9 audit).
 type EventKind string
 
 const (
@@ -219,7 +219,7 @@ type KeyView struct {
 	// CommitSince is when this acceptor first stored a commit of the current
 	// commit holder (CommitBallot.Proposer), on its lease clock; zero when
 	// unknown (a commit restored after a restart). Reports turn it into the
-	// takeover time the Gateway records (N-5).
+	// takeover time the Opfield records (N-5).
 	CommitSince time.Duration
 	// Stateful keys (v3): whether this acceptor's memory of the key is KNOWN
 	// (AS1), the ballot it last accepted as a voter and the hash of that

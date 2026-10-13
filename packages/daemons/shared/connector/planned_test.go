@@ -39,7 +39,7 @@ func TestRefusedDial(t *testing.T) {
 		err     error
 		refused bool
 	}{
-		// The monitoring daemon and the relay supervisor while Gateway restarted (stand rc.13 O-d).
+		// The monitoring daemon and the relay supervisor while Opfield restarted (stand rc.13 O-d).
 		{status.Error(codes.Unavailable, "connection error: desc = \"transport: Error while dialing: dial tcp 172.18.0.4:9443: connect: connection refused\""), true},
 		{fmt.Errorf("connect: %w", refused), true},
 		{status.Error(codes.Unavailable, "connection error: desc = \"transport: Error while dialing: dial tcp 10.0.0.1:9443: i/o timeout\""), false},

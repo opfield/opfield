@@ -362,7 +362,7 @@ describe('losing track of a running Docker task (F-1)', () => {
       recorded?.commandId
     );
 
-    // Gateway shuts down while the node pulls: the pending command is rejected, the task is kept.
+    // Opfield shuts down while the node pulls: the pending command is rejected, the task is kept.
     rejectPull(new Error('Node disconnected'));
     await vi.waitFor(() => expect(store.detached).toEqual(['p1']));
     expect(store.service.update).not.toHaveBeenCalledWith('p1', expect.objectContaining({ status: 'failed' }));

@@ -6,19 +6,19 @@ import type { LocalRelayOutageSignal } from './local-relay-outage.js';
 const logger = createChildLogger('OpfieldRelayPaths');
 
 /**
- * Gateway's own relayed streams (database viewer, storage browser, database monitoring, PG links) choose and leave
+ * Opfield's own relayed streams (database viewer, storage browser, database monitoring, PG links) choose and leave
  * relays as the daemons do (relaybridge OrderCandidates, ReturnTarget, relayresume.Returner): by measured distance, and
  * back to the nearest relay once it is stable again. Before, they took the assignment's order: during a local relay
  * outage they went to whichever relay came first, a 300-ms one rather than a 60-ms one, and stayed there (stand rc.5,
  * O-1).
  *
- * Like the daemons, Gateway measures every remote relay of the pool all the time, not only the relays its recent
+ * Like the daemons, Opfield measures every remote relay of the pool all the time, not only the relays its recent
  * assignments named: its long-lived streams open no new path for hours, and a relay measured only around new paths
  * had no distance left when a quiet period ended in a local relay stop, so its streams took the first listed relay
  * (stand rc.6, F-3).
  */
 
-/** How often Gateway measures its round trip to each remote relay of the pool (as daemons). */
+/** How often Opfield measures its round trip to each remote relay of the pool (as daemons). */
 export const OPFIELD_RELAY_SAMPLE_INTERVAL_MS = 30_000;
 /**
  * A round trip measured longer ago than this no longer averages with a new one and makes no relay stable for a
@@ -59,14 +59,14 @@ export interface OpfieldRelayCandidate {
   topology?: { role: 'primary' | 'standby' };
 }
 
-/** A remote relay of the pool for Gateway to measure. */
+/** A remote relay of the pool for Opfield to measure. */
 export interface OpfieldRelayTarget {
   relayInstanceId: string;
   addresses: string[];
   port: number;
 }
 
-/** Where one relay stands for Gateway: reachable now, its measured round trip, reached without a break long enough. */
+/** Where one relay stands for Opfield: reachable now, its measured round trip, reached without a break long enough. */
 export interface OpfieldRelayPlace {
   available: boolean;
   rttMs?: number;
@@ -78,7 +78,7 @@ const costBand = (nearest: number) => Math.max(nearest * COST_BAND_RATIO, neares
 const returnBand = (nearest: number) => Math.max(nearest * RETURN_BAND_RATIO, nearest + RETURN_BAND_FLOOR_MS);
 
 /**
- * The order to try relays for one of Gateway's streams (relaybridge OrderCandidates): the relay being left last, relays
+ * The order to try relays for one of Opfield's streams (relaybridge OrderCandidates): the relay being left last, relays
  * reachable now first, primaries before standbys, then by distance: relays of a role within the band of the nearest
  * reachable one are equally near, farther ones follow by round trip, unmeasured ones last. Only then an active
  * assignment before a staging one, then the assignment's order.
@@ -181,7 +181,7 @@ const dialRoundTrip: Dial = (address, port, timeoutMs) =>
   });
 
 /**
- * Gateway's view of the relays its own streams use: the remote relays' measured round trips, the local relay's state
+ * Opfield's view of the relays its own streams use: the remote relays' measured round trips, the local relay's state
  * from its supervisor, and the routes' candidates; it orders a stream's relays and moves streams back to the nearest
  * relay, paced.
  */
@@ -202,7 +202,7 @@ export class OpfieldRelayPaths {
 
   constructor(
     private readonly registry: OpfieldStreamRegistry,
-    /** A fresh assignment of a Gateway route (its candidates now). */
+    /** A fresh assignment of an Opfield route (its candidates now). */
     private readonly fetchCandidates: (routeId: string) => Promise<OpfieldRelayCandidate[]>,
     options: { now?: () => number; dial?: Dial; poolRelays?: () => Promise<OpfieldRelayTarget[]> } = {}
   ) {
@@ -215,7 +215,7 @@ export class OpfieldRelayPaths {
     this.localRelay = signal;
   }
 
-  /** Where a relay stands now (OpfieldRelayPlace). The local relay is on Gateway's host: no distance to speak of. */
+  /** Where a relay stands now (OpfieldRelayPlace). The local relay is on Opfield's host: no distance to speak of. */
   place(candidate: OpfieldRelayCandidate): OpfieldRelayPlace {
     const now = this.now();
     if (candidate.local) {
@@ -237,7 +237,7 @@ export class OpfieldRelayPaths {
     };
   }
 
-  /** The candidates of one of Gateway's streams in the order to try them (orderOpfieldRelayCandidates). */
+  /** The candidates of one of Opfield's streams in the order to try them (orderOpfieldRelayCandidates). */
   order<T extends OpfieldRelayCandidate>(routeId: string, candidates: readonly T[], avoidRelayId: string | null): T[] {
     this.note(routeId, candidates);
     return orderOpfieldRelayCandidates(candidates, (candidate) => this.place(candidate), avoidRelayId);
@@ -263,7 +263,7 @@ export class OpfieldRelayPaths {
 
   /**
    * Waits, at most maxWaitMs, for a first round trip of the candidates' remote relays that were never measured (a
-   * relay that just joined the pool, or Gateway that just started): ordered without one, a stream would take the
+   * relay that just joined the pool, or Opfield that just started): ordered without one, a stream would take the
    * relay listed first.
    */
   async measure(
@@ -419,7 +419,7 @@ export class OpfieldRelayPaths {
   /**
    * An assignment generation became active (a placement change): the routes' candidates are looked up again at the
    * next return judgement, every relay is measured now, and a return pass runs shortly instead of at the next tick, so
-   * Gateway's own streams leave a farther relay as soon as the nearer one is in their assignment and stable (stand
+   * Opfield's own streams leave a farther relay as soon as the nearer one is in their assignment and stable (stand
    * rc.8, F-2: they stayed on the 300-ms relay for 80 s after the generation with the 60-ms relay was active).
    */
   assignmentsChanged(): void {

@@ -118,7 +118,7 @@ func withoutEnv(env []string, name string) []string {
 	return out
 }
 
-// clickHouseMemberOwnerOverrideConfig is Gateway's owner user on a set
+// clickHouseMemberOwnerOverrideConfig is Opfield's owner user on a set
 // member: the client profile (read-only on a copy).
 func clickHouseMemberOwnerOverrideConfig(username, password string) string {
 	return strings.Replace(clickHouseOwnerOverrideConfig(username, password), "<profile>default</profile>",

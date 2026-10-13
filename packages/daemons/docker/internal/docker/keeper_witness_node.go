@@ -30,8 +30,8 @@ import (
 // Keeper witness containers on a docker node (decision 8, second half): a
 // ClickHouse set whose witness is a docker node outside the member hosts runs
 // its witness Keeper there as a digest-pinned clickhouse-keeper container.
-// Gateway sends the desired set with ApplyWitnesses (as to relays); the node
-// keeps it on disk and runs it without Gateway. The witness serves its raft
+// Opfield sends the desired set with ApplyWitnesses (as to relays); the node
+// keeps it on disk and runs it without Opfield. The witness serves its raft
 // port through a set witness endpoint of this daemon (owner kind
 // managed_availability_witness), and reaches the members' Keeper ports
 // through its routes (owner kind managed_witness_peer, `<witness>><member>`):
@@ -149,7 +149,7 @@ func validateNodeKeeperWitnesses(specs []*pb.WitnessSpec) error {
 	return nil
 }
 
-// handleApplyKeeperWitnesses applies Gateway's desired set (a newer revision only).
+// handleApplyKeeperWitnesses applies Opfield's desired set (a newer revision only).
 func (p *DockerPlugin) handleApplyKeeperWitnesses(command *pb.ApplyWitnessesCommand, result *pb.CommandResult) {
 	w := p.keeperWitnesses
 	if w == nil {
@@ -380,7 +380,7 @@ func (w *nodeKeeperWitnesses) remove(ctx context.Context, id, containerID string
 }
 
 // bridge carries a witness's connection to a member over its route (the
-// forwarders' key is the route id Gateway named for that peer).
+// forwarders' key is the route id Opfield named for that peer).
 func (w *nodeKeeperWitnesses) bridge(connection net.Conn, routeID string) error {
 	p := w.p
 	setup := p.handover.Setup()

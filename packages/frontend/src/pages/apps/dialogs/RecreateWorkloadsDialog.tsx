@@ -140,7 +140,7 @@ async function recreate(workload: AppPendingWorkload, context: RecreateContext):
   }
 }
 
-/** What the rows Gateway could not follow to their end are waiting for. */
+/** What the rows Opfield could not follow to their end are waiting for. */
 function notFinishedNote(queued: number, deferred: number): string {
   const notes: string[] = [];
   if (queued > 0) {

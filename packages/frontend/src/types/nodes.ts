@@ -235,7 +235,7 @@ export interface NodeDetail extends Node {
   monitoringHistory?: NodeMonitoringSnapshot[];
 }
 
-/** A node setup command for one enrollment target, built by Gateway for its own release. */
+/** A node setup command for one enrollment target, built by Opfield for its own release. */
 export interface NodeInstallCommand {
   target: "public" | "local";
   label: string;
@@ -245,7 +245,7 @@ export interface NodeInstallCommand {
 }
 
 export interface NodeInstallation {
-  /** Gateway release the installers come from; null for an unreleased build, which uses main. */
+  /** Opfield release the installers come from; null for an unreleased build, which uses main. */
   installerRelease: string | null;
   installCommands: NodeInstallCommand[];
 }
@@ -268,7 +268,7 @@ export interface CreateNodeResponse extends NodeInstallation {
   };
 }
 
-/** Check if a node is outside the supported gateway/daemon minor-version window. */
+/** Check if a node is outside the supported Opfield/daemon minor-version window. */
 export function isNodeIncompatible(node: Node | NodeDetail): boolean {
   return !!(node.capabilities as Record<string, unknown>)?.versionMismatch;
 }
@@ -281,7 +281,7 @@ function nodeUpdateMetadata(node: Node | NodeDetail): Record<string, unknown> {
 export function isNodeUpdating(node: Node | NodeDetail): boolean {
   const metadata = nodeUpdateMetadata(node);
   if (metadata.updateInProgress !== true) return false;
-  // A deadline that passed while Gateway could not expire the update (a restart) no longer holds the node.
+  // A deadline that passed while Opfield could not expire the update (a restart) no longer holds the node.
   const deadlineAt =
     typeof metadata.updateDeadlineAt === "string"
       ? Date.parse(metadata.updateDeadlineAt)
@@ -318,7 +318,7 @@ export function getNodeUpdateWaitingForTasks(node: Node | NodeDetail): NodeUpdat
   });
 }
 
-/** The result of the node's last completed daemon update, if Gateway kept one. */
+/** The result of the node's last completed daemon update, if Opfield kept one. */
 export function getNodeLastUpdate(node: Node | NodeDetail): NodeLastUpdate | null {
   const value = nodeUpdateMetadata(node).lastUpdate;
   if (!value || typeof value !== "object") return null;

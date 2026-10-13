@@ -6,7 +6,7 @@ package chha
 // Keeper witness (the convert path of a create operation, rc.1 stand B
 // blocker): the origin restarts with its Keeper as the only voter (bootstrap
 // voters) and holds the set; then the witness starts and the copy is created
-// the way the docker daemon creates it for Gateway's create command: its
+// the way the docker daemon creates it for Opfield's create command: its
 // files staged (stageClickHouseAvailability), its container started directly
 // (no PrepareStandby: the member runtime only takes it over once it exists),
 // and the command waits up to managedDatabaseReadinessTimeout for the

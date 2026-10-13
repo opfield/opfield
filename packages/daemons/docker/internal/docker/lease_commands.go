@@ -25,7 +25,7 @@ func (p *DockerPlugin) handleAvailabilityLeaseSync(cmd *pb.SyncAvailabilityLease
 		keys = append(keys, lease.PolicyKey{ID: key.GetKeyId(), PublicKey: key.GetPublicKey()})
 	}
 	// voter_config is obsolete: every manifest carries its policy's voters
-	// (A18). A non-empty value from an older Gateway is ignored.
+	// (A18). A non-empty value from an older Opfield is ignored.
 	update, err := lease.DecodeBlockUpdate(cmd.GetRevision(), cmd.GetMemberId(), keys, cmd.GetKeyRotations(), cmd.GetManifests())
 	if err == nil {
 		err = p.lease.runtime.ApplyLeaseBlocks(update)

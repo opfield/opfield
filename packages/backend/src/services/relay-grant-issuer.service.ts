@@ -143,7 +143,7 @@ export interface RelayDataCandidate {
   assignmentState: 'active' | 'staging' | 'draining';
   /** Draining relays: resumable streams leave before this (unix ms). Absent: as soon as possible. */
   drainDeadlineUnixMs?: string;
-  /** Absent when Gateway placed the endpoint without latency data. */
+  /** Absent when Opfield placed the endpoint without latency data. */
   topology?: { role: 'primary' | 'standby'; endpointRttMicros: number };
 }
 
@@ -651,7 +651,7 @@ export class RelayGrantIssuerService {
 
   /**
    * Lease lanes (stand run c1): a node that takes part in a lease-mode Availability policy keeps a transport to every
-   * member relay, whether or not one of its endpoints is assigned there, so its lease frames never depend on Gateway's
+   * member relay, whether or not one of its endpoints is assigned there, so its lease frames never depend on Opfield's
    * local relay. The assignment only names transport targets: daemons derive their relay transports from every
    * assignment's candidates and ignore roles they do not handle. Its grants are empty and authorize nothing; relays
    * admit the lease stream by manifest membership.

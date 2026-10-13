@@ -6,7 +6,7 @@ import { ProxySecureLinkService } from './proxy-secure-link.service.js';
 const HOST_ID = '11111111-1111-4111-8111-111111111111';
 const SOCKET_PATH = `/run/opfield-secure-links/${HOST_ID}.sock`;
 const UPSTREAM_NAME = `opfield_secure_link_${HOST_ID.replace(/-/g, '_')}`;
-// What the Route dialog stores when raw mode is switched on: the config Gateway rendered.
+// What the Route dialog stores when raw mode is switched on: the config Opfield rendered.
 const SEEDED_RAW_CONFIG = `upstream ${UPSTREAM_NAME} {
     server unix:${SOCKET_PATH};
     keepalive 64;

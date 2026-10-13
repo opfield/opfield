@@ -9,7 +9,7 @@ import (
 )
 
 // Sessions a replaced Secure Link connector still carried when it was removed, an hour after the update that
-// replaced it, join the node's last update report as a new final report, which Gateway takes again (stand rc.7 O-15:
+// replaced it, join the node's last update report as a new final report, which Opfield takes again (stand rc.7 O-15:
 // reported nowhere). Without a report there is nothing to join.
 func TestCutAfterJoinsTheLastUpdateReport(t *testing.T) {
 	stateDir := t.TempDir()

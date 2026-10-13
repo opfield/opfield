@@ -16,7 +16,7 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * The cloud link reads the host and containers through Gateway's own diagnostics: the app container already has the
+ * The cloud link reads the host and containers through Opfield's own diagnostics: the app container already has the
  * Docker socket of its Compose project, and its host readings narrow to the container's cgroup where the host is not
  * visible. Nothing new is mounted for the cloud link.
  */

@@ -3,7 +3,7 @@ import type { ManagedAvailabilitySetLease } from '@/modules/docker/availability/
 import type { ManagedAvailabilitySetController } from '@/modules/docker/availability/lease/managed-availability-lease-source.js';
 
 /**
- * What the commercial control plane of database and storage availability sets uses from the open-core host. Gateway's
+ * What the commercial control plane of database and storage availability sets uses from the open-core host. Opfield's
  * bootstrap hands it over with `ManagedDatabaseService.setAvailabilityHost` and `ManagedStorageService.setAvailabilityHost`
  * (parts may arrive in several calls; the services merge them).
  */
@@ -16,7 +16,7 @@ export interface ManagedAvailabilityHost {
   signer: ManagedAvailabilityAssignmentSigner;
   /** Relay paths of sets (P1-T05). */
   relay: ManagedAvailabilityRelayPort;
-  /** Settings the preflight shows (decision 18: the relay policy envelope bounds Gateway-down operation). */
+  /** Settings the preflight shows (decision 18: the relay policy envelope bounds Opfield-down operation). */
   settings: { relayPolicyLeaseHours(): Promise<number> };
   /** Witness processes relays host for sets (RelayWitnessService): pushed again after witness rows changed. */
   witnesses: ManagedAvailabilityWitnessPort;

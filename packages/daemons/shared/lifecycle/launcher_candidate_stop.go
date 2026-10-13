@@ -6,7 +6,7 @@ import (
 )
 
 // A launcher stops an update candidate on trial that does not prove itself
-// (no local readiness, no Gateway control readiness) and starts the previous
+// (no local readiness, no Opfield control readiness) and starts the previous
 // daemon again at once. That previous daemon (2.11.4-rc.6 or later) takes
 // over connections handed to it like the next process of an update does, so
 // a candidate stopped on trial hands its connections over too: a rollback

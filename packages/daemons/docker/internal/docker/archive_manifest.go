@@ -13,9 +13,9 @@ import (
 	mobyclient "github.com/moby/moby/client"
 )
 
-// gwcaContainerManifest is intentionally a Gateway-owned whitelist. It must
+// gwcaContainerManifest is intentionally an Opfield-owned whitelist. It must
 // not grow into a serialized Docker inspect response: every field here has a
-// matching Gateway create/recreate setting and an explicit import policy.
+// matching Opfield create/recreate setting and an explicit import policy.
 type gwcaContainerManifest struct {
 	SchemaVersion  int               `json:"schemaVersion"`
 	Name           string            `json:"name"`
@@ -95,7 +95,7 @@ func sanitizeGwcaLabels(labels map[string]string) map[string]string {
 // validateGwcaNetworks applies the container create network rules to the
 // networks an archive manifest names, which are user input: no host
 // networking, no other container's namespace, none only as the one network,
-// and none of the networks Gateway owns on the node (Secure Links, managed
+// and none of the networks Opfield owns on the node (Secure Links, managed
 // database and storage links), existing or to be created under that name.
 func validateGwcaNetworks(networks []gwcaNetwork) error {
 	named, isolated := 0, false

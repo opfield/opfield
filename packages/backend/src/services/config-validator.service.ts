@@ -22,7 +22,7 @@ interface CheckOptions {
   syntax: boolean;
   /** Statements (see statementKey) allowed even though their directive is forbidden. */
   allowedStatements?: ReadonlySet<string>;
-  /** The text is inserted into a non-root location Gateway renders. */
+  /** The text is inserted into a non-root location Opfield renders. */
   insideLocation?: boolean;
 }
 
@@ -34,7 +34,7 @@ export interface ConfigValidationResult {
 /** `{{logPath}}`, the route's log file prefix, always renders inside nginx's log directory. */
 const TEMPLATE_LOG_PATH = /{{\s*logPath\s*}}/g;
 
-/** Statements with forbidden directive names that Gateway's own templates emit, in their template form. */
+/** Statements with forbidden directive names that Opfield's own templates emit, in their template form. */
 const OPFIELD_TEMPLATE_STATEMENTS: readonly RegExp[] = [
   /include\s+{{\s*pagesRouteIncludePath\s*}}\s*;/g,
   // legacy-name: /etc/nginx/gateway in templates saved before 2.12.1 — remove once every node reports none
@@ -404,7 +404,7 @@ export class ConfigValidatorService {
     return errors;
   }
 
-  /** A snippet is inserted into a block Gateway renders, so it must not close that block or leave its own open. */
+  /** A snippet is inserted into a block Opfield renders, so it must not close that block or leave its own open. */
   private static blockStructureErrors(tokens: readonly ConfigToken[]): string[] {
     const open: number[] = [];
     for (const token of tokens) {
@@ -494,10 +494,10 @@ export class ConfigValidatorService {
   }
 
   /**
-   * Validate directives Gateway inserts into a non-root location it renders (Additional Route advanced config).
+   * Validate directives Opfield inserts into a non-root location it renders (Additional Route advanced config).
    * They get the advanced deny-list as if written inside such a location, so location directives like proxy_pass
    * stay allowed. With `unrestricted` only the structure is checked: complete directives that cannot close the
-   * location or run into the directives Gateway renders after them.
+   * location or run into the directives Opfield renders after them.
    */
   validateLocationSnippet(snippet: string, unrestricted = false): ConfigValidationResult {
     return this.check(snippet, snippet, {
@@ -511,7 +511,7 @@ export class ConfigValidatorService {
   /**
    * Validate custom nginx template content. A template is raw server configuration rendered by Handlebars:
    * expressions are blanked as in advanced snippets and the raw deny-list applies. The Pages include, the access
-   * list password file and the `{{logPath}}` logs that Gateway's own templates emit stay allowed in their template
+   * list password file and the `{{logPath}}` logs that Opfield's own templates emit stay allowed in their template
    * form.
    */
   validateTemplate(content: string): ConfigValidationResult {
@@ -529,7 +529,7 @@ export class ConfigValidatorService {
   /**
    * Validate what a custom template rendered to. Handlebars can assemble any directive from literals and values,
    * so the output gets the raw deny-list too. Statements authorized elsewhere stay allowed: the given ones (the
-   * Pages include and password file paths Gateway generated) and every statement of the route's own advanced
+   * Pages include and password file paths Opfield generated) and every statement of the route's own advanced
    * snippets, which were validated, or deliberately left unrestricted, when the route was saved.
    */
   validateRenderedTemplate(

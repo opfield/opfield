@@ -17,7 +17,7 @@ export const INFERENCE_CORE_CHANGED_CHANNEL = 'inference.core.changed';
 
 /**
  * Persisted lifecycle operations for the managed core. Every operation row is
- * written BEFORE the first Docker mutation it describes, so a Gateway restart
+ * written BEFORE the first Docker mutation it describes, so an Opfield restart
  * can always recover "what was in flight" from the database. At most one
  * operation runs at a time (enforced by the partial unique index).
  */
@@ -109,7 +109,7 @@ export class InferenceCoreOperationService {
   }
 
   /**
-   * Startup recovery: a still-"running" row means the Gateway process died
+   * Startup recovery: a still-"running" row means the Opfield process died
    * mid-operation. Mark it failed so the runtime can reconcile from observed
    * Docker state instead of trusting a dead operation.
    */

@@ -51,7 +51,7 @@ type workload struct {
 	// the serving set of the last one, so a new copy starts over.
 	healthReleases    int
 	healthReleasedIDs map[string]bool
-	// healthRequest is a release Gateway asked for (the copy fails its HTTP
+	// healthRequest is a release Opfield asked for (the copy fails its HTTP
 	// health check), with when it was asked; served by the next step that
 	// finds the copy serving under the lease.
 	healthRequest   string
@@ -221,7 +221,7 @@ func (r *Runtime) reconcileLocked(manifest availabilitylease.ManifestInfo, statu
 
 // noteBootstrapWaitLocked logs why the named bootstrap holder does not try to
 // acquire its reserved key, once per reason: without its copy it waits
-// forever, and Gateway sees only a bootstrap that never completes.
+// forever, and Opfield sees only a bootstrap that never completes.
 func (r *Runtime) noteBootstrapWaitLocked(manifest availabilitylease.ManifestInfo, wl *workload, pending bool, serve, containers []Container, now time.Duration) {
 	reason := ""
 	if pending && !r.ready[manifest.PolicyID] {
@@ -328,7 +328,7 @@ func (r *Runtime) releaseUnhealthyLocked(wl *workload, status availabilitylease.
 
 // ReleaseUnhealthy asks the holder of a policy's slot on this node to release
 // it for health, as its own health watch does after two bad samples (D6):
-// Gateway found the copy failing its HTTP health check while another copy
+// Opfield found the copy failing its HTTP health check while another copy
 // serves. False when this node does not serve the policy under a lease now.
 func (r *Runtime) ReleaseUnhealthy(policyID, issue string) bool {
 	holding := false

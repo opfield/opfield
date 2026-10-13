@@ -47,7 +47,7 @@ const (
 	storageCopyCancelRecordRetained = 24 * time.Hour
 	storageCopyPruneInterval        = 10 * time.Minute
 	// storageCopyStartGrace tolerates a node clock that runs ahead of
-	// Gateway's before a start counts as delivered too late.
+	// Opfield's before a start counts as delivered too late.
 	storageCopyStartGrace   = 10 * time.Minute
 	storageCopyStartExpired = "STORAGE_COPY_START_EXPIRED"
 	// Relay owner kinds of the job's two per-run storage routes. They are the
@@ -381,7 +381,7 @@ func (r *storageCopyRuntime) start(payload storageCopyPayload) (storageCopyStatu
 	if payload.StartBy != nil && started.After(payload.StartBy.Add(storageCopyStartGrace)) {
 		r.mu.Unlock()
 		// A late delivery gets no listener; an answer the control plane does
-		// receive means this clock runs ahead of Gateway's, so name that.
+		// receive means this clock runs ahead of Opfield's, so name that.
 		return storageCopyStatus{}, fmt.Errorf("%s: the start request was due by %s but this node's clock reads %s; if this repeats, the node clock is ahead of Opfield, fix its time synchronization",
 			storageCopyStartExpired, payload.StartBy.UTC().Format(time.RFC3339), started.Format(time.RFC3339))
 	}

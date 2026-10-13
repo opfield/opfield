@@ -61,7 +61,7 @@ const (
 	KindClose     = 6
 	KindError     = 7
 	// KindUnparsed is a frame whose bytes are not the single payload field
-	// the daemons and Gateway send; Decode reads it as protobuf does.
+	// the daemons and Opfield send; Decode reads it as protobuf does.
 	KindUnparsed = -1
 )
 

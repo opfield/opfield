@@ -42,7 +42,7 @@ const RewriteRuleSchema = z.object({
 });
 
 /**
- * Gateway-managed render keys are ignored at render time, and custom templates that declare such
+ * Opfield-managed render keys are ignored at render time, and custom templates that declare such
  * variables send them back from the host form. Drop them here instead of rejecting the save.
  */
 const TemplateVariablesSchema = z.record(z.union([z.string(), z.number(), z.boolean()])).transform((variables) => {
@@ -62,7 +62,7 @@ const RelaySpreadModeSchema = z.enum(['inherit', 'fixed', 'all']);
 export const CreateProxyHostSchema = z
   .object({
     type: z.enum(['proxy', 'redirect', '404', 'raw']).default('proxy'),
-    // Optional: omitted, the route uses the ingress node or group its registered Gateway domains are assigned
+    // Optional: omitted, the route uses the ingress node or group its registered Opfield domains are assigned
     // to, or the only nginx node the caller may create routes on (see route-ingress-nodes.ts).
     nodeId: z.string().uuid('A node must be selected').optional(),
     // Serve the route from every member of this ingress group instead of one node.

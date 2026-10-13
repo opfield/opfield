@@ -15,7 +15,7 @@ import (
 )
 
 // `docker-daemon availability ...`: node-local operations on database and
-// storage availability set members, for when Gateway is down. A forced
+// storage availability set members, for when Opfield is down. A forced
 // promotion (AS10) goes through the lease like any acquisition and is
 // refused without a strict majority of the set's voters.
 const availabilityUsage = `Usage:

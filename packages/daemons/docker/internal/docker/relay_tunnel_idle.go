@@ -12,7 +12,7 @@ var relayTunnelIdleLimit = 5 * time.Minute
 
 // relaySourceIdleLimit is the idle limit of the source tunnels of a connect assignment's owner kind (0: none).
 // Workload links (database, storage and container links) keep their pooled connections open however long they idle:
-// Gateway's route policy turns the relays' idle timeout off for them (relay-policy.service.ts relayRoutePolicy,
+// Opfield's route policy turns the relays' idle timeout off for them (relay-policy.service.ts relayRoutePolicy,
 // disableIdleTimeout). A daemon is not told the policy, so it follows it by kind; every other route keeps the limit.
 func relaySourceIdleLimit(ownerKind string) time.Duration {
 	switch ownerKind {

@@ -45,7 +45,7 @@ export interface IngressGroupDnsPlan {
  * Domains on ingress groups. DNS of a Cloudflare-managed group domain in mode `none` is the union of the active
  * members' effective ingress addresses (round robin; Cloudflare does not health-check plain records, so an
  * unreachable member keeps receiving its share until it is removed or a DNS failover mode is chosen). Members that
- * are joining or draining are never published. External DNS is the operator's: Gateway only validates it.
+ * are joining or draining are never published. External DNS is the operator's: Opfield only validates it.
  */
 export abstract class DomainsServiceIngressGroups extends DomainsServiceRuntime {
   /**

@@ -16,11 +16,11 @@ import { createChildLogger } from '@/lib/logger.js';
 import type { CryptoService } from './crypto.service.js';
 
 /**
- * Resumable relay streams (RSv1, packages/daemons/shared/relayresume/doc.go): Gateway's part.
+ * Resumable relay streams (RSv1, packages/daemons/shared/relayresume/doc.go): Opfield's part.
  *
  * - One instance secret, envelope-encrypted in relay_policy_state. Every route resume key derives from it with
  *   HKDF-SHA256 and the route's key_version; keys reach the daemons only over their control sessions.
- * - A route is resumable only while its source (a daemon advertising the capability, or Gateway itself) and its
+ * - A route is resumable only while its source (a daemon advertising the capability, or Opfield itself) and its
  *   target daemon both support it. Anything else keeps today's raw streams.
  * - Turning a route on, rotating its key and turning it off are ordered, so a source never holds a key its target
  *   does not accept: targets first when enabling or rotating, sources first when disabling. See
@@ -31,7 +31,7 @@ const logger = createChildLogger('RelayStreamResume');
 
 export const RELAY_STREAM_RESUME_CAPABILITY = 'relay_stream_resume_v1';
 export const RELAY_STREAM_RESUME_VERSION = 1;
-/** Gateway's own TypeScript source (database tools, storage browser) speaks RSv1 (task T6). */
+/** Opfield's own TypeScript source (database tools, storage browser) speaks RSv1 (task T6). */
 export const OPFIELD_STREAM_RESUME_CAPABLE = true;
 const KDF_DOMAIN = 'gw-relay-resume/v1';
 const KEY_LEN = 32;
@@ -181,7 +181,7 @@ export function workloadLegacyStreams(
  * Whether every route to an endpoint assigned to this relay is resumable: its streams then leave the relay by
  * themselves when it drains. Built-in local services are left out: a draining local relay keeps serving them.
  * A relay with no routed workload counts as resumable; there is nothing to wait for. `legacySessions`: raw streams
- * the daemons report through this relay (opened before their routes turned resumable, or by an older Gateway), which
+ * the daemons report through this relay (opened before their routes turned resumable, or by an older Opfield), which
  * only today's grace lets end on their own; those of the local services a draining local relay keeps do not count.
  */
 export async function relayInstanceFullyResumable(
@@ -304,7 +304,7 @@ export function relaySessionSplit(
   return { resumable, legacy, reporting: reports.length > 0 };
 }
 
-/** What Gateway's own relayed streams (RelayControlClient.relayResumeStats) look like as a daemon report. */
+/** What Opfield's own relayed streams (RelayControlClient.relayResumeStats) look like as a daemon report. */
 export interface OpfieldRelayResumeStats {
   sessions: { resumable: number; legacy: number };
   byRelay?: Record<string, { resumable: number; legacy: number }>;
@@ -316,7 +316,7 @@ export interface OpfieldRelayResumeStats {
 }
 
 /**
- * Gateway's own streams as one more reporting source. Migration outcomes are keyed "trigger:result": "ok" moved a
+ * Opfield's own streams as one more reporting source. Migration outcomes are keyed "trigger:result": "ok" moved a
  * stream, any other result is a failed move. Only a refused resume, and an unplanned move that ran out of time, cut a
  * live stream: a planned move that found no path or no answer keeps the stream where it was, and "rejected" is a
  * stream that had ended meanwhile (stand rc.6 O-3). Raw streams through a pre-pool relay are keyed "local", which is
@@ -365,7 +365,7 @@ export function opfieldStreamReport(
   };
 }
 
-/** The report source name of Gateway's own streams. */
+/** The report source name of Opfield's own streams. */
 export const OPFIELD_STREAM_REPORT_SOURCE = 'gateway';
 
 /** Per daemon: streams it moved to another relay and resumable streams it lost, since it started. */
@@ -725,7 +725,7 @@ export class RelayStreamResumeService {
 
   /**
    * Delivers the bundles of one side of these routes. Returns the routes whose every node on that side applied its
-   * bundle. Gateway, as a source, reads its route at every open and needs no delivery.
+   * bundle. Opfield, as a source, reads its route at every open and needs no delivery.
    */
   private async syncSides(routes: RouteEnds[], side: 'source' | 'target'): Promise<string[]> {
     const nodeOf = (route: RouteEnds) =>

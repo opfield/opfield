@@ -23,7 +23,7 @@ const (
 	LegacyAudience = "wiolett-relay"
 	// AudienceCapability tells Opfield this relay accepts grants for Audience.
 	AudienceCapability = "grant_audience_opfield_v1"
-	// MaxTTL is the longest grant lifetime this relay build accepts. Gateway only
+	// MaxTTL is the longest grant lifetime this relay build accepts. Opfield only
 	// issues a grant this long to a relay instance that advertised
 	// policy.LongLeaseCapability; otherwise it keeps issuing the legacy 48-hour
 	// grants an older relay still enforces.
@@ -56,11 +56,11 @@ type Claims struct {
 
 var (
 	// ErrUnknownKey marks a grant signed by a key this relay's policy does
-	// not list yet: Gateway pushes a new grant key to the daemons and the
+	// not list yet: Opfield pushes a new grant key to the daemons and the
 	// relays at the same time, and the daemon's grant may arrive first.
 	ErrUnknownKey = errors.New("grant signing key is not in the relay policy yet")
 	// ErrPolicyUnavailable marks a relay without a current policy (none yet,
-	// or its lease expired while Gateway is away): a relay condition, not a
+	// or its lease expired while Opfield is away): a relay condition, not a
 	// verdict about the grant.
 	ErrPolicyUnavailable = errors.New("relay policy is unavailable")
 )
@@ -125,7 +125,7 @@ func (v Verifier) VerifyEnvelope(envelope *relayv1.SignedGrant, wantKind string,
 	if claims.Kind != wantKind || claims.SubjectKind == "" || claims.CertificateSHA256 != identity.CertificateFingerprint {
 		return Claims{}, fmt.Errorf("grant subject is invalid")
 	}
-	// Daemon certificates use their node ID as CN. Gateway service certificates
+	// Daemon certificates use their node ID as CN. Opfield service certificates
 	// deliberately use a stable service CN, so their instance ID is bound by the
 	// signed claims, policy snapshot and pinned certificate fingerprint instead.
 	if claims.SubjectKind != "gateway" && claims.SubjectID != identity.SubjectID {

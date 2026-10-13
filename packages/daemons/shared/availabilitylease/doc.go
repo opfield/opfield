@@ -1,7 +1,7 @@
 // Package availabilitylease is the data-plane lease protocol for Docker
 // Availability failover: a PaxosLease variant in which relays and a bounded
 // set of daemons are acceptors and candidate docker daemons are proposers.
-// The Gateway only publishes signed manifests; it never decides failover.
+// Opfield only publishes signed manifests; it never decides failover.
 //
 // The package is pure protocol logic. It performs no I/O of its own: time
 // comes from a Clock, durability from a Store, frames leave through a
@@ -82,16 +82,16 @@
 // as IncarnationFloor so incarnations keep increasing when the store is lost
 // (relay.db renamed): peers drop frames from lower incarnations (A9).
 //
-// Trust and blocks. Call TrustPolicyKey with the Gateway policy signing key
+// Trust and blocks. Call TrustPolicyKey with the Opfield policy signing key
 // received over an authenticated channel (daemon CommandStream; relay
 // verified policy envelope), AdoptKeyRotation for rotation links, and
 // AdoptManifest for signed manifests, which include the policy's voters. It
 // returns true once the manifest is durably adopted: that is the "persisted
-// ack" the Gateway waits for (A4). A manifest whose voter epoch goes back is
+// ack" Opfield waits for (A4). A manifest whose voter epoch goes back is
 // rejected. Epoch(policy) and ManifestVersion(policy) report what is adopted. Nodes also adopt newer blocks (of a policy they hold
 // or that names them) and rotation links that arrive inside frames, and forward theirs to lagging peers on first
 // contact, on NACKs and on lag reports, so failover never waits for the
-// Gateway (A4, A14).
+// Opfield (A4, A14).
 //
 // Driving. Hand every frame addressed to this node to ReceiveFrame. A frame
 // (and an accept statement) is authentic when any of its signatures verifies
@@ -109,7 +109,7 @@
 // manifest that names the node lists the new key, or IdentityKeyOverlap
 // (24 h) passed; IdentityOverlap reports it. The overlap is in memory: after
 // a restart during it, call RotateIdentityKey again with the previous key as
-// Config.Signer. The Gateway republishes manifests with the new key (T3).
+// Config.Signer. Opfield republishes manifests with the new key (T3).
 //
 // # Docker daemon (T4)
 //
@@ -183,7 +183,7 @@
 // feeds GetHealth. A relay votes for a policy only when it is that policy's
 // witness; to keep shadow accepts for its gate it must be listed as a member
 // of every policy whose traffic it carries (A18). Only relays of
-// operator-owned pools may be witnesses (A9), enforced by the Gateway.
+// operator-owned pools may be witnesses (A9), enforced by Opfield.
 //
 // # nginx daemon (T5)
 //
@@ -191,7 +191,7 @@
 // state comes from the relay gate views they learn, each with a TTL of at
 // most T.
 //
-// # Gateway obligations (T3, T6)
+// # Opfield obligations (T3, T6)
 //
 //   - Sign manifests with the relay policy key (Ed25519) over
 //     "gateway-availability-lease/manifest/v1" 0x00 || payload. The domain
@@ -343,7 +343,7 @@
 // and certifies again from the adopted value, never from the application's
 // own configuration.
 //
-// Gateway obligations for stateful policies: publish them only when every
+// Opfield obligations for stateful policies: publish them only when every
 // member and candidate advertises availability_lease_v3; strict only; a new
 // policy id per enable (M10); a bootstrap reservation naming the serving
 // member; keep a voter change joint until a live holder reports

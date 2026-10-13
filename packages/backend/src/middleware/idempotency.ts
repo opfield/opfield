@@ -277,7 +277,7 @@ function secretInString(value: string): string | null {
 
 /**
  * Where a value carries secret-looking material (a secret-named field with a value, a private key,
- * a URL with credentials, a Gateway token, or a secret environment assignment), or null. Results
+ * a URL with credentials, an Opfield token, or a secret environment assignment), or null. Results
  * that trip it are never stored for replay.
  */
 export function findSecretMaterial(value: unknown): string | null {
@@ -328,7 +328,7 @@ function resolveRedis(): RedisClient {
   return container.resolve(CacheService).getClient();
 }
 
-/** Results are encrypted with the Gateway master key, so Redis dumps and backups never hold them in plaintext. */
+/** Results are encrypted with the Opfield master key, so Redis dumps and backups never hold them in plaintext. */
 function sealPayload(payload: unknown): SealedPayload | null {
   try {
     return container.resolve(CryptoService).encryptString(JSON.stringify(payload));

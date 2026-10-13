@@ -130,7 +130,7 @@ const (
 	LegacyLatch            = 10 * time.Minute
 	ProxyHalfCloseTimeout  = 30 * time.Second
 	CloseLingerTimeout     = 10 * time.Second // finishing: wait for the peer's CLOSE
-	DrainDeadlineMargin    = 15 * time.Second // Gateway: drain start + grace - margin
+	DrainDeadlineMargin    = 15 * time.Second // Opfield: drain start + grace - margin
 	MaxMigrationsInFlight  = 32
 	DefaultDrainSpreadTime = 60 * time.Second // drain moves spread over at most this
 )

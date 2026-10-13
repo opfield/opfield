@@ -11,7 +11,7 @@ export type NodeHostPortOwnerKind =
   | 'app_incident';
 
 /**
- * One host port a Gateway-managed workload holds on its node. The partial
+ * One host port an Opfield-managed workload holds on its node. The partial
  * unique index is the guarantee that two workloads never reserve the same
  * port; the owner tables keep these rows in sync through triggers (migration
  * 0207), so an owner's write fails with a unique violation instead of the

@@ -215,13 +215,13 @@ export function getStatusPageUpstream(upstreamUrl: string | null | undefined): {
 export type StatusPageDefaultUpstreamContext = {
   /** Addresses the status page ingress node reports for itself. */
   nodeAddresses: readonly string[];
-  /** Interface addresses of the Gateway host (OPFIELD_LOCAL_HOSTS). */
+  /** Interface addresses of the Opfield host (OPFIELD_LOCAL_HOSTS). */
   opfieldHostAddresses: readonly string[];
-  /** Gateway host address local nodes enroll with, optionally with the gRPC port. */
+  /** Opfield host address local nodes enroll with, optionally with the gRPC port. */
   opfieldLocalTarget: string | null | undefined;
-  /** Gateway host public nodes enroll with, optionally with the gRPC port. */
+  /** Opfield host public nodes enroll with, optionally with the gRPC port. */
   opfieldPublicTarget: string | null | undefined;
-  /** Gateway serves its web port with native HTTPS. */
+  /** Opfield serves its web port with native HTTPS. */
   tlsEnabled: boolean;
   port: number;
 };
@@ -236,10 +236,10 @@ function enrollmentTargetHost(target: string | null | undefined): string | null 
 }
 
 /**
- * The Gateway URL a status page ingress node proxies to when no upstream URL
- * is configured: loopback on the Gateway host itself; from any other node, the
- * Gateway host address nodes enroll with (local first, then public). The
- * scheme follows Gateway's own web listener.
+ * The Opfield URL a status page ingress node proxies to when no upstream URL
+ * is configured: loopback on the Opfield host itself; from any other node, the
+ * Opfield host address nodes enroll with (local first, then public). The
+ * scheme follows Opfield's own web listener.
  */
 export function defaultStatusPageUpstreamUrl(context: StatusPageDefaultUpstreamContext): string {
   const normalize = (address: string) => address.trim().toLowerCase();

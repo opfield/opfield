@@ -7,7 +7,7 @@ import (
 )
 
 // A reconnect resync re-applies every route of the node. Content equal to the file on disk is neither rewritten nor
-// reloaded, and the changes of a batch Gateway marks as deferred are each tested and then loaded with one reload:
+// reloaded, and the changes of a batch Opfield marks as deferred are each tested and then loaded with one reload:
 // the next command that reloads nginx (the resync ends with a full sync), or the daemon itself once the batch went
 // quiet. A reload drops idle keep-alive client connections, so every reload saved is a reset a client never sees.
 const (

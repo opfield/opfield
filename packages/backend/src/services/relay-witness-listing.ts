@@ -19,9 +19,9 @@ export interface RelayWitnessListing {
   kind: string;
   /** active | standby */
   role: string;
-  /** running | standby | removed: what Gateway wants. */
+  /** running | standby | removed: what Opfield wants. */
   desiredState: string;
-  /** What the relay reported (fetching, staged, running, error, refused, …), else Gateway's status (pending, ready, error). */
+  /** What the relay reported (fetching, staged, running, error, refused, …), else Opfield's status (pending, ready, error). */
   state: string;
   version: string | null;
   error: string | null;

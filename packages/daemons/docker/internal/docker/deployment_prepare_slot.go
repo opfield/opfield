@@ -14,7 +14,7 @@ import (
 // running slot must be recreated) prepares the other colour first, then stops
 // the active slot and switches: the serving gap is stop + start + readiness,
 // never pull or create. Older daemons answer "unknown deployment action" and
-// the Gateway creates the colour inside the gap instead.
+// Opfield creates the colour inside the gap instead.
 const deploymentActionPrepareSlot = "prepare_slot"
 
 var errPrepareOverRunningSlot = errors.New("a deployment slot is never prepared over its running container")

@@ -91,7 +91,7 @@ function publishNodeFileChanged(
 
 /**
  * `userId`: the user browsing through the API or an agent, recorded in the audit log like writes are (a node file can
- * be any host file, keys included). Gateway's own reads (host inventory) pass none.
+ * be any host file, keys included). Opfield's own reads (host inventory) pass none.
  */
 export async function listNodeFiles(context: NodeFileOperationContext, nodeId: string, path: string, userId?: string) {
   const result = await context.nodeDispatch.sendNodeFileCommand(nodeId, 'list', { path });

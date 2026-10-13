@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationEvaluatorService } from './notification-evaluator.service.js';
 
 /**
- * A "Node Online" rule (a recovery event) against the observations Gateway makes: every health report observes the
+ * A "Node Online" rule (a recovery event) against the observations Opfield makes: every health report observes the
  * node online, a dropped node is observed offline once (stand rc.8, F-5).
  */
 function setup(rule: Record<string, unknown> = {}) {

@@ -37,7 +37,7 @@ func DecodeBlockUpdate(revision uint64, memberID string, keys []PolicyKey, rotat
 	return update, nil
 }
 
-// ApplyLeaseBlocks adopts Gateway-delivered trust and signed blocks. Keys come
+// ApplyLeaseBlocks adopts Opfield-delivered trust and signed blocks. Keys come
 // over the authenticated CommandStream and are trusted directly; rotation
 // links and blocks are verified by the protocol node (A4, A14). Adoption is
 // durable before this returns, so the next report is the persisted ack.

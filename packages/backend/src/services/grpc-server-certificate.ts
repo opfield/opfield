@@ -7,9 +7,9 @@ import {
 } from '@peculiar/x509';
 
 /**
- * Gateway's own TLS leaves (the gRPC and web listeners and the local relay service identities)
+ * Opfield's own TLS leaves (the gRPC and web listeners and the local relay service identities)
  * are issued for 365 days and renewed this long before they expire: at start-up, and while
- * Gateway runs by OpfieldIdentityRenewalService, which also hot-reloads them.
+ * Opfield runs by OpfieldIdentityRenewalService, which also hot-reloads them.
  */
 export const OPFIELD_IDENTITY_RENEW_BEFORE_MS = 30 * 24 * 60 * 60 * 1000;
 

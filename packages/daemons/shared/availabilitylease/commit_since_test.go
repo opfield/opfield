@@ -7,7 +7,7 @@ import (
 
 // N-5: every acceptor reports when it first stored a commit of the current
 // holder, on its own clock. Renewals keep it; a takeover moves it to the new
-// holder's first commit. Gateway records that as the takeover time instead of
+// holder's first commit. Opfield records that as the takeover time instead of
 // the moment it heard of the change (stand run rc20: 70 s late after a
 // failover while it was down).
 func TestAcceptorReportsWhenItFirstSawTheCommitHolder(t *testing.T) {

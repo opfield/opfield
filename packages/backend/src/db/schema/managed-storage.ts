@@ -141,7 +141,7 @@ export const managedStorageClusters = pgTable(
     status: managedStorageStatusEnum('status').notNull().default('creating'),
     tlsEnabled: boolean('tls_enabled').notNull().default(false),
     // A relay create forces `tlsEnabled` too (see `ManagedStorageService.create`) — the
-    // S3 client verifies the container's cert over the gateway-local loopback leg opened
+    // S3 client verifies the container's cert over the Opfield-local loopback leg opened
     // by `ManagedStorageTunnelProxy`. Default false ⇒ every existing/non-relay cluster is
     // unaffected: the direct `host:publishedPort` endpoint path stays byte-identical.
     relayEnabled: boolean('relay_enabled').notNull().default(false),
@@ -154,7 +154,7 @@ export const managedStorageClusters = pgTable(
     // `sftpPort` is operator-supplied at create time (same no-conflict-check
     // model as `publishedPort` — see `CreateManagedStorageSchema`) and is
     // only ever non-null when `sftpEnabled`. `encryptedSftpHostKey` holds a
-    // Gateway-generated SSH host key private PEM
+    // Opfield-generated SSH host key private PEM
     // (`CryptoService.generateKeyPair('ecdsa-p256')`), envelope-encrypted
     // with `CryptoService.encryptString` exactly like
     // `encryptedRootCredentials` — decrypted only at dispatch time to stage
@@ -191,7 +191,7 @@ export const managedStorageClusters = pgTable(
     pendingOperation: jsonb('pending_operation').$type<ManagedStoragePendingOperation>(),
     lastError: text('last_error'),
     // Migration write freeze (`freeze_writes`): while set, every access key and
-    // workload-link key Gateway issued on this cluster is read-only, including
+    // workload-link key Opfield issued on this cluster is read-only, including
     // keys issued during the freeze. The root identity keeps writing, so a
     // server-side copy still works. Cleared by `unfreeze_writes`.
     writesFrozenAt: timestamp('writes_frozen_at', { withTimezone: true }),
@@ -261,7 +261,7 @@ export type ManagedStorageClusterMemberRow = typeof managedStorageClusterMembers
  * cluster the key is a service account of the root user (madmin-go against
  * the cluster's admin API); on SeaweedFS it belongs to its own IAM user,
  * `principal`, which carries the key's policy. This table is the source of
- * truth for a key's display `name`/ownership/existence from Gateway's side;
+ * truth for a key's display `name`/ownership/existence from Opfield's side;
  * the storage server is the source of truth for whether the key still
  * works. `encryptedSecretKey` holds the one-shot-revealed secret
  * (`CryptoService.encryptString`'d, mirroring
@@ -276,7 +276,7 @@ export const managedStorageAccessKeys = pgTable(
     clusterId: uuid('cluster_id')
       .notNull()
       .references(() => managedStorageClusters.id, { onDelete: 'cascade' }),
-    // Server-generated (or Gateway-chosen) access key id — an identifier,
+    // Server-generated (or Opfield-chosen) access key id — an identifier,
     // not a secret; safe to store and return in plaintext from `listAccessKeys`.
     accessKeyId: varchar('access_key_id', { length: 128 }).notNull(),
     // SeaweedFS only: the IAM user (`gw-<key row id>`) that owns this key and

@@ -10,7 +10,7 @@ import (
 )
 
 // PlannedServerStop reports an error that only says the server ended the
-// stream or connection on purpose: it stopped gracefully (a relay or Gateway
+// stream or connection on purpose: it stopped gracefully (a relay or Opfield
 // being updated or restarted sends GOAWAY NO_ERROR, "graceful_stop"), it
 // drains the connection, or it closed the stream normally (EOF). The caller
 // connects again as usual; nothing failed, so it is no warning (rc.10

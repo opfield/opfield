@@ -48,7 +48,7 @@ const uk: OpfieldRelayCandidate = {
 function paths(outage: () => LocalRelayOutage | null, now: () => number, pool?: OpfieldRelayCandidate[]) {
   const registry = { liveSessions: vi.fn(() => [] as any[]), schedule: vi.fn(), timers: { setTimeout: vi.fn() } };
   const fetchCandidates = vi.fn(async () => [local, nl, uk]);
-  // The stand's netem: NL 300 ms, UK 60 ms from Gateway.
+  // The stand's netem: NL 300 ms, UK 60 ms from Opfield.
   const rtts: Record<string, number> = { '198.51.100.2': 300, '198.51.100.3': 60 };
   const dials: string[] = [];
   const dial = async (address: string) => {
@@ -207,7 +207,7 @@ describe("Gateway's own relayed streams know every relay's distance after a quie
       () => now,
       [nl, uk]
     );
-    // Gateway opened its long-lived streams at T0 and no new path for 31 minutes; the pool was measured meanwhile.
+    // Opfield opened its long-lived streams at T0 and no new path for 31 minutes; the pool was measured meanwhile.
     t.instance.note('route-1', [local, nl, uk]);
     for (; now <= T0 + 31 * 60_000; now += 30_000) await t.instance.sample();
     expect(t.dials.filter((address) => address === '198.51.100.3').length).toBeGreaterThan(60);
@@ -419,7 +419,7 @@ describe("Gateway's own relayed streams return to the nearest relay, paced (O-1)
 
   it('judges its streams on a new assignment as soon as it is active (stand rc.8, F-2)', async () => {
     // The local relay drained in a Relay Pool update onto `local:primary, nl:fallback`: the stream went to NL. Then
-    // `uk:primary, nl:fallback` became active; Gateway's streams stayed on NL for 80 s, judged on the old assignment.
+    // `uk:primary, nl:fallback` became active; Opfield's streams stayed on NL for 80 s, judged on the old assignment.
     let now = T0;
     const t = paths(
       () => null,

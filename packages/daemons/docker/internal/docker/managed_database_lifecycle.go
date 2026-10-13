@@ -834,7 +834,7 @@ func isCuratedDigestImage(engine, image string) bool {
 		return false
 	}
 	// The GHCR mirror of a curated image carries the same digest, so it is the
-	// same trusted content under the Gateway-owned registry name.
+	// same trusted content under the Opfield-owned registry name.
 	if upstream, ok := thirdPartyUpstreamReference(image); ok {
 		image = upstream
 	}

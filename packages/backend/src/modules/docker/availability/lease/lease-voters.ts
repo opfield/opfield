@@ -33,7 +33,7 @@ export interface LeaseWitnessCandidate {
   hostKey: string;
   faultDomain: string | null;
   capable: boolean;
-  /** Gateway's local relay: it stops with Gateway, so it is no witness while a remote relay can be one (N-2). */
+  /** Opfield's local relay: it stops with Opfield, so it is no witness while a remote relay can be one (N-2). */
   local?: boolean;
   /** Ready to vote now (a relay in state ready); only matters for a new choice. Default true. */
   ready?: boolean;
@@ -79,8 +79,8 @@ function smallestOddAtLeast(value: number): number {
 /**
  * The voters of one policy (A18, A19, A20, D3): the distinct hosts among its voter-capable candidates in rank order,
  * then witnesses so the count is odd and at least 3, at most 7 in total. A configured witness comes first when
- * eligible. Automatic ones never use Gateway's local relay while another ready relay can witness (it stops with
- * Gateway and does not count for the margin), keep the current witnesses while they stay eligible (no churn), then
+ * eligible. Automatic ones never use Opfield's local relay while another ready relay can witness (it stops with
+ * Opfield and does not count for the margin), keep the current witnesses while they stay eligible (no churn), then
  * prefer a member that is ready, the largest minimum round trip to the candidates in whole milliseconds (so jitter
  * between similar relays never changes the choice), a relay in a fault domain no candidate host shares, any relay,
  * then docker nodes, and finally the member id.
@@ -127,7 +127,7 @@ export function selectPolicyVoters(input: {
     hosts.add(configured.hostKey);
   }
   const current = new Set(input.currentAutoWitnesses ?? []);
-  // D3 / N-2: Gateway's local relay stops with Gateway and does not count for the margin, so it is never the
+  // D3 / N-2: Opfield's local relay stops with Opfield and does not count for the margin, so it is never the
   // automatic witness while another ready relay can witness, even when it is the current witness.
   const remoteRelayReady = input.pool.some(
     (member) => member.kind === 'relay' && !member.local && member.ready !== false && eligible(member)

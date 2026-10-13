@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// The installers read this record to tell a daemon Gateway accepted in their
+// The installers read this record to tell a daemon Opfield accepted in their
 // run from one that runs but never connected.
 func TestRecordOpfieldSessionWritesTheInstallerRecord(t *testing.T) {
 	stateDir := t.TempDir()
@@ -49,7 +49,7 @@ func TestRecordOpfieldSessionWritesTheInstallerRecord(t *testing.T) {
 	}
 }
 
-// A refused token is named for the installer; an unreachable Gateway is only an error.
+// A refused token is named for the installer; an unreachable Opfield is only an error.
 func TestRecordEnrollmentFailureNamesARefusedToken(t *testing.T) {
 	for _, test := range []struct {
 		err     error

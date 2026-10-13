@@ -14,7 +14,7 @@ export type ManagedLeftoverKind = 'storage' | 'database';
 
 /**
  * One id a node keeps something of without a readable record (docker daemon `leftovers`), or an availability set member
- * the node runs (`member`: left over once Gateway has no instance of the id or no such member on that node).
+ * the node runs (`member`: left over once Opfield has no instance of the id or no such member on that node).
  */
 export interface ManagedLeftover {
   id: string;
@@ -36,7 +36,7 @@ export interface ManagedLeftoverRepairDeps {
     kind: ManagedLeftoverKind
   ): Promise<{ success: boolean; detail?: string; error?: string }>;
   /**
-   * Removes everything of the id the node keeps, as a leftover Gateway has no instance of; `memberId` names the set
+   * Removes everything of the id the node keeps, as a leftover Opfield has no instance of; `memberId` names the set
    * member a `member` leftover was listed with (the node refuses when its record names another one by now).
    */
   removeLeftover(
@@ -50,7 +50,7 @@ export interface ManagedLeftoverRepairDeps {
   now?(): number;
 }
 
-/** A leftover must be seen without a Gateway instance in two passes at least this far apart before it is removed. */
+/** A leftover must be seen without an Opfield instance in two passes at least this far apart before it is removed. */
 export const LEFTOVER_CONFIRMATION_MS = 5 * 60 * 1000;
 
 function parseLeftovers(result: { success: boolean; detail?: string }): ManagedLeftover[] | null {
@@ -78,10 +78,10 @@ function parseLeftovers(result: { success: boolean; detail?: string }): ManagedL
  * zeroed by a crash with its image and mount point (the rc.8 stand: an exited
  * container of a deleted storage, and a zeroed record whose 2 GiB image kept
  * counting toward the node's promised capacity). The node cannot tell such an
- * id from a live instance whose record it lost; Gateway can.
+ * id from a live instance whose record it lost; Opfield can.
  *
  * An id is removed only when its node is online, its daemon listed it, and
- * Gateway has no managed database (or storage cluster, on any node) of that id
+ * Opfield has no managed database (or storage cluster, on any node) of that id
  * in two passes at least {@link LEFTOVER_CONFIRMATION_MS} apart, checked
  * again right before the removal. The daemon refuses the removal of an id it
  * has a readable record of. Each removal is audited. Sightings are kept in
@@ -104,7 +104,7 @@ export class ManagedLeftoverRepair {
     return new Set((await this.db.select({ id: table.id }).from(table)).map((row) => row.id));
   }
 
-  /** Availability members Gateway has, as `<member id>|<node id>`. */
+  /** Availability members Opfield has, as `<member id>|<node id>`. */
   private async memberKeys(): Promise<Set<string>> {
     const rows = await this.db
       .select({ id: managedAvailabilityMembers.id, nodeId: managedAvailabilityMembers.nodeId })
@@ -112,7 +112,7 @@ export class ManagedLeftoverRepair {
     return new Set(rows.map((row) => `${row.id}|${row.nodeId}`));
   }
 
-  /** Whether Gateway still has what the node lists: the instance, and for a set member that member on the node. */
+  /** Whether Opfield still has what the node lists: the instance, and for a set member that member on the node. */
   private static kept(leftover: ManagedLeftover, nodeId: string, known: Set<string>, members: Set<string>): boolean {
     if (!known.has(leftover.id)) return false;
     if (leftover.record !== 'member') return true;
@@ -162,7 +162,7 @@ export class ManagedLeftoverRepair {
           const key = prefix + leftover.id;
           if (ManagedLeftoverRepair.kept(leftover, node.id, known, memberKeys)) {
             // A live instance (or a member of its set) whose record the node may not read: not a leftover, and not
-            // Gateway's to remove.
+            // Opfield's to remove.
             this.firstSeen.delete(key);
             if (leftover.record === 'unreadable') {
               logger.warn(

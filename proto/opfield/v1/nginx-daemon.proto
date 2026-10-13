@@ -57,7 +57,7 @@ message RenewCertResponse {
 // ─── Main Control Channel ───────────────────────────────────────────
 
 service NodeControl {
-  // Bidirectional stream: daemon connects, Gateway pushes commands
+  // Bidirectional stream: daemon connects, Opfield pushes commands
   rpc CommandStream(stream DaemonMessage) returns (stream OpfieldCommand);
 }
 
@@ -84,7 +84,7 @@ service MigrationTransfer {
   rpc Transfer(stream MigrationTransferMessage) returns (stream MigrationTransferControl);
 }
 
-// Messages FROM daemon TO Gateway
+// Messages FROM daemon TO Opfield
 message DaemonMessage {
   oneof payload {
     RegisterMessage register = 1;
@@ -191,7 +191,7 @@ message HealthReport {
   // every managed database and storage link this node serves workloads of.
   repeated ManagedLinkRuntime managed_links = 37;
   // Smoothed round-trip time from this node to each relay it measured
-  // recently. Gateway places relay assignments by network distance with it.
+  // recently. Opfield places relay assignments by network distance with it.
   repeated RelayLatencySample relay_latencies = 40;
   // Daemons advertising relay_stream_resume_v1: their relay stream sessions.
   RelayStreamStats relay_streams = 41;
@@ -314,7 +314,7 @@ message ManagedLinkRuntime {
   // The binding id; an Availability placement id for a placement's link.
   string owner_id = 2;
   uint32 active_connections = 3;
-  // The session limit Gateway signed into the link's grant.
+  // The session limit Opfield signed into the link's grant.
   uint32 connection_limit = 4;
   // Connections this node refused since the daemon started because the link
   // or the node was at its limit. The relays count their own refusals.
@@ -339,7 +339,7 @@ message RelayLatencySample {
   uint32 rtt_micros = 2;
   // How long this daemon has failed to reach the relay (its lanes are down,
   // or its probes go unanswered), in milliseconds; 0 while it reaches it.
-  // Gateway takes a relay whose control stream ended out of placement at
+  // Opfield takes a relay whose control stream ended out of placement at
   // once when the daemons that measure it all fail to reach it.
   uint32 failing_ms = 3;
 }
@@ -376,17 +376,17 @@ message NetworkInterface {
   repeated string ip_addresses = 8;
 }
 
-// Messages FROM Gateway TO daemon
+// Messages FROM Opfield TO daemon
 message OpfieldCommand {
   reserved 61, 67;
   string command_id = 1;
   // Optional absolute dispatch deadline in Unix milliseconds. Zero means no
-  // deadline (older gateways). A daemon rejects a command that has already
-  // expired when it is received instead of executing work the gateway no
+  // deadline (older Opfield releases). A daemon rejects a command that has already
+  // expired when it is received instead of executing work Opfield no
   // longer waits for; older daemons ignore the field.
   int64 expires_at_unix_ms = 72;
-  // Gateway wall clock in Unix milliseconds when the command was sent. Lets a
-  // daemon judge expires_at_unix_ms against the gateway clock instead of its
+  // Opfield wall clock in Unix milliseconds when the command was sent. Lets a
+  // daemon judge expires_at_unix_ms against the Opfield clock instead of its
   // own, so clock skew between the two does not expire commands. A daemon
   // skips the deadline check when this is zero; older daemons ignore it.
   int64 sent_at_unix_ms = 73;
@@ -446,7 +446,7 @@ message OpfieldCommand {
     // the loopback Secure Link listener.
     ProbeProxySecureLinkCommand probe_proxy_secure_link = 40;
     DockerRuntimeCommand docker_runtime = 41;
-    // Gateway Pages v1. Nginx daemon accepts these only as its bounded Pages
+    // Opfield Pages v1. Nginx daemon accepts these only as its bounded Pages
     // runtime, which owns all paths below nginx.pages_root.
     PagesUploadInitCommand pages_upload_init = 42;
     PagesUploadChunkCommand pages_upload_chunk = 43;
@@ -460,7 +460,7 @@ message OpfieldCommand {
     PagesInventoryCommand pages_inventory = 51;
     PagesStoragePreflightCommand pages_storage_preflight = 52;
     PagesDeployCertificateCommand pages_deploy_certificate = 53;
-    // Gateway Pages runtime configuration v1. These commands only accept
+    // Opfield Pages runtime configuration v1. These commands only accept
     // opaque route IDs or validated preview hostnames; the daemon derives all
     // runtime-config paths below nginx.pages_root.
     PagesStageRuntimeConfigCommand pages_stage_runtime_config = 54;
@@ -486,7 +486,7 @@ message OpfieldCommand {
     // Confirms durable processing of one attempt-scoped Docker build terminal
     // event. Accepted only by docker-daemon running with docker.mode=builder.
     DockerBuildEventAck docker_build_event_ack = 68;
-    // Generation-fenced placement lifecycle for Gateway-owned multi-node
+    // Generation-fenced placement lifecycle for Opfield-owned multi-node
     // Availability. Accepted only by a general Docker daemon advertising
     // docker_availability_v1; nodes never form a peer cluster.
     DockerAvailabilityCommand docker_availability = 69;
@@ -528,7 +528,7 @@ message SetOpfieldNextAddressCommand {
 // ClickHouse Keeper voter of a two-member set). The list is the full desired
 // set: a witness not listed is stopped and its data removed. The supervisor
 // keeps the last applied set across restarts, so witnesses keep running while
-// Gateway is down.
+// Opfield is down.
 message ApplyWitnessesCommand {
   // Increases with every change for this relay; an older or equal revision
   // than the applied one is acknowledged without changes.
@@ -608,7 +608,7 @@ message AvailabilityMemberCommand {
     AvailabilityMemberConfig configure = 1;
     AvailabilityMemberRemove remove = 2;
     AvailabilityMemberEventsAck ack_events = 3;
-    // Manual pairs: the primary assignment (Gateway names the primary under a
+    // Manual pairs: the primary assignment (Opfield names the primary under a
     // generation that grows with every switch).
     AvailabilityPrimaryAssignment assign_primary = 4;
     // Automatic sets: a planned switchover the holder runs (writes stop, the
@@ -650,7 +650,7 @@ message AvailabilityMemberConfig {
   // The set is paused (e.g. its app is shut down): this member's engine is
   // stopped cleanly and never started while set. A copy reports eligible
   // false (reason "stopped"); the primary closes serving, stops and keeps
-  // its role (lease or assignment). Gateway sets it on the copies first,
+  // its role (lease or assignment). Opfield sets it on the copies first,
   // then the primary, and clears it on the primary first, then the copies.
   bool stopped = 16;
 }
@@ -667,16 +667,16 @@ message AvailabilityPrimaryAssignment {
   string set_id = 1;
   string primary_member_id = 2;
   uint64 generation = 3;
-  // Gateway signs every assignment with its relay policy signing key: Ed25519
+  // Opfield signs every assignment with its relay policy signing key: Ed25519
   // over "gateway-availability-member/primary-assignment/v1" || 0x00 ||
   // u32be(len(set_id)) || set_id || u32be(len(primary_member_id)) ||
   // primary_member_id || u64be(generation). A member accepts an assignment,
-  // from Gateway or relayed by its peer, only with a valid signature of a key
+  // from Opfield or relayed by its peer, only with a valid signature of a key
   // it trusts.
   string signing_key_id = 4;
   bytes signature = 5;
   // The policy signing keys, delivered over this authenticated stream (as in
-  // SyncAvailabilityLeaseCommand): the daemon trusts them directly. Gateway
+  // SyncAvailabilityLeaseCommand): the daemon trusts them directly. Opfield
   // only; a peer-relayed assignment verifies against keys already trusted.
   repeated AvailabilityLeasePolicyKey policy_keys = 6;
 }
@@ -702,11 +702,11 @@ message AvailabilityMemberRestart {
   string set_id = 1;
   string member_id = 2;
   string operation_id = 3;
-  // Restart the primary in place (normally Gateway switches over first).
+  // Restart the primary in place (normally Opfield switches over first).
   bool allow_primary = 4;
 }
 
-// One member as its node reports it, with the events Gateway has not
+// One member as its node reports it, with the events Opfield has not
 // acknowledged yet (kept on disk with the time they happened).
 message AvailabilityMemberReport {
   string set_id = 1;
@@ -817,7 +817,7 @@ message RelayAssignmentTunnelCount {
   uint64 active_tunnels = 3;
 }
 
-// Gateway Pages v1 commands intentionally expose no operator-controlled
+// Opfield Pages v1 commands intentionally expose no operator-controlled
 // filesystem paths or nginx snippets. IDs are opaque UUIDs and hostnames are
 // DNS names validated by the daemon. The daemon derives all locations from its
 // configured Pages root and its nginx config directory.
@@ -885,7 +885,7 @@ message PagesPreviewIpRule {
 }
 
 // Stages and atomically activates a versioned certificate for a Pages-only
-// preview. Gateway obtains version and replica_generation from its existing
+// preview. Opfield obtains version and replica_generation from its existing
 // certificate distribution state. This must be used instead of deploy_cert,
 // whose legacy layout has no current/versions tree.
 message PagesDeployCertificateCommand {
@@ -901,12 +901,12 @@ message PagesRemovePreviewCommand {
   string hostname = 1;
 }
 
-// Writes an atomically switched root fragment that a normal Gateway Route
+// Writes an atomically switched root fragment that a normal Opfield Route
 // includes from <nginx.config_dir>/pages/routes/<route_id>.inc. The fragment
 // permits the Route to retain its existing TLS, ACL, headers, rewrites and
 // other host-level settings while a Tag moves between immutable deployments.
 // On success CommandResult.data is JSON with the daemon-derived includePath;
-// Gateway validates its fixed /pages/routes/<route UUID>.inc suffix before
+// Opfield validates its fixed /pages/routes/<route UUID>.inc suffix before
 // placing it in a generated host config.
 message PagesActivateTagRouteCommand {
   string route_id = 1;
@@ -988,7 +988,7 @@ message RelayLatencyTarget {
   uint32 port = 3;
 }
 
-// A relay that may still admit routes Gateway revoked for one endpoint. A
+// A relay that may still admit routes Opfield revoked for one endpoint. A
 // relay that does not name the route of an incoming tunnel is refused
 // entirely for this endpoint while the fence stands.
 message RelayRevocationFence {
@@ -1152,7 +1152,7 @@ message RelayDataCandidate {
   // Draining candidates: resumable streams leave this relay before this time
   // (unix ms), spread over the time left. 0: as soon as possible.
   int64 drain_deadline_unix_ms = 11;
-  // Absent when Gateway placed the endpoint without latency data.
+  // Absent when Opfield placed the endpoint without latency data.
   RelayCandidateTopology topology = 20;
 }
 
@@ -1180,7 +1180,7 @@ message ProxySecureLinkBinding {
   string role = 2; // "source" or "target"
   uint64 generation = 3;
 
-  // Source-only. Gateway allocates and persists this loopback port; the
+  // Source-only. Opfield allocates and persists this loopback port; the
   // nginx daemon validates and binds it before the generated config uses it.
   uint32 listener_port = 4;
 
@@ -1207,7 +1207,7 @@ message ProxySecureLinkBinding {
   // Availability members only. A dormant member belongs to a standby
   // placement (D7): the source keeps its socket closed and the target keeps
   // its connector prepared until the member's candidate holds the lease.
-  // Older daemons ignore these fields; Gateway never sends a dormant member to
+  // Older daemons ignore these fields; Opfield never sends a dormant member to
   // a daemon without availability_lease_v1.
   bool dormant = 14;
   // Availability members only: the lease policy and the candidate id (the
@@ -1217,7 +1217,7 @@ message ProxySecureLinkBinding {
   // Source-only. The loopback TCP endpoint ("127.a.b.c:port") the daemon
   // serves this link on next to its Unix socket, for nginx peers only. Unlike
   // a Unix socket, a cut stream ends with a TCP reset there, so nginx reports
-  // an upstream error instead of a clean end. Gateway allocates it uniquely
+  // an upstream error instead of a clean end. Opfield allocates it uniquely
   // per link and renders it only for nodes reporting
   // nginx_secure_link_loopback_tcp_v1. Empty: Unix socket only.
   string loopback_address = 17;
@@ -1250,7 +1250,7 @@ message NodeExecCommand {
   bool tty = 3;
   int32 rows = 4;
   int32 cols = 5;
-  string session_key = 6;     // authenticated Gateway user ID
+  string session_key = 6;     // authenticated Opfield user ID
 }
 
 message NodeFileCommand {
@@ -1276,7 +1276,7 @@ message ApplyConfigCommand {
 
 // Maintenance of a route on a daemon that reports proxy_maintenance_flag_v1. Its config carries a guard that answers
 // with the maintenance page only while the daemon keeps the route's flag file, so maintenance starts and ends without
-// an nginx reload. UNSPECIFIED (older gateways, certificate renewals) leaves the flag as it is.
+// an nginx reload. UNSPECIFIED (older Opfield releases, certificate renewals) leaves the flag as it is.
 enum ProxyMaintenanceFlag {
   PROXY_MAINTENANCE_FLAG_UNSPECIFIED = 0;
   PROXY_MAINTENANCE_FLAG_OFF = 1;
@@ -1288,7 +1288,7 @@ message RemoveConfigCommand {
   string host_id = 1;
 }
 
-// Cert deployment does NOT auto-reload nginx. Gateway sends a separate
+// Cert deployment does NOT auto-reload nginx. Opfield sends a separate
 // ApplyConfigCommand or TestConfigCommand + reload when ready.
 message DeployCertCommand {
   string cert_id = 1;
@@ -1320,7 +1320,7 @@ message VersionedCertBundle {
 }
 
 // Both inspection and export are scoped to references explicitly supplied by
-// Gateway; neither command is a directory listing or generic file API.
+// Opfield; neither command is a directory listing or generic file API.
 message InspectCertificatesCommand {
   repeated string cert_ids = 1;
 }
@@ -1493,7 +1493,7 @@ message DockerAvailabilityCommand {
 }
 
 // ---------------------------------------------------------------------------
-// Availability data-plane lease (Docker Availability failover without Gateway).
+// Availability data-plane lease (Docker Availability failover without Opfield).
 // Blocks are opaque serialized relay.v1 messages, like SyncRelayPolicyCommand:
 // they are signed by the relay policy signing key and verified by the daemon's
 // availabilitylease package, never trusted because of this transport alone.
@@ -1538,7 +1538,7 @@ message AvailabilityLeaseHandoffCommand {
   string operation_id = 4;
   // Placement generation the successor serves under (D12).
   uint64 successor_generation = 5;
-  // Manifest version the Gateway planned against; a holder with an older
+  // Manifest version Opfield planned against; a holder with an older
   // manifest refuses the handoff until it adopted this version.
   uint64 manifest_version = 6;
 }
@@ -1570,7 +1570,7 @@ message AvailabilityLeaseReport {
   // True while the acceptor abstains after a start or a fresh state (A3).
   bool acceptor_abstaining = 9;
   // Docker daemons: the watchdog heartbeat is fresh (A12.4). A daemon without
-  // it must not acquire, so Gateway treats it as not capable.
+  // it must not acquire, so Opfield treats it as not capable.
   bool watchdog_ready = 10;
   // Transitions since the previous report, oldest first (D9 audit).
   repeated AvailabilityLeaseEvent events = 11;
@@ -1578,13 +1578,13 @@ message AvailabilityLeaseReport {
   uint64 lease_revision = 12;
   // Relays only, as in relay.v1 (the relay supervisor forwards the relay's
   // report as is): members with a live Coordinate stream to this relay. The
-  // Gateway derives voter reachability from them.
+  // Opfield derives voter reachability from them.
   repeated string connected_member_ids = 21;
   // Docker daemons: the daemon's wall clock (Unix ms) when it built this
-  // report, the clock every *_unix_ms time in it was converted with. Gateway
+  // report, the clock every *_unix_ms time in it was converted with. Opfield
   // measures the daemon's clock offset from it and corrects those times (a VM
   // resumed from suspend runs minutes behind until NTP steps it; N-15).
-  // gateway.v1 only; 30 is unused in relay.v1, whose reports are forwarded as is.
+  // opfield.v1 only; 30 is unused in relay.v1, whose reports are forwarded as is.
   int64 reported_at_unix_ms = 30;
 }
 
@@ -1593,8 +1593,8 @@ message AvailabilityLeaseManifestAck {
   uint64 manifest_version = 2;
   bool closed = 3;
   // Per-policy voter epoch persisted with the manifest (A18; Node.Epoch(policy)).
-  // The A4 ack the Gateway waits for before it settles a joint voter change.
-  // Relays fill it; daemons should too. Zero means unknown: the Gateway then
+  // The A4 ack Opfield waits for before it settles a joint voter change.
+  // Relays fill it; daemons should too. Zero means unknown: Opfield then
   // falls back to manifest_version.
   uint64 voter_epoch = 20;
   // This member is in a quorum set of the policy (relays: it is the witness).
@@ -1623,7 +1623,7 @@ message AvailabilityLeaseHeld {
   bool retained = 9;
   // Docker daemons: when this node acquired the key for its current holding
   // (its own acquired transition), Unix ms on its wall clock; 0 when unknown.
-  // Gateway audits it as the takeover time (N-5, B-14). gateway.v1 only:
+  // Opfield audits it as the takeover time (N-5, B-14). opfield.v1 only:
   // relays report no held keys.
   int64 held_since_unix_ms = 10;
 }
@@ -1644,7 +1644,7 @@ message AvailabilityLeaseKeyView {
   bool gate_open = 10;
   // Relays only, as in relay.v1: the holder and committed ballot the gate
   // admits. An open gate names a fresh holder even where the relay does not
-  // vote, so the Gateway records it as a holder observation.
+  // vote, so the Opfield records it as a holder observation.
   string gate_holder_id = 20;
   AvailabilityLeaseBallot gate_ballot = 21;
   // As in relay.v1 (same field number): when this member first stored a
@@ -1786,7 +1786,7 @@ message DockerExecCommand {
   int32 rows = 6;
   int32 cols = 7;
   string user = 8;
-  string session_key = 9;     // authenticated Gateway user ID
+  string session_key = 9;     // authenticated Opfield user ID
 }
 
 message DockerFileCommand {
@@ -1851,7 +1851,7 @@ message ContainerStats {
 }
 
 // A node-scoped physical GPU. `id` is stable for the lifetime of the device
-// on this node and is the only identifier accepted by Gateway GPU attachment
+// on this node and is the only identifier accepted by Opfield GPU attachment
 // requests. Host paths are informational only and never executable input.
 message GpuDevice {
   string id = 1;
@@ -1880,7 +1880,7 @@ message GpuDevice {
 // ─── Log Streaming ──────────────────────────────────────────────────
 
 service LogStream {
-  // Daemon streams log entries to Gateway
+  // Daemon streams log entries to Opfield
   rpc StreamLogs(stream LogStreamMessage) returns (stream LogStreamControl);
 }
 
@@ -1946,7 +1946,7 @@ message DockerMigrationCommand {
 }
 
 // Database control intentionally carries a typed managed database id, rather
-// than allowing the Gateway to issue arbitrary container commands to a
+// than allowing Opfield to issue arbitrary container commands to a
 // database node. The opaque config is validated by the database profile.
 message DockerDatabaseCommand {
   string action = 1; // create, start, stop, update, remove, inspect
@@ -1954,7 +1954,7 @@ message DockerDatabaseCommand {
   string config_json = 3;
 }
 
-// Managed object-storage control intentionally names a Gateway-owned storage
+// Managed object-storage control intentionally names an Opfield-owned storage
 // resource. The daemon validates the opaque config against its MinIO runtime
 // contract and derives all Docker paths, names and arguments itself.
 message DockerStorageCommand {

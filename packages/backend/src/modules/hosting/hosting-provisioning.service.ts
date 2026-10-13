@@ -1259,12 +1259,12 @@ export class HostingProvisioningService {
         if (await this.enrollmentObserved(row)) await this.operations.update(row, { phase: 'enrolling' });
         return;
       }
-      // Installer completion is not proof that the daemon has contacted Gateway.
+      // Installer completion is not proof that the daemon has contacted Opfield.
       if (!row.dispatchStartedAt && (await this.enrollmentObserved(row))) {
         await this.operations.update(row, { phase: 'enrolling' });
         return;
       }
-      // A dispatched SSH install that runs in no session of this process lost it with a Gateway restart: the guest's
+      // A dispatched SSH install that runs in no session of this process lost it with an Opfield restart: the guest's
       // installer died with the session (SIGHUP) and never reports. Send it once more with the same one-time key;
       // the bootstrap's lock and clean-host checks stop a second copy. A second loss, or an old one whose enrollment
       // token expired, fails so it can be retried by hand.
@@ -1376,7 +1376,7 @@ export class HostingProvisioningService {
           signal
         );
       } catch (error) {
-        // Gateway shutdown ended the session: the dispatched installer's outcome is unknown, as
+        // Opfield shutdown ended the session: the dispatched installer's outcome is unknown, as
         // after a crash, so the operation waits for enrollment or its bootstrap deadline.
         if (isSshOperationCancelled(error)) return;
         throw error;
@@ -1412,7 +1412,7 @@ export class HostingProvisioningService {
     });
   }
 
-  /** The signal aborts on Gateway shutdown: no further operation is claimed and an SSH installer session ends. */
+  /** The signal aborts on Opfield shutdown: no further operation is claimed and an SSH installer session ends. */
   async reconcileDue(signal?: AbortSignal) {
     for (const due of await this.operations.due()) {
       if (signal?.aborted) return;

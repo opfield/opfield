@@ -263,7 +263,7 @@ export class ExternalSshService {
   }
 
   /**
-   * Trust on first use for a server Gateway just created: read its host key once. The hosting
+   * Trust on first use for a server Opfield just created: read its host key once. The hosting
    * operation persists the pin and must pass it to every later connection.
    */
   async readHostKeyForHosting(address: string, port = 22): Promise<string> {
@@ -285,7 +285,7 @@ export class ExternalSshService {
     hostFingerprint: string;
     /** Runs after authentication and returns the command; it owns the dispatch fence. */
     prepare: () => Promise<string>;
-    /** Ends the session (Gateway shutdown). Before `prepare` nothing was sent; after it the command may run. */
+    /** Ends the session (Opfield shutdown). Before `prepare` nothing was sent; after it the command may run. */
     signal?: AbortSignal;
   }): Promise<{ exitCode: number | null; stdout: string; stderr: string; sent: true }> {
     const targetAddress = await this.assertExternalTarget(input.address);

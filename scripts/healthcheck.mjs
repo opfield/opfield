@@ -16,7 +16,7 @@ export async function checkHealth({ port = Number(process.env.PORT || 3000), tim
     };
     const request = (tls ? httpsGet : httpGet)({
       hostname: '127.0.0.1', port, path: '/health', agent: false,
-      // Self-signed, loopback-only Gateway TLS is expected.
+      // Self-signed, loopback-only Opfield TLS is expected.
       ...(tls ? { rejectUnauthorized: false } : {}),
     }, (response) => {
       response.on('error', () => finish(false));

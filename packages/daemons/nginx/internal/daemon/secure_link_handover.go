@@ -346,7 +346,7 @@ func (m *sourceLinkManager) opening() int {
 }
 
 // HandOverSecureLinks runs when the daemon is asked to stop or exits for an
-// update, before it disconnects from Gateway and the relays: the requests in
+// update, before it disconnects from Opfield and the relays: the requests in
 // flight finish on this process, which keeps accepting meanwhile, and then the
 // Secure Link sockets go to the next daemon process. Without a listener keeper
 // nothing changes: the sockets close with the process.

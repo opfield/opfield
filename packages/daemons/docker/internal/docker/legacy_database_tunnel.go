@@ -8,7 +8,7 @@ import (
 )
 
 // legacyDatabaseTunnelDirectory held the socket of the per-binding database sidecars of earlier releases
-// (tunnel.sock, open to every container). No Gateway creates those sidecars any more: database links are served by
+// (tunnel.sock, open to every container). No Opfield creates those sidecars any more: database links are served by
 // the host listeners and the shared connector.
 const legacyDatabaseTunnelDirectory = "database-tunnel"
 

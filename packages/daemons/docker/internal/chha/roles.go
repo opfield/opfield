@@ -68,15 +68,15 @@ func decodeRecovery(raw []byte) *recovery {
 	return &r
 }
 
-// recoveryAdopted: Gateway's configuration names this member the only voter.
+// recoveryAdopted: Opfield's configuration names this member the only voter.
 func recoveryAdopted(ec EngineConfig) bool {
 	voters := ec.Voters()
 	return len(voters) == 1 && voters[0].ID == ec.KeeperServerID
 }
 
 // effectiveRoles are the voters and learners the holder reconciles toward:
-// Gateway's, with a standby activation or a forced recovery applied while
-// Gateway's configuration does not show them yet.
+// Opfield's, with a standby activation or a forced recovery applied while
+// Opfield's configuration does not show them yet.
 func effectiveRoles(config memberha.Config, ec EngineConfig, act *activation, rec *recovery) (voters, learners []KeeperServer) {
 	if rec != nil && !recoveryAdopted(ec) {
 		self := ec.Self()
@@ -118,7 +118,7 @@ func selfRole(selfID uint32, voters, learners []KeeperServer) string {
 // data the set needs qualify:
 //   - promoted: it is a learner and must become a voter;
 //   - diverged: a manual pair's copy that is a voter of a cluster without the
-//     voters Gateway names (the primary recovered alone while it was away);
+//     voters Opfield names (the primary recovered alone while it was away);
 //   - learner_out_of_step: it was a learner and its Keeper has not served for
 //     learnerOutOfStep (removed by the holder for a role change, or lost).
 func copyRejoinReason(selfID uint32, view map[uint32]keeperEntry, wasLearner bool, notServing time.Duration,

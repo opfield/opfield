@@ -339,12 +339,12 @@ func (p *NginxPlugin) bridgeRelayStream(ownerKind, linkID string, connection net
 // relay stays in the link's assignment stays on it (and on its path while its
 // generation drains), re-pathing under the new grant once that generation is
 // gone (relaybridge.PlaceStream); a stream whose relay leaves the assignment or
-// drains as a whole moves, paced to the drain deadline Gateway set.
+// drains as a whole moves, paced to the drain deadline Opfield set.
 func (p *NginxPlugin) moveRelayStreams() {
 	if p.relayStreams == nil || p.relayGrants == nil {
 		return
 	}
-	// A route Gateway turned on again (a new key) is tried resumable again
+	// A route Opfield turned on again (a new key) is tried resumable again
 	// even if its target answered raw before (the legacy latch).
 	bundle := p.relayGrants.get()
 	routes := map[string]bool{}

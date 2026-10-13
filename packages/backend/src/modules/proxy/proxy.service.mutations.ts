@@ -54,7 +54,7 @@ import {
 import { ProxyServicePlacement, requestedPlacementChange } from './proxy.service.placement.js';
 
 /**
- * A Route's target container that is not running (or whose Docker node is offline) reaches Gateway as a plain daemon
+ * A Route's target container that is not running (or whose Docker node is offline) reaches Opfield as a plain daemon
  * error from the Secure Link provisioning. It is a state the caller can fix, not a server failure (C-1).
  */
 export function dockerTargetUnavailableError(error: unknown, retrying = false): AppError | null {
@@ -670,7 +670,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       return this.updateProxyHostLocked(id, rest, userId, validationOptions);
     }
     if (existing.ingressGroupId) {
-      // Unchanged placement echoed by a full-object PUT; the primary member is Gateway-maintained.
+      // Unchanged placement echoed by a full-object PUT; the primary member is Opfield-maintained.
       delete input.nodeId;
       delete input.ingressGroupId;
     }
@@ -876,7 +876,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
         );
       }
       // Raw mode keeps the Route's Secure Link: the raw config seeded from the rendered one proxies to its socket,
-      // and so does the config Gateway still renders while no raw config is stored. The link follows its target as
+      // and so does the config Opfield still renders while no raw config is stored. The link follows its target as
       // on a managed Route; raw mode only hands the server block over to the user.
       const managesSecureLink =
         isDockerUpstream(updated.upstreamKind) && (!updatedUsesRawMode || existing.secureLinkGeneration > 0);

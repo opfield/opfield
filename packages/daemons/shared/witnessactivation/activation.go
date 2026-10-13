@@ -1,6 +1,6 @@
 // Package witnessactivation is the request a ClickHouse availability set's
 // lease holder sends to a relay's staged standby Keeper witness to activate
-// it while Gateway is down (decision 8 of the availability plan). The holder
+// it while Opfield is down (decision 8 of the availability plan). The holder
 // reaches the standby's relay-local endpoint over its witness route; the
 // relay supervisor listens there while the witness is staged, has the relay
 // worker verify the holder statement (availabilitylease

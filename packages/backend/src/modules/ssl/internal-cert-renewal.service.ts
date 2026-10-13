@@ -105,10 +105,10 @@ export function subjectDnFieldsFromDn(subjectDn: string): IssueCertificateInput[
 /**
  * Keeps internal PKI leaves that serve proxy hosts valid: a leaf linked as an
  * SSL certificate (link_internal_cert) or referenced by a proxy host directly
- * is reissued from the same CA and template before it expires, while Gateway
+ * is reissued from the same CA and template before it expires, while Opfield
  * holds its private key. CSR-issued leaves cannot be reissued here; they keep
  * the expiry alerts. The previous leaf is not revoked, because a copy of it
- * may still be in use outside Gateway; it simply expires.
+ * may still be in use outside Opfield; it simply expires.
  */
 export class InternalCertificateRenewalService {
   private proxyService?: ProxyService;
@@ -170,7 +170,7 @@ export class InternalCertificateRenewalService {
       if (source.status === 'revoked') continue;
       if (!isInternalCertificateRenewalDue(source.notBefore, source.notAfter, now)) continue;
       if (!source.encryptedPrivateKey || !source.encryptedDek) {
-        // Expiry alerts cover CSR-issued leaves; Gateway cannot reissue them.
+        // Expiry alerts cover CSR-issued leaves; Opfield cannot reissue them.
         result.csrIssued += 1;
         continue;
       }

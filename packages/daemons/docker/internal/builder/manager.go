@@ -250,9 +250,9 @@ func (m *Manager) continueRunningLocked(command *pb.DockerBuildCommand) error {
 }
 
 // adoptAttemptLocked moves a running job to a newer attempt of the same build.
-// Gateway claims a new attempt when the lease of a running build expires, for
-// example across a Gateway restart; the job keeps running and reports under the
-// attempt Gateway now owns. Callers hold m.mu.
+// Opfield claims a new attempt when the lease of a running build expires, for
+// example across an Opfield restart; the job keeps running and reports under the
+// attempt Opfield now owns. Callers hold m.mu.
 func (m *Manager) adoptAttemptLocked(buildID string, attempt uint32) (bool, string) {
 	current := m.attempts[buildID]
 	if attempt == 0 || attempt <= current {
@@ -266,7 +266,7 @@ func (m *Manager) adoptAttemptLocked(buildID string, attempt uint32) (bool, stri
 }
 
 // announceAdoptedAttempt reports the progress the job already reached under
-// the adopted attempt, so Gateway can advance the freshly claimed build.
+// the adopted attempt, so Opfield can advance the freshly claimed build.
 func (m *Manager) announceAdoptedAttempt(buildID string, attempt uint32, status string) {
 	now := time.Now().UnixMilli()
 	if status != "" {

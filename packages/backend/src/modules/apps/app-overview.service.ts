@@ -394,7 +394,7 @@ export class AppOverviewService {
           containers: {
             total: workloads.length,
             healthy: workloads.filter((status) => status.health === 'healthy').length,
-            // Workloads with a Gateway health check: the Healthy card counts these; the rest only by number.
+            // Workloads with an Opfield health check: the Healthy card counts these; the rest only by number.
             checkedHealthy: checked.filter((status) => status.health === 'healthy').length,
             noHealthCheck: workloads.length - checked.length,
             cpuPercent: sum(workloads.map((status) => status.cpuPercent)),

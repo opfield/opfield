@@ -367,7 +367,7 @@ func TestSecureLinkStreamFallsBackForALegacyTarget(t *testing.T) {
 	if near.opened.Load() != 2 {
 		t.Fatalf("relay opened %d tunnels, want 2", near.opened.Load())
 	}
-	// The same key keeps the latch; Gateway turning the route on again with
+	// The same key keeps the latch; Opfield turning the route on again with
 	// a new key clears it.
 	if _, err := plugin.SyncRelayGrants(resumeBundleWithKey(2, bundle, bundle.Grants[0].GetStreamResume().GetKeyId())); err != nil {
 		t.Fatal(err)

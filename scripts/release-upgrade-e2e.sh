@@ -30,8 +30,8 @@
 #
 # A local release feed pins the base and candidate tags; images, manifests and signatures are the real
 # ones. Unless a license key is given, a local DNS forwarder used by Docker answers NXDOMAIN for the
-# license server. Gateway updates need it (the target image authorizes the update with the license
-# server even on Community), so by default it is reachable only while a Gateway update runs.
+# license server. Opfield updates need it (the target image authorizes the update with the license
+# server even on Community), so by default it is reachable only while an Opfield update runs.
 # Every check prints PASS, FAIL or SKIP with evidence; the exit code is non-zero on any FAIL. Everything
 # the run created is removed at the end unless --keep is given.
 
@@ -714,7 +714,7 @@ jx() { python3 "$WORK/py/jx.py" "$@" 2>/dev/null; }
 mkjson() { python3 "$WORK/py/mkjson.py" "$@"; }
 keep_json() { cp "$RESP" "$WORK/json/$1.json" 2>/dev/null; }
 
-# ── Gateway API ───────────────────────────────────────────────────────
+# ── Opfield API ───────────────────────────────────────────────────────
 
 curl_code() {
   local code
@@ -1618,7 +1618,7 @@ else:
 PY
 }
 
-# create_workload NAME MODE [KEY=VALUE...]: creates and starts a helper container on the docker node through Gateway.
+# create_workload NAME MODE [KEY=VALUE...]: creates and starts a helper container on the docker node through Opfield.
 create_workload() {
   local name="$1" mode="$2" script
   shift 2
@@ -2555,7 +2555,7 @@ phase5_fresh() {
 
 # ── Main ──────────────────────────────────────────────────────────────
 
-# With --via: base -> VIA (Gateway, daemons, relay), the --before-candidate command, then the globals move on to the
+# With --via: base -> VIA (Opfield, daemons, relay), the --before-candidate command, then the globals move on to the
 # candidate hop (BASE stays the release the run installed).
 run_via_hop() {
   phase2_update || return 1

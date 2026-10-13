@@ -7,8 +7,8 @@ import (
 )
 
 // sessionLogHandler is the handler of the plugin's logger: each record goes to the handler of the current control
-// session, which forwards it to the Gateway (node logs) and writes it to the journal. Components built at Init keep
-// the logger they were handed then; before the first session it buffers for the Gateway, after it the session's
+// session, which forwards it to Opfield (node logs) and writes it to the journal. Components built at Init keep
+// the logger they were handed then; before the first session it buffers for Opfield, after it the session's
 // handler takes over. Without this a component's lines (the host listener's refused connections among them) stayed
 // in the journal once the session replaced the startup logger.
 type sessionLogHandler struct {

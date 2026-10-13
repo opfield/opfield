@@ -57,7 +57,7 @@ func TestRouteRuntimeAnswersHeldRoutesAndListsMissingOnes(t *testing.T) {
 	if len(report.Runtimes) != 1 || report.Runtimes[0]["routeId"] != "route-1" || report.Runtimes[0]["openedTotal"] != "9" {
 		t.Fatalf("unexpected runtimes: %v", report.Runtimes)
 	}
-	// Zero counters are present, so Gateway reads them as zero rather than missing.
+	// Zero counters are present, so Opfield reads them as zero rather than missing.
 	if report.Runtimes[0]["completedTotal"] != "0" || report.Runtimes[0]["setupLatencyP95Microseconds"] != "4000" {
 		t.Fatalf("unexpected counters: %v", report.Runtimes[0])
 	}

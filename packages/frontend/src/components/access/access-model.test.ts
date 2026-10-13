@@ -255,7 +255,7 @@ describe("lines and scopes", () => {
     for (let round = 0; round < 200; round += 1) {
       const scopes = pool.filter(() => random() < 0.3);
       const lines = scopesToLines(scopes, ctx);
-      // The scopes as Gateway stores them: a broad scope drops its qualified forms.
+      // The scopes as Opfield stores them: a broad scope drops its qualified forms.
       expect(linesToScopes(lines, ctx)).toEqual(canonicalizeScopes(scopes));
       expect(scopesToLines([...scopes].reverse(), ctx)).toEqual(lines);
     }
@@ -557,7 +557,7 @@ describe("token narrowing", () => {
     expect(kept).toEqual(lineScopes(use, ctx).sort());
     expect(backendStoredTokenScopes(kept, githubOwner, { exact: true })).toEqual(kept);
     expect(scopesToLines(kept, ctx)).toEqual([use]);
-    // Without exactScopes Gateway adds repository reads, and the line would reopen as Read code.
+    // Without exactScopes Opfield adds repository reads, and the line would reopen as Read code.
     expect(
       scopesToLines(backendStoredTokenScopes(kept, githubOwner, { exact: false }), ctx)
     ).toEqual([{ ...use, level: "read" }]);

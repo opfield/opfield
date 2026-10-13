@@ -407,7 +407,7 @@ export class DockerManagementService {
 
   /**
    * Managed database and storage links target a container by name. When the container that held the name is gone
-   * (Gateway removed it, or a new container, copy, import or Git source takes a free name), its links go with it:
+   * (Opfield removed it, or a new container, copy, import or Git source takes a free name), its links go with it:
    * they are marked deleted at once, so no reconciliation applies them to the next container of that name, their
    * link secrets are removed, and their credentials and connectors are torn down in the background.
    */
@@ -547,7 +547,7 @@ export class DockerManagementService {
           folderId: folderId ?? null,
           nodeId,
         });
-        // Pulled at the root: a placement left by an earlier image with this id (removed outside Gateway)
+        // Pulled at the root: a placement left by an earlier image with this id (removed outside Opfield)
         // must not pull the new one into that folder.
         if (!folderId) await this.folderService?.deleteResourceAssignment(nodeId, 'image', imageId);
         else
@@ -610,7 +610,7 @@ export class DockerManagementService {
           folderId: folderId ?? null,
           nodeId,
         });
-        // Created at the root: a placement left by an earlier volume of this name (removed outside Gateway)
+        // Created at the root: a placement left by an earlier volume of this name (removed outside Opfield)
         // must not pull the new one into that folder.
         if (!folderId) {
           await this.folderService?.deleteResourceAssignment(nodeId, 'volume', volumeName);
@@ -656,7 +656,7 @@ export class DockerManagementService {
     };
   }
 
-  /** What DockerTaskReconciler needs to settle the tasks Gateway lost track of with their nodes. */
+  /** What DockerTaskReconciler needs to settle the tasks Opfield lost track of with their nodes. */
   taskReconcileContext(): DockerTaskReconcileContext | null {
     if (!this.taskService) return null;
     return {
@@ -668,7 +668,7 @@ export class DockerManagementService {
     };
   }
 
-  /** What a pull settled after Gateway lost its answer still owes: the placement for its user, its registry. */
+  /** What a pull settled after Opfield lost its answer still owes: the placement for its user, its registry. */
   private async finishReconciledPull(nodeId: string, tracking: Extract<DockerTaskTracking, { kind: 'pull' }>) {
     const context = this.imageOperationContext(
       tracking.preexistingImageIds ? new Set(tracking.preexistingImageIds) : undefined
@@ -852,7 +852,7 @@ export class DockerManagementService {
       const configured = typeof configuredRaw === 'number' ? configuredRaw : Number.NaN;
       if (Number.isInteger(configured) && configured >= 0) return configured;
     } catch {
-      // Fall through to Gateway default if inspect fails; the lifecycle command will report its own error.
+      // Fall through to Opfield default if inspect fails; the lifecycle command will report its own error.
     }
 
     return DEFAULT_CONTAINER_STOP_TIMEOUT_SECONDS;
@@ -1057,7 +1057,7 @@ export class DockerManagementService {
     return this.decoratePublicContainerSnapshot(nodeId, containers);
   }
 
-  /** Internal inventory for services that must account for Gateway-owned containers. */
+  /** Internal inventory for services that must account for Opfield-owned containers. */
   async listAllContainers(nodeId: string) {
     await this.validateDockerNode(nodeId);
     const result = await this.nodeDispatch.sendDockerContainerCommand(nodeId, 'list');
@@ -1238,7 +1238,7 @@ export class DockerManagementService {
     return containers;
   }
 
-  /** User-facing decoration that keeps Gateway implementation containers private. */
+  /** User-facing decoration that keeps Opfield implementation containers private. */
   async decoratePublicContainerSnapshot(nodeId: string, containers: any) {
     const publicContainers = Array.isArray(containers) ? filterOpfieldInternalContainers(containers) : containers;
     const decorated = await this.decorateContainerSnapshot(nodeId, publicContainers);
@@ -1694,7 +1694,7 @@ export class DockerManagementService {
   /** Bounded, redacted evidence captured before a failed rollout removes its runtime. */
   /**
    * Startup evidence of a container whose rollout failed (see collectDockerRolloutDiagnostics). `containerName` lets
-   * the log lines be redacted with the values Gateway stores for the container when its inspect cannot be read.
+   * the log lines be redacted with the values Opfield stores for the container when its inspect cannot be read.
    */
   async getContainerFailureDiagnostics(nodeId: string, containerId: string, containerName?: string): Promise<string> {
     const parseBounded = (result: { success: boolean; error?: string; detail?: string }) => {

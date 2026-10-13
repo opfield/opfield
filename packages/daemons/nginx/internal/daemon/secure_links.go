@@ -130,7 +130,7 @@ type sourceLinkBinding struct {
 	keptName  string
 	adoptedAt time.Time
 
-	// loopAddr is the loopback TCP endpoint Gateway gave the link ("": Unix
+	// loopAddr is the loopback TCP endpoint Opfield gave the link ("": Unix
 	// socket only); loop listens on it while unix does, and loopKept is its
 	// keeper name (secure_link_loopback.go). Guarded by leaseMu.
 	loopAddr string

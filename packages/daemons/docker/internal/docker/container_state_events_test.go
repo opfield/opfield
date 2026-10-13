@@ -74,7 +74,7 @@ func stateOf(collector *StatsCollector, id string) string {
 	return ""
 }
 
-// TestContainerExitSendsAHealthReportAtOnce: a container that exits on its own reaches Gateway with the next health
+// TestContainerExitSendsAHealthReportAtOnce: a container that exits on its own reaches Opfield with the next health
 // report, sent at once, instead of up to a minute later with the periodic one.
 func TestContainerExitSendsAHealthReportAtOnce(t *testing.T) {
 	events, stream := io.Pipe()

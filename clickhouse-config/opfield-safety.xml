@@ -6,7 +6,7 @@
         <count>3</count>
     </logger>
 
-    <!-- High-volume diagnostic tables are intentionally disabled for Gateway-managed ClickHouse. -->
+    <!-- High-volume diagnostic tables are intentionally disabled for Opfield-managed ClickHouse. -->
     <trace_log remove="1" />
     <text_log remove="1" />
     <part_log remove="1" />

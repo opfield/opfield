@@ -200,7 +200,7 @@ const DEFINITIONS: readonly InferenceProviderDefinition[] = [
     models: ['glm-5.3', 'glm-5.3[1m]', 'glm-5.2', 'glm-5.2[1m]', 'glm-5.1', 'glm-5'],
     subscription: true,
     // The core lists the plan's models from Z.AI's own catalog, so a new GLM release appears
-    // without a Gateway or core update.
+    // without an Opfield or core update.
     liveModels: true,
   }),
   chatProvider('siliconflow', 'SiliconFlow', 'https://api.siliconflow.cn/v1'),

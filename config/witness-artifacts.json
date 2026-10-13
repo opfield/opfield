@@ -1,5 +1,5 @@
 {
-  "$comment": "Witness process binaries published with every Gateway release (scripts/release/witness-artifacts.sh): extracted from the digest-pinned image in config/third-party-images.json, signed as kind witness-binary with the update key and served by the update Worker as component <component>. Relay supervisors fetch them on demand. The backend catalog (modules/managed-workloads/witness-catalog.ts) lists the same entries.",
+  "$comment": "Witness process binaries published with every Opfield release (scripts/release/witness-artifacts.sh): extracted from the digest-pinned image in config/third-party-images.json, signed as kind witness-binary with the update key and served by the update Worker as component <component>. Relay supervisors fetch them on demand. The backend catalog (modules/managed-workloads/witness-catalog.ts) lists the same entries.",
   "schemaVersion": 1,
   "witnesses": [
     {

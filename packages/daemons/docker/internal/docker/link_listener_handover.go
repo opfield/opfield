@@ -381,7 +381,7 @@ func (p *DockerPlugin) waitForRelayLanes() bool {
 }
 
 // restartMarkerFile records when this daemon announced a restart to its relays (B-13): the next process registers
-// its endpoints at once, taking over the registrations the relays hold for it, instead of waiting for Gateway's
+// its endpoints at once, taking over the registrations the relays hold for it, instead of waiting for Opfield's
 // first grant bundle (relayGrantRestoreHold).
 const restartMarkerFile = "restart-announced"
 

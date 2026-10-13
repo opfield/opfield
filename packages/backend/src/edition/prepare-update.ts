@@ -35,7 +35,7 @@ export function commercialHostRoot(hostDir: string): string {
     : join(hostDir, COMMERCIAL_HOST_DIR);
 }
 
-/** Runs while the old Gateway is alive. Never changes its active image/core pair. */
+/** Runs while the old Opfield is alive. Never changes its active image/core pair. */
 export async function prepareCommercialUpdate(options: {
   hostDir: string;
   hostVersion: string;

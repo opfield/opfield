@@ -155,7 +155,7 @@ func (m *dockerSecureLinkManager) reconcileEgressLocked(ctx context.Context) boo
 			ready = false
 		}
 	}
-	// Orphans keep their listeners but are no longer Gateway's to hear about.
+	// Orphans keep their listeners but are no longer Opfield's to hear about.
 	for id := range statuses {
 		_, desired := m.egress.desired[id]
 		_, rejected := m.egress.rejected[id]
@@ -334,7 +334,7 @@ func (m *dockerSecureLinkManager) reconcileEgressStatusesLocked(ctx context.Cont
 		}
 	}
 	m.recordEgressResponseLocked(response, configs, serving, statuses)
-	// Served, but not as Gateway asked (a refused address, a rejoin that kept the previous endpoint): the egress
+	// Served, but not as Opfield asked (a refused address, a rejoin that kept the previous endpoint): the egress
 	// listens, and its status says what was not done.
 	for id, warning := range warnings {
 		if status, ok := statuses[id]; ok && status.Error == "" {
@@ -423,7 +423,7 @@ func (m *dockerSecureLinkManager) egressConnectorLocked(ctx context.Context) (ma
 		go func() { _ = m.restoreBindingsCoalesced(true) }()
 	}
 	if m.anchorID == "" {
-		// Gateway still sends the connector image of an earlier release: the connector serves ingress in its own
+		// Opfield still sends the connector image of an earlier release: the connector serves ingress in its own
 		// namespace, and the egress waits for an image with the anchor.
 		return nil, "", nil, errors.New(connectorImageTooOld)
 	}

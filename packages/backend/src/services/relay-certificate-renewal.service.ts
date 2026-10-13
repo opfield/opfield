@@ -65,7 +65,7 @@ function isUnsupportedCommand(message: string): boolean {
  * Renews the data-plane server certificate of remote relays well before it expires.
  *
  * Daemons pin a relay's exact certificate and ask for it by its identity (TLS server name),
- * so a renewal cannot simply replace it. Gateway stages a certificate with a new identity and
+ * so a renewal cannot simply replace it. Opfield stages a certificate with a new identity and
  * sends it over the supervisor's authenticated control stream. The supervisor installs it next
  * to the one daemons pin, has its worker reload without dropping tunnels, and confirms the
  * worker serves it. Only then is the staged leaf promoted and the relay's published identity

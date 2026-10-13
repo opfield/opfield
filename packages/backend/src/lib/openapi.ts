@@ -13,7 +13,7 @@ export const openApiValidationHook = (result: { success: boolean; error?: unknow
 };
 
 /**
- * OpenAPIHono with Gateway's validation hook: a request that fails its route schema is answered with the standard
+ * OpenAPIHono with Opfield's validation hook: a request that fails its route schema is answered with the standard
  * VALIDATION_ERROR shape, never the raw ZodError. Route runtimes hand it to the commercial edition, so the routers
  * it creates from them answer the same way.
  */

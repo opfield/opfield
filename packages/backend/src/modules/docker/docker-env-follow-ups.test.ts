@@ -34,7 +34,7 @@ function setup(options: FakeDockerNodeOptions = {}) {
     tasks,
     environment,
     first,
-    /** Gateway restarts: the operation's watch is gone, and the next process detaches what the node may still run. */
+    /** Opfield restarts: the operation's watch is gone, and the next process detaches what the node may still run. */
     restart() {
       vi.clearAllTimers();
       tasks.restart();

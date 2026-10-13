@@ -8,9 +8,9 @@ import (
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
 
-// Protected mode is for a node installed on a machine the Gateway operator
+// Protected mode is for a node installed on a machine Opfield operator
 // does not own (a relay on a trusted third party's host). The node owner turns
-// it on in the daemon's local config file; nothing Gateway sends can turn it
+// it on in the daemon's local config file; nothing Opfield sends can turn it
 // off. In protected mode the daemon refuses every command that reaches into
 // the host (console, one-shot commands, file access, host diagnostics) and
 // every command it does not know to be safe, reports only aggregate resource
@@ -44,7 +44,7 @@ func pluginProtected(plugin DaemonPlugin) bool {
 // protectedCommandAllowed reports whether cmd may run on a protected node.
 // The shared lifecycle allows only health and stats requests, the log stream
 // switch for the daemon's own logs, a signed daemon update, the fixed
-// host-identity read (Gateway's own file, no caller-chosen path) and the
+// host-identity read (Opfield's own file, no caller-chosen path) and the
 // address Opfield moves to (the daemon switches to it only when it presents a
 // certificate of the same System CA, so it stays the same Opfield). Everything
 // else must be allowed by the plugin.
@@ -76,7 +76,7 @@ func refuseProtectedCommand(protected bool, plugin DaemonPlugin, cmd *pb.Opfield
 
 // protectedCapabilities lists the registration markers of a protected node:
 // protected mode itself, and the host console and file access it disables,
-// so Gateway versions that know only those markers hide them as well.
+// so Opfield versions that know only those markers hide them as well.
 func protectedCapabilities(protected bool) []string {
 	if !protected {
 		return nil

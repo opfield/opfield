@@ -107,8 +107,8 @@ function selectSigningKey(records: PolicyKeyRecord[], activeKeyId: string, repor
 }
 
 /**
- * Whether Gateway can still sign a snapshot that a relay with this trust set accepts: the set
- * holds the active key, or a formerly active key whose private half Gateway still holds. False
+ * Whether Opfield can still sign a snapshot that a relay with this trust set accepts: the set
+ * holds the active key, or a formerly active key whose private half Opfield still holds. False
  * is the lockout no signed rotation can repair (the relay trusts only destroyed keys, for example
  * after its relay.db was restored from an old backup). Null when the set is unknown.
  */
@@ -270,7 +270,7 @@ export class RelayPolicySigningKeyService {
     return planInstancePolicyKeys(await this.loadKeyRecords(), instance, now, reportedKeyIds);
   }
 
-  /** For each reported trust set: can Gateway still sign for it (see trustIsSignable)? */
+  /** For each reported trust set: can Opfield still sign for it (see trustIsSignable)? */
   async assessReportedTrust(reportedSets: string[][]): Promise<Array<boolean | null>> {
     if (reportedSets.every((reported) => reported.length === 0)) return reportedSets.map(() => null);
     const records = await this.loadKeyRecords();

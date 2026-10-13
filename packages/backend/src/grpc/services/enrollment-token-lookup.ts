@@ -50,7 +50,7 @@ export async function findPendingNodeByEnrollmentToken(deps: GrpcServerDeps, tok
  * A re-enrollment token of an enrolled remote relay (RelayPoolService.issueRelayReenrollment).
  * The token is the authorization, exactly as for a first enrollment: single use, expiring, and
  * handed to the host by an administrator. It lets a relay whose pinned policy trust holds only
- * keys Gateway destroyed start over from the active key without leaving the pool. Enroll accepts
+ * keys Opfield destroyed start over from the active key without leaving the pool. Enroll accepts
  * it only from the relay's own host.
  */
 export async function findRelayNodeByReenrollmentToken(deps: GrpcServerDeps, token: string) {

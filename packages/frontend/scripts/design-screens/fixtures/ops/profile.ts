@@ -7,7 +7,7 @@ import { adminUser } from "../identity";
 import { ago, agoMs, ahead, uuid } from "../time";
 
 /**
- * The profile screen shows Maya with a local (password) account: Gateway MFA
+ * The profile screen shows Maya with a local (password) account: Opfield MFA
  * (passkeys, authenticator app) only applies to local sign-in, so the Account
  * security panel is hidden for OIDC users.
  */

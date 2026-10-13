@@ -63,14 +63,14 @@ export interface LeaseParticipant {
    * service's capability tracker; false until it ran.
    */
   withinGrace: boolean;
-  /** Docker and nginx daemons: control connection to Gateway now. Relays: not offline or in error. */
+  /** Docker and nginx daemons: control connection to Opfield now. Relays: not offline or in error. */
   online: boolean;
   /**
    * A storage-profile docker daemon (node type storage or databases): a lease candidate of the availability sets it
    * runs a member of, never an automatic witness (the witness choice of existing policies stays as it was).
    */
   storageNode: boolean;
-  /** Relays: Gateway's local relay, which stops with Gateway. */
+  /** Relays: Opfield's local relay, which stops with Opfield. */
   local: boolean;
   /** Relays: state ready. */
   ready: boolean;
@@ -113,7 +113,7 @@ export interface LeaseParticipants {
 }
 
 /**
- * A9: only relays in the operator's own enrolled pools take part. Every relay pool Gateway knows today is enrolled by
+ * A9: only relays in the operator's own enrolled pools take part. Every relay pool Opfield knows today is enrolled by
  * the operator; a managed or third-party pool type must return false here.
  */
 export function isOperatorOwnedRelayPool(_poolId: string): boolean {
@@ -333,7 +333,7 @@ export async function loadLeaseParticipants(
  * Remembers since when each member has not been voter-capable for a reason other than being offline (an outdated
  * daemon or relay, a missing identity key). A current voter or manifest candidate keeps its place until that lasted
  * LEASE_IMPOSSIBLE_HYSTERESIS_MS (D3), so a daemon restarting through an update causes no voter or manifest change.
- * In memory: after a Gateway restart the grace starts again, which only delays a change.
+ * In memory: after an Opfield restart the grace starts again, which only delays a change.
  */
 export class LeaseCapabilityTracker {
   private readonly incapableSince = new Map<string, number>();

@@ -15,7 +15,7 @@ import (
 // Secure Runtime (runsc) verification at daemon start.
 //
 // The Docker smoke test starts six gVisor containers one after another and
-// takes about 8 s. Run inside Init it held back the Gateway connection and so
+// takes about 8 s. Run inside Init it held back the Opfield connection and so
 // the relay endpoint registrations: every workload on a node with Secure
 // Runtime installed was unreachable for those 8 s after each daemon restart,
 // including every automatic daemon update (rc.20 N-9). The daemon now connects

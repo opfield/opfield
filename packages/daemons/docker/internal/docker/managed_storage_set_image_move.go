@@ -16,8 +16,8 @@ import (
 // SeaweedFS set members on a newly pinned image (P3-T07). A daemon update that
 // pins a new SeaweedFS image leaves set members on the image they run (the
 // background mover of single-node storages skips them): the primary must not
-// be recreated before Gateway switched over. Each member reports
-// imageMove=pending while any of its containers runs another image; Gateway
+// be recreated before Opfield switched over. Each member reports
+// imageMove=pending while any of its containers runs another image; Opfield
 // rolls the set like an engine update: a storage update whose set part carries
 // imageMove recreates a copy's containers on the pinned image (same data,
 // staging, hosts file and networks) under the member runtime's hold, and is

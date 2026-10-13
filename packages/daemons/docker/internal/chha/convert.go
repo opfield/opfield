@@ -22,7 +22,7 @@ import (
 //
 // Client writes are held (client profile read-only) during 1-4. Objects that
 // cannot live in a Replicated database (Log/TinyLog/Memory tables,
-// materialized views, dictionaries) stay in <db>_gwold; Gateway lists them in
+// materialized views, dictionaries) stay in <db>_gwold; Opfield lists them in
 // the convert confirmation.
 const (
 	convertSuffixOld = "_gwold"

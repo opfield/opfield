@@ -83,7 +83,7 @@ func signAll(signers []Signer, message []byte) ([]byte, [][]byte, error) {
 }
 
 // identityKeys returns every key listed for id in any adopted manifest or
-// remembered voter config. Each was signed by the Gateway for that identity,
+// remembered voter config. Each was signed by Opfield for that identity,
 // so any of them authenticates it; which policies id votes in is decided
 // separately, per policy (A18).
 func (n *Node) identityKeys(id string) [][]byte {

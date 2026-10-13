@@ -17,7 +17,7 @@ import (
 // observers only: they never vote and hold no acceptor state (A18-A20; the
 // per-policy voter set now travels inside the manifest, and witnesses are
 // relays or docker nodes, never nginx).
-// It is versioned (D3): Gateway requires v2 of every lease participant and
+// It is versioned (D3): Opfield requires v2 of every lease participant and
 // treats v1 as outdated.
 const availabilityLeaseCapability = "availability_lease_v2"
 
@@ -150,7 +150,7 @@ func (c *availabilityLeaseCoordinator) reconcileSockets() {
 // apply acknowledges a SyncAvailabilityLeaseCommand. nginx daemons are
 // observers only (A18-A20): they hold no policy keys, voters or manifests of
 // their own, so there is nothing here to adopt. The revision is still
-// tracked and echoed back in the heartbeat, so the Gateway's "resend until
+// tracked and echoed back in the heartbeat, so Opfield's "resend until
 // lease_revision >= revision" loop settles instead of retrying forever.
 func (c *availabilityLeaseCoordinator) apply(command *pb.SyncAvailabilityLeaseCommand) (string, error) {
 	if command == nil {

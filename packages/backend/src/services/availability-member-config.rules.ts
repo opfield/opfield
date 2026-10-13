@@ -4,7 +4,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * Why a node's member runtime refuses this configuration (memberha.Config.Validate on the daemon), or null when it
- * takes it. The vectors in proto/testdata/availability-member-config-v1.json are checked against both, so Gateway
+ * takes it. The vectors in proto/testdata/availability-member-config-v1.json are checked against both, so Opfield
  * never sends a configuration the node is bound to refuse.
  */
 export function availabilityMemberConfigError(config: AvailabilityMemberConfig): string | null {

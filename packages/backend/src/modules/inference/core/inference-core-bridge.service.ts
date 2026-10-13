@@ -29,8 +29,8 @@ export interface CoreDataPlaneTarget {
 }
 
 /**
- * Gateway ↔ managed-core management bridge. Owns the deterministic mapping
- * between Gateway records and core resources, and builds authenticated clients
+ * Opfield ↔ managed-core management bridge. Owns the deterministic mapping
+ * between Opfield records and core resources, and builds authenticated clients
  * from the sealed runtime credentials. No browser request ever sees the core
  * endpoint or credential.
  */
@@ -137,7 +137,7 @@ export class InferenceCoreBridgeService {
     };
   }
 
-  /** Callback credential used to verify core → Gateway internal callbacks (T5). */
+  /** Callback credential used to verify core → Opfield internal callbacks (T5). */
   async callbackCredential(): Promise<string> {
     const row = await this.store.loadState();
     if (!row?.credentialsPayload || !row.credentialsDek) {
@@ -150,18 +150,18 @@ export class InferenceCoreBridgeService {
     }).callbackCredential;
   }
 
-  /** Deterministic core provider name for a Gateway connection row. */
+  /** Deterministic core provider name for an Opfield connection row. */
   coreProviderName(connectionId: string): string {
     return `core-${connectionId}`;
   }
 
   /**
-   * Map Gateway routing names by SEMANTICS, never by name (plan decision 27).
-   * Gateway `balanced` is remaining-quota weighting, which in the current
+   * Map Opfield routing names by SEMANTICS, never by name (plan decision 27).
+   * Opfield `balanced` is remaining-quota weighting, which in the current
    * OpenCodex pool vocabulary is `balanced` (proportional to remaining quota —
    * not `quota`, which is lowest-usage threshold switching). `even` is equal
    * distribution and `sequential` keeps the current account until its quota
-   * threshold, matching Gateway's priority order.
+   * threshold, matching Opfield's priority order.
    */
   mapRoutingStrategy(strategy: 'balanced' | 'even' | 'sequential'): 'balanced' | 'even' | 'sequential' {
     switch (strategy) {

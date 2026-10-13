@@ -21,13 +21,13 @@ const (
 	// relayLatencyTick is how often the prober looks for relays to measure. A
 	// relay is measured every relaybridge.LatencySampleInterval, but a relay
 	// it has not measured yet (a relay that joined or came back, a new
-	// assignment) within a tick: tunnel selection and Gateway's placement
+	// assignment) within a tick: tunnel selection and Opfield's placement
 	// need its distance before they can prefer it over a farther one.
 	relayLatencyTick = 5 * time.Second
 )
 
 // RelayLatencyTargetPlugin names the pool relays to measure beyond those the
-// daemon holds transports to, so Gateway learns about nearer relays it has
+// daemon holds transports to, so Opfield learns about nearer relays it has
 // not assigned yet.
 type RelayLatencyTargetPlugin interface {
 	RelayLatencyTargets() []RelayTunnelTarget
@@ -134,11 +134,11 @@ func relayLatencyTargets(plugin RelayPoolTunnelPlugin) ([]RelayTunnelTarget, map
 
 // probeRelayLatencies takes one sample per relay: the shortest RPC round trip
 // on its open lanes for a relay this daemon keeps lanes to (laneTargets), else
-// a TCP handshake to the relay (or to Gateway, whose host runs a relay without
+// a TCP handshake to the relay (or to Opfield, whose host runs a relay without
 // its own address). A lane relay whose lanes are down, missing or do not
 // answer gets no sample and ages out: a TCP handshake answered by a relay this
 // node cannot use (its TLS or gRPC failing) kept a fresh, short round trip in
-// Gateway's placement. The shortest of the lanes is the one least held up
+// Opfield's placement. The shortest of the lanes is the one least held up
 // behind this node's own tunnel data.
 func probeRelayLatencies(ctx context.Context, targets []RelayTunnelTarget, laneTargets map[string]bool, transports *relayTransports, controlAddress string, tracker *relaybridge.LatencyTracker) {
 	var wg sync.WaitGroup

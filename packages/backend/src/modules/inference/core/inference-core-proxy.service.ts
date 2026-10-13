@@ -103,7 +103,7 @@ function requireAuth(c: Context<AppEnv>): { user: User; tokenId: string } {
 }
 
 /**
- * Transparent data-plane proxy: Gateway keeps authentication, model access,
+ * Transparent data-plane proxy: Opfield keeps authentication, model access,
  * limits, and accounting authority while the managed core owns provider
  * protocols and credentials (plan T5). Client headers never reach the core;
  * the core only sees its data credential and a freshly signed request context.
@@ -166,7 +166,7 @@ export class InferenceCoreProxyService {
 
   /**
    * Codex's built-in image tool sends an endpoint model such as `gpt-image-2`,
-   * which intentionally is not a selectable Gateway text model. Select an
+   * which intentionally is not a selectable Opfield text model. Select an
    * accessible OpenAI connection through an existing published source for
    * routing/accounting, but leave the endpoint model untouched in the body.
    */
@@ -233,7 +233,7 @@ export class InferenceCoreProxyService {
     };
   }
 
-  /** Core base URL + data credential as a stable Gateway error when unavailable. */
+  /** Core base URL + data credential as a stable Opfield error when unavailable. */
   async dataPlaneTarget(): Promise<CoreDataPlaneTarget> {
     return this.coreTarget();
   }
@@ -260,7 +260,7 @@ export class InferenceCoreProxyService {
           });
     let resolved = await resolveOperationTarget();
     // Realtime is not admitted by the core; it keeps the legacy fixed-charge
-    // accounting at the Gateway edge. Everything else correlates through the
+    // accounting at the Opfield edge. Everything else correlates through the
     // request row the core's admission callback references.
     if (OPERATION_PROTOCOL[operation] === 'realtime') {
       const body = prepared.rewrite(resolved.upstreamModel, resolved.model, resolved.selected.source);
@@ -395,7 +395,7 @@ export class InferenceCoreProxyService {
     }
   }
 
-  /** Core base URL + data credential, mapped to a stable Gateway error when unavailable. */
+  /** Core base URL + data credential, mapped to a stable Opfield error when unavailable. */
   private async coreTarget(): Promise<CoreDataPlaneTarget> {
     try {
       return await this.bridge.dataPlaneTarget();
@@ -548,7 +548,7 @@ export class InferenceCoreProxyService {
 
   // -------------------------------------------------------------- realtime
   // The core does not admit realtime calls; keep the legacy fixed session
-  // charge at the Gateway edge and release it when the upstream call ends.
+  // charge at the Opfield edge and release it when the upstream call ends.
 
   private async proxyRealtime(
     c: Context<AppEnv>,

@@ -11,7 +11,7 @@ const logger = createChildLogger('DockerSourceOrphanRepair');
 export interface DockerSourceOrphanRepairDeps {
   /** True only while the node's daemon is connected. */
   isNodeOnline(nodeId: string): boolean;
-  /** Live container list of the node (the same command Gateway's container lists use). */
+  /** Live container list of the node (the same command Opfield's container lists use). */
   listContainers(nodeId: string): Promise<{ success: boolean; detail?: string }>;
   /** True while the container has an active transition or lock in the host's docker transition registry. */
   hasActiveTransition(nodeId: string, name: string): boolean;

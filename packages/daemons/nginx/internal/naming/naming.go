@@ -1,5 +1,5 @@
 // Package naming holds the names Opfield gives its files, directories and nginx identifiers on an ingress node, and
-// the names of the product's former brand (Gateway) that a node keeps until its daemon moved it to the new ones.
+// the names of the product's former brand (Opfield) that a node keeps until its daemon moved it to the new ones.
 //
 // A node runs in one of two schemes. Opfield names are the default: every new install and every node the daemon has
 // moved. Pre-Opfield names stay in effect on a node until the update that brings this daemon is committed by the

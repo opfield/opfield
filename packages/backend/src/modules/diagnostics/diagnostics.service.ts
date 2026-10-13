@@ -63,7 +63,7 @@ export const DEFAULT_HISTORY_METRICS = [
 
 export interface StackContainer {
   service: string;
-  /** Part of Gateway's Compose project, not a container Gateway started on its own. */
+  /** Part of Opfield's Compose project, not a container Opfield started on its own. */
   inComposeProject: boolean;
   name: string;
   id: string;
@@ -127,7 +127,7 @@ export interface DiagnosticsSnapshot {
   lastSampleAt: string | null;
 }
 
-/** One minute of Gateway's own state, as stored for the 48-hour history. Numbers only, so they average. */
+/** One minute of Opfield's own state, as stored for the 48-hour history. Numbers only, so they average. */
 export interface DiagnosticsSample {
   minute: string;
   host: {
@@ -575,7 +575,7 @@ export class DiagnosticsService {
     return this.readDockerHost();
   }
 
-  /** Gateway's own containers (its Compose project and the services it manages), one entry per service. */
+  /** Opfield's own containers (its Compose project and the services it manages), one entry per service. */
   async stackServices(): Promise<
     Array<{ name: string; state: string; health: string | null; startedAt: string | null }>
   > {
@@ -603,7 +603,7 @@ export class DiagnosticsService {
   }
 
   /**
-   * The last `tail` lines one of Gateway's own containers logged, as Docker keeps them, each with its stream.
+   * The last `tail` lines one of Opfield's own containers logged, as Docker keeps them, each with its stream.
    * Secrets are redacted like every other log reading.
    */
   async containerLogLines(

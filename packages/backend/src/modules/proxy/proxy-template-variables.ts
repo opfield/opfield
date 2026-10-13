@@ -13,7 +13,7 @@ export const OVERRIDABLE_TEMPLATE_VARIABLE_NAMES: ReadonlySet<string> = new Set(
 ]);
 
 /**
- * Render-context keys managed by Gateway. A custom template variable with one
+ * Render-context keys managed by Opfield. A custom template variable with one
  * of these names could otherwise drop the access list or redirect the upstream,
  * certificate or log paths, so they are rejected on write and ignored on render.
  */

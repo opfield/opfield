@@ -20,7 +20,7 @@ import (
 // a container a delete or an interrupted recreation left behind, or a record
 // file that cannot be read (zeroed by a crash) with its image and mount point.
 // The repair pass leaves both alone, since the node cannot tell a lost record
-// of a live instance from one Gateway deleted. Gateway can: it lists them
+// of a live instance from one Opfield deleted. Opfield can: it lists them
 // (leftovers) and, for ids it has no instance of, removes them with a remove
 // command marked as such (leftoverRemove).
 
@@ -30,7 +30,7 @@ type managedLeftover struct {
 	ID string `json:"id"`
 	// Record is "unreadable" (the file exists but cannot be read),
 	// "missing", or "member": a readable record of an availability set
-	// member (Gateway removes it when it has no instance of the id or no
+	// member (Opfield removes it when it has no instance of the id or no
 	// such member on this node any more: a set deleted or a member removed
 	// while its node could not be reached).
 	Record     string   `json:"record"`
@@ -44,7 +44,7 @@ type managedLeftover struct {
 	AllocatedBytes int64 `json:"allocatedBytes"`
 }
 
-// leftoverCommand is the payload of a remove Gateway sends for a leftover:
+// leftoverCommand is the payload of a remove Opfield sends for a leftover:
 // it confirms that it has no instance of the id.
 type leftoverCommand struct {
 	Leftover bool `json:"leftover"`
@@ -70,7 +70,7 @@ func isLeftoverRemove(configJSON string) bool {
 }
 
 // errNotALeftover refuses a leftover remove of an id the node has a readable
-// record of: an instance created since Gateway listed the leftovers.
+// record of: an instance created since Opfield listed the leftovers.
 var errNotALeftover = errors.New("the node has a record of this instance; it is not a leftover and was not removed")
 
 func marshalLeftovers(byID map[string]*managedLeftover) (string, error) {
@@ -78,7 +78,7 @@ func marshalLeftovers(byID map[string]*managedLeftover) (string, error) {
 }
 
 // marshalLeftoversWithMembers lists the leftovers and the availability set
-// members the node runs (Gateway decides which members are left over).
+// members the node runs (Opfield decides which members are left over).
 func marshalLeftoversWithMembers(byID map[string]*managedLeftover, members []managedLeftover) (string, error) {
 	items := make([]managedLeftover, 0, len(byID)+len(members))
 	items = append(items, members...)
@@ -170,7 +170,7 @@ func (m *managedStorageManager) leftovers(ctx context.Context) (string, error) {
 	return marshalLeftoversWithMembers(byID, members)
 }
 
-// removeLeftover removes everything of a storage id Gateway has no instance
+// removeLeftover removes everything of a storage id Opfield has no instance
 // of: its containers, network, images, mount points, staged files and the
 // record file that cannot be read. An id with a readable record is refused.
 func (m *managedStorageManager) removeLeftover(ctx context.Context, id, configJSON string) error {
@@ -179,7 +179,7 @@ func (m *managedStorageManager) removeLeftover(ctx context.Context, id, configJS
 		if record.Set == nil || record.Removed || memberID == "" || record.Set.MemberID != memberID {
 			return errNotALeftover
 		}
-		// A member of a set Gateway no longer has (or a member it removed
+		// A member of a set Opfield no longer has (or a member it removed
 		// while this node could not be reached): containers, member runtime,
 		// mesh, disk and record go.
 		if err := m.removeSetMember(ctx, record); err != nil {
@@ -236,7 +236,7 @@ func (m *managedDatabaseManager) leftovers(ctx context.Context) (string, error) 
 // runtimeLeftoverMembers lists the member runtime's members of ownerKind whose
 // owner has no readable record on this node (a set deleted while the node was
 // unreachable: the runtime keeps the member and warns that its container does
-// not exist on every start). Gateway removes those it has no such member of.
+// not exist on every start). Opfield removes those it has no such member of.
 func runtimeLeftoverMembers(p *DockerPlugin, ownerKind string, readable map[string]bool) []managedLeftover {
 	if p == nil || p.setMembers == nil {
 		return nil
@@ -280,7 +280,7 @@ func (record managedDatabaseRecord) setMember() (string, string) {
 	return record.ClickhouseAvailabilitySetID, record.ClickhouseAvailabilityMemberID
 }
 
-// removeLeftoverMember removes a database's availability set member Gateway
+// removeLeftoverMember removes a database's availability set member Opfield
 // no longer has (its database was deleted, or the member was removed while
 // this node could not be reached): the member runtime lets go of it first
 // (held, published ports released, forgotten), then its container, network,
@@ -365,7 +365,7 @@ func (m *managedDatabaseManager) removeLeftoverMember(ctx context.Context, id, c
 	return true, nil
 }
 
-// removeLeftover removes everything of a database id Gateway has no instance
+// removeLeftover removes everything of a database id Opfield has no instance
 // of (see the storage variant).
 func (m *managedDatabaseManager) removeLeftover(ctx context.Context, id string) error {
 	if _, err := m.loadRecord(id); err == nil {

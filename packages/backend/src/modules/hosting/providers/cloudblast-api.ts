@@ -51,7 +51,7 @@ export function values(value: unknown): unknown[] {
 export function input(value: string | undefined): string {
   return typeof value === 'string' && value.trim() !== '' ? value : invalid();
 }
-/** Sizes are documented in bytes; Gateway reports MiB for memory and GiB for disks. */
+/** Sizes are documented in bytes; Opfield reports MiB for memory and GiB for disks. */
 export function bytesTo(value: unknown, unit: number): number | null {
   const amount = number(value);
   return amount === null ? null : Math.round(amount / unit);

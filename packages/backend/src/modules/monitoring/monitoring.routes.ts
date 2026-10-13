@@ -414,7 +414,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
         .resolve(InferenceUsageService)
         .self(user)
         // Usage is an optional dashboard card. An older installation can have
-        // Gateway Inference enabled before a default budget policy exists; that
+        // Opfield Inference enabled before a default budget policy exists; that
         // must not make the whole dashboard unavailable.
         .catch((error: unknown) => {
           if ((error as { code?: string } | null)?.code === 'budget_policy_unavailable') return null;
@@ -599,7 +599,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
           (resource) => resource.kind === 'container' || resource.kind === 'deployment'
         );
         // Dashboard reads the already reconciled daemon inventory.  Decorating
-        // the snapshot may read Gateway metadata, but must never issue a live
+        // the snapshot may read Opfield metadata, but must never issue a live
         // Docker command while a user is opening a page.
         const snapshot = runtimeResources.length
           ? await container.resolve(DockerSnapshotService).getList<Record<string, unknown>[]>(nodeId, 'containers')
@@ -837,7 +837,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     ...(mfa && ((!mfaHasFactor && (mfa.required || mfa.showReminder)) || mfaGraceActive)
       ? [{ id: 'mfa', severity: 'warning' as const }]
       : []),
-    // The Dashboard shows one Update Available notice for a Gateway or a relay release.
+    // The Dashboard shows one Update Available notice for an Opfield or a relay release.
     ...(update?.updateAvailable || update?.relay?.updateAvailable
       ? [{ id: 'opfield-update', severity: 'warning' as const }]
       : []),

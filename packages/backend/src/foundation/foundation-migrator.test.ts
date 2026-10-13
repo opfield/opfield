@@ -387,7 +387,7 @@ ${OLD_COMPOSE}`;
       driver: 'json-file',
       logOpts: 'set',
     });
-    // Gateway's own bounded logging on the app says nothing about the daemon.
+    // Opfield's own bounded logging on the app says nothing about the daemon.
     expect(
       hostDockerLogDefaults('json-file', { Type: 'json-file', Config: { 'max-size': '50m', 'max-file': '3' } })
     ).toEqual({ driver: 'json-file', logOpts: 'none' });

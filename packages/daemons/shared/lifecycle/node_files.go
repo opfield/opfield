@@ -429,7 +429,7 @@ func nodeUploadTempPath(uploadID string, targetPath string) (string, string, err
 func ensureNodeWritableDirectory(path string) error {
 	info, err := os.Stat(path)
 	if errors.Is(err, fs.ErrPermission) {
-		// The daemon's user cannot enter a directory on the way: say so, so Gateway answers 403, not "does not exist".
+		// The daemon's user cannot enter a directory on the way: say so, so Opfield answers 403, not "does not exist".
 		return fmt.Errorf("parent directory: %w", err)
 	}
 	if err != nil {

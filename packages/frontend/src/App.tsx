@@ -1308,7 +1308,7 @@ export function RealtimeBridge() {
             component?: "opfield" | "relay";
             targetVersion?: string | null;
             statusChanged?: boolean;
-            /** Why a Gateway update ended without reaching its target. */
+            /** Why an Opfield update ended without reaching its target. */
             error?: string;
             rolledBack?: boolean;
           }

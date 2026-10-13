@@ -60,7 +60,7 @@ const (
 	cutRegistry    = "registry"
 	cutBackup      = "backup"
 	// cutConnectorRetired: the sessions a replaced Secure Link connector still carried when it was removed at its
-	// retirement limit, or to free its slot. A connector is replaced by an update (of Gateway's connector image, with
+	// retirement limit, or to free its slot. A connector is replaced by an update (of Opfield's connector image, with
 	// the Relay Pool), and its removal comes up to an hour later: the cut joins the node's last update report.
 	cutConnectorRetired = "connector_retired"
 )

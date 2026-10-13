@@ -1174,7 +1174,7 @@ describe('ResumableRelayDuplex', () => {
   }, 30_000);
 
   it("leaves a stream where a target's hint moved it when the drain move paced for later comes (stand rc.9 F-2)", async () => {
-    // The Relay Pool update drains the local relay: Gateway paces its own streams' moves over a minute. The target's
+    // The Relay Pool update drains the local relay: Opfield paces its own streams' moves over a minute. The target's
     // hint moves the stream to UK first; when its paced turn came, the drain move left UK for NL (300 ms).
     const key = Buffer.alloc(32, 6);
     const target = echoTarget(key, 'v1');
@@ -1341,7 +1341,7 @@ describe('ResumableRelayDuplex', () => {
     expect(registry.isLegacy('route-old')).toBe(true);
     expect(registry.isLegacy('route-old', 'v1')).toBe(true);
     expect(registry.isLegacy('route-other')).toBe(false);
-    // Gateway turned the route back on with a new key version: the latch ends at once.
+    // Opfield turned the route back on with a new key version: the latch ends at once.
     expect(registry.isLegacy('route-old', 'v2')).toBe(false);
     expect(registry.isLegacy('route-old', 'v1')).toBe(false);
   });

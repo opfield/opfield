@@ -20,7 +20,7 @@ import (
 //   - a change that needs the container recreated (a new engine image, a
 //     setting fixed at creation) recreates a copy's container on the same data
 //     while the member runtime is held, and is refused on the primary with
-//     AVAILABILITY_SWITCHOVER_REQUIRED: Gateway switches over first and
+//     AVAILABILITY_SWITCHOVER_REQUIRED: Opfield switches over first and
 //     retries on the old primary, a copy by then;
 //   - Postgres never changes its major version in place (POSTGRES_MAJOR_CHANGE,
 //     members and single-node databases alike): a major upgrade is a backup
@@ -29,7 +29,7 @@ import (
 // managedDatabaseVersionUpdateCapability: an update naming another engine
 // image recreates the container on it with the data kept (Postgres: same
 // major only, else POSTGRES_MAJOR_CHANGE; set members: the copy rule above).
-// Gateway changes a database's engine version only on nodes with it.
+// Opfield changes a database's engine version only on nodes with it.
 const managedDatabaseVersionUpdateCapability = "managed_database_version_update_v1"
 
 // postgresMajorChangeCode starts the refusal of an update that would run a

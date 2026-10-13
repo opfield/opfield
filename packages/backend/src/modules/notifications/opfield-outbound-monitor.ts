@@ -10,7 +10,7 @@ import type { NotificationEvaluatorService } from './notification-evaluator.serv
 
 const logger = createChildLogger('OpfieldOutboundMonitor');
 
-/** Resource key of the "Gateway lost outbound connectivity" alert (category gateway, event outbound.unavailable). */
+/** Resource key of the "Opfield lost outbound connectivity" alert (category opfield, event outbound.unavailable). */
 export const OPFIELD_OUTBOUND_RESOURCE_ID = 'opfield-outbound';
 export const OUTBOUND_CHECK_INTERVAL_MS = 20_000;
 const PROBE_TIMEOUT_MS = 5_000;
@@ -80,13 +80,13 @@ export async function probeOutboundTarget(target: OutboundTarget): Promise<Outbo
 }
 
 /**
- * Gateway's own outbound connectivity, checked every OUTBOUND_CHECK_INTERVAL_MS: the hosts of the enabled webhooks and
+ * Opfield's own outbound connectivity, checked every OUTBOUND_CHECK_INTERVAL_MS: the hosts of the enabled webhooks and
  * WELL_KNOWN_TARGETS are resolved and connected to. Outbound connectivity is lost when none of the public ones can be
- * reached (webhooks on private addresses say nothing about it and are skipped). It is observed as the gateway event
- * outbound.unavailable ("Gateway lost outbound connectivity"); route alerts whose probes from Gateway failed without an
+ * reached (webhooks on private addresses say nothing about it and are skipped). It is observed as the opfield event
+ * outbound.unavailable ("Opfield lost outbound connectivity"); route alerts whose probes from Opfield failed without an
  * answer fold under that alert while it fires (see NotificationEvaluatorService.foldingParent).
  *
- * A Gateway that never reached any of them since it started (an air-gapped install) is not reported as lost, unless
+ * An Opfield that never reached any of them since it started (an air-gapped install) is not reported as lost, unless
  * the alert was already firing when it started. When connectivity returns, webhooks paused on unreachable targets send
  * their queues right away.
  */

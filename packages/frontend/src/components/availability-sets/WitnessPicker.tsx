@@ -17,7 +17,7 @@ export function witnessChoiceOf(value: WitnessPickerValue): AvailabilityWitnessC
 }
 
 /**
- * Witness of an availability set: Gateway's automatic pick, or one allowed relay or docker node
+ * Witness of an availability set: Opfield's automatic pick, or one allowed relay or docker node
  * on another host. A witness only votes on which server is primary; it holds no data.
  */
 export function WitnessPicker({

@@ -53,7 +53,7 @@ export interface LeasePolicyDescriptor {
   witnessFilter?: { relayIds: readonly string[]; nodeIds?: readonly string[] };
   /**
    * An odd voter count to reach with automatic witnesses when enough eligible ones exist (availability sets with 2 data
-   * members ask for 5, so one data node and one witness can be lost without Gateway); the count never ends even, and
+   * members ask for 5, so one data node and one witness can be lost without Opfield); the count never ends even, and
    * falls back to the smallest odd count (3) when too few witnesses are eligible. Undefined: the smallest odd count.
    */
   preferredVoterCount?: number;
@@ -122,7 +122,7 @@ export interface LeaseHolderChangeNotice extends LeaseHolderChange {
   placementId: string | null;
   source: DockerAvailabilityLeaseObservationSource;
   sourceId: string;
-  /** When Gateway noticed the change: the report that carried it arrived. */
+  /** When Opfield noticed the change: the report that carried it arrived. */
   noticedAt?: Date;
   /** Stateful keys: "sha256:<hex>" of the certified state of the observed commit, when known. */
   stateHash?: string | null;

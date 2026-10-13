@@ -5,7 +5,7 @@
 // records, health release and the backend gate.
 //
 // The runtime talks to Docker, the watchdog directory, relay endpoint
-// registrations and the Gateway only through the small interfaces below, so
+// registrations and Opfield only through the small interfaces below, so
 // the whole loop runs against fakes in tests.
 package lease
 
@@ -115,14 +115,14 @@ type Placements interface {
 	MarkServing(policyID string, serving bool)
 }
 
-// PolicyKey is a Gateway policy signing key delivered over the
+// PolicyKey is an Opfield policy signing key delivered over the
 // authenticated CommandStream (A4).
 type PolicyKey struct {
 	ID        string
 	PublicKey []byte
 }
 
-// BlockUpdate is one lease distribution from the Gateway: T3's
+// BlockUpdate is one lease distribution from Opfield: T3's
 // SyncAvailabilityLeaseCommand after decoding its opaque relay.v1 blocks.
 // Each manifest carries its policy's voters and voter epoch (A18); there is
 // no cluster-wide voter config any more.

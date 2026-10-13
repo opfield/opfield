@@ -14,7 +14,7 @@ import (
 // framework's defaults (Postgres implements all of them). An engine that
 // implements none runs exactly as before.
 
-// Reconfigurer takes a newer configuration of its member (Gateway's
+// Reconfigurer takes a newer configuration of its member (Opfield's
 // configure), before the runtime acts on it.
 type Reconfigurer interface {
 	Reconfigure(config Config) error
@@ -127,23 +127,23 @@ type DetachState struct {
 	StartedUnixMs int64  `json:"startedUnixMs"`
 }
 
-// DetachEvidence is Gateway's side of a detach.
+// DetachEvidence is Opfield's side of a detach.
 type DetachEvidence struct {
-	// NeverHeld: Gateway never observed a holder of the set's lease.
+	// NeverHeld: Opfield never observed a holder of the set's lease.
 	NeverHeld bool
-	// SeededMemberIDs: the members Gateway prepared besides this one; a
+	// SeededMemberIDs: the members Opfield prepared besides this one; a
 	// detach needs none.
 	SeededMemberIDs []string
 }
 
-// RestartRequest is a restart Gateway asked for.
+// RestartRequest is a restart Opfield asked for.
 type RestartRequest struct {
 	OperationID  string `json:"operationId"`
 	AllowPrimary bool   `json:"allowPrimary,omitempty"`
 }
 
 // SwitchoverRequiredCode starts the text of every refusal that needs the
-// set's primary to switch over first (Gateway matches it, switches over and
+// set's primary to switch over first (Opfield matches it, switches over and
 // retries on the old primary, then a copy).
 const SwitchoverRequiredCode = "AVAILABILITY_SWITCHOVER_REQUIRED"
 
@@ -199,7 +199,7 @@ func (m *Manager) certifiedCurrentLocked(mem *member, cert CertifiedState) bool 
 func (m *Manager) holderExtrasLocked(mem *member, status HolderStatus, cert CertifiedState, free bool, now time.Duration) bool {
 	if r := mem.state.Restart; r != nil {
 		if !r.AllowPrimary {
-			// Gateway asked for a copy's restart; this member holds now.
+			// Opfield asked for a copy's restart; this member holds now.
 			m.finishRestartLocked(mem, fmt.Errorf("%s: the member became the primary; switch over first", SwitchoverRequiredCode))
 			return false
 		}
@@ -466,7 +466,7 @@ func forceOutcomeText(outcome availabilitylease.ForceOutcome) string {
 // ----- detach before the first holder (H2) and lift after a close -------
 
 // Detach returns an origin to a single-node resource when no commit of the
-// set's lease can exist: Gateway never saw a holder and seeded no other
+// set's lease can exist: Opfield never saw a holder and seeded no other
 // member, this member never held, its lease role is idle and it knows no
 // commit or pending transition. Candidacy stops before the checks, so no
 // bootstrap starts meanwhile; on refusal it is restored. From then on the
@@ -576,7 +576,7 @@ func (m *Manager) LiftCheck(setID, memberID string) (primaryRunning bool, err er
 // ----- restarts (settings that need one, M4) -----------------------------
 
 // RestartMember asks for a restart of this node's member with its current
-// configuration. A holder restarts only with allowPrimary (normally Gateway
+// configuration. A holder restarts only with allowPrimary (normally Opfield
 // switches over first): serving closes, the record stays armed, a clean
 // stop, standby at rest, a start, and the holder path promotes again.
 func (m *Manager) RestartMember(setID, operationID string, allowPrimary bool) error {
@@ -639,7 +639,7 @@ func (m *Manager) HoldCopy(ctx context.Context, setID string) (func(), error) {
 	return release, nil
 }
 
-// Stopped reports whether Gateway paused this node's member of setID
+// Stopped reports whether Opfield paused this node's member of setID
 // (Config.Stopped).
 func (m *Manager) Stopped(setID string) bool {
 	m.mu.Lock()
@@ -702,11 +702,11 @@ func (m *Manager) restartHolderCleanLocked(mem *member, status HolderStatus) {
 
 // ----- signed primary assignments -----------------------------------------
 
-// AssignmentDomain separates Gateway's assignment signatures from every other
+// AssignmentDomain separates Opfield's assignment signatures from every other
 // statement signed with the relay policy key.
 const AssignmentDomain = "gateway-availability-member/primary-assignment/v1"
 
-// AssignmentStatement is the payload Gateway signs (under AssignmentDomain,
+// AssignmentStatement is the payload Opfield signs (under AssignmentDomain,
 // as domain || 0x00 || payload): the set id, the primary member id (each a
 // 4-byte big endian length and the bytes) and the generation (8-byte big
 // endian).

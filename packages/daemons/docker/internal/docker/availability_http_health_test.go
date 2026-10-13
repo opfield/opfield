@@ -132,7 +132,7 @@ func TestAvailabilityHealthCountsFailuresPerInstanceAndHoldsTheCopyOut(t *testin
 		t.Fatalf("after two failed probes: %+v", got)
 	}
 
-	// Gateway takes the copy out and asks for a health release.
+	// Opfield takes the copy out and asks for a health release.
 	detail = applyHealth(t, h, availabilityHealthRequest{TTLSeconds: 60, Checks: []availabilityHealthCheckSpec{check}, Dormant: true, Release: true, Reason: "GET /healthz answered 503"})
 	if !detail.Dormant || !detail.Released || !h.dormant("policy-1") {
 		t.Fatalf("dormant apply: %+v", detail)
@@ -152,7 +152,7 @@ func TestAvailabilityHealthCountsFailuresPerInstanceAndHoldsTheCopyOut(t *testin
 		t.Fatal("a dormant renewal without release asked for another release")
 	}
 
-	// Gateway puts it back.
+	// Opfield puts it back.
 	applyHealth(t, h, availabilityHealthRequest{TTLSeconds: 60, Checks: []availabilityHealthCheckSpec{check}})
 	if h.dormant("policy-1") || fmt.Sprint(dormantChanges) != "[true false]" {
 		t.Fatalf("put back: dormant=%v changes %v", h.dormant("policy-1"), dormantChanges)

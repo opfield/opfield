@@ -63,7 +63,7 @@ func TestCPUPercentKeepsBaselineInsideMinimumWindow(t *testing.T) {
 	contents = procStatT1
 	first := state.sample(start.Add(10*time.Second), procStatReader(&contents))
 
-	// Gateway's health request lands a few ms after the ticker. The counters moved
+	// Opfield's health request lands a few ms after the ticker. The counters moved
 	// by a handful of busy ticks only, which used to read as 100 %.
 	contents = "cpu  458861675 4112859 107614896 1411678523 28437850 0 15836862 0 346237084 0\n"
 	got := state.sample(start.Add(10*time.Second+3*time.Millisecond), procStatReader(&contents))

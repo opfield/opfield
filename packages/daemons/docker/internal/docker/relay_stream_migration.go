@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Resumable relay streams (RSv1): a relayed stream of a route Gateway flagged
+// Resumable relay streams (RSv1): a relayed stream of a route Opfield flagged
 // resumable runs as a relayresume session between this daemon and the other
 // endpoint, and moves to another relay (or the same relay, restarted) when
 // its relay drains, stops or fails, without the local connections noticing.
@@ -169,7 +169,7 @@ func (p *DockerPlugin) relaySourceConfig(tag relaySourceTag, assignment *pb.Rela
 // stops or leaves the assignment) comes last. A relay that stays in the
 // assignment is not avoided: a stream whose grant generation drains re-paths
 // onto it under the new grant. When the best path is the one the stream is on,
-// the dialer answers relayresume.ErrStay. A route Gateway no longer assigns
+// the dialer answers relayresume.ErrStay. A route Opfield no longer assigns
 // opens nothing: its streams end.
 func (p *DockerPlugin) relaySourceDialer(tag relaySourceTag) relayresume.Dialer {
 	return func(ctx context.Context, request relayresume.DialRequest) (relayresume.OpenedPath, error) {
@@ -411,13 +411,13 @@ func (p *DockerPlugin) bridgeTargetConnection(ownerKind, ownerID string, session
 // gone it re-paths onto the same relay under the new grant
 // (relaybridge.PlaceStream), spread over a few seconds.
 // Sources whose relay leaves the assignment or drains as a whole move (paced
-// to the drain deadline), sources and targets whose route or endpoint Gateway
+// to the drain deadline), sources and targets whose route or endpoint Opfield
 // no longer assigns end, and targets ask their sources to move off relays
 // that leave.
 func (p *DockerPlugin) relayStreamsOnBundle() {
 	sides := p.relayStreams()
 	bundle := p.relayGrants.get()
-	// A route Gateway turned on again (a new key) is tried resumable again
+	// A route Opfield turned on again (a new key) is tried resumable again
 	// even if its target answered raw before (the legacy latch).
 	routes := map[string]bool{}
 	for _, assignment := range bundle.GetGrants() {

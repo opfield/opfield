@@ -1,5 +1,5 @@
 /**
- * Requests, replies and notices between Gateway's main thread and its tunnel worker over one MessagePort. Control
+ * Requests, replies and notices between Opfield's main thread and its tunnel worker over one MessagePort. Control
  * only: tunnel bytes never cross it (the loopback listeners and the relay channels both live in the worker).
  */
 

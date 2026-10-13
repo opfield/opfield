@@ -50,7 +50,7 @@ export function createDrizzleClient(connectionString: string): DrizzleClient {
   return drizzle(pool, { schema });
 }
 
-/** Thrown to work a stopping Gateway left to durable recovery when it reaches the database. */
+/** Thrown to work a stopping Opfield left to durable recovery when it reaches the database. */
 export class AbandonedOperationError extends Error {
   constructor() {
     super('Opfield is stopping; this operation is resumed by recovery after the restart');
@@ -59,8 +59,8 @@ export class AbandonedOperationError extends Error {
 }
 
 /**
- * Work a stopping Gateway left to recovery (acceptedOperations.abandonRunning) keeps running until the process
- * exits. It must not write anything from then on: a step that fails only because Gateway goes away would record the
+ * Work a stopping Opfield left to recovery (acceptedOperations.abandonRunning) keeps running until the process
+ * exits. It must not write anything from then on: a step that fails only because Opfield goes away would record the
  * operation as failed, and recovery would no longer resume it. A transaction already open completes.
  */
 function refuseAbandonedOperations(pool: pg.Pool): void {

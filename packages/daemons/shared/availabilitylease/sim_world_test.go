@@ -13,7 +13,7 @@ import (
 )
 
 // simWorld is a deterministic discrete-event simulation of relays, daemon
-// voters, candidates, the Gateway, the network and host faults. Real time is
+// voters, candidates, Opfield, the network and host faults. Real time is
 // w.now; every node has its own drifting, freezable clock.
 type simWorld struct {
 	seed    int64

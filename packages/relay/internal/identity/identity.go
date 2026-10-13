@@ -19,7 +19,7 @@ import (
 
 var ErrMaterialUpdating = errors.New("relay identity material is being updated")
 
-// ServerCertificateRolloverCapability tells a supervisor, and Gateway, that this
+// ServerCertificateRolloverCapability tells a supervisor, and Opfield, that this
 // worker keeps serving external-server.previous.* by that certificate's own
 // identity. A renewal must not be installed on a worker without it: daemons
 // still pinning the previous certificate would be cut off.
@@ -48,8 +48,8 @@ type Snapshot struct {
 // serverName: the previous one when it names that identity and the current
 // one does not, while it is still valid; otherwise the current one.
 // LoadedFingerprints names the external server certificate, the relay's own
-// client certificate toward Gateway, and the Gateway client certificate it
-// trusts, as loaded. Gateway compares them with what it installed before it
+// client certificate toward Opfield, and the Opfield client certificate it
+// trusts, as loaded. Opfield compares them with what it installed before it
 // treats an identity rotation as done.
 func (s *Snapshot) LoadedFingerprints() (external, relayClient, appClient string) {
 	if len(s.External.Certificate) > 0 {
@@ -216,7 +216,7 @@ func (s *Store) readSnapshot() (*Snapshot, error) {
 	return &Snapshot{SystemCA: pool, SystemCAPEM: caPEM, External: external, PreviousExternal: previousExternal, AppClient: appClient, RelayClient: relayClient, Trust: trust}, nil
 }
 
-// AuthorizeAppClient retains the previous Gateway client until an explicit,
+// AuthorizeAppClient retains the previous Opfield client until an explicit,
 // operation-bound commit. Health probes and unrelated admin RPCs never commit.
 func (s *Store) AuthorizeAppClient(fingerprint string) bool {
 	current := s.Current().Trust.AppRelayClientFingerprint
@@ -274,7 +274,7 @@ func (s *Store) loadRotationState(currentFingerprint string) error {
 	if loaded.CurrentFingerprint != currentFingerprint {
 		// Identity files can be atomically replaced immediately before the relay
 		// restarts. Retain the last durable client fingerprint so the still-running
-		// Gateway can initiate and explicitly commit the rotation after restart.
+		// Opfield can initiate and explicitly commit the rotation after restart.
 		s.rotation = rotationState{
 			Version:             1,
 			CurrentFingerprint:  currentFingerprint,

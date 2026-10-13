@@ -1577,7 +1577,7 @@ export function DockerGitSourcePanel({
           title="Update detection"
           description="Opfield-managed trigger used to discover new commits."
         >
-          {/* Gateway polls only sources that build automatically; the rest wait for a webhook or Sync now. */}
+          {/* Opfield polls only sources that build automatically; the rest wait for a webhook or Sync now. */}
           <Badge variant="secondary">
             {source.webhookConfiguredAt
               ? source.autoBuild

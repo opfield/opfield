@@ -161,7 +161,7 @@ export class ManagedDatabaseService {
   async reconcileDatabaseCertificates(): Promise<void> {
     return commercialModuleUnavailable();
   }
-  /** PEM of the Gateway Database CA that issues managed database TLS certificates, if configured. */
+  /** PEM of the Opfield Database CA that issues managed database TLS certificates, if configured. */
   async getDatabaseCACertificate(): Promise<string | null> {
     return commercialModuleUnavailable();
   }

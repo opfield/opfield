@@ -675,7 +675,7 @@ export class DefaultAppIncidentActions implements AppIncidentActions {
   }
 
   /**
-   * Reads a container back into Gateway's snapshot now, as a lifecycle request does before it answers: the container
+   * Reads a container back into Opfield's snapshot now, as a lifecycle request does before it answers: the container
    * list and its detail (under its name and runtime ID, the keys pages read it by; open pages get the
    * docker.snapshot.changed event) show what isolation or its release did at once, not after the periodic reconcile.
    * A failed read is left to that reconcile.

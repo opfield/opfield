@@ -475,7 +475,7 @@ export const SecretUpdateSchema = z.object({
   value: z.string(),
 });
 
-// ─── Gateway HTTP health checks ──────────────────────────────────────
+// ─── Opfield HTTP health checks ──────────────────────────────────────
 
 export const DockerHealthCheckUpsertSchema = z
   .object({

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds and signs the witness artifacts of a Gateway release (config/witness-artifacts.json):
+# Builds and signs the witness artifacts of an Opfield release (config/witness-artifacts.json):
 # extracts each binary from its digest-pinned image (GHCR mirror first, upstream digest otherwise),
 # writes <component>-<version>-linux-<arch> and its signed manifest (<artifact>.update.json, kind
 # witness-binary) into OUT_DIR. The update Worker serves them at

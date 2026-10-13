@@ -7,7 +7,7 @@ import type { LeaseHolderChangeNotice, LeaseTakeoverSighting } from './lease-rep
 /** How long a takeover time from voter sightings waits for the holder's own time or an earlier sighting. */
 export const LEASE_TAKEOVER_SETTLE_MS = 60_000;
 /**
- * How long a takeover nobody reported a time for waits for the holder's own report: after Gateway comes back the
+ * How long a takeover nobody reported a time for waits for the holder's own report: after Opfield comes back the
  * nodes reconnect only after their backoff, well after the relays.
  */
 export const LEASE_TAKEOVER_UNKNOWN_SETTLE_MS = 5 * 60_000;
@@ -78,7 +78,7 @@ export interface LeaseTakeoverAuditPorts {
  * B-14: the audit of a lease holder change carries the takeover time, whichever member reports it first, and is never
  * lost. The holder's own acquisition time is exact and audited at once. A voter's sighting is only an upper bound: a
  * voter that was down or cut off during the takeover sees it late (stand run rc20 c: the local relay, restarted with
- * Gateway, reported the takeover 86 s late). Such a change waits until the holder reports its time, taking the
+ * Opfield, reported the takeover 86 s late). Such a change waits until the holder reports its time, taking the
  * earliest sighting meanwhile, for LEASE_TAKEOVER_SETTLE_MS, or LEASE_TAKEOVER_UNKNOWN_SETTLE_MS when nobody reported a
  * time at all. Better times also correct the key's recorded holderSince.
  *

@@ -18,7 +18,7 @@ const (
 	// witnessDeadFor: an active witness unreachable this long is replaced.
 	witnessDeadFor = 2 * time.Minute
 	// opfieldDownFor: the holder activates a standby witness itself only when
-	// the Gateway session is down at least this long (Gateway re-places
+	// the Opfield session is down at least this long (Opfield re-places
 	// witnesses itself when it is up).
 	opfieldDownFor = 30 * time.Second
 )
@@ -106,8 +106,8 @@ func idList(current map[uint32]keeperEntry, learners bool) string {
 
 func voterList(current map[uint32]keeperEntry) string { return idList(current, false) }
 
-// activation is a standby witness the holder activated while Gateway was
-// down, kept in the member's data mount until Gateway's configuration names
+// activation is a standby witness the holder activated while Opfield was
+// down, kept in the member's data mount until Opfield's configuration names
 // the standby a voter (or no longer names the replaced witness one).
 type activation struct {
 	StandbyID        uint32 `json:"standbyId"`
@@ -133,7 +133,7 @@ func decodeActivation(raw []byte) (*activation, error) {
 	return &a, nil
 }
 
-// adopted: Gateway's configuration caught up with the activation.
+// adopted: Opfield's configuration caught up with the activation.
 func (a *activation) adopted(ec EngineConfig) bool {
 	if a == nil {
 		return true
@@ -143,7 +143,7 @@ func (a *activation) adopted(ec EngineConfig) bool {
 	return (hasStandby && standby.Role == RoleVoter) || !hasReplaced || replaced.Role != RoleVoter
 }
 
-// desiredVoters are Gateway's voters with a pending local activation applied.
+// desiredVoters are Opfield's voters with a pending local activation applied.
 func desiredVoters(ec EngineConfig, act *activation) []KeeperServer {
 	voters := ec.Voters()
 	if act == nil || act.adopted(ec) {
@@ -252,10 +252,10 @@ func planKeeper(selfID uint32, current map[uint32]keeperEntry, voters, learners 
 	return keeperAction{}, false
 }
 
-// activationDue decides the holder's Gateway-down activation of a standby
-// witness (decision 8): Gateway down, the active witness dead for
+// activationDue decides the holder's Opfield-down activation of a standby
+// witness (decision 8): Opfield down, the active witness dead for
 // witnessDeadFor, this member's Keeper in the quorum (the two data Keepers),
-// a standby named by Gateway, and nothing activated yet.
+// a standby named by Opfield, and nothing activated yet.
 func activationDue(opfieldDown, witnessDown time.Duration, keeperQuorum bool, pending *activation, ec EngineConfig) bool {
 	return pending == nil && opfieldDown >= opfieldDownFor && witnessDown >= witnessDeadFor && keeperQuorum &&
 		len(standbys(ec)) > 0

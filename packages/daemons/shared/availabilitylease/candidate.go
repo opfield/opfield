@@ -24,7 +24,7 @@ func (n *Node) tickCandidate(pk *proposerKey, manifest *Manifest, now time.Durat
 			n.startRound(pk, manifest, RoleBootstrapping, now)
 			return
 		}
-		// The named holder may have missed the manifest while the Gateway
+		// The named holder may have missed the manifest while Opfield
 		// is gone; hand it over so it can acquire (A5). Keep observing to
 		// learn its commit, which lifts the reservation.
 		n.forwardOnce(holder, manifest.PolicyID)

@@ -77,7 +77,7 @@ export interface StorageBackend {
   /**
    * Returns a browser-fetchable URL, or null when the protocol has no such
    * concept. FTP and SFTP cannot mint capability URLs, so their callers fall
-   * back to streaming the object through Gateway.
+   * back to streaming the object through Opfield.
    */
   presignObject(params: PresignParams): Promise<string | null>;
   uploadObject(params: UploadObjectParams): Promise<void>;

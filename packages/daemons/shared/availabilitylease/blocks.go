@@ -14,7 +14,7 @@ import (
 // were formed under an earlier epoch.
 const configHistory = 4
 
-// TrustPolicyKey trusts a Gateway policy signing key received over an
+// TrustPolicyKey trusts an Opfield policy signing key received over an
 // authenticated channel: the daemon CommandStream or the relay's verified
 // policy envelope (A4).
 func (n *Node) TrustPolicyKey(id string, publicKey []byte) error {
@@ -50,7 +50,7 @@ func (n *Node) AdoptManifest(block *pb.LeaseSignedBlock) (bool, error) {
 }
 
 // AdoptForwardedManifest adopts a signed manifest that arrived inside a frame
-// from a peer, not from the Gateway: like the blocks of a frame addressed to
+// from a peer, not from Opfield: like the blocks of a frame addressed to
 // this node, it is adopted only when it names this node or updates a policy
 // this node already holds.
 func (n *Node) AdoptForwardedManifest(block *pb.LeaseSignedBlock) (bool, error) {
@@ -123,7 +123,7 @@ func (n *Node) Epoch(policyID string) uint64 {
 	return 0
 }
 
-// TrustsPolicyKey reports whether a policy key is trusted (Gateway acks, A14).
+// TrustsPolicyKey reports whether a policy key is trusted (Opfield acks, A14).
 func (n *Node) TrustsPolicyKey(id string) bool {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -181,7 +181,7 @@ func (n *Node) adoptBlock(block *pb.LeaseSignedBlock, forwarded bool, now time.D
 			return false, fmt.Errorf("lease manifest voter epoch %d goes back from %d", manifest.Epoch, previous.Epoch)
 		}
 		if previous != nil && previous.Stateful != manifest.Stateful && !previous.Closed && !manifest.Closed {
-			// A policy's holder state cannot appear or vanish: the Gateway
+			// A policy's holder state cannot appear or vanish: Opfield
 			// uses a new policy id instead (M10).
 			return false, fmt.Errorf("lease manifest of %s changes whether it is stateful", manifest.PolicyID)
 		}
@@ -205,7 +205,7 @@ func (n *Node) adoptBlock(block *pb.LeaseSignedBlock, forwarded bool, now time.D
 }
 
 // resigned reports whether next carries the same payload as current signed by
-// a later key of the chain. The Gateway re-signs the current blocks after a
+// a later key of the chain. Opfield re-signs the current blocks after a
 // rotation so peers that only trust newer keys can verify forwarded blocks.
 func (n *Node) resigned(current, next *pb.LeaseSignedBlock, domain string) bool {
 	if current.GetSigningKeyId() == next.GetSigningKeyId() || !bytes.Equal(current.GetPayload(), next.GetPayload()) {

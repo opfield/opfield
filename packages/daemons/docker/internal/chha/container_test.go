@@ -828,7 +828,7 @@ func TestContainerManualPairSwitchAndRecovery(t *testing.T) {
 	if after < before {
 		t.Fatalf("rows lost on the recovered primary: %d < %d", after, before)
 	}
-	// Gateway adopts the recovery (ch2 voter, ch1 learner).
+	// Opfield adopts the recovery (ch2 voter, ch1 learner).
 	h.setConfigMode("ch1", manualConfig(1, 2), 2, memberha.ModeManual)
 	h.setConfigMode("ch2", manualConfig(2, 2), 2, memberha.ModeManual)
 

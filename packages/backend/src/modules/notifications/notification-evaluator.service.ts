@@ -109,7 +109,7 @@ function foldingParentKind(rule: { category?: string; eventPattern?: string | nu
   return null;
 }
 
-/** Resource keys of Gateway's own alerts (category gateway). */
+/** Resource keys of Opfield's own alerts (category opfield). */
 export const OPFIELD_RESOURCE_ID = 'opfield';
 export const OPFIELD_POSTGRES_RESOURCE_ID = 'opfield-postgres';
 
@@ -150,7 +150,7 @@ interface PostgresOutageAlert {
   sends: Array<{ webhook: DispatchWebhook; result: DispatchResult; sentAt: Date }>;
 }
 
-/** A Postgres outage seen by Gateway diagnostics, with the alerts sent for it outside the database. */
+/** A Postgres outage seen by Opfield diagnostics, with the alerts sent for it outside the database. */
 interface PostgresOutage {
   startedAt: number;
   /** When Postgres answered again; null while it is still down. */
@@ -469,7 +469,7 @@ export class NotificationEvaluatorService {
     }
   }
 
-  /** Gateway's own metrics from the diagnostics sampler, once a minute; the resource is Gateway itself. */
+  /** Opfield's own metrics from the diagnostics sampler, once a minute; the resource is Opfield itself. */
   async evaluateOpfieldSnapshot(metrics: Record<string, number | null>): Promise<void> {
     const rules = await this.getThresholdRules();
     for (const rule of rules) {
@@ -495,7 +495,7 @@ export class NotificationEvaluatorService {
   }
 
   /**
-   * Postgres reachability from Gateway diagnostics, once a minute. Rules, alert states and the delivery
+   * Postgres reachability from Opfield diagnostics, once a minute. Rules, alert states and the delivery
    * outbox all live in Postgres, so an outage is alerted outside the database: the rules and webhooks
    * copied while it answered are used to send directly, and the alert state and delivery rows are
    * written once it answers again, together with the resolved notification.
@@ -1883,14 +1883,14 @@ export class NotificationEvaluatorService {
   // One cause should be one alert. A route (proxy host) health alert is folded under a parent alert that explains it:
   // - the route's node is down: a node "offline" alert fires for the node serving the route (its nginx node or a
   //   member of its ingress group) or running its container upstream;
-  // - Gateway lost outbound connectivity: the "outbound.unavailable" gateway alert fires and the route's failing probe
-  //   was sent by Gateway itself and got no answer (DNS, connect, timeout).
+  // - Opfield lost outbound connectivity: the "outbound.unavailable" opfield alert fires and the route's failing probe
+  //   was sent by Opfield itself and got no answer (DNS, connect, timeout).
   // A folded alert is recorded as usual, with context.folded naming the parent. Its firing is not sent to a webhook
   // that gets the parent's firing (the dispatcher drops it there, see supersededReason); a webhook that does not get
   // the parent still gets it. It resolves together with the parent, quietly, and its resolve goes only where its
   // firing went. A parent that fires later folds the route alerts already firing that it explains. For FOLD_GRACE_MS
   // after a parent resolves, the route alerts it explains are held (not raised), so routes coming back right after
-  // their node or Gateway's connectivity do not alert; a route still down after that alerts on its own.
+  // their node or Opfield's connectivity do not alert; a route still down after that alerts on its own.
   // A container or deployment health alert (offline, degraded) folds the same way under the down alert of the node it
   // runs on (stand rc.8, O-4: a container alert fired for a node that was itself cut off).
 
@@ -2153,7 +2153,7 @@ export class NotificationEvaluatorService {
       now,
       details
     );
-    // Never the firing message: the rule's resolve message, else Gateway's text for the rule ("... is back online").
+    // Never the firing message: the rule's resolve message, else Opfield's text for the rule ("... is back online").
     const resolveTemplate = resolveTemplateOf(rule);
     const resolveMessage = resolveTemplate
       ? renderTemplate(resolveTemplate, resolveContext)
@@ -2445,7 +2445,7 @@ export class NotificationEvaluatorService {
 
   private async getThresholdResourceId(rule: any, sourceId?: string, rawResourceId?: string): Promise<string | null> {
     if (!sourceId) return null;
-    // A container's id is its Gateway identity (the scopeResourceId of the container API and its grants), which
+    // A container's id is its Opfield identity (the scopeResourceId of the container API and its grants), which
     // survives recreates; the payload names it by node and name as well (`key`, `name`, `node`).
     if (rule.category === 'container') {
       if (!rawResourceId) return null;

@@ -31,7 +31,7 @@ func fakeDockerEngine(t *testing.T, serve func(request *http.Request, path strin
 // The manifest names the container's own environment: an image variable the
 // container runs unchanged (PATH, PODINFO_PORT) is left to the image, which the
 // target runs too; a variable the container overrides (LANG) and its own
-// variables are named. Gateway supplies exactly those values, and the target
+// variables are named. Opfield supplies exactly those values, and the target
 // is created with them alone, so Docker adds the image defaults again.
 func TestMigrationManifestNamesOwnEnvironmentAndTargetAcceptsIt(t *testing.T) {
 	imageID := "sha256:" + strings.Repeat("a", 64)
@@ -64,7 +64,7 @@ func TestMigrationManifestNamesOwnEnvironmentAndTargetAcceptsIt(t *testing.T) {
 	if want := []string{"LANG", "PODINFO_UI_MESSAGE"}; !reflect.DeepEqual(captured.EnvKeys, want) {
 		t.Fatalf("env keys %v, want %v", captured.EnvKeys, want)
 	}
-	// Gateway keeps the manifest and sends it back with the values.
+	// Opfield keeps the manifest and sends it back with the values.
 	data, _ := json.Marshal(captured)
 	var manifest dockerMigrationManifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
@@ -93,7 +93,7 @@ func TestMigrationManifestNamesOwnEnvironmentAndTargetAcceptsIt(t *testing.T) {
 		})
 	}
 
-	// The whole runtime environment, as an older Gateway sent it, names the keys the image supplies.
+	// The whole runtime environment, as an older Opfield sent it, names the keys the image supplies.
 	if _, err := create("LANG=en_US.UTF-8", "PATH=/usr/local/sbin:/usr/bin", "PODINFO_PORT=9898", "PODINFO_UI_MESSAGE=hello"); err == nil ||
 		err.Error() != "environment keys do not match manifest: unexpected PATH, PODINFO_PORT" {
 		t.Fatalf("runtime environment error = %v", err)

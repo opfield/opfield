@@ -426,7 +426,7 @@ const ACCESS_LOG_TAIL_MAX = 200;
 /**
  * Snapshot of the Route log viewer (/ws/proxy-logs, proxy:view:<id>): the
  * newest nginx access and error lines from the Route's node, falling back to
- * the Gateway's buffered history when the node does not answer in time.
+ * Opfield's buffered history when the node does not answer in time.
  */
 async function routeAccessLogs(context: ProxyToolContext, routeId: string, tailArg: unknown) {
   const host = await context.proxyService.getProxyHost(routeId);
@@ -483,7 +483,7 @@ function normalizedAdvancedConfig(value: unknown): string | null {
 }
 
 /**
- * Same rule as the proxy host schemas: Gateway-managed render keys cannot be
+ * Same rule as the proxy host schemas: Opfield-managed render keys cannot be
  * overridden, and are dropped (and logged) instead of rejecting the save.
  */
 function dropReservedTemplateVariables<T>(variables: T): T {

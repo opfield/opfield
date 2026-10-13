@@ -73,7 +73,7 @@ export const LOCAL_RELAY_DRAIN_UNSUPPORTED =
  * running local relay keeps its built-in local services through a drain, a connected remote relay is ready with a
  * valid policy (every pool member is its own fault domain), and every workload with a route can move to it. Paths
  * with a daemon without Relay Pool support are served only by the local relay, and a workload whose node reaches no
- * relay off the Gateway host cannot move; a drain would refuse their new sessions for the whole drain instead of
+ * relay off the Opfield host cannot move; a drain would refuse their new sessions for the whole drain instead of
  * dropping the open ones for a second.
  */
 export async function localRelayTakeoverBlocker(

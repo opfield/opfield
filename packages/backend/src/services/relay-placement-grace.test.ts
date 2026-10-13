@@ -202,7 +202,7 @@ function placementViewOf(service: RelayPoolService) {
     ).placementView(instances, failing, at);
 }
 
-// The rc.3 stand (F-1): NL's control stream came back while its relay port stayed dead. Gateway placed it again
+// The rc.3 stand (F-1): NL's control stream came back while its relay port stayed dead. Opfield placed it again
 // within a minute although every node reported it failing, and that generation failed after about 70 s for all
 // 17 endpoints, retried every 5 minutes.
 describe('Relay whose data plane fails while its control stream is up', () => {

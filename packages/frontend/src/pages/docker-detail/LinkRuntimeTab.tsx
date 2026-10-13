@@ -121,7 +121,7 @@ function duration(milliseconds: number) {
   return `${(milliseconds / 60_000).toFixed(1)} min`;
 }
 
-// Gateway names this limit for links without a fixed cap (relay admission bounds them by load).
+// Opfield names this limit for links without a fixed cap (relay admission bounds them by load).
 const UNCAPPED_LINK_CONNECTIONS = 1_000_000;
 
 /** Why the node or a relay refused a link's latest refused connection (the daemon's reasons). */

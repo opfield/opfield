@@ -151,7 +151,7 @@ export async function sendAdminUserInvitation(
 }
 
 /**
- * Sends the invitation to a just-created user when the Gateway setting asks
+ * Sends the invitation to a just-created user when the Opfield setting asks
  * for it. A failure never fails the creation: it is logged and the invitation
  * stays available to send later. Returns when it was sent, or null.
  */

@@ -222,7 +222,7 @@ export async function initializeBackgroundServices(): Promise<void> {
   const scheduler = new SchedulerService();
   container.registerInstance(SchedulerService, scheduler);
 
-  // Gateway's own diagnostics: one sample a minute for the 48-hour history and Gateway alerts.
+  // Opfield's own diagnostics: one sample a minute for the 48-hour history and Opfield alerts.
   const diagnosticsService = new DiagnosticsService(
     db,
     container.resolve<RedisClient>(TOKENS.RedisClient),
@@ -311,7 +311,7 @@ export async function initializeBackgroundServices(): Promise<void> {
     await orphanedSourceBindings.run();
   });
   // What managed databases and storage left on their nodes without a record (a container of a deleted instance, a
-  // record zeroed by a crash): removed once Gateway has no instance of the id in two passes 5+ minutes apart. The
+  // record zeroed by a crash): removed once Opfield has no instance of the id in two passes 5+ minutes apart. The
   // first pass waits a minute for the nodes to connect, the second confirms at +7 minutes, then every 30 minutes.
   // Daemons without the leftovers action are left alone.
   const managedLeftovers = new ManagedLeftoverRepair(db, {
@@ -381,7 +381,7 @@ export async function initializeBackgroundServices(): Promise<void> {
         .reconcileAndSync()
         .then(() => undefined)
         .catch((error) => {
-          // The local relay is away (stopped, restarting, Gateway started before it): its outage is reported on its
+          // The local relay is away (stopped, restarting, Opfield started before it): its outage is reported on its
           // own, and this job runs again in 30 s (stand rc.9, O-1: ERROR "Name resolution failed for dns:relay").
           if (!isExpectedSyncFailure(error)) throw error;
           logger.debug('Relay policy sync waits for the local relay', {
@@ -523,8 +523,8 @@ export async function initializeBackgroundServices(): Promise<void> {
   scheduler.registerInterval('daemon-update-check', env.UPDATE_CHECK_INTERVAL_HOURS * 3_600_000, () =>
     daemonUpdateCheckJob.run()
   );
-  // The interval restarts with every restart, including the one that finishes a Gateway update,
-  // so check now: daemon releases for the new Gateway show up without waiting hours.
+  // The interval restarts with every restart, including the one that finishes an Opfield update,
+  // so check now: daemon releases for the new Opfield show up without waiting hours.
   setTimeout(() => void daemonUpdateCheckJob.run(), 0);
 
   const housekeepingJob = new HousekeepingJob(housekeepingService);
@@ -540,7 +540,7 @@ export async function initializeBackgroundServices(): Promise<void> {
   });
 
   // Stale node detection (every 60 seconds) + missed health report detection (every 30 seconds)
-  // Docker tasks Gateway lost track of (it restarted, or a node's control stream dropped while they ran) are settled
+  // Docker tasks Opfield lost track of (it restarted, or a node's control stream dropped while they ran) are settled
   // with their nodes once these are connected; until then they stay active, so a daemon update waiting for a node's
   // tasks keeps waiting for them (F-1).
   const dockerTaskReconciler = new DockerTaskReconciler(
@@ -573,7 +573,7 @@ export async function initializeBackgroundServices(): Promise<void> {
   // Notification webhook retry job (every 30 seconds)
   const notifRetryJob = new NotificationRetryJob(notifDeliveryService, notifDispatcherService);
   scheduler.registerInterval('notification-retry', 30000, () => notifRetryJob.run());
-  // Gateway's own outbound connectivity: the "Gateway lost outbound connectivity" alert, the route alerts it explains
+  // Opfield's own outbound connectivity: the "Opfield lost outbound connectivity" alert, the route alerts it explains
   // fold under it, and paused webhooks resume as soon as it is back.
   const outboundMonitor = new OpfieldOutboundMonitor(db, notifEvaluatorService, notifDispatcherService);
   scheduler.registerInterval('opfield-outbound-check', OUTBOUND_CHECK_INTERVAL_MS, () => outboundMonitor.run());
@@ -629,7 +629,7 @@ export async function initializeBackgroundServices(): Promise<void> {
       .catch((error) => logger.warn('Initial ClickHouse health guard failed', { error }));
   }, 1000);
 
-  // Read models warm asynchronously. Gateway readiness and request handlers
+  // Read models warm asynchronously. Opfield readiness and request handlers
   // never wait for a node or external resource to answer this initial pass.
   readModelCoordinator.start();
 }

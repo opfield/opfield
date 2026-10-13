@@ -40,7 +40,7 @@ type DockerPlugin struct {
 	allowlist       *AllowlistChecker
 	envStore        *EnvStore
 	taskMgr         *TaskManager
-	imagePulls      imagePullTracker // pulls of this process, for Gateway's pull_status (image_pull_tracker.go)
+	imagePulls      imagePullTracker // pulls of this process, for Opfield's pull_status (image_pull_tracker.go)
 	deploymentOpMu  sync.Mutex
 	deploymentOps   map[string]map[uint64]deploymentOperation
 	deploymentLocks map[string]*deploymentLock
@@ -108,8 +108,8 @@ type DockerPlugin struct {
 	// (D6); memberProbe replaces its probe in tests.
 	memberReadiness *memberReadiness
 	memberProbe     func(ctx context.Context, links []string, cheap bool) memberProbeResult
-	// availabilityHealth probes the HTTP health checks Gateway hands over for
-	// the Availability copies on this node and holds a copy Gateway took out.
+	// availabilityHealth probes the HTTP health checks Opfield hands over for
+	// the Availability copies on this node and holds a copy Opfield took out.
 	availabilityHealth *availabilityHealth
 	// relayTunnelOutcomes logs failing incoming relay tunnels per endpoint owner and state change (L-1).
 	relayTunnelOutcomes logepisode.Tracker
@@ -158,9 +158,9 @@ type DockerPlugin struct {
 	buildEventMu     sync.RWMutex
 	buildEventWriter *stream.Writer
 	sessionCtx       context.Context
-	// sessionLive: a Gateway control session is up (a manual pair's primary self-fences without it and its peer).
+	// sessionLive: an Opfield control session is up (a manual pair's primary self-fences without it and its peer).
 	sessionLive atomic.Bool
-	// opfieldContactAt: when Gateway's last command arrived (leasefence clock, ns; 0: none yet).
+	// opfieldContactAt: when Opfield's last command arrived (leasefence clock, ns; 0: none yet).
 	opfieldContactAt atomic.Int64
 	logStreamMu      sync.Mutex
 	logStreamCancel  map[string]context.CancelFunc // containerId -> cancel
@@ -221,7 +221,7 @@ func (p *DockerPlugin) Type() string {
 	return "docker"
 }
 
-// SetLogger points the plugin's logger at a new session's: its lines reach the Gateway's node logs. The logger the
+// SetLogger points the plugin's logger at a new session's: its lines reach Opfield's node logs. The logger the
 // plugin handed out at Init (the host listeners, the database and storage managers, Compose, the Docker client)
 // follows, so a component's WARN is not left in the node's journal.
 func (p *DockerPlugin) SetLogger(logger *slog.Logger) {
@@ -530,7 +530,7 @@ func protobufRuntimeStatus(status runtimemanager.Status) *pb.DockerRuntimeStatus
 	return result
 }
 
-// BuildRegisterMessage constructs the registration message for the gateway.
+// BuildRegisterMessage constructs the registration message for Opfield.
 func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 	hostname, _ := os.Hostname()
 	cpuModel, cpuCores := sysmetrics.GetCPUInfo()
@@ -630,7 +630,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		Architecture:  arch,
 		KernelVersion: kernelVer,
 		// Store docker version in the NginxVersion field as a capability hint.
-		// The gateway uses DaemonType to interpret this field correctly.
+		// Opfield uses DaemonType to interpret this field correctly.
 		NginxVersion: p.version,
 		Capabilities: capabilities,
 	}

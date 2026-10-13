@@ -131,7 +131,7 @@ func TestEligibleAndValuesThroughStatus(t *testing.T) {
 	}
 }
 
-// Gateway down and the active witness dead for 2 minutes: the holder signs an
+// Opfield down and the active witness dead for 2 minutes: the holder signs an
 // activation, sends it over the standby's witness route, then adds the
 // standby and removes the dead witness.
 func TestHolderActivatesStandbyWhileOpfieldIsDown(t *testing.T) {
@@ -192,7 +192,7 @@ func TestHolderActivatesStandbyWhileOpfieldIsDown(t *testing.T) {
 	if rt.keeper[len(rt.keeper)-1] != "reconfig remove '101'" {
 		t.Fatalf("keeper commands %v", rt.keeper)
 	}
-	// Gateway's configuration adopts the activation: the record is cleared.
+	// Opfield's configuration adopts the activation: the record is cleared.
 	ec := pairEngineConfig()
 	ec.KeeperServers[2].Role, ec.KeeperServers[3].Role = RoleLeaving, RoleVoter
 	rt.config.EngineConfig = mustJSON(ec)

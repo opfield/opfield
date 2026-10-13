@@ -26,11 +26,11 @@ import (
 
 const (
 	// MaxBackoff caps the wait between connection attempts before jitter (Jitter: up to 1.5 times this). A relay or
-	// Gateway that comes back after a long outage hears from every node within 15 s: with a 60 s cap the nodes
+	// Opfield that comes back after a long outage hears from every node within 15 s: with a 60 s cap the nodes
 	// trickled back over 60-70 s after a five-minute outage of the local relay.
 	MaxBackoff = 10 * time.Second
 	// RestartQuiet is how long failed connection attempts log as information
-	// before they warn: a Gateway or relay update restarts it within it.
+	// before they warn: an Opfield or relay update restarts it within it.
 	RestartQuiet          = time.Minute
 	InitialBackoff        = 1 * time.Second
 	ConnectAttemptTimeout = 10 * time.Second
@@ -72,9 +72,9 @@ type Connector struct {
 	TLSMgr *auth.TLSManager
 	Logger *slog.Logger
 
-	// address is the Gateway address the control session and the local relay
+	// address is the Opfield address the control session and the local relay
 	// lanes dial. It changes while the process runs when Opfield moved to
-	// another host (lifecycle: gateway next address), so every dial reads it
+	// another host (lifecycle: next address), so every dial reads it
 	// anew.
 	address atomic.Pointer[string]
 	// changed is closed and replaced on every address change (AddressChanged).
@@ -92,7 +92,7 @@ func NewConnector(address string, tlsMgr *auth.TLSManager, logger *slog.Logger) 
 	return c
 }
 
-// Address is the Gateway address the next connection dials.
+// Address is the Opfield address the next connection dials.
 func (c *Connector) Address() string {
 	if address := c.address.Load(); address != nil {
 		return *address
@@ -276,7 +276,7 @@ func (c *Connector) ConnectWithRetry(ctx context.Context) (*grpc.ClientConn, err
 }
 
 // ConnectLaneWithRetry is ConnectWithRetry for a relay lane to the relay at
-// the Gateway address (the local relay).
+// the Opfield address (the local relay).
 func (c *Connector) ConnectLaneWithRetry(ctx context.Context) (*grpc.ClientConn, error) {
 	return c.connectWithRetry(ctx, true)
 }
@@ -303,9 +303,9 @@ func (c *Connector) connectWithRetry(ctx context.Context, lane bool) (*grpc.Clie
 		}
 		log := c.Logger.Warn
 		if time.Since(failingSince) < RestartQuiet {
-			// A Gateway or relay restarting for its update refuses
+			// An Opfield or relay restarting for its update refuses
 			// connections for a while (rc.11 upgrade run N-2: "connection
-			// refused" at every Gateway restart); a longer outage warns.
+			// refused" at every Opfield restart); a longer outage warns.
 			log = c.Logger.Info
 		}
 		log("connection failed, retrying",
@@ -330,7 +330,7 @@ func NextBackoff(backoff time.Duration) time.Duration {
 }
 
 // Jitter spreads a backoff over 0.5 to 1.5 times its value (random draws from [0, 1)), so nodes that lost the same
-// relay or Gateway do not all retry in the same instant.
+// relay or Opfield do not all retry in the same instant.
 func Jitter(backoff time.Duration, random func() float64) time.Duration {
 	return time.Duration(float64(backoff) * (0.5 + random()))
 }

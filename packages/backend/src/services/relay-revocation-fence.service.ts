@@ -100,7 +100,7 @@ export async function recordBuiltSnapshot(
 }
 
 /**
- * Whether the relay already holds a snapshot with this content: Gateway built it, the relay
+ * Whether the relay already holds a snapshot with this content: Opfield built it, the relay
  * reports that exact revision, and more than half of the relay's lease length is left. Rebuilding it
  * would only spend a revision and make the relay re-apply the same policy.
  */
@@ -179,7 +179,7 @@ export async function loadRevocationFenceState(db: Pick<DrizzleClient, 'select'>
 /**
  * Tracks, per relay, the route tuples it may still admit and whether it applied the policy that
  * revoked them in time. Relays report the revision they applied every few seconds, so a relay
- * that Gateway can reach clears a revocation long before the deadline; one cut off from Gateway
+ * that Opfield can reach clears a revocation long before the deadline; one cut off from Opfield
  * does not, and becomes stale only for the revoked routes.
  */
 export class RelayRevocationFenceService {

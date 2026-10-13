@@ -13,7 +13,7 @@ export const AVAILABILITY_CAPABILITY = "Availability";
 
 /** A member pair at or below this p50 round trip is "near" (synchronous by default). */
 export const NEAR_RTT_MS = 10;
-/** Relay policy lease the preflight recommends (7 days): failover keeps working without Gateway this long. */
+/** Relay policy lease the preflight recommends (7 days): failover keeps working without Opfield this long. */
 export const RECOMMENDED_POLICY_LEASE_HOURS = 168;
 
 export type BadgeVariant = "success" | "warning" | "destructive" | "secondary" | "info";

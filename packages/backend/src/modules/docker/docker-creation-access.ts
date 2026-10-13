@@ -45,7 +45,7 @@ export async function assertDockerCreationAccess(
 
 /**
  * Assign the already-authorized destination before the created entity is published. Placements are keyed
- * by name, so a row left by an earlier resource of that name (removed outside Gateway) is stale: a resource
+ * by name, so a row left by an earlier resource of that name (removed outside Opfield) is stale: a resource
  * created at the root drops it instead of silently joining that folder and its grants.
  */
 export async function placeCreatedDockerResource(
