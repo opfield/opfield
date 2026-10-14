@@ -237,7 +237,11 @@ export class CloudInference {
     if (stored.appliedKeyHash !== stored.keyHash || stored.appliedBaseUrl !== stored.baseUrl) {
       // A new key (or endpoint) from the account: the core provider takes it, the row keeps its id and models.
       const client = await container.resolve(InferenceCoreBridgeService).requireClient();
-      await client.patchCoreProvider(coreKeyProviderName(existing.id), { apiKey, baseUrl: stored.baseUrl });
+      const providerRef = coreKeyProviderName(existing.id);
+      if (stored.appliedBaseUrl !== stored.baseUrl) {
+        await client.patchCoreProvider(providerRef, { baseUrl: stored.baseUrl });
+      }
+      if (stored.appliedKeyHash !== stored.keyHash) await client.replaceCoreProviderKey(providerRef, apiKey);
       await this.db
         .update(inferenceProviderConnections)
         .set({ baseUrl: stored.baseUrl ?? existing.baseUrl, updatedAt: new Date() })

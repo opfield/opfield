@@ -120,6 +120,26 @@ export class InferenceCoreClient {
     this.assertOk(response, 'delete provider');
   }
 
+  /**
+   * Makes `key` the provider's only API key: the core takes keys through its key endpoints only (a provider PATCH
+   * with apiKey is refused), adds it as the active one, and the keys it had before are removed so its failover
+   * never goes back to them.
+   */
+  async replaceCoreProviderKey(name: string, key: string): Promise<void> {
+    const query = `name=${encodeURIComponent(name)}`;
+    const listed = await this.request('GET', `/api/providers/keys?${query}`);
+    this.assertOk(listed, 'list provider keys');
+    const previous = ((listed.body as { keys?: unknown }).keys ?? []) as Array<{ id?: unknown }>;
+    const added = await this.request('POST', '/api/providers/keys', { name, key });
+    this.assertOk(added, 'add provider key');
+    const activeId = (added.body as { id?: unknown }).id;
+    for (const entry of previous) {
+      if (typeof entry.id !== 'string' || entry.id === activeId) continue;
+      const removed = await this.request('DELETE', `/api/providers/keys?${query}&id=${encodeURIComponent(entry.id)}`);
+      this.assertOk(removed, 'remove provider key');
+    }
+  }
+
   /** Model rows known to the core (all providers, management view). */
   async listCoreModels(): Promise<unknown[] | null> {
     const response = await this.request('GET', '/api/models');
