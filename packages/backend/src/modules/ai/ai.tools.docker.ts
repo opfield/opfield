@@ -997,6 +997,18 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         deploymentId: { type: 'string', description: 'Blue/green deployment UUID' },
         composeProjectId: { type: 'string', description: 'Compose Project UUID' },
         resourceName: { type: 'string', description: 'New container or deployment name for create.' },
+        env: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+          description:
+            'create of a container only: environment variables (NAME: value) its first build creates and starts it with.',
+        },
+        secrets: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+          description:
+            'create of a container only: secrets (NAME: value) its first build creates and starts it with; needs docker:containers:secrets for the destination. A name cannot be both an env variable and a secret.',
+        },
         folderId: { type: 'string', description: 'Authorized destination folder UUID for creation.' },
         projectName: { type: 'string', description: 'New Compose Project name for create.' },
         restartPolicy: {
@@ -1070,7 +1082,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_container_config',
     description:
-      'Manage container env, files, secrets, webhooks, and HTTP health checks. Container file list/read requires docker:containers:files:read; write_file, create_file, create_directory, delete_file, move_file, and resumable upload_init/upload_chunk/upload_complete/upload_abort require docker:containers:files:write. Binary content uses contentBase64 (upload chunks at most 1 MiB); read_file returns UTF-8 unless encoding is base64. update_env recreates the container with the new values and needs docker:containers:environment. list_secrets returns the secret keys with docker:containers:environment; reveal (values) and create/update/delete_secret need docker:containers:secrets, which also grants docker:containers:environment. Other operation-specific webhooks/edit/view scopes are enforced.',
+      'Manage container env, files, secrets, webhooks, and HTTP health checks. Container file list/read requires docker:containers:files:read; write_file, create_file, create_directory, delete_file, move_file, and resumable upload_init/upload_chunk/upload_complete/upload_abort require docker:containers:files:write. Binary content uses contentBase64 (upload chunks at most 1 MiB); read_file returns UTF-8 unless encoding is base64. update_env recreates the container with the new values and needs docker:containers:environment. list_secrets returns the secret keys with docker:containers:environment; reveal (values) and create/update/delete_secret need docker:containers:secrets, which also grants docker:containers:environment. A container created from a Git source that its first build has not created yet (manage_docker_source pending) takes get_env, update_env and the secret operations by its containerName: the values are saved and the first build creates and starts the container with them (update_env then recreates nothing). Other operation-specific webhooks/edit/view scopes are enforced.',
     parameters: {
       type: 'object',
       properties: {

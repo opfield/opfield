@@ -18,6 +18,11 @@ import { dockerScopedNodeIds } from '@/modules/docker/docker-access-resource.ser
 import { isDockerDeploymentManaged } from '@/modules/docker/docker-deployment-labels.js';
 import { inspectUserContainer } from '@/modules/docker/docker-internal-containers.js';
 import { withNodeLossAnswer } from '@/modules/docker/docker-node-loss.js';
+import {
+  getPendingContainerEnv,
+  pendingSourceContainer,
+  updatePendingContainerEnv,
+} from '@/modules/docker/docker-pending-container-env.js';
 import { FILE_UPLOAD_MAX_BYTES } from '@/modules/settings/general-settings.service.js';
 import type { User } from '@/types.js';
 import {
@@ -53,6 +58,15 @@ const CONTAINER_FILE_OPERATIONS = new Set([
   'upload_abort',
 ]);
 const CONTAINER_FILE_READ_OPERATIONS = new Set(['list_files', 'read_file']);
+// What a Git source container its first build has not created yet already has: env and secrets saved for its name.
+const PENDING_CONTAINER_OPERATIONS = new Set([
+  'get_env',
+  'update_env',
+  'list_secrets',
+  'create_secret',
+  'update_secret',
+  'delete_secret',
+]);
 
 export interface DockerConfigToolContext {
   dockerService: DockerManagementService;
@@ -80,7 +94,17 @@ export async function manageDockerContainerConfigTool(
     throw new Error(`Docker config operation ${operation} does not support deployment targets`);
   }
   let inspectedContainer: Record<string, any> | undefined;
-  if (targetType === 'container') {
+  const pending =
+    targetType === 'container' && PENDING_CONTAINER_OPERATIONS.has(operation)
+      ? await pendingSourceContainer(nodeId, (containerName || containerId).replace(/^\//, ''))
+      : null;
+  if (pending) {
+    if (containerName && containerName.replace(/^\//, '') !== pending.containerName) {
+      throw new Error('containerName and the pending container do not match');
+    }
+    containerName = pending.containerName;
+    containerId = pending.containerName;
+  } else if (targetType === 'container') {
     if (!containerId && !containerName) throw new Error('Exactly one containerId or containerName target is required');
     let refreshedStaleId = false;
     try {
@@ -118,7 +142,7 @@ export async function manageDockerContainerConfigTool(
     if (targetType === 'deployment') return `${nodeId}/${deploymentId}`;
     if (hasScopeForResource(user.scopes, baseScope, nodeId)) return nodeId;
     if (!dockerScopedNodeIds(user.scopes, [baseScope]).includes(nodeId)) return nodeId;
-    const resourceId = String(inspectedContainer?.scopeResourceId ?? '');
+    const resourceId = pending?.scopeResourceId ?? String(inspectedContainer?.scopeResourceId ?? '');
     if (!resourceId) throw new Error('PERMISSION_DENIED: Container authorization identity is unavailable');
     return `${nodeId}/${resourceId}`;
   };
@@ -129,10 +153,19 @@ export async function manageDockerContainerConfigTool(
       'docker:containers:environment',
       await authorizationResourceId('docker:containers:environment')
     );
+    if (pending) return (await getPendingContainerEnv(nodeId, pending.containerName)).data;
     return context.dockerService.getContainerEnv(nodeId, containerId);
   }
   if (operation === 'update_env') {
     const input = EnvUpdateSchema.parse(args);
+    if (pending) {
+      ensureToolScopeForResource(
+        user,
+        'docker:containers:environment',
+        await authorizationResourceId('docker:containers:environment')
+      );
+      return updatePendingContainerEnv(nodeId, pending.containerName, input.env, input.removeEnv, user.id);
+    }
     // The scope check reads the container from the node too: a node lost there is answered the same way.
     return withNodeLossAnswer(
       'env update',
@@ -170,7 +203,7 @@ export async function manageDockerContainerConfigTool(
     if (operation === 'list_secrets') {
       return secretService.list(nodeId, secretContainerName, Boolean(args.reveal));
     }
-    if (targetType === 'container') await assertComposeChildMutationAllowed(nodeId, containerId);
+    if (targetType === 'container' && !pending) await assertComposeChildMutationAllowed(nodeId, containerId);
     if (operation === 'create_secret') {
       const input = SecretCreateSchema.parse(args);
       return secretService.create(nodeId, secretContainerName, input.key, input.value, user.id);

@@ -175,6 +175,9 @@ export const DockerSourceResourceCreateSchema = z.object({
         name: z.string().trim().min(1).max(255),
         restartPolicy: z.enum(['no', 'always', 'unless-stopped', 'on-failure']).default('no'),
         runtimeProfile: z.enum(['default', 'secure']).default('default'),
+        // Saved for the container's reserved name; its first build creates and starts it with them.
+        env: z.record(BuildEnvironmentNameSchema, z.string()).optional(),
+        secrets: z.record(BuildEnvironmentNameSchema, z.string()).optional(),
       })
       .strict(),
     z

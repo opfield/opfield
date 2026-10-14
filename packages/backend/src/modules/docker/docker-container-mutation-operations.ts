@@ -609,9 +609,15 @@ export async function createContainer(
     requestedName ?? null,
     (config.folderId as string | null | undefined) ?? null
   );
-  const daemonCreateSource = layerPlan
-    ? { ...config, env: { ...layerValues(layerPlan), ...(normalizeEnvRecord(config.env) ?? {}) } }
-    : config;
+  // A Git source's first activation creates the container with the env and secrets saved for its reserved name, so
+  // its first start already has them. The secrets reach only the daemon; the stored env stays without them.
+  const reserved =
+    options.sourceBindingId && requestedName
+      ? await reservedContainerEnvironment(ctx, nodeId, requestedName)
+      : { env: {}, secrets: {} };
+  const ownEnv = { ...reserved.env, ...(normalizeEnvRecord(config.env) ?? {}) };
+  const daemonEnv = { ...layerValues(layerPlan), ...ownEnv, ...reserved.secrets };
+  const daemonCreateSource = Object.keys(daemonEnv).length > 0 ? { ...config, env: daemonEnv } : config;
   let data: any;
   try {
     if (registryId) {
@@ -674,11 +680,8 @@ export async function createContainer(
       );
       await recordContainerLayer(layerPlan, nodeId, createdName);
     }
-    if (createdName && ctx.environmentService) {
-      const env = normalizeEnvRecord(config.env);
-      if (env) {
-        await ctx.environmentService.replace(nodeId, createdName, env);
-      }
+    if (createdName && ctx.environmentService && Object.keys(ownEnv).length > 0) {
+      await ctx.environmentService.replace(nodeId, createdName, ownEnv);
     }
     if (typeof config.image === 'string') {
       await ctx.registryService?.rememberImageRegistry?.(nodeId, config.image, registryId);
@@ -689,7 +692,10 @@ export async function createContainer(
         ctx,
         nodeId,
         newId || createdName || requestedName || '',
-        createdName || requestedName
+        createdName || requestedName,
+        undefined,
+        // The env and secrets saved for a Git source's reserved name stay with the reservation for its next build.
+        { keepStoredEnvironment: !!options.sourceBindingId }
       );
     } catch (rollbackError) {
       const primaryMessage = error instanceof Error ? error.message : String(error);
@@ -704,12 +710,22 @@ export async function createContainer(
   return data && typeof data === 'object' ? { ...data, id: newId, name: createdName } : data;
 }
 
+/** The env and secrets saved for a Git source container before its first build created it. */
+async function reservedContainerEnvironment(ctx: DockerContainerMutationContext, nodeId: string, name: string) {
+  const [env, secrets] = await Promise.all([
+    ctx.environmentService ? ctx.environmentService.getDecryptedMap(nodeId, name) : {},
+    ctx.secretService ? ctx.secretService.getDecryptedMap(nodeId, name) : {},
+  ]);
+  return { env: persistableUserEnv(env, new Set(Object.keys(secrets))), secrets };
+}
+
 export async function rollbackCreatedContainer(
   ctx: DockerContainerMutationContext,
   nodeId: string,
   containerId: string,
   knownName?: string,
-  userId?: string
+  userId?: string,
+  options: { keepStoredEnvironment?: boolean } = {}
 ) {
   if (!containerId) throw new Error('Created Docker container identity is unavailable for rollback');
   let name = knownName?.replace(/^\//, '') ?? '';
@@ -727,9 +743,9 @@ export async function rollbackCreatedContainer(
   ctx.parseResult(result);
   if (name) {
     await Promise.allSettled([
-      ctx.environmentService?.deleteImported(nodeId, name),
+      options.keepStoredEnvironment ? undefined : ctx.environmentService?.deleteImported(nodeId, name),
       ctx.runtimeSettingsService?.delete(nodeId, name),
-      ctx.secretService?.deleteImported(nodeId, name),
+      options.keepStoredEnvironment ? undefined : ctx.secretService?.deleteImported(nodeId, name),
       ctx.folderService?.deleteContainerAssignment(nodeId, name),
       ctx.accessResourceService?.removeContainer(nodeId, name),
     ]);
