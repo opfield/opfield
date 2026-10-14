@@ -1,6 +1,6 @@
 import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
-import { hasScope, hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
+import { hasScope, hasScopeBase, hasScopeForCreation, hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { assertRoutePlacementOnGroup } from '@/modules/ingress-groups/ingress-group-operations.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
@@ -12,6 +12,7 @@ import type { FolderService } from '@/modules/proxy/folder.service.js';
 import { redactProxyHostForScopes } from '@/modules/proxy/page-target-visibility.js';
 import {
   CreateProxyHostSchema,
+  MissingRouteDomainsSchema,
   ProxyHostListQuerySchema,
   RouteIngressNodeListQuerySchema,
   UpdateProxyHostSchema,
@@ -25,6 +26,7 @@ import {
   withoutReservedTemplateVariables,
 } from '@/modules/proxy/proxy-template-variables.js';
 import { redactRawProxyConfigForBrowser } from '@/modules/proxy/raw-visibility.js';
+import { createRouteMaybeWithDomains, planMissingRouteDomains } from '@/modules/proxy/route-missing-domains.js';
 import {
   assertFolderManage,
   assertFolderManageForFolder,
@@ -119,6 +121,7 @@ export async function executeProxyTool(
         nodeId: a.nodeId,
         ingressGroupId: a.ingressGroupId,
         domainNames: a.domainNames,
+        createMissingDomains: a.createMissingDomains === true,
         forwardHost: a.forwardHost,
         forwardPort: a.forwardPort,
         forwardScheme: a.forwardScheme,
@@ -199,13 +202,20 @@ export async function executeProxyTool(
       }
       await context.proxyService.assertReferenceAccess(user.scopes, input);
       const unrestricted = hasProxyDestinationScope(user.scopes, 'proxy:unrestricted', input.folderId, destination);
-      return compact(
-        await context.proxyService.createProxyHost(input, user.id, {
-          actorScopes: user.scopes,
-          bypassAdvancedValidation: unrestricted,
-          bypassRawValidation: unrestricted,
-        })
+      // Like POST /proxy-hosts: createMissingDomains creates the Cloudflare domains of uncovered hostnames first.
+      const { route, response } = await createRouteMaybeWithDomains(
+        input.createMissingDomains,
+        user.scopes,
+        user.id,
+        { domainNames: input.domainNames, folderId: input.folderId, ...placement },
+        () =>
+          context.proxyService.createProxyHost(input, user.id, {
+            actorScopes: user.scopes,
+            bypassAdvancedValidation: unrestricted,
+            bypassRawValidation: unrestricted,
+          })
       );
+      return { ...compact(route), ...response };
     }
     case 'update_route': {
       const { routeId } = a;
@@ -368,6 +378,23 @@ export async function executeProxyTool(
 }
 
 async function manageRoute(context: ProxyToolContext, user: User, a: Record<string, any>): Promise<unknown> {
+  if (a.operation === 'missing_domains') {
+    // Mirrors POST /proxy-hosts/missing-domains: any proxy:create grant form.
+    if (!hasScopeBase(user.scopes, 'proxy:create')) {
+      throw new AppError(403, 'FORBIDDEN', 'Missing required scope: proxy:create');
+    }
+    const input = MissingRouteDomainsSchema.parse({
+      domainNames: a.domainNames,
+      folderId: a.folderId ?? undefined,
+      nodeId: a.nodeId,
+      ingressGroupId: a.ingressGroupId,
+    });
+    const placement =
+      input.nodeId && !input.ingressGroupId
+        ? { nodeId: input.nodeId, ingressGroupId: null }
+        : await context.proxyService.resolveRouteIngressNode(user.scopes, input);
+    return planMissingRouteDomains(user.scopes, { ...input, ...placement });
+  }
   if (a.operation === 'validate_config') {
     // Mirrors POST /proxy-hosts/validate-config.
     const { snippet, mode, proxyHostId, folderId, nodeId } = ValidateAdvancedConfigSchema.parse({

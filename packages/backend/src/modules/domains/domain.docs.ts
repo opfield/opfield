@@ -103,6 +103,8 @@ export const listDomainsRoute = appRoute({
   path: '/',
   tags: ['Domains'],
   summary: 'List domains',
+  description:
+    'Each domain carries app (its app and environment, or null). excludeAppMembers leaves out domains that belong to an app (the normal list); appId lists the domains of one app.',
   request: { query: DomainListQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -139,6 +141,8 @@ export const createDomainRoute = appRoute({
   path: '/',
   tags: ['Domains'],
   summary: 'Create a domain',
+  description:
+    'folderId = placementFolderIds.domains of an app environment creates the domain inside it: the name must match the environment domain allowlist (422 APP_DOMAIN_NOT_ALLOWED) and the ingress node (every member of an ingress group) must be allowed there (APP_NODE_NOT_ALLOWED).',
   request: jsonBody(CreateDomainSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });

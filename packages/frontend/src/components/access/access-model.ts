@@ -258,13 +258,14 @@ export function typesManagingFolders(types: readonly AccessTypeId[]): AccessType
 
 /**
  * The types an app environment holds, one hidden folder each (containers and deployments, Compose
- * projects, routes, databases, object storage, Pages, SSL certificates). Logging environments are
+ * projects, routes, domains, databases, object storage, Pages, SSL certificates). Logging environments are
  * app members too but have no access type here: their grants are set in the scope picker.
  */
 export const APP_ACCESS_TYPE_IDS: readonly AccessTypeId[] = [
   "containers",
   "compose",
   "routes",
+  "domains",
   "ssl",
   "databases",
   "storage",
@@ -278,6 +279,7 @@ const APP_TYPE_FAMILY: Readonly<Partial<Record<AccessTypeId, AppFamily>>> = {
   containers: "containers",
   compose: "compose",
   routes: "routes",
+  domains: "domains",
   databases: "databases",
   storage: "storage",
   pages: "pages",

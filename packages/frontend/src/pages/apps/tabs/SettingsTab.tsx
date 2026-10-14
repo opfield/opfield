@@ -1,33 +1,14 @@
-// Settings: the app's logo, name, description and app-wide maintenance, its environments and the danger zone
-// (canvas frames app-settings, app-maintenance-on, app-env-new, app-access-code).
-// Danger zone: Shut down / Start, the kill switch and Delete App (frames app-shutdown, app-stopped,
-// app-kill, app-isolated).
-import {
-  AppWindow,
-  ImageUp,
-  KeyRound,
-  Layers,
-  Play,
-  Plus,
-  Power,
-  Save,
-  ShieldAlert,
-  ShieldOff,
-  Trash2,
-  TriangleAlert,
-} from "lucide-react";
+// Settings: the app's logo, name, description, allowed domains and app-wide maintenance, its
+// environments and the danger zone (canvas frames app-settings, app-maintenance-on, app-env-new,
+// app-access-code; the danger zone is in SettingsDangerZone).
+import { AppWindow, ImageUp, KeyRound, Layers, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AppMark } from "@/components/apps/AppMark";
-import {
-  canEndIncidents,
-  openAppIncidents,
-  startAfterShutdown,
-  turnOffKillSwitch,
-} from "@/components/apps/app-incidents";
 import { AvatarCropDialog } from "@/components/common/AvatarCropDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
+import { EditableStringList } from "@/components/common/EditableStringList";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
@@ -36,9 +17,8 @@ import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdow
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { toastApiError } from "@/lib/api-error-toast";
-import { appEnvironmentRoute, appRoute, appsRoute } from "@/lib/app-routes";
+import { appEnvironmentRoute, appRoute } from "@/lib/app-routes";
 import { api } from "@/services/api";
 import type { AppDetail, AppEnvironmentDetail } from "@/types";
 import {
@@ -49,11 +29,13 @@ import {
   plural,
   RowMenu,
 } from "../app-shared";
-import { DeleteAppDialog } from "../dialogs/DeleteAppDialog";
-import { canOperateApp, shutdownUnavailableReason } from "../dialogs/incident-scope";
-import { KillSwitchDialog } from "../dialogs/KillSwitchDialog";
 import { RenameEnvironmentDialog } from "../dialogs/RenameEnvironmentDialog";
-import { ShutdownDialog } from "../dialogs/ShutdownDialog";
+import {
+  DOMAIN_PATTERN_PLACEHOLDER,
+  domainPatternDraft,
+  sameDomainPatterns,
+} from "../domain-patterns";
+import { SettingsDangerZone } from "./SettingsDangerZone";
 
 export function SettingsTab({
   app,
@@ -70,62 +52,38 @@ export function SettingsTab({
   routeCount: number | null;
 }) {
   const navigate = useNavigate();
-  const leavePage = useLeavePage();
   const [name, setName] = useState(app.name);
   const [description, setDescription] = useState(app.description ?? "");
+  const [domainPatterns, setDomainPatterns] = useState<string[]>(app.domainPatterns ?? []);
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [overrideSaving, setOverrideSaving] = useState(false);
   const [renaming, setRenaming] = useState<AppEnvironmentDetail | null>(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [shutdownOpen, setShutdownOpen] = useState(false);
-  const [killOpen, setKillOpen] = useState(false);
-  const [ending, setEnding] = useState<"start" | "release" | null>(null);
   const { permissions } = app;
-  const canOperate = canOperateApp(app);
-  const stoppedIncidents = openAppIncidents(app, "shutdown");
-  const isolatedIncidents = openAppIncidents(app, "isolation");
-  const stopped = stoppedIncidents.length > 0;
-  const isolated = isolatedIncidents.length > 0;
-  // A shutdown on top of the kill switch is refused (409 APP_ISOLATED): turn the kill switch off first.
-  const shutdownUnavailable = shutdownUnavailableReason(app);
-
-  const start = async () => {
-    setEnding("start");
-    try {
-      if (await startAfterShutdown(app, stoppedIncidents)) onChanged();
-    } finally {
-      setEnding(null);
-    }
-  };
-
-  const release = async () => {
-    setEnding("release");
-    try {
-      if (await turnOffKillSwitch(app, isolatedIncidents)) onChanged();
-    } finally {
-      setEnding(null);
-    }
-  };
   const canManageAnyEnv = Object.values(permissions.envManage).some(Boolean);
 
   useEffect(() => setName(app.name), [app.name]);
   useEffect(() => setDescription(app.description ?? ""), [app.description]);
+  useEffect(() => setDomainPatterns(app.domainPatterns ?? []), [app.domainPatterns]);
 
   const trimmedName = name.trim();
   const trimmedDescription = description.trim();
   const nameChanged = trimmedName !== app.name;
   const descriptionChanged = trimmedDescription !== (app.description ?? "");
+  const nextDomainPatterns = domainPatternDraft(domainPatterns);
+  const domainPatternsChanged = !sameDomainPatterns(nextDomainPatterns, app.domainPatterns ?? []);
+  const generalChanged = nameChanged || descriptionChanged || domainPatternsChanged;
 
   const saveGeneral = async () => {
-    if (!trimmedName || (!nameChanged && !descriptionChanged)) return;
+    if (!trimmedName || !generalChanged) return;
     setSaving(true);
     try {
       const next = await api.updateApp(app.id, {
         ...(nameChanged ? { name: trimmedName } : {}),
         ...(descriptionChanged ? { description: trimmedDescription || null } : {}),
+        ...(domainPatternsChanged ? { domainPatterns: nextDomainPatterns } : {}),
       });
       toast.success(nameChanged ? "App renamed" : "App updated");
       onChanged(next);
@@ -230,8 +188,8 @@ export function SettingsTab({
         <PanelShell
           title="General"
           icon={<AppWindow className="h-4 w-4" />}
-          description="Name, logo, description and app-wide maintenance"
-          dirty={permissions.edit && (nameChanged || descriptionChanged)}
+          description="Name, logo, description, allowed domains and app-wide maintenance"
+          dirty={permissions.edit && generalChanged}
           actions={
             <>
               {(permissions.edit || permissions.operate) && (
@@ -246,7 +204,7 @@ export function SettingsTab({
                 <Button
                   onClick={() => void saveGeneral()}
                   pending={saving}
-                  disabled={!trimmedName || (!nameChanged && !descriptionChanged)}
+                  disabled={!trimmedName || !generalChanged}
                 >
                   <Save />
                   Save
@@ -336,6 +294,23 @@ export function SettingsTab({
             />
           </SettingsControlRow>
           <SettingsControlRow
+            title="Allowed domains"
+            description="Domains every environment may use. Empty allows any domain"
+          >
+            {permissions.edit ? (
+              <EditableStringList
+                values={domainPatterns}
+                onChange={setDomainPatterns}
+                placeholder={DOMAIN_PATTERN_PLACEHOLDER}
+                itemLabel="Allowed domain"
+              />
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {(app.domainPatterns ?? []).join(", ") || "Any domain"}
+              </span>
+            )}
+          </SettingsControlRow>
+          <SettingsControlRow
             title="Maintenance for the whole app"
             description={
               routeCount === null
@@ -406,86 +381,7 @@ export function SettingsTab({
         ))}
       </PanelShell>
 
-      {(permissions.delete || canOperate) && (
-        <PanelShell
-          title="Danger zone"
-          icon={<TriangleAlert className="h-4 w-4 text-destructive" />}
-          description="Actions for the whole app or one environment"
-          className="border-destructive/60"
-        >
-          {canOperate && (
-            <SettingsControlRow
-              title={
-                <span className="inline-flex items-center gap-2">
-                  Shut down
-                  {stopped && (
-                    <Badge variant="secondary" size="inline">
-                      Stopped
-                    </Badge>
-                  )}
-                </span>
-              }
-              description="Stop everything that runs; Start brings it back"
-            >
-              {stopped && canEndIncidents(app, stoppedIncidents) ? (
-                <Button onClick={() => void start()} pending={ending === "start"}>
-                  <Play className="h-4 w-4" />
-                  Start
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  onClick={() => setShutdownOpen(true)}
-                  disabled={shutdownUnavailable !== null}
-                  title={shutdownUnavailable ?? undefined}
-                >
-                  <Power className="h-4 w-4" />
-                  Shut down
-                </Button>
-              )}
-            </SettingsControlRow>
-          )}
-          {canOperate && (
-            <SettingsControlRow
-              title={
-                <span className="inline-flex items-center gap-2">
-                  Kill switch
-                  {isolated && (
-                    <Badge variant="destructive" size="inline">
-                      Isolated
-                    </Badge>
-                  )}
-                </span>
-              }
-              description="Cut all traffic and isolate the app during an incident"
-            >
-              {isolated && canEndIncidents(app, isolatedIncidents) ? (
-                <Button
-                  variant="outline"
-                  onClick={() => void release()}
-                  pending={ending === "release"}
-                >
-                  <ShieldOff className="h-4 w-4" />
-                  Turn off
-                </Button>
-              ) : (
-                <Button variant="destructive" onClick={() => setKillOpen(true)}>
-                  <ShieldAlert className="h-4 w-4" />
-                  Isolate app
-                </Button>
-              )}
-            </SettingsControlRow>
-          )}
-          {permissions.delete && (
-            <SettingsControlRow title="Delete app" description="Resources keep running">
-              <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-                <Trash2 className="h-4 w-4" />
-                Delete app
-              </Button>
-            </SettingsControlRow>
-          )}
-        </PanelShell>
-      )}
+      <SettingsDangerZone app={app} onChanged={onChanged} />
 
       {/* close-reset-ok: AvatarCropDialog retains the file itself */}
       <AvatarCropDialog
@@ -503,24 +399,6 @@ export function SettingsTab({
         env={renaming}
         onClose={() => setRenaming(null)}
         onRenamed={() => onChanged()}
-      />
-      <ShutdownDialog
-        app={app}
-        open={shutdownOpen}
-        onOpenChange={setShutdownOpen}
-        onDone={() => onChanged()}
-      />
-      <KillSwitchDialog
-        app={app}
-        open={killOpen}
-        onOpenChange={setKillOpen}
-        onDone={() => onChanged()}
-      />
-      <DeleteAppDialog
-        app={app}
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        onDeleted={() => leavePage(appsRoute(), { gonePaths: [appRoute(app.slug)] })}
       />
     </div>
   );

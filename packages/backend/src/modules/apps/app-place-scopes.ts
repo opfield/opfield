@@ -5,11 +5,12 @@ import { extractBaseScope } from '@/lib/scopes.js';
 import { APP_FAMILY_TABLES } from './app-families.js';
 
 /** Folder tables that hold apps' hidden folders (Docker containers and Compose share one). */
-export type PlaceTable = 'docker' | 'routes' | 'databases' | 'storage' | 'pages';
+export type PlaceTable = 'docker' | 'routes' | 'domains' | 'databases' | 'storage' | 'pages';
 
 const PLACE_TABLES: Readonly<Record<PlaceTable, any>> = {
   docker: APP_FAMILY_TABLES.containers.table,
   routes: APP_FAMILY_TABLES.routes.table,
+  domains: APP_FAMILY_TABLES.domains.table,
   databases: APP_FAMILY_TABLES.databases.table,
   storage: APP_FAMILY_TABLES.storage.table,
   pages: APP_FAMILY_TABLES.pages.table,
@@ -28,6 +29,7 @@ function placeTableOf(baseScope: string): PlaceTable | null {
     return 'docker';
   }
   if (baseScope.startsWith('proxy:') && !baseScope.startsWith('proxy:templates:')) return 'routes';
+  if (baseScope.startsWith('domains:')) return 'domains';
   if (baseScope.startsWith('databases:')) return 'databases';
   if (baseScope.startsWith('storage:')) return 'storage';
   if (baseScope.startsWith('pages:')) return 'pages';
@@ -44,7 +46,7 @@ function placeGrant(scope: string): { table: PlaceTable; folderId: string } | nu
 /**
  * Scope bases held only through app places: every grant of the base (as assigned, before folder expansion) names
  * an app's hidden folder. A broad grant, a node grant, a resource grant or a grant on a user folder of the same base
- * keeps the base. Global sections (Docker, Routes, Databases, Storage, Pages) ignore these bases, so a user limited to
+ * keeps the base. Global sections (Docker, Routes, Domains, Databases, Storage, Pages) ignore these bases, so a user limited to
  * an app works through Apps; the grants themselves and every check on them are unchanged.
  */
 export function appOnlyScopeBases(

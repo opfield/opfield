@@ -24,7 +24,10 @@ import {
 const TAGS = ['Apps'];
 
 export const APPS_DESCRIPTION =
-  'An app groups resources of several types (containers, deployments, Compose projects, routes, databases, storage, Pages, SSL certificates, logging environments) into environments. A new app has one environment, production, marked as Production; exactly one environment holds the marker. Members sit in hidden folders of their own type, so create a resource inside an environment by passing folderId = placementFolderIds[type] of that environment to the normal create endpoint. Visibility: apps:view broadly, on the app (apps:view:<appId>) or on one environment (apps:view:env/<envId>); members appear by their own view permissions. Without apps:view an app is still visible when the caller can view one of its members (access "members"): only the environments holding such members, only those members, and overview, activity, health and incident items computed from them alone.';
+  'An app groups resources of several types (containers, deployments, Compose projects, routes, domains, databases, storage, Pages, SSL certificates, logging environments) into environments. A new app has one environment, production, marked as Production; exactly one environment holds the marker. Members sit in hidden folders of their own type, so create a resource inside an environment by passing folderId = placementFolderIds[type] of that environment to the normal create endpoint. Visibility: apps:view broadly, on the app (apps:view:<appId>) or on one environment (apps:view:env/<envId>); members appear by their own view permissions. Without apps:view an app is still visible when the caller can view one of its members (access "members"): only the environments holding such members, only those members, and overview, activity, health and incident items computed from them alone. Domain allowlist: domainPatterns on the app (every environment) and on each environment, joined; both empty allows every name. A pattern is an exact name (api.example.com) or *.example.com (any name under example.com, not example.com itself). Creating or importing a domain, and the hostnames of a route created, edited or imported in an environment, must match the joined list (422 APP_DOMAIN_NOT_ALLOWED).';
+
+const DOMAIN_PATTERNS_HINT =
+  ' domainPatterns replaces the list (exact names or *.domain, trimmed and lowercased; empty allows every name; existing members are not checked again).';
 
 const AppParams = pathParamSchema('id');
 const EnvParams = pathParamSchema('id', 'envId');
@@ -66,7 +69,8 @@ export const updateAppRoute = appRoute({
   tags: TAGS,
   summary: 'Update an app',
   description:
-    'Rename or set the description (one line, up to 200 characters; empty or null clears it) with apps:edit on the app, or turn the app maintenance override on or off (apps:operate on the app): every proxy route of every environment then shows the maintenance page; each route keeps its own maintenance setting for when the override is off.',
+    'Rename or set the description (one line, up to 200 characters; empty or null clears it) with apps:edit on the app, or turn the app maintenance override on or off (apps:operate on the app): every proxy route of every environment then shows the maintenance page; each route keeps its own maintenance setting for when the override is off. domainPatterns (apps:edit on the app) sets the domains every environment may use.' +
+    DOMAIN_PATTERNS_HINT,
   request: { params: AppParams, ...jsonBody(UpdateAppSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -128,7 +132,8 @@ export const updateAppEnvironmentRoute = appRoute({
   tags: TAGS,
   summary: 'Update an environment',
   description:
-    'Rename or mark as Production (isProduction: true moves the marker; apps:edit on the app), or turn environment maintenance on or off (apps:env:manage on the environment): every proxy route of the environment shows the maintenance page while each keeps its own setting.',
+    'Rename or mark as Production (isProduction: true moves the marker; apps:edit on the app), or turn environment maintenance on or off (apps:env:manage on the environment): every proxy route of the environment shows the maintenance page while each keeps its own setting. domainPatterns (apps:env:manage on the environment) sets the domains this environment may use on top of the app-wide list.' +
+    DOMAIN_PATTERNS_HINT,
   request: { params: EnvParams, ...jsonBody(UpdateAppEnvironmentSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -150,7 +155,7 @@ export const placeAppMembersRoute = appRoute({
   tags: TAGS,
   summary: 'Move resources into, between or out of app environments',
   description:
-    'target {appId, environmentId} imports or moves each member into that environment; target null takes them out of their app (top level of their lists). Members: {type, id} (deployment, compose, database, storage, route, pages, certificate, logging by id) or {type: container, id: name, nodeId}. Needs apps:env:manage on the target environment and on the environment a member leaves, plus the edit permission of each member. Refused per member: system routes and the Opfield public URL route (ROUTE_NOT_PLACEABLE), system certificates (CERTIFICATE_NOT_PLACEABLE), a node the target environment does not allow (APP_NODE_NOT_ALLOWED), no permission (FORBIDDEN), unknown member (NOT_FOUND), a member of an environment isolated by the kill switch (APP_ISOLATED; an isolated target refuses the whole request with 409 APP_ISOLATED). Shut-down environments take moves both ways; Start still starts a member moved out that ran at shutdown. Partial success: placed and refused are listed.',
+    'target {appId, environmentId} imports or moves each member into that environment; target null takes them out of their app (top level of their lists). Members: {type, id} (deployment, compose, database, storage, route, domain, pages, certificate, logging by id) or {type: container, id: name, nodeId}. Needs apps:env:manage on the target environment and on the environment a member leaves, plus the edit permission of each member. Refused per member: system routes and the Opfield public URL route (ROUTE_NOT_PLACEABLE), system certificates (CERTIFICATE_NOT_PLACEABLE), system domains (DOMAIN_NOT_PLACEABLE), a domain or route hostname outside the domain allowlist of the target environment (APP_DOMAIN_NOT_ALLOWED), a node the target environment does not allow (APP_NODE_NOT_ALLOWED), no permission (FORBIDDEN), unknown member (NOT_FOUND), a member of an environment isolated by the kill switch (APP_ISOLATED; an isolated target refuses the whole request with 409 APP_ISOLATED). Shut-down environments take moves both ways; Start still starts a member moved out that ran at shutdown. Partial success: placed and refused are listed.',
   request: jsonBody(PlaceAppMembersSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
@@ -176,7 +181,7 @@ export const AppNodeBodySchema = z.object({ nodeId: z.string().uuid() }).strict(
 const EnvNodeParams = pathParamSchema('id', 'envId', 'nodeId');
 
 const NODES_DESCRIPTION =
-  'The nodes an environment may place workloads on. Creating, importing or moving a resource into the environment on another node is refused (APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when no node of the needed type is allowed): containers, deployments and Compose need a Docker node, routes and Pages an Nginx node, managed databases and storage a database or storage node; SSL certificates and logging environments run on no node. Each node lists usedBy: how many members of each type run on it. Removing a node leaves what runs there running.';
+  'The nodes an environment may place workloads on. Creating, importing or moving a resource into the environment on another node is refused (APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when no node of the needed type is allowed): containers, deployments and Compose need a Docker node, routes, domains and Pages an Nginx node, managed databases and storage a database or storage node; SSL certificates and logging environments run on no node. Each node lists usedBy: how many members of each type run on it. Removing a node leaves what runs there running.';
 
 export const listAppEnvironmentNodesRoute = appRoute({
   method: 'get',

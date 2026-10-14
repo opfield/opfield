@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { invalidDomainPatterns, MAX_DOMAIN_PATTERNS, normalizeDomainPatterns } from './app-domain-patterns.js';
 import { APP_MEMBER_TYPES } from './app-families.js';
 
 const name = (max: number) =>
@@ -17,6 +18,24 @@ const description = z
   .pipe(z.string().max(APP_DESCRIPTION_MAX))
   .nullable();
 
+/**
+ * Allowed domain names: `api.example.com` (that name) or `*.example.com` (any name under example.com, not
+ * example.com itself). Trimmed, lowercased, without a trailing dot; duplicates dropped. An empty list allows every name.
+ */
+export const DomainPatternsSchema = z
+  .array(z.string().max(255))
+  .max(MAX_DOMAIN_PATTERNS)
+  .superRefine((values, ctx) => {
+    const invalid = invalidDomainPatterns(values);
+    if (invalid.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Not a domain name or *.domain pattern: ${invalid.join(', ')}`,
+      });
+    }
+  })
+  .transform(normalizeDomainPatterns);
+
 export const CreateAppSchema = z
   .object({
     name: name(255),
@@ -31,6 +50,8 @@ export const UpdateAppSchema = z
     name: name(255).optional(),
     description: description.optional(),
     maintenanceOverride: z.boolean().optional(),
+    /** Domains every environment may use (joined with each environment's own list). */
+    domainPatterns: DomainPatternsSchema.optional(),
   })
   .strict();
 
@@ -42,6 +63,8 @@ export const UpdateAppEnvironmentSchema = z
     /** Only `true`: the Production marker moves to this environment. */
     isProduction: z.literal(true).optional(),
     maintenanceEnabled: z.boolean().optional(),
+    /** Domains this environment may use on top of the app-wide list. */
+    domainPatterns: DomainPatternsSchema.optional(),
   })
   .strict();
 

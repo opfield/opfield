@@ -366,8 +366,27 @@ export interface AccessList {
 }
 
 // Request types (Opfield)
+/** A hostname of a route about to be created that no registered domain covers. */
+export interface MissingRouteDomain {
+  hostname: string;
+  /** create: a Cloudflare domain is created in zoneName with the route; unavailable: reason says why not. */
+  status: "create" | "unavailable";
+  zoneName: string | null;
+  code: string | null;
+  reason: string | null;
+}
+
+export interface MissingRouteDomainsRequest {
+  domainNames: string[];
+  folderId?: string;
+  nodeId?: string;
+  ingressGroupId?: string;
+}
+
 export interface CreateProxyHostRequest {
   type: ProxyHostType;
+  /** Create a Cloudflare domain for each hostname no registered domain covers (default false). */
+  createMissingDomains?: boolean;
   /** Omitted: the ingress node of the registered domains, or the only node the caller may use. */
   nodeId?: string;
   /** Serve the route from every member of this ingress group instead of one node. */

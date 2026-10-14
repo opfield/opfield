@@ -73,6 +73,7 @@ export const APP_MEMBER_VIEW_SCOPES = [
   'databases:view',
   'storage:view',
   'proxy:view',
+  'domains:view',
   'pages:view',
   'ssl:cert:view',
   'logs:environments:view',
