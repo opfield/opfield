@@ -26,7 +26,11 @@ import type { AdditionalRouteService } from './additional-route.service.js';
 import { supportsPagesRouteTemplate } from './additional-route-template.js';
 import { effectiveMaintenance } from './effective-maintenance.js';
 import { MAINTENANCE_FLAG_CAPABILITY } from './nginx-maintenance-flag-guard.js';
-import { NGINX_OPFIELD_NAMES_CAPABILITY, nginxNamesForNode } from './nginx-node-names.js';
+import {
+  NGINX_ACCESS_LOG_FORMAT_CAPABILITY,
+  NGINX_OPFIELD_NAMES_CAPABILITY,
+  nginxNamesForNode,
+} from './nginx-node-names.js';
 import type { NginxTemplateService } from './nginx-template.service.js';
 import type { CreateProxyHostInput, UpdateProxyHostInput } from './proxy.schemas.js';
 import {
@@ -847,7 +851,8 @@ export abstract class ProxyServiceCore {
    */
   protected async withNodeNginxNames(nodeId: string | null, config: string): Promise<string> {
     const opfieldNames = !nodeId || (await this.nodeReports(nodeId, NGINX_OPFIELD_NAMES_CAPABILITY));
-    return nginxNamesForNode(config, opfieldNames);
+    const accessLogFormat = !!nodeId && (await this.nodeReports(nodeId, NGINX_ACCESS_LOG_FORMAT_CAPABILITY));
+    return nginxNamesForNode(config, opfieldNames, accessLogFormat);
   }
 
   protected async nodeServesIngressHealth(nodeId: string | null): Promise<boolean> {

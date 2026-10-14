@@ -91,6 +91,10 @@ func NewHandler(cfg *config.Config, mgr *nginx.Manager, st *sharedstate.State, l
 // pagesDeferredReloadCapability: PagesMaterializePreviewCommand and PagesActivateTagRouteCommand take defer_reload.
 const pagesDeferredReloadCapability = "pages_deferred_reload_v1"
 
+// AccessLogFormatCapability: route configs may log with the daemon's access log format (upstream and request times);
+// nginx.conf defines it before the includes. Kept identical with NGINX_ACCESS_LOG_FORMAT_CAPABILITY in the backend.
+const AccessLogFormatCapability = "nginx_access_log_format_v1"
+
 const (
 	configOwnershipManagedSecureLink = "managed_secure_link"
 	configOwnershipUserOwned         = "user_owned"

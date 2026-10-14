@@ -103,6 +103,8 @@ type NginxPlugin struct {
 	maintenanceAccessSupported bool
 	// maintenanceFlagsSupported: routes enter and leave maintenance through their flag files (maintenance_flags.go).
 	maintenanceFlagsSupported bool
+	// nginx.conf defines the access log format before the includes route configs come in by.
+	accessLogFormatReady bool
 
 	// namesMigrationDue: the node still runs with the pre-Opfield names and moves once the start is confirmed
 	// (opfield_names.go); registrationChanged asks the control session to register the new capabilities.
@@ -360,6 +362,16 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 		logger.Info("injected the daemon's log format into nginx.conf")
 		globalConfigModified = true
 	}
+	// Route configs log with that format, so it must come before the includes that bring them in.
+	if ready, modified, err := nginx.EnsureLogFormatFirst(p.cfg.Nginx.GlobalConfig); err != nil {
+		logger.Warn("failed to move the log format above the includes of nginx.conf", "error", err)
+	} else {
+		p.accessLogFormatReady = ready
+		if modified {
+			logger.Info("moved the daemon's log format above the includes of nginx.conf")
+			globalConfigModified = true
+		}
+	}
 
 	// Pages preview hostnames can exceed nginx's platform-default server-name
 	// hash bucket. Keep the managed minimum in the global http block.
@@ -602,6 +614,9 @@ func (p *NginxPlugin) capabilities() []string {
 	}
 	if !naming.Legacy() {
 		capabilities = append(capabilities, naming.Capability)
+	}
+	if p.accessLogFormatReady {
+		capabilities = append(capabilities, AccessLogFormatCapability)
 	}
 	return capabilities
 }

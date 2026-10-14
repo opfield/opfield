@@ -2,6 +2,7 @@ package nginx
 
 import (
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
@@ -63,6 +64,112 @@ func EnsureLogFormat(nginxConfPath string) (bool, error) {
 	newContent := content[:insertAt] + injection + content[insertAt:]
 
 	return true, WriteAtomic(nginxConfPath, []byte(newContent))
+}
+
+// EnsureLogFormatFirst moves the daemon's log format definitions (the Opfield one and the pre-Opfield one) in
+// nginx.conf above the first include of the http block: nginx refuses a format used before its definition, and route
+// configs come in through those includes (an Alpine node had the includes first). It reports whether nginx.conf now
+// defines the format of the names in effect before any include, and whether it changed the file.
+func EnsureLogFormatFirst(nginxConfPath string) (ready bool, modified bool, err error) {
+	data, err := os.ReadFile(nginxConfPath)
+	if err != nil {
+		return false, false, err
+	}
+	next, ok := logFormatFirst(string(data))
+	if !ok {
+		return false, false, nil
+	}
+	if next == string(data) {
+		return true, false, nil
+	}
+	return true, true, WriteAtomic(nginxConfPath, []byte(next))
+}
+
+// logFormatFirst is EnsureLogFormatFirst on the content: ok when the format of the names in effect is defined in the
+// http block before its first include once the definitions are moved.
+func logFormatFirst(content string) (string, bool) {
+	httpStart := httpBlockBodyStart(content)
+	if httpStart < 0 {
+		return content, false
+	}
+	var moved []string
+	for _, name := range []string{LogFormatName, LegacyLogFormatName} {
+		start, end := logFormatStatement(content[httpStart:], name)
+		if start < 0 {
+			continue
+		}
+		start, end = start+httpStart, end+httpStart
+		include := firstInclude(content[httpStart:])
+		if include < 0 || start < httpStart+include {
+			continue
+		}
+		moved = append(moved, strings.TrimSpace(content[start:end]))
+		content = content[:start] + content[end:]
+	}
+	if len(moved) > 0 {
+		injection := ""
+		for _, statement := range moved {
+			injection += "\n    " + statement
+		}
+		content = content[:httpStart] + injection + content[httpStart:]
+	}
+	start, _ := logFormatStatement(content[httpStart:], logFormatName())
+	include := firstInclude(content[httpStart:])
+	return content, start >= 0 && (include < 0 || start < include)
+}
+
+// httpBlockBodyStart is the offset just after the opening brace of the http block, or -1.
+func httpBlockBodyStart(content string) int {
+	match := httpBlockPattern.FindStringIndex(content)
+	if match == nil {
+		return -1
+	}
+	return match[1]
+}
+
+var (
+	httpBlockPattern = regexp.MustCompile(`(?m)^\s*http\s*\{`)
+	includePattern   = regexp.MustCompile(`(?m)^[ \t]*include\s`)
+)
+
+// firstInclude is the offset of the first uncommented include line in content, or -1.
+func firstInclude(content string) int {
+	match := includePattern.FindStringIndex(content)
+	if match == nil {
+		return -1
+	}
+	return match[0]
+}
+
+// logFormatStatement is the span of the uncommented `log_format <name> …;` statement in content, from the start of
+// its line to the end of the line its semicolon is on (quoted parts may span lines), or -1, -1.
+func logFormatStatement(content, name string) (int, int) {
+	pattern := regexp.MustCompile(`(?m)^[ \t]*log_format\s+` + regexp.QuoteMeta(name) + `\s`)
+	match := pattern.FindStringIndex(content)
+	if match == nil {
+		return -1, -1
+	}
+	quote := byte(0)
+	for i := match[1]; i < len(content); i++ {
+		c := content[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '\'' || c == '"':
+			quote = c
+		case c == ';':
+			end := i + 1
+			if newline := strings.IndexByte(content[end:], '\n'); newline >= 0 {
+				end += newline + 1
+			} else {
+				end = len(content)
+			}
+			return match[0], end
+		}
+	}
+	return -1, -1
 }
 
 // Comments the daemon and the installer wrote into nginx.conf before 2.12.1, with their Opfield wording.

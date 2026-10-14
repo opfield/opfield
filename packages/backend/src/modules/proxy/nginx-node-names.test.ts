@@ -49,6 +49,14 @@ describe('nginx names of a node', () => {
     expect(nginxNamesForNode(OPFIELD_CONFIG, false)).toBe(legacy);
   });
 
+  it('logs a route with the access log format only on a node that defines it before its includes', () => {
+    const route = 'server {\n    access_log /var/log/nginx/proxy-1.access.log opfield_combined;\n}\n';
+    expect(nginxNamesForNode(route, true, true)).toContain('proxy-1.access.log opfield_combined;');
+    expect(nginxNamesForNode(route, false, true)).toContain('proxy-1.access.log gateway_combined;');
+    expect(nginxNamesForNode(route, true, false)).toContain('proxy-1.access.log;');
+    expect(nginxNamesForNode(route, false, false)).toContain('proxy-1.access.log;');
+  });
+
   it('keeps both public paths: the health path monitors probe and the Pages script pages load', () => {
     const legacy = toLegacyNginxNames(OPFIELD_CONFIG);
     for (const path of [INGRESS_HEALTH_PATH, LEGACY_INGRESS_HEALTH_PATH]) {

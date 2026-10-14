@@ -62,8 +62,19 @@ export const toOpfieldNginxNames = replacer(1);
  */
 const ACCESS_LOG_FORMAT_PATTERN = / opfield_combined;/g;
 
-/** The config with the names of a node: Opfield ones when it reports the capability, else the pre-Opfield ones. */
-export function nginxNamesForNode(config: string, opfieldNames: boolean): string {
+/**
+ * Route configs log with the access log format only on a node whose daemon defines it before the includes that
+ * bring them in (an Alpine node defined it after them and refused every route). Kept identical with
+ * AccessLogFormatCapability in the nginx daemon.
+ */
+export const NGINX_ACCESS_LOG_FORMAT_CAPABILITY = 'nginx_access_log_format_v1';
+
+/**
+ * The config with the names of a node: Opfield ones when it reports the capability, else the pre-Opfield ones. Without
+ * `accessLogFormat` the route's access log uses nginx's default format.
+ */
+export function nginxNamesForNode(config: string, opfieldNames: boolean, accessLogFormat = true): string {
+  if (!accessLogFormat) return nginxNamesForNode(config.replace(ACCESS_LOG_FORMAT_PATTERN, ';'), opfieldNames);
   return opfieldNames
     ? toOpfieldNginxNames(config)
     : toLegacyNginxNames(config).replace(ACCESS_LOG_FORMAT_PATTERN, ' gateway_combined;');
