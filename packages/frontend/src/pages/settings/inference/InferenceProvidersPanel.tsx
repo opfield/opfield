@@ -539,7 +539,7 @@ export function InferenceProvidersPanel({
         open={selectedConnection !== null}
         connection={shownConnection}
         provider={shownProvider}
-        canManage={canManage}
+        canManage={canManage && !shownConnection?.cloudManaged}
         onOpenChange={(open) => {
           // close-reset-ok: the connection and provider are retained while the dialog closes
           if (!open) setSelectedId(null);

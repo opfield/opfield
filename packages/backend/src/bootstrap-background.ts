@@ -32,6 +32,7 @@ import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { createCloudLinkActions } from '@/modules/cloud-link/cloud-link-actions.js';
 import { CloudLinkAgent } from '@/modules/cloud-link/cloud-link-agent.js';
 import { CloudLinkEnrollFile, createEnrollFileLicense } from '@/modules/cloud-link/cloud-link-enroll-file.js';
+import { CloudInference } from '@/modules/cloud-link/cloud-link-inference.js';
 import { CloudMail } from '@/modules/cloud-link/cloud-link-mail.js';
 import { CloudManagedSso } from '@/modules/cloud-link/cloud-link-managed-sso.js';
 import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
@@ -256,6 +257,10 @@ export async function initializeBackgroundServices(): Promise<void> {
   });
   container.registerInstance(CloudMail, cloudMail);
   container.resolve(AuthMailService).setCloudTransport(cloudMail);
+  // The Opfield Cloud AI add-on; carries on after a restart with a setup or removal still in progress.
+  const cloudInference = new CloudInference(db);
+  container.registerInstance(CloudInference, cloudInference);
+  void cloudInference.start().catch((error) => logger.warn('Could not resume the Opfield Cloud AI add-on', { error }));
   // When the cloud link ends or switches accounts, the sign-in the cloud gave goes with it (see CloudSsoClient.detach).
   const cloudSsoClient = createCloudSsoClient();
   container.resolve(CloudLinkService).setSignInDetacher((reason) => cloudSsoClient.detach(reason));

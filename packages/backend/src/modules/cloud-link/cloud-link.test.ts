@@ -67,6 +67,7 @@ describe('cloud link', () => {
       ssoRevoke: async () => ({ revoked: [], unknown: [] }),
       publicAlias: async () => ({ domain: null, state: 'none' }),
       mailConfig: async () => ({ transport: 'smtp' }),
+      inferenceCloud: async () => ({ state: 'removed' }),
     };
 
     const request = parseCloudRequest(
