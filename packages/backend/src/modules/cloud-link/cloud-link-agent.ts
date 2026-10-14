@@ -58,7 +58,7 @@ export function cloudRequestAudit(
   resultBytes: number,
   durationMs: number
 ): CloudRequestAudit {
-  const { service, tail, since, name, version, kind, clientId } = request.params;
+  const { service, tail, since, name, version, kind, clientId, domain } = request.params;
   return {
     requestId: request.id,
     type: request.type.slice(0, 64),
@@ -69,6 +69,7 @@ export function cloudRequestAudit(
     ...(typeof version === 'string' && version ? { version: version.slice(0, 64) } : {}),
     ...(typeof kind === 'string' && kind ? { kind: kind.slice(0, 32) } : {}),
     ...(typeof clientId === 'string' && clientId ? { clientId: clientId.slice(0, 255) } : {}),
+    ...(typeof domain === 'string' && domain ? { domain: domain.slice(0, 253) } : {}),
     ok: answer.ok,
     ...(answer.ok ? {} : { error: answer.error.slice(0, 500), ...(answer.code ? { errorCode: answer.code } : {}) }),
     resultBytes,

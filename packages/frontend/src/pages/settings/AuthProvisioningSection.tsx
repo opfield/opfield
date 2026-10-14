@@ -208,7 +208,8 @@ export function AuthProvisioningSection({
               description={
                 cloudManaged ? (
                   <>
-                    Browser-facing URL for redirects and links. <CloudManagedHint />
+                    Browser-facing URL for redirects and links.{" "}
+                    <CloudPublicAliasHint alias={settings.cloudPublicAlias ?? null} />
                   </>
                 ) : identityTrustLocked ? (
                   <>
@@ -1570,6 +1571,25 @@ export function AuthProvisioningSection({
 
 function CloudManagedHint() {
   return <span className="text-muted-foreground">Managed by Opfield Cloud.</span>;
+}
+
+/** The public URL of a managed installation: its custom domain, if any, is set in the Opfield account. */
+function CloudPublicAliasHint({ alias }: { alias: AuthProvisioningSettings["cloudPublicAlias"] }) {
+  const base = alias?.baseUrl ? new URL(alias.baseUrl).host : null;
+  const detail = !alias?.domain
+    ? null
+    : alias.state === "active"
+      ? base
+        ? `Custom domain ${alias.domain}; ${base} keeps working.`
+        : `Custom domain ${alias.domain}.`
+      : alias.state === "failed"
+        ? `Custom domain ${alias.domain} is not active: ${alias.error ?? "no certificate"}.`
+        : `Custom domain ${alias.domain} is waiting for its certificate.`;
+  return (
+    <span className="text-muted-foreground">
+      {detail ? `${detail} ` : ""}Managed in your Opfield account.
+    </span>
+  );
 }
 
 function IdentityTrustHint({ action = "change this" }: { action?: string }) {

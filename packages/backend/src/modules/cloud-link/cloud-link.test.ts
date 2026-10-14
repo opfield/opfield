@@ -65,6 +65,7 @@ describe('cloud link', () => {
       ssoSecret: async () => ({ saved: true }),
       ssoClient: async () => ({ saved: true, applied: true }),
       ssoRevoke: async () => ({ revoked: [], unknown: [] }),
+      publicAlias: async () => ({ domain: null, state: 'none' }),
     };
 
     const request = parseCloudRequest(

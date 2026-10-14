@@ -16,6 +16,7 @@ import { getEnv, isDevelopment } from '@/config/env.js';
 import { container, TOKENS } from '@/container.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { COMMERCIAL_ONLY_ROUTE_PREFIXES, commercialUnavailableRoutes } from '@/edition/unavailable-routes.js';
+import { getConsoleBaseOrigin } from '@/lib/console-base-host.js';
 import { injectLoginAuthMethods } from '@/lib/login-page.js';
 import { ONE_TIME_LINK_TOKEN_PATH } from '@/lib/one-time-link-path.js';
 import { tags as openApiTags, openApiValidationHook, securitySchemes } from '@/lib/openapi.js';
@@ -296,8 +297,7 @@ export function isAllowedWebSocketOrigin(
   try {
     const url = new URL(origin);
     const requestOrigin = url.origin;
-    const appOrigin = getCanonicalPublicUrlSync();
-    if (requestOrigin === appOrigin) return true;
+    if (isPublicOrigin(requestOrigin)) return true;
     if (requestOrigin === directLocalRequestOrigin) return true;
     return (
       isDevelopment() && (requestOrigin.startsWith('http://localhost') || requestOrigin.startsWith('http://127.0.0.1'))
@@ -305,6 +305,14 @@ export function isAllowedWebSocketOrigin(
   } catch {
     return false;
   }
+}
+
+/**
+ * The public URL's origin, and the console domain's when this process serves one: with a custom domain as the public
+ * URL, the console domain keeps working in the browser.
+ */
+function isPublicOrigin(origin: string): boolean {
+  return origin === getCanonicalPublicUrlSync() || origin === getConsoleBaseOrigin();
 }
 
 function getCanonicalPublicUrlSync(): string {
@@ -526,8 +534,7 @@ export function createApp(): OpfieldAppRuntime {
     '*',
     cors({
       origin: (origin) => {
-        const appOrigin = getCanonicalPublicUrlSync();
-        if (origin === appOrigin) return origin;
+        if (origin && isPublicOrigin(origin)) return origin;
         if (
           isDevelopment() &&
           origin &&

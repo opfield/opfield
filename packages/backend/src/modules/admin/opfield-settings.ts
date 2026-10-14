@@ -20,6 +20,7 @@ import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { OIDC_CALLBACK_PATH } from '@/modules/cloud-link/cloud-enroll-contract.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
+import { readCloudPublicAlias } from '@/modules/cloud-link/cloud-link-addon-views.js';
 import { isDemoVisitor } from '@/modules/demo/demo-mode.js';
 import { GroupService } from '@/modules/groups/group.service.js';
 import { LoggingRuntimeService } from '@/modules/logging/logging-runtime.service.js';
@@ -173,6 +174,7 @@ export async function readOpfieldSettings(
     readCloudManaged(),
     readOpfieldAccountSignIn(),
   ]);
+  const cloudPublicAlias = cloudManaged ? await readCloudPublicAlias() : null;
 
   const response = {
     ...settings,
@@ -189,6 +191,8 @@ export async function readOpfieldSettings(
     availableGroups,
     /** Managed cloud installation: the public URL and gRPC addresses are the cloud's and cannot be changed. */
     cloudManaged,
+    /** Managed only: the custom domain the Opfield account set (read-only here). */
+    cloudPublicAlias,
     /** Use Opfield account for sign-in (oidcProviderAction: opfield_account). */
     opfieldAccountSignIn,
   };
@@ -502,6 +506,7 @@ export async function updateOpfieldSettings(
       readCloudManaged(),
       readOpfieldAccountSignIn(),
     ]);
+    const cloudPublicAlias = cloudManaged ? await readCloudPublicAlias() : null;
 
     await auditService.log({
       userId: actor.user.id,
@@ -557,6 +562,7 @@ export async function updateOpfieldSettings(
       ...(request.currentRequestIp ? { currentRequestIp: request.currentRequestIp(networkSecurity) } : {}),
       availableGroups,
       cloudManaged,
+      cloudPublicAlias,
       opfieldAccountSignIn,
     };
   } catch (err) {

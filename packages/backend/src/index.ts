@@ -54,6 +54,7 @@ import { AvailabilityMembersService } from '@/services/availability-members.serv
 import { closeDataStoresAfterWrites } from '@/services/background-writes.js';
 import type { RedisClient } from '@/services/cache.service.js';
 import { createConsoleTlsService } from '@/services/console-tls/console-tls.runtime.js';
+import { ConsoleTlsService } from '@/services/console-tls/console-tls.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { GrpcIdentityService } from '@/services/grpc-identity.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
@@ -187,6 +188,8 @@ async function main() {
     // Console on its own domain (OPFIELD_CONSOLE_DOMAIN): the public URL follows it before any listener resolves
     // its identity.
     const consoleTls = createConsoleTlsService(env, container);
+    // The cloud link reaches its custom domain (public-alias) through it.
+    if (consoleTls) container.registerInstance(ConsoleTlsService, consoleTls);
     await consoleTls?.seedPublicUrl();
 
     // Create the Hono app
