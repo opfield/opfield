@@ -1,0 +1,25 @@
+{
+  "file_name": "gl0rabbd_opfield_settlement_bypass",
+  "edges": [
+    {
+      "from_id": "gl0rabbd",
+      "to_id": "dcfkgqwx",
+      "relation": "same_area",
+      "weight": 0.95,
+      "reason": "Both define Opfield Inference accounting, admission, settlement, limits, and quota enforcement.",
+      "source": "auto",
+      "created_at": 1792019190138,
+      "updated_at": 1792019190138
+    },
+    {
+      "from_id": "gl0rabbd",
+      "to_id": "ifp3c48s",
+      "relation": "same_area",
+      "weight": 0.9,
+      "reason": "Both document the managed inference-core integration and its request lifecycle, including durable accounting and proxy behavior.",
+      "source": "auto",
+      "created_at": 1792019190138,
+      "updated_at": 1792019190138
+    }
+  ]
+}
