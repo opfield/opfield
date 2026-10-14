@@ -904,15 +904,16 @@ export function createApp(): OpfieldAppRuntime {
       managedStorage: managedStorageRouteRuntime,
     });
   }
-  app.route('/api/object-storage', objectStorageRoutes);
-  app.route('/api/databases', databaseRoutes);
-  app.route('/api/managed-storage', managedStorageRoutes);
   // Only without the module: with it, a path or method its routes do not serve is a plain 404, not the paywall's 503
-  // (stand rc.11 O-3: PATCH /api/status-page/incidents/{id} and GET /api/status-page/config).
+  // (stand rc.11 O-3: PATCH /api/status-page/incidents/{id} and GET /api/status-page/config; 2.12.2-rc.1 O-3:
+  // GET /api/databases/{id}/monitoring).
   const commercialRoutesServed =
     container.isRegistered(TOKENS.CommercialEdition) &&
     container.resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition).status.state === 'ready';
   if (!commercialRoutesServed) {
+    app.route('/api/object-storage', objectStorageRoutes);
+    app.route('/api/databases', databaseRoutes);
+    app.route('/api/managed-storage', managedStorageRoutes);
     for (const prefix of COMMERCIAL_ONLY_ROUTE_PREFIXES) app.route(prefix, commercialUnavailableRoutes);
   }
 
