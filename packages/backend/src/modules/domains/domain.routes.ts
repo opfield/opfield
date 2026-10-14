@@ -225,6 +225,8 @@ domainRoutes.openapi({ ...listDomainsRoute, middleware: requireScopeBase('domain
     limit: c.req.query('limit'),
     search: c.req.query('search'),
     dnsStatus: c.req.query('dnsStatus'),
+    excludeAppMembers: c.req.query('excludeAppMembers'),
+    appId: c.req.query('appId'),
   });
   const scopes = c.get('effectiveScopes') || [];
   const result = await domainsService.listDomains(

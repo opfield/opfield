@@ -513,6 +513,7 @@ export async function findResource(deps: ResourceSearchDeps, user: User, args: R
 
 const SEARCH_MEMBER_TYPES: Readonly<Record<string, AppMemberType>> = {
   proxy_host: 'route',
+  domain: 'domain',
   database: 'database',
   storage: 'storage',
   page_project: 'pages',

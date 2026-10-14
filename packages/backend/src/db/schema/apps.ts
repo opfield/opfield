@@ -4,6 +4,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -50,6 +51,11 @@ export const apps = pgTable(
     description: text('description'),
     /** Stored logo URL (`/apps/logos/<file>`), same file storage and validation as user avatars. */
     logoUrl: text('logo_url'),
+    /**
+     * Domain names every environment may use (`api.example.com`, or `*.example.com` for any name under it); joined with
+     * each environment's own list. Both empty: no restriction.
+     */
+    domainPatterns: jsonb('domain_patterns').$type<string[]>().notNull().default([]),
     maintenanceOverride: boolean('maintenance_override').notNull().default(false),
     maintenanceOverrideAt: timestamp('maintenance_override_at', { withTimezone: true }),
     maintenanceOverrideBy: uuid('maintenance_override_by').references(() => users.id, { onDelete: 'set null' }),
@@ -81,6 +87,8 @@ export const appEnvironments = pgTable(
     isProduction: boolean('is_production').notNull().default(false),
     maintenanceEnabled: boolean('maintenance_enabled').notNull().default(false),
     maintenanceStartedAt: timestamp('maintenance_started_at', { withTimezone: true }),
+    /** Domain names this environment may use, on top of the app-wide list (`apps.domain_patterns`). */
+    domainPatterns: jsonb('domain_patterns').$type<string[]>().notNull().default([]),
     sortOrder: integer('sort_order').notNull().default(0),
     createdById: uuid('created_by_id')
       .notNull()

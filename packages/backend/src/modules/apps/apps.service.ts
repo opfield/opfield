@@ -143,6 +143,11 @@ export function uniqueSlug(base: string, taken: ReadonlySet<string>): string {
   }
 }
 
+function samePatterns(a: readonly string[], b: readonly string[] | null | undefined): boolean {
+  const other = b ?? [];
+  return a.length === other.length && a.every((value, index) => value === other[index]);
+}
+
 function isUniqueViolation(error: unknown, constraint: string): boolean {
   const cause = error as { code?: string; constraint?: string; cause?: { code?: string; constraint?: string } };
   const code = cause?.code ?? cause?.cause?.code;
@@ -428,6 +433,8 @@ export class AppsService {
       access,
       maintenanceOverride: app.maintenanceOverride,
       maintenanceOverrideAt: app.maintenanceOverrideAt,
+      /** Domains every environment may use (joined with each environment's own list); empty: no restriction. */
+      domainPatterns: access === 'full' ? app.domainPatterns : [],
       incident: appIncidentState(envIds, incidents),
       /** App-root folder per family: a grant there covers every environment, present and future. */
       rootFolderIds: roots,
@@ -490,6 +497,8 @@ export class AppsService {
       hiddenMemberTypes: extra.hiddenTypes,
       placementFolderIds: extra.folders ?? NO_FOLDERS,
       allowedNodeIds: extra.nodeIds,
+      /** The environment's own allowed domains (the app-wide list applies too); an environment setting. */
+      domainPatterns: extra.access === 'full' ? env.domainPatterns : [],
       maintenance: extra.maintenance ?? null,
       /** Open shutdown / kill switch incidents of the environment, with their items. */
       incidents: extra.incidents ?? [],
@@ -622,12 +631,16 @@ export class AppsService {
       assertAppWideScope(actor.scopes, APP_EDIT_SCOPE, app.id);
     }
     if (input.maintenanceOverride !== undefined) assertAppWideScope(actor.scopes, APP_OPERATE_SCOPE, app.id);
+    if (input.domainPatterns !== undefined) assertAppWideScope(actor.scopes, APP_EDIT_SCOPE, app.id);
     const name = input.name?.trim();
     const changes: Partial<typeof apps.$inferInsert> = { updatedAt: new Date() };
     if (name !== undefined && name !== app.name) changes.name = name;
     const description = input.description === undefined ? undefined : input.description || null;
     const descriptionChanged = description !== undefined && description !== app.description;
     if (descriptionChanged) changes.description = description;
+    const domainPatternsChanged =
+      input.domainPatterns !== undefined && !samePatterns(input.domainPatterns, app.domainPatterns);
+    if (domainPatternsChanged) changes.domainPatterns = input.domainPatterns;
     if (input.maintenanceOverride !== undefined && input.maintenanceOverride !== app.maintenanceOverride) {
       changes.maintenanceOverride = input.maintenanceOverride;
       changes.maintenanceOverrideAt = input.maintenanceOverride ? new Date() : null;
@@ -660,6 +673,15 @@ export class AppsService {
         resourceType: 'app',
         resourceId: app.id,
         details: { name: changes.name ?? app.name, cleared: description === null },
+      });
+    }
+    if (domainPatternsChanged) {
+      await this.auditService.log({
+        userId: actor.userId,
+        action: 'app.domain_patterns_update',
+        resourceType: 'app',
+        resourceId: app.id,
+        details: { name: changes.name ?? app.name, from: app.domainPatterns, to: input.domainPatterns },
       });
     }
     if (changes.maintenanceOverride !== undefined) {
@@ -819,7 +841,7 @@ export class AppsService {
     if (input.name !== undefined || input.isProduction !== undefined) {
       assertAppWideScope(actor.scopes, APP_EDIT_SCOPE, app.id);
     }
-    if (input.maintenanceEnabled !== undefined) {
+    if (input.maintenanceEnabled !== undefined || input.domainPatterns !== undefined) {
       assertAppScope(actor.scopes, APP_ENV_MANAGE_SCOPE, app.id, env.id);
     }
     const name = input.name?.trim();
@@ -827,6 +849,8 @@ export class AppsService {
     const markProduction = input.isProduction === true && !env.isProduction;
     const maintenanceChanged =
       input.maintenanceEnabled !== undefined && input.maintenanceEnabled !== env.maintenanceEnabled;
+    const domainPatternsChanged =
+      input.domainPatterns !== undefined && !samePatterns(input.domainPatterns, env.domainPatterns);
     try {
       await this.db.transaction(async (tx) => {
         if (renamed) {
@@ -865,6 +889,12 @@ export class AppsService {
             })
             .where(eq(appEnvironments.id, env.id));
         }
+        if (domainPatternsChanged) {
+          await tx
+            .update(appEnvironments)
+            .set({ domainPatterns: input.domainPatterns, updatedAt: new Date() })
+            .where(eq(appEnvironments.id, env.id));
+        }
       });
     } catch (error) {
       if (isUniqueViolation(error, 'app_environments_name_lower_unique')) {
@@ -882,6 +912,13 @@ export class AppsService {
       });
     if (renamed) await audit('app.environment.rename', { oldName: env.name, newName: name });
     if (markProduction) await audit('app.environment.mark_production', { name: name ?? env.name });
+    if (domainPatternsChanged) {
+      await audit('app.environment.domain_patterns_update', {
+        name: name ?? env.name,
+        from: env.domainPatterns,
+        to: input.domainPatterns,
+      });
+    }
     if (maintenanceChanged) {
       await audit(input.maintenanceEnabled ? 'app.environment.maintenance_on' : 'app.environment.maintenance_off', {
         name: name ?? env.name,

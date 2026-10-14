@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { appListQueryFields } from '@/modules/apps/app-list-query.js';
 
 const domainNameRegex = /^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 
@@ -70,6 +71,7 @@ export const DomainListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(1000).default(20),
   dnsStatus: z.enum(['valid', 'invalid', 'pending', 'unknown']).optional(),
   search: z.string().max(255).optional(),
+  ...appListQueryFields,
 });
 
 export type CreateDomainInput = z.input<typeof CreateDomainSchema>;
