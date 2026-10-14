@@ -1,7 +1,7 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { dockerDeployments } from '@/db/schema/docker-deployments.js';
-import { pageProjects, pageRouteTargets, pageTags } from '@/db/schema/index.js';
+import { pageProjects, pageRouteTargets, pageTags, proxyAdditionalSecureLinks } from '@/db/schema/index.js';
 import { nodes } from '@/db/schema/nodes.js';
 
 export interface PageUpstreamDisplayTarget {
@@ -22,6 +22,8 @@ export type WithDockerUpstreamDisplay<T> = T & {
   dockerNodeSlug: string | null;
   dockerNodeAppearanceColor: string | null;
   secureLinkActive: boolean;
+  /** Secure Links of the route besides its own: user-managed ones and the ones of additional routes. */
+  additionalSecureLinkCount: number;
   pageTarget: PageUpstreamDisplayTarget | null;
 };
 
@@ -41,7 +43,9 @@ export async function attachDockerUpstreamDisplay<
     ...new Set(hosts.flatMap((host) => (host.upstreamKind === 'pages' && host.id ? [host.id] : []))),
   ];
 
-  const [deployments, dockerNodes, pagesTargets] = await Promise.all([
+  const hostIds = [...new Set(hosts.flatMap((host) => (host.id ? [host.id] : [])))];
+
+  const [deployments, dockerNodes, pagesTargets, additionalLinkRows] = await Promise.all([
     deploymentIds.length > 0
       ? db
           .select({ id: dockerDeployments.id, name: dockerDeployments.name })
@@ -74,7 +78,23 @@ export async function attachDockerUpstreamDisplay<
           .innerJoin(pageTags, eq(pageTags.id, pageRouteTargets.tagId))
           .where(inArray(pageRouteTargets.proxyHostId, pageHostIds))
       : [],
+    // Availability members are internal to Availability and never shown as Secure Links of the route.
+    hostIds.length > 0
+      ? db
+          .select({ proxyHostId: proxyAdditionalSecureLinks.proxyHostId })
+          .from(proxyAdditionalSecureLinks)
+          .where(
+            and(
+              inArray(proxyAdditionalSecureLinks.proxyHostId, hostIds),
+              inArray(proxyAdditionalSecureLinks.purpose, ['user_managed', 'additional_route'])
+            )
+          )
+      : [],
   ]);
+  const additionalCounts = new Map<string, number>();
+  for (const { proxyHostId } of additionalLinkRows) {
+    additionalCounts.set(proxyHostId, (additionalCounts.get(proxyHostId) ?? 0) + 1);
+  }
   const names = new Map(deployments.map((deployment) => [deployment.id, deployment.name]));
   const slugs = new Map(dockerNodes.map((node) => [node.id, node.slug]));
   const colors = new Map(dockerNodes.map((node) => [node.id, node.appearanceColor]));
@@ -103,6 +123,7 @@ export async function attachDockerUpstreamDisplay<
     return {
       ...visible,
       secureLinkActive,
+      additionalSecureLinkCount: host.id ? (additionalCounts.get(host.id) ?? 0) : 0,
       dockerDeploymentName: host.dockerDeploymentId ? (names.get(host.dockerDeploymentId) ?? null) : null,
       dockerNodeSlug: host.dockerNodeId ? (slugs.get(host.dockerNodeId) ?? null) : null,
       dockerNodeAppearanceColor: host.dockerNodeId ? (colors.get(host.dockerNodeId) ?? null) : null,
