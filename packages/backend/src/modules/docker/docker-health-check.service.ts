@@ -817,7 +817,7 @@ export class DockerHealthCheckService {
       )
       .limit(1);
     // A runtime's exited/offline state is not stop intent. Only a successful,
-    // explicit Stop after its last Start/Restart/Create/Kill/Remove qualifies.
+    // explicit Stop after its last Start/Restart/Create/Kill/Remove/running Recreate qualifies.
     const runtimeIds = [row.containerName, ...(resource?.runtimeId ? [resource.runtimeId] : [])];
     const [lastLifecycle] = await this.db
       .select({ action: auditLog.action })
@@ -827,6 +827,9 @@ export class DockerHealthCheckService {
           eq(auditLog.resourceType, 'docker-container'),
           inArray(auditLog.resourceId, runtimeIds),
           sql`${auditLog.details}->>'nodeId' = ${row.nodeId}`,
+          // A recreate that kept the container stopped (a build rollout or a settings change on a stopped container)
+          // is no lifecycle change: the Stop before it still holds.
+          sql`not (${auditLog.action} = 'docker.container.recreate' and coalesce(${auditLog.details}->>'expectedState', '') = 'created')`,
           inArray(auditLog.action, [
             'docker.container.stop',
             'docker.container.start',

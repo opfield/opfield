@@ -11,6 +11,7 @@ import { formatDockerBuildDuration, useDockerBuildClock } from "./docker-build-d
 import {
   ACTIVE_DOCKER_BUILD_STATUSES as ACTIVE,
   DOCKER_BUILD_STATUS_VARIANT,
+  dockerBuildRolloutNote,
 } from "./docker-build-status";
 
 const RETRYABLE = new Set<DockerBuild["status"]>(["failed", "cancelled", "superseded"]);
@@ -200,7 +201,7 @@ export function DockerBuildsTable({
                 {blocked
                   ? build.artifact.policyReason || "Artifact rejected"
                   : build.status === "succeeded"
-                    ? "Deployment completed"
+                    ? (dockerBuildRolloutNote(build) ?? "Deployment completed")
                     : "Artifact approved"}
               </span>
             </span>

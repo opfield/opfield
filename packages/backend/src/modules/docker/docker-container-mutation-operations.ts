@@ -1542,7 +1542,8 @@ export async function recreateWithConfig(
         userId,
         resourceType: 'docker-container',
         resourceId: containerId,
-        details: { nodeId, name, containerName: name },
+        // A recreate that leaves the container stopped keeps a Stop on request in force (health checks read it).
+        details: { nodeId, name, containerName: name, expectedState },
       });
       if (!options?.skipWebhookCleanup && typeof config.image === 'string') {
         ctx.imageCleanupService?.scheduleCleanupForContainer(nodeId, name, config.image).catch(() => {});

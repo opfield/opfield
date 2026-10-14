@@ -910,7 +910,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_builds',
     description:
-      'List Git-source Docker builds visible to the caller, including exact commit, status, Build Worker, immutable artifact, policy result, and target resource.',
+      'List Git-source Docker builds visible to the caller, including exact commit, status, Build Worker, immutable artifact, policy result, and target resource. A succeeded build whose container, deployment or Compose Project was stopped on request carries progress.rolloutNote (for example "Container stopped — the new image runs on next start"): the new image or revision replaced the old one without starting it and runs on the next start.',
     parameters: {
       type: 'object',
       properties: {
@@ -947,7 +947,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_build',
     description:
-      'Inspect one Git-source build, read incremental build logs, request cancellation, or retry a terminal build. Authorization follows the build target: Docker container/deployment, Compose Project, or Pages Project. A built container that fails readiness (healthy, or running 10 s without a restart within 60 s) is returned to its previous image and the build fails with BUILD_ROLLOUT_ROLLED_BACK (BUILD_ROLLOUT_ROLLBACK_FAILED when that return fails); the error carries the container state, exit code, restarts and last log lines. Other rollout failures are BUILD_ROLLOUT_FAILED. A Compose revision whose published port is taken on the node fails at revision creation with COMPOSE_HOST_PORT_IN_USE. Build images of deleted workloads are removed from the node automatically; an unused build image can also be removed with remove_docker_image.',
+      'Inspect one Git-source build, read incremental build logs, request cancellation, or retry a terminal build. Authorization follows the build target: Docker container/deployment, Compose Project, or Pages Project. A target stopped on request is not started by a build: its image (for a deployment its release, for a Compose Project its revision) is replaced, the build succeeds without a readiness wait and carries progress.rolloutNote; the first build of a container created from a Git source still creates and starts it. A built container that fails readiness (healthy, or running 10 s without a restart within 60 s) is returned to its previous image and the build fails with BUILD_ROLLOUT_ROLLED_BACK (BUILD_ROLLOUT_ROLLBACK_FAILED when that return fails); the error carries the container state, exit code, restarts and last log lines. Other rollout failures are BUILD_ROLLOUT_FAILED. A Compose revision whose published port is taken on the node fails at revision creation with COMPOSE_HOST_PORT_IN_USE. Build images of deleted workloads are removed from the node automatically; an unused build image can also be removed with remove_docker_image.',
     parameters: {
       type: 'object',
       properties: {
