@@ -653,7 +653,7 @@ const INSTALLER_ENVS: Record<string, string> = {
     'SANDBOX_RUNNER_WORKSPACE_DIR=/var/lib/gateway/sandbox-workspaces',
     '',
   ].join('\n'),
-  // install.sh before the Go installer.
+  // legacy-name: the .env the bash installer wrote before the Go installer, with its own header comment.
   'bash installer': [
     '# Gateway Configuration',
     'GATEWAY_IMAGE=ghcr.io/the-square-labs/gateway',
