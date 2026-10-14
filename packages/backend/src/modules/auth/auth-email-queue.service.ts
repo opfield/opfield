@@ -1,9 +1,11 @@
-import { Queue, Worker } from 'bullmq';
+import { randomUUID } from 'node:crypto';
+import { Queue, UnrecoverableError, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import { firstShutdownReport, isShuttingDown } from '@/services/shutdown-state.js';
 import type { AuthEmailInput } from './auth-email.templates.js';
+import { CloudMailRefusedError } from './auth-mail-cloud.js';
 
 const logger = createChildLogger('AuthEmailQueue');
 const AUTH_EMAIL_QUEUE_NAME = 'auth-email-delivery';
@@ -18,6 +20,8 @@ export type SecurityAuthEmailInput = Exclude<AuthEmailInput, { kind: 'smtp_confi
 interface AuthEmailDelivery {
   recipient: string;
   input: SecurityAuthEmailInput;
+  /** One key per email, the same on every retry (cloud email sends it once); absent on jobs of older releases. */
+  dedupKey?: string;
 }
 
 interface EncryptedAuthEmailJob {
@@ -58,7 +62,13 @@ export class AuthEmailQueueService {
             encryptedDek: job.data.encryptedDek,
           })
         ) as AuthEmailDelivery;
-        await deliver(delivery);
+        try {
+          await deliver(delivery);
+        } catch (error) {
+          // The account refused it for good (quota, invalid, unknown kind): fail now, a retry cannot change that.
+          if (error instanceof CloudMailRefusedError) throw new UnrecoverableError(`${error.code}: ${error.message}`);
+          throw error;
+        }
       },
       { connection: this.workerConnection as never, concurrency: 2 }
     );
@@ -81,7 +91,9 @@ export class AuthEmailQueueService {
   }
 
   async enqueue(recipient: string, input: SecurityAuthEmailInput): Promise<void> {
-    const payload = this.cryptoService.encryptString(JSON.stringify({ recipient, input } satisfies AuthEmailDelivery));
+    const payload = this.cryptoService.encryptString(
+      JSON.stringify({ recipient, input, dedupKey: randomUUID() } satisfies AuthEmailDelivery)
+    );
     await this.queue.add('deliver', payload);
   }
 

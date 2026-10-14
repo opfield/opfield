@@ -112,6 +112,17 @@ export interface AuthProvisioningSettings {
     senderName: string | null;
     senderEmail: string | null;
     verifiedAt: string | null;
+    /** cloud: sign-in emails go through Opfield Cloud email (then configured/verifiedAt describe it). */
+    transport?: "smtp" | "cloud";
+    /** Managed installations whose Opfield account set up cloud email; null elsewhere. */
+    cloud?: {
+      available: boolean;
+      active: boolean;
+      ownSmtp: boolean;
+      from: string | null;
+      limits: { month: number; day: number; hour: number } | null;
+      since: string | null;
+    } | null;
   };
   oidc?: {
     configured: boolean;

@@ -1,5 +1,6 @@
 import type { OpfieldAccountDetachReason } from '@/modules/auth/oidc-settings.service.js';
 import type { PublicAliasView } from '@/services/console-tls/console-tls-alias.js';
+import type { CloudMailConfigInput } from './cloud-link-mail.js';
 /** Code alphabet of the account portal: A–Z without I and O, digits 2–9. */
 export const CLOUD_CODE_ALPHABET = /^[A-HJ-NP-Z2-9]{8}$/;
 export const CLOUD_ENROLL_TIMEOUT_MS = 15_000;
@@ -323,6 +324,8 @@ export interface CloudLinkActions {
    * once; the certificate is issued behind it, and the account asks again to read the progress.
    */
   publicAlias(input: { domain: string | null; retry: boolean }): Promise<PublicAliasView>;
+  /** mail-config (managed only): the cloud email the account set up, or none; answers the transport in use. */
+  mailConfig(input: CloudMailConfigInput): Promise<{ transport: 'cloud' | 'smtp' }>;
 }
 
 /** Request kinds that only read; identical successful reads share one audit entry. Actions never do. */

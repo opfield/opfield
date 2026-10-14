@@ -154,6 +154,10 @@ export function AuthProvisioningSection({
     mfaGracePeriodIsValid,
     mfaHasChanges,
     smtpHasChanges,
+    cloudMail,
+    showsOwnSmtpForm,
+    ownSmtpPending,
+    setOwnSmtp,
   } = useAuthProvisioningSettings(canEdit);
   const hasScope = useAuthStore((state) => state.hasScope);
   // SMTP, the OIDC provider, the public URL and verified-email enforcement decide who can prove
@@ -1047,6 +1051,8 @@ export function AuthProvisioningSection({
         description={
           identityTrustLocked ? (
             <IdentityTrustHint />
+          ) : cloudMail && !showsOwnSmtpForm ? (
+            "Sign-in emails go through Opfield Cloud email"
           ) : settings.smtp?.verifiedAt ? (
             <>
               Verified <RelativeTime value={settings.smtp.verifiedAt} />
@@ -1063,25 +1069,48 @@ export function AuthProvisioningSection({
               disabled={
                 !canEdit ||
                 isSavingLocalAuth ||
-                (!canEditIdentityTrust && (!settings.smtp?.configured || smtpHasChanges))
+                (showsOwnSmtpForm &&
+                  !canEditIdentityTrust &&
+                  (!settings.smtp?.configured || smtpHasChanges))
               }
             >
               Send test
             </Button>
-            <Button
-              aria-label="Save SMTP settings"
-              onClick={() => saveSmtp()}
-              pending={isSavingLocalAuth}
-              disabled={!canEditIdentityTrust || !smtpHasChanges}
-            >
-              <Save className="h-4 w-4" />
-              Save
-            </Button>
+            {showsOwnSmtpForm && (
+              <Button
+                aria-label="Save SMTP settings"
+                onClick={() => saveSmtp()}
+                pending={isSavingLocalAuth}
+                disabled={!canEditIdentityTrust || (!smtpHasChanges && !ownSmtpPending)}
+              >
+                <Save className="h-4 w-4" />
+                Save
+              </Button>
+            )}
           </div>
         }
-        dirty={smtpHasChanges}
+        dirty={smtpHasChanges || ownSmtpPending}
       >
-        <div className="divide-y divide-border">
+        {cloudMail && (
+          <div className={showsOwnSmtpForm ? "border-b border-border" : undefined}>
+            <SettingsControlRow
+              title="Use my own SMTP"
+              description={
+                showsOwnSmtpForm
+                  ? `Opfield Cloud email (${cloudMail.from}) is not used. Sign-in emails go through the SMTP below.`
+                  : `Opfield Cloud email sends from ${cloudMail.from}${cloudMail.limits ? `, up to ${cloudMail.limits.month} a month, ${cloudMail.limits.day} a day and ${cloudMail.limits.hour} an hour` : ""}.`
+              }
+            >
+              <Switch
+                ariaLabel="Use my own SMTP"
+                checked={showsOwnSmtpForm}
+                disabled={!canEditIdentityTrust || isSavingLocalAuth}
+                onChange={(checked) => void setOwnSmtp(checked)}
+              />
+            </SettingsControlRow>
+          </div>
+        )}
+        <div className="divide-y divide-border" hidden={!showsOwnSmtpForm}>
           <SettingsControlRow title="Email provider" description={selectedSmtpPreset.description}>
             <Select
               value={smtpPreset}
@@ -1226,7 +1255,9 @@ export function AuthProvisioningSection({
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Save the current SMTP configuration and send a test message to this address.
+              {cloudMail && !showsOwnSmtpForm
+                ? "Send a test message through Opfield Cloud email to this address."
+                : "Save the current SMTP configuration and send a test message to this address."}
             </p>
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="smtp-test-email-kind">

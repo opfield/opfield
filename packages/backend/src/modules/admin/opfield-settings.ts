@@ -226,7 +226,10 @@ export async function readOpfieldSettings(
       senderName: null,
       senderEmail: null,
       verifiedAt: null,
+      transport: 'smtp' as const,
+      cloud: null,
     },
+    cloudPublicAlias: null,
     oidc: {
       configured: false,
       issuer: null,
@@ -358,6 +361,29 @@ export async function updateOpfieldSettings(
       await authMailService.saveConfig(input.smtp);
       if (input.smtp.testRecipient)
         await authMailService.sendTestEmail(input.smtp.testRecipient, input.smtp.testEmailKind);
+    }
+    if (input.smtpTransport !== undefined) {
+      // Own SMTP takes over sign-in emails only once verified while password or email-code sign-in is on.
+      const methods = { ...(await authSettingsService.getConfig()).methods, ...input.methods };
+      if (
+        input.smtpTransport === 'smtp' &&
+        (methods.password || methods.emailOtp) &&
+        !(await authMailService.ownSmtpVerified())
+      ) {
+        throw new AppError(
+          409,
+          'SMTP_NOT_VERIFIED',
+          'Send a test through your SMTP before using it: password or email-code sign-in is on'
+        );
+      }
+      await authMailService.setTransport(input.smtpTransport, actor.user.id);
+    }
+    if (input.mailTest) {
+      await authMailService.sendTransportTest(
+        input.mailTest.recipient,
+        input.mailTest.kind,
+        (await generalSettingsService.getConfig()).publicUrl
+      );
     }
     if (!input.oidc && !input.oidcProviderAction && turnsSignInMethodOff(input.methods)) {
       // A sign-in method switched off must leave an administrator who can still sign in.

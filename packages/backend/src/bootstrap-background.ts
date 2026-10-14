@@ -25,12 +25,14 @@ import { AuditService } from '@/modules/audit/audit.service.js';
 import { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
 import { AuthService } from '@/modules/auth/auth.service.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
+import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { backupRuntime } from '@/modules/backups/backup-runtime.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
 import { createCloudLinkActions } from '@/modules/cloud-link/cloud-link-actions.js';
 import { CloudLinkAgent } from '@/modules/cloud-link/cloud-link-agent.js';
 import { CloudLinkEnrollFile, createEnrollFileLicense } from '@/modules/cloud-link/cloud-link-enroll-file.js';
+import { CloudMail } from '@/modules/cloud-link/cloud-link-mail.js';
 import { CloudManagedSso } from '@/modules/cloud-link/cloud-link-managed-sso.js';
 import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
 import { createCloudSsoClient } from '@/modules/cloud-link/cloud-link-sso-client.js';
@@ -246,6 +248,14 @@ export async function initializeBackgroundServices(): Promise<void> {
       createCloudLinkProbe(diagnosticsService, env.APP_VERSION, createCloudLinkActions())
     )
   );
+  // Opfield Cloud email of a managed installation: sign-in emails go to the account over the link.
+  const cloudMail = new CloudMail({
+    db,
+    managedByCloud: () => container.resolve(CloudLinkService).managedByCloud(),
+    request: (type, params) => container.resolve(CloudLinkAgent).request(type, params),
+  });
+  container.registerInstance(CloudMail, cloudMail);
+  container.resolve(AuthMailService).setCloudTransport(cloudMail);
   // When the cloud link ends or switches accounts, the sign-in the cloud gave goes with it (see CloudSsoClient.detach).
   const cloudSsoClient = createCloudSsoClient();
   container.resolve(CloudLinkService).setSignInDetacher((reason) => cloudSsoClient.detach(reason));

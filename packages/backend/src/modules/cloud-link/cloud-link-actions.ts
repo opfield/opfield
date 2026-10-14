@@ -20,6 +20,7 @@ import {
   DEFAULT_RELAY_SERVICE_PORT,
   resolveCloudNodeKind,
 } from './cloud-link.types.js';
+import { CloudMail } from './cloud-link-mail.js';
 import { createCloudSsoClient } from './cloud-link-sso-client.js';
 import { createCloudSsoRevoker } from './cloud-link-sso-revoke.js';
 
@@ -138,6 +139,11 @@ export function createCloudLinkActions(): CloudLinkActions {
         );
       }
       return alias.desire(input);
+    },
+
+    // Opfield Cloud email: where sign-in emails go while the owner keeps the cloud email (CloudMail).
+    async mailConfig(input) {
+      return container.resolve(CloudMail).configure(input);
     },
 
     // Mirrors POST /api/system/update (Settings → Update now).

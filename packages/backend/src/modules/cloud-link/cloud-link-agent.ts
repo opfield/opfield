@@ -21,6 +21,7 @@ import {
   type CloudSocketState,
   type CloudSocketStatus,
 } from './cloud-link.types.js';
+import { CloudOutboundRequests, type CloudPortalAnswer, parseCloudAnswer } from './cloud-link-outbound.js';
 import { CloudRequestAuditCoalescer } from './cloud-link-request-audit.js';
 import { answerCloudRequest, parseCloudRequest } from './cloud-link-requests.js';
 
@@ -105,6 +106,8 @@ export class CloudLinkAgent {
   /** The hello the open socket last sent (JSON); null before the hello. */
   private helloSent: string | null = null;
   private readonly requestAudit: CloudRequestAuditCoalescer;
+  /** Requests this installation sent the account (mail), waiting for their answers. */
+  private readonly outbound = new CloudOutboundRequests();
 
   constructor(
     private readonly service: CloudLinkService,
@@ -143,6 +146,14 @@ export class CloudLinkAgent {
     this.service.setLiveRequestWindowsReader(null);
     await this.requestAudit.flush();
     await this.releaseLease();
+  }
+
+  /**
+   * Sends the account a request of the installation's own (such as mail) and waits for its answer. Fails at once
+   * while the socket is not open here (offline, or another replica holds the link), and after 15 s.
+   */
+  request(type: string, params: Record<string, unknown>): Promise<CloudPortalAnswer> {
+    return this.outbound.send(this.socket, type, params);
   }
 
   /** Runs a reconciliation now, or right after the one in progress. */
@@ -298,7 +309,14 @@ export class CloudLinkAgent {
     socket.on('message', (data, isBinary) => {
       this.armIdleTimer(socket);
       if (isBinary) return;
-      const request = parseCloudRequest(data.toString());
+      const text = data.toString();
+      // An answer to the installation's own request (id and ok, no type), else a request of the account.
+      const answer = parseCloudAnswer(text);
+      if (answer) {
+        this.outbound.answer(answer);
+        return;
+      }
+      const request = parseCloudRequest(text);
       if (request) void this.handleRequest(socket, request);
     });
     socket.on('error', (error) => {
@@ -307,6 +325,7 @@ export class CloudLinkAgent {
       lastError = status ? `Your cloud account refused the connection (HTTP ${status})` : error.message;
     });
     socket.on('close', (code) => {
+      this.outbound.failAll(socket, `The cloud link socket closed (code ${code})`);
       if (this.socket === socket) {
         this.socket = null;
         this.helloSent = null;
@@ -369,6 +388,7 @@ export class CloudLinkAgent {
     this.socket = null;
     if (!socket) return;
     void this.requestAudit.flush();
+    this.outbound.failAll(socket, reason);
     socket.removeAllListeners('close');
     socket.on('error', () => undefined);
     if (socket.readyState === WebSocket.OPEN) socket.close(code, reason);

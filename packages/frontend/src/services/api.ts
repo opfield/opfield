@@ -725,6 +725,13 @@ class ApiClient extends withAppsApi(
       testRecipient?: string;
       testEmailKind?: "smtp_configuration" | "password_setup" | "password_reset" | "email_otp";
     };
+    /** Managed installations with Opfield Cloud email: "smtp" is Use my own SMTP. */
+    smtpTransport?: "smtp" | "cloud";
+    /** A test through the transport in use, without saving SMTP. */
+    mailTest?: {
+      recipient: string;
+      kind?: "smtp_configuration" | "password_setup" | "password_reset" | "email_otp";
+    };
     oidc?: {
       issuer: string;
       clientId: string;

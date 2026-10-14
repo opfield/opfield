@@ -231,6 +231,23 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
           additionalProperties: false,
           description: 'SMTP server used for sign-in emails. Requires admin:system unless unchanged.',
         },
+        smtpTransport: {
+          type: 'string',
+          enum: ['smtp', 'cloud'],
+          description:
+            'Managed installations with Opfield Cloud email (smtp.cloud.available): "smtp" uses your own SMTP, "cloud" goes back to the cloud email. Requires admin:system.',
+        },
+        mailTest: {
+          type: 'object',
+          properties: {
+            recipient: { type: 'string' },
+            kind: { type: 'string', enum: ['smtp_configuration', 'password_setup', 'password_reset', 'email_otp'] },
+          },
+          required: ['recipient'],
+          additionalProperties: false,
+          description:
+            'Sends a test email through the transport in use (cloud email or saved SMTP) without saving SMTP.',
+        },
         oidc: {
           type: 'object',
           properties: {

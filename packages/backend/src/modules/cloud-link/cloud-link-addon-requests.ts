@@ -7,9 +7,12 @@ import {
 } from './cloud-link.types.js';
 
 /** Kinds the account sends a managed installation for its add-ons; idempotent desired-state requests. */
-export const CLOUD_ADDON_REQUEST_TYPES: ReadonlySet<string> = new Set(['public-alias']);
+export const CLOUD_ADDON_REQUEST_TYPES: ReadonlySet<string> = new Set(['public-alias', 'mail-config']);
 
 const MAX_DOMAIN_LENGTH = 253;
+const MAX_EMAIL_LENGTH = 254;
+const MAX_MAIL_LIMIT = 1_000_000;
+const EMAIL_PATTERN = /^[^@\s"<>]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -69,7 +72,43 @@ export async function answerAddonRequest(
         return addonFailure(request.id, error);
       }
     }
+    case 'mail-config': {
+      const { enabled, from, limits } = request.params;
+      if (typeof enabled !== 'boolean') {
+        return invalid(request.id, 'INVALID_MAIL_CONFIG', 'params.enabled is true or false');
+      }
+      if (!enabled) return answerMailConfig(probe, request.id, { enabled: false });
+      if (typeof from !== 'string' || from.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(from.trim())) {
+        return invalid(request.id, 'INVALID_MAIL_CONFIG', 'params.from is the address the account sends from');
+      }
+      const limit = (value: unknown) =>
+        typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= MAX_MAIL_LIMIT ? value : null;
+      const values = limits && typeof limits === 'object' ? (limits as Record<string, unknown>) : {};
+      const month = limit(values.month);
+      const day = limit(values.day);
+      const hour = limit(values.hour);
+      if (month === null || day === null || hour === null) {
+        return invalid(request.id, 'INVALID_MAIL_CONFIG', 'params.limits has month, day and hour as positive integers');
+      }
+      return answerMailConfig(probe, request.id, {
+        enabled: true,
+        from: from.trim().toLowerCase(),
+        limits: { month, day, hour },
+      });
+    }
     default:
       return { id: request.id, ok: false, error: `Unknown request type: ${request.type.slice(0, 64)}` };
+  }
+}
+
+async function answerMailConfig(
+  probe: CloudLinkProbe,
+  id: string,
+  input: Parameters<CloudLinkProbe['mailConfig']>[0]
+): Promise<CloudAnswer> {
+  try {
+    return { id, ok: true, data: await probe.mailConfig(input) };
+  } catch (error) {
+    return addonFailure(id, error);
   }
 }

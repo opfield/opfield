@@ -523,6 +523,7 @@ describe('admin Opfield settings route permissions', () => {
       },
       availableGroups: [],
       cloudManaged: false,
+      cloudPublicAlias: null,
       opfieldAccountSignIn: { available: false, clientIssued: false, pendingRequest: null, detached: false },
     });
   });
