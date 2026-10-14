@@ -1,7 +1,6 @@
 import { and, desc, eq, inArray, lte, or, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
-  auditLog,
   type DockerHealthEntry,
   type DockerHealthStatus,
   dockerAccessResources,
@@ -23,6 +22,7 @@ import type { DockerWorkloadResolverService } from './availability/docker-worklo
 import type { DockerHealthCheckUpsertInput } from './docker.schemas.js';
 import { isDockerDeploymentManaged } from './docker-deployment-labels.js';
 import { DEFAULT_CONFIG, healthAction, normalizePath, parseDispatchResult } from './docker-health-check.helpers.js';
+import { lastLifecycleIsStop } from './docker-stop-intent.js';
 
 const logger = createChildLogger('DockerHealthCheckService');
 
@@ -816,31 +816,9 @@ export class DockerHealthCheckService {
         and(eq(dockerAccessResources.nodeId, row.nodeId), eq(dockerAccessResources.resourceKey, row.containerName))
       )
       .limit(1);
-    // A runtime's exited/offline state is not stop intent. Only a successful,
-    // explicit Stop after its last Start/Restart/Create/Kill/Remove qualifies.
+    // Stop intent is the shared rule: an explicit Stop after the last lifecycle action (docker-stop-intent.ts).
     const runtimeIds = [row.containerName, ...(resource?.runtimeId ? [resource.runtimeId] : [])];
-    const [lastLifecycle] = await this.db
-      .select({ action: auditLog.action })
-      .from(auditLog)
-      .where(
-        and(
-          eq(auditLog.resourceType, 'docker-container'),
-          inArray(auditLog.resourceId, runtimeIds),
-          sql`${auditLog.details}->>'nodeId' = ${row.nodeId}`,
-          inArray(auditLog.action, [
-            'docker.container.stop',
-            'docker.container.start',
-            'docker.container.restart',
-            'docker.container.create',
-            'docker.container.recreate',
-            'docker.container.kill',
-            'docker.container.remove',
-          ])
-        )
-      )
-      .orderBy(desc(auditLog.createdAt), desc(auditLog.id))
-      .limit(1);
-    return lastLifecycle?.action === 'docker.container.stop';
+    return lastLifecycleIsStop(this.db, row.nodeId, runtimeIds);
   }
 
   private async availabilityHealth(

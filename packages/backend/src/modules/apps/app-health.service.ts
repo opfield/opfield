@@ -19,6 +19,7 @@ import {
 } from '@/db/schema/index.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
 import { DockerSnapshotService } from '@/modules/docker/docker-snapshot.service.js';
+import { containerExitCode, stoppedOnRequest } from '@/modules/docker/docker-stop-intent.js';
 import { ObjectStorageMonitoringService } from '@/modules/object-storage/object-storage-monitoring.service.js';
 import { effectiveMaintenance } from '@/modules/proxy/effective-maintenance.js';
 import { CacheService } from '@/services/cache.service.js';
@@ -94,24 +95,8 @@ export function withAvailabilityState(
   return health;
 }
 
-/** Docker's exit code from a container list status ("Exited (137) 3 minutes ago"), or null. */
-export function containerExitCode(status: string | null | undefined): number | null {
-  const match = /^exited\s*\((-?\d+)\)/i.exec(String(status ?? '').trim());
-  return match ? Number(match[1]) : null;
-}
-
-/**
- * Whether an exited container was stopped on request rather than crashed. A stop (Opfield, the API, MCP or
- * `docker stop`) sends the stop signal and, after the timeout, SIGKILL: the process exits 0 or with the signal's code
- * (130 SIGINT, 143 SIGTERM, 137 SIGKILL; `docker kill` is 137 too). A process that crashes exits with another code; a
- * kernel OOM kill is also 137 but Docker marks it OOMKilled, so 137 counts as a stop only when the inspect says it was
- * not one (unknown is a crash).
- */
-export function stoppedOnRequest(exitCode: number | null, oomKilled: boolean | null | undefined): boolean {
-  if (exitCode === null || oomKilled === true) return false;
-  if (exitCode === 0 || exitCode === 130 || exitCode === 143) return true;
-  return exitCode === 137 && oomKilled === false;
-}
+// Stop intent is shared with the Docker health check and Git build rollouts.
+export { containerExitCode, stoppedOnRequest };
 
 /** How a container runs: Docker's state, its list status (with the exit code) and, for exit 137, the OOM flag. */
 export interface ContainerRuntimeState {

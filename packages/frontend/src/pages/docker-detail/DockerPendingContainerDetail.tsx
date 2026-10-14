@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { PageBackButton } from "@/components/common/PageBackButton";
@@ -17,6 +17,7 @@ import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { DockerContainerDetail } from "../DockerContainerDetail";
 import { DockerResourceGitTabs } from "./DockerResourceGitTabs";
+import { EnvironmentTab } from "./EnvironmentTab";
 import type { InspectData } from "./helpers";
 import { LinksPanel } from "./LinksPanel";
 import {
@@ -167,11 +168,18 @@ export function DockerPendingContainerDetail({
             />
           </TabsContent>
           <TabsContent value="environment">
-            <PendingContainerLinks
-              nodeId={nodeId}
-              containerName={containerName}
-              resourceScope={resourceScope}
-            />
+            <div className="space-y-4 pb-6">
+              <PendingContainerLinks
+                nodeId={nodeId}
+                containerName={containerName}
+                resourceScope={resourceScope}
+              />
+              <PendingContainerEnvironment
+                nodeId={nodeId}
+                containerName={containerName}
+                scopeResourceId={String(snapshot.scopeResourceId ?? "")}
+              />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
@@ -191,10 +199,93 @@ const NO_STORAGE_LINK_CHANGES: ManagedStorageLinkDraft = {
   pendingAdditionVariableNames: [],
 };
 
+/** `KEY=value` entries as a record. */
+function envRecord(entries: string[]): Record<string, string> {
+  return Object.fromEntries(
+    entries.map((entry) => {
+      const separator = entry.indexOf("=");
+      return separator >= 0 ? [entry.slice(0, separator), entry.slice(separator + 1)] : [entry, ""];
+    })
+  );
+}
+
+/**
+ * The environment variables and secrets of a container its first build has not created yet: saved under its
+ * reserved name, and the first build creates and starts the container with them. The editors of the Environment
+ * tab, saving without a recreate.
+ */
+function PendingContainerEnvironment({
+  nodeId,
+  containerName,
+  scopeResourceId,
+}: {
+  nodeId: string;
+  containerName: string;
+  scopeResourceId: string;
+}) {
+  const { hasScope } = useAuthStore();
+  const canEdit = hasScope(`docker:containers:environment:${nodeId}/${scopeResourceId}`);
+  const [env, setEnv] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!canEdit) {
+      setEnv({});
+      return;
+    }
+    void api
+      .getContainerEnv(nodeId, containerName)
+      .then((entries) => {
+        if (active) setEnv(envRecord(entries));
+      })
+      .catch((error) => toastApiError(error, "Failed to fetch environment"));
+    return () => {
+      active = false;
+    };
+  }, [canEdit, nodeId, containerName]);
+  const secretApi = useMemo(
+    () => ({
+      list: () => api.listDockerSecrets(nodeId, containerName),
+      create: (key: string, value: string) =>
+        api.createDockerSecret(nodeId, containerName, key, value),
+      update: (id: string, value: string) =>
+        api.updateDockerSecret(nodeId, containerName, id, value),
+      delete: (id: string) => api.deleteDockerSecret(nodeId, containerName, id),
+    }),
+    [nodeId, containerName]
+  );
+  if (!env) return null;
+  return (
+    <EnvironmentTab
+      nodeId={nodeId}
+      containerId={containerName}
+      containerName={containerName}
+      scopeResourceId={scopeResourceId}
+      serviceEnv={env}
+      onSaveServiceEnv={async (next) => {
+        // Without the environment permission only the secrets (saved before this) change.
+        if (!canEdit) return;
+        const removeEnv = Object.keys(env).filter((key) => !Object.hasOwn(next, key));
+        await api.updateContainerEnv(
+          nodeId,
+          containerName,
+          next,
+          removeEnv.length > 0 ? removeEnv : undefined
+        );
+        setEnv(next);
+      }}
+      secretApi={secretApi}
+      environmentDescription="Applied when the first build creates the container"
+      secretsDescription="Applied when the first build creates the container"
+      serviceSaveLabel="Save"
+      serviceSaveDescription="Environment changes are saved and apply when the first build creates the container. Continue?"
+      flushBottom
+    />
+  );
+}
+
 /**
  * The Environment tab's managed links for a container its first build has not created yet. Links save pending into
- * the reservation and the first build creates the container with them. The container has no environment to edit
- * before then, so only the links are shown.
+ * the reservation and the first build creates the container with them.
  */
 function PendingContainerLinks({
   nodeId,
@@ -257,50 +348,43 @@ function PendingContainerLinks({
     }
   };
 
-  if (!canLink) {
-    return (
-      <div className="py-12 text-center text-muted-foreground">
-        You don't have permission to access environment variables or secrets.
-      </div>
-    );
-  }
+  // The environment editors below say when the caller may not see the environment.
+  if (!canLink) return null;
   return (
-    <div className="space-y-4 pb-6">
-      <LinksPanel
-        description="Private connections to managed databases and managed storage. They apply when the first build creates the container."
-        onSave={() => void save()}
-      >
-        {hasDatabaseNode && (
-          <ManagedDatabaseLinksSection
-            ref={databaseLinksRef}
-            nodeId={nodeId}
-            targetType="container"
-            targetResourceId={containerName}
-            containerName={containerName}
-            disabled={saving}
-            existingVariableNames={storageDraft.managedVariableNames}
-            onDraftChange={setDatabaseDraft}
-            onSaveRequested={() => void save()}
-            recreatesRunningWorkload={false}
-          />
-        )}
-        {canViewStorage && (
-          <ManagedStorageLinksSection
-            ref={storageLinksRef}
-            nodeId={nodeId}
-            targetType="container"
-            targetResourceId={containerName}
-            containerName={containerName}
-            canManage={canManageStorage}
-            canManageCluster={canManageStorageCluster}
-            disabled={saving}
-            existingVariableNames={databaseDraft.managedVariableNames}
-            onDraftChange={setStorageDraft}
-            onSaveRequested={() => void save()}
-            recreatesRunningWorkload={false}
-          />
-        )}
-      </LinksPanel>
-    </div>
+    <LinksPanel
+      description="Private connections to managed databases and managed storage. They apply when the first build creates the container."
+      onSave={() => void save()}
+    >
+      {hasDatabaseNode && (
+        <ManagedDatabaseLinksSection
+          ref={databaseLinksRef}
+          nodeId={nodeId}
+          targetType="container"
+          targetResourceId={containerName}
+          containerName={containerName}
+          disabled={saving}
+          existingVariableNames={storageDraft.managedVariableNames}
+          onDraftChange={setDatabaseDraft}
+          onSaveRequested={() => void save()}
+          recreatesRunningWorkload={false}
+        />
+      )}
+      {canViewStorage && (
+        <ManagedStorageLinksSection
+          ref={storageLinksRef}
+          nodeId={nodeId}
+          targetType="container"
+          targetResourceId={containerName}
+          containerName={containerName}
+          canManage={canManageStorage}
+          canManageCluster={canManageStorageCluster}
+          disabled={saving}
+          existingVariableNames={databaseDraft.managedVariableNames}
+          onDraftChange={setStorageDraft}
+          onSaveRequested={() => void save()}
+          recreatesRunningWorkload={false}
+        />
+      )}
+    </LinksPanel>
   );
 }

@@ -16,7 +16,8 @@ export interface DockerComposeDispatchInput {
   normalizedModel: DockerComposeNormalizedModel | null;
   variables: Record<string, string>;
   secrets: Record<string, string>;
-  action: DockerComposeOperationAction;
+  /** `pull_create` pulls and creates the revision's containers without starting them (a stopped project). */
+  action: DockerComposeOperationAction | 'pull_create';
   options: { removeOrphans?: boolean; volumeNames?: string[] };
 }
 

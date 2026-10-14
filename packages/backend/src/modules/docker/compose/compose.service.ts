@@ -423,7 +423,7 @@ export class DockerComposeService {
     _input: ComposeOperationInput,
     _userId: string,
     _allowProjectDeleting?: boolean,
-    _options?: { appIncident?: boolean }
+    _options?: { appIncident?: boolean; keepStopped?: boolean }
   ): Promise<OperationRow> {
     return commercialModuleUnavailable();
   }

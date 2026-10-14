@@ -14,7 +14,11 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { api } from "@/services/api";
 import type { DockerBuild, DockerBuildLogChunk } from "@/types";
 import { DockerLogViewport } from "./DockerLogViewport";
-import { ACTIVE_DOCKER_BUILD_STATUSES, DOCKER_BUILD_STATUS_VARIANT } from "./docker-build-status";
+import {
+  ACTIVE_DOCKER_BUILD_STATUSES,
+  DOCKER_BUILD_STATUS_VARIANT,
+  dockerBuildRolloutNote,
+} from "./docker-build-status";
 
 const VULNERABILITY_VARIANT: Record<string, "secondary" | "destructive" | "warning"> = {
   critical: "destructive",
@@ -187,6 +191,9 @@ export function DockerBuildDetailsDialog({
             <MetaRow label="Attempt">
               {build.attempt} of {build.maxAttempts}
             </MetaRow>
+            {build.status === "succeeded" && dockerBuildRolloutNote(build) && (
+              <MetaRow label="Deployment">{dockerBuildRolloutNote(build)}</MetaRow>
+            )}
             {build.errorMessage && (
               <MetaRow label="Error">
                 <span className="break-words text-destructive">{build.errorMessage}</span>

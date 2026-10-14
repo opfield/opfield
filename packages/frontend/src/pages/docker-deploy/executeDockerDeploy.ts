@@ -32,6 +32,9 @@ interface ExecuteDockerDeployOptions {
   sourceDockerfilePath: string;
   sourceMode: DockerDeploySourceMode;
   sourceProjectId: string;
+  /** A container from a repository: saved with it and applied when its first build creates and starts it. */
+  env?: Record<string, string>;
+  secrets?: Record<string, string>;
 }
 
 const INTERNAL_DOCKER_REGISTRY_ID = "gateway-internal-registry";
@@ -74,6 +77,8 @@ export async function executeDockerDeploy({
   sourceDockerfilePath,
   sourceMode,
   sourceProjectId,
+  env,
+  secrets,
 }: ExecuteDockerDeployOptions) {
   const credentialRegistryId = deployCredentialRegistryId(deployRegistryId);
 
@@ -124,6 +129,8 @@ export async function executeDockerDeploy({
               name: deployName.trim(),
               restartPolicy: deployRestart,
               runtimeProfile: deployRuntimeProfile,
+              ...(env && Object.keys(env).length > 0 ? { env } : {}),
+              ...(secrets && Object.keys(secrets).length > 0 ? { secrets } : {}),
             },
     });
     toast.success(result.build ? "Resource created and build queued" : "Resource created");

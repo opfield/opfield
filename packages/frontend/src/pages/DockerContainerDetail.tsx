@@ -1164,7 +1164,7 @@ export function DockerContainerDetail({
     }
     const ok = await confirm({
       title: "Remove Container",
-      description: `Remove "${containerDisplayName(container?.Name ?? "")}"? This cannot be undone.`,
+      description: `Remove "${containerDisplayName(container?.Name ?? "")}"? Its environment variables and secrets are deleted with it. This cannot be undone.`,
       confirmLabel: "Remove",
     });
     if (!ok) return;
