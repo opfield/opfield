@@ -865,7 +865,7 @@ export function DockerContainers({
         return (
           <Badge variant="secondary" className="max-w-full font-mono" title={image.title}>
             {image.text}
-        </Badge>
+          </Badge>
         );
       },
     },

@@ -312,10 +312,10 @@ export function PromoteDialog({
                           title={`${item.targetName} · ${TYPE_LABEL[item.type].toLowerCase()}`}
                           description={
                             <>
-                            <span className="block font-mono">{fromTo(item, true)}</span>
+                              <span className="block font-mono">{fromTo(item, true)}</span>
                               {item.build ? (
                                 <span className="block">
-                                Commit {shortCommitSha(item.build.commitSha)}
+                                  Commit {shortCommitSha(item.build.commitSha)}
                                 </span>
                               ) : null}
                               <span className="block">
@@ -346,8 +346,12 @@ export function PromoteDialog({
                           description={
                             <span className="font-mono">
                               {service.changed
-                              ? fromTo(service, true)
-                              : promotedImage(service.to, service.toSource, service.toSourceImage)}
+                                ? fromTo(service, true)
+                                : promotedImage(
+                                    service.to,
+                                    service.toSource,
+                                    service.toSourceImage
+                                  )}
                             </span>
                           }
                         >
@@ -455,9 +459,9 @@ export function PromoteDialog({
                     key={item.pairKey}
                     title={item.targetName}
                     description={
-                  item.error ??
-                  item.detail ??
-                  fromTo(item, item.type === "container" || item.type === "deployment")
+                      item.error ??
+                      item.detail ??
+                      fromTo(item, item.type === "container" || item.type === "deployment")
                     }
                   >
                     <Badge variant={STATUS_BADGE[item.status].variant} size="inline">

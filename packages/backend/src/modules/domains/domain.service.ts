@@ -1057,12 +1057,9 @@ export class DomainsService extends DomainsServiceIngressGroups {
     }
     const inconsistentHost = migrationHosts.find((host) => host.nodeId !== sourceNodeId);
     if (inconsistentHost) {
-      throw new AppError(
-        409,
-        'DOMAIN_INGRESS_HOST_SPLIT',
-        'A related route is assigned to a different Nginx node',
-        { proxyHostId: inconsistentHost.id }
-      );
+      throw new AppError(409, 'DOMAIN_INGRESS_HOST_SPLIT', 'A related route is assigned to a different Nginx node', {
+        proxyHostId: inconsistentHost.id,
+      });
     }
     const sourceNode = await this.getNginxNodeSummary(sourceNodeId);
     if (!sourceNode) throw new AppError(409, 'DOMAIN_INGRESS_SOURCE_MISSING', 'Source Nginx node no longer exists');

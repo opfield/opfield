@@ -19,8 +19,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLoadDashboardBootstrap } from "@/hooks/use-dashboard-bootstrap";
-import { usePinnedApps } from "@/hooks/use-pinned-apps";
 import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
+import { usePinnedApps } from "@/hooks/use-pinned-apps";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { dockerResourceKey } from "@/lib/dashboard-attention";

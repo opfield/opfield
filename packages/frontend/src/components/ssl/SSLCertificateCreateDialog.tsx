@@ -457,29 +457,29 @@ export function SSLCertificateCreateDialog({
             disabled={acmeFlowStarted}
           />
         ) : (
-        <div className="space-y-1.5">
-          <ContentLoading loading={foldersLoading} />
-          <label className="text-sm font-medium">Folder</label>
-          <Select
-            value={folderId || (folderChoices.allowRoot ? "__none__" : "")}
-            onValueChange={(value) => setFolderId(value === "__none__" ? "" : value)}
-            disabled={foldersLoading || acmeFlowStarted}
-          >
-            <SelectTrigger aria-label="Folder" aria-busy={foldersLoading}>
-              <SelectValue
-                placeholder={folderChoices.allowRoot ? "No folder" : "Select a folder"}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {folderChoices.allowRoot && <SelectItem value="__none__">No folder</SelectItem>}
-              {folderChoices.folders.map((folder) => (
-                <SelectItem key={folder.id} value={folder.id}>
-                  {"  ".repeat(folder.depth) + folder.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+          <div className="space-y-1.5">
+            <ContentLoading loading={foldersLoading} />
+            <label className="text-sm font-medium">Folder</label>
+            <Select
+              value={folderId || (folderChoices.allowRoot ? "__none__" : "")}
+              onValueChange={(value) => setFolderId(value === "__none__" ? "" : value)}
+              disabled={foldersLoading || acmeFlowStarted}
+            >
+              <SelectTrigger aria-label="Folder" aria-busy={foldersLoading}>
+                <SelectValue
+                  placeholder={folderChoices.allowRoot ? "No folder" : "Select a folder"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {folderChoices.allowRoot && <SelectItem value="__none__">No folder</SelectItem>}
+                {folderChoices.folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {"  ".repeat(folder.depth) + folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
 
         <Tabs

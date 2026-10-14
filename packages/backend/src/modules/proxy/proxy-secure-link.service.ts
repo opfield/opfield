@@ -559,11 +559,7 @@ export class ProxySecureLinkService {
     actorScopes?: string[]
   ): Promise<ProxyAdditionalSecureLinkRow> {
     if (host.type !== 'proxy' || host.rawConfigEnabled || !host.nodeId) {
-      throw new AppError(
-        409,
-        'ADDITIONAL_SECURE_LINK_UNAVAILABLE',
-        'Additional Secure Links require a managed route'
-      );
+      throw new AppError(409, 'ADDITIONAL_SECURE_LINK_UNAVAILABLE', 'Additional Secure Links require a managed route');
     }
     if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(input.name)) {
       throw new AppError(

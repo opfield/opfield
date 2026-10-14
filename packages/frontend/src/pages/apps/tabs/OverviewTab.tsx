@@ -243,7 +243,7 @@ export function healthyCard(
           ? `${noCheck} without a health check`
           : stopped > 0
             ? `${plural(stopped, "container")} stopped`
-          : "Every container is healthy",
+            : "Every container is healthy",
   };
 }
 
@@ -399,27 +399,27 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
         const dbCpu = covered(db.cpuHistory);
         const diskLimit = db.diskLimitBytes ?? null;
         return (
-        <Section key={db.id} title={`Database · ${db.name} · ${env.name}`}>
-          <CardRow>
-            <StatCard
-              label="Disk"
-              value={db.diskBytes === null ? "—" : formatBytes(db.diskBytes)}
-              icon={HardDrive}
+          <Section key={db.id} title={`Database · ${db.name} · ${env.name}`}>
+            <CardRow>
+              <StatCard
+                label="Disk"
+                value={db.diskBytes === null ? "—" : formatBytes(db.diskBytes)}
+                icon={HardDrive}
                 history={disk.history}
                 sparklineMax={sparkScale(disk.history, diskLimit)}
-              progress={
-                db.diskPercent === null
-                  ? undefined
-                  : {
-                      percent: db.diskPercent,
-                      color: db.diskPercent >= 80 ? "var(--color-warning)" : undefined,
-                    }
-              }
-              valueColor={
-                db.diskPercent !== null && db.diskPercent >= 80
-                  ? "var(--color-warning-text)"
-                  : undefined
-              }
+                progress={
+                  db.diskPercent === null
+                    ? undefined
+                    : {
+                        percent: db.diskPercent,
+                        color: db.diskPercent >= 80 ? "var(--color-warning)" : undefined,
+                      }
+                }
+                valueColor={
+                  db.diskPercent !== null && db.diskPercent >= 80
+                    ? "var(--color-warning-text)"
+                    : undefined
+                }
                 subtitle={withSince(
                   db.diskPercent !== null && diskLimit
                     ? `${share(db.diskPercent)} of ${formatBytes(diskLimit)} limit`
@@ -428,38 +428,38 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
                       : "No size limit",
                   disk.since
                 )}
-              color={DATABASE_COLORS.database_size_bytes ?? "var(--color-hue-cyan)"}
-            />
-            <StatCard
-              label="Connections"
-              value={
-                db.connections === null
-                  ? "—"
-                  : db.maxConnections
-                    ? `${db.connections}/${db.maxConnections}`
-                    : String(db.connections)
-              }
-              icon={Users}
+                color={DATABASE_COLORS.database_size_bytes ?? "var(--color-hue-cyan)"}
+              />
+              <StatCard
+                label="Connections"
+                value={
+                  db.connections === null
+                    ? "—"
+                    : db.maxConnections
+                      ? `${db.connections}/${db.maxConnections}`
+                      : String(db.connections)
+                }
+                icon={Users}
                 history={connections.history}
                 sparklineMax={sparkScale(connections.history, db.maxConnections)}
-              progress={
-                db.connections !== null && db.maxConnections
-                  ? { percent: (db.connections / db.maxConnections) * 100 }
-                  : undefined
-              }
+                progress={
+                  db.connections !== null && db.maxConnections
+                    ? { percent: (db.connections / db.maxConnections) * 100 }
+                    : undefined
+                }
                 subtitle={
                   db.connections === null ? "No data yet" : withSince(undefined, connections.since)
                 }
-              color={DATABASE_COLORS.total_connections ?? "var(--color-hue-cyan)"}
-            />
-            <StatCard
-              label={THROUGHPUT_LABEL[db.throughputUnit ?? "tx"]}
-              value={
-                db.transactionsPerSecond === null
-                  ? "—"
-                  : rate(db.transactionsPerSecond, db.throughputUnit ?? "tx")
-              }
-              icon={Gauge}
+                color={DATABASE_COLORS.total_connections ?? "var(--color-hue-cyan)"}
+              />
+              <StatCard
+                label={THROUGHPUT_LABEL[db.throughputUnit ?? "tx"]}
+                value={
+                  db.transactionsPerSecond === null
+                    ? "—"
+                    : rate(db.transactionsPerSecond, db.throughputUnit ?? "tx")
+                }
+                icon={Gauge}
                 history={throughput.history}
                 sparklineMax={sparkScale(throughput.history)}
                 subtitle={
@@ -467,25 +467,25 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
                     ? "No data yet"
                     : withSince("per second", throughput.since)
                 }
-              color={DATABASE_COLORS.transaction_rate ?? "var(--color-hue-green)"}
-            />
-            {db.cacheHitPercent === null && db.cpuPercent !== null ? (
-              <StatCard
-                label="CPU"
-                value={percent(db.cpuPercent)}
-                icon={Cpu}
+                color={DATABASE_COLORS.transaction_rate ?? "var(--color-hue-green)"}
+              />
+              {db.cacheHitPercent === null && db.cpuPercent !== null ? (
+                <StatCard
+                  label="CPU"
+                  value={percent(db.cpuPercent)}
+                  icon={Cpu}
                   history={dbCpu.history}
                   sparklineMax={sparkScale(dbCpu.history, 100)}
                   subtitle={withSince("Database container", dbCpu.since)}
-                color={DATABASE_COLORS.managed_cpu_percent ?? "var(--color-hue-orange)"}
-              />
-            ) : (
-              <StatCard
-                label="Cache hit"
-                value={db.cacheHitPercent === null ? "—" : percent(db.cacheHitPercent)}
-                icon={Zap}
+                  color={DATABASE_COLORS.managed_cpu_percent ?? "var(--color-hue-orange)"}
+                />
+              ) : (
+                <StatCard
+                  label="Cache hit"
+                  value={db.cacheHitPercent === null ? "—" : percent(db.cacheHitPercent)}
+                  icon={Zap}
                   history={cacheHit.history}
-                sparklineMax={100}
+                  sparklineMax={100}
                   progress={
                     db.cacheHitPercent === null ? undefined : { percent: db.cacheHitPercent }
                   }
@@ -494,11 +494,11 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
                       ? "No data yet"
                       : withSince("Reads served from memory", cacheHit.since)
                   }
-                color={DATABASE_COLORS.cache_hit_ratio ?? "var(--color-hue-blue)"}
-              />
-            )}
-          </CardRow>
-        </Section>
+                  color={DATABASE_COLORS.cache_hit_ratio ?? "var(--color-hue-blue)"}
+                />
+              )}
+            </CardRow>
+          </Section>
         );
       })}
 
@@ -509,55 +509,55 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
         const tx = covered(st.txHistory);
         const quota = st.diskTotalBytes ?? null;
         return (
-        <Section key={st.id} title={`Storage · ${st.name} · ${env.name}`}>
-          <CardRow>
-            <StatCard
-              label="Disk"
-              value={st.diskBytes === null ? "—" : formatBytes(st.diskBytes)}
-              icon={HardDrive}
+          <Section key={st.id} title={`Storage · ${st.name} · ${env.name}`}>
+            <CardRow>
+              <StatCard
+                label="Disk"
+                value={st.diskBytes === null ? "—" : formatBytes(st.diskBytes)}
+                icon={HardDrive}
                 history={disk.history}
                 sparklineMax={sparkScale(disk.history, quota)}
-              progress={st.diskPercent === null ? undefined : { percent: st.diskPercent }}
+                progress={st.diskPercent === null ? undefined : { percent: st.diskPercent }}
                 subtitle={withSince(
                   st.diskPercent !== null && quota
                     ? `${share(st.diskPercent)} of ${formatBytes(quota)} quota`
                     : "No quota",
                   disk.since
                 )}
-              color={STORAGE_COLORS.disk_used_bytes}
-            />
-            <StatCard
-              label="Objects"
-              value={st.objects === null ? "—" : st.objects.toLocaleString()}
-              icon={FileStack}
+                color={STORAGE_COLORS.disk_used_bytes}
+              />
+              <StatCard
+                label="Objects"
+                value={st.objects === null ? "—" : st.objects.toLocaleString()}
+                icon={FileStack}
                 history={objects.history}
                 sparklineMax={sparkScale(objects.history)}
-              color={STORAGE_COLORS.bucket_count}
+                color={STORAGE_COLORS.bucket_count}
                 subtitle={withSince(
                   st.buckets === null ? undefined : `in ${plural(st.buckets, "bucket")}`,
                   objects.since
                 )}
-            />
-            <StatCard
-              label="Network RX"
-              value={bytesRate(st.rxBytesPerSecond)}
-              icon={ArrowDownToLine}
+              />
+              <StatCard
+                label="Network RX"
+                value={bytesRate(st.rxBytesPerSecond)}
+                icon={ArrowDownToLine}
                 history={rx.history}
                 sparklineMax={sparkScale(rx.history)}
                 subtitle={withSince(undefined, rx.since)}
-              color={STORAGE_COLORS.network_rx_bytes}
-            />
-            <StatCard
-              label="Network TX"
-              value={bytesRate(st.txBytesPerSecond)}
-              icon={ArrowUpFromLine}
+                color={STORAGE_COLORS.network_rx_bytes}
+              />
+              <StatCard
+                label="Network TX"
+                value={bytesRate(st.txBytesPerSecond)}
+                icon={ArrowUpFromLine}
                 history={tx.history}
                 sparklineMax={sparkScale(tx.history)}
                 subtitle={withSince(undefined, tx.since)}
-              color={STORAGE_COLORS.network_tx_bytes}
-            />
-          </CardRow>
-        </Section>
+                color={STORAGE_COLORS.network_tx_bytes}
+              />
+            </CardRow>
+          </Section>
         );
       })}
 
@@ -610,29 +610,29 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
             {pages.flatMap(({ env, page }) => {
               const pageRequests = covered(page.requestsHistory);
               return [
-              <StatCard
-                key={`${page.id}-deployment`}
-                label={`${page.name} · Deployment`}
-                value={page.activeDeployment ? "Active" : "None"}
-                icon={Rocket}
-                subtitle={env.name}
-                valueColor={page.activeDeployment ? "var(--color-success-text)" : undefined}
-              />,
-              <StatCard
-                key={`${page.id}-requests`}
-                label={`${page.name} · Requests`}
+                <StatCard
+                  key={`${page.id}-deployment`}
+                  label={`${page.name} · Deployment`}
+                  value={page.activeDeployment ? "Active" : "None"}
+                  icon={Rocket}
+                  subtitle={env.name}
+                  valueColor={page.activeDeployment ? "var(--color-success-text)" : undefined}
+                />,
+                <StatCard
+                  key={`${page.id}-requests`}
+                  label={`${page.name} · Requests`}
                   value={
                     page.requestsPerSecond === null ? "—" : rate(page.requestsPerSecond, "req")
                   }
-                icon={Globe}
+                  icon={Globe}
                   history={pageRequests.history}
                   sparklineMax={sparkScale(pageRequests.history)}
-                color="var(--color-hue-green)"
+                  color="var(--color-hue-green)"
                   subtitle={withSince(
                     page.routes === 0 ? `${env.name} · no route serves it` : env.name,
                     pageRequests.since
                   )}
-              />,
+                />,
               ];
             })}
           </CardRow>
@@ -733,13 +733,13 @@ function EnvironmentsPanel({
               ) : (
                 <>
                   {issues.map((issue) => (
-                  <Badge
-                    key={`${issue.family}:${issue.state}`}
+                    <Badge
+                      key={`${issue.family}:${issue.state}`}
                       variant={ISSUE_BADGE[issue.state]}
-                    size="inline"
-                  >
-                    {issueLabel(issue)}
-                  </Badge>
+                      size="inline"
+                    >
+                      {issueLabel(issue)}
+                    </Badge>
                   ))}
                   {warnings > 0 && (
                     <Badge variant="warning" size="inline">

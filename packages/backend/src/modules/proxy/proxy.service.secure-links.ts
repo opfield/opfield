@@ -30,11 +30,7 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
     const host = await this.db.query.proxyHosts.findFirst({ where: eq(proxyHosts.id, id) });
     if (!host || host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
     if (host.type !== 'proxy' || host.rawConfigEnabled) {
-      throw new AppError(
-        409,
-        'ADDITIONAL_SECURE_LINK_UNAVAILABLE',
-        'Additional Secure Links require a managed route'
-      );
+      throw new AppError(409, 'ADDITIONAL_SECURE_LINK_UNAVAILABLE', 'Additional Secure Links require a managed route');
     }
     return host;
   }

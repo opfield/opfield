@@ -24,6 +24,7 @@ import { effectiveMaintenance } from '@/modules/proxy/effective-maintenance.js';
 import { CacheService } from '@/services/cache.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
+import { certificateMemberHealths } from './app-certificate-health.js';
 import {
   assessEnvironment,
   CERT_WARNING_DAYS,
@@ -37,7 +38,6 @@ import {
   ROUTE_ERROR_WINDOW_MS,
   worse,
 } from './app-environment-health.js';
-import { certificateMemberHealths } from './app-certificate-health.js';
 import type { AppMember, AppMembersReader } from './app-members.service.js';
 import { latestOf, overviewSamples } from './app-overview-sources.js';
 import {

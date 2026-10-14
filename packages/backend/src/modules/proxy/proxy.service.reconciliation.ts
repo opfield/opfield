@@ -546,11 +546,7 @@ export class ProxyServiceReconciliation extends ProxyServiceListing {
       throw new AppError(409, 'TLS_NOT_CONFIGURED', 'This route has no TLS certificate to synchronize');
     }
     if (!host.enabled) {
-      throw new AppError(
-        409,
-        'PROXY_HOST_DISABLED',
-        'Enable the route before synchronizing its TLS configuration'
-      );
+      throw new AppError(409, 'PROXY_HOST_DISABLED', 'Enable the route before synchronizing its TLS configuration');
     }
 
     // Every member of a group route gets the bundle again.

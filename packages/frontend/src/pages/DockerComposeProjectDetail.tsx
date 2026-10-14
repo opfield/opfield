@@ -1104,7 +1104,7 @@ export function DockerComposeProjectDetail() {
     const service = project.services.find((candidate) => candidate.name === serviceName);
     const label = workloadImageLabel({
       image: availabilityActive
-      ? project.activeRevision?.normalizedModel.services[serviceName]?.image || runtimeImage
+        ? project.activeRevision?.normalizedModel.services[serviceName]?.image || runtimeImage
         : runtimeImage,
       source: service?.source,
       sourceImage: service?.sourceImage,
