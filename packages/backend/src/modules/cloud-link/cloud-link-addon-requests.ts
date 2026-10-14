@@ -23,6 +23,7 @@ const MAX_MODELS = 8;
 const MAX_TOKENS = 100_000_000;
 const MODEL_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const MAX_PRICE_PER_M_USD = 100_000;
+const MAX_TIER_MONTHLY_USD = 100_000;
 /** Input modalities Opfield publishes for a model. */
 const CLOUD_MODEL_MODALITIES = ['text', 'image', 'video'] as const;
 /** Capability keys Opfield's model contract checks; the others are dropped. */
@@ -119,7 +120,7 @@ export async function answerAddonRequest(
       });
     }
     case 'inference-cloud': {
-      const { enabled, baseUrl, apiKey, models } = request.params;
+      const { enabled, baseUrl, apiKey, models, tierMonthlyUsd } = request.params;
       if (typeof enabled !== 'boolean') {
         return invalid(request.id, 'INVALID_INFERENCE_CLOUD', 'params.enabled is true or false');
       }
@@ -139,6 +140,14 @@ export async function answerAddonRequest(
           'params.models lists the models (publicId, displayName, contextWindow, maxInputTokens, ...)'
         );
       }
+      // Optional (older accounts send none): the tier's monthly price in USD, the default per-user API budget here.
+      const tierPrice =
+        typeof tierMonthlyUsd === 'number' &&
+        Number.isFinite(tierMonthlyUsd) &&
+        tierMonthlyUsd > 0 &&
+        tierMonthlyUsd <= MAX_TIER_MONTHLY_USD
+          ? tierMonthlyUsd
+          : null;
       return answerInferenceCloud(
         probe,
         request.id,
@@ -147,6 +156,7 @@ export async function answerAddonRequest(
           baseUrl: baseUrl.trim().replace(/\/+$/, ''),
           apiKey: secret.trim(),
           models: parsed as CloudInferenceModel[],
+          tierMonthlyUsd: tierPrice,
         },
         secret
       );

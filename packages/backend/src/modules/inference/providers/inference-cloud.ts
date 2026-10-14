@@ -6,6 +6,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { CLOUD_ADDON_SETTING_KEYS, readCloudSetting } from '@/modules/cloud-link/cloud-link-settings.js';
 import { CryptoService } from '@/services/crypto.service.js';
+import type { DiscoveredInferenceModel } from './inference-provider.types.js';
 
 const logger = createChildLogger('InferenceCloud');
 
@@ -48,6 +49,10 @@ export interface StoredCloudInference {
   appliedBaseUrl?: string | null;
   /** When the add-on last started a core install (one at a time, retried at most every 10 minutes). */
   coreInstallAt?: string | null;
+  /** The tier's monthly price in USD as the account sends it; null from an older account. */
+  tierMonthlyUsd?: number | null;
+  /** The default API budget was checked when the add-on first became ready (once per enabling). */
+  budgetChecked?: boolean;
 }
 
 /** Usage of the add-on as the account's endpoint reports it (`GET {baseUrl}/usage`). */
@@ -105,6 +110,57 @@ export function isRoutingOrderOnly(input: Record<string, unknown>): boolean {
 
 export function readStoredCloudInference(db: DrizzleClient): Promise<StoredCloudInference | null> {
   return readCloudSetting<StoredCloudInference>(db, CLOUD_ADDON_SETTING_KEYS.inference);
+}
+
+/** Discovered fields the account's description replaces (not labelled as provider-reported in the admin UI). */
+const CLOUD_DESCRIBED_FIELDS = [
+  'displayName',
+  'contextWindow',
+  'maxInputTokens',
+  'maxOutputTokens',
+  'autoCompactTokenLimit',
+  'reasoningEfforts',
+  'modalities',
+  'capabilities',
+];
+
+/**
+ * The account's description of its models is the metadata of the Opfield Cloud connection's models, not discovery:
+ * the endpoint's model list states no modalities or limits, so the core would discover text only and guess the rest.
+ */
+export async function withCloudModelMetadata(
+  db: DrizzleClient,
+  connection: { metadata: Record<string, unknown> | null },
+  models: DiscoveredInferenceModel[]
+): Promise<DiscoveredInferenceModel[]> {
+  if (!isCloudManagedConnection(connection.metadata)) return models;
+  const stored = await readStoredCloudInference(db).catch(() => null);
+  if (!stored?.enabled || !stored.models.length) return models;
+  const described = new Map(stored.models.map((model) => [model.publicId, model]));
+  return models.map((model) => {
+    const account = described.get(model.id);
+    if (!account) return model;
+    const fieldSources =
+      model.metadata.field_sources && typeof model.metadata.field_sources === 'object'
+        ? Object.fromEntries(
+            Object.entries(model.metadata.field_sources as Record<string, unknown>).filter(
+              ([field]) => !CLOUD_DESCRIBED_FIELDS.includes(field)
+            )
+          )
+        : {};
+    return {
+      ...model,
+      displayName: account.displayName,
+      contextWindow: account.contextWindow,
+      maxInputTokens: account.maxInputTokens,
+      ...(account.maxOutputTokens ? { maxOutputTokens: account.maxOutputTokens } : {}),
+      autoCompactTokenLimit: Math.max(1, Math.floor(account.maxInputTokens * 0.9)),
+      modalities: [...account.modalities],
+      capabilities: { ...model.capabilities, ...account.capabilities },
+      reasoningEfforts: [...account.reasoningEfforts],
+      metadata: { ...model.metadata, field_sources: fieldSources },
+    };
+  });
 }
 
 let usageCache: { at: number; key: string; value: CloudInferenceUsage | null } | null = null;

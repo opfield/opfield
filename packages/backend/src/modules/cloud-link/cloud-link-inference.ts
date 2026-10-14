@@ -29,6 +29,7 @@ import {
 import { InferenceProviderService } from '@/modules/inference/providers/inference-provider.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
+import { ensureCloudDefaultApiBudget } from './cloud-link-inference-budget.js';
 import { CLOUD_ADDON_SETTING_KEYS, writeCloudSetting } from './cloud-link-settings.js';
 
 const logger = createChildLogger('CloudInference');
@@ -56,7 +57,7 @@ function cloudPricing(pricing: CloudInferenceModel['pricing']) {
 }
 
 export type CloudInferenceInput =
-  | { enabled: true; baseUrl: string; apiKey: string; models: CloudInferenceModel[] }
+  | { enabled: true; baseUrl: string; apiKey: string; models: CloudInferenceModel[]; tierMonthlyUsd?: number | null }
   | { enabled: false };
 
 export interface CloudInferenceAnswer {
@@ -120,10 +121,22 @@ export class CloudInference {
           appliedKeyHash: stored?.appliedKeyHash ?? null,
           appliedBaseUrl: stored?.appliedBaseUrl ?? null,
           coreInstallAt: stored?.coreInstallAt ?? null,
+          tierMonthlyUsd: input.tierMonthlyUsd ?? null,
+          budgetChecked: stored?.enabled === true && stored.budgetChecked === true,
         });
+      } else if ((stored.tierMonthlyUsd ?? null) !== (input.tierMonthlyUsd ?? null)) {
+        await this.update({ tierMonthlyUsd: input.tierMonthlyUsd ?? null });
       }
     } else if (stored?.enabled || (stored && stored.state !== 'removed')) {
-      await this.save({ ...stored, enabled: false, apiKey: null, state: 'installing', error: null, updatedAt: now });
+      await this.save({
+        ...stored,
+        enabled: false,
+        apiKey: null,
+        state: 'installing',
+        error: null,
+        updatedAt: now,
+        budgetChecked: false,
+      });
     } else if (!stored) {
       return { state: 'removed' };
     }
@@ -178,12 +191,17 @@ export class CloudInference {
       if (!(await this.coreReady(stored))) return;
       const adminId = await this.firstSystemAdmin();
       const connectionId = await this.ensureConnection(stored, secret, adminId);
+      await this.requireSynced(connectionId);
       await this.publishModels(stored, connectionId, adminId);
+      await this.requirePublished(stored, connectionId);
+      // Ready only now: the connection read the endpoint's models and both models are published.
+      if (!stored.budgetChecked) await ensureCloudDefaultApiBudget(this.db, adminId, stored.tierMonthlyUsd);
       await this.update({
         state: 'ready',
         error: null,
         appliedKeyHash: stored.keyHash,
         appliedBaseUrl: stored.baseUrl,
+        budgetChecked: true,
       });
       logger.info('Opfield Cloud AI is ready', { connectionId, models: stored.models.map((model) => model.publicId) });
     } catch (error) {
@@ -246,11 +264,47 @@ export class CloudInference {
         .update(inferenceProviderConnections)
         .set({ baseUrl: stored.baseUrl ?? existing.baseUrl, updatedAt: new Date() })
         .where(eq(inferenceProviderConnections.id, existing.id));
-      await providers.syncConnection(existing.id, true);
-    } else if (!(await this.hasDiscoveredModels(existing.id))) {
-      await providers.syncConnection(existing.id, true);
     }
+    // Every pass reads the endpoint's models again: readiness stands on a sync that worked now.
+    await providers.syncConnection(existing.id, true);
     return existing.id;
+  }
+
+  /** The connection's last sync worked; otherwise the add-on is failed with the sync error (retried on a re-send). */
+  private async requireSynced(connectionId: string): Promise<void> {
+    const [row] = await this.db
+      .select({
+        syncStatus: inferenceProviderConnections.syncStatus,
+        syncLastError: inferenceProviderConnections.syncLastError,
+      })
+      .from(inferenceProviderConnections)
+      .where(eq(inferenceProviderConnections.id, connectionId))
+      .limit(1);
+    if (row?.syncStatus !== 'success') {
+      throw new Error(
+        `The Opfield Cloud connection could not read the models of the endpoint: ${row?.syncLastError ?? 'unknown error'}`
+      );
+    }
+  }
+
+  /** Every model of the add-on is published (enabled) with an enabled source on the connection. */
+  private async requirePublished(stored: StoredCloudInference, connectionId: string): Promise<void> {
+    for (const model of stored.models) {
+      const [row] = await this.db
+        .select({ id: inferenceModels.id })
+        .from(inferenceModels)
+        .innerJoin(inferenceModelSources, eq(inferenceModelSources.modelId, inferenceModels.id))
+        .where(
+          and(
+            eq(inferenceModels.publicId, model.publicId.toLowerCase()),
+            eq(inferenceModels.enabled, true),
+            eq(inferenceModelSources.connectionId, connectionId),
+            eq(inferenceModelSources.enabled, true)
+          )
+        )
+        .limit(1);
+      if (!row) throw new Error(`${model.displayName} (${model.publicId}) could not be published`);
+    }
   }
 
   private async cloudConnection() {
@@ -259,15 +313,6 @@ export class CloudInference {
       .from(inferenceProviderConnections)
       .where(isNull(inferenceProviderConnections.deletedAt));
     return rows.find((row) => isCloudManagedConnection(row.metadata)) ?? null;
-  }
-
-  private async hasDiscoveredModels(connectionId: string): Promise<boolean> {
-    const [row] = await this.db
-      .select({ id: inferenceDiscoveredModels.id })
-      .from(inferenceDiscoveredModels)
-      .where(eq(inferenceDiscoveredModels.connectionId, connectionId))
-      .limit(1);
-    return Boolean(row);
   }
 
   /** Both models published to everyone, each bound to the connection's model of the same id. */
@@ -281,6 +326,7 @@ export class CloudInference {
       );
     for (const model of stored.models) {
       const upstream = discovered.find((row) => row.remoteModelId === model.publicId);
+      if (!upstream) throw new Error(`The Opfield Cloud endpoint does not list ${model.publicId}`);
       const [existing] = await this.db
         .select({ id: inferenceModels.id })
         .from(inferenceModels)
@@ -318,15 +364,17 @@ export class CloudInference {
   }
 }
 
-/** The published model of one add-on model: limits as the account states them, access for everyone. */
+/**
+ * The published model of one add-on model: metadata as the account states it (the endpoint's model list states no
+ * modalities, and discovery takes the account's values for this connection too), access for everyone.
+ */
 export function cloudModelConfiguration(
   model: CloudInferenceModel,
   connectionId: string,
-  upstream?: { id: string; modalities: string[] | null }
+  upstream?: { id: string }
 ): InferenceModelConfigurationInput {
   const efforts = [...new Set(model.reasoningEfforts.map((effort) => effort.trim().toLowerCase()).filter(Boolean))];
-  const sourceModalities = upstream?.modalities?.length ? upstream.modalities : ['text'];
-  const modalities = model.modalities.filter((modality) => sourceModalities.includes(modality));
+  const modalities = model.modalities;
   const autoCompactTokenLimit = Math.max(1, Math.floor(model.maxInputTokens * 0.9));
   return {
     model: {

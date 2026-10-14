@@ -33,7 +33,12 @@ import {
   parseCoreQuotaReports,
 } from '../core/inference-core-provider-map.js';
 import type { InferenceCatalogEventsService } from '../inference-catalog-events.service.js';
-import { isCloudManagedConnection, lockedByCloud, readCloudInferenceUsage } from './inference-cloud.js';
+import {
+  isCloudManagedConnection,
+  lockedByCloud,
+  readCloudInferenceUsage,
+  withCloudModelMetadata,
+} from './inference-cloud.js';
 import type { InferenceDestinationPolicy } from './inference-destination-policy.js';
 import type { InferenceProviderRegistry } from './inference-provider.registry.js';
 import {
@@ -859,9 +864,11 @@ export class InferenceProviderService {
     }
   }
 
-  private async persistModels(connectionId: string, models: DiscoveredInferenceModel[]) {
+  private async persistModels(connectionId: string, discoveredModels: DiscoveredInferenceModel[]) {
     const connection = await this.requireConnection(connectionId);
     const provider = this.registry.require(connection.providerId);
+    // The Opfield Cloud connection's models carry the account's description instead of the discovered one.
+    const models = await withCloudModelMetadata(this.db, connection, discoveredModels);
     await this.db.transaction(async (tx) => {
       await tx
         .update(inferenceDiscoveredModels)
