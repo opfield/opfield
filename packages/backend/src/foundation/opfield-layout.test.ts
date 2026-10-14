@@ -121,6 +121,15 @@ describe('Opfield names in the files of an installation', () => {
     );
   });
 
+  it('renames references to GATEWAY_* keys inside .env values, also in a .env renamed before', () => {
+    expect(renameLegacyEnvFileKeys('GATEWAY_VERSION=v1\nAPP_VERSION=${GATEWAY_VERSION}\nX=$GATEWAY_IMAGE:y\n')).toBe(
+      'OPFIELD_VERSION=v1\nAPP_VERSION=${OPFIELD_VERSION}\nX=$OPFIELD_IMAGE:y\n'
+    );
+    expect(renameLegacyEnvFileKeys('OPFIELD_VERSION=v1\nAPP_VERSION=${GATEWAY_VERSION}\n')).toBe(
+      'OPFIELD_VERSION=v1\nAPP_VERSION=${OPFIELD_VERSION}\n'
+    );
+  });
+
   it('renames variables, labels and markers of docker-compose.yml, not its Docker objects', () => {
     const renamed = applyComposeVocabulary(
       [

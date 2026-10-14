@@ -178,6 +178,17 @@ export function applyLegacyEnvNames(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
+/**
+ * An empty APP_VERSION takes the installed version from OPFIELD_VERSION: a .env whose APP_VERSION referred to a
+ * variable that was later renamed (`APP_VERSION=${GATEWAY_VERSION}` of the early Go installer) would otherwise run with
+ * no version, and the paid core refuses a host without one. Mutates and returns `env`.
+ */
+export function applyVersionFallback(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const installed = readOpfieldEnv('VERSION', env)?.trim();
+  if (!env.APP_VERSION?.trim() && installed) env.APP_VERSION = installed;
+  return env;
+}
+
 /** The OPFIELD_<suffix> variable, or its legacy GATEWAY_<suffix> name when only that is set. */
 export function readOpfieldEnv(suffix: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
   // legacy-name: GATEWAY_<suffix> — see LEGACY_ENV_PREFIX.
@@ -193,6 +204,7 @@ export function getEnv(): Env {
 
   // Code that reads process.env directly sees the OPFIELD_* names too.
   applyLegacyEnvNames(process.env);
+  applyVersionFallback(process.env);
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {

@@ -122,9 +122,16 @@ export function isOpfieldComposeLayout(compose: string): boolean {
   return /^name\s*:\s*["']?opfield["']?\s*(?:#.*)?$/m.test(compose.replace(/\r\n/g, '\n'));
 }
 
+/** `${GATEWAY_X}` and `$GATEWAY_X` references in a value or a compose file, under their OPFIELD_* names. */
+export function renameLegacyEnvReferences(content: string): string {
+  return content.replace(/\$\{GATEWAY_([A-Z0-9_]+)/g, '${OPFIELD_$1').replace(/\$GATEWAY_([A-Z0-9_]+)/g, '$OPFIELD_$1');
+}
+
 /**
- * Renames the legacy GATEWAY_* keys of a .env file to OPFIELD_*. When both names are set, the OPFIELD_* value wins
- * and the legacy line is dropped. Comments, blank lines and every other key stay as they are.
+ * Renames the legacy GATEWAY_* keys of a .env file to OPFIELD_*, and the references to them in the values
+ * (`APP_VERSION=${GATEWAY_VERSION}` of the early Go installer). When both names are set, the OPFIELD_* value wins
+ * and the legacy line is dropped. Comments, blank lines and every other key stay as they are. A .env renamed before
+ * 2.12.2 still holding a reference to a GATEWAY_* key it no longer has is repaired the same way.
  */
 export function renameLegacyEnvFileKeys(content: string): string {
   const hadTrailingNewline = content.endsWith('\n');
@@ -135,13 +142,14 @@ export function renameLegacyEnvFileKeys(content: string): string {
   for (const line of lines) {
     const key = envLineKey(line);
     const renamed = key ? opfieldEnvName(key) : null;
+    const value = key ? renameLegacyEnvReferences(line.slice(key.length)) : '';
     if (!key || !renamed) {
-      next.push(line);
+      next.push(key ? `${key}${value}` : line);
       continue;
     }
     if (present.has(renamed)) continue;
     present.add(renamed);
-    next.push(`${renamed}${line.slice(key.length)}`);
+    next.push(`${renamed}${value}`);
   }
   return `${next.join('\n')}${hadTrailingNewline && next.length > 0 ? '\n' : ''}`;
 }
@@ -154,9 +162,7 @@ export function renameLegacyEnvFileKeys(content: string): string {
  */
 export function applyComposeVocabulary(content: string): string {
   const legacyLabel = escapeRegExp(LEGACY_MANAGED_SERVICE_LABEL);
-  return content
-    .replace(/\$\{GATEWAY_([A-Z0-9_]+)/g, '${OPFIELD_$1')
-    .replace(/\$GATEWAY_([A-Z0-9_]+)/g, '$OPFIELD_$1')
+  return renameLegacyEnvReferences(content)
     .replace(/^(\s*(?:-\s*)?["']?)GATEWAY_([A-Z0-9_]+)(["']?\s*[:=])/gm, '$1OPFIELD_$2$3')
     .replace(/^(\s*-\s*["']?)GATEWAY_([A-Z0-9_]+)(["']?\s*)$/gm, '$1OPFIELD_$2$3')
     .replace(new RegExp(`^(\\s*(?:-\\s*)?["']?)${legacyLabel}(["']?\\s*[:=])`, 'gm'), `$1${MANAGED_SERVICE_LABEL}$2`)

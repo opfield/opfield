@@ -226,6 +226,8 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
 
   const effectiveSandboxWorkspaceDir =
     envPatch.values.get('SANDBOX_RUNNER_WORKSPACE_DIR') ?? defaultSandboxWorkspaceDir;
+  // Refuse before anything is written or restarted: a reference left to a renamed key empties the value.
+  assertEnvReferencesResolve(envPatch.content, composePatch);
 
   const pendingWrites: PendingFoundationWrite[] = [];
   if (envPatch.content !== envContent) {
@@ -269,6 +271,52 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
     backupDir: pendingWrites.length > 0 ? backupDir : null,
     sandboxWorkspaceDir: effectiveSandboxWorkspaceDir,
   };
+}
+
+/**
+ * The migrated .env and docker-compose.yml must not refer to a GATEWAY_* variable the .env no longer defines, and an
+ * APP_VERSION set in the .env must not come out empty: either would start Opfield without the value (in 2.12.1 an
+ * early Go installer's `APP_VERSION=${GATEWAY_VERSION}` lost its key and the paid core refused the versionless host).
+ */
+export function assertEnvReferencesResolve(envContent: string, composeContent: string): void {
+  const values = parseEnvValues(envContent);
+  const uncommented = (content: string) =>
+    content
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line))
+      .join('\n');
+  for (const [file, content] of [
+    ['.env', uncommented(envContent)],
+    ['docker-compose.yml', uncommented(composeContent)],
+  ] as const) {
+    for (const match of content.matchAll(/\$\{?(GATEWAY_[A-Z0-9_]+)/g)) {
+      const name = match[1]!;
+      if (!values.has(name)) {
+        throw new Error(`foundation migration left ${file} referring to ${name}, which the .env does not define`);
+      }
+    }
+  }
+  const appVersion = values.get('APP_VERSION');
+  if (appVersion !== undefined && !resolveEnvValue(appVersion, values).trim()) {
+    throw new Error(
+      `foundation migration would start Opfield with an empty APP_VERSION (.env: APP_VERSION=${appVersion})`
+    );
+  }
+}
+
+/** A .env value with its `${NAME}`, `${NAME:-default}` and `$NAME` references taken from the same file. */
+function resolveEnvValue(value: string, values: Map<string, string>, depth = 0): string {
+  const unquoted = value.trim().replace(/^(["'])(.*)\1$/, '$2');
+  if (depth > 5) return unquoted;
+  return unquoted.replace(
+    /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::?-([^}]*))?\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
+    (_match, braced: string | undefined, fallback: string | undefined, bare: string | undefined) => {
+      const raw = values.get((braced ?? bare)!);
+      const resolved = raw === undefined ? '' : resolveEnvValue(raw, values, depth + 1);
+      return resolved || fallback || '';
+    }
+  );
 }
 
 export function patchEnv(content: string, values: Record<string, string>): EnvPatchResult {
