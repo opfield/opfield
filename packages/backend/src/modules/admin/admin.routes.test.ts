@@ -1236,7 +1236,7 @@ describe('admin password link delivery', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(requestPasswordLink).toHaveBeenCalledWith(TARGET_USER.email, 'password_setup');
+    expect(requestPasswordLink).toHaveBeenCalledWith(TARGET_USER.email, 'password_setup', { wait: true });
     expect(auditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'user.password_link_sent',
@@ -1265,7 +1265,7 @@ describe('admin password link delivery', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(requestPasswordLink).toHaveBeenCalledWith(TARGET_USER.email, 'password_reset');
+    expect(requestPasswordLink).toHaveBeenCalledWith(TARGET_USER.email, 'password_reset', { wait: true });
     await expect(response.json()).resolves.toMatchObject({ purpose: 'password_reset' });
   });
 });

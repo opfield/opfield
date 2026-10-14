@@ -180,7 +180,7 @@ export async function sendAdminUserPasswordLink(
   actor: AdminUserActor,
   userId: string,
   services: AdminUserActionServices = {}
-): Promise<{ message: string; purpose: 'password_setup' | 'password_reset' }> {
+): Promise<{ message: string; purpose: 'password_setup' | 'password_reset'; delivery: 'sent' | 'queued' }> {
   assertNotOwnSignInFromProgrammaticCaller(actor, userId);
   const targetUser = await requireManageableUser(actor, userId, services);
   if (targetUser.authMethod !== 'password') {
@@ -190,7 +190,10 @@ export async function sendAdminUserPasswordLink(
   const purpose = (await authServiceOf(services).hasCompletedSignIn(targetUser.id))
     ? 'password_reset'
     : 'password_setup';
-  await container.resolve(LocalAuthService).requestPasswordLink(targetUser.email, purpose);
+  // Follows the email for a while, so a refused or failed send is reported instead of "sent".
+  const delivery =
+    (await container.resolve(LocalAuthService).requestPasswordLink(targetUser.email, purpose, { wait: true })) ??
+    'queued';
   await auditServiceOf(services).log({
     userId: actor.user.id,
     action: 'user.password_link_sent',
@@ -199,10 +202,8 @@ export async function sendAdminUserPasswordLink(
     details: { targetUserId: targetUser.id, purpose },
     userAgent: actor.userAgent,
   });
-  return {
-    message: purpose === 'password_setup' ? 'Password setup link sent' : 'Password reset link sent',
-    purpose,
-  };
+  const link = purpose === 'password_setup' ? 'Password setup link' : 'Password reset link';
+  return { message: `${link} ${delivery === 'sent' ? 'sent' : 'queued'}`, purpose, delivery };
 }
 
 export async function resetAdminUserMfa(

@@ -563,9 +563,12 @@ class ApiClient extends withAppsApi(
     return this.request<User>(`/admin/users/${userId}/avatar`, { method: "DELETE" });
   }
 
-  async sendUserPasswordLink(
-    userId: string
-  ): Promise<{ message: string; purpose: "password_setup" | "password_reset" }> {
+  async sendUserPasswordLink(userId: string): Promise<{
+    message: string;
+    purpose: "password_setup" | "password_reset";
+    /** Older servers send none (then the link counts as sent). */
+    delivery?: "sent" | "queued";
+  }> {
     return this.request(`/admin/users/${userId}/password-setup`, { method: "POST" });
   }
 

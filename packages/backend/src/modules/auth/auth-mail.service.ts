@@ -7,7 +7,11 @@ import { settings } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import { type AuthEmailInput, type AuthEmailMessage, createAuthEmail } from './auth-email.templates.js';
-import type { AuthEmailQueueService, SecurityAuthEmailInput } from './auth-email-queue.service.js';
+import {
+  AuthEmailDeliveryError,
+  type AuthEmailQueueService,
+  type SecurityAuthEmailInput,
+} from './auth-email-queue.service.js';
 import {
   CloudMailRefusedError,
   type CloudMailState,
@@ -16,6 +20,10 @@ import {
 } from './auth-mail-cloud.js';
 
 const SMTP_SETTING_KEY = 'auth:smtp';
+/** How long an action a person waits on follows its email before answering "queued". */
+const DELIVERY_WAIT_MS = 15_000;
+/** Refusals of the cloud email that name their reason (the worker fails the job with `CODE: message`). */
+const CLOUD_REFUSAL = /^(MAIL_QUOTA|MAIL_INVALID|MAIL_KIND):\s*(.*)$/s;
 
 export type SmtpTlsMode = 'starttls' | 'tls';
 export const SMTP_TEST_EMAIL_KINDS = ['smtp_configuration', 'password_setup', 'password_reset', 'email_otp'] as const;
@@ -189,15 +197,35 @@ export class AuthMailService {
     }
   }
 
-  async sendSecurityEmail(recipient: string, input: SecurityAuthEmailInput): Promise<void> {
-    if ((await this.cloudState())?.active) {
-      await this.authEmailQueue.enqueue(recipient, input);
-      return;
+  /**
+   * Queues a sign-in email. With `wait` (an administrator's action) it follows the delivery for up to 15 s: `sent`,
+   * `queued` when it is still on its way, or an error with the reason when it failed for good. Public flows do not
+   * wait, so their answers stay the same whatever happens to the email.
+   */
+  async sendSecurityEmail(
+    recipient: string,
+    input: SecurityAuthEmailInput,
+    options: { wait?: boolean } = {}
+  ): Promise<'sent' | 'queued'> {
+    if (!(await this.cloudState())?.active) {
+      const config = await this.requireStoredConfig();
+      if (!config.verifiedAt)
+        throw new AppError(503, 'SMTP_NOT_VERIFIED', 'SMTP must be verified before sending authentication email');
     }
-    const config = await this.requireStoredConfig();
-    if (!config.verifiedAt)
-      throw new AppError(503, 'SMTP_NOT_VERIFIED', 'SMTP must be verified before sending authentication email');
-    await this.authEmailQueue.enqueue(recipient, input);
+    if (!options.wait) {
+      await this.authEmailQueue.enqueue(recipient, input);
+      return 'queued';
+    }
+    try {
+      return await this.authEmailQueue.enqueueAndWait(recipient, input, DELIVERY_WAIT_MS);
+    } catch (error) {
+      if (!(error instanceof AuthEmailDeliveryError)) throw error;
+      const refusal = CLOUD_REFUSAL.exec(error.reason);
+      if (refusal) {
+        throw new AppError(refusal[1] === 'MAIL_QUOTA' ? 429 : 400, refusal[1]!, refusal[2]?.trim() || error.reason);
+      }
+      throw new AppError(502, 'EMAIL_DELIVERY_FAILED', `The email could not be sent: ${error.reason}`);
+    }
   }
 
   /**
