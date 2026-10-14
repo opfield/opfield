@@ -1,6 +1,7 @@
 import type { InferenceCoreUsage } from './inference-core.contract.js';
-import { ChatCompletionJsonBody } from './inference-core-chat-usage.js';
+import { chatCompletionUsage } from './inference-core-chat-usage.js';
 import type { CoreModelIdRewriter } from './inference-core-model-rewrite.js';
+import { PublishedModelJsonBody, ResponsesSseModelRewriter } from './inference-core-published-model.js';
 import { CoreResponsesSseObserver, type CoreSseWire } from './inference-core-sse-observer.js';
 
 export type CoreStreamOutcome = 'completed' | 'failed' | 'cancelled';
@@ -16,8 +17,9 @@ export interface ChatRelayObservation {
  * wire's own terminal event (Responses `response.completed`, Chat Completions
  * `[DONE]`, Messages `message_stop`); a stream that ends without one gets a
  * synthetic failure in the same wire. Every chunk carries the published model
- * id instead of the core's internal one; a non-stream Chat answer is held so
- * its `model` names the published id and its `usage` can be read.
+ * id instead of the core's internal one. A non-stream Chat or Responses answer
+ * is held so its `model` names the published id (and a Chat `usage` can be
+ * read); a Responses stream gets the published id in `response.model`.
  */
 export function relayCoreResponseBody(
   body: ReadableStream<Uint8Array>,
@@ -27,8 +29,10 @@ export function relayCoreResponseBody(
     upstreamStatus: number;
     wire: CoreSseWire;
     modelIds: CoreModelIdRewriter | null;
-    /** Chat Completions only: the published model id and where to record what the answer showed. */
-    chat?: { publicModelId: string; observed: ChatRelayObservation };
+    /** The id the client must see in an answer's `model`; absent where the endpoint model stays (images). */
+    publicModelId?: string;
+    /** Chat Completions only: where to record what the answer showed. */
+    chatObserved?: ChatRelayObservation;
     abortUpstream: (reason?: unknown) => void;
     clientGone: () => boolean;
     finalize: (outcome: CoreStreamOutcome, error?: unknown) => void;
@@ -39,12 +43,17 @@ export function relayCoreResponseBody(
   const encoder = new TextEncoder();
   const sseObserver = new CoreResponsesSseObserver(options.wire);
   const modelIds = options.modelIds;
-  const chat = options.chat;
-  // A successful non-stream Chat answer: held whole, then relayed with the published model id.
-  const chatJson =
-    chat && !isSse && options.upstreamStatus < 400 && options.contentType.toLowerCase().includes('json')
-      ? new ChatCompletionJsonBody()
+  const chat = options.chatObserved;
+  const publicModelId = options.publicModelId;
+  const ok = options.upstreamStatus < 400;
+  const heldWire = options.wire === 'chat_completions' || options.wire === 'responses';
+  // A successful non-stream Chat or Responses answer: held whole, then relayed with the published model id.
+  const heldJson =
+    publicModelId && heldWire && !isSse && ok && options.contentType.toLowerCase().includes('json')
+      ? new PublishedModelJsonBody(publicModelId)
       : null;
+  const responsesModel =
+    publicModelId && isSse && options.wire === 'responses' ? new ResponsesSseModelRewriter(publicModelId) : null;
   let terminal: Exclude<CoreStreamOutcome, 'cancelled'> | null = null;
   let settled = false;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -58,18 +67,24 @@ export function relayCoreResponseBody(
   };
   const send = (controller: ReadableStreamDefaultController<Uint8Array>, bytes: Uint8Array | null | undefined) => {
     if (!bytes?.byteLength) return;
-    if (chat && options.upstreamStatus < 400) chat.observed.emittedOutput = true;
+    if (chat && ok) chat.emittedOutput = true;
     controller.enqueue(bytes);
   };
   const enqueueHeld = (controller: ReadableStreamDefaultController<Uint8Array>) => {
     const held = modelIds?.flush();
-    if (!chatJson || !chat) {
+    if (responsesModel) {
+      if (held?.byteLength) send(controller, responsesModel.push(held));
+      send(controller, responsesModel.flush());
+      return;
+    }
+    if (!heldJson) {
       send(controller, held);
       return;
     }
-    if (held?.byteLength) send(controller, chatJson.push(held));
-    const finished = chatJson.finish(chat.publicModelId);
-    if (finished.usage) chat.observed.usage = finished.usage;
+    if (held?.byteLength) send(controller, heldJson.push(held));
+    const finished = heldJson.finish();
+    const usage = chat ? chatCompletionUsage(finished.parsed?.usage) : null;
+    if (chat && usage) chat.usage = usage;
     send(controller, finished.body);
   };
   const failedTail = (error?: unknown) => encoder.encode(streamFailureTail(options.wire, options.requestId, error));
@@ -98,10 +113,11 @@ export function relayCoreResponseBody(
         if (!done) {
           if (isSse) {
             terminal = sseObserver.observe(value);
-            if (chat && sseObserver.chatUsage) chat.observed.usage = sseObserver.chatUsage;
+            if (chat && sseObserver.chatUsage) chat.usage = sseObserver.chatUsage;
           }
           const output = modelIds ? modelIds.push(value) : value;
-          send(controller, chatJson && output.byteLength ? chatJson.push(output) : output);
+          const relayed = responsesModel ? responsesModel.push(output) : output;
+          send(controller, heldJson && relayed.byteLength ? heldJson.push(relayed) : relayed);
           lastOutputAt = Date.now();
           if (terminal) {
             void reader.cancel('Inference stream terminal event received').catch(() => undefined);

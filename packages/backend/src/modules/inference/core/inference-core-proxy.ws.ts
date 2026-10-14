@@ -15,6 +15,7 @@ import type { CoreDataPlaneTarget } from './inference-core-bridge.service.js';
 import { coreRequestHeaders, newCoreRequestContext } from './inference-core-context.js';
 import { rewriteCoreModelIdText } from './inference-core-model-rewrite.js';
 import { InferenceCoreProxyService } from './inference-core-proxy.service.js';
+import { publishResponsesEventModel } from './inference-core-published-model.js';
 import { startInferenceWebSocketHeartbeat } from './inference-websocket-heartbeat.js';
 
 const logger = createChildLogger('InferenceCoreWebSocketProxy');
@@ -552,8 +553,10 @@ async function connectTurnAttempt(input: {
     if (ended || input.state.active !== input.turn) return;
     input.state.lastCoreMessageAt = Date.now();
     // The core echoes its internal model id; clients only ever see the published one.
-    const text = rewriteCoreModelIdText(String(data), resolved.upstreamModel, resolved.model.publicId);
+    let text = rewriteCoreModelIdText(String(data), resolved.upstreamModel, resolved.model.publicId);
     const parsed = asObject(safeParse(text));
+    // A Responses object can also carry the provider's model id; only `response.model` changes.
+    if (publishResponsesEventModel(parsed, resolved.model.publicId)) text = JSON.stringify(parsed);
     const terminal = parsed !== null && typeof parsed.type === 'string' && TERMINAL_EVENTS.has(parsed.type);
     const providerError =
       terminal && !input.turn.emittedOutput && resolved.candidateConnectionIds.length > 1

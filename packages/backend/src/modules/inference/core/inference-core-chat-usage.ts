@@ -6,8 +6,6 @@ type Rec = Record<string, unknown>;
 const FALLBACK_MAX_OUTPUT_TOKENS = 16_384;
 /** Characters an image/audio/file part counts as, matching the Opfield input estimate. */
 const MEDIA_PART_CHARACTERS = 4_000;
-/** The core refuses a native Chat answer above this size, so no valid body is larger. */
-export const MAX_CHAT_JSON_BODY_BYTES = 32 * 1024 * 1024;
 
 function rec(value: unknown): Rec | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Rec) : null;
@@ -87,48 +85,4 @@ export function chatAdmissionEstimate(
   const wanted = estimate.requestedMaxOutputTokens ?? FALLBACK_MAX_OUTPUT_TOKENS;
   const ceiling = modelMaxOutputTokens && modelMaxOutputTokens > 0 ? modelMaxOutputTokens : wanted;
   return { inputTokens: estimate.inputTokens, maxOutputTokens: Math.max(1, Math.min(wanted, ceiling)) };
-}
-
-/**
- * Holds a non-stream Chat Completions body so its `usage` can be read and its
- * `model` set to the published id. A native Chat answer is relayed verbatim by
- * the core, upstream model name included.
- */
-export class ChatCompletionJsonBody {
-  private parts: Uint8Array[] = [];
-  private size = 0;
-  private passthrough = false;
-
-  /** Bytes to send now: nothing while held, everything once the body is too large to hold. */
-  push(chunk: Uint8Array): Uint8Array | null {
-    if (this.passthrough) return chunk;
-    this.parts.push(chunk);
-    this.size += chunk.byteLength;
-    if (this.size <= MAX_CHAT_JSON_BODY_BYTES) return null;
-    this.passthrough = true;
-    return this.take();
-  }
-
-  /** The complete body with the published model id, and the usage it reports. */
-  finish(publicModelId: string): { body: Uint8Array | null; usage: InferenceCoreUsage | null } {
-    if (this.passthrough) return { body: null, usage: null };
-    const raw = this.take();
-    let parsed: Rec | null = null;
-    try {
-      parsed = rec(JSON.parse(Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength).toString('utf8')));
-    } catch {
-      // Not a JSON completion: relay as received.
-    }
-    if (!parsed) return { body: raw, usage: null };
-    const usage = chatCompletionUsage(parsed.usage);
-    if (typeof parsed.model !== 'string' || parsed.model === publicModelId) return { body: raw, usage };
-    return { body: Buffer.from(JSON.stringify({ ...parsed, model: publicModelId }), 'utf8'), usage };
-  }
-
-  private take(): Uint8Array {
-    const parts = this.parts;
-    this.parts = [];
-    this.size = 0;
-    return parts.length === 1 ? parts[0]! : Buffer.concat(parts);
-  }
 }

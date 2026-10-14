@@ -407,9 +407,8 @@ export class InferenceCoreProxyService {
             modelIds: imagesOperation
               ? null
               : CoreModelIdRewriter.create(resolved.upstreamModel, resolved.model.publicId),
-            ...(operation === 'chat/completions'
-              ? { chat: { publicModelId: resolved.model.publicId, observed: chatObserved } }
-              : {}),
+            ...(imagesOperation ? {} : { publicModelId: resolved.model.publicId }),
+            ...(operation === 'chat/completions' ? { chatObserved } : {}),
           }
         );
         if (forwarded.kind === 'response') return forwarded.response;
@@ -456,7 +455,8 @@ export class InferenceCoreProxyService {
     relay: {
       wire: CoreSseWire;
       modelIds: CoreModelIdRewriter | null;
-      chat?: { publicModelId: string; observed: ChatRelayObservation };
+      publicModelId?: string;
+      chatObserved?: ChatRelayObservation;
     } = { wire: 'responses', modelIds: null }
   ): Promise<
     | { kind: 'response'; response: Response }
@@ -580,7 +580,8 @@ export class InferenceCoreProxyService {
       contentType: headers.get('content-type') ?? '',
       wire: relay.wire,
       modelIds: relay.modelIds,
-      ...(relay.chat ? { chat: relay.chat } : {}),
+      ...(relay.publicModelId ? { publicModelId: relay.publicModelId } : {}),
+      ...(relay.chatObserved ? { chatObserved: relay.chatObserved } : {}),
       abortUpstream: (reason) => controller.abort(reason),
       clientGone: () => clientGone,
       finalize: (outcome, error) => void finishRequest(outcome, error),
