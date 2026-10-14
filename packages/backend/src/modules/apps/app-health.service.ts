@@ -478,13 +478,21 @@ export class AppHealthService implements AppHealthProvider {
         ),
         this.rows(ids('database'), (list) =>
           this.db
-            .select({ id: databaseConnections.id, healthStatus: databaseConnections.healthStatus })
+            .select({
+              id: databaseConnections.id,
+              healthStatus: databaseConnections.healthStatus,
+              lastHealthCheckAt: databaseConnections.lastHealthCheckAt,
+            })
             .from(databaseConnections)
             .where(inArray(databaseConnections.id, list))
         ),
         this.rows(ids('storage'), (list) =>
           this.db
-            .select({ id: objectStorageConnections.id, healthStatus: objectStorageConnections.healthStatus })
+            .select({
+              id: objectStorageConnections.id,
+              healthStatus: objectStorageConnections.healthStatus,
+              lastHealthCheckAt: objectStorageConnections.lastHealthCheckAt,
+            })
             .from(objectStorageConnections)
             .where(inArray(objectStorageConnections.id, list))
         ),
@@ -511,13 +519,21 @@ export class AppHealthService implements AppHealthProvider {
         ),
         this.rows(ids('database'), (list) =>
           this.db
-            .select({ id: managedDatabaseInstances.databaseConnectionId, status: managedDatabaseInstances.status })
+            .select({
+              id: managedDatabaseInstances.databaseConnectionId,
+              status: managedDatabaseInstances.status,
+              updatedAt: managedDatabaseInstances.updatedAt,
+            })
             .from(managedDatabaseInstances)
             .where(inArray(managedDatabaseInstances.databaseConnectionId, list))
         ),
         this.rows(ids('storage'), (list) =>
           this.db
-            .select({ id: managedStorageClusters.objectStorageConnectionId, status: managedStorageClusters.status })
+            .select({
+              id: managedStorageClusters.objectStorageConnectionId,
+              status: managedStorageClusters.status,
+              updatedAt: managedStorageClusters.updatedAt,
+            })
             .from(managedStorageClusters)
             .where(inArray(managedStorageClusters.objectStorageConnectionId, list))
         ),
@@ -627,6 +643,9 @@ export class AppHealthService implements AppHealthProvider {
     const managedStatus = new Map(
       [...managedDatabases, ...managedStorages].filter((row) => row.id).map((row) => [row.id!, row.status])
     );
+    const managedChangedAt = new Map(
+      [...managedDatabases, ...managedStorages].filter((row) => row.id).map((row) => [row.id!, row.updatedAt])
+    );
     const restartsOf = (member: AppMember) => recentRestartsOf(restartSamples[workloads.indexOf(member)] ?? [], now);
     // A node offline past NODE_UNREACHABLE_AFTER_MS: what its last snapshot said is no longer the member's state.
     const unreachable = new Set(
@@ -671,6 +690,16 @@ export class AppHealthService implements AppHealthProvider {
             return { ...base, health: 'degraded', reason: 'Stopped: what depends on it cannot reach it' };
           }
           const row = member.type === 'database' ? databaseById.get(member.id) : storageById.get(member.id);
+          // A check from before the instance last changed (started again after an app shutdown, created, updated)
+          // says nothing about it yet: neutral until the next check, not failing for the minute until it runs.
+          const changedAt = managedChangedAt.get(member.id);
+          if (
+            changedAt &&
+            row?.healthStatus === 'offline' &&
+            (!row.lastHealthCheckAt || row.lastHealthCheckAt < changedAt)
+          ) {
+            return { ...base, health: 'none', neutral: 'starting' };
+          }
           const sets = member.type === 'database' ? databaseSetState : storageSetState;
           const health = withAvailabilityState(healthFromStatus(row?.healthStatus), sets.get(member.id));
           return {
