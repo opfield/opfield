@@ -40,13 +40,20 @@ const RECHECK_MS = 15_000;
 /** A failed core install is started again at most this often. */
 const CORE_INSTALL_RETRY_MS = 10 * 60_000;
 const CORE_BUSY_STATES = new Set(['resolving', 'pulling', 'installing', 'starting', 'updating', 'rolling_back']);
-/** The add-on's models are published free of Opfield accounting: the account meters and limits them. */
-const CLOUD_PRICING = {
-  version: 'opfield-cloud',
-  inputMicrodollarsPerMillion: 0,
-  outputMicrodollarsPerMillion: 0,
-  source: 'manual' as const,
-};
+/**
+ * The model's price as the account states it (USD per million tokens, the customer price), so per-user API budgets
+ * here count Opfield Cloud usage. An account that sends no price leaves the model free here.
+ */
+function cloudPricing(pricing: CloudInferenceModel['pricing']) {
+  const micro = (usd: number) => Math.round(usd * 1_000_000);
+  return {
+    version: 'opfield-cloud',
+    inputMicrodollarsPerMillion: pricing ? micro(pricing.inputPerMUsd) : 0,
+    outputMicrodollarsPerMillion: pricing ? micro(pricing.outputPerMUsd) : 0,
+    ...(pricing ? { cachedInputMicrodollarsPerMillion: micro(pricing.cacheReadPerMUsd) } : {}),
+    source: 'manual' as const,
+  };
+}
 
 export type CloudInferenceInput =
   | { enabled: true; baseUrl: string; apiKey: string; models: CloudInferenceModel[] }
@@ -344,7 +351,7 @@ export function cloudModelConfiguration(
           ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
           autoCompactTokenLimit,
         },
-        pricing: CLOUD_PRICING,
+        pricing: cloudPricing(model.pricing),
       },
     ],
     access: { mode: 'everyone', subjects: [] },

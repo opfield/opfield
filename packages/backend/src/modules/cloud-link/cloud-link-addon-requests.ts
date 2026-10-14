@@ -22,6 +22,7 @@ const MAX_API_KEY_LENGTH = 4096;
 const MAX_MODELS = 8;
 const MAX_TOKENS = 100_000_000;
 const MODEL_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const MAX_PRICE_PER_M_USD = 100_000;
 /** Input modalities Opfield publishes for a model. */
 const CLOUD_MODEL_MODALITIES = ['text', 'image', 'video'] as const;
 /** Capability keys Opfield's model contract checks; the others are dropped. */
@@ -239,7 +240,21 @@ function parseCloudModel(value: unknown): CloudInferenceModel | null {
       vision: knownCapabilities.vision === true && knownModalities.includes('image'),
     },
     reasoningEfforts: efforts,
+    pricing: parseCloudPricing((value as Record<string, unknown>).pricing),
   };
+}
+
+/** USD per million tokens; null when absent or not three finite non-negative numbers (older portals: free). */
+function parseCloudPricing(value: unknown): CloudInferenceModel['pricing'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { inputPerMUsd, outputPerMUsd, cacheReadPerMUsd } = value as Record<string, unknown>;
+  const price = (item: unknown) =>
+    typeof item === 'number' && Number.isFinite(item) && item >= 0 && item <= MAX_PRICE_PER_M_USD ? item : null;
+  const input = price(inputPerMUsd);
+  const output = price(outputPerMUsd);
+  const cacheRead = price(cacheReadPerMUsd);
+  if (input === null || output === null || cacheRead === null) return null;
+  return { inputPerMUsd: input, outputPerMUsd: output, cacheReadPerMUsd: cacheRead };
 }
 
 async function answerMailConfig(

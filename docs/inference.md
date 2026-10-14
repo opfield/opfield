@@ -48,7 +48,7 @@ There is no user-visible or administrator-managed Pool entity. Provider administ
 
 ### Opfield Cloud AI on managed installations
 
-A managed installation with the AI add-on (bought in the Opfield account) is set up by the account: Opfield turns inference on, installs the core, adds the provider connection **Opfield Cloud** and publishes **Opfield Swift** (`opfield-swift`) and **Opfield Heavy** (`opfield-heavy`) to everyone. The connection and both models are read-only here (API and MCP answer `409 CLOUD_MANAGED`); their order can still change. The provider row shows how much of the plan is used; open it for the 5-hour and 30-day windows. Usage is limited by the plan in the Opfield account, not by Opfield pricing. When the add-on ends, the models and the connection are removed.
+A managed installation with the AI add-on (bought in the Opfield account) is set up by the account: Opfield turns inference on, installs the core, adds the provider connection **Opfield Cloud** and publishes **Opfield Swift** (`opfield-swift`) and **Opfield Heavy** (`opfield-heavy`) to everyone. The connection and both models are read-only here (API and MCP answer `409 CLOUD_MANAGED`); their order can still change. The provider row shows how much of the plan is used; open it for the 5-hour and 30-day windows. Both models carry the prices the Opfield account sets, so per-user API budgets here count them; the plan in the Opfield account limits total use. When the add-on ends, the models and the connection are removed.
 
 ## User setup
 

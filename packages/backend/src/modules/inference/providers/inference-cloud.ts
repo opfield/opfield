@@ -28,6 +28,8 @@ export interface CloudInferenceModel {
   modalities: string[];
   capabilities: Record<string, boolean>;
   reasoningEfforts: string[];
+  /** Customer price in USD per million tokens; null from an account that sends none (then free here). */
+  pricing: { inputPerMUsd: number; outputPerMUsd: number; cacheReadPerMUsd: number } | null;
 }
 
 /** The add-on as the account set it (settings `cloud:inference`); the key is stored encrypted. */
