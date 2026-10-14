@@ -42,8 +42,9 @@ import {
 } from "@/types";
 import {
   DockerDeployEnvironmentStep,
-  deployEnvironmentErrorLines,
+  deployEnvironmentErrors,
   deployEnvironmentRecord,
+  deploySecretsRecord,
 } from "./docker-deploy/DockerDeployEnvironmentStep";
 import { DockerDeployFormFields } from "./docker-deploy/DockerDeployFormFields";
 import { executeDockerDeploy } from "./docker-deploy/executeDockerDeploy";
@@ -54,6 +55,7 @@ import type {
   DockerRestartPolicy,
 } from "./docker-deploy/types";
 import { useDockerDeployData } from "./docker-deploy/useDockerDeployData";
+import type { SecretRow } from "./docker-detail/SecretsSection";
 
 const EMPTY_DOCKER_NODES: Node[] = [];
 const ROOT_FOLDER_OPTIONS: ComboboxOption[] = [{ value: "__root__", label: "No folder" }];
@@ -146,7 +148,7 @@ export function DockerDeployDialog({
   // A container from a repository has a second step: its environment variables and secrets.
   const [step, setStep] = useState<1 | 2>(1);
   const [envText, setEnvText] = useState("");
-  const [secretsText, setSecretsText] = useState("");
+  const [secretRows, setSecretRows] = useState<SecretRow[]>([]);
   const storeDockerNodes = useDockerStore((state) => state.dockerNodes);
   const allNodes = useMemo(() => {
     return [
@@ -332,7 +334,7 @@ export function DockerDeployDialog({
     setDeployRuntimeProfile("default");
     setStep(1);
     setEnvText("");
-    setSecretsText("");
+    setSecretRows([]);
   }, [initialNodeLocked, nodeId]);
 
   useEffect(() => {
@@ -376,10 +378,10 @@ export function DockerDeployDialog({
   };
 
   const repositoryContainer = sourceMode === "repository" && deployMode === "container";
-  const environmentErrors = deployEnvironmentErrorLines(envText, secretsText);
+  const environmentErrors = deployEnvironmentErrors(envText, secretRows);
   const environmentInvalid =
     repositoryContainer &&
-    (environmentErrors.env.length > 0 || environmentErrors.secrets.length > 0);
+    (environmentErrors.envLines.length > 0 || environmentErrors.secretRows.size > 0);
 
   const handleDeploy = async () => {
     if (deploying || !deployNodeId || noAllowedNode || environmentInvalid) return;
@@ -457,7 +459,7 @@ export function DockerDeployDialog({
         sourceMode,
         sourceProjectId,
         ...(repositoryContainer
-          ? { env: deployEnvironmentRecord(envText), secrets: deployEnvironmentRecord(secretsText) }
+          ? { env: deployEnvironmentRecord(envText), secrets: deploySecretsRecord(secretRows) }
           : {}),
       });
     } catch (err) {
@@ -508,9 +510,9 @@ export function DockerDeployDialog({
         {repositoryContainer && step === 2 ? (
           <DockerDeployEnvironmentStep
             envText={envText}
-            secretsText={secretsText}
             onEnvTextChange={setEnvText}
-            onSecretsTextChange={setSecretsText}
+            secretRows={secretRows}
+            onSecretRowsChange={setSecretRows}
           />
         ) : noAllowedNode && appContext && environment ? (
           <NoAllowedNodeNotice
