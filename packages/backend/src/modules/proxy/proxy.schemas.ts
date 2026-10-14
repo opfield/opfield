@@ -68,6 +68,11 @@ export const CreateProxyHostSchema = z
     // Serve the route from every member of this ingress group instead of one node.
     ingressGroupId: z.string().uuid().optional(),
     domainNames: z.array(DomainNameSchema).min(1, 'At least one domain name is required'),
+    /**
+     * Create a Cloudflare domain for each hostname no registered domain covers, before the route, where the route is
+     * served (skipped per name without permission or zone; removed again when the route fails). Default false.
+     */
+    createMissingDomains: z.boolean().optional(),
 
     // Upstream — proxy type
     upstreamKind: z.enum(['manual', 'docker_container', 'docker_deployment', 'pages']).default('manual'),
@@ -440,6 +445,14 @@ export const RouteIngressPlacementSchema = z
     message: 'Pass nodeId (a current group member) to serve the route from one node',
     path: ['nodeId'],
   });
+
+/** The hostnames of a route about to be created that no registered domain covers, and what create would do. */
+export const MissingRouteDomainsSchema = z.object({
+  domainNames: z.array(DomainNameSchema).min(1).max(100),
+  folderId: z.string().uuid().optional(),
+  nodeId: z.string().uuid().optional(),
+  ingressGroupId: z.string().uuid().optional(),
+});
 
 export const RouteIngressNodeListQuerySchema = z.object({
   /** Limit the list to the nodes a new route in this folder may use. */
