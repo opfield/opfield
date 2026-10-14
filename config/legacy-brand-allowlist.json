@@ -633,7 +633,9 @@
         "commercial:backend/docker/**",
         "packages/frontend/src/lib/docker-image-*.ts",
         "packages/frontend/src/pages/DockerDeploymentDetail.tsx",
-        "packages/backend/src/modules/apps/app-promotion.service.ts"
+        "packages/backend/src/modules/apps/app-promotion.service.ts",
+        "packages/backend/src/modules/docker/docker-image-source.ts",
+        "packages/frontend/src/lib/workload-image-label.ts"
       ],
       "pattern": "(?:127\\.0\\.0\\.1:5443/)?gateway\\\\?/(?:builds|availability|promotion)\\b[\\w/${}.<>…-]*|gateway\\.invalid/(?:pending-source-build|compose-build)/?|…/gateway/<name>|/gateway/\\$\\{name\\}|`gateway`",
       "reason": "Repository namespace of the internal registry and placeholder image references stored in deployments, sources and Compose revisions; garbage collection and readiness checks match them.",

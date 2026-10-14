@@ -878,6 +878,7 @@ export function AIChatSurface({ active = true, onClose, onEnterLiteMode }: AICha
                 >
                   <div className="flex w-full items-center justify-between gap-2 border border-x-0 border-b-0 border-border bg-muted/40 py-1 pl-3 pr-1.5 text-sm text-muted-foreground">
                     <span className="min-w-0 truncate">Viewing {viewing}</span>
+                    {/* size-exception: close glyph of the one-line Viewing bar */}
                     <Button
                       variant="ghost"
                       size="icon-xs"

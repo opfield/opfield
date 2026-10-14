@@ -446,7 +446,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     read: ['self', 'self_overview', 'system', 'users', 'activity_filters', 'activity'],
   }),
   manage_notifications: operationPolicies({
-    read: ['alert_categories', 'webhook_get', 'webhook_presets', 'webhook_preview', 'delivery_get'],
+    read: ['alert_categories', 'alert_resources', 'webhook_get', 'webhook_presets', 'webhook_preview', 'delivery_get'],
   }),
   manage_integration_connector: operationPolicies({
     read: ['get', 'capabilities', 'list_zones', 'allowlist_search', 'allowlist_options'],

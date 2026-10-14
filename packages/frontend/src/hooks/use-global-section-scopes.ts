@@ -8,7 +8,7 @@ const NO_SCOPES: readonly string[] = [];
 
 /** Scope bases the user holds only through app places (UI bootstrap). */
 export function useAppOnlyScopeBases(): readonly string[] | undefined {
-  return useUIBootstrapStore((state) => state.snapshot?.navigation.appOnlyScopeBases);
+  return useUIBootstrapStore((state) => state.snapshot?.navigation?.appOnlyScopeBases);
 }
 
 export interface GlobalSectionAccess {
