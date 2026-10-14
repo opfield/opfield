@@ -1,14 +1,23 @@
+import type { InferenceCoreUsage } from './inference-core.contract.js';
+import { ChatCompletionJsonBody } from './inference-core-chat-usage.js';
 import type { CoreModelIdRewriter } from './inference-core-model-rewrite.js';
 import { CoreResponsesSseObserver, type CoreSseWire } from './inference-core-sse-observer.js';
 
 export type CoreStreamOutcome = 'completed' | 'failed' | 'cancelled';
+
+/** What a relayed Chat Completions answer showed: its usage and whether output reached the client. */
+export interface ChatRelayObservation {
+  usage: InferenceCoreUsage | null;
+  emittedOutput: boolean;
+}
 
 /**
  * Relay a core response body to the client. SSE streams are watched for the
  * wire's own terminal event (Responses `response.completed`, Chat Completions
  * `[DONE]`, Messages `message_stop`); a stream that ends without one gets a
  * synthetic failure in the same wire. Every chunk carries the published model
- * id instead of the core's internal one.
+ * id instead of the core's internal one; a non-stream Chat answer is held so
+ * its `model` names the published id and its `usage` can be read.
  */
 export function relayCoreResponseBody(
   body: ReadableStream<Uint8Array>,
@@ -18,6 +27,8 @@ export function relayCoreResponseBody(
     upstreamStatus: number;
     wire: CoreSseWire;
     modelIds: CoreModelIdRewriter | null;
+    /** Chat Completions only: the published model id and where to record what the answer showed. */
+    chat?: { publicModelId: string; observed: ChatRelayObservation };
     abortUpstream: (reason?: unknown) => void;
     clientGone: () => boolean;
     finalize: (outcome: CoreStreamOutcome, error?: unknown) => void;
@@ -28,6 +39,12 @@ export function relayCoreResponseBody(
   const encoder = new TextEncoder();
   const sseObserver = new CoreResponsesSseObserver(options.wire);
   const modelIds = options.modelIds;
+  const chat = options.chat;
+  // A successful non-stream Chat answer: held whole, then relayed with the published model id.
+  const chatJson =
+    chat && !isSse && options.upstreamStatus < 400 && options.contentType.toLowerCase().includes('json')
+      ? new ChatCompletionJsonBody()
+      : null;
   let terminal: Exclude<CoreStreamOutcome, 'cancelled'> | null = null;
   let settled = false;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -39,9 +56,21 @@ export function relayCoreResponseBody(
     sseObserver.clear();
     options.finalize(outcome, error);
   };
+  const send = (controller: ReadableStreamDefaultController<Uint8Array>, bytes: Uint8Array | null | undefined) => {
+    if (!bytes?.byteLength) return;
+    if (chat && options.upstreamStatus < 400) chat.observed.emittedOutput = true;
+    controller.enqueue(bytes);
+  };
   const enqueueHeld = (controller: ReadableStreamDefaultController<Uint8Array>) => {
     const held = modelIds?.flush();
-    if (held?.byteLength) controller.enqueue(held);
+    if (!chatJson || !chat) {
+      send(controller, held);
+      return;
+    }
+    if (held?.byteLength) send(controller, chatJson.push(held));
+    const finished = chatJson.finish(chat.publicModelId);
+    if (finished.usage) chat.observed.usage = finished.usage;
+    send(controller, finished.body);
   };
   const failedTail = (error?: unknown) => encoder.encode(streamFailureTail(options.wire, options.requestId, error));
 
@@ -67,9 +96,12 @@ export function relayCoreResponseBody(
         const { done, value } = await reader.read();
         if (settled) return;
         if (!done) {
-          if (isSse) terminal = sseObserver.observe(value);
+          if (isSse) {
+            terminal = sseObserver.observe(value);
+            if (chat && sseObserver.chatUsage) chat.observed.usage = sseObserver.chatUsage;
+          }
           const output = modelIds ? modelIds.push(value) : value;
-          if (output.byteLength) controller.enqueue(output);
+          send(controller, chatJson && output.byteLength ? chatJson.push(output) : output);
           lastOutputAt = Date.now();
           if (terminal) {
             void reader.cancel('Inference stream terminal event received').catch(() => undefined);

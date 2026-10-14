@@ -661,6 +661,33 @@ export class InferenceCoreAccountingService {
   }
 
   /**
+   * Forget an attempt that will never settle and free its reservation: an
+   * attempt Opfield admitted itself for a request it then moved to another
+   * route, or one the core admitted on its own.
+   */
+  async dropUnsettledAttempt(rootRequestId: string, attemptId: string): Promise<void> {
+    const request = await this.db.query.inferenceRequests.findFirst({
+      where: eq(inferenceRequests.id, rootRequestId),
+    });
+    if (!request?.userId) return;
+    const userId = request.userId;
+    const reservationId = await this.locks.withUserLock(userId, async (database) => {
+      const [dropped] = await database
+        .delete(inferenceRequestAttempts)
+        .where(
+          and(
+            eq(inferenceRequestAttempts.requestId, rootRequestId),
+            eq(inferenceRequestAttempts.coreAttemptId, attemptId),
+            inArray(inferenceRequestAttempts.status, ['pending', 'running'])
+          )
+        )
+        .returning({ reservationId: inferenceRequestAttempts.reservationId });
+      return dropped?.reservationId ?? null;
+    });
+    if (reservationId) await this.reservations.release({ id: reservationId, userId });
+  }
+
+  /**
    * Terminal request state from the proxy's point of view: the proxied
    * response ended, errored, or the client went away. Attempt-level accounting
    * arrives independently: unsettled reservations must remain held until the

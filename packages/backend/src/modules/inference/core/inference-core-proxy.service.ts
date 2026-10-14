@@ -22,10 +22,18 @@ import { mapReasoningEffort } from '../models/inference-reasoning.service.js';
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import { canFailOver, type InferenceRoutingService } from '../providers/inference-routing.service.js';
 import type { CoreDataPlaneTarget, InferenceCoreBridgeService } from './inference-core-bridge.service.js';
+import { type ChatRequestEstimate, chatAdmissionEstimate, chatRequestEstimate } from './inference-core-chat-usage.js';
 import { coreRequestHeaders, newCoreRequestContext } from './inference-core-context.js';
+import {
+  admitEdgeChatAttempt,
+  coreSkipsChatAdmission,
+  dropEdgeChatAttempt,
+  type EdgeChatAttempt,
+  settleEdgeChatAttempt,
+} from './inference-core-edge-chat.js';
 import { CoreModelIdRewriter } from './inference-core-model-rewrite.js';
 import { CORE_ACCOUNT_METADATA_KEY } from './inference-core-provider-map.js';
-import { relayCoreResponseBody } from './inference-core-response-relay.js';
+import { type ChatRelayObservation, relayCoreResponseBody } from './inference-core-response-relay.js';
 import type { CoreSseWire } from './inference-core-sse-observer.js';
 
 type SourceCandidate = {
@@ -320,7 +328,11 @@ export class InferenceCoreProxyService {
           }
         }
       : undefined;
+    // Chat Completions the core relays natively are admitted and settled here (see coreSkipsChatAdmission).
+    let edgeAttempt: EdgeChatAttempt | null = null;
+    const chatObserved: ChatRelayObservation = { usage: null, emittedOutput: false };
     const finalizeRequest = onceAsync(async (outcome, error) => {
+      if (edgeAttempt) await settleEdgeChatAttempt(this.db, this.coreAccounting, edgeAttempt, outcome, chatObserved);
       const finalizers: Promise<unknown>[] = [];
       if (coreAdmitted) finalizers.push(this.coreAccounting.finalizeCoreRequest(rootRequestId, outcome, error));
       if (finalizeAffinityTurn) finalizers.push(finalizeAffinityTurn());
@@ -366,6 +378,15 @@ export class InferenceCoreProxyService {
           coreModelId: resolved.upstreamModel,
           operation: contextOperation(operation),
         });
+        if (prepared.chatEstimate && coreSkipsChatAdmission(resolved.selected.connection)) {
+          edgeAttempt = await admitEdgeChatAttempt(this.coreAccounting, {
+            rootRequestId,
+            coreAccountId: resolved.coreAccountId,
+            coreModelId: resolved.upstreamModel,
+            sourceType: resolved.selected.source.sourceType,
+            estimate: chatAdmissionEstimate(prepared.chatEstimate, resolved.model.maxOutputTokens),
+          });
+        }
         // Images create paid, non-idempotent work inside the core. A lost core
         // response is not proof that the upstream generation was never dispatched.
         const allowFailover = coreAdmitted && !imagesOperation && resolved.candidateConnectionIds.length > 1;
@@ -386,9 +407,16 @@ export class InferenceCoreProxyService {
             modelIds: imagesOperation
               ? null
               : CoreModelIdRewriter.create(resolved.upstreamModel, resolved.model.publicId),
+            ...(operation === 'chat/completions'
+              ? { chat: { publicModelId: resolved.model.publicId, observed: chatObserved } }
+              : {}),
           }
         );
         if (forwarded.kind === 'response') return forwarded.response;
+        if (edgeAttempt) {
+          await dropEdgeChatAttempt(this.coreAccounting, edgeAttempt);
+          edgeAttempt = null;
+        }
         firstTransportError ??= forwarded.transportError;
         if (forwarded.providerError) lastProviderError = forwarded.providerError;
         excludedConnectionIds.push(resolved.selected.connection.id);
@@ -425,7 +453,11 @@ export class InferenceCoreProxyService {
     nonRetryableDispatch = false,
     finalizeRequest: (outcome: 'completed' | 'failed' | 'cancelled', error?: unknown) => Promise<void> = async () =>
       undefined,
-    relay: { wire: CoreSseWire; modelIds: CoreModelIdRewriter | null } = { wire: 'responses', modelIds: null }
+    relay: {
+      wire: CoreSseWire;
+      modelIds: CoreModelIdRewriter | null;
+      chat?: { publicModelId: string; observed: ChatRelayObservation };
+    } = { wire: 'responses', modelIds: null }
   ): Promise<
     | { kind: 'response'; response: Response }
     | { kind: 'retry'; transportError?: InferenceProtocolError; providerError?: InferenceProtocolError }
@@ -548,6 +580,7 @@ export class InferenceCoreProxyService {
       contentType: headers.get('content-type') ?? '',
       wire: relay.wire,
       modelIds: relay.modelIds,
+      ...(relay.chat ? { chat: relay.chat } : {}),
       abortUpstream: (reason) => controller.abort(reason),
       clientGone: () => clientGone,
       finalize: (outcome, error) => void finishRequest(outcome, error),
@@ -641,6 +674,8 @@ export class InferenceCoreProxyService {
     affinityKey?: string;
     isCompaction: boolean;
     existingThread: boolean;
+    /** Chat Completions only: the admission estimate when Opfield admits the attempt itself. */
+    chatEstimate?: ChatRequestEstimate;
     rewrite: (
       upstreamModel: string,
       model: { reasoningEfforts: string[]; defaultReasoningEffort: string | null },
@@ -724,6 +759,7 @@ export class InferenceCoreProxyService {
       ...(typeof body.prompt_cache_key === 'string' ? { affinityKey: body.prompt_cache_key } : {}),
       isCompaction: operation === 'responses/compact' || hasCompactionTrigger(body.input),
       existingThread: typeof body.previous_response_id === 'string',
+      ...(operation === 'chat/completions' ? { chatEstimate: chatRequestEstimate(body) } : {}),
       rewrite: (upstreamModel, resolvedModel, source) => {
         const next: Record<string, unknown> = { ...body, model: upstreamModel };
         if (isMessages) {
