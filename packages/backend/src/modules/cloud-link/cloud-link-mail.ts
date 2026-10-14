@@ -33,6 +33,8 @@ export interface CloudMailDeps {
   managedByCloud: () => Promise<boolean>;
   /** Sends the account a request over the link (CloudLinkAgent.request). */
   request: (type: string, params: Record<string, unknown>) => Promise<CloudPortalAnswer>;
+  /** The transport in use may have changed: the hello (which reports it) goes out again. */
+  transportChanged?: () => void;
 }
 
 /**
@@ -45,6 +47,12 @@ export class CloudMail implements CloudMailTransport {
 
   private read(): Promise<StoredCloudMail | null> {
     return readCloudSetting<StoredCloudMail>(this.deps.db, CLOUD_ADDON_SETTING_KEYS.mail);
+  }
+
+  /** For the hello of a managed installation: the transport in use; null when not managed. */
+  async helloTransport(): Promise<'cloud' | 'smtp' | null> {
+    if (!(await this.deps.managedByCloud())) return null;
+    return (await this.state()).active ? 'cloud' : 'smtp';
   }
 
   async state(): Promise<CloudMailState> {
@@ -90,6 +98,7 @@ export class CloudMail implements CloudMailTransport {
       await writeCloudSetting(this.deps.db, CLOUD_ADDON_SETTING_KEYS.mail, next);
       // The request itself is audited (cloud.request); the owner's switch with the settings update.
       logger.info('Opfield Cloud email set by the account', { enabled: next.enabled, from: next.from });
+      this.deps.transportChanged?.();
     }
     return { transport: (await this.state()).active ? 'cloud' : 'smtp' };
   }
@@ -104,6 +113,8 @@ export class CloudMail implements CloudMailTransport {
         ownSmtpChangedAt: new Date().toISOString(),
         ownSmtpChangedBy: userId,
       } satisfies StoredCloudMail);
+      // The account sees the switch at once, not at the next mail-config.
+      this.deps.transportChanged?.();
     }
     return this.state();
   }

@@ -66,6 +66,8 @@ export interface CloudHello {
   ssoClientRequest?: CloudSsoClientRequest;
   /** The installation takes sso-revoke requests (an installation without it ignores them as unknown). */
   ssoRevoke: true;
+  /** A managed installation: how its sign-in emails leave (Opfield Cloud email, or the owner's own SMTP). */
+  mailTransport?: 'cloud' | 'smtp';
 }
 
 /** Why the sign-in the cloud gave is detached: the link ended, or it now belongs to another account. */

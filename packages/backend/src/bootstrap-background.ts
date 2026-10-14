@@ -254,8 +254,10 @@ export async function initializeBackgroundServices(): Promise<void> {
     db,
     managedByCloud: () => container.resolve(CloudLinkService).managedByCloud(),
     request: (type, params) => container.resolve(CloudLinkAgent).request(type, params),
+    transportChanged: () => container.resolve(CloudLinkService).helloChanged(),
   });
   container.registerInstance(CloudMail, cloudMail);
+  container.resolve(CloudLinkService).setMailTransportReader(() => cloudMail.helloTransport());
   container.resolve(AuthMailService).setCloudTransport(cloudMail);
   // The Opfield Cloud AI add-on; carries on after a restart with a setup or removal still in progress.
   const cloudInference = new CloudInference(db);
