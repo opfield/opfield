@@ -49,7 +49,27 @@ function managedRuntimeMetrics(
       : null;
   const swapPercent =
     swapUsage != null && swapLimit != null && swapLimit > 0 ? (swapUsage / swapLimit) * 100 : null;
+  // The data disk of the managed instance, reported by its node's Docker daemon (2.12.2 and later).
+  const diskUsed = latest.metrics.managed_disk_used_bytes ?? null;
+  const diskTotal = latest.metrics.managed_disk_total_bytes ?? null;
+  const diskPercent =
+    diskUsed != null && diskTotal != null && diskTotal > 0 ? (diskUsed / diskTotal) * 100 : null;
   return [
+    ...(diskUsed == null
+      ? []
+      : [
+          {
+            key: "managed_disk_used_bytes",
+            label: "Data Disk",
+            value:
+              diskTotal && diskTotal > 0
+                ? `${formatMetricValue("managed_disk_used_bytes", diskUsed)} / ${formatMetricValue("managed_disk_total_bytes", diskTotal)}`
+                : formatMetricValue("managed_disk_used_bytes", diskUsed),
+            history: history.map((item) => item.metrics.managed_disk_used_bytes ?? 0),
+            progress: diskPercent == null ? undefined : { percent: diskPercent },
+            subtitle: diskPercent == null ? undefined : `${diskPercent.toFixed(1)}% used`,
+          },
+        ]),
     {
       key: "managed_cpu_percent",
       label: "CPU",
@@ -132,6 +152,7 @@ export function DatabaseOverviewTab({
         database.type === "redis" ? new Set(["used_memory_bytes"]) : new Set<string>();
       const runtimeByKey = new Map(managedMetrics.map((metric) => [metric.key, metric]));
       const resourceMetrics = [
+        runtimeByKey.get("managed_disk_used_bytes"),
         runtimeByKey.get("managed_memory_usage_bytes"),
         runtimeByKey.get("managed_cpu_percent"),
         runtimeByKey.get("managed_swap_usage_bytes"),
@@ -145,6 +166,7 @@ export function DatabaseOverviewTab({
         ),
         ...managedMetrics.filter(
           (metric) =>
+            metric.key !== "managed_disk_used_bytes" &&
             metric.key !== "managed_memory_usage_bytes" &&
             metric.key !== "managed_cpu_percent" &&
             metric.key !== "managed_swap_usage_bytes"
