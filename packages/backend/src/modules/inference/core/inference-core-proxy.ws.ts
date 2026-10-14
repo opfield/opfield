@@ -13,6 +13,7 @@ import { InferenceProtocolError, inferenceProtocolError } from '../protocol/infe
 import { canFailOver } from '../providers/inference-routing.service.js';
 import type { CoreDataPlaneTarget } from './inference-core-bridge.service.js';
 import { coreRequestHeaders, newCoreRequestContext } from './inference-core-context.js';
+import { rewriteCoreModelIdText } from './inference-core-model-rewrite.js';
 import { InferenceCoreProxyService } from './inference-core-proxy.service.js';
 import { startInferenceWebSocketHeartbeat } from './inference-websocket-heartbeat.js';
 
@@ -550,7 +551,8 @@ async function connectTurnAttempt(input: {
   upstream.on('message', (data) => {
     if (ended || input.state.active !== input.turn) return;
     input.state.lastCoreMessageAt = Date.now();
-    const text = String(data);
+    // The core echoes its internal model id; clients only ever see the published one.
+    const text = rewriteCoreModelIdText(String(data), resolved.upstreamModel, resolved.model.publicId);
     const parsed = asObject(safeParse(text));
     const terminal = parsed !== null && typeof parsed.type === 'string' && TERMINAL_EVENTS.has(parsed.type);
     const providerError =
