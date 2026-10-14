@@ -272,7 +272,7 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
     expect(sent).toEqual([
       'Opfield lost outbound connectivity: Opfield',
       'Proxy host down: example.com',
-      expect.stringMatching(/^Proxy host example.com is back online( after \d+s)?\.$/),
+      expect.stringMatching(/^Route example.com is back online( after \d+s)?\.$/),
     ]);
   });
 
