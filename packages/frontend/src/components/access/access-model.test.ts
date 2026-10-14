@@ -43,6 +43,7 @@ import {
   linesAddingNothing,
   linesToScopes,
   narrowedNote,
+  newFoldersNote,
   principalHolds,
   type ResourceAccessLine,
   scopesToLines,
@@ -762,5 +763,35 @@ describe("app environment lines", () => {
       false
     );
     expect(principalHolds(["apps:promote"], "apps:promote:env/env-staging", appCtx)).toBe(true);
+  });
+});
+
+describe("folders created after a folder line was saved", () => {
+  const line: AccessLine = {
+    kind: "resources",
+    role: "viewer",
+    types: ["databases"],
+    where: { kind: "folder", path: "orders" },
+    mayDelete: false,
+  };
+  const before: AccessContext = { folders: folders() };
+  const stored = new Set(linesToScopes([line], before));
+  const after: AccessContext = {
+    folders: [
+      ...folders(),
+      { id: "apps-orders", label: "orders", family: "apps", ancestorIds: [] },
+    ],
+  };
+
+  it("says the line does not cover an Apps folder of its path created later, until it is saved again", () => {
+    expect(newFoldersNote(line, stored, after)).toBe(
+      "The folder orders now also exists in Apps: save to cover it too."
+    );
+    expect(newFoldersNote(line, new Set(linesToScopes([line], after)), after)).toBeNull();
+  });
+
+  it("says nothing for a line that covers every folder of its path, or one just added", () => {
+    expect(newFoldersNote(line, stored, before)).toBeNull();
+    expect(newFoldersNote(line, new Set(), after)).toBeNull();
   });
 });

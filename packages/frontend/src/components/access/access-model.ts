@@ -527,6 +527,45 @@ function appFolderScopes(line: ResourceAccessLine, path: string, ctx: AccessCont
   ].map((scope) => `${scope}:folder/${id}`);
 }
 
+/**
+ * A folder line names folders by id when it is saved, so a folder created later at its path (an Apps folder, or one
+ * in another type's tree) is not covered until the line is saved again. The note says so for a stored line; null when
+ * the line covers every folder of its path already.
+ */
+export function newFoldersNote(
+  line: AccessLine,
+  stored: ReadonlySet<string>,
+  ctx: AccessContext
+): string | null {
+  if (line.kind !== "resources" || line.where.kind !== "folder") return null;
+  const storedFolderIds = new Set(
+    [...stored].flatMap((scope) => {
+      const match = /:folder\/([^:/]+)$/.exec(scope);
+      return match ? [match[1]!] : [];
+    })
+  );
+  const places = new Set<string>();
+  // Only a stored line: one of its folders is in the stored scopes (a line just added names none of them yet).
+  let storedLine = false;
+  for (const scope of lineScopes(line, ctx)) {
+    const match = /:folder\/([^:/]+)$/.exec(scope);
+    if (!match) continue;
+    if (storedFolderIds.has(match[1]!)) {
+      storedLine = true;
+      continue;
+    }
+    const folder = ctx.folders.find((candidate) => candidate.id === match[1]);
+    if (!folder) continue;
+    places.add(
+      folder.family === "apps"
+        ? "Apps"
+        : (ACCESS_TYPES.find((type) => type.family === folder.family)?.inline ?? folder.family)
+    );
+  }
+  if (!storedLine || places.size === 0) return null;
+  return `The folder ${folderPathLabel(line.where.path)} now also exists in ${[...places].join(", ")}: save to cover it too.`;
+}
+
 /** Folder paths of the given types' trees, sorted, each once. */
 export function accessFolderPaths(
   ctx: AccessContext,

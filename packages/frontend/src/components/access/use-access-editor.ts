@@ -7,6 +7,7 @@ import {
   linesAddingNothing,
   linesToScopes,
   narrowedNote,
+  newFoldersNote,
   scopesToLines,
   tokenStoredScopes,
 } from "./access-model";
@@ -110,6 +111,7 @@ export function useAccessEditor({
 
   const views = useMemo<AccessLineView[]>(() => {
     const addingNothing = linesAddingNothing(ownLines, ctx);
+    const stored = new Set(initialKey ? initialKey.split("\n") : []);
     const own = ownLines.map((line, index) => ({
       key: `own-${index}`,
       line,
@@ -117,7 +119,9 @@ export function useAccessEditor({
       ...describeLine(line, labels),
       note:
         (ownerScopes ? narrowedNote(line, ownerScopes, ctx, labels) : null) ??
-        (addingNothing[index] ? ADDS_NOTHING : undefined),
+        (addingNothing[index] ? ADDS_NOTHING : undefined) ??
+        newFoldersNote(line, stored, ctx) ??
+        undefined,
     }));
     // The same line from several groups is one row naming every group it comes from.
     const fromElsewhere = new Map<string, AccessLineView>();
@@ -141,7 +145,7 @@ export function useAccessEditor({
       }
     });
     return [...own, ...fromElsewhere.values()];
-  }, [ctx, inherited, labels, ownLines, ownerScopes, ready]);
+  }, [ctx, initialKey, inherited, labels, ownLines, ownerScopes, ready]);
 
   const saveLine = useCallback((line: AccessLine, index?: number) => {
     setLines((current) => {
