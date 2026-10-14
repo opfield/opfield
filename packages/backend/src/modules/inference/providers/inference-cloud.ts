@@ -62,8 +62,16 @@ function cloudManagedError(): AppError {
   return new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_INFERENCE_MESSAGE);
 }
 
+/** The lock holds while the account manages this installation (a restored copy or an ended link has no owner). */
+export async function lockedByCloud(): Promise<boolean> {
+  // Loaded on use: the cloud link module is not part of the inference services' import graph.
+  const { isCloudManaged } = await import('@/modules/cloud-link/cloud-link-managed-locks.js');
+  return isCloudManaged();
+}
+
 /** 409 CLOUD_MANAGED for the Opfield Cloud connection (people and agents; the cloud link uses the services). */
 export async function assertConnectionNotCloudManaged(db: DrizzleClient, connectionId: string): Promise<void> {
+  if (!(await lockedByCloud())) return;
   const [connection] = await db
     .select({ metadata: inferenceProviderConnections.metadata })
     .from(inferenceProviderConnections)
@@ -84,7 +92,7 @@ export async function isCloudManagedModel(db: DrizzleClient, modelId: string): P
 
 /** 409 CLOUD_MANAGED when a person or agent changes or deletes a model of the add-on. */
 export async function assertModelNotCloudManaged(db: DrizzleClient, modelId: string | null): Promise<void> {
-  if (modelId && (await isCloudManagedModel(db, modelId))) throw cloudManagedError();
+  if (modelId && (await isCloudManagedModel(db, modelId)) && (await lockedByCloud())) throw cloudManagedError();
 }
 
 /** The connection update a person may still make on the Opfield Cloud connection: its place in the order. */

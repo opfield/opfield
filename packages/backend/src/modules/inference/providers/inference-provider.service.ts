@@ -33,7 +33,7 @@ import {
   parseCoreQuotaReports,
 } from '../core/inference-core-provider-map.js';
 import type { InferenceCatalogEventsService } from '../inference-catalog-events.service.js';
-import { isCloudManagedConnection, readCloudInferenceUsage } from './inference-cloud.js';
+import { isCloudManagedConnection, lockedByCloud, readCloudInferenceUsage } from './inference-cloud.js';
 import type { InferenceDestinationPolicy } from './inference-destination-policy.js';
 import type { InferenceProviderRegistry } from './inference-provider.registry.js';
 import {
@@ -134,14 +134,15 @@ export class InferenceProviderService {
       this.db.select().from(inferenceProviderSettings),
       providerApiMonthlySpend(this.db, ids),
     ]);
-    // The Opfield Cloud add-on: its usage comes from the account's endpoint (read with the stored key here).
-    const cloudUsage = connections.some((connection) => isCloudManagedConnection(connection.metadata))
-      ? await readCloudInferenceUsage(this.db)
-      : null;
+    // The Opfield Cloud add-on while the account manages this installation: read-only here, with its usage from the
+    // account's endpoint (read with the stored key on the backend).
+    const cloudLocked =
+      connections.some((connection) => isCloudManagedConnection(connection.metadata)) && (await lockedByCloud());
+    const cloudUsage = cloudLocked ? await readCloudInferenceUsage(this.db) : null;
 
     return connections.map((connection) => ({
       ...serializeConnection(connection),
-      ...(isCloudManagedConnection(connection.metadata) ? { cloudManaged: true, cloudUsage } : {}),
+      ...(cloudLocked && isCloudManagedConnection(connection.metadata) ? { cloudManaged: true, cloudUsage } : {}),
       credential:
         credentials.find((credential) => credential.connectionId === connection.id) ??
         // Core-managed rows never hold an Opfield credential; surface a presence
