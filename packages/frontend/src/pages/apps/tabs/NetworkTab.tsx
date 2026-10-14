@@ -1,5 +1,5 @@
-// Network: routes, their TLS certificates and the private connections member workloads start
-// (container links, database and storage bindings), grouped by environment (canvas frame app-network).
+// Network: routes, domains, their TLS certificates and the private connections member workloads
+// start (container links, database and storage bindings), grouped by environment (canvas frame app-network).
 import { Globe, Link2, Lock } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { toastApiError } from "@/lib/api-error-toast";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { isOpfieldPublicRoute } from "@/lib/proxy-route-protection";
-import { proxyHostRoute, sslCertificateRoute } from "@/lib/resource-routes";
+import { domainRoute, proxyHostRoute, sslCertificateRoute } from "@/lib/resource-routes";
 import { cn, daysUntil, formatDate } from "@/lib/utils";
 import { HEALTH_BADGE, HEALTH_LABEL, TYPE_BADGE } from "@/pages/proxy-detail/helpers";
 import { api } from "@/services/api";
@@ -31,6 +31,7 @@ import {
   RowMenu,
 } from "../app-shared";
 import { nodeDisplayName, useNodeIndex } from "../use-node-index";
+import { domainColumns } from "./network-domain-columns";
 import {
   AddRow,
   EmptyGroup,
@@ -60,6 +61,7 @@ export function NetworkTab({
   const canViewCompose = useAuthStore((state) => state.hasScopedAccess("docker:compose:view"));
   const canViewRoutes = useAuthStore((state) => state.hasScopedAccess("proxy:view"));
   const canViewCertificates = useAuthStore((state) => state.hasScopedAccess("ssl:cert:view"));
+  const canViewDomains = useAuthStore((state) => state.hasScopedAccess("domains:view"));
   const opfieldPublicUrl = useUIBootstrapStore(
     (state) => state.snapshot?.systemConfig.publicUrl ?? null
   );
@@ -72,6 +74,7 @@ export function NetworkTab({
       compose: canViewCompose,
       routes: canViewRoutes,
       certificates: canViewCertificates,
+      domains: canViewDomains,
     })
   );
   if (network.loading) return <ContentLoading loading />;
@@ -126,6 +129,12 @@ export function NetworkTab({
     network.data?.routes ?? [],
     (row) => row.app?.environmentId
   );
+  const domains = groupByEnvironment(
+    app.environments,
+    network.data?.domains ?? [],
+    (row) => row.app?.environmentId
+  );
+  const openDomain = (domain: { domain: string }) => navigate(domainRoute(domain.domain));
   const certificates = groupByEnvironment(
     app.environments,
     network.data?.certificates ?? [],
@@ -379,13 +388,16 @@ export function NetworkTab({
 
   // Named only when the app has members of that type the user cannot see.
   const hidden = presentHiddenMembers(app, network.data?.hidden ?? []);
-  if (groupTotal(routes) + groupTotal(certificates) + groupTotal(links) === 0) {
+  if (
+    groupTotal(routes) + groupTotal(domains) + groupTotal(certificates) + groupTotal(links) ===
+    0
+  ) {
     const empty = (
       <EmptyGroup
         title="Network"
         icon={<Globe className="h-4 w-4" />}
-        types={[TYPES.routes, TYPES.certificates, TYPES.links]}
-        message="No routes, SSL certificates or container links yet."
+        types={[TYPES.routes, TYPES.domains, TYPES.certificates, TYPES.links]}
+        message="No routes, domains, SSL certificates or container links yet."
         actions={actions}
       />
     );
@@ -414,6 +426,21 @@ export function NetworkTab({
           groups={routes}
           rowKey={(row) => row.id}
           onRowClick={(row) => navigate(proxyHostRoute(row.slug))}
+        />
+      )}
+      {groupTotal(domains) > 0 && (
+        <TypeSection
+          app={app}
+          title={TYPES.domains.title}
+          description="Domains by environment"
+          icon={TYPES.domains.icon}
+          headerActions={
+            actions.canCreate ? <TypeActions type={TYPES.domains} actions={actions} /> : undefined
+          }
+          columns={domainColumns({ nodesById, actions, onOpen: openDomain })}
+          groups={domains}
+          rowKey={(row) => row.id}
+          onRowClick={openDomain}
         />
       )}
       {groupTotal(certificates) > 0 && (
@@ -454,6 +481,7 @@ export function NetworkTab({
         <AddRow
           types={present([
             groupTotal(routes) === 0 && TYPES.routes,
+            groupTotal(domains) === 0 && TYPES.domains,
             groupTotal(certificates) === 0 && TYPES.certificates,
             groupTotal(links) === 0 && TYPES.links,
           ])}

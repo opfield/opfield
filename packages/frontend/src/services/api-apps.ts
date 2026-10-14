@@ -21,6 +21,7 @@ import type {
   AppVariables,
   AppWorkloadTask,
   DatabaseConnection,
+  Domain,
   LoggingEnvironment,
   ObjectStorageConnection,
   PageProject,
@@ -307,6 +308,10 @@ export function withAppsApi<TBase extends ApiClientBaseConstructor>(Base: TBase)
 
     async listAppPages(appId: string): Promise<PageProject[]> {
       return this.listAllAppMembers<PageProject>("/pages", appId, 100);
+    }
+
+    async listAppDomains(appId: string): Promise<Domain[]> {
+      return this.listAllAppMembers<Domain>("/domains", appId, 200);
     }
 
     async listAppCertificates(appId: string): Promise<SSLCertificate[]> {

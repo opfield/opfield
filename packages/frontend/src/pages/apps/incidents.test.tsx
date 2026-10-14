@@ -63,6 +63,7 @@ function app(incidents: Record<string, AppIncident[]> = {}, operate = true): App
       pages: null,
       certificates: null,
       logging: null,
+      domains: null,
     },
     allowedNodeIds: [],
     incidents: incidents[id] ?? [],

@@ -47,6 +47,7 @@ function environment(id: string, name: string, allowedNodeIds: string[]): AppEnv
       pages: null,
       certificates: null,
       logging: null,
+      domains: null,
     },
     allowedNodeIds,
   };

@@ -214,7 +214,9 @@ class ApiClient extends withAppsApi(
     add(
       auth.hasScopedAccess("domains:view"),
       "domains",
-      cache("domains:list:folder-view", () => this.listDomains({ page: 1, limit: 1000 }))
+      cache("domains:list:folder-view", () =>
+        this.listDomains({ page: 1, limit: 1000, ...NORMAL_LIST_FILTER })
+      )
     );
     add(
       licensed("internal-pki") && auth.hasScope("pki:templates:view"),

@@ -101,6 +101,15 @@ export const TYPES = {
     importFamily: "routes",
     icon: <Globe className="h-4 w-4" />,
   },
+  domains: {
+    key: "domains",
+    title: "Domains",
+    create: "Add Domain",
+    addLabel: "Domain",
+    createType: "domain",
+    importFamily: "domains",
+    icon: <Globe2 className="h-4 w-4" />,
+  },
   certificates: {
     key: "certificates",
     title: "SSL certificates",

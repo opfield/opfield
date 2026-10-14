@@ -54,6 +54,7 @@ const FAMILY_WORD: Record<AppOverviewIssue["family"], [string, string]> = {
   pages: ["Pages project", "Pages projects"],
   certificates: ["SSL certificate", "SSL certificates"],
   logging: ["logging environment", "logging environments"],
+  domains: ["domain", "domains"],
 };
 
 /** Neutral states (stopped on request, disabled, in maintenance, starting) do not change the health. */

@@ -50,6 +50,7 @@ const APP_MEMBER_NOUNS: Record<AppMemberFamily, [string, string]> = {
   pages: ["Pages project", "Pages projects"],
   certificates: ["SSL certificate", "SSL certificates"],
   logging: ["logging environment", "logging environments"],
+  domains: ["domain", "domains"],
 };
 
 /** Places chosen for a section, per folder family of its scopes. Empty or absent: everywhere. */
