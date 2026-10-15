@@ -79,6 +79,8 @@ export interface ProxyHost {
     lastErrorCode: string | null;
   } | null;
   secureLinkActive?: boolean;
+  /** Secure Links besides the primary one: user-managed links and the links of additional routes. */
+  additionalSecureLinkCount?: number;
   sslEnabled: boolean;
   sslForced: boolean;
   http2Support: boolean;
@@ -125,11 +127,13 @@ export interface ProxyHost {
 }
 
 export interface ProxySecureLinkStatus {
-  state: string;
-  generation: number;
+  /** False for a route whose primary target has no Secure Link (Pages, a manual address): the primary fields are null. */
+  hasPrimary: boolean;
+  state: string | null;
+  generation: number | null;
   sourceNodeId: string | null;
   targetNodeId: string | null;
-  transport: string;
+  transport: string | null;
   migratedAt: string | null;
   lastError: string | null;
   telemetrySampledAt?: string | null;
@@ -137,7 +141,7 @@ export interface ProxySecureLinkStatus {
   healthCheck: {
     enabled: boolean;
     intervalSeconds: number;
-  };
+  } | null;
   sourceNode: { id: string; name: string; status: string } | null;
   targetNode: { id: string; name: string; status: string } | null;
   rateLimit: {
@@ -146,7 +150,7 @@ export interface ProxySecureLinkStatus {
     requestsPerSecond: number;
     burst: number;
     connectionsPerIp: number;
-  };
+  } | null;
   runtime: {
     routeId: string;
     activeStreams: number;
@@ -188,6 +192,10 @@ export interface ProxySecureLinkStatus {
 export interface ProxyAdditionalSecureLinkRuntime {
   id: string;
   name: string;
+  purpose: "user_managed" | "additional_route";
+  referenceId: string | null;
+  /** The additional route path for a route-owned link, the link name otherwise. */
+  label: string;
   status: ProxyAdditionalSecureLinkStatus;
   generation: number;
   targetContainer: string;
@@ -358,8 +366,27 @@ export interface AccessList {
 }
 
 // Request types (Opfield)
+/** A hostname of a route about to be created that no registered domain covers. */
+export interface MissingRouteDomain {
+  hostname: string;
+  /** create: a Cloudflare domain is created in zoneName with the route; unavailable: reason says why not. */
+  status: "create" | "unavailable";
+  zoneName: string | null;
+  code: string | null;
+  reason: string | null;
+}
+
+export interface MissingRouteDomainsRequest {
+  domainNames: string[];
+  folderId?: string;
+  nodeId?: string;
+  ingressGroupId?: string;
+}
+
 export interface CreateProxyHostRequest {
   type: ProxyHostType;
+  /** Create a Cloudflare domain for each hostname no registered domain covers (default false). */
+  createMissingDomains?: boolean;
   /** Omitted: the ingress node of the registered domains, or the only node the caller may use. */
   nodeId?: string;
   /** Serve the route from every member of this ingress group instead of one node. */

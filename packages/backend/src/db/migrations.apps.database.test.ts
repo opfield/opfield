@@ -213,3 +213,53 @@ describe.skipIf(!url)('apps migration on disposable PostgreSQL', () => {
     expect(kept).toEqual([{ host_port: 45432, conflict: false }]);
   });
 });
+
+/** Opt-in: 0255 gives every existing app and environment its hidden domain folders and empty domain allowlists. */
+describe.skipIf(!url)('app domain folders migration on disposable PostgreSQL', () => {
+  let database: Awaited<ReturnType<typeof disposableDatabase>>;
+  let pool: pg.Pool;
+  const user = randomUUID();
+  const app = randomUUID();
+  const env = randomUUID();
+  const q = (text: string, values: unknown[] = []) => pool.query(text, values);
+
+  beforeAll(async () => {
+    database = await disposableDatabase(url!, 'app_domains');
+    pool = database.pool;
+    await migrateDatabase(pool, '0254_app_certs_logs_folders');
+    const group = randomUUID();
+    await q('insert into permission_groups (id, name) values ($1, $2)', [group, `apps-${group}`]);
+    await q('insert into users (id, group_id, email, name) values ($1, $2, $3, $4)', [
+      user,
+      group,
+      `${user}@apps.test`,
+      'Apps test',
+    ]);
+    await q('insert into apps (id, slug, name, created_by_id) values ($1, $2, $3, $4)', [app, 'shop', 'Shop', user]);
+    await q(
+      `insert into app_environments (id, app_id, name, slug, is_production, created_by_id)
+       values ($1, $2, 'production', 'production', true, $3)`,
+      [env, app, user]
+    );
+    await migrateDatabase(pool);
+  }, 180_000);
+
+  afterAll(async () => {
+    await database?.drop();
+  });
+
+  it('adds the root and environment domain folders and empty allowlists', async () => {
+    const { rows } = await q(
+      'select id, parent_id, depth, name, app_environment_id from domain_folders where app_id = $1 order by depth',
+      [app]
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ parent_id: null, depth: 0, name: 'Shop', app_environment_id: null });
+    expect(rows[1]).toMatchObject({ parent_id: rows[0].id, depth: 1, name: 'production', app_environment_id: env });
+    const patterns = await q(
+      'select a.domain_patterns as app, e.domain_patterns as env from apps a join app_environments e on e.app_id = a.id where a.id = $1',
+      [app]
+    );
+    expect(patterns.rows).toEqual([{ app: [], env: [] }]);
+  });
+});

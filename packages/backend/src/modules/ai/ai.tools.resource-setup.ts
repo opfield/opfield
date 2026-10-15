@@ -173,7 +173,22 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
         autoDeploy: { type: 'boolean' },
         buildArgs: { type: 'object', description: 'Public build variables.' },
         buildSecretNames: { type: 'array', items: { type: 'string' } },
-        policy: { type: 'object' },
+        policy: {
+          type: 'object',
+          description:
+            'Build policy of the source. Pages builds are not blocked by vulnerability findings, so it has no effect today; keys you omit keep their saved values.',
+          additionalProperties: false,
+          properties: {
+            vulnerabilityThreshold: {
+              type: 'string',
+              enum: ['critical', 'high', 'medium', 'low', 'none', 'disabled'],
+            },
+            vulnerabilityScope: {
+              type: 'string',
+              enum: ['all', 'application', 'fixable_application', 'fixable_all'],
+            },
+          },
+        },
         commitSha: { type: 'string' },
         force: { type: 'boolean' },
         secretName: { type: 'string' },
@@ -190,7 +205,7 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_route',
     description:
-      'Route inspection, maintenance access, and config validation. Operations: get_config (full Route settings; Page targets and advanced config follow the caller scopes, stored raw config needs proxy:raw:read), get_by_slug, health_history, secure_link_status, access_logs (newest nginx access and error log lines, up to tail 200; for a Route on an ingress group the lines of every member merged by time, each with its nodeId), maintenance_access_code (5-minute code that lets a browser view the Route during maintenance; needs proxy:maintenance:bypass; refused with MAINTENANCE_ACCESS_UNAVAILABLE for a Route whose config sets secure_link, whose maintenance page has no team access), validate_config (check an advanced snippet or, with mode raw, a raw nginx config; needs proxy:advanced or proxy:raw:write on routeId, or on the folderId/nodeId destination of a Route about to be created; proxy:unrestricted skips the directive restrictions). Change Routes with update_route, set_route_maintenance, update_route_raw_config, and toggle_route_raw_mode.',
+      'Route inspection, maintenance access, and config validation. Operations: get_config (full Route settings; Page targets and advanced config follow the caller scopes, stored raw config needs proxy:raw:read), get_by_slug, health_history, secure_link_status (the Secure Link state and runtime of the Docker target of the Route, with hasPrimary false and null primary fields for another target such as Pages, and additionalLinks: the user-managed links and the links of additional routes, each with purpose, referenceId and label, the additional route path for a route-owned one), access_logs (newest nginx access and error log lines, up to tail 200; for a Route on an ingress group the lines of every member merged by time, each with its nodeId), maintenance_access_code (5-minute code that lets a browser view the Route during maintenance; needs proxy:maintenance:bypass; refused with MAINTENANCE_ACCESS_UNAVAILABLE for a Route whose config sets secure_link, whose maintenance page has no team access), validate_config (check an advanced snippet or, with mode raw, a raw nginx config; needs proxy:advanced or proxy:raw:write on routeId, or on the folderId/nodeId destination of a Route about to be created; proxy:unrestricted skips the directive restrictions), missing_domains (for a Route about to be created: domainNames plus folderId and nodeId or ingressGroupId; each hostname no registered domain covers, with status create and the Cloudflare zoneName, or unavailable with code and reason; needs proxy:create; create_route createMissingDomains creates them). Change Routes with update_route, set_route_maintenance, update_route_raw_config, and toggle_route_raw_mode.',
     parameters: {
       type: 'object',
       properties: {
@@ -204,18 +219,29 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
             'access_logs',
             'maintenance_access_code',
             'validate_config',
+            'missing_domains',
           ],
+        },
+        domainNames: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'missing_domains: hostnames of the Route about to be created',
+        },
+        ingressGroupId: {
+          type: 'string',
+          description: 'missing_domains: ingress group the Route about to be created is served by',
         },
         tail: { type: 'number', description: 'Number of log lines for access_logs (default 100, max 200)' },
         routeId: { type: 'string', description: 'Route UUID; optional for validate_config' },
         folderId: {
           type: ['string', 'null'],
-          description: 'validate_config without routeId: destination folder UUID of the Route about to be created',
+          description:
+            'validate_config without routeId, missing_domains: destination folder UUID of the Route about to be created',
         },
         nodeId: {
           type: 'string',
           description:
-            'validate_config without routeId: destination ingress node UUID of the Route about to be created',
+            'validate_config without routeId, missing_domains: destination ingress node UUID of the Route about to be created',
         },
         slug: { type: 'string', description: 'Route slug for get_by_slug' },
         snippet: { type: 'string', description: 'Advanced snippet or raw nginx config for validate_config' },
@@ -303,6 +329,7 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
     name: 'manage_managed_database',
     description:
       'Provision and manage Opfield-managed Postgres, key-value store (type redis; works with Redis clients; new stores run Valkey), or ClickHouse instances and their workload bindings. Read the catalog before create, poll get until ready, and create a binding only after the database is ready. A binding may target a stopped, crash-looping, failed or not yet deployed workload (a deployment whose first Git build rollout failed included): create_binding and delete_binding save the link into the workload configuration and return without waiting for the workload to become healthy; list_bindings shows observedState target_applied until the workload next starts or finishes its rollout (retry the source build to deploy it), then active. A Git-source container whose first build has not created it yet is linked by its name (permissions are checked on its reserved identity); the first build starts it with the link. A Compose service may be linked before the first revision of the project, or while a build rollout or another operation holds the project, by a service name the next revision defines (manage_docker_source get lists composeServiceNames, the services of the Compose file the source resolved): the link is target_applied until that revision runs it, and fails with the reason when that revision lacks the service. Applying any Compose revision uses the links that exist then, so a link deleted after a build rollout made its revision is left out. A deployment rollback or an older Compose revision keeps the current links. A link rollout keeps the workload image, so it needs no docker:containers:mounts even when the workload has host bind mounts. create_binding and delete_binding need databases:bind on the database (databases:edit includes it) plus the target workload binding scopes. reveal_credentials and rotate_credentials return the direct-access credentials of a published instance (databases:credentials:reveal; rotation also needs databases:edit); reveal_binding_credentials returns the credentials of one binding and also needs the target workload binding scopes. logs returns recent container log lines; get_binding_runtime reports the link runtime of one binding. move_to_valkey_check (databases:edit) reads a running key-value store that still runs Redis and returns what a move to Valkey would copy: keys, pendingStreamEntries, blockers and estimatedPauseSeconds (tell the user these before moving). move_to_valkey (databases:edit, only when the user asks) moves it: writes pause while every key is copied (reads keep working), the store goes back to Redis if anything fails, a store with blockers (Bloom or cuckoo filters, time series, vector sets, search indexes) is refused before anything changes, and a store with pending stream entries is refused unless acceptPendingStreamLoss is true (the consumer groups move, their pending entries do not; set it only after the user accepted that loss). A move is refused while the app environment of the store is isolated by the kill switch (APP_ISOLATED); a store paused by an app shutdown is not running, so the app must be started first. Credential operations are refused while impersonating. Opfield renews the TLS certificate automatically before it expires; certificate_status (databases:view) shows its expiry, renewal state and last renewal error, and rotate_certificate (databases:edit) renews it now with an in-place engine reload (allowRestart permits a restart when the engine does not load it). To create inside an app environment, pass folderId from get_app placementFolderIds. ' +
+      "PostgreSQL extensions: extensions (databases:view) lists the curated extensions with status enabled, update_available, available, needs_bundle (a download of bundleSizeBytes into the database volume), needs_image_update or unavailable (not in this version), plus imageUpdateAvailable, pending and lastError; daemonUpdateRequired true means the node daemon must be updated first. enable_extension, disable_extension and update_extension (databases:edit, extension = the name) change one: an extension with restartToEnable/restartToDisable restarts the database (a rolling update on several servers), a download needs room on the volume (EXTENSION_NEEDS_STORAGE), disable never cascades (EXTENSION_HAS_DEPENDENTS lists what depends on it); tell the user about a restart or a download before changing. needs_image_update means the database runs the official image: update with imageUpdate true moves it to Opfield's image of the same version (data kept, one restart) and adds the extensions. While pending is set the change continues on its own; poll extensions. " +
       'Availability (Business plan, multi-node-availability; one database on 2 to 5 storage nodes, each on its own host): availability_preflight (with databaseId for an existing database; without it, for create, from type, version, nodeId and availability.nodeIds) shows mode (automatic with witnesses, else manual), voters, witnesses, rttP50Ms, the default durability and lossWindowText, blockers and warnings; tell the user the loss window before turning it on. create takes availability {nodeIds (the other servers), witness {relayIds, nodeId}, durability synchronous|asynchronous, manual, priorityMode}; make_available turns it on for an existing database (same availability object). Loss on an unplanned failover: synchronous loses no acknowledged commit while the copy confirms (a copy that stops confirming for 10 s is dropped from sync and automatic failover waits until it catches up); asynchronous loses up to maxLagBytes (1 MiB by default) plus about 1 s; key-value stores replicate asynchronously only. Two servers without a witness host make a replicated pair with manual failover only. availability (databases:view) reads members (role, eligible, lag, sync state), voters, witnesses, state and reason, and changesBlocked; availability_events lists failovers, switches and other events (page, limit). update_availability changes availability.durability, priorityMode, failbackDelaySeconds, syncDegradeAfterSeconds, maxLagBytes and witness. add_member (nodeId, priority), remove_member (memberId), rebuild_member (memberId) and disable_availability (keepMemberId = the primary) change the servers; when no member holds the primary role (members that cannot take over) a disable fails after 3 minutes and disable_availability with force true keeps keepMemberId or the member with the most recent data (the user decides, the others lose their data). make_primary (memberId) switches the primary: planned when the primary serves and the copy is eligible (no loss); otherwise it is refused with AVAILABILITY_LOSSY_PROMOTION and the estimated loss unless acceptDataLoss is true, which only the user may decide. Changing operations need databases:edit. On several servers, update (settings or version), restart, pause, unpause and delete act on every server: copies first, the primary hands over to an updated copy without loss when it needs a restart, pause keeps the role of the primary (no failover), delete turns availability off first; TLS on/off is refused (AVAILABILITY_TLS_CHANGE). After the license grace period make_primary, rebuild_member, remove_member, disable_availability and reads keep working; make_available, add_member, update_availability and create with availability are refused.',
     parameters: {
       type: 'object',
@@ -342,9 +369,17 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
             'make_primary',
             'rebuild_member',
             'disable_availability',
+            'extensions',
+            'enable_extension',
+            'disable_extension',
+            'update_extension',
           ],
         },
         databaseId: { type: 'string', description: 'Managed database instance ID.' },
+        extension: {
+          type: 'string',
+          description: 'enable_extension, disable_extension, update_extension: the extension name from extensions.',
+        },
         availability: {
           type: 'object',
           description:
@@ -382,6 +417,11 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
           type: 'string',
           description:
             'Exact version returned by catalog. update: a newer version of the same engine (PostgreSQL within its major version; Valkey and ClickHouse the next catalog version), one restart on one server, a rolling update copies-first on several servers.',
+        },
+        imageUpdate: {
+          type: 'boolean',
+          description:
+            "update, PostgreSQL only: move from the official image of its version to Opfield's image of the same version, which adds the extensions (data kept, one restart). Only when extensions reports imageUpdateAvailable and the user agreed to the restart.",
         },
         nodeId: {
           type: 'string',

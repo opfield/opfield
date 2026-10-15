@@ -48,6 +48,16 @@ const DOCKER_VIEW_SCOPES = [
   'docker:images:view',
   'docker:volumes:view',
   'docker:networks:view',
+  'docker:compose:view',
+] as const;
+
+/** Creation grants list Docker nodes too: a folder creation grant works on every Docker node. */
+const DOCKER_CREATE_SCOPES = [
+  'docker:containers:create',
+  'docker:compose:create',
+  'docker:volumes:create',
+  'docker:networks:create',
+  'docker:images:pull',
 ] as const;
 
 type ShellNode = Awaited<ReturnType<NodesService['list']>>['data'][number];
@@ -447,8 +457,12 @@ export class UIBootstrapService {
   }
 
   private visibleDockerNodes(nodes: ShellNode[], scopes: string[]): ShellNode[] {
-    const broadDockerAccess = DOCKER_VIEW_SCOPES.some((scope) => hasScope(scopes, scope));
-    const allowedNodeIds = new Set(dockerScopedNodeIds(scopes, DOCKER_VIEW_SCOPES));
+    const broadDockerAccess =
+      DOCKER_VIEW_SCOPES.some((scope) => hasScope(scopes, scope)) ||
+      DOCKER_CREATE_SCOPES.some(
+        (base) => hasScope(scopes, base) || scopes.some((scope) => scope.startsWith(`${base}:folder/`))
+      );
+    const allowedNodeIds = new Set(dockerScopedNodeIds(scopes, [...DOCKER_VIEW_SCOPES, ...DOCKER_CREATE_SCOPES]));
     if (!broadDockerAccess && allowedNodeIds.size === 0) return [];
     return nodes.filter(
       (node) =>

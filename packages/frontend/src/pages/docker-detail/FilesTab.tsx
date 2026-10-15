@@ -49,11 +49,16 @@ import { Input } from "@/components/ui/input";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
+import {
+  CONTAINER_RECREATING_MESSAGE,
+  CONTAINER_RECREATING_RETRY_MS,
+} from "@/lib/container-stream-unavailable";
 import { isImageFileName } from "@/lib/file-types";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { FileEntry, SystemConfig } from "@/types";
 import { formatBytes } from "./helpers";
+import { isContainerGoneError } from "./replaced-container";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -294,6 +299,7 @@ export function FilesTab({
   realtimeMatches,
   headerActions,
   description = "Browse and manage files in the selected container instance",
+  onContainerUnavailable,
 }: {
   nodeId: string;
   containerId?: string;
@@ -307,8 +313,15 @@ export function FilesTab({
   realtimeMatches?: (payload: DockerFileChangedPayload) => boolean;
   headerActions?: ReactNode;
   description?: string;
+  /** The container ID is gone (a recreate replaced it): the page looks the container up again. */
+  onContainerUnavailable?: () => void;
 }) {
   const { hasScope } = useAuthStore();
+  const onContainerUnavailableRef = useRef(onContainerUnavailable);
+  onContainerUnavailableRef.current = onContainerUnavailable;
+  // Bumped to list the root again while the container is being recreated.
+  const [rootRetry, setRootRetry] = useState(0);
+  const waitingForReplacementRef = useRef(false);
   const canBrowseFiles =
     canBrowse ??
     hasScope(
@@ -521,26 +534,42 @@ export function FilesTab({
       return;
     }
     let cancelled = false;
-    setIsLoading(true);
-    setLoadError(null);
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    // A retry while waiting for a recreated container keeps its message instead of flashing the loader.
+    void rootRetry;
+    if (!waitingForReplacementRef.current) {
+      setIsLoading(true);
+      setLoadError(null);
+    }
     fetchDir("/")
       .then((nodes) => {
         if (!cancelled) {
           setRoots(nodes);
           setIsLoading(false);
+          setLoadError(null);
+          waitingForReplacementRef.current = false;
         }
       })
       .catch((err) => {
-        if (!cancelled) {
-          setRoots([]);
-          setLoadError(err instanceof Error ? err.message : "Failed to list directory");
-          setIsLoading(false);
+        if (cancelled) return;
+        setRoots([]);
+        setIsLoading(false);
+        if (containerId && isContainerGoneError(err)) {
+          // A recreate replaced this ID: wait for the replacement instead of failing.
+          setLoadError(CONTAINER_RECREATING_MESSAGE);
+          waitingForReplacementRef.current = true;
+          onContainerUnavailableRef.current?.();
+          retryTimer = setTimeout(() => setRootRetry((n) => n + 1), CONTAINER_RECREATING_RETRY_MS);
+          return;
         }
+        waitingForReplacementRef.current = false;
+        setLoadError(err instanceof Error ? err.message : "Failed to list directory");
       });
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [canBrowseFiles, fetchDir]);
+  }, [canBrowseFiles, containerId, fetchDir, rootRetry]);
 
   useEffect(() => {
     if (!contextMenu) return;

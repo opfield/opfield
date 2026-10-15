@@ -1,3 +1,4 @@
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { hasScopeBase, scopeMatches } from "@/lib/scope-utils";
 
 /**
@@ -42,15 +43,20 @@ export const ROUTES_HUB: NavigationHub = {
       label: "Routes",
       path: "/routes",
       legacyPath: "/proxy-hosts",
+      // A creator whose folder is still empty opens the list to create in it, like Databases.
       canAccess: ({ scopes }) =>
-        hasScopeBase(scopes, "proxy:view") || scopeMatches(scopes, "proxy:folders:manage"),
+        hasScopeBase(scopes, "proxy:view") ||
+        scopeMatches(scopes, "proxy:folders:manage") ||
+        hasCreationDestination(scopes, "proxy:create", { nodeGrants: true }),
     },
     {
       value: "domains",
       label: "Domains",
       path: "/routes/domains",
       legacyPath: "/domains",
-      canAccess: ({ scopes }) => hasScopeBase(scopes, "domains:view"),
+      canAccess: ({ scopes }) =>
+        hasScopeBase(scopes, "domains:view") ||
+        hasCreationDestination(scopes, "domains:create", { nodeGrants: true }),
     },
     {
       value: "ingress-groups",
@@ -86,7 +92,8 @@ export const CERTIFICATES_HUB: NavigationHub = {
       label: "SSL",
       path: "/certificates",
       legacyPath: "/ssl-certificates",
-      canAccess: ({ scopes }) => hasScopeBase(scopes, "ssl:cert:view"),
+      canAccess: ({ scopes }) =>
+        hasScopeBase(scopes, "ssl:cert:view") || hasCreationDestination(scopes, "ssl:cert:issue"),
     },
     {
       value: "authorities",

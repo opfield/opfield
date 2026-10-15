@@ -127,10 +127,13 @@ export function ProxyHostDetail({
     maintenanceAccessCode !== null
   );
   const [isCreatingMaintenanceAccessCode, setIsCreatingMaintenanceAccessCode] = useState(false);
+  // The tab shows the primary Secure Link of a Docker target and every additional one: user-managed
+  // links and the links of additional routes, whatever the primary target is.
   const hasSecureLinkRuntime =
     host?.type === "proxy" &&
-    host.secureLinkActive === true &&
-    (host.upstreamKind === "docker_container" || host.upstreamKind === "docker_deployment");
+    ((host.secureLinkActive === true &&
+      (host.upstreamKind === "docker_container" || host.upstreamKind === "docker_deployment")) ||
+      (host.additionalSecureLinkCount ?? 0) > 0);
   const visibleTabs = useMemo(
     () => [
       "details",

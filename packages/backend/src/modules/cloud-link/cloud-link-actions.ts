@@ -10,6 +10,7 @@ import { NodesService } from '@/modules/nodes/nodes.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { SetupAccessService } from '@/modules/setup/setup-access.service.js';
 import { SetupTokenPolicyService } from '@/modules/setup/setup-token-policy.js';
+import { ConsoleTlsService } from '@/services/console-tls/console-tls.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
 import { UpdateService } from '@/services/update.service.js';
 import { CloudLinkService } from './cloud-link.service.js';
@@ -19,6 +20,8 @@ import {
   DEFAULT_RELAY_SERVICE_PORT,
   resolveCloudNodeKind,
 } from './cloud-link.types.js';
+import { CloudInference } from './cloud-link-inference.js';
+import { CloudMail } from './cloud-link-mail.js';
 import { createCloudSsoClient } from './cloud-link-sso-client.js';
 import { createCloudSsoRevoker } from './cloud-link-sso-revoke.js';
 
@@ -123,6 +126,30 @@ export function createCloudLinkActions(): CloudLinkActions {
     // The account removed people's access: their accounts are blocked as the Opfield account's (see CloudSsoRevoker).
     async ssoRevoke(input) {
       return createCloudSsoRevoker().revoke(input);
+    },
+
+    // The custom domain: served by the console next to its own domain, then the public URL (ConsoleAliasManager).
+    async publicAlias(input) {
+      const alias = container.isRegistered(ConsoleTlsService) ? container.resolve(ConsoleTlsService).alias : null;
+      if (!alias) {
+        if (input.domain === null) return { domain: null, state: 'none' };
+        throw new AppError(
+          409,
+          'PUBLIC_ALIAS_UNAVAILABLE',
+          'This installation does not serve its console domain with its own certificate, so it cannot serve a custom domain'
+        );
+      }
+      return alias.desire(input);
+    },
+
+    // Opfield Cloud email: where sign-in emails go while the owner keeps the cloud email (CloudMail).
+    async mailConfig(input) {
+      return container.resolve(CloudMail).configure(input);
+    },
+
+    // The Opfield Cloud AI add-on: core, connection and models as an administrator would set them (CloudInference).
+    async inferenceCloud(input) {
+      return container.resolve(CloudInference).apply(input);
     },
 
     // Mirrors POST /api/system/update (Settings → Update now).

@@ -9,7 +9,12 @@ import type { User } from '@/types.js';
 import { DockerAvailabilityService } from './availability/docker-availability.service.js';
 import { DockerManagementService } from './docker.service.js';
 import { hasDockerResourceScope } from './docker-access-resource.service.js';
-import { inspectUserContainer } from './docker-internal-containers.js';
+import {
+  CONTAINER_UNAVAILABLE_CLOSE_CODE,
+  containerUnavailableFrame,
+  resolveDockerStreamTarget,
+} from './docker-stream-target.js';
+import { DockerTaskService } from './docker-task.service.js';
 
 const logger = createChildLogger('DockerLogStream');
 
@@ -190,6 +195,8 @@ interface LogStreamWSState {
   loadingMore: boolean;
   scopeResourceId: string | null;
   scopeNodeId: string | null;
+  /** The runtime the stream reads: the requested ID, or the container a recreate replaced it with. */
+  runtimeContainerId: string;
 }
 
 const wsStates = new WeakMap<WSContext, LogStreamWSState>();
@@ -240,6 +247,7 @@ export function createDockerLogStreamWSHandlers(
         loadingMore: false,
         scopeResourceId: null,
         scopeNodeId: null,
+        runtimeContainerId: containerId,
       };
       wsStates.set(ws, state);
 
@@ -294,7 +302,7 @@ export function createDockerLogStreamWSHandlers(
             return;
           }
           state.loadingMore = true;
-          handleLoadMore(ws, state, nodeId, containerId, dispatch).catch((err) => {
+          handleLoadMore(ws, state, nodeId, state.runtimeContainerId, dispatch).catch((err) => {
             if (wsStates.get(ws) !== state) return;
             state.loadingMore = false;
             logger.error('load_more failed', {
@@ -356,31 +364,42 @@ async function authenticateAndStartStream(
     ws.close(1008, 'Authentication failed');
     return;
   }
-  // Generated deployment slots may be inspectable, but their physical identity is
-  // not the authorization boundary. Prefer the logical Availability workload.
-  const placementIdentity = await availability.resolveRuntimeAccessIdentity(nodeId, containerId).catch(() => null);
+  const target = await resolveDockerStreamTarget(
+    { docker, availability, tasks: container.resolve(DockerTaskService) },
+    nodeId,
+    containerId
+  );
   if (wsStates.get(ws) !== state) return;
-  const inspect = placementIdentity ? null : await inspectUserContainer(docker, nodeId, containerId).catch(() => null);
-  if (wsStates.get(ws) !== state) return;
-  const scopeNodeId = placementIdentity?.nodeId ?? nodeId;
-  const scopeResourceId = String(placementIdentity?.resourceId ?? inspect?.scopeResourceId ?? '');
+  if (target.kind === 'unavailable') {
+    // Being recreated or not created yet: not an authentication failure, the client reconnects.
+    if (!registry.getNode(nodeId)) {
+      send(ws, { type: 'error', message: `Node ${nodeId} is not connected` });
+      ws.close(1011, 'Node not connected');
+      return;
+    }
+    send(ws, containerUnavailableFrame(target.recreating));
+    ws.close(CONTAINER_UNAVAILABLE_CLOSE_CODE, 'Container unavailable');
+    return;
+  }
   const user =
-    scopeResourceId &&
-    hasDockerResourceScope(initialAuth.scopes, 'docker:containers:view', scopeNodeId, scopeResourceId)
+    target.kind === 'resolved' &&
+    hasDockerResourceScope(initialAuth.scopes, 'docker:containers:view', target.scopeNodeId, target.scopeResourceId)
       ? initialAuth.user
       : null;
-  if (!user) {
-    send(ws, { type: 'auth_error', message: 'Access revoked or token expired' });
+  if (!user || target.kind !== 'resolved') {
+    send(ws, { type: 'auth_error', message: 'No access to this container' });
     ws.close(1008, 'Authentication failed');
     return;
   }
 
   state.user = user;
   state.authenticated = true;
-  state.scopeResourceId = scopeResourceId;
-  state.scopeNodeId = scopeNodeId;
+  state.scopeResourceId = target.scopeResourceId;
+  state.scopeNodeId = target.scopeNodeId;
+  state.runtimeContainerId = target.runtimeContainerId;
+  const runtimeId = target.runtimeContainerId;
 
-  logger.info('Docker log stream authenticated', { nodeId, containerId, userId: user.id });
+  logger.info('Docker log stream authenticated', { nodeId, containerId: runtimeId, userId: user.id });
 
   // Verify the node is connected
   const node = registry.getNode(nodeId);
@@ -393,7 +412,7 @@ async function authenticateAndStartStream(
   // ── Step 1: Fetch initial logs (non-follow) ──
   let initialLines: string[] = [];
   try {
-    const result = await dispatch.sendDockerLogsCommand(nodeId, containerId, {
+    const result = await dispatch.sendDockerLogsCommand(nodeId, runtimeId, {
       tailLines: tail,
       follow: false,
       timestamps: true,
@@ -433,7 +452,7 @@ async function authenticateAndStartStream(
   // ── Step 2: Start follow stream ──
   if (wsStates.get(ws) !== state) return;
 
-  const subscription = subscribeDockerLogFollow(registry, dispatch, nodeId, containerId, (lines, ended) => {
+  const subscription = subscribeDockerLogFollow(registry, dispatch, nodeId, runtimeId, (lines, ended) => {
     // Access was checked at open and is re-checked by the keepalive timer, not per chunk.
     if (wsStates.get(ws) !== state || state.subscription !== subscription || !state.authenticated) return;
     if (ended) {

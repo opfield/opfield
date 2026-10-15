@@ -20,6 +20,7 @@ import { AuthMailService } from '@/modules/auth/auth-mail.service.js';
 import { OidcSettingsService } from '@/modules/auth/oidc-settings.service.js';
 import { OIDC_CALLBACK_PATH } from '@/modules/cloud-link/cloud-enroll-contract.js';
 import { CloudLinkService } from '@/modules/cloud-link/cloud-link.service.js';
+import { readCloudPublicAlias } from '@/modules/cloud-link/cloud-link-addon-views.js';
 import { isDemoVisitor } from '@/modules/demo/demo-mode.js';
 import { GroupService } from '@/modules/groups/group.service.js';
 import { LoggingRuntimeService } from '@/modules/logging/logging-runtime.service.js';
@@ -173,6 +174,7 @@ export async function readOpfieldSettings(
     readCloudManaged(),
     readOpfieldAccountSignIn(),
   ]);
+  const cloudPublicAlias = cloudManaged ? await readCloudPublicAlias() : null;
 
   const response = {
     ...settings,
@@ -189,6 +191,8 @@ export async function readOpfieldSettings(
     availableGroups,
     /** Managed cloud installation: the public URL and gRPC addresses are the cloud's and cannot be changed. */
     cloudManaged,
+    /** Managed only: the custom domain the Opfield account set (read-only here). */
+    cloudPublicAlias,
     /** Use Opfield account for sign-in (oidcProviderAction: opfield_account). */
     opfieldAccountSignIn,
   };
@@ -222,7 +226,10 @@ export async function readOpfieldSettings(
       senderName: null,
       senderEmail: null,
       verifiedAt: null,
+      transport: 'smtp' as const,
+      cloud: null,
     },
+    cloudPublicAlias: null,
     oidc: {
       configured: false,
       issuer: null,
@@ -354,6 +361,29 @@ export async function updateOpfieldSettings(
       await authMailService.saveConfig(input.smtp);
       if (input.smtp.testRecipient)
         await authMailService.sendTestEmail(input.smtp.testRecipient, input.smtp.testEmailKind);
+    }
+    if (input.smtpTransport !== undefined) {
+      // Own SMTP takes over sign-in emails only once verified while password or email-code sign-in is on.
+      const methods = { ...(await authSettingsService.getConfig()).methods, ...input.methods };
+      if (
+        input.smtpTransport === 'smtp' &&
+        (methods.password || methods.emailOtp) &&
+        !(await authMailService.ownSmtpVerified())
+      ) {
+        throw new AppError(
+          409,
+          'SMTP_NOT_VERIFIED',
+          'Send a test through your SMTP before using it: password or email-code sign-in is on'
+        );
+      }
+      await authMailService.setTransport(input.smtpTransport, actor.user.id);
+    }
+    if (input.mailTest) {
+      await authMailService.sendTransportTest(
+        input.mailTest.recipient,
+        input.mailTest.kind,
+        (await generalSettingsService.getConfig()).publicUrl
+      );
     }
     if (!input.oidc && !input.oidcProviderAction && turnsSignInMethodOff(input.methods)) {
       // A sign-in method switched off must leave an administrator who can still sign in.
@@ -502,6 +532,7 @@ export async function updateOpfieldSettings(
       readCloudManaged(),
       readOpfieldAccountSignIn(),
     ]);
+    const cloudPublicAlias = cloudManaged ? await readCloudPublicAlias() : null;
 
     await auditService.log({
       userId: actor.user.id,
@@ -557,6 +588,7 @@ export async function updateOpfieldSettings(
       ...(request.currentRequestIp ? { currentRequestIp: request.currentRequestIp(networkSecurity) } : {}),
       availableGroups,
       cloudManaged,
+      cloudPublicAlias,
       opfieldAccountSignIn,
     };
   } catch (err) {

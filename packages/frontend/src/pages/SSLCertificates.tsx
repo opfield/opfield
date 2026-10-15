@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useLiveSearch } from "@/hooks/use-live-search";
 import { usePkiAvailable } from "@/hooks/use-plan-gated-features";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -126,10 +127,12 @@ export function SSLCertificates() {
   }, [createDialogPresent]);
   const [cloudflareReady, setCloudflareReady] = useState<boolean | null>(null);
   const isCheckingDomainsRef = useRef(false);
-  const { hasScope, hasScopedAccess, user } = useAuthStore();
+  const { hasScope, hasScopedAccess } = useAuthStore();
   // Creating needs ssl:cert:issue on some destination (broad or a folder); the dialog
   // offers only those folders. Per-certificate grants only cover renewal actions.
-  const canCreateCertificate = hasCreationDestination(user?.scopes ?? [], "ssl:cert:issue");
+  // Outside app places: the global list leaves app certificates to their app.
+  const globalAccess = useGlobalSectionAccess();
+  const canCreateCertificate = hasCreationDestination(globalAccess.scopes, "ssl:cert:issue");
   // Let's Encrypt picks registered domains, which needs domains:view; without it only
   // upload and internal CA linking are offered and no domain lookup is made.
   const canViewDomains = hasScopedAccess("domains:view");

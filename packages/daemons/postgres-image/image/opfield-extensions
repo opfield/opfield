@@ -1,0 +1,87 @@
+#!/bin/bash
+# opfield-extensions wire
+#
+# Makes the extension bundles the docker daemon installed into the database's
+# volume loadable: every file of a bundle (a rootfs fragment under usr/lib and
+# usr/share: control and SQL files, extension libraries, the libraries and data
+# they need) is symlinked to its path in the container where that path does not
+# exist yet (the image always wins), links into the volume that no longer
+# resolve are removed, and the dynamic linker cache is rebuilt. Runs as root:
+# from opfield-entrypoint.sh before the server starts (so preloaded libraries
+# from bundles work) and from the daemon after it installed a bundle into a
+# running server.
+#
+# Layout: <volume>/extensions/<bundle>/<version>-pg<major>-<debian>-<arch>/
+#   .opfield-installed   written by the daemon after it verified the files
+#   files/usr/...        the bundle's files
+# Only directories matching this container's major, Debian release and
+# architecture are wired, the highest version of a bundle when several match.
+set -euo pipefail
+
+root="${OPFIELD_EXTENSIONS_DIR:-/var/lib/postgresql/data/extensions}"
+
+usage() {
+	echo "usage: opfield-extensions wire" >&2
+	exit 2
+}
+
+# trusted reports whether a path may be wired: owned by the account that owns
+# the extensions directory (root, or the daemon's account), never by the
+# postgres user, and writable by nobody else.
+postgres_uid="$(id -u postgres 2>/dev/null || echo 999)"
+trusted() {
+	local owner mode
+	read -r owner mode < <(stat -c '%u %a' "$1")
+	[[ "$owner" != "$postgres_uid" && "$owner" == "$root_owner" ]] || return 1
+	(( (8#$mode & 8#022) == 0 ))
+}
+
+wire() {
+	# Links into the volume whose target is gone (a removed bundle).
+	find /usr/lib /usr/share -xdev -type l -lname "$root/*" 2>/dev/null | while IFS= read -r link; do
+		[[ -e "$link" ]] || rm -f "$link"
+	done
+	[[ -d "$root" ]] || return 0
+	root_owner="$(stat -c '%u' "$root")"
+	if ! trusted "$root"; then
+		echo "opfield-extensions: $root is not owned by the daemon; nothing wired" >&2
+		return 1
+	fi
+	local codename arch suffix bundle dir rel target current
+	codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+	arch="$(dpkg --print-architecture)"
+	suffix="-pg${PG_MAJOR:?}-${codename}-${arch}"
+	for bundle in "$root"/*/; do
+		bundle="${bundle%/}"
+		[[ -d "$bundle" && "$(basename "$bundle")" != .* ]] || continue
+		dir="$(find "$bundle" -mindepth 1 -maxdepth 1 -type d -name "*${suffix}" | sort -V | tail -n 1)"
+		[[ -n "$dir" && -f "$dir/.opfield-installed" && -d "$dir/files" ]] || continue
+		if ! trusted "$dir" || ! trusted "$dir/files"; then
+			echo "opfield-extensions: $dir is not owned by the daemon; skipped" >&2
+			continue
+		fi
+		while IFS= read -r -d '' rel; do
+			rel="${rel#./}"
+			case "$rel" in
+				usr/lib/* | usr/share/*) ;;
+				*) continue ;;
+			esac
+			target="/$rel"
+			if [[ -L "$target" ]]; then
+				current="$(readlink "$target")"
+				# A link of an earlier version of a bundle moves to this one.
+				[[ "$current" == "$root"/* && "$current" != "$dir/files/$rel" ]] && ln -sfn "$dir/files/$rel" "$target"
+				continue
+			fi
+			[[ -e "$target" ]] && continue
+			mkdir -p "$(dirname "$target")"
+			ln -s "$dir/files/$rel" "$target"
+		done < <(cd "$dir/files" && find . \( -type f -o -type l \) -print0)
+	done
+	ldconfig
+}
+
+case "${1:-}" in
+	wire) wire ;;
+	*) usage ;;
+esac

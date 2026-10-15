@@ -87,7 +87,11 @@ export function SimpleTable<TRow>({
             {columns.map((column) => (
               <th
                 key={column.id}
-                className={cn("px-4 py-3 font-medium", alignClass(column.align), column.className)}
+                className={cn(
+                  "overflow-hidden text-ellipsis px-4 py-3 font-medium",
+                  alignClass(column.align),
+                  column.className
+                )}
               >
                 {column.header}
               </th>
@@ -114,7 +118,8 @@ export function SimpleTable<TRow>({
               <td
                 key={column.id}
                 className={cn(
-                  "px-4 py-3 align-middle",
+                  // In a fixed-layout table a narrow column clips its content instead of overlapping the next.
+                  "overflow-hidden px-4 py-3 align-middle",
                   alignClass(column.align),
                   column.cellClassName
                 )}

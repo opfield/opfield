@@ -104,6 +104,8 @@ export class AppAuditTagger {
       }
       case 'ssl_certificate':
         return id && UUID_RE.test(id) ? { type: 'certificate', id } : null;
+      case 'domain':
+        return id && UUID_RE.test(id) ? { type: 'domain', id } : null;
       case 'logging-environment':
         return id && UUID_RE.test(id) ? { type: 'logging', id } : null;
       case 'logging-token': {

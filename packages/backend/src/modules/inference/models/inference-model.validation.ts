@@ -52,7 +52,11 @@ export function validateSourceCompatibility(
 export function normalizePublicId(value: string): string {
   const normalized = value.trim().toLowerCase();
   if (!/^(?:[a-z0-9][a-z0-9._:/-]{0,254}|~[a-z0-9][a-z0-9._:/-]{0,253})$/.test(normalized)) {
-    throw new AppError(400, 'INFERENCE_MODEL_ID_INVALID', 'Public model ID contains unsupported characters');
+    throw new AppError(
+      400,
+      'INFERENCE_MODEL_ID_INVALID',
+      'Public model ID can use only lowercase letters, digits and . _ : / - (start with a letter or digit)'
+    );
   }
   return normalized;
 }

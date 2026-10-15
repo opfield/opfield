@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import type { ElementType } from "react";
+import { canAccessDockerSection } from "@/lib/docker-tabs";
 import {
   CERTIFICATES_HUB,
   type HubAccessContext,
@@ -23,6 +24,7 @@ import {
   visibleHubTabs,
 } from "@/lib/navigation-hubs";
 import { extractBaseScope, hasScopeBase, scopeMatches } from "@/lib/scope-utils";
+import { settingsAccess } from "@/lib/settings-tabs";
 
 export type AppNavigationGroupId = "main" | "reverse-proxy" | "resources" | "management";
 
@@ -261,26 +263,6 @@ const NOTIFICATION_CORE_SCOPES = [
 
 const SIEM_NOTIFICATION_SCOPES = ["audit:siem:view", "audit:siem:manage"] as const;
 
-const SETTINGS_SCOPES = [
-  "settings:opfield:view",
-  "settings:opfield:edit",
-  "docker:registries:view",
-  "admin:update",
-  "license:view",
-  "license:manage",
-  "status-page:view",
-  "housekeeping:view",
-  "housekeeping:run",
-  "housekeeping:configure",
-  "integrations:gitlab:view",
-  "integrations:gitlab:manage",
-  "integrations:cloudflare:view",
-  "integrations:cloudflare:manage",
-  "integrations:hosting:view",
-  "integrations:hosting:manage",
-  "feat:ai:configure",
-] as const;
-
 /**
  * The scopes that open global sections (Docker, Routes, Databases, Storage, Pages and their links):
  * without the bases the user holds only through app places. Their grants still open the app and the
@@ -344,19 +326,12 @@ export function canAccessNavigationItem(
       return visibleHubTabs(ROUTES_HUB, hubContext(context)).length > 0;
     case "ssl-certificates":
       return visibleHubTabs(CERTIFICATES_HUB, hubContext(context)).length > 0;
-    case "docker": {
-      const canAccess =
-        hasScopeBase(scopes, "docker:containers:view") ||
-        hasScopeBase(scopes, "docker:images:view") ||
-        hasScopeBase(scopes, "docker:volumes:view") ||
-        hasScopeBase(scopes, "docker:networks:view") ||
-        hasScopeBase(scopes, "docker:tasks") ||
-        hasScopeBase(scopes, "docker:folders:manage");
+    case "docker":
+      // The Docker page's own tab list (lib/docker-tabs).
       return (
-        canAccess &&
+        canAccessDockerSection(scopes) &&
         (context.hasDockerNodes !== false || hasScopeBase(scopes, "docker:folders:manage"))
       );
-    }
     case "pages":
       return (
         context.pagesEnabled === true &&
@@ -400,17 +375,8 @@ export function canAccessNavigationItem(
         hasScopeBase(scopes, scope)
       );
     case "settings":
-      return (
-        hasAnyScope(scopes, SETTINGS_SCOPES) ||
-        (context.inferenceEnabled &&
-          hasAnyScope(scopes, [
-            "inference:providers:view",
-            "inference:providers:manage",
-            "inference:models:manage",
-            "inference:limits:manage",
-            "inference:usage:view",
-          ]))
-      );
+      // The Settings page's own tab list.
+      return settingsAccess(scopes, context.inferenceEnabled).tabs.length > 0;
   }
 }
 

@@ -33,10 +33,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { nodeIconClassNames } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -103,7 +105,11 @@ export function Pages() {
   const navigate = useNavigate();
   const { hasScope, hasScopedAccess } = useAuthStore();
   const canView = hasScopedAccess("pages:view");
-  const canCreate = hasScopedAccess("pages:create");
+  // Creating needs a destination outside app places (broad, node or user folder grant).
+  const globalAccess = useGlobalSectionAccess();
+  const canCreate = hasCreationDestination(globalAccess.scopes, "pages:create", {
+    nodeGrants: true,
+  });
   const canViewSettings = hasScope("pages:settings:view") || hasScope("pages:settings:edit");
   const canManageFolders = useCanManageSomeFolders("pages:folders:manage");
   const canEdit = hasScopedAccess("pages:edit");

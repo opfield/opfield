@@ -107,7 +107,8 @@ function AdditionalLinkRuntimeSection({ link }: { link: ProxyAdditionalSecureLin
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3 border border-border bg-card p-3 text-sm">
-        <span className="font-medium">{link.name}</span>
+        <span className="font-medium">{link.label}</span>
+        {link.purpose === "additional_route" && <Badge variant="secondary">Additional route</Badge>}
         <Badge
           variant={
             link.status === "active"
@@ -298,6 +299,17 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
 
   if (!link) return null;
 
+  // A route whose primary target has no Secure Link (Pages, a manual address) shows only its additional links.
+  if (!link.hasPrimary) {
+    return (
+      <div className="space-y-4">
+        {(link.additionalLinks ?? []).map((additionalLink) => (
+          <AdditionalLinkRuntimeSection key={additionalLink.id} link={additionalLink} />
+        ))}
+      </div>
+    );
+  }
+
   const runtime = link.runtime;
   const unknown = relayUnknown(runtime);
   const traffic = link.traffic;
@@ -375,8 +387,8 @@ export function SecureLinkTab({ hostId }: { hostId: string }) {
       <section>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-semibold text-muted-foreground">Link traffic</h3>
-          {link.healthCheck.enabled && (
-            <Badge variant="secondary">E2E probe every {link.healthCheck.intervalSeconds}s</Badge>
+          {link.healthCheck?.enabled && (
+            <Badge variant="secondary">E2E probe every {link.healthCheck?.intervalSeconds}s</Badge>
           )}
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

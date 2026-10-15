@@ -140,6 +140,15 @@ export const UpdateAuthProvisioningSettingsSchema = z.object({
   methods: AuthMethodsSchema.optional(),
   passwordPolicy: PasswordPolicySchema.optional(),
   smtp: SmtpConfigSchema.optional(),
+  /** Managed installations with Opfield Cloud email: "smtp" is Use my own SMTP, "cloud" goes back to the cloud email. */
+  smtpTransport: z.enum(['smtp', 'cloud']).optional(),
+  /** Sends a test through the transport in use (the cloud email, or the saved own SMTP) without saving SMTP. */
+  mailTest: z
+    .object({
+      recipient: z.string().email().max(255),
+      kind: z.enum(['smtp_configuration', 'password_setup', 'password_reset', 'email_otp']).optional(),
+    })
+    .optional(),
   oidc: z
     .object({
       issuer: z.string().trim().url().max(2048),

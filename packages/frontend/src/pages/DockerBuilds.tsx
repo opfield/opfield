@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { api } from "@/services/api";
 import type { DockerBuild, DockerBuildStatus } from "@/types";
 import { DockerBuildDetailsDialog } from "./docker-detail/DockerBuildDetailsDialog";
@@ -83,6 +84,8 @@ export function DockerBuilds({ embedded = false }: DockerBuildsProps) {
     (cursor?: string) => ({
       limit: 50,
       cursor,
+      // The global Docker page leaves app members' builds to their app, like its other lists.
+      ...NORMAL_LIST_FILTER,
       ...(debouncedSearch ? { search: debouncedSearch } : {}),
       ...(status !== "all" ? { status: status as DockerBuildStatus } : {}),
       ...(provider !== "all" ? { provider: provider as "gitlab" | "github" | "git" } : {}),

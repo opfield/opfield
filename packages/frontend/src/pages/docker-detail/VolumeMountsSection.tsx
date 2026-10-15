@@ -174,9 +174,12 @@ export function VolumeMountsSection({
                     className={`grid ${canEdit ? "grid-cols-[1fr_1fr_100px_36px]" : "grid-cols-[1fr_1fr_100px]"} border-b border-border last:border-b-0`}
                   >
                     {!m.hostPath && isAnonymousVolumeName(m.name) ? (
-                      // An anonymous volume keeps its mount: a label instead of the 64-character name.
-                      <div className={cn(inputCell, "flex items-center truncate")} title={m.name}>
-                        {dockerVolumeLabel(m.name).text}
+                      // An anonymous volume keeps its mount: a read-only label, cut only by the cell width.
+                      <div
+                        className={cn(inputCell, "flex min-w-0 items-center overflow-hidden")}
+                        title={m.name}
+                      >
+                        <span className="truncate">{dockerVolumeLabel(m.name).full}</span>
                       </div>
                     ) : (
                       <Combobox

@@ -70,6 +70,7 @@ import { useStableNavigate } from "@/hooks/use-stable-navigate";
 import { useUrlTab } from "@/hooks/use-url-tab";
 import { toastApiError } from "@/lib/api-error-toast";
 import { projectComposeServicePolicy } from "@/lib/compose-service-availability";
+import { CONTAINER_RECREATING_MESSAGE } from "@/lib/container-stream-unavailable";
 import { resolveContainerImageReference } from "@/lib/docker-image-ref";
 import { managedLabel } from "@/lib/docker-managed-labels";
 import {
@@ -1164,7 +1165,7 @@ export function DockerContainerDetail({
     }
     const ok = await confirm({
       title: "Remove Container",
-      description: `Remove "${containerDisplayName(container?.Name ?? "")}"? This cannot be undone.`,
+      description: `Remove "${containerDisplayName(container?.Name ?? "")}"? Its environment variables and secrets are deleted with it. This cannot be undone.`,
       confirmLabel: "Remove",
     });
     if (!ok) return;
@@ -1405,6 +1406,19 @@ export function DockerContainerDetail({
     if (wasReplacing.current && !runtimeReplacing) void fetchContainer(true, true);
     wasReplacing.current = runtimeReplacing;
   }, [runtimeReplacing, fetchContainer]);
+  // Logs, Console or Files found no container (a recreate replaced it): look it up again, so the tabs reconnect to
+  // the replacement. At most every 3 s, however often they ask.
+  const lastReresolveAt = useRef(0);
+  const reresolveContainer = useCallback(() => {
+    const now = Date.now();
+    if (now - lastReresolveAt.current < 3000) return;
+    lastReresolveAt.current = now;
+    void fetchContainer(true, true);
+  }, [fetchContainer]);
+  const recreatingNotice =
+    effectiveTransition === "recreating" || effectiveTransition === "updating"
+      ? CONTAINER_RECREATING_MESSAGE
+      : undefined;
   const availabilityBusy = Boolean(
     availabilityPolicy?.latestOperation &&
       ["pending", "running", "waiting", "cleanup_pending"].includes(
@@ -1953,6 +1967,8 @@ export function DockerContainerDetail({
                   containerId={runtimeContainerId}
                   containerState={baseState}
                   inspectData={container}
+                  notice={recreatingNotice}
+                  onContainerUnavailable={reresolveContainer}
                 />
               )}
             </TabsContent>
@@ -1964,6 +1980,7 @@ export function DockerContainerDetail({
                 containerId={runtimeContainerId}
                 scopeResourceId={scopeResourceId}
                 scopeNodeId={nodeId!}
+                onContainerUnavailable={reresolveContainer}
                 headerActions={
                   servingPlacements.length > 1 ? (
                     <AvailabilityInstanceSelect
@@ -1984,6 +2001,7 @@ export function DockerContainerDetail({
                 containerId={runtimeContainerId}
                 scopeResourceId={scopeResourceId}
                 scopeNodeId={nodeId!}
+                onContainerUnavailable={reresolveContainer}
                 canWrite={canWriteFiles}
                 headerActions={
                   servingPlacements.length > 1 ? (

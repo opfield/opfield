@@ -1,9 +1,12 @@
-import { Queue, Worker } from 'bullmq';
+import { randomUUID } from 'node:crypto';
+import type { EventEmitter } from 'node:events';
+import { Job, Queue, QueueEvents, UnrecoverableError, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CryptoService } from '@/services/crypto.service.js';
 import { firstShutdownReport, isShuttingDown } from '@/services/shutdown-state.js';
 import type { AuthEmailInput } from './auth-email.templates.js';
+import { CloudMailRefusedError } from './auth-mail-cloud.js';
 
 const logger = createChildLogger('AuthEmailQueue');
 const AUTH_EMAIL_QUEUE_NAME = 'auth-email-delivery';
@@ -15,9 +18,19 @@ export const AUTH_EMAIL_QUEUE_CLOSE_WAIT_MS = 3_000;
 
 export type SecurityAuthEmailInput = Exclude<AuthEmailInput, { kind: 'smtp_configuration' }>;
 
+/** A queued email failed for good (every attempt, or a refusal no retry can change). */
+export class AuthEmailDeliveryError extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+    this.name = 'AuthEmailDeliveryError';
+  }
+}
+
 interface AuthEmailDelivery {
   recipient: string;
   input: SecurityAuthEmailInput;
+  /** One key per email, the same on every retry (cloud email sends it once); absent on jobs of older releases. */
+  dedupKey?: string;
 }
 
 interface EncryptedAuthEmailJob {
@@ -29,9 +42,11 @@ export class AuthEmailQueueService {
   private readonly queue: Queue<EncryptedAuthEmailJob, void, 'deliver'>;
   private readonly workerConnection: Redis;
   private worker: Worker<EncryptedAuthEmailJob> | null = null;
+  private events: Promise<QueueEvents> | null = null;
+  private eventsConnection: Redis | null = null;
 
   constructor(
-    redis: Redis,
+    private readonly redis: Redis,
     private readonly cryptoService: CryptoService
   ) {
     this.queue = new Queue<EncryptedAuthEmailJob, void, 'deliver'>(AUTH_EMAIL_QUEUE_NAME, {
@@ -58,7 +73,13 @@ export class AuthEmailQueueService {
             encryptedDek: job.data.encryptedDek,
           })
         ) as AuthEmailDelivery;
-        await deliver(delivery);
+        try {
+          await deliver(delivery);
+        } catch (error) {
+          // The account refused it for good (quota, invalid, unknown kind): fail now, a retry cannot change that.
+          if (error instanceof CloudMailRefusedError) throw new UnrecoverableError(`${error.code}: ${error.message}`);
+          throw error;
+        }
       },
       { connection: this.workerConnection as never, concurrency: 2 }
     );
@@ -81,16 +102,83 @@ export class AuthEmailQueueService {
   }
 
   async enqueue(recipient: string, input: SecurityAuthEmailInput): Promise<void> {
-    const payload = this.cryptoService.encryptString(JSON.stringify({ recipient, input } satisfies AuthEmailDelivery));
-    await this.queue.add('deliver', payload);
+    await this.queue.add('deliver', this.payload(recipient, input));
+  }
+
+  /**
+   * Queues the email and waits up to `waitMs` for its outcome: `sent`, or `queued` when it is still on its way (it
+   * keeps going). Throws AuthEmailDeliveryError when it failed for good. For actions a person waits on.
+   */
+  async enqueueAndWait(recipient: string, input: SecurityAuthEmailInput, waitMs: number): Promise<'sent' | 'queued'> {
+    const events = await this.queueEvents().catch((error: unknown) => {
+      logger.warn('Auth email delivery cannot be followed', { error: errorMessage(error) });
+      return null;
+    });
+    const job = await this.queue.add('deliver', this.payload(recipient, input));
+    if (!events || !job.id) return 'queued';
+    const jobId = job.id;
+    const emitter = events as unknown as EventEmitter;
+    return new Promise<'sent' | 'queued'>((resolve, reject) => {
+      let settled = false;
+      const finish = (settle: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        emitter.off(`completed:${jobId}`, onCompleted);
+        emitter.off(`failed:${jobId}`, onFailed);
+        settle();
+      };
+      const onCompleted = () => finish(() => resolve('sent'));
+      const onFailed = (args: { failedReason?: string }) =>
+        finish(() => reject(new AuthEmailDeliveryError(args.failedReason || 'The email could not be sent')));
+      const timer = setTimeout(() => finish(() => resolve('queued')), waitMs);
+      emitter.on(`completed:${jobId}`, onCompleted);
+      emitter.on(`failed:${jobId}`, onFailed);
+      // It may have finished before the listeners: a finished job is removed on success and kept on failure.
+      void job
+        .getState()
+        .then(async (state) => {
+          if (state === 'completed' || state === 'unknown') onCompleted();
+          else if (state === 'failed') onFailed({ failedReason: (await Job.fromId(this.queue, jobId))?.failedReason });
+        })
+        .catch(() => undefined);
+    });
+  }
+
+  private payload(recipient: string, input: SecurityAuthEmailInput): EncryptedAuthEmailJob {
+    return this.cryptoService.encryptString(
+      JSON.stringify({ recipient, input, dedupKey: randomUUID() } satisfies AuthEmailDelivery)
+    );
+  }
+
+  /** The queue's events, on their own connection (blocking reads), opened on first use and kept. */
+  private queueEvents(): Promise<QueueEvents> {
+    if (!this.events) {
+      this.eventsConnection = this.redis.duplicate({ maxRetriesPerRequest: null });
+      const events = new QueueEvents(AUTH_EMAIL_QUEUE_NAME, { connection: this.eventsConnection as never });
+      events.on('error', (error) => {
+        if (!isShuttingDown()) logger.warn('Auth email queue events error', { error: error.message });
+      });
+      this.events = events.waitUntilReady().then(
+        () => events,
+        (error: unknown) => {
+          this.events = null;
+          void events.close().catch(() => undefined);
+          throw error;
+        }
+      );
+    }
+    return this.events;
   }
 
   async close(): Promise<void> {
     const worker = this.worker;
     this.worker = null;
+    const events = this.events ? await this.events.catch(() => null) : null;
+    this.events = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const closed = await Promise.race([
-      Promise.allSettled([worker?.close(), this.queue.close()]).then(() => true),
+      Promise.allSettled([worker?.close(), this.queue.close(), events?.close()]).then(() => true),
       new Promise<false>((resolve) => {
         timer = setTimeout(() => resolve(false), AUTH_EMAIL_QUEUE_CLOSE_WAIT_MS);
       }),
@@ -98,9 +186,14 @@ export class AuthEmailQueueService {
     clearTimeout(timer);
     if (!closed) {
       logger.info('Auth email queue closed without Redis');
-      await Promise.allSettled([worker?.disconnect(), this.queue.disconnect()]);
+      await Promise.allSettled([worker?.disconnect(), this.queue.disconnect(), events?.disconnect()]);
     }
-    // The worker's own connection: quit would wait for a Redis that is gone.
+    // The worker's and events' own connections: quit would wait for a Redis that is gone.
     this.workerConnection.disconnect();
+    this.eventsConnection?.disconnect();
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

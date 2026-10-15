@@ -910,7 +910,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_builds',
     description:
-      'List Git-source Docker builds visible to the caller, including exact commit, status, Build Worker, immutable artifact, policy result, and target resource.',
+      'List Git-source Docker builds visible to the caller, including exact commit, status, Build Worker, immutable artifact, policy result, and target resource. A succeeded build whose container, deployment or Compose Project was stopped on request carries progress.rolloutNote (for example "Container stopped — the new image runs on next start"): the new image or revision replaced the old one without starting it and runs on the next start.',
     parameters: {
       type: 'object',
       properties: {
@@ -937,6 +937,8 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         branch: { type: 'string' },
         search: { type: 'string' },
         limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Default: 20' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out builds of resources that belong to an app.' },
+        appId: { type: 'string', description: 'Only builds of resources of this app (any environment).' },
       },
     },
     destructive: false,
@@ -947,7 +949,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_build',
     description:
-      'Inspect one Git-source build, read incremental build logs, request cancellation, or retry a terminal build. Authorization follows the build target: Docker container/deployment, Compose Project, or Pages Project. A built container that fails readiness (healthy, or running 10 s without a restart within 60 s) is returned to its previous image and the build fails with BUILD_ROLLOUT_ROLLED_BACK (BUILD_ROLLOUT_ROLLBACK_FAILED when that return fails); the error carries the container state, exit code, restarts and last log lines. Other rollout failures are BUILD_ROLLOUT_FAILED. A Compose revision whose published port is taken on the node fails at revision creation with COMPOSE_HOST_PORT_IN_USE. Build images of deleted workloads are removed from the node automatically; an unused build image can also be removed with remove_docker_image.',
+      'Inspect one Git-source build, read incremental build logs (logs returns the joined text, lastSequence to pass as afterSequence for the next page, and hasMore; a page can end mid-line, the next page continues it), request cancellation, or retry a terminal build. Authorization follows the build target: Docker container/deployment, Compose Project, or Pages Project. A target stopped on request is not started by a build: its image (for a deployment its release, for a Compose Project its revision) is replaced, the build succeeds without a readiness wait and carries progress.rolloutNote; the first build of a container created from a Git source still creates and starts it. A built container that fails readiness (healthy, or running 10 s without a restart within 60 s) is returned to its previous image and the build fails with BUILD_ROLLOUT_ROLLED_BACK (BUILD_ROLLOUT_ROLLBACK_FAILED when that return fails); the error carries the container state, exit code, restarts and last log lines. Other rollout failures are BUILD_ROLLOUT_FAILED. A Compose revision whose published port is taken on the node fails at revision creation with COMPOSE_HOST_PORT_IN_USE. Build images of deleted workloads are removed from the node automatically; an unused build image can also be removed with remove_docker_image.',
     parameters: {
       type: 'object',
       properties: {
@@ -968,7 +970,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_source',
     description:
-      'Inspect, attach, update, remove, resolve, sync, or manually build the Git source bound directly to an existing Docker container, blue/green deployment, or Compose Project, or create a new container, deployment, or Compose Project from a Git source (create). sync (Sync now; docker:containers:manage, or docker:compose:manage for Compose) checks the branch for a new commit now, like one poll iteration, and queues the automatic build only when the source builds automatically and the head changed or has no build yet; it returns { source, changed, build }, needs no integrations:<provider>:use, and within about 10 seconds of the previous check returns the current state without asking the provider. resolve refreshes the desired commit without building (sync without building). pending reads a container that exists only as a queued first source build. Also lists the Git connectors a source can come from (connectors: id, name, provider) and their repositories (repositories, connectorId, optional search; returns { repositories, truncated }, truncated meaning more may exist past the listing bound, so search by name or owner/name); both need a create or edit scope of the workload the source is for and list only what the integrations:<provider>:use grants of the caller cover (what attaching the source needs). Attaching a source (create, upsert of a new source) or changing its connector, repository or branch also needs integrations:<provider>:use on that repository: unqualified, or limited to its connector, GitLab group or GitHub owner, or the exact project or repository; other upsert changes and build need only the workload scopes. Manages source-scoped Build Secrets without exposing secret values. Builds always resolve an exact commit and deploy only approved immutable artifacts; while a build rollout deploys, other changes to its target are refused with 409 BUILD_ROLLOUT_IN_PROGRESS. Automatic deployments act for the account that last saved the source (its settings or Build Secrets): a new image on a workload with host bind mounts deploys only while that account holds docker:containers:mounts on it, checked when the rollout runs; otherwise the build fails with MISSING_DOCKER_MOUNTS_SCOPE naming the account and the fix (grant the scope, or save the source as a user who holds it). get returns composeServiceNames for a Compose source: the services of the Compose file it resolved, which the project can be linked to before its first revision.',
+      'Inspect, attach, update, remove, resolve, sync, or manually build the Git source bound directly to an existing Docker container, blue/green deployment, or Compose Project, or create a new container, deployment, or Compose Project from a Git source (create). sync (Sync now; docker:containers:manage, or docker:compose:manage for Compose) checks the branch for a new commit now, like one poll iteration, and queues the automatic build only when the source builds automatically and the head changed or has no build yet; it returns { source, changed, build }, needs no integrations:<provider>:use, and within about 10 seconds of the previous check returns the current state without asking the provider. resolve refreshes the desired commit without building (sync without building). pending reads a container that exists only as a queued first source build. Also lists the Git connectors a source can come from (connectors: id, name, provider) and their repositories (repositories, connectorId, optional search; returns { repositories, truncated }, truncated meaning more may exist past the listing bound, so search by name or owner/name); both need a create or edit scope of the workload the source is for and list only what the integrations:<provider>:use grants of the caller cover (what attaching the source needs). Attaching a source (create, upsert of a new source) or changing its connector, repository or branch also needs integrations:<provider>:use on that repository: unqualified, or limited to its connector, GitLab group or GitHub owner, or the exact project or repository; other upsert changes and build need only the workload scopes. upsert of an existing source changes only the fields you pass; omitted fields and policy keys keep their saved values, and it returns the saved source including policy. Manages source-scoped Build Secrets without exposing secret values. Builds always resolve an exact commit and deploy only approved immutable artifacts; while a build rollout deploys, other changes to its target are refused with 409 BUILD_ROLLOUT_IN_PROGRESS. Automatic deployments act for the account that last saved the source (its settings or Build Secrets): a new image on a workload with host bind mounts deploys only while that account holds docker:containers:mounts on it, checked when the rollout runs; otherwise the build fails with MISSING_DOCKER_MOUNTS_SCOPE naming the account and the fix (grant the scope, or save the source as a user who holds it). get returns composeServiceNames for a Compose source: the services of the Compose file it resolved, which the project can be linked to before its first revision.',
     parameters: {
       type: 'object',
       properties: {
@@ -997,6 +999,18 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         deploymentId: { type: 'string', description: 'Blue/green deployment UUID' },
         composeProjectId: { type: 'string', description: 'Compose Project UUID' },
         resourceName: { type: 'string', description: 'New container or deployment name for create.' },
+        env: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+          description:
+            'create of a container only: environment variables (NAME: value) its first build creates and starts it with.',
+        },
+        secrets: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+          description:
+            'create of a container only: secrets (NAME: value) its first build creates and starts it with; needs docker:containers:secrets for the destination. A name cannot be both an env variable and a secret.',
+        },
         folderId: { type: 'string', description: 'Authorized destination folder UUID for creation.' },
         projectName: { type: 'string', description: 'New Compose Project name for create.' },
         restartPolicy: {
@@ -1045,7 +1059,23 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         },
         policy: {
           type: 'object',
-          description: 'Artifact policy containing the vulnerability blocking threshold',
+          description:
+            'Artifact vulnerability policy of the source (Console: Vulnerability policy and scope). On upsert, keys you omit keep their saved values.',
+          additionalProperties: false,
+          properties: {
+            vulnerabilityThreshold: {
+              type: 'string',
+              enum: ['critical', 'high', 'medium', 'low', 'none', 'disabled'],
+              description:
+                'Lowest severity that blocks a deployment; none = report only; disabled = skip scanning and SBOM. Default critical.',
+            },
+            vulnerabilityScope: {
+              type: 'string',
+              enum: ['all', 'application', 'fixable_application', 'fixable_all'],
+              description:
+                'Findings that count against the threshold: all = every package; application = OS packages (deb, rpm, apk, alpm) report-only; fixable_application = only findings with a released fix, OS packages report-only; fixable_all = only findings with a released fix in any package. Default all.',
+            },
+          },
         },
         commitSha: { type: 'string', description: 'Optional exact current commit for a manual build' },
         force: { type: 'boolean', description: 'Queue a new attempt even when this commit already has a build' },
@@ -1053,6 +1083,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         secretValue: { type: 'string', description: 'Write-only Build Secret value.' },
       },
       required: ['operation', 'nodeId'],
+      additionalProperties: false,
     },
     destructive: true,
     category: 'Docker',
@@ -1084,7 +1115,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_container_config',
     description:
-      'Manage container env, files, secrets, webhooks, and HTTP health checks. Container file list/read requires docker:containers:files:read; write_file, create_file, create_directory, delete_file, move_file, and resumable upload_init/upload_chunk/upload_complete/upload_abort require docker:containers:files:write. Binary content uses contentBase64 (upload chunks at most 1 MiB); read_file returns UTF-8 unless encoding is base64. update_env recreates the container with the new values and needs docker:containers:environment. list_secrets returns the secret keys with docker:containers:environment; reveal (values) and create/update/delete_secret need docker:containers:secrets, which also grants docker:containers:environment. Other operation-specific webhooks/edit/view scopes are enforced.',
+      'Manage container env, files, secrets, webhooks, and HTTP health checks. Container file list/read requires docker:containers:files:read; write_file, create_file, create_directory, delete_file, move_file, and resumable upload_init/upload_chunk/upload_complete/upload_abort require docker:containers:files:write. Binary content uses contentBase64 (upload chunks at most 1 MiB); read_file returns UTF-8 unless encoding is base64. update_env recreates the container with the new values and needs docker:containers:environment. list_secrets returns the secret keys with docker:containers:environment; reveal (values) and create/update/delete_secret need docker:containers:secrets, which also grants docker:containers:environment. A container created from a Git source that its first build has not created yet (manage_docker_source pending) takes get_env, update_env and the secret operations by its containerName: the values are saved and the first build creates and starts the container with them (update_env then recreates nothing). Other operation-specific webhooks/edit/view scopes are enforced.',
     parameters: {
       type: 'object',
       properties: {

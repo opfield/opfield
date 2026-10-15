@@ -193,11 +193,9 @@ export function AdminUserConfigDialog({
   const sendPasswordLink = () =>
     run("password-link", async () => {
       const result = await api.sendUserPasswordLink(user.id);
-      toast.success(
-        result.purpose === "password_setup"
-          ? "Password setup link sent"
-          : "Password reset link sent"
-      );
+      const link =
+        result.purpose === "password_setup" ? "Password setup link" : "Password reset link";
+      toast.success(`${link} ${result.delivery === "queued" ? "queued" : "sent"}`);
       setPasswordLinkCoolingDown(true);
       if (passwordLinkCooldownTimer.current !== null)
         window.clearTimeout(passwordLinkCooldownTimer.current);

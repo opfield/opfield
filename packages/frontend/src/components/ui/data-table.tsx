@@ -166,7 +166,8 @@ export function DataTable<T>({
               <div
                 key={col.key}
                 className={cn(
-                  "px-4 py-3 font-medium",
+                  // min-w-0 like the body cells: the header grid then sizes its tracks exactly as the rows do.
+                  "min-w-0 overflow-hidden text-ellipsis px-4 py-3 font-medium",
                   col.align === "right"
                     ? "text-right"
                     : col.align === "center"

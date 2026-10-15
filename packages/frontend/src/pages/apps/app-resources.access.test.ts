@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   getDockerComposeProject: vi.fn(),
   listAppRoutes: vi.fn(),
   listAppCertificates: vi.fn(),
+  listAppDomains: vi.fn(),
   listContainerLinks: vi.fn(),
   listManagedDatabases: vi.fn(),
   listManagedObjectStorages: vi.fn(),
@@ -42,6 +43,7 @@ describe("app member loading by scope", () => {
     api.listDockerComposeProjects.mockResolvedValue([]);
     api.listAppRoutes.mockResolvedValue([route]);
     api.listAppCertificates.mockResolvedValue([]);
+    api.listAppDomains.mockResolvedValue([]);
   });
 
   it("skips Compose without docker:compose:view and keeps the containers", async () => {

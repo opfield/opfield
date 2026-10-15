@@ -37,10 +37,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { DATABASE_TYPE_LABELS, databaseTypeLabel } from "@/lib/database-type";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
@@ -319,7 +321,11 @@ function DatabasesContent({
       .catch(() => undefined);
   });
 
-  const canCreate = !embedded && hasScopedAccess("databases:create");
+  // Creating needs a destination outside app places (broad, node or user folder grant).
+  const globalAccess = useGlobalSectionAccess();
+  const canCreate =
+    !embedded &&
+    hasCreationDestination(globalAccess.scopes, "databases:create", { nodeGrants: true });
   const canManageSomeFolders = useCanManageSomeFolders("databases:folders:manage");
   const canManageFolders = !embedded && canManageSomeFolders;
 

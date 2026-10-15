@@ -9,12 +9,15 @@ export function ConsoleTab({
   scopeResourceId,
   scopeNodeId = nodeId,
   headerActions,
+  onContainerUnavailable,
 }: {
   nodeId: string;
   containerId: string;
   scopeResourceId?: string;
   scopeNodeId?: string;
   headerActions?: ReactNode;
+  /** The console found no container (recreated, not running yet): the page looks it up again. */
+  onContainerUnavailable?: () => void;
 }) {
   const { hasScope } = useAuthStore();
   const canUseConsole = hasScope(
@@ -43,6 +46,7 @@ export function ConsoleTab({
       popoutUrl={`/docker/console/${nodeId}/${containerId}?shell=auto`}
       connectLabel={containerId.slice(0, 12)}
       headerActions={headerActions}
+      onContainerUnavailable={onContainerUnavailable}
     />
   );
 }

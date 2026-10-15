@@ -73,6 +73,7 @@ import {
   nodeHostFeatureDisabledMessage,
   nodeHostFileAccessWarning,
 } from "@/lib/node-host-access";
+import { nodeSupportsServiceCreationLock } from "@/lib/node-service-lock";
 import { confirmAndDeleteNode } from "@/lib/remove-node";
 import { dockerNodeListRoute, nodeRoute, nodeScopedPaths } from "@/lib/resource-routes";
 import { createReturnNavigationState } from "@/lib/return-navigation";
@@ -553,7 +554,7 @@ export function AdminNodeDetail({
   );
   const canManageServiceCreationLock =
     !!node &&
-    (node.type === "nginx" || node.type === "docker") &&
+    nodeSupportsServiceCreationLock(node.type) &&
     (hasScope("nodes:lock") || hasScope(`nodes:lock:${node.id}`));
   const canRenameNode = !!id && hasScope(`nodes:rename:${id}`);
   const canOpenNodeSettings = canRenameNode || canEditBuilderSettings;
@@ -996,7 +997,7 @@ export function AdminNodeDetail({
               <Badge variant={STATUS_BADGE[nodeState] || "secondary"} size="inline">
                 {nodeState}
               </Badge>
-              {(node.type === "nginx" || node.type === "docker") && node.serviceCreationLocked && (
+              {nodeSupportsServiceCreationLock(node.type) && node.serviceCreationLocked && (
                 <Badge variant="warning" size="inline">
                   Locked
                 </Badge>

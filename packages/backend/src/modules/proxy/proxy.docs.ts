@@ -10,6 +10,7 @@ import {
 } from '@/lib/openapi.js';
 import {
   CreateProxyHostSchema,
+  MissingRouteDomainsSchema,
   ProxyHostListQuerySchema,
   RouteIngressNodeListQuerySchema,
   RouteIngressPlacementSchema,
@@ -79,8 +80,21 @@ export const createProxyHostRoute = appRoute({
   path: '/',
   tags: ['Routes'],
   summary: 'Create an ingress route',
+  description:
+    "createMissingDomains true creates a Cloudflare domain for each hostname no registered domain covers (an exact domain or a covering wildcard), before the route: in the zone of an enabled connector, served by the route's node or ingress group, in the domains folder of the route's app environment (or the domain root). Each name needs domains:create there (on every member for a group) and must match the environment domain allowlist; a name without permission, without a zone or refused by Cloudflare is skipped, not fatal. When the route fails, the domains this request created are removed. The response adds createdDomains [{id, domain, zoneName}] and skippedDomains [{hostname, code, reason}]. POST /proxy-hosts/missing-domains shows the plan first.",
   request: jsonBody(CreateProxyHostSchema),
   responses: createdJson(UnknownDataResponseSchema),
+});
+
+export const missingRouteDomainsRoute = appRoute({
+  method: 'post',
+  path: '/missing-domains',
+  tags: ['Routes'],
+  summary: 'Preview the domains a new route would create',
+  description:
+    'For a route about to be created (domainNames, folderId, nodeId or ingressGroupId; without both, the node a create would pick): each hostname no registered domain covers, with status create (zoneName: the Cloudflare zone the domain would be created in) or unavailable (code and reason: no domains:create there, no Cloudflare zone, not allowed by the app environment domain allowlist, not a registrable name). Covered hostnames are left out. Needs any proxy:create grant.',
+  request: jsonBody(MissingRouteDomainsSchema),
+  responses: okJson(UnknownDataResponseSchema),
 });
 
 export const updateProxyHostRoute = appRoute({

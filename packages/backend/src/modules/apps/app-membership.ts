@@ -8,6 +8,7 @@ import {
   dockerComposeProjects,
   dockerContainerFolderAssignments,
   dockerDeployments,
+  domains,
   loggingEnvironments,
   objectStorageConnections,
   pageProjects,
@@ -288,6 +289,25 @@ export class AppMembershipService {
         result.set(memberKey({ type: 'certificate', id: row.id }), {
           folderId: row.folderId ?? null,
           nodeIds: [],
+          name: row.name,
+        });
+      }
+    }
+    const domainIds = ids('domain');
+    if (domainIds.length) {
+      const rows = await this.db
+        .select({
+          id: domains.id,
+          folderId: domains.folderId,
+          name: domains.domain,
+          nodeId: domains.nginxNodeId,
+        })
+        .from(domains)
+        .where(inArray(domains.id, domainIds));
+      for (const row of rows) {
+        result.set(memberKey({ type: 'domain', id: row.id }), {
+          folderId: row.folderId ?? null,
+          nodeIds: row.nodeId ? [row.nodeId] : [],
           name: row.name,
         });
       }

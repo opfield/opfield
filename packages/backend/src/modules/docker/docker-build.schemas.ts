@@ -81,7 +81,12 @@ export const DockerSourceBindingConfigSchema = z.object({
   policy: z
     .object({
       vulnerabilityThreshold: z.enum(['critical', 'high', 'medium', 'low', 'none', 'disabled']).optional(),
-      vulnerabilityScope: z.enum(['all', 'application']).optional(),
+      vulnerabilityScope: z
+        .enum(['all', 'application', 'fixable_application', 'fixable_all'])
+        .optional()
+        .describe(
+          'Findings that count against the threshold: all = every package; application = OS packages (deb, rpm, apk, alpm) are report-only; fixable_application = only findings with a released fix, OS packages report-only; fixable_all = only findings with a released fix in any package. Default all.'
+        ),
     })
     .passthrough()
     .default({}),
@@ -193,6 +198,9 @@ export const DockerSourceResourceCreateSchema = z.object({
         volumes: z.array(DockerSourceContainerVolumeSchema).max(64).optional(),
         restartPolicy: z.enum(['no', 'always', 'unless-stopped', 'on-failure']).default('no'),
         runtimeProfile: z.enum(['default', 'secure']).default('default'),
+        // Saved for the container's reserved name; its first build creates and starts it with them.
+        env: z.record(BuildEnvironmentNameSchema, z.string()).optional(),
+        secrets: z.record(BuildEnvironmentNameSchema, z.string()).optional(),
       })
       .strict(),
     z

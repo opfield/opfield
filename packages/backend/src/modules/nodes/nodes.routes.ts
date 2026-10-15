@@ -54,7 +54,7 @@ import { NodeRegistryService } from '@/services/node-registry.service.js';
 import type { AppEnv } from '@/types.js';
 import { createNodeForActor, regenerateNodeEnrollmentTokenForActor, updateNodeForActor } from './node-actions.js';
 import { NodeFolderService } from './node-folders.service.js';
-import { browserHostOpfield, enrollmentInstallation } from './node-installer.js';
+import { browserHostOpfield, enrollmentInstallation, managedConsoleHostOpfield } from './node-installer.js';
 import { DOCKER_LIST_FOLDER_BASES, NODE_LIST_FOLDER_BASES } from './node-list-access.js';
 import { daemonLogMatcher, nginxLogEntryKey, nginxLogMatcher, splitLogFilterList } from './node-log-filters.js';
 import { compactMonitoringHistorySnapshot, NodeMonitoringService } from './node-monitoring.service.js';
@@ -630,9 +630,14 @@ nodesRoutes.openapi(
   }
 );
 
-/** The command for a public target nobody configured yet uses the host the browser reached Opfield on. */
-function requestFallbackOpfield(c: Context<AppEnv>): string | null {
-  return browserHostOpfield(c.req.header('x-forwarded-host') ?? c.req.header('host'));
+/**
+ * The command for a public target nobody configured yet uses the host the browser reached Opfield on (a managed
+ * installation: its console domain).
+ */
+async function requestFallbackOpfield(c: Context<AppEnv>): Promise<string | null> {
+  return (
+    (await managedConsoleHostOpfield()) ?? browserHostOpfield(c.req.header('x-forwarded-host') ?? c.req.header('host'))
+  );
 }
 
 nodesRoutes.openapi(createNodeRoute, async (c) => {
@@ -640,7 +645,7 @@ nodesRoutes.openapi(createNodeRoute, async (c) => {
   assertNotImpersonating(c, 'Nodes cannot be created while impersonating');
   const input = CreateNodeSchema.parse(await c.req.json());
   const result = await createNodeForActor({ id: c.get('user')!.id, scopes: c.get('effectiveScopes') ?? [] }, input);
-  const installation = await enrollmentInstallation(result, requestFallbackOpfield(c));
+  const installation = await enrollmentInstallation(result, await requestFallbackOpfield(c));
   return c.json({ data: { ...result, ...installation } }, 201);
 });
 
@@ -650,7 +655,7 @@ nodesRoutes.openapi(regenerateNodeEnrollmentTokenRoute, async (c) => {
     { id: c.get('user')!.id, scopes: c.get('effectiveScopes') ?? [] },
     c.req.param('id')!
   );
-  const installation = await enrollmentInstallation(result, requestFallbackOpfield(c));
+  const installation = await enrollmentInstallation(result, await requestFallbackOpfield(c));
   return c.json({ data: { ...result, ...installation } }, 200);
 });
 

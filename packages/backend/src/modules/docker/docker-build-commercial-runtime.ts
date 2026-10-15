@@ -52,6 +52,7 @@ import {
 import { runAsDockerBuildRollout } from './docker-build-rollout-guard.js';
 import { startContainer } from './docker-container-lifecycle-operations.js';
 import { assertDockerCreationAccess } from './docker-creation-access.js';
+import { inspectStoppedOnRequest } from './docker-stop-intent.js';
 
 const loggerDockerBuildService = createChildLogger('DockerBuildService');
 const loggerDockerBuildRunner = createChildLogger('DockerBuildRunner');
@@ -111,4 +112,5 @@ export const dockerBuildCommercialRuntime = {
   loggerDockerBuildService,
   loggerDockerBuildRunner,
   resolveAutomaticDeployAuthority,
+  inspectStoppedOnRequest,
 };

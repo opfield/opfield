@@ -181,17 +181,17 @@ export function watchDockerRecreateByName(
     progress,
     deadlineAt: new Date(start + timeoutMs).toISOString(),
   });
+  // An earlier poll still in flight when a later one settled the watch must not settle it again.
+  let done = false;
+  const stop = () => {
+    done = true;
+    clearInterval(poll);
+  };
   const poll = setInterval(async () => {
+    if (done) return;
     try {
-      const result = await context.nodeDispatch.sendDockerContainerCommand(nodeId, 'list');
-      const containers = context.parseResult(result);
-      if (!Array.isArray(containers)) throw new Error('Docker container list returned an invalid response');
-      const match = containers.find((c: any) => {
-        const cName = (c.name ?? c.Name ?? '').replace(/^\//, '');
-        return cName === containerName;
-      });
-      lastSeenId = match ? String(match.id ?? match.Id ?? '') : undefined;
-
+      // The task status is read before the containers: a task that settles in between is then judged on a list
+      // taken after it settled, never on one from before (a replacement still `created` that has started since).
       let daemonTaskStatus: string | undefined;
       if (daemonTaskId) {
         const daemonTaskResult = await context.nodeDispatch.sendDockerContainerCommand(nodeId, 'task_status', {
@@ -208,7 +208,8 @@ export function watchDockerRecreateByName(
           const daemonTask = context.parseResult(daemonTaskResult) as Record<string, any>;
           daemonTaskStatus = String(daemonTask.status ?? '');
           if (daemonTaskStatus === 'failed') {
-            clearInterval(poll);
+            if (done) return;
+            stop();
             await onDaemonTaskFailed?.().catch(() => undefined);
             await context.failTask(
               taskId,
@@ -220,6 +221,16 @@ export function watchDockerRecreateByName(
           }
         }
       }
+
+      const result = await context.nodeDispatch.sendDockerContainerCommand(nodeId, 'list');
+      const containers = context.parseResult(result);
+      if (!Array.isArray(containers)) throw new Error('Docker container list returned an invalid response');
+      const match = containers.find((c: any) => {
+        const cName = (c.name ?? c.Name ?? '').replace(/^\//, '');
+        return cName === containerName;
+      });
+      if (done) return;
+      lastSeenId = match ? String(match.id ?? match.Id ?? '') : undefined;
 
       const canEvaluateReplacement =
         !daemonTaskId ||
@@ -238,7 +249,7 @@ export function watchDockerRecreateByName(
         // container until the timeout.
         const reached = replacementReached(state, expectedState, settled);
         if (newId !== oldContainerId && reached) {
-          clearInterval(poll);
+          stop();
           try {
             await context.preserveContainerIdentity?.(nodeId, containerName, newId);
             await onComplete?.(newId);
@@ -264,7 +275,7 @@ export function watchDockerRecreateByName(
 
         const replacementFailure = getReplacementContainerFailureMessage(match, oldContainerId, expectedState, settled);
         if (replacementFailure) {
-          clearInterval(poll);
+          stop();
           await context.failTask(taskId, replacementFailure, nodeId, containerName);
           return;
         }
@@ -273,7 +284,7 @@ export function watchDockerRecreateByName(
       // A daemon that restarted left the replaced container in place (the change did not apply) or no container of
       // the name at all: either way nothing more happens on the node, so the container is released now.
       if (daemonTaskStatus === 'unknown' && (!match || lastSeenId === oldContainerId)) {
-        clearInterval(poll);
+        stop();
         if (lastSeenId === oldContainerId) await onDaemonTaskFailed?.().catch(() => undefined);
         await context.failTask(
           taskId,
@@ -285,17 +296,18 @@ export function watchDockerRecreateByName(
       }
 
       if (Date.now() - start > timeoutMs) {
-        clearInterval(poll);
+        stop();
         await timeOut();
       }
     } catch (error) {
+      if (done) return;
       if (isNodeDisconnectedError(error)) {
-        clearInterval(poll);
+        stop();
         await detachWatchedTask(context, tracked, taskId, nodeId, containerName);
         return;
       }
       if (Date.now() - start > timeoutMs) {
-        clearInterval(poll);
+        stop();
         await timeOut();
       }
     }

@@ -234,6 +234,233 @@ jobs:
           fi
           scripts/release/supply-chain.sh sign "${image}@${digest}" "${also[@]}"
 
+  # Opfield's managed PostgreSQL images (packages/daemons/postgres-image/image), one per catalog version of
+  # packages/daemons/docker/internal/pgext/catalog/versions.json, and the downloadable extension bundles
+  # (packages/daemons/postgres-image/bundle), one per bundle and PostgreSQL major. Each is rebuilt only when its
+  # tree changes (a bundle also when PGDG serves a newer version of its extension). The docker daemon accepts a
+  # build once its digest is pinned in versions.json or bundles.json, in a following commit.
+  postgres-matrix:
+    name: PostgreSQL image matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      versions: ${{ steps.matrix.outputs.versions }}
+      bundles: ${{ steps.matrix.outputs.bundles }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: List the versions and bundles
+        id: matrix
+        run: |
+          versions=packages/daemons/docker/internal/pgext/catalog/versions.json
+          echo "versions=$(jq -c '[.versions[].version]' "$versions")" >> "$GITHUB_OUTPUT"
+          ids=$(awk '!/^#/ && NF { print $1 }' packages/daemons/postgres-image/bundle/bundles.list | jq -R . | jq -sc .)
+          majors=$(jq -c '[.versions[].major] | unique' "$versions")
+          echo "bundles=$(jq -nc --argjson ids "$ids" --argjson majors "$majors" '[$ids[] as $id | $majors[] as $major | {id: $id, major: $major}]')" >> "$GITHUB_OUTPUT"
+
+  postgres:
+    name: PostgreSQL image ${{ matrix.version }}
+    needs: postgres-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.postgres-matrix.outputs.versions) }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Resolve the tag
+        id: tag
+        env:
+          VERSION: ${{ matrix.version }}
+        run: echo "tag=${VERSION}-tree-$(git rev-parse HEAD:packages/daemons/postgres-image/image)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || github.token }}
+
+      - name: Check for an existing build
+        id: existing
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if docker buildx imagetools inspect "${OPFIELD_IMAGE}/postgres:${TAG}" >/dev/null 2>&1; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "built=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The extension packages are installed in the arm64 image under emulation.
+      - name: Set up emulation
+        if: ${{ steps.existing.outputs.built != 'true' }}
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+        with:
+          platforms: arm64
+
+      - name: Set up builder
+        if: ${{ steps.existing.outputs.built != 'true' }}
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Build and push
+        if: ${{ steps.existing.outputs.built != 'true' }}
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ matrix.version }}
+        run: scripts/build-postgres-image.sh --push "${OPFIELD_IMAGE}/postgres:${TAG}" "$VERSION"
+
+      # Nodes pull the pinned digest from the repository versions.json names; both carry it.
+      - name: Copy to the mirror repository
+        if: ${{ env.OPFIELD_IMAGE_MIRROR != '' }}
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: docker buildx imagetools create --tag "${OPFIELD_IMAGE_MIRROR}/postgres:${TAG}" "${OPFIELD_IMAGE}/postgres:${TAG}"
+
+      - name: Show the digest to pin
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ matrix.version }}
+        run: |
+          digest=$(docker buildx imagetools inspect "${OPFIELD_IMAGE}/postgres:${TAG}" --format '{{json .Manifest}}' | jq -er '.digest')
+          echo "PostgreSQL ${VERSION}: postgres@${digest}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Install cosign and syft
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        run: scripts/release/supply-chain.sh install
+
+      - name: Sign the build and attach its SBOMs
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          image="${OPFIELD_IMAGE}/postgres"
+          digest=$(docker buildx imagetools inspect "${image}:${TAG}" --format '{{json .Manifest}}' | jq -er '.digest')
+          also=()
+          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
+            also=(--also "${OPFIELD_IMAGE_MIRROR}/postgres")
+          fi
+          scripts/release/supply-chain.sh sign "${image}@${digest}" "${also[@]}"
+
+  postgres-bundles:
+    name: PostgreSQL bundle ${{ matrix.bundle.id }} ${{ matrix.bundle.major }}
+    needs: postgres-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        bundle: ${{ fromJSON(needs.postgres-matrix.outputs.bundles) }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      # The tag names the extension version PGDG serves now; the build installs exactly that package version.
+      - name: Resolve the version and tag
+        id: tag
+        env:
+          ID: ${{ matrix.bundle.id }}
+          MAJOR: ${{ matrix.bundle.major }}
+        run: |
+          read -r _ debian package_version version < <(scripts/build-postgres-bundle.sh --resolve "$ID" "$MAJOR")
+          echo "package_version=${package_version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${version}-pg${MAJOR}-${debian}-tree-$(git rev-parse HEAD:packages/daemons/postgres-image/bundle)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PUSH_TOKEN || github.token }}
+
+      - name: Check for an existing build
+        id: existing
+        env:
+          ID: ${{ matrix.bundle.id }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if docker buildx imagetools inspect "${OPFIELD_IMAGE}/postgres-ext/${ID}:${TAG}" >/dev/null 2>&1; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "built=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up emulation
+        if: ${{ steps.existing.outputs.built != 'true' }}
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+        with:
+          platforms: arm64
+
+      - name: Set up builder
+        if: ${{ steps.existing.outputs.built != 'true' }}
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Build and push
+        if: ${{ steps.existing.outputs.built != 'true' }}
+        env:
+          ID: ${{ matrix.bundle.id }}
+          MAJOR: ${{ matrix.bundle.major }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          PACKAGE_VERSION: ${{ steps.tag.outputs.package_version }}
+        run: scripts/build-postgres-bundle.sh --push "${OPFIELD_IMAGE}/postgres-ext/${ID}:${TAG}" "$ID" "$MAJOR" "$PACKAGE_VERSION"
+
+      - name: Copy to the mirror repository
+        if: ${{ env.OPFIELD_IMAGE_MIRROR != '' }}
+        env:
+          ID: ${{ matrix.bundle.id }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: docker buildx imagetools create --tag "${OPFIELD_IMAGE_MIRROR}/postgres-ext/${ID}:${TAG}" "${OPFIELD_IMAGE}/postgres-ext/${ID}:${TAG}"
+
+      # The pin needs the digest, each architecture's installed size (opfield-bundle.json sizeBytes) and what the
+      # bundle provides.
+      - name: Show the digest and sizes to pin
+        env:
+          ID: ${{ matrix.bundle.id }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          image="${OPFIELD_IMAGE}/postgres-ext/${ID}:${TAG}"
+          digest=$(docker buildx imagetools inspect "$image" --format '{{json .Manifest}}' | jq -er '.digest')
+          sizes=""
+          provides=""
+          for arch in amd64 arm64; do
+            container=$(docker create --platform "linux/${arch}" "${image%:*}@${digest}" /opfield-bundle)
+            manifest=$(docker cp "${container}:/opfield-bundle.json" - | tar -xO)
+            sizes="${sizes} ${arch}=$(jq -er '.sizeBytes' <<< "$manifest")"
+            provides=$(jq -er '.provides | join(",")' <<< "$manifest")
+            docker rm "$container" >/dev/null
+            # Docker keeps one platform per pulled index digest: drop it before pulling the next architecture.
+            docker image rm "${image%:*}@${digest}" >/dev/null
+          done
+          echo "${ID} ${TAG}: postgres-ext/${ID}@${digest} sizes${sizes} provides ${provides}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Install cosign and syft
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        run: scripts/release/supply-chain.sh install
+
+      - name: Sign the build and attach its SBOMs
+        if: ${{ env.SIGN_IMAGES == 'true' }}
+        env:
+          ID: ${{ matrix.bundle.id }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          image="${OPFIELD_IMAGE}/postgres-ext/${ID}"
+          digest=$(docker buildx imagetools inspect "${image}:${TAG}" --format '{{json .Manifest}}' | jq -er '.digest')
+          also=()
+          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
+            also=(--also "${OPFIELD_IMAGE_MIRROR}/postgres-ext/${ID}")
+          fi
+          scripts/release/supply-chain.sh sign "${image}@${digest}" "${also[@]}"
+
   mirror:
     name: Mirror third-party images
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,19 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { joinDockerBuildLogChunks } from "@/lib/docker-build-log-lines";
 import { api } from "@/services/api";
-import type { DockerBuild, DockerBuildLogChunk } from "@/types";
+import type { DockerBuild, DockerBuildLogChunk, DockerBuildSeverityCounts } from "@/types";
 import { DockerLogViewport } from "./DockerLogViewport";
-import { ACTIVE_DOCKER_BUILD_STATUSES, DOCKER_BUILD_STATUS_VARIANT } from "./docker-build-status";
+import {
+  ACTIVE_DOCKER_BUILD_STATUSES,
+  DOCKER_BUILD_STATUS_VARIANT,
+  dockerBuildRolloutNote,
+} from "./docker-build-status";
+import {
+  APPLICATION_VULNERABILITY_SCOPES,
+  FIXABLE_VULNERABILITY_SCOPES,
+} from "./docker-vulnerability-scope";
 
 const VULNERABILITY_VARIANT: Record<string, "secondary" | "destructive" | "warning"> = {
   critical: "destructive",
@@ -27,6 +36,32 @@ const VULNERABILITY_VARIANT: Record<string, "secondary" | "destructive" | "warni
 
 const OS_PACKAGE_TYPES = new Set(["deb", "rpm", "apk", "alpm"]);
 const VULNERABILITY_SEVERITIES = ["critical", "high", "medium", "low", "unknown"] as const;
+
+/** True when every severity of `part` is a valid count no larger than the same one of `whole`. */
+function countsWithin(
+  part: DockerBuildSeverityCounts | undefined,
+  whole: DockerBuildSeverityCounts | undefined
+): part is DockerBuildSeverityCounts {
+  return (
+    !!part &&
+    !!whole &&
+    VULNERABILITY_SEVERITIES.every(
+      (severity) =>
+        Number.isSafeInteger(part[severity]) &&
+        part[severity] >= 0 &&
+        Number.isSafeInteger(whole[severity]) &&
+        part[severity] <= whole[severity]
+    )
+  );
+}
+
+/** Same rule as the Build Worker: fix state "fixed", or fixed versions unless explicitly not fixed. */
+function findingFixable(fixState: string, fixedVersions: string[]) {
+  const state = fixState.trim().toLowerCase();
+  if (state === "fixed") return true;
+  if (state === "not-fixed" || state === "wont-fix") return false;
+  return fixedVersions.some((version) => version.trim() !== "");
+}
 
 function MetaRow({
   label,
@@ -71,6 +106,7 @@ export function DockerBuildDetailsDialog({
   const [logs, setLogs] = useState<DockerBuildLogChunk[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [showSystemFindings, setShowSystemFindings] = useState(false);
+  const logLines = useMemo(() => joinDockerBuildLogChunks(logs), [logs]);
   const logRequestId = useRef(0);
   const buildId = build?.id ?? null;
   const refreshLogs = useCallback(async () => {
@@ -113,16 +149,12 @@ export function DockerBuildDetailsDialog({
   );
 
   const scanSummary = build?.artifact?.scanSummary ?? null;
-  const applicationOnly = scanSummary?.policyScope === "application";
-  const validOSCounts =
-    scanSummary?.osPackages &&
-    VULNERABILITY_SEVERITIES.every(
-      (severity) =>
-        Number.isSafeInteger(scanSummary.osPackages![severity]) &&
-        scanSummary.osPackages![severity] >= 0 &&
-        Number.isSafeInteger(scanSummary[severity]) &&
-        scanSummary.osPackages![severity] <= scanSummary[severity]
-    );
+  const applicationOnly = APPLICATION_VULNERABILITY_SCOPES.has(scanSummary?.policyScope);
+  const fixableOnly = FIXABLE_VULNERABILITY_SCOPES.has(scanSummary?.policyScope);
+  const validOSCounts = countsWithin(scanSummary?.osPackages, scanSummary ?? undefined);
+  const validFixableCounts =
+    countsWithin(scanSummary?.fixable, scanSummary ?? undefined) &&
+    countsWithin(scanSummary?.fixableOsPackages, scanSummary?.fixable);
   const osVulnerabilityTotal = validOSCounts
     ? VULNERABILITY_SEVERITIES.reduce(
         (total, severity) => total + scanSummary!.osPackages![severity],
@@ -142,6 +174,25 @@ export function DockerBuildDetailsDialog({
     (total, severity) => total + visibleCount(severity),
     0
   );
+  const fixableTotal = validFixableCounts
+    ? VULNERABILITY_SEVERITIES.reduce(
+        (total, severity) =>
+          total +
+          scanSummary!.fixable![severity] -
+          (applicationView ? scanSummary!.fixableOsPackages![severity] : 0),
+        0
+      )
+    : null;
+  const policyNotes = [
+    fixableOnly &&
+      (validFixableCounts
+        ? "Fixable-only policy: findings without a released fix are report-only."
+        : "Fixable-only policy requires fixable vulnerability counts. Rebuild with an updated Build Worker."),
+    applicationOnly &&
+      (osVulnerabilityTotal === null
+        ? "Application packages policy requires complete OS package counts. Rebuild with an updated Build Worker."
+        : `Application packages policy: ${osVulnerabilityTotal} system package findings are report-only. Runtime binaries and unclassified packages still count.`),
+  ].filter(Boolean);
   const vulnerabilityTotal = scanSummary
     ? scanSummary.critical +
       scanSummary.high +
@@ -187,6 +238,9 @@ export function DockerBuildDetailsDialog({
             <MetaRow label="Attempt">
               {build.attempt} of {build.maxAttempts}
             </MetaRow>
+            {build.status === "succeeded" && dockerBuildRolloutNote(build) && (
+              <MetaRow label="Deployment">{dockerBuildRolloutNote(build)}</MetaRow>
+            )}
             {build.errorMessage && (
               <MetaRow label="Error">
                 <span className="break-words text-destructive">{build.errorMessage}</span>
@@ -202,7 +256,7 @@ export function DockerBuildDetailsDialog({
         {scanSummary && !scanSummary.skipped && vulnerabilityTotal > 0 && (
           <PanelShell
             title="Vulnerabilities"
-            description={`${visibleTotal} ${applicationView ? "application-scope findings" : "findings"} detected by ${scanSummary.scanner || "the image scanner"}`}
+            description={`${visibleTotal} ${applicationView ? "application-scope findings" : "findings"} detected by ${scanSummary.scanner || "the image scanner"}${fixableTotal === null ? "" : `, ${fixableTotal} with a released fix`}`}
             actions={
               <div className="flex flex-wrap justify-end gap-1">
                 {vulnerabilityCounts.map((severity) => (
@@ -214,12 +268,8 @@ export function DockerBuildDetailsDialog({
             }
             bodyClassName="divide-y divide-border"
           >
-            {applicationOnly && (
-              <p className="px-4 py-3 text-xs text-muted-foreground">
-                {osVulnerabilityTotal === null
-                  ? "Application dependency policy requires complete OS package counts. Rebuild with an updated Build Worker."
-                  : `Application dependency policy: ${osVulnerabilityTotal} system package findings are report-only. Runtime binaries and unclassified packages still count.`}
-              </p>
+            {policyNotes.length > 0 && (
+              <p className="px-4 py-3 text-xs text-muted-foreground">{policyNotes.join(" ")}</p>
             )}
             {applicationOnly && osVulnerabilityTotal !== null && osVulnerabilityTotal > 0 && (
               <SettingsControlRow
@@ -252,12 +302,20 @@ export function DockerBuildDetailsDialog({
                         : vulnerability.fixState || "No fix reported"}
                     </p>
                     {applicationOnly &&
-                      osVulnerabilityTotal !== null &&
-                      OS_PACKAGE_TYPES.has(vulnerability.packageType.trim().toLowerCase()) && (
+                    osVulnerabilityTotal !== null &&
+                    OS_PACKAGE_TYPES.has(vulnerability.packageType.trim().toLowerCase()) ? (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        OS package · Report only
+                      </p>
+                    ) : (
+                      fixableOnly &&
+                      validFixableCounts &&
+                      !findingFixable(vulnerability.fixState, vulnerability.fixedVersions) && (
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          OS package · Report only
+                          No released fix · Report only
                         </p>
-                      )}
+                      )
+                    )}
                   </div>
                   <Badge
                     variant={
@@ -287,9 +345,9 @@ export function DockerBuildDetailsDialog({
         {build && (
           <DockerLogViewport
             key={build.id}
-            lines={logs}
-            keyFn={(line) => line.sequence}
-            renderContent={(line) => line.content}
+            lines={logLines}
+            keyFn={(line) => line.key}
+            renderContent={(line) => line.content || "\u00a0"}
             emptyState={
               <div className="px-4 text-xs text-muted-foreground">
                 {loadingLogs ? "Loading build log output…" : "No build log output yet."}

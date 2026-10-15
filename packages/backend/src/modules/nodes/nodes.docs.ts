@@ -355,6 +355,8 @@ export const updateNodeServiceCreationLockRoute = appRoute({
   path: '/{id}/service-creation-lock',
   tags: ['Nodes'],
   summary: 'Lock or unlock new service creation on a node',
+  description:
+    'nginx, Docker and Build Worker nodes. A locked Build Worker takes no new builds; builds it runs finish. While every online Build Worker is locked, new builds are refused (503) and queued builds wait.',
   request: { params: IdParamSchema, ...jsonBody(UpdateNodeServiceCreationLockSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

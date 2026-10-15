@@ -12,6 +12,7 @@ interface ConsolePanelProps {
   popoutUrl: string;
   connectLabel?: string;
   headerActions?: ReactNode;
+  onContainerUnavailable?: () => void;
 }
 
 export function ConsolePanel({
@@ -22,6 +23,7 @@ export function ConsolePanel({
   popoutUrl,
   connectLabel,
   headerActions,
+  onContainerUnavailable,
 }: ConsolePanelProps) {
   const openPopout = () => {
     window.open(popoutUrl, `console-${channelKey}`, "width=900,height=600,menubar=no,toolbar=no");
@@ -48,7 +50,12 @@ export function ConsolePanel({
         </>
       }
     >
-      <TerminalConsole wsFactory={wsFactory} channelKey={channelKey} connectLabel={connectLabel} />
+      <TerminalConsole
+        wsFactory={wsFactory}
+        channelKey={channelKey}
+        connectLabel={connectLabel}
+        onContainerUnavailable={onContainerUnavailable}
+      />
     </PanelShell>
   );
 }

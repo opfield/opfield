@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  ArrowRightLeft,
   FolderPlus,
   Globe,
   MoreVertical,
@@ -14,6 +15,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { MoveToAppDialog } from "@/components/apps/MoveToAppDialog";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { FolderedResourceList } from "@/components/common/FolderedResourceList";
@@ -53,9 +55,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
@@ -126,18 +130,21 @@ export function Domains() {
   const requestedDomainName = searchParams.get("domain");
   const { hasScope, hasScopedAccess, user } = useAuthStore();
   const userScopes = user?.scopes ?? [];
-  const { canCreateDomain, canInspectCloudflare } = getDomainPermissions(
-    hasScope,
-    undefined,
-    hasScopedAccess
-  );
+  // Creating needs a destination outside app places (broad, node or user folder grant).
+  const globalAccess = useGlobalSectionAccess();
+  const { canInspectCloudflare } = getDomainPermissions(hasScope, undefined, hasScopedAccess);
+  const canCreateDomain = hasCreationDestination(globalAccess.scopes, "domains:create", {
+    nodeGrants: true,
+  });
   // Issuing from a domain creates an SSL certificate: any ssl:cert:issue destination
   // (broad or folder) qualifies; the folder is picked when the root is not allowed.
-  const canIssueDomainCertificates = hasCreationDestination(userScopes, "ssl:cert:issue");
+  const canIssueDomainCertificates = hasCreationDestination(globalAccess.scopes, "ssl:cert:issue");
   const canIssueCertificateAtRoot = canCreateInFolder(userScopes, "ssl:cert:issue", null);
   const hasRouteFolderCreationGrant = userScopes.some((scope) =>
     scope.startsWith("proxy:create:folder/")
   );
+  const [moveToAppDomain, setMoveToAppDomain] = useState<Domain | null>(null);
+  const shownMoveToAppDomain = useRetainedDialogValue(moveToAppDomain, moveToAppDomain !== null);
   const [issueCertDomain, setIssueCertDomain] = useState<Domain | null>(null);
   const shownIssueCertDomain = useRetainedDialogValue(issueCertDomain, issueCertDomain !== null);
   const hasCloudflareIntegration = useUIBootstrapStore(
@@ -217,6 +224,8 @@ export function Domains() {
         api.listDomains({
           page: 1,
           limit: 1000,
+          // App members live on their app's page: the server leaves them out.
+          ...NORMAL_LIST_FILTER,
         }),
         canInspectCloudflare
           ? api.listCloudflareConnectors({ enabled: true }).catch(() => [])
@@ -379,12 +388,24 @@ export function Domains() {
     if (!requestedDomainName || isLoading) return;
     const requested = requestedDomainName.trim().toLowerCase();
     const matchingDomain = domains.find((domain) => domain.domain.toLowerCase() === requested);
-    if (matchingDomain) {
-      setDetailId(matchingDomain.id);
+    const openById = (id: string) => {
+      setDetailId(id);
       setDetailInitialView("details");
       setDetailOpen(true);
+    };
+    if (matchingDomain) {
+      openById(matchingDomain.id);
     } else {
-      setSearch(requestedDomainName);
+      // App members are not in this list (their app's Network tab links here): open them by name.
+      const fallback = requestedDomainName;
+      void api
+        .searchDomains(requested)
+        .then((rows) => {
+          const exact = rows.find((row) => row.domain.toLowerCase() === requested);
+          if (exact) openById(exact.id);
+          else setSearch(fallback);
+        })
+        .catch(() => setSearch(fallback));
     }
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("domain");
@@ -523,6 +544,13 @@ export function Domains() {
                   <Pencil className="h-4 w-4" />
                   Details
                 </DropdownMenuItem>
+                {/* Members leave their app from the app's page; system domains never join one. */}
+                {!d.app && !d.isSystem && permissions.canEditDomain && (
+                  <DropdownMenuItem onClick={() => setMoveToAppDomain(d)}>
+                    <ArrowRightLeft className="h-4 w-4" />
+                    Move to app...
+                  </DropdownMenuItem>
+                )}
                 {canDeleteRow && (
                   <>
                     <DropdownMenuSeparator />
@@ -712,6 +740,15 @@ export function Domains() {
             setDetailOpen(nextOpen);
           }}
           onUpdated={loadDomains}
+        />
+        <MoveToAppDialog
+          open={moveToAppDomain !== null}
+          onOpenChange={(open) => {
+            if (!open) setMoveToAppDomain(null);
+          }}
+          members={shownMoveToAppDomain ? [{ type: "domain", id: shownMoveToAppDomain.id }] : []}
+          resourceLabel={shownMoveToAppDomain?.domain ?? "the domain"}
+          onMoved={() => void loadDomains()}
         />
         <DomainCertificateFolderDialog
           open={issueCertDomain !== null}

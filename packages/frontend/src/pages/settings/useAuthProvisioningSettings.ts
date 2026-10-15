@@ -276,6 +276,8 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
   const [smtpTestEmailKind, setSmtpTestEmailKind] =
     useState<SmtpTestEmailKind>("smtp_configuration");
   const [isSendingSmtpTest, setIsSendingSmtpTest] = useState(false);
+  // Managed installations with Opfield Cloud email: "Use my own SMTP" shows the form; the first save switches.
+  const [ownSmtpDraft, setOwnSmtpDraft] = useState(false);
   const [trustedProxyCidrs, setTrustedProxyCidrs] = useState(
     () =>
       api
@@ -976,8 +978,43 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
     }
   };
 
+  /** "Use my own SMTP": on shows the form (the first save switches); off goes back to the cloud email at once. */
+  const setOwnSmtp = async (own: boolean) => {
+    const cloud = settings?.smtp?.cloud;
+    if (!cloud?.available) return;
+    setOwnSmtpDraft(own);
+    if (!own && cloud.ownSmtp) {
+      await updateLocalAuth({ smtpTransport: "cloud" }, "Sign-in emails use Opfield Cloud email");
+    }
+  };
+
   const saveSmtp = async (testRecipient?: string) => {
-    if (!testRecipient && !smtpHasChanges) return;
+    const cloud = settings?.smtp?.cloud;
+    const cloudMailInUse = Boolean(cloud?.active) && !ownSmtpDraft;
+    const switchesToOwnSmtp = Boolean(cloud?.available && !cloud.ownSmtp && ownSmtpDraft);
+    if (testRecipient && cloudMailInUse) {
+      // The cloud email sends the test; there is no SMTP form to save.
+      setIsSendingSmtpTest(true);
+      try {
+        const sent = await updateLocalAuth(
+          { mailTest: { recipient: testRecipient, kind: smtpTestEmailKind } },
+          "Test email sent"
+        );
+        if (sent) {
+          setSmtpTestRecipient("");
+          setSmtpTestOpen(false);
+        }
+      } finally {
+        setIsSendingSmtpTest(false);
+      }
+      return;
+    }
+    if (!testRecipient && !smtpHasChanges) {
+      // The saved SMTP stays as it is (saving it again would drop its verification); only the transport switches.
+      if (switchesToOwnSmtp)
+        await updateLocalAuth({ smtpTransport: "smtp" }, "Sign-in emails use your SMTP");
+      return;
+    }
     const port = Number(smtpDraft.port);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       toast.error("SMTP port must be between 1 and 65535");
@@ -997,6 +1034,7 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
             senderEmail: smtpDraft.senderEmail,
             ...(testRecipient ? { testRecipient, testEmailKind: smtpTestEmailKind } : {}),
           },
+          ...(switchesToOwnSmtp ? { smtpTransport: "smtp" as const } : {}),
         },
         testRecipient ? "Test email sent" : "SMTP settings saved"
       );
@@ -1075,6 +1113,9 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
         smtpDraft.senderName !== (settings.smtp?.senderName ?? DEFAULT_SMTP_DRAFT.senderName) ||
         smtpDraft.senderEmail !== (settings.smtp?.senderEmail ?? DEFAULT_SMTP_DRAFT.senderEmail))
   );
+  const cloudMail = settings?.smtp?.cloud?.available ? settings.smtp.cloud : null;
+  /** The SMTP form is shown: no cloud email, or the owner uses (or is switching to) their own SMTP. */
+  const showsOwnSmtpForm = !cloudMail || cloudMail.ownSmtp || ownSmtpDraft;
   hasUnsavedDraftRef.current = Boolean(
     accessSettingsHaveChanges ||
       featureSettingsHaveChanges ||
@@ -1190,5 +1231,10 @@ export function useAuthProvisioningSettings(canEdit: boolean) {
     mfaGracePeriodIsValid,
     mfaHasChanges,
     smtpHasChanges,
+    cloudMail,
+    showsOwnSmtpForm,
+    /** Use my own SMTP is on but not saved yet: Save switches. */
+    ownSmtpPending: Boolean(cloudMail && !cloudMail.ownSmtp && ownSmtpDraft),
+    setOwnSmtp,
   };
 }

@@ -7,6 +7,8 @@ import type {
   FolderTreeNode,
   GroupedProxyHostsResponse,
   HealthStatus,
+  MissingRouteDomain,
+  MissingRouteDomainsRequest,
   PaginatedResponse,
   ProxyAdditionalRoute,
   ProxyAdditionalSecureLink,
@@ -189,6 +191,16 @@ export function withProxyApi<TBase extends ApiClientBaseConstructor>(Base: TBase
     async createProxyHost(data: CreateProxyHostRequest): Promise<ProxyHost> {
       return this.unwrapData(
         this.request<{ data: ProxyHost }>("/proxy-hosts", {
+          method: "POST",
+          body: JSON.stringify(data),
+        })
+      );
+    }
+
+    /** The hostnames of a route about to be created that no registered domain covers. */
+    async listMissingRouteDomains(data: MissingRouteDomainsRequest): Promise<MissingRouteDomain[]> {
+      return this.unwrapData(
+        this.request<{ data: MissingRouteDomain[] }>("/proxy-hosts/missing-domains", {
           method: "POST",
           body: JSON.stringify(data),
         })

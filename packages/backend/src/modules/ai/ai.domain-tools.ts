@@ -49,6 +49,8 @@ export async function executeDomainTool(
         DomainListQuerySchema.parse({
           search: a.search,
           dnsStatus: a.dnsStatus,
+          excludeAppMembers: a.excludeAppMembers === true ? 'true' : undefined,
+          appId: typeof a.appId === 'string' && a.appId ? a.appId : undefined,
           page: agentPage(a.page),
           limit: agentPageLimit(a.limit),
         }),

@@ -92,12 +92,17 @@ async function deliverAccountInvitation(user: Pick<User, 'id' | 'email' | 'authM
     .returning({ id: users.id });
   if (!claimed) return null;
   try {
-    await container.resolve(AuthMailService).sendSecurityEmail(user.email, {
-      kind: 'account_invitation',
-      actionUrl: new URL('/login', publicUrl).toString(),
-      email: user.email,
-      signIn: invitationSignIn(user.authMethod),
-    });
+    // Follows the email for a while: a refused or failed send releases the claim and is reported.
+    await container.resolve(AuthMailService).sendSecurityEmail(
+      user.email,
+      {
+        kind: 'account_invitation',
+        actionUrl: new URL('/login', publicUrl).toString(),
+        email: user.email,
+        signIn: invitationSignIn(user.authMethod),
+      },
+      { wait: true }
+    );
   } catch (error) {
     await db
       .update(users)

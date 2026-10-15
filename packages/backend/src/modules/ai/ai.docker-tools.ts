@@ -57,6 +57,7 @@ import {
   DockerSourceResourceCreateSchema,
   type DockerSourceTarget,
 } from '@/modules/docker/docker-build.schemas.js';
+import { filterBuildsByApp } from '@/modules/docker/docker-build-app-filter.js';
 import { assertCreateNetworksAccess } from '@/modules/docker/docker-container-create-networks.js';
 import {
   type ContainerOperationAnswer,
@@ -80,7 +81,10 @@ import { inspectUserContainer } from '@/modules/docker/docker-internal-container
 import { withNodeLossAnswer } from '@/modules/docker/docker-node-loss.js';
 import { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
 import { sanitizeContainerInspect } from '@/modules/docker/docker-snapshot.service.js';
-import { assertNotPendingSourceContainer } from '@/modules/docker/docker-source.service.js';
+import {
+  assertNotPendingSourceContainer,
+  type DockerSourceService as DockerSourceServiceType,
+} from '@/modules/docker/docker-source.service.js';
 import {
   canListSourceConnectors,
   canPickDockerSource,
@@ -129,6 +133,8 @@ import {
   dockerVolumeMatchesSearch,
   hasRegistryHost,
 } from './ai.service-helpers.js';
+
+type SavedDockerSource = Awaited<ReturnType<DockerSourceServiceType['get']>>;
 
 export const DOCKER_TOOL_NAMES = new Set([
   'create_docker_container',
@@ -1323,7 +1329,10 @@ async function listDockerBuilds(user: User, args: Record<string, unknown>) {
     limit: a.limit ?? 20,
   });
   const { DockerBuildService } = await import('@/modules/docker/docker-build.service.js');
-  const builds = await container.resolve(DockerBuildService).list(query);
+  const builds = await filterBuildsByApp(
+    await container.resolve(DockerBuildService).list(query),
+    parseAppListFilter(a)
+  );
   const visible = [];
   for (const build of builds) {
     if (a.nodeId && build.target.nodeId !== a.nodeId) continue;
@@ -1375,7 +1384,14 @@ async function manageDockerBuild(user: User, args: Record<string, unknown>) {
       afterSequence: a.afterSequence ?? -1,
       limit: a.limit ?? 200,
     });
-    return service.listLogs(buildId, query.afterSequence, query.limit);
+    const chunks = await service.listLogs(buildId, query.afterSequence, query.limit);
+    // The daemon cuts output into chunks, so the text is the chunks joined, not one entry per chunk.
+    return {
+      text: chunks.map((chunk) => chunk.content).join(''),
+      lastSequence: chunks.length > 0 ? chunks[chunks.length - 1]!.sequence : query.afterSequence,
+      chunkCount: chunks.length,
+      hasMore: chunks.length >= query.limit,
+    };
   }
   if (operation === 'cancel') return service.requestCancellation(buildId, user.id);
   if (operation === 'retry') return service.retry(buildId, user.id);
@@ -1420,26 +1436,22 @@ async function manageDockerSource(
       .findDockerBuildSourceRepositories(user, String(a.connectorId || ''), optionalNonEmptyString(a.search));
   }
 
-  const sourceConfig = () =>
+  // upsert of an existing source: omitted fields and policy keys keep their saved values (create: defaults).
+  const sourceConfig = (saved?: SavedDockerSource) =>
     DockerSourceBindingConfigSchema.parse({
-      connectorId: a.connectorId,
-      projectId: a.projectId,
-      branch: a.branch,
-      dockerfilePath: a.dockerfilePath ?? 'Dockerfile',
-      contextPath: a.contextPath ?? '.',
-      composeFilePath: a.composeFilePath,
-      composeVariables: a.composeVariables ?? {},
-      composeSecretKeys: a.composeSecretKeys ?? [],
-      autoBuild: a.autoBuild ?? true,
-      autoDeploy: a.autoDeploy ?? true,
-      buildArgs: a.buildArgs ?? {},
-      buildSecretNames: a.buildSecretNames ?? [],
-      policy: a.policy,
-    });
-  const sourceUpsert = (target: DockerSourceTarget) =>
-    DockerSourceBindingUpsertSchema.parse({
-      ...sourceConfig(),
-      target,
+      connectorId: a.connectorId ?? saved?.connectorId,
+      projectId: a.projectId ?? saved?.projectId,
+      branch: a.branch ?? saved?.branch,
+      dockerfilePath: a.dockerfilePath ?? saved?.dockerfilePath ?? 'Dockerfile',
+      contextPath: a.contextPath ?? saved?.contextPath ?? '.',
+      composeFilePath: a.composeFilePath ?? saved?.composeFilePath ?? undefined,
+      composeVariables: a.composeVariables ?? saved?.composeVariables ?? {},
+      composeSecretKeys: a.composeSecretKeys ?? saved?.composeSecretKeys ?? [],
+      autoBuild: a.autoBuild ?? saved?.autoBuild ?? true,
+      autoDeploy: a.autoDeploy ?? saved?.autoDeploy ?? true,
+      buildArgs: a.buildArgs ?? saved?.buildArgs ?? {},
+      buildSecretNames: a.buildSecretNames ?? saved?.buildSecretNames ?? [],
+      policy: { ...(saved?.policy ?? {}), ...(a.policy ?? {}) },
     });
 
   if (operation === 'create') {
@@ -1484,6 +1496,8 @@ async function manageDockerSource(
               ...(a.volumes !== undefined ? { volumes: a.volumes } : {}),
               restartPolicy: a.restartPolicy ?? 'no',
               runtimeProfile: a.runtimeProfile ?? 'default',
+              ...(a.env !== undefined ? { env: a.env } : {}),
+              ...(a.secrets !== undefined ? { secrets: a.secrets } : {}),
             },
     });
     return createDockerSourceResource(nodeId, input, user);
@@ -1541,8 +1555,10 @@ async function manageDockerSource(
       if (!pending) throw new AppError(404, 'PENDING_SOURCE_NOT_FOUND', 'Pending source container not found');
       return pending;
     }
-    case 'upsert':
-      return sourceService.upsert(sourceUpsert(target), user);
+    case 'upsert': {
+      const saved = await sourceService.get(target);
+      return sourceService.upsert(DockerSourceBindingUpsertSchema.parse({ ...sourceConfig(saved), target }), user);
+    }
     case 'remove':
       return { success: true, removed: await sourceService.remove(target, user.id) };
     case 'resolve':

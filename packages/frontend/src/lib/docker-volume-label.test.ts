@@ -12,6 +12,7 @@ describe("dockerVolumeLabel", () => {
     expect(isAnonymousVolumeName(ANONYMOUS)).toBe(true);
     expect(dockerVolumeLabel(ANONYMOUS)).toEqual({
       text: "Anonymous volume 5eb8af45…",
+      full: `Anonymous volume ${ANONYMOUS}`,
       title: ANONYMOUS,
       anonymous: true,
     });
@@ -21,6 +22,7 @@ describe("dockerVolumeLabel", () => {
   it("keeps a named volume's name", () => {
     expect(dockerVolumeLabel("shop-data")).toEqual({
       text: "shop-data",
+      full: "shop-data",
       title: "shop-data",
       anonymous: false,
     });

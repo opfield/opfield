@@ -398,6 +398,7 @@ async function manageProjectSource(
   if (operation === 'source_upsert') {
     ensureResourceScope(user, 'pages:edit', projectId);
     ensureResourceScope(user, 'pages:deploy', projectId);
+    const savedPolicy = (await sources().get(sourceTarget))?.policy ?? {};
     return sources().upsert(
       DockerSourceBindingUpsertSchema.parse({
         target: sourceTarget,
@@ -415,7 +416,7 @@ async function manageProjectSource(
         autoDeploy: args.autoDeploy ?? true,
         buildArgs: args.buildArgs ?? {},
         buildSecretNames: args.buildSecretNames ?? [],
-        policy: args.policy ?? {},
+        policy: { ...savedPolicy, ...((args.policy as Record<string, unknown> | undefined) ?? {}) },
       }),
       user
     );

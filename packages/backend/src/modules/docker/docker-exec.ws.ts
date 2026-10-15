@@ -21,7 +21,12 @@ import type { User } from '@/types.js';
 import { DockerAvailabilityService } from './availability/docker-availability.service.js';
 import { DockerManagementService } from './docker.service.js';
 import { hasDockerResourceScope } from './docker-access-resource.service.js';
-import { inspectUserContainer } from './docker-internal-containers.js';
+import {
+  CONTAINER_UNAVAILABLE_CLOSE_CODE,
+  containerUnavailableFrame,
+  resolveDockerStreamTarget,
+} from './docker-stream-target.js';
+import { DockerTaskService } from './docker-task.service.js';
 
 const logger = createChildLogger('DockerExec');
 export const DOCKER_EXEC_PREAUTH_MESSAGE_MAX_BYTES = 16 * 1024;
@@ -420,7 +425,7 @@ async function authenticateAndCreateExec(
   state: ExecWSState,
   credential: WebSocketCredential | null,
   nodeId: string,
-  containerId: string,
+  requestedContainerId: string,
   shell: string,
   dispatch: NodeDispatchService,
   registry: NodeRegistryService,
@@ -434,30 +439,40 @@ async function authenticateAndCreateExec(
     closeExec(ws, state, 1008, 'Authentication failed');
     return;
   }
-  // Availability placements can still be inspectable as regular containers (notably
-  // deployment slots). Resolve their logical identity first so authorization is
-  // checked against the user-owned workload rather than the generated runtime name.
-  const placementIdentity = await availability.resolveRuntimeAccessIdentity(nodeId, containerId).catch(() => null);
+  const target = await resolveDockerStreamTarget(
+    { docker, availability, tasks: container.resolve(DockerTaskService) },
+    nodeId,
+    requestedContainerId
+  );
   if (wsStates.get(ws) !== state) return;
-  const inspect = placementIdentity ? null : await inspectUserContainer(docker, nodeId, containerId).catch(() => null);
-  if (wsStates.get(ws) !== state) return;
-  const scopeNodeId = placementIdentity?.nodeId ?? nodeId;
-  const scopeResourceId = String(placementIdentity?.resourceId ?? inspect?.scopeResourceId ?? '');
+  if (target.kind === 'unavailable') {
+    // Being recreated or not created yet: not an authentication failure, the client reconnects.
+    if (!registry.getNode(nodeId)) {
+      send(ws, { type: 'error', message: `Node ${nodeId} is not connected` });
+      closeExec(ws, state, 1011, 'Node not connected');
+      return;
+    }
+    send(ws, containerUnavailableFrame(target.recreating));
+    closeExec(ws, state, CONTAINER_UNAVAILABLE_CLOSE_CODE, 'Container unavailable');
+    return;
+  }
   const user =
-    scopeResourceId &&
-    hasDockerResourceScope(initialAuth.scopes, 'docker:containers:console', scopeNodeId, scopeResourceId)
+    target.kind === 'resolved' &&
+    hasDockerResourceScope(initialAuth.scopes, 'docker:containers:console', target.scopeNodeId, target.scopeResourceId)
       ? initialAuth.user
       : null;
-  if (!user) {
-    send(ws, { type: 'auth_error', message: 'Access revoked or token expired' });
+  if (!user || target.kind !== 'resolved') {
+    send(ws, { type: 'auth_error', message: 'No access to this container' });
     closeExec(ws, state, 1008, 'Authentication failed');
     return;
   }
+  // The runtime the console opens in: the requested one, or the container a recreate replaced it with.
+  const containerId = target.runtimeContainerId;
 
   state.user = user;
   state.authenticated = true;
-  state.scopeResourceId = scopeResourceId;
-  state.scopeNodeId = scopeNodeId;
+  state.scopeResourceId = target.scopeResourceId;
+  state.scopeNodeId = target.scopeNodeId;
 
   logger.info('Docker exec authenticated', { nodeId, containerId, userId: user.id });
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { AppCreateContext } from "@/components/apps/app-create-context";
+import { AddDomainDialog } from "@/components/domains/AddDomainDialog";
 import { CreateProxyHostDialog } from "@/components/proxy/CreateProxyHostDialog";
 import { SSLCertificateCreateDialog } from "@/components/ssl/SSLCertificateCreateDialog";
 import {
@@ -35,6 +36,7 @@ export type AppCreateType =
   | "database"
   | "storage"
   | "route"
+  | "domain"
   | "pages"
   | "certificate"
   | "logging"
@@ -59,6 +61,7 @@ type DialogKey =
   | "storage-managed"
   | "storage-external"
   | "route"
+  | "domain"
   | "pages"
   | "certificate"
   | "logging"
@@ -150,6 +153,10 @@ export function AppCreateDialogs({
     if (!open) onClose();
   };
   const created = () => onCreated?.();
+  // Cloudflare manages the records when a connector is set up; otherwise DNS is checked as it is.
+  const hasCloudflareIntegration = useUIBootstrapStore(
+    (state) => state.snapshot?.navigation.hasCloudflareIntegration ?? false
+  );
 
   return (
     <>
@@ -203,6 +210,14 @@ export function AppCreateDialogs({
         onOpenChange={openChange}
         appContext={appContext}
         onSuccess={created}
+      />
+
+      <AddDomainDialog
+        open={active === "domain"}
+        onOpenChange={openChange}
+        onCreated={created}
+        dnsProvider={hasCloudflareIntegration ? "cloudflare" : "external"}
+        appContext={appContext}
       />
 
       <CreatePageProjectDialog

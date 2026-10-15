@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { containerUnavailableMessage } from "@/lib/container-stream-unavailable";
 import { terminalTheme } from "@/lib/terminal-theme";
 import { useUIStore } from "@/stores/ui";
 import { encodeTerminalInput } from "./terminal-encoding";
@@ -199,7 +200,9 @@ export function PopoutTerminal({ wsFactory, channelKey, title }: PopoutTerminalP
             /* */
           }
         } else if (msg.type === "error") {
-          terminal.write(`\r\nError: ${msg.message}\r\n`);
+          // A container being recreated is not an error: the reconnect reaches its replacement.
+          const unavailable = containerUnavailableMessage(msg);
+          terminal.write(`\r\n${unavailable ?? `Error: ${msg.message}`}\r\n`);
         }
       } catch {
         /* */

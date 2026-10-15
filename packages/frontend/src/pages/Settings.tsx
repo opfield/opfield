@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { PageTransition } from "@/components/common/PageTransition";
 import { PoweredByFooter } from "@/components/common/PoweredByFooter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SETTINGS_TABS, type SettingsTab, settingsAccess } from "@/lib/settings-tabs";
 import { useAuthStore } from "@/stores/auth";
 import { useSystemConfigStore } from "@/stores/system-config";
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
@@ -25,18 +26,7 @@ import { RelaySettingsSection } from "./settings/RelaySettingsSection";
 import { StatusPageSection } from "./settings/StatusPageSection";
 import { UpdateSection } from "./settings/UpdateSection";
 
-const SETTINGS_TABS = [
-  "general",
-  "authentication",
-  "advanced",
-  "environment",
-  "relay",
-  "features",
-  "integrations",
-  "inference",
-  "ai",
-] as const;
-type SettingsTab = (typeof SETTINGS_TABS)[number];
+const NO_SCOPES: readonly string[] = [];
 
 function isSettingsTab(value: string | null | undefined): value is SettingsTab {
   return SETTINGS_TABS.includes(value as SettingsTab);
@@ -45,70 +35,38 @@ function isSettingsTab(value: string | null | undefined): value is SettingsTab {
 export function Settings() {
   const { tab: tabParam } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
-  const { hasScope } = useAuthStore();
   const shellNodes = useUIBootstrapStore((state) => state.snapshot?.navigation.nodes.data);
   const [nodesList, setNodesList] = useState<Node[]>(() => shellNodes ?? []);
   const activeTab = isSettingsTab(tabParam) ? tabParam : null;
   const inferenceEnabled = useSystemConfigStore((state) => state.config.features.inferenceEnabled);
 
-  const canUpdate = hasScope("admin:update");
-  const canViewOpfieldSettings = hasScope("settings:opfield:view");
-  const canEditOpfieldSettings = hasScope("settings:opfield:edit");
-  const canViewHousekeeping = hasScope("housekeeping:view");
-  const canRunHousekeeping = hasScope("housekeeping:run");
-  const canConfigureHousekeeping = hasScope("housekeeping:configure");
-  const canConfigAI = hasScope("feat:ai:configure");
-  const canConfigInference =
-    inferenceEnabled &&
-    (hasScope("inference:providers:view") ||
-      hasScope("inference:models:manage") ||
-      hasScope("inference:limits:manage") ||
-      hasScope("inference:usage:view"));
-  const canManageRegistries = hasScope("docker:registries:view");
-  const canViewLicense = hasScope("license:view");
-  const canManageLicense = hasScope("license:manage");
-  const canViewStatusPage = hasScope("status-page:view");
-  const canViewPagesSettings = hasScope("pages:settings:view") || hasScope("pages:settings:edit");
-  const canViewIntegrations =
-    hasScope("integrations:hosting:view") ||
-    hasScope("integrations:hosting:manage") ||
-    hasScope("integrations:gitlab:view") ||
-    hasScope("integrations:gitlab:manage") ||
-    hasScope("integrations:cloudflare:view") ||
-    hasScope("integrations:cloudflare:manage") ||
-    hasScope("integrations:github:view") ||
-    hasScope("integrations:github:manage") ||
-    hasScope("integrations:git:view") ||
-    hasScope("integrations:git:manage") ||
-    hasScope("integrations:ssh:view") ||
-    hasScope("integrations:ssh:manage");
-  const canTransferConfiguration = hasScope("admin:system");
-  const canAccessGeneralTab =
-    canViewOpfieldSettings || canUpdate || canViewLicense || canTransferConfiguration;
-  const canAccessAdvancedTab = canViewOpfieldSettings || canManageRegistries;
-  const canAccessFeaturesTab =
-    canViewOpfieldSettings || canViewStatusPage || canViewHousekeeping || canViewPagesSettings;
-  const availableTabs = useMemo<SettingsTab[]>(() => {
-    const tabs: SettingsTab[] = [];
-    if (canAccessGeneralTab) tabs.push("general");
-    if (canViewOpfieldSettings) tabs.push("authentication");
-    if (canAccessAdvancedTab) tabs.push("advanced");
-    if (canViewOpfieldSettings) tabs.push("environment");
-    if (canViewOpfieldSettings) tabs.push("relay");
-    if (canAccessFeaturesTab) tabs.push("features");
-    if (canViewIntegrations) tabs.push("integrations");
-    if (canConfigInference) tabs.push("inference");
-    if (canConfigAI) tabs.push("ai");
-    return tabs;
-  }, [
-    canAccessFeaturesTab,
-    canAccessAdvancedTab,
-    canAccessGeneralTab,
+  const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
+  // The sidebar item reads the same predicate (lib/settings-tabs).
+  const access = useMemo(
+    () => settingsAccess(scopes, inferenceEnabled),
+    [inferenceEnabled, scopes]
+  );
+  const {
+    canUpdate,
     canViewOpfieldSettings,
+    canEditOpfieldSettings,
+    canViewHousekeeping,
+    canRunHousekeeping,
+    canConfigureHousekeeping,
     canConfigAI,
     canConfigInference,
+    canManageRegistries,
+    canViewLicense,
+    canManageLicense,
+    canViewStatusPage,
+    canViewPagesSettings,
     canViewIntegrations,
-  ]);
+    canTransferConfiguration,
+    canAccessGeneralTab,
+    canAccessAdvancedTab,
+    canAccessFeaturesTab,
+    tabs: availableTabs,
+  } = access;
   const currentTab = activeTab && availableTabs.includes(activeTab) ? activeTab : availableTabs[0];
 
   useEffect(() => {
@@ -146,53 +104,56 @@ export function Settings() {
         />
 
         <Tabs value={currentTab} onValueChange={handleTabChange} className="flex flex-col">
-          <TabsList className="shrink-0">
-            {canAccessGeneralTab && (
-              <TabsTrigger value="general" className="gap-1.5">
-                General
-              </TabsTrigger>
-            )}
-            {canViewOpfieldSettings && (
-              <TabsTrigger value="authentication" className="gap-1.5">
-                Authentication
-              </TabsTrigger>
-            )}
-            {canAccessAdvancedTab && (
-              <TabsTrigger value="advanced" className="gap-1.5">
-                Advanced
-              </TabsTrigger>
-            )}
-            {canViewOpfieldSettings && (
-              <TabsTrigger value="environment" className="gap-1.5">
-                Environment
-              </TabsTrigger>
-            )}
-            {canViewOpfieldSettings && (
-              <TabsTrigger value="relay" className="gap-1.5">
-                Relay
-              </TabsTrigger>
-            )}
-            {canAccessFeaturesTab && (
-              <TabsTrigger value="features" className="gap-1.5">
-                Features
-              </TabsTrigger>
-            )}
-            {canViewIntegrations && (
-              <TabsTrigger value="integrations" className="gap-1.5">
-                Integrations
-              </TabsTrigger>
-            )}
-            {canConfigAI && (
-              <TabsTrigger value="ai" className="gap-1.5">
-                AI Workspace
-              </TabsTrigger>
-            )}
-            {canConfigInference && (
-              <TabsTrigger value="inference" className="gap-1.5">
-                Inference
-              </TabsTrigger>
-            )}
-          </TabsList>
+          {/* A page left with one tab shows no tab row. */}
+          {availableTabs.length > 1 && (
+            <TabsList className="shrink-0">
+              {canAccessGeneralTab && (
+                <TabsTrigger value="general" className="gap-1.5">
+                  General
+                </TabsTrigger>
+              )}
+              {canViewOpfieldSettings && (
+                <TabsTrigger value="authentication" className="gap-1.5">
+                  Authentication
+                </TabsTrigger>
+              )}
+              {canAccessAdvancedTab && (
+                <TabsTrigger value="advanced" className="gap-1.5">
+                  Advanced
+                </TabsTrigger>
+              )}
+              {canViewOpfieldSettings && (
+                <TabsTrigger value="environment" className="gap-1.5">
+                  Environment
+                </TabsTrigger>
+              )}
+              {canViewOpfieldSettings && (
+                <TabsTrigger value="relay" className="gap-1.5">
+                  Relay
+                </TabsTrigger>
+              )}
+              {canAccessFeaturesTab && (
+                <TabsTrigger value="features" className="gap-1.5">
+                  Features
+                </TabsTrigger>
+              )}
+              {canViewIntegrations && (
+                <TabsTrigger value="integrations" className="gap-1.5">
+                  Integrations
+                </TabsTrigger>
+              )}
+              {canConfigAI && (
+                <TabsTrigger value="ai" className="gap-1.5">
+                  AI Workspace
+                </TabsTrigger>
+              )}
+              {canConfigInference && (
+                <TabsTrigger value="inference" className="gap-1.5">
+                  Inference
+                </TabsTrigger>
+              )}
+            </TabsList>
+          )}
 
           {canAccessGeneralTab && (
             <TabsContent value="general" className="pb-0">

@@ -1,3 +1,4 @@
+import { type AppMemberListFilter, setAppMemberListParams } from "@/lib/app-members";
 import type {
   DockerBuild,
   DockerBuildAdmissionStatus,
@@ -43,7 +44,7 @@ type DockerListEnvelope<T> = {
   }>;
 };
 
-interface DockerBuildListParams {
+interface DockerBuildListParams extends AppMemberListFilter {
   sourceBindingId?: string;
   builderNodeId?: string;
   status?: DockerBuildStatus;
@@ -803,6 +804,7 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
       if (params?.branch) query.set("branch", params.branch);
       if (params?.search) query.set("search", params.search);
       if (params?.cursor) query.set("cursor", params.cursor);
+      setAppMemberListParams(query, params);
       query.set("limit", String(params?.limit ?? 100));
       return this.request<{ data: DockerBuild[]; nextCursor: string | null }>(
         `/docker/builds?${query.toString()}`
@@ -820,9 +822,20 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
     }
 
     async getDockerBuildLogs(buildId: string): Promise<DockerBuildLogChunk[]> {
-      return this.unwrapData(
-        this.request<{ data: DockerBuildLogChunk[] }>(`/docker/builds/${buildId}/logs?limit=500`)
-      );
+      const pageSize = 500;
+      const chunks: DockerBuildLogChunk[] = [];
+      // A full page means more chunks may follow: page on until a short one, so a long build is not cut short.
+      for (let page = 0; page < 200; page++) {
+        const afterSequence = chunks.length > 0 ? chunks[chunks.length - 1]!.sequence : -1;
+        const next = await this.unwrapData(
+          this.request<{ data: DockerBuildLogChunk[] }>(
+            `/docker/builds/${buildId}/logs?limit=${pageSize}&afterSequence=${afterSequence}`
+          )
+        );
+        chunks.push(...next);
+        if (next.length < pageSize) break;
+      }
+      return chunks;
     }
 
     async cancelDockerBuild(buildId: string): Promise<DockerBuild> {
