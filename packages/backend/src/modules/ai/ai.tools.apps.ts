@@ -2,7 +2,7 @@ import { APP_HEALTH_RULES } from '@/modules/apps/app-environment-health.js';
 import type { AIToolDefinition } from './ai.types.js';
 
 const APP_CREATE_HINT =
-  'To create a resource inside an app environment, pass folderId = placementFolderIds[type] from get_app to the normal create tool (and a node from allowedNodeIds where the tool takes one).';
+  'To create a resource inside an app environment, pass folderId = placementFolderIds[type] from get_app to the normal create tool (and a node from allowedNodeIds where the tool takes one); permissions.create[environmentId][family] says which types you may create there.';
 
 export const APP_AI_TOOLS: AIToolDefinition[] = [
   {

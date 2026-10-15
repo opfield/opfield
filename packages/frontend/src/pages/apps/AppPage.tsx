@@ -90,6 +90,19 @@ const NEW_ITEMS: Array<{
   { type: "container-link", label: "Container link", icon: Link2 },
 ];
 
+/** The family a create type makes (its create grant decides); container links need apps:env:manage. */
+const CREATE_FAMILY: Record<AppCreateType, AppMemberFamily | null> = {
+  container: "containers",
+  compose: "compose",
+  database: "databases",
+  storage: "storage",
+  route: "routes",
+  pages: "pages",
+  certificate: "certificates",
+  logging: "logging",
+  "container-link": null,
+};
+
 export function AppRouteFailure({ error }: { error: unknown }) {
   const { appSlug } = useParams<{ appSlug: string }>();
   if (error instanceof ApiRequestError && (error.status === 403 || error.status === 404)) {
@@ -115,14 +128,15 @@ function NewMenu({
   onCreate,
   onNewEnvironment,
   canCreate,
-  planCreates,
+  creates,
 }: {
   onCreate: (type: AppCreateType, variant?: "external") => void;
   onNewEnvironment?: () => void;
   canCreate: boolean;
-  planCreates: (type: AppCreateType, variant?: "external") => boolean;
+  /** The plan includes the type and the user may create it in some environment. */
+  creates: (type: AppCreateType, variant?: "external") => boolean;
 }) {
-  const items = canCreate ? NEW_ITEMS.filter((item) => planCreates(item.type, item.variant)) : [];
+  const items = canCreate ? NEW_ITEMS.filter((item) => creates(item.type, item.variant)) : [];
   if (items.length === 0 && !onNewEnvironment) return null;
   return (
     <DropdownMenu>
@@ -185,7 +199,7 @@ function AppPageContent({
 }) {
   const navigate = useNavigate();
   const { permissions } = app;
-  const canCreate = Object.values(permissions.envManage).some(Boolean);
+  const canManageSomeEnvironment = Object.values(permissions.envManage).some(Boolean);
   const canSettings =
     permissions.edit ||
     permissions.delete ||
@@ -217,12 +231,41 @@ function AppPageContent({
     },
     [license, commercialModule, loggingEnabled]
   );
-  const planHasData =
-    planCreates("database") ||
-    planCreates("database", "external") ||
-    planCreates("storage") ||
-    planCreates("storage", "external") ||
-    planCreates("logging");
+  // Environments the user may create this type in (the family's create grant there, from the server).
+  const createEnvironmentIds = useCallback(
+    (type: AppCreateType) => {
+      const family = CREATE_FAMILY[type];
+      return app.environments
+        .filter((env) =>
+          family && permissions.create
+            ? permissions.create[env.id]?.[family] === true
+            : permissions.envManage[env.id] === true
+        )
+        .map((env) => env.id);
+    },
+    [app.environments, permissions.create, permissions.envManage]
+  );
+  const creates = useCallback(
+    (type: AppCreateType, variant?: "external") =>
+      planCreates(type, variant) && createEnvironmentIds(type).length > 0,
+    [createEnvironmentIds, planCreates]
+  );
+  // Importing places existing resources: apps:env:manage on the environment.
+  const imports = useCallback(
+    (family: AppMemberFamily) => canManageSomeEnvironment && planImports(family),
+    [canManageSomeEnvironment, planImports]
+  );
+  const canCreate =
+    NEW_ITEMS.some((item) => creates(item.type, item.variant)) || canManageSomeEnvironment;
+  const dataCreatable =
+    creates("database") ||
+    creates("database", "external") ||
+    creates("storage") ||
+    creates("storage", "external") ||
+    creates("logging") ||
+    imports("databases") ||
+    imports("storage") ||
+    imports("logging");
   const production = app.environments.find((env) => env.isProduction) ?? app.environments[0];
   // Allowed nodes are environment settings: shown for environments the user sees with apps:view.
   const hasSettingsEnvironments = app.environments.some((env) => env.access !== "members");
@@ -230,7 +273,8 @@ function AppPageContent({
   const tabs: Array<{ value: AppTab; label: string; show: boolean }> = [
     { value: "overview", label: "Overview", show: true },
     { value: "compute", label: "Compute", show: true },
-    { value: "data", label: "Data", show: hasData || (canCreate && planHasData) },
+    // Data opens with visible data or something the user may add there.
+    { value: "data", label: "Data", show: hasData || dataCreatable },
     { value: "network", label: "Network", show: true },
     { value: "nodes", label: "Nodes", show: hasSettingsEnvironments },
     { value: "activity", label: "Activity", show: true },
@@ -259,14 +303,16 @@ function AppPageContent({
   const [newEnvOpen, setNewEnvOpen] = useState(false);
   const [accessCode, setAccessCode] = useState<AccessCodeState | null>(null);
 
-  const createContext = useMemo<AppCreateContext>(
-    () => ({
+  // The closing dialog keeps the environments of the type it was opened for.
+  const createType = useRetainedDialogValue(createRequest?.type, createRequest !== null);
+  const createContext = useMemo<AppCreateContext>(() => {
+    const allowed = new Set(createType ? createEnvironmentIds(createType) : []);
+    return {
       app: { id: app.id, slug: app.slug, name: app.name },
-      environments: app.environments.filter((env) => permissions.envManage[env.id]),
+      environments: app.environments.filter((env) => allowed.has(env.id)),
       environmentId: createRequest?.environmentId ?? null,
-    }),
-    [app, permissions.envManage, createRequest?.environmentId]
-  );
+    };
+  }, [app, createEnvironmentIds, createType, createRequest?.environmentId]);
 
   const actions: TabActions = useMemo(
     () => ({
@@ -274,12 +320,13 @@ function AppPageContent({
       onCreate: (type, environmentId) => setCreateRequest({ type, environmentId }),
       onImport: (family: AppMemberFamily) => setImportRequest({ family }),
       planCreates: (type) => planCreates(type),
-      planImports,
+      creates: (type) => creates(type),
+      imports,
       canMoveIn: (environmentId) => Boolean(permissions.envManage[environmentId]),
       onMoveToEnvironment: setMoveEnvMember,
       onMoveToApp: setMoveAppMember,
     }),
-    [canCreate, permissions.envManage, planCreates, planImports]
+    [canCreate, creates, imports, permissions.envManage, planCreates]
   );
 
   const doRefresh = useCallback(async () => {
@@ -339,7 +386,7 @@ function AppPageContent({
                 canCreate || permissions.edit ? (
                   <NewMenu
                     canCreate={canCreate}
-                    planCreates={planCreates}
+                    creates={creates}
                     onCreate={(type, variant) => setCreateRequest({ type, variant })}
                     onNewEnvironment={permissions.edit ? () => setNewEnvOpen(true) : undefined}
                   />

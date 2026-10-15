@@ -55,7 +55,7 @@ export const getAppRoute = appRoute({
   tags: TAGS,
   summary: 'Get an app',
   description:
-    'By id or slug. Environments the caller may view, each with placementFolderIds (the folderId to pass when creating a resource of that type inside the environment), allowedNodeIds (nodes the environment may place workloads on), health, visible member counts and maintenance state; permissions says what the caller may change. access (app and each environment) is full with apps:view, members when seen only through members the caller can view: allowed nodes, maintenance state and root folders are then left out.',
+    'By id or slug. Environments the caller may view, each with placementFolderIds (the folderId to pass when creating a resource of that type inside the environment), allowedNodeIds (nodes the environment may place workloads on), health, visible member counts and maintenance state; permissions says what the caller may change; permissions.create[environmentId][family] says which resource types the caller may create in that environment (the family create scope broadly, on the placement folder or on an allowed node). access (app and each environment) is full with apps:view, members when seen only through members the caller can view: maintenance state and root folders are then left out, and allowed nodes unless the caller may create in that environment. An environment the caller holds grants in (on its placement folders) is visible this way even while it is still empty.',
   request: { params: AppParams },
   responses: okJson(UnknownDataResponseSchema),
 });
