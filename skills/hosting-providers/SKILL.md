@@ -1,6 +1,6 @@
 ---
 name: hosting-providers
-description: Create servers as Opfield Nodes through hosting accounts, and manage the VMs behind them. Covers HOSTKEY, DigitalOcean, Hetzner Cloud, CloudBlast, and Proxmox VE (one connector per physical host): ordering a VM with the node role installed, following the operation until the Node is online, retrying a failed installation, adopting or installing on existing VMs, and power, resize, delete, snapshots, and firewall. Use when asked to create, order, or provision a server, VM, or Node at a cloud provider or on a Proxmox host, or to start, stop, resize, snapshot, or destroy a hosted VM. Use after using-opfield has confirmed the Opfield MCP connection.
+description: Create servers as Opfield Nodes through hosting accounts, and manage the VMs behind them. Covers HOSTKEY, DigitalOcean, Hetzner Cloud, CloudBlast, and Proxmox VE (one connector per physical host), including ordering a VM with the node role installed, following the operation until the Node is online, retrying a failed installation, adopting or installing on existing VMs, and power, resize, delete, snapshots, and firewall. Use when asked to create, order, or provision a server, VM, or Node at a cloud provider or on a Proxmox host, or to start, stop, resize, snapshot, or destroy a hosted VM. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Hosting Providers
