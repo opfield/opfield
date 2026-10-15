@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
+import { AppError } from '@/middleware/error-handler.js';
 import type { CacheService } from '@/services/cache.service.js';
 import { LocalAuthService } from './local-auth.service.js';
 
@@ -66,5 +67,78 @@ describe('LocalAuthService challenge consumption', () => {
       code: 'PASSWORD_POLICY',
     });
     expect(evalChallenge).not.toHaveBeenCalled();
+  });
+});
+
+describe('LocalAuthService.requestPasswordLink', () => {
+  const USER = { id: 'user-1', email: 'user@example.com', isBlocked: false, authMethod: 'password' };
+  const SLOT_KEY = 'local_auth:password_reset:user-1';
+
+  function setup(options: { reserved?: unknown; send?: ReturnType<typeof vi.fn> } = {}) {
+    const evalReserve = vi.fn().mockResolvedValue(options.reserved ?? [1, 0]);
+    const zrem = vi.fn().mockResolvedValue(1);
+    const cache = {
+      getClient: () => ({ eval: evalReserve, zrem }),
+      set: vi.fn().mockResolvedValue(undefined),
+    } as unknown as CacheService;
+    const sendSecurityEmail = options.send ?? vi.fn().mockResolvedValue('sent');
+    const db = { query: { users: { findFirst: vi.fn().mockResolvedValue(USER) } } };
+    const service = new LocalAuthService(
+      db as never,
+      cache,
+      {} as never,
+      { getConfig: vi.fn().mockResolvedValue({ methods: { password: true } }) } as never,
+      { sendSecurityEmail } as never,
+      {} as never,
+      { requirePublicUrl: vi.fn().mockResolvedValue('https://opfield.example') } as never
+    );
+    const reservedMember = () => evalReserve.mock.calls[0]?.[5];
+    return { service, evalReserve, zrem, sendSecurityEmail, reservedMember };
+  }
+
+  it('reports a used-up reset limit to an administrator as 429 with when it resets, sending nothing', async () => {
+    const { service, sendSecurityEmail } = setup({ reserved: [0, 20 * 60_000] });
+
+    await expect(service.requestPasswordLink(USER.email, 'password_reset', { wait: true })).rejects.toMatchObject({
+      statusCode: 429,
+      code: 'PASSWORD_RESET_RATE_LIMITED',
+      details: { retryAfterSeconds: 1200 },
+    });
+    expect(sendSecurityEmail).not.toHaveBeenCalled();
+  });
+
+  it('answers the public reset with null when throttled, so the response does not reveal the account', async () => {
+    const { service, sendSecurityEmail } = setup({ reserved: [0, 20 * 60_000] });
+
+    await expect(service.requestPasswordLink(USER.email, 'password_reset')).resolves.toBeNull();
+    expect(sendSecurityEmail).not.toHaveBeenCalled();
+  });
+
+  it('gives the slot back when the email is refused or fails to send', async () => {
+    const send = vi.fn().mockRejectedValue(new AppError(429, 'MAIL_QUOTA', 'Monthly email limit reached'));
+    const { service, zrem, reservedMember } = setup({ send });
+
+    await expect(service.requestPasswordLink(USER.email, 'password_reset', { wait: true })).rejects.toMatchObject({
+      code: 'MAIL_QUOTA',
+    });
+    expect(zrem).toHaveBeenCalledWith(SLOT_KEY, reservedMember());
+  });
+
+  it('hands the slot to the email job, so a final delivery failure releases it', async () => {
+    const { service, zrem, sendSecurityEmail, reservedMember } = setup();
+
+    await expect(service.requestPasswordLink(USER.email, 'password_reset', { wait: true })).resolves.toBe('sent');
+    expect(zrem).not.toHaveBeenCalled();
+    expect(sendSecurityEmail).toHaveBeenCalledWith(USER.email, expect.objectContaining({ kind: 'password_reset' }), {
+      wait: true,
+      rateSlot: { key: SLOT_KEY, member: reservedMember() },
+    });
+  });
+
+  it('does not reserve a slot for a setup link', async () => {
+    const { service, evalReserve } = setup();
+
+    await expect(service.requestPasswordLink(USER.email, 'password_setup', { wait: true })).resolves.toBe('sent');
+    expect(evalReserve).not.toHaveBeenCalled();
   });
 });

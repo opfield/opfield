@@ -26,9 +26,16 @@ export class AuthEmailDeliveryError extends Error {
   }
 }
 
+/** A per-user rate-limit slot (a Redis sorted-set member) the email holds; a delivery that fails for good gives it back. */
+export interface AuthEmailRateSlot {
+  key: string;
+  member: string;
+}
+
 interface AuthEmailDelivery {
   recipient: string;
   input: SecurityAuthEmailInput;
+  rateSlot?: AuthEmailRateSlot;
   /** One key per email, the same on every retry (cloud email sends it once); absent on jobs of older releases. */
   dedupKey?: string;
 }
@@ -98,23 +105,34 @@ export class AuthEmailQueueService {
         attemptsMade: job?.attemptsMade,
         error: error.message,
       });
+      // The email will not go out (a refusal no retry can change, or the last attempt): the slot is not spent.
+      if (job && (error instanceof UnrecoverableError || job.attemptsMade >= (job.opts.attempts ?? 1))) {
+        void this.releaseSlotOf(job.data).catch((releaseError: unknown) =>
+          logger.warn('Auth email rate-limit slot could not be released', { error: errorMessage(releaseError) })
+        );
+      }
     });
   }
 
-  async enqueue(recipient: string, input: SecurityAuthEmailInput): Promise<void> {
-    await this.queue.add('deliver', this.payload(recipient, input));
+  async enqueue(recipient: string, input: SecurityAuthEmailInput, rateSlot?: AuthEmailRateSlot): Promise<void> {
+    await this.queue.add('deliver', this.payload(recipient, input, rateSlot));
   }
 
   /**
    * Queues the email and waits up to `waitMs` for its outcome: `sent`, or `queued` when it is still on its way (it
    * keeps going). Throws AuthEmailDeliveryError when it failed for good. For actions a person waits on.
    */
-  async enqueueAndWait(recipient: string, input: SecurityAuthEmailInput, waitMs: number): Promise<'sent' | 'queued'> {
+  async enqueueAndWait(
+    recipient: string,
+    input: SecurityAuthEmailInput,
+    waitMs: number,
+    rateSlot?: AuthEmailRateSlot
+  ): Promise<'sent' | 'queued'> {
     const events = await this.queueEvents().catch((error: unknown) => {
       logger.warn('Auth email delivery cannot be followed', { error: errorMessage(error) });
       return null;
     });
-    const job = await this.queue.add('deliver', this.payload(recipient, input));
+    const job = await this.queue.add('deliver', this.payload(recipient, input, rateSlot));
     if (!events || !job.id) return 'queued';
     const jobId = job.id;
     const emitter = events as unknown as EventEmitter;
@@ -145,10 +163,19 @@ export class AuthEmailQueueService {
     });
   }
 
-  private payload(recipient: string, input: SecurityAuthEmailInput): EncryptedAuthEmailJob {
+  private payload(
+    recipient: string,
+    input: SecurityAuthEmailInput,
+    rateSlot?: AuthEmailRateSlot
+  ): EncryptedAuthEmailJob {
     return this.cryptoService.encryptString(
-      JSON.stringify({ recipient, input, dedupKey: randomUUID() } satisfies AuthEmailDelivery)
+      JSON.stringify({ recipient, input, dedupKey: randomUUID(), rateSlot } satisfies AuthEmailDelivery)
     );
+  }
+
+  private async releaseSlotOf(data: EncryptedAuthEmailJob): Promise<void> {
+    const { rateSlot } = JSON.parse(this.cryptoService.decryptString(data)) as AuthEmailDelivery;
+    if (rateSlot) await this.redis.zrem(rateSlot.key, rateSlot.member);
   }
 
   /** The queue's events, on their own connection (blocking reads), opened on first use and kept. */

@@ -10,6 +10,7 @@ import { type AuthEmailInput, type AuthEmailMessage, createAuthEmail } from './a
 import {
   AuthEmailDeliveryError,
   type AuthEmailQueueService,
+  type AuthEmailRateSlot,
   type SecurityAuthEmailInput,
 } from './auth-email-queue.service.js';
 import {
@@ -205,7 +206,7 @@ export class AuthMailService {
   async sendSecurityEmail(
     recipient: string,
     input: SecurityAuthEmailInput,
-    options: { wait?: boolean } = {}
+    options: { wait?: boolean; rateSlot?: AuthEmailRateSlot } = {}
   ): Promise<'sent' | 'queued'> {
     if (!(await this.cloudState())?.active) {
       const config = await this.requireStoredConfig();
@@ -213,11 +214,11 @@ export class AuthMailService {
         throw new AppError(503, 'SMTP_NOT_VERIFIED', 'SMTP must be verified before sending authentication email');
     }
     if (!options.wait) {
-      await this.authEmailQueue.enqueue(recipient, input);
+      await this.authEmailQueue.enqueue(recipient, input, options.rateSlot);
       return 'queued';
     }
     try {
-      return await this.authEmailQueue.enqueueAndWait(recipient, input, DELIVERY_WAIT_MS);
+      return await this.authEmailQueue.enqueueAndWait(recipient, input, DELIVERY_WAIT_MS, options.rateSlot);
     } catch (error) {
       if (!(error instanceof AuthEmailDeliveryError)) throw error;
       const refusal = CLOUD_REFUSAL.exec(error.reason);

@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { errorHandler } from '@/middleware/error-handler.js';
+import { AppError, errorHandler } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { AuthService } from '@/modules/auth/auth.service.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
@@ -1217,7 +1217,7 @@ describe('admin actions on the caller sign-in', () => {
 describe('admin password link delivery', () => {
   it('sends a setup link before the first completed sign-in and records the action', async () => {
     registerSession(['admin:users', 'nodes:details:node-1']);
-    const requestPasswordLink = vi.fn().mockResolvedValue(undefined);
+    const requestPasswordLink = vi.fn().mockResolvedValue('sent');
     const hasCompletedSignIn = vi.fn().mockResolvedValue(false);
     const auditLog = vi.fn().mockResolvedValue(undefined);
     container.registerInstance(AuthService, {
@@ -1248,7 +1248,7 @@ describe('admin password link delivery', () => {
 
   it('sends a reset link after a completed sign-in', async () => {
     registerSession(['admin:users', 'nodes:details:node-1']);
-    const requestPasswordLink = vi.fn().mockResolvedValue(undefined);
+    const requestPasswordLink = vi.fn().mockResolvedValue('sent');
     container.registerInstance(AuthService, {
       getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'password' }),
       hasCompletedSignIn: vi.fn().mockResolvedValue(true),
@@ -1266,7 +1266,60 @@ describe('admin password link delivery', () => {
 
     expect(response.status).toBe(200);
     expect(requestPasswordLink).toHaveBeenCalledWith(TARGET_USER.email, 'password_reset', { wait: true });
-    await expect(response.json()).resolves.toMatchObject({ purpose: 'password_reset' });
+    await expect(response.json()).resolves.toMatchObject({ purpose: 'password_reset', delivery: 'sent' });
+  });
+
+  it('never answers queued when no email job exists, and records nothing', async () => {
+    registerSession(['admin:users', 'nodes:details:node-1']);
+    const auditLog = vi.fn().mockResolvedValue(undefined);
+    container.registerInstance(AuthService, {
+      getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'password' }),
+      hasCompletedSignIn: vi.fn().mockResolvedValue(true),
+    } as unknown as AuthService);
+    container.registerInstance(AuthMailService, {
+      getPublicConfig: vi.fn().mockResolvedValue({ verifiedAt: '2026-08-01T00:00:00.000Z' }),
+    } as unknown as AuthMailService);
+    container.registerInstance(LocalAuthService, {
+      requestPasswordLink: vi.fn().mockResolvedValue(null),
+    } as unknown as LocalAuthService);
+    container.registerInstance(AuditService, { log: auditLog } as unknown as AuditService);
+
+    const response = await createApp().request(`/api/admin/users/${TARGET_USER.id}/password-setup`, {
+      method: 'POST',
+      headers: sessionHeaders(),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: 'PASSWORD_LINK_NOT_QUEUED' });
+    expect(auditLog).not.toHaveBeenCalled();
+  });
+
+  it('answers 429 with Retry-After when the user reset limit is used up', async () => {
+    registerSession(['admin:users', 'nodes:details:node-1']);
+    container.registerInstance(AuthService, {
+      getUserById: vi.fn().mockResolvedValue({ ...TARGET_USER, authMethod: 'password' }),
+      hasCompletedSignIn: vi.fn().mockResolvedValue(true),
+    } as unknown as AuthService);
+    container.registerInstance(AuthMailService, {
+      getPublicConfig: vi.fn().mockResolvedValue({ verifiedAt: '2026-08-01T00:00:00.000Z' }),
+    } as unknown as AuthMailService);
+    container.registerInstance(LocalAuthService, {
+      requestPasswordLink: vi.fn().mockRejectedValue(
+        new AppError(429, 'PASSWORD_RESET_RATE_LIMITED', 'The limit resets in about 20 minutes', {
+          retryAfterSeconds: 1200,
+        })
+      ),
+    } as unknown as LocalAuthService);
+    container.registerInstance(AuditService, { log: vi.fn().mockResolvedValue(undefined) } as unknown as AuditService);
+
+    const response = await createApp().request(`/api/admin/users/${TARGET_USER.id}/password-setup`, {
+      method: 'POST',
+      headers: sessionHeaders(),
+    });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get('Retry-After')).toBe('1200');
+    await expect(response.json()).resolves.toMatchObject({ code: 'PASSWORD_RESET_RATE_LIMITED' });
   });
 });
 
