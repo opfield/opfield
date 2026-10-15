@@ -27,7 +27,8 @@ function context(dispatch: ReturnType<typeof vi.fn>) {
     db: database(),
     auditService: { log: vi.fn().mockResolvedValue(undefined) },
     nodeDispatch: { sendDockerContainerCommand: dispatch },
-    secretService: { deleteImported: deleteSecrets },
+    // A Git source's first activation reads the env and secrets saved for its reserved name: none here.
+    secretService: { deleteImported: deleteSecrets, getDecryptedMap: vi.fn().mockResolvedValue({}) },
     releaseContainerLinks,
     validateDockerNode: vi.fn().mockResolvedValue({}),
     assertDockerRuntimeProfileAvailable: vi.fn().mockResolvedValue(undefined),

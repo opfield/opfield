@@ -10,6 +10,7 @@ import { DockerManagementService } from './docker.service.js';
 import { registerContainerRoutes } from './docker-container.routes.js';
 import { noteNodeLoss } from './docker-node-loss.js';
 import { DockerSnapshotService } from './docker-snapshot.service.js';
+import { DockerSourceService } from './docker-source.service.js';
 
 const NODE = '11111111-1111-4111-8111-111111111111';
 const CONTAINER = 'a'.repeat(64);
@@ -47,6 +48,8 @@ async function connectedNode(options: { answering?: boolean } = {}) {
   };
   container.registerInstance(DockerManagementService, docker as never);
   container.registerInstance(DockerSnapshotService, {} as never);
+  // The env routes look for a Git source container its first build has not created yet: this one exists.
+  container.registerInstance(DockerSourceService, { getPendingContainer: vi.fn(async () => null) } as never);
   container.registerInstance(DockerAvailabilityService, {
     resolveRuntimeAccessIdentity: vi.fn(async () => null),
     isContainerManaged: vi.fn(async () => false),
