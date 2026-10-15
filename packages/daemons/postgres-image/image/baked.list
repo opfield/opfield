@@ -1,0 +1,33 @@
+# Light extensions baked into the image (each adds at most about 10 MB with the
+# libraries it needs that the official image does not have; measured per major,
+# see packages/daemons/postgres-image/README.md). Heavier ones are downloadable
+# bundles (../bundle/bundles.list).
+#
+# id             need      mode   packages ({major} = PG_MAJOR)
+#   need: required = the build fails without it; optional = skipped and recorded
+#         in /usr/local/share/opfield/extensions.txt when PGDG has no package
+#   mode: apt   = apt-get install --no-install-recommends
+#         files = only the extension's files from the package (its other
+#                 dependencies serve command-line helpers the server never uses)
+pgvector         required  apt    postgresql-{major}-pgvector
+pg_cron          required  apt    postgresql-{major}-cron
+pg_partman       required  files  postgresql-{major}-partman
+pgaudit          required  apt    postgresql-{major}-pgaudit
+hypopg           required  apt    postgresql-{major}-hypopg
+pg_hint_plan     required  apt    postgresql-{major}-pg-hint-plan
+plpgsql_check    required  apt    postgresql-{major}-plpgsql-check
+pg_repack        required  apt    postgresql-{major}-repack
+rum              required  apt    postgresql-{major}-rum
+h3               required  apt    postgresql-{major}-h3
+orafce           required  apt    postgresql-{major}-orafce
+pg_ivm           required  apt    postgresql-{major}-pg-ivm
+semver           required  apt    postgresql-{major}-semver
+pgmq             optional  apt    postgresql-{major}-pgmq
+pg_uuidv7        optional  apt    postgresql-{major}-pg-uuidv7
+pg_stat_kcache   optional  apt    postgresql-{major}-pg-stat-kcache
+pg_qualstats     optional  apt    postgresql-{major}-pg-qualstats
+pgtap            optional  apt    postgresql-{major}-pgtap
+prefix           optional  apt    postgresql-{major}-prefix
+ip4r             optional  apt    postgresql-{major}-ip4r
+periods          optional  apt    postgresql-{major}-periods
+pg_show_plans    optional  apt    postgresql-{major}-show-plans

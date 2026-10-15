@@ -189,7 +189,7 @@ export const DATABASE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_postgres_data',
     description:
-      'Explore and edit SQL data for a saved connection. Postgres operations: list_schemas, list_tables, table_metadata, browse_rows, insert_row, update_row, delete_row, add_column, update_column_type, delete_column. Managed Postgres extensions: list_extensions (query read), enable_extension and disable_extension (query admin) with extension. Provider-neutral SQL explorer for Postgres and ClickHouse: sql_list_namespaces, sql_list_objects (namespace), sql_table_metadata, sql_browse_rows, sql_insert_row (values), sql_update_row (locator, values), sql_delete_row (locator), sql_execute (sql; required query scope follows the statement intent).',
+      'Explore and edit SQL data for a saved connection. Postgres operations: list_schemas, list_tables, table_metadata, browse_rows, insert_row, update_row, delete_row, add_column, update_column_type, delete_column. Managed Postgres extensions: list_extensions (query read), enable_extension and disable_extension (query admin) with extension; they act on the curated list exactly like manage_managed_database extensions, enable_extension and disable_extension (which also report status, restarts and downloads). Provider-neutral SQL explorer for Postgres and ClickHouse: sql_list_namespaces, sql_list_objects (namespace), sql_table_metadata, sql_browse_rows, sql_insert_row (values), sql_update_row (locator, values), sql_delete_row (locator), sql_execute (sql; required query scope follows the statement intent).',
     parameters: {
       type: 'object',
       properties: {

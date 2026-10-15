@@ -319,6 +319,11 @@ export const UpdateManagedDatabaseSchema = z
      * catalog version. One restart on a single server; a rolling update (copies first, then a switchover) on several.
      */
     version: z.string().trim().min(1).max(32).optional(),
+    /**
+     * PostgreSQL on the official image of its version: move to Opfield's image of the same version, which adds the
+     * extensions. Data kept; one restart on a single server, a rolling update on several.
+     */
+    imageUpdate: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'At least one field must be provided' });
 

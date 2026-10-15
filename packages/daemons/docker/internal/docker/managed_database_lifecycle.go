@@ -157,6 +157,11 @@ func (m *managedDatabaseManager) update(ctx context.Context, record *managedData
 			}
 		}
 	}
+	// Extension bundles: a recreate installed them before the new container;
+	// a live update installs them now and links them into the running server.
+	if err := m.settlePostgresExtensionBundles(ctx, record, input); err != nil {
+		return err
+	}
 	applyManagedDatabaseOperationID(record, input)
 	return nil
 }
@@ -378,6 +383,7 @@ func managedDatabaseRequiresRecreate(record managedDatabaseRecord, input managed
 func managedDatabaseContainerSettingsChanged(record managedDatabaseRecord, input managedDatabaseCommand) bool {
 	return input.PublishedPort != record.PublishedPort ||
 		(record.Type == "postgres" && managedPostgresMaxConnections(input) != record.PostgresMaxConnections) ||
+		(record.Type == "postgres" && managedPostgresPreloadKey(input) != record.PostgresPreloadLibraries) ||
 		input.PublishedNativePort != record.PublishedNativePort ||
 		(input.PublishNativeTCP != (record.PublishedNativePort != 0)) ||
 		input.TLSEnabled != record.TLSEnabled ||
@@ -555,6 +561,7 @@ func (m *managedDatabaseManager) recreateContainer(ctx context.Context, record *
 	record.ClickhouseConfigHash = clickHouseConfigHash(input.ClickhouseConfig)
 	record.RedisConfigHash = managedRedisConfigHash(input)
 	record.PostgresMaxConnections = managedPostgresMaxConnections(input)
+	record.PostgresPreloadLibraries = managedPostgresPreloadKey(input)
 	if input.Type == "clickhouse" {
 		record.ClickhouseRuntimeProfileVersion = clickHouseRuntimeProfileVersion
 	}
@@ -754,6 +761,9 @@ func validateManagedDatabaseInput(input managedDatabaseCommand) error {
 	if input.Type != "postgres" && input.PostgresConfig != nil {
 		return errors.New("PostgreSQL configuration is supported only for PostgreSQL")
 	}
+	if err := validatePostgresExtensionConfig(input); err != nil {
+		return err
+	}
 	if maxConnections := managedPostgresMaxConnections(input); maxConnections != 0 {
 		if maxConnections < managedPostgresMinConnections || maxConnections > managedPostgresMaxConnectionsLimit {
 			return fmt.Errorf("PostgreSQL max_connections must be between %d and %d", managedPostgresMinConnections, managedPostgresMaxConnectionsLimit)
@@ -795,18 +805,9 @@ func validateManagedDatabaseInput(input managedDatabaseCommand) error {
 
 // Curated images are digest-pinned in the controller catalog.
 var curatedManagedDatabaseImages = map[string]map[string]struct{}{
-	"postgres": {
-		"docker.io/library/postgres@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a": {},
-		"docker.io/library/postgres@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db": {},
-		"docker.io/library/postgres@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d": {},
-		"docker.io/library/postgres@sha256:69dddb030ab69d669d8d7c6abf67aeb448178e5270d5f123a21f4f7ac8b46a24": {},
-		"docker.io/library/postgres@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20": {},
-		"docker.io/library/postgres@sha256:21f6013073bc6b92830a2129570e2f5ec42a6c734b5a985a41e83aa58f54c3c1": {},
-		"docker.io/library/postgres@sha256:74e110c41804365e3915fcc09d5e7a1eff50161aaa94d5da0e58e0cd75ae509c": {},
-		"docker.io/library/postgres@sha256:822f8795764a670160640888508b2a68ea5c4b045012c2de17e1d0447bdbdc99": {},
-		"docker.io/library/postgres@sha256:caf49e3b10d377aa2cfee478591d623808527beb27125d38797b418013f72d81": {},
-		"docker.io/library/postgres@sha256:962ffbe9f6418387643411b127c1db27465e5a23b9a8849bfaf45fa6323963ce": {},
-	},
+	// PostgreSQL's are every catalog version's official image and, once
+	// pinned, Opfield's image of it (pgext/catalog/versions.json).
+	"postgres": curatedPostgresImages(),
 	"redis": {
 		"docker.io/valkey/valkey-bundle@sha256:dd30c59c2b2a598e83308095220a31d6d93d64c40a839c702cb1e98c8e220660": {},
 		"docker.io/library/redis@sha256:c29e49ab2f85760a3827b53882e6dd9f5c6c3f0bb7d724e07bb31cbf275a5236":        {},

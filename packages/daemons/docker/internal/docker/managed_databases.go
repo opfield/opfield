@@ -183,6 +183,14 @@ type managedRedisConfig struct {
 // A zero value keeps the engine default (max_connections 100).
 type managedPostgresConfig struct {
 	MaxConnections int `json:"maxConnections"`
+	// SharedPreloadLibraries the server starts with (curated extensions that
+	// need one; managed_postgres_extensions_config.go). Fixed at container
+	// creation, like max_connections.
+	SharedPreloadLibraries []string `json:"sharedPreloadLibraries,omitempty"`
+	// ExtensionBundles are the downloadable extension bundles the database's
+	// volume holds (managed_postgres_extension_bundles.go); a change applies
+	// to the running server.
+	ExtensionBundles []string `json:"extensionBundles,omitempty"`
 }
 
 // managedDatabaseBindingCommand is intentionally separate from the instance
@@ -258,8 +266,14 @@ type managedDatabaseRecord struct {
 	RedisConfigHash      string `json:"redisConfigHash,omitempty"`
 	// PostgresMaxConnections is the max_connections the container was started
 	// with; 0 is the engine default.
-	PostgresMaxConnections          int `json:"postgresMaxConnections,omitempty"`
-	ClickhouseRuntimeProfileVersion int `json:"clickhouseRuntimeProfileVersion,omitempty"`
+	PostgresMaxConnections int `json:"postgresMaxConnections,omitempty"`
+	// PostgresPreloadLibraries are the shared_preload_libraries the container
+	// was started with, comma-separated in load order; "" is none.
+	PostgresPreloadLibraries string `json:"postgresPreloadLibraries,omitempty"`
+	// PostgresExtensionBundles are the extension bundles last installed into
+	// the volume for this database (ids, required ones first).
+	PostgresExtensionBundles        []string `json:"postgresExtensionBundles,omitempty"`
+	ClickhouseRuntimeProfileVersion int      `json:"clickhouseRuntimeProfileVersion,omitempty"`
 	// ClickhouseAvailabilitySetID/MemberID: the container is that ClickHouse
 	// availability set member's (the member runtime starts and stops it).
 	ClickhouseAvailabilitySetID    string `json:"clickhouseAvailabilitySetId,omitempty"`
@@ -500,6 +514,10 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 			return "", err
 		}
 		return m.moveToValkeyPreflight(ctx, record, input.OwnerPassword)
+	case postgresExtensionsListAction:
+		// Read-only, like stats.
+		_, detail, err := m.handlePostgresExtensionAction(ctx, action, id, configJSON)
+		return detail, err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -757,6 +775,9 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 			return "", err
 		}
 		return `{"status":"ok"}`, nil
+	case postgresExtensionApplyAction:
+		_, detail, err := m.handlePostgresExtensionAction(ctx, action, id, configJSON)
+		return detail, err
 	case "binding_create", "binding_remove", "binding_remove_v2":
 		var input managedDatabaseBindingCommand
 		if err := json.Unmarshal([]byte(configJSON), &input); err != nil {

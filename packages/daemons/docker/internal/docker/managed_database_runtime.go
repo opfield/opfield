@@ -31,6 +31,11 @@ import (
 // starts once, already on the binding it keeps across restarts, and record
 // gets the ports it publishes.
 func (m *managedDatabaseManager) createContainer(ctx context.Context, record *managedDatabaseRecord, input managedDatabaseCommand) (string, error) {
+	// The server never starts without the extension bundles it is configured
+	// with (a new database, a recreate on another image).
+	if err := m.ensurePostgresExtensionBundles(ctx, record, input); err != nil {
+		return "", err
+	}
 	for attempt := 1; ; attempt++ {
 		pinned, picked, err := pickManagedDatabaseHostPorts(input)
 		if err != nil {
@@ -333,6 +338,7 @@ func managedPostgresCommandWith(input managedDatabaseCommand, linkSocket bool) [
 	if maxConnections := managedPostgresMaxConnections(input); maxConnections > 0 {
 		flags = append(flags, "-c", "max_connections="+strconv.Itoa(maxConnections))
 	}
+	flags = append(flags, managedPostgresExtensionFlags(input)...)
 	if input.TLSEnabled {
 		flags = append(flags,
 			"-c", "ssl=on",

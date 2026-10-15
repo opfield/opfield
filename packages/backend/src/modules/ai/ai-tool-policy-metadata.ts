@@ -338,9 +338,20 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
       'availability',
       'availability_preflight',
       'availability_events',
+      'extensions',
     ],
     create: ['create', 'create_binding', 'make_available', 'add_member'],
-    update: ['update', 'retry', 'rotate_certificate', 'move_to_valkey', 'update_availability', 'rebuild_member'],
+    update: [
+      'update',
+      'retry',
+      'rotate_certificate',
+      'move_to_valkey',
+      'update_availability',
+      'rebuild_member',
+      'enable_extension',
+      'disable_extension',
+      'update_extension',
+    ],
     // Rotation returns the new direct-access password; a primary switch moves every client to another server.
     execute: [
       'restart',
