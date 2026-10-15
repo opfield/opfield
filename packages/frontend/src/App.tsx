@@ -28,6 +28,7 @@ import { hasDashboardContent } from "@/lib/app-navigation";
 import { getLoginRedirectUrl } from "@/lib/auth-return-to";
 import { hasCreationDestination } from "@/lib/creation-folders";
 import { resolveMigrationTarget } from "@/lib/docker-migration-navigation";
+import { canAccessDockerSection } from "@/lib/docker-tabs";
 import {
   hasLowInferenceUsage,
   INFERENCE_CATALOG_CHANGED_CHANNEL,
@@ -693,18 +694,10 @@ function NodesPageGuard() {
 }
 
 function DockerPageGuard() {
-  const { hasScopedAccess } = useGlobalSectionAccess();
+  const { scopes } = useGlobalSectionAccess();
 
-  const canAccessDocker =
-    hasScopedAccess("docker:containers:view") ||
-    hasScopedAccess("docker:images:view") ||
-    hasScopedAccess("docker:volumes:view") ||
-    hasScopedAccess("docker:networks:view") ||
-    hasScopedAccess("docker:compose:view") ||
-    hasScopedAccess("docker:tasks") ||
-    hasScopedAccess("docker:folders:manage");
-
-  if (!canAccessDocker) {
+  // The Docker page's own tab list (lib/docker-tabs), like the sidebar item.
+  if (!canAccessDockerSection(scopes)) {
     return <Navigate to="/" replace />;
   }
 
@@ -868,13 +861,16 @@ function LoggingPageGuard({ detailType }: { detailType?: "environment" | "schema
   const loadSystemConfig = useSystemConfigStore((s) => s.load);
   const [systemConfigLoadFailed, setSystemConfigLoadFailed] = useState(false);
   const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
+  // The section ignores grants held only through app places; a detail reached from an app keeps them.
+  const globalAccess = useGlobalSectionAccess();
+  const sectionAccess = detailType && id ? hasScopedAccess : globalAccess.hasScopedAccess;
   // Same rules as the logging list routes (resource, folder and create-only grants count).
   const canAccessLoggingEnvironments =
-    hasScopedAccess("logs:environments:view") ||
-    hasScopedAccess("logs:read") ||
-    hasScopedAccess("logs:environments:create");
+    sectionAccess("logs:environments:view") ||
+    sectionAccess("logs:read") ||
+    sectionAccess("logs:environments:create");
   const canAccessLoggingSchemaList =
-    hasScopedAccess("logs:schemas:view") || hasScopedAccess("logs:schemas:create");
+    sectionAccess("logs:schemas:view") || sectionAccess("logs:schemas:create");
   const canAccessLogging = canAccessLoggingEnvironments || canAccessLoggingSchemaList;
   const isEnvironmentDetail = detailType === "environment" && !!id;
   const isSchemaDetail = detailType === "schema" && !!id;

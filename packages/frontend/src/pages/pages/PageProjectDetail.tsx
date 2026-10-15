@@ -284,6 +284,10 @@ export function PageProjectDetail({
   const canDeploy = useAuthStore((state) => state.hasScopedAccess(`pages:deploy:${projectId}`));
   const canEdit = useAuthStore((state) => state.hasScopedAccess(`pages:edit:${projectId}`));
   const canDelete = useAuthStore((state) => state.hasScopedAccess(`pages:delete:${projectId}`));
+  // Deploy tokens are listed and changed with pages:tokens:manage on the project.
+  const canManageTokens = useAuthStore((state) =>
+    state.hasScopedAccess(`pages:tokens:manage:${projectId}`)
+  );
   const initialProjectRef = useRef(initialProject?.id === projectId ? initialProject : undefined);
   const [project, setProject] = useState<PageProject | null>(initialProjectRef.current ?? null);
   // The open incident of the project's app environment refuses deleting it.
@@ -473,7 +477,8 @@ export function PageProjectDetail({
   const latestPreviewUrl = publicHostname ? `${window.location.protocol}//${publicHostname}` : null;
   const visibleTab =
     PROJECT_TABS.includes(activeTab as (typeof PROJECT_TABS)[number]) &&
-    (gitTabsVisible || (activeTab !== "source" && activeTab !== "builds"))
+    (gitTabsVisible || (activeTab !== "source" && activeTab !== "builds")) &&
+    (canManageTokens || activeTab !== "tokens")
       ? activeTab
       : "deployments";
 
@@ -698,9 +703,11 @@ export function PageProjectDetail({
             <TabsTrigger value="tags" className="gap-1.5">
               Tags
             </TabsTrigger>
-            <TabsTrigger value="tokens" className="gap-1.5">
-              Deploy tokens
-            </TabsTrigger>
+            {canManageTokens && (
+              <TabsTrigger value="tokens" className="gap-1.5">
+                Deploy tokens
+              </TabsTrigger>
+            )}
             <TabsTrigger value="configuration" className="gap-1.5">
               Configuration
             </TabsTrigger>
@@ -733,9 +740,11 @@ export function PageProjectDetail({
           <TabsContent value="tags" className="pb-0">
             <PageTagsTab projectId={project.id} />
           </TabsContent>
-          <TabsContent value="tokens" className="pb-0">
-            <PageTokensTab projectId={project.id} />
-          </TabsContent>
+          {canManageTokens && (
+            <TabsContent value="tokens" className="pb-0">
+              <PageTokensTab projectId={project.id} />
+            </TabsContent>
+          )}
           <TabsContent value="configuration" className="flex min-h-0 flex-1 flex-col pb-0">
             <PageRuntimeConfigTab projectId={project.id} />
           </TabsContent>

@@ -1,4 +1,6 @@
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
+import { globalSectionScopes } from "@/lib/app-navigation";
+import { hasScopeBase } from "@/lib/scope-utils";
 import { useAuthStore } from "@/stores/auth";
 import { hasLicenseFeature, type LicenseFeature } from "@/stores/license-paywall";
 import { useUIStore } from "@/stores/ui";
@@ -141,7 +143,14 @@ class ApiClient extends withAppsApi(
       useUIStore.getState().showSystemCertificates &&
       useAuthStore.getState().hasScope("admin:details:certificates");
     const auth = useAuthStore.getState();
-    const moduleState = useUIBootstrapStore.getState().snapshot?.commercialModule;
+    const bootstrap = useUIBootstrapStore.getState().snapshot;
+    const moduleState = bootstrap?.commercialModule;
+    // Global section lists leave app members out: grants held only through app places load nothing there.
+    const globalScopes = globalSectionScopes(
+      auth.user?.scopes ?? [],
+      bootstrap?.navigation?.appOnlyScopeBases
+    );
+    const hasGlobalAccess = (base: string) => hasScopeBase(globalScopes, base);
     const licensed = (feature: LicenseFeature) =>
       (!moduleState || moduleState === "ready") && hasLicenseFeature(feature) !== false;
     const tasks: BackgroundPrewarmTask[] = [];
@@ -174,25 +183,24 @@ class ApiClient extends withAppsApi(
       cache(`cas:list:${showSystem ? "system" : "default"}`, () => this.listCAs({ showSystem }))
     );
     add(
-      auth.hasScopedAccess("proxy:view"),
+      hasGlobalAccess("proxy:view"),
       "proxy-hosts",
       cache("proxy:grouped", () => this.getGroupedProxyHosts({ ...NORMAL_LIST_FILTER }))
     );
     add(
-      licensed("pages") && auth.hasScopedAccess("pages:view"),
+      licensed("pages") && hasGlobalAccess("pages:view"),
       "pages-projects",
       cache("pages:projects", () =>
         this.listPageProjects({ page: 1, limit: 100, ...NORMAL_LIST_FILTER })
       )
     );
     add(
-      licensed("pages") &&
-        (auth.hasScopedAccess("pages:view") || auth.hasScope("pages:folders:manage")),
+      licensed("pages") && (hasGlobalAccess("pages:view") || auth.hasScope("pages:folders:manage")),
       "pages-project-folders",
       cache("pages:project-folders", () => this.listPageProjectFolders())
     );
     add(
-      auth.hasScopedAccess("ssl:cert:view"),
+      hasGlobalAccess("ssl:cert:view"),
       "ssl-certificates",
       cache(`ssl:list:${showSystem ? "system" : "default"}`, () =>
         this.listSSLCertificates({
@@ -239,7 +247,7 @@ class ApiClient extends withAppsApi(
       cache("nodes:list:default", () => this.listNodes({ page: 1, limit: 50 }))
     );
     add(
-      licensed("external-database-connections") && auth.hasScopedAccess("databases:view"),
+      licensed("external-database-connections") && hasGlobalAccess("databases:view"),
       "databases",
       cache("databases:list", () =>
         this.listDatabases({ limit: 200, ...NORMAL_LIST_FILTER }).then((result) => result.data)
@@ -250,9 +258,7 @@ class ApiClient extends withAppsApi(
       this.getCached<SystemConfig>("system:config", Number.POSITIVE_INFINITY)?.features
         ?.loggingEnabled === true;
     add(
-      loggingEnabled &&
-        licensed("structured-logging") &&
-        auth.hasScopedAccess("logs:environments:view"),
+      loggingEnabled && licensed("structured-logging") && hasGlobalAccess("logs:environments:view"),
       "logging-environments",
       cache("logging:environments", () => this.listLoggingEnvironments())
     );

@@ -24,6 +24,7 @@ import {
   hasAppWideScope,
   visibleEnvironmentIds,
 } from './app-access.js';
+import { environmentCreateAccess, environmentsWithPlaceGrants } from './app-create-access.js';
 import { type AppFamily, type AppMemberType, familyRecord } from './app-families.js';
 import type { AppFolderService } from './app-folders.service.js';
 import { type AppVisibility, memberKeysByEnvironment } from './app-member-visibility.js';
@@ -244,6 +245,8 @@ export class AppsService {
         ? (await this.members.listVisibleMembers(scopes, restIds)).map((member) => member.environmentId)
         : []
     );
+    // An environment the caller has grants in (its placement folders) stays visible while still empty.
+    for (const id of await environmentsWithPlaceGrants(this.folders, scopes, restIds)) memberEnvIds.add(id);
     const result = new Map<string, AppVisibility>();
     for (const entry of scoped) {
       const memberEnvironmentIds = entry.rest.filter((id) => memberEnvIds.has(id));
@@ -265,14 +268,9 @@ export class AppsService {
     if (!hasAnyAppMemberViewScope(scopes)) return false;
     const envRows = await this.db.select({ id: appEnvironments.id }).from(appEnvironments);
     if (envRows.length === 0) return false;
-    return (
-      (
-        await this.members.listVisibleMembers(
-          scopes,
-          envRows.map((row) => row.id)
-        )
-      ).length > 0
-    );
+    const envIds = envRows.map((row) => row.id);
+    if ((await this.members.listVisibleMembers(scopes, envIds)).length > 0) return true;
+    return (await environmentsWithPlaceGrants(this.folders, scopes, envIds)).size > 0;
   }
 
   async findApp(idOrSlug: string, db: DrizzleExecutor = this.db): Promise<AppRow | null> {
@@ -413,12 +411,19 @@ export class AppsService {
     const [roots, folders, nodes, health, maintenance, incidents] = await Promise.all([
       access === 'full' ? this.folders.appRootFolders(app.id) : Promise.resolve(NO_FOLDERS),
       this.folders.envFolders(envIds),
-      this.allowedNodes(fullEnvs.map((env) => env.id)),
+      this.allowedNodes(envs.map((env) => env.id)),
       this.summarize(scopes, envIds),
       this.maintenance?.environmentMaintenance(app, fullEnvs) ??
         Promise.resolve(new Map<string, Record<string, unknown>>()),
       this.incidentSummaries(envIds, memberKeysByEnvironment(visibleMembers, [...memberEnvIds])),
     ]);
+    // What the caller may create in each environment; an environment seen through members shows its allowed nodes
+    // only when the caller may create there (the create dialogs place on them).
+    const createAccess = new Map(
+      envs.map((env) => [env.id, environmentCreateAccess(scopes, folders.get(env.id), nodes.get(env.id) ?? [])])
+    );
+    const showsNodes = (envId: string) =>
+      !memberEnvIds.has(envId) || Object.values(createAccess.get(envId) ?? {}).some(Boolean);
     return {
       id: app.id,
       slug: app.slug,
@@ -444,7 +449,7 @@ export class AppsService {
         this.envDetail(env, {
           access: memberEnvIds.has(env.id) ? 'members' : 'full',
           folders: folders.get(env.id),
-          nodeIds: nodes.get(env.id) ?? [],
+          nodeIds: showsNodes(env.id) ? (nodes.get(env.id) ?? []) : [],
           counts: counts.get(env.id) ?? emptyMemberCounts(),
           hiddenTypes: [...(hiddenTypes.get(env.id) ?? [])].sort(),
           health: health.get(env.id) ?? DEFAULT_HEALTH,
@@ -465,6 +470,8 @@ export class AppsService {
         operateEnv: Object.fromEntries(
           envs.map((env) => [env.id, hasAppScope(scopes, APP_OPERATE_SCOPE, app.id, env.id)])
         ),
+        /** Per environment and family: may create a resource of that family there. */
+        create: Object.fromEntries(envs.map((env) => [env.id, createAccess.get(env.id) ?? {}])),
       },
     };
   }

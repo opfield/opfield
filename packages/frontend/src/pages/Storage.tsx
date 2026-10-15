@@ -22,9 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { refreshDynamicScopes } from "@/lib/live-scopes";
 import {
   isManagedStorageCandidateNode,
@@ -198,7 +200,11 @@ function StorageContent() {
     void load();
   }, [load]);
 
-  const canCreate = hasScopedAccess("storage:create");
+  // Creating needs a destination outside app places (broad, node or user folder grant).
+  const globalAccess = useGlobalSectionAccess();
+  const canCreate = hasCreationDestination(globalAccess.scopes, "storage:create", {
+    nodeGrants: true,
+  });
   const canManageFolders = useCanManageSomeFolders("storage:folders:manage");
 
   // The server already filters the list by view grants, including folder grants that cover

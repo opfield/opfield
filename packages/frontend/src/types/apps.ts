@@ -129,6 +129,8 @@ export interface AppPermissions {
   promote: Record<string, boolean>;
   /** apps:operate on one environment (Phase 2 shutdown / isolation per environment). */
   operateEnv?: Record<string, boolean>;
+  /** Per environment and family: the caller may create a resource of that family there. */
+  create?: Record<string, Partial<Record<AppMemberFamily, boolean>>>;
 }
 
 export interface AppDetail {

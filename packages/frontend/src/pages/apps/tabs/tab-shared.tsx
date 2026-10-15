@@ -132,14 +132,16 @@ export const TYPES = {
 
 /** What a tab can ask the page for. */
 export interface TabActions {
-  /** May create / import (env:manage on some environment). */
+  /** May create or import something (a family's create grant, or apps:env:manage, in some environment). */
   canCreate: boolean;
   onCreate: (type: AppCreateType, environmentId?: string | null) => void;
   onImport: (family: AppMemberFamily) => void;
-  /** The license plan includes creating this type (entry points of other types stay hidden). */
+  /** The license plan includes creating this type (wording of empty states). */
   planCreates: (type: AppCreateType) => boolean;
-  /** The license plan includes importing existing members of this family. */
-  planImports: (family: AppMemberFamily) => boolean;
+  /** The plan includes the type and the user may create it in some environment (entry points). */
+  creates: (type: AppCreateType) => boolean;
+  /** The plan includes importing this family and the user may place members (apps:env:manage). */
+  imports: (family: AppMemberFamily) => boolean;
   /** May move members of this environment. */
   canMoveIn: (environmentId: string) => boolean;
   onMoveToEnvironment: (member: MemberRef) => void;
@@ -157,8 +159,8 @@ export interface MemberRef {
 
 /** Import existing + the list's create action, in a type section's header. */
 export function TypeActions({ type, actions }: { type: TypeDef; actions: TabActions }) {
-  const canImport = type.importFamily !== null && actions.planImports(type.importFamily);
-  const canCreate = actions.planCreates(type.createType);
+  const canImport = type.importFamily !== null && actions.imports(type.importFamily);
+  const canCreate = actions.creates(type.createType);
   if (!canImport && !canCreate) return null;
   return (
     <>
@@ -188,8 +190,8 @@ export function AddRow({ types, actions }: { types: TypeDef[]; actions: TabActio
       {types
         .filter(
           (type) =>
-            actions.planCreates(type.createType) ||
-            (type.importFamily !== null && actions.planImports(type.importFamily))
+            actions.creates(type.createType) ||
+            (type.importFamily !== null && actions.imports(type.importFamily))
         )
         .map((type) => (
           <PanelShell
@@ -218,9 +220,9 @@ export function EmptyGroup({
   message: string;
   actions: TabActions;
 }) {
-  const [first, ...rest] = types.filter((type) => actions.planCreates(type.createType));
+  const [first, ...rest] = types.filter((type) => actions.creates(type.createType));
   const [firstImport, ...restImports] = types.filter(
-    (type) => type.importFamily !== null && actions.planImports(type.importFamily)
+    (type) => type.importFamily !== null && actions.imports(type.importFamily)
   );
   return (
     <PanelShell

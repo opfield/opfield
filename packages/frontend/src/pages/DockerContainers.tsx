@@ -56,11 +56,13 @@ import {
 } from "@/components/ui/select";
 import { TruncateStart } from "@/components/ui/truncate-start";
 import { useCanManageSomeFolders, useFolderAccess } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { matchesDockerContainerStatus } from "@/lib/docker-container-filters";
 import { canCreateDockerResourceOnNode, loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { collectFolderTreeIds, findFolderTreeNode } from "@/lib/folder-tree";
@@ -178,6 +180,7 @@ export function DockerContainers({
   const navigate = useNavigate();
   const location = useLocation();
   const { hasScope, hasScopedAccess, user } = useAuthStore();
+  const globalAccess = useGlobalSectionAccess();
   const containers = useDockerStore((s) => s.containers) as DockerContainerListItem[];
   const previousContainersRef = useRef(containers);
   const selectedNodeId = useDockerStore((s) => s.selectedNodeId);
@@ -491,14 +494,16 @@ export function DockerContainers({
         shown.ungrouped.length,
         hasSavedFolderExpansion("container")
       );
+  // The global list creates outside app places; a node's view keeps every grant.
+  const creationScopes = fixedNodeId ? (user?.scopes ?? []) : globalAccess.scopes;
   const canCreateOnVisibleNode =
     !!visibleNodeId &&
-    canCreateDockerResourceOnNode(user?.scopes ?? [], "docker:containers:create", visibleNodeId);
+    canCreateDockerResourceOnNode(creationScopes, "docker:containers:create", visibleNodeId);
   // Without broad node visibility an empty node list means nothing is shared yet, not that no node exists.
   const seesEveryDockerNode =
     hasScope("nodes:details") ||
     hasScope("docker:containers:view") ||
-    hasScopedAccess("docker:containers:create");
+    hasCreationDestination(creationScopes, "docker:containers:create", { nodeGrants: true });
   const canDragFolders = canManageFolders && !isMobile && !isSearchFiltering;
   const canManageRuntime = hasScopedAccess("docker:containers:manage");
   const canMoveToApps = !fixedNodeId && hasScopedAccess("docker:containers:edit");
