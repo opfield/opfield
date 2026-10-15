@@ -6,6 +6,7 @@ import {
   dockerContainerFolderAssignments,
   dockerContainerFolders,
   dockerDeployments,
+  domains,
   loggingEnvironments,
   objectStorageConnections,
   pageProjects,
@@ -19,6 +20,7 @@ export type ResourceGrantFamily =
   | 'containers'
   | 'compose'
   | 'routes'
+  | 'domains'
   | 'databases'
   | 'storage'
   | 'pages'
@@ -29,6 +31,7 @@ export type ResourceGrantFamily =
 const FOLDERED: Readonly<Record<Exclude<ResourceGrantFamily, 'containers' | 'compose'>, { table: any; folders: any }>> =
   {
     routes: { table: proxyHosts, folders: APP_FAMILY_TABLES.routes.table },
+    domains: { table: domains, folders: APP_FAMILY_TABLES.domains.table },
     databases: { table: databaseConnections, folders: APP_FAMILY_TABLES.databases.table },
     storage: { table: objectStorageConnections, folders: APP_FAMILY_TABLES.storage.table },
     pages: { table: pageProjects, folders: APP_FAMILY_TABLES.pages.table },

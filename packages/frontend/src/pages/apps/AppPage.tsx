@@ -98,6 +98,7 @@ const CREATE_FAMILY: Record<AppCreateType, AppMemberFamily | null> = {
   database: "databases",
   storage: "storage",
   route: "routes",
+  domain: "domains",
   pages: "pages",
   certificate: "certificates",
   logging: "logging",

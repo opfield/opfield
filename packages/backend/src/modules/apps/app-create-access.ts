@@ -9,6 +9,7 @@ export const APP_FAMILY_CREATE_SCOPES: Readonly<Partial<Record<AppFamily, string
   containers: 'docker:containers:create',
   compose: 'docker:compose:create',
   routes: 'proxy:create',
+  domains: 'domains:create',
   databases: 'databases:create',
   storage: 'storage:create',
   pages: 'pages:create',
@@ -17,7 +18,7 @@ export const APP_FAMILY_CREATE_SCOPES: Readonly<Partial<Record<AppFamily, string
 };
 
 /** Families created on a node: a grant on one of the environment's allowed nodes also creates there. */
-const NODE_BOUND = new Set<AppFamily>(['containers', 'compose', 'routes', 'databases', 'storage', 'pages']);
+const NODE_BOUND = new Set<AppFamily>(['containers', 'compose', 'routes', 'domains', 'databases', 'storage', 'pages']);
 
 /**
  * What the caller may create in an environment, per family: the family's create scope broadly, on the
