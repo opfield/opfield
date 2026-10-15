@@ -38,6 +38,8 @@ export interface PendingDockerSourceContainer {
     name: string;
     restartPolicy: 'no' | 'always' | 'unless-stopped' | 'on-failure';
     runtimeProfile: 'default' | 'secure';
+    /** Managed volumes the first build creates the container with. */
+    volumes?: Array<{ name: string; containerPath: string; readOnly: boolean }>;
   };
 }
 /**

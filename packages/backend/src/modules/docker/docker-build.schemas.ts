@@ -170,6 +170,28 @@ export const PagesBuildDiscoverySchema = z.object({
   applicationRoot: PagesBuildPathSchema.default('.'),
 });
 
+/**
+ * A managed volume a Git source container is created with by its first build, as the container create takes it
+ * (`volumes`); host paths cannot be mounted.
+ */
+const DockerSourceContainerVolumeSchema = z
+  .object({
+    name: z.string().trim().min(1).max(255),
+    containerPath: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine((path) => path.startsWith('/'), 'Path must be absolute')
+      .refine((path) => !path.split('/').includes('..'), "Path must not contain '..'"),
+    readOnly: z.boolean().default(false),
+  })
+  .strict();
+
+/** The whole volume list of a Git source container its first build has not created yet. */
+export const DockerPendingContainerVolumesSchema = z
+  .object({ volumes: z.array(DockerSourceContainerVolumeSchema).max(64) })
+  .strict();
+
 export const DockerSourceResourceCreateSchema = z.object({
   source: DockerSourceBindingConfigSchema,
   resource: z.discriminatedUnion('kind', [
@@ -178,6 +200,7 @@ export const DockerSourceResourceCreateSchema = z.object({
         kind: z.literal('container'),
         folderId: z.string().uuid().nullable().optional(),
         name: z.string().trim().min(1).max(255),
+        volumes: z.array(DockerSourceContainerVolumeSchema).max(64).optional(),
         restartPolicy: z.enum(['no', 'always', 'unless-stopped', 'on-failure']).default('no'),
         runtimeProfile: z.enum(['default', 'secure']).default('default'),
         // Saved for the container's reserved name; its first build creates and starts it with them.

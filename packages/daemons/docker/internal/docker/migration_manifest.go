@@ -120,6 +120,9 @@ func (c *Client) captureMigrationManifest(ctx context.Context, id string, withSi
 	imageReference := configuredArchiveImageReference(ctr.Config.Image, config.Labels)
 	delete(config.Labels, archiveImageReferenceLabel)
 	hostConfig := cloneHostConfig(ctr.HostConfig)
+	// An anonymous volume moves under its name like a named one. The target mounts it by that name; created from the
+	// image's VOLUME path alone, it would get a new empty volume there instead.
+	hostConfig.Mounts = append(hostConfig.Mounts, preservedVolumeMounts(&ctr)...)
 	manifest := dockerMigrationManifest{
 		SchemaVersion:  migrationManifestSchemaVersion,
 		SourceID:       ctr.ID,

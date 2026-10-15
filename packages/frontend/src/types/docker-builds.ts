@@ -265,6 +265,13 @@ export interface DockerBuildAdmissionStatus {
   message: string | null;
 }
 
+/** A managed volume a Git source container's first build creates it with. */
+export interface DockerSourceContainerVolume {
+  name: string;
+  containerPath: string;
+  readOnly: boolean;
+}
+
 export type DockerSourceResourceCreateRequest = {
   source: DockerSourceBindingConfig;
   resource:
@@ -277,6 +284,7 @@ export type DockerSourceResourceCreateRequest = {
         /** Saved with the container; its first build creates and starts it with them. */
         env?: Record<string, string>;
         secrets?: Record<string, string>;
+        volumes?: DockerSourceContainerVolume[];
       }
     | {
         kind: "deployment";

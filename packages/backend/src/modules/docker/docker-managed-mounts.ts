@@ -9,6 +9,29 @@ function mountKey(mount: NormalizedMountDefinition) {
   return `${mount.type}:${mount.source}:${mount.target}:${mount.readOnly ? 'ro' : 'rw'}:${[...(mount.options ?? [])].sort().join(',')}`;
 }
 
+function describeMount(mount: NormalizedMountDefinition) {
+  if (mount.type === 'bind') return `host path ${mount.source}`;
+  return /^[a-f0-9]{64}$/i.test(mount.source)
+    ? `anonymous volume ${mount.source.slice(0, 12)}`
+    : `volume "${mount.source}"`;
+}
+
+/** A path takes one mount: Docker refuses a container with two mounts at one path ("Duplicate mount point"). */
+export function assertUniqueMountTargets(mounts: NormalizedMountDefinition[]) {
+  const byTarget = new Map<string, NormalizedMountDefinition>();
+  for (const mount of mounts) {
+    const other = byTarget.get(mount.target);
+    if (other) {
+      throw new AppError(
+        400,
+        'DOCKER_MOUNT_TARGET_DUPLICATE',
+        `${describeMount(other)} and ${describeMount(mount)} both mount at ${mount.target}. A path takes one mount; keep only one of them.`
+      );
+    }
+    byTarget.set(mount.target, mount);
+  }
+}
+
 export async function assertManagedMountMutation(args: {
   db: DrizzleClient;
   dispatch: NodeDispatchService;
@@ -19,6 +42,8 @@ export async function assertManagedMountMutation(args: {
 }) {
   const currentKeys = new Set(args.current.map(mountKey));
   const changed = args.next.filter((mount) => !currentKeys.has(mountKey(mount)));
+  // Judged on a list the request changes: the mounts a container already has are what Docker created it with.
+  if (changed.length > 0) assertUniqueMountTargets(args.next);
   for (const mount of changed) {
     if (mount.type === 'bind') {
       throw new AppError(409, 'HOST_BIND_MOUNTS_DISABLED', 'New host bind mounts are not allowed');

@@ -3,7 +3,12 @@ import { toast } from "sonner";
 import { dockerContainerRoute, dockerDeploymentRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
 import { useDockerStore } from "@/stores/docker";
-import type { ContainerCreateConfig, DockerRuntimeProfile, Node } from "@/types";
+import type {
+  ContainerCreateConfig,
+  DockerRuntimeProfile,
+  DockerSourceContainerVolume,
+  Node,
+} from "@/types";
 import type { DockerDeployMode, DockerDeploySourceMode, DockerRestartPolicy } from "./types";
 
 interface ExecuteDockerDeployOptions {
@@ -35,6 +40,7 @@ interface ExecuteDockerDeployOptions {
   /** A container from a repository: saved with it and applied when its first build creates and starts it. */
   env?: Record<string, string>;
   secrets?: Record<string, string>;
+  volumes?: DockerSourceContainerVolume[];
 }
 
 const INTERNAL_DOCKER_REGISTRY_ID = "gateway-internal-registry";
@@ -79,6 +85,7 @@ export async function executeDockerDeploy({
   sourceProjectId,
   env,
   secrets,
+  volumes,
 }: ExecuteDockerDeployOptions) {
   const credentialRegistryId = deployCredentialRegistryId(deployRegistryId);
 
@@ -131,6 +138,7 @@ export async function executeDockerDeploy({
               runtimeProfile: deployRuntimeProfile,
               ...(env && Object.keys(env).length > 0 ? { env } : {}),
               ...(secrets && Object.keys(secrets).length > 0 ? { secrets } : {}),
+              ...(volumes && volumes.length > 0 ? { volumes } : {}),
             },
     });
     toast.success(result.build ? "Resource created and build queued" : "Resource created");

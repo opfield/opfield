@@ -211,6 +211,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "docker.container.env.update": "Updated container environment",
   "docker.container.kill": "Killed container",
   "docker.container.live_update": "Live-updated container",
+  "docker.container.mounts.update": "Updated container volume mounts",
   "docker.container.recreate": "Recreated container",
   "docker.container.remove": "Removed container",
   "docker.container.rename": "Renamed container",

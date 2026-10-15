@@ -56,27 +56,6 @@ func preservedVolumeMounts(insp *container.InspectResponse) []mount.Mount {
 	return preserved
 }
 
-// anonymousVolumeMountPoints keeps only the runtime mount points that are not
-// described by the container's explicit binds or mounts.
-func anonymousVolumeMountPoints(insp *container.InspectResponse) []container.MountPoint {
-	if insp == nil {
-		return nil
-	}
-	coveredDestinations, referencedVolumes := explicitMountCoverage(insp.HostConfig)
-	var anonymous []container.MountPoint
-	for _, point := range insp.Mounts {
-		if point.Type != mount.TypeVolume || strings.TrimSpace(point.Name) == "" {
-			continue
-		}
-		destination := cleanMountDestination(point.Destination)
-		if destination == "" || coveredDestinations[destination] || referencedVolumes[point.Name] {
-			continue
-		}
-		anonymous = append(anonymous, point)
-	}
-	return anonymous
-}
-
 func explicitMountCoverage(hostConfig *container.HostConfig) (map[string]bool, map[string]bool) {
 	destinations := map[string]bool{}
 	volumes := map[string]bool{}

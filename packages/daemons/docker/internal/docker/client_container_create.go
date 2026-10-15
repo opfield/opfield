@@ -834,6 +834,7 @@ func (c *Client) DuplicateContainer(ctx context.Context, id string, newName stri
 	applyDefaultWorkloadLogConfig(insp.HostConfig, c.defaultWorkloadLogDriver())
 	netNames := withoutLinkNetworks(inspectNetworkNames(&insp))
 	hostCfg := duplicateHostConfig(insp.HostConfig, netNames)
+	cfg.Volumes = duplicateVolumes(cfg.Volumes, hostCfg)
 	result, err := c.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Config:           &cfg,
 		HostConfig:       hostCfg,

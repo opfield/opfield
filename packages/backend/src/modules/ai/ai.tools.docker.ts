@@ -970,7 +970,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_source',
     description:
-      'Inspect, attach, update, remove, resolve, sync, or manually build the Git source bound directly to an existing Docker container, blue/green deployment, or Compose Project, or create a new container, deployment, or Compose Project from a Git source (create). sync (Sync now; docker:containers:manage, or docker:compose:manage for Compose) checks the branch for a new commit now, like one poll iteration, and queues the automatic build only when the source builds automatically and the head changed or has no build yet; it returns { source, changed, build }, needs no integrations:<provider>:use, and within about 10 seconds of the previous check returns the current state without asking the provider. resolve refreshes the desired commit without building (sync without building). pending reads a container that exists only as a queued first source build. Also lists the Git connectors a source can come from (connectors: id, name, provider) and their repositories (repositories, connectorId, optional search; returns { repositories, truncated }, truncated meaning more may exist past the listing bound, so search by name or owner/name); both need a create or edit scope of the workload the source is for and list only what the integrations:<provider>:use grants of the caller cover (what attaching the source needs). Attaching a source (create, upsert of a new source) or changing its connector, repository or branch also needs integrations:<provider>:use on that repository: unqualified, or limited to its connector, GitLab group or GitHub owner, or the exact project or repository; other upsert changes and build need only the workload scopes. upsert of an existing source changes only the fields you pass; omitted fields and policy keys keep their saved values, and it returns the saved source including policy. Manages source-scoped Build Secrets without exposing secret values. Builds always resolve an exact commit and deploy only approved immutable artifacts; while a build rollout deploys, other changes to its target are refused with 409 BUILD_ROLLOUT_IN_PROGRESS. Automatic deployments act for the account that last saved the source (its settings or Build Secrets): a new image on a workload with host bind mounts deploys only while that account holds docker:containers:mounts on it, checked when the rollout runs; otherwise the build fails with MISSING_DOCKER_MOUNTS_SCOPE naming the account and the fix (grant the scope, or save the source as a user who holds it). get returns composeServiceNames for a Compose source: the services of the Compose file it resolved, which the project can be linked to before its first revision.',
+      'Inspect, attach, update, remove, resolve, sync, or manually build the Git source bound directly to an existing Docker container, blue/green deployment, or Compose Project, or create a new container, deployment, or Compose Project from a Git source (create). sync (Sync now; docker:containers:manage, or docker:compose:manage for Compose) checks the branch for a new commit now, like one poll iteration, and queues the automatic build only when the source builds automatically and the head changed or has no build yet; it returns { source, changed, build }, needs no integrations:<provider>:use, and within about 10 seconds of the previous check returns the current state without asking the provider. resolve refreshes the desired commit without building (sync without building). pending reads a container that exists only as a queued first source build; pending_volumes (docker:containers:edit) sets its volume mounts, which the first build creates it with. Also lists the Git connectors a source can come from (connectors: id, name, provider) and their repositories (repositories, connectorId, optional search; returns { repositories, truncated }, truncated meaning more may exist past the listing bound, so search by name or owner/name); both need a create or edit scope of the workload the source is for and list only what the integrations:<provider>:use grants of the caller cover (what attaching the source needs). Attaching a source (create, upsert of a new source) or changing its connector, repository or branch also needs integrations:<provider>:use on that repository: unqualified, or limited to its connector, GitLab group or GitHub owner, or the exact project or repository; other upsert changes and build need only the workload scopes. upsert of an existing source changes only the fields you pass; omitted fields and policy keys keep their saved values, and it returns the saved source including policy. Manages source-scoped Build Secrets without exposing secret values. Builds always resolve an exact commit and deploy only approved immutable artifacts; while a build rollout deploys, other changes to its target are refused with 409 BUILD_ROLLOUT_IN_PROGRESS. Automatic deployments act for the account that last saved the source (its settings or Build Secrets): a new image on a workload with host bind mounts deploys only while that account holds docker:containers:mounts on it, checked when the rollout runs; otherwise the build fails with MISSING_DOCKER_MOUNTS_SCOPE naming the account and the fix (grant the scope, or save the source as a user who holds it). get returns composeServiceNames for a Compose source: the services of the Compose file it resolved, which the project can be linked to before its first revision.',
     parameters: {
       type: 'object',
       properties: {
@@ -979,6 +979,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
           enum: [
             'get',
             'pending',
+            'pending_volumes',
             'create',
             'upsert',
             'remove',
@@ -1018,6 +1019,20 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
           enum: ['no', 'always', 'unless-stopped', 'on-failure'],
         },
         runtimeProfile: { type: 'string', enum: ['default', 'secure'] },
+        volumes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Managed volume name' },
+              containerPath: { type: 'string', description: 'Absolute path in the container' },
+              readOnly: { type: 'boolean' },
+            },
+            required: ['name', 'containerPath'],
+          },
+          description:
+            'create of a container, or pending_volumes (the whole list, replacing the saved one) of a container its first build has not created yet: managed volumes the first build creates and starts it with (needs docker:volumes:view on each). One volume per path.',
+        },
         routes: { type: 'array', items: { type: 'object' } },
         health: { type: 'object' },
         drainSeconds: { type: 'number' },
