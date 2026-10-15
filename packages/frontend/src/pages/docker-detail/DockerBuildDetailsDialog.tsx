@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { joinDockerBuildLogChunks } from "@/lib/docker-build-log-lines";
 import { api } from "@/services/api";
 import type { DockerBuild, DockerBuildLogChunk, DockerBuildSeverityCounts } from "@/types";
 import { DockerLogViewport } from "./DockerLogViewport";
@@ -105,6 +106,7 @@ export function DockerBuildDetailsDialog({
   const [logs, setLogs] = useState<DockerBuildLogChunk[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [showSystemFindings, setShowSystemFindings] = useState(false);
+  const logLines = useMemo(() => joinDockerBuildLogChunks(logs), [logs]);
   const logRequestId = useRef(0);
   const buildId = build?.id ?? null;
   const refreshLogs = useCallback(async () => {
@@ -343,9 +345,9 @@ export function DockerBuildDetailsDialog({
         {build && (
           <DockerLogViewport
             key={build.id}
-            lines={logs}
-            keyFn={(line) => line.sequence}
-            renderContent={(line) => line.content}
+            lines={logLines}
+            keyFn={(line) => line.key}
+            renderContent={(line) => line.content || "\u00a0"}
             emptyState={
               <div className="px-4 text-xs text-muted-foreground">
                 {loadingLogs ? "Loading build log output…" : "No build log output yet."}

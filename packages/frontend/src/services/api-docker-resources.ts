@@ -820,9 +820,20 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
     }
 
     async getDockerBuildLogs(buildId: string): Promise<DockerBuildLogChunk[]> {
-      return this.unwrapData(
-        this.request<{ data: DockerBuildLogChunk[] }>(`/docker/builds/${buildId}/logs?limit=500`)
-      );
+      const pageSize = 500;
+      const chunks: DockerBuildLogChunk[] = [];
+      // A full page means more chunks may follow: page on until a short one, so a long build is not cut short.
+      for (let page = 0; page < 200; page++) {
+        const afterSequence = chunks.length > 0 ? chunks[chunks.length - 1]!.sequence : -1;
+        const next = await this.unwrapData(
+          this.request<{ data: DockerBuildLogChunk[] }>(
+            `/docker/builds/${buildId}/logs?limit=${pageSize}&afterSequence=${afterSequence}`
+          )
+        );
+        chunks.push(...next);
+        if (next.length < pageSize) break;
+      }
+      return chunks;
     }
 
     async cancelDockerBuild(buildId: string): Promise<DockerBuild> {
