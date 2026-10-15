@@ -77,9 +77,7 @@ func (c *Client) UpdateContainer(ctx context.Context, id string, newTag string, 
 
 		// Values baked into the previous image must not pin the new image to
 		// the old image's defaults.
-		if previousImage := c.replacedImageConfig(ctx, insp.Image, imageRef); previousImage != nil {
-			envOverrides = dropInheritedImageDefaults(insp.Config, previousImage, envOverrides)
-		}
+		envOverrides = c.dropReplacedImageDefaults(ctx, &insp, imageRef, envOverrides)
 	}
 
 	return c.recreateContainer(ctx, &insp, imageRef, envOverrides, envRemovals, rollbackSnapshot, requestedExpectedRunning)
@@ -194,33 +192,28 @@ func (c *Client) LiveUpdateContainer(ctx context.Context, id string, configJSON 
 // overrides for ports, mounts, entrypoint, command, working directory, user, hostname, and labels.
 func (c *Client) RecreateWithConfig(ctx context.Context, id string, configJSON string) error {
 	var params struct {
-		Image     string                 `json:"image"`
-		Env       map[string]string      `json:"env"`
-		RemoveEnv []string               `json:"removeEnv"`
-		Ports     []containerPortMapping `json:"ports"`
-		Mounts    []struct {
-			HostPath      string `json:"hostPath"`
-			ContainerPath string `json:"containerPath"`
-			Name          string `json:"name"`
-			ReadOnly      bool   `json:"readOnly"`
-		} `json:"mounts"`
-		Entrypoint     []string          `json:"entrypoint"`
-		Command        []string          `json:"command"`
-		WorkingDir     string            `json:"workingDir"`
-		User           string            `json:"user"`
-		Hostname       string            `json:"hostname"`
-		Labels         map[string]string `json:"labels"`
-		StopTimeout    *int              `json:"stopTimeout"`
-		RestartPolicy  *string           `json:"restartPolicy"`
-		MaxRetries     *int              `json:"maxRetries"`
-		MemoryLimit    *int64            `json:"memoryLimit"`
-		MemorySwap     *int64            `json:"memorySwap"`
-		NanoCPUs       *int64            `json:"nanoCPUs"`
-		CpuShares      *int64            `json:"cpuShares"`
-		PidsLimit      *int64            `json:"pidsLimit"`
-		GPU            *GPUConfig        `json:"gpu"`
-		RuntimeProfile *string           `json:"runtimeProfile"`
-		ExpectedState  string            `json:"expectedState"`
+		Image          string                 `json:"image"`
+		Env            map[string]string      `json:"env"`
+		RemoveEnv      []string               `json:"removeEnv"`
+		Ports          []containerPortMapping `json:"ports"`
+		Mounts         []recreateMount        `json:"mounts"`
+		Entrypoint     []string               `json:"entrypoint"`
+		Command        []string               `json:"command"`
+		WorkingDir     string                 `json:"workingDir"`
+		User           string                 `json:"user"`
+		Hostname       string                 `json:"hostname"`
+		Labels         map[string]string      `json:"labels"`
+		StopTimeout    *int                   `json:"stopTimeout"`
+		RestartPolicy  *string                `json:"restartPolicy"`
+		MaxRetries     *int                   `json:"maxRetries"`
+		MemoryLimit    *int64                 `json:"memoryLimit"`
+		MemorySwap     *int64                 `json:"memorySwap"`
+		NanoCPUs       *int64                 `json:"nanoCPUs"`
+		CpuShares      *int64                 `json:"cpuShares"`
+		PidsLimit      *int64                 `json:"pidsLimit"`
+		GPU            *GPUConfig             `json:"gpu"`
+		RuntimeProfile *string                `json:"runtimeProfile"`
+		ExpectedState  string                 `json:"expectedState"`
 	}
 	if err := json.Unmarshal([]byte(configJSON), &params); err != nil {
 		return fmt.Errorf("parse recreate config: %w", err)
@@ -239,9 +232,7 @@ func (c *Client) RecreateWithConfig(ctx context.Context, id string, configJSON s
 	// When the image changes, drop values inherited from the previous image
 	// before applying the explicit overrides of this request.
 	if requestedImage := strings.TrimSpace(params.Image); requestedImage != "" {
-		if previousImage := c.replacedImageConfig(ctx, insp.Image, requestedImage); previousImage != nil {
-			params.Env = dropInheritedImageDefaults(insp.Config, previousImage, params.Env)
-		}
+		params.Env = c.dropReplacedImageDefaults(ctx, &insp, requestedImage, params.Env)
 	}
 
 	// Apply port binding overrides
@@ -254,31 +245,9 @@ func (c *Client) RecreateWithConfig(ctx context.Context, id string, configJSON s
 		insp.Config.ExposedPorts = exposedPorts
 	}
 
-	// Apply mount overrides
+	// The mount list replaces every bind and volume of the container.
 	if params.Mounts != nil {
-		// Anonymous volumes are not part of the editable mount list; keep them
-		// so they are re-attached instead of replaced by new empty volumes.
-		anonymousVolumes := anonymousVolumeMountPoints(&insp)
-		var binds []string
-		for _, m := range params.Mounts {
-			if m.HostPath != "" {
-				bind := m.HostPath + ":" + m.ContainerPath
-				if m.ReadOnly {
-					bind += ":ro"
-				}
-				binds = append(binds, bind)
-			} else if m.Name != "" {
-				bind := m.Name + ":" + m.ContainerPath
-				if m.ReadOnly {
-					bind += ":ro"
-				}
-				binds = append(binds, bind)
-			}
-		}
-		insp.HostConfig.Binds = binds
-		// Only anonymous volumes remain eligible for carry-over; explicit
-		// mounts are now described by Binds.
-		insp.Mounts = anonymousVolumes
+		replaceRecreateMounts(&insp, params.Mounts)
 	}
 	// Apply entrypoint override
 	if params.Entrypoint != nil {
@@ -372,6 +341,10 @@ func (c *Client) RecreateWithConfig(ctx context.Context, id string, configJSON s
 	}
 	if imageRef == "" {
 		imageRef = insp.Image
+	}
+	if params.Mounts != nil {
+		// An anonymous volume the list left out is attached again only where the new image declares its path.
+		insp.Mounts = c.keepImageVolumeMounts(ctx, imageRef, insp.Mounts)
 	}
 
 	requestedExpectedRunning, err := parseRecreateExpectedRunning(params.ExpectedState)
@@ -491,6 +464,10 @@ func (c *Client) createContainerFromInspect(
 	// Build new config
 	createConfig := *insp.Config
 	createConfig.Image = imageRef
+	// Config.Volumes holds the VOLUME paths of the image the container was created from. The new container gets its
+	// image's own from Docker; the old ones would put an anonymous volume at a path the new image does not declare.
+	// The volumes the container had there are re-attached by name below.
+	createConfig.Volumes = nil
 	createConfig.Env = applyEnvChanges(insp.Config.Env, envOverrides, envRemovals)
 	// Preserve all networks the container was connected to.
 	// Docker only allows one network at creation time; the rest are connected after.
@@ -503,6 +480,16 @@ func (c *Client) createContainerFromInspect(
 	hostConfig := *insp.HostConfig
 	if preserved := preservedVolumeMounts(insp); len(preserved) > 0 {
 		hostConfig.Mounts = append(slices.Clone(hostConfig.Mounts), preserved...)
+	}
+	// A container an earlier recreate gave a carried-over volume next to a bind at the same path cannot be created
+	// again as it is: the bind is the container's mount and wins.
+	if kept, dropped := withoutDuplicateMountTargets(&hostConfig); len(dropped) > 0 {
+		hostConfig.Mounts = kept
+		if c.logger != nil {
+			for _, mount := range dropped {
+				c.logger.Info("recreate drops a carried-over mount at a path another mount takes", "container", name, "path", mount.Target, "source", mount.Source)
+			}
+		}
 	}
 	managedDatabaseHosts, err := c.managedDatabaseHostEntries(ctx, netNames)
 	if err != nil {
@@ -529,7 +516,7 @@ func (c *Client) createContainerFromInspect(
 		Name:             name,
 	})
 	if err != nil {
-		return "", err
+		return "", describeDuplicateMountError(err, &hostConfig)
 	}
 
 	if err := c.connectContainerToAdditionalNetworks(ctx, createResult.ID, insp, netNames); err != nil {
