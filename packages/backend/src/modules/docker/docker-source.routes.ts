@@ -4,7 +4,14 @@ import type { MiddlewareHandler } from 'hono';
 import { z } from 'zod';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { openApiValidationHook } from '@/lib/openapi.js';
+import {
+  appRoute,
+  jsonContent,
+  okJson,
+  openApiValidationHook,
+  pathParamSchema,
+  UnknownDataResponseSchema,
+} from '@/lib/openapi.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import { demoRestriction, isDemoMode } from '@/modules/demo/demo-mode.js';
@@ -40,6 +47,7 @@ import {
   createComposeProjectFromSource,
   createDockerSourceResource,
 } from './docker-source-resource-creation.js';
+import { documentDockerSourceRoutes } from './docker-source-routes.docs.js';
 import {
   getContainerSourceRoute,
   syncComposeSourceRoute,
@@ -125,6 +133,8 @@ function requireSourcePicker(allowed: (scopes: string[]) => boolean): Middleware
 }
 
 export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
+  // The routes below keep their own handlers; their documentation is registered here (docker-source-routes.docs).
+  documentDockerSourceRoutes(router);
   // One connector list for every source picker (containers, deployments, Compose Projects and Pages builds).
   router.get('/sources/connectors', requireSourcePicker(canListSourceConnectors), async (c) => {
     const data = await listSourceConnectors(
@@ -436,6 +446,23 @@ dockerSourceWebhookRoutes.use('*', async (_c, next) => {
   if (isDemoMode()) throw demoRestriction('Trigger source automation through a webhook');
   await next();
 });
+
+dockerSourceWebhookRoutes.openAPIRegistry.registerPath(
+  appRoute({
+    method: 'post',
+    path: '/{sourceBindingId}',
+    tags: ['Docker Builds'],
+    summary: 'Receive a Git provider push for a source',
+    description:
+      "The push webhook of a Git source (`webhookPath` of the source): signed by the provider with the source's webhook secret, at most 1 MiB. A push to the source branch resolves the head and queues the automatic build. Answers 202 (accepted) or 200 (a delivery already seen). No Opfield credentials: the provider signature authenticates it.",
+    request: { params: pathParamSchema('sourceBindingId') },
+    responses: {
+      ...okJson(UnknownDataResponseSchema),
+      202: { description: 'Accepted', content: jsonContent(UnknownDataResponseSchema) },
+    },
+    security: [],
+  })
+);
 
 dockerSourceWebhookRoutes.post('/:sourceBindingId', async (c) => {
   const sourceBindingId = SourceBindingIdSchema.parse(c.req.param('sourceBindingId'));
