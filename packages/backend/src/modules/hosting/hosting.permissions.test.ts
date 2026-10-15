@@ -54,7 +54,6 @@ describe('hosting authorization boundaries', () => {
       'hosting:resources:delete',
       'hosting:resources:recover',
       'hosting:billing:view',
-      'hosting:billing:topup',
     ])
       expect(API_TOKEN_SCOPES).toContain(scope);
   });

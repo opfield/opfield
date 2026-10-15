@@ -1,7 +1,9 @@
 import { hasScopeBase } from '@/lib/permissions.js';
 import { APP_DOCS } from './ai.docs.apps.js';
+import { CONNECTIVITY_DOCS } from './ai.docs.connectivity.js';
 import { FOUNDATION_DOCS } from './ai.docs.foundation.js';
 import { GUIDE_DOCS } from './ai.docs.guides.js';
+import { HOSTING_DOCS } from './ai.docs.hosting.js';
 import { INFRASTRUCTURE_DOCS } from './ai.docs.infrastructure.js';
 import { INGRESS_GROUP_DOCS } from './ai.docs.ingress-groups.js';
 import { OPERATIONS_DOCS } from './ai.docs.operations.js';
@@ -12,6 +14,8 @@ export const INTERNAL_DOCS: Record<string, string> = {
   ...INGRESS_GROUP_DOCS,
   ...APP_DOCS,
   ...INFRASTRUCTURE_DOCS,
+  ...HOSTING_DOCS,
+  ...CONNECTIVITY_DOCS,
   ...OPERATIONS_DOCS,
   ...PLATFORM_DOCS,
   ...GUIDE_DOCS,
@@ -50,6 +54,12 @@ export const DOC_TOPIC_SCOPES: Record<string, string | string[]> = {
   siem: 'audit:siem:view',
   nginx: 'proxy:edit',
   nodes: 'nodes:details',
+  hosting: [
+    'integrations:hosting:view',
+    'integrations:hosting:manage',
+    'hosting:resources:view',
+    'hosting:resources:create',
+  ],
   // Every assistant and MCP connection may read it: folder-limited agents need it, not only folder managers.
   folders: [
     'ai:workspace:use',
@@ -93,7 +103,15 @@ export const DOC_TOPIC_SCOPES: Record<string, string | string[]> = {
     'settings:opfield:edit',
   ],
   gitlab: 'integrations:gitlab:view',
-  notifications: ['notifications:alerts:view', 'notifications:webhooks:view', 'audit:siem:view'],
+  integrations: [
+    'integrations:github:view',
+    'integrations:git:view',
+    'integrations:ssh:view',
+    'integrations:cloudflare:view',
+    'integrations:gitlab:view',
+  ],
+  relays: ['settings:opfield:view', 'nodes:details', 'admin:system'],
+  notifications: ['notifications:alerts:view', 'notifications:webhooks:view', 'audit:siem:view', 'admin:alerts'],
   overview: ['ai:workspace:use', 'mcp:use'],
   installation: ['ai:workspace:use', 'mcp:use'],
   authentication: ['ai:workspace:use', 'mcp:use'],

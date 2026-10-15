@@ -54,7 +54,6 @@ export const IMPLIED_SCOPES_BY_REQUIRED_SCOPE: Readonly<Record<string, readonly 
     "docker:volumes:files:write",
   ],
   "domains:view": ["domains:delete", "domains:edit"],
-  "hosting:billing:view": ["hosting:billing:topup"],
   "hosting:resources:view": [
     "hosting:resources:delete",
     "hosting:resources:power",

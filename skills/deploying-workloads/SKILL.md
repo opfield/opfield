@@ -1,6 +1,6 @@
 ---
 name: deploying-workloads
-description: Deploy and operate Docker workloads on Opfield, including standalone Containers, blue/green Deployments with rollback, Compose Projects, Git-source builds into Opfield's internal registry, images, registries, volumes, networks, folders, and cross-node migration. Use when asked to run, update, roll out, roll back, recreate, migrate, or inspect a container, Deployment, or Compose Project on an Opfield-managed Docker Node, or to deploy a repository with a Dockerfile or Compose file through Opfield. Use after using-opfield has confirmed the Opfield MCP connection.
+description: Deploy and operate Docker workloads on Opfield, including standalone Containers, blue/green Deployments with rollback, Compose Projects, Git-source builds into Opfield's internal registry, images, registries, volumes, networks, folders, and cross-node migration. Use when asked to run, update, roll out, roll back, recreate, migrate, or inspect a container, Deployment, or Compose Project on an Opfield-managed Docker Node, or to deploy a repository with a Dockerfile or Compose file through Opfield, or to group an application's resources into an App with environments. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Deploying Workloads
@@ -29,7 +29,7 @@ If an existing Container, Deployment, or Compose Project already represents the 
 4. `build` queues a build of the configured branch head and needs only the workload's build scope; follow it with `list_docker_builds` and `manage_docker_build` (status, incremental logs, cancel, retry). While a build rollout deploys, other changes to its target are refused with `409 BUILD_ROLLOUT_IN_PROGRESS`.
 5. The runtime identity is the approved, digest-pinned artifact, never a branch or mutable tag. With `autoDeploy`, Opfield recreates the workload from that digest.
 
-Compose sources and bounded build fields: [Compose and Git builds](references/compose-and-git-builds.md).
+Compose sources and bounded build fields: [Compose and Git builds](references/compose-and-git-builds.md). When you write or review the Dockerfile a source builds (no `VOLUME`, config from Opfield env and secrets, `0.0.0.0` on one exposed port, health endpoint, `SIGTERM`, non-root, pinned slim images, migrations safe to run twice): [Dockerfile for Opfield](references/dockerfile-for-opfield.md).
 
 ## Standalone Containers
 
@@ -52,6 +52,10 @@ Operate the Deployment, never its slot Containers. `deploy_docker_deployment` ro
 ## Private links between workloads
 
 `manage_container_link` links a consumer (Container, Deployment, or Compose service) to one port of another workload: the consumer reaches it as `alias:port` on its own internal network, on the same node or across nodes, and the target needs no published port and no route. `list` (`nodeId`, `type`, `resourceId`, `direction: "outgoing" | "incoming"`), `create` (source and target `nodeId`/`type`/`resourceId`, `targetPort`; optional `alias` and `environment: { host, port, url }`), `get_runtime` and `delete` (`linkId`). Without variable names a Container joins the link without a restart, a Deployment joins its running slots, and a Compose service gets a new revision; variable names recreate the consumer once. It needs `docker:containers:edit` on the consumer (`docker:compose:manage` for a Compose service, plus `docker:containers:environment` with variables) and `docker:containers:link` on the target. `waiting` means the target does not run (connections are refused until it does); `update_required` means a node's Docker daemon must be updated. An Availability Deployment target is reached through its router, so `targetPort` must be one of its ports.
+
+## Apps and environments
+
+When the application belongs to an App, create its resources inside the right environment (`folderId` from `get_app` `placementFolderIds`, a node from `allowedNodeIds`) instead of at the top level, and move existing ones with `manage_app_members`. Environment variables, maintenance, shutdown and kill switch, and promotion by image digest: [Apps and environments](references/apps.md).
 
 ## Images, volumes, networks, registries, and migration
 

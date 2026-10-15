@@ -95,6 +95,7 @@ No restart is required. If inference is disabled, inference tools fail instead o
 - \`manage_inference_provider\`: list templates/connections, connect API keys, start or inspect supported authorization flows, sync, rename, enable/disable, configure quota reserves/API budgets/routing, or disconnect.
 - \`manage_inference_model\`: list models, inspect account suggestions, atomically create/replace a complete model configuration, or delete a model.
 - \`manage_inference_limits\`: list default/per-user policies and configure or remove overrides. The current Assistant tool does not reset accumulated usage baselines.
+- \`manage_inference_usage\`: self and self_overview (the caller's usage and remaining budget; feat:ai:use), system (Opfield-wide overview), users (per-user usage), activity_filters, and activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view.
 - \`manage_inference_token\`: list, create, update (name, expiresAt, allowedIps), or revoke the current user's \`opfi_\` tokens. It cannot issue a token for another user. expiresAt is an ISO date-time in the future (null: no expiry); allowedIps holds up to 20 IPv4/IPv6 addresses or CIDR ranges ([] allows any). An expired token is refused and removed by housekeeping after the Expired Tokens period.
 
 Always inspect current state before mutation. Use \`internal_documentation({ topic: "inference" })\` before multi-step inference work.
@@ -273,6 +274,13 @@ Opfield GitLab connectors are configured by admins in Settings -> Integrations. 
 
 ## Overview
 The notification system sends HTTP webhook notifications when alert conditions are met. It supports threshold-based alerts (a metric such as CPU, disk, a route's 5xx share or response time crosses a value) and event-based alerts (node offline, container stopped, an app environment failing, etc.). \`GET /api/notifications/alert-rules/categories\` lists every category with its metrics, events and variables; a rule's metric or event must be one of its category's (others are refused with INVALID_ALERT_RULE).
+
+## Tools
+- Alert rules: list_alert_rules, get_alert_rule, create_alert_rule, update_alert_rule, delete_alert_rule (notifications:alerts:view to read, notifications:alerts:manage to change).
+- Webhooks: list_webhooks, create_webhook, update_webhook, delete_webhook, test_webhook, list_webhook_deliveries, get_delivery_stats (notifications:webhooks:view / notifications:webhooks:manage).
+- manage_notifications reads catalogs and details: alert_categories (metrics, events, variables and the view scopes of each category; read it before creating a rule), alert_resources (what a relay_pool or docker_availability rule can be scoped to), webhook_get, webhook_presets, webhook_preview (render a body template with a sample event), delivery_get.
+- System alerts are separate from these rules: Opfield's own certificate alerts (expiry warnings, CA expiry, revocations). manage_system_alerts list and dismiss (alertId) need admin:alerts. Opfield's own health is manage_opfield_diagnostics (topic troubleshooting).
+- Audit export to a SIEM has its own tools (topic siem).
 
 ## Alert Rules
 Each alert rule defines:

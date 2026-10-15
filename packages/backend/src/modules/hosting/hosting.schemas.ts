@@ -305,23 +305,10 @@ export const HostingActionSchema = z
     }
   });
 
-export const HostingTopupSchema = z
-  .object({
-    idempotencyKey: z.string().uuid(),
-    amount: z
-      .string()
-      .regex(/^(?:0|[1-9]\d{0,6})(?:\.\d{1,2})?$/)
-      .refine((amount) => Number(amount) > 0),
-    currency: z.string().regex(/^[A-Z]{3}$/),
-    confirmed: z.literal(true),
-  })
-  .strict();
-
 export type CreateHostingConnectorInput = z.infer<typeof CreateHostingConnectorSchema>;
 export type UpdateHostingConnectorInput = z.infer<typeof UpdateHostingConnectorSchema>;
 export type DiscoverHostingConnectorInput = z.infer<typeof DiscoverHostingConnectorSchema>;
 export type HostingProvisionInput = z.infer<typeof HostingProvisionSchema>;
 export type HostingActionInput = z.infer<typeof HostingActionSchema>;
-export type HostingTopupInput = z.infer<typeof HostingTopupSchema>;
 
 export const HostingAdoptSchema = z.object({ resourceId: z.string().uuid(), nodeId: z.string().uuid() }).strict();

@@ -777,7 +777,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'internal_documentation',
     description:
-      'Get detailed internal documentation about a specific topic in this system. Use this whenever you need deeper knowledge about how something works, what fields mean, or what the correct workflow is. Topics: discovery, pki, ssl, proxy, pages, domains, ingress-groups, access-lists, templates, acme, users, audit, siem, nginx, nodes, housekeeping, permissions, docker, availability, databases, storage, storage-migration, postgres, redis (key-value stores), logging, folders, node-files, sandbox, conversations, ai-settings, status-page, api, opfield-settings, licensing-updates, inference, gitlab, notifications, overview, installation, authentication, cloudflare, docker-registries, clickhouse, troubleshooting.',
+      'Get detailed internal documentation about a specific topic in this system. Use this whenever you need deeper knowledge about how something works, what fields mean, or what the correct workflow is. Topics: discovery, pki, ssl, proxy, pages, domains, ingress-groups, apps, access-lists, templates, acme, users, audit, siem, nginx, nodes, hosting (VMs from cloud and Proxmox accounts), relays, housekeeping, permissions, docker, availability, databases, storage, storage-migration, postgres, redis (key-value stores), logging, folders, node-files, sandbox, conversations, ai-settings, status-page, api, opfield-settings, licensing-updates, inference, gitlab, integrations (GitHub, generic Git, external SSH), notifications, overview, installation, authentication, cloudflare, docker-registries, clickhouse, troubleshooting.',
     parameters: {
       type: 'object',
       properties: {

@@ -292,7 +292,6 @@ Legacy global nginx management routes under `/api/monitoring/nginx/*` are no lon
 | `hosting:resources:delete` | Destroy a hosted VM or cancel a HOSTKEY rental; restrictable to resource ID. |
 | `hosting:resources:recover` | Restart a hosted daemon through an available independent channel; restrictable to resource ID. |
 | `hosting:billing:view` | Read account finances; restrictable to connector ID. Never implied by node access. |
-| `hosting:billing:topup` | Create a HOSTKEY deposit invoice; restrictable to connector ID. |
 | `housekeeping:view` |  |
 | `housekeeping:run` |  |
 | `housekeeping:configure` |  |
@@ -483,7 +482,6 @@ OAuth consent leaves high-risk scopes unchecked by default. The user must explic
 | `hosting:resources:create` | Can order paid VMs and install nodes on them. |
 | `hosting:resources:delete` | Can destroy VMs or cancel rentals. |
 | `hosting:snapshots:restore` | Can roll a VM back to a snapshot. |
-| `hosting:billing:topup` | Can request provider deposit invoices. |
 | `logs:tokens:create` | Can mint logging ingest tokens. |
 | `feat:ai:use` | Can use Opfield Inference and mint or revoke the user's `gwi_` inference keys. |
 | `admin:audit` | Can read audit history. |

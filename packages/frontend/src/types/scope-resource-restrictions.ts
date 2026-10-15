@@ -89,7 +89,6 @@ export const RESOURCE_SCOPABLE_SCOPES = [
   "hosting:resources:delete",
   "hosting:resources:recover",
   "hosting:billing:view",
-  "hosting:billing:topup",
   "pki:ca:view",
   "pki:ca:create:intermediate",
   "pki:ca:edit",

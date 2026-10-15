@@ -326,6 +326,10 @@ Node features:
 
 Managed services keep running if the Opfield app is offline. You lose central control until the app returns, but nginx, Docker, and managed database services continue using the last applied host state. With a healthy relay and PostgreSQL, private managed-database bindings continue independently of an app-only restart. A relay admits new connections only while its last signed policy is valid, that is for the relay policy lease after Opfield last reached it (72 hours by default), and Availability policies in lease mode keep failing over without Opfield; see [Offline Behavior](nodes.md#offline-behavior).
 
+## Hosting Providers
+
+Hosting accounts at HOSTKEY, DigitalOcean, Hetzner Cloud, CloudBlast, and Proxmox VE (one connector per physical host) let Opfield create a server as a node in one step: it orders the VM, installs the daemon of the chosen role, and waits until the node is online. Afterwards Opfield starts, shuts down, reboots, resizes, recovers, and destroys the VM, and manages snapshots and, on DigitalOcean, CloudBlast, and Proxmox, the VM firewall. Existing VMs can be adopted or get a node installed. The provider account and its charges stay yours. API: `/api/integrations/hosting` and `/api/hosting`; MCP: `manage_hosting`; scopes `integrations:hosting:*` and `hosting:*`. See [Hosting integrations](hosting-integrations.md).
+
 ## Structured Logging
 
 Opfield can ingest external service logs into ClickHouse on Business and Enterprise.
@@ -362,6 +366,10 @@ Opfield includes connectors, notifications, alerts, and status pages:
 - Public status pages on Personal and higher with managed services, incidents, incident updates, proxy templates, and preview. The Nginx node keeps serving the last published page from its cache while Opfield restarts, updates, or is unreachable.
 
 Connector credentials are encrypted at rest. GitLab access is split between connector administration and per-user credentials unless the caller has the explicit system credential scope. Git integration scopes can be limited to a connector, a GitLab group or project, or a GitHub owner or repository; see the Git Integration Restrictions section of [SCOPES.md](../SCOPES.md).
+
+## Apps
+
+An app groups the resources of one application into environments (production, staging, ...): containers, deployments, Compose projects, routes, domains, databases, storage, Pages, SSL certificates, and logging environments, with allowed nodes, a domain allowlist, shared variables and secrets, maintenance, shutdown, a kill switch, and promotion by image digest. Every plan. API `/api/apps`, MCP `apps` toolset, scopes `apps:*`. See [Apps](apps.md).
 
 ## Application Scaling
 

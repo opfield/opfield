@@ -64,6 +64,8 @@ export const RETIRED_SCOPE_REPLACEMENTS: Readonly<Record<string, readonly string
   'proxy:templates:delete': ['proxy:templates:manage'],
   // Docker folders cover every Docker resource type, not only containers.
   'docker:containers:folders:manage': ['docker:folders:manage'],
+  // Hosting top-up invoices were removed in 2.12 (the endpoint answers 410); stored grants of it grant nothing.
+  'hosting:billing:topup': [],
 };
 
 /**

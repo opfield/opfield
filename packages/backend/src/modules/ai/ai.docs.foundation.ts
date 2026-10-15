@@ -23,6 +23,7 @@ Opfield AI starts conversations with a small base tool surface. Domain-specific 
 - Use discover_tools({ categories: ["Docker"], includeTools: true }) before managing Docker containers/images/volumes/networks or inspecting Compose projects.
 - Use discover_tools({ categories: ["Ingress"], includeTools: true }) before managing domains, routes, route folders, nginx templates, or access lists.
 - Use discover_tools({ categories: ["Inference"], includeTools: true }) before configuring inference providers, models, limits, or tokens.
+- Use discover_tools({ categories: ["Hosting"], includeTools: true }) before creating a VM at a cloud provider or on a Proxmox host, or managing hosted VMs (manage_hosting; read internal_documentation({ topic: "hosting" }) first). MCP clients activate the hosting toolset.
 - Use discover_tools({ query: "certificate" }) when you know the task but not the category.
 - After discovery, use internal_documentation for workflow details and argument shapes.
 
@@ -30,6 +31,7 @@ Use find_resource whenever the user gives a name, domain, hostname, image, conta
 Use find_resource with an empty query and a concrete type when the user asks to list resources by type, for example Docker containers or Page Projects.
 
 ## Rule
+- A request to create, order, or provision a server or VM (at HOSTKEY, DigitalOcean, Hetzner, CloudBlast, or on a Proxmox host) is the hosting workflow (topic hosting), not create_node: create_node only registers a server that already exists.
 - Use get_current_context when the user refers to the page or resource they are currently viewing.
 - Use wait for short pending states such as container startup, image pull completion, DNS/SSL validation, deployments, daemon reloads, or log ingestion. After wait, call the relevant read/status tool again; do not finish the conversation just because the operation is not complete yet.
 - Prefer find_resource before broad list sweeps.
@@ -54,6 +56,7 @@ Use find_resource with an empty query and a concrete type when the user asks to 
 - **Intermediate CA**: Signed by a parent CA. Created with create_intermediate_ca(parentCaId, ...). Recommended for issuing end-entity certificates.
 - Key algorithms: rsa-2048, rsa-4096, ecdsa-p256, ecdsa-p384.
 - CAs can be revoked (permanent) or deleted (only if no certs issued).
+- manage_ca: update (CRL distribution URL, CA issuers URL, max issued validity; pki:ca:edit), revoke (the CA and its subordinate CAs), export_key (passphrase-protected PKCS#12 of the CA key, audited; pki:ca:export).
 - Each CA has: commonName, keyAlgorithm, validityYears, maxValidityDays (max validity for certs it issues).
 
 ## PKI Certificates
@@ -124,7 +127,7 @@ Certificate issuance itself is not tied to a machine. HTTP-01 validation is serv
 
   proxy: `# Ingress Routes
 
-The UI and AI/MCP tools call these resources Routes. Use list_routes, get_route, create_route, update_route, set_route_maintenance, and delete_route. Existing REST paths, internal resource types, and persisted identifiers retain the proxy-host name for compatibility.
+The UI and AI/MCP tools call these resources Routes. Use list_routes, get_route, create_route, update_route, set_route_maintenance, and delete_route. manage_route reads and checks one Route: get_config (full settings), get_by_slug, health_history, secure_link_status, access_logs (newest nginx access and error lines), maintenance_access_code (needs proxy:maintenance:bypass), and validate_config (an advanced snippet or, with mode raw, a raw config, before saving it). Existing REST paths, internal resource types, and persisted identifiers retain the proxy-host name for compatibility.
 
 ## Types
 - **proxy**: Forward requests to a backend server (forwardHost:forwardPort).
@@ -276,6 +279,9 @@ Templates define preset configurations for issuing PKI certificates. They save t
 - **certificatePolicies**: policy OIDs with optional CPS qualifier URLs
 - **customExtensions**: arbitrary X.509 extensions by OID (hex-encoded DER values)
 
+## Tools
+- list_templates, create_template, delete_template; manage_template get and update (the same fields as create_template).
+
 ## Built-in Templates
 - isBuiltin: true — provided by default, cannot be edited or deleted
 - Common presets: TLS Server, TLS Client, Code Signing, Email
@@ -342,6 +348,7 @@ Opfield can enable OIDC, password, and email one-time-code sign-in independently
 
 ## Managing Users
 - View all users: list_users
+- manage_user administers another account: set_auth_method, rename, reset_avatar, send_password_link, send_invitation, list_sessions, revoke_session, revoke_all_sessions, reset_mfa, list_deleted and restore (the last three need admin:system). The caller's own password, MFA, passkeys, and sessions stay in the browser.
 - Change a user's group: update_user_role(userId, groupId) — changes their permissions immediately
 - Replace a user's exact additional per-user scopes: set_user_additional_permissions(userId, additionalScopes). Pass [] to reset all additional permissions without changing the user's group. Only grant scopes the acting administrator already has.
 - Block or unblock users from the Administration UI, API, or AI Workspace.
@@ -461,19 +468,21 @@ A node's \`type\` decides which tools accept it; \`list_nodes\` and \`get_node\`
 
 ## How to Enroll a New Node (Step by Step)
 
+These steps enroll a server that already exists. To create a new server as a node in one step, a VM at a hosting account (HOSTKEY, DigitalOcean, Hetzner Cloud, CloudBlast) or on a Proxmox host, use manage_hosting provision (topic hosting): Opfield orders the VM, installs the daemon of the chosen role, and enrolls it; there is no command to run by hand.
+
 ### Step 1: Create the node in Opfield UI
 Go to **Nodes** page → click **Add Node** → select the node type (nginx, docker, builder, storage, databases, monitoring, or relay) → set a display name → click **Create Node**. Relay nodes also require the address advertised to participating hosts. This generates a **one-time enrollment token**, the Opfield gRPC certificate fingerprint, and setup commands. **Settings → Relay → Add relay node** opens the same flow with Relay preselected.
 
 ### Step 2: Run the setup script on the target server
-The UI shows ready-to-copy commands, one per enrollment target, with curl or wget; create_node and manage_node regenerate_enrollment_token return the same commands as installCommands. Give the user the command for the target the host can reach, unchanged, and run it on the target server. On a release build the command downloads the installer of that Opfield release from get.opfield.dev, runs it only when it matches the release's \`opfield-node-installers.sha256\`, and pins with \`--version\` the daemon release of Opfield's own minor line (a relay gets the release its pool runs). An unreleased build (version \`dev\`) runs the installer from the main branch instead. For Opfield v2.12.1 the nginx command looks like this:
+The UI shows ready-to-copy commands, one per enrollment target, with curl or wget; create_node and manage_node regenerate_enrollment_token return the same commands as installCommands. Give the user the command for the target the host can reach, unchanged, and run it on the target server. On a release build the command downloads the installer of that Opfield release from get.opfield.dev, runs it only when it matches the release's \`opfield-node-installers.sha256\`, and pins with \`--version\` the daemon release of Opfield's own minor line (a relay gets the release its pool runs). An unreleased build (version \`dev\`) runs the installer from the main branch instead. For an Opfield release \`<opfield-version>\` (the version of the connected Opfield, written \`vX.Y.Z\`; never copy a version from an example) the nginx command looks like this:
 
 \`\`\`bash
 cd "$(mktemp -d)" && \\
-curl -fsSL -o setup-node.sh https://get.opfield.dev/gateway/releases/download/v2.12.1/setup-node.sh && \\
-curl -fsSL -o opfield-node-installers.sha256 https://get.opfield.dev/gateway/releases/download/v2.12.1/opfield-node-installers.sha256 && \\
+curl -fsSL -o setup-node.sh https://get.opfield.dev/gateway/releases/download/<opfield-version>/setup-node.sh && \\
+curl -fsSL -o opfield-node-installers.sha256 https://get.opfield.dev/gateway/releases/download/<opfield-version>/opfield-node-installers.sha256 && \\
 grep ' setup-node.sh$' opfield-node-installers.sha256 | sha256sum -c - && \\
 sudo bash setup-node.sh \\
-  --opfield <opfield-host>:9443 --token <enrollment-token> --opfield-cert-sha256 sha256:<opfield-cert-fingerprint> --version v2.12.1
+  --opfield <opfield-host>:9443 --token <enrollment-token> --opfield-cert-sha256 sha256:<opfield-cert-fingerprint> --version <opfield-version>
 \`\`\`
 
 The installers by node type: **nginx** setup-node.sh, **docker** and **builder** setup-docker-node.sh, **storage** setup-storage-node.sh, legacy **databases** setup-database-node.sh, **monitoring** setup-monitoring-node.sh, **relay** setup-relay-node.sh (with \`--advertise-address\`).
@@ -499,6 +508,10 @@ The node status changes from **pending** to **online** in the Nodes list once th
 - create_node, rename_node, delete_node: manage node records.
 - manage_node_config: read/update/test nginx node config. Use { operation: "read"|"update"|"test", nodeId, content? }. read requires nodes:config:view:<nodeId>; update/test require nodes:manage:<nodeId>. Available to MCP tokens that hold these scopes.
 - manage_node_file: manage node filesystem paths. Requires nodes:files:read, plus nodes:files:write for changes; available to MCP tokens that hold them.
+- manage_node: update (display name, color, service addresses, builder settings), regenerate_enrollment_token (a node that never enrolled), health_history, monitoring_history, daemon_logs, and nginx_logs.
+- manage_hosting: the VM behind a hosted node (node_get shows its account, power state and available actions; topic hosting).
+- manage_docker_runtime: preflight or install the gVisor Secure Runtime on a Docker node (install restarts Docker on that node; nodes:manage on the node).
+- create_node takes type nginx, docker, builder, storage, databases (legacy), monitoring, or relay. Bastion nodes are not available yet (expected in 2.14) and are refused.
 
 ### Alternative: Manual installation
 If you cannot use the setup script, you can install manually. Storage and database nodes are the stateful exceptions: they use the restricted docker-daemon profiles and require the verified storage preflight.
@@ -576,6 +589,7 @@ Automated cleanup tasks, configurable in Settings.
   - Expired OAuth Grants (oauthCleanup): expired OAuth codes and tokens (refresh tokens once expired), and OAuth client registrations that never completed an authorization, after 30 days. A client that was ever granted is never removed.
   - Expired Tokens (expiredTokens, default 7 days, 0 removes at once): API and inference tokens whose expiry passed that many days ago. Until then they are listed as Expired and refused like revoked ones; the audit log keeps their history and records each removal.
 - Can be triggered manually from Settings page.
+- Tool: manage_housekeeping get_config, get_stats, get_history, update_config (config, validated like PUT /housekeeping/config), and run.
 - Run history tracked (last N runs with per-category results).
 
 ## Permissions

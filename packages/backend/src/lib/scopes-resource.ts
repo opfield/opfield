@@ -67,7 +67,6 @@ export const RESOURCE_SCOPABLE: readonly string[] = [
   'hosting:resources:delete',
   'hosting:resources:recover',
   'hosting:billing:view',
-  'hosting:billing:topup',
   // PKI (CA qualifiers are CA IDs; certificate qualifiers are issuing CA IDs)
   'pki:ca:view',
   'pki:ca:create:intermediate',

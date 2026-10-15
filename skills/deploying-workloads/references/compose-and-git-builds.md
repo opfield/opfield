@@ -35,3 +35,4 @@ Start, stop, restart, apply, pull and apply, `down`, cancellation, project delet
 - Build Secrets are encrypted, source-scoped, and write-only. Never pass them as build arguments or copy them into the build context.
 - A successful build produces a digest-pinned artifact in the internal registry. Automatic deployment recreates from that digest; the source branch is never the runtime identity.
 - `list_docker_builds` and `find_resource({ types: ["docker_build"] })` give build history; `manage_docker_build` reads one build's status and incremental logs, cancels, or retries it.
+- How to write the Dockerfile itself (volumes, ports, health, signals, secrets, build limits, migrations): [Dockerfile for Opfield](dockerfile-for-opfield.md).

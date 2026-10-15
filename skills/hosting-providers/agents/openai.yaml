@@ -1,0 +1,4 @@
+interface:
+  display_name: "Opfield Hosting"
+  short_description: "Create and manage VMs as Opfield Nodes"
+  default_prompt: "Use $hosting-providers to list my Opfield hosting accounts and what they can create, without ordering anything."

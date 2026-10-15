@@ -66,15 +66,16 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_node',
     description:
-      'Create (enroll) a new daemon node, including Relay Pool relays, and generate an enrollment token. Relay nodes require serviceAddresses (addresses daemons use to reach the relay) and optionally servicePort; other types reject them. IMPORTANT: The response contains enrollmentToken, opfieldCertSha256 and installCommands — display the token and fingerprint, and give the user the installCommands entry (curl or wget) for the target the host can reach, unchanged: it downloads the installer of this Opfield release, checks its checksum and pins the matching daemon release. The token is one-time-use and cannot be retrieved again; use manage_node regenerate_enrollment_token for a node that has not enrolled yet.',
+      'Register (enroll) a server that already exists as a daemon node, including Relay Pool relays, and generate an enrollment token. To create a new VM as a node at a hosting provider or on a Proxmox host, use manage_hosting provision instead. Relay nodes require serviceAddresses (addresses daemons use to reach the relay) and optionally servicePort; other types reject them. IMPORTANT: The response contains enrollmentToken, opfieldCertSha256 and installCommands — display the token and fingerprint, and give the user the installCommands entry (curl or wget) for the target the host can reach, unchanged: it downloads the installer of this Opfield release, checks its checksum and pins the matching daemon release. The token is one-time-use and cannot be retrieved again; use manage_node regenerate_enrollment_token for a node that has not enrolled yet.',
     parameters: {
       type: 'object',
       properties: {
         hostname: { type: 'string', description: 'Node hostname (e.g., "proxy-01.example.com")' },
         type: {
           type: 'string',
-          enum: ['nginx', 'monitoring', 'docker', 'builder', 'databases', 'storage', 'relay', 'bastion'],
-          description: 'Node type (default: nginx)',
+          enum: ['nginx', 'monitoring', 'docker', 'builder', 'databases', 'storage', 'relay'],
+          description:
+            'Node type (default: nginx). databases is the legacy database-only profile; prefer storage. Bastion nodes are not available yet.',
         },
         displayName: { type: 'string', description: 'Optional display name' },
         folderId: {
