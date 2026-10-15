@@ -30,6 +30,7 @@ import {
   usePlanIncludes,
 } from "@/stores/license-paywall";
 import type { DockerInternalRegistryState, Node, SSLCertificate } from "@/types";
+import { InternalRegistryStorageRows, useRegistryStorageForm } from "./InternalRegistryStorageRows";
 
 interface InternalRegistrySectionProps {
   nodesList: Node[];
@@ -114,15 +115,21 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
   const canViewCertificates = useAuthStore((store) => store.hasScopedAccess("ssl:cert:view"));
   const [loading, setLoading] = useState(true);
   useContentLoading(loading);
+  const storageForm = useRegistryStorageForm(state?.storage);
+  const resetStorageForm = storageForm.reset;
 
-  const applyState = useCallback((next: DockerInternalRegistryState, syncForm = true) => {
-    setState(next);
-    if (!syncForm) return;
-    setExternalEnabled(next.externalAccessEnabled);
-    setHostname(next.externalHostname ?? "");
-    setNginxNodeId(next.externalNginxNodeId ?? "");
-    setCertificateId(next.externalCertificateId ?? "");
-  }, []);
+  const applyState = useCallback(
+    (next: DockerInternalRegistryState, syncForm = true) => {
+      setState(next);
+      if (!syncForm) return;
+      setExternalEnabled(next.externalAccessEnabled);
+      setHostname(next.externalHostname ?? "");
+      setNginxNodeId(next.externalNginxNodeId ?? "");
+      setCertificateId(next.externalCertificateId ?? "");
+      resetStorageForm(next.storage);
+    },
+    [resetStorageForm]
+  );
 
   // The certificate list has its own scope: without it, or when it fails, only the picker says so.
   useEffect(() => {
@@ -168,14 +175,20 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
     if (!state) return;
     setSaving(true);
     try {
+      const switching = storageForm.dirty;
       const next = await api.updateDockerInternalRegistrySettings({
         externalAccessEnabled: externalEnabled,
         externalHostname: externalEnabled ? hostname.trim() || undefined : undefined,
         externalNginxNodeId: externalEnabled ? nginxNodeId || undefined : undefined,
         externalCertificateId: externalEnabled ? certificateId || undefined : undefined,
+        ...(switching ? { storage: storageForm.input() } : {}),
       });
       applyState(next);
-      toast.success("Internal registry settings updated");
+      toast.success(
+        switching
+          ? "Storage switch started: the registry copies its images and restarts"
+          : "Internal registry settings updated"
+      );
     } catch (error) {
       if (!handleLicenseApiError(error, "External internal registry access")) {
         toastApiError(error, "Failed to update internal registry");
@@ -187,7 +200,8 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
 
   const dirty = Boolean(
     state &&
-      (externalEnabled !== state.externalAccessEnabled ||
+      (storageForm.dirty ||
+        externalEnabled !== state.externalAccessEnabled ||
         (externalEnabled &&
           (hostname.trim() !== (state.externalHostname ?? "") ||
             nginxNodeId !== (state.externalNginxNodeId ?? "") ||
@@ -216,7 +230,9 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
       if (event?.id !== "gateway-internal-registry") return;
       void api
         .getDockerInternalRegistryState()
-        .then((next) => applyState(next, event.action === "settings" && !dirty))
+        .then((next) =>
+          applyState(next, (event.action === "settings" || event.action === "storage") && !dirty)
+        )
         .catch(() => undefined);
     },
     {
@@ -256,7 +272,11 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
           <Button
             onClick={() => void save()}
             disabled={
-              !state || !dirty || (externalEnabled && (!hostname || !nginxNodeId || !certificateId))
+              !state ||
+              !dirty ||
+              !storageForm.valid ||
+              state.maintenancePhase === "switching_storage" ||
+              (externalEnabled && (!hostname || !nginxNodeId || !certificateId))
             }
             pending={saving}
           >
@@ -266,19 +286,30 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
         </div>
       }
     >
-      <SettingsControlRow
-        title="Storage backend"
-        description="Artifacts are stored on the Opfield-managed registry volume."
-      >
-        <span className="text-sm">Local volume</span>
-      </SettingsControlRow>
+      <InternalRegistryStorageRows
+        storage={state?.storage}
+        form={storageForm.form}
+        onChange={storageForm.setForm}
+      />
       <SettingsControlRow
         title="Capacity"
-        description="Registry data remains on the Opfield node volume."
+        description={
+          state?.storageBackend === "s3"
+            ? "The bucket's size is not measured here."
+            : "Registry data on the Opfield host volume."
+        }
       >
         <span className="text-right text-sm">
-          {formatBytes(used)} used
-          {capacity !== null ? ` · ${formatBytes(free ?? 0)} free of ${formatBytes(capacity)}` : ""}
+          {state?.storageBackend === "s3" ? (
+            "S3 bucket"
+          ) : (
+            <>
+              {formatBytes(used)} used
+              {capacity !== null
+                ? ` · ${formatBytes(free ?? 0)} free of ${formatBytes(capacity)}`
+                : ""}
+            </>
+          )}
         </span>
       </SettingsControlRow>
       <SettingsControlRow

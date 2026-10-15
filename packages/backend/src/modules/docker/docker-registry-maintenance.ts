@@ -67,7 +67,8 @@ export interface RegistryRetentionArtifact {
 
 export interface DockerRegistryMaintenanceExecutor {
   hasRepositories(): Promise<boolean>;
-  storageUsedBytes(): Promise<number>;
+  /** Null while the registry keeps its data in an S3 bucket, whose size is not measured. */
+  storageUsedBytes(): Promise<number | null>;
   pauseAdmissions(): Promise<void>;
   drainUploads(): Promise<void>;
   deleteManifest(repository: string, digest: string): Promise<void>;

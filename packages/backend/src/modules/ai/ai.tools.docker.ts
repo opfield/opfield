@@ -650,7 +650,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_registry',
     description:
-      'Manage saved private or custom Docker registries and the Opfield internal build registry. Operations: list, get, create, update, delete, test, test_direct for saved registries; internal_get (state, health, storage, external access), internal_repositories, internal_update_settings (external access hostname, nginx node, certificate), internal_gc (garbage collection, optionally dryRun), and internal_resume_maintenance (resume an interrupted maintenance run) for the internal registry. Do not create a registry for public Docker Hub images; pull those directly without registryId. Mutating operations require the corresponding docker:registries:* scope; internal registry reads need broad docker:registries:view and changes broad docker:registries:edit.',
+      'Manage saved private or custom Docker registries and the Opfield internal build registry. Operations: list, get, create, update, delete, test, test_direct for saved registries; internal_get (state, health, storage, external access), internal_repositories, internal_update_settings (storage: local disk or an S3 bucket; external access hostname, nginx node, certificate), internal_gc (garbage collection, optionally dryRun), and internal_resume_maintenance (resume an interrupted maintenance run) for the internal registry. Do not create a registry for public Docker Hub images; pull those directly without registryId. Mutating operations require the corresponding docker:registries:* scope; internal registry reads need broad docker:registries:view and changes broad docker:registries:edit.',
     parameters: {
       type: 'object',
       properties: {
@@ -681,7 +681,25 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         scope: { type: 'string', enum: ['global', 'node'] },
         externalAccessEnabled: {
           type: 'boolean',
-          description: 'internal_update_settings: expose the internal registry through an nginx node.',
+          description:
+            'internal_update_settings: expose the internal registry through an nginx node. Omit it to change only the storage.',
+        },
+        storage: {
+          type: 'object',
+          description:
+            'internal_update_settings: where the registry keeps images. {backend:"filesystem"} is the local volume; {backend:"s3", bucket, rootDirectory?, endpoint? (empty for AWS), region? (default us-east-1), forcePathStyle?, accessKeyId, secretAccessKey} or {backend:"s3", connectionId (an S3 storage connection; needs storage:credentials:use on it), bucket?, rootDirectory?} moves it to a bucket. The bucket is checked first (write, read, delete of a probe object) and a failed check changes nothing. The switch then runs in the background: it copies the stored images to the new storage, recreates the registry and checks the images in use, putting everything back on failure; poll internal_get until storage.lastSwitch.status is completed or failed. secretAccessKey may be omitted to keep the key in use when the access key stays the same. Moving between two buckets or folders goes through filesystem first; a bucket folder holding registry data Opfield did not copy is refused.',
+          properties: {
+            backend: { type: 'string', enum: ['filesystem', 's3'] },
+            connectionId: { type: 'string' },
+            endpoint: { type: 'string' },
+            region: { type: 'string' },
+            bucket: { type: 'string' },
+            rootDirectory: { type: 'string' },
+            forcePathStyle: { type: 'boolean' },
+            accessKeyId: { type: 'string' },
+            secretAccessKey: { type: 'string' },
+          },
+          required: ['backend'],
         },
         externalHostname: { type: 'string', description: 'internal_update_settings: external registry hostname.' },
         externalNginxNodeId: { type: 'string', description: 'internal_update_settings: nginx node UUID.' },

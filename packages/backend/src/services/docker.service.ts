@@ -82,6 +82,9 @@ export class DockerService {
 
   async managedRegistryHasRepositories(): Promise<boolean> {
     const registryId = await this.managedRegistryContainerId();
+    // A registry on S3 keeps nothing on the volume. Garbage collection then runs only while Opfield tracks build
+    // artifacts, which the storage switch copied into the bucket: on an empty bucket it would fail.
+    if (await this.managedRegistryOnS3(registryId)) return false;
     const result = await this.execInContainer(registryId, [
       'sh',
       '-c',
@@ -90,9 +93,13 @@ export class DockerService {
     return result.exitCode === 0;
   }
 
-  /** Bytes the managed registry keeps on its data volume, measured inside the registry container. */
-  async managedRegistryStorageUsedBytes(): Promise<number> {
+  /**
+   * Bytes the managed registry keeps on its data volume, measured inside the registry container; null when the
+   * registry keeps its data in an S3 bucket, whose size Opfield does not measure.
+   */
+  async managedRegistryStorageUsedBytes(): Promise<number | null> {
     const registryId = await this.managedRegistryContainerId();
+    if (await this.managedRegistryOnS3(registryId)) return null;
     const result = await this.execInContainer(registryId, ['sh', '-c', 'du -sk /var/lib/registry | cut -f1']);
     const kibibytes = Number(result.output.trim());
     if (result.exitCode !== 0 || !Number.isSafeInteger(kibibytes) || kibibytes < 0) {
@@ -107,8 +114,10 @@ export class DockerService {
     if (inspected.statusCode !== 200) throw new Error(`Registry inspect failed (${inspected.statusCode})`);
     const registry = JSON.parse(inspected.body) as {
       Config?: { Image?: string; Env?: string[]; Entrypoint?: string[] | string | null };
-      HostConfig?: { Binds?: string[]; Mounts?: Array<Record<string, unknown>> };
+      HostConfig?: { Binds?: string[]; Mounts?: Array<Record<string, unknown>>; NetworkMode?: string };
     };
+    // On S3 the collection reads and deletes in the bucket: it needs the registry's network.
+    const onS3 = (registry.Config?.Env ?? []).includes('REGISTRY_STORAGE=s3');
     const image = registry.Config?.Image;
     if (!image) throw new Error('Managed registry image is unavailable');
     const temporaryName = `opfield-registry-gc-${process.pid}-${Date.now()}`;
@@ -139,7 +148,7 @@ export class DockerService {
           HostConfig: {
             Binds: registry.HostConfig?.Binds ?? [],
             Mounts: registry.HostConfig?.Mounts ?? [],
-            NetworkMode: 'none',
+            NetworkMode: onS3 ? (registry.HostConfig?.NetworkMode ?? 'none') : 'none',
           },
         }
       );
@@ -216,6 +225,18 @@ export class DockerService {
       await this.request('DELETE', `${API_VERSION}/containers/${container.Id}?force=1`).catch(() => undefined);
     }
     await this.startManagedRegistry();
+  }
+
+  /** Full inspect of the managed registry container: environment, mounts, network and health. */
+  async inspectManagedRegistry(): Promise<DockerContainerDetails> {
+    const details = await this.inspectContainerDetails(await this.managedRegistryContainerId());
+    if (!details) throw new Error('Managed registry container was not found');
+    return details;
+  }
+
+  private async managedRegistryOnS3(registryId: string): Promise<boolean> {
+    const details = await this.inspectContainerDetails(registryId);
+    return (details?.Config.Env ?? []).includes('REGISTRY_STORAGE=s3');
   }
 
   private async managedRegistryContainerId(): Promise<string> {
@@ -1109,11 +1130,14 @@ export class DockerService {
   /**
    * Create, start, wait for completion, and clean up a one-shot container.
    */
-  async runOneShot(config: DockerCreateContainerConfig): Promise<{ exitCode: number; output: string }> {
+  async runOneShot(
+    config: DockerCreateContainerConfig,
+    timeoutMs?: number
+  ): Promise<{ exitCode: number; output: string }> {
     const id = await this.createContainer(config);
     try {
       await this.startContainer(id);
-      const exitCode = await this.waitContainer(id);
+      const exitCode = await this.waitContainer(id, timeoutMs);
       // Capture logs
       const logRes = await this.request(
         'GET',
@@ -1207,7 +1231,7 @@ export interface DockerContainerDetails {
   /** Image ID (sha256:...). */
   Image: string;
   Config: { Image: string; Labels?: Record<string, string>; Env?: string[] };
-  State: { Status: string; Running: boolean; Paused?: boolean };
+  State: { Status: string; Running: boolean; Paused?: boolean; Health?: { Status?: string } };
   Mounts?: Array<{ Type: string; Name?: string; Source?: string; Destination: string; RW?: boolean }>;
   HostConfig?: { NetworkMode?: string };
 }

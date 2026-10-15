@@ -56,6 +56,8 @@ export class DockerInternalRegistryService {
   private eventBus?: EventBusService;
   private readonly store: DockerRegistryMaintenanceStore;
   private storageMeasuredAt = 0;
+  /** Where the last measurement found the registry's data; null before the first one. */
+  private measuredStorageBackend: 'filesystem' | 's3' | null = null;
   /** Maintenance runs of this process in flight. */
   private maintenanceRuns = 0;
 
@@ -139,6 +141,7 @@ export class DockerInternalRegistryService {
       writable: healthy,
       usedBytes: await this.storageUsedBytes(healthy),
       capacityBytes: null,
+      storageBackend: this.measuredStorageBackend ?? undefined,
     });
   }
 
@@ -152,14 +155,22 @@ export class DockerInternalRegistryService {
     try {
       const measured = await this.executor.storageUsedBytes();
       this.storageMeasuredAt = Date.now();
-      return measured;
+      // On S3 the bucket's size is not measured: the volume no longer holds the images.
+      this.measuredStorageBackend = measured === null ? 's3' : 'filesystem';
+      return measured ?? 0;
     } catch (error) {
       logger.debug('Managed registry storage usage could not be measured', { error });
       return known;
     }
   }
 
-  async reportHealth(input: { healthy: boolean; writable: boolean; usedBytes: number; capacityBytes?: number | null }) {
+  async reportHealth(input: {
+    healthy: boolean;
+    writable: boolean;
+    usedBytes: number;
+    capacityBytes?: number | null;
+    storageBackend?: 'filesystem' | 's3';
+  }) {
     const current = await this.getState();
     const maintenance = current.maintenancePhase !== 'idle' && current.maintenancePhase !== 'failed';
     const usedBytes = Math.max(0, input.usedBytes);
@@ -190,6 +201,7 @@ export class DockerInternalRegistryService {
       current.writable === writable &&
       current.storageUsedBytes === usedBytes &&
       current.storageCapacityBytes === capacityBytes &&
+      (input.storageBackend === undefined || current.storageBackend === input.storageBackend) &&
       current.lastError === lastError
     ) {
       return current;
@@ -199,6 +211,7 @@ export class DockerInternalRegistryService {
       writable,
       storageUsedBytes: usedBytes,
       storageCapacityBytes: capacityBytes,
+      ...(input.storageBackend ? { storageBackend: input.storageBackend } : {}),
       lastError,
     });
     this.emitChanged('health', state);

@@ -1089,25 +1089,46 @@ async function manageDockerRegistry(context: DockerToolContext, user: User, args
         typeof a.trustedAuthRealm === 'string' ? a.trustedAuthRealm : undefined
       );
     // The internal registry routes require broad docker:registries:view or :edit.
-    case 'internal_get':
+    case 'internal_get': {
       context.ensureToolScope(user, 'docker:registries:view');
-      return container.resolve(DockerInternalRegistryService).getState();
+      const { DockerRegistryStorageService } = await import(
+        '@/modules/docker/registry-storage/registry-storage.service.js'
+      );
+      const state = await container.resolve(DockerInternalRegistryService).getState();
+      return { ...state, storage: await container.resolve(DockerRegistryStorageService).getView() };
+    }
     case 'internal_repositories': {
       context.ensureToolScope(user, 'docker:registries:view');
       const { DockerBuildService } = await import('@/modules/docker/docker-build.service.js');
       return container.resolve(DockerBuildService).listInternalRegistryRepositories();
     }
-    case 'internal_update_settings':
+    case 'internal_update_settings': {
       context.ensureToolScope(user, 'docker:registries:edit');
-      return container.resolve(DockerInternalRegistryService).updateSettings(
-        DockerInternalRegistrySettingsSchema.parse({
-          externalAccessEnabled: a.externalAccessEnabled,
-          externalHostname: optionalNonEmptyString(a.externalHostname),
-          externalNginxNodeId: optionalNonEmptyString(a.externalNginxNodeId),
-          externalCertificateId: optionalNonEmptyString(a.externalCertificateId),
-        }),
-        user.id
-      );
+      const [{ DockerRegistryStorageService }, { DockerInternalRegistryUpdateSchema }] = await Promise.all([
+        import('@/modules/docker/registry-storage/registry-storage.service.js'),
+        import('@/modules/docker/registry-storage/registry-storage.schemas.js'),
+      ]);
+      const { storage, ...external } = DockerInternalRegistryUpdateSchema.parse({
+        externalAccessEnabled: a.externalAccessEnabled,
+        externalHostname: optionalNonEmptyString(a.externalHostname),
+        externalNginxNodeId: optionalNonEmptyString(a.externalNginxNodeId),
+        externalCertificateId: optionalNonEmptyString(a.externalCertificateId),
+        storage: a.storage,
+      });
+      const storageService = container.resolve(DockerRegistryStorageService);
+      if (storage) {
+        if (storage.backend === 's3' && storage.connectionId) {
+          context.ensureToolScopeForResource(user, 'storage:credentials:use', storage.connectionId);
+        }
+        await storageService.update(storage, { userId: user.id, scopes: user.scopes });
+      }
+      const registry = container.resolve(DockerInternalRegistryService);
+      const state =
+        external.externalAccessEnabled === undefined
+          ? await registry.getState()
+          : await registry.updateSettings(DockerInternalRegistrySettingsSchema.parse(external), user.id);
+      return { ...state, storage: await storageService.getView() };
+    }
     case 'internal_gc': {
       context.ensureToolScope(user, 'docker:registries:edit');
       const housekeepingConfig = await container.resolve(HousekeepingService).getConfig();

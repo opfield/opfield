@@ -490,6 +490,19 @@ Critical secrets:
 
 Store backups separately from the Opfield server and test restore procedures before relying on them.
 
+## Internal Registry Storage
+
+The internal registry keeps build images on a Docker volume of the Opfield host by default. That volume shares the host's disk with PostgreSQL. To keep images off that disk, move the registry to an S3 bucket in **Settings > Features > Internal Registry > Storage** (or `PUT /api/docker/registries/internal/settings` with `storage`, or the MCP tool `manage_docker_registry` with `internal_update_settings`). Every plan can do this. It needs `docker:registries:edit`.
+
+- Enter the endpoint (empty for AWS S3), region, bucket, an optional folder, path-style access (on for MinIO, SeaweedFS and most self-hosted S3) and an access key, or pick an S3 storage connection you may use (`storage:credentials:use`). The registry container must reach the endpoint.
+- Opfield first writes, reads and deletes a test object in the bucket. If that fails, nothing changes and the error says why. A folder that already holds registry data Opfield did not copy is refused: use an empty folder.
+- The switch then runs in the background. Builds wait (pushes are paused), pulls keep working. Opfield copies every stored image to the bucket, restarts the registry on it and checks that the images used by running workloads can be read. If any step fails, the registry goes back to its previous storage. **Last storage switch** in the panel (and `storage.lastSwitch` in the API) shows the result.
+- After a successful move to S3, the images are removed from the local volume. Garbage collection and retention work as before; the panel does not show the bucket's size.
+- Switching back to **Local disk** copies the images from the bucket to the volume. The bucket keeps its copy; empty that folder before you move the registry to it again.
+- To move to another bucket or folder, switch to Local disk first, then to the new bucket.
+
+The choice is kept in `.env` (`OPFIELD_REGISTRY_STORAGE` and `OPFIELD_REGISTRY_S3_*`), and `docker-compose.yml` reads it, so updates and restarts keep it. If you rotate the S3 keys, enter the new ones in the same panel. Installations that never change this setting keep the local volume.
+
 ## Security Notes
 
 For the full security model, including daemon PKI, mTLS enrollment, token boundaries, and hardening guidance, see [Security model](security.md).
