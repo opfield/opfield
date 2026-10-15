@@ -176,6 +176,28 @@ describe('container duplicate', () => {
     expect(copySecrets).toHaveBeenCalledWith(NODE_ID, 'api', 'api-copy', 'user-1');
   });
 
+  it('duplicates a container whose image declares a VOLUME without asking for a managed volume', async () => {
+    const { ctx, sendDockerContainerCommand } = duplicateContext([DOCKER_DUPLICATE_ENV_REMOVAL_CAPABILITY]);
+    ctx.inspectContainer.mockResolvedValue({
+      Id: 'api-id',
+      Name: '/api',
+      Config: { Labels: {}, Volumes: { '/data': {} } },
+      Mounts: [
+        {
+          Type: 'volume',
+          Name: 'e9fa86844b2fbf2d206241693d4a98a949be8f9f395695db4cbf3e276965cd27',
+          Destination: '/data',
+        },
+      ],
+    } as never);
+    await duplicateContainer(ctx as never, NODE_ID, 'api-id', 'api-copy', 'user-1');
+    expect(sendDockerContainerCommand).toHaveBeenCalledWith(
+      NODE_ID,
+      'duplicate',
+      expect.objectContaining({ newName: 'api-copy' })
+    );
+  });
+
   it('refuses to duplicate a linked container on a daemon that would copy the link variables', async () => {
     const { ctx, sendDockerContainerCommand } = duplicateContext([]);
     await expect(duplicateContainer(ctx as never, NODE_ID, 'api-id', 'api-copy', 'user-1')).rejects.toMatchObject({
