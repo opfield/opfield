@@ -937,6 +937,8 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         branch: { type: 'string' },
         search: { type: 'string' },
         limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Default: 20' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out builds of resources that belong to an app.' },
+        appId: { type: 'string', description: 'Only builds of resources of this app (any environment).' },
       },
     },
     destructive: false,

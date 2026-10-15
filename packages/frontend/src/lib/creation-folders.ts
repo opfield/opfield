@@ -71,13 +71,23 @@ export function allowedCreationFolderId(choices: CreationFolderChoices, folderId
 /**
  * The caller holds a creation grant for some destination (broad, folder or node).
  * Unlike `hasScopeBase`, per-resource grants of a creation scope that doubles as a
- * resource action (for example `ssl:cert:issue:<certId>`) do not count.
+ * resource action (for example `ssl:cert:issue:<certId>`) do not count. `nodeGrants`: node-bound
+ * creation (Docker, routes, domains), where a bare `<base>:<nodeId>` grant names a node.
  */
-export function hasCreationDestination(scopes: readonly string[], baseScope: string): boolean {
+export function hasCreationDestination(
+  scopes: readonly string[],
+  baseScope: string,
+  { nodeGrants = false }: { nodeGrants?: boolean } = {}
+): boolean {
   return (
     scopeMatches(scopes, baseScope) ||
     scopes.some(
-      (scope) => scope.startsWith(`${baseScope}:folder/`) || scope.startsWith(`${baseScope}:node/`)
+      (scope) =>
+        scope.startsWith(`${baseScope}:folder/`) ||
+        scope.startsWith(`${baseScope}:node/`) ||
+        (nodeGrants &&
+          scope.startsWith(`${baseScope}:`) &&
+          !scope.slice(baseScope.length + 1).includes("/"))
     )
   );
 }

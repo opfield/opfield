@@ -1,3 +1,4 @@
+import { type AppMemberListFilter, setAppMemberListParams } from "@/lib/app-members";
 import type {
   DockerBuild,
   DockerBuildAdmissionStatus,
@@ -43,7 +44,7 @@ type DockerListEnvelope<T> = {
   }>;
 };
 
-interface DockerBuildListParams {
+interface DockerBuildListParams extends AppMemberListFilter {
   sourceBindingId?: string;
   builderNodeId?: string;
   status?: DockerBuildStatus;
@@ -803,6 +804,7 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
       if (params?.branch) query.set("branch", params.branch);
       if (params?.search) query.set("search", params.search);
       if (params?.cursor) query.set("cursor", params.cursor);
+      setAppMemberListParams(query, params);
       query.set("limit", String(params?.limit ?? 100));
       return this.request<{ data: DockerBuild[]; nextCursor: string | null }>(
         `/docker/builds?${query.toString()}`

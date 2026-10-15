@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { container } from '@/container.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { parseAppListFilter } from '@/modules/apps/app-membership.js';
 import { requireAnyScopeBase } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { DockerAccessResourceService, hasDockerResourceScope } from './docker-access-resource.service.js';
 import { DockerBuildListQuerySchema, DockerBuildLogQuerySchema } from './docker-build.schemas.js';
 import { DockerBuildService } from './docker-build.service.js';
+import { filterBuildsByApp } from './docker-build-app-filter.js';
 
 const BuildIdSchema = z.string().uuid();
 const BUILD_PAGE_SCAN_LIMIT = 200;
@@ -80,6 +82,8 @@ export function registerDockerBuildRoutes(router: OpenAPIHono<AppEnv>) {
     requireAnyScopeBase('docker:containers:view', 'docker:compose:view', 'pages:view'),
     async (c) => {
       const query = DockerBuildListQuerySchema.parse(c.req.query());
+      // `excludeAppMembers` (the global Docker page) / `appId`, like the other foldered lists.
+      const appFilter = parseAppListFilter(c.req.query());
       const scopes = c.get('effectiveScopes') ?? [];
       const requestedCursor = decodeBuildCursor(query.cursor);
       if (query.cursor && !requestedCursor) {
@@ -107,9 +111,10 @@ export function registerDockerBuildRoutes(router: OpenAPIHono<AppEnv>) {
           exhausted = true;
           break;
         }
+        const kept = new Set(await filterBuildsByApp(rows, appFilter));
         for (const build of rows) {
           lastScanned = build;
-          if (await canAccessBuild(scopes, 'view', build)) visible.push(build);
+          if (kept.has(build) && (await canAccessBuild(scopes, 'view', build))) visible.push(build);
           if (visible.length > query.limit) break;
         }
         if (visible.length > query.limit) break;

@@ -57,6 +57,7 @@ import {
   DockerSourceResourceCreateSchema,
   type DockerSourceTarget,
 } from '@/modules/docker/docker-build.schemas.js';
+import { filterBuildsByApp } from '@/modules/docker/docker-build-app-filter.js';
 import { assertCreateNetworksAccess } from '@/modules/docker/docker-container-create-networks.js';
 import {
   type ContainerOperationAnswer,
@@ -1323,7 +1324,10 @@ async function listDockerBuilds(user: User, args: Record<string, unknown>) {
     limit: a.limit ?? 20,
   });
   const { DockerBuildService } = await import('@/modules/docker/docker-build.service.js');
-  const builds = await container.resolve(DockerBuildService).list(query);
+  const builds = await filterBuildsByApp(
+    await container.resolve(DockerBuildService).list(query),
+    parseAppListFilter(a)
+  );
   const visible = [];
   for (const build of builds) {
     if (a.nodeId && build.target.nodeId !== a.nodeId) continue;
