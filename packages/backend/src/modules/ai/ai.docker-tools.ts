@@ -1571,6 +1571,11 @@ async function manageDockerSource(
       );
     }
     case 'upsert': {
+      if (target.kind === 'container') {
+        // A Compose service or deployment slot container takes no source of its own (409 SOURCE_TARGET_OWNED).
+        const { assertContainerSourceTargetNotOwned } = await import('@/modules/docker/docker-source-target-owner.js');
+        await assertContainerSourceTargetNotOwned(target.nodeId, target.containerName);
+      }
       const saved = await sourceService.get(target);
       const { withDockerSourceBuildState } = await import('@/modules/docker/docker-source-build-state.js');
       return withDockerSourceBuildState(

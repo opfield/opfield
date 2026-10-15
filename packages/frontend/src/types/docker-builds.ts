@@ -93,6 +93,8 @@ export interface DockerSourceBinding {
   latestBuilds?: DockerSourceLatestBuild[];
   /** What the latest build did and what runs on the target, in one sentence. */
   state?: string;
+  /** A container source whose container a Compose project or deployment owns; `state` carries the same advice. */
+  invalidTarget?: { code: "SOURCE_TARGET_OWNED"; message: string } | null;
 }
 
 export interface DockerSourceLatestBuild {

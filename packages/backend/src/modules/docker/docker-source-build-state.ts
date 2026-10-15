@@ -4,6 +4,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { dockerBuildArtifacts, dockerBuilds } from '@/db/schema/index.js';
 import type { DockerSourceTarget } from './docker-build.schemas.js';
 import { DockerSourceService } from './docker-source.service.js';
+import { findContainerSourceTargetOwner, sourceTargetOwnedAdvice } from './docker-source-target-owner.js';
 
 /** One build of a Git source, as its source answer shows it. */
 export interface DockerSourceBuildSummary {
@@ -132,14 +133,28 @@ export async function readLatestDockerSourceBuilds(
 /**
  * The source as its get and save answers show it: with its latest build (`latestBuild`; `latestBuilds` holds every
  * service build of a Compose commit) and `state`, a sentence saying why nothing is deployed when that is the case.
+ * A container source whose container a Compose project or blue/green deployment owns (attached before that was
+ * refused) is reported in `invalidTarget` and `state` with where to attach instead; nothing is changed.
  */
-export async function withDockerSourceBuildState<T extends DockerSourceStateInput & { id: string }>(source: T) {
+export async function withDockerSourceBuildState<
+  T extends DockerSourceStateInput & { id: string; target: { kind: string; nodeId?: string; containerName?: string } },
+>(source: T) {
   const latestBuilds = await readLatestDockerSourceBuilds(source.id);
+  const owner =
+    source.target.kind === 'container' && source.target.nodeId && source.target.containerName
+      ? await findContainerSourceTargetOwner(source.target.nodeId, source.target.containerName)
+      : null;
+  const invalidTarget =
+    owner && source.target.containerName
+      ? { code: 'SOURCE_TARGET_OWNED', message: sourceTargetOwnedAdvice(source.target.containerName, owner) }
+      : null;
+  const state = describeDockerSourceState(source, latestBuilds);
   return {
     ...source,
     latestBuild: latestBuilds[0] ?? null,
     latestBuilds,
-    state: describeDockerSourceState(source, latestBuilds),
+    invalidTarget,
+    state: invalidTarget ? `Invalid target: ${invalidTarget.message} ${state}` : state,
   };
 }
 

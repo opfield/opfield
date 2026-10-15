@@ -47,6 +47,7 @@ import {
   syncContainerSourceRoute,
   syncDeploymentSourceRoute,
 } from './docker-source-sync.docs.js';
+import { assertContainerSourceTargetNotOwned } from './docker-source-target-owner.js';
 
 export { assertDockerSourceTargetNode, initialDockerSourceBuildError } from './docker-source-resource-creation.js';
 
@@ -210,9 +211,12 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
     requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
     async (c) => {
       const config = DockerSourceBindingConfigSchema.parse(await c.req.json());
-      const saved = await container
-        .resolve(DockerSourceService)
-        .upsert({ ...config, target: containerTarget(c) }, actorFor(c));
+      const target = containerTarget(c);
+      await assertContainerSourceTargetNotOwned(
+        c.req.param('nodeId')!,
+        decodeURIComponent(c.req.param('containerName')!)
+      );
+      const saved = await container.resolve(DockerSourceService).upsert({ ...config, target }, actorFor(c));
       return c.json({ data: await withDockerSourceBuildState(saved) });
     }
   );

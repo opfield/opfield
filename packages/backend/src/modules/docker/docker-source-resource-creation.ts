@@ -18,6 +18,7 @@ import { DockerDeploymentService } from './docker-deployment.service.js';
 import { DockerEnvironmentService } from './docker-environment.service.js';
 import { DockerSecretService } from './docker-secret.service.js';
 import { DockerSourceService } from './docker-source.service.js';
+import { assertContainerSourceTargetNotOwned } from './docker-source-target-owner.js';
 
 /**
  * Creation of Git-source workloads, shared by the REST routes and the AI/MCP
@@ -140,6 +141,8 @@ export async function createDockerSourceResource(
         })
       : false;
     if (existing) {
+      // A Compose service or deployment slot container is refused with where its source belongs.
+      await assertContainerSourceTargetNotOwned(nodeId, input.resource.name);
       throw new AppError(409, 'CONTAINER_NAME_CONFLICT', 'A container with this name already exists');
     }
     // A deployment's folder placement is keyed by its name too: sharing it would move the deployment's placement.
