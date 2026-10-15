@@ -73,7 +73,7 @@ import {
 } from './docker-socket-mount.guard.js';
 import { type DockerTaskService, detachDockerTask, trackDockerTask } from './docker-task.service.js';
 import { isLostTrackError } from './docker-task-reconciler.js';
-import { resolveNetworkIdentity } from './docker-volume-network-operations.js';
+import { isAnonymousDockerVolumeName, resolveNetworkIdentity } from './docker-volume-network-operations.js';
 
 const logger = createChildLogger('DockerContainerMutationOperations');
 
@@ -1051,12 +1051,17 @@ export async function duplicateContainer(
   assertDuplicateDropsReservedLabels(inspect?.Config?.Labels ?? inspect?.Labels, node?.capabilities);
   const linkEnvKeys = (await ctx.secretService?.getManagedSecretKeys(nodeId, sourceName)) ?? [];
   assertDuplicateDropsLinkEnvironment(linkEnvKeys, node?.capabilities);
+  // The daemon gives the copy new anonymous volumes on the paths of the source's (an image VOLUME), so the copy never
+  // mounts them and they need no managed-volume check.
+  const copiedMounts = normalizeMountDefinitionsFromInspect(inspect).filter(
+    (mount) => !(mount.type === 'volume' && isAnonymousDockerVolumeName(mount.source))
+  );
   assertDockerMountChangeAllowed({
     nodeId,
     resourceId: String(inspect?.scopeResourceId ?? ''),
     actorScopes,
     currentDefinitions: [],
-    nextDefinitions: normalizeMountDefinitionsFromInspect(inspect),
+    nextDefinitions: copiedMounts,
   });
   await assertManagedMountMutation({
     db: ctx.db,
@@ -1064,7 +1069,7 @@ export async function duplicateContainer(
     parseResult: ctx.parseResult,
     nodeId,
     current: [],
-    next: normalizeMountDefinitionsFromInspect(inspect),
+    next: copiedMounts,
   });
   ctx.requireNoTransition(nodeId, sourceName);
   await ctx.assertNameAvailable(nodeId, name);
