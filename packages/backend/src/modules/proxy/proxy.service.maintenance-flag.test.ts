@@ -71,6 +71,8 @@ function toggleHarness(
     update: vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([after]) })) })),
     })),
+    // The answer's display fields: the route has no additional Secure Links.
+    select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })) })),
   } as any;
   const applyConfig = vi.fn((..._args: unknown[]) => apply());
   const maintenanceAccess = {
