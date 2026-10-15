@@ -80,12 +80,15 @@ func (m *Manager) runCommand(ctx context.Context, buildID, dir string, env []str
 	var wg sync.WaitGroup
 	copyLogs := func(reader io.Reader) {
 		defer wg.Done()
-		redactor := newStreamRedactor(m.secretValues(buildID), func(chunk []byte) {
+		// Redaction comes first so a line is only held back after its secrets are gone.
+		lines := newLineBuffer(maxBuildLogChunk, buildLogPartialLineDelay, func(chunk []byte) {
 			m.emitLog(buildID, chunk)
 		})
+		redactor := newStreamRedactor(m.secretValues(buildID), lines.Write)
 		buffer := make([]byte, maxBuildLogChunk)
 		_, _ = io.CopyBuffer(redactor, reader, buffer)
 		redactor.Flush()
+		lines.Flush()
 	}
 	wg.Add(2)
 	go copyLogs(stdout)
@@ -242,11 +245,17 @@ func (m *Manager) fail(command *pb.DockerBuildCommand, code string, err error) {
 	m.emitTerminal(&pb.DockerBuildEvent{BuildId: command.GetBuildId(), Status: "failed", ErrorCode: code, ErrorMessage: err.Error(), Attempt: command.GetAttempt(), OccurredAtUnixMs: time.Now().UnixMilli()})
 }
 func (m *Manager) log(buildID string, chunk []byte) {
+	var message []byte
 	redactor := newStreamRedactor(m.secretValues(buildID), func(redacted []byte) {
-		m.emitLog(buildID, redacted)
+		message = append(message, redacted...)
 	})
 	_, _ = redactor.Write(chunk)
 	redactor.Flush()
+	// Log viewers join chunks into lines, so a message must end its own line.
+	if len(message) > 0 && message[len(message)-1] != '\n' {
+		message = append(message, '\n')
+	}
+	m.emitLog(buildID, message)
 }
 
 func (m *Manager) secretValues(buildID string) []string {
