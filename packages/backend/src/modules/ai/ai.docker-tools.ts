@@ -1481,6 +1481,7 @@ async function manageDockerSource(
               kind: 'container',
               folderId: a.folderId,
               name: a.resourceName,
+              ...(a.volumes !== undefined ? { volumes: a.volumes } : {}),
               restartPolicy: a.restartPolicy ?? 'no',
               runtimeProfile: a.runtimeProfile ?? 'default',
             },

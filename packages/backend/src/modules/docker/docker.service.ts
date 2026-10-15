@@ -125,6 +125,7 @@ import type { DockerRuntimeOperationContext } from './docker-runtime-operations.
 import type { DockerRuntimeSettingsService } from './docker-runtime-settings.service.js';
 import type { DockerSecretService } from './docker-secret.service.js';
 import { type DockerSecretEnvOwner, dockerSecretEnvMatcher, dockerSecretEnvOwners } from './docker-secret-env.js';
+import { assertDockerMountChangeAllowed, normalizeMountDefinitionsFromConfig } from './docker-socket-mount.guard.js';
 import { assertNotPendingSourceContainer, readPendingDockerSourceContainers } from './docker-source.service.js';
 import type { DockerTaskService } from './docker-task.service.js';
 import type { DockerTaskReconcileContext } from './docker-task-reconciler.js';
@@ -2258,6 +2259,23 @@ export class DockerManagementService {
       .insert(dockerManagedVolumes)
       .values(names.map((volumeName) => ({ nodeId, volumeName, origin: 'created' as const, createdById: userId })))
       .onConflictDoNothing();
+  }
+
+  /** The mounts a container may be created with by an actor with these scopes, as its create checks them. */
+  async assertCreationMounts(
+    nodeId: string,
+    config: Parameters<typeof normalizeMountDefinitionsFromConfig>[0],
+    actorScopes: string[]
+  ) {
+    assertDockerMountChangeAllowed({ nodeId, actorScopes, nextConfig: config, currentDefinitions: [] });
+    await assertManagedMountMutation({
+      db: this.db,
+      dispatch: this.nodeDispatch,
+      parseResult: (result) => this.parseResult(result),
+      nodeId,
+      current: [],
+      next: normalizeMountDefinitionsFromConfig(config),
+    });
   }
 
   async assertManagedVolumeSelections(nodeId: string, volumeNames: string[]) {

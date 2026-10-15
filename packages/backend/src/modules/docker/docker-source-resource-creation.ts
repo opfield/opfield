@@ -118,6 +118,13 @@ export async function createDockerSourceResource(
     pendingDeploymentId = deployment.id;
     target = { kind: 'deployment', deploymentId: deployment.id };
   } else {
+    // Volumes chosen with the container are kept in its creation settings: its first build creates it with them, so
+    // its first start already has its data. They are checked now with the creator's access, and again by that create.
+    if (input.resource.volumes?.length) {
+      await container
+        .resolve(DockerManagementService)
+        .assertCreationMounts(nodeId, { volumes: input.resource.volumes }, actor.scopes);
+    }
     const containers = await container.resolve(DockerManagementService).listContainers(nodeId);
     const existing = Array.isArray(containers)
       ? containers.some((candidate: any) => {

@@ -1004,6 +1004,20 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
           enum: ['no', 'always', 'unless-stopped', 'on-failure'],
         },
         runtimeProfile: { type: 'string', enum: ['default', 'secure'] },
+        volumes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Managed volume name' },
+              containerPath: { type: 'string', description: 'Absolute path in the container' },
+              readOnly: { type: 'boolean' },
+            },
+            required: ['name', 'containerPath'],
+          },
+          description:
+            'create of a container only: managed volumes its first build creates and starts it with (needs docker:volumes:view on each). One volume per path.',
+        },
         routes: { type: 'array', items: { type: 'object' } },
         health: { type: 'object' },
         drainSeconds: { type: 'number' },
