@@ -1031,7 +1031,21 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
         },
         policy: {
           type: 'object',
-          description: 'Artifact policy containing the vulnerability blocking threshold',
+          description: 'Artifact vulnerability policy of the source (Console: Vulnerability policy and scope)',
+          properties: {
+            vulnerabilityThreshold: {
+              type: 'string',
+              enum: ['critical', 'high', 'medium', 'low', 'none', 'disabled'],
+              description:
+                'Lowest severity that blocks a deployment; none = report only; disabled = skip scanning and SBOM. Default critical.',
+            },
+            vulnerabilityScope: {
+              type: 'string',
+              enum: ['all', 'application', 'fixable_application', 'fixable_all'],
+              description:
+                'Findings that count against the threshold: all = every package; application = OS packages (deb, rpm, apk, alpm) report-only; fixable_application = only findings with a released fix, OS packages report-only; fixable_all = only findings with a released fix in any package. Default all.',
+            },
+          },
         },
         commitSha: { type: 'string', description: 'Optional exact current commit for a manual build' },
         force: { type: 'boolean', description: 'Queue a new attempt even when this commit already has a build' },
