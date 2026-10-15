@@ -69,7 +69,8 @@ function statusLabel(extension: ManagedPostgresExtension): string | null {
 function changeDescription(
   extension: ManagedPostgresExtension,
   action: ExtensionAction,
-  databaseName: string
+  databaseName: string,
+  volume: ManagedPostgresExtensions["volume"]
 ): string {
   const restart =
     (action === "enable" && extension.restartToEnable) ||
@@ -84,7 +85,9 @@ function changeDescription(
   }
   const download =
     extension.status === "needs_bundle"
-      ? ` Downloads ${formatBytes(extension.bundleSizeBytes)} into the database storage.`
+      ? ` Downloads ${formatBytes(extension.bundleSizeBytes)} into the database storage${
+          volume ? ` (${formatBytes(volume.freeBytes)} free)` : ""
+        }.`
       : "";
   return `Enable ${extension.name} in ${databaseName}?${download}${restart}`;
 }
@@ -164,7 +167,7 @@ export function PostgresExtensionsTab({
     if (!canManage || busy) return;
     const confirmed = await confirm({
       title: `${action === "enable" ? "Enable" : action === "disable" ? "Disable" : "Update"} Extension`,
-      description: changeDescription(extension, action, database.name),
+      description: changeDescription(extension, action, database.name, state?.volume ?? null),
       confirmLabel: action === "enable" ? "Enable" : action === "disable" ? "Disable" : "Update",
       variant: action === "disable" ? "destructive" : "default",
     });
