@@ -5,6 +5,7 @@ import type {
   ContainerLinkStatus,
   DockerComposeProjectSummary,
   DockerContainer,
+  NodeAppearanceColor,
 } from "@/types";
 
 type BadgeVariant = "success" | "warning" | "secondary" | "destructive";
@@ -76,7 +77,11 @@ export function containerLinkStatusBadge(link: Pick<ContainerLink, "status" | "l
 
 /** Names and nodes of workloads, to show a link's ends the way the user knows them. */
 export interface ContainerLinkNames {
-  endpoint(endpoint: ContainerLinkEndpoint): { name: string; nodeName: string };
+  endpoint(endpoint: ContainerLinkEndpoint): {
+    name: string;
+    nodeName: string;
+    nodeColor: NodeAppearanceColor | null;
+  };
 }
 
 export function buildContainerLinkNames(
@@ -84,31 +89,40 @@ export function buildContainerLinkNames(
   projects: DockerComposeProjectSummary[]
 ): ContainerLinkNames {
   const nodeNames = new Map<string, string>();
+  const nodeColors = new Map<string, NodeAppearanceColor | null>();
   const names = new Map<string, string>();
   for (const workload of workloads) {
     const nodeId = workload.nodeId ?? workload._nodeId;
     if (nodeId && workload._nodeName) nodeNames.set(nodeId, workload._nodeName);
+    if (nodeId && workload._nodeColor !== undefined) nodeColors.set(nodeId, workload._nodeColor);
     if (workload.kind === "deployment") {
       names.set(`deployment:${workload.deploymentId ?? workload.id}`, workload.name);
     }
   }
   for (const project of projects) {
     if (project._nodeName) nodeNames.set(project.nodeId, project._nodeName);
+    if (project._nodeColor !== undefined) nodeColors.set(project.nodeId, project._nodeColor);
     names.set(`compose_service:${project.id}`, project.name);
   }
   return {
     endpoint(endpoint) {
       const nodeName = nodeNames.get(endpoint.nodeId) ?? "";
-      if (endpoint.type === "container") return { name: endpoint.resourceId, nodeName };
+      const nodeColor = nodeColors.get(endpoint.nodeId) ?? null;
+      if (endpoint.type === "container") return { name: endpoint.resourceId, nodeName, nodeColor };
       if (endpoint.type === "deployment") {
         return {
           name: names.get(`deployment:${endpoint.resourceId}`) ?? endpoint.resourceId.slice(0, 8),
           nodeName,
+          nodeColor,
         };
       }
       const { projectId, serviceName } = parseComposeServiceResourceId(endpoint.resourceId);
       const project = names.get(`compose_service:${projectId}`);
-      return { name: project ? `${project} / ${serviceName}` : serviceName || projectId, nodeName };
+      return {
+        name: project ? `${project} / ${serviceName}` : serviceName || projectId,
+        nodeName,
+        nodeColor,
+      };
     },
   };
 }

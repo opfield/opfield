@@ -6,9 +6,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -34,7 +32,14 @@ import {
   environmentNames,
   parseComposeServiceResourceId,
 } from "./container-link-format";
-import { LinkRowTitle, useInLinksPanel, useLinkSource } from "./LinksPanel";
+import {
+  LINK_REMOVE_BUTTON_CLASS,
+  LinkNodeBadge,
+  LinkRowTitle,
+  LinkStatusBadge,
+  useInLinksPanel,
+  useLinkSource,
+} from "./LinksPanel";
 
 const NO_SERVICES: string[] = [];
 const NO_NAMES: ContainerLinkNames = buildContainerLinkNames([], []);
@@ -236,20 +241,7 @@ export function ContainerLinksSection({
 
   const statusBadge = (link: ContainerLink) => {
     const badge = containerLinkStatusBadge(link);
-    return (
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant={badge.variant} tabIndex={0}>
-              {badge.label}
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-sm">
-            {badge.detail}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
+    return <LinkStatusBadge label={badge.label} variant={badge.variant} detail={badge.detail} />;
   };
 
   // In the shared Links panel this section adds its outgoing and incoming rows and its add
@@ -269,8 +261,9 @@ export function ContainerLinksSection({
       link.source.type === "compose_service"
         ? parseComposeServiceResourceId(link.source.resourceId).serviceName
         : "";
+    // Like a database link row: the target as the title, the address and variables below, its node on the right.
     const description = [
-      target.nodeName,
+      `${link.alias}:${link.targetPort}`,
       service ? `from ${service}` : "",
       environmentNames(link.environment).length > 0
         ? `sets ${environmentNames(link.environment).join(", ")}`
@@ -281,18 +274,18 @@ export function ContainerLinksSection({
     return (
       <SettingsControlRow
         key={link.id}
-        title={
-          <LinkRowTitle kind="container">{`${link.alias}:${link.targetPort} → ${target.name}`}</LinkRowTitle>
-        }
-        description={description || undefined}
+        title={<LinkRowTitle kind="container">{target.name}</LinkRowTitle>}
+        description={description}
       >
         <div className="flex items-center gap-2">
+          <LinkNodeBadge name={target.nodeName} color={target.nodeColor} />
           {statusBadge(link)}
           {canManage && (
             <Button
               type="button"
               variant="ghost"
               size="icon"
+              className={LINK_REMOVE_BUTTON_CLASS}
               title={removeDisabledReason ?? "Remove link"}
               aria-label={`Remove link ${link.alias}`}
               disabled={disabled || removeDisabledReason !== null}
@@ -311,15 +304,14 @@ export function ContainerLinksSection({
       <SettingsControlRow
         key={link.id}
         title={<LinkRowTitle kind="container">{source.name}</LinkRowTitle>}
-        description={[
-          inLinksPanel ? "Incoming" : "",
-          source.nodeName,
-          `as ${link.alias}:${link.targetPort}`,
-        ]
+        description={[inLinksPanel ? "Incoming" : "", `as ${link.alias}:${link.targetPort}`]
           .filter(Boolean)
           .join(" · ")}
       >
-        {statusBadge(link)}
+        <div className="flex items-center gap-2">
+          <LinkNodeBadge name={source.nodeName} color={source.nodeColor} />
+          {statusBadge(link)}
+        </div>
       </SettingsControlRow>
     );
   });
