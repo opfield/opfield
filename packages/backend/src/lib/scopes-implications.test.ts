@@ -114,6 +114,7 @@ describe('generated scope implications', () => {
       'admin:details:certificates',
       'admin:update',
       'admin:alerts',
+      'hosting:billing:view',
       'ai:workspace:use',
       'feat:ai:use',
       'feat:ai:configure',

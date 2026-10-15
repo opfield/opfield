@@ -181,7 +181,6 @@ export const ALL_SCOPES = [
   'hosting:resources:delete',
   'hosting:resources:recover',
   'hosting:billing:view',
-  'hosting:billing:topup',
   // ── Housekeeping ─────────────────────────────────────────────────
   'housekeeping:view',
   'housekeeping:run',

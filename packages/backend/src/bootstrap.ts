@@ -947,7 +947,7 @@ export async function initializeContainer(): Promise<void> {
     resourceSnapshotStore,
     eventBus
   );
-  const hostingFinance = new HostingFinanceService(db, hostingConnectors, hostingOperations, authService, auditService);
+  const hostingFinance = new HostingFinanceService(db, hostingConnectors, hostingOperations, authService);
   eventBus.subscribe('hosting.operation.changed', (payload) => {
     const event = payload as { resourceId?: string; phase?: string };
     // Snapshot worker publishes persistent entity changes itself. Other VM operations

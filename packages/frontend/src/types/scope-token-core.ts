@@ -745,12 +745,6 @@ export const CORE_TOKEN_SCOPES = [
     group: "Integrations: Hosting",
   },
   {
-    value: "hosting:billing:topup",
-    label: "Create Hosting Top-up Invoices",
-    desc: "Create HOSTKEY deposit invoices; payment remains provider-hosted",
-    group: "Integrations: Hosting",
-  },
-  {
     value: "integrations:cloudflare:view",
     label: "View Cloudflare Integrations",
     desc: "View configured Cloudflare connectors and synchronization status",

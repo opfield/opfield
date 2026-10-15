@@ -71,7 +71,6 @@ export const MANUAL_APPROVAL_SCOPES = [
   'hosting:resources:create',
   'hosting:resources:delete',
   'hosting:snapshots:restore',
-  'hosting:billing:topup',
   'logs:tokens:create',
   'feat:ai:use',
   'admin:audit',

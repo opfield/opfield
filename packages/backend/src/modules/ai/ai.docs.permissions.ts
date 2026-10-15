@@ -378,7 +378,6 @@ Git scopes can be limited with stable IDs: \`<scope>:<connectorId>\` (every repo
 | hosting:snapshots:restore | Restore a VM snapshot, replacing disk data (restrictable to resource ID) |
 | hosting:snapshots:folders:manage | Create folders and organize VM snapshots (restrictable to resource ID) |
 | hosting:billing:view | Read account finances (restrictable to connector ID); never implied by node access |
-| hosting:billing:topup | Create a HOSTKEY deposit invoice (restrictable to connector ID) |
 
 ### Status Page
 | Scope | Description |
