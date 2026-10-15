@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -21,8 +22,9 @@ const (
 	testOfficialPostgres  = "docker.io/library/postgres@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d"
 )
 
-// withTestPostgresCatalog swaps in the real curated list with an Opfield image
-// pinned for 17.10 and postgis/pgrouting bundles for PostgreSQL 17.
+// withTestPostgresCatalog swaps in the real curated list with a test Opfield
+// image for 17.10 (in place of the pinned one, if any) and postgis/pgrouting
+// bundles for PostgreSQL 17.
 func withTestPostgresCatalog(t *testing.T) *pgext.Catalog {
 	t.Helper()
 	read := func(name string) []byte {
@@ -32,9 +34,11 @@ func withTestPostgresCatalog(t *testing.T) *pgext.Catalog {
 		}
 		return data
 	}
-	versions := strings.Replace(string(read("versions.json")),
-		`"base": "`+testOfficialPostgres+`", "image": null`,
-		`"base": "`+testOfficialPostgres+`", "image": "`+testOpfieldPostgres17+`"`, 1)
+	pinned := regexp.MustCompile(`("base": "` + regexp.QuoteMeta(testOfficialPostgres) + `", "image": )(null|"[^"]*")`)
+	versions := pinned.ReplaceAllString(string(read("versions.json")), `${1}"`+testOpfieldPostgres17+`"`)
+	if !strings.Contains(versions, testOpfieldPostgres17) {
+		t.Fatal("versions.json has no 17.10 entry to put the test image in")
+	}
 	bundles := `{"schemaVersion":1,"bundles":[
  {"id":"postgis","version":"3.6.4","major":"17","debian":"trixie","reference":"ghcr.io/example/postgres-ext/postgis@sha256:` + strings.Repeat("1", 64) + `","sizeBytes":{"amd64":200000000,"arm64":190000000},"provides":["postgis"],"preloadLibraries":[],"requires":[]},
  {"id":"pgrouting","version":"4.0.1","major":"17","debian":"trixie","reference":"ghcr.io/example/postgres-ext/pgrouting@sha256:` + strings.Repeat("2", 64) + `","sizeBytes":{"amd64":4000000,"arm64":3900000},"provides":["pgrouting"],"preloadLibraries":[],"requires":["postgis"]}]}`
