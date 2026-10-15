@@ -19,6 +19,20 @@ export type DockerBuildStatus =
 
 export type DockerArtifactPolicyDecision = "pending" | "approved" | "rejected" | "error";
 
+export type DockerVulnerabilityScope =
+  | "all"
+  | "application"
+  | "fixable_application"
+  | "fixable_all";
+
+export interface DockerBuildSeverityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  unknown: number;
+}
+
 export interface DockerBuildVulnerability {
   id: string;
   severity: string;
@@ -61,7 +75,7 @@ export interface DockerSourceBinding {
   publishTag?: string | null;
   policy: {
     vulnerabilityThreshold?: "critical" | "high" | "medium" | "low" | "none" | "disabled";
-    vulnerabilityScope?: "all" | "application";
+    vulnerabilityScope?: DockerVulnerabilityScope;
   };
   desiredCommitSha: string | null;
   deployedCommitSha: string | null;
@@ -106,7 +120,7 @@ export interface DockerSourceBindingConfig {
   publishTag?: string;
   policy?: {
     vulnerabilityThreshold?: "critical" | "high" | "medium" | "low" | "none" | "disabled";
-    vulnerabilityScope?: "all" | "application";
+    vulnerabilityScope?: DockerVulnerabilityScope;
   };
 }
 
@@ -137,8 +151,10 @@ export interface DockerBuildArtifact {
     unknown: number;
     vulnerabilities?: DockerBuildVulnerability[];
     vulnerabilitiesTruncated?: number;
-    osPackages?: { critical: number; high: number; medium: number; low: number; unknown: number };
-    policyScope?: "all" | "application";
+    osPackages?: DockerBuildSeverityCounts;
+    fixable?: DockerBuildSeverityCounts;
+    fixableOsPackages?: DockerBuildSeverityCounts;
+    policyScope?: DockerVulnerabilityScope;
   } | null;
   policyDecision: DockerArtifactPolicyDecision;
   policyReason: string | null;

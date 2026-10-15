@@ -69,9 +69,11 @@ export type DockerRegistryMaintenancePhase =
   | 'restoring_writes'
   | 'failed';
 
+export type DockerBuildVulnerabilityScope = 'all' | 'application' | 'fixable_application' | 'fixable_all';
+
 export interface DockerBuildPolicySnapshot {
   vulnerabilityThreshold?: string;
-  vulnerabilityScope?: 'all' | 'application';
+  vulnerabilityScope?: DockerBuildVulnerabilityScope;
   [key: string]: unknown;
 }
 
@@ -87,6 +89,14 @@ export interface DockerComposeBuildPlan {
   services: DockerComposeBuildSpec[];
 }
 
+export interface DockerBuildSeverityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  unknown: number;
+}
+
 export interface DockerBuildScanSummary {
   scanner?: string;
   skipped?: boolean;
@@ -97,8 +107,12 @@ export interface DockerBuildScanSummary {
   unknown: number;
   vulnerabilities?: DockerBuildVulnerability[];
   vulnerabilitiesTruncated?: number;
-  osPackages?: { critical: number; high: number; medium: number; low: number; unknown: number };
-  policyScope?: 'all' | 'application';
+  osPackages?: DockerBuildSeverityCounts;
+  /** Findings with a released fix, over the full report. */
+  fixable?: DockerBuildSeverityCounts;
+  /** Findings with a released fix in OS packages (deb, rpm, apk, alpm). */
+  fixableOsPackages?: DockerBuildSeverityCounts;
+  policyScope?: DockerBuildVulnerabilityScope;
   [key: string]: unknown;
 }
 

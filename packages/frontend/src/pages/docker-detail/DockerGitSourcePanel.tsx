@@ -55,9 +55,15 @@ import {
   requireLicenseFeature,
   usePlanIncludes,
 } from "@/stores/license-paywall";
-import type { DockerBuildSecret, DockerSourceBinding, DockerSourceTarget } from "@/types";
+import type {
+  DockerBuildSecret,
+  DockerSourceBinding,
+  DockerSourceTarget,
+  DockerVulnerabilityScope,
+} from "@/types";
 import { RepositorySourceFields } from "../docker-deploy/RepositorySourceFields";
 import { useDockerSourceRepositories } from "../docker-deploy/useDockerSourceRepositories";
+import { DOCKER_VULNERABILITY_SCOPE_OPTIONS } from "./docker-vulnerability-scope";
 import { EnvTextDialog, envTextErrorLines, parseEnvText } from "./EnvTextDialog";
 
 interface DockerGitSourcePanelProps {
@@ -88,7 +94,7 @@ interface SourceSettings {
   composeFilePath: string;
   autoDeploy: boolean;
   vulnerabilityThreshold: VulnerabilityThreshold;
-  vulnerabilityScope: "all" | "application";
+  vulnerabilityScope: DockerVulnerabilityScope;
   packageManager: PackageManager;
   packageManagerVersion: string;
   nodeVersion: NodeVersion;
@@ -1377,12 +1383,12 @@ export function DockerGitSourcePanel({
           {!pagesTarget && scanningInPlan && (
             <SettingsControlRow
               title="Vulnerability scope"
-              description="Packages that can block a deployment."
+              description="Findings that can block a deployment."
             >
               <Select
                 value={settings.vulnerabilityScope}
                 onValueChange={(value) =>
-                  updateSetting("vulnerabilityScope", value as "all" | "application")
+                  updateSetting("vulnerabilityScope", value as DockerVulnerabilityScope)
                 }
                 disabled={!canEdit}
               >
@@ -1390,18 +1396,15 @@ export function DockerGitSourcePanel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="max-w-[min(var(--container-md),var(--radix-select-content-available-width))]">
-                  <SelectItem
-                    value="all"
-                    description="Apply the severity threshold to all packages in the image."
-                  >
-                    All packages
-                  </SelectItem>
-                  <SelectItem
-                    value="application"
-                    description="System packages are report-only. Application dependencies, runtime binaries and unclassified packages still count."
-                  >
-                    Application dependencies
-                  </SelectItem>
+                  {DOCKER_VULNERABILITY_SCOPE_OPTIONS.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      description={option.description}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </SettingsControlRow>

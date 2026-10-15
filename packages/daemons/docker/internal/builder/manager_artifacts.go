@@ -162,6 +162,8 @@ func summarizeGrype(path string) (string, error) {
 		severityCounts
 		Scanner                  string                 `json:"scanner"`
 		OSPackages               severityCounts         `json:"osPackages"`
+		Fixable                  severityCounts         `json:"fixable"`
+		FixableOSPackages        severityCounts         `json:"fixableOsPackages"`
 		Vulnerabilities          []vulnerabilityFinding `json:"vulnerabilities"`
 		VulnerabilitiesTruncated int                    `json:"vulnerabilitiesTruncated"`
 	}
@@ -178,9 +180,18 @@ func summarizeGrype(path string) (string, error) {
 		counts := []*severityCounts{&summary.severityCounts}
 		// OS package managers only: runtime binaries and unknown package types
 		// remain subject to application policy. Count before truncating details.
+		osPackage := false
 		switch strings.ToLower(strings.TrimSpace(match.Artifact.Type)) {
 		case "deb", "rpm", "apk", "alpm":
+			osPackage = true
 			counts = append(counts, &summary.OSPackages)
+		}
+		// Fixable: the vulnerability database reports a released fix.
+		if grypeMatchFixable(match.Vulnerability.Fix.State, match.Vulnerability.Fix.Versions) {
+			counts = append(counts, &summary.Fixable)
+			if osPackage {
+				counts = append(counts, &summary.FixableOSPackages)
+			}
 		}
 		for _, count := range counts {
 			switch severity {
@@ -241,4 +252,22 @@ func summarizeGrype(path string) (string, error) {
 	}
 	encoded, _ := json.Marshal(summary)
 	return string(encoded), nil
+}
+
+// grypeMatchFixable reports whether a grype match has a released fix: fix
+// state "fixed", or listed fixed versions when the state is not an explicit
+// "not-fixed" or "wont-fix".
+func grypeMatchFixable(state string, versions []string) bool {
+	switch strings.ToLower(strings.TrimSpace(state)) {
+	case "fixed":
+		return true
+	case "not-fixed", "wont-fix":
+		return false
+	}
+	for _, version := range versions {
+		if strings.TrimSpace(version) != "" {
+			return true
+		}
+	}
+	return false
 }
