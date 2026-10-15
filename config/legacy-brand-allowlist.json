@@ -715,6 +715,8 @@
         "packages/backend/src/modules/docker/docker-container-archive-format.ts",
         "packages/backend/src/modules/hosting/**",
         "packages/backend/src/modules/ai/ai.tools.docker.ts",
+        "packages/backend/src/modules/ai/ai.tools.hosting.ts",
+        "packages/backend/src/modules/ai/ai.docs.hosting.ts",
         "packages/backend/src/modules/databases/managed-database-binding-host-listener.ts",
         "packages/backend/src/services/node-dispatch.service.ts",
         "packages/backend/src/grpc/generated/types.ts",
