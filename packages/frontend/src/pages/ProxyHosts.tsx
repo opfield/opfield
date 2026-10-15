@@ -46,11 +46,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useFolderAccess } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useLiveSearch } from "@/hooks/use-live-search";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { findFolderTreeNode } from "@/lib/folder-tree";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { isOpfieldPublicRoute } from "@/lib/proxy-route-protection";
@@ -146,7 +148,11 @@ export function ProxyHosts({
   const shownMoveFolderId = useRetainedDialogValue(moveFolderId, moveFolderId !== null);
   const isSearchFiltering = filters.search.trim() !== "";
   const canReorderFolders = canManageFolders && !isMobile && !isSearchFiltering;
-  const canCreateProxyHost = hasScopedAccess("proxy:create");
+  // Creating needs a destination outside app places (broad, node or user folder grant).
+  const globalAccess = useGlobalSectionAccess();
+  const canCreateProxyHost = hasCreationDestination(globalAccess.scopes, "proxy:create", {
+    nodeGrants: true,
+  });
   const canShowHostActions =
     canManageFolders || hasScopedAccess("proxy:edit") || hasScopedAccess("proxy:delete");
   const ingressNodes = useUIBootstrapStore((state) => state.snapshot?.navigation.nodes.data);

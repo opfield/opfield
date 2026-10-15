@@ -53,6 +53,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -126,14 +127,15 @@ export function Domains() {
   const requestedDomainName = searchParams.get("domain");
   const { hasScope, hasScopedAccess, user } = useAuthStore();
   const userScopes = user?.scopes ?? [];
-  const { canCreateDomain, canInspectCloudflare } = getDomainPermissions(
-    hasScope,
-    undefined,
-    hasScopedAccess
-  );
+  // Creating needs a destination outside app places (broad, node or user folder grant).
+  const globalAccess = useGlobalSectionAccess();
+  const { canInspectCloudflare } = getDomainPermissions(hasScope, undefined, hasScopedAccess);
+  const canCreateDomain = hasCreationDestination(globalAccess.scopes, "domains:create", {
+    nodeGrants: true,
+  });
   // Issuing from a domain creates an SSL certificate: any ssl:cert:issue destination
   // (broad or folder) qualifies; the folder is picked when the root is not allowed.
-  const canIssueDomainCertificates = hasCreationDestination(userScopes, "ssl:cert:issue");
+  const canIssueDomainCertificates = hasCreationDestination(globalAccess.scopes, "ssl:cert:issue");
   const canIssueCertificateAtRoot = canCreateInFolder(userScopes, "ssl:cert:issue", null);
   const hasRouteFolderCreationGrant = userScopes.some((scope) =>
     scope.startsWith("proxy:create:folder/")
