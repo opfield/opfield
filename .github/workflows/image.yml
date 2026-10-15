@@ -421,7 +421,8 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: docker buildx imagetools create --tag "${OPFIELD_IMAGE_MIRROR}/postgres-ext/${ID}:${TAG}" "${OPFIELD_IMAGE}/postgres-ext/${ID}:${TAG}"
 
-      # The pin needs the digest and each architecture's installed size (opfield-bundle.json sizeBytes).
+      # The pin needs the digest, each architecture's installed size (opfield-bundle.json sizeBytes) and what the
+      # bundle provides.
       - name: Show the digest and sizes to pin
         env:
           ID: ${{ matrix.bundle.id }}
@@ -430,12 +431,17 @@ jobs:
           image="${OPFIELD_IMAGE}/postgres-ext/${ID}:${TAG}"
           digest=$(docker buildx imagetools inspect "$image" --format '{{json .Manifest}}' | jq -er '.digest')
           sizes=""
+          provides=""
           for arch in amd64 arm64; do
             container=$(docker create --platform "linux/${arch}" "${image%:*}@${digest}" /opfield-bundle)
-            sizes="${sizes} ${arch}=$(docker cp "${container}:/opfield-bundle.json" - | tar -xO | jq -er '.sizeBytes')"
+            manifest=$(docker cp "${container}:/opfield-bundle.json" - | tar -xO)
+            sizes="${sizes} ${arch}=$(jq -er '.sizeBytes' <<< "$manifest")"
+            provides=$(jq -er '.provides | join(",")' <<< "$manifest")
             docker rm "$container" >/dev/null
+            # Docker keeps one platform per pulled index digest: drop it before pulling the next architecture.
+            docker image rm "${image%:*}@${digest}" >/dev/null
           done
-          echo "${ID} ${TAG}: postgres-ext/${ID}@${digest} sizes${sizes}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "${ID} ${TAG}: postgres-ext/${ID}@${digest} sizes${sizes} provides ${provides}" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Install cosign and syft
         if: ${{ env.SIGN_IMAGES == 'true' }}
