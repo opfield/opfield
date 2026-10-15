@@ -16,27 +16,33 @@ const full: DockerBuildScanSummary = { ...oldWorker, fixable: counts(1, 1), fixa
 
 describe('evaluateDockerArtifactPolicy', () => {
   it.each<[string, DockerBuildPolicySnapshot, DockerBuildScanSummary, string, string | null]>([
-    ['all', { vulnerabilityThreshold: 'critical' }, full, 'rejected', 'Vulnerabilities at or above critical: critical'],
+    [
+      'all',
+      { vulnerabilityThreshold: 'critical' },
+      full,
+      'rejected',
+      'Vulnerabilities at or above critical: 2 critical.',
+    ],
     [
       'application',
       { vulnerabilityThreshold: 'high', vulnerabilityScope: 'application' },
       full,
       'rejected',
-      'Application vulnerabilities at or above high: critical, high',
+      'Application vulnerabilities at or above high: 1 critical, 1 high.',
     ],
     [
       'fixable_all',
       { vulnerabilityThreshold: 'high', vulnerabilityScope: 'fixable_all' },
       full,
       'rejected',
-      'Fixable vulnerabilities at or above high: critical, high',
+      'Fixable vulnerabilities at or above high: 1 critical, 1 high.',
     ],
     [
       'fixable_application',
       { vulnerabilityThreshold: 'high', vulnerabilityScope: 'fixable_application' },
       full,
       'rejected',
-      'Fixable application vulnerabilities at or above high: high',
+      'Fixable application vulnerabilities at or above high: 1 high.',
     ],
     [
       'fixable_application below threshold',
@@ -60,6 +66,43 @@ describe('evaluateDockerArtifactPolicy', () => {
       'Complete fixable vulnerability counts are required for fixable-only policy. Rebuild with an updated Build Worker.',
     ],
   ])('%s', (_name, policy, scanSummary, decision, reason) => {
-    expect(evaluateDockerArtifactPolicy(policy, { scanSummary })).toEqual({ decision, reason });
+    const result = evaluateDockerArtifactPolicy(policy, { scanSummary });
+    expect(result.decision).toBe(decision);
+    // A rejection starts with the blocking counts; the rest says what to do.
+    if (decision === 'rejected') expect(result.reason?.startsWith(reason!)).toBe(true);
+    else expect(result.reason).toBe(reason);
+  });
+
+  it('says what blocked the image and which policy changes would admit it', () => {
+    const finding = (id: string, severity: string, packageType: string, fixedVersions: string[]) => ({
+      id,
+      severity,
+      packageName: `pkg-${id}`,
+      installedVersion: '1.0.0',
+      packageType,
+      fixedVersions,
+      fixState: fixedVersions.length ? 'fixed' : 'not-fixed',
+      namespace: '',
+      dataSource: '',
+    });
+    const scanSummary: DockerBuildScanSummary = {
+      ...full,
+      vulnerabilities: [
+        finding('CVE-2', 'High', 'npm', ['1.0.1']),
+        finding('CVE-1', 'Critical', 'deb', []),
+        finding('CVE-3', 'Critical', 'npm', ['2.0.0']),
+      ],
+    };
+
+    expect(evaluateDockerArtifactPolicy({ vulnerabilityThreshold: 'critical' }, { scanSummary }).reason).toBe(
+      'Vulnerabilities at or above critical: 2 critical. Top findings: CVE-1 (critical, pkg-CVE-1 1.0.0); CVE-3 (critical, pkg-CVE-3 1.0.0, fixed in 2.0.0). The image was not deployed. Update the affected packages and build again, or change the Git source policy (manage_docker_source upsert with policy, or Vulnerability policy in the Build panel of the Source tab): vulnerabilityScope "application" (OS packages only reported), or "fixable_application" or "fixable_all" (only findings with a released fix), or vulnerabilityThreshold "none" (report only).'
+    );
+    const narrow = evaluateDockerArtifactPolicy(
+      { vulnerabilityThreshold: 'high', vulnerabilityScope: 'fixable_application' },
+      { scanSummary }
+    ).reason;
+    expect(narrow).toContain('Top findings: CVE-2 (high, pkg-CVE-2 1.0.0, fixed in 1.0.1).');
+    expect(narrow).toContain('vulnerabilityThreshold "critical".');
+    expect(narrow).not.toContain('vulnerabilityScope');
   });
 });

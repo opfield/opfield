@@ -17,6 +17,7 @@ import type {
   DockerSourceBindingConfig,
   DockerSourceConnector,
   DockerSourceContainerVolume,
+  DockerSourceLatestBuild,
   DockerSourceResourceCreateRequest,
   DockerSourceResourceCreateResult,
   DockerSourceSyncResult,
@@ -922,7 +923,9 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
             sourceBindingId: string;
             scopeResourceId: string;
             repositoryFullPath?: string;
-            latestBuild?: { id: string; status: string; errorCode: string | null } | null;
+            latestBuild?: DockerSourceLatestBuild | null;
+            /** What the latest build did, with what to do when it failed. */
+            state?: string | null;
             initialConfig?: { volumes?: DockerSourceContainerVolume[] };
           };
         }>(`/docker/nodes/${nodeId}/containers/${encodeURIComponent(containerName)}/source/pending`)

@@ -63,6 +63,7 @@ import type {
 } from "@/types";
 import { RepositorySourceFields } from "../docker-deploy/RepositorySourceFields";
 import { useDockerSourceRepositories } from "../docker-deploy/useDockerSourceRepositories";
+import { DockerSourceLatestBuildRow } from "./DockerSourceLatestBuildRow";
 import { DOCKER_VULNERABILITY_SCOPE_OPTIONS } from "./docker-vulnerability-scope";
 import { EnvTextDialog, envTextErrorLines, parseEnvText } from "./EnvTextDialog";
 
@@ -1592,6 +1593,7 @@ export function DockerGitSourcePanel({
         >
           {commitBadge(source.deployedCommitSha, "No build deployed")}
         </SettingsControlRow>
+        <DockerSourceLatestBuildRow source={source} />
         <SettingsControlRow
           title="Update detection"
           description="Opfield-managed trigger used to discover new commits."

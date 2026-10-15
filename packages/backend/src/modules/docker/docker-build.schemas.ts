@@ -250,6 +250,9 @@ export const DockerBuildListQuerySchema = z.object({
   provider: z.enum(['gitlab', 'github', 'git']).optional(),
   branch: z.string().max(500).optional(),
   search: z.string().max(500).optional(),
+  /** Builds of the Git source of this container on `nodeId`, a container its first build has not created included. */
+  containerName: z.string().min(1).max(255).optional(),
+  nodeId: z.string().uuid().optional(),
   cursor: z.string().max(500).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });

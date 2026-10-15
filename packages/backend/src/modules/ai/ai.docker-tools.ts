@@ -1320,8 +1320,17 @@ async function manageDockerVolumeFiles(
 
 async function listDockerBuilds(user: User, args: Record<string, unknown>) {
   const a = args as any;
+  let sourceBindingId = optionalNonEmptyString(a.sourceBindingId);
+  const containerName = optionalNonEmptyString(a.containerName);
+  if (containerName) {
+    // The source of the container on nodeId, a container its first build has not created included.
+    const { containerBuildSourceBindingId } = await import('@/modules/docker/docker-build-container-filter.js');
+    const containerSource = await containerBuildSourceBindingId(optionalNonEmptyString(a.nodeId), containerName);
+    if (!containerSource || (sourceBindingId && sourceBindingId !== containerSource)) return [];
+    sourceBindingId = containerSource;
+  }
   const query = DockerBuildListQuerySchema.parse({
-    sourceBindingId: optionalNonEmptyString(a.sourceBindingId),
+    sourceBindingId,
     builderNodeId: optionalNonEmptyString(a.builderNodeId),
     status: optionalNonEmptyString(a.status),
     provider: optionalNonEmptyString(a.provider),
@@ -1549,12 +1558,17 @@ async function manageDockerSource(
   }
 
   switch (operation) {
-    case 'get':
-      return sourceService.get(target);
+    case 'get': {
+      // With the latest build and a plain state, so a caller sees why nothing is deployed.
+      const { getDockerSourceWithBuildState } = await import('@/modules/docker/docker-source-build-state.js');
+      return getDockerSourceWithBuildState(target);
+    }
     case 'pending': {
       const pending = await sourceService.getPendingContainer(nodeId, String(a.containerName));
       if (!pending) throw new AppError(404, 'PENDING_SOURCE_NOT_FOUND', 'Pending source container not found');
-      return pending;
+      // With the latest build and state, so a failed first build says why and what to do.
+      const { withPendingDockerSourceBuildState } = await import('@/modules/docker/docker-source-build-state.js');
+      return withPendingDockerSourceBuildState(pending);
     }
     case 'pending_volumes': {
       if (targetType !== 'container')
@@ -1568,8 +1582,16 @@ async function manageDockerSource(
       );
     }
     case 'upsert': {
+      if (target.kind === 'container') {
+        // A Compose service or deployment slot container takes no source of its own (409 SOURCE_TARGET_OWNED).
+        const { assertContainerSourceTargetNotOwned } = await import('@/modules/docker/docker-source-target-owner.js');
+        await assertContainerSourceTargetNotOwned(target.nodeId, target.containerName);
+      }
       const saved = await sourceService.get(target);
-      return sourceService.upsert(DockerSourceBindingUpsertSchema.parse({ ...sourceConfig(saved), target }), user);
+      const { withDockerSourceBuildState } = await import('@/modules/docker/docker-source-build-state.js');
+      return withDockerSourceBuildState(
+        await sourceService.upsert(DockerSourceBindingUpsertSchema.parse({ ...sourceConfig(saved), target }), user)
+      );
     }
     case 'remove':
       return { success: true, removed: await sourceService.remove(target, user.id) };

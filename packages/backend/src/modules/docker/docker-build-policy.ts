@@ -7,6 +7,7 @@ import type {
   DockerBuildVulnerabilityScope,
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { policyRejectionReason } from './docker-build-policy-reason.js';
 
 export const WORKER_ACTIVE_BUILD_STATUSES: DockerBuildStatus[] = [
   'claimed',
@@ -273,7 +274,14 @@ export function evaluateDockerArtifactPolicy(
   return violations.length > 0
     ? {
         decision: 'rejected',
-        reason: `${scoped.label} at or above ${threshold}: ${violations.join(', ')}`,
+        reason: policyRejectionReason({
+          label: scoped.label,
+          threshold: threshold as PolicySeverity,
+          scope: policy.vulnerabilityScope ?? 'all',
+          violations,
+          count: scoped.count,
+          summary: artifact.scanSummary,
+        }),
       }
     : { decision: 'approved', reason: null };
 }

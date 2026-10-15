@@ -28,6 +28,11 @@ import { DockerBuildService } from './docker-build.service.js';
 import { updatePendingContainerVolumes } from './docker-pending-container-volumes.js';
 import { DockerSourceService } from './docker-source.service.js';
 import {
+  getDockerSourceWithBuildState,
+  withDockerSourceBuildState,
+  withPendingDockerSourceBuildState,
+} from './docker-source-build-state.js';
+import {
   canListSourceConnectors,
   canPickDockerSource,
   listSourceConnectors,
@@ -46,6 +51,7 @@ import {
   syncContainerSourceRoute,
   syncDeploymentSourceRoute,
 } from './docker-source-sync.docs.js';
+import { assertContainerSourceTargetNotOwned } from './docker-source-target-owner.js';
 
 export { assertDockerSourceTargetNode, initialDockerSourceBuildError } from './docker-source-resource-creation.js';
 
@@ -176,7 +182,7 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
         .resolve(DockerSourceService)
         .getPendingContainer(c.req.param('nodeId'), decodeURIComponent(c.req.param('containerName')));
       if (!pending) throw new AppError(404, 'PENDING_SOURCE_NOT_FOUND', 'Pending source container not found');
-      return c.json({ data: pending });
+      return c.json({ data: await withPendingDockerSourceBuildState(pending) });
     }
   );
   // The volume mounts the first build creates the container with (the whole list).
@@ -202,17 +208,20 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
         allowPendingSource: true,
       }),
     },
-    async (c) => c.json({ data: await container.resolve(DockerSourceService).get(containerTarget(c)) })
+    async (c) => c.json({ data: await getDockerSourceWithBuildState(containerTarget(c)) })
   );
   router.put(
     '/nodes/:nodeId/containers/:containerName/source',
     requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
     async (c) => {
       const config = DockerSourceBindingConfigSchema.parse(await c.req.json());
-      const data = await container
-        .resolve(DockerSourceService)
-        .upsert({ ...config, target: containerTarget(c) }, actorFor(c));
-      return c.json({ data });
+      const target = containerTarget(c);
+      await assertContainerSourceTargetNotOwned(
+        c.req.param('nodeId')!,
+        decodeURIComponent(c.req.param('containerName')!)
+      );
+      const saved = await container.resolve(DockerSourceService).upsert({ ...config, target }, actorFor(c));
+      return c.json({ data: await withDockerSourceBuildState(saved) });
     }
   );
   router.post(
@@ -280,17 +289,17 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
   router.get(
     '/nodes/:nodeId/deployments/:deploymentId/source',
     requireDeploymentSourceScope('docker:containers:view'),
-    async (c) => c.json({ data: await container.resolve(DockerSourceService).get(deploymentTarget(c)) })
+    async (c) => c.json({ data: await getDockerSourceWithBuildState(deploymentTarget(c)) })
   );
   router.put(
     '/nodes/:nodeId/deployments/:deploymentId/source',
     requireDeploymentSourceScope('docker:containers:edit'),
     async (c) => {
       const config = DockerSourceBindingConfigSchema.parse(await c.req.json());
-      const data = await container
+      const saved = await container
         .resolve(DockerSourceService)
         .upsert({ ...config, target: deploymentTarget(c) }, actorFor(c));
-      return c.json({ data });
+      return c.json({ data: await withDockerSourceBuildState(saved) });
     }
   );
   router.post(
@@ -361,7 +370,7 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
   router.get(
     '/nodes/:nodeId/compose-projects/:projectId/source',
     requireComposeSourceScope('docker:compose:view'),
-    async (c) => c.json({ data: await container.resolve(DockerSourceService).get(composeTarget(c)) })
+    async (c) => c.json({ data: await getDockerSourceWithBuildState(composeTarget(c)) })
   );
   router.put(
     '/nodes/:nodeId/compose-projects/:projectId/source',
@@ -369,8 +378,8 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
     async (c) => {
       await container.resolve(LicensePolicyService).requireFeature('compose-applications');
       const input = DockerSourceBindingUpsertSchema.parse({ ...(await c.req.json()), target: composeTarget(c) });
-      const data = await container.resolve(DockerSourceService).upsert(input, actorFor(c));
-      return c.json({ data });
+      const saved = await container.resolve(DockerSourceService).upsert(input, actorFor(c));
+      return c.json({ data: await withDockerSourceBuildState(saved) });
     }
   );
   router.post(
