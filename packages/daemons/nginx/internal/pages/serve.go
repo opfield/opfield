@@ -147,7 +147,8 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	if !fallback.SPAFallback && fallback.URL != "" {
 		lines = append(lines, "    error_page 404 =302 "+fallback.URL+";")
 	} else {
-		lines = append(lines, "    error_page 404 = @opfield_pages_not_found;")
+		// No "=": the project's own 404.html is served with the original 404 status.
+		lines = append(lines, "    error_page 404 @opfield_pages_404;")
 	}
 	// The runtime configuration answers under the Opfield path, which pages load, and under the pre-Opfield one, which
 	// pages written before 2.12.1 may name themselves.
@@ -162,6 +163,9 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	}
 	lines = append(lines, "    }")
 	if fallback.SPAFallback || fallback.URL == "" {
+		// The deployment's top-level 404.html answers a missing path (with the runtime configuration script injected like
+		// any page); without one, the generic Opfield page does.
+		lines = append(lines, "    location @opfield_pages_404 {", "        try_files /404.html @opfield_pages_not_found;", "        sub_filter_once on;", "        sub_filter '</head>' '<script src=\""+naming.PagesConfigScriptPath+"\"></script></head>';", "    }")
 		lines = append(lines, "    location @opfield_pages_not_found {", "        default_type text/html;", "        return 404 '"+notFoundHTML+"';", "    }")
 	}
 	lines = append(lines, "    location ~* \\.(?:css|js|mjs|json|png|jpe?g|gif|svg|ico|webp|avif|woff2?)$ {", "        limit_except GET HEAD { deny all; }", "        expires 1y;", "        add_header Cache-Control \"public, max-age=31536000, immutable\" always;", "    }", "}")

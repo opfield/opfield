@@ -238,6 +238,44 @@ func TestPreviewFallbackConfiguration(t *testing.T) {
 	}
 }
 
+func TestPreviewServesProjectNotFoundPage(t *testing.T) {
+	runtime, _ := newRuntime(t)
+	stageRelease(t, runtime)
+
+	for name, fallback := range map[string]PreviewFallback{"plain.pages.example": {}, "spa.pages.example": {SPAFallback: true}} {
+		if err := runtime.MaterializePreview(profileID, deploymentID, name, "", "", fallback); err != nil {
+			t.Fatal(err)
+		}
+		content, err := os.ReadFile(runtime.previewConfigPath(name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		config := string(content)
+		// The status comes from the original response, so error_page carries no "=" override.
+		if !strings.Contains(config, "error_page 404 @opfield_pages_404;") {
+			t.Fatalf("%s: 404 is not routed to the project page: %s", name, config)
+		}
+		if !strings.Contains(config, "location @opfield_pages_404 {\n        try_files /404.html @opfield_pages_not_found;") {
+			t.Fatalf("%s: project 404.html is not tried first: %s", name, config)
+		}
+		if !strings.Contains(config, "location @opfield_pages_not_found {") || !strings.Contains(config, "return 404 '") {
+			t.Fatalf("%s: generic page is missing as the last resort: %s", name, config)
+		}
+	}
+
+	// A configured fallback URL redirects and never reaches the project page.
+	if err := runtime.MaterializePreview(profileID, deploymentID, "url.pages.example", "", "", PreviewFallback{URL: "https://errors.example.com/x"}); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(runtime.previewConfigPath("url.pages.example"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(content), "opfield_pages_404") {
+		t.Fatalf("fallback URL preview must not serve 404.html: %s", content)
+	}
+}
+
 func TestConfigSwitchSkipsNginxReloadWhenContentIsUnchanged(t *testing.T) {
 	runtime, nginx := newRuntime(t)
 	stageRelease(t, runtime)

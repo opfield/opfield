@@ -241,13 +241,15 @@ function renderAdditionalRouteLocation(
     const legacyScopedConfigPath = `${path}${LEGACY_PAGES_CONFIG_SCRIPT_PATH}`;
     const escaped = routeRegexPath(path);
     const notFoundLocation = `opfield_pages_not_found_${route.id.replace(/-/g, '_')}`;
+    const notFoundPageLocation = `opfield_pages_404_${route.id.replace(/-/g, '_')}`;
     const spaLocation = `opfield_pages_spa_${route.id.replace(/-/g, '_')}`;
     const fallbackUrl = safePagesFallbackUrl(route.pagesFallbackUrl);
     const errorPage = route.pagesSpaFallback
       ? `        error_page 404 = @${spaLocation};`
       : fallbackUrl
         ? `        error_page 404 =302 ${fallbackUrl};`
-        : `        error_page 404 = @${notFoundLocation};`;
+        : // No "=": the project's own 404.html is served with the original 404 status.
+          `        error_page 404 @${notFoundPageLocation};`;
     const pageBody = [
       ...common,
       '        limit_except GET HEAD { deny all; }',
@@ -289,6 +291,15 @@ function renderAdditionalRouteLocation(
         : []),
       ...(!fallbackUrl
         ? [
+            // The deployment's top-level 404.html answers a missing path; without one the generic page does.
+            `    location @${notFoundPageLocation} {`,
+            ...common,
+            `        include ${routeNginxValue(route.pagesRouteIncludePath ?? '')};`,
+            `        try_files /404.html @${notFoundLocation};`,
+            '        sub_filter_once on;',
+            `        sub_filter '</head>' '<script src="${scopedConfigPath}"></script></head>';`,
+            '    }',
+            '',
             `    location @${notFoundLocation} {`,
             '        default_type text/html;',
             `        return 404 ${escapeNginxReturnText(OPFIELD_NOT_FOUND_HTML)};`,
@@ -476,7 +487,7 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 {{#if pagesFallbackUrl}}
     error_page 404 =302 {{pagesFallbackUrl}};
 {{else}}
-    error_page 404 = @opfield_pages_not_found_{{id}};
+    error_page 404 @opfield_pages_404_{{id}};
 {{/if}}
     location ~ /\\. { deny all; }
 
@@ -628,6 +639,12 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
 
 {{#if pagesRouteIncludePath}}
 {{#unless pagesFallbackUrl}}
+    location @opfield_pages_404_{{id}} {
+        try_files /404.html @opfield_pages_not_found_{{id}};
+        sub_filter_once on;
+        sub_filter '</head>' '<script src="${PAGES_CONFIG_SCRIPT_PATH}"></script></head>';
+    }
+
     location @opfield_pages_not_found_{{id}} {
         default_type text/html;
         return 404 ${escapeNginxReturnText(OPFIELD_NOT_FOUND_HTML)};

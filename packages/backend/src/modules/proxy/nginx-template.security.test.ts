@@ -281,3 +281,65 @@ describe('NginxTemplateService escaping of route values', () => {
     expect(new ConfigValidatorService().validate(rendered, true, true)).toEqual({ valid: true, errors: [] });
   });
 });
+
+describe('NginxTemplateService Pages missing-path answer', () => {
+  const routeId = '22222222-2222-4222-8222-222222222222';
+  const routeSuffix = routeId.replace(/-/g, '_');
+  const pagesHost: ProxyHostConfig = {
+    ...host,
+    advancedConfig: null,
+    templateVariables: {},
+    pagesRouteIncludePath: '/etc/nginx/gateway/pages/routes/a.inc',
+    additionalRoutes: [
+      {
+        id: routeId,
+        path: '/docs',
+        targetKind: 'pages',
+        forwardScheme: 'http',
+        forwardHost: null,
+        forwardPort: null,
+        pagesRouteIncludePath: '/etc/nginx/gateway/pages/routes/b.inc',
+        pagesRuntimeConfigPath: '/var/lib/pages/b.js',
+        stripPrefix: true,
+        websocketSupport: false,
+        requestBuffering: true,
+        responseBuffering: true,
+        connectTimeoutSeconds: 60,
+        readTimeoutSeconds: 60,
+        sendTimeoutSeconds: 60,
+      },
+    ],
+  };
+  const render = (value: ProxyHostConfig) => {
+    const db = { query: { nginxTemplates: { findFirst: async () => undefined } } };
+    return new NginxTemplateService(db as never, {} as never, new ConfigValidatorService()).renderForHost(value, null);
+  };
+
+  it("serves the deployment's 404.html with the original status before the generic page", async () => {
+    const rendered = await render(pagesHost);
+
+    // No "=": a "=" override would turn the project page into a 200.
+    expect(rendered).toContain(`error_page 404 @opfield_pages_404_${host.id};`);
+    expect(rendered).toContain(
+      `location @opfield_pages_404_${host.id} {\n        try_files /404.html @opfield_pages_not_found_${host.id};`
+    );
+    expect(rendered).toContain(`location @opfield_pages_not_found_${host.id} {`);
+    expect(rendered).toContain(`error_page 404 @opfield_pages_404_${routeSuffix};`);
+    expect(rendered).toContain(`try_files /404.html @opfield_pages_not_found_${routeSuffix};`);
+    expect(rendered).not.toMatch(/error_page 404 = @opfield_pages_not_found/);
+  });
+
+  it('keeps the fallback URL redirect and the SPA fallback ahead of the 404.html', async () => {
+    const withUrl = await render({ ...pagesHost, pagesFallbackUrl: 'https://errors.example.com/x' });
+    expect(withUrl).toContain('error_page 404 =302 https://errors.example.com/x;');
+    expect(withUrl).not.toContain(`location @opfield_pages_404_${host.id}`);
+
+    const spa = await render({
+      ...pagesHost,
+      pagesSpaFallback: true,
+      additionalRoutes: [{ ...pagesHost.additionalRoutes![0]!, pagesSpaFallback: true }],
+    });
+    expect(spa).toContain('try_files $uri $uri/ /index.html;');
+    expect(spa).toContain(`error_page 404 = @opfield_pages_spa_${routeSuffix};`);
+  });
+});
