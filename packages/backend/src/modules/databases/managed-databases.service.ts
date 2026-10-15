@@ -25,6 +25,7 @@ import type {
   ManagedDatabaseLogTarget,
   ManagedDatabaseRow,
   ManagedDatabaseRuntimeStats,
+  ManagedPostgresExtensionsView,
 } from './managed-databases.service.core.js';
 export class ManagedDatabaseService {
   // biome-ignore lint/complexity/noUselessConstructor: Stable commercial constructor contract.
@@ -181,7 +182,11 @@ export class ManagedDatabaseService {
   async create(
     _input: CreateManagedDatabaseInput,
     _userId: string,
-    _options?: { keepLegacyRedisVersion?: boolean }
+    _options?: {
+      keepLegacyRedisVersion?: boolean;
+      /** A restore target: the source's PostgreSQL preload libraries and extension bundles. */
+      postgresExtensions?: { sharedPreloadLibraries: string[]; extensionBundles: string[] };
+    }
   ): Promise<{
     id: string;
     databaseConnectionId: string | null;
@@ -347,6 +352,19 @@ export class ManagedDatabaseService {
     createdAt: Date;
     updatedAt: Date;
   }> {
+    return commercialModuleUnavailable();
+  }
+  /** The curated PostgreSQL extensions of a managed database and their state on it. */
+  async listPostgresExtensions(_id: string): Promise<ManagedPostgresExtensionsView> {
+    return commercialModuleUnavailable();
+  }
+  async enablePostgresExtension(_id: string, _name: string, _userId: string): Promise<ManagedPostgresExtensionsView> {
+    return commercialModuleUnavailable();
+  }
+  async disablePostgresExtension(_id: string, _name: string, _userId: string): Promise<ManagedPostgresExtensionsView> {
+    return commercialModuleUnavailable();
+  }
+  async updatePostgresExtension(_id: string, _name: string, _userId: string): Promise<ManagedPostgresExtensionsView> {
     return commercialModuleUnavailable();
   }
   async moveToValkeyPreflight(_id: string): Promise<{

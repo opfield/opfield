@@ -126,8 +126,52 @@ export const updateManagedDatabaseRoute = appRoute({
   tags: ['Databases'],
   summary: 'Update managed database configuration',
   description:
-    'Changes resources, version, publication and engine settings. `version` moves to a newer catalog version of the same engine: PostgreSQL within its major version (another major is a backup restored into a new database, 409 `POSTGRES_MAJOR_CHANGE`), Valkey and ClickHouse to the next catalog version (409 `MANAGED_DATABASE_VERSION_STEP`); the node recreates the container on the new image with the data kept (409 `MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED` on an older node daemon). A database on several servers (availability on) takes the settings at once with status `updating` and changes its members one at a time: copies first, each until it is an eligible copy again, then a planned switchover to a changed copy when the primary must restart, then the old primary; `availability.operation` shows the rolling update, and the status goes back to `ready` (a stop part-way leaves `lastError`). TLS cannot be turned on or off there (409 `AVAILABILITY_TLS_CHANGE`); an older member daemon answers 409 `AVAILABILITY_NODE_NOT_CAPABLE`. A database in an app environment isolated by the kill switch is refused (409 `APP_ISOLATED`).',
+    "Changes resources, version, publication and engine settings. `version` moves to a newer catalog version of the same engine: PostgreSQL within its major version (another major is a backup restored into a new database, 409 `POSTGRES_MAJOR_CHANGE`), Valkey and ClickHouse to the next catalog version (409 `MANAGED_DATABASE_VERSION_STEP`); the node recreates the container on the new image with the data kept (409 `MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED` on an older node daemon). `imageUpdate: true` moves a PostgreSQL database from the official image of its version to Opfield's image of the same version, which adds the extensions (data kept, one restart; 409 `MANAGED_DATABASE_IMAGE_CURRENT` when it already runs it or none is published yet). A database on several servers (availability on) takes the settings at once with status `updating` and changes its members one at a time: copies first, each until it is an eligible copy again, then a planned switchover to a changed copy when the primary must restart, then the old primary; `availability.operation` shows the rolling update, and the status goes back to `ready` (a stop part-way leaves `lastError`). TLS cannot be turned on or off there (409 `AVAILABILITY_TLS_CHANGE`); an older member daemon answers 409 `AVAILABILITY_NODE_NOT_CAPABLE`. A database in an app environment isolated by the kill switch is refused (409 `APP_ISOLATED`).",
   request: { params: IdParamSchema, ...jsonBody(UpdateManagedDatabaseSchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+const MANAGED_EXTENSION_CHANGE_NOTES =
+  'Only the curated extensions the list returns can change (400 `EXTENSION_NOT_ALLOWED`). DDL runs as the control superuser in the application database, on the primary when the database runs on several servers (copies follow). An extension that needs a preload library restarts the database (a rolling update copies-first on several servers); one that comes as a download is installed into the database volume on every server first (409 `EXTENSION_NEEDS_STORAGE` when the volume lacks room). The answer is the extension list; `pending` is set while a restart or a download runs, and the SQL step follows on its own. Refusals: 409 `EXTENSION_NEEDS_IMAGE_UPDATE` (update with `imageUpdate: true` first), `EXTENSION_NOT_AVAILABLE` (not in this version), `MANAGED_DATABASE_DAEMON_UPDATE_REQUIRED` (a node daemon predates extensions), `MANAGED_DATABASE_EXTENSION_CHANGE_PENDING` (another change runs).';
+
+export const listManagedDatabaseExtensionsRoute = appRoute({
+  method: 'get',
+  path: '/managed/{id}/extensions',
+  tags: ['Databases'],
+  summary: 'List the extensions of a managed PostgreSQL database',
+  description:
+    'The curated extensions Opfield offers, with their state on the database: `status` enabled, update_available, available, needs_bundle (a download of `bundleSizeBytes` into the database volume), needs_image_update (the database runs the official image: update with `imageUpdate: true`) or unavailable (not in this version); `availableVersion`, `installedVersion`, `category`, `description`, `preloadLibraries` and whether enabling or disabling restarts the database (`restartToEnable`, `restartToDisable`). Also `imageUpdateAvailable`, the volume space, the change in progress (`pending`) and the last failed one (`lastError`). `daemonUpdateRequired` true means the node daemon predates extensions (no status is reported). Needs databases:view.',
+  request: { params: IdParamSchema },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const enableManagedDatabaseExtensionRoute = appRoute({
+  method: 'post',
+  path: '/managed/{id}/extensions/{name}',
+  tags: ['Databases'],
+  summary: 'Enable an extension of a managed PostgreSQL database',
+  description: `CREATE EXTENSION ... CASCADE, after the preload library or the download it needs, and grants the application role use of its objects. Enabling an enabled extension changes nothing. ${MANAGED_EXTENSION_CHANGE_NOTES} Needs databases:edit.`,
+  request: { params: PostgresExtensionParamSchema },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const disableManagedDatabaseExtensionRoute = appRoute({
+  method: 'delete',
+  path: '/managed/{id}/extensions/{name}',
+  tags: ['Databases'],
+  summary: 'Disable an extension of a managed PostgreSQL database',
+  description: `DROP EXTENSION without CASCADE: refused while database objects depend on it (409 \`EXTENSION_HAS_DEPENDENTS\` with the dependent objects). A preload library or a download no other enabled extension needs is removed afterwards (a restart for a library). ${MANAGED_EXTENSION_CHANGE_NOTES} Needs databases:edit.`,
+  request: { params: PostgresExtensionParamSchema },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const updateManagedDatabaseExtensionRoute = appRoute({
+  method: 'post',
+  path: '/managed/{id}/extensions/{name}/update',
+  tags: ['Databases'],
+  summary: 'Update an extension of a managed PostgreSQL database',
+  description: `ALTER EXTENSION ... UPDATE to the version the database image ships (\`availableVersion\`); at that version already, nothing changes. ${MANAGED_EXTENSION_CHANGE_NOTES} Needs databases:edit.`,
+  request: { params: PostgresExtensionParamSchema },
   responses: okJson(UnknownDataResponseSchema),
 });
 

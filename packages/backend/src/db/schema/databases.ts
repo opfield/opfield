@@ -100,6 +100,29 @@ export interface ManagedDatabaseEngineConfig {
   clickhouseConfigXml?: string;
   redisConfig?: ManagedRedisConfig;
   postgresConfig?: ManagedPostgresConfig;
+  postgresExtensions?: ManagedPostgresExtensionsConfig;
+}
+
+/**
+ * The curated PostgreSQL extensions a database needs at the engine level (absent = none): the
+ * shared_preload_libraries it starts with and the downloadable extension bundles its volume holds. Every member,
+ * restore target and image update gets them from here. `pending` is an extension change waiting for the settings
+ * to reach the server (a restart, a download) before its SQL runs on the primary; `lastError` is the last one that
+ * failed.
+ */
+export interface ManagedPostgresExtensionsConfig {
+  sharedPreloadLibraries: string[];
+  extensionBundles: string[];
+  pending?: ManagedPostgresExtensionChange | null;
+  lastError?: (ManagedPostgresExtensionChange & { message: string; failedAt: string }) | null;
+}
+
+export interface ManagedPostgresExtensionChange {
+  id: string;
+  action: 'enable' | 'disable' | 'update';
+  name: string;
+  userId: string | null;
+  requestedAt: string;
 }
 
 /** PostgreSQL server settings; absent means the engine defaults. */
@@ -168,6 +191,11 @@ export interface ManagedDatabasePendingOperation {
    * the store to Redis.
    */
   previousEngine?: { version: string; imageRef: string };
+  /**
+   * An update that changes the PostgreSQL extension settings (preload libraries, bundles): the settings before it
+   * (null = none). A failed update puts them back.
+   */
+  previousPostgresExtensions?: ManagedPostgresExtensionsConfig | null;
   /** A move to Valkey the caller allowed to drop the pending entries of stream consumer groups. */
   acceptPendingStreamLoss?: boolean;
 }
