@@ -1,0 +1,5 @@
+{
+  "$comment": "Pinned downloadable extension bundles (packages/daemons/postgres-image/bundle), filled from the digests the Image workflow prints once the owner approved publishing: one entry per bundle, PostgreSQL major and Debian release; reference is the multi-arch index digest under the mirror repository nodes pull from, sizeBytes the installed size per architecture (opfield-bundle.json sizeBytes). Empty until then: bundle extensions report unavailable.",
+  "schemaVersion": 1,
+  "bundles": []
+}

@@ -1,0 +1,17 @@
+{
+  "$comment": "Managed PostgreSQL catalog versions (the single source of truth): the official image each one is built on (base, always accepted) and Opfield's image of it (image, null until the Image workflow published it and the owner approved the pin). The docker daemon embeds this file; the controller catalog must agree with it (TestPostgresCatalogAgreement, and the commercial catalog test). Every catalog version of one major shares its Debian release.",
+  "schemaVersion": 1,
+  "repository": "postgres",
+  "versions": [
+    { "version": "18.4", "major": "18", "debian": "trixie", "base": "docker.io/library/postgres@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a", "image": null },
+    { "version": "18.3", "major": "18", "debian": "trixie", "base": "docker.io/library/postgres@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db", "image": null },
+    { "version": "17.10", "major": "17", "debian": "trixie", "base": "docker.io/library/postgres@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d", "image": null },
+    { "version": "17.8", "major": "17", "debian": "trixie", "base": "docker.io/library/postgres@sha256:69dddb030ab69d669d8d7c6abf67aeb448178e5270d5f123a21f4f7ac8b46a24", "image": null },
+    { "version": "16.14", "major": "16", "debian": "trixie", "base": "docker.io/library/postgres@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20", "image": null },
+    { "version": "16.10", "major": "16", "debian": "trixie", "base": "docker.io/library/postgres@sha256:21f6013073bc6b92830a2129570e2f5ec42a6c734b5a985a41e83aa58f54c3c1", "image": null },
+    { "version": "15.18", "major": "15", "debian": "trixie", "base": "docker.io/library/postgres@sha256:74e110c41804365e3915fcc09d5e7a1eff50161aaa94d5da0e58e0cd75ae509c", "image": null },
+    { "version": "15.14", "major": "15", "debian": "trixie", "base": "docker.io/library/postgres@sha256:822f8795764a670160640888508b2a68ea5c4b045012c2de17e1d0447bdbdc99", "image": null },
+    { "version": "14.23", "major": "14", "debian": "trixie", "base": "docker.io/library/postgres@sha256:caf49e3b10d377aa2cfee478591d623808527beb27125d38797b418013f72d81", "image": null },
+    { "version": "14.19", "major": "14", "debian": "trixie", "base": "docker.io/library/postgres@sha256:962ffbe9f6418387643411b127c1db27465e5a23b9a8849bfaf45fa6323963ce", "image": null }
+  ]
+}
