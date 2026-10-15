@@ -1375,7 +1375,14 @@ async function manageDockerBuild(user: User, args: Record<string, unknown>) {
       afterSequence: a.afterSequence ?? -1,
       limit: a.limit ?? 200,
     });
-    return service.listLogs(buildId, query.afterSequence, query.limit);
+    const chunks = await service.listLogs(buildId, query.afterSequence, query.limit);
+    // The daemon cuts output into chunks, so the text is the chunks joined, not one entry per chunk.
+    return {
+      text: chunks.map((chunk) => chunk.content).join(''),
+      lastSequence: chunks.length > 0 ? chunks[chunks.length - 1]!.sequence : query.afterSequence,
+      chunkCount: chunks.length,
+      hasMore: chunks.length >= query.limit,
+    };
   }
   if (operation === 'cancel') return service.requestCancellation(buildId, user.id);
   if (operation === 'retry') return service.retry(buildId, user.id);
