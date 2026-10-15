@@ -337,7 +337,9 @@ func (m *managedDatabaseManager) pgEnsureOrigin(ctx context.Context, members *me
 			return "", err
 		}
 		if identities := config.Engine.Identities; identities != nil {
-			if err := member.EnsureIdentities(ctx, *identities); err != nil {
+			// Still the single-node container: its pg_hba asks every socket connection for a password (the link
+			// socket shares it), and the node-local role has none, so the principals are made as the control account.
+			if err := m.ensurePGOriginIdentities(ctx, record, input.ControlUsername, input.Database.OwnerPassword, *identities); err != nil {
 				return "", fmt.Errorf("create the set's principals: %w", err)
 			}
 		}
@@ -473,6 +475,23 @@ func (m *managedDatabaseManager) ensurePGLocalRole(ctx context.Context, record m
 		return fmt.Errorf("create the node-local role: %w", err)
 	}
 	return nil
+}
+
+// ensurePGOriginIdentities converges the set principals on an origin that still
+// runs its single-node container, through the unix socket as the control
+// account with its password (the node-local role can log in without one only
+// once the member pg_hba is in place).
+func (m *managedDatabaseManager) ensurePGOriginIdentities(ctx context.Context, record managedDatabaseRecord, controlUsername, password string, identities pgha.Identities) error {
+	var env []string
+	if password != "" {
+		env = []string{"PGPASSWORD=" + password}
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	_, err := m.pgExecOutputEnv(callCtx, record.ContainerID,
+		[]string{"psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-h", "/var/run/postgresql", "-U", controlUsername, "-d", "postgres"},
+		pgIdentitiesSQL(identities), env)
+	return err
 }
 
 // createPGMemberStorage allocates the data image of a new member (the
