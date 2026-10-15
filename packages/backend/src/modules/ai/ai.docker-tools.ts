@@ -80,7 +80,10 @@ import { inspectUserContainer } from '@/modules/docker/docker-internal-container
 import { withNodeLossAnswer } from '@/modules/docker/docker-node-loss.js';
 import { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
 import { sanitizeContainerInspect } from '@/modules/docker/docker-snapshot.service.js';
-import { assertNotPendingSourceContainer } from '@/modules/docker/docker-source.service.js';
+import {
+  assertNotPendingSourceContainer,
+  type DockerSourceService as DockerSourceServiceType,
+} from '@/modules/docker/docker-source.service.js';
 import {
   canListSourceConnectors,
   canPickDockerSource,
@@ -129,6 +132,8 @@ import {
   dockerVolumeMatchesSearch,
   hasRegistryHost,
 } from './ai.service-helpers.js';
+
+type SavedDockerSource = Awaited<ReturnType<DockerSourceServiceType['get']>>;
 
 export const DOCKER_TOOL_NAMES = new Set([
   'create_docker_container',
@@ -1420,26 +1425,22 @@ async function manageDockerSource(
       .findDockerBuildSourceRepositories(user, String(a.connectorId || ''), optionalNonEmptyString(a.search));
   }
 
-  const sourceConfig = () =>
+  // upsert of an existing source: omitted fields and policy keys keep their saved values (create: defaults).
+  const sourceConfig = (saved?: SavedDockerSource) =>
     DockerSourceBindingConfigSchema.parse({
-      connectorId: a.connectorId,
-      projectId: a.projectId,
-      branch: a.branch,
-      dockerfilePath: a.dockerfilePath ?? 'Dockerfile',
-      contextPath: a.contextPath ?? '.',
-      composeFilePath: a.composeFilePath,
-      composeVariables: a.composeVariables ?? {},
-      composeSecretKeys: a.composeSecretKeys ?? [],
-      autoBuild: a.autoBuild ?? true,
-      autoDeploy: a.autoDeploy ?? true,
-      buildArgs: a.buildArgs ?? {},
-      buildSecretNames: a.buildSecretNames ?? [],
-      policy: a.policy,
-    });
-  const sourceUpsert = (target: DockerSourceTarget) =>
-    DockerSourceBindingUpsertSchema.parse({
-      ...sourceConfig(),
-      target,
+      connectorId: a.connectorId ?? saved?.connectorId,
+      projectId: a.projectId ?? saved?.projectId,
+      branch: a.branch ?? saved?.branch,
+      dockerfilePath: a.dockerfilePath ?? saved?.dockerfilePath ?? 'Dockerfile',
+      contextPath: a.contextPath ?? saved?.contextPath ?? '.',
+      composeFilePath: a.composeFilePath ?? saved?.composeFilePath ?? undefined,
+      composeVariables: a.composeVariables ?? saved?.composeVariables ?? {},
+      composeSecretKeys: a.composeSecretKeys ?? saved?.composeSecretKeys ?? [],
+      autoBuild: a.autoBuild ?? saved?.autoBuild ?? true,
+      autoDeploy: a.autoDeploy ?? saved?.autoDeploy ?? true,
+      buildArgs: a.buildArgs ?? saved?.buildArgs ?? {},
+      buildSecretNames: a.buildSecretNames ?? saved?.buildSecretNames ?? [],
+      policy: { ...(saved?.policy ?? {}), ...(a.policy ?? {}) },
     });
 
   if (operation === 'create') {
@@ -1540,8 +1541,10 @@ async function manageDockerSource(
       if (!pending) throw new AppError(404, 'PENDING_SOURCE_NOT_FOUND', 'Pending source container not found');
       return pending;
     }
-    case 'upsert':
-      return sourceService.upsert(sourceUpsert(target), user);
+    case 'upsert': {
+      const saved = await sourceService.get(target);
+      return sourceService.upsert(DockerSourceBindingUpsertSchema.parse({ ...sourceConfig(saved), target }), user);
+    }
     case 'remove':
       return { success: true, removed: await sourceService.remove(target, user.id) };
     case 'resolve':

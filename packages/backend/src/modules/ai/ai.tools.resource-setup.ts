@@ -173,7 +173,22 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
         autoDeploy: { type: 'boolean' },
         buildArgs: { type: 'object', description: 'Public build variables.' },
         buildSecretNames: { type: 'array', items: { type: 'string' } },
-        policy: { type: 'object' },
+        policy: {
+          type: 'object',
+          description:
+            'Build policy of the source. Pages builds are not blocked by vulnerability findings, so it has no effect today; keys you omit keep their saved values.',
+          additionalProperties: false,
+          properties: {
+            vulnerabilityThreshold: {
+              type: 'string',
+              enum: ['critical', 'high', 'medium', 'low', 'none', 'disabled'],
+            },
+            vulnerabilityScope: {
+              type: 'string',
+              enum: ['all', 'application', 'fixable_application', 'fixable_all'],
+            },
+          },
+        },
         commitSha: { type: 'string' },
         force: { type: 'boolean' },
         secretName: { type: 'string' },
