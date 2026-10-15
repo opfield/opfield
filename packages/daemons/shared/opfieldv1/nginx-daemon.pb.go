@@ -6259,7 +6259,12 @@ type PagesMaterializePreviewCommand struct {
 	// As in ApplyConfigCommand: the preview config is written and tested, and
 	// loaded with the reload of its batch (a reconcile of several previews).
 	// Only sent to daemons advertising pages_deferred_reload_v1.
-	DeferReload   bool `protobuf:"varint,9,opt,name=defer_reload,json=deferReload,proto3" json:"defer_reload,omitempty"`
+	DeferReload bool `protobuf:"varint,9,opt,name=defer_reload,json=deferReload,proto3" json:"defer_reload,omitempty"`
+	// Where nginx takes the visitor's address from (realip), so the access
+	// list's IP rules and the access log see the visitor behind Cloudflare.
+	// Absent: the connecting peer. Only sent to daemons advertising
+	// nginx_pages_preview_client_ip_v1.
+	ClientIp      *PagesPreviewClientIp `protobuf:"bytes,10,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6357,6 +6362,69 @@ func (x *PagesMaterializePreviewCommand) GetDeferReload() bool {
 	return false
 }
 
+func (x *PagesMaterializePreviewCommand) GetClientIp() *PagesPreviewClientIp {
+	if x != nil {
+		return x.ClientIp
+	}
+	return nil
+}
+
+// The peers whose client-address header nginx believes (set_real_ip_from) and
+// that header. A connection from any other peer keeps its own address.
+type PagesPreviewClientIp struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Addresses or CIDRs.
+	TrustedProxies []string `protobuf:"bytes,1,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
+	// "CF-Connecting-IP", "X-Forwarded-For" or "X-Real-IP".
+	Header        string `protobuf:"bytes,2,opt,name=header,proto3" json:"header,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PagesPreviewClientIp) Reset() {
+	*x = PagesPreviewClientIp{}
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PagesPreviewClientIp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PagesPreviewClientIp) ProtoMessage() {}
+
+func (x *PagesPreviewClientIp) ProtoReflect() protoreflect.Message {
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PagesPreviewClientIp.ProtoReflect.Descriptor instead.
+func (*PagesPreviewClientIp) Descriptor() ([]byte, []int) {
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *PagesPreviewClientIp) GetTrustedProxies() []string {
+	if x != nil {
+		return x.TrustedProxies
+	}
+	return nil
+}
+
+func (x *PagesPreviewClientIp) GetHeader() string {
+	if x != nil {
+		return x.Header
+	}
+	return ""
+}
+
 // IP allow/deny rules and optional basic authentication for a Pages preview.
 // Basic-auth credentials are deployed separately with DeployHtpasswdCommand
 // under the same access_list_id before the preview references them.
@@ -6371,7 +6439,7 @@ type PagesPreviewAccess struct {
 
 func (x *PagesPreviewAccess) Reset() {
 	*x = PagesPreviewAccess{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[50]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6383,7 +6451,7 @@ func (x *PagesPreviewAccess) String() string {
 func (*PagesPreviewAccess) ProtoMessage() {}
 
 func (x *PagesPreviewAccess) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[50]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6396,7 +6464,7 @@ func (x *PagesPreviewAccess) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesPreviewAccess.ProtoReflect.Descriptor instead.
 func (*PagesPreviewAccess) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{50}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *PagesPreviewAccess) GetAccessListId() string {
@@ -6432,7 +6500,7 @@ type PagesPreviewIpRule struct {
 
 func (x *PagesPreviewIpRule) Reset() {
 	*x = PagesPreviewIpRule{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[51]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6444,7 +6512,7 @@ func (x *PagesPreviewIpRule) String() string {
 func (*PagesPreviewIpRule) ProtoMessage() {}
 
 func (x *PagesPreviewIpRule) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[51]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6457,7 +6525,7 @@ func (x *PagesPreviewIpRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesPreviewIpRule.ProtoReflect.Descriptor instead.
 func (*PagesPreviewIpRule) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{51}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *PagesPreviewIpRule) GetType() string {
@@ -6492,7 +6560,7 @@ type PagesDeployCertificateCommand struct {
 
 func (x *PagesDeployCertificateCommand) Reset() {
 	*x = PagesDeployCertificateCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[52]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6504,7 +6572,7 @@ func (x *PagesDeployCertificateCommand) String() string {
 func (*PagesDeployCertificateCommand) ProtoMessage() {}
 
 func (x *PagesDeployCertificateCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[52]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6517,7 +6585,7 @@ func (x *PagesDeployCertificateCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesDeployCertificateCommand.ProtoReflect.Descriptor instead.
 func (*PagesDeployCertificateCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{52}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *PagesDeployCertificateCommand) GetCertId() string {
@@ -6571,7 +6639,7 @@ type PagesRemovePreviewCommand struct {
 
 func (x *PagesRemovePreviewCommand) Reset() {
 	*x = PagesRemovePreviewCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[53]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6583,7 +6651,7 @@ func (x *PagesRemovePreviewCommand) String() string {
 func (*PagesRemovePreviewCommand) ProtoMessage() {}
 
 func (x *PagesRemovePreviewCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[53]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6596,7 +6664,7 @@ func (x *PagesRemovePreviewCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesRemovePreviewCommand.ProtoReflect.Descriptor instead.
 func (*PagesRemovePreviewCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{53}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *PagesRemovePreviewCommand) GetHostname() string {
@@ -6626,7 +6694,7 @@ type PagesActivateTagRouteCommand struct {
 
 func (x *PagesActivateTagRouteCommand) Reset() {
 	*x = PagesActivateTagRouteCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[54]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6638,7 +6706,7 @@ func (x *PagesActivateTagRouteCommand) String() string {
 func (*PagesActivateTagRouteCommand) ProtoMessage() {}
 
 func (x *PagesActivateTagRouteCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[54]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6651,7 +6719,7 @@ func (x *PagesActivateTagRouteCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesActivateTagRouteCommand.ProtoReflect.Descriptor instead.
 func (*PagesActivateTagRouteCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{54}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *PagesActivateTagRouteCommand) GetRouteId() string {
@@ -6684,7 +6752,7 @@ type PagesDeactivateTagRouteCommand struct {
 
 func (x *PagesDeactivateTagRouteCommand) Reset() {
 	*x = PagesDeactivateTagRouteCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[55]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6696,7 +6764,7 @@ func (x *PagesDeactivateTagRouteCommand) String() string {
 func (*PagesDeactivateTagRouteCommand) ProtoMessage() {}
 
 func (x *PagesDeactivateTagRouteCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[55]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6709,7 +6777,7 @@ func (x *PagesDeactivateTagRouteCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesDeactivateTagRouteCommand.ProtoReflect.Descriptor instead.
 func (*PagesDeactivateTagRouteCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{55}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *PagesDeactivateTagRouteCommand) GetRouteId() string {
@@ -6730,7 +6798,7 @@ type PagesCleanupDeploymentCommand struct {
 
 func (x *PagesCleanupDeploymentCommand) Reset() {
 	*x = PagesCleanupDeploymentCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[56]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6742,7 +6810,7 @@ func (x *PagesCleanupDeploymentCommand) String() string {
 func (*PagesCleanupDeploymentCommand) ProtoMessage() {}
 
 func (x *PagesCleanupDeploymentCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[56]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6755,7 +6823,7 @@ func (x *PagesCleanupDeploymentCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesCleanupDeploymentCommand.ProtoReflect.Descriptor instead.
 func (*PagesCleanupDeploymentCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{56}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *PagesCleanupDeploymentCommand) GetDeploymentId() string {
@@ -6776,7 +6844,7 @@ type PagesInventoryCommand struct {
 
 func (x *PagesInventoryCommand) Reset() {
 	*x = PagesInventoryCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[57]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6788,7 +6856,7 @@ func (x *PagesInventoryCommand) String() string {
 func (*PagesInventoryCommand) ProtoMessage() {}
 
 func (x *PagesInventoryCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[57]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6801,7 +6869,7 @@ func (x *PagesInventoryCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesInventoryCommand.ProtoReflect.Descriptor instead.
 func (*PagesInventoryCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{57}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *PagesInventoryCommand) GetExpectationsJson() []byte {
@@ -6820,7 +6888,7 @@ type PagesStoragePreflightCommand struct {
 
 func (x *PagesStoragePreflightCommand) Reset() {
 	*x = PagesStoragePreflightCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[58]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6832,7 +6900,7 @@ func (x *PagesStoragePreflightCommand) String() string {
 func (*PagesStoragePreflightCommand) ProtoMessage() {}
 
 func (x *PagesStoragePreflightCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[58]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6845,7 +6913,7 @@ func (x *PagesStoragePreflightCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesStoragePreflightCommand.ProtoReflect.Descriptor instead.
 func (*PagesStoragePreflightCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{58}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *PagesStoragePreflightCommand) GetRequiredBytes() int64 {
@@ -6870,7 +6938,7 @@ type PagesStageRuntimeConfigCommand struct {
 
 func (x *PagesStageRuntimeConfigCommand) Reset() {
 	*x = PagesStageRuntimeConfigCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[59]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6882,7 +6950,7 @@ func (x *PagesStageRuntimeConfigCommand) String() string {
 func (*PagesStageRuntimeConfigCommand) ProtoMessage() {}
 
 func (x *PagesStageRuntimeConfigCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[59]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6895,7 +6963,7 @@ func (x *PagesStageRuntimeConfigCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesStageRuntimeConfigCommand.ProtoReflect.Descriptor instead.
 func (*PagesStageRuntimeConfigCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{59}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *PagesStageRuntimeConfigCommand) GetBindingKind() PagesRuntimeConfigBindingKind {
@@ -6940,7 +7008,7 @@ type PagesActivateRuntimeConfigCommand struct {
 
 func (x *PagesActivateRuntimeConfigCommand) Reset() {
 	*x = PagesActivateRuntimeConfigCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[60]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6952,7 +7020,7 @@ func (x *PagesActivateRuntimeConfigCommand) String() string {
 func (*PagesActivateRuntimeConfigCommand) ProtoMessage() {}
 
 func (x *PagesActivateRuntimeConfigCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[60]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6965,7 +7033,7 @@ func (x *PagesActivateRuntimeConfigCommand) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use PagesActivateRuntimeConfigCommand.ProtoReflect.Descriptor instead.
 func (*PagesActivateRuntimeConfigCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{60}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *PagesActivateRuntimeConfigCommand) GetBindingKind() PagesRuntimeConfigBindingKind {
@@ -7003,7 +7071,7 @@ type PagesRemoveRuntimeConfigCommand struct {
 
 func (x *PagesRemoveRuntimeConfigCommand) Reset() {
 	*x = PagesRemoveRuntimeConfigCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[61]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7015,7 +7083,7 @@ func (x *PagesRemoveRuntimeConfigCommand) String() string {
 func (*PagesRemoveRuntimeConfigCommand) ProtoMessage() {}
 
 func (x *PagesRemoveRuntimeConfigCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[61]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7028,7 +7096,7 @@ func (x *PagesRemoveRuntimeConfigCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PagesRemoveRuntimeConfigCommand.ProtoReflect.Descriptor instead.
 func (*PagesRemoveRuntimeConfigCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{61}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *PagesRemoveRuntimeConfigCommand) GetBindingKind() PagesRuntimeConfigBindingKind {
@@ -7072,7 +7140,7 @@ type SyncRelayGrantsCommand struct {
 
 func (x *SyncRelayGrantsCommand) Reset() {
 	*x = SyncRelayGrantsCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[62]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7084,7 +7152,7 @@ func (x *SyncRelayGrantsCommand) String() string {
 func (*SyncRelayGrantsCommand) ProtoMessage() {}
 
 func (x *SyncRelayGrantsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[62]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7097,7 +7165,7 @@ func (x *SyncRelayGrantsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncRelayGrantsCommand.ProtoReflect.Descriptor instead.
 func (*SyncRelayGrantsCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{62}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *SyncRelayGrantsCommand) GetPolicyRevision() uint64 {
@@ -7160,7 +7228,7 @@ type RelayLatencyTarget struct {
 
 func (x *RelayLatencyTarget) Reset() {
 	*x = RelayLatencyTarget{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[63]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7172,7 +7240,7 @@ func (x *RelayLatencyTarget) String() string {
 func (*RelayLatencyTarget) ProtoMessage() {}
 
 func (x *RelayLatencyTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[63]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7185,7 +7253,7 @@ func (x *RelayLatencyTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayLatencyTarget.ProtoReflect.Descriptor instead.
 func (*RelayLatencyTarget) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{63}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *RelayLatencyTarget) GetRelayInstanceId() string {
@@ -7223,7 +7291,7 @@ type RelayRevocationFence struct {
 
 func (x *RelayRevocationFence) Reset() {
 	*x = RelayRevocationFence{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[64]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7235,7 +7303,7 @@ func (x *RelayRevocationFence) String() string {
 func (*RelayRevocationFence) ProtoMessage() {}
 
 func (x *RelayRevocationFence) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[64]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7248,7 +7316,7 @@ func (x *RelayRevocationFence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayRevocationFence.ProtoReflect.Descriptor instead.
 func (*RelayRevocationFence) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{64}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *RelayRevocationFence) GetRelayInstanceId() string {
@@ -7284,7 +7352,7 @@ type RelayRevokedRoute struct {
 
 func (x *RelayRevokedRoute) Reset() {
 	*x = RelayRevokedRoute{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[65]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7296,7 +7364,7 @@ func (x *RelayRevokedRoute) String() string {
 func (*RelayRevokedRoute) ProtoMessage() {}
 
 func (x *RelayRevokedRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[65]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7309,7 +7377,7 @@ func (x *RelayRevokedRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayRevokedRoute.ProtoReflect.Descriptor instead.
 func (*RelayRevokedRoute) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{65}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *RelayRevokedRoute) GetRouteId() string {
@@ -7362,7 +7430,7 @@ type RelayGrantAssignment struct {
 
 func (x *RelayGrantAssignment) Reset() {
 	*x = RelayGrantAssignment{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[66]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7374,7 +7442,7 @@ func (x *RelayGrantAssignment) String() string {
 func (*RelayGrantAssignment) ProtoMessage() {}
 
 func (x *RelayGrantAssignment) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[66]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7387,7 +7455,7 @@ func (x *RelayGrantAssignment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayGrantAssignment.ProtoReflect.Descriptor instead.
 func (*RelayGrantAssignment) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{66}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *RelayGrantAssignment) GetRole() string {
@@ -7527,7 +7595,7 @@ type RelayLeaseTarget struct {
 
 func (x *RelayLeaseTarget) Reset() {
 	*x = RelayLeaseTarget{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[67]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7539,7 +7607,7 @@ func (x *RelayLeaseTarget) String() string {
 func (*RelayLeaseTarget) ProtoMessage() {}
 
 func (x *RelayLeaseTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[67]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7552,7 +7620,7 @@ func (x *RelayLeaseTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayLeaseTarget.ProtoReflect.Descriptor instead.
 func (*RelayLeaseTarget) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{67}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *RelayLeaseTarget) GetSetId() string {
@@ -7641,7 +7709,7 @@ type RelayLeaseGroupRoute struct {
 
 func (x *RelayLeaseGroupRoute) Reset() {
 	*x = RelayLeaseGroupRoute{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[68]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7653,7 +7721,7 @@ func (x *RelayLeaseGroupRoute) String() string {
 func (*RelayLeaseGroupRoute) ProtoMessage() {}
 
 func (x *RelayLeaseGroupRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[68]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7666,7 +7734,7 @@ func (x *RelayLeaseGroupRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayLeaseGroupRoute.ProtoReflect.Descriptor instead.
 func (*RelayLeaseGroupRoute) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{68}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *RelayLeaseGroupRoute) GetRouteId() string {
@@ -7734,7 +7802,7 @@ type RelayStreamResume struct {
 
 func (x *RelayStreamResume) Reset() {
 	*x = RelayStreamResume{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[69]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7746,7 +7814,7 @@ func (x *RelayStreamResume) String() string {
 func (*RelayStreamResume) ProtoMessage() {}
 
 func (x *RelayStreamResume) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[69]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7759,7 +7827,7 @@ func (x *RelayStreamResume) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayStreamResume.ProtoReflect.Descriptor instead.
 func (*RelayStreamResume) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{69}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *RelayStreamResume) GetVersion() uint32 {
@@ -7806,7 +7874,7 @@ type RelayRouteResume struct {
 
 func (x *RelayRouteResume) Reset() {
 	*x = RelayRouteResume{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[70]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7818,7 +7886,7 @@ func (x *RelayRouteResume) String() string {
 func (*RelayRouteResume) ProtoMessage() {}
 
 func (x *RelayRouteResume) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[70]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7831,7 +7899,7 @@ func (x *RelayRouteResume) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayRouteResume.ProtoReflect.Descriptor instead.
 func (*RelayRouteResume) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{70}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *RelayRouteResume) GetRouteId() string {
@@ -7907,7 +7975,7 @@ type SecureLinkEgress struct {
 
 func (x *SecureLinkEgress) Reset() {
 	*x = SecureLinkEgress{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[71]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7919,7 +7987,7 @@ func (x *SecureLinkEgress) String() string {
 func (*SecureLinkEgress) ProtoMessage() {}
 
 func (x *SecureLinkEgress) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[71]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7932,7 +8000,7 @@ func (x *SecureLinkEgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecureLinkEgress.ProtoReflect.Descriptor instead.
 func (*SecureLinkEgress) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{71}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *SecureLinkEgress) GetNetworkName() string {
@@ -8028,7 +8096,7 @@ type ManagedDatabaseListener struct {
 
 func (x *ManagedDatabaseListener) Reset() {
 	*x = ManagedDatabaseListener{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[72]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8040,7 +8108,7 @@ func (x *ManagedDatabaseListener) String() string {
 func (*ManagedDatabaseListener) ProtoMessage() {}
 
 func (x *ManagedDatabaseListener) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[72]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8053,7 +8121,7 @@ func (x *ManagedDatabaseListener) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ManagedDatabaseListener.ProtoReflect.Descriptor instead.
 func (*ManagedDatabaseListener) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{72}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *ManagedDatabaseListener) GetNetworkName() string {
@@ -8102,7 +8170,7 @@ type RelaySignedGrant struct {
 
 func (x *RelaySignedGrant) Reset() {
 	*x = RelaySignedGrant{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[73]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8114,7 +8182,7 @@ func (x *RelaySignedGrant) String() string {
 func (*RelaySignedGrant) ProtoMessage() {}
 
 func (x *RelaySignedGrant) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[73]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8127,7 +8195,7 @@ func (x *RelaySignedGrant) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelaySignedGrant.ProtoReflect.Descriptor instead.
 func (*RelaySignedGrant) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{73}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *RelaySignedGrant) GetKeyId() string {
@@ -8174,7 +8242,7 @@ type RelayDataCandidate struct {
 
 func (x *RelayDataCandidate) Reset() {
 	*x = RelayDataCandidate{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[74]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8186,7 +8254,7 @@ func (x *RelayDataCandidate) String() string {
 func (*RelayDataCandidate) ProtoMessage() {}
 
 func (x *RelayDataCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[74]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8199,7 +8267,7 @@ func (x *RelayDataCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayDataCandidate.ProtoReflect.Descriptor instead.
 func (*RelayDataCandidate) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{74}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *RelayDataCandidate) GetPoolId() string {
@@ -8297,7 +8365,7 @@ type RelayCandidateTopology struct {
 
 func (x *RelayCandidateTopology) Reset() {
 	*x = RelayCandidateTopology{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[75]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8309,7 +8377,7 @@ func (x *RelayCandidateTopology) String() string {
 func (*RelayCandidateTopology) ProtoMessage() {}
 
 func (x *RelayCandidateTopology) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[75]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8322,7 +8390,7 @@ func (x *RelayCandidateTopology) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayCandidateTopology.ProtoReflect.Descriptor instead.
 func (*RelayCandidateTopology) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{75}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *RelayCandidateTopology) GetRole() string {
@@ -8353,7 +8421,7 @@ type ProbeRelayCandidateCommand struct {
 
 func (x *ProbeRelayCandidateCommand) Reset() {
 	*x = ProbeRelayCandidateCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[76]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8365,7 +8433,7 @@ func (x *ProbeRelayCandidateCommand) String() string {
 func (*ProbeRelayCandidateCommand) ProtoMessage() {}
 
 func (x *ProbeRelayCandidateCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[76]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8378,7 +8446,7 @@ func (x *ProbeRelayCandidateCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProbeRelayCandidateCommand.ProtoReflect.Descriptor instead.
 func (*ProbeRelayCandidateCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{76}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ProbeRelayCandidateCommand) GetProbeId() string {
@@ -8432,7 +8500,7 @@ type SyncProxySecureLinksCommand struct {
 
 func (x *SyncProxySecureLinksCommand) Reset() {
 	*x = SyncProxySecureLinksCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[77]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8444,7 +8512,7 @@ func (x *SyncProxySecureLinksCommand) String() string {
 func (*SyncProxySecureLinksCommand) ProtoMessage() {}
 
 func (x *SyncProxySecureLinksCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[77]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8457,7 +8525,7 @@ func (x *SyncProxySecureLinksCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncProxySecureLinksCommand.ProtoReflect.Descriptor instead.
 func (*SyncProxySecureLinksCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{77}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *SyncProxySecureLinksCommand) GetBindings() []*ProxySecureLinkBinding {
@@ -8518,7 +8586,7 @@ type ProxySecureLinkBinding struct {
 
 func (x *ProxySecureLinkBinding) Reset() {
 	*x = ProxySecureLinkBinding{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[78]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8530,7 +8598,7 @@ func (x *ProxySecureLinkBinding) String() string {
 func (*ProxySecureLinkBinding) ProtoMessage() {}
 
 func (x *ProxySecureLinkBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[78]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8543,7 +8611,7 @@ func (x *ProxySecureLinkBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProxySecureLinkBinding.ProtoReflect.Descriptor instead.
 func (*ProxySecureLinkBinding) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{78}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *ProxySecureLinkBinding) GetLinkId() string {
@@ -8680,7 +8748,7 @@ type ProbeProxySecureLinkCommand struct {
 
 func (x *ProbeProxySecureLinkCommand) Reset() {
 	*x = ProbeProxySecureLinkCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[79]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8692,7 +8760,7 @@ func (x *ProbeProxySecureLinkCommand) String() string {
 func (*ProbeProxySecureLinkCommand) ProtoMessage() {}
 
 func (x *ProbeProxySecureLinkCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[79]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8705,7 +8773,7 @@ func (x *ProbeProxySecureLinkCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProbeProxySecureLinkCommand.ProtoReflect.Descriptor instead.
 func (*ProbeProxySecureLinkCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{79}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *ProbeProxySecureLinkCommand) GetLinkId() string {
@@ -8773,7 +8841,7 @@ type ProbePagesRouteCommand struct {
 
 func (x *ProbePagesRouteCommand) Reset() {
 	*x = ProbePagesRouteCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[80]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8785,7 +8853,7 @@ func (x *ProbePagesRouteCommand) String() string {
 func (*ProbePagesRouteCommand) ProtoMessage() {}
 
 func (x *ProbePagesRouteCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[80]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8798,7 +8866,7 @@ func (x *ProbePagesRouteCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProbePagesRouteCommand.ProtoReflect.Descriptor instead.
 func (*ProbePagesRouteCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{80}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *ProbePagesRouteCommand) GetRouteId() string {
@@ -8871,7 +8939,7 @@ type NodeExecCommand struct {
 
 func (x *NodeExecCommand) Reset() {
 	*x = NodeExecCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[81]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8883,7 +8951,7 @@ func (x *NodeExecCommand) String() string {
 func (*NodeExecCommand) ProtoMessage() {}
 
 func (x *NodeExecCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[81]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8896,7 +8964,7 @@ func (x *NodeExecCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeExecCommand.ProtoReflect.Descriptor instead.
 func (*NodeExecCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{81}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *NodeExecCommand) GetAction() string {
@@ -8954,7 +9022,7 @@ type NodeFileCommand struct {
 
 func (x *NodeFileCommand) Reset() {
 	*x = NodeFileCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[82]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8966,7 +9034,7 @@ func (x *NodeFileCommand) String() string {
 func (*NodeFileCommand) ProtoMessage() {}
 
 func (x *NodeFileCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[82]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8979,7 +9047,7 @@ func (x *NodeFileCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeFileCommand.ProtoReflect.Descriptor instead.
 func (*NodeFileCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{82}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *NodeFileCommand) GetAction() string {
@@ -9035,7 +9103,7 @@ type ApplyConfigCommand struct {
 
 func (x *ApplyConfigCommand) Reset() {
 	*x = ApplyConfigCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[83]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9047,7 +9115,7 @@ func (x *ApplyConfigCommand) String() string {
 func (*ApplyConfigCommand) ProtoMessage() {}
 
 func (x *ApplyConfigCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[83]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9060,7 +9128,7 @@ func (x *ApplyConfigCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyConfigCommand.ProtoReflect.Descriptor instead.
 func (*ApplyConfigCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{83}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *ApplyConfigCommand) GetHostId() string {
@@ -9115,7 +9183,7 @@ type RemoveConfigCommand struct {
 
 func (x *RemoveConfigCommand) Reset() {
 	*x = RemoveConfigCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[84]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9127,7 +9195,7 @@ func (x *RemoveConfigCommand) String() string {
 func (*RemoveConfigCommand) ProtoMessage() {}
 
 func (x *RemoveConfigCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[84]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9140,7 +9208,7 @@ func (x *RemoveConfigCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveConfigCommand.ProtoReflect.Descriptor instead.
 func (*RemoveConfigCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{84}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *RemoveConfigCommand) GetHostId() string {
@@ -9164,7 +9232,7 @@ type DeployCertCommand struct {
 
 func (x *DeployCertCommand) Reset() {
 	*x = DeployCertCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[85]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9176,7 +9244,7 @@ func (x *DeployCertCommand) String() string {
 func (*DeployCertCommand) ProtoMessage() {}
 
 func (x *DeployCertCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[85]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9189,7 +9257,7 @@ func (x *DeployCertCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployCertCommand.ProtoReflect.Descriptor instead.
 func (*DeployCertCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{85}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *DeployCertCommand) GetCertId() string {
@@ -9238,7 +9306,7 @@ type ApplyTlsBundleCommand struct {
 
 func (x *ApplyTlsBundleCommand) Reset() {
 	*x = ApplyTlsBundleCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[86]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9250,7 +9318,7 @@ func (x *ApplyTlsBundleCommand) String() string {
 func (*ApplyTlsBundleCommand) ProtoMessage() {}
 
 func (x *ApplyTlsBundleCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[86]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9263,7 +9331,7 @@ func (x *ApplyTlsBundleCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyTlsBundleCommand.ProtoReflect.Descriptor instead.
 func (*ApplyTlsBundleCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{86}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *ApplyTlsBundleCommand) GetHostId() string {
@@ -9329,7 +9397,7 @@ type VersionedCertBundle struct {
 
 func (x *VersionedCertBundle) Reset() {
 	*x = VersionedCertBundle{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[87]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9341,7 +9409,7 @@ func (x *VersionedCertBundle) String() string {
 func (*VersionedCertBundle) ProtoMessage() {}
 
 func (x *VersionedCertBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[87]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9354,7 +9422,7 @@ func (x *VersionedCertBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VersionedCertBundle.ProtoReflect.Descriptor instead.
 func (*VersionedCertBundle) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{87}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *VersionedCertBundle) GetCertId() string {
@@ -9410,7 +9478,7 @@ type InspectCertificatesCommand struct {
 
 func (x *InspectCertificatesCommand) Reset() {
 	*x = InspectCertificatesCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[88]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9422,7 +9490,7 @@ func (x *InspectCertificatesCommand) String() string {
 func (*InspectCertificatesCommand) ProtoMessage() {}
 
 func (x *InspectCertificatesCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[88]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9435,7 +9503,7 @@ func (x *InspectCertificatesCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectCertificatesCommand.ProtoReflect.Descriptor instead.
 func (*InspectCertificatesCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{88}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *InspectCertificatesCommand) GetCertIds() []string {
@@ -9454,7 +9522,7 @@ type ExportLegacyCertificatesCommand struct {
 
 func (x *ExportLegacyCertificatesCommand) Reset() {
 	*x = ExportLegacyCertificatesCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[89]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9466,7 +9534,7 @@ func (x *ExportLegacyCertificatesCommand) String() string {
 func (*ExportLegacyCertificatesCommand) ProtoMessage() {}
 
 func (x *ExportLegacyCertificatesCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[89]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9479,7 +9547,7 @@ func (x *ExportLegacyCertificatesCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportLegacyCertificatesCommand.ProtoReflect.Descriptor instead.
 func (*ExportLegacyCertificatesCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{89}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *ExportLegacyCertificatesCommand) GetCertIds() []string {
@@ -9500,7 +9568,7 @@ type RemoveCertificateReplicaCommand struct {
 
 func (x *RemoveCertificateReplicaCommand) Reset() {
 	*x = RemoveCertificateReplicaCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[90]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9512,7 +9580,7 @@ func (x *RemoveCertificateReplicaCommand) String() string {
 func (*RemoveCertificateReplicaCommand) ProtoMessage() {}
 
 func (x *RemoveCertificateReplicaCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[90]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9525,7 +9593,7 @@ func (x *RemoveCertificateReplicaCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCertificateReplicaCommand.ProtoReflect.Descriptor instead.
 func (*RemoveCertificateReplicaCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{90}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *RemoveCertificateReplicaCommand) GetCertId() string {
@@ -9558,7 +9626,7 @@ type RemoveCertCommand struct {
 
 func (x *RemoveCertCommand) Reset() {
 	*x = RemoveCertCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[91]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9570,7 +9638,7 @@ func (x *RemoveCertCommand) String() string {
 func (*RemoveCertCommand) ProtoMessage() {}
 
 func (x *RemoveCertCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[91]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9583,7 +9651,7 @@ func (x *RemoveCertCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCertCommand.ProtoReflect.Descriptor instead.
 func (*RemoveCertCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{91}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *RemoveCertCommand) GetCertId() string {
@@ -9606,7 +9674,7 @@ type FullSyncCommand struct {
 
 func (x *FullSyncCommand) Reset() {
 	*x = FullSyncCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[92]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9618,7 +9686,7 @@ func (x *FullSyncCommand) String() string {
 func (*FullSyncCommand) ProtoMessage() {}
 
 func (x *FullSyncCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[92]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9631,7 +9699,7 @@ func (x *FullSyncCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FullSyncCommand.ProtoReflect.Descriptor instead.
 func (*FullSyncCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{92}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *FullSyncCommand) GetHosts() []*HostConfig {
@@ -9683,7 +9751,7 @@ type HostConfig struct {
 
 func (x *HostConfig) Reset() {
 	*x = HostConfig{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[93]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9695,7 +9763,7 @@ func (x *HostConfig) String() string {
 func (*HostConfig) ProtoMessage() {}
 
 func (x *HostConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[93]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9708,7 +9776,7 @@ func (x *HostConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostConfig.ProtoReflect.Descriptor instead.
 func (*HostConfig) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{93}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *HostConfig) GetHostId() string {
@@ -9751,7 +9819,7 @@ type CertBundle struct {
 
 func (x *CertBundle) Reset() {
 	*x = CertBundle{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[94]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9763,7 +9831,7 @@ func (x *CertBundle) String() string {
 func (*CertBundle) ProtoMessage() {}
 
 func (x *CertBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[94]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9776,7 +9844,7 @@ func (x *CertBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertBundle.ProtoReflect.Descriptor instead.
 func (*CertBundle) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{94}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *CertBundle) GetCertId() string {
@@ -9817,7 +9885,7 @@ type HtpasswdFile struct {
 
 func (x *HtpasswdFile) Reset() {
 	*x = HtpasswdFile{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[95]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9829,7 +9897,7 @@ func (x *HtpasswdFile) String() string {
 func (*HtpasswdFile) ProtoMessage() {}
 
 func (x *HtpasswdFile) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[95]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9842,7 +9910,7 @@ func (x *HtpasswdFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HtpasswdFile.ProtoReflect.Descriptor instead.
 func (*HtpasswdFile) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{95}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *HtpasswdFile) GetAccessListId() string {
@@ -9869,7 +9937,7 @@ type UpdateGlobalConfigCommand struct {
 
 func (x *UpdateGlobalConfigCommand) Reset() {
 	*x = UpdateGlobalConfigCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[96]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9881,7 +9949,7 @@ func (x *UpdateGlobalConfigCommand) String() string {
 func (*UpdateGlobalConfigCommand) ProtoMessage() {}
 
 func (x *UpdateGlobalConfigCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[96]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9894,7 +9962,7 @@ func (x *UpdateGlobalConfigCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateGlobalConfigCommand.ProtoReflect.Descriptor instead.
 func (*UpdateGlobalConfigCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{96}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *UpdateGlobalConfigCommand) GetContent() string {
@@ -9921,7 +9989,7 @@ type DeployHtpasswdCommand struct {
 
 func (x *DeployHtpasswdCommand) Reset() {
 	*x = DeployHtpasswdCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[97]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9933,7 +10001,7 @@ func (x *DeployHtpasswdCommand) String() string {
 func (*DeployHtpasswdCommand) ProtoMessage() {}
 
 func (x *DeployHtpasswdCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[97]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9946,7 +10014,7 @@ func (x *DeployHtpasswdCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployHtpasswdCommand.ProtoReflect.Descriptor instead.
 func (*DeployHtpasswdCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{97}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *DeployHtpasswdCommand) GetAccessListId() string {
@@ -9972,7 +10040,7 @@ type RemoveHtpasswdCommand struct {
 
 func (x *RemoveHtpasswdCommand) Reset() {
 	*x = RemoveHtpasswdCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[98]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9984,7 +10052,7 @@ func (x *RemoveHtpasswdCommand) String() string {
 func (*RemoveHtpasswdCommand) ProtoMessage() {}
 
 func (x *RemoveHtpasswdCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[98]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9997,7 +10065,7 @@ func (x *RemoveHtpasswdCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveHtpasswdCommand.ProtoReflect.Descriptor instead.
 func (*RemoveHtpasswdCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{98}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *RemoveHtpasswdCommand) GetAccessListId() string {
@@ -10015,7 +10083,7 @@ type TestConfigCommand struct {
 
 func (x *TestConfigCommand) Reset() {
 	*x = TestConfigCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[99]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10027,7 +10095,7 @@ func (x *TestConfigCommand) String() string {
 func (*TestConfigCommand) ProtoMessage() {}
 
 func (x *TestConfigCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[99]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10040,7 +10108,7 @@ func (x *TestConfigCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestConfigCommand.ProtoReflect.Descriptor instead.
 func (*TestConfigCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{99}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{100}
 }
 
 type RequestHealthCommand struct {
@@ -10051,7 +10119,7 @@ type RequestHealthCommand struct {
 
 func (x *RequestHealthCommand) Reset() {
 	*x = RequestHealthCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[100]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10063,7 +10131,7 @@ func (x *RequestHealthCommand) String() string {
 func (*RequestHealthCommand) ProtoMessage() {}
 
 func (x *RequestHealthCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[100]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10076,7 +10144,7 @@ func (x *RequestHealthCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestHealthCommand.ProtoReflect.Descriptor instead.
 func (*RequestHealthCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{100}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{101}
 }
 
 type RequestStatsCommand struct {
@@ -10087,7 +10155,7 @@ type RequestStatsCommand struct {
 
 func (x *RequestStatsCommand) Reset() {
 	*x = RequestStatsCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[101]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10099,7 +10167,7 @@ func (x *RequestStatsCommand) String() string {
 func (*RequestStatsCommand) ProtoMessage() {}
 
 func (x *RequestStatsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[101]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10112,7 +10180,7 @@ func (x *RequestStatsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestStatsCommand.ProtoReflect.Descriptor instead.
 func (*RequestStatsCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{101}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{102}
 }
 
 // Controls daemon log streaming over the command channel
@@ -10127,7 +10195,7 @@ type SetDaemonLogStreamCommand struct {
 
 func (x *SetDaemonLogStreamCommand) Reset() {
 	*x = SetDaemonLogStreamCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[102]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10139,7 +10207,7 @@ func (x *SetDaemonLogStreamCommand) String() string {
 func (*SetDaemonLogStreamCommand) ProtoMessage() {}
 
 func (x *SetDaemonLogStreamCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[102]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10152,7 +10220,7 @@ func (x *SetDaemonLogStreamCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDaemonLogStreamCommand.ProtoReflect.Descriptor instead.
 func (*SetDaemonLogStreamCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{102}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *SetDaemonLogStreamCommand) GetEnabled() bool {
@@ -10187,7 +10255,7 @@ type DeployAcmeChallengeCommand struct {
 
 func (x *DeployAcmeChallengeCommand) Reset() {
 	*x = DeployAcmeChallengeCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[103]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10199,7 +10267,7 @@ func (x *DeployAcmeChallengeCommand) String() string {
 func (*DeployAcmeChallengeCommand) ProtoMessage() {}
 
 func (x *DeployAcmeChallengeCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[103]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10212,7 +10280,7 @@ func (x *DeployAcmeChallengeCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployAcmeChallengeCommand.ProtoReflect.Descriptor instead.
 func (*DeployAcmeChallengeCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{103}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *DeployAcmeChallengeCommand) GetToken() string {
@@ -10238,7 +10306,7 @@ type RemoveAcmeChallengeCommand struct {
 
 func (x *RemoveAcmeChallengeCommand) Reset() {
 	*x = RemoveAcmeChallengeCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[104]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10250,7 +10318,7 @@ func (x *RemoveAcmeChallengeCommand) String() string {
 func (*RemoveAcmeChallengeCommand) ProtoMessage() {}
 
 func (x *RemoveAcmeChallengeCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[104]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10263,7 +10331,7 @@ func (x *RemoveAcmeChallengeCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveAcmeChallengeCommand.ProtoReflect.Descriptor instead.
 func (*RemoveAcmeChallengeCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{104}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *RemoveAcmeChallengeCommand) GetToken() string {
@@ -10282,7 +10350,7 @@ type ReadGlobalConfigCommand struct {
 
 func (x *ReadGlobalConfigCommand) Reset() {
 	*x = ReadGlobalConfigCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[105]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10294,7 +10362,7 @@ func (x *ReadGlobalConfigCommand) String() string {
 func (*ReadGlobalConfigCommand) ProtoMessage() {}
 
 func (x *ReadGlobalConfigCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[105]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10307,7 +10375,7 @@ func (x *ReadGlobalConfigCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadGlobalConfigCommand.ProtoReflect.Descriptor instead.
 func (*ReadGlobalConfigCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{105}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{106}
 }
 
 // Request traffic stats from daemon log parsing — response JSON is in CommandResult.detail
@@ -10322,7 +10390,7 @@ type RequestTrafficStatsCommand struct {
 
 func (x *RequestTrafficStatsCommand) Reset() {
 	*x = RequestTrafficStatsCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[106]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10334,7 +10402,7 @@ func (x *RequestTrafficStatsCommand) String() string {
 func (*RequestTrafficStatsCommand) ProtoMessage() {}
 
 func (x *RequestTrafficStatsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[106]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10347,7 +10415,7 @@ func (x *RequestTrafficStatsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestTrafficStatsCommand.ProtoReflect.Descriptor instead.
 func (*RequestTrafficStatsCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{106}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *RequestTrafficStatsCommand) GetTailLines() int32 {
@@ -10386,7 +10454,7 @@ type DockerContainerCommand struct {
 
 func (x *DockerContainerCommand) Reset() {
 	*x = DockerContainerCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[107]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10398,7 +10466,7 @@ func (x *DockerContainerCommand) String() string {
 func (*DockerContainerCommand) ProtoMessage() {}
 
 func (x *DockerContainerCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[107]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10411,7 +10479,7 @@ func (x *DockerContainerCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerContainerCommand.ProtoReflect.Descriptor instead.
 func (*DockerContainerCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{107}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *DockerContainerCommand) GetAction() string {
@@ -10476,7 +10544,7 @@ type DockerImageCommand struct {
 
 func (x *DockerImageCommand) Reset() {
 	*x = DockerImageCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[108]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10488,7 +10556,7 @@ func (x *DockerImageCommand) String() string {
 func (*DockerImageCommand) ProtoMessage() {}
 
 func (x *DockerImageCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[108]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10501,7 +10569,7 @@ func (x *DockerImageCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerImageCommand.ProtoReflect.Descriptor instead.
 func (*DockerImageCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{108}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *DockerImageCommand) GetAction() string {
@@ -10558,7 +10626,7 @@ type DockerVolumeCommand struct {
 
 func (x *DockerVolumeCommand) Reset() {
 	*x = DockerVolumeCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[109]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10570,7 +10638,7 @@ func (x *DockerVolumeCommand) String() string {
 func (*DockerVolumeCommand) ProtoMessage() {}
 
 func (x *DockerVolumeCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[109]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10583,7 +10651,7 @@ func (x *DockerVolumeCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerVolumeCommand.ProtoReflect.Descriptor instead.
 func (*DockerVolumeCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{109}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *DockerVolumeCommand) GetAction() string {
@@ -10677,7 +10745,7 @@ type DockerNetworkCommand struct {
 
 func (x *DockerNetworkCommand) Reset() {
 	*x = DockerNetworkCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[110]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10689,7 +10757,7 @@ func (x *DockerNetworkCommand) String() string {
 func (*DockerNetworkCommand) ProtoMessage() {}
 
 func (x *DockerNetworkCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[110]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10702,7 +10770,7 @@ func (x *DockerNetworkCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerNetworkCommand.ProtoReflect.Descriptor instead.
 func (*DockerNetworkCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{110}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *DockerNetworkCommand) GetAction() string {
@@ -10760,7 +10828,7 @@ type DockerDeploymentCommand struct {
 
 func (x *DockerDeploymentCommand) Reset() {
 	*x = DockerDeploymentCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[111]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10772,7 +10840,7 @@ func (x *DockerDeploymentCommand) String() string {
 func (*DockerDeploymentCommand) ProtoMessage() {}
 
 func (x *DockerDeploymentCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[111]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10785,7 +10853,7 @@ func (x *DockerDeploymentCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerDeploymentCommand.ProtoReflect.Descriptor instead.
 func (*DockerDeploymentCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{111}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *DockerDeploymentCommand) GetAction() string {
@@ -10843,7 +10911,7 @@ type DockerComposeCommand struct {
 
 func (x *DockerComposeCommand) Reset() {
 	*x = DockerComposeCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[112]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10855,7 +10923,7 @@ func (x *DockerComposeCommand) String() string {
 func (*DockerComposeCommand) ProtoMessage() {}
 
 func (x *DockerComposeCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[112]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10868,7 +10936,7 @@ func (x *DockerComposeCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerComposeCommand.ProtoReflect.Descriptor instead.
 func (*DockerComposeCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{112}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *DockerComposeCommand) GetAction() string {
@@ -10972,7 +11040,7 @@ type DockerAvailabilityCommand struct {
 
 func (x *DockerAvailabilityCommand) Reset() {
 	*x = DockerAvailabilityCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[113]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10984,7 +11052,7 @@ func (x *DockerAvailabilityCommand) String() string {
 func (*DockerAvailabilityCommand) ProtoMessage() {}
 
 func (x *DockerAvailabilityCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[113]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10997,7 +11065,7 @@ func (x *DockerAvailabilityCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerAvailabilityCommand.ProtoReflect.Descriptor instead.
 func (*DockerAvailabilityCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{113}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *DockerAvailabilityCommand) GetAction() string {
@@ -11087,7 +11155,7 @@ type SyncAvailabilityLeaseCommand struct {
 
 func (x *SyncAvailabilityLeaseCommand) Reset() {
 	*x = SyncAvailabilityLeaseCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[114]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11099,7 +11167,7 @@ func (x *SyncAvailabilityLeaseCommand) String() string {
 func (*SyncAvailabilityLeaseCommand) ProtoMessage() {}
 
 func (x *SyncAvailabilityLeaseCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[114]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11112,7 +11180,7 @@ func (x *SyncAvailabilityLeaseCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncAvailabilityLeaseCommand.ProtoReflect.Descriptor instead.
 func (*SyncAvailabilityLeaseCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{114}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *SyncAvailabilityLeaseCommand) GetRevision() uint64 {
@@ -11170,7 +11238,7 @@ type AvailabilityLeasePolicyKey struct {
 
 func (x *AvailabilityLeasePolicyKey) Reset() {
 	*x = AvailabilityLeasePolicyKey{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[115]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11182,7 +11250,7 @@ func (x *AvailabilityLeasePolicyKey) String() string {
 func (*AvailabilityLeasePolicyKey) ProtoMessage() {}
 
 func (x *AvailabilityLeasePolicyKey) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[115]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11195,7 +11263,7 @@ func (x *AvailabilityLeasePolicyKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeasePolicyKey.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeasePolicyKey) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{115}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *AvailabilityLeasePolicyKey) GetKeyId() string {
@@ -11241,7 +11309,7 @@ type AvailabilityLeaseHandoffCommand struct {
 
 func (x *AvailabilityLeaseHandoffCommand) Reset() {
 	*x = AvailabilityLeaseHandoffCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[116]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11253,7 +11321,7 @@ func (x *AvailabilityLeaseHandoffCommand) String() string {
 func (*AvailabilityLeaseHandoffCommand) ProtoMessage() {}
 
 func (x *AvailabilityLeaseHandoffCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[116]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11266,7 +11334,7 @@ func (x *AvailabilityLeaseHandoffCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseHandoffCommand.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseHandoffCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{116}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *AvailabilityLeaseHandoffCommand) GetPolicyId() string {
@@ -11322,7 +11390,7 @@ type AvailabilityLeaseBallot struct {
 
 func (x *AvailabilityLeaseBallot) Reset() {
 	*x = AvailabilityLeaseBallot{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[117]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11334,7 +11402,7 @@ func (x *AvailabilityLeaseBallot) String() string {
 func (*AvailabilityLeaseBallot) ProtoMessage() {}
 
 func (x *AvailabilityLeaseBallot) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[117]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11347,7 +11415,7 @@ func (x *AvailabilityLeaseBallot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseBallot.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseBallot) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{117}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *AvailabilityLeaseBallot) GetRound() uint64 {
@@ -11415,7 +11483,7 @@ type AvailabilityLeaseReport struct {
 
 func (x *AvailabilityLeaseReport) Reset() {
 	*x = AvailabilityLeaseReport{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[118]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11427,7 +11495,7 @@ func (x *AvailabilityLeaseReport) String() string {
 func (*AvailabilityLeaseReport) ProtoMessage() {}
 
 func (x *AvailabilityLeaseReport) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[118]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11440,7 +11508,7 @@ func (x *AvailabilityLeaseReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseReport.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseReport) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{118}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *AvailabilityLeaseReport) GetMemberId() string {
@@ -11561,7 +11629,7 @@ type AvailabilityLeaseManifestAck struct {
 
 func (x *AvailabilityLeaseManifestAck) Reset() {
 	*x = AvailabilityLeaseManifestAck{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[119]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11573,7 +11641,7 @@ func (x *AvailabilityLeaseManifestAck) String() string {
 func (*AvailabilityLeaseManifestAck) ProtoMessage() {}
 
 func (x *AvailabilityLeaseManifestAck) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[119]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11586,7 +11654,7 @@ func (x *AvailabilityLeaseManifestAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseManifestAck.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseManifestAck) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{119}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *AvailabilityLeaseManifestAck) GetPolicyId() string {
@@ -11661,7 +11729,7 @@ type AvailabilityLeaseHeld struct {
 
 func (x *AvailabilityLeaseHeld) Reset() {
 	*x = AvailabilityLeaseHeld{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[120]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11673,7 +11741,7 @@ func (x *AvailabilityLeaseHeld) String() string {
 func (*AvailabilityLeaseHeld) ProtoMessage() {}
 
 func (x *AvailabilityLeaseHeld) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[120]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11686,7 +11754,7 @@ func (x *AvailabilityLeaseHeld) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseHeld.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseHeld) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{120}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *AvailabilityLeaseHeld) GetPolicyId() string {
@@ -11798,7 +11866,7 @@ type AvailabilityLeaseKeyView struct {
 
 func (x *AvailabilityLeaseKeyView) Reset() {
 	*x = AvailabilityLeaseKeyView{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[121]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11810,7 +11878,7 @@ func (x *AvailabilityLeaseKeyView) String() string {
 func (*AvailabilityLeaseKeyView) ProtoMessage() {}
 
 func (x *AvailabilityLeaseKeyView) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[121]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11823,7 +11891,7 @@ func (x *AvailabilityLeaseKeyView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseKeyView.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseKeyView) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{121}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *AvailabilityLeaseKeyView) GetPolicyId() string {
@@ -11970,7 +12038,7 @@ type AvailabilityLeaseEvent struct {
 
 func (x *AvailabilityLeaseEvent) Reset() {
 	*x = AvailabilityLeaseEvent{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[122]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11982,7 +12050,7 @@ func (x *AvailabilityLeaseEvent) String() string {
 func (*AvailabilityLeaseEvent) ProtoMessage() {}
 
 func (x *AvailabilityLeaseEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[122]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11995,7 +12063,7 @@ func (x *AvailabilityLeaseEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailabilityLeaseEvent.ProtoReflect.Descriptor instead.
 func (*AvailabilityLeaseEvent) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{122}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *AvailabilityLeaseEvent) GetKind() string {
@@ -12057,7 +12125,7 @@ type DockerRuntimeCommand struct {
 
 func (x *DockerRuntimeCommand) Reset() {
 	*x = DockerRuntimeCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[123]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12069,7 +12137,7 @@ func (x *DockerRuntimeCommand) String() string {
 func (*DockerRuntimeCommand) ProtoMessage() {}
 
 func (x *DockerRuntimeCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[123]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12082,7 +12150,7 @@ func (x *DockerRuntimeCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerRuntimeCommand.ProtoReflect.Descriptor instead.
 func (*DockerRuntimeCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{123}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *DockerRuntimeCommand) GetAction() string {
@@ -12117,7 +12185,7 @@ type DockerRuntimeStatus struct {
 
 func (x *DockerRuntimeStatus) Reset() {
 	*x = DockerRuntimeStatus{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[124]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12129,7 +12197,7 @@ func (x *DockerRuntimeStatus) String() string {
 func (*DockerRuntimeStatus) ProtoMessage() {}
 
 func (x *DockerRuntimeStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[124]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12142,7 +12210,7 @@ func (x *DockerRuntimeStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerRuntimeStatus.ProtoReflect.Descriptor instead.
 func (*DockerRuntimeStatus) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{124}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *DockerRuntimeStatus) GetState() string {
@@ -12255,7 +12323,7 @@ type DockerBuildCommand struct {
 
 func (x *DockerBuildCommand) Reset() {
 	*x = DockerBuildCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[125]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12267,7 +12335,7 @@ func (x *DockerBuildCommand) String() string {
 func (*DockerBuildCommand) ProtoMessage() {}
 
 func (x *DockerBuildCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[125]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12280,7 +12348,7 @@ func (x *DockerBuildCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerBuildCommand.ProtoReflect.Descriptor instead.
 func (*DockerBuildCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{125}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *DockerBuildCommand) GetBuildId() string {
@@ -12496,7 +12564,7 @@ type DockerBuildCancelCommand struct {
 
 func (x *DockerBuildCancelCommand) Reset() {
 	*x = DockerBuildCancelCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[126]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12508,7 +12576,7 @@ func (x *DockerBuildCancelCommand) String() string {
 func (*DockerBuildCancelCommand) ProtoMessage() {}
 
 func (x *DockerBuildCancelCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[126]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12521,7 +12589,7 @@ func (x *DockerBuildCancelCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerBuildCancelCommand.ProtoReflect.Descriptor instead.
 func (*DockerBuildCancelCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{126}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *DockerBuildCancelCommand) GetBuildId() string {
@@ -12563,7 +12631,7 @@ type DockerBuildEvent struct {
 
 func (x *DockerBuildEvent) Reset() {
 	*x = DockerBuildEvent{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[127]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12575,7 +12643,7 @@ func (x *DockerBuildEvent) String() string {
 func (*DockerBuildEvent) ProtoMessage() {}
 
 func (x *DockerBuildEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[127]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12588,7 +12656,7 @@ func (x *DockerBuildEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerBuildEvent.ProtoReflect.Descriptor instead.
 func (*DockerBuildEvent) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{127}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *DockerBuildEvent) GetBuildId() string {
@@ -12721,7 +12789,7 @@ type DockerBuildEventAck struct {
 
 func (x *DockerBuildEventAck) Reset() {
 	*x = DockerBuildEventAck{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[128]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12733,7 +12801,7 @@ func (x *DockerBuildEventAck) String() string {
 func (*DockerBuildEventAck) ProtoMessage() {}
 
 func (x *DockerBuildEventAck) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[128]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12746,7 +12814,7 @@ func (x *DockerBuildEventAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerBuildEventAck.ProtoReflect.Descriptor instead.
 func (*DockerBuildEventAck) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{128}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *DockerBuildEventAck) GetBuildId() string {
@@ -12779,7 +12847,7 @@ type SyncDockerRegistryBindingsCommand struct {
 
 func (x *SyncDockerRegistryBindingsCommand) Reset() {
 	*x = SyncDockerRegistryBindingsCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[129]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12791,7 +12859,7 @@ func (x *SyncDockerRegistryBindingsCommand) String() string {
 func (*SyncDockerRegistryBindingsCommand) ProtoMessage() {}
 
 func (x *SyncDockerRegistryBindingsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[129]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12804,7 +12872,7 @@ func (x *SyncDockerRegistryBindingsCommand) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SyncDockerRegistryBindingsCommand.ProtoReflect.Descriptor instead.
 func (*SyncDockerRegistryBindingsCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{129}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *SyncDockerRegistryBindingsCommand) GetBindings() []*DockerRegistryBinding {
@@ -12833,7 +12901,7 @@ type DockerRegistryBinding struct {
 
 func (x *DockerRegistryBinding) Reset() {
 	*x = DockerRegistryBinding{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[130]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12845,7 +12913,7 @@ func (x *DockerRegistryBinding) String() string {
 func (*DockerRegistryBinding) ProtoMessage() {}
 
 func (x *DockerRegistryBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[130]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12858,7 +12926,7 @@ func (x *DockerRegistryBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerRegistryBinding.ProtoReflect.Descriptor instead.
 func (*DockerRegistryBinding) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{130}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *DockerRegistryBinding) GetBindingId() string {
@@ -12955,7 +13023,7 @@ type DockerExecCommand struct {
 
 func (x *DockerExecCommand) Reset() {
 	*x = DockerExecCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[131]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12967,7 +13035,7 @@ func (x *DockerExecCommand) String() string {
 func (*DockerExecCommand) ProtoMessage() {}
 
 func (x *DockerExecCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[131]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12980,7 +13048,7 @@ func (x *DockerExecCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerExecCommand.ProtoReflect.Descriptor instead.
 func (*DockerExecCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{131}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *DockerExecCommand) GetAction() string {
@@ -13060,7 +13128,7 @@ type DockerFileCommand struct {
 
 func (x *DockerFileCommand) Reset() {
 	*x = DockerFileCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[132]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13072,7 +13140,7 @@ func (x *DockerFileCommand) String() string {
 func (*DockerFileCommand) ProtoMessage() {}
 
 func (x *DockerFileCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[132]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13085,7 +13153,7 @@ func (x *DockerFileCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerFileCommand.ProtoReflect.Descriptor instead.
 func (*DockerFileCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{132}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *DockerFileCommand) GetAction() string {
@@ -13140,7 +13208,7 @@ type DockerConfigPushCommand struct {
 
 func (x *DockerConfigPushCommand) Reset() {
 	*x = DockerConfigPushCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[133]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13152,7 +13220,7 @@ func (x *DockerConfigPushCommand) String() string {
 func (*DockerConfigPushCommand) ProtoMessage() {}
 
 func (x *DockerConfigPushCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[133]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13165,7 +13233,7 @@ func (x *DockerConfigPushCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerConfigPushCommand.ProtoReflect.Descriptor instead.
 func (*DockerConfigPushCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{133}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *DockerConfigPushCommand) GetRegistries() []*RegistryConfig {
@@ -13193,7 +13261,7 @@ type RegistryConfig struct {
 
 func (x *RegistryConfig) Reset() {
 	*x = RegistryConfig{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[134]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13205,7 +13273,7 @@ func (x *RegistryConfig) String() string {
 func (*RegistryConfig) ProtoMessage() {}
 
 func (x *RegistryConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[134]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13218,7 +13286,7 @@ func (x *RegistryConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegistryConfig.ProtoReflect.Descriptor instead.
 func (*RegistryConfig) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{134}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *RegistryConfig) GetUrl() string {
@@ -13256,7 +13324,7 @@ type DockerLogsCommand struct {
 
 func (x *DockerLogsCommand) Reset() {
 	*x = DockerLogsCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[135]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13268,7 +13336,7 @@ func (x *DockerLogsCommand) String() string {
 func (*DockerLogsCommand) ProtoMessage() {}
 
 func (x *DockerLogsCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[135]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13281,7 +13349,7 @@ func (x *DockerLogsCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerLogsCommand.ProtoReflect.Descriptor instead.
 func (*DockerLogsCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{135}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *DockerLogsCommand) GetContainerId() string {
@@ -13336,7 +13404,7 @@ type ExecInput struct {
 
 func (x *ExecInput) Reset() {
 	*x = ExecInput{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[136]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13348,7 +13416,7 @@ func (x *ExecInput) String() string {
 func (*ExecInput) ProtoMessage() {}
 
 func (x *ExecInput) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[136]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13361,7 +13429,7 @@ func (x *ExecInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecInput.ProtoReflect.Descriptor instead.
 func (*ExecInput) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{136}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *ExecInput) GetExecId() string {
@@ -13390,7 +13458,7 @@ type ExecOutput struct {
 
 func (x *ExecOutput) Reset() {
 	*x = ExecOutput{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[137]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13402,7 +13470,7 @@ func (x *ExecOutput) String() string {
 func (*ExecOutput) ProtoMessage() {}
 
 func (x *ExecOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[137]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13415,7 +13483,7 @@ func (x *ExecOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecOutput.ProtoReflect.Descriptor instead.
 func (*ExecOutput) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{137}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *ExecOutput) GetExecId() string {
@@ -13471,7 +13539,7 @@ type ContainerStats struct {
 
 func (x *ContainerStats) Reset() {
 	*x = ContainerStats{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[138]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13483,7 +13551,7 @@ func (x *ContainerStats) String() string {
 func (*ContainerStats) ProtoMessage() {}
 
 func (x *ContainerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[138]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13496,7 +13564,7 @@ func (x *ContainerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerStats.ProtoReflect.Descriptor instead.
 func (*ContainerStats) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{138}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *ContainerStats) GetContainerId() string {
@@ -13628,7 +13696,7 @@ type GpuDevice struct {
 
 func (x *GpuDevice) Reset() {
 	*x = GpuDevice{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[139]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13640,7 +13708,7 @@ func (x *GpuDevice) String() string {
 func (*GpuDevice) ProtoMessage() {}
 
 func (x *GpuDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[139]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13653,7 +13721,7 @@ func (x *GpuDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GpuDevice.ProtoReflect.Descriptor instead.
 func (*GpuDevice) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{139}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *GpuDevice) GetId() string {
@@ -13809,7 +13877,7 @@ type LogStreamMessage struct {
 
 func (x *LogStreamMessage) Reset() {
 	*x = LogStreamMessage{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[140]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13821,7 +13889,7 @@ func (x *LogStreamMessage) String() string {
 func (*LogStreamMessage) ProtoMessage() {}
 
 func (x *LogStreamMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[140]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13834,7 +13902,7 @@ func (x *LogStreamMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogStreamMessage.ProtoReflect.Descriptor instead.
 func (*LogStreamMessage) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{140}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *LogStreamMessage) GetPayload() isLogStreamMessage_Payload {
@@ -13887,7 +13955,7 @@ type LogSubscribeAck struct {
 
 func (x *LogSubscribeAck) Reset() {
 	*x = LogSubscribeAck{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[141]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13899,7 +13967,7 @@ func (x *LogSubscribeAck) String() string {
 func (*LogSubscribeAck) ProtoMessage() {}
 
 func (x *LogSubscribeAck) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[141]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13912,7 +13980,7 @@ func (x *LogSubscribeAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogSubscribeAck.ProtoReflect.Descriptor instead.
 func (*LogSubscribeAck) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{141}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *LogSubscribeAck) GetHostId() string {
@@ -13943,7 +14011,7 @@ type LogEntry struct {
 
 func (x *LogEntry) Reset() {
 	*x = LogEntry{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[142]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -13955,7 +14023,7 @@ func (x *LogEntry) String() string {
 func (*LogEntry) ProtoMessage() {}
 
 func (x *LogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[142]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -13968,7 +14036,7 @@ func (x *LogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogEntry.ProtoReflect.Descriptor instead.
 func (*LogEntry) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{142}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *LogEntry) GetHostId() string {
@@ -14075,7 +14143,7 @@ type LogStreamControl struct {
 
 func (x *LogStreamControl) Reset() {
 	*x = LogStreamControl{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[143]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14087,7 +14155,7 @@ func (x *LogStreamControl) String() string {
 func (*LogStreamControl) ProtoMessage() {}
 
 func (x *LogStreamControl) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[143]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14100,7 +14168,7 @@ func (x *LogStreamControl) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogStreamControl.ProtoReflect.Descriptor instead.
 func (*LogStreamControl) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{143}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *LogStreamControl) GetPayload() isLogStreamControl_Payload {
@@ -14154,7 +14222,7 @@ type LogSubscribe struct {
 
 func (x *LogSubscribe) Reset() {
 	*x = LogSubscribe{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[144]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14166,7 +14234,7 @@ func (x *LogSubscribe) String() string {
 func (*LogSubscribe) ProtoMessage() {}
 
 func (x *LogSubscribe) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[144]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14179,7 +14247,7 @@ func (x *LogSubscribe) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogSubscribe.ProtoReflect.Descriptor instead.
 func (*LogSubscribe) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{144}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *LogSubscribe) GetHostId() string {
@@ -14205,7 +14273,7 @@ type LogUnsubscribe struct {
 
 func (x *LogUnsubscribe) Reset() {
 	*x = LogUnsubscribe{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[145]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14217,7 +14285,7 @@ func (x *LogUnsubscribe) String() string {
 func (*LogUnsubscribe) ProtoMessage() {}
 
 func (x *LogUnsubscribe) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[145]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14230,7 +14298,7 @@ func (x *LogUnsubscribe) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogUnsubscribe.ProtoReflect.Descriptor instead.
 func (*LogUnsubscribe) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{145}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{146}
 }
 
 func (x *LogUnsubscribe) GetHostId() string {
@@ -14252,7 +14320,7 @@ type UpdateDaemonCommand struct {
 
 func (x *UpdateDaemonCommand) Reset() {
 	*x = UpdateDaemonCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[146]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14264,7 +14332,7 @@ func (x *UpdateDaemonCommand) String() string {
 func (*UpdateDaemonCommand) ProtoMessage() {}
 
 func (x *UpdateDaemonCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[146]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14277,7 +14345,7 @@ func (x *UpdateDaemonCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDaemonCommand.ProtoReflect.Descriptor instead.
 func (*UpdateDaemonCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{146}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *UpdateDaemonCommand) GetDownloadUrl() string {
@@ -14324,7 +14392,7 @@ type DockerMigrationCommand struct {
 
 func (x *DockerMigrationCommand) Reset() {
 	*x = DockerMigrationCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[147]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14336,7 +14404,7 @@ func (x *DockerMigrationCommand) String() string {
 func (*DockerMigrationCommand) ProtoMessage() {}
 
 func (x *DockerMigrationCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[147]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14349,7 +14417,7 @@ func (x *DockerMigrationCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerMigrationCommand.ProtoReflect.Descriptor instead.
 func (*DockerMigrationCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{147}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *DockerMigrationCommand) GetAction() string {
@@ -14408,7 +14476,7 @@ type DockerDatabaseCommand struct {
 
 func (x *DockerDatabaseCommand) Reset() {
 	*x = DockerDatabaseCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[148]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14420,7 +14488,7 @@ func (x *DockerDatabaseCommand) String() string {
 func (*DockerDatabaseCommand) ProtoMessage() {}
 
 func (x *DockerDatabaseCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[148]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14433,7 +14501,7 @@ func (x *DockerDatabaseCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerDatabaseCommand.ProtoReflect.Descriptor instead.
 func (*DockerDatabaseCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{148}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *DockerDatabaseCommand) GetAction() string {
@@ -14471,7 +14539,7 @@ type DockerStorageCommand struct {
 
 func (x *DockerStorageCommand) Reset() {
 	*x = DockerStorageCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[149]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14483,7 +14551,7 @@ func (x *DockerStorageCommand) String() string {
 func (*DockerStorageCommand) ProtoMessage() {}
 
 func (x *DockerStorageCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[149]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14496,7 +14564,7 @@ func (x *DockerStorageCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerStorageCommand.ProtoReflect.Descriptor instead.
 func (*DockerStorageCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{149}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *DockerStorageCommand) GetAction() string {
@@ -14533,7 +14601,7 @@ type DockerBackupCommand struct {
 
 func (x *DockerBackupCommand) Reset() {
 	*x = DockerBackupCommand{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[150]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14545,7 +14613,7 @@ func (x *DockerBackupCommand) String() string {
 func (*DockerBackupCommand) ProtoMessage() {}
 
 func (x *DockerBackupCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[150]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14558,7 +14626,7 @@ func (x *DockerBackupCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerBackupCommand.ProtoReflect.Descriptor instead.
 func (*DockerBackupCommand) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{150}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{151}
 }
 
 func (x *DockerBackupCommand) GetAction() string {
@@ -14597,7 +14665,7 @@ type MigrationTransferMessage struct {
 
 func (x *MigrationTransferMessage) Reset() {
 	*x = MigrationTransferMessage{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[151]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14609,7 +14677,7 @@ func (x *MigrationTransferMessage) String() string {
 func (*MigrationTransferMessage) ProtoMessage() {}
 
 func (x *MigrationTransferMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[151]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14622,7 +14690,7 @@ func (x *MigrationTransferMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationTransferMessage.ProtoReflect.Descriptor instead.
 func (*MigrationTransferMessage) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{151}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *MigrationTransferMessage) GetPayload() isMigrationTransferMessage_Payload {
@@ -14713,7 +14781,7 @@ type MigrationTransferControl struct {
 
 func (x *MigrationTransferControl) Reset() {
 	*x = MigrationTransferControl{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[152]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14725,7 +14793,7 @@ func (x *MigrationTransferControl) String() string {
 func (*MigrationTransferControl) ProtoMessage() {}
 
 func (x *MigrationTransferControl) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[152]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14738,7 +14806,7 @@ func (x *MigrationTransferControl) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationTransferControl.ProtoReflect.Descriptor instead.
 func (*MigrationTransferControl) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{152}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *MigrationTransferControl) GetPayload() isMigrationTransferControl_Payload {
@@ -14853,7 +14921,7 @@ type MigrationTransferHello struct {
 
 func (x *MigrationTransferHello) Reset() {
 	*x = MigrationTransferHello{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[153]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14865,7 +14933,7 @@ func (x *MigrationTransferHello) String() string {
 func (*MigrationTransferHello) ProtoMessage() {}
 
 func (x *MigrationTransferHello) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[153]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14878,7 +14946,7 @@ func (x *MigrationTransferHello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationTransferHello.ProtoReflect.Descriptor instead.
 func (*MigrationTransferHello) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{153}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *MigrationTransferHello) GetNodeId() string {
@@ -14913,7 +14981,7 @@ type MigrationArtifactRead struct {
 
 func (x *MigrationArtifactRead) Reset() {
 	*x = MigrationArtifactRead{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[154]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14925,7 +14993,7 @@ func (x *MigrationArtifactRead) String() string {
 func (*MigrationArtifactRead) ProtoMessage() {}
 
 func (x *MigrationArtifactRead) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[154]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14938,7 +15006,7 @@ func (x *MigrationArtifactRead) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationArtifactRead.ProtoReflect.Descriptor instead.
 func (*MigrationArtifactRead) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{154}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *MigrationArtifactRead) GetMigrationId() string {
@@ -14973,7 +15041,7 @@ type MigrationArtifactWrite struct {
 
 func (x *MigrationArtifactWrite) Reset() {
 	*x = MigrationArtifactWrite{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[155]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14985,7 +15053,7 @@ func (x *MigrationArtifactWrite) String() string {
 func (*MigrationArtifactWrite) ProtoMessage() {}
 
 func (x *MigrationArtifactWrite) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[155]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14998,7 +15066,7 @@ func (x *MigrationArtifactWrite) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationArtifactWrite.ProtoReflect.Descriptor instead.
 func (*MigrationArtifactWrite) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{155}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *MigrationArtifactWrite) GetMigrationId() string {
@@ -15035,7 +15103,7 @@ type MigrationArtifactChunk struct {
 
 func (x *MigrationArtifactChunk) Reset() {
 	*x = MigrationArtifactChunk{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[156]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15047,7 +15115,7 @@ func (x *MigrationArtifactChunk) String() string {
 func (*MigrationArtifactChunk) ProtoMessage() {}
 
 func (x *MigrationArtifactChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[156]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15060,7 +15128,7 @@ func (x *MigrationArtifactChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationArtifactChunk.ProtoReflect.Descriptor instead.
 func (*MigrationArtifactChunk) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{156}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{157}
 }
 
 func (x *MigrationArtifactChunk) GetMigrationId() string {
@@ -15110,7 +15178,7 @@ type MigrationArtifactAck struct {
 
 func (x *MigrationArtifactAck) Reset() {
 	*x = MigrationArtifactAck{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[157]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15122,7 +15190,7 @@ func (x *MigrationArtifactAck) String() string {
 func (*MigrationArtifactAck) ProtoMessage() {}
 
 func (x *MigrationArtifactAck) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[157]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15135,7 +15203,7 @@ func (x *MigrationArtifactAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationArtifactAck.ProtoReflect.Descriptor instead.
 func (*MigrationArtifactAck) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{157}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *MigrationArtifactAck) GetMigrationId() string {
@@ -15177,7 +15245,7 @@ type MigrationArtifactError struct {
 
 func (x *MigrationArtifactError) Reset() {
 	*x = MigrationArtifactError{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[158]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15189,7 +15257,7 @@ func (x *MigrationArtifactError) String() string {
 func (*MigrationArtifactError) ProtoMessage() {}
 
 func (x *MigrationArtifactError) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[158]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15202,7 +15270,7 @@ func (x *MigrationArtifactError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationArtifactError.ProtoReflect.Descriptor instead.
 func (*MigrationArtifactError) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{158}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{159}
 }
 
 func (x *MigrationArtifactError) GetMigrationId() string {
@@ -15235,7 +15303,7 @@ type MigrationHeartbeat struct {
 
 func (x *MigrationHeartbeat) Reset() {
 	*x = MigrationHeartbeat{}
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[159]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15247,7 +15315,7 @@ func (x *MigrationHeartbeat) String() string {
 func (*MigrationHeartbeat) ProtoMessage() {}
 
 func (x *MigrationHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[159]
+	mi := &file_opfield_v1_nginx_daemon_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15260,7 +15328,7 @@ func (x *MigrationHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationHeartbeat.ProtoReflect.Descriptor instead.
 func (*MigrationHeartbeat) Descriptor() ([]byte, []int) {
-	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{159}
+	return file_opfield_v1_nginx_daemon_proto_rawDescGZIP(), []int{160}
 }
 
 func (x *MigrationHeartbeat) GetMigrationId() string {
@@ -15830,7 +15898,7 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\rdeployment_id\x18\x02 \x01(\tR\fdeploymentId\"X\n" +
 	"\x19PagesVerifyReleaseCommand\x12#\n" +
 	"\rdeployment_id\x18\x01 \x01(\tR\fdeploymentId\x12\x16\n" +
-	"\x06sha256\x18\x02 \x01(\tR\x06sha256\"\xf9\x02\n" +
+	"\x06sha256\x18\x02 \x01(\tR\x06sha256\"\xb8\x03\n" +
 	"\x1ePagesMaterializePreviewCommand\x12\x1d\n" +
 	"\n" +
 	"profile_id\x18\x01 \x01(\tR\tprofileId\x12#\n" +
@@ -15841,7 +15909,12 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\fspa_fallback\x18\x06 \x01(\bR\vspaFallback\x12!\n" +
 	"\ffallback_url\x18\a \x01(\tR\vfallbackUrl\x126\n" +
 	"\x06access\x18\b \x01(\v2\x1e.opfield.v1.PagesPreviewAccessR\x06access\x12!\n" +
-	"\fdefer_reload\x18\t \x01(\bR\vdeferReload\"\xa3\x01\n" +
+	"\fdefer_reload\x18\t \x01(\bR\vdeferReload\x12=\n" +
+	"\tclient_ip\x18\n" +
+	" \x01(\v2 .opfield.v1.PagesPreviewClientIpR\bclientIp\"W\n" +
+	"\x14PagesPreviewClientIp\x12'\n" +
+	"\x0ftrusted_proxies\x18\x01 \x03(\tR\x0etrustedProxies\x12\x16\n" +
+	"\x06header\x18\x02 \x01(\tR\x06header\"\xa3\x01\n" +
 	"\x12PagesPreviewAccess\x12$\n" +
 	"\x0eaccess_list_id\x18\x01 \x01(\tR\faccessListId\x129\n" +
 	"\bip_rules\x18\x02 \x03(\v2\x1e.opfield.v1.PagesPreviewIpRuleR\aipRules\x12,\n" +
@@ -16690,7 +16763,7 @@ func file_opfield_v1_nginx_daemon_proto_rawDescGZIP() []byte {
 }
 
 var file_opfield_v1_nginx_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_opfield_v1_nginx_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 171)
+var file_opfield_v1_nginx_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 172)
 var file_opfield_v1_nginx_daemon_proto_goTypes = []any{
 	(PagesRuntimeConfigBindingKind)(0),        // 0: opfield.v1.PagesRuntimeConfigBindingKind
 	(ProxyMaintenanceFlag)(0),                 // 1: opfield.v1.ProxyMaintenanceFlag
@@ -16744,127 +16817,128 @@ var file_opfield_v1_nginx_daemon_proto_goTypes = []any{
 	(*PagesUploadFinalizeCommand)(nil),        // 49: opfield.v1.PagesUploadFinalizeCommand
 	(*PagesVerifyReleaseCommand)(nil),         // 50: opfield.v1.PagesVerifyReleaseCommand
 	(*PagesMaterializePreviewCommand)(nil),    // 51: opfield.v1.PagesMaterializePreviewCommand
-	(*PagesPreviewAccess)(nil),                // 52: opfield.v1.PagesPreviewAccess
-	(*PagesPreviewIpRule)(nil),                // 53: opfield.v1.PagesPreviewIpRule
-	(*PagesDeployCertificateCommand)(nil),     // 54: opfield.v1.PagesDeployCertificateCommand
-	(*PagesRemovePreviewCommand)(nil),         // 55: opfield.v1.PagesRemovePreviewCommand
-	(*PagesActivateTagRouteCommand)(nil),      // 56: opfield.v1.PagesActivateTagRouteCommand
-	(*PagesDeactivateTagRouteCommand)(nil),    // 57: opfield.v1.PagesDeactivateTagRouteCommand
-	(*PagesCleanupDeploymentCommand)(nil),     // 58: opfield.v1.PagesCleanupDeploymentCommand
-	(*PagesInventoryCommand)(nil),             // 59: opfield.v1.PagesInventoryCommand
-	(*PagesStoragePreflightCommand)(nil),      // 60: opfield.v1.PagesStoragePreflightCommand
-	(*PagesStageRuntimeConfigCommand)(nil),    // 61: opfield.v1.PagesStageRuntimeConfigCommand
-	(*PagesActivateRuntimeConfigCommand)(nil), // 62: opfield.v1.PagesActivateRuntimeConfigCommand
-	(*PagesRemoveRuntimeConfigCommand)(nil),   // 63: opfield.v1.PagesRemoveRuntimeConfigCommand
-	(*SyncRelayGrantsCommand)(nil),            // 64: opfield.v1.SyncRelayGrantsCommand
-	(*RelayLatencyTarget)(nil),                // 65: opfield.v1.RelayLatencyTarget
-	(*RelayRevocationFence)(nil),              // 66: opfield.v1.RelayRevocationFence
-	(*RelayRevokedRoute)(nil),                 // 67: opfield.v1.RelayRevokedRoute
-	(*RelayGrantAssignment)(nil),              // 68: opfield.v1.RelayGrantAssignment
-	(*RelayLeaseTarget)(nil),                  // 69: opfield.v1.RelayLeaseTarget
-	(*RelayLeaseGroupRoute)(nil),              // 70: opfield.v1.RelayLeaseGroupRoute
-	(*RelayStreamResume)(nil),                 // 71: opfield.v1.RelayStreamResume
-	(*RelayRouteResume)(nil),                  // 72: opfield.v1.RelayRouteResume
-	(*SecureLinkEgress)(nil),                  // 73: opfield.v1.SecureLinkEgress
-	(*ManagedDatabaseListener)(nil),           // 74: opfield.v1.ManagedDatabaseListener
-	(*RelaySignedGrant)(nil),                  // 75: opfield.v1.RelaySignedGrant
-	(*RelayDataCandidate)(nil),                // 76: opfield.v1.RelayDataCandidate
-	(*RelayCandidateTopology)(nil),            // 77: opfield.v1.RelayCandidateTopology
-	(*ProbeRelayCandidateCommand)(nil),        // 78: opfield.v1.ProbeRelayCandidateCommand
-	(*SyncProxySecureLinksCommand)(nil),       // 79: opfield.v1.SyncProxySecureLinksCommand
-	(*ProxySecureLinkBinding)(nil),            // 80: opfield.v1.ProxySecureLinkBinding
-	(*ProbeProxySecureLinkCommand)(nil),       // 81: opfield.v1.ProbeProxySecureLinkCommand
-	(*ProbePagesRouteCommand)(nil),            // 82: opfield.v1.ProbePagesRouteCommand
-	(*NodeExecCommand)(nil),                   // 83: opfield.v1.NodeExecCommand
-	(*NodeFileCommand)(nil),                   // 84: opfield.v1.NodeFileCommand
-	(*ApplyConfigCommand)(nil),                // 85: opfield.v1.ApplyConfigCommand
-	(*RemoveConfigCommand)(nil),               // 86: opfield.v1.RemoveConfigCommand
-	(*DeployCertCommand)(nil),                 // 87: opfield.v1.DeployCertCommand
-	(*ApplyTlsBundleCommand)(nil),             // 88: opfield.v1.ApplyTlsBundleCommand
-	(*VersionedCertBundle)(nil),               // 89: opfield.v1.VersionedCertBundle
-	(*InspectCertificatesCommand)(nil),        // 90: opfield.v1.InspectCertificatesCommand
-	(*ExportLegacyCertificatesCommand)(nil),   // 91: opfield.v1.ExportLegacyCertificatesCommand
-	(*RemoveCertificateReplicaCommand)(nil),   // 92: opfield.v1.RemoveCertificateReplicaCommand
-	(*RemoveCertCommand)(nil),                 // 93: opfield.v1.RemoveCertCommand
-	(*FullSyncCommand)(nil),                   // 94: opfield.v1.FullSyncCommand
-	(*HostConfig)(nil),                        // 95: opfield.v1.HostConfig
-	(*CertBundle)(nil),                        // 96: opfield.v1.CertBundle
-	(*HtpasswdFile)(nil),                      // 97: opfield.v1.HtpasswdFile
-	(*UpdateGlobalConfigCommand)(nil),         // 98: opfield.v1.UpdateGlobalConfigCommand
-	(*DeployHtpasswdCommand)(nil),             // 99: opfield.v1.DeployHtpasswdCommand
-	(*RemoveHtpasswdCommand)(nil),             // 100: opfield.v1.RemoveHtpasswdCommand
-	(*TestConfigCommand)(nil),                 // 101: opfield.v1.TestConfigCommand
-	(*RequestHealthCommand)(nil),              // 102: opfield.v1.RequestHealthCommand
-	(*RequestStatsCommand)(nil),               // 103: opfield.v1.RequestStatsCommand
-	(*SetDaemonLogStreamCommand)(nil),         // 104: opfield.v1.SetDaemonLogStreamCommand
-	(*DeployAcmeChallengeCommand)(nil),        // 105: opfield.v1.DeployAcmeChallengeCommand
-	(*RemoveAcmeChallengeCommand)(nil),        // 106: opfield.v1.RemoveAcmeChallengeCommand
-	(*ReadGlobalConfigCommand)(nil),           // 107: opfield.v1.ReadGlobalConfigCommand
-	(*RequestTrafficStatsCommand)(nil),        // 108: opfield.v1.RequestTrafficStatsCommand
-	(*DockerContainerCommand)(nil),            // 109: opfield.v1.DockerContainerCommand
-	(*DockerImageCommand)(nil),                // 110: opfield.v1.DockerImageCommand
-	(*DockerVolumeCommand)(nil),               // 111: opfield.v1.DockerVolumeCommand
-	(*DockerNetworkCommand)(nil),              // 112: opfield.v1.DockerNetworkCommand
-	(*DockerDeploymentCommand)(nil),           // 113: opfield.v1.DockerDeploymentCommand
-	(*DockerComposeCommand)(nil),              // 114: opfield.v1.DockerComposeCommand
-	(*DockerAvailabilityCommand)(nil),         // 115: opfield.v1.DockerAvailabilityCommand
-	(*SyncAvailabilityLeaseCommand)(nil),      // 116: opfield.v1.SyncAvailabilityLeaseCommand
-	(*AvailabilityLeasePolicyKey)(nil),        // 117: opfield.v1.AvailabilityLeasePolicyKey
-	(*AvailabilityLeaseHandoffCommand)(nil),   // 118: opfield.v1.AvailabilityLeaseHandoffCommand
-	(*AvailabilityLeaseBallot)(nil),           // 119: opfield.v1.AvailabilityLeaseBallot
-	(*AvailabilityLeaseReport)(nil),           // 120: opfield.v1.AvailabilityLeaseReport
-	(*AvailabilityLeaseManifestAck)(nil),      // 121: opfield.v1.AvailabilityLeaseManifestAck
-	(*AvailabilityLeaseHeld)(nil),             // 122: opfield.v1.AvailabilityLeaseHeld
-	(*AvailabilityLeaseKeyView)(nil),          // 123: opfield.v1.AvailabilityLeaseKeyView
-	(*AvailabilityLeaseEvent)(nil),            // 124: opfield.v1.AvailabilityLeaseEvent
-	(*DockerRuntimeCommand)(nil),              // 125: opfield.v1.DockerRuntimeCommand
-	(*DockerRuntimeStatus)(nil),               // 126: opfield.v1.DockerRuntimeStatus
-	(*DockerBuildCommand)(nil),                // 127: opfield.v1.DockerBuildCommand
-	(*DockerBuildCancelCommand)(nil),          // 128: opfield.v1.DockerBuildCancelCommand
-	(*DockerBuildEvent)(nil),                  // 129: opfield.v1.DockerBuildEvent
-	(*DockerBuildEventAck)(nil),               // 130: opfield.v1.DockerBuildEventAck
-	(*SyncDockerRegistryBindingsCommand)(nil), // 131: opfield.v1.SyncDockerRegistryBindingsCommand
-	(*DockerRegistryBinding)(nil),             // 132: opfield.v1.DockerRegistryBinding
-	(*DockerExecCommand)(nil),                 // 133: opfield.v1.DockerExecCommand
-	(*DockerFileCommand)(nil),                 // 134: opfield.v1.DockerFileCommand
-	(*DockerConfigPushCommand)(nil),           // 135: opfield.v1.DockerConfigPushCommand
-	(*RegistryConfig)(nil),                    // 136: opfield.v1.RegistryConfig
-	(*DockerLogsCommand)(nil),                 // 137: opfield.v1.DockerLogsCommand
-	(*ExecInput)(nil),                         // 138: opfield.v1.ExecInput
-	(*ExecOutput)(nil),                        // 139: opfield.v1.ExecOutput
-	(*ContainerStats)(nil),                    // 140: opfield.v1.ContainerStats
-	(*GpuDevice)(nil),                         // 141: opfield.v1.GpuDevice
-	(*LogStreamMessage)(nil),                  // 142: opfield.v1.LogStreamMessage
-	(*LogSubscribeAck)(nil),                   // 143: opfield.v1.LogSubscribeAck
-	(*LogEntry)(nil),                          // 144: opfield.v1.LogEntry
-	(*LogStreamControl)(nil),                  // 145: opfield.v1.LogStreamControl
-	(*LogSubscribe)(nil),                      // 146: opfield.v1.LogSubscribe
-	(*LogUnsubscribe)(nil),                    // 147: opfield.v1.LogUnsubscribe
-	(*UpdateDaemonCommand)(nil),               // 148: opfield.v1.UpdateDaemonCommand
-	(*DockerMigrationCommand)(nil),            // 149: opfield.v1.DockerMigrationCommand
-	(*DockerDatabaseCommand)(nil),             // 150: opfield.v1.DockerDatabaseCommand
-	(*DockerStorageCommand)(nil),              // 151: opfield.v1.DockerStorageCommand
-	(*DockerBackupCommand)(nil),               // 152: opfield.v1.DockerBackupCommand
-	(*MigrationTransferMessage)(nil),          // 153: opfield.v1.MigrationTransferMessage
-	(*MigrationTransferControl)(nil),          // 154: opfield.v1.MigrationTransferControl
-	(*MigrationTransferHello)(nil),            // 155: opfield.v1.MigrationTransferHello
-	(*MigrationArtifactRead)(nil),             // 156: opfield.v1.MigrationArtifactRead
-	(*MigrationArtifactWrite)(nil),            // 157: opfield.v1.MigrationArtifactWrite
-	(*MigrationArtifactChunk)(nil),            // 158: opfield.v1.MigrationArtifactChunk
-	(*MigrationArtifactAck)(nil),              // 159: opfield.v1.MigrationArtifactAck
-	(*MigrationArtifactError)(nil),            // 160: opfield.v1.MigrationArtifactError
-	(*MigrationHeartbeat)(nil),                // 161: opfield.v1.MigrationHeartbeat
-	nil,                                       // 162: opfield.v1.DaemonLogEntry.FieldsEntry
-	nil,                                       // 163: opfield.v1.HealthReport.LegacyNamesEntry
-	nil,                                       // 164: opfield.v1.DaemonUpdateConnections.CutEntry
-	nil,                                       // 165: opfield.v1.DaemonUpdateConnectionReport.CutEntry
-	nil,                                       // 166: opfield.v1.AvailabilityMemberReport.PositionEntry
-	nil,                                       // 167: opfield.v1.AvailabilityMemberEvent.DetailEntry
-	nil,                                       // 168: opfield.v1.DockerVolumeCommand.LabelsEntry
-	nil,                                       // 169: opfield.v1.DockerComposeCommand.VariablesEntry
-	nil,                                       // 170: opfield.v1.DockerComposeCommand.SecretsEntry
-	nil,                                       // 171: opfield.v1.DockerBuildCommand.BuildArgsEntry
-	nil,                                       // 172: opfield.v1.DockerBuildCommand.BuildSecretsEntry
+	(*PagesPreviewClientIp)(nil),              // 52: opfield.v1.PagesPreviewClientIp
+	(*PagesPreviewAccess)(nil),                // 53: opfield.v1.PagesPreviewAccess
+	(*PagesPreviewIpRule)(nil),                // 54: opfield.v1.PagesPreviewIpRule
+	(*PagesDeployCertificateCommand)(nil),     // 55: opfield.v1.PagesDeployCertificateCommand
+	(*PagesRemovePreviewCommand)(nil),         // 56: opfield.v1.PagesRemovePreviewCommand
+	(*PagesActivateTagRouteCommand)(nil),      // 57: opfield.v1.PagesActivateTagRouteCommand
+	(*PagesDeactivateTagRouteCommand)(nil),    // 58: opfield.v1.PagesDeactivateTagRouteCommand
+	(*PagesCleanupDeploymentCommand)(nil),     // 59: opfield.v1.PagesCleanupDeploymentCommand
+	(*PagesInventoryCommand)(nil),             // 60: opfield.v1.PagesInventoryCommand
+	(*PagesStoragePreflightCommand)(nil),      // 61: opfield.v1.PagesStoragePreflightCommand
+	(*PagesStageRuntimeConfigCommand)(nil),    // 62: opfield.v1.PagesStageRuntimeConfigCommand
+	(*PagesActivateRuntimeConfigCommand)(nil), // 63: opfield.v1.PagesActivateRuntimeConfigCommand
+	(*PagesRemoveRuntimeConfigCommand)(nil),   // 64: opfield.v1.PagesRemoveRuntimeConfigCommand
+	(*SyncRelayGrantsCommand)(nil),            // 65: opfield.v1.SyncRelayGrantsCommand
+	(*RelayLatencyTarget)(nil),                // 66: opfield.v1.RelayLatencyTarget
+	(*RelayRevocationFence)(nil),              // 67: opfield.v1.RelayRevocationFence
+	(*RelayRevokedRoute)(nil),                 // 68: opfield.v1.RelayRevokedRoute
+	(*RelayGrantAssignment)(nil),              // 69: opfield.v1.RelayGrantAssignment
+	(*RelayLeaseTarget)(nil),                  // 70: opfield.v1.RelayLeaseTarget
+	(*RelayLeaseGroupRoute)(nil),              // 71: opfield.v1.RelayLeaseGroupRoute
+	(*RelayStreamResume)(nil),                 // 72: opfield.v1.RelayStreamResume
+	(*RelayRouteResume)(nil),                  // 73: opfield.v1.RelayRouteResume
+	(*SecureLinkEgress)(nil),                  // 74: opfield.v1.SecureLinkEgress
+	(*ManagedDatabaseListener)(nil),           // 75: opfield.v1.ManagedDatabaseListener
+	(*RelaySignedGrant)(nil),                  // 76: opfield.v1.RelaySignedGrant
+	(*RelayDataCandidate)(nil),                // 77: opfield.v1.RelayDataCandidate
+	(*RelayCandidateTopology)(nil),            // 78: opfield.v1.RelayCandidateTopology
+	(*ProbeRelayCandidateCommand)(nil),        // 79: opfield.v1.ProbeRelayCandidateCommand
+	(*SyncProxySecureLinksCommand)(nil),       // 80: opfield.v1.SyncProxySecureLinksCommand
+	(*ProxySecureLinkBinding)(nil),            // 81: opfield.v1.ProxySecureLinkBinding
+	(*ProbeProxySecureLinkCommand)(nil),       // 82: opfield.v1.ProbeProxySecureLinkCommand
+	(*ProbePagesRouteCommand)(nil),            // 83: opfield.v1.ProbePagesRouteCommand
+	(*NodeExecCommand)(nil),                   // 84: opfield.v1.NodeExecCommand
+	(*NodeFileCommand)(nil),                   // 85: opfield.v1.NodeFileCommand
+	(*ApplyConfigCommand)(nil),                // 86: opfield.v1.ApplyConfigCommand
+	(*RemoveConfigCommand)(nil),               // 87: opfield.v1.RemoveConfigCommand
+	(*DeployCertCommand)(nil),                 // 88: opfield.v1.DeployCertCommand
+	(*ApplyTlsBundleCommand)(nil),             // 89: opfield.v1.ApplyTlsBundleCommand
+	(*VersionedCertBundle)(nil),               // 90: opfield.v1.VersionedCertBundle
+	(*InspectCertificatesCommand)(nil),        // 91: opfield.v1.InspectCertificatesCommand
+	(*ExportLegacyCertificatesCommand)(nil),   // 92: opfield.v1.ExportLegacyCertificatesCommand
+	(*RemoveCertificateReplicaCommand)(nil),   // 93: opfield.v1.RemoveCertificateReplicaCommand
+	(*RemoveCertCommand)(nil),                 // 94: opfield.v1.RemoveCertCommand
+	(*FullSyncCommand)(nil),                   // 95: opfield.v1.FullSyncCommand
+	(*HostConfig)(nil),                        // 96: opfield.v1.HostConfig
+	(*CertBundle)(nil),                        // 97: opfield.v1.CertBundle
+	(*HtpasswdFile)(nil),                      // 98: opfield.v1.HtpasswdFile
+	(*UpdateGlobalConfigCommand)(nil),         // 99: opfield.v1.UpdateGlobalConfigCommand
+	(*DeployHtpasswdCommand)(nil),             // 100: opfield.v1.DeployHtpasswdCommand
+	(*RemoveHtpasswdCommand)(nil),             // 101: opfield.v1.RemoveHtpasswdCommand
+	(*TestConfigCommand)(nil),                 // 102: opfield.v1.TestConfigCommand
+	(*RequestHealthCommand)(nil),              // 103: opfield.v1.RequestHealthCommand
+	(*RequestStatsCommand)(nil),               // 104: opfield.v1.RequestStatsCommand
+	(*SetDaemonLogStreamCommand)(nil),         // 105: opfield.v1.SetDaemonLogStreamCommand
+	(*DeployAcmeChallengeCommand)(nil),        // 106: opfield.v1.DeployAcmeChallengeCommand
+	(*RemoveAcmeChallengeCommand)(nil),        // 107: opfield.v1.RemoveAcmeChallengeCommand
+	(*ReadGlobalConfigCommand)(nil),           // 108: opfield.v1.ReadGlobalConfigCommand
+	(*RequestTrafficStatsCommand)(nil),        // 109: opfield.v1.RequestTrafficStatsCommand
+	(*DockerContainerCommand)(nil),            // 110: opfield.v1.DockerContainerCommand
+	(*DockerImageCommand)(nil),                // 111: opfield.v1.DockerImageCommand
+	(*DockerVolumeCommand)(nil),               // 112: opfield.v1.DockerVolumeCommand
+	(*DockerNetworkCommand)(nil),              // 113: opfield.v1.DockerNetworkCommand
+	(*DockerDeploymentCommand)(nil),           // 114: opfield.v1.DockerDeploymentCommand
+	(*DockerComposeCommand)(nil),              // 115: opfield.v1.DockerComposeCommand
+	(*DockerAvailabilityCommand)(nil),         // 116: opfield.v1.DockerAvailabilityCommand
+	(*SyncAvailabilityLeaseCommand)(nil),      // 117: opfield.v1.SyncAvailabilityLeaseCommand
+	(*AvailabilityLeasePolicyKey)(nil),        // 118: opfield.v1.AvailabilityLeasePolicyKey
+	(*AvailabilityLeaseHandoffCommand)(nil),   // 119: opfield.v1.AvailabilityLeaseHandoffCommand
+	(*AvailabilityLeaseBallot)(nil),           // 120: opfield.v1.AvailabilityLeaseBallot
+	(*AvailabilityLeaseReport)(nil),           // 121: opfield.v1.AvailabilityLeaseReport
+	(*AvailabilityLeaseManifestAck)(nil),      // 122: opfield.v1.AvailabilityLeaseManifestAck
+	(*AvailabilityLeaseHeld)(nil),             // 123: opfield.v1.AvailabilityLeaseHeld
+	(*AvailabilityLeaseKeyView)(nil),          // 124: opfield.v1.AvailabilityLeaseKeyView
+	(*AvailabilityLeaseEvent)(nil),            // 125: opfield.v1.AvailabilityLeaseEvent
+	(*DockerRuntimeCommand)(nil),              // 126: opfield.v1.DockerRuntimeCommand
+	(*DockerRuntimeStatus)(nil),               // 127: opfield.v1.DockerRuntimeStatus
+	(*DockerBuildCommand)(nil),                // 128: opfield.v1.DockerBuildCommand
+	(*DockerBuildCancelCommand)(nil),          // 129: opfield.v1.DockerBuildCancelCommand
+	(*DockerBuildEvent)(nil),                  // 130: opfield.v1.DockerBuildEvent
+	(*DockerBuildEventAck)(nil),               // 131: opfield.v1.DockerBuildEventAck
+	(*SyncDockerRegistryBindingsCommand)(nil), // 132: opfield.v1.SyncDockerRegistryBindingsCommand
+	(*DockerRegistryBinding)(nil),             // 133: opfield.v1.DockerRegistryBinding
+	(*DockerExecCommand)(nil),                 // 134: opfield.v1.DockerExecCommand
+	(*DockerFileCommand)(nil),                 // 135: opfield.v1.DockerFileCommand
+	(*DockerConfigPushCommand)(nil),           // 136: opfield.v1.DockerConfigPushCommand
+	(*RegistryConfig)(nil),                    // 137: opfield.v1.RegistryConfig
+	(*DockerLogsCommand)(nil),                 // 138: opfield.v1.DockerLogsCommand
+	(*ExecInput)(nil),                         // 139: opfield.v1.ExecInput
+	(*ExecOutput)(nil),                        // 140: opfield.v1.ExecOutput
+	(*ContainerStats)(nil),                    // 141: opfield.v1.ContainerStats
+	(*GpuDevice)(nil),                         // 142: opfield.v1.GpuDevice
+	(*LogStreamMessage)(nil),                  // 143: opfield.v1.LogStreamMessage
+	(*LogSubscribeAck)(nil),                   // 144: opfield.v1.LogSubscribeAck
+	(*LogEntry)(nil),                          // 145: opfield.v1.LogEntry
+	(*LogStreamControl)(nil),                  // 146: opfield.v1.LogStreamControl
+	(*LogSubscribe)(nil),                      // 147: opfield.v1.LogSubscribe
+	(*LogUnsubscribe)(nil),                    // 148: opfield.v1.LogUnsubscribe
+	(*UpdateDaemonCommand)(nil),               // 149: opfield.v1.UpdateDaemonCommand
+	(*DockerMigrationCommand)(nil),            // 150: opfield.v1.DockerMigrationCommand
+	(*DockerDatabaseCommand)(nil),             // 151: opfield.v1.DockerDatabaseCommand
+	(*DockerStorageCommand)(nil),              // 152: opfield.v1.DockerStorageCommand
+	(*DockerBackupCommand)(nil),               // 153: opfield.v1.DockerBackupCommand
+	(*MigrationTransferMessage)(nil),          // 154: opfield.v1.MigrationTransferMessage
+	(*MigrationTransferControl)(nil),          // 155: opfield.v1.MigrationTransferControl
+	(*MigrationTransferHello)(nil),            // 156: opfield.v1.MigrationTransferHello
+	(*MigrationArtifactRead)(nil),             // 157: opfield.v1.MigrationArtifactRead
+	(*MigrationArtifactWrite)(nil),            // 158: opfield.v1.MigrationArtifactWrite
+	(*MigrationArtifactChunk)(nil),            // 159: opfield.v1.MigrationArtifactChunk
+	(*MigrationArtifactAck)(nil),              // 160: opfield.v1.MigrationArtifactAck
+	(*MigrationArtifactError)(nil),            // 161: opfield.v1.MigrationArtifactError
+	(*MigrationHeartbeat)(nil),                // 162: opfield.v1.MigrationHeartbeat
+	nil,                                       // 163: opfield.v1.DaemonLogEntry.FieldsEntry
+	nil,                                       // 164: opfield.v1.HealthReport.LegacyNamesEntry
+	nil,                                       // 165: opfield.v1.DaemonUpdateConnections.CutEntry
+	nil,                                       // 166: opfield.v1.DaemonUpdateConnectionReport.CutEntry
+	nil,                                       // 167: opfield.v1.AvailabilityMemberReport.PositionEntry
+	nil,                                       // 168: opfield.v1.AvailabilityMemberEvent.DetailEntry
+	nil,                                       // 169: opfield.v1.DockerVolumeCommand.LabelsEntry
+	nil,                                       // 170: opfield.v1.DockerComposeCommand.VariablesEntry
+	nil,                                       // 171: opfield.v1.DockerComposeCommand.SecretsEntry
+	nil,                                       // 172: opfield.v1.DockerBuildCommand.BuildArgsEntry
+	nil,                                       // 173: opfield.v1.DockerBuildCommand.BuildSecretsEntry
 }
 var file_opfield_v1_nginx_daemon_proto_depIdxs = []int32{
 	10,  // 0: opfield.v1.DaemonMessage.register:type_name -> opfield.v1.RegisterMessage
@@ -16872,98 +16946,98 @@ var file_opfield_v1_nginx_daemon_proto_depIdxs = []int32{
 	12,  // 2: opfield.v1.DaemonMessage.health_report:type_name -> opfield.v1.HealthReport
 	20,  // 3: opfield.v1.DaemonMessage.stats_report:type_name -> opfield.v1.StatsReport
 	9,   // 4: opfield.v1.DaemonMessage.daemon_log:type_name -> opfield.v1.DaemonLogEntry
-	139, // 5: opfield.v1.DaemonMessage.exec_output:type_name -> opfield.v1.ExecOutput
-	126, // 6: opfield.v1.DaemonMessage.docker_runtime_status:type_name -> opfield.v1.DockerRuntimeStatus
+	140, // 5: opfield.v1.DaemonMessage.exec_output:type_name -> opfield.v1.ExecOutput
+	127, // 6: opfield.v1.DaemonMessage.docker_runtime_status:type_name -> opfield.v1.DockerRuntimeStatus
 	45,  // 7: opfield.v1.DaemonMessage.relay_runtime_status:type_name -> opfield.v1.RelayRuntimeStatus
-	129, // 8: opfield.v1.DaemonMessage.docker_build_event:type_name -> opfield.v1.DockerBuildEvent
-	162, // 9: opfield.v1.DaemonLogEntry.fields:type_name -> opfield.v1.DaemonLogEntry.FieldsEntry
-	126, // 10: opfield.v1.RegisterMessage.docker_runtime_status:type_name -> opfield.v1.DockerRuntimeStatus
+	130, // 8: opfield.v1.DaemonMessage.docker_build_event:type_name -> opfield.v1.DockerBuildEvent
+	163, // 9: opfield.v1.DaemonLogEntry.fields:type_name -> opfield.v1.DaemonLogEntry.FieldsEntry
+	127, // 10: opfield.v1.RegisterMessage.docker_runtime_status:type_name -> opfield.v1.DockerRuntimeStatus
 	21,  // 11: opfield.v1.HealthReport.disk_mounts:type_name -> opfield.v1.DiskMount
 	22,  // 12: opfield.v1.HealthReport.network_interfaces:type_name -> opfield.v1.NetworkInterface
-	140, // 13: opfield.v1.HealthReport.container_stats:type_name -> opfield.v1.ContainerStats
-	141, // 14: opfield.v1.HealthReport.gpu_devices:type_name -> opfield.v1.GpuDevice
-	120, // 15: opfield.v1.HealthReport.availability_lease:type_name -> opfield.v1.AvailabilityLeaseReport
+	141, // 13: opfield.v1.HealthReport.container_stats:type_name -> opfield.v1.ContainerStats
+	142, // 14: opfield.v1.HealthReport.gpu_devices:type_name -> opfield.v1.GpuDevice
+	121, // 15: opfield.v1.HealthReport.availability_lease:type_name -> opfield.v1.AvailabilityLeaseReport
 	18,  // 16: opfield.v1.HealthReport.managed_links:type_name -> opfield.v1.ManagedLinkRuntime
 	19,  // 17: opfield.v1.HealthReport.relay_latencies:type_name -> opfield.v1.RelayLatencySample
 	15,  // 18: opfield.v1.HealthReport.relay_streams:type_name -> opfield.v1.RelayStreamStats
 	13,  // 19: opfield.v1.HealthReport.update_connections:type_name -> opfield.v1.DaemonUpdateConnections
-	163, // 20: opfield.v1.HealthReport.legacy_names:type_name -> opfield.v1.HealthReport.LegacyNamesEntry
+	164, // 20: opfield.v1.HealthReport.legacy_names:type_name -> opfield.v1.HealthReport.LegacyNamesEntry
 	17,  // 21: opfield.v1.HealthReport.ingress_health:type_name -> opfield.v1.IngressHealthReport
 	38,  // 22: opfield.v1.HealthReport.availability_members:type_name -> opfield.v1.AvailabilityMemberReport
-	164, // 23: opfield.v1.DaemonUpdateConnections.cut:type_name -> opfield.v1.DaemonUpdateConnections.CutEntry
+	165, // 23: opfield.v1.DaemonUpdateConnections.cut:type_name -> opfield.v1.DaemonUpdateConnections.CutEntry
 	14,  // 24: opfield.v1.DaemonUpdateConnections.last_update:type_name -> opfield.v1.DaemonUpdateConnectionReport
-	165, // 25: opfield.v1.DaemonUpdateConnectionReport.cut:type_name -> opfield.v1.DaemonUpdateConnectionReport.CutEntry
+	166, // 25: opfield.v1.DaemonUpdateConnectionReport.cut:type_name -> opfield.v1.DaemonUpdateConnectionReport.CutEntry
 	16,  // 26: opfield.v1.RelayStreamStats.by_relay:type_name -> opfield.v1.RelayStreamRelaySessions
-	85,  // 27: opfield.v1.OpfieldCommand.apply_config:type_name -> opfield.v1.ApplyConfigCommand
-	86,  // 28: opfield.v1.OpfieldCommand.remove_config:type_name -> opfield.v1.RemoveConfigCommand
-	87,  // 29: opfield.v1.OpfieldCommand.deploy_cert:type_name -> opfield.v1.DeployCertCommand
-	93,  // 30: opfield.v1.OpfieldCommand.remove_cert:type_name -> opfield.v1.RemoveCertCommand
-	94,  // 31: opfield.v1.OpfieldCommand.full_sync:type_name -> opfield.v1.FullSyncCommand
-	98,  // 32: opfield.v1.OpfieldCommand.update_global_config:type_name -> opfield.v1.UpdateGlobalConfigCommand
-	99,  // 33: opfield.v1.OpfieldCommand.deploy_htpasswd:type_name -> opfield.v1.DeployHtpasswdCommand
-	101, // 34: opfield.v1.OpfieldCommand.test_config:type_name -> opfield.v1.TestConfigCommand
-	102, // 35: opfield.v1.OpfieldCommand.request_health:type_name -> opfield.v1.RequestHealthCommand
-	103, // 36: opfield.v1.OpfieldCommand.request_stats:type_name -> opfield.v1.RequestStatsCommand
-	104, // 37: opfield.v1.OpfieldCommand.set_daemon_log_stream:type_name -> opfield.v1.SetDaemonLogStreamCommand
-	100, // 38: opfield.v1.OpfieldCommand.remove_htpasswd:type_name -> opfield.v1.RemoveHtpasswdCommand
-	105, // 39: opfield.v1.OpfieldCommand.deploy_acme_challenge:type_name -> opfield.v1.DeployAcmeChallengeCommand
-	106, // 40: opfield.v1.OpfieldCommand.remove_acme_challenge:type_name -> opfield.v1.RemoveAcmeChallengeCommand
-	107, // 41: opfield.v1.OpfieldCommand.read_global_config:type_name -> opfield.v1.ReadGlobalConfigCommand
-	108, // 42: opfield.v1.OpfieldCommand.request_traffic_stats:type_name -> opfield.v1.RequestTrafficStatsCommand
-	109, // 43: opfield.v1.OpfieldCommand.docker_container:type_name -> opfield.v1.DockerContainerCommand
-	110, // 44: opfield.v1.OpfieldCommand.docker_image:type_name -> opfield.v1.DockerImageCommand
-	111, // 45: opfield.v1.OpfieldCommand.docker_volume:type_name -> opfield.v1.DockerVolumeCommand
-	112, // 46: opfield.v1.OpfieldCommand.docker_network:type_name -> opfield.v1.DockerNetworkCommand
-	133, // 47: opfield.v1.OpfieldCommand.docker_exec:type_name -> opfield.v1.DockerExecCommand
-	134, // 48: opfield.v1.OpfieldCommand.docker_file:type_name -> opfield.v1.DockerFileCommand
-	135, // 49: opfield.v1.OpfieldCommand.docker_config_push:type_name -> opfield.v1.DockerConfigPushCommand
-	137, // 50: opfield.v1.OpfieldCommand.docker_logs:type_name -> opfield.v1.DockerLogsCommand
-	138, // 51: opfield.v1.OpfieldCommand.exec_input:type_name -> opfield.v1.ExecInput
-	83,  // 52: opfield.v1.OpfieldCommand.node_exec:type_name -> opfield.v1.NodeExecCommand
-	148, // 53: opfield.v1.OpfieldCommand.update_daemon:type_name -> opfield.v1.UpdateDaemonCommand
-	113, // 54: opfield.v1.OpfieldCommand.docker_deployment:type_name -> opfield.v1.DockerDeploymentCommand
-	84,  // 55: opfield.v1.OpfieldCommand.node_file:type_name -> opfield.v1.NodeFileCommand
-	149, // 56: opfield.v1.OpfieldCommand.docker_migration:type_name -> opfield.v1.DockerMigrationCommand
-	150, // 57: opfield.v1.OpfieldCommand.docker_database:type_name -> opfield.v1.DockerDatabaseCommand
-	151, // 58: opfield.v1.OpfieldCommand.docker_storage:type_name -> opfield.v1.DockerStorageCommand
-	152, // 59: opfield.v1.OpfieldCommand.docker_backup:type_name -> opfield.v1.DockerBackupCommand
-	88,  // 60: opfield.v1.OpfieldCommand.apply_tls_bundle:type_name -> opfield.v1.ApplyTlsBundleCommand
-	90,  // 61: opfield.v1.OpfieldCommand.inspect_certificates:type_name -> opfield.v1.InspectCertificatesCommand
-	91,  // 62: opfield.v1.OpfieldCommand.export_legacy_certificates:type_name -> opfield.v1.ExportLegacyCertificatesCommand
-	92,  // 63: opfield.v1.OpfieldCommand.remove_certificate_replica:type_name -> opfield.v1.RemoveCertificateReplicaCommand
-	64,  // 64: opfield.v1.OpfieldCommand.sync_relay_grants:type_name -> opfield.v1.SyncRelayGrantsCommand
-	79,  // 65: opfield.v1.OpfieldCommand.sync_proxy_secure_links:type_name -> opfield.v1.SyncProxySecureLinksCommand
-	81,  // 66: opfield.v1.OpfieldCommand.probe_proxy_secure_link:type_name -> opfield.v1.ProbeProxySecureLinkCommand
-	125, // 67: opfield.v1.OpfieldCommand.docker_runtime:type_name -> opfield.v1.DockerRuntimeCommand
+	86,  // 27: opfield.v1.OpfieldCommand.apply_config:type_name -> opfield.v1.ApplyConfigCommand
+	87,  // 28: opfield.v1.OpfieldCommand.remove_config:type_name -> opfield.v1.RemoveConfigCommand
+	88,  // 29: opfield.v1.OpfieldCommand.deploy_cert:type_name -> opfield.v1.DeployCertCommand
+	94,  // 30: opfield.v1.OpfieldCommand.remove_cert:type_name -> opfield.v1.RemoveCertCommand
+	95,  // 31: opfield.v1.OpfieldCommand.full_sync:type_name -> opfield.v1.FullSyncCommand
+	99,  // 32: opfield.v1.OpfieldCommand.update_global_config:type_name -> opfield.v1.UpdateGlobalConfigCommand
+	100, // 33: opfield.v1.OpfieldCommand.deploy_htpasswd:type_name -> opfield.v1.DeployHtpasswdCommand
+	102, // 34: opfield.v1.OpfieldCommand.test_config:type_name -> opfield.v1.TestConfigCommand
+	103, // 35: opfield.v1.OpfieldCommand.request_health:type_name -> opfield.v1.RequestHealthCommand
+	104, // 36: opfield.v1.OpfieldCommand.request_stats:type_name -> opfield.v1.RequestStatsCommand
+	105, // 37: opfield.v1.OpfieldCommand.set_daemon_log_stream:type_name -> opfield.v1.SetDaemonLogStreamCommand
+	101, // 38: opfield.v1.OpfieldCommand.remove_htpasswd:type_name -> opfield.v1.RemoveHtpasswdCommand
+	106, // 39: opfield.v1.OpfieldCommand.deploy_acme_challenge:type_name -> opfield.v1.DeployAcmeChallengeCommand
+	107, // 40: opfield.v1.OpfieldCommand.remove_acme_challenge:type_name -> opfield.v1.RemoveAcmeChallengeCommand
+	108, // 41: opfield.v1.OpfieldCommand.read_global_config:type_name -> opfield.v1.ReadGlobalConfigCommand
+	109, // 42: opfield.v1.OpfieldCommand.request_traffic_stats:type_name -> opfield.v1.RequestTrafficStatsCommand
+	110, // 43: opfield.v1.OpfieldCommand.docker_container:type_name -> opfield.v1.DockerContainerCommand
+	111, // 44: opfield.v1.OpfieldCommand.docker_image:type_name -> opfield.v1.DockerImageCommand
+	112, // 45: opfield.v1.OpfieldCommand.docker_volume:type_name -> opfield.v1.DockerVolumeCommand
+	113, // 46: opfield.v1.OpfieldCommand.docker_network:type_name -> opfield.v1.DockerNetworkCommand
+	134, // 47: opfield.v1.OpfieldCommand.docker_exec:type_name -> opfield.v1.DockerExecCommand
+	135, // 48: opfield.v1.OpfieldCommand.docker_file:type_name -> opfield.v1.DockerFileCommand
+	136, // 49: opfield.v1.OpfieldCommand.docker_config_push:type_name -> opfield.v1.DockerConfigPushCommand
+	138, // 50: opfield.v1.OpfieldCommand.docker_logs:type_name -> opfield.v1.DockerLogsCommand
+	139, // 51: opfield.v1.OpfieldCommand.exec_input:type_name -> opfield.v1.ExecInput
+	84,  // 52: opfield.v1.OpfieldCommand.node_exec:type_name -> opfield.v1.NodeExecCommand
+	149, // 53: opfield.v1.OpfieldCommand.update_daemon:type_name -> opfield.v1.UpdateDaemonCommand
+	114, // 54: opfield.v1.OpfieldCommand.docker_deployment:type_name -> opfield.v1.DockerDeploymentCommand
+	85,  // 55: opfield.v1.OpfieldCommand.node_file:type_name -> opfield.v1.NodeFileCommand
+	150, // 56: opfield.v1.OpfieldCommand.docker_migration:type_name -> opfield.v1.DockerMigrationCommand
+	151, // 57: opfield.v1.OpfieldCommand.docker_database:type_name -> opfield.v1.DockerDatabaseCommand
+	152, // 58: opfield.v1.OpfieldCommand.docker_storage:type_name -> opfield.v1.DockerStorageCommand
+	153, // 59: opfield.v1.OpfieldCommand.docker_backup:type_name -> opfield.v1.DockerBackupCommand
+	89,  // 60: opfield.v1.OpfieldCommand.apply_tls_bundle:type_name -> opfield.v1.ApplyTlsBundleCommand
+	91,  // 61: opfield.v1.OpfieldCommand.inspect_certificates:type_name -> opfield.v1.InspectCertificatesCommand
+	92,  // 62: opfield.v1.OpfieldCommand.export_legacy_certificates:type_name -> opfield.v1.ExportLegacyCertificatesCommand
+	93,  // 63: opfield.v1.OpfieldCommand.remove_certificate_replica:type_name -> opfield.v1.RemoveCertificateReplicaCommand
+	65,  // 64: opfield.v1.OpfieldCommand.sync_relay_grants:type_name -> opfield.v1.SyncRelayGrantsCommand
+	80,  // 65: opfield.v1.OpfieldCommand.sync_proxy_secure_links:type_name -> opfield.v1.SyncProxySecureLinksCommand
+	82,  // 66: opfield.v1.OpfieldCommand.probe_proxy_secure_link:type_name -> opfield.v1.ProbeProxySecureLinkCommand
+	126, // 67: opfield.v1.OpfieldCommand.docker_runtime:type_name -> opfield.v1.DockerRuntimeCommand
 	47,  // 68: opfield.v1.OpfieldCommand.pages_upload_init:type_name -> opfield.v1.PagesUploadInitCommand
 	48,  // 69: opfield.v1.OpfieldCommand.pages_upload_chunk:type_name -> opfield.v1.PagesUploadChunkCommand
 	49,  // 70: opfield.v1.OpfieldCommand.pages_upload_finalize:type_name -> opfield.v1.PagesUploadFinalizeCommand
 	50,  // 71: opfield.v1.OpfieldCommand.pages_verify_release:type_name -> opfield.v1.PagesVerifyReleaseCommand
 	51,  // 72: opfield.v1.OpfieldCommand.pages_materialize_preview:type_name -> opfield.v1.PagesMaterializePreviewCommand
-	55,  // 73: opfield.v1.OpfieldCommand.pages_remove_preview:type_name -> opfield.v1.PagesRemovePreviewCommand
-	56,  // 74: opfield.v1.OpfieldCommand.pages_activate_tag_route:type_name -> opfield.v1.PagesActivateTagRouteCommand
-	57,  // 75: opfield.v1.OpfieldCommand.pages_deactivate_tag_route:type_name -> opfield.v1.PagesDeactivateTagRouteCommand
-	58,  // 76: opfield.v1.OpfieldCommand.pages_cleanup_deployment:type_name -> opfield.v1.PagesCleanupDeploymentCommand
-	59,  // 77: opfield.v1.OpfieldCommand.pages_inventory:type_name -> opfield.v1.PagesInventoryCommand
-	60,  // 78: opfield.v1.OpfieldCommand.pages_storage_preflight:type_name -> opfield.v1.PagesStoragePreflightCommand
-	54,  // 79: opfield.v1.OpfieldCommand.pages_deploy_certificate:type_name -> opfield.v1.PagesDeployCertificateCommand
-	61,  // 80: opfield.v1.OpfieldCommand.pages_stage_runtime_config:type_name -> opfield.v1.PagesStageRuntimeConfigCommand
-	62,  // 81: opfield.v1.OpfieldCommand.pages_activate_runtime_config:type_name -> opfield.v1.PagesActivateRuntimeConfigCommand
-	63,  // 82: opfield.v1.OpfieldCommand.pages_remove_runtime_config:type_name -> opfield.v1.PagesRemoveRuntimeConfigCommand
-	78,  // 83: opfield.v1.OpfieldCommand.probe_relay_candidate:type_name -> opfield.v1.ProbeRelayCandidateCommand
+	56,  // 73: opfield.v1.OpfieldCommand.pages_remove_preview:type_name -> opfield.v1.PagesRemovePreviewCommand
+	57,  // 74: opfield.v1.OpfieldCommand.pages_activate_tag_route:type_name -> opfield.v1.PagesActivateTagRouteCommand
+	58,  // 75: opfield.v1.OpfieldCommand.pages_deactivate_tag_route:type_name -> opfield.v1.PagesDeactivateTagRouteCommand
+	59,  // 76: opfield.v1.OpfieldCommand.pages_cleanup_deployment:type_name -> opfield.v1.PagesCleanupDeploymentCommand
+	60,  // 77: opfield.v1.OpfieldCommand.pages_inventory:type_name -> opfield.v1.PagesInventoryCommand
+	61,  // 78: opfield.v1.OpfieldCommand.pages_storage_preflight:type_name -> opfield.v1.PagesStoragePreflightCommand
+	55,  // 79: opfield.v1.OpfieldCommand.pages_deploy_certificate:type_name -> opfield.v1.PagesDeployCertificateCommand
+	62,  // 80: opfield.v1.OpfieldCommand.pages_stage_runtime_config:type_name -> opfield.v1.PagesStageRuntimeConfigCommand
+	63,  // 81: opfield.v1.OpfieldCommand.pages_activate_runtime_config:type_name -> opfield.v1.PagesActivateRuntimeConfigCommand
+	64,  // 82: opfield.v1.OpfieldCommand.pages_remove_runtime_config:type_name -> opfield.v1.PagesRemoveRuntimeConfigCommand
+	79,  // 83: opfield.v1.OpfieldCommand.probe_relay_candidate:type_name -> opfield.v1.ProbeRelayCandidateCommand
 	40,  // 84: opfield.v1.OpfieldCommand.sync_relay_policy:type_name -> opfield.v1.SyncRelayPolicyCommand
 	41,  // 85: opfield.v1.OpfieldCommand.set_relay_drain:type_name -> opfield.v1.SetRelayDrainCommand
 	42,  // 86: opfield.v1.OpfieldCommand.update_relay_worker:type_name -> opfield.v1.UpdateRelayWorkerCommand
-	127, // 87: opfield.v1.OpfieldCommand.docker_build:type_name -> opfield.v1.DockerBuildCommand
-	128, // 88: opfield.v1.OpfieldCommand.docker_build_cancel:type_name -> opfield.v1.DockerBuildCancelCommand
-	131, // 89: opfield.v1.OpfieldCommand.sync_docker_registry_bindings:type_name -> opfield.v1.SyncDockerRegistryBindingsCommand
-	114, // 90: opfield.v1.OpfieldCommand.docker_compose:type_name -> opfield.v1.DockerComposeCommand
-	82,  // 91: opfield.v1.OpfieldCommand.probe_pages_route:type_name -> opfield.v1.ProbePagesRouteCommand
-	130, // 92: opfield.v1.OpfieldCommand.docker_build_event_ack:type_name -> opfield.v1.DockerBuildEventAck
-	115, // 93: opfield.v1.OpfieldCommand.docker_availability:type_name -> opfield.v1.DockerAvailabilityCommand
+	128, // 87: opfield.v1.OpfieldCommand.docker_build:type_name -> opfield.v1.DockerBuildCommand
+	129, // 88: opfield.v1.OpfieldCommand.docker_build_cancel:type_name -> opfield.v1.DockerBuildCancelCommand
+	132, // 89: opfield.v1.OpfieldCommand.sync_docker_registry_bindings:type_name -> opfield.v1.SyncDockerRegistryBindingsCommand
+	115, // 90: opfield.v1.OpfieldCommand.docker_compose:type_name -> opfield.v1.DockerComposeCommand
+	83,  // 91: opfield.v1.OpfieldCommand.probe_pages_route:type_name -> opfield.v1.ProbePagesRouteCommand
+	131, // 92: opfield.v1.OpfieldCommand.docker_build_event_ack:type_name -> opfield.v1.DockerBuildEventAck
+	116, // 93: opfield.v1.OpfieldCommand.docker_availability:type_name -> opfield.v1.DockerAvailabilityCommand
 	43,  // 94: opfield.v1.OpfieldCommand.renew_relay_identity:type_name -> opfield.v1.RenewRelayIdentityCommand
-	116, // 95: opfield.v1.OpfieldCommand.sync_availability_lease:type_name -> opfield.v1.SyncAvailabilityLeaseCommand
-	118, // 96: opfield.v1.OpfieldCommand.availability_lease_handoff:type_name -> opfield.v1.AvailabilityLeaseHandoffCommand
+	117, // 95: opfield.v1.OpfieldCommand.sync_availability_lease:type_name -> opfield.v1.SyncAvailabilityLeaseCommand
+	119, // 96: opfield.v1.OpfieldCommand.availability_lease_handoff:type_name -> opfield.v1.AvailabilityLeaseHandoffCommand
 	44,  // 97: opfield.v1.OpfieldCommand.get_relay_route_runtime:type_name -> opfield.v1.GetRelayRouteRuntimeCommand
 	25,  // 98: opfield.v1.OpfieldCommand.apply_witnesses:type_name -> opfield.v1.ApplyWitnessesCommand
 	30,  // 99: opfield.v1.OpfieldCommand.availability_member:type_name -> opfield.v1.AvailabilityMemberCommand
@@ -16979,94 +17053,95 @@ var file_opfield_v1_nginx_daemon_proto_depIdxs = []int32{
 	37,  // 109: opfield.v1.AvailabilityMemberCommand.restart:type_name -> opfield.v1.AvailabilityMemberRestart
 	32,  // 110: opfield.v1.AvailabilityMemberConfig.members:type_name -> opfield.v1.AvailabilityMemberPeer
 	33,  // 111: opfield.v1.AvailabilityMemberConfig.primary:type_name -> opfield.v1.AvailabilityPrimaryAssignment
-	117, // 112: opfield.v1.AvailabilityPrimaryAssignment.policy_keys:type_name -> opfield.v1.AvailabilityLeasePolicyKey
-	166, // 113: opfield.v1.AvailabilityMemberReport.position:type_name -> opfield.v1.AvailabilityMemberReport.PositionEntry
+	118, // 112: opfield.v1.AvailabilityPrimaryAssignment.policy_keys:type_name -> opfield.v1.AvailabilityLeasePolicyKey
+	167, // 113: opfield.v1.AvailabilityMemberReport.position:type_name -> opfield.v1.AvailabilityMemberReport.PositionEntry
 	39,  // 114: opfield.v1.AvailabilityMemberReport.events:type_name -> opfield.v1.AvailabilityMemberEvent
-	167, // 115: opfield.v1.AvailabilityMemberEvent.detail:type_name -> opfield.v1.AvailabilityMemberEvent.DetailEntry
+	168, // 115: opfield.v1.AvailabilityMemberEvent.detail:type_name -> opfield.v1.AvailabilityMemberEvent.DetailEntry
 	46,  // 116: opfield.v1.RelayRuntimeStatus.assignment_tunnels:type_name -> opfield.v1.RelayAssignmentTunnelCount
-	120, // 117: opfield.v1.RelayRuntimeStatus.availability_lease:type_name -> opfield.v1.AvailabilityLeaseReport
+	121, // 117: opfield.v1.RelayRuntimeStatus.availability_lease:type_name -> opfield.v1.AvailabilityLeaseReport
 	29,  // 118: opfield.v1.RelayRuntimeStatus.witnesses:type_name -> opfield.v1.WitnessStatus
-	52,  // 119: opfield.v1.PagesMaterializePreviewCommand.access:type_name -> opfield.v1.PagesPreviewAccess
-	53,  // 120: opfield.v1.PagesPreviewAccess.ip_rules:type_name -> opfield.v1.PagesPreviewIpRule
-	0,   // 121: opfield.v1.PagesStageRuntimeConfigCommand.binding_kind:type_name -> opfield.v1.PagesRuntimeConfigBindingKind
-	0,   // 122: opfield.v1.PagesActivateRuntimeConfigCommand.binding_kind:type_name -> opfield.v1.PagesRuntimeConfigBindingKind
-	0,   // 123: opfield.v1.PagesRemoveRuntimeConfigCommand.binding_kind:type_name -> opfield.v1.PagesRuntimeConfigBindingKind
-	68,  // 124: opfield.v1.SyncRelayGrantsCommand.grants:type_name -> opfield.v1.RelayGrantAssignment
-	66,  // 125: opfield.v1.SyncRelayGrantsCommand.revocation_fences:type_name -> opfield.v1.RelayRevocationFence
-	65,  // 126: opfield.v1.SyncRelayGrantsCommand.relay_latency_targets:type_name -> opfield.v1.RelayLatencyTarget
-	67,  // 127: opfield.v1.RelayRevocationFence.routes:type_name -> opfield.v1.RelayRevokedRoute
-	75,  // 128: opfield.v1.RelayGrantAssignment.grant:type_name -> opfield.v1.RelaySignedGrant
-	76,  // 129: opfield.v1.RelayGrantAssignment.candidates:type_name -> opfield.v1.RelayDataCandidate
-	74,  // 130: opfield.v1.RelayGrantAssignment.managed_database_listener:type_name -> opfield.v1.ManagedDatabaseListener
-	73,  // 131: opfield.v1.RelayGrantAssignment.secure_link_egress:type_name -> opfield.v1.SecureLinkEgress
-	71,  // 132: opfield.v1.RelayGrantAssignment.stream_resume:type_name -> opfield.v1.RelayStreamResume
-	72,  // 133: opfield.v1.RelayGrantAssignment.resume_routes:type_name -> opfield.v1.RelayRouteResume
-	69,  // 134: opfield.v1.RelayGrantAssignment.lease_target:type_name -> opfield.v1.RelayLeaseTarget
-	70,  // 135: opfield.v1.RelayGrantAssignment.lease_group:type_name -> opfield.v1.RelayLeaseGroupRoute
-	75,  // 136: opfield.v1.RelayLeaseGroupRoute.grant:type_name -> opfield.v1.RelaySignedGrant
-	76,  // 137: opfield.v1.RelayLeaseGroupRoute.candidates:type_name -> opfield.v1.RelayDataCandidate
-	71,  // 138: opfield.v1.RelayLeaseGroupRoute.stream_resume:type_name -> opfield.v1.RelayStreamResume
-	69,  // 139: opfield.v1.RelayLeaseGroupRoute.target:type_name -> opfield.v1.RelayLeaseTarget
-	75,  // 140: opfield.v1.RelayDataCandidate.grant:type_name -> opfield.v1.RelaySignedGrant
-	77,  // 141: opfield.v1.RelayDataCandidate.topology:type_name -> opfield.v1.RelayCandidateTopology
-	76,  // 142: opfield.v1.ProbeRelayCandidateCommand.candidate:type_name -> opfield.v1.RelayDataCandidate
-	80,  // 143: opfield.v1.SyncProxySecureLinksCommand.bindings:type_name -> opfield.v1.ProxySecureLinkBinding
-	1,   // 144: opfield.v1.ApplyConfigCommand.maintenance:type_name -> opfield.v1.ProxyMaintenanceFlag
-	89,  // 145: opfield.v1.ApplyTlsBundleCommand.certificates:type_name -> opfield.v1.VersionedCertBundle
-	1,   // 146: opfield.v1.ApplyTlsBundleCommand.maintenance:type_name -> opfield.v1.ProxyMaintenanceFlag
-	95,  // 147: opfield.v1.FullSyncCommand.hosts:type_name -> opfield.v1.HostConfig
-	96,  // 148: opfield.v1.FullSyncCommand.certs:type_name -> opfield.v1.CertBundle
-	97,  // 149: opfield.v1.FullSyncCommand.htpasswd_files:type_name -> opfield.v1.HtpasswdFile
-	1,   // 150: opfield.v1.HostConfig.maintenance:type_name -> opfield.v1.ProxyMaintenanceFlag
-	168, // 151: opfield.v1.DockerVolumeCommand.labels:type_name -> opfield.v1.DockerVolumeCommand.LabelsEntry
-	169, // 152: opfield.v1.DockerComposeCommand.variables:type_name -> opfield.v1.DockerComposeCommand.VariablesEntry
-	170, // 153: opfield.v1.DockerComposeCommand.secrets:type_name -> opfield.v1.DockerComposeCommand.SecretsEntry
-	117, // 154: opfield.v1.SyncAvailabilityLeaseCommand.policy_keys:type_name -> opfield.v1.AvailabilityLeasePolicyKey
-	121, // 155: opfield.v1.AvailabilityLeaseReport.manifests:type_name -> opfield.v1.AvailabilityLeaseManifestAck
-	122, // 156: opfield.v1.AvailabilityLeaseReport.held:type_name -> opfield.v1.AvailabilityLeaseHeld
-	123, // 157: opfield.v1.AvailabilityLeaseReport.acceptor:type_name -> opfield.v1.AvailabilityLeaseKeyView
-	124, // 158: opfield.v1.AvailabilityLeaseReport.events:type_name -> opfield.v1.AvailabilityLeaseEvent
-	119, // 159: opfield.v1.AvailabilityLeaseHeld.ballot:type_name -> opfield.v1.AvailabilityLeaseBallot
-	119, // 160: opfield.v1.AvailabilityLeaseKeyView.promised:type_name -> opfield.v1.AvailabilityLeaseBallot
-	119, // 161: opfield.v1.AvailabilityLeaseKeyView.committed:type_name -> opfield.v1.AvailabilityLeaseBallot
-	119, // 162: opfield.v1.AvailabilityLeaseKeyView.gate_ballot:type_name -> opfield.v1.AvailabilityLeaseBallot
-	119, // 163: opfield.v1.AvailabilityLeaseKeyView.accepted:type_name -> opfield.v1.AvailabilityLeaseBallot
-	119, // 164: opfield.v1.AvailabilityLeaseEvent.ballot:type_name -> opfield.v1.AvailabilityLeaseBallot
-	171, // 165: opfield.v1.DockerBuildCommand.build_args:type_name -> opfield.v1.DockerBuildCommand.BuildArgsEntry
-	172, // 166: opfield.v1.DockerBuildCommand.build_secrets:type_name -> opfield.v1.DockerBuildCommand.BuildSecretsEntry
-	132, // 167: opfield.v1.SyncDockerRegistryBindingsCommand.bindings:type_name -> opfield.v1.DockerRegistryBinding
-	136, // 168: opfield.v1.DockerConfigPushCommand.registries:type_name -> opfield.v1.RegistryConfig
-	143, // 169: opfield.v1.LogStreamMessage.subscribe_ack:type_name -> opfield.v1.LogSubscribeAck
-	144, // 170: opfield.v1.LogStreamMessage.entry:type_name -> opfield.v1.LogEntry
-	146, // 171: opfield.v1.LogStreamControl.subscribe:type_name -> opfield.v1.LogSubscribe
-	147, // 172: opfield.v1.LogStreamControl.unsubscribe:type_name -> opfield.v1.LogUnsubscribe
-	155, // 173: opfield.v1.MigrationTransferMessage.hello:type_name -> opfield.v1.MigrationTransferHello
-	158, // 174: opfield.v1.MigrationTransferMessage.chunk:type_name -> opfield.v1.MigrationArtifactChunk
-	159, // 175: opfield.v1.MigrationTransferMessage.ack:type_name -> opfield.v1.MigrationArtifactAck
-	160, // 176: opfield.v1.MigrationTransferMessage.error:type_name -> opfield.v1.MigrationArtifactError
-	156, // 177: opfield.v1.MigrationTransferControl.read:type_name -> opfield.v1.MigrationArtifactRead
-	157, // 178: opfield.v1.MigrationTransferControl.write:type_name -> opfield.v1.MigrationArtifactWrite
-	158, // 179: opfield.v1.MigrationTransferControl.chunk:type_name -> opfield.v1.MigrationArtifactChunk
-	159, // 180: opfield.v1.MigrationTransferControl.ack:type_name -> opfield.v1.MigrationArtifactAck
-	160, // 181: opfield.v1.MigrationTransferControl.error:type_name -> opfield.v1.MigrationArtifactError
-	161, // 182: opfield.v1.MigrationTransferControl.heartbeat:type_name -> opfield.v1.MigrationHeartbeat
-	2,   // 183: opfield.v1.NodeEnrollment.Enroll:input_type -> opfield.v1.EnrollRequest
-	4,   // 184: opfield.v1.NodeEnrollment.RenewCertificate:input_type -> opfield.v1.RenewCertRequest
-	8,   // 185: opfield.v1.NodeControl.CommandStream:input_type -> opfield.v1.DaemonMessage
-	6,   // 186: opfield.v1.MaintenanceAccess.Redeem:input_type -> opfield.v1.MaintenanceAccessRedeemRequest
-	153, // 187: opfield.v1.MigrationTransfer.Transfer:input_type -> opfield.v1.MigrationTransferMessage
-	142, // 188: opfield.v1.LogStream.StreamLogs:input_type -> opfield.v1.LogStreamMessage
-	3,   // 189: opfield.v1.NodeEnrollment.Enroll:output_type -> opfield.v1.EnrollResponse
-	5,   // 190: opfield.v1.NodeEnrollment.RenewCertificate:output_type -> opfield.v1.RenewCertResponse
-	23,  // 191: opfield.v1.NodeControl.CommandStream:output_type -> opfield.v1.OpfieldCommand
-	7,   // 192: opfield.v1.MaintenanceAccess.Redeem:output_type -> opfield.v1.MaintenanceAccessReply
-	154, // 193: opfield.v1.MigrationTransfer.Transfer:output_type -> opfield.v1.MigrationTransferControl
-	145, // 194: opfield.v1.LogStream.StreamLogs:output_type -> opfield.v1.LogStreamControl
-	189, // [189:195] is the sub-list for method output_type
-	183, // [183:189] is the sub-list for method input_type
-	183, // [183:183] is the sub-list for extension type_name
-	183, // [183:183] is the sub-list for extension extendee
-	0,   // [0:183] is the sub-list for field type_name
+	53,  // 119: opfield.v1.PagesMaterializePreviewCommand.access:type_name -> opfield.v1.PagesPreviewAccess
+	52,  // 120: opfield.v1.PagesMaterializePreviewCommand.client_ip:type_name -> opfield.v1.PagesPreviewClientIp
+	54,  // 121: opfield.v1.PagesPreviewAccess.ip_rules:type_name -> opfield.v1.PagesPreviewIpRule
+	0,   // 122: opfield.v1.PagesStageRuntimeConfigCommand.binding_kind:type_name -> opfield.v1.PagesRuntimeConfigBindingKind
+	0,   // 123: opfield.v1.PagesActivateRuntimeConfigCommand.binding_kind:type_name -> opfield.v1.PagesRuntimeConfigBindingKind
+	0,   // 124: opfield.v1.PagesRemoveRuntimeConfigCommand.binding_kind:type_name -> opfield.v1.PagesRuntimeConfigBindingKind
+	69,  // 125: opfield.v1.SyncRelayGrantsCommand.grants:type_name -> opfield.v1.RelayGrantAssignment
+	67,  // 126: opfield.v1.SyncRelayGrantsCommand.revocation_fences:type_name -> opfield.v1.RelayRevocationFence
+	66,  // 127: opfield.v1.SyncRelayGrantsCommand.relay_latency_targets:type_name -> opfield.v1.RelayLatencyTarget
+	68,  // 128: opfield.v1.RelayRevocationFence.routes:type_name -> opfield.v1.RelayRevokedRoute
+	76,  // 129: opfield.v1.RelayGrantAssignment.grant:type_name -> opfield.v1.RelaySignedGrant
+	77,  // 130: opfield.v1.RelayGrantAssignment.candidates:type_name -> opfield.v1.RelayDataCandidate
+	75,  // 131: opfield.v1.RelayGrantAssignment.managed_database_listener:type_name -> opfield.v1.ManagedDatabaseListener
+	74,  // 132: opfield.v1.RelayGrantAssignment.secure_link_egress:type_name -> opfield.v1.SecureLinkEgress
+	72,  // 133: opfield.v1.RelayGrantAssignment.stream_resume:type_name -> opfield.v1.RelayStreamResume
+	73,  // 134: opfield.v1.RelayGrantAssignment.resume_routes:type_name -> opfield.v1.RelayRouteResume
+	70,  // 135: opfield.v1.RelayGrantAssignment.lease_target:type_name -> opfield.v1.RelayLeaseTarget
+	71,  // 136: opfield.v1.RelayGrantAssignment.lease_group:type_name -> opfield.v1.RelayLeaseGroupRoute
+	76,  // 137: opfield.v1.RelayLeaseGroupRoute.grant:type_name -> opfield.v1.RelaySignedGrant
+	77,  // 138: opfield.v1.RelayLeaseGroupRoute.candidates:type_name -> opfield.v1.RelayDataCandidate
+	72,  // 139: opfield.v1.RelayLeaseGroupRoute.stream_resume:type_name -> opfield.v1.RelayStreamResume
+	70,  // 140: opfield.v1.RelayLeaseGroupRoute.target:type_name -> opfield.v1.RelayLeaseTarget
+	76,  // 141: opfield.v1.RelayDataCandidate.grant:type_name -> opfield.v1.RelaySignedGrant
+	78,  // 142: opfield.v1.RelayDataCandidate.topology:type_name -> opfield.v1.RelayCandidateTopology
+	77,  // 143: opfield.v1.ProbeRelayCandidateCommand.candidate:type_name -> opfield.v1.RelayDataCandidate
+	81,  // 144: opfield.v1.SyncProxySecureLinksCommand.bindings:type_name -> opfield.v1.ProxySecureLinkBinding
+	1,   // 145: opfield.v1.ApplyConfigCommand.maintenance:type_name -> opfield.v1.ProxyMaintenanceFlag
+	90,  // 146: opfield.v1.ApplyTlsBundleCommand.certificates:type_name -> opfield.v1.VersionedCertBundle
+	1,   // 147: opfield.v1.ApplyTlsBundleCommand.maintenance:type_name -> opfield.v1.ProxyMaintenanceFlag
+	96,  // 148: opfield.v1.FullSyncCommand.hosts:type_name -> opfield.v1.HostConfig
+	97,  // 149: opfield.v1.FullSyncCommand.certs:type_name -> opfield.v1.CertBundle
+	98,  // 150: opfield.v1.FullSyncCommand.htpasswd_files:type_name -> opfield.v1.HtpasswdFile
+	1,   // 151: opfield.v1.HostConfig.maintenance:type_name -> opfield.v1.ProxyMaintenanceFlag
+	169, // 152: opfield.v1.DockerVolumeCommand.labels:type_name -> opfield.v1.DockerVolumeCommand.LabelsEntry
+	170, // 153: opfield.v1.DockerComposeCommand.variables:type_name -> opfield.v1.DockerComposeCommand.VariablesEntry
+	171, // 154: opfield.v1.DockerComposeCommand.secrets:type_name -> opfield.v1.DockerComposeCommand.SecretsEntry
+	118, // 155: opfield.v1.SyncAvailabilityLeaseCommand.policy_keys:type_name -> opfield.v1.AvailabilityLeasePolicyKey
+	122, // 156: opfield.v1.AvailabilityLeaseReport.manifests:type_name -> opfield.v1.AvailabilityLeaseManifestAck
+	123, // 157: opfield.v1.AvailabilityLeaseReport.held:type_name -> opfield.v1.AvailabilityLeaseHeld
+	124, // 158: opfield.v1.AvailabilityLeaseReport.acceptor:type_name -> opfield.v1.AvailabilityLeaseKeyView
+	125, // 159: opfield.v1.AvailabilityLeaseReport.events:type_name -> opfield.v1.AvailabilityLeaseEvent
+	120, // 160: opfield.v1.AvailabilityLeaseHeld.ballot:type_name -> opfield.v1.AvailabilityLeaseBallot
+	120, // 161: opfield.v1.AvailabilityLeaseKeyView.promised:type_name -> opfield.v1.AvailabilityLeaseBallot
+	120, // 162: opfield.v1.AvailabilityLeaseKeyView.committed:type_name -> opfield.v1.AvailabilityLeaseBallot
+	120, // 163: opfield.v1.AvailabilityLeaseKeyView.gate_ballot:type_name -> opfield.v1.AvailabilityLeaseBallot
+	120, // 164: opfield.v1.AvailabilityLeaseKeyView.accepted:type_name -> opfield.v1.AvailabilityLeaseBallot
+	120, // 165: opfield.v1.AvailabilityLeaseEvent.ballot:type_name -> opfield.v1.AvailabilityLeaseBallot
+	172, // 166: opfield.v1.DockerBuildCommand.build_args:type_name -> opfield.v1.DockerBuildCommand.BuildArgsEntry
+	173, // 167: opfield.v1.DockerBuildCommand.build_secrets:type_name -> opfield.v1.DockerBuildCommand.BuildSecretsEntry
+	133, // 168: opfield.v1.SyncDockerRegistryBindingsCommand.bindings:type_name -> opfield.v1.DockerRegistryBinding
+	137, // 169: opfield.v1.DockerConfigPushCommand.registries:type_name -> opfield.v1.RegistryConfig
+	144, // 170: opfield.v1.LogStreamMessage.subscribe_ack:type_name -> opfield.v1.LogSubscribeAck
+	145, // 171: opfield.v1.LogStreamMessage.entry:type_name -> opfield.v1.LogEntry
+	147, // 172: opfield.v1.LogStreamControl.subscribe:type_name -> opfield.v1.LogSubscribe
+	148, // 173: opfield.v1.LogStreamControl.unsubscribe:type_name -> opfield.v1.LogUnsubscribe
+	156, // 174: opfield.v1.MigrationTransferMessage.hello:type_name -> opfield.v1.MigrationTransferHello
+	159, // 175: opfield.v1.MigrationTransferMessage.chunk:type_name -> opfield.v1.MigrationArtifactChunk
+	160, // 176: opfield.v1.MigrationTransferMessage.ack:type_name -> opfield.v1.MigrationArtifactAck
+	161, // 177: opfield.v1.MigrationTransferMessage.error:type_name -> opfield.v1.MigrationArtifactError
+	157, // 178: opfield.v1.MigrationTransferControl.read:type_name -> opfield.v1.MigrationArtifactRead
+	158, // 179: opfield.v1.MigrationTransferControl.write:type_name -> opfield.v1.MigrationArtifactWrite
+	159, // 180: opfield.v1.MigrationTransferControl.chunk:type_name -> opfield.v1.MigrationArtifactChunk
+	160, // 181: opfield.v1.MigrationTransferControl.ack:type_name -> opfield.v1.MigrationArtifactAck
+	161, // 182: opfield.v1.MigrationTransferControl.error:type_name -> opfield.v1.MigrationArtifactError
+	162, // 183: opfield.v1.MigrationTransferControl.heartbeat:type_name -> opfield.v1.MigrationHeartbeat
+	2,   // 184: opfield.v1.NodeEnrollment.Enroll:input_type -> opfield.v1.EnrollRequest
+	4,   // 185: opfield.v1.NodeEnrollment.RenewCertificate:input_type -> opfield.v1.RenewCertRequest
+	8,   // 186: opfield.v1.NodeControl.CommandStream:input_type -> opfield.v1.DaemonMessage
+	6,   // 187: opfield.v1.MaintenanceAccess.Redeem:input_type -> opfield.v1.MaintenanceAccessRedeemRequest
+	154, // 188: opfield.v1.MigrationTransfer.Transfer:input_type -> opfield.v1.MigrationTransferMessage
+	143, // 189: opfield.v1.LogStream.StreamLogs:input_type -> opfield.v1.LogStreamMessage
+	3,   // 190: opfield.v1.NodeEnrollment.Enroll:output_type -> opfield.v1.EnrollResponse
+	5,   // 191: opfield.v1.NodeEnrollment.RenewCertificate:output_type -> opfield.v1.RenewCertResponse
+	23,  // 192: opfield.v1.NodeControl.CommandStream:output_type -> opfield.v1.OpfieldCommand
+	7,   // 193: opfield.v1.MaintenanceAccess.Redeem:output_type -> opfield.v1.MaintenanceAccessReply
+	155, // 194: opfield.v1.MigrationTransfer.Transfer:output_type -> opfield.v1.MigrationTransferControl
+	146, // 195: opfield.v1.LogStream.StreamLogs:output_type -> opfield.v1.LogStreamControl
+	190, // [190:196] is the sub-list for method output_type
+	184, // [184:190] is the sub-list for method input_type
+	184, // [184:184] is the sub-list for extension type_name
+	184, // [184:184] is the sub-list for extension extendee
+	0,   // [0:184] is the sub-list for field type_name
 }
 
 func init() { file_opfield_v1_nginx_daemon_proto_init() }
@@ -17169,21 +17244,21 @@ func file_opfield_v1_nginx_daemon_proto_init() {
 		(*AvailabilityMemberCommand_Switchover)(nil),
 		(*AvailabilityMemberCommand_Restart)(nil),
 	}
-	file_opfield_v1_nginx_daemon_proto_msgTypes[140].OneofWrappers = []any{
+	file_opfield_v1_nginx_daemon_proto_msgTypes[141].OneofWrappers = []any{
 		(*LogStreamMessage_SubscribeAck)(nil),
 		(*LogStreamMessage_Entry)(nil),
 	}
-	file_opfield_v1_nginx_daemon_proto_msgTypes[143].OneofWrappers = []any{
+	file_opfield_v1_nginx_daemon_proto_msgTypes[144].OneofWrappers = []any{
 		(*LogStreamControl_Subscribe)(nil),
 		(*LogStreamControl_Unsubscribe)(nil),
 	}
-	file_opfield_v1_nginx_daemon_proto_msgTypes[151].OneofWrappers = []any{
+	file_opfield_v1_nginx_daemon_proto_msgTypes[152].OneofWrappers = []any{
 		(*MigrationTransferMessage_Hello)(nil),
 		(*MigrationTransferMessage_Chunk)(nil),
 		(*MigrationTransferMessage_Ack)(nil),
 		(*MigrationTransferMessage_Error)(nil),
 	}
-	file_opfield_v1_nginx_daemon_proto_msgTypes[152].OneofWrappers = []any{
+	file_opfield_v1_nginx_daemon_proto_msgTypes[153].OneofWrappers = []any{
 		(*MigrationTransferControl_Read)(nil),
 		(*MigrationTransferControl_Write)(nil),
 		(*MigrationTransferControl_Chunk)(nil),
@@ -17197,7 +17272,7 @@ func file_opfield_v1_nginx_daemon_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_opfield_v1_nginx_daemon_proto_rawDesc), len(file_opfield_v1_nginx_daemon_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   171,
+			NumMessages:   172,
 			NumExtensions: 0,
 			NumServices:   5,
 		},

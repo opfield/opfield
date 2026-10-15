@@ -31,6 +31,8 @@ type PreviewFallback struct {
 	SPAFallback bool
 	URL         string
 	Access      *PreviewAccess
+	// ClientIP takes the visitor's address from a trusted proxy (realip).
+	ClientIP *PreviewClientIP
 	// DeferReload loads the preview with the reload of its batch
 	// (SetDeferredReload) instead of shortly after the last Pages change.
 	DeferReload bool
@@ -139,6 +141,7 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 		lines = append(lines, "    listen 443 ssl;", "    ssl_certificate "+filepath.Join(certRoot, "fullchain.pem")+";", "    ssl_certificate_key "+filepath.Join(certRoot, "privkey.pem")+";")
 	}
 	lines = append(lines, "    server_name "+hostname+";")
+	lines = append(lines, previewClientIPDirectives(fallback.ClientIP)...)
 	lines = append(lines, r.previewAccessDirectives(fallback.Access)...)
 	lines = append(lines, "    root "+r.releaseContentDir(deploymentID)+";", "    index index.html;", "    add_header X-Content-Type-Options nosniff always;", "    add_header Referrer-Policy same-origin always;")
 	if !fallback.SPAFallback && fallback.URL != "" {

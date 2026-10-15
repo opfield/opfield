@@ -358,6 +358,9 @@ func (r *Runtime) MaterializePreview(profileID, deploymentID, hostname, certific
 	if err := validatePreviewAccess(fallback.Access); err != nil {
 		return err
 	}
+	if err := validatePreviewClientIP(fallback.ClientIP); err != nil {
+		return err
+	}
 	if err := r.ensurePreviewCredentials(fallback.Access); err != nil {
 		return err
 	}

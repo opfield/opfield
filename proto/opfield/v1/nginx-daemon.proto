@@ -874,6 +874,20 @@ message PagesMaterializePreviewCommand {
   // loaded with the reload of its batch (a reconcile of several previews).
   // Only sent to daemons advertising pages_deferred_reload_v1.
   bool defer_reload = 9;
+  // Where nginx takes the visitor's address from (realip), so the access
+  // list's IP rules and the access log see the visitor behind Cloudflare.
+  // Absent: the connecting peer. Only sent to daemons advertising
+  // nginx_pages_preview_client_ip_v1.
+  PagesPreviewClientIp client_ip = 10;
+}
+
+// The peers whose client-address header nginx believes (set_real_ip_from) and
+// that header. A connection from any other peer keeps its own address.
+message PagesPreviewClientIp {
+  // Addresses or CIDRs.
+  repeated string trusted_proxies = 1;
+  // "CF-Connecting-IP", "X-Forwarded-For" or "X-Real-IP".
+  string header = 2;
 }
 
 // IP allow/deny rules and optional basic authentication for a Pages preview.

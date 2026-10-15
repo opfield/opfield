@@ -1,7 +1,8 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import { domains, proxyHosts } from '@/db/schema/index.js';
+import { domains, pageWildcardProfiles, proxyHosts } from '@/db/schema/index.js';
 import type { RouteClientIpOptions, RouteClientIpSource } from '@/db/schema/proxy-hosts.js';
+import type { PagesPreviewClientIp } from '@/grpc/generated/types.js';
 import { currentCloudflareCidrList } from '@/lib/cloudflare-ip-ranges.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
@@ -52,6 +53,28 @@ export async function routeClientIpDirectives(db: DrizzleClient, host: ClientIpH
     host.clientIpOptions ?? null,
     currentCloudflareCidrList()
   );
+}
+
+/** Daemons that render PagesMaterializePreviewCommand.client_ip (and compare it in binding inspections). */
+export const NGINX_PAGES_PREVIEW_CLIENT_IP_CAPABILITY = 'nginx_pages_preview_client_ip_v1';
+
+/**
+ * The client IP source of a Pages preview link: Cloudflare's edge when the Pages domain (or a registered domain
+ * covering the preview name) is proxied by Cloudflare, else none (the connecting peer). Previews have no setting of
+ * their own; the profile's binding inspection renders them again when this changes (new ranges, proxy toggled).
+ */
+export async function pagesPreviewClientIp(
+  db: DrizzleClient,
+  hostname: string
+): Promise<PagesPreviewClientIp | undefined> {
+  const [profileDomain] = await db
+    .select({ id: domains.id })
+    .from(pageWildcardProfiles)
+    .innerJoin(domains, eq(pageWildcardProfiles.domainId, domains.id))
+    .where(and(eq(pageWildcardProfiles.id, 'default'), proxiedByCloudflare))
+    .limit(1);
+  if (!profileDomain && !(await servedThroughCloudflare(db, [hostname]))) return undefined;
+  return { trustedProxies: currentCloudflareCidrList(), header: 'CF-Connecting-IP' };
 }
 
 /** A raw config as it is stored: an unchanged copy of the rendered directives becomes the marker (route-client-ip.ts). */

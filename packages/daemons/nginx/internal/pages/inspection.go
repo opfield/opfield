@@ -23,6 +23,7 @@ type BindingExpectation struct {
 	SPAFallback        bool                     `json:"spaFallback,omitempty"`
 	FallbackURL        string                   `json:"fallbackUrl,omitempty"`
 	Access             *PreviewAccess           `json:"access,omitempty"`
+	ClientIP           *PreviewClientIP         `json:"clientIp,omitempty"`
 }
 
 type BindingInspection struct {
@@ -67,7 +68,7 @@ func (r *Runtime) bindingMatches(binding BindingExpectation) bool {
 	if binding.CertificateID == "" && binding.CertificateVersion != "" || binding.FallbackURL != "" && !validPagesFallbackURL(binding.FallbackURL) {
 		return false
 	}
-	if validatePreviewAccess(binding.Access) != nil || r.ensurePreviewCredentials(binding.Access) != nil {
+	if validatePreviewAccess(binding.Access) != nil || r.ensurePreviewCredentials(binding.Access) != nil || validatePreviewClientIP(binding.ClientIP) != nil {
 		return false
 	}
 	canonical, err := canonicalRuntimeConfig(binding.RuntimeConfig)
@@ -104,7 +105,7 @@ func (r *Runtime) bindingMatches(binding BindingExpectation) bool {
 	wanted := r.routeConfig(binding.ID, binding.DeploymentID, currentPath)
 	if binding.Kind == RuntimeConfigBindingPreview {
 		configPath = r.previewConfigPath(binding.ID)
-		wanted = r.previewConfig(binding.ID, binding.DeploymentID, binding.CertificateID, binding.CertificateVersion, currentPath, PreviewFallback{SPAFallback: binding.SPAFallback, URL: binding.FallbackURL, Access: binding.Access})
+		wanted = r.previewConfig(binding.ID, binding.DeploymentID, binding.CertificateID, binding.CertificateVersion, currentPath, PreviewFallback{SPAFallback: binding.SPAFallback, URL: binding.FallbackURL, Access: binding.Access, ClientIP: binding.ClientIP})
 	}
 	actual, err := readFileNoFollow(configPath)
 	return err == nil && bytes.Equal(actual, []byte(wanted))

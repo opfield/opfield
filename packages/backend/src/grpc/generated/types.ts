@@ -648,6 +648,14 @@ export interface PagesMaterializePreviewCommand {
    * daemons advertising pages_deferred_reload_v1.
    */
   deferReload?: boolean;
+  /** Where nginx takes the visitor's address from; only sent to daemons advertising nginx_pages_preview_client_ip_v1. */
+  clientIp?: PagesPreviewClientIp;
+}
+
+/** Peers whose client-address header nginx believes (set_real_ip_from), and that header. */
+export interface PagesPreviewClientIp {
+  trustedProxies: string[];
+  header: 'CF-Connecting-IP' | 'X-Forwarded-For' | 'X-Real-IP';
 }
 
 export interface PagesPreviewAccess {

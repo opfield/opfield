@@ -75,6 +75,10 @@ import {
 import { canAccessEveryPageProject, visiblePageProjectIds } from '@/modules/pages/page-project-access.js';
 import { PageProjectFolderService } from '@/modules/pages/page-project-folder.service.js';
 import { PAGE_RUNTIME_CONFIG_MAX_BYTES } from '@/modules/pages/runtime-config/page-runtime-config.schemas.js';
+import {
+  NGINX_PAGES_PREVIEW_CLIENT_IP_CAPABILITY,
+  pagesPreviewClientIp,
+} from '@/modules/proxy/route-client-ip-runtime.js';
 export const pagesCommercialRuntime = {
   /** Apps: node allowlist guard, `app` field and list filters (see apps-host-runtime.ts). */
   apps: appsHostRuntime,
@@ -133,4 +137,6 @@ export const pagesCommercialRuntime = {
   resolvePageDeploymentExpiry,
   resolveIngressNodes,
   PageNodesRuntime,
+  pagesPreviewClientIp,
+  NGINX_PAGES_PREVIEW_CLIENT_IP_CAPABILITY,
 };
