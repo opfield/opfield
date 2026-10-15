@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnsiText } from "@/components/ui/ansi-text";
 import { VirtualLogList } from "@/components/ui/virtual-log-list";
+import { containerUnavailableMessage } from "@/lib/container-stream-unavailable";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 
@@ -159,7 +160,10 @@ export function DockerLogsPopout() {
           }
         } else if (msg.type === "error") {
           const message = msg.message || "Log stream error";
-          terminalErrorRef.current = isTerminalLogError(message);
+          // Being recreated: shown until the reconnect reaches the replacement container.
+          const unavailable = containerUnavailableMessage(msg);
+          if (unavailable) setLines([unavailable]);
+          terminalErrorRef.current = !unavailable && isTerminalLogError(message);
           setIsConnecting(false);
           if (terminalErrorRef.current) {
             setHasMore(false);

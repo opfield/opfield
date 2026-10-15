@@ -4,8 +4,18 @@ import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { AnsiText } from "@/components/ui/ansi-text";
 import { Button } from "@/components/ui/button";
+import {
+  CONTAINER_RECREATING_MESSAGE,
+  CONTAINER_RECREATING_RETRY_MS,
+  containerUnavailableMessage,
+  isContainerRecreatingFrame,
+} from "@/lib/container-stream-unavailable";
 import { api } from "@/services/api";
 import { DockerLogViewport } from "./DockerLogViewport";
+import { classifyLogStreamError, logReconnectDelay } from "./log-stream-errors";
+import { isContainerGoneError } from "./replaced-container";
+
+export { classifyLogStreamError, logReconnectDelay };
 
 const CHANNEL_PREFIX = "docker-logs:";
 const MAX_LOG_LINES = 10000;
@@ -49,37 +59,6 @@ export function mergeReconnectLogLines(
   return capNewestLogs([...existing, ...incoming], limit);
 }
 
-function isTerminalLogError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("no such container") ||
-    lower.includes("not found") ||
-    lower.includes("access denied") ||
-    /\b(forbidden|unauthori[sz]ed)\b/.test(lower)
-  );
-}
-
-/**
- * How the Logs tab treats an error frame from the log stream. A stream error is never toasted:
- * it describes the stream's state (node not connected, no containers yet), which the tab shows
- * inline. "terminal" stops reconnecting; "retry" reconnects with a growing delay until the
- * stream delivers logs again.
- */
-export function classifyLogStreamError(
-  message: string,
-  type: "error" | "auth_error" = "error"
-): "terminal" | "retry" {
-  return type === "auth_error" || isTerminalLogError(message) ? "terminal" : "retry";
-}
-
-const LOG_RECONNECT_BASE_MS = 3000;
-const LOG_RECONNECT_MAX_MS = 30000;
-
-/** Delay before reconnect attempt `attempt` (0-based): 3 s, doubling up to 30 s. */
-export function logReconnectDelay(attempt: number): number {
-  return Math.min(LOG_RECONNECT_BASE_MS * 2 ** Math.max(0, attempt), LOG_RECONNECT_MAX_MS);
-}
-
 function LogStreamNotice({ message }: { message: string }) {
   return (
     <div className="shrink-0 border-b border-border px-4 py-2 font-mono text-xs text-muted-foreground">
@@ -113,6 +92,8 @@ type SingleLogsTabProps =
       containerState?: never;
       inspectData?: never;
       headerActions?: ReactNode;
+      notice?: string;
+      onContainerUnavailable?: () => void;
     }
   | {
       source?: never;
@@ -121,6 +102,10 @@ type SingleLogsTabProps =
       containerState?: string;
       inspectData?: Record<string, any>;
       headerActions?: ReactNode;
+      /** Shown above the logs, e.g. while the container is being recreated. */
+      notice?: string;
+      /** The stream found no container (recreated, not running yet): the page looks it up again. */
+      onContainerUnavailable?: () => void;
     };
 
 type LogsTabProps =
@@ -302,7 +287,7 @@ function AggregatedLogsTab({
             } else if (message.type === "error" || message.type === "auth_error") {
               const detail = message.message || "Log stream error";
               terminalError = classifyLogStreamError(detail, message.type) === "terminal";
-              setSourceError(detail);
+              setSourceError(containerUnavailableMessage(message) ?? detail);
               finishSocket(ws);
             }
           } catch {
@@ -428,7 +413,10 @@ function SingleLogsTab(props: SingleLogsTabProps) {
   const mountedRef = useRef(true);
   const terminalErrorRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
+  const recreatingRef = useRef(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const onContainerUnavailableRef = useRef(props.onContainerUnavailable);
+  onContainerUnavailableRef.current = props.onContainerUnavailable;
 
   // ── Popout tracking via BroadcastChannel ──
   const [isPopout, setIsPopout] = useState(false);
@@ -541,6 +529,7 @@ function SingleLogsTab(props: SingleLogsTabProps) {
       }
       setLoadingMore(false);
       terminalErrorRef.current = false;
+      recreatingRef.current = false;
 
       const ws = sourceRef.current.createWebSocket(200);
       wsRef.current = ws;
@@ -585,8 +574,13 @@ function SingleLogsTab(props: SingleLogsTabProps) {
             ws.close(1012, "Log stream ended");
           } else if (msg.type === "error" || msg.type === "auth_error") {
             const message = msg.message || "Log stream error";
-            terminalErrorRef.current = classifyLogStreamError(message, msg.type) === "terminal";
-            setStreamError(message);
+            const unavailable = containerUnavailableMessage(msg);
+            terminalErrorRef.current =
+              !unavailable && classifyLogStreamError(message, msg.type) === "terminal";
+            // Recreating: retry at the base delay; the page looks up the replacement runtime meanwhile.
+            recreatingRef.current = isContainerRecreatingFrame(msg);
+            if (unavailable) onContainerUnavailableRef.current?.();
+            setStreamError(unavailable ?? message);
             setWsConnected(false);
             setIsConnecting(false);
             if (terminalErrorRef.current) {
@@ -611,7 +605,9 @@ function SingleLogsTab(props: SingleLogsTabProps) {
           () => {
             if (mountedRef.current && !isPopoutRef.current) connectWs();
           },
-          logReconnectDelay(reconnectAttemptRef.current++)
+          recreatingRef.current
+            ? CONTAINER_RECREATING_RETRY_MS
+            : logReconnectDelay(reconnectAttemptRef.current++)
         );
       };
 
@@ -638,8 +634,14 @@ function SingleLogsTab(props: SingleLogsTabProps) {
       setStreamError(null);
     } catch (error) {
       if (mountedRef.current && sourceRef.current.channelId === requestedSource.channelId) {
+        // A recreate replaced this container ID: the page looks up the replacement.
+        if (isContainerGoneError(error)) onContainerUnavailableRef.current?.();
         setStreamError(
-          error instanceof Error && error.message ? error.message : "Log stream error"
+          isContainerGoneError(error)
+            ? CONTAINER_RECREATING_MESSAGE
+            : error instanceof Error && error.message
+              ? error.message
+              : "Log stream error"
         );
       }
     }
@@ -780,7 +782,9 @@ function SingleLogsTab(props: SingleLogsTabProps) {
         </>
       }
     >
-      {lines.length > 0 && streamError && <LogStreamNotice message={streamError} />}
+      {lines.length > 0 && (streamError || props.notice) && (
+        <LogStreamNotice message={streamError ?? props.notice ?? ""} />
+      )}
       <DockerLogViewport
         lines={lines}
         keyFn={(_, i) => i}
