@@ -5,6 +5,7 @@ import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Notice, NoticeAction } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
+import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
 import { Badge } from "@/components/ui/badge";
@@ -295,7 +296,7 @@ export function PostgresExtensionsTab({
           tone="destructive"
           title={`Could not ${state.lastError.action} ${state.lastError.name}`}
         >
-          {state.lastError.message}
+          {state.lastError.message} <RelativeTime value={state.lastError.failedAt} />
         </Notice>
       ) : null}
       <PanelShell

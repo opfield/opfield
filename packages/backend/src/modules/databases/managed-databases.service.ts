@@ -176,9 +176,6 @@ export class ManagedDatabaseService {
   ): Promise<{ setId: string; memberId: string; nodeId: string; role: 'copy' | 'primary' } | null> {
     return commercialModuleUnavailable();
   }
-  async warmReadyPostgresExtensionCatalogs(): Promise<void> {
-    return commercialModuleUnavailable();
-  }
   async create(
     _input: CreateManagedDatabaseInput,
     _userId: string,

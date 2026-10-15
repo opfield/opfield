@@ -19,7 +19,7 @@ import type {
   DatabaseListQuery,
   UpdateDatabaseConnectionInput,
 } from './databases.schemas.js';
-import type { ManagedPostgresExtension, PostgresRowSearchFilter, SqlQueryAccess } from './databases.service.shared.js';
+import type { PostgresRowSearchFilter, SqlQueryAccess } from './databases.service.shared.js';
 import type { ManagedDatabaseTunnelLane, ManagedDatabaseTunnelProxy } from './managed-database-tunnel-proxy.js';
 import type { RedisKeyValueType } from './redis-key-operations.js';
 import type { SqlExecutionOptions } from './sql-database-adapter.js';
@@ -225,26 +225,6 @@ export class DatabaseConnectionService {
     return commercialModuleUnavailable();
   }
   async listPostgresSchemas(_id: string): Promise<string[]> {
-    return commercialModuleUnavailable();
-  }
-  async listManagedPostgresExtensions(_id: string): Promise<ManagedPostgresExtension[]> {
-    return commercialModuleUnavailable();
-  }
-  async warmManagedPostgresExtensionCatalog(_id: string): Promise<void> {
-    return commercialModuleUnavailable();
-  }
-  async enableManagedPostgresExtension(
-    _id: string,
-    _rawName: string,
-    _userId: string
-  ): Promise<ManagedPostgresExtension[]> {
-    return commercialModuleUnavailable();
-  }
-  async disableManagedPostgresExtension(
-    _id: string,
-    _rawName: string,
-    _userId: string
-  ): Promise<ManagedPostgresExtension[]> {
     return commercialModuleUnavailable();
   }
   async listPostgresTables(
