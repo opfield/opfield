@@ -44,6 +44,7 @@ import type {
 } from "@/types";
 import { AdditionalRoutesPanel } from "./AdditionalRoutes";
 import { AdditionalSecureLinkBindings } from "./AdditionalSecureLinkBindings";
+import { ClientIpPanel } from "./ClientIpPanel";
 
 const tableInputClass =
   "h-9 border-0 rounded-none shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring";
@@ -379,6 +380,7 @@ export function SettingsTab({
             />
           </SettingsControlRow>
         </PanelShell>
+        <ClientIpPanel host={host} canManage={canManage} onUpdated={onHostUpdated} />
       </div>
 
       {host.type === "proxy" && (

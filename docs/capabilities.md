@@ -25,6 +25,13 @@ Core ingress workflows:
 - Create proxy, redirect, and 404 routes.
 - Group routes into folders and reorder them with drag-and-drop.
 - Configure access lists with IP rules and basic authentication.
+- Choose where a route takes the client IP from (route settings, **Client IP**), so access list IP rules, rate limits, access logs and the `X-Real-IP` / `X-Forwarded-For` sent to the upstream see the visitor, not a proxy:
+  - **Auto** (default): Cloudflare when a name of the route is a registered domain proxied by Cloudflare, otherwise the connecting peer. Proxying or unproxying the domain updates its routes.
+  - **Direct**: the connecting peer.
+  - **Cloudflare**: `CF-Connecting-IP`, believed only from Cloudflare's edge addresses. Use it for a route proxied by Cloudflare outside Opfield's DNS integration.
+  - **Trusted proxies**: `X-Forwarded-For` or `X-Real-IP`, believed only from the proxy addresses or CIDRs you list (for example a load balancer).
+
+  A visitor that connects directly keeps its own address whatever headers it sends. Opfield checks Cloudflare's published ranges every 6 hours and updates the routes when they change; until the first check, and whenever Cloudflare cannot be reached, the last good list stays in effect. If the list could not be refreshed for 14 days while a route uses it, the background job `cloudflare-ip-ranges` fails and its job alert fires. A custom template or advanced config that sets `real_ip_header` in the server block keeps its own setting. A raw config gets the directives where it contains the line `# opfield:client-ip` (inside its `server` block).
 - Use nginx config templates with variables for repeatable route configuration.
 - View real-time nginx logs and node stats.
 

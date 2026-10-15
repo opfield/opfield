@@ -49,6 +49,8 @@ import type { ProxyMaintenanceAccessService } from './proxy-maintenance-access.s
 import { assertProxyReferenceAccess, type ProxyReferenceInput } from './proxy-reference-access.js';
 import type { ProxySecureLinkService } from './proxy-secure-link.service.js';
 import type { WithDockerUpstreamDisplay } from './proxy-upstream-display.js';
+import { hasRawClientIpMarker, withClientIpDirectives, withRawClientIpMarker } from './route-client-ip.js';
+import { routeClientIpDirectives } from './route-client-ip-runtime.js';
 import {
   NGINX_SECURE_LINK_LOOPBACK_CAPABILITY,
   secureLinkLoopbackAddresses,
@@ -719,7 +721,11 @@ export abstract class ProxyServiceCore {
     // Raw mode is an explicit user-owned escape hatch: only the node's file and nginx names in it follow the node
     // (nginx-node-names.ts).
     if ((host.type === 'raw' || host.rawConfigEnabled) && host.rawConfig) {
-      return this.withNodeNginxNames(host.nodeId, host.rawConfig);
+      // A raw config gets the client IP directives only where it asks for them (route-client-ip.ts).
+      const raw = hasRawClientIpMarker(host.rawConfig)
+        ? withRawClientIpMarker(host.rawConfig, await routeClientIpDirectives(this.db, host))
+        : host.rawConfig;
+      return this.withNodeNginxNames(host.nodeId, raw);
     }
 
     const usesSecureLink =
@@ -842,6 +848,8 @@ export abstract class ProxyServiceCore {
     // Every server block on a node with the ingress health responder answers the reserved health path (rendered
     // per node: an older daemon lacks the generation variable the location uses).
     if (await this.nodeServesIngressHealth(host.nodeId)) result = withIngressHealthLocation(result);
+    // The client address behind Cloudflare or trusted proxies, for access lists, rate limits, logs and upstreams.
+    result = withClientIpDirectives(result, await routeClientIpDirectives(this.db, host));
     return this.withNodeNginxNames(host.nodeId, result);
   }
 

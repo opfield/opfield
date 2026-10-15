@@ -146,6 +146,8 @@ export async function executeProxyTool(
         rateLimitEnabled: a.rateLimitEnabled,
         rateLimitMode: a.rateLimitMode ?? (a.rateLimitEnabled ? 'custom' : undefined),
         rateLimitOptions: a.rateLimitOptions,
+        clientIpSource: a.clientIpSource,
+        clientIpOptions: a.clientIpOptions,
         customRewrites: a.customRewrites,
         advancedConfig: a.advancedConfig,
         internalCertificateId: a.internalCertificateId,

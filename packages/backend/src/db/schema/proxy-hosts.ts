@@ -63,6 +63,18 @@ export interface RateLimitOptions {
 
 export type RateLimitMode = 'inherit' | 'custom' | 'disabled';
 
+/**
+ * Where nginx takes the client address of a request from (route-client-ip.ts): auto uses Cloudflare's edge header
+ * when a name of the route is a Cloudflare-proxied domain, else the TCP peer.
+ */
+export type RouteClientIpSource = 'auto' | 'direct' | 'cloudflare' | 'reverse_proxy';
+
+export interface RouteClientIpOptions {
+  /** Peers (addresses or CIDRs) whose forwarded header is trusted in reverse_proxy mode. */
+  trustedProxyCidrs: string[];
+  header: 'x_forwarded_for' | 'x_real_ip';
+}
+
 export interface RewriteRule {
   source: string;
   destination: string;
@@ -153,6 +165,8 @@ export const proxyHosts = pgTable(
     rateLimitEnabled: boolean('rate_limit_enabled').notNull().default(false),
     rateLimitMode: varchar('rate_limit_mode', { length: 16 }).$type<RateLimitMode>().notNull().default('inherit'),
     rateLimitOptions: jsonb('rate_limit_options').$type<RateLimitOptions>(),
+    clientIpSource: varchar('client_ip_source', { length: 16 }).$type<RouteClientIpSource>().notNull().default('auto'),
+    clientIpOptions: jsonb('client_ip_options').$type<RouteClientIpOptions>(),
     customRewrites: jsonb('custom_rewrites').$type<RewriteRule[]>().default([]),
 
     // Custom config — raw nginx

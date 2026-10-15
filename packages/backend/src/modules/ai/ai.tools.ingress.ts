@@ -129,6 +129,24 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
           required: ['requestsPerSecond'],
           description: 'Rate limit configuration (requires rateLimitEnabled)',
         },
+        clientIpSource: {
+          type: 'string',
+          enum: ['auto', 'direct', 'cloudflare', 'reverse_proxy'],
+          description:
+            'Where nginx takes the client IP from for access lists, rate limits, logs and X-Real-IP/X-Forwarded-For: auto (default; Cloudflare when a name of the route is a Cloudflare-proxied domain, else the connecting peer), direct (connecting peer), cloudflare (CF-Connecting-IP from Cloudflare edge peers only), reverse_proxy (header from clientIpOptions.trustedProxyCidrs peers only)',
+        },
+        clientIpOptions: {
+          type: 'object',
+          properties: {
+            trustedProxyCidrs: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Proxy addresses or CIDRs whose header is trusted (required for reverse_proxy)',
+            },
+            header: { type: 'string', enum: ['x_forwarded_for', 'x_real_ip'], description: 'Default x_forwarded_for' },
+          },
+          description: 'Trusted proxies for clientIpSource reverse_proxy',
+        },
         customRewrites: {
           type: 'array',
           items: {
@@ -267,6 +285,24 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
             burst: { type: 'number' },
           },
           description: 'Rate limit configuration; null clears it',
+        },
+        clientIpSource: {
+          type: 'string',
+          enum: ['auto', 'direct', 'cloudflare', 'reverse_proxy'],
+          description:
+            'Where nginx takes the client IP from for access lists, rate limits, logs and X-Real-IP/X-Forwarded-For: auto (default; Cloudflare when a name of the route is a Cloudflare-proxied domain, else the connecting peer), direct (connecting peer), cloudflare (CF-Connecting-IP from Cloudflare edge peers only), reverse_proxy (header from clientIpOptions.trustedProxyCidrs peers only)',
+        },
+        clientIpOptions: {
+          type: ['object', 'null'],
+          properties: {
+            trustedProxyCidrs: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Proxy addresses or CIDRs whose header is trusted (required for reverse_proxy)',
+            },
+            header: { type: 'string', enum: ['x_forwarded_for', 'x_real_ip'], description: 'Default x_forwarded_for' },
+          },
+          description: 'Trusted proxies for clientIpSource reverse_proxy; null clears it',
         },
         customRewrites: {
           type: 'array',

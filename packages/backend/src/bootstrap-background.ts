@@ -97,6 +97,10 @@ import { SetupTokenPolicyService } from '@/modules/setup/setup-token-policy.js';
 import { InternalCertificateRenewalService } from '@/modules/ssl/internal-cert-renewal.service.js';
 import { SSLService } from '@/modules/ssl/ssl.service.js';
 import { CacheService, type RedisClient } from '@/services/cache.service.js';
+import {
+  CLOUDFLARE_IP_RANGES_REFRESH_INTERVAL_MS,
+  CloudflareIpRangesService,
+} from '@/services/cloudflare-ip-ranges.service.js';
 import { DaemonUpdateService } from '@/services/daemon-update.service.js';
 import { DockerService } from '@/services/docker.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
@@ -419,6 +423,19 @@ export async function initializeBackgroundServices(): Promise<void> {
         .catch((error) => logger.warn('Ingress group convergence after a node reconnect failed', { error }));
     }
   });
+  // Cloudflare's edge ranges, trusted by routes behind Cloudflare: first check shortly after start, then every 6 h.
+  // A failed check keeps the last good list; the job fails (job alert) only when that list is stale and in use.
+  const cloudflareIpRanges = container.resolve(CloudflareIpRangesService);
+  scheduler.registerInterval('cloudflare-ip-ranges', CLOUDFLARE_IP_RANGES_REFRESH_INTERVAL_MS, (signal) =>
+    cloudflareIpRanges.refresh(signal)
+  );
+  setTimeout(
+    () =>
+      void cloudflareIpRanges
+        .refresh()
+        .catch((error) => logger.warn('Initial Cloudflare IP range check failed', { error })),
+    60 * 1000
+  ).unref?.();
   scheduler.registerInterval('nginx-tls-certificate-integrity', 6 * 60 * 60 * 1000, async () => {
     await nginxCertificateDistribution.reconcileIntegrity();
     await nginxCertificateDistribution.cleanupDueReplicas();

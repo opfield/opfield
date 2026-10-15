@@ -2,6 +2,12 @@ import { z } from 'zod';
 import { createChildLogger } from '@/lib/logger.js';
 import { queryFlag } from '@/modules/apps/app-membership.js';
 import { reservedTemplateVariableNames, withoutReservedTemplateVariables } from './proxy-template-variables.js';
+import {
+  clientIpSettingsErrors,
+  MAX_ROUTE_TRUSTED_PROXIES,
+  ROUTE_CLIENT_IP_HEADERS,
+  ROUTE_CLIENT_IP_SOURCES,
+} from './route-client-ip.js';
 
 const logger = createChildLogger('ProxySchemas');
 
@@ -33,6 +39,13 @@ const RateLimitOptionsSchema = z.object({
   requestsPerSecond: z.number().int().min(1),
   burst: z.number().int().min(1).optional(),
   connectionsPerIp: z.number().int().min(1).optional(),
+});
+
+const ClientIpSourceSchema = z.enum(ROUTE_CLIENT_IP_SOURCES);
+
+const ClientIpOptionsSchema = z.object({
+  trustedProxyCidrs: z.array(z.string().trim().min(1).max(64)).max(MAX_ROUTE_TRUSTED_PROXIES).default([]),
+  header: z.enum(ROUTE_CLIENT_IP_HEADERS).default('x_forwarded_for'),
 });
 
 const RewriteRuleSchema = z.object({
@@ -120,6 +133,10 @@ export const CreateProxyHostSchema = z
     rateLimitMode: z.enum(['inherit', 'custom', 'disabled']).default('inherit'),
     rateLimitOptions: RateLimitOptionsSchema.optional(),
 
+    // Client IP source (route-client-ip.ts)
+    clientIpSource: ClientIpSourceSchema.default('auto'),
+    clientIpOptions: ClientIpOptionsSchema.optional(),
+
     // Rewrites
     customRewrites: z.array(RewriteRuleSchema).default([]),
 
@@ -165,6 +182,10 @@ export const CreateProxyHostSchema = z
           path: ['forwardPort'],
         });
       }
+    }
+
+    for (const message of clientIpSettingsErrors(data.clientIpSource, data.clientIpOptions)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ['clientIpOptions'] });
     }
 
     if (data.relaySpreadMode === 'fixed' && data.relaySpreadCount == null) {
@@ -318,6 +339,8 @@ export const UpdateProxyHostSchema = z.object({
   rateLimitEnabled: z.boolean().optional(),
   rateLimitMode: z.enum(['inherit', 'custom', 'disabled']).optional(),
   rateLimitOptions: RateLimitOptionsSchema.optional().nullable(),
+  clientIpSource: ClientIpSourceSchema.optional(),
+  clientIpOptions: ClientIpOptionsSchema.optional().nullable(),
   customRewrites: z.array(RewriteRuleSchema).optional(),
 
   advancedConfig: z.string().max(10000).optional().nullable(),

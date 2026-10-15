@@ -16,6 +16,7 @@ export { __testOnly } from './proxy.service-helpers.js';
 
 import { logger, type ProxyHostRow } from './proxy.service.core.js';
 import { ProxyServiceMutations } from './proxy.service.mutations.js';
+import { effectiveClientIpSource } from './route-client-ip-runtime.js';
 
 export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
   // One replaceable token fences stale collection snapshots, without retaining
@@ -173,6 +174,8 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
       tlsDistribution,
       ...ingress,
       pageTarget: displayHost?.pageTarget ?? null,
+      // What clientIpSource auto resolves to now (route-client-ip.ts).
+      clientIpEffectiveSource: await effectiveClientIpSource(this.db, host),
     };
   }
 
