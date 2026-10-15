@@ -166,7 +166,7 @@ export function DockerComposeProjectDetail() {
   const { projectId = "" } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasScopedAccess, user } = useAuthStore();
+  const { user } = useAuthStore();
   const dockerNodes = useDockerStore((state) => state.dockerNodes);
   const [project, setProject] = useState<DockerComposeProject | null>(null);
   // The open incident of the project's app environment refuses deleting it (and removing its links).
@@ -427,8 +427,19 @@ export function DockerComposeProjectDetail() {
   const canDelete =
     !!project &&
     hasComposeProjectScope(user?.scopes ?? [], "docker:compose:delete", project.nodeId, project.id);
-  const canUseConsole = hasScopedAccess("docker:containers:console");
-  const canReadFiles = hasScopedAccess("docker:containers:files:read");
+  // Service containers carry no container grant of their own: console and files come from a grant
+  // broadly or on the project's node (the container page checks the container itself).
+  const canOnProjectNode = (base: string) => {
+    const scopes = user?.scopes ?? [];
+    return (
+      !!project &&
+      (scopeMatches(scopes, base) ||
+        scopeMatches(scopes, `${base}:${project.nodeId}`) ||
+        scopeMatches(scopes, `${base}:node/${project.nodeId}`))
+    );
+  };
+  const canUseConsole = canOnProjectNode("docker:containers:console");
+  const canReadFiles = canOnProjectNode("docker:containers:files:read");
 
   const runAction = async (nextAction: DockerComposeOperationAction, revisionId?: string) => {
     if (!project) return;
