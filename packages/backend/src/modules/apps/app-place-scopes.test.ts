@@ -52,10 +52,27 @@ describe('appOnlyScopeBases', () => {
     ]);
   });
 
-  it('ignores bases of families apps do not hold, even when the folder id is hidden elsewhere', () => {
-    expect(appOnlyScopeBases([`ssl:cert:view:folder/${ENV}`, `proxy:templates:view:folder/${ENV}`], hidden)).toEqual(
-      []
-    );
+  it('counts certificate, logging and member grants as app grants; ignores families apps do not hold', () => {
+    expect(
+      appOnlyScopeBases([`logs:schemas:view:folder/${ENV}`, `proxy:templates:view:folder/${ENV}`], hidden)
+    ).toEqual([]);
+    const member = '9f0c7a2e-0000-4000-8000-000000000003';
+    const node = '9f0c7a2e-0000-4000-8000-000000000004';
+    const isMember = (_family: string, target: string) => target === member || target === `${node}/${member}`;
+    expect(
+      appOnlyScopeBases(
+        [
+          `ssl:cert:view:folder/${ENV}`,
+          `logs:read:folder/${ENV}`,
+          `storage:view:${member}`,
+          `docker:compose:view:${node}/${member}`,
+        ],
+        hidden,
+        isMember
+      )
+    ).toEqual(['docker:compose:view', 'logs:read', 'ssl:cert:view', 'storage:view']);
+    // A node grant (Docker: the bare node id) is not a grant on a member.
+    expect(appOnlyScopeBases([`docker:compose:view:${node}`], hidden, isMember)).toEqual([]);
   });
 
   it('is empty for scopes without app places', () => {
@@ -65,7 +82,7 @@ describe('appOnlyScopeBases', () => {
 });
 
 describe('resolveAppOnlyScopeBases', () => {
-  it('does not query the database without folder grants of app families', async () => {
+  it('does not query the database without folder or resource grants of app families', async () => {
     const db = new Proxy(
       {},
       {
@@ -75,7 +92,12 @@ describe('resolveAppOnlyScopeBases', () => {
       }
     );
     await expect(
-      resolveAppOnlyScopeBases(db as never, ['storage:view', `ssl:cert:view:folder/${ENV}`, 'proxy:view:not-a-folder'])
+      resolveAppOnlyScopeBases(db as never, [
+        'storage:view',
+        `proxy:templates:view:folder/${ENV}`,
+        'proxy:view:not-a-folder',
+        `docker:containers:view:${ENV}`,
+      ])
     ).resolves.toEqual([]);
   });
 });

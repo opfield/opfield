@@ -35,6 +35,7 @@ describe.skipIf(!url)('scopes held only through app places on disposable Postgre
   let rootFolders: Record<string, string | null> = {};
   let userStorageFolder = '';
   let storageId = '';
+  let outsideStorageId = '';
 
   beforeAll(async () => {
     database = await disposableDatabase(url!, 'app_place_scopes');
@@ -59,6 +60,13 @@ describe.skipIf(!url)('scopes held only through app places on disposable Postgre
         `insert into object_storage_connections (name, slug, provider, endpoint, default_bucket, encrypted_config, created_by_id, folder_id)
          values ('shop-s3', 'shop-s3', 'aws', 'https://s3.example.test', 'shop', 'x', $1, $2) returning id`,
         [userId, envFolders.storage]
+      )
+    ).id;
+    outsideStorageId = (
+      await one(
+        `insert into object_storage_connections (name, slug, provider, endpoint, default_bucket, encrypted_config, created_by_id)
+         values ('team-s3', 'team-s3', 'aws', 'https://s3.example.test', 'team', 'x', $1) returning id`,
+        [userId]
       )
     ).id;
     container.registerInstance(TOKENS.DrizzleClient, db);
@@ -92,10 +100,12 @@ describe.skipIf(!url)('scopes held only through app places on disposable Postgre
     expect(await resolveAppOnlyScopeBases(db, appLine(rootFolders))).toEqual(MEMBER_BASES);
   });
 
-  it('keeps a base also granted on a user folder, a resource or broadly', async () => {
+  it('keeps a base also granted on a user folder, a resource outside apps or broadly', async () => {
     const withExtra = (extra: string) => resolveAppOnlyScopeBases(db, [...appLine(envFolders), extra]);
     expect(await withExtra(`storage:view:folder/${userStorageFolder}`)).not.toContain('storage:view');
-    expect(await withExtra(`storage:view:${storageId}`)).not.toContain('storage:view');
+    expect(await withExtra(`storage:view:${outsideStorageId}`)).not.toContain('storage:view');
+    // A grant on an app member (what creating inside the app grants its creator) is an app grant.
+    expect(await withExtra(`storage:view:${storageId}`)).toContain('storage:view');
     expect(await withExtra('storage:view')).not.toContain('storage:view');
     expect(await withExtra('storage:view')).toContain('proxy:view');
   });
