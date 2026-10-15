@@ -1,6 +1,7 @@
 import { ExternalLink, Terminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { containerUnavailableMessage } from "@/lib/container-stream-unavailable";
 import { terminalTheme } from "@/lib/terminal-theme";
 import { useUIStore } from "@/stores/ui";
 import { encodeTerminalInput } from "./terminal-encoding";
@@ -16,6 +17,8 @@ interface TerminalConsoleProps {
   popoutUrl?: string;
   /** Label for initial connecting message (e.g. "abc123def456") */
   connectLabel?: string;
+  /** The stream found no container (recreated, not running yet): the page looks it up again. */
+  onContainerUnavailable?: () => void;
 }
 
 export function TerminalConsole({
@@ -23,6 +26,7 @@ export function TerminalConsole({
   channelKey,
   popoutUrl,
   connectLabel,
+  onContainerUnavailable,
 }: TerminalConsoleProps) {
   const resolvedTheme = useUIStore((state) => state.resolvedTheme);
   const termRef = useRef<HTMLDivElement>(null);
@@ -36,6 +40,8 @@ export function TerminalConsole({
   const gotFirstOutput = useRef(false);
   const isReconnect = useRef(false);
   const authFailedRef = useRef(false);
+  const onContainerUnavailableRef = useRef(onContainerUnavailable);
+  onContainerUnavailableRef.current = onContainerUnavailable;
 
   // ── Popout tracking via BroadcastChannel ──
   const [isPopout, setIsPopout] = useState(false);
@@ -267,7 +273,10 @@ export function TerminalConsole({
             /* */
           }
         } else if (msg.type === "error") {
-          terminal.write(`\r\nError: ${msg.message}\r\n`);
+          // A container being recreated is not an error: say so and reconnect once it runs.
+          const unavailable = containerUnavailableMessage(msg);
+          if (unavailable) onContainerUnavailableRef.current?.();
+          terminal.write(`\r\n${unavailable ?? `Error: ${msg.message}`}\r\n`);
         }
       } catch {
         /* */

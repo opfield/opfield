@@ -23,6 +23,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { nodeBadgeClassName } from "@/lib/node-appearance";
+import type { NodeAppearanceColor } from "@/types";
 
 export type LinkKind = "database" | "storage" | "container";
 
@@ -107,6 +110,54 @@ export function LinkRowTitle({ kind, children }: { kind: LinkKind; children: Rea
     </span>
   );
 }
+
+/**
+ * The node a link's other end runs on, before the link's status. Every link row (database, storage, container)
+ * shows it the same way, in the node's color.
+ */
+export function LinkNodeBadge({
+  name,
+  color,
+}: {
+  name: string | null | undefined;
+  color?: NodeAppearanceColor | null;
+}) {
+  if (!name) return null;
+  return (
+    <Badge variant="secondary" size="inline" className={nodeBadgeClassName(color)}>
+      {name}
+    </Badge>
+  );
+}
+
+/** A link's status with what it means on hover; the same badge on every link row. */
+export function LinkStatusBadge({
+  label,
+  variant,
+  detail,
+}: {
+  label: string;
+  variant: "success" | "warning" | "secondary" | "destructive";
+  detail: ReactNode;
+}) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant={variant} size="inline" tabIndex={0}>
+            {label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-sm">
+          {detail}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+/** The remove (or keep) button at the end of a link row. */
+export const LINK_REMOVE_BUTTON_CLASS = "shrink-0 text-muted-foreground hover:text-destructive";
 
 function visibleSignature(sources: Map<LinkKind, LinkSourceState>) {
   return JSON.stringify(

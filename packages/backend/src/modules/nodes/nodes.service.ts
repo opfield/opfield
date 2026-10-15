@@ -693,11 +693,12 @@ export class NodesService {
     if (!existing) {
       throw new AppError(404, 'NOT_FOUND', 'Node not found');
     }
-    if (existing.type !== 'nginx' && existing.type !== 'docker') {
+    // A locked Build Worker takes no new builds; builds it runs finish.
+    if (existing.type !== 'nginx' && existing.type !== 'docker' && existing.type !== 'builder') {
       throw new AppError(
         400,
         'NODE_LOCK_UNSUPPORTED',
-        'Only nginx and Docker nodes can be locked for service creation'
+        'Only nginx, Docker and Build Worker nodes can be locked for new services'
       );
     }
 

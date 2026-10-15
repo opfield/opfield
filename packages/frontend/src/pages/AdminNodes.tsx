@@ -65,6 +65,7 @@ import {
   nodeTypeLabel,
 } from "@/lib/node-appearance";
 import { isNodeProtected } from "@/lib/node-host-access";
+import { nodeSupportsServiceCreationLock } from "@/lib/node-service-lock";
 import { confirmAndDeleteNode } from "@/lib/remove-node";
 import { nodeRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
@@ -359,7 +360,7 @@ export function AdminNodes() {
         renderCell: (node) =>
           isNodeProtected(node) ? (
             <ProtectedNodeBadge label="PROTECTED" />
-          ) : (node.type === "nginx" || node.type === "docker") && node.serviceCreationLocked ? (
+          ) : nodeSupportsServiceCreationLock(node.type) && node.serviceCreationLocked ? (
             <Badge variant="warning">LOCKED</Badge>
           ) : (
             <span className="text-muted-foreground">-</span>
@@ -442,7 +443,7 @@ export function AdminNodes() {
           // The node page's actions, with the same grants and locks.
           const actionsLocked = updating || node.status === "pending" || hostingBusy;
           const canLock =
-            (node.type === "nginx" || node.type === "docker") &&
+            nodeSupportsServiceCreationLock(node.type) &&
             (hasScope("nodes:lock") || hasScope(`nodes:lock:${node.id}`));
           const canReissue =
             node.status === "pending" &&

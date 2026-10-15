@@ -115,7 +115,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'set_node_service_creation_lock',
     description:
-      'Lock or unlock new service creation on a node, for example before maintenance or decommissioning. Existing services keep running.',
+      'Lock or unlock new service creation on an nginx, Docker or Build Worker node, for example before maintenance or decommissioning. Existing services keep running. A locked Build Worker takes no new builds (running builds finish); while every online Build Worker is locked, new builds are refused and queued builds wait.',
     parameters: {
       type: 'object',
       properties: {

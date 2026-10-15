@@ -5,11 +5,10 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
 import { useContentLoading } from "@/components/common/reveal-gate";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { toastApiError } from "@/lib/api-error-toast";
+import { listManagedDatabaseCandidateNodes } from "@/lib/managed-database-nodes";
 import { api } from "@/services/api";
 import { planIncludes } from "@/stores/license-paywall";
 import type {
@@ -17,8 +16,16 @@ import type {
   ManagedStorageBinding,
   ManagedStorageBindingEnvironment,
   ManagedStorageBindingTargetType,
+  Node,
 } from "@/types";
-import { LinkRowTitle, useInLinksPanel, useLinkSource } from "./LinksPanel";
+import {
+  LINK_REMOVE_BUTTON_CLASS,
+  LinkNodeBadge,
+  LinkRowTitle,
+  LinkStatusBadge,
+  useInLinksPanel,
+  useLinkSource,
+} from "./LinksPanel";
 import { ManagedStorageLinkDialog } from "./ManagedStorageLinkDialog";
 
 type PendingStorageLink = {
@@ -113,6 +120,17 @@ export const ManagedStorageLinksSection = forwardRef<
   const initialLoading = useInitialLoading(loading);
   const [saving, setSaving] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  // The node each storage runs on, shown on its row like a database link's node.
+  const [storageNodes, setStorageNodes] = useState<Node[]>([]);
+  useEffect(() => {
+    void listManagedDatabaseCandidateNodes()
+      .then(setStorageNodes)
+      .catch(() => undefined);
+  }, []);
+  const storageNodeById = useMemo(
+    () => new Map(storageNodes.map((node) => [node.id, node])),
+    [storageNodes]
+  );
 
   const load = useCallback(async () => {
     if (!planIncludes("managed-storage")) {
@@ -426,6 +444,7 @@ export const ManagedStorageLinksSection = forwardRef<
                 : entry.binding.status === "deleting"
                   ? "Storage link is being removed."
                   : "Storage link failed.");
+        const storageNode = storageNodeById.get(entry.cluster.nodeId);
         const description = [
           entry.binding.buckets.join(", "),
           environmentNames(entry.binding.environment).join(", "),
@@ -439,28 +458,28 @@ export const ManagedStorageLinksSection = forwardRef<
             description={description || "Storage credentials injected"}
           >
             <div className="flex items-center gap-2">
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant={badgeVariant} tabIndex={0}>
-                      {status}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-sm">
-                    {entry.pending === "add"
-                      ? "Created when the changes are saved."
-                      : entry.pending === "remove"
-                        ? "Removed when the changes are saved."
-                        : statusDetail}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <LinkNodeBadge
+                name={storageNode ? storageNode.displayName || storageNode.hostname : null}
+                color={storageNode?.appearanceColor}
+              />
+              <LinkStatusBadge
+                label={status}
+                variant={badgeVariant}
+                detail={
+                  entry.pending === "add"
+                    ? "Created when the changes are saved."
+                    : entry.pending === "remove"
+                      ? "Removed when the changes are saved."
+                      : statusDetail
+                }
+              />
               {canManage &&
                 (canManageCluster?.(entry.cluster.objectStorageConnectionId) ?? true) && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
+                    className={LINK_REMOVE_BUTTON_CLASS}
                     title={
                       entry.pending === "remove"
                         ? "Keep link"
