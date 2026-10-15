@@ -161,6 +161,7 @@ export function OverviewTab({
               <button
                 type="button"
                 className="flex items-center gap-1.5 font-mono hover:text-primary cursor-pointer"
+                title={id}
                 onClick={() => copyToClipboard(id)}
               >
                 {id.slice(0, 12)}
@@ -310,16 +311,26 @@ export function OverviewTab({
           {mounts.map((m, i) => (
             <div key={i} className="flex items-center justify-between px-4 py-3 gap-4">
               <div className="min-w-0 flex-1">
+                {/* The whole name; the row truncates it only by the width it has. */}
                 {m.Type === "volume" && isAnonymousVolumeName(m.Name) ? (
                   <span className="text-sm truncate block" title={m.Name}>
-                    {dockerVolumeLabel(m.Name ?? "").text}
+                    {dockerVolumeLabel(m.Name ?? "").full}
                   </span>
                 ) : (
-                  <span className="text-sm font-mono truncate block">{m.Source}</span>
+                  <span className="text-sm font-mono truncate block" title={m.Source}>
+                    {m.Source}
+                  </span>
                 )}
-                <span className="text-xs text-muted-foreground font-mono">→ {m.Destination}</span>
+                <span
+                  className="text-xs text-muted-foreground font-mono truncate block"
+                  title={m.Destination}
+                >
+                  → {m.Destination}
+                </span>
               </div>
-              <Badge variant={m.RW ? "success" : "secondary"}>{m.RW ? "RW" : "RO"}</Badge>
+              <Badge variant={m.RW ? "success" : "secondary"} className="shrink-0">
+                {m.RW ? "RW" : "RO"}
+              </Badge>
             </div>
           ))}
         </PanelShell>

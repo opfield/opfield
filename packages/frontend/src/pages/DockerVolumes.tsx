@@ -362,9 +362,17 @@ export function DockerVolumes({
             <div className="flex-1 min-w-0">
               <div className="flex min-w-0 items-center gap-2">
                 {isAnonymousVolumeName(v.name) ? (
-                  <span className="truncate text-sm font-medium" title={v.name}>
-                    {dockerVolumeLabel(v.name, anonymousVolumeOwner(v.usedBy)).text}
-                  </span>
+                  // The whole name, cut by the column width; the owning container stays visible after it.
+                  <>
+                    <span className="truncate text-sm font-medium" title={v.name}>
+                      {dockerVolumeLabel(v.name).full}
+                    </span>
+                    {anonymousVolumeOwner(v.usedBy) ? (
+                      <span className="shrink-0 text-sm font-medium">
+                        · {anonymousVolumeOwner(v.usedBy)}
+                      </span>
+                    ) : null}
+                  </>
                 ) : (
                   <TruncateStart text={v.name} className="text-sm font-medium" />
                 )}
