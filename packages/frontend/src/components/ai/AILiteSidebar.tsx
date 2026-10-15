@@ -51,10 +51,12 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDeferredDialogState } from "@/hooks/use-deferred-dialog-state";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { aiConversationRoute } from "@/lib/ai-conversation-route";
 import { toastApiError } from "@/lib/api-error-toast";
 import { visibleNavigationGroups } from "@/lib/app-navigation";
+import { hasDockerNodesForNavigation } from "@/lib/docker-tabs";
 import { hasLowInferenceUsage } from "@/lib/inference-self-usage";
 import { isSidebarNavigationActive } from "@/lib/sidebar-navigation";
 import { cn, getInitials } from "@/lib/utils";
@@ -126,7 +128,8 @@ export function AILiteSidebar({
 }: AILiteSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, hasAnyScope, hasScopedAccess, logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const globalAccess = useGlobalSectionAccess();
   const {
     sidebarOpen,
     toggleSidebar,
@@ -185,7 +188,6 @@ export function AILiteSidebar({
   } = useDeferredDialogState<FolderDialogState>();
   const [dragOverlayConversationId, setDragOverlayConversationId] = useState<string | null>(null);
   const [stoppingImpersonation, setStoppingImpersonation] = useState(false);
-  const canAccessAdministration = hasAnyScope("admin:audit", "admin:users", "admin:groups");
   const unlicensedItems = useUnlicensedNavigationItems();
   const ingressGroupsInPlan = usePlanIncludes("multi-node-availability");
   const visibleGroups = visibleNavigationGroups({
@@ -203,15 +205,12 @@ export function AILiteSidebar({
     hasCloudflareIntegration: navigationBootstrap?.hasCloudflareIntegration ?? false,
     appsByMembers: navigationBootstrap?.appsByMembers ?? false,
     appOnlyScopeBases: navigationBootstrap?.appOnlyScopeBases,
-    hasDockerNodes:
-      dockerNodes.length > 0 ||
-      [
-        "docker:containers:view",
-        "docker:images:view",
-        "docker:volumes:view",
-        "docker:networks:view",
-      ].some(hasScopedAccess),
+    hasDockerNodes: hasDockerNodesForNavigation(dockerNodes.length, globalAccess.scopes),
   });
+  // The sidebar's own Administration predicate (the account menu shows it here).
+  const canAccessAdministration = visibleGroups.some((group) =>
+    group.items.some((item) => item.id === "administration")
+  );
   const navigateToGroups = visibleGroups
     .map((group) => ({
       ...group,
@@ -668,17 +667,18 @@ export function AILiteSidebar({
               />
             )}
 
-            <div
-              className={cn("flex items-center justify-between px-2", mobileMenu && "h-12")}
-              style={
-                mobileMenu ? undefined : { paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }
-              }
-            >
+            {/* 8 px around 32 px buttons makes 48 px, as tall as the console sidebar header. */}
+            <div className={cn("flex items-center justify-between p-2", mobileMenu && "h-12")}>
               <OpfieldLockup suffix="AI" className="pl-1" />
               <div className="flex items-center gap-0.5">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="Create">
+                    <Button
+                      variant="ghost"
+                      // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+                      size="icon-sm"
+                      aria-label="Create"
+                    >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -699,7 +699,8 @@ export function AILiteSidebar({
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+                      size="icon-sm"
                       onClick={onClose ?? toggleSidebar}
                       aria-label={onClose ? "Close menu" : "Close sidebar"}
                     >

@@ -1,5 +1,5 @@
-// An environment's own page: variables, secrets, maintenance for all its routes and its node
-// allowlist (canvas section "envs": env-live, env-staging, env-live-maintenance, env-allow-node,
+// An environment's own page: variables, secrets, maintenance for all its routes, its node and
+// domain allowlists (canvas section "envs": env-live, env-staging, env-live-maintenance, env-allow-node,
 // env-live-overridden, env-access-code) and Promote (env-promote, env-promote-summary).
 import { ChevronRight, KeyRound, Plus, RefreshCw, Server, Wrench } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -45,6 +45,7 @@ import {
 } from "./app-shared";
 import { AccessCodeDialog, type AccessCodeState } from "./dialogs/AccessCodeDialog";
 import { AllowNodeDialog } from "./dialogs/AllowNodeDialog";
+import { AllowedDomainsPanel } from "./env/AllowedDomainsPanel";
 import { PromotePanel } from "./env/PromotePanel";
 import { VariablesPanel } from "./env/VariablesPanel";
 import { useAppDetail } from "./use-app";
@@ -361,6 +362,12 @@ function EnvironmentContent({
             />
           )}
         </PanelShell>
+        <AllowedDomainsPanel
+          app={app}
+          env={env}
+          canManage={canManage}
+          onSaved={() => void refresh()}
+        />
         <PromotePanel app={app} env={env} />
       </div>
 

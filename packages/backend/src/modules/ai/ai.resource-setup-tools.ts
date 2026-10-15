@@ -75,7 +75,14 @@ export async function executeResourceSetupTool(user: User, toolName: string, arg
 }
 
 /** Managed database operations that change configuration or create resources. */
-const MANAGED_DATABASE_CHANGE_OPERATIONS = new Set(['create', 'update', 'create_binding']);
+// Disabling an extension keeps working after the license grace period, like a delete.
+const MANAGED_DATABASE_CHANGE_OPERATIONS = new Set([
+  'create',
+  'update',
+  'create_binding',
+  'enable_extension',
+  'update_extension',
+]);
 
 async function manageAdditionalRoute(user: User, args: Record<string, unknown>) {
   const operation = requiredString(args.operation);
@@ -190,6 +197,15 @@ async function requirePagesForAdditionalTarget(input: {
   }
 }
 
+/** The extension name of manage_managed_database extension operations (the `{name}` rule of the REST routes). */
+function postgresExtensionArgument(value: unknown): string {
+  const name = typeof value === 'string' ? value.trim() : '';
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(name)) {
+    throw new AppError(400, 'INVALID_AI_TOOL_ARGUMENT', 'extension must be an extension name from the extensions list');
+  }
+  return name;
+}
+
 async function manageManagedDatabase(user: User, args: Record<string, unknown>) {
   const operation = requiredString(args.operation);
   // LICENSE ENFORCEMENT: same classes as the /api/databases routes. Existing managed
@@ -283,6 +299,19 @@ async function manageManagedDatabase(user: User, args: Record<string, unknown>) 
     // Same as POST /databases/managed/{id}/rotate-certificate: reloaded in place unless allowRestart.
     await ensureManagedDatabaseScopes(user, databaseId, 'databases:edit');
     return service.rotateCertificate(databaseId, user.id, { allowRestart: args.allowRestart === true });
+  }
+  if (operation === 'extensions') {
+    // Same as GET /databases/managed/{id}/extensions.
+    await ensureManagedDatabaseScopes(user, databaseId, 'databases:view');
+    return service.listPostgresExtensions(databaseId);
+  }
+  if (operation === 'enable_extension' || operation === 'disable_extension' || operation === 'update_extension') {
+    // Same as POST, DELETE and POST .../update on /databases/managed/{id}/extensions/{name}.
+    await ensureManagedDatabaseScopes(user, databaseId, 'databases:edit');
+    const extension = postgresExtensionArgument(args.extension);
+    if (operation === 'enable_extension') return service.enablePostgresExtension(databaseId, extension, user.id);
+    if (operation === 'disable_extension') return service.disablePostgresExtension(databaseId, extension, user.id);
+    return service.updatePostgresExtension(databaseId, extension, user.id);
   }
   if (operation === 'certificate_status') {
     // Same as GET /databases/managed/{id}/certificate.

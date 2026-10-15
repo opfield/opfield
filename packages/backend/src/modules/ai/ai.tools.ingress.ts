@@ -64,6 +64,11 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
           description:
             'Domain names for this route; all registered Opfield domains among them must share one ingress node or group',
         },
+        createMissingDomains: {
+          type: 'boolean',
+          description:
+            'Default false. true creates a Cloudflare domain for each name no registered domain covers, before the route, served where the route is (domains:create there, an enabled Cloudflare zone and the app environment domain allowlist; names without them are skipped). The result lists createdDomains and skippedDomains with the reason; the domains are removed again when the route fails. manage_route missing_domains shows the plan first.',
+        },
         upstreamKind: {
           type: 'string',
           enum: ['manual', 'docker_container', 'docker_deployment', 'pages'],
@@ -605,11 +610,14 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   // ── Domains ──
   {
     name: 'list_domains',
-    description: 'List registered domains with their DNS verification status.',
+    description:
+      'List registered domains with their DNS verification status and app (its app and environment, or null).',
     parameters: {
       type: 'object',
       properties: {
         search: { type: 'string', description: 'Search by domain name' },
+        excludeAppMembers: { type: 'boolean', description: 'Leave out domains that belong to an app.' },
+        appId: { type: 'string', description: 'Only domains of this app (any environment).' },
         dnsStatus: { type: 'string', enum: ['valid', 'invalid', 'pending', 'unknown'] },
         page: { type: 'number' },
         limit: { type: 'number' },
@@ -646,7 +654,11 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
           type: 'boolean',
           description: 'Replace existing Cloudflare A/AAAA records after explicit user approval',
         },
-        folderId: { type: ['string', 'null'], description: 'Folder UUID for organizing this domain.' },
+        folderId: {
+          type: ['string', 'null'],
+          description:
+            'Folder UUID for organizing this domain; get_app placementFolderIds.domains creates it inside an app environment (the name must match the environment domain allowlist, APP_DOMAIN_NOT_ALLOWED otherwise).',
+        },
       },
       required: ['domain'],
     },

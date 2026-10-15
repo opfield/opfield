@@ -108,6 +108,11 @@ import { dockerImageOriginFields, withDockerImageSources } from './docker-image-
 import { assertUserContainerAccessible } from './docker-internal-containers.js';
 import { labelString } from './docker-managed-labels.js';
 import { answerNodeLoss } from './docker-node-loss.middleware.js';
+import {
+  getPendingContainerEnv,
+  pendingSourceContainerName,
+  updatePendingContainerEnv,
+} from './docker-pending-container-env.js';
 import { resolveDockerContainerByName } from './docker-route-resolvers.js';
 import { DockerSecretService } from './docker-secret.service.js';
 import { DockerSnapshotService, sanitizeContainerInspect } from './docker-snapshot.service.js';
@@ -169,10 +174,11 @@ async function assertAdditionalContainerScopes(
 async function callerHasContainerScope(
   c: Parameters<Parameters<OpenAPIHono<AppEnv>['openapi']>[1]>[0],
   scope: string,
-  identifierParam: string
+  identifierParam: string,
+  options: { allowPendingSource?: boolean } = {}
 ): Promise<boolean> {
   try {
-    await requireDockerContainerScope(scope, identifierParam)(c as any, async () => {});
+    await requireDockerContainerScope(scope, identifierParam, options)(c as any, async () => {});
     return true;
   } catch (error) {
     if (error instanceof HTTPException && error.status === 403) return false;
@@ -267,6 +273,16 @@ async function resolveContainerName(nodeId: string, containerId: string): Promis
   const name = (inspect?.Name ?? '').replace(/^\//, '');
   if (!name) throw new Error('Could not resolve container name');
   return name;
+}
+
+/**
+ * The name env and secrets are stored under: the reserved name of a Git source container its first build has not
+ * created yet (nothing to inspect), else the container's name on the node.
+ */
+async function storedEnvironmentName(nodeId: string, containerId: string) {
+  const pending = await pendingSourceContainerName(nodeId, containerId);
+  if (pending) return { name: pending, pending: true };
+  return { name: await resolveContainerName(nodeId, containerId), pending: false };
 }
 
 /** The app environment layer of a container, by its name on the node (null outside apps). */
@@ -834,11 +850,18 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
 
   // Get container env
   router.openapi(
-    { ...containerEnvRoute, middleware: requireDockerContainerScope('docker:containers:environment') },
+    {
+      ...containerEnvRoute,
+      middleware: requireDockerContainerScope('docker:containers:environment', 'containerId', {
+        allowPendingSource: true,
+      }),
+    },
     async (c) => {
       const service = container.resolve(DockerManagementService);
       const nodeId = c.req.param('nodeId')!;
       const containerId = c.req.param('containerId')!;
+      const pendingName = await pendingSourceContainerName(nodeId, containerId);
+      if (pendingName) return c.json(await getPendingContainerEnv(nodeId, pendingName));
       const data = await service.getContainerEnv(nodeId, containerId);
       // Variables and secret keys the container gets from its app environment (shown as inherited, read-only).
       const inherited = await containerInheritedEnv(nodeId, containerId);
@@ -850,15 +873,24 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
   router.openapi(
     {
       ...updateContainerEnvRoute,
-      middleware: answerNodeLoss('env update', 'update', requireDockerContainerScope('docker:containers:environment')),
+      middleware: answerNodeLoss(
+        'env update',
+        'update',
+        requireDockerContainerScope('docker:containers:environment', 'containerId', { allowPendingSource: true })
+      ),
     },
     async (c) => {
       const service = container.resolve(DockerManagementService);
       const nodeId = c.req.param('nodeId')!;
       const containerId = c.req.param('containerId')!;
       const user = c.get('user')!;
-      await assertComposeChildMutationAllowed(nodeId, containerId);
       const body = await c.req.json();
+      const pendingName = await pendingSourceContainerName(nodeId, containerId);
+      if (pendingName) {
+        const { env, removeEnv } = EnvUpdateSchema.parse(body);
+        return c.json({ data: await updatePendingContainerEnv(nodeId, pendingName, env, removeEnv, user.id) });
+      }
+      await assertComposeChildMutationAllowed(nodeId, containerId);
       const { env, removeEnv } = EnvUpdateSchema.parse(body);
       const data = await service.updateContainerEnv(nodeId, containerId, env, removeEnv, user.id);
       return c.json({ data });
@@ -869,15 +901,21 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
 
   // List secrets: the keys with docker:containers:environment, the values only with docker:containers:secrets
   router.openapi(
-    { ...listContainerSecretsRoute, middleware: requireDockerContainerScope('docker:containers:environment') },
+    {
+      ...listContainerSecretsRoute,
+      middleware: requireDockerContainerScope('docker:containers:environment', 'containerId', {
+        allowPendingSource: true,
+      }),
+    },
     async (c) => {
       const service = container.resolve(DockerSecretService);
       const nodeId = c.req.param('nodeId')!;
       const containerId = c.req.param('containerId')!;
-      const containerName = await resolveContainerName(nodeId, containerId);
+      const { name: containerName } = await storedEnvironmentName(nodeId, containerId);
       // An impersonating administrator sees the keys, never the values.
       const reveal =
-        !c.get('impersonation') && (await callerHasContainerScope(c, 'docker:containers:secrets', 'containerId'));
+        !c.get('impersonation') &&
+        (await callerHasContainerScope(c, 'docker:containers:secrets', 'containerId', { allowPendingSource: true }));
       const data = await service.list(nodeId, containerName, reveal);
       return c.json({ data });
     }
@@ -885,13 +923,16 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
 
   // Create secret
   router.openapi(
-    { ...createContainerSecretRoute, middleware: requireDockerContainerScope('docker:containers:secrets') },
+    {
+      ...createContainerSecretRoute,
+      middleware: requireDockerContainerScope('docker:containers:secrets', 'containerId', { allowPendingSource: true }),
+    },
     async (c) => {
       const service = container.resolve(DockerSecretService);
       const nodeId = c.req.param('nodeId')!;
       const containerId = c.req.param('containerId')!;
-      const containerName = await resolveContainerName(nodeId, containerId);
-      await assertComposeChildMutationAllowed(nodeId, containerId);
+      const { name: containerName, pending } = await storedEnvironmentName(nodeId, containerId);
+      if (!pending) await assertComposeChildMutationAllowed(nodeId, containerId);
       const user = c.get('user')!;
       const body = await c.req.json();
       const { key, value } = SecretCreateSchema.parse(body);
@@ -902,14 +943,17 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
 
   // Update secret
   router.openapi(
-    { ...updateContainerSecretRoute, middleware: requireDockerContainerScope('docker:containers:secrets') },
+    {
+      ...updateContainerSecretRoute,
+      middleware: requireDockerContainerScope('docker:containers:secrets', 'containerId', { allowPendingSource: true }),
+    },
     async (c) => {
       const service = container.resolve(DockerSecretService);
       const nodeId = c.req.param('nodeId')!;
       const secretId = c.req.param('secretId')!;
       const containerId = c.req.param('containerId')!;
-      await assertComposeChildMutationAllowed(nodeId, containerId);
-      const containerName = await resolveContainerName(nodeId, containerId);
+      const { name: containerName, pending } = await storedEnvironmentName(nodeId, containerId);
+      if (!pending) await assertComposeChildMutationAllowed(nodeId, containerId);
       const user = c.get('user')!;
       const body = await c.req.json();
       const { value } = SecretUpdateSchema.parse(body);
@@ -920,14 +964,17 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
 
   // Delete secret
   router.openapi(
-    { ...deleteContainerSecretRoute, middleware: requireDockerContainerScope('docker:containers:secrets') },
+    {
+      ...deleteContainerSecretRoute,
+      middleware: requireDockerContainerScope('docker:containers:secrets', 'containerId', { allowPendingSource: true }),
+    },
     async (c) => {
       const service = container.resolve(DockerSecretService);
       const nodeId = c.req.param('nodeId')!;
       const secretId = c.req.param('secretId')!;
       const containerId = c.req.param('containerId')!;
-      await assertComposeChildMutationAllowed(nodeId, containerId);
-      const containerName = await resolveContainerName(nodeId, containerId);
+      const { name: containerName, pending } = await storedEnvironmentName(nodeId, containerId);
+      if (!pending) await assertComposeChildMutationAllowed(nodeId, containerId);
       const user = c.get('user')!;
       await service.delete(secretId, nodeId, user.id, containerName);
       return c.json({ success: true });

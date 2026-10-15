@@ -191,6 +191,25 @@ export class DockerTaskService {
     return row;
   }
 
+  /** The name of the container whose runtime `containerId` an update or recreate of the last hour replaced, or null. */
+  async findRecreatedContainerName(nodeId: string, containerId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ containerName: dockerTasks.containerName })
+      .from(dockerTasks)
+      .where(
+        and(
+          eq(dockerTasks.nodeId, nodeId),
+          eq(dockerTasks.containerId, containerId),
+          inArray(dockerTasks.type, ['update', 'recreate']),
+          isNotNull(dockerTasks.containerName),
+          sql`${dockerTasks.createdAt} > now() - interval '1 hour'`
+        )
+      )
+      .orderBy(desc(dockerTasks.createdAt))
+      .limit(1);
+    return row?.containerName || null;
+  }
+
   async markStaleActiveTasksFailed(now = new Date()) {
     const cutoff = new Date(now.getTime() - STALE_ACTIVE_TASK_TIMEOUT_MS);
     const rows = await this.db

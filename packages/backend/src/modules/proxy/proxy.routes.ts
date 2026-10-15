@@ -56,6 +56,8 @@ import { ProxyService } from './proxy.service.js';
 import { hasProxyDestinationScope } from './proxy-destination-scope.js';
 import { ProxyMaintenanceAccessService } from './proxy-maintenance-access.service.js';
 import { redactRawProxyConfigForBrowser } from './raw-visibility.js';
+import { createRouteMaybeWithDomains } from './route-missing-domains.js';
+import { registerMissingRouteDomainsRoutes } from './route-missing-domains.routes.js';
 import { assertTlsResyncAccess } from './tls-resync-access.js';
 
 export const proxyRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
@@ -321,6 +323,8 @@ proxyRoutes.openapi(
   }
 );
 
+registerMissingRouteDomainsRoutes(proxyRoutes);
+
 proxyRoutes.openapi(createProxyHostRoute, async (c) => {
   const proxyService = container.resolve(ProxyService);
   const user = c.get('user')!;
@@ -373,12 +377,19 @@ proxyRoutes.openapi(createProxyHostRoute, async (c) => {
     });
   }
   await proxyService.assertReferenceAccess(scopes, input);
-  const host = await proxyService.createProxyHost(input, user.id, {
-    bypassAdvancedValidation: unrestricted,
-    bypassRawValidation: unrestricted,
-    actorScopes: scopes,
-  });
-  return c.json({ data: serializeProxyHostForBrowser(host as any, scopes, (host as any).id) }, 201);
+  const { route: host, response } = await createRouteMaybeWithDomains(
+    input.createMissingDomains,
+    scopes,
+    user.id,
+    { domainNames: input.domainNames, folderId: input.folderId, ...placement },
+    () =>
+      proxyService.createProxyHost(input, user.id, {
+        bypassAdvancedValidation: unrestricted,
+        bypassRawValidation: unrestricted,
+        actorScopes: scopes,
+      })
+  );
+  return c.json({ data: { ...serializeProxyHostForBrowser(host as any, scopes, (host as any).id), ...response } }, 201);
 });
 
 proxyRoutes.openapi(updateProxyHostRoute, async (c) => {

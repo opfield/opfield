@@ -293,6 +293,8 @@ export interface PageContext {
 export interface QuickAction {
   label: string;
   prompt: string;
+  /** Shown only with this scope (any qualifier): the chip's request needs it. */
+  scope?: string;
 }
 
 // ── Chat Message (for API) ──

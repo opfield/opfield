@@ -22,9 +22,19 @@ import { mapReasoningEffort } from '../models/inference-reasoning.service.js';
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import { canFailOver, type InferenceRoutingService } from '../providers/inference-routing.service.js';
 import type { CoreDataPlaneTarget, InferenceCoreBridgeService } from './inference-core-bridge.service.js';
+import { type ChatRequestEstimate, chatAdmissionEstimate, chatRequestEstimate } from './inference-core-chat-usage.js';
 import { coreRequestHeaders, newCoreRequestContext } from './inference-core-context.js';
+import {
+  admitEdgeChatAttempt,
+  coreSkipsChatAdmission,
+  dropEdgeChatAttempt,
+  type EdgeChatAttempt,
+  settleEdgeChatAttempt,
+} from './inference-core-edge-chat.js';
+import { CoreModelIdRewriter } from './inference-core-model-rewrite.js';
 import { CORE_ACCOUNT_METADATA_KEY } from './inference-core-provider-map.js';
-import { CoreResponsesSseObserver } from './inference-core-sse-observer.js';
+import { type ChatRelayObservation, relayCoreResponseBody } from './inference-core-response-relay.js';
+import type { CoreSseWire } from './inference-core-sse-observer.js';
 
 type SourceCandidate = {
   source: typeof inferenceModelSources.$inferSelect;
@@ -318,7 +328,11 @@ export class InferenceCoreProxyService {
           }
         }
       : undefined;
+    // Chat Completions the core relays natively are admitted and settled here (see coreSkipsChatAdmission).
+    let edgeAttempt: EdgeChatAttempt | null = null;
+    const chatObserved: ChatRelayObservation = { usage: null, emittedOutput: false };
     const finalizeRequest = onceAsync(async (outcome, error) => {
+      if (edgeAttempt) await settleEdgeChatAttempt(this.db, this.coreAccounting, edgeAttempt, outcome, chatObserved);
       const finalizers: Promise<unknown>[] = [];
       if (coreAdmitted) finalizers.push(this.coreAccounting.finalizeCoreRequest(rootRequestId, outcome, error));
       if (finalizeAffinityTurn) finalizers.push(finalizeAffinityTurn());
@@ -364,6 +378,15 @@ export class InferenceCoreProxyService {
           coreModelId: resolved.upstreamModel,
           operation: contextOperation(operation),
         });
+        if (prepared.chatEstimate && coreSkipsChatAdmission(resolved.selected.connection)) {
+          edgeAttempt = await admitEdgeChatAttempt(this.coreAccounting, {
+            rootRequestId,
+            coreAccountId: resolved.coreAccountId,
+            coreModelId: resolved.upstreamModel,
+            sourceType: resolved.selected.source.sourceType,
+            estimate: chatAdmissionEstimate(prepared.chatEstimate, resolved.model.maxOutputTokens),
+          });
+        }
         // Images create paid, non-idempotent work inside the core. A lost core
         // response is not proof that the upstream generation was never dispatched.
         const allowFailover = coreAdmitted && !imagesOperation && resolved.candidateConnectionIds.length > 1;
@@ -376,9 +399,23 @@ export class InferenceCoreProxyService {
           { method: 'POST', headers: prepared.headers, body },
           allowFailover,
           imagesOperation,
-          finalizeRequest
+          finalizeRequest,
+          {
+            wire: streamWire(operation),
+            // Images keep the endpoint model the client sent; everything else answers
+            // with the core id Opfield sent, which the client must never see.
+            modelIds: imagesOperation
+              ? null
+              : CoreModelIdRewriter.create(resolved.upstreamModel, resolved.model.publicId),
+            ...(imagesOperation ? {} : { publicModelId: resolved.model.publicId }),
+            ...(operation === 'chat/completions' ? { chatObserved } : {}),
+          }
         );
         if (forwarded.kind === 'response') return forwarded.response;
+        if (edgeAttempt) {
+          await dropEdgeChatAttempt(this.coreAccounting, edgeAttempt);
+          edgeAttempt = null;
+        }
         firstTransportError ??= forwarded.transportError;
         if (forwarded.providerError) lastProviderError = forwarded.providerError;
         excludedConnectionIds.push(resolved.selected.connection.id);
@@ -414,7 +451,13 @@ export class InferenceCoreProxyService {
     allowFailover = false,
     nonRetryableDispatch = false,
     finalizeRequest: (outcome: 'completed' | 'failed' | 'cancelled', error?: unknown) => Promise<void> = async () =>
-      undefined
+      undefined,
+    relay: {
+      wire: CoreSseWire;
+      modelIds: CoreModelIdRewriter | null;
+      publicModelId?: string;
+      chatObserved?: ChatRelayObservation;
+    } = { wire: 'responses', modelIds: null }
   ): Promise<
     | { kind: 'response'; response: Response }
     | { kind: 'retry'; transportError?: InferenceProtocolError; providerError?: InferenceProtocolError }
@@ -535,6 +578,10 @@ export class InferenceCoreProxyService {
     const stream = relayCoreResponseBody(upstream.body, {
       requestId,
       contentType: headers.get('content-type') ?? '',
+      wire: relay.wire,
+      modelIds: relay.modelIds,
+      ...(relay.publicModelId ? { publicModelId: relay.publicModelId } : {}),
+      ...(relay.chatObserved ? { chatObserved: relay.chatObserved } : {}),
       abortUpstream: (reason) => controller.abort(reason),
       clientGone: () => clientGone,
       finalize: (outcome, error) => void finishRequest(outcome, error),
@@ -628,6 +675,8 @@ export class InferenceCoreProxyService {
     affinityKey?: string;
     isCompaction: boolean;
     existingThread: boolean;
+    /** Chat Completions only: the admission estimate when Opfield admits the attempt itself. */
+    chatEstimate?: ChatRequestEstimate;
     rewrite: (
       upstreamModel: string,
       model: { reasoningEfforts: string[]; defaultReasoningEffort: string | null },
@@ -711,6 +760,7 @@ export class InferenceCoreProxyService {
       ...(typeof body.prompt_cache_key === 'string' ? { affinityKey: body.prompt_cache_key } : {}),
       isCompaction: operation === 'responses/compact' || hasCompactionTrigger(body.input),
       existingThread: typeof body.previous_response_id === 'string',
+      ...(operation === 'chat/completions' ? { chatEstimate: chatRequestEstimate(body) } : {}),
       rewrite: (upstreamModel, resolvedModel, source) => {
         const next: Record<string, unknown> = { ...body, model: upstreamModel };
         if (isMessages) {
@@ -990,6 +1040,13 @@ function contextOperation(operation: CoreProxyOperation): string {
   }
 }
 
+/** The wire a relayed stream speaks, which decides how a finished stream ends. */
+function streamWire(operation: CoreProxyOperation): CoreSseWire {
+  if (operation === 'chat/completions') return 'chat_completions';
+  if (operation === 'messages' || operation === 'messages/count_tokens') return 'messages';
+  return 'responses';
+}
+
 function requestOperation(operation: CoreProxyOperation): string {
   switch (operation) {
     case 'images/generations':
@@ -1049,8 +1106,6 @@ function hasCompactionTrigger(input: unknown): boolean {
   );
 }
 
-type CoreStreamOutcome = 'completed' | 'failed' | 'cancelled';
-
 async function readBoundedCoreErrorBody(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   return readBoundedCoreBody(
     body,
@@ -1102,133 +1157,6 @@ function ambiguousImageResponse(): Response {
     },
     { status: 409 }
   );
-}
-
-function relayCoreResponseBody(
-  body: ReadableStream<Uint8Array>,
-  options: {
-    requestId: string;
-    contentType: string;
-    upstreamStatus: number;
-    abortUpstream: (reason?: unknown) => void;
-    clientGone: () => boolean;
-    finalize: (outcome: CoreStreamOutcome, error?: unknown) => void;
-  }
-): ReadableStream<Uint8Array> {
-  const reader = body.getReader();
-  const isSse = options.contentType.toLowerCase().includes('text/event-stream');
-  const encoder = new TextEncoder();
-  const sseObserver = new CoreResponsesSseObserver();
-  let terminal: Exclude<CoreStreamOutcome, 'cancelled'> | null = null;
-  let settled = false;
-  let heartbeat: ReturnType<typeof setInterval> | undefined;
-  let lastOutputAt = Date.now();
-  const settle = (outcome: CoreStreamOutcome, error?: unknown) => {
-    if (settled) return;
-    settled = true;
-    if (heartbeat) clearInterval(heartbeat);
-    sseObserver.clear();
-    options.finalize(outcome, error);
-  };
-  const failedTail = (error?: unknown) => {
-    const failure = {
-      type: 'upstream_error',
-      code: 'inference_core_stream_reset',
-      message: `Inference core stream terminated unexpectedly${
-        error instanceof Error && error.message ? `: ${error.message}` : ''
-      }`.slice(0, 500),
-    };
-    return encoder.encode(
-      `\n\nevent: response.failed\ndata: ${JSON.stringify({
-        type: 'response.failed',
-        response: {
-          id: `resp_${options.requestId}`,
-          object: 'response',
-          status: 'failed',
-          output: [],
-          error: failure,
-          last_error: failure,
-        },
-      })}\n\ndata: [DONE]\n\n`
-    );
-  };
-
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      if (!isSse) return;
-      // Native compaction can stay silent for minutes. Keep the public HTTP stream
-      // active without inventing model events or letting keepalives count as output.
-      const keepalive = encoder.encode(': opfield keepalive\n\n');
-      controller.enqueue(keepalive);
-      heartbeat = setInterval(() => {
-        // Never splice a comment into a fragmented SSE event, or queue unbounded
-        // heartbeats behind a slow/disconnected consumer.
-        if (settled || sseObserver.hasPendingFrame || (controller.desiredSize ?? 0) <= 0) return;
-        if (Date.now() - lastOutputAt < 15_000) return;
-        controller.enqueue(keepalive);
-        lastOutputAt = Date.now();
-      }, 15_000);
-      heartbeat.unref();
-    },
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read();
-        if (settled) return;
-        if (!done) {
-          if (isSse) terminal = sseObserver.observe(value);
-          controller.enqueue(value);
-          lastOutputAt = Date.now();
-          if (terminal) {
-            void reader.cancel('Responses terminal event received').catch(() => undefined);
-            settle(terminal);
-            controller.close();
-          }
-          return;
-        }
-        if (isSse && !terminal) {
-          controller.enqueue(failedTail());
-          settle('failed', new Error('Inference core stream ended without a Responses terminal event'));
-        } else {
-          settle(terminal ?? (options.upstreamStatus < 400 ? 'completed' : 'failed'));
-        }
-        controller.close();
-      } catch (error) {
-        if (settled) return;
-        options.abortUpstream(error);
-        void reader.cancel(error).catch(() => undefined);
-        if (options.clientGone()) {
-          settle('cancelled', error);
-          try {
-            controller.error(error);
-          } catch {
-            // Client already disconnected.
-          }
-          return;
-        }
-        if (isSse && !terminal) {
-          try {
-            controller.enqueue(failedTail(error));
-            controller.close();
-          } catch {
-            // Client disappeared while the synthetic terminal was emitted.
-          }
-          settle('failed', error);
-          return;
-        }
-        settle(terminal ?? 'failed', error);
-        try {
-          controller.error(error);
-        } catch {
-          // Client already disconnected.
-        }
-      }
-    },
-    cancel(reason) {
-      options.abortUpstream(reason);
-      void reader.cancel(reason).catch(() => undefined);
-      settle('cancelled', reason);
-    },
-  });
 }
 
 function publicResponseHeaders(headers: Headers): Headers {

@@ -110,6 +110,18 @@ export const EMPTY_MODEL_PRICING: ModelPricingForm = {
   realtimePrice: "0",
 };
 
+/**
+ * A public model ID suggested from a display name: only the characters the backend accepts (a-z 0-9 . _ / -), so a
+ * name such as "Qwen: Qwen3.8 Max (0902)" becomes "qwen-qwen3.8-max-0902".
+ */
+export function publicIdFromName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9._/]+/g, "-")
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "")
+    .slice(0, 255);
+}
+
 export function providerModelKey(providerId: string, remoteModelId: string) {
   return `${providerId}:${remoteModelId}`;
 }
@@ -260,7 +272,7 @@ export function formWithProviderModel(
     publicId:
       !replaceIdentity && current.publicId
         ? current.publicId
-        : option.displayName.toLowerCase().replaceAll(" ", "-"),
+        : publicIdFromName(option.displayName),
     displayName: !replaceIdentity && current.displayName ? current.displayName : option.displayName,
     contextWindow: technicalValue(option.contextWindow, current.contextWindow, replaceIdentity),
     maxInputTokens: technicalValue(option.maxInputTokens, current.maxInputTokens, replaceIdentity),

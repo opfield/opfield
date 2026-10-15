@@ -10,12 +10,17 @@ import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderAct
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
+import { NORMAL_LIST_FILTER } from "@/lib/app-members";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import {
   canCreateDockerResourceOnNode,
+  type DockerCreationNodeScope,
   type DockerNodeScope,
   fetchDockerNodeList,
   loadVisibleDockerNodes,
 } from "@/lib/docker-node-access";
+import { DOCKER_TABS, type DockerTab, visibleDockerTabs } from "@/lib/docker-tabs";
 import { api } from "@/services/api";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
@@ -30,21 +35,9 @@ import { DockerTasks } from "./DockerTasks";
 import { DockerVolumes } from "./DockerVolumes";
 import { GwcaImportDialog } from "./docker/GwcaImportDialog";
 
-const TABS = [
-  { value: "containers", label: "Containers", scope: "docker:containers:view" },
-  { value: "compose", label: "Compose", scope: "docker:compose:view" },
-  { value: "images", label: "Images", scope: "docker:images:view" },
-  { value: "volumes", label: "Volumes", scope: "docker:volumes:view" },
-  { value: "networks", label: "Networks", scope: "docker:networks:view" },
-  { value: "tasks", label: "Tasks", scope: "docker:tasks" },
-  { value: "builds", label: "Builds", scope: "docker:containers:view" },
-] as const;
-
 // Creation scopes list nodes too, so a folder-only creator (whose folder may still be empty) gets the same node
 // pickers the backend accepts instead of a "no Docker nodes" page.
-const DOCKER_NODE_SCOPES_BY_TAB: Partial<
-  Record<(typeof TABS)[number]["value"], DockerNodeScope[]>
-> = {
+const DOCKER_NODE_SCOPES_BY_TAB: Partial<Record<DockerTab, DockerNodeScope[]>> = {
   containers: ["docker:containers:view", "docker:containers:create"],
   images: ["docker:images:view", "docker:images:pull"],
   volumes: ["docker:volumes:view", "docker:volumes:create"],
@@ -57,7 +50,8 @@ export function Docker() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedNodeId = searchParams.get("nodeId");
-  const { hasScope, hasScopedAccess, user } = useAuthStore();
+  // Grants held only through app places open the app, not this section.
+  const { scopes, hasScope, hasScopedAccess } = useGlobalSectionAccess();
   const setSelectedNode = useDockerStore((s) => s.setSelectedNode);
   const selectedNodeId = useDockerStore((s) => s.selectedNodeId);
   const setDockerNodes = useDockerStore((s) => s.setDockerNodes);
@@ -74,7 +68,7 @@ export function Docker() {
   // Nodes the import route accepts for some destination: broad, node or folder creation grants (a folder grant
   // works on every Docker node; the dialog then offers only the folders the user may create in).
   const archiveImportNodes = dockerNodes.filter((node) =>
-    canCreateDockerResourceOnNode(user?.scopes ?? [], "docker:containers:create", node.id)
+    canCreateDockerResourceOnNode(scopes, "docker:containers:create", node.id)
   );
   const imageActionNodeId =
     selectedNodeId ?? (dockerNodes.length === 1 ? dockerNodes[0]?.id : null);
@@ -101,17 +95,22 @@ export function Docker() {
   const refreshComposeRef = useRef<(() => void) | null>(null);
 
   const canManageContainerFolders = hasScopedAccess("docker:folders:manage");
+  // Create actions need a destination outside app places (broad, node or user folder grant).
+  const canCreate = (base: DockerCreationNodeScope) =>
+    hasCreationDestination(scopes, base, { nodeGrants: true });
   // Builds come from Git push-to-deploy; past builds stay visible after the plan loses it.
   const planIncludesGitDeploy = usePlanIncludes("git-push-to-deploy");
   const planIncludesContainerExport = usePlanIncludes("container-export");
   const planIncludesCompose = usePlanIncludes("compose-applications");
-  const canViewBuilds = hasScopedAccess("docker:containers:view");
+  const canViewBuilds = DOCKER_TABS.some(
+    (tab) => tab.value === "builds" && tab.canAccess({ scopes, buildsAvailable: true })
+  );
   const [buildsExist, setBuildsExist] = useState(false);
   useEffect(() => {
     if (planIncludesGitDeploy || !canViewBuilds) return;
     let cancelled = false;
     void api
-      .listDockerBuildPage({ limit: 1 })
+      .listDockerBuildPage({ limit: 1, ...NORMAL_LIST_FILTER })
       .then((page) => {
         if (!cancelled) setBuildsExist(page.data.length > 0);
       })
@@ -122,11 +121,10 @@ export function Docker() {
       cancelled = true;
     };
   }, [canViewBuilds, planIncludesGitDeploy]);
-  const visibleTabs = TABS.filter(
-    (t) =>
-      (hasScopedAccess(t.scope) || (t.value === "containers" && canManageContainerFolders)) &&
-      (t.value !== "builds" || planIncludesGitDeploy || buildsExist)
-  );
+  const visibleTabs = visibleDockerTabs({
+    scopes,
+    buildsAvailable: planIncludesGitDeploy || buildsExist,
+  });
   const visibleTabKey = visibleTabs.map((tab) => tab.value).join("|");
   const activeTab =
     tabParam && visibleTabs.some((t) => t.value === tabParam)
@@ -177,12 +175,7 @@ export function Docker() {
       setNodeSelectionError(null);
       return;
     }
-    loadVisibleDockerNodes(
-      user?.scopes ?? [],
-      scopeBases,
-      hasScopedAccess("nodes:details"),
-      listDockerNodes
-    )
+    loadVisibleDockerNodes(scopes, scopeBases, hasScopedAccess("nodes:details"), listDockerNodes)
       .then((nodes) => {
         if (cancelled) return;
         setDockerNodes(nodes);
@@ -217,7 +210,7 @@ export function Docker() {
     requestedNodeId,
     setDockerNodes,
     setSelectedNode,
-    user?.scopes,
+    scopes,
   ]);
 
   useEffect(() => {
@@ -234,7 +227,7 @@ export function Docker() {
         if (scopeBases) {
           try {
             const nodes = await loadVisibleDockerNodes(
-              user?.scopes ?? [],
+              scopes,
               scopeBases,
               hasScopedAccess("nodes:details"),
               listDockerNodes
@@ -273,7 +266,7 @@ export function Docker() {
     fetchVolumes,
     hasScopedAccess,
     listDockerNodes,
-    user?.scopes,
+    scopes,
     visibleTabKey,
     nodeSelectionReady,
     nodeSelectionError,
@@ -339,13 +332,13 @@ export function Docker() {
                 New Folder
               </Button>
             )}
-            {planIncludesContainerExport && hasScopedAccess("docker:containers:create") && (
+            {planIncludesContainerExport && canCreate("docker:containers:create") && (
               <Button disabled={nodeActionsDisabled} variant="outline" onClick={openImport}>
                 <ArchiveRestore className="h-4 w-4 mr-1" />
                 Import .gwca
               </Button>
             )}
-            {hasScopedAccess("docker:containers:create") && (
+            {canCreate("docker:containers:create") && (
               <Button disabled={nodeActionsDisabled} onClick={() => deployContainerRef.current?.()}>
                 <Plus className="h-4 w-4 mr-1" />
                 Deploy
@@ -376,7 +369,7 @@ export function Docker() {
                 Prune Dangling
               </Button>
             )}
-            {hasScopedAccess("docker:images:pull") && (
+            {canCreate("docker:images:pull") && (
               <Button disabled={nodeActionsDisabled} onClick={() => pullImageRef.current?.()}>
                 <Plus className="h-4 w-4 mr-1" />
                 Pull Image
@@ -397,7 +390,7 @@ export function Docker() {
                 New Folder
               </Button>
             )}
-            {hasScopedAccess("docker:volumes:create") && (
+            {canCreate("docker:volumes:create") && (
               <Button disabled={nodeActionsDisabled} onClick={() => createVolumeRef.current?.()}>
                 <Plus className="h-4 w-4 mr-1" />
                 Create Volume
@@ -418,7 +411,7 @@ export function Docker() {
                 New Folder
               </Button>
             )}
-            {hasScopedAccess("docker:networks:create") && (
+            {canCreate("docker:networks:create") && (
               <Button disabled={nodeActionsDisabled} onClick={() => createNetworkRef.current?.()}>
                 <Plus className="h-4 w-4 mr-1" />
                 Create Network
@@ -439,7 +432,7 @@ export function Docker() {
                 New Folder
               </Button>
             )}
-            {planIncludesCompose && hasScopedAccess("docker:compose:create") && (
+            {planIncludesCompose && canCreate("docker:compose:create") && (
               <Button disabled={nodeActionsDisabled} onClick={() => createComposeRef.current?.()}>
                 <Plus className="h-4 w-4 mr-1" />
                 New Project
@@ -462,7 +455,7 @@ export function Docker() {
           },
         ]
       : []),
-    ...(activeTab === "containers" && hasScopedAccess("docker:containers:create")
+    ...(activeTab === "containers" && canCreate("docker:containers:create")
       ? [
           ...(planIncludesContainerExport
             ? [
@@ -489,7 +482,7 @@ export function Docker() {
           },
         ]
       : []),
-    ...(activeTab === "images" && hasScopedAccess("docker:images:pull")
+    ...(activeTab === "images" && canCreate("docker:images:pull")
       ? [
           {
             label: "Pull Image",
@@ -516,7 +509,7 @@ export function Docker() {
           },
         ]
       : []),
-    ...(activeTab === "volumes" && hasScopedAccess("docker:volumes:create")
+    ...(activeTab === "volumes" && canCreate("docker:volumes:create")
       ? [
           {
             label: "Create Volume",
@@ -534,7 +527,7 @@ export function Docker() {
           },
         ]
       : []),
-    ...(activeTab === "networks" && hasScopedAccess("docker:networks:create")
+    ...(activeTab === "networks" && canCreate("docker:networks:create")
       ? [
           {
             label: "Create Network",
@@ -552,7 +545,7 @@ export function Docker() {
           },
         ]
       : []),
-    ...(activeTab === "compose" && planIncludesCompose && hasScopedAccess("docker:compose:create")
+    ...(activeTab === "compose" && planIncludesCompose && canCreate("docker:compose:create")
       ? [
           {
             label: "New Project",
@@ -614,13 +607,16 @@ export function Docker() {
           onValueChange={handleTabChange}
           className={`flex flex-col ${usesFillLayout ? "flex-1 min-h-0" : ""}`}
         >
-          <TabsList className="shrink-0">
-            {visibleTabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5">
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          {/* A page left with one tab shows no tab row, only that tab's content. */}
+          {visibleTabs.length > 1 && (
+            <TabsList className="shrink-0">
+              {visibleTabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
 
           <TabsContent value="containers">
             {renderTabContent(

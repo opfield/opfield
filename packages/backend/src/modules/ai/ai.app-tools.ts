@@ -92,6 +92,7 @@ async function manageApp(service: AppsService, actor: AppActor, args: Record<str
         ...(args.name !== undefined ? { name: args.name } : {}),
         ...(args.description !== undefined ? { description: args.description } : {}),
         ...(args.maintenanceOverride !== undefined ? { maintenanceOverride: args.maintenanceOverride } : {}),
+        ...(args.domainPatterns !== undefined ? { domainPatterns: args.domainPatterns } : {}),
       });
       return service.update(actor, requiredString(args.appId, 'appId', operation), input);
     }
@@ -124,6 +125,13 @@ async function manageEnvironment(service: AppsService, actor: AppActor, args: Re
     case 'set_maintenance':
       if (typeof args.enabled !== 'boolean') throw new AppError(400, 'VALIDATION_ERROR', 'enabled is required');
       return service.updateEnvironment(actor, appId, environmentId(), { maintenanceEnabled: args.enabled });
+    case 'set_domain_patterns':
+      return service.updateEnvironment(
+        actor,
+        appId,
+        environmentId(),
+        UpdateAppEnvironmentSchema.parse({ domainPatterns: args.domainPatterns ?? [] })
+      );
     case 'delete':
       await service.deleteEnvironment(actor, appId, environmentId());
       return { success: true };

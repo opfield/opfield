@@ -283,7 +283,7 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
   manage_additional_secure_link: ['proxy:view', 'proxy:edit'],
   // The handler checks the destination with hasScopeForCreation, like POST /proxy-hosts.
   create_route: ['proxy:create'],
-  manage_route: ['proxy:view', 'proxy:advanced', 'proxy:raw:write', 'proxy:maintenance:bypass'],
+  manage_route: ['proxy:view', 'proxy:create', 'proxy:advanced', 'proxy:raw:write', 'proxy:maintenance:bypass'],
   manage_postgres_data: ['databases:query:read', 'databases:query:write'],
   manage_redis_data: ['databases:query:read', 'databases:query:write', 'databases:query:admin'],
   manage_logging: [

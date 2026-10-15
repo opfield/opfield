@@ -23,6 +23,10 @@ import { SwitchCard } from "@/components/common/SwitchCard";
 import { DomainAutocompleteInput } from "@/components/domains/DomainAutocompleteInput";
 import { type IngressTarget, IngressTargetSelect } from "@/components/proxy/IngressTargetSelect";
 import {
+  MissingRouteDomainsField,
+  useMissingRouteDomains,
+} from "@/components/proxy/MissingRouteDomains";
+import {
   DEFAULT_PROXY_UPSTREAM,
   isProxyUpstreamValid,
   ProxyUpstreamFields,
@@ -227,6 +231,8 @@ export function CreateProxyHostDialog({
   const [supportLoading, setSupportLoading] = useState(true);
   const [dockerContainers, setDockerContainers] = useState<DockerContainer[]>([]);
   const [containersLoading, setContainersLoading] = useState(true);
+  // Domains no registered domain covers are created with the route unless this is unticked.
+  const [createMissingDomains, setCreateMissingDomains] = useState(true);
 
   // Reset entire form to defaults
   const resetForm = useCallback(() => {
@@ -238,6 +244,7 @@ export function CreateProxyHostDialog({
     setIngressGroupId("");
     setFolderId("");
     setDomainNames([""]);
+    setCreateMissingDomains(true);
     setUpstream(DEFAULT_PROXY_UPSTREAM);
     upstreamTouchedRef.current = false;
     setWebsocketSupport(false);
@@ -487,6 +494,13 @@ export function CreateProxyHostDialog({
     if (!open || isEditing || appContext) return;
     setFolderId((current) => allowedCreationFolderId(folderChoices, current));
   }, [appContext, folderChoices, isEditing, open]);
+  const missingDomains = useMissingRouteDomains({
+    enabled: open && !isEditing,
+    domainNames,
+    folderId: (appContext ? placementFolderId : folderId) || null,
+    nodeId: autoNode ? "" : nodeId,
+    ingressGroupId,
+  });
   const canCreateInSelectedFolder =
     isEditing ||
     canCreateInFolder(
@@ -610,6 +624,7 @@ export function CreateProxyHostDialog({
       nodeId: autoNode || ingressGroupId ? undefined : nodeId,
       ...(ingressGroupId ? { ingressGroupId } : {}),
       domainNames: domains,
+      createMissingDomains,
       folderId: (appContext ? placementFolderId : folderId) || undefined,
       websocketSupport: upstream.kind === "pages" ? false : websocketSupport,
       sslEnabled,
@@ -887,6 +902,14 @@ export function CreateProxyHostDialog({
                         </AnimatePresence>
                       </div>
                     </div>
+
+                    {!isEditing && (
+                      <MissingRouteDomainsField
+                        entries={missingDomains}
+                        checked={createMissingDomains}
+                        onCheckedChange={setCreateMissingDomains}
+                      />
+                    )}
 
                     {/* Raw mode toggle — only when editing with the raw toggle scope */}
                     {isEditing && canToggleRawConfig && (

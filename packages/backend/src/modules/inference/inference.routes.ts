@@ -61,6 +61,12 @@ import {
 import { InferenceTokenService } from './inference-token.service.js';
 import { InferenceModelService } from './models/inference-model.service.js';
 import { InferenceModelConfigurationService } from './models/inference-model-configuration.service.js';
+import {
+  assertConnectionNotCloudManaged,
+  assertModelNotCloudManaged,
+  inferenceCloudDb,
+  isRoutingOrderOnly,
+} from './providers/inference-cloud.js';
 import { InferenceOAuthService } from './providers/inference-oauth.service.js';
 import { InferenceProviderService } from './providers/inference-provider.service.js';
 
@@ -162,6 +168,8 @@ inferenceManagementRoutes.openapi(syncInferenceProviderConnectionRoute, async (c
 
 inferenceManagementRoutes.openapi(updateInferenceProviderConnectionRoute, async (c) => {
   const input = UpdateInferenceProviderConnectionSchema.parse(await c.req.json());
+  // The Opfield Cloud connection is the account's: only its place in the order changes here.
+  if (!isRoutingOrderOnly(input)) await assertConnectionNotCloudManaged(inferenceCloudDb(), c.req.param('id')!);
   const result = await container
     .resolve(InferenceProviderService)
     .updateConnection(c.get('user')!.id, c.req.param('id')!, input);
@@ -169,6 +177,7 @@ inferenceManagementRoutes.openapi(updateInferenceProviderConnectionRoute, async 
 });
 
 inferenceManagementRoutes.openapi(disconnectInferenceProviderConnectionRoute, async (c) => {
+  await assertConnectionNotCloudManaged(inferenceCloudDb(), c.req.param('id')!);
   await container.resolve(InferenceProviderService).disconnect(c.get('user')!.id, c.req.param('id')!);
   return c.body(null, 204);
 });
@@ -203,6 +212,7 @@ inferenceManagementRoutes.openapi(createInferenceModelConfigurationRoute, async 
 
 inferenceManagementRoutes.openapi(replaceInferenceModelConfigurationRoute, async (c) => {
   const input = InferenceModelConfigurationSchema.parse(await c.req.json());
+  await assertModelNotCloudManaged(inferenceCloudDb(), c.req.param('id')!);
   const result = await container
     .resolve(InferenceModelConfigurationService)
     .save(c.get('user')!.id, c.req.param('id')!, input);
@@ -210,6 +220,7 @@ inferenceManagementRoutes.openapi(replaceInferenceModelConfigurationRoute, async
 });
 
 inferenceManagementRoutes.openapi(deleteInferenceModelRoute, async (c) => {
+  await assertModelNotCloudManaged(inferenceCloudDb(), c.req.param('id')!);
   await container.resolve(InferenceModelService).remove(c.get('user')!.id, c.req.param('id')!);
   return c.body(null, 204);
 });

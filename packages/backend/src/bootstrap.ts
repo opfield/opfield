@@ -392,7 +392,9 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(AuthSettingsService, authSettingsService);
   const authEmailQueue = new AuthEmailQueueService(redis, cryptoService);
   const authMailService = new AuthMailService(db, cryptoService, authEmailQueue);
-  authEmailQueue.start((delivery) => authMailService.deliverSecurityEmail(delivery.recipient, delivery.input));
+  authEmailQueue.start((delivery) =>
+    authMailService.deliverSecurityEmail(delivery.recipient, delivery.input, delivery.dedupKey)
+  );
   container.registerInstance(AuthEmailQueueService, authEmailQueue);
   container.registerInstance(AuthMailService, authMailService);
 

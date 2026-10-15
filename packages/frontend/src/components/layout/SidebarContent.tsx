@@ -26,10 +26,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useLoadDashboardBootstrap } from "@/hooks/use-dashboard-bootstrap";
-import { useAppOnlyScopeBases } from "@/hooks/use-global-section-scopes";
+import { useAppOnlyScopeBases, useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { usePkiAvailable, useSiemAvailable } from "@/hooks/use-plan-gated-features";
 import { toastApiError } from "@/lib/api-error-toast";
 import { visibleNavigationGroups } from "@/lib/app-navigation";
+import { hasDockerNodesForNavigation } from "@/lib/docker-tabs";
 import { hasLowInferenceUsage } from "@/lib/inference-self-usage";
 import { appContextOf } from "@/lib/navigation-trail";
 import { isSidebarNavigationActive } from "@/lib/sidebar-navigation";
@@ -119,7 +120,7 @@ export function SidebarContent({
   const inAppContext = useNavigationTrailStore((state) => appContextOf(state.trail) !== null);
   const activePathname = inAppContext ? "/apps" : location.pathname;
   const navigate = useNavigate();
-  const { user, hasScope, hasScopedAccess, logout } = useAuthStore();
+  const { user, hasScope, logout } = useAuthStore();
   const [stoppingImpersonation, setStoppingImpersonation] = useState(false);
   const { sidebarOpen, toggleSidebar, setCommandPaletteOpen: openPalette } = useUIStore();
 
@@ -152,6 +153,7 @@ export function SidebarContent({
     (state) => state.snapshot?.navigation.appsByMembers ?? false
   );
   const appOnlyScopeBases = useAppOnlyScopeBases();
+  const globalAccess = useGlobalSectionAccess();
   const pkiEnabled = usePkiAvailable();
   const siemEnabled = useSiemAvailable();
   const loggingEnabled = useSystemConfigStore((s) => s.config.features.loggingEnabled);
@@ -199,14 +201,7 @@ export function SidebarContent({
     appsByMembers,
     appOnlyScopeBases,
     hasNginxNodes,
-    hasDockerNodes:
-      dockerNodes.length > 0 ||
-      [
-        "docker:containers:view",
-        "docker:images:view",
-        "docker:volumes:view",
-        "docker:networks:view",
-      ].some(hasScopedAccess),
+    hasDockerNodes: hasDockerNodesForNavigation(dockerNodes.length, globalAccess.scopes),
   });
 
   const allNavItems = effectiveGroups.flatMap((g) => g.items);
@@ -389,19 +384,17 @@ export function SidebarContent({
               />
             )}
 
-            {/* Header */}
-            <div
-              className="flex items-center justify-between px-2"
-              style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }}
-            >
+            {/* Header: 8 px around 32 px buttons makes 48 px, the height of the AI Workspace header. */}
+            <div className="flex items-center justify-between p-2">
               <OpfieldLockup className="pl-1" />
 
               <div className="flex items-center gap-0.5">
-                <AIButton />
+                <AIButton compact />
                 {alwaysExpanded ? (
                   <Button
                     variant="ghost"
-                    size="icon"
+                    // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+                    size="icon-sm"
                     aria-label="Close navigation"
                     onClick={onNavigate}
                   >
@@ -412,7 +405,8 @@ export function SidebarContent({
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+                        size="icon-sm"
                         aria-label="Close sidebar"
                         onClick={toggleSidebar}
                       >

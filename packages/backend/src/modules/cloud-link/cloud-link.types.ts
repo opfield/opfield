@@ -1,4 +1,7 @@
 import type { OpfieldAccountDetachReason } from '@/modules/auth/oidc-settings.service.js';
+import type { PublicAliasView } from '@/services/console-tls/console-tls-alias.js';
+import type { CloudInferenceAnswer, CloudInferenceInput } from './cloud-link-inference.js';
+import type { CloudMailConfigInput } from './cloud-link-mail.js';
 /** Code alphabet of the account portal: A–Z without I and O, digits 2–9. */
 export const CLOUD_CODE_ALPHABET = /^[A-HJ-NP-Z2-9]{8}$/;
 export const CLOUD_ENROLL_TIMEOUT_MS = 15_000;
@@ -63,6 +66,8 @@ export interface CloudHello {
   ssoClientRequest?: CloudSsoClientRequest;
   /** The installation takes sso-revoke requests (an installation without it ignores them as unknown). */
   ssoRevoke: true;
+  /** A managed installation: how its sign-in emails leave (Opfield Cloud email, or the owner's own SMTP). */
+  mailTransport?: 'cloud' | 'smtp';
 }
 
 /** Why the sign-in the cloud gave is detached: the link ended, or it now belongs to another account. */
@@ -157,6 +162,8 @@ export interface CloudRequestAudit {
   kind?: string;
   /** sso-client: the client the account created (never its secret). */
   clientId?: string;
+  /** public-alias: the custom domain the account asked for. */
+  domain?: string;
   ok: boolean;
   error?: string;
   /** Machine-readable reason of a refusal, such as REMOTE_MANAGEMENT_OFF. */
@@ -214,6 +221,11 @@ export type CloudAnswer =
  * account gave it; both check that themselves. Nor does sso-revoke: it only removes access the account gave.
  */
 export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set(['node-token', 'update', 'setup-link']);
+/** Refusal of the add-on kinds (public-alias, mail-config, inference-cloud) on an installation the cloud does not manage. */
+export const NOT_MANAGED_BY_CLOUD = {
+  code: 'NOT_MANAGED_BY_CLOUD',
+  error: 'This installation is not managed by Opfield Cloud',
+} as const;
 export const REMOTE_MANAGEMENT_OFF = {
   code: 'REMOTE_MANAGEMENT_OFF',
   error: 'Remote management is off on this installation',
@@ -310,6 +322,18 @@ export interface CloudLinkActions {
    * their tokens are refused); their next sign-in through the issuer lifts it. Needs no remote management.
    */
   ssoRevoke(input: CloudSsoRevoke): Promise<CloudSsoRevokeResult>;
+  /**
+   * public-alias (managed only): the custom domain the account gives this installation, or none. Answers the state at
+   * once; the certificate is issued behind it, and the account asks again to read the progress.
+   */
+  publicAlias(input: { domain: string | null; retry: boolean }): Promise<PublicAliasView>;
+  /** mail-config (managed only): the cloud email the account set up, or none; answers the transport in use. */
+  mailConfig(input: CloudMailConfigInput): Promise<{ transport: 'cloud' | 'smtp' }>;
+  /**
+   * inference-cloud (managed only): the Opfield Cloud AI add-on, or none. Answers within ~9 s with the state reached;
+   * the core install continues behind it and the account asks again.
+   */
+  inferenceCloud(input: CloudInferenceInput): Promise<CloudInferenceAnswer>;
 }
 
 /** Request kinds that only read; identical successful reads share one audit entry. Actions never do. */

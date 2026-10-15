@@ -10,7 +10,7 @@ import type {
   ManagedDatabaseCatalogEntry,
   ManagedDatabaseCreateInput,
   ManagedDatabaseMoveToValkeyCheck,
-  ManagedPostgresExtension,
+  ManagedPostgresExtensions,
   PaginatedResponse,
   PostgresTableMetadata,
   RedisKeyRecord,
@@ -132,6 +132,8 @@ export function withDatabaseApi<TBase extends ApiClientBaseConstructor>(Base: TB
         publishedPort?: number | null;
         publishedNativePort?: number | null;
         tags?: string[];
+        /** PostgreSQL: move to Opfield's image of the same version, which adds the extensions. */
+        imageUpdate?: boolean;
       }
     ): Promise<ManagedDatabase> {
       return this.unwrapData(
@@ -512,32 +514,24 @@ export function withDatabaseApi<TBase extends ApiClientBaseConstructor>(Base: TB
       return this.unwrapData(this.request<{ data: string[] }>(`/databases/${id}/postgres/schemas`));
     }
 
-    async listManagedPostgresExtensions(id: string): Promise<ManagedPostgresExtension[]> {
+    async listManagedDatabaseExtensions(id: string): Promise<ManagedPostgresExtensions> {
       return this.unwrapData(
-        this.request<{ data: ManagedPostgresExtension[] }>(`/databases/${id}/postgres/extensions`)
-      );
-    }
-
-    async enableManagedPostgresExtension(
-      id: string,
-      name: string
-    ): Promise<ManagedPostgresExtension[]> {
-      return this.unwrapData(
-        this.request<{ data: ManagedPostgresExtension[] }>(
-          `/databases/${id}/postgres/extensions/${encodeURIComponent(name)}`,
-          { method: "POST" }
+        this.request<{ data: ManagedPostgresExtensions }>(
+          `/databases/managed/${encodeURIComponent(id)}/extensions`
         )
       );
     }
 
-    async disableManagedPostgresExtension(
+    async changeManagedDatabaseExtension(
       id: string,
-      name: string
-    ): Promise<ManagedPostgresExtension[]> {
+      name: string,
+      action: "enable" | "disable" | "update"
+    ): Promise<ManagedPostgresExtensions> {
+      const path = `/databases/managed/${encodeURIComponent(id)}/extensions/${encodeURIComponent(name)}`;
       return this.unwrapData(
-        this.request<{ data: ManagedPostgresExtension[] }>(
-          `/databases/${id}/postgres/extensions/${encodeURIComponent(name)}`,
-          { method: "DELETE" }
+        this.request<{ data: ManagedPostgresExtensions }>(
+          action === "update" ? `${path}/update` : path,
+          { method: action === "disable" ? "DELETE" : "POST" }
         )
       );
     }

@@ -2,12 +2,12 @@ import { APP_HEALTH_RULES } from '@/modules/apps/app-environment-health.js';
 import type { AIToolDefinition } from './ai.types.js';
 
 const APP_CREATE_HINT =
-  'To create a resource inside an app environment, pass folderId = placementFolderIds[type] from get_app to the normal create tool (and a node from allowedNodeIds where the tool takes one).';
+  'To create a resource inside an app environment, pass folderId = placementFolderIds[type] from get_app to the normal create tool (and a node from allowedNodeIds where the tool takes one); permissions.create[environmentId][family] says which types you may create there.';
 
 export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_apps',
-    description: `List apps the caller may view: with apps:view, or through members it can view (access "members": only the environments holding those members, everything computed from those members). An app groups containers, deployments, Compose projects, routes, databases, storage and Pages into environments (production, staging, ...). Each app lists its visible environments with health, plus the Production environment health, incident state, CPU and memory, running/failing/degraded/stopped counts and open warnings. ${APP_HEALTH_RULES}`,
+    description: `List apps the caller may view: with apps:view, or through members it can view (access "members": only the environments holding those members, everything computed from those members). An app groups containers, deployments, Compose projects, routes, domains, databases, storage, Pages, SSL certificates and logging environments into environments (production, staging, ...). Each app lists its visible environments with health, plus the Production environment health, incident state, CPU and memory, running/failing/degraded/stopped counts and open warnings. ${APP_HEALTH_RULES}`,
     parameters: { type: 'object', properties: {} },
     destructive: false,
     category: 'Apps',
@@ -16,7 +16,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_app',
-    description: `Get one app by id or slug: visible environments with placementFolderIds (folder per resource type), allowedNodeIds, health, member counts, maintenance state, rootFolderIds and the caller's permissions. access is "full" with apps:view, "members" when the app is visible only through members the caller can view (then environments and counts cover only those members, and allowed nodes, maintenance and root folders are left out). ${APP_CREATE_HINT}`,
+    description: `Get one app by id or slug: visible environments with placementFolderIds (folder per resource type), allowedNodeIds, domainPatterns (the environment's own allowed domains; the app's domainPatterns apply to every environment too), health, member counts, maintenance state, rootFolderIds and the caller's permissions. access is "full" with apps:view, "members" when the app is visible only through members the caller can view (then environments and counts cover only those members, and allowed nodes, maintenance and root folders are left out). ${APP_CREATE_HINT}`,
     parameters: {
       type: 'object',
       properties: { appId: { type: 'string', description: 'App id or slug.' } },
@@ -30,7 +30,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_app',
     description:
-      'Create, update or delete an app. create (name, optional description, optional folderId of an Apps list folder from list_resource_folders resourceType apps; needs apps:create broadly or on that folder) makes the app with one environment, production, marked as Production. update (appId, name, description and/or maintenanceOverride): renaming and the description (one line under the name, up to 200 characters; empty string or null clears it) need apps:edit on the app; maintenanceOverride true shows the maintenance page on every proxy route of every environment (apps:operate on the app), false restores each route to its own setting. remove_logo (appId; apps:edit on the app) removes the uploaded logo so the app shows its default icon; a logo is uploaded in the console (Settings > General) or with PUT /api/apps/{id}/logo (multipart field logo, square PNG/JPEG/WebP up to 1 MiB). delete (appId; apps:delete on the app): members keep running and leave the app, environment variables, secrets and allowed nodes are deleted.',
+      'Create, update or delete an app. create (name, optional description, optional folderId of an Apps list folder from list_resource_folders resourceType apps; needs apps:create broadly or on that folder) makes the app with one environment, production, marked as Production. update (appId, name, description and/or maintenanceOverride): renaming and the description (one line under the name, up to 200 characters; empty string or null clears it) need apps:edit on the app; maintenanceOverride true shows the maintenance page on every proxy route of every environment (apps:operate on the app), false restores each route to its own setting; domainPatterns (apps:edit on the app) replaces the domains every environment may use. remove_logo (appId; apps:edit on the app) removes the uploaded logo so the app shows its default icon; a logo is uploaded in the console (Settings > General) or with PUT /api/apps/{id}/logo (multipart field logo, square PNG/JPEG/WebP up to 1 MiB). delete (appId; apps:delete on the app): members keep running and leave the app, environment variables, secrets and allowed nodes are deleted.',
     parameters: {
       type: 'object',
       properties: {
@@ -43,6 +43,12 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
             'create, update: one-line app description, up to 200 characters; on update an empty string or null clears it.',
         },
         maintenanceOverride: { type: 'boolean', description: 'update: app-wide maintenance override.' },
+        domainPatterns: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'update: domains every environment may use (joined with each environment list): exact names (api.example.com) or *.example.com for any name under it (not example.com itself). Empty array: no app-wide restriction. Domains, and hostnames of routes, created or imported in an environment must match the joined list (APP_DOMAIN_NOT_ALLOWED).',
+        },
         folderId: {
           type: ['string', 'null'],
           description:
@@ -59,7 +65,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_app_environment',
     description:
-      'Environments of an app. create (appId, name; apps:edit on the app); rename (appId, environmentId, name; apps:edit); mark_production (appId, environmentId; moves the Production marker; apps:edit); delete (appId, environmentId; apps:edit; never the Production environment; members keep running and leave the app); set_maintenance (appId, environmentId, enabled; apps:env:manage on the environment: every proxy route of the environment shows the maintenance page, each keeps its own setting for later); allow_node / remove_node (appId, environmentId, nodeId; apps:env:manage): the nodes the environment may place workloads on; creates and imports on other nodes are refused (APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when none of the needed type is allowed); removing a node leaves its resources running; list_nodes (appId, environmentId): allowed nodes with what uses them; create_access_code (appId, optional environmentId; apps:env:manage on the environment, or on the app for every environment): a one-time Maintenance Access Code for every route of the scope in maintenance (one user, 5 minutes, once per route).',
+      'Environments of an app. create (appId, name; apps:edit on the app); rename (appId, environmentId, name; apps:edit); mark_production (appId, environmentId; moves the Production marker; apps:edit); delete (appId, environmentId; apps:edit; never the Production environment; members keep running and leave the app); set_maintenance (appId, environmentId, enabled; apps:env:manage on the environment: every proxy route of the environment shows the maintenance page, each keeps its own setting for later); allow_node / remove_node (appId, environmentId, nodeId; apps:env:manage): the nodes the environment may place workloads on; creates and imports on other nodes are refused (APP_NODE_NOT_ALLOWED, or APP_ENV_NO_ALLOWED_NODE when none of the needed type is allowed); removing a node leaves its resources running; list_nodes (appId, environmentId): allowed nodes with what uses them; set_domain_patterns (appId, environmentId, domainPatterns; apps:env:manage): the domains this environment may use on top of the app-wide list (get_app domainPatterns of the app and of each environment; both empty allows every name); create_access_code (appId, optional environmentId; apps:env:manage on the environment, or on the app for every environment): a one-time Maintenance Access Code for every route of the scope in maintenance (one user, 5 minutes, once per route).',
     parameters: {
       type: 'object',
       properties: {
@@ -75,6 +81,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
             'remove_node',
             'list_nodes',
             'create_access_code',
+            'set_domain_patterns',
           ],
         },
         appId: { type: 'string', description: 'App id or slug.' },
@@ -82,6 +89,12 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
         name: { type: 'string', description: 'create, rename: environment name.' },
         enabled: { type: 'boolean', description: 'set_maintenance: on or off.' },
         nodeId: { type: 'string', description: 'allow_node, remove_node: node id.' },
+        domainPatterns: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'set_domain_patterns: the full list (exact names or *.domain for any name under it; empty array clears it).',
+        },
       },
       required: ['operation', 'appId'],
     },
@@ -93,7 +106,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_app_members',
     description:
-      'Members of an app. list (appId, optional environmentId): the members you may view with type, id, name, environmentId and nodeIds. place (target {appId, environmentId} or null, members [{type, id} or {type: container, id: name, nodeId}]): import or move each member into the environment, or take it out of its app with target null (it returns to the top level of its list). Types: container, deployment, compose, database, storage, route, pages, certificate (SSL certificate), logging (logging environment). Needs apps:env:manage on the target environment and on the environment a member leaves, plus edit permission on each member. Refused per member: system routes (ROUTE_NOT_PLACEABLE), system certificates (CERTIFICATE_NOT_PLACEABLE), a node the environment does not allow (APP_NODE_NOT_ALLOWED, APP_ENV_NO_ALLOWED_NODE), a deployment slot or Compose service container (move the deployment or project), no permission. Returns placed and refused lists.',
+      'Members of an app. list (appId, optional environmentId): the members you may view with type, id, name, environmentId and nodeIds. place (target {appId, environmentId} or null, members [{type, id} or {type: container, id: name, nodeId}]): import or move each member into the environment, or take it out of its app with target null (it returns to the top level of its list). Types: container, deployment, compose, database, storage, route, domain (a registered domain, list_domains), pages, certificate (SSL certificate), logging (logging environment). Needs apps:env:manage on the target environment and on the environment a member leaves, plus edit permission on each member. Refused per member: system routes (ROUTE_NOT_PLACEABLE), system certificates (CERTIFICATE_NOT_PLACEABLE), system domains (DOMAIN_NOT_PLACEABLE), a domain or route hostname outside the environment domain allowlist (APP_DOMAIN_NOT_ALLOWED), a node the environment does not allow (APP_NODE_NOT_ALLOWED, APP_ENV_NO_ALLOWED_NODE), a deployment slot or Compose service container (move the deployment or project), no permission. Returns placed and refused lists.',
     parameters: {
       type: 'object',
       properties: {
@@ -120,6 +133,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
                   'database',
                   'storage',
                   'route',
+                  'domain',
                   'pages',
                   'certificate',
                   'logging',
@@ -137,7 +151,7 @@ export const APP_AI_TOOLS: AIToolDefinition[] = [
     destructive: true,
     category: 'Apps',
     requiredScope: 'apps:view',
-    invalidateStores: ['apps', 'proxy', 'containers', 'databases', 'pages', 'ssl', 'folders'],
+    invalidateStores: ['apps', 'proxy', 'domains', 'containers', 'databases', 'pages', 'ssl', 'folders'],
   },
   {
     name: 'manage_app_variables',

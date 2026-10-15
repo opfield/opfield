@@ -46,6 +46,10 @@ Drag model rows to set the order returned by the management and data-plane catal
 
 There is no user-visible or administrator-managed Pool entity. Provider administration remains grouped by provider, while one logical model may include compatible sources from more than one provider or upstream model. Opfield validates every enabled source against the model's published contract and keeps failover inside one request/accounting lineage; it never switches after output has begun.
 
+### Opfield Cloud AI on managed installations
+
+A managed installation with the AI add-on (bought in the Opfield account) is set up by the account: Opfield turns inference on, installs the core, adds the provider connection **Opfield Cloud** and publishes **Opfield Swift** (`opfield-swift`) and **Opfield Heavy** (`opfield-heavy`) to everyone. The connection and both models are read-only here (API and MCP answer `409 CLOUD_MANAGED`); their order can still change. The provider row shows how much of the plan is used; open it for the 5-hour and 30-day windows. Both models carry the prices the Opfield account sets, so per-user API budgets here count them; the plan in the Opfield account limits total use. When the add-on is first ready and the default monthly API budget is 0, it becomes the plan's monthly price (a budget you set is kept). When the add-on ends, the models and the connection are removed.
+
 ## User setup
 
 Users need `feat:ai:use` for Opfield Inference access, personal usage visibility, and creation or revocation of their own inference tokens. AI Workspace access is controlled separately by `ai:workspace:use`.

@@ -1,5 +1,5 @@
 {
-  "id": "06e08b63-5180-45d7-ade4-5b49d04823ed",
+  "id": "cf2d672f-684a-4866-a352-031d246b9271",
   "prevId": "348c1277-5eb8-4650-838b-be92fa2d58eb",
   "version": "7",
   "dialect": "postgresql",
@@ -4452,6 +4452,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "domain_patterns": {
+          "name": "domain_patterns",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "sort_order": {
           "name": "sort_order",
           "type": "integer",
@@ -4738,6 +4745,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "domain_patterns": {
+          "name": "domain_patterns",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "maintenance_override": {
           "name": "maintenance_override",
@@ -16263,6 +16277,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "app_id": {
+          "name": "app_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "app_environment_id": {
+          "name": "app_environment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -16314,6 +16340,53 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "domain_folders_app_idx": {
+          "name": "domain_folders_app_idx",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "domain_folders_app_root_unique": {
+          "name": "domain_folders_app_root_unique",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"domain_folders\".\"app_id\" IS NOT NULL AND \"domain_folders\".\"app_environment_id\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "domain_folders_app_env_unique": {
+          "name": "domain_folders_app_env_unique",
+          "columns": [
+            {
+              "expression": "app_environment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"domain_folders\".\"app_environment_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -16342,12 +16415,43 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "domain_folders_app_id_apps_id_fk": {
+          "name": "domain_folders_app_id_apps_id_fk",
+          "tableFrom": "domain_folders",
+          "tableTo": "apps",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "domain_folders_app_environment_id_app_environments_id_fk": {
+          "name": "domain_folders_app_environment_id_app_environments_id_fk",
+          "tableFrom": "domain_folders",
+          "tableTo": "app_environments",
+          "columnsFrom": [
+            "app_environment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "domain_folders_app_env_check": {
+          "name": "domain_folders_app_env_check",
+          "value": "\"domain_folders\".\"app_environment_id\" IS NULL OR \"domain_folders\".\"app_id\" IS NOT NULL"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.domains": {
@@ -34541,19 +34645,6 @@
         },
         "rate_limit_options": {
           "name": "rate_limit_options",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "client_ip_source": {
-          "name": "client_ip_source",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'auto'"
-        },
-        "client_ip_options": {
-          "name": "client_ip_options",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false

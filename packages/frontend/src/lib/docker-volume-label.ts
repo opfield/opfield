@@ -9,15 +9,23 @@ export function isAnonymousVolumeName(name: string | null | undefined): boolean 
 /**
  * How lists, mounts, pickers and AI resource links name a volume. A named volume is its name. An anonymous one is
  * "Anonymous volume 5eb8af45…", plus the container it belongs to when known; the full name goes in the hover text.
+ * `full` keeps the whole 64-character name, without the owner, for wide rows that truncate by available width.
  */
 export function dockerVolumeLabel(
   name: string,
   owner?: string | null
-): { text: string; title: string; anonymous: boolean } {
+): { text: string; full: string; title: string; anonymous: boolean } {
   const value = name.trim();
-  if (!isAnonymousVolumeName(value)) return { text: value, title: value, anonymous: false };
+  if (!isAnonymousVolumeName(value)) {
+    return { text: value, full: value, title: value, anonymous: false };
+  }
   const short = `Anonymous volume ${value.slice(0, ANONYMOUS_PREFIX_LENGTH)}…`;
-  return { text: owner ? `${short} · ${owner}` : short, title: value, anonymous: true };
+  return {
+    text: owner ? `${short} · ${owner}` : short,
+    full: `Anonymous volume ${value}`,
+    title: value,
+    anonymous: true,
+  };
 }
 
 /** The container an anonymous volume belongs to: the only container using it. */

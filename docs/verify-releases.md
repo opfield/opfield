@@ -32,7 +32,8 @@ cosign verify ghcr.io/opfield/opfield/relay:v2.12.0-relay \
 `…/secure-link-connector:vX.Y.Z-relay` is signed the same way as the relay.
 
 Images built on `main` and pinned by digest are signed by the Image workflow: the backup runner, the patched
-SeaweedFS (`…/seaweedfs-gateway`) and the mirrored third-party images (PostgreSQL, Redis, Valkey, ClickHouse, the
+SeaweedFS (`…/seaweedfs-gateway`), the managed PostgreSQL images (`…/postgres`) and extension bundles
+(`…/postgres-ext/<id>`), and the mirrored third-party images (PostgreSQL, Redis, Valkey, ClickHouse, the
 Docker registry and others, listed in `config/third-party-images.json`). Accept any workflow of the repository:
 
 ```bash

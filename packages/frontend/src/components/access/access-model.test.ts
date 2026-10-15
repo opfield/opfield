@@ -574,6 +574,7 @@ describe("app environment lines", () => {
     "storage",
     "pages",
     "certificates",
+    "domains",
   ] as const;
   const environment = (
     id: string,
@@ -626,11 +627,15 @@ describe("app environment lines", () => {
       "apps:view:env/env-staging",
     ]);
     expect(scopes.some((scope) => scope.includes("env-production"))).toBe(false);
-    // Domains are not app members; certificates are granted on the environment's folder only.
-    expect(scopes.some((scope) => scope.startsWith("domains:"))).toBe(false);
-    expect(
-      scopes.filter((scope) => scope.startsWith("ssl:")).every((scope) => scope.includes("folder/"))
-    ).toBe(true);
+    expect(scopes).toContain("domains:view:folder/hidden-env-staging-domains");
+    // Domains and certificates are granted on the environment's folder only.
+    for (const prefix of ["domains:", "ssl:"]) {
+      expect(
+        scopes
+          .filter((scope) => scope.startsWith(prefix))
+          .every((scope) => scope.includes("folder/"))
+      ).toBe(true);
+    }
   });
 
   it("gives each role its app scopes", () => {
@@ -741,11 +746,11 @@ describe("app environment lines", () => {
     }
   });
 
-  it("names the app and environment and the seven types", () => {
+  it("names the app and environment and the eight types", () => {
     const labels = contextLabels(appCtx);
     expect(describeLine(appLine("developer", staging), labels)).toEqual({
       title: "Developer in Shop · staging",
-      detail: "All 7 resource types",
+      detail: "All 8 resource types",
     });
     expect(
       describeLine({ ...appLine("viewer", everyEnvironment), types: ["routes"] }, labels)

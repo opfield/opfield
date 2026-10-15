@@ -337,11 +337,63 @@ export interface DatabaseMetricSnapshot {
   metrics: Record<string, number | null>;
 }
 
+/** A curated PostgreSQL extension's state on a managed database, as its node reports it. */
+export type ManagedPostgresExtensionStatus =
+  | "enabled"
+  | "update_available"
+  | "available"
+  | "needs_bundle"
+  | "needs_image_update"
+  | "unavailable";
+
+export type ManagedPostgresExtensionCategory =
+  | "ai_search"
+  | "geo"
+  | "scheduling_partitioning"
+  | "observability_tuning"
+  | "data_types"
+  | "text_search"
+  | "foreign_data"
+  | "maintenance"
+  | "other";
+
 export interface ManagedPostgresExtension {
   name: string;
-  defaultVersion: string;
+  category: ManagedPostgresExtensionCategory;
+  description: string;
+  delivery: "contrib" | "baked" | "bundle";
+  bundle: string | null;
+  preloadLibraries: string[];
+  notes: string;
+  /** null while the node's daemon cannot report it. */
+  status: ManagedPostgresExtensionStatus | null;
+  availableVersion: string | null;
   installedVersion: string | null;
-  comment: string | null;
+  /** Download size when it needs a bundle on the node (0 otherwise). */
+  bundleSizeBytes: number;
+  restartToEnable: boolean;
+  restartToDisable: boolean;
+}
+
+export interface ManagedPostgresExtensionChange {
+  id: string;
+  action: "enable" | "disable" | "update";
+  name: string;
+  userId: string | null;
+  requestedAt: string;
+}
+
+export interface ManagedPostgresExtensions {
+  managedDatabaseId: string;
+  version: string;
+  daemonUpdateRequired: boolean;
+  imageKind: "opfield" | "official" | "other";
+  imageUpdateAvailable: boolean;
+  volume: { freeBytes: number; totalBytes: number } | null;
+  sharedPreloadLibraries: string[];
+  pending: ManagedPostgresExtensionChange | null;
+  lastError: (ManagedPostgresExtensionChange & { message: string; failedAt: string }) | null;
+  extensions: ManagedPostgresExtension[];
 }
 
 export interface PostgresTableColumn {

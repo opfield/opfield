@@ -4,6 +4,7 @@ import { nodes, proxyAdditionalSecureLinks, proxyHosts } from '@/db/schema/index
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { writeWithAllocatedSlug } from '@/lib/resource-slugs.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { assertFolderDomainsAllowed } from '@/modules/apps/app-domain-allowlist.js';
 import type { FreezeTarget } from '@/modules/apps/app-member-freeze.js';
 import { assertAppPlacement, filterNodesForAppFolder } from '@/modules/apps/app-placement-guard.js';
 import { requireRoutableIngressGroup } from '@/modules/ingress-groups/ingress-group-routing.js';
@@ -348,6 +349,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     }
     // A route created in an app environment is served only by nodes the environment allows (every group member).
     await assertAppPlacement(this.db, 'routes', input.folderId, placement.servingNodeIds);
+    // ...and only for hostnames the environment's domain allowlist covers.
+    await assertFolderDomainsAllowed(this.db, 'routes', input.folderId, input.domainNames);
     await this.assertUpstreamNotAppFrozen(input);
     await assertRegisteredDomainsUseTarget(this.db, input.domainNames, placement);
 
@@ -762,6 +765,14 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
     const domainAssignmentChanged =
       (input.nodeId !== undefined && input.nodeId !== existing.nodeId) ||
       (input.domainNames !== undefined && !sameDomainNames(input.domainNames, existing.domainNames));
+    if (
+      input.domainNames !== undefined &&
+      !options.restoringPriorState &&
+      !sameDomainNames(input.domainNames, existing.domainNames)
+    ) {
+      // A route of an app environment keeps to the environment's domain allowlist (a rollback restores freely).
+      await assertFolderDomainsAllowed(this.db, 'routes', existing.folderId, input.domainNames);
+    }
     if (domainAssignmentChanged && !options.skipDomainNodeValidation) {
       await assertRegisteredDomainsUseTarget(this.db, input.domainNames ?? existing.domainNames, {
         nodeId: effectiveNodeId,

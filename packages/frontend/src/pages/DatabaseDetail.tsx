@@ -259,18 +259,17 @@ function DatabaseDetailContent({
       database.type !== "postgres" ||
       !database.managed ||
       database.managed.status !== "ready" ||
-      !managedNodeAvailable ||
-      !(canRead || canWrite || canAdmin)
+      !managedNodeAvailable
     ) {
       return;
     }
     const cacheKey = postgresExtensionsCacheKey(database.id);
     if (api.getCached(cacheKey)) return;
     void api
-      .listManagedPostgresExtensions(database.id)
+      .listManagedDatabaseExtensions(database.managed.id)
       .then((extensions) => api.setCache(cacheKey, extensions))
       .catch(() => undefined);
-  }, [canAdmin, canRead, canWrite, database, managedNodeAvailable]);
+  }, [database, managedNodeAvailable]);
 
   useEffect(() => {
     if (
@@ -743,7 +742,7 @@ function DatabaseDetailContent({
                   Console
                 </TabsTrigger>
               )}
-              {(canRead || canWrite || canAdmin) && supportsExtensions && (
+              {supportsExtensions && (
                 <TabsTrigger value="extensions" disabled={extensionsDisabled} className="gap-1.5">
                   Extensions
                 </TabsTrigger>
@@ -838,9 +837,9 @@ function DatabaseDetailContent({
             </TabsContent>
           )}
 
-          {(canRead || canWrite || canAdmin) && supportsExtensions && !extensionsDisabled && (
+          {supportsExtensions && !extensionsDisabled && (
             <TabsContent value="extensions" className="flex flex-1 min-h-0 overflow-hidden">
-              <PostgresExtensionsTab database={database} canManage={canAdmin} />
+              <PostgresExtensionsTab database={database} canManage={canManageSettings} />
             </TabsContent>
           )}
 

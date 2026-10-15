@@ -12,7 +12,9 @@ import {
 } from "@/components/common/scope-list-helpers";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { AdminGroups } from "./AdminGroups";
@@ -20,6 +22,8 @@ import { AdminUsers } from "./AdminUsers";
 import { AuditLog } from "./AuditLog";
 
 type AdministrationTab = "users" | "groups" | "audit";
+
+const NO_SCOPES: readonly string[] = [];
 
 export function Administration() {
   const { hasScope, hasScopedAccess } = useAuthStore();
@@ -32,8 +36,19 @@ export function Administration() {
   const canUsers = hasScopedAccess("admin:users");
   const canGroups = hasScopedAccess("admin:groups");
   const canAudit = hasScope("admin:audit");
-  const canManageUserFolders = hasScope("admin:users:folders:manage");
-  const canManageGroupFolders = hasScope("admin:groups:folders:manage");
+  // Creating needs a destination (broad or a folder); a grant on one user or group is not one.
+  const scopes = useAuthStore((state) => state.user?.scopes ?? NO_SCOPES);
+  const canCreateUser = hasCreationDestination(scopes, "admin:users");
+  const canCreateGroup = hasCreationDestination(scopes, "admin:groups");
+  // Folder managers of some folder add folders under it, like on the other foldered lists.
+  const canManageUserFolders = useCanManageSomeFolders(
+    "admin:users:folders:manage",
+    "admin:system"
+  );
+  const canManageGroupFolders = useCanManageSomeFolders(
+    "admin:groups:folders:manage",
+    "admin:system"
+  );
   const canManageDeletedUsers = hasScope("admin:system");
 
   const availableTabs = useMemo<AdministrationTab[]>(() => {
@@ -108,14 +123,22 @@ export function Administration() {
     users: {
       title: "Users",
       subtitle: "Manage system users and their assigned permission groups",
-      actionLabel: "Create User",
-      onAction: () => setUsersCreateRequest((value) => value + 1),
+      ...(canCreateUser
+        ? {
+            actionLabel: "Create User",
+            onAction: () => setUsersCreateRequest((value) => value + 1),
+          }
+        : {}),
     },
     groups: {
       title: "Groups",
       subtitle: "Manage permission groups and scoped access rules",
-      actionLabel: "Create Group",
-      onAction: () => setGroupsCreateRequest((value) => value + 1),
+      ...(canCreateGroup
+        ? {
+            actionLabel: "Create Group",
+            onAction: () => setGroupsCreateRequest((value) => value + 1),
+          }
+        : {}),
     },
     audit: {
       title: "Audit Log",
@@ -143,7 +166,7 @@ export function Administration() {
           description={currentMeta.subtitle}
           leading={<LiteModeBackButton />}
           actions={
-            currentMeta.actionLabel && currentMeta.onAction ? (
+            currentTab !== "audit" ? (
               <ResponsiveHeaderActions
                 actions={[
                   ...(currentTab === "users" && canManageUserFolders && createUserFolderAction
@@ -173,11 +196,15 @@ export function Administration() {
                         },
                       ]
                     : []),
-                  {
-                    label: currentMeta.actionLabel,
-                    icon: <Plus className="h-4 w-4" />,
-                    onClick: currentMeta.onAction,
-                  },
+                  ...(currentMeta.actionLabel && currentMeta.onAction
+                    ? [
+                        {
+                          label: currentMeta.actionLabel,
+                          icon: <Plus className="h-4 w-4" />,
+                          onClick: currentMeta.onAction,
+                        },
+                      ]
+                    : []),
                 ]}
               >
                 {currentTab === "users" && canManageUserFolders && createUserFolderAction && (
@@ -198,14 +225,16 @@ export function Administration() {
                     Add Folder
                   </Button>
                 )}
-                <Button onClick={currentMeta.onAction}>
-                  <Plus className="h-4 w-4" />
-                  {currentMeta.actionLabel}
-                </Button>
+                {currentMeta.actionLabel && currentMeta.onAction && (
+                  <Button onClick={currentMeta.onAction}>
+                    <Plus className="h-4 w-4" />
+                    {currentMeta.actionLabel}
+                  </Button>
+                )}
               </ResponsiveHeaderActions>
-            ) : currentTab === "audit" ? (
+            ) : (
               <div ref={setAuditHeaderActionsEl} className="shrink-0" />
-            ) : null
+            )
           }
         />
 
@@ -214,23 +243,26 @@ export function Administration() {
           onValueChange={setActiveTab}
           className={`flex flex-col ${usesFillLayout ? "mt-4 min-h-0 flex-1" : ""}`}
         >
-          <TabsList>
-            {canUsers && (
-              <TabsTrigger value="users" className="gap-1.5">
-                Users
-              </TabsTrigger>
-            )}
-            {canGroups && (
-              <TabsTrigger value="groups" className="gap-1.5">
-                Groups
-              </TabsTrigger>
-            )}
-            {canAudit && (
-              <TabsTrigger value="audit" className="gap-1.5">
-                Audit Log
-              </TabsTrigger>
-            )}
-          </TabsList>
+          {/* A page left with one tab shows no tab row. */}
+          {availableTabs.length > 1 && (
+            <TabsList>
+              {canUsers && (
+                <TabsTrigger value="users" className="gap-1.5">
+                  Users
+                </TabsTrigger>
+              )}
+              {canGroups && (
+                <TabsTrigger value="groups" className="gap-1.5">
+                  Groups
+                </TabsTrigger>
+              )}
+              {canAudit && (
+                <TabsTrigger value="audit" className="gap-1.5">
+                  Audit Log
+                </TabsTrigger>
+              )}
+            </TabsList>
+          )}
 
           {canUsers && (
             <TabsContent value="users" className="mt-4">

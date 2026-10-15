@@ -1,11 +1,22 @@
+import type { InferenceCoreUsage } from './inference-core.contract.js';
+import { chatCompletionUsage } from './inference-core-chat-usage.js';
+
 // Match the managed core's client-facing SSE frame bound. Never discard a
 // fragment: a terminal may carry a large reasoning/compaction snapshot.
 export const MAX_CORE_SSE_FRAME_BYTES = 4 * 1024 * 1024;
 
 type TerminalOutcome = 'completed' | 'failed';
 
+/** The client-facing wire of a relayed stream; each ends a stream its own way. */
+export type CoreSseWire = 'responses' | 'chat_completions' | 'messages';
+
 /** Observe complete frames without changing the bytes relayed to the client. */
 export class CoreResponsesSseObserver {
+  constructor(private readonly wire: CoreSseWire = 'responses') {}
+
+  /** The last `usage` a Chat Completions stream reported (the core asks upstreams for it). */
+  chatUsage: InferenceCoreUsage | null = null;
+
   private buffer = new Uint8Array(0);
   private length = 0;
   private lineStart = 0;
@@ -68,9 +79,20 @@ export class CoreResponsesSseObserver {
       .filter((line) => line.startsWith('data:'))
       .map((line) => line.slice(5).trimStart())
       .join('\n');
-    if (!payload || payload === '[DONE]') return null;
+    if (!payload) return null;
+    // Chat Completions ends a finished stream with `[DONE]`; the other wires never send it.
+    if (payload === '[DONE]') return this.wire === 'chat_completions' ? 'completed' : null;
     try {
-      const event = JSON.parse(payload) as { type?: unknown };
+      const event = JSON.parse(payload) as { type?: unknown; error?: unknown; choices?: unknown; usage?: unknown };
+      if (this.wire === 'chat_completions') {
+        this.chatUsage = chatCompletionUsage(event.usage) ?? this.chatUsage;
+        // The core reports a failed Chat stream as an error frame and closes without `[DONE]`.
+        return event.error && typeof event.error === 'object' && event.choices === undefined ? 'failed' : null;
+      }
+      if (this.wire === 'messages') {
+        if (event.type === 'message_stop') return 'completed';
+        return event.type === 'error' ? 'failed' : null;
+      }
       if (event.type === 'response.completed') return 'completed';
       if (event.type === 'response.failed' || event.type === 'response.incomplete' || event.type === 'error') {
         return 'failed';

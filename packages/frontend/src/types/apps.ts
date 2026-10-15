@@ -27,7 +27,8 @@ export type AppMemberFamily =
   | "storage"
   | "pages"
   | "certificates"
-  | "logging";
+  | "logging"
+  | "domains";
 
 export type AppMemberType =
   | "container"
@@ -40,7 +41,9 @@ export type AppMemberType =
   /** An SSL certificate. */
   | "certificate"
   /** A logging environment. */
-  | "logging";
+  | "logging"
+  /** A registered domain. */
+  | "domain";
 
 /** The `app` field of a resource in normal lists and detail responses. */
 export interface AppMembershipRef {
@@ -112,6 +115,8 @@ export interface AppEnvironmentDetail {
   /** Hidden env folder per family: pass as `folderId` to create inside the environment. */
   placementFolderIds: AppPlacementFolderIds;
   allowedNodeIds: string[];
+  /** The environment's own allowed domains (the app-wide list applies too); absent on older backends. */
+  domainPatterns?: string[];
   /** Open shutdown / kill switch incidents of the environment, with their items. */
   incidents?: AppIncident[];
 }
@@ -124,6 +129,8 @@ export interface AppPermissions {
   promote: Record<string, boolean>;
   /** apps:operate on one environment (Phase 2 shutdown / isolation per environment). */
   operateEnv?: Record<string, boolean>;
+  /** Per environment and family: the caller may create a resource of that family there. */
+  create?: Record<string, Partial<Record<AppMemberFamily, boolean>>>;
 }
 
 export interface AppDetail {
@@ -136,6 +143,8 @@ export interface AppDetail {
   access?: AppAccess;
   maintenanceOverride: boolean;
   maintenanceOverrideAt?: string | null;
+  /** Domains every environment may use (joined with each environment's own list); empty: no restriction. */
+  domainPatterns?: string[];
   /** Hidden app-root folder per family ("every environment" access lines grant these). */
   rootFolderIds?: AppPlacementFolderIds;
   /** Shutdown / kill switch state over the visible environments. */
@@ -149,12 +158,16 @@ export interface AppUpdateInput {
   /** Up to 200 characters; empty or null clears it. */
   description?: string | null;
   maintenanceOverride?: boolean;
+  /** Replaces the domains every environment may use; empty allows every name. */
+  domainPatterns?: string[];
 }
 
 export interface AppEnvironmentUpdateInput {
   name?: string;
   isProduction?: true;
   maintenanceEnabled?: boolean;
+  /** Replaces the domains this environment may use on top of the app-wide list. */
+  domainPatterns?: string[];
 }
 
 /* Members ------------------------------------------------------------------------------------ */

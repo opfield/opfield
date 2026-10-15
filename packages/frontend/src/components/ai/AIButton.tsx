@@ -9,9 +9,11 @@ import { AI_SCOPE } from "@/types";
 interface AIButtonProps {
   iconOnly?: boolean;
   showLabel?: boolean;
+  /** 32 px, for the sidebar header that matches the AI Workspace header height. */
+  compact?: boolean;
 }
 
-export function AIButton({ iconOnly = false, showLabel = false }: AIButtonProps) {
+export function AIButton({ iconOnly = false, showLabel = false, compact = false }: AIButtonProps) {
   const { toggleAIPanel, aiPanelOpen, aiLiteMode } = useUIStore();
   const isEnabled = useAIStore((state) => state.isEnabled);
   const canUseAIWorkspace = useAuthStore((state) => state.hasScope(AI_SCOPE));
@@ -63,7 +65,8 @@ export function AIButton({ iconOnly = false, showLabel = false }: AIButtonProps)
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="icon"
+          // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+          size={compact ? "icon-sm" : "icon"}
           className={aiPanelOpen ? "text-primary" : undefined}
           onClick={handleClick}
           aria-label="AI Workspace"

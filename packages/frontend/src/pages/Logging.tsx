@@ -32,11 +32,13 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useLeavePage } from "@/hooks/use-navigation-trail";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { withoutAppMembers } from "@/lib/app-members";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { loggingEnvironmentRoute, loggingSchemaRoute } from "@/lib/resource-routes";
 import { scopeMatches } from "@/lib/scope-utils";
 import { cn } from "@/lib/utils";
@@ -92,6 +94,12 @@ export function Logging({
   const userScopes = user?.scopes ?? [];
   const canListSchemas =
     hasScopedAccess("logs:schemas:view") || hasScopedAccess("logs:schemas:create");
+  // The list page ignores grants held only through app places; a detail reached from an app keeps them.
+  const globalAccess = useGlobalSectionAccess();
+  const sectionHasEnvironments =
+    globalAccess.hasScopedAccess("logs:environments:view") ||
+    globalAccess.hasScopedAccess("logs:read") ||
+    globalAccess.hasScopedAccess("logs:environments:create");
   const canAccessSchemas = canListSchemas;
   const canViewSchemaDetails = hasAnyScope("logs:schemas:view");
   const loggingEnabled = useSystemConfigStore((s) => s.config.features.loggingEnabled);
@@ -142,12 +150,12 @@ export function Logging({
   const visibleTopTabs = useMemo(
     () =>
       TOP_TABS.filter((item) => {
-        if (item.value === "environments") return canAccessEnvironments;
+        if (item.value === "environments") return sectionHasEnvironments;
         return canAccessSchemas;
       }),
-    [canAccessEnvironments, canAccessSchemas]
+    [sectionHasEnvironments, canAccessSchemas]
   );
-  const defaultTopTab = canAccessEnvironments ? "environments" : "schemas";
+  const defaultTopTab = sectionHasEnvironments ? "environments" : "schemas";
   const requestedTopTab =
     TOP_TABS.some((item) => item.value === section) && !isEnvironmentDetail && !isSchemaDetail
       ? section!
@@ -163,9 +171,12 @@ export function Logging({
   const selectedSchema = visibleSchemas.find((schema) => schema.id === id) ?? null;
 
   // Creation may be granted on a folder only; the dialog then offers just those folders.
-  const canCreateEnvironment = hasScopedAccess("logs:environments:create");
+  const canCreateEnvironment = hasCreationDestination(
+    globalAccess.scopes,
+    "logs:environments:create"
+  );
   const canManageEnvironmentFolders = useCanManageSomeFolders("logs:environments:folders:manage");
-  const canCreateSchema = hasScopedAccess("logs:schemas:create");
+  const canCreateSchema = hasCreationDestination(userScopes, "logs:schemas:create");
   const canManageSchemaFolders = useCanManageSomeFolders("logs:schemas:folders:manage");
   const canEditEnvironment =
     !!selectedEnvironment && hasAnyScope(`logs:environments:edit:${selectedEnvironment.id}`);
@@ -176,6 +187,9 @@ export function Logging({
     !!selectedEnvironment && hasAnyScope(`logs:tokens:create:${selectedEnvironment.id}`);
   const canDeleteToken =
     !!selectedEnvironment && hasAnyScope(`logs:tokens:delete:${selectedEnvironment.id}`);
+  const canReadLogs = !!selectedEnvironment && hasAnyScope(`logs:read:${selectedEnvironment.id}`);
+  const canViewTokens =
+    !!selectedEnvironment && hasAnyScope(`logs:tokens:view:${selectedEnvironment.id}`);
   const canEditSchema = !!selectedSchema && hasAnyScope(`logs:schemas:edit:${selectedSchema.id}`);
   const canDeleteSchema =
     !!selectedSchema && hasAnyScope(`logs:schemas:delete:${selectedSchema.id}`);
@@ -338,6 +352,8 @@ export function Logging({
         loggingEnabled={loggingEnabled}
         loading={environmentsLoading}
         activeTab={activeEnvironmentTab as (typeof ENV_TABS)[number]}
+        canReadLogs={canReadLogs}
+        canViewTokens={canViewTokens}
         canEdit={canEditEnvironment}
         canDelete={canDeleteEnvironment}
         canCreateToken={canCreateToken}
@@ -457,13 +473,16 @@ export function Logging({
           onValueChange={(value) => navigate(`/logging/${value}`, { replace: true })}
           className="flex flex-col"
         >
-          <TabsList className="shrink-0">
-            {visibleTopTabs.map((item) => (
-              <TabsTrigger key={item.value} value={item.value} className="gap-1.5">
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          {/* A page left with one tab shows no tab row. */}
+          {visibleTopTabs.length > 1 && (
+            <TabsList className="shrink-0">
+              {visibleTopTabs.map((item) => (
+                <TabsTrigger key={item.value} value={item.value} className="gap-1.5">
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
 
           <TabsContent value="environments">
             <LoggingEnvironmentsTab

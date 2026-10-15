@@ -402,7 +402,7 @@ Lease frames between nodes travel only through relays. Every Docker node of a le
 
 ## Vulnerability And Security Scanning
 
-Git build vulnerability scanning and admission policy are available on Business and Enterprise. Broader workload vulnerability and security scanning remains **In development**, with no target version assigned yet.
+Git build vulnerability scanning and admission policy are available on Business and Enterprise. Each Git source sets the lowest blocking severity and a scope: **All packages**, **Application packages** (OS packages are report-only), **Fixable only — application packages**, or **Fixable only — all packages** (only findings with a released fix block a deployment). Broader workload vulnerability and security scanning remains **In development**, with no target version assigned yet.
 
 ## Opfield Inference
 

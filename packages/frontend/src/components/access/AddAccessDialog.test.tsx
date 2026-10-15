@@ -44,6 +44,7 @@ const FAMILIES = [
   "storage",
   "pages",
   "certificates",
+  "domains",
 ] as const;
 const shop: AppScopeApp = {
   id: "app-shop",
@@ -131,7 +132,7 @@ describe("Add Access", () => {
 });
 
 describe("Add Access in an app environment", () => {
-  it("adds a role in one environment of an app, on the seven types an app holds", async () => {
+  it("adds a role in one environment of an app, on the eight types an app holds", async () => {
     const onSave = renderDialog({ kind: "grant", actorScopes: [] }, { catalog: appCatalog });
     await userEvent.click(screen.getByRole("combobox", { name: "Where" }));
     await userEvent.click(await screen.findByRole("option", { name: "In an app environment" }));
@@ -143,7 +144,7 @@ describe("Add Access in an app environment", () => {
     expect(
       screen.getByText("The 7 resources of Shop's staging now, and the ones created there later.")
     ).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Covers" })).toHaveValue("All 7 resource types");
+    expect(screen.getByRole("combobox", { name: "Covers" })).toHaveValue("All 8 resource types");
     expect(screen.queryByText("Manage subfolders")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Add Access" }));

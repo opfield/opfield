@@ -35,7 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInitialLoading } from "@/hooks/use-initial-loading";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -53,7 +52,14 @@ import type {
   ManagedDatabaseBindingTargetType,
   Node,
 } from "@/types";
-import { LinkRowTitle, useInLinksPanel, useLinkSource } from "./LinksPanel";
+import {
+  LINK_REMOVE_BUTTON_CLASS,
+  LinkNodeBadge,
+  LinkRowTitle,
+  LinkStatusBadge,
+  useInLinksPanel,
+  useLinkSource,
+} from "./LinksPanel";
 
 type ConnectionMode = "uri" | "credentials";
 
@@ -918,33 +924,21 @@ export const ManagedDatabaseLinksSection = forwardRef<
                   </SelectContent>
                 </Select>
               )}
-              {databaseNode && (
-                <Badge
-                  variant="secondary"
-                  size="inline"
-                  className={nodeBadgeClassName(databaseNode.appearanceColor)}
-                >
-                  {databaseNode.displayName || databaseNode.hostname}
+              <LinkNodeBadge
+                name={databaseNode ? databaseNode.displayName || databaseNode.hostname : null}
+                color={databaseNode?.appearanceColor}
+              />
+              {unavailable && (
+                <Badge variant="secondary" size="inline">
+                  Unavailable
                 </Badge>
               )}
-              {unavailable && <Badge variant="secondary">Unavailable</Badge>}
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant={statusVariant} size="inline" tabIndex={0}>
-                      {statusLabel}
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-sm">
-                    {statusDetail}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <LinkStatusBadge label={statusLabel} variant={statusVariant} detail={statusDetail} />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="shrink-0 text-muted-foreground hover:text-destructive"
+                className={LINK_REMOVE_BUTTON_CLASS}
                 disabled={
                   disabled ||
                   saving ||

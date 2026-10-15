@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
+import { domainFolders } from '@/db/schema/domain-folders.js';
 import { domains } from '@/db/schema/domains.js';
 import { ingressGroups } from '@/db/schema/ingress-groups.js';
 import { pageWildcardProfiles } from '@/db/schema/pages.js';
@@ -10,6 +11,7 @@ import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { isMatchingUniqueConstraintViolation } from '@/lib/resource-slugs.js';
 import { buildWhere, escapeLike } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { appMemberFolderCondition, withAppMembers } from '@/modules/apps/app-membership.js';
 import { ingressGroupMemberRows } from '@/modules/ingress-groups/ingress-nodes.js';
 import type { CloudflareDnsRecordInput } from '@/modules/integrations/cloudflare-client.js';
 import { getRegisteredDomainCandidates } from '@/modules/proxy/proxy-domain-node.js';
@@ -30,6 +32,7 @@ import {
   type DomainUsage,
   logger,
 } from './domain.service.shared.js';
+import { assertDomainAllowedInFolder, assertDomainNodesAllowedInFolder } from './domain-app-placement.js';
 import { assertDomainIngressMoveAccess } from './domain-creation-access.js';
 
 const DOMAIN_UNIQUE_CONSTRAINT = 'domains_domain_unique';
@@ -51,6 +54,12 @@ export class DomainsService extends DomainsServiceIngressGroups {
     if (params.dnsStatus) {
       conditions.push(eq(domains.dnsStatus, params.dnsStatus));
     }
+    // App members: the normal list leaves them out, an app's Network tab asks for one app (before paging).
+    const appFilter = appMemberFolderCondition(domains.folderId, domainFolders, {
+      appId: params.appId ?? null,
+      excludeAppMembers: params.excludeAppMembers,
+    });
+    if (appFilter) conditions.push(appFilter);
     const where = buildWhere(conditions);
 
     const [rows, [{ total }]] = await Promise.all([
@@ -76,7 +85,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
     );
 
     return {
-      data: enriched,
+      data: await withAppMembers('domains', enriched),
       pagination: {
         page: params.page,
         limit: params.limit,
@@ -94,7 +103,8 @@ export class DomainsService extends DomainsServiceIngressGroups {
       row.nginxNodeId ? this.getNginxNodeSummary(row.nginxNodeId) : Promise.resolve(null),
       row.ingressGroupId ? this.ingressGroupSummary(row.ingressGroupId) : Promise.resolve(null),
     ]);
-    return { ...row, nginxNode, ingressGroup, usage };
+    const [withApp] = await withAppMembers('domains', [row]);
+    return { ...withApp!, nginxNode, ingressGroup, usage };
   }
 
   /** The ingress group of a domain with its members and the addresses DNS publishes for them. */
@@ -310,9 +320,12 @@ export class DomainsService extends DomainsServiceIngressGroups {
   }
 
   async createDomain(input: CreateDomainInput, userId: string) {
+    // Inside an app environment the name must match its domain allowlist (before any provider call).
+    await assertDomainAllowedInFolder(this.db, input.folderId, input.domain);
     if (input.dnsProvider === 'external') return this.createExternalDomain(input, userId);
 
     const plan = await this.prepareCloudflareDomain(input);
+    await assertDomainNodesAllowedInFolder(this.db, input.folderId, plan);
     const {
       domainName,
       targetIps,
@@ -568,6 +581,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
     if (existingDomain) throw new AppError(409, 'DUPLICATE', 'Domain already exists');
 
     const plan = await this.prepareExternalDomain(input);
+    await assertDomainNodesAllowedInFolder(this.db, input.folderId, plan);
     if (plan.status !== 'valid') {
       throw new AppError(
         409,

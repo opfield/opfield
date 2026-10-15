@@ -41,6 +41,12 @@ import { isLoggingEnvironmentSettingsDirty, isLoggingSchemaDirty } from "./loggi
 
 export type LoggingEnvironmentTab = "logs" | "tokens" | "settings";
 
+const ENVIRONMENT_TABS: ReadonlyArray<{ value: LoggingEnvironmentTab; label: string }> = [
+  { value: "logs", label: "Logs" },
+  { value: "tokens", label: "Tokens" },
+  { value: "settings", label: "Settings" },
+];
+
 export function LoggingSchemaDetail({
   schema,
   loading,
@@ -231,7 +237,9 @@ export function LoggingEnvironmentDetail({
   schemas,
   loggingEnabled,
   loading,
-  activeTab,
+  activeTab: requestedTab,
+  canReadLogs,
+  canViewTokens,
   canEdit,
   canDelete,
   canCreateToken,
@@ -244,6 +252,10 @@ export function LoggingEnvironmentDetail({
   loggingEnabled: boolean;
   loading: boolean;
   activeTab: LoggingEnvironmentTab;
+  /** logs:read on this environment (the Logs tab). */
+  canReadLogs: boolean;
+  /** logs:tokens:view on this environment (the Tokens tab). */
+  canViewTokens: boolean;
   canEdit: boolean;
   canDelete: boolean;
   canCreateToken: boolean;
@@ -267,6 +279,20 @@ export function LoggingEnvironmentDetail({
     if (!environment) return;
     setSettingsDraft(environment);
   }, [environment]);
+
+  // Tabs the user may open; a link to another one opens the first of them.
+  const tabs = ENVIRONMENT_TABS.filter(
+    (tab) => (tab.value !== "logs" || canReadLogs) && (tab.value !== "tokens" || canViewTokens)
+  );
+  const activeTab = tabs.some((tab) => tab.value === requestedTab)
+    ? requestedTab
+    : (tabs[0]?.value ?? "settings");
+  const environmentSlug = environment?.slug;
+  useEffect(() => {
+    if (environmentSlug && activeTab !== requestedTab) {
+      navigate(loggingEnvironmentRoute(environmentSlug, activeTab), { replace: true });
+    }
+  }, [activeTab, environmentSlug, navigate, requestedTab]);
 
   if (loading) return <DetailPageSkeleton label="Loading logging environment" tabs={3} />;
   if (!environment) {
@@ -422,32 +448,35 @@ export function LoggingEnvironmentDetail({
           onValueChange={(value) => navigate(loggingEnvironmentRoute(environment.slug, value))}
           className={cn("flex flex-col", isFullHeightTab && "flex-1 min-h-0")}
         >
-          <TabsList className="shrink-0">
-            <TabsTrigger value="logs" className="gap-1.5">
-              Logs
-            </TabsTrigger>
-            <TabsTrigger value="tokens" className="gap-1.5">
-              Tokens
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-1.5">
-              Settings
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="logs" className="flex flex-col flex-1 min-h-0">
-            <LoggingExplorer
-              environment={environment}
-              storageAvailable={loggingEnabled}
-              refreshKey={logsRefreshKey}
-            />
-          </TabsContent>
-          <TabsContent value="tokens">
-            <LoggingTokenPanel
-              environment={environment}
-              canDelete={canDeleteToken}
-              createDialogOpen={tokenDialogOpen}
-              onCreateDialogOpenChange={setTokenDialogOpenGuarded}
-            />
-          </TabsContent>
+          {/* A page left with one tab shows no tab row. */}
+          {tabs.length > 1 && (
+            <TabsList className="shrink-0">
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
+          {canReadLogs && (
+            <TabsContent value="logs" className="flex flex-col flex-1 min-h-0">
+              <LoggingExplorer
+                environment={environment}
+                storageAvailable={loggingEnabled}
+                refreshKey={logsRefreshKey}
+              />
+            </TabsContent>
+          )}
+          {canViewTokens && (
+            <TabsContent value="tokens">
+              <LoggingTokenPanel
+                environment={environment}
+                canDelete={canDeleteToken}
+                createDialogOpen={tokenDialogOpen}
+                onCreateDialogOpenChange={setTokenDialogOpenGuarded}
+              />
+            </TabsContent>
+          )}
           <TabsContent value="settings">
             <LoggingEnvironmentSettings
               environment={environment}

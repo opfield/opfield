@@ -112,6 +112,17 @@ export interface AuthProvisioningSettings {
     senderName: string | null;
     senderEmail: string | null;
     verifiedAt: string | null;
+    /** cloud: sign-in emails go through Opfield Cloud email (then configured/verifiedAt describe it). */
+    transport?: "smtp" | "cloud";
+    /** Managed installations whose Opfield account set up cloud email; null elsewhere. */
+    cloud?: {
+      available: boolean;
+      active: boolean;
+      ownSmtp: boolean;
+      from: string | null;
+      limits: { month: number; day: number; hour: number } | null;
+      since: string | null;
+    } | null;
   };
   oidc?: {
     configured: boolean;
@@ -194,6 +205,14 @@ export interface AuthProvisioningSettings {
   availableGroups: AuthProvisioningGroupOption[];
   /** Managed cloud installation: the public URL and gRPC addresses belong to the cloud. */
   cloudManaged?: boolean;
+  /** Managed only: the custom domain the Opfield account set; read-only here. */
+  cloudPublicAlias?: {
+    domain: string | null;
+    state: "none" | "issuing" | "active" | "failed";
+    error?: string;
+    /** The installation's own address, which keeps working next to the custom domain. */
+    baseUrl: string | null;
+  } | null;
   /** Use Opfield account for sign-in, as Settings > Authentication > OIDC provider shows it. */
   opfieldAccountSignIn?: {
     /** Connected to Opfield Cloud: the action brings the provider back or asks the account for a client. */

@@ -20,7 +20,21 @@ export function HealthBadge({ status }: { status: string }) {
   );
 }
 
+/** The Opfield Cloud add-on's busiest window, as its usage shows it ("40% used"). */
+export function formatCloudUsage(connection: InferenceProviderConnection) {
+  const windows = connection.cloudUsage?.windows ?? [];
+  if (!windows.length) return "Not reported";
+  return `${Math.round(Math.max(...windows.map((window) => window.usedPercent)))}% used`;
+}
+
+/** Window names of the Opfield Cloud usage ("5h", "30d") as Settings shows them. */
+export function cloudUsageWindowLabel(window: string) {
+  return window === "5h" ? "5 hours" : window === "30d" ? "30 days" : window;
+}
+
 export function formatWorstQuota(connections: InferenceProviderConnection[]) {
+  const cloud = connections.find((connection) => connection.cloudManaged);
+  if (cloud) return formatCloudUsage(cloud);
   const apiBudget = connections.find(
     (connection) => connection.apiMonthlyLimitMicrodollars !== null
   );

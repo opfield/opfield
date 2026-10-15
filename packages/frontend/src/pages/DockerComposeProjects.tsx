@@ -41,12 +41,14 @@ import {
 } from "@/components/ui/select";
 import { TruncateStart } from "@/components/ui/truncate-start";
 import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
+import { useGlobalSectionAccess } from "@/hooks/use-global-section-scopes";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useRetainedDialogValue } from "@/hooks/use-retained-dialog-value";
 import { toastApiError } from "@/lib/api-error-toast";
 import { NORMAL_LIST_FILTER } from "@/lib/app-members";
 import { createClientUuid } from "@/lib/client-id";
 import { canAdoptComposeProject, hasComposeProjectScope } from "@/lib/compose-access";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { loadVisibleDockerNodes } from "@/lib/docker-node-access";
 import { nodeBadgeClassName } from "@/lib/node-appearance";
 import { dockerComposeProjectRoute } from "@/lib/resource-routes";
@@ -146,7 +148,17 @@ export function DockerComposeProjects({
   const canManageFolders = !fixedNodeId && canManageSomeFolders;
   // Creating, adopting and applying need Compose applications; existing projects keep start and stop.
   const planIncludesCompose = usePlanIncludes("compose-applications");
-  const canCreate = planIncludesCompose && hasScopedAccess("docker:compose:create");
+  // The global list creates outside app places; a node's view keeps every grant.
+  const globalAccess = useGlobalSectionAccess();
+  const canCreate =
+    planIncludesCompose &&
+    hasCreationDestination(
+      fixedNodeId ? (user?.scopes ?? []) : globalAccess.scopes,
+      "docker:compose:create",
+      {
+        nodeGrants: true,
+      }
+    );
   // A node's view keeps app members (with an app badge); the normal list leaves them to their app.
   const loadProjects = useCallback(
     () => fetchProjects(fixedNodeId, fixedNodeId ? {} : NORMAL_LIST_FILTER),

@@ -149,6 +149,7 @@ export class CloudLinkService {
   private auditService: Pick<AuditService, 'log'> | null = null;
   private liveRequestWindows: (() => CloudRequestWindowView[]) | null = null;
   private signInDetacher: ((reason: CloudSignInDetachReason) => Promise<void>) | null = null;
+  private mailTransportReader: (() => Promise<'cloud' | 'smtp' | null>) | null = null;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -176,6 +177,16 @@ export class CloudLinkService {
     return () => this.helloListeners.delete(listener);
   }
 
+  /** How a managed installation's sign-in emails leave, for the hello (null: not managed). */
+  setMailTransportReader(reader: (() => Promise<'cloud' | 'smtp' | null>) | null): void {
+    this.mailTransportReader = reader;
+  }
+
+  /** Something the hello reports changed outside this service (the email transport): the open link sends it again. */
+  helloChanged(): void {
+    this.notifyHello();
+  }
+
   /** The socket state of this process when it holds the link; null otherwise. */
   setLocalSocketStatusReader(reader: (() => CloudSocketStatus | null) | null): void {
     this.localSocketStatus = reader;
@@ -187,16 +198,23 @@ export class CloudLinkService {
 
   /**
    * What the socket hello tells the account: the installation, whether it may be managed remotely, while an admin
-   * asked for it the request for an Opfield account sign-in client (answered with an sso-client request), and that it
-   * takes sso-revoke requests.
+   * asked for it the request for an Opfield account sign-in client (answered with an sso-client request), that it
+   * takes sso-revoke requests, and on a managed installation how its sign-in emails leave.
    */
   async helloInfo(): Promise<CloudHello> {
-    const [identity, remoteManagement, ssoClientRequest] = await Promise.all([
+    const [identity, remoteManagement, ssoClientRequest, mailTransport] = await Promise.all([
       this.identity(),
       this.privilegedAllowed(),
       this.pendingSsoClientRequest(),
+      this.mailTransportReader ? this.mailTransportReader().catch(() => null) : Promise.resolve(null),
     ]);
-    return { ...identity, remoteManagement, ...(ssoClientRequest ? { ssoClientRequest } : {}), ssoRevoke: true };
+    return {
+      ...identity,
+      remoteManagement,
+      ...(ssoClientRequest ? { ssoClientRequest } : {}),
+      ssoRevoke: true,
+      ...(mailTransport ? { mailTransport } : {}),
+    };
   }
 
   /** The admin's pending request for an Opfield account sign-in client of the current agent; null when none. */

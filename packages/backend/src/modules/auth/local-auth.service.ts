@@ -206,24 +206,36 @@ export class LocalAuthService {
     });
   }
 
-  async requestPasswordLink(email: string, purpose: 'password_setup' | 'password_reset'): Promise<void> {
+  /**
+   * Emails a password link. `wait` (an administrator's action) follows the delivery and throws when it failed;
+   * the public reset never waits. Null when no email went out (no such password user, or the reset was throttled).
+   */
+  async requestPasswordLink(
+    email: string,
+    purpose: 'password_setup' | 'password_reset',
+    options: { wait?: boolean } = {}
+  ): Promise<'sent' | 'queued' | null> {
     const methods = (await this.authSettingsService.getConfig()).methods;
-    if (!methods.password) return;
+    if (!methods.password) return null;
     const user = await this.db.query.users.findFirst({
       where: and(eq(users.email, normalizeEmail(email)), eq(users.authMethod, 'password')),
     });
-    if (!user || user.isBlocked) return;
-    if (purpose === 'password_reset' && !(await this.reservePasswordReset(user.id))) return;
+    if (!user || user.isBlocked) return null;
+    if (purpose === 'password_reset' && !(await this.reservePasswordReset(user.id))) return null;
     const secret = nanoid(32);
     const challengeId = await this.createChallenge(user.id, purpose, secret, PASSWORD_LINK_TTL_SECONDS);
     const token = `${challengeId}.${secret}`;
     const baseUrl = this.generalSettingsService
       ? await this.generalSettingsService.requirePublicUrl()
       : getEnv().APP_URL;
-    await this.authMailService.sendSecurityEmail(user.email, {
-      kind: purpose,
-      actionUrl: new URL(`/reset-password?token=${encodeURIComponent(token)}`, baseUrl).toString(),
-    });
+    return this.authMailService.sendSecurityEmail(
+      user.email,
+      {
+        kind: purpose,
+        actionUrl: new URL(`/reset-password?token=${encodeURIComponent(token)}`, baseUrl).toString(),
+      },
+      options
+    );
   }
 
   async getPasswordLinkProfile(token: string): Promise<PasswordLinkProfile | null> {

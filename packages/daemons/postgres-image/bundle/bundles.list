@@ -1,0 +1,8 @@
+# Downloadable extension bundles: extensions too heavy to bake into the image
+# (more than about 10 MB with the libraries they need), installed on demand into
+# the database's own volume. Built per PostgreSQL major, Debian release of the
+# official image and architecture by scripts/build-postgres-bundle.sh.
+#
+# id          requires   packages ({major} = PG_MAJOR; the first one names the bundle version)
+postgis       -          postgresql-{major}-postgis-3 postgresql-{major}-postgis-3-scripts
+pgrouting     postgis    postgresql-{major}-pgrouting postgresql-{major}-pgrouting-scripts

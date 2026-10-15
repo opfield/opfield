@@ -1,4 +1,4 @@
-import type { DockerBuildStatus } from "@/types";
+import type { DockerBuild, DockerBuildStatus } from "@/types";
 
 export const ACTIVE_DOCKER_BUILD_STATUSES = new Set<DockerBuildStatus>([
   "queued",
@@ -27,3 +27,9 @@ export const DOCKER_BUILD_STATUS_VARIANT: Record<
   cancelled: "secondary",
   superseded: "secondary",
 };
+
+/** Why a deployed build's target is not running it yet: it was stopped, and the new image runs on its next start. */
+export function dockerBuildRolloutNote(build: Pick<DockerBuild, "progress">): string | null {
+  const note = build.progress?.rolloutNote;
+  return typeof note === "string" && note ? note : null;
+}

@@ -44,10 +44,6 @@ export function statusVariant(
   return "secondary";
 }
 
-function shortId(value?: string | null) {
-  return value ? value.slice(0, 12) : "-";
-}
-
 export function DeploymentOverview({
   deployment,
   active,
@@ -95,11 +91,13 @@ export function DeploymentOverview({
               // Inline copy control inside the value text; a Button would change the row height.
               <button
                 type="button"
-                className="flex items-center gap-1.5 font-mono hover:text-primary cursor-pointer"
+                className="flex min-w-0 max-w-full items-center gap-1.5 font-mono hover:text-primary cursor-pointer"
+                title={deployment.id}
                 onClick={() => copyToClipboard(deployment.id)}
               >
-                {shortId(deployment.id)}
-                <ClipboardCopy className="h-3 w-3" />
+                {/* The whole id, cut only by the row width. */}
+                <span className="truncate">{deployment.id || "-"}</span>
+                <ClipboardCopy className="h-3 w-3 shrink-0" />
               </button>
             }
           />

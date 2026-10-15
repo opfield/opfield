@@ -17,6 +17,7 @@ import { AppFolderService } from './app-folders.service.js';
 import { AppMembersReader, AppMembersService } from './app-members.service.js';
 import { AppMembershipService, appMemberFolderCondition, withAppMembers } from './app-membership.js';
 import { AppNodesService } from './app-nodes.service.js';
+import { UpdateAppEnvironmentSchema } from './apps.schemas.js';
 import { AppsService } from './apps.service.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
@@ -309,5 +310,72 @@ describe.skipIf(!url)('app membership on disposable PostgreSQL', () => {
     const toolWithout = await tool({ excludeAppMembers: true, limit: 100 });
     expect(toolWithout).toContain(outside);
     expect(toolWithout).not.toContain(member);
+  });
+
+  it('imports domains within the joined app and environment domain allowlists', async () => {
+    const scopes = [...ALL, 'domains:edit', 'domains:view'];
+    const app = await apps.create(actor(scopes), { name: 'Domains Shop' });
+    const env = app.environments[0];
+    const nginx = await node('nginx');
+    await container.resolve(AppNodesService).allow(actor(scopes), app.id, env.id, nginx);
+    const domain = async (name: string, isSystem = false) =>
+      (
+        await one(
+          `insert into domains (domain, nginx_node_id, is_system, created_by_id) values ($1, $2, $3, $4) returning id`,
+          [name, nginx, isSystem, userId]
+        )
+      ).id as string;
+    const [api, other, system] = [
+      await domain('api.shop-domains.test'),
+      await domain('other-domains.test'),
+      await domain('panel-domains.test', true),
+    ];
+    const route = (
+      await one(
+        `insert into proxy_hosts (slug, node_id, domain_names, created_by_id) values ($1, $2, $3, $4) returning id`,
+        [`r-${randomUUID().slice(0, 6)}`, nginx, JSON.stringify(['www.elsewhere.test']), userId]
+      )
+    ).id;
+    await apps.update(actor(scopes), app.id, { domainPatterns: ['*.shop-domains.test'] });
+
+    const target = { appId: app.id, environmentId: env.id };
+    const first = await members.place(actor(scopes), {
+      target,
+      members: [
+        { type: 'domain', id: api },
+        { type: 'domain', id: other },
+        { type: 'domain', id: system },
+        { type: 'route', id: route },
+      ],
+    });
+    expect(first.placed.map((entry) => entry.id)).toEqual([api]);
+    expect(Object.fromEntries(first.refused.map((entry) => [entry.member.id, entry.code]))).toEqual({
+      [other]: 'APP_DOMAIN_NOT_ALLOWED',
+      [system]: 'DOMAIN_NOT_PLACEABLE',
+      [route]: 'APP_DOMAIN_NOT_ALLOWED',
+    });
+    expect((await one('select folder_id from domains where id = $1', [api])).folder_id).toBe(
+      env.placementFolderIds.domains
+    );
+
+    // The environment's own list joins the app-wide one.
+    await apps.updateEnvironment(
+      actor(scopes),
+      app.id,
+      env.id,
+      UpdateAppEnvironmentSchema.parse({ domainPatterns: ['Other-Domains.test.'] })
+    );
+    const second = await members.place(actor(scopes), { target, members: [{ type: 'domain', id: other }] });
+    expect(second.refused).toEqual([]);
+    const detail = await apps.get(scopes, app.id);
+    expect(detail.domainPatterns).toEqual(['*.shop-domains.test']);
+    expect(detail.environments[0]?.domainPatterns).toEqual(['other-domains.test']);
+    const listed = await apps.listMembers(scopes, app.id);
+    expect(
+      listed
+        .filter((member) => member.type === 'domain')
+        .map((member) => member.id)
+        .sort()
+    ).toEqual([api, other].sort());
   });
 });

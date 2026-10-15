@@ -1,3 +1,5 @@
+import type { AppMembershipRef } from "./apps";
+
 // ── Domains ───────────────────────────────────────────────────────
 
 export type DnsStatus = "valid" | "invalid" | "pending" | "unknown";
@@ -23,6 +25,8 @@ export interface DnsRecords {
 }
 
 export interface Domain {
+  /** Set when the domain is a member of an app environment. */
+  app?: AppMembershipRef | null;
   id: string;
   domain: string;
   description: string | null;

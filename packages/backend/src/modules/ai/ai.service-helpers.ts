@@ -201,6 +201,9 @@ function compactProxyHostForAgent(host: Record<string, any>) {
     ...(safeHost.dockerHostPort !== undefined ? { dockerHostPort: safeHost.dockerHostPort } : {}),
     ...(safeHost.dockerProtocol !== undefined ? { dockerProtocol: safeHost.dockerProtocol } : {}),
     ...(safeHost.secureLinkActive !== undefined ? { secureLinkActive: safeHost.secureLinkActive } : {}),
+    ...(safeHost.additionalSecureLinkCount !== undefined
+      ? { additionalSecureLinkCount: safeHost.additionalSecureLinkCount }
+      : {}),
     ...(safeHost.pageTarget
       ? {
           pageTarget: {

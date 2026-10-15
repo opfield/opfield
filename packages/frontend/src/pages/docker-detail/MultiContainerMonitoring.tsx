@@ -380,7 +380,7 @@ export function MultiContainerMonitoring({
               {processTitles.map((title) => (
                 <th
                   key={title}
-                  className="px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                  className="overflow-hidden text-ellipsis px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground"
                 >
                   {title}
                 </th>
@@ -450,7 +450,7 @@ export function MultiContainerMonitoring({
                                   {processTitles.map((title, columnIndex) => (
                                     <td
                                       key={`${title}-${columnIndex}`}
-                                      className="px-4 py-2 font-mono text-xs"
+                                      className="overflow-hidden px-4 py-2 font-mono text-xs [overflow-wrap:anywhere]"
                                     >
                                       {row[columnIndex] ?? "—"}
                                     </td>

@@ -89,7 +89,8 @@ export function ResourceListHeaderTable<TItem = unknown>({
             <th
               key={column.id}
               className={cn(
-                "p-3 text-xs font-medium uppercase tracking-wider text-muted-foreground",
+                // A fixed-layout column clips what does not fit instead of drawing it over its neighbour.
+                "overflow-hidden text-ellipsis p-3 text-xs font-medium uppercase tracking-wider text-muted-foreground",
                 column.align === "right" && "text-right",
                 column.align === "center" && "text-center",
                 column.className
@@ -172,7 +173,8 @@ export function ResourceListCell({
     <td className={cn("p-0 align-middle", align === "right" && "text-right", className)} {...props}>
       <div
         className={cn(
-          "flex min-h-[52px] min-w-0 items-center px-3 py-3",
+          // overflow-hidden: content wider than its fixed-width column is clipped at the cell, never drawn over the next one.
+          "flex min-h-[52px] min-w-0 items-center overflow-hidden px-3 py-3",
           align === "center" && "justify-center",
           align === "right" && "justify-end",
           contentClassName

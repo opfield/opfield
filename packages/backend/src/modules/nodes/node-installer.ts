@@ -1,7 +1,9 @@
 import { getEnv } from '@/config/env.js';
 import { INSTALLER_RELEASES_URL } from '@/config/vendor-urls.js';
 import { container } from '@/container.js';
+import { getConsoleBaseHost } from '@/lib/console-base-host.js';
 import { compareSemver, RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
+import { isCloudManaged } from '@/modules/cloud-link/cloud-link-managed-locks.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { DaemonUpdateService, daemonTypeForNodeType } from '@/services/daemon-update.service.js';
 import { RelayPoolService } from '@/services/relay-pool.service.js';
@@ -87,8 +89,20 @@ export function browserHostOpfield(host: string | undefined): string | null {
   }
 }
 
+/**
+ * A managed installation enrols nodes against its console domain (the address the cloud gave it), whatever custom
+ * domain the public URL names or the browser is on; null elsewhere.
+ */
+export async function managedConsoleHostOpfield(): Promise<string | null> {
+  const host = getConsoleBaseHost();
+  if (!host || !(await isCloudManaged())) return null;
+  return browserHostOpfield(host);
+}
+
 /** The same fallback for callers without a browser request (AI and MCP tools): the host of the public URL. */
 export async function publicUrlFallbackOpfield(): Promise<string | null> {
+  const managed = await managedConsoleHostOpfield();
+  if (managed) return managed;
   if (!container.isRegistered(GeneralSettingsService)) return null;
   const publicUrl = await container.resolve(GeneralSettingsService).getPublicUrl();
   if (!publicUrl) return null;
