@@ -118,7 +118,7 @@ func managedPostgresExtensionBundleIDs(input managedDatabaseCommand) []string {
 
 // managedPostgresExtensionFlags are the server flags of the preload
 // libraries: shared_preload_libraries and the settings they need (pg_cron's
-// database, pg_squeeze's logical WAL). Command-line settings win over
+// database). Command-line settings win over
 // postgresql.auto.conf, so they hold on set members too.
 func managedPostgresExtensionFlags(input managedDatabaseCommand) []string {
 	libraries := managedPostgresPreloadLibraries(input)

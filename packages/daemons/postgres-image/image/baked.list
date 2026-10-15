@@ -24,12 +24,10 @@ pg_ivm           required  apt    postgresql-{major}-pg-ivm
 semver           required  apt    postgresql-{major}-semver
 pgmq             optional  apt    postgresql-{major}-pgmq
 pg_uuidv7        optional  apt    postgresql-{major}-pg-uuidv7
-age              optional  apt    postgresql-{major}-age
 pg_stat_kcache   optional  apt    postgresql-{major}-pg-stat-kcache
 pg_qualstats     optional  apt    postgresql-{major}-pg-qualstats
 pgtap            optional  apt    postgresql-{major}-pgtap
 prefix           optional  apt    postgresql-{major}-prefix
 ip4r             optional  apt    postgresql-{major}-ip4r
 periods          optional  apt    postgresql-{major}-periods
-pg_squeeze       optional  apt    postgresql-{major}-squeeze
 pg_show_plans    optional  apt    postgresql-{major}-show-plans

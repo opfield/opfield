@@ -1,7 +1,7 @@
 {
   "$comment": "Curated PostgreSQL extensions Opfield offers (the single source of truth; the docker daemon embeds it and refuses every other name, the controller keeps an identical copy). delivery: contrib = in the official image, baked = in Opfield's image (packages/daemons/postgres-image/image/baked.list), bundle = downloaded into the database's volume. bundle names the bundle an extension needs (its own, or a dependency such as postgis for h3_postgis). preloadLibraries lists the shared_preload_libraries entries it needs; their load order and the settings the daemon adds with them are in preloadLibraries at the top level. Bump allowlistVersion with every change.",
   "schemaVersion": 1,
-  "allowlistVersion": 1,
+  "allowlistVersion": 2,
   "preloadLibraries": [
     { "name": "pg_stat_statements", "delivery": "contrib", "settings": {} },
     { "name": "pg_stat_kcache", "delivery": "baked", "settings": {} },
@@ -9,9 +9,7 @@
     { "name": "pg_hint_plan", "delivery": "baked", "settings": {} },
     { "name": "pg_show_plans", "delivery": "baked", "settings": {} },
     { "name": "pgaudit", "delivery": "baked", "settings": {} },
-    { "name": "pg_cron", "delivery": "baked", "settings": { "cron.database_name": "{databaseName}" } },
-    { "name": "pg_squeeze", "delivery": "baked", "settings": { "wal_level": "logical" } },
-    { "name": "age", "delivery": "baked", "settings": {} }
+    { "name": "pg_cron", "delivery": "baked", "settings": { "cron.database_name": "{databaseName}" } }
   ],
   "extensions": [
     { "name": "vector", "category": "ai_search", "description": "Vector similarity search for embeddings (pgvector).", "delivery": "baked", "bundle": null, "preloadLibraries": [], "notes": "" },
@@ -65,7 +63,6 @@
     { "name": "dblink", "category": "foreign_data", "description": "Run queries on other PostgreSQL databases.", "delivery": "contrib", "bundle": null, "preloadLibraries": [], "notes": "" },
 
     { "name": "pg_repack", "category": "maintenance", "description": "Removes table and index bloat without long locks.", "delivery": "baked", "bundle": null, "preloadLibraries": [], "notes": "" },
-    { "name": "pg_squeeze", "category": "maintenance", "description": "Removes table bloat in the background.", "delivery": "baked", "bundle": null, "preloadLibraries": ["pg_squeeze"], "notes": "Turns on logical WAL." },
     { "name": "amcheck", "category": "maintenance", "description": "Checks tables and indexes for corruption.", "delivery": "contrib", "bundle": null, "preloadLibraries": [], "notes": "" },
     { "name": "pgstattuple", "category": "maintenance", "description": "Tuple-level statistics and bloat estimates.", "delivery": "contrib", "bundle": null, "preloadLibraries": [], "notes": "" },
     { "name": "pg_freespacemap", "category": "maintenance", "description": "Inspects the free space map.", "delivery": "contrib", "bundle": null, "preloadLibraries": [], "notes": "" },
@@ -83,7 +80,6 @@
     { "name": "orafce", "category": "other", "description": "Oracle compatibility functions and packages.", "delivery": "baked", "bundle": null, "preloadLibraries": [], "notes": "" },
     { "name": "pg_ivm", "category": "other", "description": "Incrementally maintained materialized views.", "delivery": "baked", "bundle": null, "preloadLibraries": [], "notes": "" },
     { "name": "pgmq", "category": "other", "description": "Lightweight message queue.", "delivery": "baked", "bundle": null, "preloadLibraries": [], "notes": "" },
-    { "name": "age", "category": "other", "description": "Graph database with openCypher queries (Apache AGE).", "delivery": "baked", "bundle": null, "preloadLibraries": ["age"], "notes": "" },
     { "name": "plpgsql_check", "category": "other", "description": "Linter and checker for PL/pgSQL functions.", "delivery": "baked", "bundle": null, "preloadLibraries": [], "notes": "" },
     { "name": "pgtap", "category": "other", "description": "Unit testing for the database.", "delivery": "baked", "bundle": null, "preloadLibraries": [], "notes": "" }
   ],

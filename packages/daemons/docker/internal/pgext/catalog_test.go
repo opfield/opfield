@@ -122,8 +122,8 @@ func TestCanonicalPreloadOrdersAndRefuses(t *testing.T) {
 	if _, err := catalog.CanonicalPreload([]string{"auto_explain"}); err == nil {
 		t.Fatal("an unlisted library must be refused")
 	}
-	settings := catalog.PreloadSettings([]string{"pg_cron", "pg_squeeze"}, "app")
-	if settings["cron.database_name"] != "app" || settings["wal_level"] != "logical" || len(settings) != 2 {
+	settings := catalog.PreloadSettings([]string{"pg_stat_statements", "pg_cron"}, "app")
+	if settings["cron.database_name"] != "app" || len(settings) != 1 {
 		t.Fatalf("settings = %v", settings)
 	}
 }

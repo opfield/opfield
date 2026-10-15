@@ -150,9 +150,9 @@ func TestPostgresPreloadFlagsAndRecreate(t *testing.T) {
 	if !managedDatabaseContainerSettingsChanged(record, postgresExtensionCommand(testOpfieldPostgres17, []string{"pg_stat_statements"}, nil)) {
 		t.Fatal("other preload libraries must recreate the container")
 	}
-	squeeze := strings.Join(managedPostgresExtensionFlags(postgresExtensionCommand(testOpfieldPostgres17, []string{"pg_squeeze"}, nil)), " ")
-	if squeeze != "-c shared_preload_libraries=pg_squeeze -c wal_level=logical" {
-		t.Fatalf("pg_squeeze flags = %q", squeeze)
+	cron := strings.Join(managedPostgresExtensionFlags(postgresExtensionCommand(testOpfieldPostgres17, []string{"pg_cron", "pg_stat_statements"}, nil)), " ")
+	if cron != "-c shared_preload_libraries=pg_stat_statements,pg_cron -c cron.database_name=app" {
+		t.Fatalf("pg_cron flags = %q", cron)
 	}
 }
 

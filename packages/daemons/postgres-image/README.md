@@ -82,9 +82,9 @@ Installed size the packages add to the official image (apt `Installed-Size`, PGD
 | pgvector | 0.8 MB | 0.8 MB | 0.8 MB | 0.8 MB | 0.8 MB | baked |
 | pg_cron | 0.2 MB | 0.2 MB | 0.2 MB | 0.2 MB | 0.2 MB | baked |
 | pg_partman (extension files only; its Python helpers would add 23 MB) | 8.2 MB | 8.2 MB | 8.2 MB | 8.2 MB | 8.2 MB | baked |
-| pgaudit, hypopg, pg_hint_plan, pg_repack, semver, pg_uuidv7, prefix, pg_stat_kcache, pg_qualstats, pg_squeeze, pg_show_plans | ≤ 0.3 MB each | | | | | baked |
+| pgaudit, hypopg, pg_hint_plan, pg_repack, semver, pg_uuidv7, prefix, pg_stat_kcache, pg_qualstats, pg_show_plans | ≤ 0.3 MB each | | | | | baked |
 | plpgsql_check, rum, ip4r, periods, h3 (+ libh3) | 0.5–0.8 MB each | | | | | baked |
-| orafce, pgtap, age | 1.2 / 1.8 / 1.9–2.3 MB | | | | | baked |
+| orafce, pgtap | 1.2 / 1.8 MB | | | | | baked |
 | pgmq | no PGDG package | | | | | (skipped) |
 | PostGIS (+ GDAL, GEOS, PROJ, SFCGAL, …) | 232 MB | 232 MB | 232 MB | 232 MB | 232 MB | bundle |
 | pgRouting (+ Boost), on top of PostGIS | 3.4 MB package, 239 MB with PostGIS | | | | | bundle |

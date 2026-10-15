@@ -136,8 +136,7 @@ func postgresExtensionDDL(input postgresExtensionApplyCommand, curated []string)
 }
 
 // postgresExtensionGrantsSQL grants the application role the schemas the
-// curated extensions created (pg_cron's cron, PostGIS topology, AGE's
-// ag_catalog, …) with their tables, sequences and routines; objects in other
+// curated extensions created (pg_cron's cron, PostGIS topology, …) with their tables, sequences and routines; objects in other
 // schemas follow their PUBLIC grants. The query writer reaches them through
 // the application role.
 func postgresExtensionGrantsSQL(application string, curated []string) string {

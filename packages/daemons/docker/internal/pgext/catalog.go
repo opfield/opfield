@@ -43,7 +43,7 @@ var (
 	debianPattern        = regexp.MustCompile(`^[a-z]+$`)
 	bundleVersionPattern = regexp.MustCompile(`^[0-9A-Za-z.]+$`)
 	categories           = []string{"ai_search", "geo", "scheduling_partitioning", "observability_tuning", "data_types", "text_search", "foreign_data", "maintenance", "other"}
-	allowedSettings      = map[string]bool{"cron.database_name": true, "wal_level": true}
+	allowedSettings      = map[string]bool{"cron.database_name": true}
 	// Architectures bundles are built for (Docker's names, as runtime.GOARCH).
 	Architectures = []string{"amd64", "arm64"}
 )
