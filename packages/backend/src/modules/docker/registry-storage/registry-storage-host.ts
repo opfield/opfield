@@ -1,5 +1,9 @@
 import { DOCKER_COMPOSE_CLI_IMAGE_REF } from '@/config/docker-compose-cli-image.js';
-import { REGISTRY_FILESYSTEM_ROOT, type RegistryS3Settings } from '@/foundation/registry-storage.js';
+import {
+  REGISTRY_FILESYSTEM_ROOT,
+  type RegistryS3Settings,
+  type RegistryStorageBackend,
+} from '@/foundation/registry-storage.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerContainerDetails, DockerService } from '@/services/docker.service.js';
 
@@ -141,9 +145,13 @@ export class RegistryStorageHost {
     });
   }
 
-  /** Writes the target storage into .env and docker-compose.yml; returns the backup that puts them back. */
-  async applyHostFiles(context: RegistryStorageHostContext, target: RegistryS3Settings | null): Promise<string> {
-    const result = await this.runCli(context, ['apply', '--host-dir', '/host'], {
+  /** Writes the target storage into .env and docker-compose.yml, keeping the previous files in backup folder `backup`. */
+  async applyHostFiles(
+    context: RegistryStorageHostContext,
+    target: RegistryS3Settings | null,
+    backup: string
+  ): Promise<void> {
+    await this.runCli(context, ['apply', '--host-dir', '/host', '--backup', backup], {
       env: [
         `OPFIELD_REGISTRY_STORAGE_TARGET=${JSON.stringify({ backend: target ? 's3' : 'filesystem' })}`,
         ...(target ? [`OPFIELD_REGISTRY_STORAGE_S3=${JSON.stringify(target)}`] : []),
@@ -152,8 +160,37 @@ export class RegistryStorageHost {
       network: 'none',
       timeoutMs: HOST_STEP_TIMEOUT_MS,
     });
-    if (typeof result.backup !== 'string') throw new Error('Registry storage step apply returned no backup');
-    return result.backup;
+  }
+
+  /** The storage .env selects and the one the registry block of docker-compose.yml runs on. */
+  async hostStorage(
+    context: RegistryStorageHostContext
+  ): Promise<{ env: RegistryStorageBackend; compose: RegistryStorageBackend }> {
+    const result = await this.runCli(context, ['status', '--host-dir', '/host'], {
+      binds: [`${context.composeDir}:/host:ro`],
+      network: 'none',
+      timeoutMs: HOST_STEP_TIMEOUT_MS,
+    });
+    const backend = (value: unknown): RegistryStorageBackend => (value === 's3' ? 's3' : 'filesystem');
+    return { env: backend(result.env), compose: backend(result.compose) };
+  }
+
+  /** Makes the registry block of docker-compose.yml follow the storage .env selects. */
+  async syncCompose(context: RegistryStorageHostContext): Promise<void> {
+    await this.runCli(context, ['sync-compose', '--host-dir', '/host'], {
+      binds: [`${context.composeDir}:/host`],
+      network: 'none',
+      timeoutMs: HOST_STEP_TIMEOUT_MS,
+    });
+  }
+
+  /** Removes what an interrupted copy onto the volume left beside the registry data. */
+  async cleanImport(context: RegistryStorageHostContext): Promise<void> {
+    await this.runCli(context, ['clean-import', '--volume', REGISTRY_FILESYSTEM_ROOT], {
+      binds: [`${context.dataSource}:${REGISTRY_FILESYSTEM_ROOT}`],
+      network: 'none',
+      timeoutMs: HOST_STEP_TIMEOUT_MS,
+    });
   }
 
   async restoreHostFiles(context: RegistryStorageHostContext, backup: string): Promise<void> {

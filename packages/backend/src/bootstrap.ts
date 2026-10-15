@@ -2120,22 +2120,23 @@ export async function initializeContainer(): Promise<void> {
   dockerInternalRegistryService.setExecutor(
     createDockerRegistryMaintenanceExecutor(dockerService, dockerRegistryTokenService)
   );
-  await dockerInternalRegistryService.recoverInterruptedMaintenance().catch((error) => {
-    logger.error('Failed to recover interrupted internal registry maintenance', { error });
+  const dockerRegistryStorageService = new DockerRegistryStorageService({
+    db,
+    docker: dockerService,
+    tokenService: dockerRegistryTokenService,
+    audit: auditService,
+    eventBus,
+    objectStorage: () => objectStorageService,
+    composeProjectDir: env.COMPOSE_PROJECT_DIR,
   });
+  // A storage switch a restart interrupted is finished or rolled back first; it then owns the registry maintenance.
+  if (!(await dockerRegistryStorageService.recoverAfterRestart())) {
+    await dockerInternalRegistryService.recoverInterruptedMaintenance().catch((error) => {
+      logger.error('Failed to recover interrupted internal registry maintenance', { error });
+    });
+  }
   container.registerInstance(DockerService, dockerService);
-  container.registerInstance(
-    DockerRegistryStorageService,
-    new DockerRegistryStorageService({
-      db,
-      docker: dockerService,
-      tokenService: dockerRegistryTokenService,
-      audit: auditService,
-      eventBus,
-      objectStorage: () => objectStorageService,
-      composeProjectDir: env.COMPOSE_PROJECT_DIR,
-    })
-  );
+  container.registerInstance(DockerRegistryStorageService, dockerRegistryStorageService);
   container.registerInstance(SetupRestoreService, new SetupRestoreService(dockerService));
   container.resolve(ExternalSshService).setDockerService(dockerService);
 

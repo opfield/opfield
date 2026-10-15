@@ -67,8 +67,9 @@ export interface RegistryRetentionArtifact {
 
 export interface DockerRegistryMaintenanceExecutor {
   hasRepositories(): Promise<boolean>;
-  /** Null while the registry keeps its data in an S3 bucket, whose size is not measured. */
-  storageUsedBytes(): Promise<number | null>;
+  storageUsedBytes(): Promise<number>;
+  /** Where the registry keeps its data (volume or S3 bucket). */
+  storageBackend?(): Promise<'filesystem' | 's3'>;
   pauseAdmissions(): Promise<void>;
   drainUploads(): Promise<void>;
   deleteManifest(repository: string, digest: string): Promise<void>;
@@ -134,6 +135,7 @@ export function createDockerRegistryMaintenanceExecutor(
   return {
     hasRepositories: () => docker.managedRegistryHasRepositories(),
     storageUsedBytes: () => docker.managedRegistryStorageUsedBytes(),
+    storageBackend: () => docker.managedRegistryStorageBackend(),
     pauseAdmissions: async () => undefined,
     drainUploads: async () => {
       await wait(REGISTRY_WRITE_DRAIN_GRACE_MS);

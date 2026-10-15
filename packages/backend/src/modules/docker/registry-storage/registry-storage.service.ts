@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import { settings } from '@/db/schema/index.js';
 import {
   normalizeRegistryRootDirectory,
   type RegistryS3Settings,
@@ -21,48 +19,35 @@ import {
   createDockerRegistryMaintenanceStore,
   DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS,
   type DockerRegistryMaintenanceStore,
-  REGISTRY_WRITE_DRAIN_GRACE_MS,
+  type RegistryState,
 } from '../docker-registry-maintenance.js';
 import type { DockerRegistryTokenService } from '../docker-registry-token.service.js';
 import type { RegistryStorageInput } from './registry-storage.schemas.js';
 import { probeRegistryBucket } from './registry-storage-copy.js';
-import { RegistryStorageHost, type RegistryStorageHostContext } from './registry-storage-host.js';
-import { readablePinnedImages, verifyImagesReadable } from './registry-storage-verify.js';
+import { RegistryStorageHost } from './registry-storage-host.js';
+import {
+  type RegistryStorageCopyPlan,
+  type RegistryStorageSwitchRecord,
+  type RegistryStorageSwitchView,
+  readSwitchRecord,
+  switchView,
+  writeSwitchRecord,
+} from './registry-storage-record.js';
+import { decideRegistryStorageRecovery } from './registry-storage-recovery.js';
+import { RegistryStorageRunner } from './registry-storage-runner.js';
 import { RegistryS3Client } from './s3-client.js';
 
 const logger = createChildLogger('DockerRegistryStorageService');
-const SWITCH_SETTING_KEY = 'internal_registry_storage_switch';
 const REGISTRY_ID = 'gateway-internal-registry';
-
-export interface RegistryStorageSwitchRecord {
-  status: 'running' | 'completed' | 'failed';
-  from: RegistryStorageBackend;
-  target: RegistryStorageBackend;
-  startedAt: string;
-  finishedAt: string | null;
-  copiedFiles: number | null;
-  copiedBytes: number | null;
-  error: string | null;
-}
+const RECOVERY_RETRY_MS = 60_000;
+const RECOVERY_ATTEMPTS = 10;
 
 export interface RegistryStorageView {
   backend: RegistryStorageBackend;
   /** The bucket settings without the secret key; null on the registry volume. */
   s3: RegistryS3SettingsView | null;
   /** The last storage switch; `failed` with the reason when it did not finish. */
-  lastSwitch: RegistryStorageSwitchRecord | null;
-}
-
-type CopyPlan = 'to-bucket' | 'to-volume' | 'none';
-
-interface SwitchPlan {
-  owner: string;
-  context: RegistryStorageHostContext;
-  current: RegistryS3Settings | null;
-  target: RegistryS3Settings | null;
-  copy: CopyPlan;
-  record: RegistryStorageSwitchRecord;
-  userId: string;
+  lastSwitch: RegistryStorageSwitchView | null;
 }
 
 export interface DockerRegistryStorageDeps {
@@ -105,35 +90,53 @@ function view(settingsValue: RegistryS3Settings | null): RegistryS3SettingsView 
  * Moves the internal registry between its local volume and an S3 bucket. The bucket is probed first (a refused
  * switch changes nothing); the switch then copies the registry's data to the new storage while the registry keeps
  * serving pulls with pushes paused, rewrites .env and docker-compose.yml so updates keep the choice, recreates the
- * registry and checks that every image in use is readable. Any failure puts the files and the registry back.
+ * registry and checks that every image in use is readable. Any failure puts the files and the registry back, and a
+ * switch a restart interrupted is finished or rolled back at the next start (recoverAfterRestart).
  */
 export class DockerRegistryStorageService {
   private readonly store: DockerRegistryMaintenanceStore;
   private readonly host: RegistryStorageHost;
+  private readonly runner: RegistryStorageRunner;
   private readonly registryUrl: string;
+  /** Who started each running switch, for its audit entry. */
+  private readonly userIds = new Map<string, string>();
 
   constructor(private readonly deps: DockerRegistryStorageDeps) {
     this.store = createDockerRegistryMaintenanceStore(deps.db);
     this.host = new RegistryStorageHost(deps.docker, deps.composeProjectDir);
     this.registryUrl = deps.registryUrl ?? (process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000');
+    this.runner = new RegistryStorageRunner({
+      db: deps.db,
+      store: this.store,
+      host: this.host,
+      docker: deps.docker,
+      tokenService: deps.tokenService,
+      registryUrl: this.registryUrl,
+      emit: (action, state) => this.emit(action, state),
+      audit: (record, outcome, target) => this.audit(record, outcome, target),
+    });
   }
 
   async getView(): Promise<RegistryStorageView> {
     const [current, lastSwitch, state] = await Promise.all([
       this.currentStorage().catch(() => null),
-      this.readRecord(),
+      readSwitchRecord(this.deps.db),
       this.store.getState().catch(() => null),
     ]);
-    const backend = current ? (current.s3 ? 's3' : 'filesystem') : state?.storageBackend === 's3' ? 's3' : 'filesystem';
+    const backend = current ? current.backend : state?.storageBackend === 's3' ? 's3' : 'filesystem';
+    // Only while no recovery could take it over (the host is not installer-managed).
     const interrupted =
       lastSwitch?.status === 'running' && state !== null && state.maintenancePhase !== 'switching_storage';
     return {
       backend,
       s3: view(current?.s3 ?? null),
-      lastSwitch:
-        lastSwitch && interrupted
-          ? { ...lastSwitch, status: 'failed', error: 'Opfield restarted before the switch finished' }
-          : lastSwitch,
+      lastSwitch: lastSwitch
+        ? switchView(
+            interrupted
+              ? { ...lastSwitch, status: 'failed', error: 'Opfield restarted before the switch finished' }
+              : lastSwitch
+          )
+        : null,
     };
   }
 
@@ -150,7 +153,7 @@ export class DockerRegistryStorageService {
     ).s3;
     const target = input.backend === 'filesystem' ? null : await this.resolveTarget(input, current, actor.scopes);
     if (sameSettings(current, target)) return this.getView();
-    let copy: CopyPlan;
+    let copy: RegistryStorageCopyPlan;
     if (!current && target) copy = 'to-bucket';
     else if (current && !target) copy = 'to-volume';
     else if (current && target && sameLocation(current, target)) copy = 'none';
@@ -180,8 +183,13 @@ export class DockerRegistryStorageService {
     await this.store.acquireLease(owner, new Date(now.getTime() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS), now);
     const record: RegistryStorageSwitchRecord = {
       status: 'running',
+      phase: 'draining',
       from: current ? 's3' : 'filesystem',
       target: target ? 's3' : 'filesystem',
+      copy,
+      owner,
+      backup: null,
+      inUse: [],
       startedAt: now.toISOString(),
       finishedAt: null,
       copiedFiles: null,
@@ -189,18 +197,81 @@ export class DockerRegistryStorageService {
       error: null,
     };
     try {
-      await this.writeRecord(record);
+      await writeSwitchRecord(this.deps.db, record);
       this.emit(
         'maintenance',
         await this.store.updateState({ status: 'maintenance', writable: false, maintenancePhase: 'switching_storage' })
       );
     } catch (error) {
-      await this.releaseLease(error instanceof Error ? error.message : String(error));
+      await this.store
+        .updateState({ maintenancePhase: 'idle', maintenanceLeaseOwner: null, maintenanceLeaseExpiresAt: null })
+        .catch(() => undefined);
       throw error;
     }
     logger.info('Internal registry storage switch starts', { from: record.from, target: record.target, copy });
-    void this.runSwitch({ owner, context, current, target, copy, record, userId: actor.userId });
+    this.userIds.set(owner, actor.userId);
+    void this.runner.runSwitch(context, record, current, target).finally(() => this.userIds.delete(owner));
     return this.getView();
+  }
+
+  /**
+   * At start-up: compares the switch record, the host files and the running registry, and finishes or rolls back a
+   * switch a restart interrupted (or makes the registry follow the .env). Returns whether it took the registry over;
+   * when it did, the usual interrupted-maintenance recovery must not run. A failed check is retried in the background.
+   */
+  async recoverAfterRestart(attempt = 1): Promise<boolean> {
+    try {
+      return await this.recoverOnce();
+    } catch (error) {
+      logger.warn('Internal registry storage could not be checked after the start', {
+        attempt,
+        error: (error as Error).message,
+      });
+      if (attempt < RECOVERY_ATTEMPTS) {
+        setTimeout(() => void this.recoverAfterRestart(attempt + 1), RECOVERY_RETRY_MS).unref?.();
+      }
+      return false;
+    }
+  }
+
+  private async recoverOnce(): Promise<boolean> {
+    const context = await this.host.context().catch(() => null);
+    // Not an installer-managed host (development): nothing on the host to compare.
+    if (!context) return false;
+    const record = await readSwitchRecord(this.deps.db);
+    const [hostFiles, current] = await Promise.all([this.host.hostStorage(context), this.currentStorage()]);
+    const observed = {
+      record,
+      hostEnv: hostFiles.env,
+      hostCompose: hostFiles.compose,
+      container: current.backend,
+    };
+    if (record?.status === 'completed' && record.target !== hostFiles.env) {
+      logger.warn('The .env names another registry storage than the last switch; the registry follows the .env', {
+        lastSwitch: record.target,
+        env: hostFiles.env,
+      });
+    }
+    const action = decideRegistryStorageRecovery(observed);
+    if (action.kind === 'none') return false;
+    logger.warn('Internal registry storage is repaired after a restart', {
+      action,
+      switchStatus: record?.status ?? null,
+      switchPhase: record?.phase ?? null,
+      env: hostFiles.env,
+      compose: hostFiles.compose,
+      container: current.backend,
+    });
+    const running = record?.status === 'running' ? record : null;
+    const owner = running?.owner ?? `registry-storage:${randomUUID()}`;
+    const now = new Date();
+    await this.store.acquireLease(owner, new Date(now.getTime() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS), now);
+    this.emit(
+      'maintenance',
+      await this.store.updateState({ status: 'maintenance', writable: false, maintenancePhase: 'switching_storage' })
+    );
+    void this.runner.runRecovery(context, running, action, owner, hostFiles.env);
+    return true;
   }
 
   private async resolveTarget(
@@ -261,138 +332,40 @@ export class DockerRegistryStorageService {
     return resolved;
   }
 
-  private async runSwitch(plan: SwitchPlan): Promise<void> {
-    const { context, record } = plan;
-    const renew = setInterval(() => {
-      void this.store
-        .renewLease(plan.owner, new Date(Date.now() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS))
-        .catch(() => undefined);
-    }, 60_000);
-    renew.unref?.();
-    let backup: string | null = null;
-    try {
-      // Write tokens are refused from now on; pushes that hold one finish before the copy starts.
-      await new Promise((resolve) => setTimeout(resolve, REGISTRY_WRITE_DRAIN_GRACE_MS));
-      // Images in use that the registry serves now must be served by the new storage as well.
-      const inUse = await readablePinnedImages(this.store, this.deps.tokenService, this.registryUrl);
-      if (plan.copy !== 'none') {
-        const copied =
-          plan.copy === 'to-bucket'
-            ? await this.host.copyToBucket(context, plan.target!)
-            : await this.host.copyToVolume(context, plan.current!);
-        record.copiedFiles = copied.files;
-        record.copiedBytes = copied.bytes;
-        await this.writeRecord(record);
-      }
-      backup = await this.host.applyHostFiles(context, plan.target);
-      await this.host.recreateRegistry(context, this.registryUrl);
-      await verifyImagesReadable(inUse, this.deps.tokenService, this.registryUrl);
-      if (plan.copy === 'to-bucket') {
-        // The point of the bucket is the local disk: the volume's copy goes once the registry serves from S3.
-        await this.host.clearVolume(context).catch((error: Error) => {
-          record.error = `The registry runs on S3, but its old data could not be removed from the volume: ${error.message}`;
-          logger.warn('Internal registry volume was not cleared after the switch to S3', { error: error.message });
-        });
-      }
-      record.status = 'completed';
-      record.finishedAt = new Date().toISOString();
-      await this.writeRecord(record);
-      this.emit(
-        'storage',
-        await this.store.updateState({
-          status: 'ready',
-          writable: true,
-          storageBackend: record.target,
-          ...(record.target === 's3' ? { storageUsedBytes: 0 } : {}),
-          maintenancePhase: 'idle',
-          maintenanceLeaseOwner: null,
-          maintenanceLeaseExpiresAt: null,
-          lastError: null,
-        })
-      );
-      logger.info('Internal registry storage switch finished', { target: record.target });
-      await this.audit(plan, 'completed');
-    } catch (error) {
-      let message = error instanceof Error ? error.message : String(error);
-      if (backup) {
-        try {
-          await this.host.restoreHostFiles(context, backup);
-          await this.host.recreateRegistry(context, this.registryUrl);
-          message = `${message}. The registry runs on the previous storage again.`;
-        } catch (rollbackError) {
-          message = `${message}. Putting the previous storage back failed as well: ${(rollbackError as Error).message}`;
-        }
-      } else {
-        message = `${message}. The registry keeps its current storage.`;
-      }
-      logger.warn('Internal registry storage switch failed', { target: record.target, error: message });
-      record.status = 'failed';
-      record.error = message;
-      record.finishedAt = new Date().toISOString();
-      await this.writeRecord(record).catch(() => undefined);
-      await this.releaseLease(message);
-      await this.audit(plan, 'failed').catch(() => undefined);
-    } finally {
-      clearInterval(renew);
-    }
-  }
-
-  private async releaseLease(error: string): Promise<void> {
-    const state = await this.store
-      .updateState({
-        status: 'degraded',
-        writable: true,
-        maintenancePhase: 'idle',
-        maintenanceLeaseOwner: null,
-        maintenanceLeaseExpiresAt: null,
-        lastError: `Registry storage switch failed: ${error}`,
-      })
-      .catch(() => null);
-    if (state) this.emit('storage', state);
-  }
-
   private async currentStorage() {
     const registry = await this.host.registry();
     return registryStorageFromContainerEnv(registry.Config.Env ?? []);
   }
 
-  private async readRecord(): Promise<RegistryStorageSwitchRecord | null> {
-    const [row] = await this.deps.db.select().from(settings).where(eq(settings.key, SWITCH_SETTING_KEY)).limit(1);
-    return (row?.value as RegistryStorageSwitchRecord | undefined) ?? null;
-  }
-
-  private async writeRecord(record: RegistryStorageSwitchRecord): Promise<void> {
-    await this.deps.db
-      .insert(settings)
-      .values({ key: SWITCH_SETTING_KEY, value: record, updatedAt: new Date() })
-      .onConflictDoUpdate({ target: settings.key, set: { value: record, updatedAt: new Date() } });
-  }
-
-  private async audit(plan: SwitchPlan, outcome: 'completed' | 'failed'): Promise<void> {
+  private async audit(
+    record: RegistryStorageSwitchRecord,
+    outcome: string,
+    target: RegistryS3Settings | null
+  ): Promise<void> {
     await this.deps.audit.log({
       action: 'docker.internal-registry.storage.update',
-      userId: plan.userId,
+      userId: this.userIds.get(record.owner) ?? null,
       resourceType: 'docker-registry',
       resourceId: REGISTRY_ID,
       details: {
         outcome,
-        from: plan.record.from,
-        target: plan.record.target,
-        ...(plan.target
+        from: record.from,
+        target: record.target,
+        ...(target
           ? {
-              endpoint: plan.target.endpoint,
-              bucket: plan.target.bucket,
-              rootDirectory: plan.target.rootDirectory,
-              accessKeyId: plan.target.accessKeyId,
+              endpoint: target.endpoint,
+              bucket: target.bucket,
+              rootDirectory: target.rootDirectory,
+              accessKeyId: target.accessKeyId,
             }
           : {}),
-        copiedFiles: plan.record.copiedFiles,
-        error: plan.record.error,
+        copiedFiles: record.copiedFiles,
+        error: record.error,
       },
     });
   }
 
-  private emit(action: string, state: { status: string; writable: boolean; externalAccessEnabled: boolean }): void {
+  private emit(action: string, state: RegistryState): void {
     this.deps.eventBus?.publish('docker.registry.changed', {
       id: REGISTRY_ID,
       action,

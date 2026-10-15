@@ -280,6 +280,8 @@ export interface DockerInternalRegistryStorage {
   } | null;
   lastSwitch: {
     status: "running" | "completed" | "failed";
+    /** The step in progress while running. */
+    phase: string | null;
     from: "filesystem" | "s3";
     target: "filesystem" | "s3";
     startedAt: string;

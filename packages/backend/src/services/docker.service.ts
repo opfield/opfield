@@ -4,6 +4,7 @@ import http from 'node:http';
 import { type Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { LEGACY_MANAGED_SERVICE_LABEL, MANAGED_SERVICE_LABEL } from '@/foundation/opfield-names.js';
+import { type RegistryStorageBackend, registryStorageFromContainerEnv } from '@/foundation/registry-storage.js';
 import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('DockerService');
@@ -94,12 +95,20 @@ export class DockerService {
   }
 
   /**
-   * Bytes the managed registry keeps on its data volume, measured inside the registry container; null when the
-   * registry keeps its data in an S3 bucket, whose size Opfield does not measure.
+   * Bytes the managed registry keeps: on its data volume, measured inside the registry container, or in its S3 bucket
+   * folder, summed from the object listing (the caller measures every few minutes, not on every read).
    */
-  async managedRegistryStorageUsedBytes(): Promise<number | null> {
+  async managedRegistryStorageUsedBytes(): Promise<number> {
     const registryId = await this.managedRegistryContainerId();
-    if (await this.managedRegistryOnS3(registryId)) return null;
+    const details = await this.inspectContainerDetails(registryId);
+    const storage = registryStorageFromContainerEnv(details?.Config.Env ?? []);
+    if (storage.s3) {
+      const [{ RegistryS3Client }, { registryBucketUsedBytes }] = await Promise.all([
+        import('@/modules/docker/registry-storage/s3-client.js'),
+        import('@/modules/docker/registry-storage/registry-storage-copy.js'),
+      ]);
+      return registryBucketUsedBytes(new RegistryS3Client(storage.s3), storage.s3.rootDirectory);
+    }
     const result = await this.execInContainer(registryId, ['sh', '-c', 'du -sk /var/lib/registry | cut -f1']);
     const kibibytes = Number(result.output.trim());
     if (result.exitCode !== 0 || !Number.isSafeInteger(kibibytes) || kibibytes < 0) {
@@ -232,6 +241,12 @@ export class DockerService {
     const details = await this.inspectContainerDetails(await this.managedRegistryContainerId());
     if (!details) throw new Error('Managed registry container was not found');
     return details;
+  }
+
+  /** Where the managed registry keeps its data, read from its environment. */
+  async managedRegistryStorageBackend(): Promise<RegistryStorageBackend> {
+    const details = await this.inspectContainerDetails(await this.managedRegistryContainerId());
+    return registryStorageFromContainerEnv(details?.Config.Env ?? []).backend;
   }
 
   private async managedRegistryOnS3(registryId: string): Promise<boolean> {

@@ -5,7 +5,8 @@ import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { commercialHostRoot } from '@/edition/prepare-update.js';
-import { patchCompose, patchEnv } from '@/foundation/foundation-migrator.js';
+import { patchCompose, patchComposeRegistryStorage, patchEnv } from '@/foundation/foundation-migrator.js';
+import { registryStorageBackendFromEnv } from '@/foundation/registry-storage.js';
 import { normalizeHostPortTarget, normalizePublicUrl } from '@/modules/settings/general-settings.service.js';
 import type { DockerService } from '@/services/docker.service.js';
 import {
@@ -483,13 +484,16 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
     const envValues: Record<string, string> = { ...(environment as Record<string, string>) };
     if (manifest.commercialDir) envValues.OPFIELD_COMMERCIAL_DIR = manifest.commercialDir;
     const envContent = await readFile(envPath, 'utf8');
-    await writeAtomic(envPath, patchEnv(envContent, envValues).content);
-    if (manifest.commercial) {
+    const restoredEnv = patchEnv(envContent, envValues).content;
+    await writeAtomic(envPath, restoredEnv);
+    // The registry starts on the storage the export ran it on: an S3 bucket keeps its images there.
+    const registryStorage = registryStorageBackendFromEnv(restoredEnv);
+    if (manifest.commercial || registryStorage === 's3') {
       const composeContent = await readFile(composePath, 'utf8');
-      await writeAtomic(
-        composePath,
-        patchCompose(composeContent, true, { commercialDirName: basename(commercialHostRoot(options.hostDir)) })
-      );
+      const commercialPatched = manifest.commercial
+        ? patchCompose(composeContent, true, { commercialDirName: basename(commercialHostRoot(options.hostDir)) })
+        : composeContent;
+      await writeAtomic(composePath, patchComposeRegistryStorage(commercialPatched, registryStorage));
     }
 
     await step('Recording the restore for the next start');

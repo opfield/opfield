@@ -295,21 +295,13 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
         title="Capacity"
         description={
           state?.storageBackend === "s3"
-            ? "The bucket's size is not measured here."
+            ? "Registry data in the S3 bucket, measured every few minutes."
             : "Registry data on the Opfield host volume."
         }
       >
         <span className="text-right text-sm">
-          {state?.storageBackend === "s3" ? (
-            "S3 bucket"
-          ) : (
-            <>
-              {formatBytes(used)} used
-              {capacity !== null
-                ? ` · ${formatBytes(free ?? 0)} free of ${formatBytes(capacity)}`
-                : ""}
-            </>
-          )}
+          {formatBytes(used)} used
+          {capacity !== null ? ` · ${formatBytes(free ?? 0)} free of ${formatBytes(capacity)}` : ""}
         </span>
       </SettingsControlRow>
       <SettingsControlRow

@@ -155,9 +155,9 @@ export class DockerInternalRegistryService {
     try {
       const measured = await this.executor.storageUsedBytes();
       this.storageMeasuredAt = Date.now();
-      // On S3 the bucket's size is not measured: the volume no longer holds the images.
-      this.measuredStorageBackend = measured === null ? 's3' : 'filesystem';
-      return measured ?? 0;
+      // On S3 the size is the bucket folder's: it is listed at most once per interval as well.
+      this.measuredStorageBackend = (await this.executor.storageBackend?.().catch(() => null)) ?? null;
+      return measured;
     } catch (error) {
       logger.debug('Managed registry storage usage could not be measured', { error });
       return known;

@@ -53,6 +53,15 @@ export async function probeRegistryBucket(
   return { hasRegistryData, copiedByOpfield };
 }
 
+/** Bytes the registry keeps in the bucket folder: the sizes of its objects, listed page by page. */
+export async function registryBucketUsedBytes(client: RegistryS3Client, rootDirectory: string): Promise<number> {
+  let bytes = 0;
+  for await (const entry of client.listObjects(registryObjectKey(rootDirectory, `${REGISTRY_DATA_PATH}/`))) {
+    bytes += Number.isFinite(entry.size) ? entry.size : 0;
+  }
+  return bytes;
+}
+
 async function listFiles(root: string, relative = ''): Promise<string[]> {
   const entries = await fs.readdir(path.join(root, relative), { withFileTypes: true }).catch((error) => {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
@@ -148,6 +157,12 @@ function verifyingTransform(expected: string | null, label: string): Transform {
       callback(expected && actual !== expected ? new Error(`${label} does not match its digest`) : null);
     },
   });
+}
+
+/** Removes what an interrupted copy onto the volume left beside the registry data. */
+export async function removeImportLeftovers(volumeRoot: string): Promise<void> {
+  await fs.rm(path.join(volumeRoot, IMPORT_DIR), { recursive: true, force: true });
+  await fs.rm(path.join(volumeRoot, PREVIOUS_DIR), { recursive: true, force: true });
 }
 
 /**

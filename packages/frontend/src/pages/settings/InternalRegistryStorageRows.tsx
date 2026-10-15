@@ -109,7 +109,8 @@ function switchSummary(storage: DockerInternalRegistryStorage | undefined): stri
   if (!last) return null;
   const target = last.target === "s3" ? "the S3 bucket" : "local disk";
   if (last.status === "running") {
-    return `Moving the registry to ${target}: images are being copied, builds wait until it finishes.`;
+    const step = last.phase ? ` (${last.phase.replaceAll("_", " ")})` : "";
+    return `Moving the registry to ${target}${step}: builds wait until it finishes.`;
   }
   if (last.status === "failed")
     return `The move to ${target} failed: ${last.error ?? "unknown error"}`;

@@ -35,6 +35,7 @@ import {
   exportVolumeName,
   HOST_SPECIFIC_VALUES,
   portableEnvironment,
+  registryStorageEnvironment,
   TRANSFER_VOLUMES,
   type TransferVolumeKey,
   type TransferVolumeManifest,
@@ -392,7 +393,13 @@ export class ConfigurationExportService {
       };
       ticket.currentPart = MANIFEST_PART;
       await writer.addJsonPart(MANIFEST_PART, manifest);
-      await writer.addJsonPart(ENVIRONMENT_PART, portableEnvironment(this.env));
+      const registryEnv = installation.registry
+        ? ((await this.docker.inspectContainerDetails(installation.registry))?.Config.Env ?? [])
+        : [];
+      await writer.addJsonPart(ENVIRONMENT_PART, {
+        ...portableEnvironment(this.env),
+        ...registryStorageEnvironment(registryEnv),
+      });
       await addStream(DATABASE_PART, () => openDatabaseDump(this.docker, installation));
       for (const volume of volumes) {
         const name = await this.volumeName(installation, volume.key);
