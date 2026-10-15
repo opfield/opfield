@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { RETIRED_SCOPE_REPLACEMENTS, SCOPE_CLEANUP_MIGRATION_ADDITIONS } from '@/lib/scopes-aliases.js';
+import { MIGRATION_0200_RETIRED_SCOPES, SCOPE_CLEANUP_MIGRATION_ADDITIONS } from '@/lib/scopes-aliases.js';
 
 const MIGRATION_TAG = '0200_scope_catalog_cleanup';
 
@@ -35,7 +35,7 @@ describe('0200 scope catalog cleanup migration', () => {
 
   it('rewrites retired names exactly like inbound canonicalization', () => {
     const migration = readMigration();
-    for (const [retired, replacements] of Object.entries(RETIRED_SCOPE_REPLACEMENTS)) {
+    for (const [retired, replacements] of Object.entries(MIGRATION_0200_RETIRED_SCOPES)) {
       if (replacements.length === 0) {
         expect(migration, retired).toMatch(new RegExp(`\\('${retired}', NULL(::text)?\\)`));
         continue;
@@ -45,8 +45,8 @@ describe('0200 scope catalog cleanup migration', () => {
       }
     }
     const rows = [...migration.matchAll(/^\s+\('([^']+)', (?:'([^']+)'|NULL(?:::text)?)\)/gm)];
-    const retiredRows = rows.filter(([, from]) => from in RETIRED_SCOPE_REPLACEMENTS);
-    const expectedRetiredRows = Object.values(RETIRED_SCOPE_REPLACEMENTS).reduce(
+    const retiredRows = rows.filter(([, from]) => from in MIGRATION_0200_RETIRED_SCOPES);
+    const expectedRetiredRows = Object.values(MIGRATION_0200_RETIRED_SCOPES).reduce(
       (count, replacements) => count + Math.max(replacements.length, 1),
       0
     );

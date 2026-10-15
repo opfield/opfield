@@ -15,7 +15,7 @@ import { ALL_SCOPES } from './scopes-base.js';
  * a stored retired name grants nothing (`isValidBaseScope` rejects it). Remove the table, and the
  * retired names from stored grants, two releases after v2.11.
  */
-export const RETIRED_SCOPE_REPLACEMENTS: Readonly<Record<string, readonly string[]>> = {
+export const MIGRATION_0200_RETIRED_SCOPES: Readonly<Record<string, readonly string[]>> = {
   // Never enforced.
   'ssl:cert:revoke': [],
   'ssl:cert:export': [],
@@ -64,8 +64,21 @@ export const RETIRED_SCOPE_REPLACEMENTS: Readonly<Record<string, readonly string
   'proxy:templates:delete': ['proxy:templates:manage'],
   // Docker folders cover every Docker resource type, not only containers.
   'docker:containers:folders:manage': ['docker:folders:manage'],
+};
+
+/**
+ * Names retired after v2.11, without a migration of their own: inbound scope lists rewrite or drop them like the
+ * v2.11 names, and a stored grant of one grants nothing (it is not in the catalog).
+ */
+const LATER_RETIRED_SCOPES: Readonly<Record<string, readonly string[]>> = {
   // Hosting top-up invoices were removed in 2.12 (the endpoint answers 410); stored grants of it grant nothing.
   'hosting:billing:topup': [],
+};
+
+/** Every retired name with its replacements: the v2.11 cleanup (migration 0200) and the names retired since. */
+export const RETIRED_SCOPE_REPLACEMENTS: Readonly<Record<string, readonly string[]>> = {
+  ...MIGRATION_0200_RETIRED_SCOPES,
+  ...LATER_RETIRED_SCOPES,
 };
 
 /**
