@@ -232,6 +232,13 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
     }
   };
 
+  // Models of the Opfield Cloud add-on belong to the Opfield account: shown, not edited here.
+  const cloudConnectionIds = new Set(
+    connections.filter((connection) => connection.cloudManaged).map((connection) => connection.id)
+  );
+  const isCloudModel = (model: InferenceModel) =>
+    model.sources.some((source) => cloudConnectionIds.has(source.connectionId));
+
   const columns: SimpleTableColumn<InferenceModel>[] = [
     ...(canManage && models.length > 1
       ? [
@@ -297,9 +304,11 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
       header: "Billing",
       render: (model) => (
         <span>
-          {model.sources[0]?.sourceType === "api"
-            ? "API"
-            : `${model.subscriptionMultiplier}× credits`}
+          {isCloudModel(model)
+            ? "Opfield Cloud"
+            : model.sources[0]?.sourceType === "api"
+              ? "API"
+              : `${model.subscriptionMultiplier}× credits`}
         </span>
       ),
     },
@@ -317,7 +326,7 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
       header: "Actions",
       align: "right",
       render: (model) =>
-        canManage ? (
+        canManage && !isCloudModel(model) ? (
           <div className="flex justify-end" onPointerDown={(event) => event.stopPropagation()}>
             <Button
               variant="outline"
@@ -381,6 +390,7 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
                 canViewProviders={canViewProviders}
                 loadError={modelsError}
                 onEdit={(model) => {
+                  if (isCloudModel(model)) return;
                   setEditing(model);
                   setDialogOpen(true);
                 }}
@@ -400,6 +410,7 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
             onEdit={
               canManage
                 ? (model) => {
+                    if (isCloudModel(model)) return;
                     setEditing(model);
                     setDialogOpen(true);
                   }

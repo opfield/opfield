@@ -12,7 +12,11 @@ import { readStatusPageUpstream } from '@/modules/cloud-link/cloud-link-status-p
 import { entitlementsIncludeFeature } from '@/modules/license/license-features.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
-import { browserHostOpfield, relayReenrollmentInstallation } from '@/modules/nodes/node-installer.js';
+import {
+  browserHostOpfield,
+  managedConsoleHostOpfield,
+  relayReenrollmentInstallation,
+} from '@/modules/nodes/node-installer.js';
 import { NodesService } from '@/modules/nodes/nodes.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { dispatchNodeDaemonUpdate } from '@/services/daemon-node-update.js';
@@ -176,7 +180,8 @@ systemRoutes.post('/relay/instances/:instanceId/reenroll', requireScope('admin:s
         issued,
         opfieldCertSha256,
         opfieldEnrollmentTargets,
-        browserHostOpfield(c.req.header('x-forwarded-host') ?? c.req.header('host'))
+        (await managedConsoleHostOpfield()) ??
+          browserHostOpfield(c.req.header('x-forwarded-host') ?? c.req.header('host'))
       )),
     },
   });

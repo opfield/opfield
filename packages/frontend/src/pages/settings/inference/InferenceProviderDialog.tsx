@@ -31,7 +31,7 @@ import type {
   InferenceProviderConnection,
   InferenceQuotaWindow,
 } from "@/types/inference";
-import { connectionIdentity, HealthBadge } from "./inference-provider-ui";
+import { cloudUsageWindowLabel, connectionIdentity, HealthBadge } from "./inference-provider-ui";
 
 interface Props {
   open: boolean;
@@ -212,8 +212,40 @@ export function InferenceProviderDialog({
         </DialogHeader>
         <DialogDescription>
           {displayedProvider?.label ?? displayedConnection.providerId} ·{" "}
-          {connectionIdentity(displayedConnection)}
+          {displayedConnection.cloudManaged
+            ? "Managed by your Opfield account"
+            : connectionIdentity(displayedConnection)}
         </DialogDescription>
+
+        {displayedConnection.cloudManaged && (
+          <PanelShell
+            title="Opfield Cloud usage"
+            description="Share of your AI plan used in each window"
+            icon={<Gauge className="h-4 w-4" />}
+          >
+            {displayedConnection.cloudUsage?.windows.length ? (
+              displayedConnection.cloudUsage.windows.map((window) => (
+                <SettingsControlRow
+                  key={window.window}
+                  title={cloudUsageWindowLabel(window.window)}
+                  description={
+                    window.resetsAt ? (
+                      <>
+                        Resets <RelativeTime value={window.resetsAt} />
+                      </>
+                    ) : undefined
+                  }
+                >
+                  <span className="text-sm">{Math.round(window.usedPercent)}% used</span>
+                </SettingsControlRow>
+              ))
+            ) : (
+              <SettingsControlRow title="Usage">
+                <span className="text-sm text-muted-foreground">Not reported</span>
+              </SettingsControlRow>
+            )}
+          </PanelShell>
+        )}
 
         {subscription && reportedQuotaWindows.length > 0 && (
           <PanelShell

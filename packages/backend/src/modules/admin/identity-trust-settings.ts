@@ -20,6 +20,7 @@ export async function findIdentityTrustChanges(
       username: string | null;
       senderName: string | null;
       senderEmail: string | null;
+      transport?: 'smtp' | 'cloud';
     }>;
     generalSettings: () => Promise<{ publicUrl: string | null }>;
     authSettings: () => Promise<{ oidcRequireVerifiedEmail: boolean }>;
@@ -38,6 +39,9 @@ export async function findIdentityTrustChanges(
       smtp.senderName === input.smtp.senderName.trim() &&
       smtp.senderEmail === input.smtp.senderEmail.trim().toLowerCase();
     if (!unchanged) changes.push('SMTP');
+  }
+  if (input.smtpTransport !== undefined && input.smtpTransport !== (await current.smtp()).transport) {
+    changes.push('the email transport');
   }
   if (input.oidc || input.oidcProviderAction) changes.push('the OIDC provider');
   if (input.generalSettings?.publicUrl !== undefined) {

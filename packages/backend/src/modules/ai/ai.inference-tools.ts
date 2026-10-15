@@ -20,6 +20,12 @@ import {
 import { InferenceTokenService } from '@/modules/inference/inference-token.service.js';
 import { InferenceModelService } from '@/modules/inference/models/inference-model.service.js';
 import { InferenceModelConfigurationService } from '@/modules/inference/models/inference-model-configuration.service.js';
+import {
+  assertConnectionNotCloudManaged,
+  assertModelNotCloudManaged,
+  inferenceCloudDb,
+  isRoutingOrderOnly,
+} from '@/modules/inference/providers/inference-cloud.js';
 import { InferenceOAuthService } from '@/modules/inference/providers/inference-oauth.service.js';
 import { InferenceProviderService } from '@/modules/inference/providers/inference-provider.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -184,14 +190,19 @@ async function manageProvider(user: User, args: Record<string, unknown>) {
       minimumRemainingPercent: args.minimumRemainingPercent,
       apiMonthlyLimitMicrodollars,
     });
-    return service.updateConnection(user.id, requiredString(args.connectionId, 'connectionId'), input);
+    const connectionId = requiredString(args.connectionId, 'connectionId');
+    // The Opfield Cloud connection is the account's: only its place in the order changes here.
+    if (!isRoutingOrderOnly(input)) await assertConnectionNotCloudManaged(inferenceCloudDb(), connectionId);
+    return service.updateConnection(user.id, connectionId, input);
   }
   if (operation === 'set_routing') {
     const input = UpdateInferenceProviderRoutingSchema.parse({ routingStrategy: args.routingStrategy });
     return service.setRoutingStrategy(user.id, requiredString(args.providerId, 'providerId'), input.routingStrategy);
   }
   if (operation === 'disconnect') {
-    await service.disconnect(user.id, requiredString(args.connectionId, 'connectionId'));
+    const connectionId = requiredString(args.connectionId, 'connectionId');
+    await assertConnectionNotCloudManaged(inferenceCloudDb(), connectionId);
+    await service.disconnect(user.id, connectionId);
     return { success: true };
   }
   throw new Error(`Unsupported inference provider operation: ${operation}`);
@@ -207,6 +218,7 @@ async function manageModel(user: User, args: Record<string, unknown>) {
   if (operation === 'save') {
     const configuration = InferenceModelConfigurationSchema.parse(args.configuration);
     const modelId = optionalString(args.modelId);
+    await assertModelNotCloudManaged(inferenceCloudDb(), modelId);
     return container.resolve(InferenceModelConfigurationService).save(user.id, modelId, configuration);
   }
   if (operation === 'reorder') {
@@ -215,7 +227,9 @@ async function manageModel(user: User, args: Record<string, unknown>) {
     return { success: true };
   }
   if (operation === 'delete') {
-    await container.resolve(InferenceModelService).remove(user.id, requiredString(args.modelId, 'modelId'));
+    const modelId = requiredString(args.modelId, 'modelId');
+    await assertModelNotCloudManaged(inferenceCloudDb(), modelId);
+    await container.resolve(InferenceModelService).remove(user.id, modelId);
     return { success: true };
   }
   throw new Error(`Unsupported inference model operation: ${operation}`);

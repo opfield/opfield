@@ -198,7 +198,13 @@ export const sendAdminUserPasswordSetupRoute = appRoute({
   tags: ['Admin'],
   summary: 'Email a password setup or reset link to a local password user',
   request: { params: IdParamSchema },
-  responses: okJson(z.object({ message: z.string(), purpose: z.enum(['password_setup', 'password_reset']) })),
+  responses: okJson(
+    z.object({
+      message: z.string(),
+      purpose: z.enum(['password_setup', 'password_reset']),
+      delivery: z.enum(['sent', 'queued']),
+    })
+  ),
 });
 
 export const sendAdminUserInvitationRoute = appRoute({

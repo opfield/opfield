@@ -33,6 +33,12 @@ import {
   parseCoreQuotaReports,
 } from '../core/inference-core-provider-map.js';
 import type { InferenceCatalogEventsService } from '../inference-catalog-events.service.js';
+import {
+  isCloudManagedConnection,
+  lockedByCloud,
+  readCloudInferenceUsage,
+  withCloudModelMetadata,
+} from './inference-cloud.js';
 import type { InferenceDestinationPolicy } from './inference-destination-policy.js';
 import type { InferenceProviderRegistry } from './inference-provider.registry.js';
 import {
@@ -133,9 +139,15 @@ export class InferenceProviderService {
       this.db.select().from(inferenceProviderSettings),
       providerApiMonthlySpend(this.db, ids),
     ]);
+    // The Opfield Cloud add-on while the account manages this installation: read-only here, with its usage from the
+    // account's endpoint (read with the stored key on the backend).
+    const cloudLocked =
+      connections.some((connection) => isCloudManagedConnection(connection.metadata)) && (await lockedByCloud());
+    const cloudUsage = cloudLocked ? await readCloudInferenceUsage(this.db) : null;
 
     return connections.map((connection) => ({
       ...serializeConnection(connection),
+      ...(cloudLocked && isCloudManagedConnection(connection.metadata) ? { cloudManaged: true, cloudUsage } : {}),
       credential:
         credentials.find((credential) => credential.connectionId === connection.id) ??
         // Core-managed rows never hold an Opfield credential; surface a presence
@@ -167,7 +179,9 @@ export class InferenceProviderService {
       baseUrl?: string;
       authType?: 'api_key' | 'local';
       allowPrivateNetwork?: boolean;
-    }
+    },
+    /** System callers only (never request input): metadata the connection carries, such as the cloud marker. */
+    options: { metadata?: Record<string, unknown> } = {}
   ) {
     let provider: InferenceProviderDefinition;
     try {
@@ -198,7 +212,7 @@ export class InferenceProviderService {
     if (!(await this.coreReady())) {
       throw new AppError(409, 'INFERENCE_CORE_NOT_READY', 'Install the inference core before connecting providers');
     }
-    return this.createCoreKeyConnection(userId, provider, input, authType, baseUrl);
+    return this.createCoreKeyConnection(userId, provider, input, authType, baseUrl, options.metadata);
   }
 
   async getConnection(connectionId: string) {
@@ -410,7 +424,8 @@ export class InferenceProviderService {
     provider: InferenceProviderDefinition,
     input: { name: string; apiKey?: string; allowPrivateNetwork?: boolean },
     authType: 'api_key' | 'local',
-    baseUrl: string
+    baseUrl: string,
+    extraMetadata: Record<string, unknown> = {}
   ) {
     const client = await this.coreBridge!.requireClient();
     const [lastConnection] = await this.db
@@ -428,6 +443,7 @@ export class InferenceProviderService {
         baseUrl,
         routingOrder: nextRoutingOrder(lastConnection?.routingOrder),
         metadata: {
+          ...extraMetadata,
           allowPrivateNetwork: input.allowPrivateNetwork === true,
           [CORE_MANAGED_METADATA_KEY]: true,
         },
@@ -848,9 +864,11 @@ export class InferenceProviderService {
     }
   }
 
-  private async persistModels(connectionId: string, models: DiscoveredInferenceModel[]) {
+  private async persistModels(connectionId: string, discoveredModels: DiscoveredInferenceModel[]) {
     const connection = await this.requireConnection(connectionId);
     const provider = this.registry.require(connection.providerId);
+    // The Opfield Cloud connection's models carry the account's description instead of the discovered one.
+    const models = await withCloudModelMetadata(this.db, connection, discoveredModels);
     await this.db.transaction(async (tx) => {
       await tx
         .update(inferenceDiscoveredModels)

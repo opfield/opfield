@@ -1,13 +1,24 @@
-import { randomBytes, X509Certificate } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { mkdir, readFile } from 'node:fs/promises';
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { join } from 'node:path';
-import { createSecureContext } from 'node:tls';
+import { createSecureContext, type SecureContext } from 'node:tls';
 import { serve } from '@hono/node-server';
 import * as acme from 'acme-client';
 import { createChildLogger } from '@/lib/logger.js';
 import type { ACMEService } from '@/modules/ssl/acme.service.js';
+import { ConsoleAliasManager, type StoredPublicAlias } from './console-tls-alias.js';
+import {
+  CHALLENGE_PREFIX,
+  consoleHttpResponse,
+  defaultProbe,
+  errorMessage,
+  issuedMaterial,
+  type TlsMaterial,
+  validity,
+  writeAtomic,
+} from './console-tls-material.js';
 import {
   ALERT_REPEAT_MS,
   type CertificateValidity,
@@ -24,15 +35,9 @@ import {
 
 const logger = createChildLogger('ConsoleTLS');
 
-const CHALLENGE_PREFIX = '/.well-known/acme-challenge/';
-const PROBE_TIMEOUT_MS = 5_000;
 const PROBE_LOG_INTERVAL_MS = 10 * 60 * 1000;
-const FALLBACK_RENEW_BEFORE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export interface TlsMaterial {
-  cert: Buffer;
-  key: Buffer;
-}
+export { consoleHttpResponse, readFallbackMaterial, type TlsMaterial } from './console-tls-material.js';
 
 type ServedSource = 'acme' | 'fallback';
 type FetchHandler = (request: Request) => Response | Promise<Response>;
@@ -55,47 +60,19 @@ export interface ConsoleTlsDeps {
   /** GET a URL as text, null when it does not answer 200. Replaced in tests. */
   probe?: (url: string) => Promise<string | null>;
   now?: () => Date;
+  /**
+   * The custom domain of a managed installation (cloud link public-alias): where its desired state is kept, and the
+   * system-path public URL switch (with the identities refreshed). Without it the console serves one domain.
+   */
+  alias?: {
+    store: { get(): Promise<StoredPublicAlias | null>; set(value: StoredPublicAlias): Promise<void> };
+    publicUrl: { get(): Promise<string | null>; set(url: string): Promise<void> };
+    alert: (level: Exclude<ConsoleTlsAlertLevel, null>, message: string) => Promise<void>;
+  };
 }
 
 interface StoredState {
   domain?: string;
-}
-
-/** The answer of the port-80 listener: ACME challenges, everything else redirected to the console over HTTPS. */
-export function consoleHttpResponse(
-  url: string | undefined,
-  method: string | undefined,
-  domain: string,
-  challenges: ReadonlyMap<string, string>
-): { status: number; headers: Record<string, string>; body: string } {
-  const target = url?.startsWith('/') ? url : '/';
-  const path = target.split('?')[0]!;
-  if (path.startsWith(CHALLENGE_PREFIX)) {
-    const content = challenges.get(path.slice(CHALLENGE_PREFIX.length));
-    return content === undefined
-      ? { status: 404, headers: { 'content-type': 'text/plain' }, body: 'Not found' }
-      : { status: 200, headers: { 'content-type': 'text/plain' }, body: content };
-  }
-  const status = method === 'GET' || method === 'HEAD' ? 301 : 308;
-  return { status, headers: { location: `https://${domain}${target}`, 'content-type': 'text/plain' }, body: '' };
-}
-
-async function defaultProbe(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
-    return response.status === 200 ? await response.text() : null;
-  } catch {
-    return null;
-  }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function validity(certPem: Buffer | string): CertificateValidity & { certificate: X509Certificate } {
-  const certificate = new X509Certificate(certPem);
-  return { certificate, notBefore: new Date(certificate.validFrom), notAfter: new Date(certificate.validTo) };
 }
 
 /**
@@ -124,6 +101,8 @@ export class ConsoleTlsService {
   private lastProbeLogAt = 0;
   private lastAlertAt = 0;
   private lastError: string | null = null;
+  /** The custom domain served next to the console domain (managed installations); null without one. */
+  readonly alias: ConsoleAliasManager | null;
 
   constructor(private readonly deps: ConsoleTlsDeps) {
     this.now = deps.now ?? (() => new Date());
@@ -134,6 +113,22 @@ export class ConsoleTlsService {
     deps.acme.onChallengeRemove = async (token) => {
       this.challenges.delete(token);
     };
+    this.alias = deps.alias
+      ? new ConsoleAliasManager({
+          baseDomain: deps.domain,
+          stateDir: join(deps.stateDir, 'aliases'),
+          email: deps.email,
+          staging: deps.staging,
+          acme: deps.acme,
+          accountKey: () => this.accountKey(),
+          challenges: this.challenges,
+          probe: this.probe,
+          store: deps.alias.store,
+          publicUrl: deps.alias.publicUrl,
+          alert: deps.alias.alert,
+          ...(deps.now ? { now: deps.now } : {}),
+        })
+      : null;
   }
 
   get domain(): string {
@@ -175,6 +170,7 @@ export class ConsoleTlsService {
       logger.error('Cannot create the console certificate directory', { error: errorMessage(error) });
     }
     await this.loadInitialMaterial();
+    await this.alias?.start();
     this.startHttpListener();
     this.ensureHttpsListener();
     this.schedule(0);
@@ -182,6 +178,7 @@ export class ConsoleTlsService {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.alias?.stop();
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
   }
@@ -276,9 +273,7 @@ export class ConsoleTlsService {
   }
 
   private async writeAtomic(name: string, content: string | Buffer, mode: number): Promise<void> {
-    const temporary = this.path(`${name}.tmp-${process.pid}`);
-    await writeFile(temporary, content, { mode });
-    await rename(temporary, this.path(name));
+    await writeAtomic(this.deps.stateDir, name, content, mode);
   }
 
   /**
@@ -394,8 +389,7 @@ export class ConsoleTlsService {
       this.deps.email,
       await this.accountKey()
     );
-    const fullChain = [result.certificatePem.trim(), result.chainPem.trim()].filter(Boolean).join('\n');
-    const material = { cert: Buffer.from(`${fullChain}\n`), key: Buffer.from(result.privateKeyPem) };
+    const material = issuedMaterial(result);
     createSecureContext(material);
     // Key first: a crash between the two writes leaves a certificate that does not match its key, which the next
     // start rejects and replaces, never a served pair that does not match.
@@ -436,7 +430,14 @@ export class ConsoleTlsService {
   private startHttpListener(): void {
     if (this.httpServer) return;
     const server = createHttpServer((request: IncomingMessage, response: ServerResponse) => {
-      const answer = consoleHttpResponse(request.url, request.method, this.deps.domain, this.challenges);
+      const answer = consoleHttpResponse(
+        request.url,
+        request.method,
+        this.deps.domain,
+        this.challenges,
+        request.headers.host,
+        this.alias?.servedHosts() ?? []
+      );
       response.writeHead(answer.status, answer.headers);
       response.end(request.method === 'HEAD' ? undefined : answer.body);
     });
@@ -458,7 +459,13 @@ export class ConsoleTlsService {
       port: this.deps.httpsPort,
       hostname: this.deps.bindHost,
       createServer: createHttpsServer,
-      serverOptions: { cert: this.served.material.cert, key: this.served.material.key },
+      serverOptions: {
+        cert: this.served.material.cert,
+        key: this.served.material.key,
+        // The custom domain's certificate for its host; every other name gets the console certificate.
+        SNICallback: (servername: string, callback: (error: Error | null, context?: SecureContext) => void) =>
+          callback(null, this.alias?.contextFor(servername)),
+      },
     });
     server.on('error', (error) =>
       logger.error('Console HTTPS listener failed', { port: this.deps.httpsPort, error: errorMessage(error) })
@@ -469,18 +476,4 @@ export class ConsoleTlsService {
     this.httpsServer = server;
     this.onHttpsListener?.(server);
   }
-}
-
-/** Reads a TLS pair from disk and renews the web identity first when it ends within a week. */
-export async function readFallbackMaterial(
-  resolve: () => Promise<{ certPath: string; keyPath: string }>,
-  refresh: () => Promise<{ certPath: string; keyPath: string }>
-): Promise<TlsMaterial> {
-  let identity = await resolve();
-  let cert = await readFile(identity.certPath);
-  if (validity(cert).notAfter.getTime() - Date.now() <= FALLBACK_RENEW_BEFORE_MS) {
-    identity = await refresh();
-    cert = await readFile(identity.certPath);
-  }
-  return { cert, key: await readFile(identity.keyPath) };
 }
