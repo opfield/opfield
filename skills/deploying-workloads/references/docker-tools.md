@@ -4,7 +4,7 @@ Exact tool names in the MCP `docker` toolset. All require the `nodeId` of a Node
 
 ## Instead of `docker` on the Node console
 
-Over MCP, `execute_node_console_command` and `ssh_execute_command` refuse commands that change Opfield-managed objects (`MANAGED_RESOURCE_CONSOLE_FORBIDDEN`). Use these tools:
+For agents, `execute_node_console_command` and `ssh_execute_command` refuse commands that change Opfield-managed objects (`MANAGED_RESOURCE_CONSOLE_FORBIDDEN`). Use these tools:
 
 | Console command | Tool |
 | --- | --- |

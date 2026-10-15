@@ -18,9 +18,9 @@ function assertNodeConsoleScope(user: User, nodeId: string) {
 }
 
 /**
- * execute_node_console_command: one command on the node's host. Remote MCP callers may not change Opfield-managed
- * Docker objects or daemon state with it (MANAGED_RESOURCE_CONSOLE_FORBIDDEN); people in the browser console and
- * read-only commands are not affected.
+ * execute_node_console_command: one command on the node's host. Agents (remote MCP and the in-app assistant) may not change Opfield-managed
+ * Docker objects or daemon state with it (MANAGED_RESOURCE_CONSOLE_FORBIDDEN); people in the browser console (a PTY,
+ * not this tool) and read-only commands are not affected.
  */
 export async function executeNodeConsoleCommand(
   context: NodeConsoleToolContext,
@@ -36,15 +36,14 @@ export async function executeNodeConsoleCommand(
     throw new Error(safety.reason ?? 'Console command is blocked');
   }
   const dispatch = context.getDispatch();
-  if (context.source === 'mcp') {
-    await assertAgentNodeConsoleCommandAllowed({
-      user,
-      nodeId,
-      commands: consoleCommands(safety.normalizedCommand),
-      toolName: 'execute_node_console_command',
-      dispatch,
-    });
-  }
+  await assertAgentNodeConsoleCommandAllowed({
+    user,
+    nodeId,
+    commands: consoleCommands(safety.normalizedCommand),
+    toolName: 'execute_node_console_command',
+    dispatch,
+    source: context.source,
+  });
 
   const result = await dispatch.sendNodeExecCommand(nodeId, 'run', { command: safety.normalizedCommand }, 35000);
   if (!result.success) {

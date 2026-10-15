@@ -21,7 +21,13 @@ const AUDIT_COMMAND_MAX = 500;
 const OPFIELD_DOCKER_NODE_PROBE =
   'for d in /var/lib/docker-daemon /etc/docker-daemon; do [ -e "$d" ] && echo "$d"; done; true';
 
-async function auditRefusal(user: User, refusal: ConsoleRefusal, toolName: string, target: Record<string, string>) {
+async function auditRefusal(
+  user: User,
+  refusal: ConsoleRefusal,
+  toolName: string,
+  source: 'ai' | 'mcp' | undefined,
+  target: Record<string, string>
+) {
   try {
     await container.resolve(AuditService).log({
       userId: user.id,
@@ -31,6 +37,8 @@ async function auditRefusal(user: User, refusal: ConsoleRefusal, toolName: strin
       details: {
         ...target,
         tool: toolName,
+        // Remote MCP calls also carry the token context; the in-app assistant is marked here.
+        caller: source === 'mcp' ? 'mcp' : 'assistant',
         command: refusal.mutation.command.slice(0, AUDIT_COMMAND_MAX),
         object: refusal.object,
         use: refusal.tool,
@@ -47,8 +55,8 @@ async function auditRefusal(user: User, refusal: ConsoleRefusal, toolName: strin
 
 /**
  * Refuses an agent's node console command that would change an Opfield-managed Docker object of the node or the
- * state its daemons keep (see MANAGED_RESOURCE_CONSOLE_FORBIDDEN). Only remote MCP callers (OAuth grants and API
- * tokens) are checked; people in the browser console are not.
+ * state its daemons keep (see MANAGED_RESOURCE_CONSOLE_FORBIDDEN). Every agent is checked: remote MCP (OAuth grants
+ * and API tokens) and the in-app assistant. People in the browser console (an interactive PTY) are not.
  */
 export async function assertAgentNodeConsoleCommandAllowed(input: {
   user: User;
@@ -56,6 +64,7 @@ export async function assertAgentNodeConsoleCommandAllowed(input: {
   commands: EffectiveCommand[];
   toolName: string;
   dispatch: NodeDispatchService;
+  source?: 'ai' | 'mcp';
 }): Promise<void> {
   const mutations = consoleMutations(input.commands);
   if (mutations.length === 0) return;
@@ -69,7 +78,7 @@ export async function assertAgentNodeConsoleCommandAllowed(input: {
       );
   const refusal = evaluateConsoleMutations(mutations, inventory);
   if (!refusal) return;
-  await auditRefusal(input.user, refusal, input.toolName, { nodeId: input.nodeId });
+  await auditRefusal(input.user, refusal, input.toolName, input.source, { nodeId: input.nodeId });
   throw managedResourceConsoleError(refusal);
 }
 
@@ -83,6 +92,7 @@ export async function assertAgentSshCommandAllowed(input: {
   connectorId: string;
   commands: EffectiveCommand[];
   probe: (command: string) => Promise<{ stdout?: string }>;
+  source?: 'ai' | 'mcp';
 }): Promise<void> {
   const mutations: ConsoleMutation[] = consoleMutations(input.commands);
   if (mutations.length === 0) return;
@@ -98,6 +108,6 @@ export async function assertAgentSshCommandAllowed(input: {
   if (!opfieldNode) return;
   const refusal = evaluateConsoleMutations(mutations, { ...emptyInventory(), containers: null, allManaged: true });
   if (!refusal) return;
-  await auditRefusal(input.user, refusal, 'ssh_execute_command', { connectorId: input.connectorId });
+  await auditRefusal(input.user, refusal, 'ssh_execute_command', input.source, { connectorId: input.connectorId });
   throw managedResourceConsoleError(refusal);
 }

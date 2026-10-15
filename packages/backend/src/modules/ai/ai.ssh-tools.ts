@@ -22,14 +22,13 @@ export async function executeSshTool(
     if (!connectorId || !command) throw new Error('connectorId and command are required');
     const safety = inspectConsoleCommand(['sh', '-lc', command]);
     if (safety.blocked) throw new Error(safety.reason);
-    if (source === 'mcp') {
-      await assertAgentSshCommandAllowed({
-        user,
-        connectorId,
-        commands: shellStringCommands(command),
-        probe: (probe) => service.execute(user, connectorId, probe),
-      });
-    }
+    await assertAgentSshCommandAllowed({
+      user,
+      connectorId,
+      commands: shellStringCommands(command),
+      probe: (probe) => service.execute(user, connectorId, probe),
+      source,
+    });
     return service.execute(user, connectorId, command);
   }
   if (toolName === 'create_ssh_connector') {

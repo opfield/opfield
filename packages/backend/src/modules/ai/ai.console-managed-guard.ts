@@ -3,7 +3,8 @@ import type { ConsoleMutation } from './ai.console-docker-mutations.js';
 import type { InventoryContainer, ManagedContainerKind, ManagedInventory } from './ai.console-managed-inventory.js';
 
 /**
- * Agents (remote MCP: OAuth grants and API tokens) must not change Opfield-managed Docker objects from a node's
+ * Agents (remote MCP with OAuth grants or API tokens, and the in-app assistant) must not change Opfield-managed
+ * Docker objects from a node's
  * console. Opfield keeps records of every container it runs (its access identity and grants, Git source, links,
  * deployment slots, Compose project, availability placement); a container removed and run again by hand is a
  * different container to Opfield, and builds, rollouts and permissions of the old one break. The Opfield tools
