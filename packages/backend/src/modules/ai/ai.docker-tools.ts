@@ -1549,8 +1549,11 @@ async function manageDockerSource(
   }
 
   switch (operation) {
-    case 'get':
-      return sourceService.get(target);
+    case 'get': {
+      // With the latest build and a plain state, so a caller sees why nothing is deployed.
+      const { getDockerSourceWithBuildState } = await import('@/modules/docker/docker-source-build-state.js');
+      return getDockerSourceWithBuildState(target);
+    }
     case 'pending': {
       const pending = await sourceService.getPendingContainer(nodeId, String(a.containerName));
       if (!pending) throw new AppError(404, 'PENDING_SOURCE_NOT_FOUND', 'Pending source container not found');
@@ -1569,7 +1572,10 @@ async function manageDockerSource(
     }
     case 'upsert': {
       const saved = await sourceService.get(target);
-      return sourceService.upsert(DockerSourceBindingUpsertSchema.parse({ ...sourceConfig(saved), target }), user);
+      const { withDockerSourceBuildState } = await import('@/modules/docker/docker-source-build-state.js');
+      return withDockerSourceBuildState(
+        await sourceService.upsert(DockerSourceBindingUpsertSchema.parse({ ...sourceConfig(saved), target }), user)
+      );
     }
     case 'remove':
       return { success: true, removed: await sourceService.remove(target, user.id) };

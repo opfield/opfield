@@ -87,6 +87,27 @@ export interface DockerSourceBinding {
   lastWebhookError: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Latest build of a Docker source (get and save answers); null before its first build. */
+  latestBuild?: DockerSourceLatestBuild | null;
+  /** Every service build of the latest Compose commit; the latest build for other targets. */
+  latestBuilds?: DockerSourceLatestBuild[];
+  /** What the latest build did and what runs on the target, in one sentence. */
+  state?: string;
+}
+
+export interface DockerSourceLatestBuild {
+  id: string;
+  status: DockerBuildStatus;
+  trigger: string;
+  commitSha: string;
+  serviceName: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  policyDecision: string | null;
+  policyReason: string | null;
+  rolloutNote: string | null;
+  createdAt: string;
+  completedAt: string | null;
 }
 
 /** Answer of a manual repository check (Sync now). */
