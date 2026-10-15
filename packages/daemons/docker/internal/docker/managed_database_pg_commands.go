@@ -144,6 +144,16 @@ func (m *managedDatabaseManager) pgSetHandle(ctx context.Context, action, id, co
 	case "create", "start", "stop", "restart", "pause", "unpause", "remove":
 		return true, "", fmt.Errorf("%s is not available for a member of an availability set (use the availability operations)", action)
 	}
+	if action == postgresExtensionApplyAction {
+		// Extension DDL runs on the serving primary; copies follow through WAL.
+		members := m.pgSets.manager()
+		if members == nil {
+			return true, "", errors.New("the availability member runtime is not running on this node")
+		}
+		if serving, known := members.MemberServing(record.AvailabilitySetID, record.AvailabilityMemberID); !known || !serving {
+			return true, "", extensionError(extensionNotPrimaryCode, "this member is not the serving primary of its availability set; extensions change on the primary")
+		}
+	}
 	if pgPrincipalActions[action] {
 		members := m.pgSets.manager()
 		if members == nil {
@@ -444,6 +454,7 @@ func (m *managedDatabaseManager) applyPGMemberRecord(record *managedDatabaseReco
 	record.DesiredRunning = true
 	record.OperationID = input.OperationID
 	record.PostgresMaxConnections = managedPostgresMaxConnections(input.Database)
+	record.PostgresPreloadLibraries = managedPostgresPreloadKey(input.Database)
 }
 
 // ensurePGLocalRole creates the node-local superuser through the unix socket
@@ -519,6 +530,11 @@ func (m *managedDatabaseManager) createPGMemberContainer(ctx context.Context, re
 		"-c", "ssl_key_file=" + pgContainerTLSDir + "/key.pem",
 		"-c", "ssl_ca_file=" + pgContainerTLSDir + "/ca.pem",
 		"-c", "hba_file=" + pgContainerHBAPath,
+	}
+	// Preload libraries and their settings are the same on every member.
+	command = append(command, managedPostgresExtensionFlags(input)...)
+	if err := m.ensurePostgresExtensionBundles(ctx, record, input); err != nil {
+		return "", err
 	}
 	config := &container.Config{
 		Image: image,
@@ -958,6 +974,10 @@ func (m *managedDatabaseManager) pgMemberUpdate(ctx context.Context, id, configJ
 		if _, err := m.reloadTLS(ctx, &record, input, leaf, false); err != nil {
 			return "", fmt.Errorf("apply renewed managed database certificate: %w", err)
 		}
+	}
+	// Extension bundles apply to every member without a restart.
+	if err := m.settlePostgresExtensionBundles(ctx, &record, input); err != nil {
+		return "", err
 	}
 	// The published port is the member proxy's (its member configuration
 	// names it); the record keeps what the command says.

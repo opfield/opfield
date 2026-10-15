@@ -567,6 +567,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 				"managed_postgres_query_principal_v1",
 				"managed_postgres_query_writer_v1",
 				"managed_postgres_config_v1",
+				managedPostgresExtensionsCapability,
 				managedCapabilityValkey,
 				"managed_database_binding_principals_v2",
 				managedDatabaseVersionUpdateCapability,

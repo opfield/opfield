@@ -245,6 +245,7 @@ func (m *managedDatabaseManager) pgMemberRecreate(ctx context.Context, id string
 	record.TLSEnabled = input.TLSEnabled
 	record.TLSCertificateID = input.TLSCertificateID
 	record.PostgresMaxConnections = managedPostgresMaxConnections(input)
+	record.PostgresPreloadLibraries = managedPostgresPreloadKey(input)
 	record.PublishedPort = input.PublishedPort
 	if !input.PublishTCP {
 		record.PublishedPort = 0
