@@ -131,7 +131,7 @@ export const composeProjectActionRoute = appRoute({
   tags: ['Docker Compose'],
   summary: 'Start a managed Compose lifecycle operation',
   description:
-    'An apply (pull_apply) runs the revision with the managed database links that exist when it starts: links deleted since the revision was built are left out, links the project runs are kept and links saved pending are added when the revision defines their service. When that changes the revision, a copy is applied and the operation names it; a revision lacking the service of a link the project runs is refused.',
+    'An apply (pull_apply) runs the revision with the managed database links that exist when it starts: links deleted since the revision was built are left out, links the project runs are kept and links saved pending are added when the revision defines their service. When that changes the revision, a copy is applied and the operation names it; a revision lacking the service of a link the project runs is refused. Start and restart act on existing containers: a project that was never applied answers 409 COMPOSE_PROJECT_NOT_APPLIED (apply it first).',
   request: { params: actionParams, ...jsonBody(ComposeOperationInputSchema) },
   responses: createdJson(UnknownDataResponseSchema),
 });

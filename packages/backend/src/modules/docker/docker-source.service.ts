@@ -348,7 +348,7 @@ export class DockerSourceService {
   }
   async createBuild(
     _target: DockerSourceTarget,
-    _input: DockerBuildCreateInput,
+    _input: DockerBuildCreateInput & { queueWhilePaused?: boolean },
     _user: User
   ): Promise<{
     build: {

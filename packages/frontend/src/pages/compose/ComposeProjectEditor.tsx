@@ -364,6 +364,7 @@ export function ComposeProjectEditor({
           },
         });
         toast.success(created.build ? "Compose created and build queued" : "Compose created");
+        if (created.firstBuildWaiting) toast.info(created.firstBuildWaiting.message);
         if (created.initialBuildError)
           toast.warning(
             `${created.initialBuildError.message} You can adjust Source settings and retry Build now.`

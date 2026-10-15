@@ -480,6 +480,9 @@ func safeComposeErrorDetail(detail string) string {
 		return "A required external Docker volume was not found on the node. Create it or update the Compose configuration."
 	case strings.Contains(normalized, "invalid reference format"):
 		return "A configured container image reference is invalid. Update the image name and create a new revision."
+	case strings.Contains(normalized, "no container to start"),
+		strings.Contains(normalized, "no containers to start"):
+		return "The Compose project has no containers to start: it was never applied or was taken down. Apply it first (Apply or Pull & Apply)."
 	case strings.Contains(normalized, "container name") && strings.Contains(normalized, "already in use"):
 		return "A Compose container name is already in use on the Docker node. Rename or remove the conflicting container."
 	default:

@@ -341,5 +341,16 @@ describe('NginxTemplateService Pages missing-path answer', () => {
     });
     expect(spa).toContain('try_files $uri $uri/ /index.html;');
     expect(spa).toContain(`error_page 404 = @opfield_pages_spa_${routeSuffix};`);
+    // The SPA fallback covers app paths only: a missing path with a file extension stays a 404, as on a preview.
+    expect(spa).toContain('location ~ \\.[^/]+$ {\n            limit_except GET HEAD { deny all; }');
+    expect(spa).toContain('            try_files $uri =404;\n        }');
+    expect(spa).toContain('if ($uri ~ "\\.[^/]+$") { return 404; }');
+    expect(spa).toContain(`error_page 404 = @opfield_pages_spa_${routeSuffix};\n        recursive_error_pages on;`);
+    expect(spa).toContain(`error_page 404 @opfield_pages_404_${routeSuffix};`);
+  });
+
+  it('serves app paths of an SPA through index.html and leaves a missing file path a 404', async () => {
+    const plain = await render(pagesHost);
+    expect(plain).not.toContain('location ~ \\.[^/]+$ {');
   });
 });

@@ -259,6 +259,9 @@ function renderAdditionalRouteLocation(
       `        include ${routeNginxValue(route.pagesRouteIncludePath ?? '')};`,
       ...advanced,
       errorPage,
+      // The SPA location answers a missing file path with 404 itself; that second error page only runs when the first
+      // error_page of the request allows it.
+      ...(route.pagesSpaFallback ? ['        recursive_error_pages on;'] : []),
       // Resolve directory indexes explicitly so nginx does not internally redirect
       // a stripped Pages subpath (/) into the host's generic location /.
       '        try_files $uri/index.html $uri =404;',
@@ -282,6 +285,10 @@ function renderAdditionalRouteLocation(
             ...common,
             '        limit_except GET HEAD { deny all; }',
             `        include ${routeNginxValue(route.pagesRouteIncludePath ?? '')};`,
+            // SPA fallback covers app paths only: a missing path with a file extension answers 404 (the deployment's
+            // 404.html when it has one), as on a preview.
+            `        error_page 404 @${fallbackUrl ? notFoundLocation : notFoundPageLocation};`,
+            '        if ($uri ~ "\\.[^/]+$") { return 404; }',
             `        try_files /index.html @${notFoundLocation};`,
             '        sub_filter_once on;',
             `        sub_filter '</head>' '<script src="${scopedConfigPath}"></script></head>';`,
@@ -588,6 +595,16 @@ ${ADDITIONAL_ROUTES_TEMPLATE_PLACEHOLDER}
         sub_filter '</head>' '<script src="${PAGES_CONFIG_SCRIPT_PATH}"></script></head>';
 {{#if pagesSpaFallback}}
         try_files $uri $uri/ /index.html;
+        # SPA fallback covers app paths only: a missing path with a file extension answers 404 (the deployment's
+        # 404.html), as on a preview. Nested locations take the access list, limits and headers of this one.
+        location ~ /\\. { deny all; }
+        location ~ \\.[^/]+$ {
+            limit_except GET HEAD { deny all; }
+{{#each customRewrites}}
+            rewrite {{sanitizeRewrite this.source}} {{sanitizeRewrite this.destination}} {{#if (eq this.type "permanent")}}permanent{{else}}redirect{{/if}};
+{{/each}}
+            try_files $uri =404;
+        }
 {{else}}
         try_files $uri $uri/ =404;
 {{/if}}

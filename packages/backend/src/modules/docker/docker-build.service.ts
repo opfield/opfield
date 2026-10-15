@@ -20,6 +20,8 @@ export interface DockerBuildEnqueueInput {
   triggerDeliveryId?: string | null;
   createdById?: string | null;
   force?: boolean;
+  /** Queue the build even while every Build Worker is paused for new builds; it is claimed once one is unlocked. */
+  queueWhilePaused?: boolean;
 }
 export class DockerBuildService {
   // biome-ignore lint/complexity/noUselessConstructor: Preserve the private factory ABI.

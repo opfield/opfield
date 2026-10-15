@@ -342,6 +342,8 @@ export interface DockerSourceResourceCreateResult {
   source: DockerSourceBinding;
   build: DockerBuild | null;
   initialBuildError?: { code: string; message: string } | null;
+  /** The first build is queued but waits: every Build Worker is paused for new builds. */
+  firstBuildWaiting?: { code: string; message: string } | null;
   target: DockerSourceTarget;
 }
 
@@ -350,6 +352,8 @@ export interface DockerComposeSourceProjectCreateResult {
   source: DockerSourceBinding;
   build: DockerBuild | null;
   initialBuildError?: { code: string; message: string } | null;
+  /** The first build is queued but waits: every Build Worker is paused for new builds. */
+  firstBuildWaiting?: { code: string; message: string } | null;
   builds: DockerBuild[];
   created: boolean;
 }
