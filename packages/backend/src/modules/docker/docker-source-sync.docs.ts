@@ -19,6 +19,11 @@ const syncResponses = {
       'The Git provider refused or failed the check (SOURCE_SYNC_FAILED); the error is kept as the last poll error.',
     content: jsonContent(ApiErrorSchema),
   },
+  503: {
+    description:
+      'No Build Worker takes the build the check would queue: BUILD_WORKERS_PAUSED ("All Build Workers are paused for new builds") or NO_BUILD_WORKER_AVAILABLE. Nothing is queued; sync again once a worker is unlocked or online.',
+    content: jsonContent(ApiErrorSchema),
+  },
 };
 
 export const getContainerSourceRoute = appRoute({

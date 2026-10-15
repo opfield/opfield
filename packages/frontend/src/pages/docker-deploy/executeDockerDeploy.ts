@@ -142,6 +142,7 @@ export async function executeDockerDeploy({
             },
     });
     toast.success(result.build ? "Resource created and build queued" : "Resource created");
+    if (result.firstBuildWaiting) toast.info(result.firstBuildWaiting.message);
     if (result.initialBuildError)
       toast.warning(
         `${result.initialBuildError.message} You can adjust Source settings and retry Build now.`

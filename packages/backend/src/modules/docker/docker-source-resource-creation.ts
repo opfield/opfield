@@ -13,6 +13,7 @@ import {
   type DockerSourceResourceCreateSchema,
   type DockerSourceTarget,
 } from './docker-build.schemas.js';
+import { DockerBuildService } from './docker-build.service.js';
 import { assertDockerCreationAccess, placeCreatedDockerResource } from './docker-creation-access.js';
 import { DockerDeploymentService } from './docker-deployment.service.js';
 import { DockerEnvironmentService } from './docker-environment.service.js';
@@ -42,10 +43,30 @@ export const ComposeSourceProjectCreateSchema = z
     }
   });
 
+/**
+ * The first build is queued while every Build Worker is paused for new builds: the answer says it waits (it is claimed
+ * once a worker is unlocked).
+ */
+async function firstBuildWaiting(): Promise<{ firstBuildWaiting?: { code: string; message: string } }> {
+  const admission = await container
+    .resolve(DockerBuildService)
+    .admissionStatus()
+    .catch(() => null);
+  if (admission?.code !== 'BUILD_WORKERS_PAUSED') return {};
+  return {
+    firstBuildWaiting: {
+      code: 'BUILD_WORKERS_PAUSED',
+      message:
+        'All Build Workers are paused for new builds. The first build is queued and runs once a Build Worker is unlocked.',
+    },
+  };
+}
+
 export function initialDockerSourceBuildError(error: unknown): { code: string; message: string } {
   // Never expose provider errors, credential-bearing URLs, SQL or raw build input.
   const messages: Record<string, string> = {
     BUILD_WORKER_REQUIRED: 'A Build Worker is required. The resource was saved; retry from Source.',
+    NO_BUILD_WORKER_AVAILABLE: 'No online Build Worker can run the build. The resource was saved; retry from Source.',
     BUILD_CAPACITY_UNAVAILABLE: 'Build capacity is unavailable. The resource was saved; retry from Source.',
     BUILD_SCHEDULER_UNAVAILABLE: 'The build scheduler is unavailable. The resource was saved; retry from Source.',
     BUILD_ARTIFACT_POLICY_REJECTED: 'The build was rejected by security policy. Review the policy in Source and retry.',
@@ -180,8 +201,8 @@ export async function createDockerSourceResource(
     await storeReservedContainerEnvironment(nodeId, target.containerName, reservedEnvironment, actor.id);
   }
   try {
-    const queued = await sourceService.createBuild(target, { force: false }, actor);
-    return { source, build: queued.build, target };
+    const queued = await sourceService.createBuild(target, { force: false, queueWhilePaused: true }, actor);
+    return { source, build: queued.build, target, ...(await firstBuildWaiting()) };
   } catch (error) {
     return { source, target, build: null, initialBuildError: initialDockerSourceBuildError(error) };
   }
@@ -242,8 +263,8 @@ export async function createComposeProjectFromSource(
     throw error;
   }
   try {
-    const queued = await sourceService.createBuild(target, { force: false }, actor);
-    return { project, source, target, ...queued };
+    const queued = await sourceService.createBuild(target, { force: false, queueWhilePaused: true }, actor);
+    return { project, source, target, ...queued, ...(await firstBuildWaiting()) };
   } catch (error) {
     return {
       project,
