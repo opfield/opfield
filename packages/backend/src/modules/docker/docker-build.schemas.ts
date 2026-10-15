@@ -187,6 +187,11 @@ const DockerSourceContainerVolumeSchema = z
   })
   .strict();
 
+/** The whole volume list of a Git source container its first build has not created yet. */
+export const DockerPendingContainerVolumesSchema = z
+  .object({ volumes: z.array(DockerSourceContainerVolumeSchema).max(64) })
+  .strict();
+
 export const DockerSourceResourceCreateSchema = z.object({
   source: DockerSourceBindingConfigSchema,
   resource: z.discriminatedUnion('kind', [

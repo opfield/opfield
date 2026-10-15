@@ -18,12 +18,14 @@ import {
   DockerBuildCreateSchema,
   DockerBuildSecretNameSchema,
   DockerBuildSecretValueSchema,
+  DockerPendingContainerVolumesSchema,
   DockerSourceBindingConfigSchema,
   DockerSourceBindingUpsertSchema,
   DockerSourceResourceCreateSchema,
   type DockerSourceTarget,
 } from './docker-build.schemas.js';
 import { DockerBuildService } from './docker-build.service.js';
+import { updatePendingContainerVolumes } from './docker-pending-container-volumes.js';
 import { DockerSourceService } from './docker-source.service.js';
 import {
   canListSourceConnectors,
@@ -175,6 +177,21 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
         .getPendingContainer(c.req.param('nodeId'), decodeURIComponent(c.req.param('containerName')));
       if (!pending) throw new AppError(404, 'PENDING_SOURCE_NOT_FOUND', 'Pending source container not found');
       return c.json({ data: pending });
+    }
+  );
+  // The volume mounts the first build creates the container with (the whole list).
+  router.put(
+    '/nodes/:nodeId/containers/:containerName/source/pending/volumes',
+    requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
+    async (c) => {
+      const input = DockerPendingContainerVolumesSchema.parse(await c.req.json());
+      const data = await updatePendingContainerVolumes(
+        c.req.param('nodeId'),
+        decodeURIComponent(c.req.param('containerName')),
+        input,
+        actorFor(c)
+      );
+      return c.json({ data });
     }
   );
 

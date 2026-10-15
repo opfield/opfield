@@ -52,6 +52,7 @@ import {
   DockerBuildSecretNameSchema,
   DockerBuildSecretValueSchema,
   DockerInternalRegistrySettingsSchema,
+  DockerPendingContainerVolumesSchema,
   DockerSourceBindingConfigSchema,
   DockerSourceBindingUpsertSchema,
   DockerSourceResourceCreateSchema,
@@ -1554,6 +1555,17 @@ async function manageDockerSource(
       const pending = await sourceService.getPendingContainer(nodeId, String(a.containerName));
       if (!pending) throw new AppError(404, 'PENDING_SOURCE_NOT_FOUND', 'Pending source container not found');
       return pending;
+    }
+    case 'pending_volumes': {
+      if (targetType !== 'container')
+        throw new Error('The pending_volumes operation applies to container targets only');
+      const { updatePendingContainerVolumes } = await import('@/modules/docker/docker-pending-container-volumes.js');
+      return updatePendingContainerVolumes(
+        nodeId,
+        String(a.containerName),
+        DockerPendingContainerVolumesSchema.parse({ volumes: a.volumes ?? [] }),
+        user
+      );
     }
     case 'upsert': {
       const saved = await sourceService.get(target);

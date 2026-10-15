@@ -233,7 +233,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
   manage_docker_source: operationPolicies({
     read: ['get', 'pending', 'admission', 'connectors', 'repositories', 'secret_list'],
     create: ['create'],
-    update: ['upsert', 'secret_upsert'],
+    update: ['upsert', 'secret_upsert', 'pending_volumes'],
     delete: ['remove', 'secret_delete'],
     external: ['resolve'],
     execute: ['build', 'sync'],
