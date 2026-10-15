@@ -400,6 +400,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "nginx_template_folder.update": "Updated proxy template folder",
   "node.config_push": "Pushed node configuration",
   "node.console.close": "Closed node console",
+  "node.console.managed_resource_refused": "Refused a console command on a managed resource",
   "node.console.open": "Opened node console",
   "node.create": "Created node",
   "node.disconnected": "Node disconnected",

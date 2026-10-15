@@ -40,7 +40,7 @@ import type { NodesService } from '@/modules/nodes/nodes.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
 import type { User } from '@/types.js';
-import { inspectConsoleCommand, parseConsoleCommandResult } from './ai.console-safety.js';
+import { executeNodeConsoleCommand } from './ai.node-console-tool.js';
 import { resolveNodeListAccess } from './ai.node-list-scopes.js';
 import { NODE_LIST_ROLE_NOTE, nodeRole } from './ai.node-roles.js';
 import { agentPage, agentPageLimit } from './ai.service-helpers.js';
@@ -67,6 +67,8 @@ const NODE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 export interface NodeToolContext {
   nodesService: NodesService;
   getDispatchService?: () => NodeDispatchService;
+  /** Who calls: remote MCP (OAuth grants and API tokens) or the in-app assistant. */
+  source?: 'ai' | 'mcp';
 }
 
 type ListedNode = Awaited<ReturnType<NodesService['list']>>['data'][number];
@@ -177,7 +179,11 @@ export async function executeNodeTool(
       return node && typeof node === 'object' ? { ...node, usedFor: nodeRole((node as { type?: string }).type) } : node;
     }
     case 'execute_node_console_command':
-      return executeNodeConsoleCommand(context, user, a);
+      return executeNodeConsoleCommand(
+        { getDispatch: () => getRequiredDispatchService(context), source: context.source },
+        user,
+        a
+      );
     case 'create_node': {
       // Mirrors POST /nodes: schema, destination folder permission, then the enrollment token.
       const input = CreateNodeSchema.parse(
@@ -215,34 +221,6 @@ export async function executeNodeTool(
     default:
       throw new Error(`Unsupported node tool: ${toolName}`);
   }
-}
-
-async function executeNodeConsoleCommand(context: NodeToolContext, user: User, args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId || '');
-  if (!nodeId) throw new Error('nodeId is required');
-  assertNodeConsoleScope(user, nodeId);
-
-  const safety = inspectConsoleCommand(args.command as string[]);
-  if (safety.blocked) {
-    throw new Error(safety.reason ?? 'Console command is blocked');
-  }
-
-  const result = await getRequiredDispatchService(context).sendNodeExecCommand(
-    nodeId,
-    'run',
-    { command: safety.normalizedCommand },
-    35000
-  );
-  if (!result.success) {
-    throw new Error(result.error || 'Node console command failed');
-  }
-  const output = parseConsoleCommandResult(result.detail);
-  return {
-    nodeId,
-    command: safety.normalizedCommand,
-    risky: safety.risky,
-    ...output,
-  };
 }
 
 async function executeNodeConfigTool(context: NodeToolContext, user: User, args: Record<string, unknown>) {
@@ -539,12 +517,6 @@ function assertNodeConfigScope(user: User, scope: 'nodes:config:view' | 'nodes:m
 function assertNodeFileScope(user: User, scope: 'nodes:files:read' | 'nodes:files:write', nodeId: string) {
   if (!hasScopeForResource(user.scopes, scope, nodeId)) {
     throw new Error(`Missing required scope: ${scope}:${nodeId}`);
-  }
-}
-
-function assertNodeConsoleScope(user: User, nodeId: string) {
-  if (!hasScopeForResource(user.scopes, 'nodes:console', nodeId)) {
-    throw new Error(`Missing required scope: nodes:console:${nodeId}`);
   }
 }
 

@@ -2,6 +2,23 @@
 
 Exact tool names in the MCP `docker` toolset. All require the `nodeId` of a Node with `type: "docker"` unless noted; the five `list_docker_*` tools list across every Docker Node you can see when `nodeId` is omitted. A refusal on a Node of another type names the Docker Nodes you can use. The connected instance's tool schemas are authoritative; re-read them when an argument is rejected.
 
+## Instead of `docker` on the Node console
+
+Over MCP, `execute_node_console_command` and `ssh_execute_command` refuse commands that change Opfield-managed objects (`MANAGED_RESOURCE_CONSOLE_FORBIDDEN`). Use these tools:
+
+| Console command | Tool |
+| --- | --- |
+| `docker rm` | `remove_docker_container` |
+| `docker stop` / `start` / `restart` / `kill` | `stop_docker_container`, `start_docker_container`, `restart_docker_container`, `kill_docker_container` |
+| `docker rename` | `rename_docker_container` |
+| `docker update` | `manage_docker_container` `live_update` |
+| `docker rm` + `docker run` with new image, ports, mounts or env | `manage_docker_container` `recreate`, `update_docker_container_image`, `manage_docker_container_config` `update_env` |
+| a blue/green slot container | the Deployment tools |
+| `docker compose up` / `down` / `restart` / `pull` | `manage_docker_compose` |
+| `docker volume rm`, `docker network rm` / `connect` / `disconnect` | `manage_docker_volume`, `manage_docker_network` |
+
+Read-only commands (`docker ps`, `inspect`, `logs`, `stats`, `images`) stay allowed on the console.
+
 ## Standalone Containers
 
 `create_docker_container`, `list_docker_containers`, `get_docker_container`, `start_docker_container`, `stop_docker_container`, `restart_docker_container`, `kill_docker_container`, `remove_docker_container`, `update_docker_container_image`, `rename_docker_container`, `duplicate_docker_container`, `get_docker_container_stats`, `get_docker_container_logs`, `execute_docker_container_console_command`, `manage_docker_container_config`, `manage_docker_container`, `upload_docker_container_archive`, `download_docker_archive`.
