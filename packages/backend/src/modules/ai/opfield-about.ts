@@ -13,7 +13,7 @@ export const OPFIELD_DIFFERENCE =
 export const OPFIELD_AGENT_START = [
   'Use Opfield tools, not shell access to nodes: a change made around Opfield is not permission-checked or audited, and Opfield may overwrite it.',
   'Find anything by name, domain, image or ID with `find_resource`; see what you may do, and where, with `get_my_access`.',
-  'Read `read_opfield_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers, `logging` and `notifications` for monitoring, `permissions` for access.',
+  'Read `read_opfield_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers you already have, `hosting` for new servers ordered from a cloud provider or a Proxmox host, `relays` for the Relay Pool, `integrations` for GitHub, generic Git, and external SSH, `logging` and `notifications` for monitoring, `permissions` for access.',
 ] as const;
 
 /** The full section, Markdown. */

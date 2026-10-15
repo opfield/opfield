@@ -42,6 +42,25 @@ const uuid = (value: unknown, label: string) => {
 };
 
 /**
+ * provision carries the account inside input, like POST /hosting/operations. A top-level connectorId is taken
+ * as input.connectorId when input has none, and refused when it names another account, never silently dropped.
+ */
+function provisionBody(args: Record<string, unknown>, input: unknown): unknown {
+  if (args.connectorId === undefined) return input;
+  const connectorId = uuid(args.connectorId, 'connectorId');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
+  const body = input as Record<string, unknown>;
+  if (body.connectorId === undefined) return { ...body, connectorId };
+  if (body.connectorId !== connectorId)
+    throw new AppError(
+      400,
+      'INVALID_AI_TOOL_ARGUMENT',
+      'connectorId and input.connectorId name different hosting accounts; pass the account once, inside input'
+    );
+  return body;
+}
+
+/**
  * Hosting routes delegate every permission check to the hosting services,
  * which receive the acting user with its effective scopes. The tool passes
  * the same user, so scope, folder, adoption-authority, and billing checks are
@@ -108,7 +127,7 @@ export async function executeHostingTool(user: User, toolName: string, args: Rec
     case 'node_firewall_update':
       return firewall().update(nodeId(), HostingFirewallUpdateSchema.parse(input), user);
     case 'provision':
-      return provisioning().create(HostingProvisionSchema.parse(input), user);
+      return provisioning().create(HostingProvisionSchema.parse(provisionBody(args, input)), user);
     case 'operation_get':
       return operations().get(operationId(), user);
     case 'operation_reconcile':

@@ -289,7 +289,8 @@ export const ACCESS_AREAS: readonly AccessAreaDefinition[] = [
           : null,
     viewScope: 'hosting:resources:view',
     createScope: 'hosting:resources:create',
-    createHint: 'pass the hosting account (connectorId) to the create action of manage_hosting',
+    createHint:
+      'pass the hosting account as input.connectorId (and a node folder as input.folderId) to manage_hosting provision',
   },
   { id: 'integrations', title: 'Integrations (Git, SSH, Cloudflare)', action: prefixed('integrations:') },
   { id: 'notifications', title: 'Notifications', action: prefixed('notifications:') },

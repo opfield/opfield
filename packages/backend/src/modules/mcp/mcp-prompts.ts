@@ -75,6 +75,13 @@ const prompts: PromptDefinition[] = [
     requiredScopes: ['databases:view'],
     text: 'Plan or provision access to an Opfield managed database. Discover the Databases toolset and read the databases documentation first. Use manage_managed_database: catalog before create, keep the instance private unless explicit publication is requested, poll get until ready, then create a binding for the selected container or deployment. Do not include credentials, connection URIs, binding environment variables, connector aliases, or daemon error text in the response.',
   },
+  {
+    name: 'provision-hosted-node',
+    title: 'Provision hosted node',
+    description: 'Create a VM at a hosting provider or on a Proxmox host and enroll it as an Opfield node.',
+    requiredScopes: ['hosting:resources:create'],
+    text: 'Create a new server as an Opfield node through a hosting account. Read the hosting documentation first (read_opfield_documentation topic hosting) and use manage_hosting from the hosting toolset; create_node only registers an existing server. 1. connector_list: pick the enabled account; for Proxmox match the host the user named with settings.proxmoxHost. 2. catalog with connectorId; on 503 HOSTING_CATALOG_NOT_READY run connector_sync (or wait for the background sync) and read it again. 3. Choose location, size and image from the catalog (the image supportedRoles must include the role); Proxmox uses the connector host as location, size "custom", and cpu, memoryMb, diskGb. 4. Confirm the role, name, placement, resources, image and, for cloud providers, the exact catalog price and currency with the user before ordering. 5. provision with input { connectorId, idempotencyKey (a new random UUID), name, role, location, size, image, confirmedPrice for cloud providers, relayAddress for relays }; connectorId goes inside input. After a timeout repeat the identical call with the same idempotencyKey. 6. Poll operation_get until phase is ready or failed, then confirm with get_node that the node is online. On failure never order a second VM: use operation_retry_install for a failed installation on an existing VM, operation_reconcile for an unknown outcome, and report the errorCode and errorMessage. Do not repeat provider tokens or enrollment tokens.',
+  },
 ];
 
 export function registerMcpPrompts(server: McpServer, scopes: string[]): void {

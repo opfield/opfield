@@ -82,7 +82,9 @@ Relay uses the same admitted image policy as the other roles. Released installer
 
 An already registered Opfield node is linked automatically when complete, fresh and unambiguous provider evidence identifies the same host. Supported evidence includes a unique directly assigned public IP, scoped private IP plus matching interface/MAC evidence, or an independently read guest host identity. A private IP alone or a shared NAT egress IP is insufficient.
 
-Adoption preserves node ID, host identity, PKI, configuration and workloads. Multiple roles on the same proven host may share the provider resource. No manual match picker, approval or adoption endpoint exists. Ambiguous/stale/incomplete matches stay unbound with a diagnostic reason and are evaluated again on a later sync.
+Adoption preserves node ID, host identity, PKI, configuration and workloads. Multiple roles on the same proven host may share the provider resource. Ambiguous/stale/incomplete matches stay unbound with a diagnostic reason and are evaluated again on a later sync.
+
+**Adopt nodes** on the account page links one unbound VM to one unbound node by hand (`POST /api/integrations/hosting/{id}/adopt` with `{ resourceId, nodeId }`, MCP `manage_hosting` `adopt`; candidates from `adoption-candidates`). It needs `integrations:hosting:manage` on the account and `nodes:manage` plus `nodes:details` on the node, and still links them only when the same evidence proves they are one host.
 
 Resource and node scopes constrain discovery; they are not manual matching choices. Newly provisioned VMs are admitted into a restricted resource scope by their exact returned provider ID. Reused provider IDs with a different incarnation do not inherit management authority from the old VM.
 
@@ -119,6 +121,18 @@ Creation, deletion and restore are mutually exclusive with other VM mutations. A
 Hosting alerts support VM power state, operation outcomes, firewall failures, account synchronization and monetary thresholds. Monetary rules require an explicit currency and separate billing access. Persisted provider observations and Redis read models feed the notification bus; stale or unavailable account data does not become a zero balance.
 
 Hosting connectors, VM lifecycle, snapshots, firewalls and account finances are available to API tokens and OAuth/MCP grants that hold the matching `integrations:hosting:*` and `hosting:*` scopes, bounded by the token owner's live permissions. OAuth consent leaves paid, destructive and credential-bearing hosting scopes unchecked by default. See [SCOPES.md](../SCOPES.md) for the canonical scopes.
+
+## Automating through MCP or the API
+
+Every step above is available to API tokens and MCP agents with the same checks: MCP `manage_hosting` (toolset `hosting`), REST `/api/integrations/hosting` for accounts and `/api/hosting` for operations, nodes and VMs. An agent reads `read_opfield_documentation({ topic: "hosting" })` for the full recipe; the `provision-hosted-node` prompt and the `hosting-providers` skill summarize it. In short:
+
+1. `connector_list`, then `catalog` for the account (`503 HOSTING_CATALOG_NOT_READY`: `connector_sync`, or wait for the background sync).
+2. Confirm role, name, location, size or Proxmox resources, image and price with the user.
+3. `provision` with `input: { connectorId, idempotencyKey, name, role, location, size, image, confirmedPrice }` (`POST /api/hosting/operations`). Proxmox uses the connector's host as `location`, `size: "custom"` and `cpu`, `memoryMb`, `diskGb`. Repeating a request with the same `idempotencyKey` returns the same operation.
+4. Poll `operation_get` (`GET /api/hosting/operations/{id}`) until `ready` or `failed`, then check that the node is online.
+5. A failed installation on a created VM: `operation_retry_install` with a new `idempotencyKey`; an uncertain outcome: `operation_reconcile`. Never order a second VM instead.
+
+Ordering needs `integrations:hosting:view` and `hosting:resources:create` on the account plus `nodes:create`; the built-in admin group has none of the hosting scopes.
 
 ## Verification boundary
 

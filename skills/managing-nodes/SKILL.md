@@ -1,6 +1,6 @@
 ---
 name: managing-nodes
-description: Enroll, inspect, and operate Opfield Nodes, the servers running Opfield daemons for nginx ingress, Docker, builder, storage and databases, monitoring, and relay. Use when asked to add a server to Opfield, check Node or daemon health, change a Node's service address, open a Node console or browse its filesystem, update daemons, or diagnose an offline or degraded Node. For a brand-new installation, start with the instance setup in using-opfield. Use after using-opfield has confirmed the Opfield MCP connection.
+description: Enroll, inspect, and operate Opfield Nodes, the servers running Opfield daemons for nginx ingress, Docker, builder, storage and databases, monitoring, and relay. Use when asked to add a server to Opfield, check Node or daemon health, change a Node's service address, open a Node console or browse its filesystem, update daemons, or diagnose an offline or degraded Node. To create a new VM as a Node through a hosting account, use hosting-providers. For a brand-new installation, start with the instance setup in using-opfield. Use after using-opfield has confirmed the Opfield MCP connection.
 ---
 
 # Managing Nodes
@@ -28,6 +28,8 @@ Enroll only the roles the workload needs.
 ## Enroll a Node
 
 Adding a server is an explicit infrastructure mutation; do it only on the user's request.
+
+These steps enroll a server that already exists. To create a new server as a Node, a VM at HOSTKEY, DigitalOcean, Hetzner Cloud, or CloudBlast, or on a Proxmox host, use `hosting-providers` (`manage_hosting` `provision`): Opfield orders the VM, installs the daemon, and enrolls it, with no command to run by hand. `node_get` of `manage_hosting` shows the VM behind a hosted Node.
 
 1. Prefer the Console flow (**Nodes > Add Node**): it shows the one-time enrollment command directly to the user, so the token never passes through chat.
 2. `create_node({ type, displayName, ... })` (relay Nodes also need the advertised address) is the MCP equivalent. It returns a one-time enrollment token and the Opfield gRPC certificate fingerprint. Use it only when you will run the setup command on the target host yourself, with the user's authorization. Otherwise let the user use the Console.

@@ -1,6 +1,6 @@
 ---
 name: using-opfield
-description: Entry point and router for deploying, publishing, configuring, diagnosing, or operating applications through a user-owned Opfield instance (a self-hosted infrastructure control plane for a fleet of nodes) and its authenticated remote MCP. Use first in any Opfield task for setup, MCP connection, tool discovery, safety rules, asynchronous Tasks, and verification, and to choose the domain skill for Pages, Docker workloads, high availability, ingress and TLS, internal PKI, databases, object storage, Nodes, observability, or access control. Do not use for generic Docker or hosting work that is not targeting Opfield.
+description: Entry point and router for deploying, publishing, configuring, diagnosing, or operating applications through a user-owned Opfield instance (a self-hosted infrastructure control plane for a fleet of nodes) and its authenticated remote MCP. Use first in any Opfield task for setup, MCP connection, tool discovery, safety rules, asynchronous Tasks, and verification, and to choose the domain skill for Pages, Docker workloads and Apps, high availability, ingress and TLS, internal PKI, databases, object storage, Nodes, hosting providers, observability, or access control. Do not use for generic Docker or hosting work that is not targeting Opfield.
 ---
 
 # Using Opfield
@@ -26,7 +26,7 @@ It is not another Docker panel for one host. It is one control plane for many no
 
 - Use Opfield tools, not shell access to nodes: a change made around Opfield is not permission-checked or audited, and Opfield may overwrite it.
 - Find anything by name, domain, image or ID with `find_resource`; see what you may do, and where, with `get_my_access`.
-- Read `read_opfield_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers, `logging` and `notifications` for monitoring, `permissions` for access.
+- Read `read_opfield_documentation({ topic })` before a workflow: `docker` and `availability` for workloads, `proxy`, `domains` and `ssl` for ingress and TLS, `databases` and `storage` for data, `pages` for static sites, `apps` for applications, `nodes` for servers you already have, `hosting` for new servers ordered from a cloud provider or a Proxmox host, `relays` for the Relay Pool, `integrations` for GitHub, generic Git, and external SSH, `logging` and `notifications` for monitoring, `permissions` for access.
 
 ## Connect and discover
 
@@ -53,6 +53,8 @@ Each domain has its own skill in this package. If one is not installed, install 
 - Managed or external PostgreSQL, key-value stores, ClickHouse, application bindings, queries, or backups: `databases`.
 - Object storage, external S3, FTP, or SFTP, copy jobs, or the MinIO to SeaweedFS migration: `storage`.
 - Adding, updating, or repairing Nodes, daemon health, Node console or files: `managing-nodes`.
+- Creating a server or VM as a Node at HOSTKEY, DigitalOcean, Hetzner Cloud, CloudBlast, or on a Proxmox host, or power, resize, snapshots, and firewall of a hosted VM: `hosting-providers`.
+- Grouping an application's resources into an App with environments, environment variables, promotion, shutdown, or the kill switch: `deploying-workloads` (its Apps and environments reference).
 - Logs, SIEM export, alert rules, webhooks, status pages, or the audit log: `observability`.
 - Users, groups, scopes, API tokens, or OAuth grants: `access-control`.
 - Incident, warning, failed Task, offline Node, or unexplained state: [Diagnosis](references/diagnosis.md), then the skill that owns the failing boundary.
