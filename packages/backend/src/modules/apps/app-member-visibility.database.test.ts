@@ -148,7 +148,10 @@ describe.skipIf(!url)('apps visible through members on disposable PostgreSQL', (
     const scopes = await effective([`docker:containers:view:folder/${app.rootFolderIds.containers}`]);
     const detail = await apps.get(scopes, app.id);
     expect(detail.access).toBe('members');
-    expect(detail.environments.map((env) => env.id)).toEqual([production.id]);
+    // The root grant reaches every environment's placement folder: staging stays visible with no member to show.
+    expect(detail.environments.map((env) => env.id)).toEqual([production.id, staging.id]);
+    expect(detail.environments.find((env) => env.id === staging.id)?.memberCounts).toMatchObject({ container: 0 });
+    expect((await apps.listMembers(scopes, app.id)).map((member) => member.name).sort()).toEqual(['db-admin', 'web']);
   });
 
   it('shows the app through a direct grant on one member', async () => {
