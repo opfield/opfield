@@ -1,7 +1,7 @@
 import { desc, eq } from 'drizzle-orm';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { dockerBuildArtifacts, dockerBuilds } from '@/db/schema/index.js';
+import { dockerBuildArtifacts, dockerBuilds, dockerSourceBindings } from '@/db/schema/index.js';
 import type { DockerSourceTarget } from './docker-build.schemas.js';
 import { DockerSourceService } from './docker-source.service.js';
 import { findContainerSourceTargetOwner, sourceTargetOwnedAdvice } from './docker-source-target-owner.js';
@@ -17,6 +17,8 @@ export interface DockerSourceBuildSummary {
   errorMessage: string | null;
   policyDecision: string | null;
   policyReason: string | null;
+  /** Vulnerability counts of the scanned image over the full report; null before a scan. */
+  scanCounts: { critical: number; high: number; medium: number; low: number; unknown: number } | null;
   rolloutNote: string | null;
   createdAt: Date;
   completedAt: Date | null;
@@ -98,6 +100,7 @@ export async function readLatestDockerSourceBuilds(
         build: dockerBuilds,
         policyDecision: dockerBuildArtifacts.policyDecision,
         policyReason: dockerBuildArtifacts.policyReason,
+        scanSummary: dockerBuildArtifacts.scanSummary,
       })
       .from(dockerBuilds)
       .leftJoin(dockerBuildArtifacts, eq(dockerBuildArtifacts.buildId, dockerBuilds.id));
@@ -111,7 +114,7 @@ export async function readLatestDockerSourceBuilds(
         .where(eq(dockerBuilds.batchId, newest.build.batchId))
         .orderBy(desc(dockerBuilds.createdAt), desc(dockerBuilds.id))
     : [newest];
-  return rows.map(({ build, policyDecision, policyReason }) => {
+  return rows.map(({ build, policyDecision, policyReason, scanSummary }) => {
     const note = (build.progress as Record<string, unknown> | null)?.rolloutNote;
     return {
       id: build.id,
@@ -123,6 +126,15 @@ export async function readLatestDockerSourceBuilds(
       errorMessage: build.errorMessage,
       policyDecision: policyDecision ?? null,
       policyReason: policyReason ?? null,
+      scanCounts: scanSummary
+        ? {
+            critical: scanSummary.critical,
+            high: scanSummary.high,
+            medium: scanSummary.medium,
+            low: scanSummary.low,
+            unknown: scanSummary.unknown,
+          }
+        : null,
       rolloutNote: typeof note === 'string' && note ? note : null,
       createdAt: build.createdAt,
       completedAt: build.completedAt,
@@ -161,4 +173,29 @@ export async function withDockerSourceBuildState<
 export async function getDockerSourceWithBuildState(target: DockerSourceTarget) {
   const source = await container.resolve(DockerSourceService).get(target);
   return source ? withDockerSourceBuildState(source) : null;
+}
+
+/**
+ * A container its first build has not created yet (`manage_docker_source pending`, the pending page) with the same
+ * latest build and `state` as the source answers, so a failed first build says why and what to do.
+ */
+export async function withPendingDockerSourceBuildState<T extends { sourceBindingId: string }>(pending: T) {
+  const [binding] = await container
+    .resolve<DrizzleClient>(TOKENS.DrizzleClient)
+    .select({
+      autoBuild: dockerSourceBindings.autoBuild,
+      autoDeploy: dockerSourceBindings.autoDeploy,
+      deployedCommitSha: dockerSourceBindings.deployedCommitSha,
+      lastPollError: dockerSourceBindings.lastPollError,
+    })
+    .from(dockerSourceBindings)
+    .where(eq(dockerSourceBindings.id, pending.sourceBindingId))
+    .limit(1);
+  const latestBuilds = await readLatestDockerSourceBuilds(pending.sourceBindingId);
+  return {
+    ...pending,
+    latestBuild: latestBuilds[0] ?? null,
+    latestBuilds,
+    state: binding ? describeDockerSourceState(binding, latestBuilds) : null,
+  };
 }

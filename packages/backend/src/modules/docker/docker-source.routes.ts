@@ -27,7 +27,11 @@ import {
 import { DockerBuildService } from './docker-build.service.js';
 import { updatePendingContainerVolumes } from './docker-pending-container-volumes.js';
 import { DockerSourceService } from './docker-source.service.js';
-import { getDockerSourceWithBuildState, withDockerSourceBuildState } from './docker-source-build-state.js';
+import {
+  getDockerSourceWithBuildState,
+  withDockerSourceBuildState,
+  withPendingDockerSourceBuildState,
+} from './docker-source-build-state.js';
 import {
   canListSourceConnectors,
   canPickDockerSource,
@@ -178,7 +182,7 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
         .resolve(DockerSourceService)
         .getPendingContainer(c.req.param('nodeId'), decodeURIComponent(c.req.param('containerName')));
       if (!pending) throw new AppError(404, 'PENDING_SOURCE_NOT_FOUND', 'Pending source container not found');
-      return c.json({ data: pending });
+      return c.json({ data: await withPendingDockerSourceBuildState(pending) });
     }
   );
   // The volume mounts the first build creates the container with (the whole list).

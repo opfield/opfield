@@ -51,17 +51,23 @@ function defaultDeps(): DockerSourceTargetOwnerDeps {
 export async function findContainerSourceTargetOwner(
   nodeId: string,
   containerName: string,
-  deps: DockerSourceTargetOwnerDeps = defaultDeps()
+  overrides: Partial<DockerSourceTargetOwnerDeps> = {}
 ): Promise<DockerSourceTargetOwner | null> {
+  const deps = { ...defaultDeps(), ...overrides };
   const inspect = await deps.inspect(nodeId, containerName).catch(() => null);
   const labels: Record<string, unknown> = inspect?.Config?.Labels ?? {};
   const deploymentId = dockerDeploymentIdLabel(labels);
   if (deploymentId) {
-    return { kind: 'deployment', id: deploymentId, name: (await deps.deploymentName(deploymentId)) ?? deploymentId };
+    return {
+      kind: 'deployment',
+      id: deploymentId,
+      name: (await deps.deploymentName(deploymentId).catch(() => null)) ?? deploymentId,
+    };
   }
   const project = String(labels['com.docker.compose.project'] ?? '').trim();
   if (!project) return null;
-  const id = labelString(labels, 'compose.project-id') || (await deps.composeProjectId(nodeId, project));
+  const id =
+    labelString(labels, 'compose.project-id') || (await deps.composeProjectId(nodeId, project).catch(() => null));
   return { kind: 'compose_project', id: id || null, name: project };
 }
 
@@ -83,7 +89,7 @@ export function sourceTargetOwnedAdvice(containerName: string, owner: DockerSour
 export async function assertContainerSourceTargetNotOwned(
   nodeId: string,
   containerName: string,
-  deps?: DockerSourceTargetOwnerDeps
+  deps?: Partial<DockerSourceTargetOwnerDeps>
 ): Promise<void> {
   const owner = await findContainerSourceTargetOwner(nodeId, containerName, deps);
   if (!owner) return;

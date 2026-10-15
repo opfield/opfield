@@ -10,6 +10,7 @@ import { DockerAccessResourceService, hasDockerResourceScope } from './docker-ac
 import { DockerBuildListQuerySchema, DockerBuildLogQuerySchema } from './docker-build.schemas.js';
 import { DockerBuildService } from './docker-build.service.js';
 import { filterBuildsByApp } from './docker-build-app-filter.js';
+import { containerBuildSourceBindingId } from './docker-build-container-filter.js';
 
 const BuildIdSchema = z.string().uuid();
 const BUILD_PAGE_SCAN_LIMIT = 200;
@@ -90,6 +91,14 @@ export function registerDockerBuildRoutes(router: OpenAPIHono<AppEnv>) {
         throw new AppError(400, 'INVALID_BUILD_CURSOR', 'Build cursor is invalid');
       }
       const service = container.resolve(DockerBuildService);
+      let sourceBindingId = query.sourceBindingId;
+      if (query.containerName) {
+        const containerSource = await containerBuildSourceBindingId(query.nodeId, query.containerName);
+        if (!containerSource || (sourceBindingId && sourceBindingId !== containerSource)) {
+          return c.json({ data: [], nextCursor: null });
+        }
+        sourceBindingId = containerSource;
+      }
       const visible: Awaited<ReturnType<DockerBuildService['list']>> = [];
       let cursor = requestedCursor;
       let exhausted = false;
@@ -97,7 +106,7 @@ export function registerDockerBuildRoutes(router: OpenAPIHono<AppEnv>) {
 
       for (let pass = 0; pass < BUILD_PAGE_SCAN_PASSES && visible.length <= query.limit; pass += 1) {
         const rows = await service.list({
-          sourceBindingId: query.sourceBindingId,
+          sourceBindingId,
           builderNodeId: query.builderNodeId,
           status: query.status,
           provider: query.provider,

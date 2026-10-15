@@ -107,6 +107,14 @@ export interface DockerSourceLatestBuild {
   errorMessage: string | null;
   policyDecision: string | null;
   policyReason: string | null;
+  /** Vulnerability counts of the scanned image; null before a scan. */
+  scanCounts: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    unknown: number;
+  } | null;
   rolloutNote: string | null;
   createdAt: string;
   completedAt: string | null;

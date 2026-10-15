@@ -15,6 +15,7 @@ function build(overrides: Partial<DockerSourceBuildSummary> = {}): DockerSourceB
     errorMessage: null,
     policyDecision: 'approved',
     policyReason: null,
+    scanCounts: null,
     rolloutNote: null,
     createdAt: new Date('2026-10-15T12:46:55Z'),
     completedAt: new Date('2026-10-15T12:48:00Z'),

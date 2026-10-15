@@ -139,7 +139,11 @@ export function DockerPendingContainerDetail({
         <PanelShell
           className="shrink-0"
           title="Resource created"
-          description="The container will be created by the first successful deployment. You can edit the security policy in Source and retry failed or blocked builds. Runtime actions become available after deployment."
+          description={
+            pending.latestBuild?.status === "failed" && pending.state
+              ? pending.state
+              : "The container will be created by the first successful deployment. You can edit the security policy in Source and retry failed or blocked builds. Runtime actions become available after deployment."
+          }
         />
         <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 min-w-0 flex-1 flex-col">
           <TabsList className="shrink-0">
