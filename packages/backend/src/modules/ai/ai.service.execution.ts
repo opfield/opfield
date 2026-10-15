@@ -568,14 +568,18 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
       );
     }
     if (SSH_TOOL_NAMES.has(toolName)) {
-      return executeSshTool(user, toolName, args);
+      return executeSshTool(user, toolName, args, runtimeContext.source);
     }
     if (FOLDER_TOOL_NAMES.has(toolName)) {
       return executeFolderTool(user, toolName, args);
     }
     if (NODE_TOOL_NAMES.has(toolName)) {
       return executeNodeTool(
-        { nodesService: this.nodesService, getDispatchService: () => container.resolve(NodeDispatchService) },
+        {
+          nodesService: this.nodesService,
+          getDispatchService: () => container.resolve(NodeDispatchService),
+          source: runtimeContext.source,
+        },
         user,
         toolName,
         args

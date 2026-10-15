@@ -49,6 +49,10 @@ type Client struct {
 	// databaseLinkOnConnector reports a database link network whose binding the shared connector serves (C6, F4);
 	// nil without secure links.
 	databaseLinkOnConnector func(networkName string) bool
+	// ownOps records the container changes this client makes, so Docker
+	// events of anyone else's read as changes outside Opfield; nil records
+	// nothing.
+	ownOps *ownContainerOps
 }
 
 func (c *Client) SetRunscHealthy(healthy bool) {
@@ -109,6 +113,8 @@ func NewClient(socketPath string, stateDir string, logger *slog.Logger) (*Client
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}
+	ownOps := newOwnContainerOps()
+	httpClient.Transport = &ownOpsTransport{base: httpClient.Transport, ops: ownOps}
 	cli, err := client.NewClientWithOpts(
 		client.WithHost(socketPath),
 		// After WithHost, which configures only a plain *http.Transport: the
@@ -124,6 +130,7 @@ func NewClient(socketPath string, stateDir string, logger *slog.Logger) (*Client
 		logger:                 logger,
 		gpuInventory:           gpu.NewCollector(logger),
 		recreateStateDirectory: filepath.Join(stateDir, "recreate-state"),
+		ownOps:                 ownOps,
 	}, nil
 }
 

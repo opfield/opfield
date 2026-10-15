@@ -706,6 +706,15 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       extractData: (p) => ({ nodeId: p.nodeId }),
     },
   ],
+  'docker.container.external_change': [
+    {
+      category: 'container',
+      eventId: 'changed_outside',
+      match: (p) => typeof p.id === 'string' && typeof p.name === 'string',
+      extractResource: (p) => ({ type: 'container', id: p.id, name: p.name }),
+      extractData: (p) => ({ nodeId: p.nodeId, node_name: p.nodeName, change: p.change, managed_as: p.managedAs }),
+    },
+  ],
   'docker.health.changed': [
     {
       category: 'container',

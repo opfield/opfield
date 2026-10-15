@@ -45,7 +45,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'execute_node_console_command',
     description:
-      'Run a one-shot command on a daemon node console. This is destructive by policy even for read-looking commands. Use command as argv, for example ["sh","-lc","systemctl status nginx --no-pager"]. Clearly dangerous commands are blocked; commands with risky patterns require explicit user approval.',
+      'Run a one-shot command on a daemon node console. This is destructive by policy even for read-looking commands. Use command as argv, for example ["sh","-lc","systemctl status nginx --no-pager"]. Clearly dangerous commands are blocked; commands with risky patterns require explicit user approval. Agents may not change Opfield-managed Docker objects with it: docker/podman/nerdctl rm, run/create reusing a managed name, port or volume, stop, start, kill, restart, pause, rename, update, network connect/disconnect/rm, volume rm, prune, docker compose up/down/rm/restart/pull/... on a managed project, and edits under the daemon state dirs (/var/lib/docker-daemon, /etc/docker-daemon, /var/lib/docker) are refused with MANAGED_RESOURCE_CONSOLE_FORBIDDEN, which names the object and the tool to use (manage_docker_container recreate, remove/stop/start/restart_docker_container, manage_docker_deployment, manage_docker_compose, manage_docker_volume, manage_docker_network). Read-only docker commands (ps, inspect, logs, stats, images) stay allowed.',
     parameters: {
       type: 'object',
       properties: {

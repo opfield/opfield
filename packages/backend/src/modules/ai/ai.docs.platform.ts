@@ -279,6 +279,7 @@ The notification system sends HTTP webhook notifications when alert conditions a
 - Alert rules: list_alert_rules, get_alert_rule, create_alert_rule, update_alert_rule, delete_alert_rule (notifications:alerts:view to read, notifications:alerts:manage to change).
 - Webhooks: list_webhooks, create_webhook, update_webhook, delete_webhook, test_webhook, list_webhook_deliveries, get_delivery_stats (notifications:webhooks:view / notifications:webhooks:manage).
 - manage_notifications reads catalogs and details: alert_categories (metrics, events, variables and the view scopes of each category; read it before creating a rule), alert_resources (what a relay_pool or docker_availability rule can be scoped to), webhook_get, webhook_presets, webhook_preview (render a body template with a sample event), delivery_get.
+- Built-in alert rules (isBuiltin, enabled out of the box, editable like any rule): "Storage is full", "Opfield lost outbound connectivity" and "Container changed outside Opfield" (category container, event changed_outside: a managed container removed, created under its name or renamed by something other than Opfield).
 - System alerts are separate from these rules: Opfield's own certificate alerts (expiry warnings, CA expiry, revocations). manage_system_alerts list and dismiss (alertId) need admin:alerts. Opfield's own health is manage_opfield_diagnostics (topic troubleshooting).
 - Audit export to a SIEM has its own tools (topic siem).
 

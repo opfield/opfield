@@ -1800,6 +1800,13 @@
       "when": 1793813437000,
       "tag": "0256_route_client_ip_source",
       "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1793899837000,
+      "tag": "0257_container_changed_outside_alert_rule",
+      "breakpoints": true
     }
   ]
 }
