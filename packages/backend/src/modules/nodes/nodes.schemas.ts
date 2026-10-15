@@ -39,6 +39,15 @@ export const CreateNodeSchema = z
     servicePort: z.number().int().min(1).max(65535).optional(),
   })
   .superRefine((input, context) => {
+    // The type stays in the enum for stored nodes and list filters; the Bastion daemon has no installer yet.
+    if (input.type === 'bastion') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Bastion nodes are not available yet (the Bastion daemon is expected in Opfield 2.14); choose another node type',
+        path: ['type'],
+      });
+    }
     if (input.type === 'relay' && !input.serviceAddresses?.length) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
