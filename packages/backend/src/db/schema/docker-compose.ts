@@ -101,6 +101,8 @@ export interface DockerComposeNormalizedModel {
 export interface DockerComposeOperationOptions {
   removeOrphans?: boolean;
   volumeNames?: string[];
+  /** A build rollout's Pull and Apply on a stopped project: the new revision is created, not started. */
+  keepStopped?: boolean;
 }
 
 export const dockerComposeProjects = pgTable(

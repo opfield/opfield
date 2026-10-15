@@ -8,6 +8,7 @@ import {
   dockerContainerFolderAssignments,
   dockerContainerFolders,
   dockerDeployments,
+  domains,
   ingressGroupMembers,
   loggingEnvironments,
   managedDatabaseInstances,
@@ -25,6 +26,8 @@ import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import { APP_ENV_MANAGE_SCOPE, assertAppScope, hasAppScope } from './app-access.js';
+import { domainNotAllowedError, environmentDomainPolicy, refusedDomainNames } from './app-domain-allowlist.js';
+import { domainMemberById, domainsInFolders } from './app-domain-members.js';
 import { type AppFamily, type AppMemberType, familyOfMemberType } from './app-families.js';
 import type { AppFolderService } from './app-folders.service.js';
 import {
@@ -64,6 +67,7 @@ export function emptyMemberCounts(): AppMemberCounts {
     pages: 0,
     certificate: 0,
     logging: 0,
+    domain: 0,
   };
 }
 
@@ -81,6 +85,8 @@ export function canViewMember(scopes: readonly string[], member: AppMember): boo
       return hasScopeForResource(granted, 'pages:view', member.id);
     case 'certificate':
       return hasScopeForResource(granted, 'ssl:cert:view', member.id);
+    case 'domain':
+      return hasScopeForResource(granted, 'domains:view', member.id);
     case 'logging':
       // logs:read lists the environment too (its logs need it in the list).
       return (
@@ -155,6 +161,13 @@ export class AppMembersReader {
           environmentId,
           nodeIds,
         });
+      }
+    }
+
+    for (const row of await domainsInFolders(this.db, folderIds('domains'))) {
+      const environmentId = envOf(row.folderId);
+      if (environmentId) {
+        members.push({ type: 'domain', id: row.id, name: row.name, environmentId, nodeIds: row.nodeIds });
       }
     }
 
@@ -419,6 +432,8 @@ interface ResolvedMember {
   scopeResourceId: string | null;
   /** Docker placement key (container or deployment name, Compose project id). */
   resourceKey: string | null;
+  /** Routes: their hostnames; domains: their name (checked against the target environment's domain allowlist). */
+  domainNames?: string[];
   refusal?: { code: string; message: string };
 }
 
@@ -443,6 +458,7 @@ const FAMILY_EVENTS: Readonly<Record<AppFamily, string>> = {
   pages: 'pages.folder.changed',
   certificates: 'ssl.cert.folder.changed',
   logging: 'logging.environment.changed',
+  domains: 'domain.changed',
 };
 
 /** The permission that lets a caller change where a member lives (as for moving it between folders). */
@@ -462,6 +478,8 @@ export function canEditMember(
       return hasScopeForResource(granted, 'pages:edit', member.id);
     case 'certificate':
       return hasScopeForResource(granted, 'ssl:cert:issue', member.id);
+    case 'domain':
+      return hasScopeForResource(granted, 'domains:edit', member.id);
     case 'logging':
       return hasScopeForResource(granted, 'logs:environments:edit', member.id);
     case 'compose':
@@ -536,6 +554,7 @@ export class AppMembersService {
     const targetFolders = target
       ? (await this.folders.envFolders([target.environmentId])).get(target.environmentId)
       : null;
+    let targetDomainPolicy: Awaited<ReturnType<typeof environmentDomainPolicy>> | undefined;
 
     for (const member of resolved) {
       const refuse = (code: string, message: string) => result.refused.push({ member: member.input, code, message });
@@ -590,6 +609,16 @@ export class AppMembersService {
           const appError = error as AppError;
           refuse(appError.code ?? 'APP_NODE_NOT_ALLOWED', appError.message);
           continue;
+        }
+        // Domains and route hostnames must match the target environment's domain allowlist.
+        if (member.domainNames?.length) {
+          targetDomainPolicy ??= await environmentDomainPolicy(this.db, target.environmentId);
+          const refused = targetDomainPolicy ? refusedDomainNames(targetDomainPolicy, member.domainNames) : [];
+          if (targetDomainPolicy && refused.length > 0) {
+            const appError = domainNotAllowedError(targetDomainPolicy, refused);
+            refuse(appError.code, appError.message);
+            continue;
+          }
         }
       }
       await this.setFolder(member, family, targetFolderId);
@@ -661,6 +690,9 @@ export class AppMembersService {
           .update(loggingEnvironments)
           .set({ folderId, updatedAt: now })
           .where(eq(loggingEnvironments.id, member.id));
+        return;
+      case 'domains':
+        await this.db.update(domains).set({ folderId, updatedAt: now }).where(eq(domains.id, member.id));
         return;
       case 'containers':
       case 'compose': {
@@ -746,6 +778,7 @@ export class AppMembersService {
             name: Array.isArray(row.domainNames) ? row.domainNames.join(', ') : row.id,
             folderId: row.folderId,
             nodeIds,
+            domainNames: Array.isArray(row.domainNames) ? row.domainNames : [],
           };
           if (row.isSystem) {
             resolved.refusal = { code: 'ROUTE_NOT_PLACEABLE', message: 'System routes cannot join an app' };
@@ -842,6 +875,29 @@ export class AppMembersService {
                   refusal: {
                     code: 'CERTIFICATE_NOT_PLACEABLE',
                     message: 'System certificates (the Opfield management certificate) cannot join an app',
+                  },
+                }
+              : {}),
+          });
+          break;
+        }
+        case 'domain': {
+          const row = UUID_RE.test(base.id) ? await domainMemberById(this.db, base.id) : null;
+          if (!row) {
+            notFound();
+            break;
+          }
+          out.push({
+            ...base,
+            name: row.name,
+            folderId: row.folderId,
+            nodeIds: row.nodeIds,
+            domainNames: [row.name],
+            ...(row.isSystem
+              ? {
+                  refusal: {
+                    code: 'DOMAIN_NOT_PLACEABLE',
+                    message: 'System domains (the Opfield management domain) cannot join an app',
                   },
                 }
               : {}),

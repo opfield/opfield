@@ -1483,6 +1483,8 @@ async function manageDockerSource(
               name: a.resourceName,
               restartPolicy: a.restartPolicy ?? 'no',
               runtimeProfile: a.runtimeProfile ?? 'default',
+              ...(a.env !== undefined ? { env: a.env } : {}),
+              ...(a.secrets !== undefined ? { secrets: a.secrets } : {}),
             },
     });
     return createDockerSourceResource(nodeId, input, user);

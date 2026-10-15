@@ -697,7 +697,7 @@ function ProviderDragOverlayRow({
         )}
         <tbody>
           <tr>
-            <td className="px-4 py-3 align-middle">
+            <td className="overflow-hidden px-4 py-3 align-middle">
               <div className="flex items-center gap-2 pl-6">
                 <CornerDownRight
                   className="h-4 w-4 shrink-0 text-muted-foreground"
@@ -711,7 +711,7 @@ function ProviderDragOverlayRow({
                 </div>
               </div>
             </td>
-            <td className="px-4 py-3 align-middle">
+            <td className="overflow-hidden px-4 py-3 align-middle">
               <div className="min-w-0">
                 <p className="truncate">{connection.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
@@ -719,11 +719,13 @@ function ProviderDragOverlayRow({
                 </p>
               </div>
             </td>
-            <td className="px-4 py-3 align-middle">
+            <td className="overflow-hidden px-4 py-3 align-middle">
               <HealthBadge status={connection.enabled ? connection.status : "disabled"} />
             </td>
-            <td className="px-4 py-3 align-middle">{formatWorstQuota([connection])}</td>
-            <td className="px-4 py-3 align-middle">
+            <td className="overflow-hidden px-4 py-3 align-middle">
+              {formatWorstQuota([connection])}
+            </td>
+            <td className="overflow-hidden px-4 py-3 align-middle">
               <RelativeTime value={connection.lastSyncedAt} fallback="Never" />
             </td>
             <td className="px-4 py-3 text-right align-middle">

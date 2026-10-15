@@ -258,6 +258,9 @@ export type DockerSourceResourceCreateRequest = {
         name: string;
         restartPolicy: "no" | "always" | "unless-stopped" | "on-failure";
         runtimeProfile: "default" | "secure";
+        /** Saved with the container; its first build creates and starts it with them. */
+        env?: Record<string, string>;
+        secrets?: Record<string, string>;
       }
     | {
         kind: "deployment";

@@ -885,12 +885,15 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
       limit?: number;
       search?: string;
       dnsStatus?: DnsStatus;
+      excludeAppMembers?: boolean;
+      appId?: string;
     }): Promise<PaginatedResponse<Domain>> {
       const sp = new URLSearchParams();
       if (params?.page) sp.set("page", params.page.toString());
       if (params?.limit) sp.set("limit", params.limit.toString());
       if (params?.search) sp.set("search", params.search);
       if (params?.dnsStatus) sp.set("dnsStatus", params.dnsStatus);
+      setAppMemberListParams(sp, params);
       const q = sp.toString();
       return this.request<PaginatedResponse<Domain>>(`/domains${q ? `?${q}` : ""}`);
     }

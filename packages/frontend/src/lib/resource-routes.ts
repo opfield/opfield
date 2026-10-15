@@ -12,6 +12,9 @@ export const ingressGroupsRoute = () => "/routes/ingress-groups";
 export const ingressGroupRoute = (id: string) => `/ingress-groups/${segment(id)}`;
 export const pageProjectRoute = (slug: string, tab?: string) =>
   withTab(`/pages/${segment(slug)}`, tab);
+/** The Domains tab with the domain's details open. */
+export const domainRoute = (name: string) =>
+  `/routes/domains?${new URLSearchParams({ domain: name })}`;
 /** The certificates list with the certificate's details open. */
 export const sslCertificateRoute = (id: string) =>
   `/certificates?${new URLSearchParams({ certificate: id })}`;

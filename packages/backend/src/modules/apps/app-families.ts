@@ -1,6 +1,7 @@
 import {
   databaseConnectionFolders,
   dockerContainerFolders,
+  domainFolders,
   loggingEnvironmentFolders,
   objectStorageFolders,
   pageProjectFolders,
@@ -21,6 +22,7 @@ export const APP_FAMILIES = [
   'pages',
   'certificates',
   'logging',
+  'domains',
 ] as const;
 export type AppFamily = (typeof APP_FAMILIES)[number];
 
@@ -35,6 +37,7 @@ export const APP_MEMBER_TYPES = [
   'pages',
   'certificate',
   'logging',
+  'domain',
 ] as const;
 export type AppMemberType = (typeof APP_MEMBER_TYPES)[number];
 
@@ -57,6 +60,8 @@ export function familyOfMemberType(type: AppMemberType): AppFamily {
       return 'certificates';
     case 'logging':
       return 'logging';
+    case 'domain':
+      return 'domains';
   }
 }
 
@@ -78,6 +83,7 @@ export const APP_FAMILY_TABLES: Readonly<Record<AppFamily, AppFamilyTable>> = {
   pages: { table: pageProjectFolders, lockKey: 'resource-folders:page_project_folder' },
   certificates: { table: sslCertificateFolders, lockKey: 'resource-folders:ssl_certificate_folder' },
   logging: { table: loggingEnvironmentFolders, lockKey: 'resource-folders:logging_environment_folder' },
+  domains: { table: domainFolders, lockKey: 'resource-folders:domain_folder' },
 };
 
 /** One entry per family (records keyed by family: placement folder ids, root folder ids). */

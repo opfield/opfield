@@ -63,7 +63,15 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
     external: ['test'],
   }),
   manage_route: operationPolicies({
-    read: ['get_config', 'get_by_slug', 'health_history', 'secure_link_status', 'access_logs', 'validate_config'],
+    read: [
+      'get_config',
+      'get_by_slug',
+      'health_history',
+      'secure_link_status',
+      'access_logs',
+      'validate_config',
+      'missing_domains',
+    ],
     create: ['maintenance_access_code'],
   }),
   manage_ssl_certificate: operationPolicies({
@@ -93,7 +101,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
   manage_app_environment: operationPolicies({
     read: ['list_nodes'],
     create: ['create', 'create_access_code'],
-    update: ['rename', 'mark_production', 'set_maintenance', 'allow_node', 'remove_node'],
+    update: ['rename', 'mark_production', 'set_maintenance', 'allow_node', 'remove_node', 'set_domain_patterns'],
     delete: ['delete'],
   }),
   manage_ingress_group: operationPolicies({

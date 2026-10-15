@@ -718,7 +718,7 @@ export function DockerGitSourcePanel({
     const accepted = await confirm({
       title: "Disconnect Repository",
       description: pendingContainer
-        ? "This container has not been deployed yet. Disconnecting removes the pending container and its creation settings. To change the Dockerfile or build settings, cancel and edit Source instead."
+        ? "This container has not been deployed yet. Disconnecting removes the pending container, its creation settings, environment variables and secrets. To change the Dockerfile or build settings, cancel and edit Source instead."
         : "Stop repository polling, webhooks, builds, and automatic deployment for this resource? Existing runtime state and build history are preserved.",
       confirmLabel: "Disconnect",
       variant: "destructive",
@@ -1641,7 +1641,7 @@ export function DockerGitSourcePanel({
             title="Disconnect repository"
             description={
               pendingContainer
-                ? "Removes this pending container and its creation settings."
+                ? "Removes this pending container, its creation settings, environment variables and secrets."
                 : "Stops polling, webhooks, builds and automatic deployment. Runtime state and build history are kept."
             }
           >

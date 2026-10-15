@@ -6,6 +6,7 @@ import {
   dockerBuilds,
   dockerComposeProjects,
   dockerDeployments,
+  dockerEnvVars,
   dockerSecrets,
   dockerSourceBindings,
   dockerSourceWebhookDeliveries,
@@ -46,4 +47,5 @@ export const dockerSourceCommercialRuntime = {
   getEnv,
   dockerSourceWebhookDeliveries,
   DockerBuildCommitShaSchema,
+  dockerEnvVars,
 };

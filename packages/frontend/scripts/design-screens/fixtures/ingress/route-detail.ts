@@ -68,6 +68,7 @@ const apiLink = appSecureLinks.find((link) => link.name === "route_api")!;
 const metricsLink = appSecureLinks.find((link) => link.name === "metrics")!;
 
 export const appSecureLinkStatus: ProxySecureLinkStatus = {
+  hasPrimary: true,
   state: "active",
   generation: 7,
   sourceNodeId: edgeNode.id,
@@ -106,6 +107,9 @@ export const appSecureLinkStatus: ProxySecureLinkStatus = {
     {
       id: apiLink.id,
       name: apiLink.name,
+      purpose: "user_managed",
+      referenceId: null,
+      label: apiLink.name,
       status: "active",
       generation: apiLink.generation,
       targetContainer: apiLink.targetContainer,
@@ -120,6 +124,9 @@ export const appSecureLinkStatus: ProxySecureLinkStatus = {
     {
       id: metricsLink.id,
       name: metricsLink.name,
+      purpose: "user_managed",
+      referenceId: null,
+      label: metricsLink.name,
       status: "provisioning",
       generation: 1,
       targetContainer: metricsLink.targetContainer,

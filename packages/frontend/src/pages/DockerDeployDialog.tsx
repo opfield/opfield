@@ -1,3 +1,4 @@
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -39,6 +40,12 @@ import {
   isNodeIncompatible,
   type Node,
 } from "@/types";
+import {
+  DockerDeployEnvironmentStep,
+  deployEnvironmentErrors,
+  deployEnvironmentRecord,
+  deploySecretsRecord,
+} from "./docker-deploy/DockerDeployEnvironmentStep";
 import { DockerDeployFormFields } from "./docker-deploy/DockerDeployFormFields";
 import { executeDockerDeploy } from "./docker-deploy/executeDockerDeploy";
 import { SecureRuntimeSetupDialog } from "./docker-deploy/SecureRuntimeSetupDialog";
@@ -48,6 +55,7 @@ import type {
   DockerRestartPolicy,
 } from "./docker-deploy/types";
 import { useDockerDeployData } from "./docker-deploy/useDockerDeployData";
+import type { SecretRow } from "./docker-detail/SecretsSection";
 
 const EMPTY_DOCKER_NODES: Node[] = [];
 const ROOT_FOLDER_OPTIONS: ComboboxOption[] = [{ value: "__root__", label: "No folder" }];
@@ -137,6 +145,10 @@ export function DockerDeployDialog({
   const [drainSeconds, setDrainSeconds] = useState("30");
   const [deployRuntimeProfile, setDeployRuntimeProfile] = useState<DockerRuntimeProfile>("default");
   const [secureRuntimeSetupOpen, setSecureRuntimeSetupOpen] = useState(false);
+  // A container from a repository has a second step: its environment variables and secrets.
+  const [step, setStep] = useState<1 | 2>(1);
+  const [envText, setEnvText] = useState("");
+  const [secretRows, setSecretRows] = useState<SecretRow[]>([]);
   const storeDockerNodes = useDockerStore((state) => state.dockerNodes);
   const allNodes = useMemo(() => {
     return [
@@ -320,6 +332,9 @@ export function DockerDeployDialog({
     setHealthPath("/");
     setDrainSeconds("30");
     setDeployRuntimeProfile("default");
+    setStep(1);
+    setEnvText("");
+    setSecretRows([]);
   }, [initialNodeLocked, nodeId]);
 
   useEffect(() => {
@@ -362,8 +377,14 @@ export function DockerDeployDialog({
     setSecureRuntimeSetupOpen(false);
   };
 
+  const repositoryContainer = sourceMode === "repository" && deployMode === "container";
+  const environmentErrors = deployEnvironmentErrors(envText, secretRows);
+  const environmentInvalid =
+    repositoryContainer &&
+    (environmentErrors.envLines.length > 0 || environmentErrors.secretRows.size > 0);
+
   const handleDeploy = async () => {
-    if (deploying || !deployNodeId || noAllowedNode) return;
+    if (deploying || !deployNodeId || noAllowedNode || environmentInvalid) return;
     if (
       !canCreateInFolder(
         effectiveScopes,
@@ -437,6 +458,9 @@ export function DockerDeployDialog({
         sourceDockerfilePath,
         sourceMode,
         sourceProjectId,
+        ...(repositoryContainer
+          ? { env: deployEnvironmentRecord(envText), secrets: deploySecretsRecord(secretRows) }
+          : {}),
       });
     } catch (err) {
       if (
@@ -468,7 +492,11 @@ export function DockerDeployDialog({
         <DialogHeader>
           <DialogTitle>Deploy</DialogTitle>
         </DialogHeader>
-        <DialogDescription>Create a container or a blue/green deployment.</DialogDescription>
+        <DialogDescription>
+          {repositoryContainer
+            ? `Step ${step} of 2 — ${step === 1 ? "Source" : "Environment"}`
+            : "Create a container or a blue/green deployment."}
+        </DialogDescription>
 
         {appContext && (
           <AppEnvironmentFields
@@ -479,7 +507,14 @@ export function DockerDeployDialog({
           />
         )}
 
-        {noAllowedNode && appContext && environment ? (
+        {repositoryContainer && step === 2 ? (
+          <DockerDeployEnvironmentStep
+            envText={envText}
+            onEnvTextChange={setEnvText}
+            secretRows={secretRows}
+            onSecretRowsChange={setSecretRows}
+          />
+        ) : noAllowedNode && appContext && environment ? (
           <NoAllowedNodeNotice
             context={appContext}
             environment={environment}
@@ -566,13 +601,20 @@ export function DockerDeployDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={closeDeploy}>
-            Cancel
-          </Button>
+          {repositoryContainer && step === 2 ? (
+            <Button variant="outline" onClick={() => setStep(1)} disabled={deploying}>
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={closeDeploy}>
+              Cancel
+            </Button>
+          )}
           <Button
-            onClick={handleDeploy}
+            onClick={repositoryContainer && step === 1 ? () => setStep(2) : handleDeploy}
             pending={deploying}
             disabled={
+              (repositoryContainer && step === 2 && environmentInvalid) ||
               !deployNodeId ||
               noAllowedNode ||
               !canCreateInFolder(
@@ -593,7 +635,15 @@ export function DockerDeployDialog({
                 (!deployName.trim() || !Number(routeHostPort) || !Number(routeContainerPort)))
             }
           >
-            {sourceMode === "repository" ? "Create and build" : "Deploy"}
+            {repositoryContainer && step === 1 ? (
+              <>
+                Next <ArrowRight className="h-4 w-4" />
+              </>
+            ) : sourceMode === "repository" ? (
+              "Create and build"
+            ) : (
+              "Deploy"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

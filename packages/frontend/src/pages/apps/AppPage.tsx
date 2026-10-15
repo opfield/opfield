@@ -85,6 +85,7 @@ const NEW_ITEMS: Array<{
   { type: "storage", variant: "external", label: "Storage connection", icon: HardDrive },
   { type: "logging", label: "Logging environment", icon: ScrollText },
   { type: "route", label: "Route", icon: Globe },
+  { type: "domain", label: "Domain", icon: Globe2 },
   { type: "certificate", label: "SSL certificate", icon: Lock },
   { type: "pages", label: "Pages project", icon: Globe2 },
   { type: "container-link", label: "Container link", icon: Link2 },

@@ -389,19 +389,17 @@ export function SidebarContent({
               />
             )}
 
-            {/* Header */}
-            <div
-              className="flex items-center justify-between px-2"
-              style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }}
-            >
+            {/* Header: 8 px around 32 px buttons makes 48 px, the height of the AI Workspace header. */}
+            <div className="flex items-center justify-between p-2">
               <OpfieldLockup className="pl-1" />
 
               <div className="flex items-center gap-0.5">
-                <AIButton />
+                <AIButton compact />
                 {alwaysExpanded ? (
                   <Button
                     variant="ghost"
-                    size="icon"
+                    // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+                    size="icon-sm"
                     aria-label="Close navigation"
                     onClick={onNavigate}
                   >
@@ -412,7 +410,8 @@ export function SidebarContent({
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+                        size="icon-sm"
                         aria-label="Close sidebar"
                         onClick={toggleSidebar}
                       >

@@ -15,6 +15,8 @@ import {
 } from './docker-build.schemas.js';
 import { assertDockerCreationAccess, placeCreatedDockerResource } from './docker-creation-access.js';
 import { DockerDeploymentService } from './docker-deployment.service.js';
+import { DockerEnvironmentService } from './docker-environment.service.js';
+import { DockerSecretService } from './docker-secret.service.js';
 import { DockerSourceService } from './docker-source.service.js';
 
 /**
@@ -102,6 +104,11 @@ export async function createDockerSourceResource(
 ) {
   const db = container.resolve<DrizzleClient>(TOKENS.DrizzleClient);
   await assertDockerCreationAccess(db, actor.scopes, 'docker:containers:create', nodeId, input.resource.folderId);
+  const reservedEnvironment = input.resource.kind === 'container' ? reservedContainerEnvironment(input.resource) : null;
+  if (reservedEnvironment && Object.keys(reservedEnvironment.secrets).length > 0) {
+    // Secrets saved with the container need the secrets permission where it is created, as they do once it exists.
+    await assertDockerCreationAccess(db, actor.scopes, 'docker:containers:secrets', nodeId, input.resource.folderId);
+  }
   const sourceService = container.resolve(DockerSourceService);
   const deploymentService = container.resolve(DockerDeploymentService);
   let target: DockerSourceTarget;
@@ -141,7 +148,8 @@ export async function createDockerSourceResource(
     // first build would otherwise start with them.
     await container.resolve(DockerManagementService).releaseContainerLinks(nodeId, input.resource.name, actor.id);
     target = { kind: 'container', nodeId, containerName: input.resource.name };
-    const { kind: _kind, ...config } = input.resource;
+    // Env and secrets are stored by the reserved name below, never in the creation settings.
+    const { kind: _kind, env: _env, secrets: _secrets, ...config } = input.resource;
     initialConfig = config;
   }
 
@@ -161,11 +169,45 @@ export async function createDockerSourceResource(
     }
     throw error;
   }
+  if (reservedEnvironment && target.kind === 'container') {
+    await storeReservedContainerEnvironment(nodeId, target.containerName, reservedEnvironment, actor.id);
+  }
   try {
     const queued = await sourceService.createBuild(target, { force: false }, actor);
     return { source, build: queued.build, target };
   } catch (error) {
     return { source, target, build: null, initialBuildError: initialDockerSourceBuildError(error) };
+  }
+}
+
+/** The env and secrets of a container created from a Git source; a name is either a variable or a secret. */
+function reservedContainerEnvironment(resource: { env?: Record<string, string>; secrets?: Record<string, string> }) {
+  const env = resource.env ?? {};
+  const secrets = resource.secrets ?? {};
+  const both = Object.keys(env).filter((key) => Object.hasOwn(secrets, key));
+  if (both.length > 0) {
+    throw new AppError(
+      400,
+      'ENV_SECRET_NAME_CONFLICT',
+      `A name cannot be both an environment variable and a secret: ${both.join(', ')}`
+    );
+  }
+  return { env, secrets };
+}
+
+/** Saves them for the reserved name; the first build creates and starts the container with them. */
+async function storeReservedContainerEnvironment(
+  nodeId: string,
+  containerName: string,
+  values: { env: Record<string, string>; secrets: Record<string, string> },
+  userId: string
+) {
+  if (Object.keys(values.env).length > 0) {
+    await container.resolve(DockerEnvironmentService).replace(nodeId, containerName, values.env);
+  }
+  const secrets = container.resolve(DockerSecretService);
+  for (const [key, value] of Object.entries(values.secrets)) {
+    await secrets.create(nodeId, containerName, key, value, userId);
   }
 }
 

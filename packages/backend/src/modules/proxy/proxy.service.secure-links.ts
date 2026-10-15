@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { nodes, proxyAdditionalSecureLinks, proxyHosts } from '@/db/schema/index.js';
+import { nodes, proxyAdditionalRoutes, proxyAdditionalSecureLinks, proxyHosts } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { runOutsideProxyLocks } from './proxy-host-lock.js';
 import type { ProxyAdditionalSecureLinkRow } from './proxy-secure-link.service.js';
@@ -57,29 +57,47 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
       },
     });
     if (!host || host.isSystem) throw new AppError(404, 'PROXY_HOST_NOT_FOUND', 'Route not found');
-    if (!isDockerUpstream(host.upstreamKind)) {
-      throw new AppError(409, 'SECURE_LINK_NOT_APPLICABLE', 'Route does not use a Docker Secure Link');
-    }
+    // A route whose primary target is not Docker (Pages, a manual address) has no primary Secure Link, but its
+    // additional routes and user-managed links can still run through Secure Links: those are listed without it.
+    const hasPrimary = isDockerUpstream(host.upstreamKind);
 
-    const sourceNodeIds = await this.ingressNodesOf(host);
+    const sourceNodeIds = hasPrimary ? await this.ingressNodesOf(host) : [];
     const nodeIds = [...sourceNodeIds, host.dockerNodeId].filter((nodeId): nodeId is string => Boolean(nodeId));
-    const [linkNodes, cachedHistory, additionalBindings] = await Promise.all([
-      nodeIds.length
+    const [linkNodes, cachedHistory, allAdditionalBindings] = await Promise.all([
+      nodeIds.length && hasPrimary
         ? this.db
             .select({ id: nodes.id, hostname: nodes.hostname, displayName: nodes.displayName, status: nodes.status })
             .from(nodes)
             .where(inArray(nodes.id, nodeIds))
         : Promise.resolve([]),
-      this.getSecureLinkRuntimeHistory(host.id),
-      this.secureLinks?.listAdditional?.(host.id) ?? Promise.resolve([]),
+      hasPrimary ? this.getSecureLinkRuntimeHistory(host.id) : Promise.resolve([]),
+      this.secureLinks?.listAllAdditional?.(host.id) ?? this.secureLinks?.listAdditional?.(host.id) ?? [],
     ]);
+    // Availability members are internal to Availability: only user-managed links and the links of additional
+    // routes are shown.
+    const additionalBindings = allAdditionalBindings.filter((binding) => binding.purpose !== 'availability_member');
+    const routeIds = additionalBindings.flatMap((binding) =>
+      binding.purpose === 'additional_route' && binding.referenceId ? [binding.referenceId] : []
+    );
+    const routePaths = new Map(
+      routeIds.length
+        ? (
+            await this.db
+              .select({ id: proxyAdditionalRoutes.id, path: proxyAdditionalRoutes.path })
+              .from(proxyAdditionalRoutes)
+              .where(inArray(proxyAdditionalRoutes.id, routeIds))
+          ).map((route) => [route.id, route.path])
+        : []
+    );
     let history = cachedHistory;
     let latestSnapshot = history.at(-1);
     let runtime = latestSnapshot?.runtime ?? null;
     let traffic = latestSnapshot?.traffic ?? null;
 
-    const focusedSample = this.sampleSecureLinkRuntime(host, SECURE_LINK_FOCUSED_TRAFFIC_TAIL_LINES);
-    if (!runtime || !traffic) {
+    const focusedSample = hasPrimary
+      ? this.sampleSecureLinkRuntime(host, SECURE_LINK_FOCUSED_TRAFFIC_TAIL_LINES)
+      : null;
+    if (focusedSample && (!runtime || !traffic)) {
       // A partial cached sample must not be exposed as a current "telemetry
       // unavailable" state. Collect Relay and Nginx telemetry as one snapshot
       // on the first incomplete read; subsequent reads stay cache-fast.
@@ -95,7 +113,7 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
           error: error instanceof Error ? error.message : String(error),
         });
       }
-    } else {
+    } else if (focusedSample) {
       void focusedSample.catch((error) => {
         logger.debug('Focused Proxy Secure Link telemetry collection failed', {
           hostId: host.id,
@@ -146,6 +164,12 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
         return {
           id: binding.id,
           name: binding.name,
+          purpose: binding.purpose,
+          referenceId: binding.referenceId,
+          label:
+            binding.purpose === 'additional_route'
+              ? ((binding.referenceId ? routePaths.get(binding.referenceId) : undefined) ?? binding.name)
+              : binding.name,
           status: binding.status,
           generation: binding.generation,
           targetContainer: binding.targetContainer,
@@ -159,6 +183,30 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
         };
       })
     );
+    if (!hasPrimary) {
+      return {
+        hasPrimary: false as const,
+        state: null,
+        generation: null,
+        sourceNodeId: null,
+        targetNodeId: null,
+        transport: null,
+        migratedAt: null,
+        lastError: null,
+        telemetrySampledAt: null,
+        telemetryStale: false,
+        healthCheck: null,
+        sourceNode: null,
+        sourceNodes: [],
+        ingressGroupId: host.ingressGroupId,
+        targetNode: null,
+        rateLimit: null,
+        runtime: null,
+        traffic: null,
+        history: [],
+        additionalLinks,
+      };
+    }
     const telemetrySampledAt = latestSnapshot?.timestamp ?? null;
     const telemetrySampledAtMs = telemetrySampledAt ? Date.parse(telemetrySampledAt) : Number.NaN;
     const telemetryStale =
@@ -166,6 +214,7 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
       (!Number.isFinite(telemetrySampledAtMs) ||
         Date.now() - telemetrySampledAtMs > SECURE_LINK_TELEMETRY_STALE_AFTER_MS);
     return {
+      hasPrimary: true as const,
       state: host.secureLinkStatus,
       generation: host.secureLinkGeneration,
       sourceNodeId: host.nodeId,
@@ -245,7 +294,7 @@ export abstract class ProxyServiceSecureLinks extends ProxyServiceLifecycle {
       this.db.query.proxyAdditionalSecureLinks?.findMany
         ? this.db.query.proxyAdditionalSecureLinks.findMany({
             where: and(
-              eq(proxyAdditionalSecureLinks.purpose, 'user_managed'),
+              inArray(proxyAdditionalSecureLinks.purpose, ['user_managed', 'additional_route']),
               eq(proxyAdditionalSecureLinks.status, 'active')
             ),
           })

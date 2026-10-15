@@ -17,6 +17,7 @@ import type {
   DockerComposeProject,
   DockerComposeProjectSummary,
   DockerContainer,
+  Domain,
   LoggingEnvironment,
   ManagedDatabaseBinding,
   ManagedStorageBinding,
@@ -48,6 +49,7 @@ export interface AppMemberAccess {
   compose: boolean;
   routes: boolean;
   certificates?: boolean;
+  domains?: boolean;
 }
 
 const FULL_ACCESS: AppMemberAccess = {
@@ -55,6 +57,7 @@ const FULL_ACCESS: AppMemberAccess = {
   compose: true,
   routes: true,
   certificates: true,
+  domains: true,
 };
 
 export interface AppCompute {
@@ -99,6 +102,7 @@ export interface AppLinkRow {
 
 export interface AppNetwork {
   routes: ProxyHost[];
+  domains: Domain[];
   certificates: SSLCertificate[];
   links: AppLinkRow[];
   hidden: AppHiddenMembers[];
@@ -194,13 +198,15 @@ export async function loadAppNetwork(
   appId: string,
   access: AppMemberAccess = FULL_ACCESS
 ): Promise<AppNetwork> {
-  const [routes, certificates, compute] = await Promise.all([
+  const [routes, domains, certificates, compute] = await Promise.all([
     whenAllowed(access.routes, () => api.listAppRoutes(appId)),
+    whenAllowed(access.domains !== false, () => api.listAppDomains(appId)),
     whenAllowed(access.certificates !== false, () => api.listAppCertificates(appId)),
     loadAppCompute(appId, access),
   ]);
   const hidden: AppHiddenMembers[] = [
     ...(routes === null ? [{ title: "Routes", scope: "proxy:view" }] : []),
+    ...(domains === null ? [{ title: "Domains", scope: "domains:view" }] : []),
     ...(certificates === null ? [{ title: "SSL certificates", scope: "ssl:cert:view" }] : []),
     ...compute.hidden.map((entry) => ({
       title: `Links from ${entry.title.toLowerCase()}`,
@@ -360,6 +366,7 @@ export async function loadAppNetwork(
 
   return {
     routes: routes ?? [],
+    domains: domains ?? [],
     certificates: certificates ?? [],
     links: [...rows, ...bindingRows.flat()],
     hidden,

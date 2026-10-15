@@ -24,6 +24,7 @@ const folders = (seed: number) => ({
   pages: uuid(seed + 6),
   certificates: uuid(seed + 7),
   logging: uuid(seed + 8),
+  domains: uuid(seed + 9),
 });
 
 const production: AppEnvironmentDetail = {

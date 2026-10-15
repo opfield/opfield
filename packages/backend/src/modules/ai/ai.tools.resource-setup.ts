@@ -190,7 +190,7 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_route',
     description:
-      'Route inspection, maintenance access, and config validation. Operations: get_config (full Route settings; Page targets and advanced config follow the caller scopes, stored raw config needs proxy:raw:read), get_by_slug, health_history, secure_link_status, access_logs (newest nginx access and error log lines, up to tail 200; for a Route on an ingress group the lines of every member merged by time, each with its nodeId), maintenance_access_code (5-minute code that lets a browser view the Route during maintenance; needs proxy:maintenance:bypass; refused with MAINTENANCE_ACCESS_UNAVAILABLE for a Route whose config sets secure_link, whose maintenance page has no team access), validate_config (check an advanced snippet or, with mode raw, a raw nginx config; needs proxy:advanced or proxy:raw:write on routeId, or on the folderId/nodeId destination of a Route about to be created; proxy:unrestricted skips the directive restrictions). Change Routes with update_route, set_route_maintenance, update_route_raw_config, and toggle_route_raw_mode.',
+      'Route inspection, maintenance access, and config validation. Operations: get_config (full Route settings; Page targets and advanced config follow the caller scopes, stored raw config needs proxy:raw:read), get_by_slug, health_history, secure_link_status (the Secure Link state and runtime of the Docker target of the Route, with hasPrimary false and null primary fields for another target such as Pages, and additionalLinks: the user-managed links and the links of additional routes, each with purpose, referenceId and label, the additional route path for a route-owned one), access_logs (newest nginx access and error log lines, up to tail 200; for a Route on an ingress group the lines of every member merged by time, each with its nodeId), maintenance_access_code (5-minute code that lets a browser view the Route during maintenance; needs proxy:maintenance:bypass; refused with MAINTENANCE_ACCESS_UNAVAILABLE for a Route whose config sets secure_link, whose maintenance page has no team access), validate_config (check an advanced snippet or, with mode raw, a raw nginx config; needs proxy:advanced or proxy:raw:write on routeId, or on the folderId/nodeId destination of a Route about to be created; proxy:unrestricted skips the directive restrictions), missing_domains (for a Route about to be created: domainNames plus folderId and nodeId or ingressGroupId; each hostname no registered domain covers, with status create and the Cloudflare zoneName, or unavailable with code and reason; needs proxy:create; create_route createMissingDomains creates them). Change Routes with update_route, set_route_maintenance, update_route_raw_config, and toggle_route_raw_mode.',
     parameters: {
       type: 'object',
       properties: {
@@ -204,18 +204,29 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
             'access_logs',
             'maintenance_access_code',
             'validate_config',
+            'missing_domains',
           ],
+        },
+        domainNames: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'missing_domains: hostnames of the Route about to be created',
+        },
+        ingressGroupId: {
+          type: 'string',
+          description: 'missing_domains: ingress group the Route about to be created is served by',
         },
         tail: { type: 'number', description: 'Number of log lines for access_logs (default 100, max 200)' },
         routeId: { type: 'string', description: 'Route UUID; optional for validate_config' },
         folderId: {
           type: ['string', 'null'],
-          description: 'validate_config without routeId: destination folder UUID of the Route about to be created',
+          description:
+            'validate_config without routeId, missing_domains: destination folder UUID of the Route about to be created',
         },
         nodeId: {
           type: 'string',
           description:
-            'validate_config without routeId: destination ingress node UUID of the Route about to be created',
+            'validate_config without routeId, missing_domains: destination ingress node UUID of the Route about to be created',
         },
         slug: { type: 'string', description: 'Route slug for get_by_slug' },
         snippet: { type: 'string', description: 'Advanced snippet or raw nginx config for validate_config' },

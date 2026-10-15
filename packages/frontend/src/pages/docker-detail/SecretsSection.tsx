@@ -31,6 +31,8 @@ interface SecretsSectionProps {
   description?: string;
   /** Unsaved edits: the warning border of a changed block. */
   dirty?: boolean;
+  /** New values are masked too, with Show (secrets typed before the container exists). */
+  maskNewValues?: boolean;
 }
 
 export function SecretsSection({
@@ -48,6 +50,7 @@ export function SecretsSection({
   hiddenKeys = new Set(),
   description,
   dirty = false,
+  maskNewValues = false,
 }: SecretsSectionProps) {
   const [revealedSecrets, setRevealedSecrets] = useState<Set<number>>(new Set());
   const visibleSecretRows = secretRows
@@ -149,13 +152,13 @@ export function SecretsSection({
                   />
                   <div className="flex items-center border-l border-border">
                     <Input
-                      type={isNew || isRevealed ? "text" : "password"}
+                      type={(isNew && !maskNewValues) || isRevealed ? "text" : "password"}
                       value={isMasked && !row.dirty ? "" : row.value}
                       onChange={(e) => updateSecretRow(idx, "value", e.target.value)}
                       className="h-9 border-0 rounded-none shadow-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring flex-1 min-w-0"
                       placeholder={isMasked && !row.dirty ? "••••••••" : "secret value"}
                     />
-                    {!isNew && (
+                    {(!isNew || maskNewValues) && (
                       <Button
                         variant="ghost"
                         size="icon"

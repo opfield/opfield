@@ -1,7 +1,13 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { LoaderCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AppEnvironmentFields } from "@/components/apps/AppEnvironmentFields";
+import {
+  type AppCreateContext,
+  allowedAppNodes,
+  appPlacementFolderId,
+  rememberAppCreation,
+  useAppEnvironmentChoice,
+} from "@/components/apps/app-create-context";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import {
@@ -9,10 +15,7 @@ import {
   getCreateFolderChoices,
   isCreateFolderAllowed,
 } from "@/components/common/CreateFolderSelect";
-import { DetailRow } from "@/components/common/DetailRow";
-import { PanelShell } from "@/components/common/PanelShell";
 import { SwitchCard } from "@/components/common/SwitchCard";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toastApiError } from "@/lib/api-error-toast";
+import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import { useAuthStore } from "@/stores/auth";
@@ -34,21 +38,17 @@ import type {
   DomainPreview,
 } from "@/types/domains";
 import { DomainIngressTargetField } from "./DomainIngressTargetField";
+import { DomainPreviewPanel } from "./DomainPreviewPanel";
 
 const NO_SCOPES: string[] = [];
-
-const PREVIEW_ANIMATION = {
-  initial: { height: 0, opacity: 0, y: 8 },
-  animate: { height: "auto", opacity: 1, y: 0 },
-  exit: { height: 0, opacity: 0, y: 8 },
-  transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] },
-} as const;
 
 interface AddDomainDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
   dnsProvider: "cloudflare" | "external";
+  /** Opened from an app: locked App field, environment choice, its allowed nodes and placement folder. */
+  appContext?: AppCreateContext;
 }
 
 export function AddDomainDialog({
@@ -56,6 +56,7 @@ export function AddDomainDialog({
   onOpenChange,
   onCreated,
   dnsProvider,
+  appContext,
 }: AddDomainDialogProps) {
   const [domain, setDomain] = useState("");
   const [description, setDescription] = useState("");
@@ -83,9 +84,28 @@ export function AddDomainDialog({
     () => getCreateFolderChoices(scopes, "domains:create", domainFolders ?? [], nginxNodeId),
     [domainFolders, nginxNodeId, scopes]
   );
-  const canCreateInSelectedFolder = isCreateFolderAllowed(folderChoices, folderId);
-  const eligibleNodes = nodeOptions?.eligibleNodes ?? [];
-  const ingressGroups = nodeOptions?.ingressGroups ?? [];
+  const { environment, environmentId, setEnvironmentId } = useAppEnvironmentChoice(
+    appContext,
+    open
+  );
+  // From an app the domain lands in the environment's placement folder, on its allowed nodes only.
+  const placementFolderId = appContext ? appPlacementFolderId(environment, "domains") : null;
+  const canCreateInSelectedFolder = appContext
+    ? !!placementFolderId &&
+      canCreateInFolder(scopes, "domains:create", placementFolderId, nginxNodeId || undefined)
+    : isCreateFolderAllowed(folderChoices, folderId);
+  const eligibleNodes = useMemo(() => {
+    const nodes = nodeOptions?.eligibleNodes ?? [];
+    return appContext ? allowedAppNodes(environment, nodes) : nodes;
+  }, [appContext, environment, nodeOptions]);
+  const ingressGroups = useMemo(() => {
+    const groups = nodeOptions?.ingressGroups ?? [];
+    if (!appContext) return groups;
+    const allowed = new Set(environment?.allowedNodeIds ?? []);
+    return groups.filter(
+      (group) => group.members.length > 0 && group.members.every((member) => allowed.has(member.id))
+    );
+  }, [appContext, environment, nodeOptions]);
   const hasTarget = nginxNodeId !== "" || ingressGroupId !== "";
   const target = ingressGroupId ? { ingressGroupId } : { nginxNodeId };
   const chooseTarget = (next: { nginxNodeId: string; ingressGroupId: string }) => {
@@ -146,7 +166,7 @@ export function AddDomainDialog({
 
   useEffect(() => {
     if (!open) return;
-    void fetchFolders("domain");
+    if (!appContext) void fetchFolders("domain");
     setNodesLoading(true);
     api
       .listDomainNginxNodes()
@@ -163,7 +183,19 @@ export function AddDomainDialog({
         setNodesError(error instanceof Error ? error.message : "Unable to load Ingress nodes");
       })
       .finally(() => setNodesLoading(false));
-  }, [fetchFolders, open]);
+  }, [appContext, fetchFolders, open]);
+
+  // A node the chosen environment does not allow is not kept selected.
+  useEffect(() => {
+    if (!appContext || nodesLoading) return;
+    setNginxNodeId((current) => {
+      if (eligibleNodes.some((node) => node.id === current)) return current;
+      return eligibleNodes.length === 1 ? eligibleNodes[0]!.id : "";
+    });
+    setIngressGroupId((current) =>
+      current && !ingressGroups.some((group) => group.id === current) ? "" : current
+    );
+  }, [appContext, eligibleNodes, ingressGroups, nodesLoading]);
 
   useEffect(() => {
     if (!open) return;
@@ -227,7 +259,7 @@ export function AddDomainDialog({
       domain: domain.trim(),
       dnsProvider,
       description: description.trim() || undefined,
-      folderId: folderId || undefined,
+      folderId: (appContext ? placementFolderId : folderId) || undefined,
       ...(dnsProvider === "cloudflare" ? { ttl: ttlValue, proxied, overwriteDns } : {}),
       ...target,
     });
@@ -246,6 +278,7 @@ export function AddDomainDialog({
     try {
       await create();
       toast.success("Domain added");
+      rememberAppCreation(appContext, environment);
       handleOpenChange(false);
       onCreated();
     } catch (err) {
@@ -271,6 +304,7 @@ export function AddDomainDialog({
           try {
             await create(true);
             toast.success("Domain added");
+            rememberAppCreation(appContext, environment);
             handleOpenChange(false);
             onCreated();
           } catch (retryError) {
@@ -313,18 +347,27 @@ export function AddDomainDialog({
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
-            <label htmlFor="add-domain-folder" className="text-sm font-medium">
-              Folder
-            </label>
-            <CreateFolderSelect
-              id="add-domain-folder"
-              choices={folderChoices}
-              value={folderId}
-              onChange={setFolderId}
-              loading={foldersLoading}
+          {appContext ? (
+            <AppEnvironmentFields
+              context={appContext}
+              environmentId={environmentId}
+              onEnvironmentChange={setEnvironmentId}
+              hint={`Opened from ${appContext.app.name}. The domain joins the environment.`}
             />
-          </div>
+          ) : (
+            <div className="space-y-1.5">
+              <label htmlFor="add-domain-folder" className="text-sm font-medium">
+                Folder
+              </label>
+              <CreateFolderSelect
+                id="add-domain-folder"
+                choices={folderChoices}
+                value={folderId}
+                onChange={setFolderId}
+                loading={foldersLoading}
+              />
+            </div>
+          )}
           <DomainIngressTargetField
             nginxNodeId={nginxNodeId}
             ingressGroupId={ingressGroupId}
@@ -371,107 +414,12 @@ export function AddDomainDialog({
               />
             </>
           )}
-          <AnimatePresence initial={false}>
-            {(preview || previewError || isPreviewLoading) && (
-              <motion.div {...PREVIEW_ANIMATION} className="overflow-hidden">
-                <PanelShell
-                  title={dnsProvider === "cloudflare" ? "Cloudflare DNS preview" : "DNS check"}
-                  actions={
-                    isPreviewLoading ? (
-                      <LoaderCircle
-                        className="h-4 w-4 animate-spin text-muted-foreground"
-                        aria-label="Loading"
-                      />
-                    ) : preview && preview.status !== "ready" && preview.status !== "valid" ? (
-                      <Badge
-                        variant={
-                          preview.status === "mismatch" ||
-                          preview.status === "blocked" ||
-                          preview.status === "invalid"
-                            ? "warning"
-                            : "secondary"
-                        }
-                        size="inline"
-                      >
-                        {preview.status}
-                      </Badge>
-                    ) : null
-                  }
-                  bodyClassName="divide-y divide-border"
-                >
-                  {preview?.dnsProvider === "cloudflare" ? (
-                    <>
-                      <DetailRow
-                        label="Zone"
-                        value={<span className="font-medium">{preview.zoneName}</span>}
-                      />
-                      <DetailRow
-                        label="Target"
-                        value={
-                          <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-1">
-                            {preview.desiredRecords.map((record) => (
-                              <Badge key={`${record.type}-${record.content}`} variant="outline">
-                                {record.type} {record.content}
-                              </Badge>
-                            ))}
-                          </div>
-                        }
-                      />
-                      {preview.currentRecords.length > 0 && (
-                        <DetailRow
-                          label="Current"
-                          value={
-                            <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-1">
-                              {preview.currentRecords.map((record) => (
-                                <Badge
-                                  key={record.id ?? `${record.type}-${record.content}`}
-                                  variant="outline"
-                                >
-                                  {record.type} {record.content}
-                                </Badge>
-                              ))}
-                            </div>
-                          }
-                        />
-                      )}
-                    </>
-                  ) : preview?.dnsProvider === "external" ? (
-                    <>
-                      <DetailRow
-                        label="Expected"
-                        value={
-                          <span className="break-all font-mono text-xs">
-                            {preview.targetIps.join(", ")}
-                          </span>
-                        }
-                      />
-                      <DetailRow
-                        label="Resolved"
-                        value={
-                          <span className="break-all font-mono text-xs">
-                            {[...preview.dnsRecords.a, ...preview.dnsRecords.aaaa].join(", ") ||
-                              "No address records"}
-                          </span>
-                        }
-                      />
-                      {preview.queryName !== preview.domain && (
-                        <DetailRow
-                          label="Checked name"
-                          value={
-                            <span className="break-all font-mono text-xs">{preview.queryName}</span>
-                          }
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <p className="px-4 py-3 text-sm text-muted-foreground">
-                      {previewError ?? "Loading DNS preview..."}
-                    </p>
-                  )}
-                </PanelShell>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <DomainPreviewPanel
+            dnsProvider={dnsProvider}
+            preview={preview}
+            previewError={previewError}
+            isPreviewLoading={isPreviewLoading}
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>

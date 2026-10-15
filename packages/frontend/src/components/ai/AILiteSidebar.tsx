@@ -668,17 +668,18 @@ export function AILiteSidebar({
               />
             )}
 
-            <div
-              className={cn("flex items-center justify-between px-2", mobileMenu && "h-12")}
-              style={
-                mobileMenu ? undefined : { paddingTop: 10, paddingBottom: 10, paddingLeft: 10 }
-              }
-            >
+            {/* 8 px around 32 px buttons makes 48 px, as tall as the console sidebar header. */}
+            <div className={cn("flex items-center justify-between p-2", mobileMenu && "h-12")}>
               <OpfieldLockup suffix="AI" className="pl-1" />
               <div className="flex items-center gap-0.5">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="Create">
+                    <Button
+                      variant="ghost"
+                      // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+                      size="icon-sm"
+                      aria-label="Create"
+                    >
                       <Plus className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -699,7 +700,8 @@ export function AILiteSidebar({
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      // size-exception: 32 px in the sidebar header, so it is as tall as the AI Workspace header
+                      size="icon-sm"
                       onClick={onClose ?? toggleSidebar}
                       aria-label={onClose ? "Close menu" : "Close sidebar"}
                     >

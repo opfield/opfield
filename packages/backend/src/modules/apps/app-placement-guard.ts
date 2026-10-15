@@ -10,6 +10,7 @@ export const APP_FAMILY_NODE_TYPES: Readonly<Record<AppFamily, readonly string[]
   containers: ['docker'],
   compose: ['docker'],
   routes: ['nginx'],
+  domains: ['nginx'],
   pages: ['nginx'],
   databases: ['databases', 'storage'],
   storage: ['storage', 'databases'],
