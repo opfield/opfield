@@ -81,6 +81,10 @@ interface VolumeMountsSectionProps {
   inputCell: string;
   nodeId: string;
   disabledReason?: string;
+  /** What saving the list does, when it is not a container recreation. */
+  description?: string;
+  /** The save button of a list saved on its own (a container its first build has not created yet). */
+  saveAction?: React.ReactNode;
 }
 
 export function VolumeMountsSection({
@@ -92,6 +96,8 @@ export function VolumeMountsSection({
   inputCell,
   nodeId,
   disabledReason,
+  description,
+  saveAction,
 }: VolumeMountsSectionProps) {
   const [managedVolumeNames, setManagedVolumeNames] = useState<string[]>([]);
   const [volumeOptionsLoaded, setVolumeOptionsLoaded] = useState(false);
@@ -140,14 +146,17 @@ export function VolumeMountsSection({
           help="Mounts persistent named volumes or host paths into the container. Data outside the container writable layer survives container recreation."
         />
       }
-      description={disabledReason ?? "Requires container recreation"}
+      description={disabledReason ?? description ?? "Requires container recreation"}
       dirty={mountsChanged}
       actions={
         canEdit ? (
-          <Button onClick={addMount}>
-            <Plus className="h-3.5 w-3.5" />
-            Add
-          </Button>
+          <>
+            <Button onClick={addMount}>
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Button>
+            {saveAction}
+          </>
         ) : null
       }
     >

@@ -30,6 +30,7 @@ import {
   ManagedStorageLinksSection,
   type ManagedStorageLinksSectionHandle,
 } from "./ManagedStorageLinksSection";
+import { PendingContainerVolumes } from "./PendingContainerVolumes";
 
 export async function resolveContainerOrPendingSource(
   nodeId: string,
@@ -69,8 +70,10 @@ export function DockerPendingContainerDetail({
   const resourceScope = `${nodeId}/${snapshot.scopeResourceId}`;
   const canEdit = hasScope(`docker:containers:edit:${resourceScope}`);
   const canBuild = hasScope(`docker:containers:manage:${resourceScope}`);
-  const [tab, setTab] = useUrlTab(["source", "builds", "environment"], "source", (next) =>
-    dockerContainerRoute(nodeSlug, containerName, next)
+  const [tab, setTab] = useUrlTab(
+    ["source", "builds", "environment", "volumes"],
+    "source",
+    (next) => dockerContainerRoute(nodeSlug, containerName, next)
   );
   const refresh = useCallback(async () => {
     try {
@@ -149,6 +152,9 @@ export function DockerPendingContainerDetail({
             <TabsTrigger value="environment" className="gap-1.5">
               Environment
             </TabsTrigger>
+            <TabsTrigger value="volumes" className="gap-1.5">
+              Volumes
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="source" className="pb-6">
             <DockerResourceGitTabs
@@ -180,6 +186,20 @@ export function DockerPendingContainerDetail({
                 scopeResourceId={String(snapshot.scopeResourceId ?? "")}
               />
             </div>
+          </TabsContent>
+          <TabsContent value="volumes" className="pb-6">
+            <PendingContainerVolumes
+              nodeId={nodeId}
+              containerName={containerName}
+              scopeResourceId={String(snapshot.scopeResourceId ?? "")}
+              volumes={pending.initialConfig?.volumes}
+              onSaved={(volumes) =>
+                setPending((current) => ({
+                  ...current,
+                  initialConfig: { ...current.initialConfig, volumes },
+                }))
+              }
+            />
           </TabsContent>
         </Tabs>
       </div>

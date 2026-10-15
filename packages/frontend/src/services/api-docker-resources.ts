@@ -16,6 +16,7 @@ import type {
   DockerSourceBinding,
   DockerSourceBindingConfig,
   DockerSourceConnector,
+  DockerSourceContainerVolume,
   DockerSourceResourceCreateRequest,
   DockerSourceResourceCreateResult,
   DockerSourceSyncResult,
@@ -922,8 +923,23 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
             scopeResourceId: string;
             repositoryFullPath?: string;
             latestBuild?: { id: string; status: string; errorCode: string | null } | null;
+            initialConfig?: { volumes?: DockerSourceContainerVolume[] };
           };
         }>(`/docker/nodes/${nodeId}/containers/${encodeURIComponent(containerName)}/source/pending`)
+      );
+    }
+
+    /** The volume mounts (the whole list) the first build creates a pending container with. */
+    async updatePendingContainerVolumes(
+      nodeId: string,
+      containerName: string,
+      volumes: DockerSourceContainerVolume[]
+    ) {
+      return this.unwrapData(
+        this.request<{ data: { volumes: DockerSourceContainerVolume[] } }>(
+          `/docker/nodes/${nodeId}/containers/${encodeURIComponent(containerName)}/source/pending/volumes`,
+          { method: "PUT", body: JSON.stringify({ volumes }) }
+        )
       );
     }
 

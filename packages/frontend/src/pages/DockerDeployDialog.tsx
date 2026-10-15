@@ -47,6 +47,7 @@ import {
   deploySecretsRecord,
 } from "./docker-deploy/DockerDeployEnvironmentStep";
 import { DockerDeployFormFields } from "./docker-deploy/DockerDeployFormFields";
+import { DockerDeployVolumesStep } from "./docker-deploy/DockerDeployVolumesStep";
 import { executeDockerDeploy } from "./docker-deploy/executeDockerDeploy";
 import { SecureRuntimeSetupDialog } from "./docker-deploy/SecureRuntimeSetupDialog";
 import type {
@@ -55,11 +56,14 @@ import type {
   DockerRestartPolicy,
 } from "./docker-deploy/types";
 import { useDockerDeployData } from "./docker-deploy/useDockerDeployData";
+import { mountsAsVolumes, pendingVolumesError } from "./docker-detail/pending-container-volumes";
 import type { SecretRow } from "./docker-detail/SecretsSection";
+import { ensureManagedMountVolumes, type MountEntry } from "./docker-detail/VolumeMountsSection";
 
 const EMPTY_DOCKER_NODES: Node[] = [];
 const ROOT_FOLDER_OPTIONS: ComboboxOption[] = [{ value: "__root__", label: "No folder" }];
 const noNavigate = () => undefined;
+const DEPLOY_STEP_TITLES = { 1: "Source", 2: "Environment", 3: "Volumes" } as const;
 
 interface DockerDeployDialogProps {
   open: boolean;
@@ -145,8 +149,9 @@ export function DockerDeployDialog({
   const [drainSeconds, setDrainSeconds] = useState("30");
   const [deployRuntimeProfile, setDeployRuntimeProfile] = useState<DockerRuntimeProfile>("default");
   const [secureRuntimeSetupOpen, setSecureRuntimeSetupOpen] = useState(false);
-  // A container from a repository has a second step: its environment variables and secrets.
-  const [step, setStep] = useState<1 | 2>(1);
+  // A container from a repository has two more steps: its environment variables and secrets, and its volumes.
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [volumeMounts, setVolumeMounts] = useState<MountEntry[]>([]);
   const [envText, setEnvText] = useState("");
   const [secretRows, setSecretRows] = useState<SecretRow[]>([]);
   const storeDockerNodes = useDockerStore((state) => state.dockerNodes);
@@ -335,6 +340,7 @@ export function DockerDeployDialog({
     setStep(1);
     setEnvText("");
     setSecretRows([]);
+    setVolumeMounts([]);
   }, [initialNodeLocked, nodeId]);
 
   useEffect(() => {
@@ -382,9 +388,11 @@ export function DockerDeployDialog({
   const environmentInvalid =
     repositoryContainer &&
     (environmentErrors.envLines.length > 0 || environmentErrors.secretRows.size > 0);
+  const volumesInvalid = repositoryContainer && pendingVolumesError(volumeMounts) !== null;
+  const stepInvalid = (step === 2 && environmentInvalid) || (step === 3 && volumesInvalid);
 
   const handleDeploy = async () => {
-    if (deploying || !deployNodeId || noAllowedNode || environmentInvalid) return;
+    if (deploying || !deployNodeId || noAllowedNode || environmentInvalid || volumesInvalid) return;
     if (
       !canCreateInFolder(
         effectiveScopes,
@@ -429,6 +437,8 @@ export function DockerDeployDialog({
       return;
     setDeploying(true);
     try {
+      // Volumes typed in the Volumes step are created first, as the Settings tab does before a recreate.
+      if (repositoryContainer) await ensureManagedMountVolumes(deployNodeId, volumeMounts, []);
       await executeDockerDeploy({
         availableNodes,
         closeDeploy,
@@ -459,7 +469,11 @@ export function DockerDeployDialog({
         sourceMode,
         sourceProjectId,
         ...(repositoryContainer
-          ? { env: deployEnvironmentRecord(envText), secrets: deploySecretsRecord(secretRows) }
+          ? {
+              env: deployEnvironmentRecord(envText),
+              secrets: deploySecretsRecord(secretRows),
+              volumes: mountsAsVolumes(volumeMounts),
+            }
           : {}),
       });
     } catch (err) {
@@ -494,7 +508,7 @@ export function DockerDeployDialog({
         </DialogHeader>
         <DialogDescription>
           {repositoryContainer
-            ? `Step ${step} of 2 — ${step === 1 ? "Source" : "Environment"}`
+            ? `Step ${step} of 3 — ${DEPLOY_STEP_TITLES[step]}`
             : "Create a container or a blue/green deployment."}
         </DialogDescription>
 
@@ -513,6 +527,12 @@ export function DockerDeployDialog({
             onEnvTextChange={setEnvText}
             secretRows={secretRows}
             onSecretRowsChange={setSecretRows}
+          />
+        ) : repositoryContainer && step === 3 ? (
+          <DockerDeployVolumesStep
+            nodeId={deployNodeId}
+            mounts={volumeMounts}
+            onMountsChange={setVolumeMounts}
           />
         ) : noAllowedNode && appContext && environment ? (
           <NoAllowedNodeNotice
@@ -601,8 +621,12 @@ export function DockerDeployDialog({
         )}
 
         <DialogFooter>
-          {repositoryContainer && step === 2 ? (
-            <Button variant="outline" onClick={() => setStep(1)} disabled={deploying}>
+          {repositoryContainer && step > 1 ? (
+            <Button
+              variant="outline"
+              onClick={() => setStep(step === 3 ? 2 : 1)}
+              disabled={deploying}
+            >
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
           ) : (
@@ -611,10 +635,12 @@ export function DockerDeployDialog({
             </Button>
           )}
           <Button
-            onClick={repositoryContainer && step === 1 ? () => setStep(2) : handleDeploy}
+            onClick={
+              repositoryContainer && step < 3 ? () => setStep(step === 1 ? 2 : 3) : handleDeploy
+            }
             pending={deploying}
             disabled={
-              (repositoryContainer && step === 2 && environmentInvalid) ||
+              (repositoryContainer && stepInvalid) ||
               !deployNodeId ||
               noAllowedNode ||
               !canCreateInFolder(
@@ -635,7 +661,7 @@ export function DockerDeployDialog({
                 (!deployName.trim() || !Number(routeHostPort) || !Number(routeContainerPort)))
             }
           >
-            {repositoryContainer && step === 1 ? (
+            {repositoryContainer && step < 3 ? (
               <>
                 Next <ArrowRight className="h-4 w-4" />
               </>
