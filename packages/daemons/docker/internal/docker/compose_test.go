@@ -467,6 +467,11 @@ func TestComposeCommandErrorReturnsOnlyAllowlistedDiagnostic(t *testing.T) {
 		t.Fatalf("allowlisted compose error leaked raw detail: %q", err.Error())
 	}
 
+	notApplied := redactComposeExecutionError(&composeSidecarCommandError{detail: `service "web" has no container to start`})
+	if got := notApplied.Error(); !strings.Contains(got, "Apply it first") {
+		t.Fatalf("a start without containers should say to apply first: %q", got)
+	}
+
 	generic := redactComposeExecutionError(&composeSidecarCommandError{
 		detail: "multiline\nsecret value from user-authored yaml",
 	})
