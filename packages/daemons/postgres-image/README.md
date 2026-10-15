@@ -87,6 +87,8 @@ Installed size the packages add to the official image (apt `Installed-Size`, PGD
 | orafce, pgtap, age | 1.2 / 1.8 / 1.9–2.3 MB | | | | | baked |
 | pgmq | no PGDG package | | | | | (skipped) |
 | PostGIS (+ GDAL, GEOS, PROJ, SFCGAL, …) | 232 MB | 232 MB | 232 MB | 232 MB | 232 MB | bundle |
-| pgRouting (+ Boost), on top of PostGIS | 3.4 MB own, 239 MB with PostGIS | | | | | bundle |
+| pgRouting (+ Boost), on top of PostGIS | 3.4 MB package, 239 MB with PostGIS | | | | | bundle |
 
-Opfield's image of 17.10 is 474.5 MB against the official 453.5 MB.
+The built bundles (amd64, every major): `postgis` 214 MB in 1650 files, `pgrouting` 17 MB (its SQL scripts and Boost
+libraries; requires `postgis`). Opfield's image against the official one: 14.23 462 / 441 MB, 15.18 466 / 445 MB,
+16.14 472 / 451 MB, 17.10 475 / 454 MB, 18.4 478 / 456 MB (about +21 MB each).
