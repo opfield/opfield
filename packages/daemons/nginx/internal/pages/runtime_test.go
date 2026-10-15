@@ -261,6 +261,11 @@ func TestPreviewServesProjectNotFoundPage(t *testing.T) {
 		if !strings.Contains(config, "location @opfield_pages_not_found {") || !strings.Contains(config, "return 404 '") {
 			t.Fatalf("%s: generic page is missing as the last resort: %s", name, config)
 		}
+		// The SPA fallback covers app paths only: a missing path with a file extension stays a 404.
+		extension := "        location ~ \\.[^/]+$ {\n            limit_except GET HEAD { deny all; }\n            try_files $uri =404;"
+		if fallback.SPAFallback != strings.Contains(config, extension) {
+			t.Fatalf("%s: extension paths (SPA %v): %s", name, fallback.SPAFallback, config)
+		}
 	}
 
 	// A configured fallback URL redirects and never reaches the project page.

@@ -23,6 +23,9 @@ const (
 
 const pageColorVariables = ":root{--page:" + paperPage + ";--ink:" + paperInk + ";--stone:" + paperStone + "}@media(prefers-color-scheme:dark){:root{--page:" + graphitePage + ";--ink:" + graphiteInk + ";--stone:" + graphiteStone + "}}"
 
+// previewAssetPattern names the static assets a preview caches for a year.
+const previewAssetPattern = `\.(?:css|js|mjs|json|png|jpe?g|gif|svg|ico|webp|avif|woff2?)$`
+
 const notFoundHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>Page not found</title><style>` + pageColorVariables + `*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--page);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:100%;max-width:560px;text-align:center}.status{color:var(--stone);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}h1{margin:16px 0 0;font-size:clamp(40px,8vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.04em}p.message{margin:20px auto 0;max-width:440px;color:var(--stone);font-size:15px;line-height:1.6}.footer{margin-top:48px;color:var(--stone);font-size:12px}.footer a{color:var(--ink);text-decoration:none}.footer a:hover{text-decoration:underline}</style></head><body><main><section><div class="status">Error 404</div><h1>Page not found</h1><p class="message">The requested host or page is not available.</p></section><div class="footer">Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a></div></main></body></html>`
 
 // PreviewFallback carries the per-preview serving options: missing-path
@@ -157,7 +160,13 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	}
 	lines = append(lines, "    location ~ /\\. { deny all; }", "    location / {", "        limit_except GET HEAD { deny all; }", "        sub_filter_once on;", "        sub_filter '</head>' '<script src=\""+naming.PagesConfigScriptPath+"\"></script></head>';")
 	if fallback.SPAFallback {
-		lines = append(lines, "        try_files $uri $uri/ /index.html;")
+		// The SPA fallback covers app paths only: a missing path with a file extension answers 404 (the deployment's
+		// 404.html), as on a route. Nested regex locations win over the server's, so the dot-file and asset rules are
+		// repeated here; they take the access rules and headers of this location.
+		lines = append(lines, "        try_files $uri $uri/ /index.html;",
+			"        location ~ /\\. { deny all; }",
+			"        location ~* "+previewAssetPattern+" {", "            limit_except GET HEAD { deny all; }", "            try_files $uri =404;", "            expires 1y;", "            add_header Cache-Control \"public, max-age=31536000, immutable\" always;", "        }",
+			"        location ~ \\.[^/]+$ {", "            limit_except GET HEAD { deny all; }", "            try_files $uri =404;", "        }")
 	} else {
 		lines = append(lines, "        try_files $uri $uri/ =404;")
 	}
@@ -168,6 +177,6 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 		lines = append(lines, "    location @opfield_pages_404 {", "        try_files /404.html @opfield_pages_not_found;", "        sub_filter_once on;", "        sub_filter '</head>' '<script src=\""+naming.PagesConfigScriptPath+"\"></script></head>';", "    }")
 		lines = append(lines, "    location @opfield_pages_not_found {", "        default_type text/html;", "        return 404 '"+notFoundHTML+"';", "    }")
 	}
-	lines = append(lines, "    location ~* \\.(?:css|js|mjs|json|png|jpe?g|gif|svg|ico|webp|avif|woff2?)$ {", "        limit_except GET HEAD { deny all; }", "        expires 1y;", "        add_header Cache-Control \"public, max-age=31536000, immutable\" always;", "    }", "}")
+	lines = append(lines, "    location ~* "+previewAssetPattern+" {", "        limit_except GET HEAD { deny all; }", "        expires 1y;", "        add_header Cache-Control \"public, max-age=31536000, immutable\" always;", "    }", "}")
 	return strings.Join(lines, "\n") + "\n"
 }
