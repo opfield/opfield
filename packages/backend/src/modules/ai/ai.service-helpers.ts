@@ -35,6 +35,8 @@ const PROXY_HOST_UPDATE_FIELDS = [
   'rateLimitEnabled',
   'rateLimitMode',
   'rateLimitOptions',
+  'clientIpSource',
+  'clientIpOptions',
   'customRewrites',
   'accessListId',
   'folderId',

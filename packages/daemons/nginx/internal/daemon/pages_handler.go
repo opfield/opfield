@@ -98,7 +98,7 @@ func (h *Handler) handlePagesMaterializePreview(cmd *pb.PagesMaterializePreviewC
 	if h.pagesUnavailable(result) {
 		return
 	}
-	options := pages.PreviewFallback{SPAFallback: cmd.SpaFallback, URL: cmd.FallbackUrl, Access: pagesPreviewAccess(cmd.Access), DeferReload: cmd.DeferReload}
+	options := pages.PreviewFallback{SPAFallback: cmd.SpaFallback, URL: cmd.FallbackUrl, Access: pagesPreviewAccess(cmd.Access), ClientIP: pagesPreviewClientIP(cmd.ClientIp), DeferReload: cmd.DeferReload}
 	if err := h.pagesRuntime.MaterializePreview(cmd.ProfileId, cmd.DeploymentId, cmd.Hostname, cmd.CertificateId, cmd.CertificateVersion, options); err != nil {
 		h.pagesCommandError(result, "preview materialization", err)
 	}
@@ -115,6 +115,15 @@ func pagesPreviewAccess(access *pb.PagesPreviewAccess) *pages.PreviewAccess {
 		rules = append(rules, pages.PreviewIPRule{Type: rule.Type, Value: rule.Value})
 	}
 	return &pages.PreviewAccess{AccessListID: access.AccessListId, IPRules: rules, BasicAuth: access.BasicAuthEnabled}
+}
+
+// pagesPreviewClientIP maps the optional wire client IP source; absent, the
+// preview takes the connecting peer's address.
+func pagesPreviewClientIP(clientIP *pb.PagesPreviewClientIp) *pages.PreviewClientIP {
+	if clientIP == nil {
+		return nil
+	}
+	return &pages.PreviewClientIP{TrustedProxies: clientIP.TrustedProxies, Header: clientIP.Header}
 }
 
 func (h *Handler) handlePagesDeployCertificate(cmd *pb.PagesDeployCertificateCommand, result *pb.CommandResult) {

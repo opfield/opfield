@@ -33,6 +33,8 @@ import {
 import { proxyHostLockKey, proxyNodeLockKey, withProxyLocks } from './proxy-host-lock.js';
 import { IngressDeliveryError } from './proxy-ingress-delivery.js';
 import { attachDockerUpstreamDisplay } from './proxy-upstream-display.js';
+import { clientIpUpdateFields, normalizeClientIpOptions } from './route-client-ip.js';
+import { rawConfigForWrite } from './route-client-ip-runtime.js';
 import { loadRouteIngressGroups, type RouteIngressGroup } from './route-ingress-groups.js';
 import {
   type RouteIngressNode,
@@ -430,9 +432,13 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
               rateLimitEnabled: input.rateLimitEnabled,
               rateLimitMode: input.rateLimitMode,
               rateLimitOptions: input.rateLimitOptions ?? null,
+              clientIpSource: input.clientIpSource,
+              clientIpOptions: input.clientIpOptions ? normalizeClientIpOptions(input.clientIpOptions) : null,
               customRewrites: input.customRewrites,
               advancedConfig: input.advancedConfig ?? null,
-              rawConfig: (input as any).rawConfig ?? null,
+              rawConfig: (input as any).rawConfig
+                ? await rawConfigForWrite(this.db, (input as any).rawConfig, input)
+                : null,
               rawConfigEnabled: (input as any).rawConfigEnabled ?? false,
               accessListId: input.accessListId ?? null,
               folderId: input.folderId ?? null,
@@ -783,8 +789,19 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
 
     // 2. Update DB
     const { pageProjectId, pageTagId, ...proxyInput } = input;
+    const clientIp = clientIpUpdateFields(input, existing);
     const updateData: Record<string, unknown> = {
       ...proxyInput,
+      ...clientIp,
+      ...(typeof input.rawConfig === 'string'
+        ? {
+            rawConfig: await rawConfigForWrite(this.db, input.rawConfig, {
+              ...existing,
+              ...clientIp,
+              domainNames: input.domainNames ?? existing.domainNames,
+            }),
+          }
+        : {}),
       ...upstreamData,
       ...(input.relaySpreadMode !== undefined && input.relaySpreadMode !== 'fixed' ? { relaySpreadCount: null } : {}),
       updatedAt: new Date(),

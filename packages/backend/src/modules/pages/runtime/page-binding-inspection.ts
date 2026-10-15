@@ -1,3 +1,5 @@
+import type { PagesPreviewClientIp } from '@/grpc/generated/types.js';
+
 export interface PageBindingExpectation {
   kind: 'preview' | 'route';
   id: string;
@@ -10,6 +12,7 @@ export interface PageBindingExpectation {
   certificateVersion?: string;
   spaFallback?: boolean;
   fallbackUrl?: string;
+  clientIp?: PagesPreviewClientIp;
   stateGeneration: number;
 }
 export type PageBindingInspection = Map<

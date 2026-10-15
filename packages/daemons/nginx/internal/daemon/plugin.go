@@ -598,7 +598,7 @@ func (p *NginxPlugin) capabilities() []string {
 		capabilities = append(capabilities, maintenanceFlagCapability)
 	}
 	if p.pagesV1Available && p.pagesRuntime != nil {
-		capabilities = append(capabilities, "nginx_pages_v1", "nginx_pages_route_probe_v1", "nginx_pages_preview_revocation_v1", "nginx_pages_preview_access_v1", pagesDeferredReloadCapability)
+		capabilities = append(capabilities, "nginx_pages_v1", "nginx_pages_route_probe_v1", "nginx_pages_preview_revocation_v1", "nginx_pages_preview_access_v1", "nginx_pages_preview_client_ip_v1", pagesDeferredReloadCapability)
 	}
 	if p.pagesRuntimeConfigAvailable && p.pagesRuntime != nil {
 		capabilities = append(capabilities, "nginx_pages_config_v1")

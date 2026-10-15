@@ -252,6 +252,7 @@ import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { ProxyDockerUpstreamService } from '@/modules/proxy/proxy-docker-upstream.service.js';
 import { ProxyMaintenanceAccessService } from '@/modules/proxy/proxy-maintenance-access.service.js';
 import { ProxySecureLinkService } from '@/modules/proxy/proxy-secure-link.service.js';
+import { RouteClientIpReconciler } from '@/modules/proxy/route-client-ip-runtime.js';
 import { EnvironmentSettingsService } from '@/modules/settings/environment-settings.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { NetworkSettingsService } from '@/modules/settings/network-settings.service.js';
@@ -279,6 +280,7 @@ import { AvailabilityAssignmentSigner } from '@/services/availability-assignment
 import { AvailabilityMembersService } from '@/services/availability-members.service.js';
 import { CacheService, createRedisClient } from '@/services/cache.service.js';
 import { createKeeperPeerResolver } from '@/services/clickhouse-keeper-addressing.js';
+import { CloudflareIpRangesService } from '@/services/cloudflare-ip-ranges.service.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { scheduleQueuedDaemonUpdateResume } from '@/services/daemon-node-update.js';
@@ -1461,6 +1463,20 @@ export async function initializeContainer(): Promise<void> {
   proxyService.setWebTransportSettings(webTransportSettingsService);
   proxyMaintenanceAccessService.setRouteAccessCheck((hostId) => proxyService.maintenanceAccessOffered(hostId));
   container.registerInstance(ProxyService, proxyService);
+  // Routes behind Cloudflare trust its current edge ranges: the stored list is in effect before any route renders, the
+  // refresh job keeps it current (bootstrap-background), and routes follow a changed list or Cloudflare proxy flag.
+  const cloudflareIpRanges = new CloudflareIpRangesService(db);
+  await cloudflareIpRanges
+    .load()
+    .catch((error) => logger.warn('Stored Cloudflare IP ranges could not be read; using the built-in list', { error }));
+  container.registerInstance(CloudflareIpRangesService, cloudflareIpRanges);
+  const routeClientIp = new RouteClientIpReconciler(
+    db,
+    (hostId) => proxyService.reapplyHostConfig(hostId),
+    (nodeId) => nodeDispatch.isNodeConnected(nodeId)
+  );
+  routeClientIp.start(eventBus);
+  cloudflareIpRanges.onChanged(() => routeClientIp.reconcileCloudflareRanges());
   const appIncidentsRepo = new AppIncidentsRepo(db);
   container.registerInstance(AppIncidentsRepo, appIncidentsRepo);
   const appMaintenanceService = new AppMaintenanceService(db);

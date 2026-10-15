@@ -25,6 +25,12 @@ export interface RateLimitOptions {
 }
 
 export type RateLimitMode = "inherit" | "custom" | "disabled";
+export type ClientIpSource = "auto" | "direct" | "cloudflare" | "reverse_proxy";
+
+export interface ClientIpOptions {
+  trustedProxyCidrs: string[];
+  header: "x_forwarded_for" | "x_real_ip";
+}
 
 export interface RewriteRule {
   source: string;
@@ -95,6 +101,10 @@ export interface ProxyHost {
   rateLimitEnabled: boolean;
   rateLimitMode?: RateLimitMode;
   rateLimitOptions: RateLimitOptions | null;
+  clientIpSource?: ClientIpSource;
+  clientIpOptions?: ClientIpOptions | null;
+  /** What clientIpSource resolves to now (route detail only). */
+  clientIpEffectiveSource?: Exclude<ClientIpSource, "auto">;
   customRewrites: RewriteRule[];
   advancedConfig: string | null;
   rawConfig: string | null;
@@ -423,6 +433,8 @@ export interface CreateProxyHostRequest {
   rateLimitEnabled?: boolean;
   rateLimitMode?: RateLimitMode;
   rateLimitOptions?: RateLimitOptions;
+  clientIpSource?: ClientIpSource;
+  clientIpOptions?: ClientIpOptions | null;
   customRewrites?: RewriteRule[];
   advancedConfig?: string | null;
   rawConfig?: string;
