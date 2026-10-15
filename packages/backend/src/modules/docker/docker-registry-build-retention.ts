@@ -42,34 +42,48 @@ export class DockerRegistryBuildRetention {
 
   /** A build reached a final state. Never holds the build result up and never throws. */
   buildFinished(buildId: string): void {
+    this.enqueue({ buildId }, async () => {
+      const sourceBindingId = await this.host.store.buildSourceBindingId?.(buildId);
+      return sourceBindingId ? this.pruneSource(sourceBindingId) : 0;
+    });
+  }
+
+  /** A source's build was deployed outside a build's own transition (a Compose batch applied or recovered). */
+  sourceApplied(sourceBindingId: string): void {
+    this.enqueue({ sourceBindingId }, () => this.pruneSource(sourceBindingId));
+  }
+
+  private enqueue(context: Record<string, string>, task: () => Promise<number>): void {
     this.queue = this.queue
-      .then(() => this.prune(buildId))
+      .then(task)
       .then(() => undefined)
       .catch((error) => {
         logger.warn('Builds beyond those kept per container stay until the next build or housekeeping', {
-          buildId,
+          ...context,
           error: error instanceof Error ? error.message : String(error),
         });
       });
   }
 
-  /** Deletes the finished build's source builds beyond those kept per container; returns how many went. */
-  async prune(buildId: string): Promise<number> {
+  /** Deletes a source's builds beyond those kept per container; returns how many went. */
+  async pruneSource(sourceBindingId: string): Promise<number> {
     const { store } = this.host;
-    const scope = await store.buildRetentionScope?.(buildId);
-    // Another build of this source still runs: it prunes when it finishes, with its own artifact recorded.
-    if (!scope || scope.busy) return 0;
     // A collection in progress applies the same rule itself; a registry that is down answers no deletion.
     if (!this.serving(await this.host.getState())) return 0;
+    // A repository a build of this source still pushes to stays as it is: that build may push a digest a deleted
+    // manifest had. It prunes when that build finishes.
+    const busy = new Set((await store.busyBuildRepositories?.(sourceBindingId)) ?? []);
     const { candidates } = selectRegistryRetentionCandidates(await store.listRetentionArtifacts(new Date()));
-    const removable = candidates.filter((artifact) => artifact.sourceBindingId === scope.sourceBindingId);
+    const removable = candidates.filter(
+      (artifact) => artifact.sourceBindingId === sourceBindingId && !busy.has(artifact.repository)
+    );
     for (const artifact of removable) {
       await this.host.executor().deleteManifest(artifact.repository, artifact.digest);
       await store.markArtifactDeleted(artifact.id, new Date());
     }
     if (removable.length > 0) {
       logger.info('Deleted builds beyond those kept per container', {
-        sourceBindingId: scope.sourceBindingId,
+        sourceBindingId,
         kept: REGISTRY_BUILDS_KEPT_PER_CONTAINER,
         deleted: removable.length,
       });

@@ -1147,6 +1147,10 @@ export async function initializeContainer(): Promise<void> {
     dockerBuildService.setArtifactRollout((buildId, leaseOwner, operationId) =>
       dockerBuildRolloutService.rollout(buildId, leaseOwner, operationId)
     );
+    // A Compose batch applied or recovered outside its builds' transitions: its source keeps two builds per service.
+    dockerBuildRolloutService.setSourceAppliedHandler((sourceBindingId) =>
+      dockerInternalRegistryService.sourceApplied(sourceBindingId)
+    );
   }
   const dockerSourceService = commercialEdition.createDockerSourceService(
     DockerSourceService,

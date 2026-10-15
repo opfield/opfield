@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   dockerArtifactPins,
@@ -17,7 +17,7 @@ import {
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerService } from '@/services/docker.service.js';
-import { ACTIVE_BUILD_STATUSES } from './docker-build-policy.js';
+import { ACTIVE_BUILD_STATUSES, WORKER_ACTIVE_BUILD_STATUSES } from './docker-build-policy.js';
 import { classifyRegistryRetentionArtifacts, type RegistryRetentionArtifact } from './docker-registry-retention.js';
 import type { DockerRegistryGrant, DockerRegistryTokenService } from './docker-registry-token.service.js';
 
@@ -181,8 +181,10 @@ export interface DockerRegistryMaintenanceStore {
   listRetentionArtifacts(now: Date): Promise<RegistryRetentionArtifact[]>;
   markArtifactDeleted(id: string, now: Date): Promise<void>;
   markInterruptedRunsFailed?(now: Date, message: string): Promise<void>;
-  /** The source binding of a finished build, and whether another build of it is still running. */
-  buildRetentionScope?(buildId: string): Promise<{ sourceBindingId: string; busy: boolean } | null>;
+  /** The source binding of a build. */
+  buildSourceBindingId?(buildId: string): Promise<string | null>;
+  /** The repositories builds of this source are building or pushing to now. */
+  busyBuildRepositories?(sourceBindingId: string): Promise<string[]>;
   /** Whether a build or an Availability operation may push to or pull from the registry now. */
   hasActiveRegistryUsers?(): Promise<boolean>;
   /** Whether artifacts were deleted since the last garbage collection, so their layers still take space. */
@@ -337,25 +339,30 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
     return classifyRegistryRetentionArtifacts({ artifacts, pins, references, bindings });
   }
 
-  async buildRetentionScope(buildId: string): Promise<{ sourceBindingId: string; busy: boolean } | null> {
+  async buildSourceBindingId(buildId: string): Promise<string | null> {
     const [build] = await this.db
       .select({ sourceBindingId: dockerBuilds.sourceBindingId })
       .from(dockerBuilds)
       .where(eq(dockerBuilds.id, buildId))
       .limit(1);
-    if (!build) return null;
-    const [other] = await this.db
-      .select({ id: dockerBuilds.id })
+    return build?.sourceBindingId ?? null;
+  }
+
+  async busyBuildRepositories(sourceBindingId: string): Promise<string[]> {
+    const builds = await this.db
+      .select({ serviceName: dockerBuilds.serviceName })
       .from(dockerBuilds)
       .where(
         and(
-          eq(dockerBuilds.sourceBindingId, build.sourceBindingId),
-          ne(dockerBuilds.id, buildId),
-          inArray(dockerBuilds.status, ACTIVE_BUILD_STATUSES)
+          eq(dockerBuilds.sourceBindingId, sourceBindingId),
+          inArray(dockerBuilds.status, WORKER_ACTIVE_BUILD_STATUSES)
         )
-      )
-      .limit(1);
-    return { sourceBindingId: build.sourceBindingId, busy: Boolean(other) };
+      );
+    // The build worker pushes to `gateway/builds/<source>[/<Compose service>]`. A deploying build's artifact is
+    // recorded already and kept by its in-flight state.
+    return builds.map(({ serviceName }) =>
+      serviceName ? `gateway/builds/${sourceBindingId}/${serviceName}` : `gateway/builds/${sourceBindingId}`
+    );
   }
 
   async hasActiveRegistryUsers(): Promise<boolean> {

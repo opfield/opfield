@@ -82,6 +82,11 @@ export class DockerInternalRegistryService {
     this.buildRetention.buildFinished(buildId);
   }
 
+  /** A source's Compose build batch was applied outside its builds' own transitions: the same rule runs for it. */
+  sourceApplied(sourceBindingId: string): void {
+    this.buildRetention.sourceApplied(sourceBindingId);
+  }
+
   setExecutor(executor: DockerRegistryMaintenanceExecutor): void {
     this.executor = executor;
   }
