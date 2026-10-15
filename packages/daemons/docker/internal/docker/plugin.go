@@ -94,6 +94,8 @@ type DockerPlugin struct {
 	registrationChanged      chan struct{}
 	// healthRefresh asks the session for a health report now (container_state_events.go).
 	healthRefresh chan struct{}
+	// externalChanges keeps the container changes made outside Opfield (external_changes.go).
+	externalChanges *externalChangeLog
 	// relayPenalties orders relays that failed a route's tunnel recently after the others.
 	relayPenalties relaybridge.RelayPenalties
 	// relayStability is since when each relay's transport has been up without a break: resumable streams return
@@ -190,6 +192,7 @@ func NewDockerPlugin(cfg *config.Config) *DockerPlugin {
 		cfg:                 cfg,
 		registrationChanged: make(chan struct{}, 1),
 		healthRefresh:       make(chan struct{}, 1),
+		externalChanges:     newExternalChangeLog(),
 		memberReadiness:     newMemberReadiness(),
 		handover:            handover.NewRegistry(),
 	}
@@ -622,6 +625,9 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		}
 		if p.composeExecutor != nil {
 			values = append(values, "docker_compose_v1", composeLoggingCapability)
+		}
+		if p.externalChanges != nil {
+			values = append(values, externalChangesCapability)
 		}
 		values = append(values, p.opfieldNamesCapabilities()...)
 		return values

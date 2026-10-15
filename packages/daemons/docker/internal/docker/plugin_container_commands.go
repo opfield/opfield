@@ -30,6 +30,21 @@ func (p *DockerPlugin) handleContainerCommand(cmd *pb.DockerContainerCommand, re
 		}
 		result.Detail = string(data)
 
+	case "external_changes":
+		var params struct {
+			After uint64 `json:"after"`
+		}
+		if cmd.ConfigJson != "" {
+			_ = json.Unmarshal([]byte(cmd.ConfigJson), &params)
+		}
+		data, err := json.Marshal(p.externalChanges.since(params.After))
+		if err != nil {
+			result.Success = false
+			result.Error = fmt.Sprintf("marshal external changes: %v", err)
+			return
+		}
+		result.Detail = string(data)
+
 	case "inspect":
 		data, err := p.client.InspectContainer(ctx, cmd.ContainerId)
 		if err != nil {

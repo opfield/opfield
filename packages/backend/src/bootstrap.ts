@@ -112,6 +112,7 @@ import { DockerBuildRunnerService } from '@/modules/docker/docker-build-runner.s
 import { DockerDeploymentService } from '@/modules/docker/docker-deployment.service.js';
 import { dockerDeploymentCommercialRuntime } from '@/modules/docker/docker-deployment-commercial-runtime.js';
 import { DockerEnvironmentService } from '@/modules/docker/docker-environment.service.js';
+import { DockerExternalChangeWatcher } from '@/modules/docker/docker-external-changes.service.js';
 import { DockerFolderService } from '@/modules/docker/docker-folder.service.js';
 import { DockerHealthCheckService } from '@/modules/docker/docker-health-check.service.js';
 import { DockerImageCleanupService } from '@/modules/docker/docker-image-cleanup.service.js';
@@ -1008,6 +1009,8 @@ export async function initializeContainer(): Promise<void> {
   );
   container.registerInstance(DockerSnapshotReconciler, dockerSnapshotReconciler);
   dockerSnapshotReconciler.start();
+  // Managed containers removed, created or renamed outside Opfield: audit entry and container alert event.
+  new DockerExternalChangeWatcher(db, nodeDispatch, nodeRegistry, eventBus, auditService).start();
   new AppWorkloadSampler(db, appMembersReader, appHealthService, cacheService, nodeDispatch).start();
 
   const dockerFolderService = new DockerFolderService(db, auditService);

@@ -582,6 +582,8 @@ func composeSidecarCommands(request composeRequest) ([][]string, error) {
 }
 
 func (s *dockerComposeSidecar) runCompose(ctx context.Context, request composeRequest, stage *composeStage, command string, args ...string) error {
+	// The sidecar's docker compose changes the project's containers itself: they are Opfield's changes.
+	defer s.client.ownOps.beginProject(request.projectName)()
 	commandArgs := []string{"--project-name", request.projectName}
 	if stage != nil {
 		commandArgs = append(commandArgs, "--file", "/opfield-compose/compose.yaml")

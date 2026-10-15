@@ -27,7 +27,7 @@ const (
 // followed by its die.
 var containerStateActions = []events.Action{
 	events.ActionCreate, events.ActionStart, events.ActionDie, events.ActionDestroy,
-	events.ActionPause, events.ActionUnPause,
+	events.ActionPause, events.ActionUnPause, events.ActionRename,
 }
 
 // HealthRefreshRequested implements lifecycle.HealthRefreshPlugin.
@@ -74,7 +74,8 @@ func (p *DockerPlugin) watchContainerStates(ctx context.Context, collector *Stat
 				p.logger.Debug("container state events stopped", "error", err)
 			}
 			return
-		case <-stream.Messages:
+		case message := <-stream.Messages:
+			p.observeExternalChange(message)
 			if settle == nil {
 				settle = time.After(max(containerStateSettle, time.Until(reported.Add(containerStateReportSpacing))))
 			}

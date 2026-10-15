@@ -207,6 +207,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "docker.availability.lease_handoff": "Handed over container availability",
   "docker.container.archive.export": "Exported container files",
   "docker.container.archive.import": "Imported container files",
+  "docker.container.changed_outside_opfield": "Container changed outside Opfield",
   "docker.container.create": "Created container",
   "docker.container.create.rollback": "Rolled back a container create",
   "docker.container.duplicate": "Duplicated container",
