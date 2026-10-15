@@ -76,6 +76,7 @@ Docker tools take only nodes of type \`docker\` (\`list_nodes({ type: "docker" }
 - The current Build Worker profile accepts one runc job at a time, requires a separate worker host or outer unprivileged container as its security boundary, enforces the installed CPU/RAM/disk profile, and clears BuildKit/containerd state between jobs. Internet egress is the default installer profile while metadata, private/control-plane destinations, and the Opfield gRPC endpoint are blocked; an offline profile is also available.
 - Build Secrets are encrypted, source-scoped, write-only values exposed only through explicit BuildKit secret mounts. Never suggest passing secrets as build arguments or copying them into the build context.
 - Internal registry operation requires no public domain and is not itself a paid module. Optional Business+ external Docker-client access is configured under Settings > Features and uses an explicit nginx node, domain, TLS certificate, and repository/action-scoped token. Entitlement loss disables the external binding, and every public registry token request rechecks Business.
+- Writing a Dockerfile for a Git source: no \`VOLUME\` (an image volume is an anonymous volume Opfield does not manage, and an Opfield volume on the same path fails with "Duplicate mount point"; mount Opfield volumes instead); configuration and secrets from container env and secrets, never baked in; build-time secrets only through \`RUN --mount=type=secret,id=<name>\`; listen on 0.0.0.0 on one fixed port, \`EXPOSE\` it and use it as the route's container port (Opfield sets no PORT variable); a cheap health endpoint (blue/green Deployments probe \`health.path\`; Availability copies use the image \`HEALTHCHECK\`, or a TCP connect without one); exec-form \`CMD\` that stops on SIGTERM within the stop timeout; logs to stdout/stderr; non-root \`USER\`; multi-stage, pinned, slim images and a \`.dockerignore\`. A build gets 2 CPUs, 4 GiB of memory and 20 GiB of disk and stops at the builder timeout (30 minutes by default). There is no pre-deploy command: run migrations at start, idempotent and under a lock, compatible with the release still serving. The deploying-workloads skill reference dockerfile-for-opfield.md (opfield://skills/deploying-workloads/references/dockerfile-for-opfield.md) has an example and the full list.
 
 ## Granular Access
 - Every standalone container has an Opfield-managed stable access identity; every blue/green deployment uses its stable deployment ID.
@@ -129,7 +130,7 @@ other stable hint to locate the recreated container and continue with its new ID
 ## Isolation Profiles
 - **Default** uses Docker \`runc\` for standard compatibility and GPU/device support.
 - **Secure** uses gVisor \`runsc\` for a stronger host-isolation boundary. It is not a virtual machine or a promise of universal Linux syscall compatibility.
-- Secure can be selected only when the target node reports a healthy Secure Runtime state. Creation fails closed while setup is unknown, installing, unhealthy, or unsupported; direct the administrator to **Node Details > Secure Runtime Setup**.
+- Secure can be selected only when the target node reports a healthy Secure Runtime state. Creation fails closed while setup is unknown, installing, unhealthy, or unsupported; direct the administrator to **Node Details > Secure Runtime Setup**, or use \`manage_docker_runtime\` (\`preflight\` checks the node, \`install\` installs gVisor and restarts Docker on that node; needs nodes:manage on the node) when the user asked for it.
 - Secure Runtime needs no KVM. It supports compatible Linux amd64/arm64 hosts with a local, restartable Docker Engine. Compatible LXC guests can work when nested Docker and the required host capabilities are available; do not claim universal LXC support.
 - Secure workloads cannot attach GPUs or devices, use host bind mounts, migrate between nodes, or export as \`.gwca\` archives. Changing profile recreates the workload.
 - Every newly created Opfield workload in either profile is non-privileged, adds no Linux capabilities, and receives \`no-new-privileges\`.
@@ -138,7 +139,7 @@ other stable hint to locate the recreated container and continue with its new ID
 - Images: list, pull from registries, remove, prune unused
 - Volumes: \`manage_docker_volume\` creates Opfield-managed local volumes with no custom driver: \`storageKind: "regular"\` (default) or \`storageKind: "disk-image"\` with \`capacityBytes\` (at least 256 MiB). Disk-image volumes require a compatible node and Personal-or-higher licensing. \`operation: "resize"\` grows a disk-image volume (never shrinks) and \`operation: "adopt"\` brings an eligible legacy local volume under Opfield management without copying data. New or changed mounts can reference only Opfield-managed local volumes; never propose a host bind path.
 - Existing legacy mounts remain unchanged during ordinary updates. A legacy volume can be adopted (in the UI or with \`manage_docker_volume\` \`operation: "adopt"\`) only when it uses the local driver, local scope, and no driver options. Orphaned unmanaged volumes are hidden.
-- Networks: list, create, remove, connect/disconnect containers
+- Networks: \`list_docker_networks\` lists them; \`manage_docker_network\` creates, deletes, connects, and disconnects containers.
 
 ## Compose Boundaries
 - Community and paid plans discover existing Compose projects from canonical Docker labels and expose read-only inventory, status, monitoring, and logs. Adoption always requires a complete user-supplied single-file YAML document; Opfield never reads host Compose files or trusts label paths.
@@ -161,11 +162,11 @@ other stable hint to locate the recreated container and continue with its new ID
 - Remote MCP clients move archives with the MCP-only \`download_docker_archive\` and \`upload_docker_container_archive\` tools. With a shell, use operation \`link\`: it runs the same checks as \`begin\` and returns a one-time URL (15 minutes, single use) with a ready command, \`curl -fsS -o <file> <url>\` to stream an export from the node or \`curl -T container.gwca <url>\` to import a \`.gwca\` archive (the curl response is the new stopped container). Using a link repeats the permission checks with the caller's current grants; an interrupted transfer imports nothing and leaves an incomplete download file that must be deleted. The link is a credential: never repeat it in chat. Without a shell, the base64 begin/chunk workflow carries at most 1 MiB per call.
 
 ## Registries & Templates
-- Registries: add private Docker registries with encrypted credentials. Global or node-specific scope.
+- Registries: add private Docker registries with encrypted credentials, global or node-specific, with \`manage_docker_registry\` (topic docker-registries).
 - Templates: save container configurations as reusable templates for quick deployment
 
 ## Tasks
-Long-running operations (stop, restart, kill, recreate, update) create tasks visible on the Tasks page. Tasks track progress and completion status.
+Long-running operations (stop, restart, kill, recreate, update, image pulls, webhook actions) create tasks visible on the Tasks page. Tasks track progress and completion status: \`manage_docker_task\` \`list\` and \`get\` read them (callers with node-scoped docker:tasks see the tasks of their nodes). Migrations have their own tool, \`manage_docker_migration\`.
 
 ## Console & Files
 - Console: interactive terminal (exec) into running containers via xterm.js WebSocket
@@ -337,6 +338,7 @@ Key-value stores work with Redis clients. The API, tools and saved connections k
 ## Explorer
 - Keys are discovered with \`SCAN\`, not \`KEYS\`, so the browser can safely handle large keyspaces.
 - Visual editing supports string, hash, list, set, and zset.
+- Tool: \`manage_redis_data\` on a saved connection (type redis): \`scan_keys\`, \`get_key\`, \`set_key\`, \`delete_key\`, \`expire_key\`, \`execute_command\`.
 - Streams are browse-only in the visual explorer; use the command console for advanced stream operations.
 
 ## Command Console
