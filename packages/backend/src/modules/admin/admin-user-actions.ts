@@ -190,10 +190,14 @@ export async function sendAdminUserPasswordLink(
   const purpose = (await authServiceOf(services).hasCompletedSignIn(targetUser.id))
     ? 'password_reset'
     : 'password_setup';
-  // Follows the email for a while, so a refused or failed send is reported instead of "sent".
-  const delivery =
-    (await container.resolve(LocalAuthService).requestPasswordLink(targetUser.email, purpose, { wait: true })) ??
-    'queued';
+  // Follows the email for a while, so a refused, throttled or failed send is reported instead of "sent"; no result
+  // means no job exists, which is never answered as queued.
+  const delivery = await container
+    .resolve(LocalAuthService)
+    .requestPasswordLink(targetUser.email, purpose, { wait: true });
+  if (!delivery) {
+    throw new AppError(409, 'PASSWORD_LINK_NOT_QUEUED', 'No password link email was queued for this user');
+  }
   await auditServiceOf(services).log({
     userId: actor.user.id,
     action: 'user.password_link_sent',

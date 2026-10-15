@@ -15,6 +15,7 @@ import type { CacheService } from '@/services/cache.service.js';
 import type { SessionService } from '@/services/session.service.js';
 import type { User } from '@/types.js';
 import type { AuthSettingsService } from './auth.settings.service.js';
+import type { AuthEmailRateSlot } from './auth-email-queue.service.js';
 import type { AuthMailService } from './auth-mail.service.js';
 
 const EMAIL_CHALLENGE_TTL_SECONDS = 10 * 60;
@@ -32,10 +33,15 @@ local limit = tonumber(ARGV[4])
 local ttl = tonumber(ARGV[5])
 
 redis.call('ZREMRANGEBYSCORE', key, 0, windowStart)
-if redis.call('ZCARD', key) >= limit then return 0 end
+if redis.call('ZCARD', key) >= limit then
+  local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+  local retryAfterMs = tonumber(oldest[2]) + ttl * 1000 - now
+  if retryAfterMs < 1000 then retryAfterMs = 1000 end
+  return {0, retryAfterMs}
+end
 redis.call('ZADD', key, now, member)
 redis.call('EXPIRE', key, ttl)
-return 1
+return {1, 0}
 `;
 
 const CONSUME_AUTH_CHALLENGE_SCRIPT = `
@@ -88,6 +94,19 @@ interface AuthChallenge {
   purpose: ChallengePurpose;
   secretHash: string;
   attempts: number;
+}
+
+function passwordResetRateLimited(retryAfterMs: number): AppError {
+  const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+  const minutes = Math.ceil(retryAfterSeconds / 60);
+  const resetsAt = new Date(Date.now() + retryAfterSeconds * 1000).toISOString();
+  return new AppError(
+    429,
+    'PASSWORD_RESET_RATE_LIMITED',
+    `Too many password reset links were requested for this user (${MAX_PASSWORD_RESETS_PER_WINDOW} per hour). ` +
+      `The limit resets in about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'} (${resetsAt}).`,
+    { retryAfterSeconds, resetsAt }
+  );
 }
 
 async function storeAuthChallenge(
@@ -207,8 +226,13 @@ export class LocalAuthService {
   }
 
   /**
-   * Emails a password link. `wait` (an administrator's action) follows the delivery and throws when it failed;
-   * the public reset never waits. Null when no email went out (no such password user, or the reset was throttled).
+   * Emails a password link. `wait` (an administrator's action) follows the delivery and reports every reason no email
+   * went out as an error: password sign-in off, no such password user, a blocked user, the reset throttled (429, with
+   * when it resets) or a failed delivery. The public reset never waits and gets null instead, so its answer does not
+   * reveal whether the account exists. Null means no email went out.
+   *
+   * A reset holds one slot of the user's hourly limit; it is given back when the email does not go out (refused by the
+   * cloud, SMTP failure, or any error before the job exists).
    */
   async requestPasswordLink(
     email: string,
@@ -216,26 +240,49 @@ export class LocalAuthService {
     options: { wait?: boolean } = {}
   ): Promise<'sent' | 'queued' | null> {
     const methods = (await this.authSettingsService.getConfig()).methods;
-    if (!methods.password) return null;
+    if (!methods.password) {
+      if (options.wait) throw new AppError(409, 'PASSWORD_SIGN_IN_DISABLED', 'Password sign-in is disabled');
+      return null;
+    }
     const user = await this.db.query.users.findFirst({
       where: and(eq(users.email, normalizeEmail(email)), eq(users.authMethod, 'password')),
     });
-    if (!user || user.isBlocked) return null;
-    if (purpose === 'password_reset' && !(await this.reservePasswordReset(user.id))) return null;
-    const secret = nanoid(32);
-    const challengeId = await this.createChallenge(user.id, purpose, secret, PASSWORD_LINK_TTL_SECONDS);
-    const token = `${challengeId}.${secret}`;
-    const baseUrl = this.generalSettingsService
-      ? await this.generalSettingsService.requirePublicUrl()
-      : getEnv().APP_URL;
-    return this.authMailService.sendSecurityEmail(
-      user.email,
-      {
-        kind: purpose,
-        actionUrl: new URL(`/reset-password?token=${encodeURIComponent(token)}`, baseUrl).toString(),
-      },
-      options
-    );
+    if (!user || user.isBlocked) {
+      if (options.wait) {
+        throw user
+          ? new AppError(409, 'USER_BLOCKED', 'The user is blocked, so no password link was sent')
+          : new AppError(404, 'NOT_FOUND', 'No password user with this email was found');
+      }
+      return null;
+    }
+    let slot: AuthEmailRateSlot | null = null;
+    if (purpose === 'password_reset') {
+      const reservation = await this.reservePasswordReset(user.id);
+      if (!reservation.slot) {
+        if (options.wait) throw passwordResetRateLimited(reservation.retryAfterMs);
+        return null;
+      }
+      slot = reservation.slot;
+    }
+    try {
+      const secret = nanoid(32);
+      const challengeId = await this.createChallenge(user.id, purpose, secret, PASSWORD_LINK_TTL_SECONDS);
+      const token = `${challengeId}.${secret}`;
+      const baseUrl = this.generalSettingsService
+        ? await this.generalSettingsService.requirePublicUrl()
+        : getEnv().APP_URL;
+      return await this.authMailService.sendSecurityEmail(
+        user.email,
+        {
+          kind: purpose,
+          actionUrl: new URL(`/reset-password?token=${encodeURIComponent(token)}`, baseUrl).toString(),
+        },
+        { ...options, rateSlot: slot ?? undefined }
+      );
+    } catch (error) {
+      if (slot) await this.releasePasswordReset(slot);
+      throw error;
+    }
   }
 
   async getPasswordLinkProfile(token: string): Promise<PasswordLinkProfile | null> {
@@ -327,21 +374,35 @@ export class LocalAuthService {
     return storeAuthChallenge(this.cacheService, userId, purpose, secret, ttlSeconds);
   }
 
-  private async reservePasswordReset(userId: string): Promise<boolean> {
+  private async reservePasswordReset(
+    userId: string
+  ): Promise<{ slot: AuthEmailRateSlot; retryAfterMs: 0 } | { slot: null; retryAfterMs: number }> {
     const now = Date.now();
+    const key = `local_auth:password_reset:${userId}`;
+    const member = nanoid(12);
     const reserved = await this.cacheService
       .getClient()
       .eval(
         RESERVE_PASSWORD_RESET_SCRIPT,
         1,
-        `local_auth:password_reset:${userId}`,
+        key,
         now - PASSWORD_RESET_WINDOW_SECONDS * 1000,
         now,
-        nanoid(12),
+        member,
         MAX_PASSWORD_RESETS_PER_WINDOW,
         PASSWORD_RESET_WINDOW_SECONDS
       );
-    return Number(reserved) === 1;
+    const [allowed, retryAfterMs] = Array.isArray(reserved) ? reserved : [0, 0];
+    if (Number(allowed) === 1) return { slot: { key, member }, retryAfterMs: 0 };
+    return { slot: null, retryAfterMs: Number(retryAfterMs) || PASSWORD_RESET_WINDOW_SECONDS * 1000 };
+  }
+
+  /** Gives a reserved slot back (the email did not go out). Never throws: the caller is already failing. */
+  private async releasePasswordReset(slot: AuthEmailRateSlot): Promise<void> {
+    await this.cacheService
+      .getClient()
+      .zrem(slot.key, slot.member)
+      .catch(() => undefined);
   }
 
   private async consumeChallenge(

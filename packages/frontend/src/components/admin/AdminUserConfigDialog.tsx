@@ -139,12 +139,16 @@ export function AdminUserConfigDialog({
   const authMethod = (user.authMethod ?? "oidc") as LocalAuthMethod;
   const isOidc = authMethod === "oidc";
 
-  const run = async (action: string, task: () => Promise<void>) => {
+  const run = async (
+    action: string,
+    task: () => Promise<void>,
+    failure = "Failed to update user"
+  ) => {
     setBusyAction(action);
     try {
       await task();
     } catch (error) {
-      toastApiError(error, "Failed to update user");
+      toastApiError(error, failure);
     } finally {
       setBusyAction(null);
     }
@@ -191,19 +195,23 @@ export function AdminUserConfigDialog({
   };
 
   const sendPasswordLink = () =>
-    run("password-link", async () => {
-      const result = await api.sendUserPasswordLink(user.id);
-      const link =
-        result.purpose === "password_setup" ? "Password setup link" : "Password reset link";
-      toast.success(`${link} ${result.delivery === "queued" ? "queued" : "sent"}`);
-      setPasswordLinkCoolingDown(true);
-      if (passwordLinkCooldownTimer.current !== null)
-        window.clearTimeout(passwordLinkCooldownTimer.current);
-      passwordLinkCooldownTimer.current = window.setTimeout(() => {
-        setPasswordLinkCoolingDown(false);
-        passwordLinkCooldownTimer.current = null;
-      }, 5000);
-    });
+    run(
+      "password-link",
+      async () => {
+        const result = await api.sendUserPasswordLink(user.id);
+        const link =
+          result.purpose === "password_setup" ? "Password setup link" : "Password reset link";
+        toast.success(`${link} ${result.delivery === "queued" ? "queued" : "sent"}`);
+        setPasswordLinkCoolingDown(true);
+        if (passwordLinkCooldownTimer.current !== null)
+          window.clearTimeout(passwordLinkCooldownTimer.current);
+        passwordLinkCooldownTimer.current = window.setTimeout(() => {
+          setPasswordLinkCoolingDown(false);
+          passwordLinkCooldownTimer.current = null;
+        }, 5000);
+      },
+      "Failed to send the password link"
+    );
 
   const sendInvitation = () =>
     run("invitation", async () => {
