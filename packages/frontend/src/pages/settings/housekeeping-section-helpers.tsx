@@ -20,7 +20,7 @@ const HOUSEKEEPING_HELP: Record<string, string> = {
   "Orphaned AI Artifacts":
     "Deletes sandbox files that are no longer referenced by an AI conversation or retained artifact record.",
   "Internal Registry":
-    "Garbage-collects unreferenced image layers and build artifacts from Opfield's internal Docker registry after the retention window.",
+    "Keeps 2 builds per container in Opfield's internal Docker registry (the running one and one for rollback), deletes older builds and garbage-collects their image layers. Builds are also removed as soon as a newer build finishes.",
   "Orphaned Volumes":
     "Removes anonymous Docker volumes that are no longer attached to a container and have exceeded the configured age.",
   "Retired System PKI Keys":
@@ -42,7 +42,7 @@ export function normalizeHousekeepingConfig(config: HousekeepingConfig): Houseke
     ...config,
     internalRegistry: {
       enabled: true,
-      retentionSuccessfulArtifacts: 1,
+      retentionSuccessfulArtifacts: 2,
     },
     clickHouseInternals: {
       enabled: config.clickHouseInternals?.enabled ?? false,

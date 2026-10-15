@@ -347,7 +347,6 @@ describe('HousekeepingService system certificate cleanup', () => {
 
     expect(runGarbageCollection).toHaveBeenCalledWith({
       requestedById: 'user-1',
-      retentionCount: 5,
       reason: 'housekeeping run by a user',
     });
     expect(result.categories).toEqual([

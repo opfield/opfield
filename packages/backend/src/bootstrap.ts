@@ -1113,11 +1113,11 @@ export async function initializeContainer(): Promise<void> {
     commercialEdition.createDockerBuild('DockerBuildQuery', [db], dockerBuildCommercialRuntime)
   );
   dockerBuildService.setEventBus(eventBus);
-  if (relayRegistryService) {
-    dockerBuildService.setBuildReleaseHandler((buildId) =>
-      relayRegistryService.revokeContextBinding({ contextKind: 'build', contextId: buildId })
-    );
-  }
+  dockerBuildService.setBuildReleaseHandler(async (buildId) => {
+    // Runs in the background: the registry drops the builds beyond the running and the rollback one per container.
+    dockerInternalRegistryService.buildFinished(buildId);
+    await relayRegistryService?.revokeContextBinding({ contextKind: 'build', contextId: buildId });
+  });
   container.registerInstance(DockerBuildService, dockerBuildService);
   const dockerBuildRunnerService = relayRegistryService
     ? commercialEdition.createDockerBuild(

@@ -18,6 +18,7 @@ import {
   selectObsoleteOpfieldConnectorImages,
 } from '@/modules/docker/docker-internal-images.js';
 import type { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
+import { REGISTRY_BUILDS_KEPT_PER_CONTAINER } from '@/modules/docker/docker-registry-retention.js';
 import type { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import type { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
 import type { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance.service.js';
@@ -45,7 +46,6 @@ const VOLUME_CLEANUP_PROTECTED_LABEL = 'opfield.housekeeping.protected';
 const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = 'gateway.housekeeping.protected';
 const SYSTEM_CERTIFICATE_KEY_RETENTION_DAYS = 30;
 const LOGGING_SETTINGS_KEY = 'logging:clickhouse';
-const DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT = 1;
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ const DEFAULTS: Record<string, unknown> = {
   [KEYS.structuredLogsMaxSizeBytes]: 10 * 1024 * 1024 * 1024,
   [KEYS.clickHouseInternalsMaxSizeBytes]: 512 * 1024 * 1024,
   [KEYS.orphanedAIArtifactsEnabled]: true,
-  [KEYS.internalRegistryRetention]: DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT,
+  [KEYS.internalRegistryRetention]: REGISTRY_BUILDS_KEPT_PER_CONTAINER,
   [KEYS.orphanedVolumesEnabled]: true,
   [KEYS.orphanedVolumesRetention]: 30,
   [KEYS.dockerPruneEnabled]: true,
@@ -276,7 +276,8 @@ export class HousekeepingService {
       },
       internalRegistry: {
         enabled: true,
-        retentionSuccessfulArtifacts: DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT,
+        // Fixed: the running and the rollback build per container. Reported for released clients.
+        retentionSuccessfulArtifacts: REGISTRY_BUILDS_KEPT_PER_CONTAINER,
       },
       orphanedVolumes: {
         enabled: get(KEYS.orphanedVolumesEnabled, DEFAULTS[KEYS.orphanedVolumesEnabled] as boolean),
@@ -336,8 +337,7 @@ export class HousekeepingService {
       updates.push([KEYS.clickHouseInternalsMaxSizeBytes, partial.clickHouseInternals.maxSizeBytes]);
     if (partial.orphanedAIArtifacts?.enabled !== undefined)
       updates.push([KEYS.orphanedAIArtifactsEnabled, partial.orphanedAIArtifacts.enabled]);
-    if (partial.internalRegistry?.retentionSuccessfulArtifacts !== undefined)
-      updates.push([KEYS.internalRegistryRetention, DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT]);
+    // internalRegistry.retentionSuccessfulArtifacts is accepted from released clients and ignored: the count is fixed.
     if (partial.orphanedVolumes?.enabled !== undefined)
       updates.push([KEYS.orphanedVolumesEnabled, partial.orphanedVolumes.enabled]);
     if (partial.orphanedVolumes?.retentionDays !== undefined)
@@ -463,7 +463,6 @@ export class HousekeepingService {
           await this.runCategory('Internal Registry', async () => {
             const run = await this.internalRegistryMaintenanceService!.runGarbageCollection({
               requestedById: userId ?? null,
-              retentionCount: config.internalRegistry.retentionSuccessfulArtifacts,
               reason: trigger === 'scheduled' ? 'scheduled housekeeping' : 'housekeeping run by a user',
             });
             const candidateIds = Array.isArray(run.progress?.candidateArtifactIds)
