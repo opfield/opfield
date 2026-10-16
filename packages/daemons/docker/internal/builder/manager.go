@@ -455,7 +455,7 @@ func (m *Manager) run(ctx context.Context, command *pb.DockerBuildCommand) {
 		m.fail(command, "WORKSPACE_CREATE_FAILED", err)
 		return
 	}
-	if err := m.prune(ctx, command.GetBuildId()); err != nil {
+	if err := m.prune(ctx); err != nil && !onlyStoreCleanupFailed(err) {
 		m.fail(command, "BUILDER_CACHE_RESET_FAILED", err)
 		return
 	}

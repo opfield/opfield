@@ -199,7 +199,14 @@ export interface DockerBuild {
   batchId: string | null;
   serviceName: string | null;
   provider: "gitlab" | "github" | "git";
-  trigger: "manual" | "gitlab_push" | "github_push" | "generic_webhook" | "poll" | "retry";
+  trigger:
+    | "manual"
+    | "gitlab_push"
+    | "github_push"
+    | "generic_webhook"
+    | "poll"
+    | "retry"
+    | "attach";
   repositoryFullPath: string;
   ref: string;
   commitSha: string;

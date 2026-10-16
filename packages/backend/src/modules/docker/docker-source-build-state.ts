@@ -1,9 +1,11 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { dockerBuildArtifacts, dockerBuilds, dockerSourceBindings } from '@/db/schema/index.js';
+import { DockerManagementService } from './docker.service.js';
 import type { DockerSourceTarget } from './docker-build.schemas.js';
 import { DockerSourceService } from './docker-source.service.js';
+import { isMissingContainerError, removedContainerSourceAdvice } from './docker-source-removed-container.js';
 import { findContainerSourceTargetOwner, sourceTargetOwnedAdvice } from './docker-source-target-owner.js';
 
 /** One build of a Git source, as its source answer shows it. */
@@ -70,7 +72,7 @@ export function describeDockerSourceState(source: DockerSourceStateInput, builds
       return `Latest build of commit ${commit}${service} failed: the vulnerability policy rejected the image, so it was not deployed. ${withPeriod(reason)}${fix} ${deployed}`;
     }
     const reason = failed.errorMessage ? `: ${withPeriod(failed.errorMessage)}` : '.';
-    return `Latest build of commit ${commit}${service} failed (${failed.errorCode ?? 'BUILD_FAILED'})${reason} Fix the cause, then build again (manage_docker_source build, or manage_docker_build retry). ${deployed}`;
+    return `Latest build of commit ${commit}${service} failed (${failed.errorCode ?? 'BUILD_FAILED'})${reason} The build log has the full output (manage_docker_build logs with buildId ${failed.id}, or the build in the Builds list). Fix the cause, then build again (manage_docker_source build, or manage_docker_build retry). ${deployed}`;
   }
   if (builds.some((build) => ACTIVE.has(build.status))) {
     return `Build of commit ${commit} is in progress (${latest.status}). ${deployed}`;
@@ -152,13 +154,9 @@ export async function withDockerSourceBuildState<
   T extends DockerSourceStateInput & { id: string; target: { kind: string; nodeId?: string; containerName?: string } },
 >(source: T) {
   const latestBuilds = await readLatestDockerSourceBuilds(source.id);
-  const owner =
-    source.target.kind === 'container' && source.target.nodeId && source.target.containerName
-      ? await findContainerSourceTargetOwner(source.target.nodeId, source.target.containerName)
-      : null;
   const invalidTarget =
-    owner && source.target.containerName
-      ? { code: 'SOURCE_TARGET_OWNED', message: sourceTargetOwnedAdvice(source.target.containerName, owner) }
+    source.target.kind === 'container' && source.target.nodeId && source.target.containerName
+      ? await containerSourceTargetProblem(source.target.nodeId, source.target.containerName)
       : null;
   const state = describeDockerSourceState(source, latestBuilds);
   return {
@@ -168,6 +166,34 @@ export async function withDockerSourceBuildState<
     invalidTarget,
     state: invalidTarget ? `Invalid target: ${invalidTarget.message} ${state}` : state,
   };
+}
+
+/**
+ * Why a container source's target is not a container the source can build for: a Compose service or deployment slot
+ * (SOURCE_TARGET_OWNED), or a container that was removed outside Opfield after it ran a build of this source
+ * (SOURCE_CONTAINER_REMOVED). A container its first build has not created yet, or one the node cannot inspect now,
+ * is no problem.
+ */
+async function containerSourceTargetProblem(
+  nodeId: string,
+  containerName: string
+): Promise<{ code: string; message: string } | null> {
+  let missing = false;
+  const inspect = async (node: string, name: string) => {
+    try {
+      return await container.resolve(DockerManagementService).inspectContainer(node, name);
+    } catch (error) {
+      missing = isMissingContainerError(error);
+      throw error;
+    }
+  };
+  const owner = await findContainerSourceTargetOwner(nodeId, containerName, { inspect });
+  if (owner) return { code: 'SOURCE_TARGET_OWNED', message: sourceTargetOwnedAdvice(containerName, owner) };
+  // A container created from the source has no container until its first build creates it.
+  if (missing && !(await container.resolve(DockerSourceService).getPendingContainer(nodeId, containerName))) {
+    return { code: 'SOURCE_CONTAINER_REMOVED', message: removedContainerSourceAdvice(containerName) };
+  }
+  return null;
 }
 
 export async function getDockerSourceWithBuildState(target: DockerSourceTarget) {
@@ -198,4 +224,43 @@ export async function withPendingDockerSourceBuildState<T extends { sourceBindin
     latestBuilds,
     state: binding ? describeDockerSourceState(binding, latestBuilds) : null,
   };
+}
+
+/** The Git source bound to a container, as the container's own answers show it (get_docker_container `gitSource`). */
+export interface DockerContainerGitSource {
+  id: string;
+  repositoryFullPath: string;
+  branch: string;
+  autoBuild: boolean;
+  autoDeploy: boolean;
+  desiredCommitSha: string | null;
+  deployedCommitSha: string | null;
+}
+
+/** The Git source bound to a container name on a node, or null when none is. */
+export async function readContainerGitSource(
+  nodeId: string,
+  containerName: string,
+  db: DrizzleClient = container.resolve<DrizzleClient>(TOKENS.DrizzleClient)
+): Promise<DockerContainerGitSource | null> {
+  const [row] = await db
+    .select({
+      id: dockerSourceBindings.id,
+      repositoryFullPath: dockerSourceBindings.repositoryFullPath,
+      branch: dockerSourceBindings.branch,
+      autoBuild: dockerSourceBindings.autoBuild,
+      autoDeploy: dockerSourceBindings.autoDeploy,
+      desiredCommitSha: dockerSourceBindings.desiredCommitSha,
+      deployedCommitSha: dockerSourceBindings.deployedCommitSha,
+    })
+    .from(dockerSourceBindings)
+    .where(
+      and(
+        eq(dockerSourceBindings.targetKind, 'container'),
+        eq(dockerSourceBindings.nodeId, nodeId),
+        eq(dockerSourceBindings.containerName, containerName)
+      )
+    )
+    .limit(1);
+  return row ?? null;
 }

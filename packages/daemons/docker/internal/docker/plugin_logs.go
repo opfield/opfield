@@ -91,6 +91,10 @@ func (p *DockerPlugin) handleLogsCommand(cmd *pb.DockerLogsCommand, result *pb.C
 		return
 	}
 
+	// A container that wrote nothing has no lines: an empty list, never JSON null.
+	if lines == nil {
+		lines = []string{}
+	}
 	data, err := json.Marshal(lines)
 	if err != nil {
 		result.Success = false

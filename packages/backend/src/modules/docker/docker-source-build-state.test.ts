@@ -63,7 +63,24 @@ describe('state of a Git source', () => {
       }),
     ]);
 
-    expect(state).toContain('(service api) failed (BUILD_FAILED): exit code 2. Fix the cause, then build again');
+    expect(state).toContain(
+      '(service api) failed (BUILD_FAILED): exit code 2. The build log has the full output (manage_docker_build logs with buildId api, or the build in the Builds list). Fix the cause, then build again'
+    );
+  });
+
+  it('carries the failing Dockerfile step of a failed build and points to its log', () => {
+    const state = describeDockerSourceState(source, [
+      build({
+        status: 'failed',
+        errorCode: 'BUILD_FAILED',
+        errorMessage:
+          'Dockerfile:3 `RUN exit 7`: failed to solve: process "/bin/sh -c exit 7" did not complete successfully: exit code: 7',
+      }),
+    ]);
+
+    expect(state).toContain('Dockerfile:3 `RUN exit 7`');
+    expect(state).toContain('exit code: 7');
+    expect(state).toContain('manage_docker_build logs with buildId build-1');
   });
 
   it('tells a deployed build from one automatic deployment skipped, and says why no build exists', () => {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
@@ -91,6 +92,7 @@ import {
   canPickDockerSource,
   listSourceConnectors,
 } from '@/modules/docker/docker-source-connectors.js';
+import { REMOVED_CONTAINER_SOURCE_OPERATIONS } from '@/modules/docker/docker-source-removed-container.js';
 import {
   assertDockerSourceTargetOnNode,
   ComposeSourceProjectCreateSchema,
@@ -304,9 +306,13 @@ export async function executeDockerTool(
         a.containerId
       );
       // Same rule as the inspect route: the live inspect carries the environment.
-      return hasDockerContainerScope(user, 'docker:containers:environment', a.nodeId, inspected)
+      const visible = hasDockerContainerScope(user, 'docker:containers:environment', a.nodeId, inspected)
         ? inspected
         : sanitizeContainerInspect(inspected);
+      // The Git source bound to the container (manage_docker_source get has its builds and state).
+      const name = String(inspected?.Name ?? '').replace(/^\/+/, '');
+      const { readContainerGitSource } = await import('@/modules/docker/docker-source-build-state.js');
+      return { ...visible, gitSource: name ? await readContainerGitSource(a.nodeId, name) : null };
     }
     case 'execute_docker_container_console_command':
       return executeDockerContainerConsoleCommand(context, user, args);
@@ -650,9 +656,11 @@ export async function executeDockerTool(
     }
     case 'list_docker_volumes': {
       const volumes = await context.dockerService.listVolumes(a.nodeId);
+      // Sizes as the volume list shows them: the node's last measurement of each volume.
+      const { withVolumeUsedBytes } = await import('@/modules/docker/docker-volume-snapshot-reads.js');
       return Array.isArray(volumes)
         ? compactAgentList(
-            volumes
+            (await withVolumeUsedBytes(a.nodeId, volumes))
               .filter(
                 (volume: any) =>
                   hasDockerResourceScope(user.scopes, 'docker:volumes:view', a.nodeId, '') ||
@@ -847,7 +855,8 @@ async function manageDockerCompose(context: DockerToolContext, user: User, args:
       action,
       ComposeOperationInputSchema.parse({
         revisionId: a.revisionId,
-        idempotencyKey: a.idempotencyKey,
+        // Optional for agents: a retry with the same key returns the same operation; without one each call starts one.
+        idempotencyKey: optionalNonEmptyString(a.idempotencyKey) ?? `mcp-${randomUUID()}`,
         removeOrphans: a.removeOrphans,
         volumeNames: a.volumeNames ?? [],
       }),
@@ -1465,10 +1474,14 @@ async function manageDockerSource(
   }
 
   // upsert of an existing source: omitted fields and policy keys keep their saved values (create: defaults).
-  const sourceConfig = (saved?: SavedDockerSource) =>
+  // projectId may also name the repository (owner/name or its path), resolved like the repositories operation.
+  const sourceConfig = async (saved?: SavedDockerSource) =>
     DockerSourceBindingConfigSchema.parse({
       connectorId: a.connectorId ?? saved?.connectorId,
-      projectId: a.projectId ?? saved?.projectId,
+      projectId:
+        a.projectId === undefined
+          ? saved?.projectId
+          : await resolveSourceRepositoryProjectId(user, a.connectorId ?? saved?.connectorId, a.projectId),
       branch: a.branch ?? saved?.branch,
       dockerfilePath: a.dockerfilePath ?? saved?.dockerfilePath ?? 'Dockerfile',
       contextPath: a.contextPath ?? saved?.contextPath ?? '.',
@@ -1492,7 +1505,7 @@ async function manageDockerSource(
       const input = ComposeSourceProjectCreateSchema.parse({
         folderId: a.folderId,
         projectName: a.projectName,
-        source: sourceConfig(),
+        source: await sourceConfig(),
       });
       await container.resolve(LicensePolicyService).requireFeature('compose-applications');
       return createComposeProjectFromSource(nodeId, input, user);
@@ -1503,7 +1516,7 @@ async function manageDockerSource(
     }
     await container.resolve(LicensePolicyService).requireFeature('git-push-to-deploy');
     const input = DockerSourceResourceCreateSchema.parse({
-      source: sourceConfig(),
+      source: await sourceConfig(),
       resource:
         a.targetType === 'deployment'
           ? {
@@ -1571,7 +1584,12 @@ async function manageDockerSource(
         : operation === 'build' || operation === 'sync'
           ? 'docker:containers:manage'
           : 'docker:containers:edit';
-    await ensureDockerSourceContainerScope(context.dockerService, user, requiredScope, nodeId, containerName);
+    // The Git source of a container removed outside Opfield can still be read and removed (which releases the name).
+    await ensureDockerSourceContainerScope(context.dockerService, user, requiredScope, nodeId, containerName, {
+      removedContainerSource: (REMOVED_CONTAINER_SOURCE_OPERATIONS as readonly string[]).includes(operation)
+        ? 'allow'
+        : 'refuse',
+    });
     target = { kind: 'container', nodeId, containerName };
   }
 
@@ -1607,9 +1625,21 @@ async function manageDockerSource(
       }
       const saved = await sourceService.get(target);
       const { withDockerSourceBuildState } = await import('@/modules/docker/docker-source-build-state.js');
-      return withDockerSourceBuildState(
-        await sourceService.upsert(DockerSourceBindingUpsertSchema.parse({ ...sourceConfig(saved), target }), user)
+      // Attaching to an existing container replaces what it runs on the first deploy: the answer says what changes.
+      const { containerSourceAttachNotice, inspectContainerBeforeAttach } = await import(
+        '@/modules/docker/docker-source-attach-notice.js'
       );
+      const before =
+        !saved && target.kind === 'container'
+          ? await inspectContainerBeforeAttach(target.nodeId, target.containerName)
+          : null;
+      const upserted = await sourceService.upsert(
+        DockerSourceBindingUpsertSchema.parse({ ...(await sourceConfig(saved)), target }),
+        user
+      );
+      const attachNotice =
+        target.kind === 'container' ? containerSourceAttachNotice(target.containerName, upserted, before) : null;
+      return { ...(await withDockerSourceBuildState(upserted)), attachNotice };
     }
     case 'remove':
       return { success: true, removed: await sourceService.remove(target, user.id) };
@@ -1637,6 +1667,54 @@ async function manageDockerSource(
     default:
       throw new Error(`Unsupported Docker source operation: ${operation}`);
   }
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** owner/name of a repository as given: its path, a clone or web URL, with or without .git. */
+function repositoryPath(value: string): string {
+  let path = value.trim();
+  const scheme = path.indexOf('://');
+  if (scheme >= 0) path = path.slice(path.indexOf('/', scheme + 3) + 1);
+  return path
+    .replace(/^git@[^:]+:/, '')
+    .replace(/\.git$/i, '')
+    .replace(/^\/+|\/+$/g, '')
+    .toLowerCase();
+}
+
+/**
+ * The connector project id a Git source takes, also from the repository's owner/name (or path or URL): looked up among
+ * the connector's repositories the caller may use, as the repositories operation lists them. A value that matches no
+ * single repository is refused with the operation that lists the ids.
+ */
+async function resolveSourceRepositoryProjectId(
+  user: User,
+  connectorId: unknown,
+  projectId: unknown
+): Promise<unknown> {
+  if (typeof projectId !== 'string' || UUID_PATTERN.test(projectId.trim()) || !projectId.trim()) return projectId;
+  const wanted = repositoryPath(projectId);
+  const next = `Pass projectId as the id (a UUID) from manage_docker_source repositories${typeof connectorId === 'string' && connectorId ? ` with connectorId ${connectorId}` : ''} and search "${wanted}".`;
+  if (typeof connectorId !== 'string' || !UUID_PATTERN.test(connectorId)) {
+    throw new AppError(
+      400,
+      'SOURCE_REPOSITORY_NOT_FOUND',
+      `projectId "${projectId}" is not a connector project id: pass connectorId too (manage_docker_source connectors) so the repository can be looked up, or pass the id (a UUID) from manage_docker_source repositories.`
+    );
+  }
+  const { repositories } = await container
+    .resolve(IntegrationsService)
+    .findDockerBuildSourceRepositories(user, connectorId, wanted);
+  const matches = repositories.filter((repository) => repositoryPath(repository.fullPath) === wanted);
+  if (matches.length === 1) return matches[0].projectId;
+  throw new AppError(
+    400,
+    'SOURCE_REPOSITORY_NOT_FOUND',
+    matches.length > 1
+      ? `Several repositories of the connector match "${wanted}". ${next}`
+      : `The connector has no repository "${wanted}" that you may attach. ${next}`
+  );
 }
 
 /** Mirrors GET /tasks and GET /tasks/{id}: docker:tasks for the task node; scoped callers see their nodes only. */

@@ -4,6 +4,11 @@ import type { DockerManagementService } from '@/modules/docker/docker.service.js
 import { hasDockerResourceScope } from '@/modules/docker/docker-access-resource.service.js';
 import { inspectUserContainer } from '@/modules/docker/docker-internal-containers.js';
 import { DockerSourceService } from '@/modules/docker/docker-source.service.js';
+import {
+  findRemovedContainerSource,
+  isMissingContainerError,
+  removedContainerSourceError,
+} from '@/modules/docker/docker-source-removed-container.js';
 import type { User } from '@/types.js';
 
 /** Authorization helpers shared by the Docker AI tools; they mirror the Docker route middleware. */
@@ -41,7 +46,8 @@ export async function ensureDockerSourceContainerScope(
   user: User,
   baseScope: string,
   nodeId: string,
-  containerName: string
+  containerName: string,
+  options: { removedContainerSource?: 'allow' | 'refuse' } = {}
 ): Promise<void> {
   const pending = await container.resolve(DockerSourceService).getPendingContainer(nodeId, containerName);
   if (pending) {
@@ -50,7 +56,26 @@ export async function ensureDockerSourceContainerScope(
     }
     return;
   }
-  await ensureDockerContainerScopes(dockerService, user, [baseScope], nodeId, containerName);
+  try {
+    await ensureDockerContainerScopes(dockerService, user, [baseScope], nodeId, containerName);
+  } catch (error) {
+    // The Git source of a container removed outside Opfield: authorized on the removed container's identity, like
+    // requireDockerContainerScope(..., { removedContainerSource }).
+    const removed =
+      options.removedContainerSource && isMissingContainerError(error)
+        ? await findRemovedContainerSource(nodeId, containerName)
+        : null;
+    if (!removed) throw error;
+    if (
+      !hasDockerResourceScope(user.scopes, baseScope, nodeId, '') &&
+      !(removed.scopeResourceId && hasDockerResourceScope(user.scopes, baseScope, nodeId, removed.scopeResourceId))
+    ) {
+      throw new Error(
+        `PERMISSION_DENIED: Missing required scope ${baseScope}:${nodeId}${removed.scopeResourceId ? `/${removed.scopeResourceId}` : ''}`
+      );
+    }
+    if (options.removedContainerSource === 'refuse') throw removedContainerSourceError(containerName);
+  }
 }
 
 export function optionalNonEmptyString(value: unknown): string | undefined {

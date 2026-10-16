@@ -24,7 +24,15 @@ import { users } from './users.js';
 
 export type DockerSourceTargetKind = 'container' | 'deployment' | 'compose_project' | 'pages_project';
 export type PagesBuildPackageManager = 'npm' | 'pnpm' | 'yarn';
-export type DockerBuildTrigger = 'manual' | 'gitlab_push' | 'github_push' | 'generic_webhook' | 'poll' | 'retry';
+/** Why a build was queued; `attach`: the source was attached, or its repository or branch changed, and builds its head. */
+export type DockerBuildTrigger =
+  | 'manual'
+  | 'gitlab_push'
+  | 'github_push'
+  | 'generic_webhook'
+  | 'poll'
+  | 'retry'
+  | 'attach';
 export type DockerBuildStatus =
   | 'queued'
   | 'claimed'

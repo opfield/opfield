@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container } from '@/container.js';
 import { DockerManagementService } from './docker.service.js';
 import { DockerSnapshotService } from './docker-snapshot.service.js';
-import { inspectDockerVolumeSnapshot } from './docker-volume-snapshot-reads.js';
+import { inspectDockerVolumeSnapshot, withVolumeUsedBytes } from './docker-volume-snapshot-reads.js';
 
 const hidden = 'a'.repeat(64);
 
@@ -46,5 +46,40 @@ describe('inspectDockerVolumeSnapshot', () => {
           : undefined) as never);
 
     await expect(inspectDockerVolumeSnapshot('node-1', 'app-data')).resolves.toMatchObject({ name: 'app-data' });
+  });
+
+  it('carries the size the node last measured', async () => {
+    const snapshots = {
+      getDetail: vi.fn(async (_nodeId: string, kind: string) =>
+        kind === 'volume-metrics' ? { data: { usedBytes: 4096 } } : { data: { Name: 'app-data' } }
+      ),
+      getList: vi.fn().mockResolvedValue({ data: [] }),
+      availability: vi.fn().mockReturnValue('available'),
+    };
+    const management = { decoratePublicVolumeSnapshot: vi.fn().mockResolvedValue([{ Name: 'app-data' }]) };
+    vi.spyOn(container, 'resolve').mockImplementation(((token: unknown) =>
+      token === DockerSnapshotService
+        ? snapshots
+        : token === DockerManagementService
+          ? management
+          : undefined) as never);
+
+    await expect(inspectDockerVolumeSnapshot('node-1', 'app-data')).resolves.toMatchObject({ usedBytes: 4096 });
+  });
+});
+
+describe('withVolumeUsedBytes', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('adds the measured size to listed volumes, null for one not measured yet', async () => {
+    vi.spyOn(container, 'resolve').mockImplementation(((token: unknown) =>
+      token === DockerSnapshotService
+        ? { getDetails: vi.fn().mockResolvedValue({ data: { data: { usedBytes: 2048 } } }) }
+        : undefined) as never);
+
+    await expect(withVolumeUsedBytes('node-1', [{ Name: 'data' }, { Name: 'new' }])).resolves.toEqual([
+      { Name: 'data', usedBytes: 2048 },
+      { Name: 'new', usedBytes: null },
+    ]);
   });
 });

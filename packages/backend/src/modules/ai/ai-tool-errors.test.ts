@@ -55,8 +55,19 @@ describe('tool errors', () => {
     const error = describeToolError(parsed.error);
     expect(error).toMatchObject({ code: 'VALIDATION_ERROR', expected: true });
     expect(formatToolError(error)).toBe(
-      'VALIDATION_ERROR: Request validation failed: domain: Required; limits.cpuCores: Required'
+      'VALIDATION_ERROR: Request validation failed: domain: Required (expected string); limits.cpuCores: Required (expected number)'
     );
+  });
+
+  it('name what a field expects: a UUID, or one of the allowed values', () => {
+    const parsed = z
+      .object({ projectId: z.string().uuid(), operation: z.enum(['get', 'logs']) })
+      .safeParse({ projectId: 'owner/repo', operation: 'status' });
+    expect(parsed.success).toBe(false);
+    const text = formatToolError(describeToolError(parsed.error));
+    expect(text).toContain('projectId: Invalid uuid: expected the UUID of the resource');
+    expect(text).toContain('operation: Expected one of: get, logs');
+    expect(text).not.toContain('owner/repo');
   });
 
   it('keep the code a tool helper put in front of its message', () => {

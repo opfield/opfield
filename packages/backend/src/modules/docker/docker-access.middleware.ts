@@ -15,6 +15,11 @@ import {
 import { inspectUserContainer } from './docker-internal-containers.js';
 import { DockerNetworkAccessResourceService } from './docker-network-access-resource.service.js';
 import { DockerSourceService } from './docker-source.service.js';
+import {
+  findRemovedContainerSource,
+  isMissingContainerError,
+  removedContainerSourceError,
+} from './docker-source-removed-container.js';
 
 function deny(baseScope: string, nodeId?: string, resourceId?: string): never {
   const requiredScope = nodeId
@@ -92,6 +97,12 @@ export function requireDockerContainerScope(
     allowTransitionIdentityFallback?: boolean;
     allowBroadWithoutResolve?: boolean;
     allowPendingSource?: boolean;
+    /**
+     * A Git source route on a container removed outside Opfield (the source still holds the name): `allow` authorizes
+     * it on the removed container's identity (reading and detaching the source), `refuse` answers 409
+     * SOURCE_CONTAINER_REMOVED after the same check. Without it the route answers CONTAINER_NOT_FOUND.
+     */
+    removedContainerSource?: 'allow' | 'refuse';
   } = {}
 ): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
@@ -121,16 +132,33 @@ export function requireDockerContainerScope(
       accessNodeId = identity.nodeId;
       resourceId = identity.resourceId;
     } else {
-      resourceId = await resolveDockerContainerScopeResourceId(
-        () => inspectUserContainer(service, nodeId, identifier),
-        options.allowTransitionIdentityFallback
-          ? {
-              active: () => Boolean(service.getContainerTransition(nodeId, identifier)),
-              resolvePersisted: () =>
-                container.resolve(DockerAccessResourceService).resolveContainer(nodeId, { name: identifier }),
-            }
-          : undefined
-      );
+      try {
+        resourceId = await resolveDockerContainerScopeResourceId(
+          () => inspectUserContainer(service, nodeId, identifier),
+          options.allowTransitionIdentityFallback
+            ? {
+                active: () => Boolean(service.getContainerTransition(nodeId, identifier)),
+                resolvePersisted: () =>
+                  container.resolve(DockerAccessResourceService).resolveContainer(nodeId, { name: identifier }),
+              }
+            : undefined
+        );
+      } catch (error) {
+        const removed =
+          options.removedContainerSource && isMissingContainerError(error)
+            ? await findRemovedContainerSource(nodeId, identifier)
+            : null;
+        if (!removed) throw error;
+        if (
+          !hasDockerResourceScope(scopes, baseScope, nodeId, '') &&
+          !(removed.scopeResourceId && hasDockerResourceScope(scopes, baseScope, nodeId, removed.scopeResourceId))
+        ) {
+          deny(baseScope, nodeId, removed.scopeResourceId ?? undefined);
+        }
+        if (options.removedContainerSource === 'refuse') throw removedContainerSourceError(identifier);
+        await next();
+        return;
+      }
     }
     if (hasDockerResourceScope(scopes, baseScope, nodeId, '')) {
       await next();

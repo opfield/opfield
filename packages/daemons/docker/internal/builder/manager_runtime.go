@@ -81,13 +81,18 @@ func (m *Manager) runCommand(ctx context.Context, buildID, dir string, env []str
 		return err
 	}
 	var wg sync.WaitGroup
+	// The end of the output names the cause when the command fails (the failing Dockerfile step and its exit code).
+	tail := &outputTail{}
 	copyLogs := func(reader io.Reader) {
 		defer wg.Done()
 		// Redaction comes first so a line is only held back after its secrets are gone.
 		lines := newLineBuffer(maxBuildLogChunk, buildLogPartialLineDelay, func(chunk []byte) {
 			m.emitLog(buildID, chunk)
 		})
-		redactor := newStreamRedactor(m.secretValues(buildID), lines.Write)
+		redactor := newStreamRedactor(m.secretValues(buildID), func(chunk []byte) {
+			tail.write(chunk)
+			lines.Write(chunk)
+		})
 		buffer := make([]byte, maxBuildLogChunk)
 		_, _ = io.CopyBuffer(redactor, reader, buffer)
 		redactor.Flush()
@@ -98,16 +103,17 @@ func (m *Manager) runCommand(ctx context.Context, buildID, dir string, env []str
 	go copyLogs(stderr)
 	err = command.Wait()
 	wg.Wait()
-	return err
+	return describeCommandFailure(name, err, tail.String())
 }
 
-func (m *Manager) prune(ctx context.Context, buildID string) error {
-	if err := m.removeStoredImages(ctx); err != nil {
-		m.log(buildID, []byte("builder image store cleanup failed: "+err.Error()))
-	}
-	return m.runCommand(
+// prune resets the builder's cache and image store before and after a build. It is the worker's own maintenance, not
+// part of the build: its output (BuildKit's table of removed cache records) never goes into the build log, and a
+// failure is returned with the cause its output names.
+func (m *Manager) prune(ctx context.Context) error {
+	storeErr := m.removeStoredImages(ctx)
+	if err := m.runCommand(
 		ctx,
-		buildID,
+		"",
 		"",
 		os.Environ(),
 		"buildctl",
@@ -115,7 +121,25 @@ func (m *Manager) prune(ctx context.Context, buildID string) error {
 		"unix://"+m.config.BuildkitSocket,
 		"prune",
 		"--all",
-	)
+	); err != nil {
+		return err
+	}
+	if storeErr != nil {
+		return &storeCleanupError{err: storeErr}
+	}
+	return nil
+}
+
+// storeCleanupError is a prune whose cache reset worked but whose image store cleanup failed. A build may still run:
+// the next prune retries the cleanup.
+type storeCleanupError struct{ err error }
+
+func (e *storeCleanupError) Error() string { return "builder image store cleanup: " + e.err.Error() }
+func (e *storeCleanupError) Unwrap() error { return e.err }
+
+func onlyStoreCleanupFailed(err error) bool {
+	var storeErr *storeCleanupError
+	return errors.As(err, &storeErr)
 }
 
 // removeStoredImages deletes build results that daemons without imageStoreOutputOption left in the builder's
@@ -145,12 +169,11 @@ func (m *Manager) removeStoredImages(ctx context.Context) error {
 
 const storedImageRemovalBatch = 100
 
-func (m *Manager) pruneAfterJob(buildID string) {
+func (m *Manager) pruneAfterJob(_ string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if err := m.prune(ctx, buildID); err != nil {
-		m.log(buildID, []byte("builder cache cleanup failed: "+err.Error()))
-	}
+	// The build already reported its result; a failed cleanup is retried before the next build and by housekeeping.
+	_ = m.prune(ctx)
 }
 
 func (m *Manager) monitorStorage(ctx context.Context, limit int64, paths ...string) error {

@@ -9,7 +9,8 @@ export interface AIToolArgumentValidator {
 }
 
 export function createAIToolArgumentValidator(tools: readonly AIToolDefinition[]): AIToolArgumentValidator {
-  const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false });
+  // verbose: errors carry their schema, so a refusal can name the allowed arguments and values.
+  const ajv = new Ajv({ allErrors: true, strict: true, validateFormats: false, verbose: true });
   const validators = new Map<string, { tool: AIToolDefinition; validate: ValidateFunction }>();
 
   for (const tool of tools) {
@@ -50,9 +51,10 @@ function validateArguments(
     const values = operationDiscriminator.arguments.map((argument) => argumentsValue[argument]);
     const key = values.join('.');
     if (values.some((value) => typeof value !== 'string') || !operationDiscriminator.operations[key]) {
+      const paths = operationDiscriminator.arguments.map((argument) => `$/${argument}`).join(', ');
       return {
         ok: false,
-        error: `Invalid tool arguments at ${operationDiscriminator.arguments.map((argument) => `$/${argument}`).join(', ')}`,
+        error: `Invalid tool arguments: ${paths} must be one of: ${listed(Object.keys(operationDiscriminator.operations))}`,
       };
     }
   }
@@ -65,19 +67,46 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
-function formatValidationErrors(errors: ErrorObject[] | null | undefined): string {
-  const paths = [...new Set((errors ?? []).map(validationErrorPath))].sort();
-  return `Invalid tool arguments${paths.length > 0 ? ` at ${paths.join(', ')}` : ''}`;
+const MAX_LISTED_VALUES = 40;
+const MAX_REPORTED_ERRORS = 8;
+
+function listed(values: readonly unknown[]): string {
+  const shown = values
+    .slice(0, MAX_LISTED_VALUES)
+    .map((value) => (typeof value === 'string' ? value : JSON.stringify(value)));
+  return values.length > MAX_LISTED_VALUES ? `${shown.join(', ')}, ...` : shown.join(', ');
 }
 
-function validationErrorPath(error: ErrorObject): string {
-  if (error.keyword === 'required') {
-    const missing = (error.params as { missingProperty?: unknown }).missingProperty;
-    if (typeof missing === 'string' && missing) return `${error.instancePath || '$'}/${missing}`;
+/**
+ * The refusal of arguments that do not match the tool schema: each problem with its argument path and what is
+ * expected there (the missing argument, the allowed values, the arguments the object takes), never the value sent.
+ */
+function formatValidationErrors(errors: ErrorObject[] | null | undefined): string {
+  const problems = [...new Set((errors ?? []).map(describeValidationError))].sort();
+  if (problems.length === 0) return 'Invalid tool arguments';
+  const shown = problems.slice(0, MAX_REPORTED_ERRORS);
+  const more = problems.length > shown.length ? `; ${problems.length - shown.length} more` : '';
+  return `Invalid tool arguments: ${shown.join('; ')}${more}`;
+}
+
+function describeValidationError(error: ErrorObject): string {
+  const path = `$${error.instancePath}`;
+  const params = error.params as Record<string, unknown>;
+  switch (error.keyword) {
+    case 'required':
+      return `${path}/${String(params.missingProperty)} is required`;
+    case 'additionalProperties': {
+      const properties = (error.parentSchema as { properties?: Record<string, unknown> } | undefined)?.properties;
+      const allowed = properties ? Object.keys(properties) : [];
+      return `${path}/${String(params.additionalProperty)} is not an argument here${allowed.length > 0 ? ` (arguments: ${listed(allowed)})` : ''}`;
+    }
+    case 'enum':
+      return `${path} must be one of: ${listed(Array.isArray(params.allowedValues) ? params.allowedValues : [])}`;
+    case 'const':
+      return `${path} must be ${JSON.stringify(params.allowedValue)}`;
+    case 'type':
+      return `${path} must be ${Array.isArray(params.type) ? params.type.join(' or ') : String(params.type)}`;
+    default:
+      return `${path} ${error.message ?? 'is invalid'}`;
   }
-  if (error.keyword === 'additionalProperties') {
-    const property = (error.params as { additionalProperty?: unknown }).additionalProperty;
-    if (typeof property === 'string' && property) return `${error.instancePath || '$'}/${property}`;
-  }
-  return error.instancePath || '$';
 }
