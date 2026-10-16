@@ -2384,14 +2384,19 @@ func (x *StatsReport) GetTimestamp() int64 {
 }
 
 type DiskMount struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MountPoint    string                 `protobuf:"bytes,1,opt,name=mount_point,json=mountPoint,proto3" json:"mount_point,omitempty"`
-	Filesystem    string                 `protobuf:"bytes,2,opt,name=filesystem,proto3" json:"filesystem,omitempty"`
-	Device        string                 `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
-	TotalBytes    int64                  `protobuf:"varint,4,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
-	UsedBytes     int64                  `protobuf:"varint,5,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
-	FreeBytes     int64                  `protobuf:"varint,6,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
-	UsagePercent  float64                `protobuf:"fixed64,7,opt,name=usage_percent,json=usagePercent,proto3" json:"usage_percent,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	MountPoint   string                 `protobuf:"bytes,1,opt,name=mount_point,json=mountPoint,proto3" json:"mount_point,omitempty"`
+	Filesystem   string                 `protobuf:"bytes,2,opt,name=filesystem,proto3" json:"filesystem,omitempty"`
+	Device       string                 `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
+	TotalBytes   int64                  `protobuf:"varint,4,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
+	UsedBytes    int64                  `protobuf:"varint,5,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	FreeBytes    int64                  `protobuf:"varint,6,opt,name=free_bytes,json=freeBytes,proto3" json:"free_bytes,omitempty"`
+	UsagePercent float64                `protobuf:"fixed64,7,opt,name=usage_percent,json=usagePercent,proto3" json:"usage_percent,omitempty"`
+	// What the mount holds, so a disk alert can watch every data disk and skip Opfield's own disk images:
+	// "root" (mount point /), "docker_root" (Docker's data root), "opfield_state" (the daemon's state or managed
+	// storage root), "managed_image" (a disk image of a managed database, storage or volume) or "data" (any other).
+	// Empty from daemons before 2.12.3.
+	Role          string `protobuf:"bytes,8,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2473,6 +2478,13 @@ func (x *DiskMount) GetUsagePercent() float64 {
 		return x.UsagePercent
 	}
 	return 0
+}
+
+func (x *DiskMount) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
 }
 
 type NetworkInterface struct {
@@ -15575,7 +15587,7 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\areading\x18\x05 \x01(\x05R\areading\x12\x18\n" +
 	"\awriting\x18\x06 \x01(\x05R\awriting\x12\x18\n" +
 	"\awaiting\x18\a \x01(\x05R\awaiting\x12\x1c\n" +
-	"\ttimestamp\x18\b \x01(\x03R\ttimestamp\"\xe8\x01\n" +
+	"\ttimestamp\x18\b \x01(\x03R\ttimestamp\"\xfc\x01\n" +
 	"\tDiskMount\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x1e\n" +
@@ -15589,7 +15601,8 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"used_bytes\x18\x05 \x01(\x03R\tusedBytes\x12\x1d\n" +
 	"\n" +
 	"free_bytes\x18\x06 \x01(\x03R\tfreeBytes\x12#\n" +
-	"\rusage_percent\x18\a \x01(\x01R\fusagePercent\"\xf7\x01\n" +
+	"\rusage_percent\x18\a \x01(\x01R\fusagePercent\x12\x12\n" +
+	"\x04role\x18\b \x01(\tR\x04role\"\xf7\x01\n" +
 	"\x10NetworkInterface\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
 	"\brx_bytes\x18\x02 \x01(\x03R\arxBytes\x12\x19\n" +

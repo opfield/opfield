@@ -99,7 +99,7 @@ func NewDaemonBase(cfg *BaseConfig, cfgPath string, plugin DaemonPlugin, logger 
 		cfgPath:               cfgPath,
 		state:                 st,
 		plugin:                plugin,
-		sysReporter:           newSystemReporter(),
+		sysReporter:           newSystemReporter(cfg.StateDir, plugin),
 		logger:                startupLogger,
 		baseHandler:           logger.Handler(), // original handler without startup buffer
 		tunnelIdentityChanged: make(chan struct{}, 1),

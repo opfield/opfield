@@ -138,6 +138,26 @@ func TestStorageRootHealthCountsPromisedSpace(t *testing.T) {
 	}
 }
 
+// An oversubscribed storage root reports no allocatable space and a use over
+// 100%, which Opfield's built-in "Node disk oversubscribed" rule alerts on.
+func TestStorageRootHealthShowsOversubscription(t *testing.T) {
+	root := t.TempDir()
+	sparseImage(t, filepath.Join(root, "storage", "images", "a-0.img"), 12*testGiB)
+	statfs := func(path string, stat *unix.Statfs_t) error {
+		*stat = unix.Statfs_t{Bsize: 4096, Blocks: uint64(20 * testGiB / 4096), Bavail: uint64(10 * testGiB / 4096), Bfree: uint64(10 * testGiB / 4096)}
+		return nil
+	}
+	m := &managedStorageManager{root: root, reserve: testGiB, statFilesystem: statfs}
+	mount, err := m.storageRootHealthMount()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 10 free - 12 promised - 1 reserve: 3 GiB short of what the image may take.
+	if mount.FreeBytes != 0 || mount.UsedBytes != 23*testGiB || mount.UsagePercent <= 100 {
+		t.Fatalf("oversubscribed storage root mount = %+v", mount)
+	}
+}
+
 // A filesystem that stopped writing (ext4 emergency_ro, a read-only
 // superblock or mount) is read-only; a healthy one is not.
 func TestReadOnlyMount(t *testing.T) {

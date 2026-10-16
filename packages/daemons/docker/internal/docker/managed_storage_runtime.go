@@ -140,8 +140,12 @@ func (m *managedStorageManager) storageRootHealthMount() (*pb.DiskMount, error) 
 	// storage-manager work, nor space the existing images may still take as
 	// they fill up. This marker is explicitly allocatable capacity; managed
 	// workload mounts below remain raw ext4 filesystem metrics.
-	allocatable := max(int64(0), usage.Available(m.reserve))
-	used := total - allocatable
+	available := usage.Available(m.reserve)
+	allocatable := max(int64(0), available)
+	// Used counts the space promised to the images and the reserve too, so it
+	// is over the total (usage over 100%) while the disk is oversubscribed:
+	// Opfield alerts on that.
+	used := total - available
 	usagePercent := 0.0
 	if total > 0 {
 		usagePercent = float64(used) / float64(total) * 100
