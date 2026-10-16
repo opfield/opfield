@@ -460,7 +460,7 @@ Old images stay on a node until something removes them, and Git-source builds ad
 
 ## Disk Usage And Retention
 
-**Settings > Features > Housekeeping** starts with what Opfield's own data takes on the Opfield host: every disk that holds it (the Docker data root with images, container logs and named volumes, and any volume of the stack on a disk of its own) with its free space, the Postgres database with its largest tables, Redis memory and AOF size, and the size of the container logs (shown only; logs rotate by their Docker log settings). The disks are measured every 10 minutes.
+**Settings > Features > Housekeeping** starts with what Opfield's own data takes on the Opfield host: every disk that holds it (the Docker data root with images, container logs and named volumes, and any volume of the stack on a disk of its own) with its free space, the Postgres database with its largest tables, Redis memory and AOF size, and the size of the container logs (shown only; logs rotate by their Docker log settings). The disks are measured every 10 minutes. File sizes in Housekeeping (container logs, nginx logs, the registry on local disk) are the sizes of the files themselves, comparable with a container's log max-size, not the space a compressing filesystem such as ZFS allocates for them.
 
 Every record Opfield keeps has a bound, on by default and applied to existing installs on the first run after an update:
 

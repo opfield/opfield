@@ -46,13 +46,17 @@ export function parseRedisInfo(info: string): Record<string, string> {
   return fields;
 }
 
-/** Parses `du -k` lines of `<id>/<id>-json.log*` files into bytes per container id. */
+/**
+ * Parses `stat -c '%s %n'` lines of `<id>/<id>-json.log*` files into bytes per container id. The apparent file size,
+ * as nginx logs and every other size in Housekeeping count it (and as the log max-size limits it), not the blocks the
+ * filesystem allocates, which on a compressing filesystem (ZFS) are a fraction of it.
+ */
 export function parseContainerLogSizes(output: string): Map<string, number> {
   const sizes = new Map<string, number>();
   for (const line of output.split('\n')) {
     const match = /^(\d+)\s+\S*\/([0-9a-f]{64})\/[0-9a-f]{64}-json\.log/.exec(line.trim());
     if (!match) continue;
-    sizes.set(match[2]!, (sizes.get(match[2]!) ?? 0) + Number(match[1]) * 1024);
+    sizes.set(match[2]!, (sizes.get(match[2]!) ?? 0) + Number(match[1]));
   }
   return sizes;
 }
@@ -141,7 +145,10 @@ export class OpfieldDiskUsageReader {
         Image: self.Config.Image,
         User: '0',
         Entrypoint: ['sh'],
-        Cmd: ['-c', "find /containers -maxdepth 2 -name '*-json.log*' -type f -exec du -k {} + 2>/dev/null || true"],
+        Cmd: [
+          '-c',
+          "find /containers -maxdepth 2 -name '*-json.log*' -type f -exec stat -c '%s %n' {} + 2>/dev/null || true",
+        ],
         HostConfig: { Binds: [`${root}/containers:/containers:ro`], NetworkMode: 'none' },
       },
       60_000

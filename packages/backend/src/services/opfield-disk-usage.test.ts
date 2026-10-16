@@ -9,17 +9,17 @@ describe('Opfield disk usage', () => {
     });
   });
 
-  it('sums the json logs and their rotated files per container', () => {
+  it('sums the apparent sizes of the json logs and their rotated files per container (O-8)', () => {
     const id = 'a'.repeat(64);
     const other = 'b'.repeat(64);
     const sizes = parseContainerLogSizes(
       [
-        `10\t/containers/${id}/${id}-json.log`,
-        `5\t/containers/${id}/${id}-json.log.1`,
-        `1\t/containers/${other}/${other}-json.log`,
+        `1844802 /containers/${id}/${id}-json.log`,
+        `52428800 /containers/${id}/${id}-json.log.1`,
+        `3915961 /containers/${other}/${other}-json.log`,
       ].join('\n')
     );
-    expect(sizes.get(id)).toBe(15 * 1024);
-    expect(sizes.get(other)).toBe(1024);
+    expect(sizes.get(id)).toBe(1844802 + 52428800);
+    expect(sizes.get(other)).toBe(3915961);
   });
 });

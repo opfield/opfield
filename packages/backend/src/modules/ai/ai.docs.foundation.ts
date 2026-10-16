@@ -609,7 +609,7 @@ Automated cleanup tasks, configurable in Settings.
   - Dismissed Alerts also keeps one open alert per resource and kind and removes open alerts older than 90 days.
 - With the Housekeeping switch off, the scheduled run still runs Internal Registry, Operation History, Build Logs, Inference Usage, Expired OAuth Grants, Expired Tokens and Opfield Host Files (each with its own switch). Each category has 30 minutes.
 - When a disk holding Opfield data on the Opfield host is 90% full, housekeeping runs at once (at most hourly). Built-in alerts: "Opfield disk almost full" (85%), "Opfield disk full" (95%, critical) and "Housekeeping not running" (no successful run for two days).
-- get_stats includes diskUsage: every Opfield host disk (Docker data root, stack volumes) with free space, Postgres database size and largest tables, Redis memory and AOF size, container log sizes (read only).
+- get_stats includes diskUsage: every Opfield host disk (Docker data root, stack volumes) with free space, Postgres database size and largest tables, Redis memory and AOF size, container log sizes (read only). File sizes (container logs, nginx logs, the registry on local disk) are apparent file sizes, comparable with a log max-size, not the blocks a compressing filesystem allocates.
 - Can be triggered manually from Settings page.
 - Tool: manage_housekeeping get_config, get_stats, get_history, update_config (config, validated like PUT /housekeeping/config), and run.
 - Run history tracked (last N runs with per-category results).

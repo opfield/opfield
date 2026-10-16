@@ -121,12 +121,17 @@ export class DockerService {
       ]);
       return registryBucketUsedBytes(new RegistryS3Client(storage.s3), storage.s3.rootDirectory);
     }
-    const result = await this.execInContainer(registryId, ['sh', '-c', 'du -sk /var/lib/registry | cut -f1']);
-    const kibibytes = Number(result.output.trim());
-    if (result.exitCode !== 0 || !Number.isSafeInteger(kibibytes) || kibibytes < 0) {
+    // The apparent size of the files, as on S3 and everywhere in Housekeeping, not the blocks the filesystem allocates.
+    const result = await this.execInContainer(registryId, [
+      'sh',
+      '-c',
+      "find /var/lib/registry -type f -exec stat -c '%s' {} + 2>/dev/null | awk '{ total += $1 } END { printf \"%.0f\\n\", total }'",
+    ]);
+    const bytes = Number(result.output.trim());
+    if (result.exitCode !== 0 || !Number.isSafeInteger(bytes) || bytes < 0) {
       throw new Error(`Registry storage usage is unavailable (${result.exitCode}): ${result.output.trim()}`);
     }
-    return kibibytes * 1024;
+    return bytes;
   }
 
   /**
