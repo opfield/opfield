@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/outputcap"
 	"github.com/opfield/opfield/docker-daemon/internal/config"
 	"github.com/opfield/opfield/docker-daemon/internal/docker"
 	runtimemanager "github.com/opfield/opfield/docker-daemon/internal/runtime"
@@ -78,6 +79,8 @@ func main() {
 	}
 
 	logger := setupLogger("info", "json")
+	// OpenRC and manual-mode hosts append the output to a plain file: keep it bounded.
+	outputcap.Start(logger)
 
 	cfg, err := config.Load(configPath)
 	if err != nil {

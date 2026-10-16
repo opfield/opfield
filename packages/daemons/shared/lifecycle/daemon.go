@@ -14,6 +14,7 @@ import (
 	"github.com/opfield/opfield/daemon-shared/auth"
 	"github.com/opfield/opfield/daemon-shared/connector"
 	"github.com/opfield/opfield/daemon-shared/enrollment"
+	"github.com/opfield/opfield/daemon-shared/logepisode"
 	"github.com/opfield/opfield/daemon-shared/state"
 	"github.com/opfield/opfield/daemon-shared/stream"
 	"github.com/opfield/opfield/daemon-shared/sysmetrics"
@@ -309,6 +310,11 @@ func runProcessRelayTunnel(
 	identityChanged <-chan struct{},
 	logger *slog.Logger,
 ) {
+	// A relay that stays unreachable fails a connection every second: one line when it starts failing, a summary every
+	// few minutes and one when it recovers, not a line per attempt (OpenRC hosts keep the output in a plain file).
+	var outcomes logepisode.Tracker
+	connectSubject := logepisode.Subject{Name: "relay tunnel lane connection", IDAttr: "node_id", ID: nodeID}
+	endSubject := logepisode.Subject{Name: "relay tunnel lifecycle", IDAttr: "node_id", ID: nodeID}
 	for ctx.Err() == nil {
 		laneCount := 1
 		var runtimeChanged <-chan struct{}
@@ -341,7 +347,7 @@ func runProcessRelayTunnel(
 			if ctx.Err() != nil {
 				return
 			}
-			logger.Warn("relay tunnel lane connection failed, retrying", "error", connectErr)
+			outcomes.Failed(logger, connectSubject, "error", connectErr)
 			select {
 			case <-ctx.Done():
 				return
@@ -349,6 +355,8 @@ func runProcessRelayTunnel(
 				continue
 			}
 		}
+		outcomes.Succeeded(logger, connectSubject)
+		tunnelStarted := time.Now()
 		tunnelCtx, cancelTunnel := context.WithCancel(ctx)
 		tunnelEnded := make(chan struct{}, laneCount)
 		for _, conn := range connections {
@@ -392,7 +400,11 @@ func runProcessRelayTunnel(
 		if rotated || resized {
 			continue
 		}
-		logger.Warn("relay tunnel lifecycle ended unexpectedly, restarting")
+		if time.Since(tunnelStarted) >= time.Minute {
+			// A tunnel that ran a while ends an episode of quick restarts.
+			outcomes.Succeeded(logger, endSubject)
+		}
+		outcomes.Failed(logger, endSubject, "ran_for", time.Since(tunnelStarted).Round(time.Second).String())
 		select {
 		case <-ctx.Done():
 			return

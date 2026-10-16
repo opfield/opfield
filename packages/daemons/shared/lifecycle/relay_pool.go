@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/opfield/opfield/daemon-shared/connector"
+	"github.com/opfield/opfield/daemon-shared/logepisode"
 	"github.com/opfield/opfield/daemon-shared/relaybridge"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -163,6 +164,9 @@ func runRelayPoolTarget(
 	// addressOffset rotates the target's addresses for the next lanes once its
 	// lanes stayed down on the address they were built for.
 	addressOffset := 0
+	// A relay that stays unreachable fails every attempt: logged when it starts failing, every few minutes and when it
+	// recovers, not per attempt.
+	var outcomes logepisode.Tracker
 	for ctx.Err() == nil {
 		target := *currentTarget()
 		targetCtx, cancelTarget := context.WithCancel(ctx)
@@ -212,8 +216,11 @@ func runRelayPoolTarget(
 			}
 			return nil
 		}
+		laneSubject := logepisode.Subject{Name: "relay target lane connection", IDAttr: "relay_instance_id", ID: target.ID}
 		if err := openLanes(ctx); err != nil {
-			logger.Warn("relay target lane connection failed", "relay_instance_id", target.ID, "error", err)
+			outcomes.Failed(logger, laneSubject, "error", err)
+		} else {
+			outcomes.Succeeded(logger, laneSubject)
 		}
 		if len(connections) == 0 {
 			cancelTarget()

@@ -216,8 +216,10 @@ func validateServiceLogging(node *yaml.Node) error {
 }
 
 // injectComposeLogLimits gives every service without its own logging the
-// rotation single workloads get (json-file, 50m x 3). Callers use it only
-// when the host's default driver is plain json-file.
+// rotation single workloads get (json-file, 50m x 3), and a service whose own
+// json-file logging sets no max-size (which Docker then never rotates) a
+// max-size of 50m, keeping its other options. Callers use it only when the
+// host's default driver is plain json-file.
 func injectComposeLogLimits(composeYAML []byte) ([]byte, error) {
 	var document yaml.Node
 	if err := yaml.Unmarshal(composeYAML, &document); err != nil || len(document.Content) != 1 {
@@ -229,7 +231,8 @@ func injectComposeLogLimits(composeYAML []byte) ([]byte, error) {
 	}
 	for i := 1; i < len(services.Content); i += 2 {
 		service := services.Content[i]
-		if mappingValues(service)["logging"] != nil {
+		if logging := mappingValues(service)["logging"]; logging != nil {
+			boundComposeJSONFileLogging(logging)
 			continue
 		}
 		service.Content = append(service.Content, composeScalar("logging"), composeMapping(
@@ -245,6 +248,30 @@ func injectComposeLogLimits(composeYAML []byte) ([]byte, error) {
 		return nil, errors.New("normalize compose_yaml")
 	}
 	return output, nil
+}
+
+// boundComposeJSONFileLogging adds max-size to a service's own json-file
+// logging (a missing driver is the host's json-file default) that has none.
+func boundComposeJSONFileLogging(logging *yaml.Node) {
+	if logging.Kind != yaml.MappingNode {
+		return
+	}
+	values := mappingValues(logging)
+	if driver := values["driver"]; driver != nil && (driver.Kind != yaml.ScalarNode || driver.Value != jsonFileLogDriver) {
+		return
+	}
+	options := values["options"]
+	if options == nil {
+		options = composeMapping()
+		logging.Content = append(logging.Content, composeScalar("options"), options)
+	}
+	if options.Kind != yaml.MappingNode {
+		return
+	}
+	if size := mappingValues(options)["max-size"]; size != nil && strings.TrimSpace(size.Value) != "" {
+		return
+	}
+	options.Content = append(options.Content, composeScalar("max-size"), composeScalar(workloadLogMaxSize))
 }
 
 func composeScalar(value string) *yaml.Node {

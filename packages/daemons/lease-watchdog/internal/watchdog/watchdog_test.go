@@ -1,6 +1,7 @@
 package watchdog
 
 import (
+	"bytes"
 	"io"
 	"log/slog"
 	"os"
@@ -249,5 +250,42 @@ func TestOrphanedRecordsAreRemovedOnlyWithoutALeaseAwareDaemon(t *testing.T) {
 	}
 	if got := h.takeKilled(); len(got) != 0 {
 		t.Fatalf("killed %v after the rollback", got)
+	}
+}
+
+// A failure that repeats on every pass (4 per second) is logged when it starts and when it ends, not on every pass:
+// OpenRC keeps the watchdog's output in a plain file (disk audit G4).
+func TestRepeatedReadFailureLogsOncePerEpisode(t *testing.T) {
+	h := newHarness(t)
+	var out bytes.Buffer
+	h.dog.cfg.Logger = slog.New(slog.NewTextHandler(&out, nil))
+	if err := os.RemoveAll(h.dir.RecordsDir()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.dir.RecordsDir(), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for range 400 {
+		if h.dog.Pass().Healthy {
+			t.Fatal("pass must be unhealthy when records cannot be read")
+		}
+	}
+	if lines := strings.Count(out.String(), "lease watchdog reading deadline records failing"); lines != 1 {
+		t.Fatalf("logged %d failure lines for one episode:\n%s", lines, out.String())
+	}
+	if !strings.Contains(out.String(), "level=ERROR") {
+		t.Fatalf("the failure must stay an error:\n%s", out.String())
+	}
+	if err := os.Remove(h.dir.RecordsDir()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(h.dir.RecordsDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if !h.dog.Pass().Healthy {
+		t.Fatal("pass must recover")
+	}
+	if !strings.Contains(out.String(), "lease watchdog reading deadline records recovered") {
+		t.Fatalf("recovery not logged:\n%s", out.String())
 	}
 }

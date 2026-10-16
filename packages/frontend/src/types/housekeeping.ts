@@ -40,7 +40,14 @@ export interface HousekeepingRunResult {
 }
 
 export interface HousekeepingStats {
-  nginxLogs: { totalSizeBytes: number; fileCount: number; oldestFile: string | null };
+  /** Every nginx node's logs as its daemon reports them; reportingNodeCount < nodeCount: daemons to update. */
+  nginxLogs: {
+    totalSizeBytes: number;
+    fileCount: number;
+    oldestFile: string | null;
+    nodeCount?: number;
+    reportingNodeCount?: number;
+  };
   auditLog: { totalRows: number; oldestEntry: string | null };
   dismissedAlerts: { count: number; oldestAlert: string | null };
   deliveryLog: { total: number; success: number; failed: number; retrying: number };

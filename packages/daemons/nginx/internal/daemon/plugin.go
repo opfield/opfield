@@ -95,6 +95,8 @@ type NginxPlugin struct {
 	handover        *handover.Registry
 	handoverTracker *handover.Tracker
 	liveCuts        liveCuts
+	// logBudget bounds the nginx logs (log_budget.go).
+	logBudget logBudget
 
 	// Session-scoped resources
 	sessionCancel              context.CancelFunc
@@ -484,6 +486,7 @@ func (p *NginxPlugin) SetState(st *sharedstate.State) {
 		p.handler.secureLinkListeners = p.secureLinks
 	}
 	p.handler.reporter = p.reporter
+	p.startLogBudget()
 }
 
 func (p *NginxPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
@@ -517,6 +520,17 @@ func (p *NginxPlugin) HandleCommand(cmd *pb.OpfieldCommand) *pb.CommandResult {
 	if payload, ok := cmd.Payload.(*pb.OpfieldCommand_SyncDockerRegistryBindings); ok {
 		result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
 		detail, err := p.SyncDockerRegistryBindings(payload.SyncDockerRegistryBindings)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+		} else {
+			result.Detail = detail
+		}
+		return result
+	}
+	if payload, ok := cmd.Payload.(*pb.OpfieldCommand_ConfigureNginxLogs); ok {
+		result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
+		detail, err := p.ConfigureNginxLogs(payload.ConfigureNginxLogs)
 		if err != nil {
 			result.Success = false
 			result.Error = err.Error()
@@ -566,6 +580,7 @@ func (p *NginxPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 	}
 	if report != nil {
 		report.UpdateConnections = p.updateConnections()
+		report.NginxLogs = p.logUsageReport()
 	}
 	return report
 }
@@ -587,7 +602,7 @@ func (p *NginxPlugin) CollectStats() *pb.StatsReport {
 }
 
 func (p *NginxPlugin) capabilities() []string {
-	capabilities := []string{"nginx_certificate_distribution_v2", "generic_relay_tunnel_v1", "relay_pool_v1", "proxy_secure_links_v1", "nginx_secure_link_socket_only_v1", "nginx_registry_ingress_v1", NginxSecureLinkLoopbackCapability, managedAvailabilityRoutesCapability}
+	capabilities := []string{"nginx_certificate_distribution_v2", "generic_relay_tunnel_v1", "relay_pool_v1", "proxy_secure_links_v1", "nginx_secure_link_socket_only_v1", "nginx_registry_ingress_v1", NginxSecureLinkLoopbackCapability, managedAvailabilityRoutesCapability, nginx.LogBudgetCapability}
 	if p.relayStreams != nil {
 		capabilities = append(capabilities, relayresume.Capability, handover.Capability)
 	}
@@ -639,7 +654,6 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 	p.validateConfigIfStale(time.Now())
 	go p.runConfigValidation(sessionCtx)
 	if !p.maintenanceAccessSupported {
-		go p.runLogCleanup(sessionCtx)
 		return nil
 	}
 	tlsManager := sharedauth.NewTLSManager(p.baseCfg.TLS.CACert, p.baseCfg.TLS.ClientCert, p.baseCfg.TLS.ClientKey)
@@ -659,9 +673,6 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 	p.conn = conn
 	p.maintenanceAccess = accessServer
 
-	// Start log cleanup in background
-	go p.runLogCleanup(sessionCtx)
-
 	// Start log stream if we have a connection
 	// The log stream is managed at the session level for nginx
 	return nil
@@ -677,32 +688,6 @@ func (p *NginxPlugin) OnSessionEnd() {
 	if p.sessionCancel != nil {
 		p.sessionCancel()
 		p.sessionCancel = nil
-	}
-}
-
-// runLogCleanup periodically removes nginx logs older than 7 days.
-func (p *NginxPlugin) runLogCleanup(ctx context.Context) {
-	ticker := time.NewTicker(6 * time.Hour)
-	defer ticker.Stop()
-
-	// Run immediately on start
-	if removed, err := nginx.CleanOldLogs(p.cfg.Nginx.LogsDir, 7*24*time.Hour); err != nil {
-		p.logger.Warn("log cleanup failed", "error", err)
-	} else if removed > 0 {
-		p.logger.Info("cleaned old nginx logs", "removed", removed)
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if removed, err := nginx.CleanOldLogs(p.cfg.Nginx.LogsDir, 7*24*time.Hour); err != nil {
-				p.logger.Warn("log cleanup failed", "error", err)
-			} else if removed > 0 {
-				p.logger.Info("cleaned old nginx logs", "removed", removed)
-			}
-		}
 	}
 }
 

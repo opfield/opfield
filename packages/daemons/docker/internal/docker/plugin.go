@@ -115,6 +115,9 @@ type DockerPlugin struct {
 	availabilityHealth *availabilityHealth
 	// relayTunnelOutcomes logs failing incoming relay tunnels per endpoint owner and state change (L-1).
 	relayTunnelOutcomes logepisode.Tracker
+	// routerAddressOutcomes: a router address update that keeps failing is retried every few seconds; logged when it
+	// starts failing, every few minutes and when it recovers.
+	routerAddressOutcomes logepisode.Tracker
 	// linkRejections logs and counts the connections of database bindings and storage links the node or the relays
 	// refused; linkConnections holds the links without a host listener at their limit; linkTraffic counts the sessions
 	// and bytes each link carried.
@@ -323,6 +326,9 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 	// User workloads get json-file log rotation only when json-file is the
 	// host's default driver; detect it once.
 	p.logger.Info("docker default logging driver", "driver", c.DetectDefaultLoggingDriver(ctx))
+	// Containers whose json-file log never rotates (created before 2.11 or outside Opfield) are cut in place once
+	// their log is large (container_log_budget.go); runs for the life of the process.
+	go p.runContainerLogBudget(context.Background())
 
 	// Initialize allowlist from config
 	p.allowlist = NewAllowlistChecker(p.cfg.Docker.Allowlist)

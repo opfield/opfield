@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -192,10 +193,16 @@ func init() {
 	daemonLogState.minLevel = "info"
 }
 
+// startupBufferLimit bounds the entries kept before the first session: a
+// daemon that cannot reach Opfield for days keeps logging (relay retries), and
+// only the newest lines are worth replaying.
+const startupBufferLimit = 500
+
 // startupBuffer holds log entries generated before the gRPC handler is installed.
 var startupBuffer struct {
 	mu      sync.Mutex
 	entries []*pb.DaemonLogEntry
+	dropped int
 	flushed bool
 }
 
@@ -205,6 +212,11 @@ func BufferStartupLog(level, component, message string, fields map[string]string
 	defer startupBuffer.mu.Unlock()
 	if startupBuffer.flushed {
 		return
+	}
+	if len(startupBuffer.entries) >= startupBufferLimit {
+		copy(startupBuffer.entries, startupBuffer.entries[1:])
+		startupBuffer.entries = startupBuffer.entries[:len(startupBuffer.entries)-1]
+		startupBuffer.dropped++
 	}
 	startupBuffer.entries = append(startupBuffer.entries, &pb.DaemonLogEntry{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
@@ -223,6 +235,15 @@ func flushStartupBuffer(writer *Writer) {
 		return
 	}
 	startupBuffer.flushed = true
+	if startupBuffer.dropped > 0 {
+		writer.Send(&pb.DaemonMessage{Payload: &pb.DaemonMessage_DaemonLog{DaemonLog: &pb.DaemonLogEntry{
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			Level:     "info",
+			Message:   fmt.Sprintf("%d earlier log lines from before the session are not replayed", startupBuffer.dropped),
+			Component: "daemon",
+		}}})
+		startupBuffer.dropped = 0
+	}
 	for _, entry := range startupBuffer.entries {
 		writer.Send(&pb.DaemonMessage{
 			Payload: &pb.DaemonMessage_DaemonLog{DaemonLog: entry},
@@ -236,6 +257,7 @@ func ResetStartupBuffer() {
 	startupBuffer.mu.Lock()
 	defer startupBuffer.mu.Unlock()
 	startupBuffer.entries = nil
+	startupBuffer.dropped = 0
 	startupBuffer.flushed = false
 }
 

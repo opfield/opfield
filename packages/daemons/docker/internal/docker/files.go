@@ -79,7 +79,8 @@ func ExportVolume(ctx context.Context, c *Client, volumeName string, maxBytes in
 			Cmd:   []string{"sleep", "60"},
 		},
 		HostConfig: &container.HostConfig{
-			Mounts: []mount.Mount{{Type: mount.TypeVolume, Source: volumeName, Target: "/volume", ReadOnly: true}},
+			LogConfig: internalContainerLogConfig(),
+			Mounts:    []mount.Mount{{Type: mount.TypeVolume, Source: volumeName, Target: "/volume", ReadOnly: true}},
 		},
 	})
 	if err != nil {
@@ -413,7 +414,8 @@ func runMountedVolumeHelperWithInput(ctx context.Context, c *Client, mounts []mo
 			StdinOnce:    input != nil,
 		},
 		HostConfig: &container.HostConfig{
-			Mounts: mounts,
+			LogConfig: internalContainerLogConfig(),
+			Mounts:    mounts,
 		},
 	})
 	if err != nil {
@@ -490,7 +492,8 @@ func readMountedVolumePathArchive(ctx context.Context, c *Client, mounts []mount
 			Cmd:   []string{"sleep", "60"},
 		},
 		HostConfig: &container.HostConfig{
-			Mounts: mounts,
+			LogConfig: internalContainerLogConfig(),
+			Mounts:    mounts,
 		},
 	})
 	if err != nil {

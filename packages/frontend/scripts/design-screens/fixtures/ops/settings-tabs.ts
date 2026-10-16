@@ -269,7 +269,13 @@ export const housekeepingConfig: HousekeepingConfig = {
 };
 
 export const housekeepingStats: HousekeepingStats = {
-  nginxLogs: { totalSizeBytes: 3.1 * GiB, fileCount: 214, oldestFile: ago(14, "d") },
+  nginxLogs: {
+    totalSizeBytes: 3.1 * GiB,
+    fileCount: 214,
+    oldestFile: ago(14, "d"),
+    nodeCount: 2,
+    reportingNodeCount: 2,
+  },
   auditLog: { totalRows: 184_302, oldestEntry: ago(362, "d") },
   dismissedAlerts: { count: 38, oldestAlert: ago(29, "d") },
   deliveryLog: { total: 1_284, success: 1_271, failed: 9, retrying: 4 },

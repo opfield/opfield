@@ -43,7 +43,8 @@ func (p *DockerPlugin) createManagedStorageConnector(ctx context.Context, raw st
 	// A per-link storage connector carries one link: it keeps the limits connectors had before they were shared.
 	pids := legacySecureLinkConnectorPidsLimit
 	hostConfig := &container.HostConfig{
-		Binds: config.Binds, GroupAdd: connectorGroupAdd(), ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
+		LogConfig: internalContainerLogConfig(),
+		Binds:     config.Binds, GroupAdd: connectorGroupAdd(), ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 		RestartPolicy: container.RestartPolicy{Name: container.RestartPolicyUnlessStopped},
 		Resources:     container.Resources{Memory: legacySecureLinkConnectorMemory, NanoCPUs: legacySecureLinkConnectorNanoCPUs, PidsLimit: &pids},
 	}

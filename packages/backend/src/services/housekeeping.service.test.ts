@@ -573,3 +573,81 @@ describe('HousekeepingService orphaned volume retention', () => {
     expect(h.state()).toEqual({ 'node-1': { [VOLUME_A]: daysAgo(30), [VOLUME_B]: T0.toISOString() } });
   });
 });
+
+describe('HousekeepingService nginx logs', () => {
+  it('sends the retention to online nginx daemons that bound their logs and sums what they freed', async () => {
+    const where = vi.fn().mockResolvedValue([
+      { id: 'ingress-1', capabilities: { capabilities: ['nginx_log_budget_v1'] } },
+      { id: 'ingress-old', capabilities: { capabilities: ['relay_pool_v1'] } },
+      { id: 'ingress-2', capabilities: { capabilities: ['nginx_log_budget_v1'] } },
+    ]);
+    const configureNginxLogs = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: true,
+        detail: JSON.stringify({ removedFiles: 16, truncatedFiles: 2, freedBytes: 81_000_000, bytes: 5, files: 1 }),
+      })
+      .mockResolvedValueOnce({ success: true, detail: '{"removedFiles":1,"freedBytes":10}' });
+    const service = new HousekeepingService(
+      { select: vi.fn(() => ({ from: vi.fn(() => ({ where })) })) } as any,
+      {} as any,
+      { configureNginxLogs } as any,
+      {} as any
+    );
+
+    await expect((service as any).rotateNginxLogs(14)).resolves.toEqual({
+      itemsCleaned: 19,
+      spaceFreedBytes: 81_000_010,
+    });
+    expect(configureNginxLogs.mock.calls).toEqual([
+      ['ingress-1', 14],
+      ['ingress-2', 14],
+    ]);
+  });
+
+  it('fails the category only when every node failed', async () => {
+    const where = vi.fn().mockResolvedValue([
+      { id: 'ingress-1', capabilities: { capabilities: ['nginx_log_budget_v1'] } },
+      { id: 'ingress-2', capabilities: { capabilities: ['nginx_log_budget_v1'] } },
+    ]);
+    const configureNginxLogs = vi
+      .fn()
+      .mockResolvedValueOnce({ success: false, error: 'offline' })
+      .mockResolvedValueOnce({ success: true, detail: '{"removedFiles":2,"freedBytes":20}' });
+    const service = new HousekeepingService(
+      { select: vi.fn(() => ({ from: vi.fn(() => ({ where })) })) } as any,
+      {} as any,
+      { configureNginxLogs } as any,
+      {} as any
+    );
+    await expect((service as any).rotateNginxLogs(30)).resolves.toEqual({ itemsCleaned: 2, spaceFreedBytes: 20 });
+
+    configureNginxLogs.mockReset().mockRejectedValue(new Error('timeout'));
+    await expect((service as any).rotateNginxLogs(30)).rejects.toThrow('Nginx log retention failed');
+  });
+
+  it('shows the real size of the logs on every nginx node from their health reports', async () => {
+    const where = vi
+      .fn()
+      .mockResolvedValue([
+        { report: { nginxLogs: { bytes: 400, files: 10, oldestUnix: 1_760_000_000 } } },
+        { report: { nginxLogs: { bytes: 100, files: 3, oldestUnix: 1_750_000_000 } } },
+        { report: { nginxRunning: true } },
+        { report: null },
+      ]);
+    const service = new HousekeepingService(
+      { select: vi.fn(() => ({ from: vi.fn(() => ({ where })) })) } as any,
+      {} as any,
+      {} as any,
+      {} as any
+    );
+
+    await expect((service as any).getNginxLogStats()).resolves.toEqual({
+      totalSizeBytes: 500,
+      fileCount: 13,
+      oldestFile: new Date(1_750_000_000 * 1000).toISOString(),
+      nodeCount: 4,
+      reportingNodeCount: 2,
+    });
+  });
+});

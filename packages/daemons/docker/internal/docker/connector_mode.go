@@ -133,6 +133,7 @@ func (p *DockerPlugin) emptyWithConnector(ctx context.Context, image, path strin
 			Labels: map[string]string{"net.opfield.managed": connectorCleanLabel},
 		},
 		HostConfig: &container.HostConfig{
+			LogConfig:   internalContainerLogConfig(),
 			Binds:       []string{path + ":" + connectorCleanMount},
 			NetworkMode: "none", ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 		},

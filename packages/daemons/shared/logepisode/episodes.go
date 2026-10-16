@@ -6,6 +6,7 @@
 package logepisode
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
@@ -53,6 +54,8 @@ type Tracker struct {
 	Reminder time.Duration
 	// Now overrides the clock (tests).
 	Now func() time.Time
+	// Errors logs failures at error instead of warn level.
+	Errors bool
 
 	mu       sync.Mutex
 	episodes map[subjectKey]*episode
@@ -125,7 +128,11 @@ func (t *Tracker) Failed(logger *slog.Logger, subject Subject, attrs ...any) {
 	}
 	t.mu.Unlock()
 	if logger != nil {
-		logger.Warn(message, append(args, attrs...)...)
+		level := slog.LevelWarn
+		if t.Errors {
+			level = slog.LevelError
+		}
+		logger.Log(context.Background(), level, message, append(args, attrs...)...)
 	}
 }
 

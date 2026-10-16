@@ -670,7 +670,8 @@ setting_key() {
 
 # Host Docker logging defaults. Opfield adds bounded json-file logs to its
 # Compose services only when the daemon default is json-file and daemon.json
-# sets no default log-opts; any other operator choice wins.
+# sets no default max-size; another driver or a default max-size wins. Default
+# log-opts without max-size (tag, labels, max-file) bound nothing.
 DOCKER_LOG_DRIVER=""
 DOCKER_LOG_OPTS=""
 detect_docker_log_defaults() {
@@ -681,7 +682,7 @@ detect_docker_log_defaults() {
   if [[ ! -e "$config" ]]; then
     DOCKER_LOG_OPTS="none"
   elif compact="$(tr -d ' \t\r\n' <"$config" 2>/dev/null)"; then
-    if [[ "$compact" == *'"log-opts":{"'* ]]; then
+    if [[ "$compact" == *'"log-opts":{'*'"max-size":"'?* ]]; then
       DOCKER_LOG_OPTS="set"
     else
       DOCKER_LOG_OPTS="none"

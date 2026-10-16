@@ -77,7 +77,7 @@ export interface DockerLogDefaults {
 
 /**
  * Whether bounded json-file logging may be added to installer-managed
- * services: true when the host default is json-file without default log-opts,
+ * services: true when the host default is json-file without a default max-size,
  * false when the operator configured anything else (their logging wins), null
  * when unknown (nothing is added, and what earlier updates added is kept).
  */
@@ -113,7 +113,9 @@ export function hostDockerLogDefaults(
   const opfieldOwn =
     options.length === Object.keys(MANAGED_LOG_OPTIONS).length &&
     options.every(([key, value]) => MANAGED_LOG_OPTIONS[key] === value);
-  return { driver, logOpts: options.length === 0 || opfieldOwn ? 'none' : 'set' };
+  // Default options that set no max-size (tag, labels, max-file alone) bound nothing: the services get Opfield's.
+  const bounded = Boolean(appLogConfig.Config?.['max-size']?.trim());
+  return { driver, logOpts: options.length === 0 || opfieldOwn || !bounded ? 'none' : 'set' };
 }
 
 /** Environment for the migrator container (see dockerLogDefaultsFromEnv). */

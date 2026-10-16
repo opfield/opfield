@@ -53,7 +53,7 @@ func (c *Client) runComposeSidecar(ctx context.Context, image, socketPath string
 				"net.opfield.compose.sidecar": "true",
 			},
 		},
-		HostConfig: &container.HostConfig{Binds: binds, AutoRemove: false},
+		HostConfig: &container.HostConfig{Binds: binds, AutoRemove: false, LogConfig: internalContainerLogConfig()},
 	})
 	if err != nil {
 		return fmt.Errorf("create compose sidecar: %w", err)

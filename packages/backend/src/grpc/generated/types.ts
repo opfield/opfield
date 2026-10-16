@@ -258,6 +258,20 @@ export interface HealthReport {
   ingressHealth?: IngressHealthReport | null;
   /** Storage-profile docker daemons: their availability set members. */
   availabilityMembers?: AvailabilityMemberReport[];
+  /** Nginx daemons advertising nginx_log_budget_v1: the nginx logs their log budget bounds (field 210). */
+  nginxLogs?: NginxLogUsage | null;
+}
+
+/** The nginx logs a daemon bounds (nginx_log_budget_v1). uint64/int64 fields may arrive as strings. */
+export interface NginxLogUsage {
+  bytes?: number | string;
+  files?: number;
+  /** Modification time of the oldest file; 0 when there is none. */
+  oldestUnix?: number | string;
+  budgetBytes?: number | string;
+  maxFileBytes?: number | string;
+  /** 0: no age limit. */
+  retentionDays?: number;
 }
 
 /**
@@ -422,6 +436,8 @@ export interface OpfieldCommand {
   availabilityLeaseHandoff?: AvailabilityLeaseHandoffCommand;
   /** Daemons with gateway_next_address_v1: the address Opfield moves to. */
   setOpfieldNextAddress?: SetOpfieldNextAddressCommand;
+  /** Nginx daemons with nginx_log_budget_v1: how long rotated nginx logs are kept (Housekeeping "Nginx Logs"). */
+  configureNginxLogs?: ConfigureNginxLogsCommand;
   syncDockerRegistryBindings?: SyncDockerRegistryBindingsCommand;
   dockerBuild?: DockerBuildCommand;
   dockerBuildCancel?: DockerBuildCancelCommand;
@@ -521,6 +537,11 @@ export interface UpdateRelayWorkerCommand {
 /** The address Opfield moves to (host:port); empty clears it. */
 export interface SetOpfieldNextAddressCommand {
   address: string;
+}
+
+export interface ConfigureNginxLogsCommand {
+  /** Rotated logs older than this many days are deleted; 0: no age limit. */
+  retentionDays: number;
 }
 
 export interface RenewRelayIdentityCommand {

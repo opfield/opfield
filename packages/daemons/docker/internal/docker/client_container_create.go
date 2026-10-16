@@ -517,11 +517,20 @@ const (
 	workloadLogMaxSize     = "50m"
 	workloadLogMaxFile     = "3"
 	logDriverDetectTimeout = 10 * time.Second
-	// hostConfiguredLogDefaults marks a host whose daemon.json sets default
-	// log-opts; containers then inherit the operator's options unchanged.
+	// hostConfiguredLogDefaults marks a host whose daemon.json bounds json-file
+	// logs by default (log-opts max-size); containers then inherit the
+	// operator's options unchanged.
 	hostConfiguredLogDefaults = "host-configured"
 	defaultDockerDaemonConfig = "/etc/docker/daemon.json"
 )
+
+// internalContainerLogConfig bounds the json log of a container Opfield runs
+// for itself (Secure Link connectors and anchor, storage connectors, backup,
+// copy and helper containers) whatever the host's default: 10 MB x 3, as the
+// managed engines.
+func internalContainerLogConfig() container.LogConfig {
+	return container.LogConfig{Type: jsonFileLogDriver, Config: map[string]string{"max-size": "10m", "max-file": "3"}}
+}
 
 // dockerDaemonConfigPath is the Docker daemon configuration read for the
 // operator's default log options (OPFIELD_DOCKER_DAEMON_CONFIG overrides it).
@@ -537,24 +546,27 @@ func dockerDaemonConfigPath() string {
 }
 
 // hostDefaultLogOptions reports whether the Docker daemon configuration at
-// path sets default log-opts. A missing file means no; a file that cannot be
-// read or parsed is treated as yes, so the operator's choice is never
-// overridden by guesswork.
+// path bounds json-file logs by default: its log-opts set max-size. Other
+// default options alone (tag, labels, max-file without max-size) bound
+// nothing, so workloads then get Opfield's rotation. A missing file means no;
+// a file that cannot be read or parsed also means no (with the error): an
+// unbounded log fills the disk, a container-level rotation does no harm.
 func hostDefaultLogOptions(path string) (bool, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
 	if err != nil {
-		return true, err
+		return false, err
 	}
 	var config struct {
 		LogOpts map[string]any `json:"log-opts"`
 	}
 	if err := json.Unmarshal(data, &config); err != nil {
-		return true, err
+		return false, err
 	}
-	return len(config.LogOpts) > 0, nil
+	maxSize, _ := config.LogOpts["max-size"].(string)
+	return strings.TrimSpace(maxSize) != "", nil
 }
 
 // DetectDefaultLoggingDriver asks the Docker daemon for its default logging
@@ -579,7 +591,7 @@ func (c *Client) DetectDefaultLoggingDriver(ctx context.Context) string {
 	if driver == jsonFileLogDriver {
 		configured, err := hostDefaultLogOptions(dockerDaemonConfigPath())
 		if err != nil && c.logger != nil {
-			c.logger.Warn("cannot read the Docker daemon log options; keeping the host defaults for workloads", "error", err)
+			c.logger.Warn("cannot read the Docker daemon log options; workloads get Opfield's log rotation", "error", err)
 		}
 		if configured {
 			driver = hostConfiguredLogDefaults

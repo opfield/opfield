@@ -168,6 +168,8 @@ func (m *dockerSecureLinkManager) createAnchor(ctx context.Context, image string
 			Labels: map[string]string{"net.opfield.managed": "secure-link-connector", secureLinkRoleLabel: secureLinkAnchorRole},
 		},
 		HostConfig: &container.HostConfig{
+			// Not part of the shape check: an anchor created before keeps running.
+			LogConfig:      internalContainerLogConfig(),
 			ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 			RestartPolicy: container.RestartPolicy{Name: "unless-stopped"},
 			Resources:     container.Resources{Memory: secureLinkAnchorMemory, PidsLimit: &pids},

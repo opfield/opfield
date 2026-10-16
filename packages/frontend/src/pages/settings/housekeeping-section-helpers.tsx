@@ -2,11 +2,11 @@ import { Check, X } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { SettingsHelpTitle } from "@/components/common/SettingsControlRow";
 import { Switch } from "@/components/ui/switch";
-import type { HousekeepingCategoryResult, HousekeepingConfig } from "@/types";
+import type { HousekeepingCategoryResult, HousekeepingConfig, HousekeepingStats } from "@/types";
 
 const HOUSEKEEPING_HELP: Record<string, string> = {
   "Nginx Logs":
-    "Rotates active Nginx log files, compresses older files, and deletes files beyond the configured retention period.",
+    "Each nginx node bounds its route logs and its default access and error logs every 5 minutes, whether this is on or not: a log over its size cap keeps its newest lines and is cut, all of them together stay within 5% of the disk (at most 2 GiB), and the logs of deleted routes are removed. Turned on, rotated logs older than the retention period are deleted too; turned off, they are kept until the size limit needs the space.",
   "Structured Logs":
     "Removes old structured Opfield logs from ClickHouse when configured row or storage limits are exceeded.",
   "ClickHouse Internals":
@@ -36,6 +36,14 @@ const HOUSEKEEPING_HELP: Record<string, string> = {
   "Expired Tokens":
     "Removes API and inference tokens the given number of days after they expired (0 removes them at once). Until then they are listed as Expired and refused like revoked ones. The audit log keeps their history and records each removal.",
 };
+
+/** "214 files", plus the nginx nodes whose daemon is too old to report and bound its logs. */
+export function nginxLogStatDetail(stats: HousekeepingStats["nginxLogs"]): string {
+  const files = `${stats.fileCount.toLocaleString()} files`;
+  const missing = (stats.nodeCount ?? 0) - (stats.reportingNodeCount ?? 0);
+  if (missing <= 0) return files;
+  return `${files}, ${missing} ${missing === 1 ? "node needs" : "nodes need"} a daemon update`;
+}
 
 export function normalizeHousekeepingConfig(config: HousekeepingConfig): HousekeepingConfig {
   return {

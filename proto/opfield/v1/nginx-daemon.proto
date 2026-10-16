@@ -216,6 +216,24 @@ message HealthReport {
   IngressHealthReport ingress_health = 195;
   // Storage-profile docker daemons: their availability set members.
   repeated AvailabilityMemberReport availability_members = 196;
+  // Nginx daemons advertising nginx_log_budget_v1: the Opfield route logs and
+  // the default access/error logs under the nginx log directory, as the
+  // daemon's log budget last measured them (disk-logs range 210-214).
+  NginxLogUsage nginx_logs = 210;
+}
+
+// The nginx logs a daemon bounds (nginx_log_budget_v1): live logs are cut to
+// max_file_bytes, everything to budget_bytes, rotated logs older than
+// retention_days and the logs of removed routes are deleted.
+message NginxLogUsage {
+  uint64 bytes = 1;
+  uint32 files = 2;
+  // Modification time of the oldest file; 0 when there is none.
+  int64 oldest_unix = 3;
+  uint64 budget_bytes = 4;
+  uint64 max_file_bytes = 5;
+  // 0: no age limit.
+  uint32 retention_days = 6;
 }
 
 // Connections across an update of the daemon. A daemon advertising
@@ -515,6 +533,9 @@ message OpfieldCommand {
     // Every daemon advertising gateway_next_address_v1: the address Opfield
     // moves to. See SetOpfieldNextAddressCommand.
     SetOpfieldNextAddressCommand set_opfield_next_address = 82;
+    // Nginx daemons advertising nginx_log_budget_v1: how long rotated nginx
+    // logs are kept (Housekeeping "Nginx Logs"; disk-logs range 210-214).
+    ConfigureNginxLogsCommand configure_nginx_logs = 210;
   }
 }
 
@@ -526,6 +547,16 @@ message OpfieldCommand {
 message SetOpfieldNextAddressCommand {
   // host:port, as the Opfield gRPC public target.
   string address = 1;
+}
+
+// Housekeeping "Nginx Logs" for one nginx daemon. The daemon keeps the value
+// across restarts and applies it at once; until the first one arrives it keeps
+// rotated logs 30 days. Size caps and the removal of logs of routes the node
+// no longer serves apply in any case. The result detail is a JSON object
+// {removedFiles, truncatedFiles, freedBytes, bytes, files}.
+message ConfigureNginxLogsCommand {
+  // Rotated logs older than this many days are deleted; 0: no age limit.
+  uint32 retention_days = 1;
 }
 
 // The witness processes a relay supervisor runs for availability sets (a

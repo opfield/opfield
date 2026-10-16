@@ -37,6 +37,7 @@ import {
 } from './health-report.js';
 import { leaseWatchdogVersion } from './lease-watchdog-version.js';
 import { legacyNameCounts } from './legacy-names.js';
+import { nginxLogUsageHealth } from './nginx-log-usage.js';
 
 const logger = createChildLogger('GrpcControl');
 
@@ -1269,6 +1270,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   ? { legacyNames: legacyNameCounts(msg.healthReport.legacyNames) as Record<string, number> }
                   : {}),
                 ...leaseWatchdogVersion(msg.healthReport),
+                ...nginxLogUsageHealth(msg.healthReport),
                 // Docker-specific fields
                 ...(msg.healthReport.dockerVersion ? { dockerVersion: msg.healthReport.dockerVersion } : {}),
                 ...(msg.healthReport.containersRunning != null

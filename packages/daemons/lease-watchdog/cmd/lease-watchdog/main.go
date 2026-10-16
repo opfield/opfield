@@ -25,6 +25,7 @@ import (
 	"github.com/opfield/opfield/daemon-shared/leasefence"
 	"github.com/opfield/opfield/daemon-shared/leasewatchdog"
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/outputcap"
 	"github.com/opfield/opfield/lease-watchdog/internal/update"
 	"github.com/opfield/opfield/lease-watchdog/internal/watchdog"
 )
@@ -48,6 +49,8 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "run":
+		// Under OpenRC the output goes to a plain file nothing rotates: keep it bounded.
+		outputcap.Start(logger)
 		err = run(os.Args[2:], logger)
 	case "update":
 		err = updateOnce(os.Args[2:], logger)

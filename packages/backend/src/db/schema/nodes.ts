@@ -157,6 +157,21 @@ export interface NodeHealthReport {
   // Docker daemons that report it (HealthReport.lease_watchdog_version): the version of the node's lease watchdog,
   // which updates on its own schedule. Absent when the daemon does not report it.
   leaseWatchdogVersion?: string;
+  // Nginx daemons with nginx_log_budget_v1: the nginx logs the daemon bounds (route logs and the default
+  // access/error logs, live and rotated). Absent for older daemons.
+  nginxLogs?: NodeNginxLogUsage;
+}
+
+/** The nginx logs of one nginx node as its log budget last measured them. */
+export interface NodeNginxLogUsage {
+  bytes: number;
+  files: number;
+  /** Unix seconds of the oldest file; 0 when there is none. */
+  oldestUnix: number;
+  budgetBytes: number;
+  maxFileBytes: number;
+  /** 0: no age limit. */
+  retentionDays: number;
 }
 
 /**
