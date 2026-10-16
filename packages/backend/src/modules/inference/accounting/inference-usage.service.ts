@@ -9,6 +9,7 @@ import {
   inferenceProviderConnections,
   inferenceRequests,
   inferenceUsageLedger,
+  inferenceUsageLifetimeTotals,
   users,
 } from '@/db/schema/index.js';
 import type { InferenceLimitDimension, InferenceRequestStatus } from '@/db/schema/inference-usage.js';
@@ -91,9 +92,14 @@ export class InferenceUsageService {
     const windowStart = systemUsageWindowStart(now);
     const ledgerDay = sql<string>`to_char(date_trunc('day', ${inferenceUsageLedger.occurredAt} at time zone 'UTC'), 'YYYY-MM-DD')`;
     const tokenTotal = sql<number>`COALESCE(SUM(${inferenceUsageLedger.uncachedInputTokens} + ${inferenceUsageLedger.cachedInputTokens} + ${inferenceUsageLedger.cacheWriteTokens} + ${inferenceUsageLedger.outputTokens} + ${inferenceUsageLedger.reasoningTokens}), 0)`;
-    const [usage, lifetimeRows, dailyRows] = await Promise.all([
+    const [usage, lifetimeRows, removedRows, dailyRows] = await Promise.all([
       this.self(user, now),
       this.db.select({ tokens: tokenTotal }).from(inferenceUsageLedger).where(eq(inferenceUsageLedger.userId, user.id)),
+      // Usage of requests that housekeeping already removed.
+      this.db
+        .select({ tokens: inferenceUsageLifetimeTotals.tokens })
+        .from(inferenceUsageLifetimeTotals)
+        .where(eq(inferenceUsageLifetimeTotals.userId, user.id)),
       this.db
         .select({ date: ledgerDay, tokens: tokenTotal })
         .from(inferenceUsageLedger)
@@ -104,7 +110,7 @@ export class InferenceUsageService {
     return {
       ...usage,
       tokens: {
-        lifetime: Number(lifetimeRows[0]?.tokens ?? 0),
+        lifetime: Number(lifetimeRows[0]?.tokens ?? 0) + Number(removedRows[0]?.tokens ?? 0),
         daily: mergeDailyTokenUsage(dailyRows, windowStart, SYSTEM_USAGE_WINDOW_DAYS),
       },
     };

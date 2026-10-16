@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { desc, eq } from 'drizzle-orm';
 import type { DrizzleExecutor } from '@/db/client.js';
 import { inferencePricingSnapshots, inferenceQuotaSnapshots } from '@/db/schema/index.js';
+import { QUOTA_READ_LIMIT } from '@/services/inference-usage-retention.js';
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import type { InferenceRequest, InferenceUsage } from '../protocol/inference-protocol.types.js';
 import { estimateInputTokens } from '../protocol/inference-usage.js';
@@ -228,7 +229,8 @@ export async function latestQuota(database: DrizzleExecutor, connectionId: strin
     .select()
     .from(inferenceQuotaSnapshots)
     .where(eq(inferenceQuotaSnapshots.connectionId, connectionId))
-    .orderBy(desc(inferenceQuotaSnapshots.fetchedAt));
+    .orderBy(desc(inferenceQuotaSnapshots.fetchedAt))
+    .limit(QUOTA_READ_LIMIT);
   return latestQuotaRows(rows);
 }
 
