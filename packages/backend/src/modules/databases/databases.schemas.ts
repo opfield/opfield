@@ -189,6 +189,11 @@ export const ManagedAvailabilityAddMemberSchema = z
   .object({ nodeId: z.string().uuid(), priority: z.number().int().min(0).max(98).optional() })
   .strict();
 
+/** The failover order of a set: every member once, the preferred one first (the same order as the lease candidates). */
+export const ManagedAvailabilityMemberOrderSchema = z
+  .object({ memberIds: z.array(z.string().uuid()).min(2).max(5) })
+  .strict();
+
 export const ManagedAvailabilityMakePrimarySchema = z
   .object({ memberId: z.string().uuid(), acceptDataLoss: z.boolean().optional() })
   .strict();
@@ -571,6 +576,7 @@ export type UpdateManagedDatabaseInput = z.infer<typeof UpdateManagedDatabaseSch
 export type ManagedAvailabilityEnableInput = z.infer<typeof ManagedAvailabilityEnableSchema>;
 export type ManagedAvailabilityPreflightInput = z.infer<typeof ManagedAvailabilityPreflightSchema>;
 export type ManagedAvailabilitySettingsInput = z.infer<typeof ManagedAvailabilitySettingsSchema>;
+export type ManagedAvailabilityMemberOrderInput = z.infer<typeof ManagedAvailabilityMemberOrderSchema>;
 export type CreateManagedDatabaseBindingInput = z.infer<typeof CreateManagedDatabaseBindingSchema>;
 
 /** POST /databases/managed/{id}/move-to-valkey. The body is optional. */

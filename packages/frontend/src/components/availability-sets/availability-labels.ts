@@ -138,8 +138,11 @@ export function memberName(member: Pick<AvailabilityMember, "nodeName" | "nodeId
   return member.nodeName || member.nodeId.slice(0, 8);
 }
 
+/** The servers of the set in failover order: higher priority first (the server keeps ties in its own order). */
 export function activeMembers(view: AvailabilityView): AvailabilityMember[] {
-  return view.members.filter((member) => member.desiredState === "member");
+  return view.members
+    .filter((member) => member.desiredState === "member")
+    .sort((left, right) => right.priority - left.priority);
 }
 
 export function primaryOf(view: AvailabilityView): AvailabilityMember | null {
@@ -176,6 +179,7 @@ const OPERATION_LABELS: Record<string, string> = {
   forced_promotion: "Promoting a copy",
   failback: "Switching back",
   update_settings: "Applying settings",
+  reorder_members: "Applying the failover order",
   disable: "Turning off availability",
   rolling_update: "Updating servers one at a time",
   rolling_restart: "Restarting servers one at a time",
@@ -206,6 +210,7 @@ const EVENT_LABELS: Record<string, string> = {
   member_added: "Server added",
   member_removed: "Server removed",
   settings_updated: "Settings changed",
+  priority_updated: "Failover order changed",
   make_primary: "Make primary",
   operation_failed: "Operation failed",
   health_alert: "Health alert",

@@ -7,6 +7,7 @@ import {
   ManagedAvailabilityEnableSchema,
   ManagedAvailabilityEventsQuerySchema,
   ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityMemberOrderSchema,
   ManagedAvailabilityPreflightSchema,
   ManagedAvailabilitySettingsSchema,
   ManagedDatabaseAvailabilityCreatePreflightSchema,
@@ -28,6 +29,7 @@ export const MANAGED_DATABASE_AVAILABILITY_OPERATIONS: ReadonlySet<string> = new
   'make_available',
   'update_availability',
   'add_member',
+  'reorder_members',
   'remove_member',
   'make_primary',
   'rebuild_member',
@@ -40,6 +42,7 @@ export const MANAGED_DATABASE_AVAILABILITY_CHANGE_OPERATIONS: ReadonlySet<string
   'make_available',
   'update_availability',
   'add_member',
+  'reorder_members',
 ]);
 
 /** The `availability` argument of the tool (an object), or {} when it is missing. */
@@ -96,6 +99,13 @@ export async function manageManagedDatabaseAvailability(
       return service.addAvailabilityMember(
         databaseId,
         ManagedAvailabilityAddMemberSchema.parse({ nodeId: args.nodeId, priority: args.priority }),
+        user.id
+      );
+    case 'reorder_members':
+      // The failover order: every member once, the preferred one first. It never moves the primary by itself.
+      return service.reorderAvailabilityMembers(
+        databaseId,
+        ManagedAvailabilityMemberOrderSchema.parse({ memberIds: args.memberIds }),
         user.id
       );
     case 'remove_member':

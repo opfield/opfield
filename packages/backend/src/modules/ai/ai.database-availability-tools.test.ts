@@ -26,6 +26,7 @@ function setup() {
     enableAvailability: vi.fn(async () => view),
     updateAvailability: vi.fn(async () => view),
     addAvailabilityMember: vi.fn(async () => view),
+    reorderAvailabilityMembers: vi.fn(async () => view),
     removeAvailabilityMember: vi.fn(async () => view),
     rebuildAvailabilityMember: vi.fn(async () => view),
     disableAvailability: vi.fn(async () => view),
@@ -83,6 +84,8 @@ describe('manage_managed_database availability', () => {
     );
     await call(edit, { operation: 'add_member', databaseId: DATABASE, nodeId: NODE });
     expect(service.addAvailabilityMember).toHaveBeenCalledWith(DATABASE, { nodeId: NODE }, 'user');
+    await call(edit, { operation: 'reorder_members', databaseId: DATABASE, memberIds: [MEMBER, NODE] });
+    expect(service.reorderAvailabilityMembers).toHaveBeenCalledWith(DATABASE, { memberIds: [MEMBER, NODE] }, 'user');
     await call(edit, { operation: 'remove_member', databaseId: DATABASE, memberId: MEMBER });
     expect(service.removeAvailabilityMember).toHaveBeenCalledWith(DATABASE, MEMBER, 'user');
     await call(edit, { operation: 'rebuild_member', databaseId: DATABASE, memberId: MEMBER });
@@ -107,6 +110,24 @@ describe('manage_managed_database availability', () => {
     });
     expect(service.makeAvailabilityPrimary).not.toHaveBeenCalled();
     expect(service.availabilityView).not.toHaveBeenCalled();
+  });
+
+  it('refuses a failover order that is not a list of member ids, and a reorder with view access only', async () => {
+    const { service } = setup();
+    await expect(
+      call(['databases:edit'], { operation: 'reorder_members', databaseId: DATABASE, memberIds: [MEMBER] })
+    ).rejects.toThrow();
+    await expect(
+      call(['databases:edit'], { operation: 'reorder_members', databaseId: DATABASE, memberIds: 'all' })
+    ).rejects.toThrow();
+    await expect(
+      call([`databases:view:${CONNECTION}`], {
+        operation: 'reorder_members',
+        databaseId: DATABASE,
+        memberIds: [MEMBER, NODE],
+      })
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(service.reorderAvailabilityMembers).not.toHaveBeenCalled();
   });
 
   it('passes a lossy switch refusal with its estimate through unless acceptDataLoss is set', async () => {
@@ -137,6 +158,9 @@ describe('manage_managed_database availability', () => {
   it('gates the database feature like the routes: changes need the current plan, switches keep working', async () => {
     const { license } = setup();
     await call(['databases:edit'], { operation: 'add_member', databaseId: DATABASE, nodeId: NODE });
+    expect(license.requireFeature).toHaveBeenLastCalledWith('external-database-connections');
+    license.requireFeature.mockClear();
+    await call(['databases:edit'], { operation: 'reorder_members', databaseId: DATABASE, memberIds: [MEMBER, NODE] });
     expect(license.requireFeature).toHaveBeenLastCalledWith('external-database-connections');
     license.requireFeature.mockClear();
     await call(['databases:edit'], {

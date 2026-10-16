@@ -150,6 +150,27 @@ describe('availability set lease voters', () => {
   });
 });
 
+describe('set failover order', () => {
+  it('ranks the candidates in a new failover order once a reorder rewrote the priorities', () => {
+    const members = [
+      { id: 'm-a', nodeId: 'node-a', priority: 99, memberIndex: 0 },
+      { id: 'm-b', nodeId: 'node-b', priority: 98, memberIndex: 1 },
+      { id: 'm-c', nodeId: 'node-c', priority: 97, memberIndex: 2 },
+    ];
+    expect(setLeaseCandidates(members).map((candidate) => candidate.nodeId)).toEqual(['node-a', 'node-b', 'node-c']);
+    // Reorder to c, a, b: the first gets 99, each next one less (the member indexes stay).
+    const reordered = members.map((member) => ({
+      ...member,
+      priority: { 'm-c': 99, 'm-a': 98, 'm-b': 97 }[member.id]!,
+    }));
+    expect(setLeaseCandidates(reordered)).toEqual([
+      { memberId: 'node-c', nodeId: 'node-c', rank: 0 },
+      { memberId: 'node-a', nodeId: 'node-a', rank: 1 },
+      { memberId: 'node-b', nodeId: 'node-b', rank: 2 },
+    ]);
+  });
+});
+
 describe('set lease entry', () => {
   it('keeps the policy out of lease mode while the set converts or is turned off', () => {
     expect(setHoldsLeaseEntry('converting')).toBe(true);

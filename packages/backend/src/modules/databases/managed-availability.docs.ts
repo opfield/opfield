@@ -6,6 +6,7 @@ import {
   ManagedAvailabilityEnableSchema,
   ManagedAvailabilityEventsQuerySchema,
   ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityMemberOrderSchema,
   ManagedAvailabilityPreflightSchema,
   ManagedAvailabilitySettingsSchema,
 } from './databases.schemas.js';
@@ -19,7 +20,10 @@ const AvailabilityMemberSchema = z.object({
   id: z.string().uuid(),
   nodeId: z.string().uuid(),
   nodeName: z.string().nullable(),
-  priority: z.number().int(),
+  priority: z.number().int().openapi({
+    description:
+      'Failover preference: higher first, then the older member. `members` lists the servers in this order, which PUT availability/members/order sets',
+  }),
   role: z.string().openapi({ description: 'primary | copy | rebuilding | fenced | unknown' }),
   previousPrimary: z.boolean().openapi({
     description:
@@ -109,7 +113,7 @@ export const AvailabilityViewSchema = z
       .nullable(),
     changesBlocked: z.string().nullable().openapi({
       description:
-        'Set when the license no longer covers changes: turning on, adding servers and settings are refused; everything else keeps working',
+        'Set when the license no longer covers changes: turning on, adding servers, settings and the failover order are refused; everything else keeps working',
     }),
   })
   .openapi('AvailabilityView');
@@ -186,7 +190,7 @@ export function availabilityRouteDocs(input: AvailabilityDocsInput) {
       path: `${base}/availability`,
       tags: [tag],
       summary: `Read the availability of a ${noun}`,
-      description: `Members (role, eligible, lag, sync state, last report), voters, witnesses, state with its reason, durability and its loss window, the running operation. 404 \`AVAILABILITY_SET_NOT_FOUND\` when the ${noun} runs on one server. Needs ${viewScope}. ${license('existing')}`,
+      description: `Members in failover order (role, eligible, lag, sync state, last report), voters, witnesses, state with its reason, durability and its loss window, the running operation. 404 \`AVAILABILITY_SET_NOT_FOUND\` when the ${noun} runs on one server. Needs ${viewScope}. ${license('existing')}`,
       request: { params },
       responses: okJson(dataResponseSchema(AvailabilityViewSchema)),
     }),
@@ -269,6 +273,20 @@ export function availabilityRouteDocs(input: AvailabilityDocsInput) {
       responses: {
         202: {
           description: 'Started',
+          content: { 'application/json': { schema: dataResponseSchema(AvailabilityViewSchema) } },
+        },
+      },
+    }),
+    reorderMembers: appRoute({
+      method: 'put',
+      path: `${base}/availability/members/order`,
+      tags: [tag],
+      summary: `Set the failover order of a ${noun}`,
+      description: `\`memberIds\` lists every server of the set once, the preferred one first (400 \`INVALID_AVAILABILITY_MEMBER_ORDER\` otherwise). The order decides which copy takes over first when the primary fails and, with failback on (\`priorityMode\`), the server the primary moves back to: the first one, once it was eligible for the failback delay. Changing it never moves the primary by itself. The servers, the lease and the relays get the new order in the background (202); an unchanged order changes nothing. Refused while another availability operation runs (409 \`AVAILABILITY_OPERATION_PENDING\`). Needs ${editScope}. ${license('current')}`,
+      request: { params, ...jsonBody(ManagedAvailabilityMemberOrderSchema) },
+      responses: {
+        202: {
+          description: 'Started (or unchanged)',
           content: { 'application/json': { schema: dataResponseSchema(AvailabilityViewSchema) } },
         },
       },

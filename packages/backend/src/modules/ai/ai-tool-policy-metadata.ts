@@ -347,6 +347,7 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
       'rotate_certificate',
       'move_to_valkey',
       'update_availability',
+      'reorder_members',
       'rebuild_member',
       'enable_extension',
       'disable_extension',
@@ -570,6 +571,7 @@ const COMPOSITE_OPERATION_POLICIES: Record<
         'rehome_backup_history',
         'renew_certificate',
         'update_availability',
+        'reorder_members',
         'rebuild_member',
       ],
       // A write freeze and its reversal change what every client of the cluster can do; so does a primary switch.

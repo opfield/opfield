@@ -11,6 +11,7 @@ import {
   ManagedAvailabilityEnableSchema,
   ManagedAvailabilityEventsQuerySchema,
   ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityMemberOrderSchema,
   ManagedAvailabilityPreflightSchema,
   ManagedAvailabilitySettingsSchema,
 } from '@/modules/databases/databases.schemas.js';
@@ -116,6 +117,7 @@ export const managedStorageRouteRuntime = {
   ManagedAvailabilityEnableSchema,
   ManagedAvailabilityEventsQuerySchema,
   ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityMemberOrderSchema,
   ManagedAvailabilityPreflightSchema,
   ManagedAvailabilitySettingsSchema,
 };
