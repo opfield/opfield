@@ -36,8 +36,10 @@ func newPIDFixture(t *testing.T, euid int) pidFixture {
 	script := `#!/bin/sh
 pid='` + f.pidFile + `'
 case "$1" in -V) echo 'configure arguments: --prefix=/usr/share/nginx --pid-path=/nonexistent/nginx.pid' >&2; exit 0 ;; esac
-if [ ! -d "${pid%/*}" ]; then echo "nginx: [emerg] open() \"$pid\" failed (2: No such file or directory)" >&2; exit 1; fi
-if [ -e "$pid" ] && [ "$(stat -c %a "$pid")" = 444 ]; then echo "nginx: [emerg] open() \"$pid\" failed (13: Permission denied)" >&2; exit 1; fi
+if [ -e '` + dir + `/broken' ]; then echo 'nginx: [emerg] unknown directive "proxy_passs" in /etc/nginx/sites/a.conf:3' >&2; echo 'nginx: configuration file test failed' >&2; exit 1; fi
+echo "nginx: the configuration file $3 syntax is ok" >&2
+if [ ! -d "${pid%/*}" ]; then echo "nginx: [emerg] open() \"$pid\" failed (2: No such file or directory)" >&2; echo "nginx: configuration file $3 test failed" >&2; exit 1; fi
+if [ -e "$pid" ] && [ "$(stat -c %a "$pid")" = 444 ]; then echo "nginx: [emerg] open() \"$pid\" failed (13: Permission denied)" >&2; echo "nginx: configuration file $3 test failed" >&2; exit 1; fi
 : >> "$pid"
 case "$1" in -T) echo "pid $pid;" ;; esac
 echo 'nginx: configuration file test is successful' >&2
@@ -81,8 +83,9 @@ func TestRootDaemonCreatesTheMissingPIDDirectory(t *testing.T) {
 	// Only a directory of /run.
 	f = newPIDFixture(t, 0)
 	pidRuntimeDir = filepath.Join(f.dir, "elsewhere")
-	if valid, _ := f.manager.TestConfig(); valid {
-		t.Fatal("a pid directory outside /run was created")
+	_, _ = f.manager.TestConfig()
+	if _, err := os.Stat(filepath.Dir(f.pidFile)); !os.IsNotExist(err) {
+		t.Fatalf("a pid directory outside /run was created: %v", err)
 	}
 }
 
@@ -94,9 +97,14 @@ func TestRunUserDaemonReportsTheMissingPIDDirectory(t *testing.T) {
 	if err := os.Mkdir(systemdRuntimeDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// The configuration itself is valid: only its pid file could not be
+	// opened, which the service problem reports.
 	valid, output := f.manager.TestConfig()
-	if valid || !strings.Contains(output, "(2: No such file or directory)") {
+	if !valid || !strings.Contains(output, "(2: No such file or directory)") {
 		t.Fatalf("nginx -t = %v: %s", valid, output)
+	}
+	if cached, _, checked := f.manager.CachedConfigValidity(); !cached || !checked {
+		t.Fatalf("cached validity = %v, %v", cached, checked)
 	}
 	if _, err := os.Stat(filepath.Dir(f.pidFile)); !os.IsNotExist(err) {
 		t.Fatalf("a run user created the pid directory: %v", err)
@@ -145,8 +153,9 @@ func TestRunUserDaemonReplacesAnEmptyForeignPIDFile(t *testing.T) {
 	if err := os.WriteFile(f.pidFile, []byte("4242\n"), 0o444); err != nil {
 		t.Fatal(err)
 	}
-	if valid, _ := f.manager.TestConfig(); valid {
-		t.Fatal("a pid file naming a process was replaced")
+	_, _ = f.manager.TestConfig()
+	if data, err := os.ReadFile(f.pidFile); err != nil || string(data) != "4242\n" {
+		t.Fatalf("a pid file naming a process was replaced: %q, %v", data, err)
 	}
 	if problem := f.manager.ServiceProblem(true); !strings.Contains(problem, "belongs to another user; as root: rm "+f.pidFile) {
 		t.Fatalf("problem = %q", problem)
@@ -176,9 +185,10 @@ func TestRunUserDaemonReportsTheAlpineServiceThatLeavesThePIDFileToRoot(t *testi
 	if stopped := f.manager.ServiceProblem(false); stopped != problem+" && rc-service nginx start" {
 		t.Fatalf("problem while stopped = %q", stopped)
 	}
-	// The pid directory missing as well: the service's problem is the one to fix.
-	if valid, _ := f.manager.TestConfig(); valid {
-		t.Fatal("nginx -t passed without the pid directory")
+	// The pid directory missing as well: the configuration still tests
+	// valid, and the service's problem is the one to fix.
+	if valid, output := f.manager.TestConfig(); !valid {
+		t.Fatalf("nginx -t failed on the pid directory alone: %s", output)
 	}
 	if stopped := f.manager.ServiceProblem(false); !strings.HasPrefix(stopped, "nginx cannot start again once stopped") {
 		t.Fatalf("problem = %q", stopped)
@@ -203,5 +213,59 @@ func TestRunUserDaemonReportsTheAlpineServiceThatLeavesThePIDFileToRoot(t *testi
 	pidRepairEUID = func() int { return 0 }
 	if problem := openRCPIDFileProblem(false); problem != "" {
 		t.Fatalf("root problem = %q", problem)
+	}
+}
+
+// The Debian 13 stand (F-4 of rc.3, pre-existing): nginx run as www-data was
+// stopped, systemd removed /run/nginx, and every nginx -t of the daemon failed
+// after "syntax is ok": host config resyncs, Pages previews and the report
+// (configValid=false). A test that failed only on the pid file passes; any
+// other failure still fails it.
+func TestConfigTestPassesWhenOnlyThePIDFileFailed(t *testing.T) {
+	f := newPIDFixture(t, 1000)
+	if err := os.Mkdir(systemdRuntimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	conf := f.manager.globalCfg
+	// Captured on CT 1138 (nginx 1.26, Debian 13) as www-data.
+	debian := `2026/10/16 22:01:44 [warn] 760011#760011: the "user" directive makes sense only if the master process runs with super-user privileges, ignored in ` + conf + `:1
+nginx: the configuration file ` + conf + ` syntax is ok
+2026/10/16 22:01:44 [emerg] 760011#760011: open() "` + f.pidFile + `" failed (2: No such file or directory)
+nginx: configuration file ` + conf + ` test failed
+`
+	for _, test := range []struct {
+		name   string
+		output string
+		valid  bool
+	}{
+		{"pid directory gone", debian, true},
+		{"pid file of another user (Alpine)", strings.Replace(debian, "(2: No such file or directory)", "(13: Permission denied)", 1), true},
+		{"another file", strings.Replace(debian, f.pidFile, "/var/log/nginx/error.log", 1), false},
+		{"another pid file", strings.Replace(debian, f.pidFile, "/run/other.pid", 1), false},
+		{"a second failure", strings.Replace(debian, "nginx: configuration file", "nginx: [emerg] bind() to 0.0.0.0:80 failed (13: Permission denied)\nnginx: configuration file", 1), false},
+		{"configuration error", "nginx: [emerg] unknown directive \"proxy_passs\" in /etc/nginx/sites/a.conf:3\nnginx: configuration file " + conf + " test failed\n", false},
+		{"no failure line", "nginx: the configuration file " + conf + " syntax is ok\nnginx: configuration file " + conf + " test failed\n", false},
+	} {
+		if got := f.manager.validDespitePIDFile([]byte(test.output)); got != test.valid {
+			t.Errorf("%s: valid = %v, want %v", test.name, got, test.valid)
+		}
+	}
+
+	// Through nginx -t: valid with the service problem kept, and a broken
+	// configuration still fails.
+	if valid, output := f.manager.TestConfig(); !valid {
+		t.Fatalf("nginx -t = %v: %s", valid, output)
+	}
+	if problem := f.manager.ServiceProblem(false); !strings.Contains(problem, "pid directory "+filepath.Dir(f.pidFile)+" is gone; start nginx as root: systemctl start nginx") {
+		t.Fatalf("problem = %q", problem)
+	}
+	if err := os.WriteFile(filepath.Join(f.dir, "broken"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if valid, output := f.manager.TestConfig(); valid || !strings.Contains(output, "unknown directive") {
+		t.Fatalf("broken configuration: nginx -t = %v: %s", valid, output)
+	}
+	if cached, _, _ := f.manager.CachedConfigValidity(); cached {
+		t.Fatal("a broken configuration is cached as valid")
 	}
 }
