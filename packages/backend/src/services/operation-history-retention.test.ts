@@ -2,6 +2,8 @@ import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  BUILD_LOGS_KEPT_PER_SOURCE,
+  cleanBuildLogs,
   cleanOperationHistory,
   countExpiredOAuthGrants,
   countOperationHistory,
@@ -141,7 +143,84 @@ describe('operation history retention', () => {
         : { rows: [{ value: 1 }] }
     );
 
-    await expect(countOperationHistory(db as never, 90, now)).resolves.toBe(4 + 5);
+    await expect(countOperationHistory(db as never, 90, now)).resolves.toBe(4 + 17);
+  });
+});
+
+describe('run records that only grew', () => {
+  it("removes only finished records, keeps each owner's newest and anything still holding something", async () => {
+    const { db, statements } = executingDb();
+
+    await cleanOperationHistory(db as never, 90, now);
+
+    const find = (table: string) =>
+      compact(statements.find((query) => query.sql.startsWith(`DELETE FROM "${table}"`))!.sql);
+    expect(find('docker_registry_maintenance_runs')).toContain(`"status" <> 'running'`);
+    expect(find('relay_pool_update_runs')).toContain(`"state" IN ('complete', 'failed')`);
+    expect(find('relay_pool_update_runs')).toContain('PARTITION BY "pool_id"');
+    expect(find('docker_deployment_releases')).toContain('PARTITION BY "deployment_id"');
+    expect(find('docker_migrations')).toContain('NOT EXISTS (SELECT 1 FROM "docker_migration_node_locks"');
+    expect(find('docker_migrations')).toContain(`"status" IN ('completed', 'failed', 'cancelled')`);
+    expect(find('sandbox_jobs')).toContain('"workspace_reservation_released_at" IS NOT NULL');
+    expect(find('inference_core_operations')).toContain(`"status" <> 'running'`);
+    expect(find('app_promotions')).toContain('PARTITION BY "app_id"');
+    expect(find('app_incidents')).toContain(`"state" IN ('released', 'failed')`);
+    expect(find('nginx_proxy_host_deployments')).toContain('PARTITION BY "host_id"');
+    const artifacts = find('docker_build_artifacts');
+    expect(artifacts).toContain(`"owner_kind" <> 'build'`);
+    expect(artifacts).toContain('NOT EXISTS (SELECT 1 FROM "docker_artifact_pins"');
+    for (const table of ['relay_pool_update_runs', 'docker_deployment_releases', 'app_promotions']) {
+      expect(find(table)).toContain(`"rn" <= ${OPERATION_HISTORY_KEEP_PER_OWNER}`);
+    }
+  });
+});
+
+describe('build log retention', () => {
+  it("removes the logs of old finished builds but never of a source's newest builds", async () => {
+    let aged = 0;
+    const { db, statements } = executingDb((query) => {
+      if (query.sql.includes('SELECT "build"."id"') && query.sql.includes('< $')) {
+        aged += 1;
+        return { rows: aged === 1 ? [{ id: 'old-1', bytes: '100' }] : [] };
+      }
+      if (query.sql.startsWith('SELECT coalesce(sum("byte_length")')) return { rows: [{ value: 10 }] };
+      if (query.sql.startsWith('DELETE FROM "docker_build_log_chunks"')) return { rowCount: 3 };
+      return undefined;
+    });
+
+    const result = await cleanBuildLogs(db as never, { retentionDays: 30, maxSizeBytes: 1000 }, now);
+
+    expect(result).toEqual({ builds: 1, chunks: 3, bytes: 100 });
+    const select = compact(statements.find((query) => query.sql.includes('SELECT "build"."id"'))!.sql);
+    expect(select).toContain(`"build"."status" IN ('succeeded', 'failed', 'cancelled', 'superseded')`);
+    expect(select).toContain(`"ranked"."rn" <= ${BUILD_LOGS_KEPT_PER_SOURCE}`);
+    // Under the size cap: nothing more goes.
+    expect(statements.filter((query) => query.sql.includes('"build"."id" ASC'))).toHaveLength(0);
+  });
+
+  it('removes the oldest finished logs while all logs together are over the size cap', async () => {
+    const { db, statements } = executingDb((query) => {
+      if (query.sql.includes('SELECT "build"."id"') && query.sql.includes('"build"."id" ASC')) {
+        return {
+          rows: [
+            { id: 'a', bytes: 600 },
+            { id: 'b', bytes: 600 },
+            { id: 'c', bytes: 600 },
+          ],
+        };
+      }
+      if (query.sql.startsWith('SELECT coalesce(sum("byte_length")')) return { rows: [{ value: 2000 }] };
+      if (query.sql.startsWith('DELETE FROM "docker_build_log_chunks"')) return { rowCount: 1 };
+      return undefined;
+    });
+
+    const result = await cleanBuildLogs(db as never, { retentionDays: 30, maxSizeBytes: 1000 }, now);
+
+    // 2000 bytes against a 1000-byte cap: the two oldest (1200 bytes) go, the third stays.
+    expect(result.builds).toBe(2);
+    const deleted = statements.filter((query) => query.sql.startsWith('DELETE FROM "docker_build_log_chunks"'));
+    expect(deleted.flatMap((query) => query.params)).toEqual(expect.arrayContaining(['a', 'b']));
+    expect(deleted.flatMap((query) => query.params)).not.toContain('c');
   });
 });
 
