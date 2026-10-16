@@ -3,7 +3,12 @@ import { type ReactNode, useEffect, useState } from "react";
 import { SettingsHelpTitle } from "@/components/common/SettingsControlRow";
 import { Switch } from "@/components/ui/switch";
 import { cn, formatBytes } from "@/lib/utils";
-import type { HousekeepingCategoryResult, HousekeepingConfig, HousekeepingStats, OpfieldDiskUsage } from "@/types";
+import type {
+  HousekeepingCategoryResult,
+  HousekeepingConfig,
+  HousekeepingStats,
+  OpfieldDiskUsage,
+} from "@/types";
 
 const HOUSEKEEPING_HELP: Record<string, string> = {
   "Nginx Logs":
