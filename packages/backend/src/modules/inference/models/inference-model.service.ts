@@ -21,6 +21,7 @@ import {
   coreProviderRef,
 } from '../core/inference-core-provider-map.js';
 import type { InferenceCatalogEventsService } from '../inference-catalog-events.service.js';
+import { hasTokenPrices, INFERENCE_PRICE_MISSING_WARNING } from '../inference-pricing.js';
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import type { InferenceProviderRegistry } from '../providers/inference-provider.registry.js';
 import { knownProviderModel, pricingFromDiscoveredMetadata } from '../providers/inference-provider-model-catalog.js';
@@ -314,9 +315,6 @@ export class InferenceModelService {
       });
       validateReasoningMap(model.reasoningEfforts, input.reasoningEffortMap ?? source.reasoningEffortMap);
     }
-    if (input.enabled === true && source.sourceType === 'api' && !(await this.hasPricing(sourceId))) {
-      throw new AppError(400, 'INFERENCE_PRICING_REQUIRED', 'API source cannot be enabled without versioned pricing');
-    }
     await this.db
       .update(inferenceModelSources)
       .set({ ...input, updatedAt: new Date() })
@@ -532,9 +530,6 @@ export class InferenceModelService {
         capabilities: source.capabilitiesOverride ?? discovered?.capabilities ?? known?.capabilities ?? {},
       });
       validateReasoningMap(model.reasoningEfforts, source.reasoningEffortMap);
-      if (source.sourceType === 'api' && !(await this.hasPricing(source.id))) {
-        throw new AppError(400, 'INFERENCE_PRICING_REQUIRED', 'Every enabled API source needs versioned pricing');
-      }
     }
     const limits = await this.safeLimits(modelId, model);
     if (model.contextWindow > limits.contextWindow || model.maxInputTokens > limits.maxInputTokens) {
@@ -624,8 +619,14 @@ export class InferenceModelService {
       .from(inferenceModelAccessRules)
       .where(eq(inferenceModelAccessRules.modelId, model.id));
     const capabilityState = detectedCapabilityState(model.capabilities, sources);
+    const sourcePriceMissing = (source: typeof inferenceModelSources.$inferSelect) =>
+      source.sourceType === 'api' && !hasTokenPrices(pricing.find((row) => row.sourceId === source.id));
+    const unpricedSources = sources.filter(({ source }) => source.enabled && sourcePriceMissing(source)).length;
     return {
       ...model,
+      // Enabled API sources with no input/output price: their requests run with an unknown cost.
+      unpricedSources,
+      priceWarning: unpricedSources > 0 ? INFERENCE_PRICE_MISSING_WARNING : null,
       ...limits,
       configuredCapabilities: model.capabilities,
       capabilities: capabilityState.effective,
@@ -661,6 +662,7 @@ export class InferenceModelService {
           autoCompactTokenLimit: discovered?.autoCompactTokenLimit ?? contract.known?.autoCompactTokenLimit ?? null,
           modalities: contract.modalities,
           pricing: latestPricing(pricing.filter((row) => row.sourceId === source.id)),
+          priceMissing: sourcePriceMissing(source),
           createdAt: source.createdAt.toISOString(),
           updatedAt: source.updatedAt.toISOString(),
         };
@@ -686,16 +688,6 @@ export class InferenceModelService {
       capabilities: detectedCapabilityState(configured, sources),
       supportsFast: supportsFastServiceTier(sources),
     };
-  }
-
-  private async hasPricing(sourceId: string): Promise<boolean> {
-    const pricing = await this.db.query.inferencePricingSnapshots.findFirst({
-      where: eq(inferencePricingSnapshots.sourceId, sourceId),
-      orderBy: [desc(inferencePricingSnapshots.effectiveAt)],
-    });
-    return Boolean(
-      pricing && pricing.inputMicrodollarsPerMillion !== null && pricing.outputMicrodollarsPerMillion !== null
-    );
   }
 
   private async requireModel(modelId: string) {

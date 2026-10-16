@@ -37,7 +37,7 @@ Opfield and inference core upgrades do not invalidate provider connections, infe
 4. Wait for sync. Providers with multiple connected accounts/keys appear as one collapsible table group; a provider with one connection remains a normal row. Open an account row to review 5h/7d/30d subscription quota, including model-scoped weekly limits such as Anthropic's separate Fable, Opus, and Sonnet windows, enable or disable it, synchronize it manually, or configure a minimum remaining reserve.
 5. Opfield automatically routes across compatible sources while retaining active-turn affinity and failing over only before client output begins. Within a provider group, drag account rows to set the priority used by Sequential routing; accounts cannot be moved between provider groups. A subscription connection is excluded when its worst fresh account-wide quota window falls below its configured reserve. A model-scoped window excludes the connection only for models of that family, so an exhausted Fable window leaves the same account routable for Sonnet. A logical model may also include fallback sources from different providers or upstream models when every source satisfies the published modalities, capabilities, reasoning map, and technical limits.
 6. In **Models**, publish a stable public model ID with one or more compatible sources.
-7. Configure context/input/output/auto-compaction limits, modalities, and access. Subscription-backed models also have a credit multiplier; API-backed models use versioned provider/manual pricing and do not expose a subscription multiplier.
+7. Configure context/input/output/auto-compaction limits, modalities, and access. Subscription-backed models also have a credit multiplier; API-backed models use versioned provider/manual pricing and do not expose a subscription multiplier. A price is optional: leave the input and output prices empty to publish an API model without one (see [Models without a price](#models-without-a-price)).
 8. Configure reasoning overrides such as `ultra=max`. Efforts without an override map to the same provider name. Drag efforts into the order that clients and the AI Workspace reasoning selector should display them.
 9. Optionally set a **System prompt** for the model. **Append** keeps the harness default instructions and adds the prompt after them; **Replace** substitutes the default entirely, so a replacement must restate any tool or patch-format rules the model still needs. The prompt is published in the model catalog (`GET /models`, `system_prompt`) and applies only to harnesses that read it from there: Opfield never rewrites the `instructions` or `system` field of a client request, so other clients keep their own prompts.
 10. In **Settings > Inference > Limits**, set default limits and optional per-user overrides.
@@ -134,6 +134,21 @@ A request admitted while the user still has a positive balance always runs to co
 The published model **output limit** is the source of truth for the upstream request. Opfield signs it into the per-request context, and a core that negotiated the capability uses it as the provider output ceiling when the client sends no limit of its own. Older cores do not receive the claim and keep their built-in defaults.
 
 API usage is stored in integer microdollars using the pricing snapshot selected at admission. API-backed models do not consume subscription credits or use a subscription multiplier. Redis holds atomic reservations, affinity, cooldowns, and refresh locks; PostgreSQL remains the source of truth and stores immutable settlement ledger rows. Continuation state lives in the managed core rather than being duplicated in Opfield request-history storage.
+
+### Models without a price
+
+An API source with no input or output price (or, for image, search and realtime calls, no per-call price) is not refused. Its requests run on every inference core version:
+
+- Tokens are recorded as usual, in Activity, the usage totals and the settlement ledger.
+- The cost is recorded as unknown, not as $0. Activity shows **Price not set** for those requests, and the API and MCP mark them `costUnknown: true`; their `apiMicrodollars` is 0 and is not their cost. The usage overview counts them next to the API total.
+- They are outside API budget enforcement: they reserve and charge nothing, so a user's monthly API budget and a connection's monthly API limit neither count them nor refuse them. A user whose API usage is switched off (budget 0) still cannot use API models. API sources never use subscription credits, priced or not.
+
+Administrators are told:
+
+- **Settings > Inference > Models** shows "No price set: requests are not charged to API budgets" on the model and in its Pricing tab. `manage_inference_model` list returns `priceMissing` per source and `priceWarning` per model.
+- When such requests run, the Dashboard and the Inference usage overview show a warning naming the models (those with requests in the last 7 days whose price is still not set). `manage_inference_usage` system returns the same list under `unpriced`.
+
+Setting a price takes effect for new requests; requests that already ran keep the unknown cost.
 
 ## Compaction and continuation
 

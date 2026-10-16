@@ -69,6 +69,9 @@ export const inferenceRequests = pgTable(
     fixedApiMicrodollars: bigint('fixed_api_microdollars', { mode: 'number' }).notNull().default(0),
     creditsCharged: numeric('credits_charged', { precision: 24, scale: 6 }).notNull().default('0'),
     apiMicrodollarsCharged: bigint('api_microdollars_charged', { mode: 'number' }).notNull().default(0),
+    // An API request whose source had no price set: it ran, its tokens count, but its cost is unknown (not $0) and
+    // it is outside API budget enforcement.
+    costUnknown: boolean('cost_unknown').notNull().default(false),
     ...usageColumns,
     responseStatus: integer('response_status'),
     errorCode: varchar('error_code', { length: 128 }),
@@ -121,6 +124,8 @@ export const inferenceRequestAttempts = pgTable(
     serviceTierMultiplier: numeric('service_tier_multiplier', { precision: 20, scale: 6 }).notNull().default('1'),
     fixedApiMicrodollars: bigint('fixed_api_microdollars', { mode: 'number' }).notNull().default(0),
     reservedApiMicrodollars: bigint('reserved_api_microdollars', { mode: 'number' }).notNull().default(0),
+    // Admitted on an API source with no price set (see inference_requests.cost_unknown).
+    costUnknown: boolean('cost_unknown').notNull().default(false),
     reservationId: text('reservation_id'),
     errorCode: varchar('error_code', { length: 128 }),
     emittedOutput: boolean('emitted_output').notNull().default(false),
@@ -157,6 +162,8 @@ export const inferenceUsageLedger = pgTable(
     budgetType: varchar('budget_type', { length: 16 }).$type<InferenceBudgetType>().notNull(),
     credits: numeric('credits', { precision: 24, scale: 6 }).notNull().default('0'),
     apiMicrodollars: bigint('api_microdollars', { mode: 'number' }).notNull().default(0),
+    // The settled work had no price: api_microdollars is not its cost.
+    costUnknown: boolean('cost_unknown').notNull().default(false),
     ...usageColumns,
     reason: varchar('reason', { length: 128 }),
     snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull().default({}),

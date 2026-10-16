@@ -136,11 +136,17 @@ export class InferenceBudgetReservationService {
     usage: InferenceBudgetUsage;
     limits: EffectiveInferenceLimits;
     isCompaction: boolean;
+    /** The request has no API price: the monthly API budget does not cap it (API usage switched off still does). */
+    apiBudgetExempt?: boolean;
   }): Promise<BudgetReservation> {
     const now = Date.now();
     const expiresAt = new Date(now + RESERVATION_TTL_MS);
     const dimensions: InferenceBudgetDimension[] = ['credits5h', 'credits7d', 'credits30d', 'apiMonthlyMicrodollars'];
-    const limits = dimensions.map((dimension) => reservationLimit(dimension, input.limits, input.isCompaction));
+    const limits = dimensions.map((dimension) =>
+      dimension === 'apiMonthlyMicrodollars' && input.apiBudgetExempt && input.limits.apiMonthlyMicrodollars > 0
+        ? UNLIMITED_RESERVATION_LIMIT
+        : reservationLimit(dimension, input.limits, input.isCompaction)
+    );
     let result: unknown;
     try {
       result = await this.redis.eval(

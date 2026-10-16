@@ -38,7 +38,8 @@ export interface DashboardAttentionNotice {
   severity: DashboardAttentionSeverity;
   /**
    * What the notice is about: node ids (`node-capacity`, `node-health`), route ids (`proxy-health`),
-   * pinned database ids, pinned Docker keys `kind:nodeId:id`, or inference windows (`inference-usage`).
+   * pinned database ids, pinned Docker keys `kind:nodeId:id`, inference windows (`inference-usage`), or public model ids
+   * with requests that ran without a price (`inference-unpriced`).
    */
   ids?: string[];
   /** How many certificates or replicas the notice counts. */

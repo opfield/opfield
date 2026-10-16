@@ -1,6 +1,5 @@
 import { Check, Cpu, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Notice } from "@/components/common/Notice";
@@ -277,12 +276,6 @@ export function InferenceSetupWizard({
   const configureModel = async () => {
     const source = selectedModelSource;
     if (!source) return;
-    if (selectedSourceNeedsPricing && !source.model.pricing) {
-      toast.error(
-        "Opfield could not discover pricing for this API model. Add it from Settings → Inference."
-      );
-      return;
-    }
     setSaving(true);
     try {
       const contextWindow = source.model.contextWindow ?? 128_000;
@@ -317,7 +310,9 @@ export function InferenceSetupWizard({
             reasoningEffortMap: Object.fromEntries(
               source.model.reasoningEfforts.map((effort) => [effort, effort])
             ),
-            ...(selectedSourceNeedsPricing ? { pricing: source.model.pricing! } : {}),
+            ...(selectedSourceNeedsPricing && source.model.pricing
+              ? { pricing: source.model.pricing }
+              : {}),
           },
         ],
         access: { mode: "everyone", subjects: [] },
@@ -414,9 +409,7 @@ export function InferenceSetupWizard({
             <Button
               onClick={() => void configureModel()}
               pending={saving}
-              disabled={
-                !selectedSource || (selectedSourceNeedsPricing && !selectedSourceHasPricing)
-              }
+              disabled={!selectedSource}
             >
               <Plus /> Add model
             </Button>
@@ -505,8 +498,8 @@ export function InferenceSetupWizard({
             {selectedSourceNeedsPricing && !selectedSourceHasPricing && (
               <div className="px-4 py-3">
                 <p className="text-xs text-warning-text">
-                  Opfield could not discover pricing for this API model. Add its pricing in Settings
-                  → Opfield Inference, or select another model.
+                  No price set: requests are not charged to API budgets. Opfield could not discover
+                  pricing for this API model; you can add it later in Settings → Inference.
                 </p>
               </div>
             )}

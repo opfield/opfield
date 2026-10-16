@@ -303,13 +303,18 @@ export function InferenceModelsPanel({ refreshToken = 0 }: { refreshToken?: numb
       id: "billing",
       header: "Billing",
       render: (model) => (
-        <span>
-          {isCloudModel(model)
-            ? "Opfield Cloud"
-            : model.sources[0]?.sourceType === "api"
-              ? "API"
-              : `${model.subscriptionMultiplier}× credits`}
-        </span>
+        <div>
+          <p>
+            {isCloudModel(model)
+              ? "Opfield Cloud"
+              : model.sources[0]?.sourceType === "api"
+                ? "API"
+                : `${model.subscriptionMultiplier}× credits`}
+          </p>
+          {model.priceWarning ? (
+            <p className="text-xs text-warning-text">{model.priceWarning}</p>
+          ) : null}
+        </div>
       ),
     },
     {

@@ -403,7 +403,7 @@ const activityColumns: DataTableColumn<InferenceActivity>[] = [
   {
     key: "cost",
     header: "Cost",
-    width: "6.5rem",
+    width: "7.5rem",
     align: "right",
     render: formatActivityCost,
   },
@@ -471,7 +471,17 @@ function totalTokens(row: InferenceActivity) {
   );
 }
 
-function formatActivityCost(row: InferenceActivity) {
+function formatActivityCost(row: InferenceActivity): ReactNode {
+  if (row.budgetType === "api" && row.costUnknown) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help whitespace-nowrap text-warning-text">Price not set</span>
+        </TooltipTrigger>
+        <TooltipContent>No price set: requests are not charged to API budgets</TooltipContent>
+      </Tooltip>
+    );
+  }
   return row.budgetType === "api"
     ? `$${(row.apiMicrodollars / 1_000_000).toFixed(4)}`
     : `${row.credits.toFixed(2)} cr`;

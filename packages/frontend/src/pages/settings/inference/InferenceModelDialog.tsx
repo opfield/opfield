@@ -32,8 +32,8 @@ import {
   exposedReasoningEfforts,
   formFromModel,
   formWithProviderModel,
-  hasCompletePricing,
   hasCompleteTechnicalLimits,
+  hasValidPricing,
   manualMetadataForProviderModel,
   modelTechnicalLimits,
   normalizeReasoningMap,
@@ -160,10 +160,13 @@ export function InferenceModelDialog({
       const manualMetadata = manualMetadataForProviderModel(form, selected);
       const subscriptionMultiplier =
         selected.sourceType === "api" ? 1 : parsePositiveNumber(form.subscriptionMultiplier);
-      if (subscriptionMultiplier === null || !hasCompletePricing(pricing)) {
+      if (subscriptionMultiplier === null || !hasValidPricing(pricing)) {
         setSaving(false);
         return;
       }
+      // A manual model left without a price saves no pricing and serves requests with an unknown cost.
+      const manualPricing =
+        selected.sourceType === "api" && !selected.pricing ? pricingPayload(pricing) : undefined;
       const payload = {
         publicId: form.publicId.trim(),
         displayName: form.displayName.trim(),
@@ -188,9 +191,7 @@ export function InferenceModelDialog({
           enabled: true,
           reasoningEffortMap: normalizedMapping,
           ...(manualMetadata ? { manualMetadata } : {}),
-          ...(selected.sourceType === "api" && !selected.pricing
-            ? { pricing: pricingPayload(pricing) }
-            : {}),
+          ...(manualPricing ? { pricing: manualPricing } : {}),
         })),
         access: {
           mode: accessMode,
@@ -217,7 +218,7 @@ export function InferenceModelDialog({
       selected.bindings.length > 0 &&
       (accessMode !== "selected" ||
         (accessSubjects.length > 0 && accessSubjects.every((subject) => subject.subjectId))) &&
-      hasCompletePricing(pricing) &&
+      hasValidPricing(pricing) &&
       Object.entries(mapping).every(
         ([clientEffort, upstreamEffort]) => clientEffort.trim() && upstreamEffort.trim()
       ) &&

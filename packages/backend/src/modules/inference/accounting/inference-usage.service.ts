@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
@@ -6,6 +6,7 @@ import {
   inferenceLimitPolicies,
   inferenceLimitUsageResets,
   inferenceModelSources,
+  inferencePricingSnapshots,
   inferenceProviderConnections,
   inferenceRequests,
   inferenceUsageLedger,
@@ -17,6 +18,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { User } from '@/types.js';
+import { INFERENCE_PRICE_MISSING_WARNING } from '../inference-pricing.js';
 import type { InferenceModelAccessService } from '../models/inference-model-access.service.js';
 import {
   type EffectiveInferenceLimits,
@@ -41,6 +43,15 @@ export interface InferenceLimitPolicyInput {
 
 const OPFIELD_SYSTEM_OIDC_SUBJECT = 'system:opfield-setup';
 const SYSTEM_USAGE_WINDOW_DAYS = 30;
+/** How far back requests without a price keep the admin warning up. */
+export const UNPRICED_USAGE_WINDOW_DAYS = 7;
+
+export interface UnpricedInferenceModelUsage {
+  model: string;
+  requests: number;
+  tokens: number;
+  lastRequestAt: string;
+}
 
 @injectable()
 export class InferenceUsageService {
@@ -164,6 +175,7 @@ export class InferenceUsageService {
           credits: sql<string>`COALESCE(SUM(${inferenceRequests.creditsCharged}), 0)`,
           apiMicrodollars: sql<number>`COALESCE(SUM(${inferenceRequests.apiMicrodollarsCharged}), 0)`,
           tokens: sql<number>`COALESCE(SUM(${inferenceRequests.uncachedInputTokens} + ${inferenceRequests.cachedInputTokens} + ${inferenceRequests.cacheWriteTokens} + ${inferenceRequests.outputTokens} + ${inferenceRequests.reasoningTokens}), 0)`,
+          unpricedRequests: sql<number>`COUNT(*) FILTER (WHERE ${inferenceRequests.costUnknown})::int`,
         })
         .from(inferenceRequests)
         .where(requestFilter)
@@ -174,6 +186,7 @@ export class InferenceUsageService {
           credits: sql<string>`COALESCE(SUM(${inferenceUsageLedger.credits}), 0)`,
           apiMicrodollars: sql<number>`COALESCE(SUM(${inferenceUsageLedger.apiMicrodollars}), 0)`,
           tokens: sql<number>`COALESCE(SUM(${inferenceUsageLedger.uncachedInputTokens} + ${inferenceUsageLedger.cachedInputTokens} + ${inferenceUsageLedger.cacheWriteTokens} + ${inferenceUsageLedger.outputTokens} + ${inferenceUsageLedger.reasoningTokens}), 0)`,
+          unpricedTokens: sql<number>`COALESCE(SUM(${inferenceUsageLedger.uncachedInputTokens} + ${inferenceUsageLedger.cachedInputTokens} + ${inferenceUsageLedger.cacheWriteTokens} + ${inferenceUsageLedger.outputTokens} + ${inferenceUsageLedger.reasoningTokens}) FILTER (WHERE ${inferenceUsageLedger.costUnknown}), 0)`,
         })
         .from(inferenceUsageLedger)
         .where(ledgerFilter)
@@ -207,14 +220,62 @@ export class InferenceUsageService {
         credits: toPublicCreditString(row.credits),
         apiMicrodollars: Number(row.apiMicrodollars),
         tokens: Number(row.tokens),
+        // Requests on API sources with no price: their cost is unknown and not in apiMicrodollars.
+        unpricedRequests: Number(row.unpricedRequests),
       })),
       ledgerTotals: ledgerTotals.map((row) => ({
         ...row,
         credits: toPublicCreditString(row.credits),
         apiMicrodollars: Number(row.apiMicrodollars),
         tokens: Number(row.tokens),
+        unpricedTokens: Number(row.unpricedTokens),
       })),
       dailyUsage: mergeDailyUsage(requestDaily, ledgerDaily, windowStart, SYSTEM_USAGE_WINDOW_DAYS),
+      ...(userId ? {} : { unpriced: await this.unpricedUsageWarning() }),
+    };
+  }
+
+  /**
+   * Models whose requests ran on an API source with no price in the last UNPRICED_USAGE_WINDOW_DAYS days, and whose
+   * source still has no price set since: their cost is unknown and outside API budgets. A price saved after the
+   * request (a new pricing snapshot, or the source replaced by a configuration save) clears the model.
+   */
+  async unpricedModels(now = new Date()): Promise<UnpricedInferenceModelUsage[]> {
+    const since = new Date(now.getTime() - UNPRICED_USAGE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const rows = await this.db
+      .select({
+        model: inferenceRequests.publicModelId,
+        requests: sql<number>`COUNT(*)::int`,
+        tokens: sql<number>`COALESCE(SUM(${inferenceRequests.uncachedInputTokens} + ${inferenceRequests.cachedInputTokens} + ${inferenceRequests.cacheWriteTokens} + ${inferenceRequests.outputTokens} + ${inferenceRequests.reasoningTokens}), 0)`,
+        lastRequestAt: sql<string>`MAX(${inferenceRequests.createdAt})`,
+      })
+      .from(inferenceRequests)
+      .where(
+        and(
+          eq(inferenceRequests.costUnknown, true),
+          gte(inferenceRequests.createdAt, since),
+          isNotNull(inferenceRequests.sourceId),
+          sql`NOT EXISTS (SELECT 1 FROM ${inferencePricingSnapshots} WHERE ${inferencePricingSnapshots.sourceId} = ${inferenceRequests.sourceId} AND ${inferencePricingSnapshots.createdAt} > ${inferenceRequests.createdAt})`
+        )
+      )
+      .groupBy(inferenceRequests.publicModelId)
+      .orderBy(asc(inferenceRequests.publicModelId));
+    return rows.map((row) => ({
+      model: row.model,
+      requests: Number(row.requests),
+      tokens: Number(row.tokens),
+      lastRequestAt: new Date(row.lastRequestAt).toISOString(),
+    }));
+  }
+
+  /** The admin warning for unpriced usage (system overview and MCP), or null when there is none. */
+  async unpricedUsageWarning(now = new Date()) {
+    const models = await this.unpricedModels(now);
+    if (models.length === 0) return null;
+    return {
+      warning: `${INFERENCE_PRICE_MISSING_WARNING}. Requests to these models in the last ${UNPRICED_USAGE_WINDOW_DAYS} days ran without a price; set one in Settings → Inference.`,
+      windowDays: UNPRICED_USAGE_WINDOW_DAYS,
+      models,
     };
   }
 
@@ -301,6 +362,8 @@ export class InferenceUsageService {
         status: inferenceRequests.status,
         credits: inferenceRequests.creditsCharged,
         apiMicrodollars: inferenceRequests.apiMicrodollarsCharged,
+        // No price was set: apiMicrodollars is not the cost of this request.
+        costUnknown: inferenceRequests.costUnknown,
         uncachedInputTokens: inferenceRequests.uncachedInputTokens,
         cachedInputTokens: inferenceRequests.cachedInputTokens,
         cacheWriteTokens: inferenceRequests.cacheWriteTokens,

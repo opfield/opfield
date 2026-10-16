@@ -28,6 +28,7 @@ import {
 } from "@/lib/dashboard-attention";
 import { cn, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
 import type {
   InferenceSelfUsage,
@@ -39,6 +40,7 @@ import {
   InferenceEndpointRow,
   InferenceHarnessDialog,
 } from "../settings/inference/InferenceEndpointSettingsPanel";
+import { InferenceUnpricedNotice } from "./InferenceUnpricedNotice";
 
 const COMPACT_USAGE_OPEN_KEY = "opfield:account-menu:ai-usage-open";
 
@@ -355,6 +357,7 @@ export function InferenceOverview({ refreshToken = 0 }: { refreshToken?: number 
   const [loading, setLoading] = useState(!cachedUsage);
   const [error, setError] = useState<string | null>(null);
   const initializedRef = useRef(Boolean(cachedUsage));
+  const canManageModels = useAuthStore((state) => state.hasScope("inference:models:manage"));
 
   const load = useCallback(async () => {
     if (!initializedRef.current) setLoading(true);
@@ -395,7 +398,18 @@ export function InferenceOverview({ refreshToken = 0 }: { refreshToken?: number 
 
   if (!usage) return null;
 
-  return <InferenceUsageOverviewCards usage={usage} />;
+  return (
+    <>
+      {usage.unpriced ? (
+        <InferenceUnpricedNotice
+          models={usage.unpriced.models.map((row) => row.model)}
+          windowDays={usage.unpriced.windowDays}
+          showAction={canManageModels}
+        />
+      ) : null}
+      <InferenceUsageOverviewCards usage={usage} />
+    </>
+  );
 }
 
 export function InferenceUsageOverviewCards({ usage }: { usage: InferenceUsageOverview }) {
@@ -409,9 +423,18 @@ export function InferenceUsageOverviewCards({ usage }: { usage: InferenceUsageOv
         (sum, row) => sum + Number(row.apiMicrodollars),
         0
       ),
+      unpricedRequests: usage.requestTotals.reduce(
+        (sum, row) => sum + Number(row.unpricedRequests ?? 0),
+        0
+      ),
     };
   }, [usage]);
   const subtitle = `Last ${usage.windowDays} days`;
+  // Requests without a price are not in the dollar total: say so rather than show a lower figure as complete.
+  const apiSubtitle =
+    totals.unpricedRequests > 0
+      ? `${subtitle} · ${totals.unpricedRequests.toLocaleString()} without a price`
+      : subtitle;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -421,7 +444,7 @@ export function InferenceUsageOverviewCards({ usage }: { usage: InferenceUsageOv
         icon={CircleDollarSign}
         history={usage.dailyUsage.map((row) => row.apiMicrodollars / 1_000_000)}
         color="var(--color-hue-green)"
-        subtitle={subtitle}
+        subtitle={apiSubtitle}
         appearance="dashboard"
       />
       <StatCard

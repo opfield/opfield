@@ -26,14 +26,17 @@ import { InferenceProtocolError } from '../protocol/inference-protocol.error.js'
 import type { InferenceUsage } from '../protocol/inference-protocol.types.js';
 import { latestValidQuota, quotaAppliesToModel } from '../providers/inference-provider.service.helpers.js';
 import {
+  apiCostUnknown,
   capSubscriptionEstimateToBudget,
   capSubscriptionEstimateToCredits,
   errorCode,
   hash,
   hasSpendableSubscriptionBudget,
-  latestPricing,
+  latestPricingSnapshot,
   reservationAmounts,
   subscriptionBudgetRecoveryAt,
+  tokenPricing,
+  unitPriceKeyForOperation,
 } from './inference-accounting.helpers.js';
 import type { InferenceBudgetLockService } from './inference-budget-lock.service.js';
 import {
@@ -337,7 +340,11 @@ export class InferenceCoreAccountingService {
     const usage = await this.policies.usage(userId, limits, admittedAt, database, {
       startSubscriptionWindows: source.sourceType === 'subscription',
     });
-    const pricing = source.sourceType === 'api' ? await latestPricing(database, source.id) : null;
+    const pricingSnapshot = source.sourceType === 'api' ? await latestPricingSnapshot(database, source.id) : null;
+    const pricing = tokenPricing(pricingSnapshot);
+    // An API source without a price still serves the request: tokens are recorded, the cost is unknown,
+    // and the attempt stays outside API budget enforcement (it reserves and is charged nothing).
+    const costUnknown = source.sourceType === 'api' && apiCostUnknown(pricingSnapshot, request.operation);
     const burnMultiplier =
       source.sourceType === 'subscription'
         ? await modelPoolBurnMultiplier(database, model.id, admittedAt, request.isCompaction)
@@ -372,7 +379,7 @@ export class InferenceCoreAccountingService {
         : conservativeUsage;
     // Kept for replaying caps persisted by releases that still truncated turns.
     const admittedMaxOutputTokens: number | null = null;
-    const fixedApiMicrodollars = Number(request.fixedApiMicrodollars ?? 0);
+    const fixedApiMicrodollars = costUnknown ? 0 : Number(request.fixedApiMicrodollars ?? 0);
     let amounts = reservationAmounts(
       source.sourceType,
       estimatedUsage,
@@ -383,7 +390,7 @@ export class InferenceCoreAccountingService {
       fixedApiMicrodollars
     );
     try {
-      if (source.sourceType === 'api' && connection.apiMonthlyLimitMicrodollars !== null) {
+      if (source.sourceType === 'api' && !costUnknown && connection.apiMonthlyLimitMicrodollars !== null) {
         await this.locks.lockProviderConnection(database, connection.id);
         await assertProviderApiBudget(database, connection, amounts.apiMonthlyMicrodollars);
       }
@@ -395,6 +402,7 @@ export class InferenceCoreAccountingService {
         usage,
         limits,
         isCompaction: request.isCompaction,
+        ...(costUnknown ? { apiBudgetExempt: true } : {}),
       });
       if (source.sourceType === 'subscription') {
         const committedUsage = capSubscriptionEstimateToCredits({
@@ -440,6 +448,7 @@ export class InferenceCoreAccountingService {
           budgetType: source.sourceType,
           pricingSnapshotId: pricing?.id ?? null,
           priceVersion: pricing?.version ?? null,
+          costUnknown,
           modelMultiplier: String(modelMultiplier),
           burnMultiplier: String(burnMultiplier),
           serviceTierMultiplier: String(serviceTierMultiplier),
@@ -480,6 +489,7 @@ export class InferenceCoreAccountingService {
         serviceTierMultiplier: String(serviceTierMultiplier),
         fixedApiMicrodollars,
         reservedApiMicrodollars: amounts.apiMonthlyMicrodollars,
+        costUnknown,
         reservationId,
         startedAt: admittedAt,
       });
@@ -561,6 +571,10 @@ export class InferenceCoreAccountingService {
       const budgetType = attempt.budgetType;
       if (!budgetType) throw new AppError(409, 'core_request_incomplete', 'The request was never admitted');
       const fixedApiMicrodollars = budgetType === 'api' ? Number(attempt.fixedApiMicrodollars ?? 0) : 0;
+      // Unknown when admitted without a price, or when the token price it was admitted with is gone.
+      const costUnknown =
+        budgetType === 'api' &&
+        (attempt.costUnknown || (!pricing && unitPriceKeyForOperation(request.operation) === undefined));
       const credits =
         budgetType === 'subscription'
           ? subscriptionCreditsForUsage(
@@ -570,8 +584,11 @@ export class InferenceCoreAccountingService {
               Number(attempt.serviceTierMultiplier ?? 1)
             )
           : 0;
-      const tokenCost = budgetType === 'api' && pricing && usage.totalTokens > 0 ? apiMicrodollars(usage, pricing) : 0;
-      const cost = fixedApiMicrodollars + tokenCost;
+      const tokenCost =
+        budgetType === 'api' && pricing && tokenPricing(pricing) && usage.totalTokens > 0
+          ? apiMicrodollars(usage, pricing)
+          : 0;
+      const cost = costUnknown ? 0 : fixedApiMicrodollars + tokenCost;
       const latencyMs = Math.max(0, new Date(input.completedAt).getTime() - new Date(input.startedAt).getTime());
       await database
         .update(inferenceRequestAttempts)
@@ -586,6 +603,7 @@ export class InferenceCoreAccountingService {
           cacheWriteTokens: input.usage.cacheWriteTokens,
           outputTokens: input.usage.outputTokens,
           reasoningTokens: input.usage.reasoningTokens,
+          costUnknown,
           latencyMs,
           completedAt: new Date(input.completedAt),
         })
@@ -601,6 +619,7 @@ export class InferenceCoreAccountingService {
           budgetType,
           credits: String(credits),
           apiMicrodollars: cost,
+          costUnknown,
           uncachedInputTokens: input.usage.uncachedInputTokens,
           cachedInputTokens: input.usage.cachedInputTokens,
           cacheWriteTokens: input.usage.cacheWriteTokens,
@@ -618,6 +637,7 @@ export class InferenceCoreAccountingService {
             connectionId: attempt.connectionId,
             coreAttemptId: input.attemptId,
             attemptKind: input.attemptKind,
+            ...(costUnknown ? { priceMissing: true } : {}),
           },
         });
       }
@@ -759,6 +779,8 @@ export class InferenceCoreAccountingService {
         cacheWriteTokens: sql<number>`coalesce(sum(${inferenceRequestAttempts.cacheWriteTokens}), 0)`,
         outputTokens: sql<number>`coalesce(sum(${inferenceRequestAttempts.outputTokens}), 0)`,
         reasoningTokens: sql<number>`coalesce(sum(${inferenceRequestAttempts.reasoningTokens}), 0)`,
+        // Every attempt, settled or not: a running unpriced attempt marks the request until its settlement arrives.
+        costUnknown: sql<boolean>`coalesce((SELECT bool_or(pending.cost_unknown) FROM ${inferenceRequestAttempts} pending WHERE pending.request_id = ${requestId}), false)`,
       })
       .from(inferenceRequestAttempts)
       .where(
@@ -772,6 +794,8 @@ export class InferenceCoreAccountingService {
         credits: sql<string>`coalesce(sum(${inferenceUsageLedger.credits}::numeric), 0)::text`,
         apiMicrodollars: sql<number>`coalesce(sum(${inferenceUsageLedger.apiMicrodollars}), 0)`,
         estimatedUsage: sql<boolean>`coalesce(bool_or(${inferenceUsageLedger.reason} = 'estimated_terminal_usage'), false)`,
+        costUnknown: sql<boolean>`coalesce(bool_or(${inferenceUsageLedger.costUnknown}), false)`,
+        settlements: sql<number>`count(*)::int`,
       })
       .from(inferenceUsageLedger)
       .where(and(eq(inferenceUsageLedger.requestId, requestId), eq(inferenceUsageLedger.entryType, 'settlement')));
@@ -786,6 +810,11 @@ export class InferenceCoreAccountingService {
         creditsCharged: String(chargeTotals?.credits ?? '0'),
         apiMicrodollarsCharged: Number(chargeTotals?.apiMicrodollars ?? 0),
         estimatedUsage: Boolean(chargeTotals?.estimatedUsage),
+        // Charged work decides; with nothing charged yet, an unpriced attempt still marks the request.
+        costUnknown:
+          Number(chargeTotals?.settlements ?? 0) > 0
+            ? Boolean(chargeTotals?.costUnknown)
+            : Boolean(attemptTotals?.costUnknown),
       })
       .where(eq(inferenceRequests.id, requestId));
   }

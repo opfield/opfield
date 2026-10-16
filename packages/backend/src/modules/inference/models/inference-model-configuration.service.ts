@@ -220,7 +220,8 @@ export class InferenceModelConfigurationService {
         sourceType === 'api'
           ? (pricingFromDiscoveredMetadata(discoveredModel?.metadata) ?? known?.pricing ?? input.pricing)
           : input.pricing;
-      if (sourceType === 'api' && enabled) validatePricing(pricing);
+      // An API source may go without a price: it then serves requests with an unknown cost (see docs/inference.md).
+      if (sourceType === 'api' && pricing) validatePricing(pricing);
       const technical = input.manualMetadata;
       return {
         connectionId: connection.id,

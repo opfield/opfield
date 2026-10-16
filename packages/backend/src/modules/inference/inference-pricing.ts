@@ -65,3 +65,18 @@ export function longContextOtherUnitPrices(
     [LONG_CONTEXT_PRICING_KEYS.outputMicrodollarsPerMillion]: shortRates.outputMicrodollarsPerMillion * 1.5,
   };
 }
+
+/** Shown wherever an API source has no price: its requests run, with tokens recorded and the cost unknown. */
+export const INFERENCE_PRICE_MISSING_WARNING = 'No price set: requests are not charged to API budgets';
+
+/** Token metering needs both an input and an output price. */
+export function hasTokenPrices(
+  pricing:
+    | { inputMicrodollarsPerMillion: number | null; outputMicrodollarsPerMillion: number | null }
+    | null
+    | undefined
+): boolean {
+  return Boolean(
+    pricing && pricing.inputMicrodollarsPerMillion !== null && pricing.outputMicrodollarsPerMillion !== null
+  );
+}

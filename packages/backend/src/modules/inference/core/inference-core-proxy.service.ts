@@ -8,12 +8,11 @@ import {
   inferenceDiscoveredModels,
   inferenceModelSources,
   inferenceModels,
-  inferencePricingSnapshots,
   inferenceProviderConnections,
 } from '@/db/schema/index.js';
 import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
 import type { AppEnv, User } from '@/types.js';
-import { unitCharge } from '../accounting/inference-accounting.helpers.js';
+import { latestPricingSnapshot, unitCharge } from '../accounting/inference-accounting.helpers.js';
 import type { InferenceAccountingService } from '../accounting/inference-accounting.service.js';
 import type { InferenceCoreAccountingService } from '../accounting/inference-core-accounting.service.js';
 import type { InferenceModelService } from '../models/inference-model.service.js';
@@ -821,7 +820,10 @@ export class InferenceCoreProxyService {
       .orderBy(asc(inferenceModelSources.priority), asc(inferenceProviderConnections.routingOrder));
   }
 
-  /** Fixed per-call charge for operations the core settles without token usage. */
+  /**
+   * Fixed per-call charge for operations the core settles without token usage. A source with no price for the call
+   * charges nothing here; admission then records the request's cost as unknown.
+   */
   private async fixedCharge(
     operation: CoreProxyOperation,
     source: typeof inferenceModelSources.$inferSelect,
@@ -830,15 +832,7 @@ export class InferenceCoreProxyService {
     const priceKey = FIXED_PRICE_KEYS[operation];
     if (!priceKey) return 0;
     if (source.sourceType === 'subscription') return 0;
-    const pricing = await this.db.query.inferencePricingSnapshots.findFirst({
-      where: eq(inferencePricingSnapshots.sourceId, source.id),
-      orderBy: (table, { desc }) => [desc(table.createdAt)],
-    });
-    const amount = unitCharge(pricing ?? null, priceKey, units);
-    if (!Number.isSafeInteger(amount) || amount < 0) {
-      throw new InferenceProtocolError(503, 'pricing_unavailable', `API pricing for ${priceKey} is unavailable`);
-    }
-    return amount;
+    return unitCharge(await latestPricingSnapshot(this.db, source.id), priceKey, units) ?? 0;
   }
 }
 
