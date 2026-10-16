@@ -163,7 +163,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
             },
             required: ['source', 'destination', 'type'],
           },
-          description: 'URL rewrite rules applied before proxying',
+          description: 'URL rewrite rules applied before proxying, in order: the first rule that matches redirects',
         },
         advancedConfig: { type: 'string', description: 'Advanced nginx snippet; requires proxy:advanced.' },
         accessListId: { type: 'string', description: 'Access list UUID for IP/auth restrictions' },
@@ -320,7 +320,8 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
             },
             required: ['source', 'destination', 'type'],
           },
-          description: 'Full replacement list of URL rewrite rules',
+          description:
+            'Full replacement list of URL rewrite rules, in order: the first rule that matches redirects, so pass them in the new order to reorder',
         },
         advancedConfig: { type: ['string', 'null'], description: 'Advanced nginx snippet; requires proxy:advanced' },
         accessListId: { type: ['string', 'null'], description: 'Access list UUID; null clears it' },

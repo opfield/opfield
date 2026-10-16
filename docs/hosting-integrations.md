@@ -110,7 +110,7 @@ For a confirmed HOSTKEY VM order, Opfield can apply available account credit to 
 
 ## Firewall, snapshots and alerts
 
-Firewall management is opt-in for DigitalOcean, CloudBlast and Proxmox. Rules share inbound/outbound direction, Allow/Deny, protocol, ports and source/destination addresses. Provider prerequisites and current token permissions are checked before applying. Opfield does not enable the Proxmox cluster firewall or overwrite unrelated provider policies.
+Firewall management is opt-in for DigitalOcean, CloudBlast and Proxmox. Rules share inbound/outbound direction, Allow/Deny, protocol, ports and source/destination addresses. CloudBlast and Proxmox check the rules of one direction in order and the first match wins: move a rule with the arrows on the node's Firewall tab. DigitalOcean applies every deny rule before the allow rules, so the order does not matter there. Provider prerequisites and current token permissions are checked before applying. Opfield does not enable the Proxmox cluster firewall or overwrite unrelated provider policies.
 
 After confirmed DigitalOcean VM deletion, Opfield also removes its unused owned firewall. Cleanup checks the exact provider ID and deterministic ownership name, then refuses to delete policies still attached to droplets or tags. Shared or renamed policies are preserved and recorded in the operation result. Firewall cleanup requires provider read/delete permissions; unresolved cleanup keeps the operation pending reconciliation. A lost DELETE response is checked by ID and never blindly replayed. Merely disabling the firewall still retains its rules and policy for later reuse.
 

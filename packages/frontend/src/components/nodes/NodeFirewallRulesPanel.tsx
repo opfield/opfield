@@ -1,4 +1,4 @@
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { PanelShell } from "@/components/common/PanelShell";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,11 @@ export interface NodeFirewallRulesPanelProps {
   editingLocked: boolean;
   onAdd: (direction: HostingFirewallDirection) => void;
   onEdit: (rule: HostingFirewallRule) => void;
+  /**
+   * Moves the rule one place among the rules of its direction, for a provider that checks the rules in order
+   * (the first match wins). Without it the rules have no order and show no move buttons.
+   */
+  onMove?: (rule: HostingFirewallRule, delta: -1 | 1) => void;
   onDelete: (rule: HostingFirewallRule) => void;
 }
 
@@ -20,6 +25,7 @@ export function NodeFirewallRulesPanel({
   editingLocked,
   onAdd,
   onEdit,
+  onMove,
   onDelete,
 }: NodeFirewallRulesPanelProps) {
   const inbound = direction === "in";
@@ -45,37 +51,64 @@ export function NodeFirewallRulesPanel({
       id: "actions",
       header: "Actions",
       align: "right",
-      render: (rule) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={`Edit ${inbound ? "inbound" : "outbound"} firewall rule`}
-            disabled={editingLocked}
-            onClick={() => onEdit(rule)}
-          >
-            <Pencil />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={`Delete ${inbound ? "inbound" : "outbound"} firewall rule`}
-            disabled={editingLocked}
-            onClick={() => onDelete(rule)}
-          >
-            <Trash2 />
-          </Button>
-        </div>
-      ),
+      render: (rule) => {
+        const index = rules.indexOf(rule);
+        return (
+          <div className="flex justify-end gap-1">
+            {onMove ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Move ${inbound ? "inbound" : "outbound"} firewall rule ${index + 1} up`}
+                  disabled={editingLocked || index === 0}
+                  onClick={() => onMove(rule, -1)}
+                >
+                  <ArrowUp />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Move ${inbound ? "inbound" : "outbound"} firewall rule ${index + 1} down`}
+                  disabled={editingLocked || index === rules.length - 1}
+                  onClick={() => onMove(rule, 1)}
+                >
+                  <ArrowDown />
+                </Button>
+              </>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`Edit ${inbound ? "inbound" : "outbound"} firewall rule`}
+              disabled={editingLocked}
+              onClick={() => onEdit(rule)}
+            >
+              <Pencil />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`Delete ${inbound ? "inbound" : "outbound"} firewall rule`}
+              disabled={editingLocked}
+              onClick={() => onDelete(rule)}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <PanelShell
       title={inbound ? "Inbound rules" : "Outbound rules"}
-      description="Rules are retained when the firewall is disabled. The selected default policy applies when no rule matches."
+      description={`${onMove ? "Checked in order; the first matching rule wins. " : ""}Rules are retained when the firewall is disabled. The selected default policy applies when no rule matches.`}
       actions={
         <Button
           type="button"
