@@ -1057,6 +1057,8 @@ func (m *dockerSecureLinkManager) createConnector(ctx context.Context, image str
 	m.retiring.stopSocket(m.slotSocketPath(slot))
 	_ = os.Remove(filepath.Join(controlDirectory, secureLinkConnectorSockets[slot]))
 	hostConfig := &container.HostConfig{
+		// Not part of the shape checks: connectors created before keep running and get it when they are replaced.
+		LogConfig:      internalContainerLogConfig(),
 		Binds:          []string{controlDirectory + ":" + secureLinkConnectorMount},
 		GroupAdd:       connectorGroupAdd(),
 		ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},

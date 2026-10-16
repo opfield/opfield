@@ -388,6 +388,11 @@ ${OLD_COMPOSE}`;
       driver: 'json-file',
       logOpts: 'set',
     });
+    // Default options without a max-size bound nothing: the stack gets Opfield's rotation.
+    expect(hostDockerLogDefaults('json-file', { Type: 'json-file', Config: { tag: '{{.Name}}' } })).toEqual({
+      driver: 'json-file',
+      logOpts: 'none',
+    });
     // Opfield's own bounded logging on the app says nothing about the daemon.
     expect(
       hostDockerLogDefaults('json-file', { Type: 'json-file', Config: { 'max-size': '50m', 'max-file': '3' } })

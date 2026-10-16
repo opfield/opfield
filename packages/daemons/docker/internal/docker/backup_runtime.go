@@ -685,7 +685,7 @@ func (r *backupRuntime) runTool(ctx context.Context, runID string, payload backu
 	}
 	created, err := r.plugin.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config:     &container.Config{Image: payload.ToolImage, Cmd: []string{operation}, Labels: labels},
-		HostConfig: &container.HostConfig{NetworkMode: "host", ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"}, Resources: container.Resources{Memory: payload.Limits.MemoryMB * 1024 * 1024, NanoCPUs: payload.Limits.CPUCores * 1_000_000_000, PidsLimit: &pids}, Mounts: append(backupRunnerConfigMounts(configDir), mount.Mount{Type: mount.TypeBind, Source: resultDir, Target: "/work"})},
+		HostConfig: &container.HostConfig{LogConfig: internalContainerLogConfig(), NetworkMode: "host", ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"}, Resources: container.Resources{Memory: payload.Limits.MemoryMB * 1024 * 1024, NanoCPUs: payload.Limits.CPUCores * 1_000_000_000, PidsLimit: &pids}, Mounts: append(backupRunnerConfigMounts(configDir), mount.Mount{Type: mount.TypeBind, Source: resultDir, Target: "/work"})},
 	})
 	if err != nil {
 		return backupRunStatus{}, fmt.Errorf("create backup runner: %w", err)
@@ -939,7 +939,7 @@ func (r *backupRuntime) startRedisStage(ctx context.Context, runID string, paylo
 	}
 	port := 6379
 	stageHost := ""
-	hostConfig := &container.HostConfig{ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"}, Resources: container.Resources{Memory: stageMemory, NanoCPUs: 500_000_000}}
+	hostConfig := &container.HostConfig{LogConfig: internalContainerLogConfig(), ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"}, Resources: container.Resources{Memory: stageMemory, NanoCPUs: 500_000_000}}
 	var networking *network.NetworkingConfig
 	if payload.RestoreTarget.ManagedDatabaseID == "" {
 		allocated, err := allocateBackupStagePort()

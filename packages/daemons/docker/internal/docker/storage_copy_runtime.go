@@ -816,6 +816,7 @@ func (r *storageCopyRuntime) runRunner(ctx context.Context, jobID string, payloa
 	created, err := r.plugin.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Config: &container.Config{Image: payload.ToolImage, Cmd: []string{"storage-copy"}, Labels: labels},
 		HostConfig: &container.HostConfig{
+			LogConfig: internalContainerLogConfig(),
 			// Host networking reaches the loopback relay listeners and external endpoints.
 			NetworkMode: "host", ReadonlyRootfs: true, CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 			Resources: container.Resources{Memory: payload.Limits.MemoryMB * 1024 * 1024, NanoCPUs: payload.Limits.CPUCores * 1_000_000_000, PidsLimit: &pids},
