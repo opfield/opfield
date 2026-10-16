@@ -268,9 +268,33 @@ export class DockerSnapshotService {
           .map((item) => String((item as Record<string, unknown>).name ?? ''))
           .filter((name) => name.length > 0)
       );
-      const detailKey = this.detailKey(nodeId, 'volume-detail');
-      const staleNames = (await this.cache.getClient().hkeys(detailKey)).filter((name) => !liveNames.has(name));
-      if (staleNames.length > 0) await this.cache.getClient().hdel(detailKey, ...staleNames);
+      // Details and size readings of removed volumes are dropped with them, or they stay in Redis for good.
+      for (const detailKind of ['volume-detail', 'volume-metrics'] as const) {
+        const detailKey = this.detailKey(nodeId, detailKind);
+        const staleNames = (await this.cache.getClient().hkeys(detailKey)).filter((name) => !liveNames.has(name));
+        if (staleNames.length > 0) await this.cache.getClient().hdel(detailKey, ...staleNames);
+      }
+    }
+    if (kind === 'containers') {
+      const liveKeys = new Set<string>();
+      for (const item of sanitizedData as Array<Record<string, unknown>>) {
+        const id = String(item.id ?? item.Id ?? '');
+        if (id) {
+          liveKeys.add(id);
+          liveKeys.add(id.slice(0, 12));
+        }
+        const names = Array.isArray(item.names ?? item.Names) ? ((item.names ?? item.Names) as unknown[]) : [];
+        for (const name of [item.name, item.Name, ...names]) {
+          if (typeof name !== 'string' || !name) continue;
+          liveKeys.add(name);
+          liveKeys.add(name.replace(/^\//, ''));
+        }
+      }
+      if (liveKeys.size > 0 || sanitizedData.length === 0) {
+        const detailKey = this.detailKey(nodeId, 'container-detail');
+        const staleKeys = (await this.cache.getClient().hkeys(detailKey)).filter((key) => !liveKeys.has(key));
+        if (staleKeys.length > 0) await this.cache.getClient().hdel(detailKey, ...staleKeys);
+      }
     }
     if (this.isNodeDeleted(nodeId)) return current;
     if (materiallyChanged) {

@@ -9,6 +9,10 @@ const PRODUCTION_ARTIFACT_DIR = '/var/lib/gateway/ai-artifacts';
 const LOCAL_ARTIFACT_DIR = path.join(os.tmpdir(), 'opfield-ai-artifacts');
 export const AI_TOOL_OUTPUT_MAX_BYTES = 50 * 1024 * 1024;
 export const AI_TOOL_OUTPUT_CONVERSATION_MAX_BYTES = 250 * 1024 * 1024;
+/** Total of tool and sandbox outputs kept across all conversations; the oldest go first above it. */
+export const AI_GENERATED_ARTIFACTS_MAX_BYTES = 10 * 1024 * 1024 * 1024;
+/** An artifact without a live conversation is removed only after this long. */
+const ORPHAN_MIN_AGE_MS = 60 * 60 * 1000;
 const AI_TOOL_OUTPUT_READ_DEFAULT_BYTES = 32 * 1024;
 const AI_TOOL_OUTPUT_READ_MAX_BYTES = 64 * 1024;
 const AI_TOOL_OUTPUT_SEARCH_MAX_MATCHES = 50;
@@ -63,6 +67,7 @@ export interface AISandboxArtifactPage {
 export class AISandboxArtifactService {
   private readonly rootDir: string;
   private readonly conversationLocks = new Map<string, Promise<void>>();
+  private conversationLookup?: (conversationIds: string[]) => Promise<Set<string>>;
 
   constructor(env: Env) {
     this.rootDir =
@@ -381,55 +386,128 @@ export class AISandboxArtifactService {
     return { itemsDeleted, spaceFreedBytes };
   }
 
-  async getOrphanedStats(): Promise<{ count: number; totalSizeBytes: number }> {
+  /**
+   * Tells which of the given conversation ids still exist. Without it only artifacts that name no conversation are
+   * orphans; with it, so are the artifacts of a deleted conversation or user (their rows cascade, the files stayed).
+   */
+  setConversationLookup(lookup: (conversationIds: string[]) => Promise<Set<string>>): void {
+    this.conversationLookup = lookup;
+  }
+
+  private async orphanTest(
+    artifacts: AISandboxArtifactMetadata[]
+  ): Promise<(metadata: AISandboxArtifactMetadata) => boolean> {
+    const named = [...new Set(artifacts.map((metadata) => metadata.conversationId).filter((id): id is string => !!id))];
+    let existing: Set<string> | null = null;
+    if (this.conversationLookup && named.length > 0) {
+      try {
+        existing = await this.conversationLookup(named);
+      } catch {
+        // Unknown: treat every named conversation as alive.
+        existing = null;
+      }
+    }
+    return (metadata) => !metadata.conversationId || (existing !== null && !existing.has(metadata.conversationId));
+  }
+
+  async getOrphanedStats(): Promise<{
+    count: number;
+    totalSizeBytes: number;
+    allCount: number;
+    allSizeBytes: number;
+    capBytes: number;
+  }> {
     const artifacts = await this.readAllMetadata();
+    const isOrphan = await this.orphanTest(artifacts);
     let count = 0;
     let totalSizeBytes = 0;
+    let allSizeBytes = 0;
 
     for (const metadata of artifacts) {
-      if (metadata.conversationId) continue;
+      const size = await this.fileSize(metadata.id);
+      allSizeBytes += size;
+      if (!isOrphan(metadata)) continue;
       count += 1;
-      totalSizeBytes += await this.fileSize(metadata.id);
+      totalSizeBytes += size;
     }
 
-    return { count, totalSizeBytes };
+    return {
+      count,
+      totalSizeBytes,
+      allCount: artifacts.length,
+      allSizeBytes,
+      capBytes: AI_GENERATED_ARTIFACTS_MAX_BYTES,
+    };
   }
 
   async cleanOrphanedArtifacts(): Promise<{ itemsCleaned: number; spaceFreedBytes: number }> {
     await fs.mkdir(this.rootDir, { recursive: true, mode: 0o700 });
     const entries = await fs.readdir(this.rootDir).catch(() => []);
+    const artifacts = await this.readAllMetadata();
+    const isOrphan = await this.orphanTest(artifacts);
+    const known = new Set(artifacts.map((metadata) => metadata.id));
+    const now = Date.now();
     let itemsCleaned = 0;
     let spaceFreedBytes = 0;
+    const remove = async (id: string) => {
+      spaceFreedBytes += await this.fileSize(id);
+      await this.deleteFiles(id);
+      itemsCleaned += 1;
+    };
 
+    for (const metadata of artifacts) {
+      // A file is attached to its conversation after the upload: give that a while.
+      if (isOrphan(metadata) && now - Date.parse(metadata.createdAt) >= ORPHAN_MIN_AGE_MS) await remove(metadata.id);
+    }
+    // Metadata files that do not parse name nothing: orphans too, once they are not being written any more.
     for (const entry of entries) {
       if (!entry.endsWith('.json')) continue;
       const id = entry.slice(0, -5);
-      if (!isArtifactId(id)) continue;
-      const metaPath = this.metaPath(id);
-      let metadata: Partial<AISandboxArtifactMetadata> | null = null;
-      try {
-        metadata = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as Partial<AISandboxArtifactMetadata>;
-      } catch {
-        metadata = null;
-      }
-      if (metadata?.conversationId) continue;
+      if (!isArtifactId(id) || known.has(id)) continue;
+      const written = await fs
+        .stat(this.metaPath(id))
+        .then((stats) => stats.mtimeMs)
+        .catch(() => null);
+      if (written === null || now - written < ORPHAN_MIN_AGE_MS) continue;
+      await remove(id);
+    }
 
-      const filePath = this.filePath(id);
-      const size = await fs
-        .stat(filePath)
-        .then((stat) => stat.size)
-        .catch(() => 0);
-      await fs.unlink(filePath).catch(() => {});
-      await fs.unlink(metaPath).catch(() => {});
+    const capped = await this.enforceGeneratedArtifactCap(artifacts.filter((metadata) => !isOrphan(metadata)));
+    const interrupted = await this.cleanInterruptedFiles();
+    return {
+      itemsCleaned: itemsCleaned + capped.itemsCleaned + interrupted.itemsCleaned,
+      spaceFreedBytes: spaceFreedBytes + capped.spaceFreedBytes + interrupted.spaceFreedBytes,
+    };
+  }
+
+  /**
+   * Keeps the files tools and sandboxes generated (tool outputs, sandbox outputs) within
+   * AI_GENERATED_ARTIFACTS_MAX_BYTES in total by removing the oldest first. Files users attached are never removed here.
+   */
+  private async enforceGeneratedArtifactCap(
+    artifacts: AISandboxArtifactMetadata[]
+  ): Promise<{ itemsCleaned: number; spaceFreedBytes: number }> {
+    const generated = artifacts
+      .filter((metadata) => metadata.kind === 'tool_output' || metadata.kind === 'sandbox_output')
+      .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+    const sizes = new Map<string, number>();
+    let total = 0;
+    for (const metadata of generated) {
+      const size = await this.fileSize(metadata.id);
+      sizes.set(metadata.id, size);
+      total += size;
+    }
+    let itemsCleaned = 0;
+    let spaceFreedBytes = 0;
+    for (const metadata of generated) {
+      if (total <= AI_GENERATED_ARTIFACTS_MAX_BYTES) break;
+      const size = sizes.get(metadata.id) ?? 0;
+      await this.deleteFiles(metadata.id);
+      total -= size;
       itemsCleaned += 1;
       spaceFreedBytes += size;
     }
-
-    const interrupted = await this.cleanInterruptedFiles();
-    return {
-      itemsCleaned: itemsCleaned + interrupted.itemsCleaned,
-      spaceFreedBytes: spaceFreedBytes + interrupted.spaceFreedBytes,
-    };
+    return { itemsCleaned, spaceFreedBytes };
   }
 
   /** Remove incomplete atomic writes and data files left before metadata commit. */

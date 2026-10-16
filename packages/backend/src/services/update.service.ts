@@ -1510,7 +1510,15 @@ backup="$FOUNDATION_BACKUP_DIR"
 mkdir -p "$backup"
 chmod 700 "$backup"
 [ ! -f /host/.env ] || cp -p /host/.env "$backup/.env"
-[ ! -f /host/docker-compose.yml ] || cp -p /host/docker-compose.yml "$backup/docker-compose.yml"`,
+[ ! -f /host/docker-compose.yml ] || cp -p /host/docker-compose.yml "$backup/docker-compose.yml"
+# Earlier backups: the newest 3 stay, older ones go after 30 days.
+kept=0
+for dir in $(ls -1d "$(dirname "$backup")"/pre-update-* 2>/dev/null | sort -r); do
+  kept=$((kept + 1))
+  [ "$kept" -le 3 ] && continue
+  [ -n "$(find "$dir" -maxdepth 0 -mtime +30)" ] && rm -rf "$dir"
+done
+true`,
       ],
       Env: [`FOUNDATION_BACKUP_DIR=${backupDir}`],
       HostConfig: { Binds: [`${composeDir}:/host`] },

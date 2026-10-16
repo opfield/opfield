@@ -228,13 +228,18 @@ export class SessionService {
   async getUserSessions(userId: string): Promise<SessionData[]> {
     const sessionIds = await this.cache.smembers(`${USER_SESSIONS_PREFIX}${userId}`);
     const sessions: SessionData[] = [];
+    const expired: string[] = [];
 
     for (const sessionId of sessionIds) {
       const session = await this.getSession(sessionId);
       if (session) {
         sessions.push(session);
+      } else {
+        expired.push(sessionId);
       }
     }
+    // Ids of sessions that expired stay in the set (it lives as long as the newest session): drop them here.
+    if (expired.length > 0) await this.cache.srem(`${USER_SESSIONS_PREFIX}${userId}`, ...expired).catch(() => 0);
 
     return sessions;
   }

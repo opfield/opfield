@@ -131,6 +131,46 @@ export async function removeLeftoverHelpers(docker: DockerService, project: stri
   }
 }
 
+/**
+ * What an export that crashed or was cut off left behind, removed while no export runs: its helpers, the ClickHouse
+ * hard-link snapshot (it pins every part ClickHouse merged away since, growing towards a second copy of the logs)
+ * and the database dump in the Postgres container. Returns how many were found.
+ */
+export async function removeExportLeftovers(docker: DockerService, installation: ComposeInstallation): Promise<number> {
+  let removed = 0;
+  for (const label of [HELPER_LABEL, LEGACY_HELPER_LABEL]) {
+    for (const helper of await docker.listContainersByLabel(`${label}=${installation.project}`)) {
+      await docker.removeContainer(helper.Id).then(
+        () => (removed += 1),
+        () => {}
+      );
+    }
+  }
+  if (installation.clickhouse) {
+    const result = await docker.runOneShot(
+      {
+        Image: installation.helperImage,
+        Cmd: [
+          'sh',
+          '-c',
+          `if [ -e /clickhouse/${CLICKHOUSE_SNAPSHOT_DIR} ]; then rm -rf /clickhouse/${CLICKHOUSE_SNAPSHOT_DIR} && echo removed; fi`,
+        ],
+        Labels: { [HELPER_LABEL]: installation.project },
+        HostConfig: { Binds: [`${installation.clickhouse.volume}:/clickhouse`], NetworkMode: 'none' },
+      },
+      10 * 60_000
+    );
+    if (result.exitCode === 0 && result.output.includes('removed')) removed += 1;
+  }
+  const dump = await docker.execInContainer(installation.postgres, [
+    'sh',
+    '-c',
+    `if [ -e /tmp/${DATABASE_DUMP_FILE} ]; then rm -f /tmp/${DATABASE_DUMP_FILE} && echo removed; fi`,
+  ]);
+  if (dump.exitCode === 0 && dump.output.includes('removed')) removed += 1;
+  return removed;
+}
+
 /** Opens a tar stream of the wrapped content; `close` removes what the stream needed. */
 export interface TransferStream {
   stream: Readable;
