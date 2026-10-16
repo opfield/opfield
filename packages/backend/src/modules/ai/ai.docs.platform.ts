@@ -92,13 +92,15 @@ No restart is required. If inference is disabled, inference tools fail instead o
 
 ## Administrative Tools
 
-- \`manage_inference_provider\`: list templates/connections, connect API keys, start or inspect supported authorization flows, sync, rename, enable/disable, configure quota reserves/API budgets/routing, or disconnect.
-- \`manage_inference_model\`: list models, inspect account suggestions, atomically create/replace a complete model configuration, or delete a model.
-- \`manage_inference_limits\`: list default/per-user policies and configure or remove overrides. The current Assistant tool does not reset accumulated usage baselines.
-- \`manage_inference_usage\`: self and self_overview (the caller's usage and remaining budget; feat:ai:use), system (Opfield-wide overview; \`unpriced\` lists models whose requests ran without a price in the last 7 days), users (per-user usage), activity_filters, and activity (request log filtered by search, status, userId, model; paginated; \`costUnknown\` marks a request with no price). system, users, and activity need inference:usage:view.
-- \`manage_inference_token\`: list, create, update (name, expiresAt, allowedIps), or revoke the current user's \`opfi_\` tokens. It cannot issue a token for another user. expiresAt is an ISO date-time in the future (null: no expiry); allowedIps holds up to 20 IPv4/IPv6 addresses or CIDR ranges ([] allows any). An expired token is refused and removed by housekeeping after the Expired Tokens period.
+Every operation below is in the tool's \`operation\` enum; the scope each one needs is checked per operation.
 
-Always inspect current state before mutation. Use \`internal_documentation({ topic: "inference" })\` before multi-step inference work.
+- \`manage_inference_provider\` (\`inference:providers:view\` for list_templates, list_connections and core_status; \`inference:providers:manage\` for the rest): list_templates, list_connections, connect_api_key, start_authorization, authorization_status, complete_authorization (finish a paste-back sign-in with \`callback\`), cancel_authorization, sync, update (name, enabled, routingOrder, minimumRemainingPercent, apiMonthlyLimitUsd), set_routing (providerId, routingStrategy even | balanced | sequential), disconnect, and the managed inference core: core_status, core_check_updates, core_install (optional coreVersion), core_update (coreVersion), core_repair. Core operations work while inference is disabled.
+- \`manage_inference_model\` (\`inference:models:manage\`): list, suggestions (modelId), save (atomic create or full replace), reorder (\`items\` of { id, sortOrder }: the published model order) and delete (modelId).
+- \`manage_inference_limits\` (\`inference:limits:manage\`): list_policies, list_users, set_default (policy), set_user (userId, policy), remove_user (userId: back to the default policy) and reset_user (userId: reset the user's usage baselines, see below).
+- \`manage_inference_usage\`: self and self_overview (the caller's usage and remaining budget; feat:ai:use), system (Opfield-wide overview; \`unpriced\` lists models whose requests ran without a price in the last 7 days), users (per-user usage), activity_filters, and activity (request log filtered by search, status, userId, model; paginated; \`costUnknown\` marks a request with no price). system, users, activity_filters and activity need inference:usage:view.
+- \`manage_inference_token\` (feat:ai:use): list, create, update (name, expiresAt, allowedIps), or revoke the current user's \`opfi_\` tokens. It cannot issue a token for another user. expiresAt is an ISO date-time in the future (null: no expiry); allowedIps holds up to 20 IPv4/IPv6 addresses or CIDR ranges ([] allows any). An expired token is refused and removed by housekeeping after the Expired Tokens period.
+
+Always inspect current state before mutation. Read this topic before multi-step inference work: \`read_opfield_documentation({ topic: "inference" })\` over MCP, \`internal_documentation({ topic: "inference" })\` in AI Workspace.
 
 ## Provider Workflow
 
@@ -110,6 +112,7 @@ Always inspect current state before mutation. Use \`internal_documentation({ top
 
 Each connection row is one account or API key. There is no Pool resource. Opfield groups compatible connections automatically per provider/model:
 
+- \`even\`: spreads new threads evenly across every routable connection, ignoring how much quota each has left, while retaining thread affinity;
 - \`balanced\`: distributes new threads across every connection whose reported quota is above its configured minimum, weighted by remaining quota, while retaining thread affinity;
 - \`sequential\`: uses the lowest routingOrder connection until unavailable, then moves down the list.
 
@@ -126,11 +129,11 @@ Subscription connections can set minimumRemainingPercent from 1 to 100. The same
 7. API pricing is versioned. Pricing values are integer microdollars per million tokens: $5.00 per million tokens is 5,000,000 microdollars. Prefer synchronized/known pricing; use manual pricing only when provider metadata is unavailable. Pricing is optional: an API source with no input/output price (list shows \`priceMissing: true\` and the model \`priceWarning\`) still serves requests. Their tokens are recorded, their cost is unknown (\`costUnknown: true\` in activity, not $0), they are not charged to or refused by API budgets, and \`manage_inference_usage\` system lists them under \`unpriced\`. Tell the user and offer to set a price.
 
 \`save\` is the only model mutation workflow. Do not attempt partial model/source/pricing/access updates.
-Published model order is persisted separately and controls API catalog and AI Workspace ordering. The current Assistant model tool does not expose reorder; use the Inference settings UI or the documented reorder REST endpoint.
+Published model order is persisted separately and controls API catalog and AI Workspace ordering. Change it with \`manage_inference_model({ operation: "reorder", items: [{ id, sortOrder }] })\` (lower sortOrder first), the Inference settings UI, or the reorder REST endpoint.
 
 ## Default And Per-user Limits
 
-\`manage_inference_limits\` uses one complete policy object. \`enabled\` controls inference access. Subscription windows use credits5hEnabled/credits5h, credits7dEnabled/credits7d, and credits30dEnabled/credits30d. One public subscription credit represents 1,000,000 weighted tokens before model, dynamic-burn, and service-tier multipliers. A disabled window is unlimited; if all three are disabled, subscription-credit usage is unlimited. apiMonthlyMicrodollars is the user's monthly API budget and 0 disables API usage. When API usage is disabled, models whose usable sources are API-only are omitted from OpenAI, harness, and internal Assistant catalogs for that user. billingTimezone is an IANA timezone. Per-user policies override the default policy. Administrators can reset all four usage baselines for one user from the Inference limits UI or \`POST /api/inference/limits/users/{id}/reset\`; this preserves immutable request/ledger history and is not currently exposed by \`manage_inference_limits\`.
+\`manage_inference_limits\` uses one complete policy object. \`enabled\` controls inference access. Subscription windows use credits5hEnabled/credits5h, credits7dEnabled/credits7d, and credits30dEnabled/credits30d. One public subscription credit represents 1,000,000 weighted tokens before model, dynamic-burn, and service-tier multipliers. A disabled window is unlimited; if all three are disabled, subscription-credit usage is unlimited. apiMonthlyMicrodollars is the user's monthly API budget and 0 disables API usage. When API usage is disabled, models whose usable sources are API-only are omitted from OpenAI, harness, and internal Assistant catalogs for that user. billingTimezone is an IANA timezone. Per-user policies override the default policy. Administrators can reset all four usage baselines for one user with \`manage_inference_limits({ operation: "reset_user", userId })\`, from the Inference limits UI, or with \`POST /api/inference/limits/users/{id}/reset\`; this preserves immutable request/ledger history.
 
 ## User Tokens And Harness Setup
 
