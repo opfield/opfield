@@ -385,6 +385,11 @@ message DiskMount {
   int64 used_bytes = 5;
   int64 free_bytes = 6;
   double usage_percent = 7;
+  // What the mount holds, so a disk alert can watch every data disk and skip Opfield's own disk images:
+  // "root" (mount point /), "docker_root" (Docker's data root), "opfield_state" (the daemon's state or managed
+  // storage root), "managed_image" (a disk image of a managed database, storage or volume) or "data" (any other).
+  // Empty from daemons before 2.12.3.
+  string role = 8;
 }
 
 message NetworkInterface {

@@ -214,6 +214,8 @@ export interface HealthReport {
     usedBytes: string;
     freeBytes: string;
     usagePercent: number;
+    /** root, docker_root, opfield_state, managed_image or data; empty from daemons before 2.12.3. */
+    role?: string;
   }>;
   diskReadBytes: string;
   diskWriteBytes: string;

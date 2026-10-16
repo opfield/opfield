@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -1119,6 +1120,23 @@ func (h *seaweedfsSetHost) DiskFree() (uint64, bool, bool) {
 		return 0, false, false
 	}
 	return uint64(max(space.Free, 0)), seaweedfsFull(space, seaweedfsSizingFor(record.StorageBytes)), true
+}
+
+// PlanReclaim plans a set's compaction as a single node's (managed_storage_reclaim.go),
+// against the fullest member disk: every copy of a volume is compacted on its
+// own member.
+func (h *seaweedfsSetHost) PlanReclaim(volumeStatus []byte, fullest swha.DiskSpace) (swha.ReclaimPlan, error) {
+	record, err := h.storage.loadRecord(h.id)
+	if err != nil {
+		return swha.ReclaimPlan{}, err
+	}
+	volumes, err := parseSeaweedFSVolumeStatus(volumeStatus)
+	if err != nil {
+		return swha.ReclaimPlan{}, err
+	}
+	space := storageSpace{Free: int64(min(fullest.Free, uint64(math.MaxInt64))), Total: int64(min(fullest.Total, uint64(math.MaxInt64)))}
+	plan := planSeaweedFSReclaim(volumes, space, seaweedfsSizingFor(record.StorageBytes))
+	return swha.ReclaimPlan{Threshold: plan.Threshold, VolumeIDs: plan.VolumeIDs}, nil
 }
 
 func (h *seaweedfsSetHost) StateDir() string {

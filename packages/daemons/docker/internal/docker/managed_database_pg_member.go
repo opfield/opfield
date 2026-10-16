@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -118,6 +119,9 @@ type pgMember struct {
 
 	mu      sync.Mutex
 	waiters map[string]time.Time
+	// idleSlots is when the primary first saw each member slot unused (in
+	// memory: a daemon restart starts the clock again).
+	idleSlots map[string]time.Time
 }
 
 var _ pgha.Postgres = (*pgMember)(nil)
@@ -182,6 +186,9 @@ func (e *pgMember) PrepareStandby(ctx context.Context, config pgha.StandbyConfig
 			return err
 		}
 	}
+	// Every start bounds the diverged WAL copies a rejoin kept (volumes of
+	// older releases too).
+	e.m.prunePGMemberLeftovers(record)
 	return writePGStandbyAtRest(e.pgdata(record), record.StorageSize, config)
 }
 
@@ -190,7 +197,7 @@ func writePGStandbyAtRest(pgdata string, storageBytes int64, config pgha.Standby
 	if _, err := os.Stat(filepath.Join(pgdata, "PG_VERSION")); err != nil {
 		return fmt.Errorf("the data directory is not initialized: %w", err)
 	}
-	if err := pgUpdateAutoConf(pgdata, pgMemberAutoConfKeys, pgMemberAutoConf(config, storageBytes)); err != nil {
+	if err := writePGMemberAutoConf(pgdata, storageBytes, config); err != nil {
 		return err
 	}
 	return writePGStandbySignal(pgdata)
@@ -638,26 +645,136 @@ func (e *pgMember) Promote(ctx context.Context) error {
 
 // SyncSlots keeps exactly the given member slots (M9): other member slots are
 // dropped (their walsenders ended first), missing ones created reserving WAL
-// at once; on a standby the kept slots follow the replay position.
+// at once; on a standby the kept slots follow the replay position. On the
+// primary a kept slot nobody streamed from for pgIdleSlotReset, or one
+// Postgres invalidated, is reset (dropped and created again at the current
+// position): it stops holding WAL and the oldest transaction id. Its member
+// streams on when the WAL it needs is still there; otherwise its walreceiver
+// reports the WAL removed and the member rejoins with a rebuild. The slots'
+// WAL limit follows the volume's free space (pgSlotWALKeepBytes).
 func (e *pgMember) SyncSlots(ctx context.Context, keep []string) error {
-	list := make([]string, len(keep))
-	for i, name := range keep {
-		list[i] = pgLiteral(name)
-	}
-	array := "ARRAY[" + strings.Join(list, ",") + "]::text[]"
+	array := pgTextArray(keep)
+	now := time.Now()
+	reset := e.idleSlotsDue(now)
 	// Only the member slots (gw_ha_*); the temporary slots of a running
 	// pg_basebackup belong to it and are never touched.
 	stale := `slot_type = 'physical' AND NOT temporary AND slot_name LIKE 'gw\_ha\_%' AND NOT (slot_name = ANY(` + array + `))`
 	statements := []string{
 		`SELECT pg_terminate_backend(active_pid) FROM pg_replication_slots WHERE active_pid IS NOT NULL AND ` + stale,
 		`SELECT pg_drop_replication_slot(slot_name) FROM pg_replication_slots WHERE NOT active AND ` + stale,
+		`SELECT pg_drop_replication_slot(slot_name) FROM pg_replication_slots WHERE NOT pg_is_in_recovery() AND NOT active
+		   AND slot_type = 'physical' AND NOT temporary AND slot_name = ANY(` + array + `)
+		   AND (wal_status = 'lost' OR slot_name = ANY(` + pgTextArray(reset) + `))`,
 		`SELECT pg_create_physical_replication_slot(name, true) FROM unnest(` + array + `) AS name WHERE name NOT IN (SELECT slot_name FROM pg_replication_slots)`,
 		`SELECT pg_replication_slot_advance(slot_name, pg_last_wal_replay_lsn()) FROM pg_replication_slots
 		   WHERE pg_is_in_recovery() AND slot_name = ANY(` + array + `) AND NOT active AND pg_last_wal_replay_lsn() IS NOT NULL
 		   AND (restart_lsn IS NULL OR restart_lsn < pg_last_wal_replay_lsn())`,
+		`SELECT '` + pgSlotIdleTag + `' || slot_name FROM pg_replication_slots WHERE NOT pg_is_in_recovery() AND NOT active AND slot_name = ANY(` + array + `)`,
+		`SELECT '` + pgSlotKeepTag + `' || CASE WHEN pg_is_in_recovery() THEN 'standby' ELSE (SELECT setting FROM pg_settings WHERE name = 'max_slot_wal_keep_size') END`,
 	}
-	_, err := e.psql(ctx, statements...)
+	output, err := e.psql(ctx, statements...)
+	if err != nil {
+		return err
+	}
+	idle, keepMB, primary := parsePGSlotObservation(output)
+	e.trackIdleSlots(now, idle, reset)
+	if !primary {
+		return nil
+	}
+	return e.refreshSlotWALKeep(ctx, keepMB)
+}
+
+const (
+	pgSlotIdleTag = "gw-slot-idle|"
+	pgSlotKeepTag = "gw-slot-keep|"
+)
+
+func pgTextArray(values []string) string {
+	list := make([]string, len(values))
+	for i, value := range values {
+		list[i] = pgLiteral(value)
+	}
+	return "ARRAY[" + strings.Join(list, ",") + "]::text[]"
+}
+
+// parsePGSlotObservation reads the tagged rows of SyncSlots: the unused
+// member slots, the running max_slot_wal_keep_size (MB) and whether the
+// server is the primary.
+func parsePGSlotObservation(output string) (idle []string, keepMB int64, primary bool) {
+	keepMB = -1
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if name, ok := strings.CutPrefix(line, pgSlotIdleTag); ok && name != "" {
+			idle = append(idle, name)
+		} else if value, ok := strings.CutPrefix(line, pgSlotKeepTag); ok && value != "standby" {
+			primary = true
+			if parsed, ok := pgParseMegabytes(value); ok {
+				keepMB = parsed
+			}
+		}
+	}
+	return idle, keepMB, primary
+}
+
+// idleSlotsDue are the member slots unused for pgIdleSlotReset.
+func (e *pgMember) idleSlotsDue(now time.Time) []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var due []string
+	for name, since := range e.idleSlots {
+		if now.Sub(since) >= pgIdleSlotReset {
+			due = append(due, name)
+		}
+	}
+	sort.Strings(due)
+	return due
+}
+
+// trackIdleSlots records the slots seen unused; a reset slot's clock starts
+// again.
+func (e *pgMember) trackIdleSlots(now time.Time, idle, reset []string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	next := make(map[string]time.Time, len(idle))
+	for _, name := range idle {
+		since, ok := e.idleSlots[name]
+		if !ok || slices.Contains(reset, name) {
+			since = now
+		}
+		next[name] = since
+	}
+	e.idleSlots = next
+}
+
+// refreshSlotWALKeep applies the slots' WAL limit live on the primary when
+// it moved by more than pgSlotKeepTolerance percent (a volume grow, free
+// space shrinking or coming back).
+func (e *pgMember) refreshSlotWALKeep(ctx context.Context, currentMB int64) error {
+	record, err := e.record()
+	if err != nil {
+		return err
+	}
+	var configuredMB int64
+	if e.config != nil {
+		configuredMB = e.config().Engine.Parameters.MaxSlotWalKeepSizeMB
+	}
+	wantMB := max(pgSlotWALKeepBytes(configuredMB, record.StorageSize, pgFreeBytesAt(record.MountPath))>>20, 1)
+	if !pgSlotKeepNeedsUpdate(currentMB, wantMB) {
+		return nil
+	}
+	_, err = e.psql(ctx, "ALTER SYSTEM SET max_slot_wal_keep_size = "+pgLiteral(strconv.FormatInt(wantMB, 10)+"MB"), "SELECT pg_reload_conf()")
 	return err
+}
+
+func pgSlotKeepNeedsUpdate(currentMB, wantMB int64) bool {
+	if currentMB < 0 {
+		return true
+	}
+	diff := currentMB - wantMB
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff*100 > currentMB*pgSlotKeepTolerance
 }
 
 // EnsureIdentities converges the set principals on the primary (M6): one

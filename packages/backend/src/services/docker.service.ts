@@ -720,12 +720,12 @@ export class DockerService {
   }
 
   /** The Docker daemon's own information (default logging driver and so on). */
-  async getDaemonInfo(): Promise<{ LoggingDriver?: string }> {
+  async getDaemonInfo(): Promise<{ LoggingDriver?: string; DockerRootDir?: string }> {
     const res = await this.request('GET', `${API_VERSION}/info`);
     if (res.statusCode !== 200) {
       throw new Error(`Docker info failed (${res.statusCode}): ${res.body}`);
     }
-    return JSON.parse(res.body) as { LoggingDriver?: string };
+    return JSON.parse(res.body) as { LoggingDriver?: string; DockerRootDir?: string };
   }
 
   /**

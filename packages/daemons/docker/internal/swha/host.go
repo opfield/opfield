@@ -56,6 +56,9 @@ type Host interface {
 	// DiskFree is the free space of the member's data disk (0, false: unknown)
 	// and whether the volume server stops taking writes there.
 	DiskFree() (free uint64, full bool, ok bool)
+	// PlanReclaim picks the volumes worth compacting from the master's
+	// /vol/status answer and the fullest member disk (maintenance.go).
+	PlanReclaim(volumeStatus []byte, fullest DiskSpace) (ReclaimPlan, error)
 	// StateDir holds the engine's own files.
 	StateDir() string
 	// Serve attaches the member's direct publication (no-op without a port).

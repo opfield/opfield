@@ -75,8 +75,9 @@ func ExportVolume(ctx context.Context, c *Client, volumeName string, maxBytes in
 	defer cancel()
 	created, err := c.cli.ContainerCreate(createCtx, client.ContainerCreateOptions{
 		Config: &container.Config{
-			Image: volumeHelperImage,
-			Cmd:   []string{"sleep", "60"},
+			Image:  volumeHelperImage,
+			Cmd:    []string{"sleep", "60"},
+			Labels: helperContainerLabels(helperKindVolume, nil),
 		},
 		HostConfig: &container.HostConfig{
 			LogConfig: internalContainerLogConfig(),
@@ -267,6 +268,8 @@ func InitVolumeChunkedFileUpload(ctx context.Context, c *Client, volumeName stri
 	if _, err := runWritableVolumeHelper(ctx, c, volumeName, []string{"test", "-w", parent}, 1024); err != nil {
 		return fmt.Errorf("parent directory is not writable: %s", filepath.Dir(filepath.Clean(targetPath)))
 	}
+	// Abandoned uploads into this directory (a closed browser, an Opfield restart) leave their temp files; best effort.
+	_, _ = runWritableVolumeHelper(ctx, c, volumeName, staleUploadTempCleanupCommand(parent), 1024)
 	if _, err := runWritableVolumeHelper(ctx, c, volumeName, []string{"rm", "-f", tempPath}, 1024); err != nil {
 		return fmt.Errorf("remove stale upload temp file: %w", err)
 	}
@@ -412,6 +415,7 @@ func runMountedVolumeHelperWithInput(ctx context.Context, c *Client, mounts []mo
 			AttachStdin:  input != nil,
 			OpenStdin:    input != nil,
 			StdinOnce:    input != nil,
+			Labels:       helperContainerLabels(helperKindVolume, nil),
 		},
 		HostConfig: &container.HostConfig{
 			LogConfig: internalContainerLogConfig(),
@@ -488,8 +492,9 @@ func readMountedVolumePathArchive(ctx context.Context, c *Client, mounts []mount
 	defer cancel()
 	created, err := c.cli.ContainerCreate(createCtx, client.ContainerCreateOptions{
 		Config: &container.Config{
-			Image: volumeHelperImage,
-			Cmd:   []string{"sleep", "60"},
+			Image:  volumeHelperImage,
+			Cmd:    []string{"sleep", "60"},
+			Labels: helperContainerLabels(helperKindVolume, nil),
 		},
 		HostConfig: &container.HostConfig{
 			LogConfig: internalContainerLogConfig(),

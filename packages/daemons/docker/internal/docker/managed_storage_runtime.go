@@ -75,6 +75,9 @@ type managedStorageManager struct {
 	// capacity is whether each SeaweedFS storage takes writes
 	// (managed_storage_capacity.go).
 	capacity seaweedfsCapacityTracker
+	// housekept is when each SeaweedFS storage last had its abandoned
+	// uploads and old metadata log removed (managed_storage_reclaim.go).
+	housekept seaweedfsHousekeeping
 }
 
 func (m *managedStorageManager) loopHost() *loopHost {
@@ -140,8 +143,12 @@ func (m *managedStorageManager) storageRootHealthMount() (*pb.DiskMount, error) 
 	// storage-manager work, nor space the existing images may still take as
 	// they fill up. This marker is explicitly allocatable capacity; managed
 	// workload mounts below remain raw ext4 filesystem metrics.
-	allocatable := max(int64(0), usage.Available(m.reserve))
-	used := total - allocatable
+	available := usage.Available(m.reserve)
+	allocatable := max(int64(0), available)
+	// Used counts the space promised to the images and the reserve too, so it
+	// is over the total (usage over 100%) while the disk is oversubscribed:
+	// Opfield alerts on that.
+	used := total - available
 	usagePercent := 0.0
 	if total > 0 {
 		usagePercent = float64(used) / float64(total) * 100
@@ -488,6 +495,7 @@ func (m *managedStorageManager) reconcile(ctx context.Context) error {
 			if err := ensureEngineRestartPolicy(ctx, m.client, record.ContainerID); err != nil {
 				m.logger.Warn("managed storage engine keeps Docker's restart policy", "id", id, "error", err)
 			}
+			m.healReplacedContainers(ctx, record)
 		}
 		if record.Removed || !record.DesiredRunning {
 			continue

@@ -124,6 +124,18 @@ func (m *managedDatabaseManager) watchDisks(ctx context.Context, trims *diskTrim
 		if trims.due("database/"+record.ID, urgent) {
 			trimInstanceDisk(m.loopHost(), m.logger, "managed database", record.ID, record.MountPath)
 		}
+		if record.Type == "redis" && trims.due("redis-upkeep/"+record.ID, false) {
+			if repaired, err := repairRedisAOFRewrite(record); err != nil {
+				m.logger.Warn("could not repair the key-value store's AOF rewrite setting", "id", record.ID, "error", err)
+			} else if repaired {
+				m.logger.Info("the key-value store's automatic AOF rewrite is on again from its next start", "id", record.ID)
+			}
+		}
+		if record.Type == "postgres" && trims.due("postgres-upkeep/"+record.ID, false) {
+			// Running databases heal too, not only at their next start.
+			m.prunePGMemberLeftovers(record)
+			m.ensurePGCronPurge(ctx, record)
+		}
 	}
 }
 

@@ -176,6 +176,20 @@ export const inferenceUsageLedger = pgTable(
   ]
 );
 
+/**
+ * Usage of each user that housekeeping removed with old inference requests (see Housekeeping, Inference Usage), so
+ * the lifetime figure still counts it.
+ */
+export const inferenceUsageLifetimeTotals = pgTable('inference_usage_lifetime_totals', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  tokens: bigint('tokens', { mode: 'number' }).notNull().default(0),
+  credits: numeric('credits', { precision: 24, scale: 6 }).notNull().default('0'),
+  apiMicrodollars: bigint('api_microdollars', { mode: 'number' }).notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const inferenceLimitUsageResets = pgTable(
   'inference_limit_usage_resets',
   {

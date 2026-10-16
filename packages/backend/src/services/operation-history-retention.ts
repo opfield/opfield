@@ -78,6 +78,122 @@ function buildBatchesWhere(cutoff: Date): SQL {
     )`;
 }
 
+/**
+ * `"id" NOT IN` the newest `keep` rows of each `partition` (or of the whole table without one), by `order` descending.
+ * The newest runs of every owner stay whatever their age, so each resource still shows its recent history.
+ */
+function notAmongNewest(table: string, partition: string | null, order: string, keep: number): SQL {
+  const over = partition
+    ? `PARTITION BY "${partition}" ORDER BY ${order} DESC, "id" DESC`
+    : `ORDER BY ${order} DESC, "id" DESC`;
+  return sql.raw(
+    `"id" NOT IN (SELECT "ranked"."id" FROM (SELECT "id", row_number() OVER (${over}) AS "rn" FROM "${table}") "ranked" WHERE "ranked"."rn" <= ${keep})`
+  );
+}
+
+/**
+ * Finished run records that nothing removed before: each table only grew. Only finished rows older than the cutoff
+ * go, never a running one, and the newest rows of each owner stay.
+ */
+function recordHistoryTargets(cutoff: Date): KeyedTarget[] {
+  const keep = OPERATION_HISTORY_KEEP_PER_OWNER;
+  return [
+    {
+      // Every run stores its progress, with the full candidate id lists.
+      name: 'registry maintenance runs',
+      table: 'docker_registry_maintenance_runs',
+      key: 'id',
+      where: sql`"status" <> 'running' AND coalesce("completed_at", "updated_at") < ${cutoff}
+        AND ${notAmongNewest('docker_registry_maintenance_runs', null, '"created_at"', keep)}`,
+    },
+    {
+      // Steps go with their run (on delete cascade).
+      name: 'relay pool update runs',
+      table: 'relay_pool_update_runs',
+      key: 'id',
+      where: sql`"state" IN ('complete', 'failed') AND coalesce("completed_at", "updated_at") < ${cutoff}
+        AND ${notAmongNewest('relay_pool_update_runs', 'pool_id', '"started_at"', keep)}`,
+    },
+    {
+      name: 'deployment releases',
+      table: 'docker_deployment_releases',
+      key: 'id',
+      where: sql`"status" <> 'running' AND coalesce("completed_at", "created_at") < ${cutoff}
+        AND ${notAmongNewest('docker_deployment_releases', 'deployment_id', '"created_at"', keep)}`,
+    },
+    {
+      // A migration that still holds a node lock is left alone (the lock would go with it).
+      name: 'container migrations',
+      table: 'docker_migrations',
+      key: 'id',
+      where: sql`"status" IN ('completed', 'failed', 'cancelled') AND coalesce("completed_at", "updated_at") < ${cutoff}
+        AND NOT EXISTS (SELECT 1 FROM "docker_migration_node_locks" "lock" WHERE "lock"."migration_id" = "docker_migrations"."id")
+        AND ${notAmongNewest('docker_migrations', 'source_node_id', '"created_at"', keep)}`,
+    },
+    {
+      name: 'storage copy jobs',
+      table: 'storage_copy_jobs',
+      key: 'id',
+      where: sql`"status" IN ('completed', 'failed', 'cancelled') AND coalesce("completed_at", "updated_at") < ${cutoff}
+        AND ${notAmongNewest('storage_copy_jobs', null, '"created_at"', keep)}`,
+    },
+    {
+      // A job keeps its row until its workspace reservation is released.
+      name: 'sandbox jobs',
+      table: 'sandbox_jobs',
+      key: 'id',
+      where: sql`"status" IN ('exited', 'killed', 'timeout', 'failed', 'revoked', 'expired')
+        AND "workspace_reservation_released_at" IS NOT NULL
+        AND coalesce("finished_at", "updated_at") < ${cutoff}`,
+    },
+    {
+      name: 'inference core operations',
+      table: 'inference_core_operations',
+      key: 'id',
+      where: sql`"status" <> 'running' AND coalesce("finished_at", "heartbeat_at") < ${cutoff}
+        AND ${notAmongNewest('inference_core_operations', null, '"created_at"', keep)}`,
+    },
+    {
+      name: 'app promotions',
+      table: 'app_promotions',
+      key: 'id',
+      where: sql`"status" <> 'running' AND coalesce("finished_at", "started_at") < ${cutoff}
+        AND ${notAmongNewest('app_promotions', 'app_id', '"started_at"', keep)}`,
+    },
+    {
+      name: 'app incidents',
+      table: 'app_incidents',
+      key: 'id',
+      where: sql`"state" IN ('released', 'failed') AND coalesce("released_at", "updated_at") < ${cutoff}
+        AND ${notAmongNewest('app_incidents', 'app_id', '"started_at"', keep)}`,
+    },
+    {
+      // Sign-in sessions live minutes; a finished or expired one is never read again.
+      name: 'GitHub sign-in sessions',
+      table: 'integration_github_oauth_sessions',
+      key: 'id',
+      where: sql`"expires_at" < ${cutoff}`,
+    },
+    {
+      // Earlier generations of a proxy host's certificate placement. The newest generations of each host stay:
+      // the next generation number continues from the highest.
+      name: 'proxy host certificate deployments',
+      table: 'nginx_proxy_host_deployments',
+      key: 'id',
+      where: sql`"state" IN ('superseded', 'failed') AND "updated_at" < ${cutoff}
+        AND ${notAmongNewest('nginx_proxy_host_deployments', 'host_id', '"updated_at"', keep)}`,
+    },
+    {
+      // Deleted image records of images that are not builds (a build's records go with the build). A pin keeps one.
+      name: 'deleted image records',
+      table: 'docker_build_artifacts',
+      key: 'id',
+      where: sql`"status" = 'deleted' AND "owner_kind" <> 'build' AND "updated_at" < ${cutoff}
+        AND NOT EXISTS (SELECT 1 FROM "docker_artifact_pins" "pin" WHERE "pin"."artifact_id" = "docker_build_artifacts"."id")`,
+    },
+  ];
+}
+
 function operationTargets(cutoff: Date): KeyedTarget[] {
   const keep = OPERATION_HISTORY_KEEP_PER_OWNER;
   return [
@@ -107,6 +223,7 @@ function operationTargets(cutoff: Date): KeyedTarget[] {
         AND "id" NOT IN (SELECT "ranked"."id" FROM (SELECT "id", row_number() OVER (PARTITION BY "policy_id" ORDER BY "created_at" DESC, "id" DESC) AS "rn" FROM "docker_availability_operations") "ranked" WHERE "ranked"."rn" <= ${keep})
         AND "id" NOT IN (SELECT "latest"."id" FROM (SELECT "id", row_number() OVER (PARTITION BY "policy_id", "type" ORDER BY "created_at" DESC, "id" DESC) AS "rn" FROM "docker_availability_operations") "latest" WHERE "latest"."rn" = 1)`,
     },
+    ...recordHistoryTargets(cutoff),
     {
       // Create/install operations of a node that still exists record which
       // hosting connector owns it, and snapshots point at their operation.
@@ -331,4 +448,103 @@ export async function countExpiredOAuthGrants(db: Executor, now = new Date()) {
   let total = 0;
   for (const target of oauthTargets(now)) total += await countWhere(db, target.table, target.where);
   return total;
+}
+
+/** Build logs kept by default: their age (finished builds) and the total size of every stored log. */
+export const DEFAULT_BUILD_LOG_RETENTION_DAYS = 30;
+export const DEFAULT_BUILD_LOG_MAX_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
+/** The log of each source's newest finished builds stays whatever its age, so the latest failure can still be read. */
+export const BUILD_LOGS_KEPT_PER_SOURCE = 3;
+/** Builds whose logs are removed per step. */
+const BUILD_LOG_BUILD_BATCH = 50;
+
+/** Finished builds whose log may go: not among the newest finished builds of their source. */
+function removableBuildLogsWhere(): SQL {
+  return sql.raw(`"build"."status" IN ('succeeded', 'failed', 'cancelled', 'superseded')
+    AND "build"."id" NOT IN (SELECT "ranked"."id" FROM (SELECT "id", row_number() OVER (PARTITION BY "source_binding_id" ORDER BY coalesce("completed_at", "updated_at") DESC, "id" DESC) AS "rn" FROM "docker_builds" WHERE "status" IN ('succeeded', 'failed', 'cancelled', 'superseded')) "ranked" WHERE "ranked"."rn" <= ${BUILD_LOGS_KEPT_PER_SOURCE})`);
+}
+
+/**
+ * Remove the logs of finished builds older than `retentionDays` (the build records stay with operation history),
+ * then, while every stored build log together is larger than `maxSizeBytes`, the logs of the oldest finished builds.
+ * A running build's log and the newest finished builds of each source are never touched.
+ */
+export async function cleanBuildLogs(
+  db: Executor,
+  options: { retentionDays: number; maxSizeBytes: number },
+  now = new Date()
+): Promise<{ builds: number; chunks: number; bytes: number }> {
+  const cutoff = operationHistoryCutoff(options.retentionDays, now);
+  let builds = 0;
+  let chunks = 0;
+  let bytes = 0;
+  const removeLogs = async (ids: Array<{ id: string; bytes: number | string }>) => {
+    chunks += await deleteBuildLogChunks(
+      db,
+      ids.map((row) => row.id)
+    );
+    builds += ids.length;
+    bytes += ids.reduce((sum, row) => sum + Number(row.bytes ?? 0), 0);
+  };
+  for (let step = 0; step < MAX_BATCHES_PER_TARGET; step += 1) {
+    const aged = rowsOf<{ id: string; bytes: number | string }>(
+      await db.execute(
+        sql`SELECT "build"."id", (SELECT coalesce(sum("chunk"."byte_length"), 0) FROM "docker_build_log_chunks" "chunk" WHERE "chunk"."build_id" = "build"."id") AS "bytes"
+          FROM "docker_builds" "build"
+          WHERE ${removableBuildLogsWhere()}
+            AND coalesce("build"."completed_at", "build"."updated_at") < ${cutoff}
+            AND EXISTS (SELECT 1 FROM "docker_build_log_chunks" "chunk" WHERE "chunk"."build_id" = "build"."id")
+          LIMIT ${BUILD_LOG_BUILD_BATCH}`
+      )
+    );
+    if (aged.length === 0) break;
+    await removeLogs(aged);
+    if (aged.length < BUILD_LOG_BUILD_BATCH) break;
+  }
+  const [total] = rowsOf<{ value: number | string }>(
+    await db.execute(sql`SELECT coalesce(sum("byte_length"), 0) AS "value" FROM "docker_build_log_chunks"`)
+  );
+  let excess = Number(total?.value ?? 0) - options.maxSizeBytes;
+  for (let step = 0; excess > 0 && step < MAX_BATCHES_PER_TARGET; step += 1) {
+    const oldest = rowsOf<{ id: string; bytes: number | string }>(
+      await db.execute(
+        sql`SELECT "build"."id", (SELECT coalesce(sum("chunk"."byte_length"), 0) FROM "docker_build_log_chunks" "chunk" WHERE "chunk"."build_id" = "build"."id") AS "bytes"
+          FROM "docker_builds" "build"
+          WHERE ${removableBuildLogsWhere()}
+            AND EXISTS (SELECT 1 FROM "docker_build_log_chunks" "chunk" WHERE "chunk"."build_id" = "build"."id")
+          ORDER BY coalesce("build"."completed_at", "build"."updated_at") ASC, "build"."id" ASC
+          LIMIT ${BUILD_LOG_BUILD_BATCH}`
+      )
+    );
+    if (oldest.length === 0) break;
+    const selected: typeof oldest = [];
+    for (const row of oldest) {
+      if (excess <= 0) break;
+      selected.push(row);
+      excess -= Number(row.bytes ?? 0);
+    }
+    await removeLogs(selected);
+  }
+  return { builds, chunks, bytes };
+}
+
+/** Bytes of every stored build log, and how many of them the build log retention would remove now. */
+export async function buildLogStats(
+  db: Executor,
+  options: { retentionDays: number },
+  now = new Date()
+): Promise<{ totalSizeBytes: number; expiredBuilds: number }> {
+  const cutoff = operationHistoryCutoff(options.retentionDays, now);
+  const [total] = rowsOf<{ value: number | string }>(
+    await db.execute(sql`SELECT coalesce(sum("byte_length"), 0) AS "value" FROM "docker_build_log_chunks"`)
+  );
+  const [expired] = rowsOf<{ value: number | string }>(
+    await db.execute(
+      sql`SELECT count(*) AS "value" FROM "docker_builds" "build"
+        WHERE ${removableBuildLogsWhere()}
+          AND coalesce("build"."completed_at", "build"."updated_at") < ${cutoff}
+          AND EXISTS (SELECT 1 FROM "docker_build_log_chunks" "chunk" WHERE "chunk"."build_id" = "build"."id")`
+    )
+  );
+  return { totalSizeBytes: Number(total?.value ?? 0), expiredBuilds: Number(expired?.value ?? 0) };
 }

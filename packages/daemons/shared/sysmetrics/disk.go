@@ -100,11 +100,6 @@ func GetDiskMounts() []*pb.DiskMount {
 		freeBytes := int64(stat.Bavail) * int64(stat.Bsize)
 		usedBytes := totalBytes - freeBytes
 
-		var usagePercent float64
-		if totalBytes > 0 {
-			usagePercent = math.Round(float64(usedBytes)/float64(totalBytes)*1000) / 10
-		}
-
 		mounts = append(mounts, &pb.DiskMount{
 			MountPoint:   mountPoint,
 			Filesystem:   fsType,
@@ -112,11 +107,19 @@ func GetDiskMounts() []*pb.DiskMount {
 			TotalBytes:   totalBytes,
 			UsedBytes:    usedBytes,
 			FreeBytes:    freeBytes,
-			UsagePercent: usagePercent,
+			UsagePercent: diskUsagePercent(usedBytes, totalBytes),
 		})
 	}
 
 	return mounts
+}
+
+// diskUsagePercent is used of total in percent, to one decimal.
+func diskUsagePercent(usedBytes, totalBytes int64) float64 {
+	if totalBytes <= 0 {
+		return 0
+	}
+	return math.Round(float64(usedBytes)/float64(totalBytes)*1000) / 10
 }
 
 func includeDiskMount(device, mountPoint, filesystem string) bool {

@@ -92,3 +92,23 @@ export function canDeployManagedDatabase(
         draft.publishedNativePort <= 65_535))
   );
 }
+
+/** The maxmemory share of a key-value store's memory when its settings keep the default. */
+const DEFAULT_KEY_VALUE_MAXMEMORY_PERCENT = 75;
+
+/**
+ * A key-value store's disk holds its append-only file, the rewrite of it and a snapshot: about three times its
+ * maxmemory. Returns the warning for a smaller disk, or undefined.
+ */
+export function keyValueStorageWarning(
+  storageSizeGb: number,
+  memoryMb: number,
+  maxmemoryPercent = DEFAULT_KEY_VALUE_MAXMEMORY_PERCENT
+): string | undefined {
+  if (!Number.isFinite(storageSizeGb) || !Number.isFinite(memoryMb) || memoryMb <= 0)
+    return undefined;
+  const maxmemoryMb = (memoryMb * maxmemoryPercent) / 100;
+  const neededGb = Math.ceil((3 * maxmemoryMb * 10) / 1024) / 10;
+  if (storageSizeGb >= neededGb) return undefined;
+  return `The store may hold ${Math.round(maxmemoryMb)} MB in memory. Its append-only file, a rewrite of it and a snapshot need about ${neededGb} GB of storage; a smaller disk can fill up.`;
+}

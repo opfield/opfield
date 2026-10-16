@@ -165,7 +165,8 @@ func (m *managedDatabaseManager) installPostgresBundle(ctx context.Context, reco
 		}
 	}()
 	created, err := m.client.cli.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
-		Config:     &container.Config{Image: reference, Cmd: []string{"/opfield-bundle"}, NetworkDisabled: true},
+		Config: &container.Config{Image: reference, Cmd: []string{"/opfield-bundle"}, NetworkDisabled: true,
+			Labels: helperContainerLabels(helperKindExtensionBundle, nil)},
 		HostConfig: &container.HostConfig{NetworkMode: "none", LogConfig: internalContainerLogConfig()},
 	})
 	if err != nil {

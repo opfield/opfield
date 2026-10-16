@@ -7,6 +7,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { inferenceProviderConnections, inferenceProviderSettings, inferenceQuotaSnapshots } from '@/db/schema/index.js';
 import type { InferenceConnectionStatus, InferenceRoutingStrategy } from '@/db/schema/inference-providers.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { QUOTA_READ_LIMIT } from '@/services/inference-usage-retention.js';
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import { latestValidQuota, quotaAppliesToModel } from './inference-provider.service.helpers.js';
 
@@ -480,6 +481,7 @@ export class InferenceRoutingService {
             eq(inferenceQuotaSnapshots.status, 'fresh')
           ),
           orderBy: [desc(inferenceQuotaSnapshots.fetchedAt)],
+          limit: QUOTA_READ_LIMIT,
         });
         const latestQuotas = latestQuotaWindows(quotas);
         const now = Date.now();

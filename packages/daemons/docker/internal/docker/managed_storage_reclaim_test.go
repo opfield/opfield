@@ -9,7 +9,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/opfield/opfield/docker-daemon/internal/swha"
 	"golang.org/x/sys/unix"
 )
 
@@ -61,6 +63,69 @@ func TestParseSeaweedFSVolumeStatus(t *testing.T) {
 	}
 	if _, err := parseSeaweedFSVolumeStatus([]byte("<html>")); err == nil {
 		t.Fatal("a non-JSON answer parsed")
+	}
+}
+
+// A set's master lists each copy of a volume on its own data node: the
+// volume counts once, with its largest copy, and read-only when any copy is.
+func TestParseSeaweedFSVolumeStatusMergesTheCopiesOfASet(t *testing.T) {
+	raw, err := json.Marshal(map[string]any{"Volumes": map[string]any{"DataCenters": map[string]any{
+		"dc": map[string]any{"rack": map[string]any{
+			"member-a:20000": []seaweedfsVolume{volumeOf(1, 128, 64, false), volumeOf(2, 128, 0, false)},
+			"member-b:20002": []seaweedfsVolume{volumeOf(1, 130, 70, true), volumeOf(2, 128, 0, false)},
+		}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	volumes, err := parseSeaweedFSVolumeStatus(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.SortFunc(volumes, func(a, b seaweedfsVolume) int { return int(a.ID) - int(b.ID) })
+	want := []seaweedfsVolume{volumeOf(1, 130, 70, true), volumeOf(2, 128, 0, false)}
+	if !slices.Equal(volumes, want) {
+		t.Fatalf("volumes %+v, want %+v", volumes, want)
+	}
+}
+
+// A set's plan is a single node's plan against the fullest member disk.
+func TestSetReclaimPlansAgainstTheFullestMemberDisk(t *testing.T) {
+	m, _, _, id := newTestStorageEngine(t)
+	record, err := m.loadRecord(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.StorageBytes = 8 * gibibyte // 128 MiB volumes, 409 MiB guard
+	if err := m.saveRecord(record); err != nil {
+		t.Fatal(err)
+	}
+	host := &seaweedfsSetHost{storage: m, id: id}
+	status := volumeStatus(t, volumeOf(1, 128, 128, true), volumeOf(2, 128, 64, true), volumeOf(3, 128, 0, false))
+
+	// The fullest member is below the guard: the read-only volumes are
+	// compacted, most garbage first.
+	plan, err := host.PlanReclaim([]byte(status), swha.DiskSpace{Free: 300 * mebibyte, Total: 8 * gibibyte})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Threshold != seaweedfsPressureReclaimThreshold || !slices.Equal(plan.VolumeIDs, []uint32{1, 2}) {
+		t.Fatalf("full set: %+v", plan)
+	}
+	// With room on every member, read-only volumes are left to SeaweedFS.
+	plan, err = host.PlanReclaim([]byte(status), swha.DiskSpace{Free: 7 * gibibyte, Total: 8 * gibibyte})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.VolumeIDs) != 0 {
+		t.Fatalf("set with room: %+v", plan)
+	}
+	// No room for a copy of any volume on the fullest member: nothing.
+	plan, err = host.PlanReclaim([]byte(status), swha.DiskSpace{Free: 100 * mebibyte, Total: 8 * gibibyte})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.VolumeIDs) != 0 {
+		t.Fatalf("set without room: %+v", plan)
 	}
 }
 
@@ -155,6 +220,8 @@ func reclaimTestStorage(t *testing.T, free int64, status string) (*managedStorag
 		}
 		return nil, nil
 	}
+	// The daily housekeeping has its own tests; it already ran here.
+	m.housekept.mark(id, time.Now())
 	return m, id, &calls, docker
 }
 
@@ -306,5 +373,61 @@ func TestReclaimSkipsAReadOnlyDisk(t *testing.T) {
 	m.reclaimSpace(context.Background())
 	if len(*calls) != 0 {
 		t.Fatalf("engine commands on a read-only disk: %+v", *calls)
+	}
+}
+
+// Once a day a serving storage's abandoned multipart uploads and old filer
+// metadata log are removed, after a pass its engine answered; in between,
+// and for engines that do not answer, nothing runs.
+func TestReclaimHousekeepsOnceADay(t *testing.T) {
+	m, id, calls, _ := reclaimTestStorage(t, 6*gibibyte, volumeStatus(t, volumeOf(1, 128, 10, false)))
+	m.housekept = seaweedfsHousekeeping{}
+
+	m.reclaimSpace(context.Background())
+	if len(*calls) != 2 {
+		t.Fatalf("engine commands %+v, want the volume status and the housekeeping", *calls)
+	}
+	housekeeping := (*calls)[1]
+	if housekeeping.container != "s1" || !slices.Equal(housekeeping.command, seaweedfsShellCommand) {
+		t.Fatalf("housekeeping command %+v", housekeeping)
+	}
+	if want := "s3.clean.uploads -timeAgo=168h\nfs.log.purge -daysAgo=7\n"; housekeeping.stdin != want {
+		t.Fatalf("housekeeping script %q, want %q", housekeeping.stdin, want)
+	}
+
+	*calls = nil
+	m.reclaimSpace(context.Background())
+	if len(*calls) != 1 || (*calls)[0].command[0] != "curl" {
+		t.Fatalf("engine commands within the day %+v, want only the volume status", *calls)
+	}
+
+	// A day later it runs again.
+	m.housekept.mark(id, time.Now().Add(-seaweedfsHousekeepingInterval))
+	*calls = nil
+	m.reclaimSpace(context.Background())
+	if len(*calls) != 2 || (*calls)[1].stdin != seaweedfsHousekeepingScript {
+		t.Fatalf("engine commands a day later %+v", *calls)
+	}
+
+	// An engine that does not answer is not housekept (nor marked).
+	m.housekept = seaweedfsHousekeeping{}
+	*calls = nil
+	m.execEngine = func(_ context.Context, container string, command []string, stdin string) ([]byte, error) {
+		*calls = append(*calls, engineCall{container, command, stdin})
+		return nil, errors.New("container is not running")
+	}
+	m.reclaimSpace(context.Background())
+	if len(*calls) != 1 || !m.housekept.due(id, time.Now()) {
+		t.Fatalf("engine commands for an engine that does not answer %+v", *calls)
+	}
+}
+
+// The weed shell logs to stderr: glog files would pile up in the container's
+// writable layer. The flag is a global one, before the subcommand.
+func TestSeaweedFSShellLogsToStderr(t *testing.T) {
+	shell := slices.Index(seaweedfsShellCommand, "shell")
+	flag := slices.Index(seaweedfsShellCommand, "-logtostderr=true")
+	if shell < 0 || flag < 0 || flag > shell {
+		t.Fatalf("shell command %v", seaweedfsShellCommand)
 	}
 }

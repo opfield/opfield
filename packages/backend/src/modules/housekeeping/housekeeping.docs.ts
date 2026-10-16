@@ -63,6 +63,26 @@ export const HousekeepingConfigUpdateSchema = z
     expiredTokens: z
       .object({ enabled: z.boolean().optional(), retentionDays: z.number().int().min(0).max(365).optional() })
       .optional(),
+    inferenceUsage: z
+      .object({
+        enabled: z.boolean().optional(),
+        // Limits and usage reports read the last 30 days or the current month.
+        retentionDays: z.number().int().min(35).max(3650).optional(),
+      })
+      .optional(),
+    buildLogs: z
+      .object({
+        enabled: z.boolean().optional(),
+        retentionDays: z.number().int().min(1).max(3650).optional(),
+        maxSizeBytes: z
+          .number()
+          .int()
+          .min(64 * 1024 * 1024)
+          .max(Number.MAX_SAFE_INTEGER)
+          .optional(),
+      })
+      .optional(),
+    hostFiles: z.object({ enabled: z.boolean().optional() }).optional(),
   })
   .strict();
 

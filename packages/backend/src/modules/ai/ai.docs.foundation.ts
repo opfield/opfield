@@ -400,9 +400,9 @@ Each event contains an id, a stable Opfield installation source identifier, type
 - The in-process scheduler claims rows with database leases and sends a JSON body \`{ schemaVersion: 1, events: [...] }\`.
 - 2xx completes delivery. Network errors, 408, 429, and 5xx retry at 30s, 2m, 8m, 30m, 2h, 6h, and 12h, for at most eight attempts. Other 4xx responses fail terminally.
 - Disabling SIEM in Opfield general settings prevents new outbox rows and pauses delivery; destinations, history, and queued records stay intact until SIEM is enabled again.
-- Disabling a destination pauses outstanding work; enabling resumes it. Deleting a destination soft-deletes configuration and discards outstanding work. Only failed deliveries can be manually requeued.
+- Disabling a destination pauses outstanding work; enabling within 7 days resumes it, after 7 days disabled and unchanged the paused rows are removed. Deleting a destination soft-deletes configuration and discards outstanding work. Only failed deliveries can be manually requeued.
 - A test sends a synthetic \`dev.opfield.audit.test.v1\` event only: it creates no audit row and no queued delivery.
-- Terminal delivery history follows Audit Log retention. Do not use notification-webhook delivery semantics for SIEM.
+- Every delivery row, delivered or still waiting, is removed once older than Audit Log retention (a batch being delivered finishes first). Do not use notification-webhook delivery semantics for SIEM.
 
 ## AI Tools
 - SIEM tools are unavailable while \`generalSettings.features.siemEnabled\` is false.
@@ -594,13 +594,22 @@ Automated cleanup tasks, configurable in Settings.
   - Delivery Log: delete old notification delivery attempts.
   - Structured Logs: cap ClickHouse application logs by total rows and approximate disk size while preserving the newest daily partition.
   - ClickHouse Internals: monitor high-volume system logs and, when enabled, trim supported internal tables during manual Housekeeping runs and the five-minute health guard. Enable it only for a ClickHouse instance dedicated to Opfield.
-  - Orphaned AI Artifacts: delete files no longer attached to a chat.
+  - Orphaned AI Artifacts: delete files no longer attached to a chat, or whose conversation (or user) was deleted, after an hour. Tool and sandbox outputs together are capped at 10 GiB, oldest first; files users attached are never capped.
   - Orphaned Certs: remove unreferenced certificate files.
   - ACME Challenges: clean up old validation tokens.
   - Docker Prune (dockerPrune, on by default): old Opfield app and relay images on the Opfield host (the running one and one to roll back to stay), obsolete connector images, and on every online Docker node the image cleanup rules: each workload's older images beyond its image cleanup setting, unused images nothing runs or names once unused for 12 hours, and dangling images. Database and storage nodes remove their own unused engine images after 24 hours unused (the newest of each stays). Existing installs are cleaned within a day of the update; the card counts every old image, those still waiting included.
   - Operation History (operationHistory, default 90 days): finished Docker container tasks after a day; finished builds with their logs, compose, availability and hosting operations and source webhook deliveries after the retention. Each resource keeps its 10 latest runs, and rows still referenced (a live build artifact, a hosted node's origin, a snapshot) stay.
   - Expired OAuth Grants (oauthCleanup): expired OAuth codes and tokens (refresh tokens once expired), and OAuth client registrations that never completed an authorization, after 30 days. A client that was ever granted is never removed.
   - Expired Tokens (expiredTokens, default 7 days, 0 removes at once): API and inference tokens whose expiry passed that many days ago. Until then they are listed as Expired and refused like revoked ones; the audit log keeps their history and records each removal.
+  - Operation History also removes finished registry maintenance runs, relay pool update runs, deployment releases, container migrations, storage copy jobs, sandbox jobs, inference core operations, App promotions and incidents, expired GitHub sign-in sessions, earlier proxy host certificate placements and deleted image records, keeping each owner's 10 latest.
+  - Build Logs (buildLogs, default 30 days and 2 GiB): logs of finished builds past the age, then the oldest while all build logs together exceed the size. The newest 3 finished builds of each source keep their log; build records stay with Operation History.
+  - Inference Usage (inferenceUsage, default 90 days, 35 at least): settled inference requests with their attempts and usage records; each user's lifetime totals keep what was removed. Also old provider quota readings and price versions nothing uses.
+  - Orphaned Volumes (default 3 days): only anonymous volumes Opfield created (seen attached to a container Opfield created) are removed once unused that long. Unused volumes Opfield did not create, or cannot tell, are never removed; the card reports them.
+  - Opfield Host Files (hostFiles): leftovers of interrupted work on the Opfield host: temp files, MCP archive transfer spools, configuration export snapshots and dumps. Also runs a minute after start.
+  - Dismissed Alerts also keeps one open alert per resource and kind and removes open alerts older than 90 days.
+- With the Housekeeping switch off, the scheduled run still runs Internal Registry, Operation History, Build Logs, Inference Usage, Expired OAuth Grants, Expired Tokens and Opfield Host Files (each with its own switch). Each category has 30 minutes.
+- When a disk holding Opfield data on the Opfield host is 90% full, housekeeping runs at once (at most hourly). Built-in alerts: "Opfield disk almost full" (85%), "Opfield disk full" (95%, critical) and "Housekeeping not running" (no successful run for two days).
+- get_stats includes diskUsage: every Opfield host disk (Docker data root, stack volumes) with free space, Postgres database size and largest tables, Redis memory and AOF size, container log sizes (read only).
 - Can be triggered manually from Settings page.
 - Tool: manage_housekeeping get_config, get_stats, get_history, update_config (config, validated like PUT /housekeeping/config), and run.
 - Run history tracked (last N runs with per-category results).

@@ -194,6 +194,7 @@ func backupRuntimeFor(plugin *DockerPlugin) (*backupRuntime, error) {
 // runs the daemon lost before it started a runner. A runner that is still
 // running keeps its mounted ext4 image.
 func (r *backupRuntime) reconcileWorkspaces() {
+	r.pruneTerminalRuns(time.Now())
 	if r.plugin.databaseManager == nil || r.plugin.client == nil {
 		return
 	}
@@ -228,6 +229,62 @@ func (r *backupRuntime) reconcileWorkspaces() {
 		}
 	}
 	r.removeOrphanedRedisStages()
+}
+
+// backupRunStatusRetained is how long the status of a finished run stays on
+// the node; the control plane reads it within minutes of the end.
+const backupRunStatusRetained = 30 * 24 * time.Hour
+
+// pruneTerminalRuns removes the status files (and memory) of runs that ended
+// more than backupRunStatusRetained ago and need no cleanup any more. A run
+// without an end time ages from its file's last write.
+func (r *backupRuntime) pruneTerminalRuns(now time.Time) {
+	entries, err := os.ReadDir(r.root)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		runID := strings.TrimSuffix(name, ".json")
+		r.mu.Lock()
+		active := r.active[runID]
+		r.mu.Unlock()
+		if active {
+			continue
+		}
+		status, err := r.load(runID)
+		if err != nil || !isTerminalBackupStatus(status.Status) || status.CleanupPending {
+			continue
+		}
+		ended := status.CompletedAt
+		if ended == nil {
+			info, infoErr := entry.Info()
+			if infoErr != nil {
+				continue
+			}
+			modified := info.ModTime()
+			ended = &modified
+		}
+		if now.Sub(*ended) < backupRunStatusRetained {
+			continue
+		}
+		if r.plugin != nil && r.plugin.databaseManager != nil &&
+			workspaceImageExists(filepath.Join(r.plugin.databaseManager.root, "backups", "images", runID+".img")) {
+			// The workspace pass releases it through the status first.
+			continue
+		}
+		if err := os.Remove(filepath.Join(r.root, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		r.mu.Lock()
+		if current := r.runs[runID]; current != nil && isTerminalBackupStatus(current.Status) {
+			delete(r.runs, runID)
+		}
+		r.mu.Unlock()
+	}
 }
 
 // workspaceImageExists is false once status() already released the workspace.
@@ -276,7 +333,7 @@ func (r *backupRuntime) removeRedisStages(ctx context.Context, runID string) err
 		return fmt.Errorf("list Redis staging containers: %w", err)
 	}
 	for _, candidate := range containers.Items {
-		if _, err := r.plugin.client.cli.ContainerRemove(ctx, candidate.ID, mobyclient.ContainerRemoveOptions{Force: true}); err != nil && !isNotFoundErr(err) {
+		if _, err := r.plugin.client.cli.ContainerRemove(ctx, candidate.ID, mobyclient.ContainerRemoveOptions{Force: true, RemoveVolumes: true}); err != nil && !isNotFoundErr(err) {
 			return fmt.Errorf("remove Redis staging container: %w", err)
 		}
 	}
@@ -306,7 +363,7 @@ func (r *backupRuntime) removeOrphanedRedisStages() {
 		if active || (runID != "" && workspaceImageExists(filepath.Join(imageDir, runID+".img"))) {
 			continue
 		}
-		if _, err := r.plugin.client.cli.ContainerRemove(ctx, candidate.ID, mobyclient.ContainerRemoveOptions{Force: true}); err != nil && !isNotFoundErr(err) {
+		if _, err := r.plugin.client.cli.ContainerRemove(ctx, candidate.ID, mobyclient.ContainerRemoveOptions{Force: true, RemoveVolumes: true}); err != nil && !isNotFoundErr(err) {
 			r.plugin.databaseManager.logger.Warn("orphaned Redis staging container could not be removed", "run_id", runID, "error", err)
 		}
 	}
@@ -994,13 +1051,13 @@ func (r *backupRuntime) startRedisStage(ctx context.Context, runID string, paylo
 		return nil, fmt.Errorf("create Redis staging container: %w", err)
 	}
 	if _, err := r.plugin.client.cli.ContainerStart(ctx, created.ID, mobyclient.ContainerStartOptions{}); err != nil {
-		_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true})
+		_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true, RemoveVolumes: true})
 		return nil, err
 	}
 	if networking != nil {
 		inspect, inspectErr := r.plugin.client.cli.ContainerInspect(ctx, created.ID, mobyclient.ContainerInspectOptions{})
 		if inspectErr != nil || inspect.Container.NetworkSettings == nil {
-			_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true})
+			_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true, RemoveVolumes: true})
 			return nil, errors.New("inspect managed Redis staging network")
 		}
 		for _, endpoint := range inspect.Container.NetworkSettings.Networks {
@@ -1010,13 +1067,13 @@ func (r *backupRuntime) startRedisStage(ctx context.Context, runID string, paylo
 			}
 		}
 		if stageHost == "" {
-			_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true})
+			_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true, RemoveVolumes: true})
 			return nil, errors.New("managed Redis staging container has no private address")
 		}
 	}
 	payload.RedisStaging = &backupEndpoint{ConnectionID: "redis-stage", Host: stageHost, Port: port, Password: password}
 	return func() {
-		_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true})
+		_, _ = r.plugin.client.cli.ContainerRemove(context.Background(), created.ID, mobyclient.ContainerRemoveOptions{Force: true, RemoveVolumes: true})
 	}, nil
 }
 

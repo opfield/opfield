@@ -48,6 +48,10 @@ func (p *DockerPlugin) prepareMigrationImage(ctx context.Context, migrationID, a
 	if err != nil {
 		return migrationArtifactMetadata{}, err
 	}
+	// The saved image is about its unpacked size; it must fit next to the node's reserve before the spool starts.
+	if err := p.migrationStore.checkSpace(max(image.Size, 0)); err != nil {
+		return migrationArtifactMetadata{}, err
+	}
 	tmp := path + ".tmp"
 	file, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
@@ -67,7 +71,8 @@ func (p *DockerPlugin) prepareMigrationImage(ctx context.Context, migrationID, a
 	}
 	defer reader.Close()
 	hasher := blake3.New()
-	size, err := io.Copy(io.MultiWriter(file, hasher), reader)
+	spool := &guardedSpoolWriter{writer: file, guard: p.migrationStore.guard(migrationID, migrationArtifactLimit(image.Size))}
+	size, err := io.Copy(io.MultiWriter(spool, hasher), reader)
 	if err != nil {
 		return migrationArtifactMetadata{}, fmt.Errorf("spool Docker image: %w", err)
 	}

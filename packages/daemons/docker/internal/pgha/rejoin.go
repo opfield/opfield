@@ -155,7 +155,10 @@ func (e *Engine) rebuild(ctx context.Context, config StandbyConfig, reason strin
 	defer e.mu.Unlock()
 	e.state.DataEpoch++
 	e.state.NeedsRebuild = false
-	e.state.RebuildKept = result.PreviousKept
+	e.state.RebuildKept, e.state.RebuildKeptAtUnix = result.PreviousKept, 0
+	if result.PreviousKept {
+		e.state.RebuildKeptAtUnix = e.clock.Wall().Unix()
+	}
 	if err := e.saveLocked(); err != nil {
 		return err
 	}
@@ -165,24 +168,17 @@ func (e *Engine) rebuild(ctx context.Context, config StandbyConfig, reason strin
 	return nil
 }
 
-// CopyWork is the upkeep of a streaming copy: drop the data directory a
-// rebuild kept once the new one streams, advance the members' slots.
+// CopyWork is the upkeep of a running copy: drop the data directory a
+// rebuild kept once the new one streams (or it was kept for
+// previousKeptFor), advance the members' slots while streaming.
 func (e *Engine) CopyWork(status memberha.EngineStatus, now time.Duration) (string, func(context.Context) error, bool) {
-	if !status.Streaming {
-		return "", nil, false
-	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.state.RebuildKept {
-		return "commit_rebuild", func(ctx context.Context) error {
-			if err := e.pg.CommitRebuild(ctx); err != nil {
-				return err
-			}
-			e.mu.Lock()
-			defer e.mu.Unlock()
-			e.state.RebuildKept = false
-			return e.saveLocked()
-		}, true
+	if e.state.RebuildKept && (status.Streaming || e.previousExpiredLocked()) && commitDue(&e.standby.commitAt, now) {
+		return "commit_rebuild", e.commitRebuild, true
+	}
+	if !status.Streaming {
+		return "", nil, false
 	}
 	if now-e.standby.slotsAt < slotsInterval {
 		return "", nil, false
@@ -190,6 +186,28 @@ func (e *Engine) CopyWork(status memberha.EngineStatus, now time.Duration) (stri
 	e.standby.slotsAt = now
 	keep := slotNames(e.cfg.ActiveOthers())
 	return "slots", func(ctx context.Context) error { return e.pg.SyncSlots(ctx, keep) }, true
+}
+
+// previousExpiredLocked: the previous data directory was kept for
+// previousKeptFor.
+func (e *Engine) previousExpiredLocked() bool {
+	if !e.state.RebuildKept {
+		return false
+	}
+	kept := time.Unix(e.state.RebuildKeptAtUnix, 0)
+	return e.state.RebuildKeptAtUnix > 0 && e.clock.Wall().Sub(kept) >= previousKeptFor
+}
+
+// commitRebuild drops the previous data directory a rebuild kept (refused
+// while the data directory holds no cluster).
+func (e *Engine) commitRebuild(ctx context.Context) error {
+	if err := e.pg.CommitRebuild(ctx); err != nil {
+		return err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.state.RebuildKept, e.state.RebuildKeptAtUnix = false, 0
+	return e.saveLocked()
 }
 
 // RequestRebuild marks a copy for a rebuild (an operator's explicit rebuild):

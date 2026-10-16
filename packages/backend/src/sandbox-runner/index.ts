@@ -1048,7 +1048,52 @@ async function reconcileSandboxContainers(): Promise<{ removed: number }> {
     }
   }
 
+  // Workspaces whose container is gone (removed outside the runner, or the runner died between creating the two)
+  // were never removed: each holds up to its reservation. The list above holds every sandbox container, stopped ones
+  // included, so a workspace no container names is free once it is old enough to not be one being created now.
+  const named = new Set<string>();
+  for (const container of containers) {
+    const dir = sandboxLabel(container.Labels, 'workspace_dir');
+    if (typeof dir === 'string' && dir) named.add(path.resolve(dir));
+  }
+  for (const dir of workspaceDirs.values()) named.add(path.resolve(dir));
+  removed += await removeOrphanedWorkspaces(named, now);
+  await removeStaleArtifactTempFiles(now);
+
   return { removed };
+}
+
+/** A workspace no sandbox container names is removed once it is this old. */
+const ORPHANED_WORKSPACE_MIN_AGE_MS = 60 * 60 * 1000;
+
+async function removeOrphanedWorkspaces(named: Set<string>, now: number): Promise<number> {
+  const entries = await fs.readdir(WORKSPACE_HOST_ROOT).catch(() => [] as string[]);
+  let removed = 0;
+  for (const entry of entries) {
+    // Workspace names are `<uuid>-<random>` (createWorkspaceDir).
+    if (!/^[0-9a-f-]{36}-/.test(entry)) continue;
+    const dir = path.resolve(WORKSPACE_HOST_ROOT, entry);
+    if (named.has(dir)) continue;
+    const info = await fs.stat(dir).catch(() => null);
+    if (!info?.isDirectory() || now - info.mtimeMs < ORPHANED_WORKSPACE_MIN_AGE_MS) continue;
+    if (await cleanupWorkspaceDir(dir)) {
+      removed += 1;
+      logger.info('Removed a sandbox workspace no container uses', { workspaceDir: dir });
+    }
+  }
+  return removed;
+}
+
+/** Artifact copies handed to Opfield are deleted by Opfield after saving; a crash in between leaves them. */
+async function removeStaleArtifactTempFiles(now: number): Promise<void> {
+  const tmp = os.tmpdir();
+  const entries = await fs.readdir(tmp).catch(() => [] as string[]);
+  for (const entry of entries) {
+    if (!entry.startsWith('opfield-sandbox-artifact-')) continue;
+    const file = path.join(tmp, entry);
+    const info = await fs.stat(file).catch(() => null);
+    if (info?.isFile() && now - info.mtimeMs >= ORPHANED_WORKSPACE_MIN_AGE_MS) await fs.unlink(file).catch(() => {});
+  }
 }
 
 async function handle(request: SandboxRunnerRequest): Promise<unknown> {

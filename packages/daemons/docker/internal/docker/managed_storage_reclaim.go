@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/moby/moby/api/pkg/stdcopy"
@@ -47,11 +48,25 @@ const (
 	seaweedfsVolumeStatusTimeout = 30 * time.Second
 	seaweedfsVacuumTimeout       = 10 * time.Minute
 	seaweedfsEngineOutputLimit   = 16 * mebibyte
+
+	// Once a day the reclaim pass also removes multipart uploads started
+	// more than a week ago and never completed (nothing else does: S3
+	// lifecycle rules run only where a bucket has one), and the filer's
+	// metadata change log (/topics/.system/log) older than a week, which
+	// the filer never expires. A single node's filer and S3 follow the log
+	// from their own start only; sets prune it from their primary
+	// (swha/maintenance.go). The upload age stays above the longest Opfield
+	// operation that uploads into a storage (a storage copy: 7 days).
+	seaweedfsHousekeepingInterval = 24 * time.Hour
+	seaweedfsHousekeepingTimeout  = 10 * time.Minute
+	seaweedfsHousekeepingScript   = "s3.clean.uploads -timeAgo=168h\nfs.log.purge -daysAgo=7\n"
 )
 
 var (
 	seaweedfsVolumeStatusCommand = []string{"curl", "-fsS", "--max-time", "20", "http://127.0.0.1:9333/vol/status"}
-	seaweedfsShellCommand        = []string{"/usr/bin/weed", "-config_dir=" + seaweedfsContainerRoot + "/config", "shell", "-master=127.0.0.1:9333"}
+	// -logtostderr: glog would otherwise write a log file into the
+	// container's writable layer on every run.
+	seaweedfsShellCommand = []string{"/usr/bin/weed", "-logtostderr=true", "-config_dir=" + seaweedfsContainerRoot + "/config", "shell", "-master=127.0.0.1:9333"}
 )
 
 // seaweedfsVolume is one volume of the master's /vol/status answer.
@@ -91,17 +106,27 @@ func parseSeaweedFSVolumeStatus(raw []byte) ([]seaweedfsVolume, error) {
 	if err := json.Unmarshal(raw, &status); err != nil {
 		return nil, fmt.Errorf("decode SeaweedFS volume status: %w", err)
 	}
-	seen := map[uint32]bool{}
+	// A set lists each copy of a volume on its own data node; the copies are
+	// compacted together, so a volume counts with its largest copy and is
+	// read-only when any copy is.
+	index := map[uint32]int{}
 	var volumes []seaweedfsVolume
 	for _, racks := range status.Volumes.DataCenters {
 		for _, nodes := range racks {
 			for _, list := range nodes {
 				for _, volume := range list {
-					if seen[volume.ID] {
+					i, seen := index[volume.ID]
+					if !seen {
+						index[volume.ID] = len(volumes)
+						volumes = append(volumes, volume)
 						continue
 					}
-					seen[volume.ID] = true
-					volumes = append(volumes, volume)
+					merged := &volumes[i]
+					merged.Size = max(merged.Size, volume.Size)
+					merged.DeletedByteCount = max(merged.DeletedByteCount, volume.DeletedByteCount)
+					merged.FileCount = max(merged.FileCount, volume.FileCount)
+					merged.DeleteCount = max(merged.DeleteCount, volume.DeleteCount)
+					merged.ReadOnly = merged.ReadOnly || volume.ReadOnly
 				}
 			}
 		}
@@ -216,8 +241,10 @@ func (m *managedStorageManager) reclaimSpace(ctx context.Context) {
 		present[record.ID] = true
 	}
 	m.capacity.retain(present)
+	m.housekept.retain(present)
 	for _, record := range records {
-		// A set member's master runs on its primary only (managed_storage_set.go).
+		// A set member's master runs on its primary only: the set's primary
+		// reclaims and housekeeps the set (swha/maintenance.go).
 		if record.engine() != managedStorageEngineSeaweedFS || record.Set != nil || record.Removed || !record.DesiredRunning || record.ContainerID == "" {
 			continue
 		}
@@ -231,6 +258,56 @@ func (m *managedStorageManager) reclaimSpace(ctx context.Context) {
 		}
 		if err := m.reclaimSeaweedFSSpace(ctx, record); err != nil {
 			m.logger.Debug("managed storage space of deleted objects not reclaimed in this pass", "id", record.ID, "error", err)
+			continue
+		}
+		m.housekeepSeaweedFS(ctx, record)
+	}
+}
+
+// housekeepSeaweedFS removes a storage's abandoned multipart uploads and old
+// metadata log once a day (the first pass after the daemon starts, then
+// daily). It runs after a pass whose volume status the engine answered.
+func (m *managedStorageManager) housekeepSeaweedFS(ctx context.Context, record managedStorageRecord) {
+	now := time.Now()
+	if !m.housekept.due(record.ID, now) {
+		return
+	}
+	m.housekept.mark(record.ID, now)
+	shellCtx, cancel := context.WithTimeout(ctx, seaweedfsHousekeepingTimeout)
+	defer cancel()
+	if _, err := m.engineExec(shellCtx, record.ContainerID, seaweedfsShellCommand, seaweedfsHousekeepingScript); err != nil {
+		m.logger.Debug("managed storage housekeeping did not run", "id", record.ID, "error", err)
+	}
+}
+
+// seaweedfsHousekeeping is when each storage was last housekept.
+type seaweedfsHousekeeping struct {
+	mu   sync.Mutex
+	last map[string]time.Time
+}
+
+func (h *seaweedfsHousekeeping) due(id string, now time.Time) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	last, ok := h.last[id]
+	return !ok || now.Sub(last) >= seaweedfsHousekeepingInterval
+}
+
+func (h *seaweedfsHousekeeping) mark(id string, now time.Time) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.last == nil {
+		h.last = map[string]time.Time{}
+	}
+	h.last[id] = now
+}
+
+func (h *seaweedfsHousekeeping) retain(ids map[string]bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for id := range h.last {
+		if !ids[id] {
+			delete(h.last, id)
 		}
 	}
 }

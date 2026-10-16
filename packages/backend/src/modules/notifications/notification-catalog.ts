@@ -216,6 +216,13 @@ export const ROUTE_TRAFFIC_METRICS: MetricDefinition[] = [
 /** Requests a minute needs before its 4xx/5xx share counts; see ROUTE_TRAFFIC_METRICS. */
 export const ROUTE_SHARE_MIN_REQUESTS = 10;
 
+/**
+ * metricTarget of a node disk rule that watches every data disk of the node: each mount except Opfield's own disk
+ * images of managed databases, storage and volumes (sized on purpose, with their own metrics). Each disk fires and
+ * resolves on its own. The built-in rules "Node disk almost full" and "Node disk full" use it.
+ */
+export const NODE_DATA_DISKS_TARGET = '@data';
+
 /** The data disk of a managed Postgres or key-value store (its disk image, as its node reports it). */
 const MANAGED_DATABASE_DISK_METRIC: MetricDefinition = {
   id: 'managed_disk_pct',
@@ -321,6 +328,16 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { id: 'cpu', label: 'CPU Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
       { id: 'memory', label: 'Memory Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 90 },
       { id: 'disk', label: 'Disk Usage (%)', unit: '%', defaultOperator: '>', defaultValue: 85 },
+      // The disk for managed databases and storage: what its instances use, what their images may still take, and
+      // the reserve, as a share of its size. Over 100 the disk is oversubscribed: the instances fill it before they
+      // reach their sizes, and new instances and disk grows there are refused.
+      {
+        id: 'managed_disk_promised_pct',
+        label: 'Managed Instances Disk Promised (%)',
+        unit: '%',
+        defaultOperator: '>',
+        defaultValue: 100,
+      },
       {
         id: 'gpu_utilization_percent',
         label: 'GPU Utilization (%)',
@@ -383,6 +400,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{node.id}}', description: 'Node ID' },
       { name: '{{node.name}}', description: 'Node hostname' },
       { name: '{{metric.name}}', description: 'Metric name (CPU, memory, disk, or GPU metric)' },
+      { name: '{{details.mount}}', description: 'Mount point of the disk (disk rules), such as / or /var/lib/docker' },
       { name: '{{metric.value}}', description: 'Current metric value' },
       { name: '{{metric.threshold}}', description: 'Configured threshold' },
       { name: '{{metric.operator}}', description: 'Comparison operator' },
@@ -681,6 +699,12 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       },
       { id: 'job.failing', label: 'Background Job Failing', defaultSeverity: 'warning', supportsThreshold: true },
       {
+        id: 'housekeeping.stale',
+        label: 'Housekeeping Not Running',
+        defaultSeverity: 'warning',
+        supportsThreshold: true,
+      },
+      {
         id: 'outbound.unavailable',
         label: 'Opfield Lost Outbound Connectivity',
         defaultSeverity: 'critical',
@@ -733,6 +757,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{details.state}}', description: 'Container state or health (container.unhealthy)' },
       { name: '{{details.job}}', description: 'Background job name (job.failing)' },
       { name: '{{details.failures_in_a_row}}', description: 'Failed runs in a row (job.failing)' },
+      { name: '{{details.last_success_at}}', description: 'Last successful housekeeping run (housekeeping.stale)' },
       { name: '{{details.targets}}', description: 'Hosts Opfield could not reach (outbound.unavailable)' },
     ],
   },

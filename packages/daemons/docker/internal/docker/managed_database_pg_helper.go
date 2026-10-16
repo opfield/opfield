@@ -24,11 +24,7 @@ import (
 // postgres user. Replication helpers join the set's private bridge and reach
 // the primary through the member mesh (primary-pg-repl).
 
-const (
-	pgHelperLabel = "net.opfield.availability.helper"
-	// pgDiskReserve is left free on the data image by copies the rejoin makes.
-	pgDiskReserve = 64 << 20
-)
+const pgHelperLabel = "net.opfield.availability.helper"
 
 type pgHelperResult struct {
 	exitCode int
@@ -74,7 +70,7 @@ func (e *pgMember) runHelper(ctx context.Context, record managedDatabaseRecord, 
 		Config: &container.Config{
 			Image: image, User: fmt.Sprintf("%d:%d", pgPostgresUID, pgPostgresGID),
 			Entrypoint: []string{command[0]}, Cmd: command[1:],
-			Labels: map[string]string{managedDatabaseLabel: record.ID, pgHelperLabel: "1"},
+			Labels: helperContainerLabels(helperKindPostgres, map[string]string{managedDatabaseLabel: record.ID, pgHelperLabel: "1"}),
 		},
 		HostConfig: hostConfig, NetworkingConfig: networking,
 	})
@@ -163,7 +159,8 @@ func (e *pgMember) Rewind(ctx context.Context, config pgha.StandbyConfig) (pgha.
 	}
 	pgdata := e.pgdata(record)
 	result.TargetEnd = e.walEnd(ctx, record, result.DivergedAt)
-	result.KeptAt = copyPGDivergedWAL(pgdata, filepath.Join(record.MountPath, pgMemberDirName, "diverged"), result.DivergedAt)
+	volume := pgVolumeBytes(record.MountPath)
+	result.KeptAt = copyPGDivergedWAL(pgdata, pgDivergedDir(record), result.DivergedAt, volume, pgDiskReserveFor(volume))
 	// From here on a failure leaves a directory that is part source, part
 	// target: the engine rebuilds it and never starts it.
 	result.Started = true
@@ -255,10 +252,17 @@ func newestPGSegmentEnd(pgwal string, from pgha.LSN) pgha.LSN {
 	return end
 }
 
+func pgDivergedDir(record managedDatabaseRecord) string {
+	return filepath.Join(record.MountPath, pgMemberDirName, pgDivergedDirName)
+}
+
 // copyPGDivergedWAL copies the WAL segments holding records after from into
-// a fresh directory under dest when they fit next to the reserve; it returns
-// the directory, or "" when nothing was kept.
-func copyPGDivergedWAL(pgdata, dest string, from pgha.LSN) string {
+// a fresh directory under dest when they fit within the copies' budget (5% of
+// the volume) and leave minFree free; older copies are pruned to the budget.
+// It returns the directory, or "" when nothing was kept.
+func copyPGDivergedWAL(pgdata, dest string, from pgha.LSN, volumeBytes, minFree int64) string {
+	defer prunePGDivergedCopies(dest, volumeBytes)
+	prunePGDivergedCopies(dest, volumeBytes)
 	pgwal := filepath.Join(pgdata, "pg_wal")
 	entries, err := os.ReadDir(pgwal)
 	if err != nil {
@@ -278,7 +282,7 @@ func copyPGDivergedWAL(pgdata, dest string, from pgha.LSN) string {
 		names = append(names, entry.Name())
 		total += info.Size()
 	}
-	if len(names) == 0 || pgFreeBytes(pgdata)-total < pgDiskReserve {
+	if len(names) == 0 || (volumeBytes > 0 && total > pgDivergedBudget(volumeBytes)) || pgFreeBytes(pgdata)-total < minFree {
 		return ""
 	}
 	sort.Strings(names)
@@ -345,8 +349,11 @@ func (e *pgMember) Rebuild(ctx context.Context, config pgha.StandbyConfig) (pgha
 			return result, err
 		}
 		size := pgDirBytes(pgdata)
-		if pgFreeBytes(record.MountPath)-size-size/10 < pgDiskReserve {
-			result.DivergedWALKeptAt = copyPGDivergedWAL(pgdata, filepath.Join(record.MountPath, pgMemberDirName, "diverged"), 0)
+		volume := pgVolumeBytes(record.MountPath)
+		if pgFreeBytes(record.MountPath)-size-size/10 < pgDiskReserveFor(volume) {
+			// The whole pg_wal is copied only when the volume keeps
+			// max(5%, 1 GiB) free after it.
+			result.DivergedWALKeptAt = copyPGDivergedWAL(pgdata, pgDivergedDir(record), 0, volume, max(volume/20, int64(pgFullCopyMinFree)))
 			if err := os.RemoveAll(pgdata); err != nil {
 				return result, err
 			}
@@ -390,6 +397,11 @@ func (e *pgMember) CommitRebuild(context.Context) error {
 	record, err := e.record()
 	if err != nil {
 		return err
+	}
+	// The previous directory is never dropped while it is the only cluster on
+	// the volume.
+	if _, err := os.Stat(filepath.Join(e.pgdata(record), "PG_VERSION")); err != nil {
+		return fmt.Errorf("the previous data directory is kept: the data directory holds no cluster: %w", err)
 	}
 	if err := os.RemoveAll(filepath.Join(record.MountPath, pgPreviousDirName)); err != nil {
 		return err

@@ -465,7 +465,11 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
           description: 'rotate_certificate only: allow a restart when the engine does not reload the certificate.',
         },
         clickhouseConfigXml: { type: 'string' },
-        redisConfig: { type: 'object' },
+        redisConfig: {
+          type: 'object',
+          description:
+            'Key-value stores only: the full settings object. autoAofRewritePercentage is 1 to 10000 (0 is read as 100: the automatic AOF rewrite is never off). Give the store at least 3x its maxmemory of storage (AOF, its rewrite and a snapshot).',
+        },
         postgresConfig: {
           type: 'object',
           description:

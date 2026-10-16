@@ -18,8 +18,12 @@ type State struct {
 	// HeldDataEpoch is DataEpoch when this member last took the primary role.
 	HeldDataEpoch uint64 `json:"heldDataEpoch"`
 	// RebuildKept: a rebuild kept the previous data directory; it is dropped
-	// once the new one streams.
+	// once the new one streams or serves as the primary, or when it was kept
+	// for previousKeptFor.
 	RebuildKept bool `json:"rebuildKept,omitempty"`
+	// RebuildKeptAtUnix is when the previous data directory was kept (wall
+	// clock, seconds).
+	RebuildKeptAtUnix int64 `json:"rebuildKeptAtUnix,omitempty"`
 	// NeedsRebuild: a real pg_rewind began and failed part-way, so the data
 	// directory mixes source and target pages (H3). It is never started,
 	// only rebuilt.

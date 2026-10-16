@@ -87,7 +87,7 @@ const NUMBER_LIMITS: Record<NumericRedisField, [number, number]> = {
   maxmemoryPercent: [10, 95],
   rdbSaveSeconds: [1, 31_536_000],
   rdbSaveChanges: [1, 1_000_000_000],
-  autoAofRewritePercentage: [0, 10_000],
+  autoAofRewritePercentage: [1, 10_000],
   autoAofRewriteMinSizeMb: [1, 1_048_576],
   maxclients: [1, 1_000_000],
   timeoutSeconds: [0, 31_536_000],

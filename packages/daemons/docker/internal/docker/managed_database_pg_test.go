@@ -23,7 +23,7 @@ import (
 func TestPGMemberAutoConfRunsAsACopyOfTheMeshPrimary(t *testing.T) {
 	config := pgha.StandbyConfig{MemberID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", ReplicationRole: "gw_repl_a", SlotName: "gw_ha_a",
 		Parameters: pgha.Parameters{MaxConnections: 200}}
-	values := pgMemberAutoConf(config, 8<<30)
+	values := pgMemberAutoConf(config, 8<<30, -1)
 	conninfo := values["primary_conninfo"]
 	// The member authenticates to the primary with its leaf as the client
 	// certificate (Opfield issues set member leaves for server and client use)

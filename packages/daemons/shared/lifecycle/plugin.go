@@ -7,6 +7,7 @@ import (
 
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
 	"google.golang.org/grpc"
 )
 
@@ -140,6 +141,14 @@ type RegistrationRefreshPlugin interface {
 // seconds) is a contact; a manual pair's primary self-fences when it had none for its bound.
 type OpfieldContactPlugin interface {
 	NoteOpfieldContact()
+}
+
+// DiskRolePlugin is implemented by plugins that keep data outside their state
+// directory (Docker's data root, the managed storage root and its disk
+// images): the mounts holding them get their roles in the health report. It
+// is called once a report and must not block.
+type DiskRolePlugin interface {
+	DiskRolePaths() sysmetrics.DiskRolePaths
 }
 
 // HealthRefreshPlugin is implemented by plugins whose health report can change between the periodic reports in a

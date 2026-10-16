@@ -92,7 +92,8 @@ export interface NodeHealthReport {
   cpuPercent: number;
   memoryBytes: number;
   diskFreeBytes: number;
-  managedStorageCapacity?: { storageRoot: string; availableBytes: number };
+  /** promisedPercent: share of the storage root's disk promised to managed instances, over 100 when oversubscribed. */
+  managedStorageCapacity?: { storageRoot: string; availableBytes: number; promisedPercent?: number };
   timestamp: number;
   // System
   loadAverage1m: number;
@@ -115,6 +116,8 @@ export interface NodeHealthReport {
     usedBytes: number;
     freeBytes: number;
     usagePercent: number;
+    /** root, docker_root, opfield_state, managed_image or data; absent from daemons before 2.12.3. */
+    role?: string;
   }>;
   diskReadBytes: number;
   diskWriteBytes: number;

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
@@ -45,6 +45,9 @@ const ACTIVE_SESSIONS_PER_USER_MAX = 4;
 const RESOLUTION_JSON_MAX_BYTES = 32 * 1024;
 const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const SPOOL_FILE = 'archive';
+/** A spool directory no session owns is removed once it was not written for this long (sessions expire after 1 h). */
+const ORPHANED_SPOOL_AGE_MS = 2 * SESSION_TTL_MS;
+const PROCESS_STARTED_AT = Date.now();
 const USE_LINK = 'to send a file from disk, use operation "link" and stream it with curl';
 
 export const UploadBeginSchema = z.object({
@@ -532,6 +535,44 @@ export class DockerArchiveTransferStore {
       await rm(session.directory, { recursive: true, force: true });
     }
     if (this.uploads.size === 0 && this.downloads.size === 0) this.dispose();
+  }
+
+  /**
+   * Spool directories no live session owns: sessions live in memory, so a restart or crash during a transfer left
+   * their bytes (up to 32 GiB each) in the spool for good. Removes `transfer-*` directories of no current session that
+   * were last written more than ORPHANED_SPOOL_AGE_MS ago. Returns what was removed.
+   */
+  async sweepOrphanedSpools(now = Date.now()): Promise<{ removed: number; bytes: number }> {
+    const owned = new Set<string>();
+    for (const session of this.uploads.values()) if (session.directory) owned.add(session.directory);
+    for (const session of this.downloads.values()) owned.add(session.directory);
+    let entries: string[];
+    try {
+      entries = await readdir(this.root);
+    } catch {
+      return { removed: 0, bytes: 0 };
+    }
+    let removed = 0;
+    let bytes = 0;
+    for (const entry of entries) {
+      if (!entry.startsWith('transfer-')) continue;
+      const directory = join(this.root, entry);
+      if (owned.has(directory)) continue;
+      try {
+        const info = await stat(directory);
+        const file = await stat(join(directory, SPOOL_FILE)).catch(() => null);
+        const lastWrite = Math.max(info.mtimeMs, file?.mtimeMs ?? 0);
+        // This process wrote nothing before it started: anything older belongs to a session it never had.
+        if (!info.isDirectory() || (lastWrite >= PROCESS_STARTED_AT && now - lastWrite < ORPHANED_SPOOL_AGE_MS))
+          continue;
+        bytes += file?.size ?? 0;
+        await rm(directory, { recursive: true, force: true });
+        removed += 1;
+      } catch {
+        // Gone already, or unreadable: the next sweep tries again.
+      }
+    }
+    return { removed, bytes };
   }
 }
 

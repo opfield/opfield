@@ -858,7 +858,7 @@ func (c *Client) DuplicateContainer(ctx context.Context, id string, newName stri
 	}
 
 	if err := c.connectContainerToAdditionalNetworks(ctx, result.ID, &insp, netNames); err != nil {
-		_, _ = c.cli.ContainerRemove(ctx, result.ID, client.ContainerRemoveOptions{Force: true})
+		_ = c.RemoveContainerAndAnonymousVolumes(ctx, result.ID, true)
 		return "", fmt.Errorf("connect duplicate container networks: %w", err)
 	}
 

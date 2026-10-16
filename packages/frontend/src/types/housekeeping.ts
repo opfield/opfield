@@ -18,6 +18,37 @@ export interface HousekeepingConfig {
   oauthCleanup: { enabled: boolean };
   /** Expired API and inference tokens, removed `retentionDays` after they expired (0: at once). */
   expiredTokens: { enabled: boolean; retentionDays: number };
+  /** Settled inference requests with their attempts and usage records (35 days at least). */
+  inferenceUsage: { enabled: boolean; retentionDays: number };
+  /** Logs of finished builds, by age and by the total size of all build logs. */
+  buildLogs: { enabled: boolean; retentionDays: number; maxSizeBytes: number };
+  /** Leftovers of interrupted work on the Opfield host. */
+  hostFiles: { enabled: boolean };
+}
+
+/** One filesystem of the Opfield host that holds Opfield data. */
+export interface OpfieldHostDisk {
+  holds: string[];
+  filesystem: string;
+  totalBytes: number;
+  freeBytes: number;
+  usedPercent: number;
+}
+
+/** What Opfield's own data takes on the Opfield host. */
+export interface OpfieldDiskUsage {
+  disks: OpfieldHostDisk[];
+  postgres: { databaseBytes: number; largestTables: Array<{ name: string; bytes: number }> } | null;
+  redis: {
+    memoryBytes: number;
+    aofBytes: number | null;
+    rdbChangesSinceSave: number | null;
+  } | null;
+  containerLogs: {
+    totalBytes: number;
+    largest: Array<{ name: string; bytes: number }>;
+    measuredAt: string;
+  } | null;
 }
 
 export interface HousekeepingCategoryResult {
@@ -32,7 +63,8 @@ export interface HousekeepingCategoryResult {
 export interface HousekeepingRunResult {
   startedAt: string;
   completedAt: string;
-  trigger: "scheduled" | "manual";
+  /** low-disk: started because an Opfield host disk was almost full. */
+  trigger: "scheduled" | "manual" | "low-disk";
   triggeredBy?: string;
   totalDurationMs: number;
   categories: HousekeepingCategoryResult[];
@@ -58,14 +90,26 @@ export interface HousekeepingStats {
     status: string;
     capBytes: number;
   };
-  orphanedAIArtifacts: { count: number; totalSizeBytes: number };
+  orphanedAIArtifacts: {
+    count: number;
+    totalSizeBytes: number;
+    allCount?: number;
+    allSizeBytes?: number;
+    capBytes?: number;
+  };
   internalRegistry: {
     totalSizeBytes: number;
     capacityBytes: number | null;
     status: string;
     lastGcAt: string | null;
   };
-  orphanedVolumes: { count: number; reclaimableBytes: number };
+  orphanedVolumes: {
+    count: number;
+    reclaimableBytes: number;
+    /** Unused volumes Opfield did not create: never removed automatically, only shown. */
+    unownedCount?: number;
+    unownedBytes?: number;
+  };
   orphanedCerts: {
     count: number;
     certIds: string[];
@@ -78,6 +122,13 @@ export interface HousekeepingStats {
   operationHistory?: { count: number };
   oauthCleanup?: { count: number };
   expiredTokens?: { count: number };
+  inferenceUsage?: { count: number; totalSizeBytes: number };
+  buildLogs?: { totalSizeBytes: number; expiredBuilds: number; capBytes: number };
+  hostFiles?: { count: number; sizeBytes: number };
+  diskUsage?: OpfieldDiskUsage | null;
   lastRun: HousekeepingRunResult | null;
+  lastSuccessAt?: string | null;
+  /** No successful run for two days. */
+  stale?: boolean;
   isRunning: boolean;
 }

@@ -1,4 +1,4 @@
-import { isPerDeviceNodeMetric, ROUTE_SHARE_MIN_REQUESTS } from './notification-catalog.js';
+import { isPerDeviceNodeMetric, NODE_DATA_DISKS_TARGET, ROUTE_SHARE_MIN_REQUESTS } from './notification-catalog.js';
 
 // ── Threshold Metric Extraction ───────────────────────────────────────
 
@@ -24,17 +24,20 @@ export function extractMetricFromHealthReport(
       }
       case 'disk': {
         const mounts: any[] = healthData.diskMounts ?? healthData.disk_mounts ?? [];
+        const normalizedTarget = metricTarget?.trim() || null;
         if (!Array.isArray(mounts) || mounts.length === 0) {
           const free = healthData.diskFreeBytes ?? healthData.disk_free_bytes;
           const total = healthData.diskTotalBytes ?? healthData.disk_total_bytes;
           if (typeof free !== 'number' || typeof total !== 'number' || total === 0) return null;
-          if (metricTarget && metricTarget !== '/') return null;
+          if (normalizedTarget && normalizedTarget !== '/' && normalizedTarget !== NODE_DATA_DISKS_TARGET) return null;
           return { values: [{ resourceId: '/', value: ((total - free) / total) * 100 }] };
         }
-        const normalizedTarget = metricTarget?.trim() || null;
-        const filteredMounts = normalizedTarget
-          ? mounts.filter((m: any) => (m.mountPoint ?? m.mount_point ?? '/') === normalizedTarget)
-          : mounts;
+        const filteredMounts =
+          normalizedTarget === NODE_DATA_DISKS_TARGET
+            ? mounts.filter(isNodeDataDisk)
+            : normalizedTarget
+              ? mounts.filter((m: any) => (m.mountPoint ?? m.mount_point ?? '/') === normalizedTarget)
+              : mounts;
         if (filteredMounts.length === 0) return null;
         return {
           values: filteredMounts.map((m: any) => ({
@@ -42,6 +45,13 @@ export function extractMetricFromHealthReport(
             value: m.usagePercent ?? m.usage_percent ?? 0,
           })),
         };
+      }
+      case 'managed_disk_promised_pct': {
+        // Only storage-profile nodes report it (the managed storage root), and only daemons since 2.12.3 past 100.
+        const capacity = healthData.managedStorageCapacity;
+        const value = Number(capacity?.promisedPercent ?? Number.NaN);
+        if (!capacity || !Number.isFinite(value)) return null;
+        return { values: [{ resourceId: capacity.storageRoot || 'system', value }] };
       }
     }
 
@@ -88,6 +98,22 @@ export function extractMetricFromHealthReport(
   }
 
   return null;
+}
+
+/** The marker mount of the managed storage root (its allocatable space), not a disk. */
+const MANAGED_STORAGE_ROOT_FILESYSTEM = 'gateway-managed-storage-root';
+
+/**
+ * A disk the NODE_DATA_DISKS_TARGET rule watches: every mount except Opfield's own disk images (role managed_image).
+ * Daemons before 2.12.3 send no role: there every mount except loop devices, which back those images.
+ */
+export function isNodeDataDisk(mount: any): boolean {
+  if (!mount || typeof mount !== 'object') return false;
+  if (mount.filesystem === MANAGED_STORAGE_ROOT_FILESYSTEM) return false;
+  const role = typeof mount.role === 'string' ? mount.role.trim() : '';
+  if (role) return role !== 'managed_image';
+  const device = typeof mount.device === 'string' ? mount.device : '';
+  return !device.startsWith('/dev/loop');
 }
 
 function gpuMetricIsAvailable(device: Record<string, unknown>, metric: string): boolean {

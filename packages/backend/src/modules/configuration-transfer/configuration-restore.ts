@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -381,6 +381,7 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
   await removeLeftoverHelpers(docker, options.project);
 
   const workDir = join(options.hostDir, '.opfield-restore');
+  await pruneRestoreBackups(workDir);
   const backupDir = join(workDir, `backup-${Date.now()}`);
   await mkdir(backupDir, { recursive: true, mode: 0o700 });
   const rollback: Rollback = { database: false, volumes: [], files: [], commercial: null, stopped: [] };
@@ -522,6 +523,9 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
       export: summary,
     });
     const rollbackError = await undo(docker, installation, rollback).catch((undoError: unknown) => undoError as Error);
+    // The previous state is back: its copies (a full tar of every volume) are no longer needed. When putting it back
+    // failed they are the only copy and stay.
+    if (!rollbackError) await rm(workDir, { recursive: true, force: true }).catch(() => {});
     await writeStatus(options, {
       state: rollbackError ? 'failed' : 'rolled_back',
       step: rollbackError
@@ -540,6 +544,37 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
   }
   await writeStatus(options, { state: 'completed', step: 'Restored', export: summary });
   return summary;
+}
+
+/** Copies of a restore whose rollback failed are kept this long (the newest is always kept). */
+const RESTORE_BACKUP_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Copies a failed restore left behind: each holds a full copy of every volume. The newest stays (it may be the only
+ * copy of the state before a restore whose rollback failed); older ones go after RESTORE_BACKUP_KEEP_MS, as do the
+ * extraction leftovers of an interrupted restore.
+ */
+export async function pruneRestoreBackups(workDir: string, now = Date.now()): Promise<number> {
+  let entries: string[];
+  try {
+    entries = await readdir(workDir);
+  } catch {
+    return 0;
+  }
+  const backups = entries
+    .map((name) => ({ name, at: Number(/^backup-(\d+)$/.exec(name)?.[1]) }))
+    .filter((entry) => Number.isFinite(entry.at) && entry.at > 0)
+    .sort((a, b) => b.at - a.at);
+  let removed = 0;
+  for (const backup of backups.slice(1)) {
+    if (now - backup.at < RESTORE_BACKUP_KEEP_MS) continue;
+    await rm(join(workDir, backup.name), { recursive: true, force: true }).catch(() => {});
+    removed += 1;
+  }
+  if (entries.includes('commercial-extract')) {
+    await rm(join(workDir, 'commercial-extract'), { recursive: true, force: true }).catch(() => {});
+  }
+  return removed;
 }
 
 async function writeAtomic(path: string, content: string): Promise<void> {

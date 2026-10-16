@@ -15,6 +15,7 @@ import {
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
+import { QUOTA_READ_LIMIT } from '@/services/inference-usage-retention.js';
 import type {
   InferenceCoreAdmissionRequest,
   InferenceCoreAdmissionResponse,
@@ -303,6 +304,7 @@ export class InferenceCoreAccountingService {
     const quotas = await database.query.inferenceQuotaSnapshots.findMany({
       where: and(eq(inferenceQuotaSnapshots.connectionId, connection.id), eq(inferenceQuotaSnapshots.status, 'fresh')),
       orderBy: [desc(inferenceQuotaSnapshots.fetchedAt)],
+      limit: QUOTA_READ_LIMIT,
     });
     const minimumRemainingFraction = Number(connection.minimumRemainingPercent ?? 1) / 100;
     const exhausted = latestValidQuota(quotas).some(

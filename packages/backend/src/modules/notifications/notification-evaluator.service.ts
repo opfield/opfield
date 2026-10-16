@@ -403,12 +403,15 @@ export class NotificationEvaluatorService {
           Math.max(rule.durationSeconds ?? 0, rule.resolveAfterSeconds ?? 0) * 1000
         );
 
+        // A disk rule watches several disks of a node: {{details.mount}} names the one.
+        const details: TemplateDetails =
+          rule.category === 'node' && rule.metric === 'disk' ? { details: { mount: resourceId } } : {};
         if (breached) {
           if (!this.sustainedNodeMetricBreach(rule, compositeResourceId)) continue;
-          await this.handleThresholdBreach(rule, compositeResourceId, value, nodeId, resourceId);
+          await this.handleThresholdBreach(rule, compositeResourceId, value, nodeId, resourceId, details);
         } else {
           this.nodeMetricBreachStreaks.delete(`${rule.id}:${compositeResourceId}`);
-          await this.handleThresholdClear(rule, compositeResourceId, value, nodeId, resourceId);
+          await this.handleThresholdClear(rule, compositeResourceId, value, nodeId, resourceId, details);
         }
       }
     }

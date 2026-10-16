@@ -443,10 +443,18 @@ func renderKeeperConfig(spec *pb.WitnessSpec, dataDir string) ([]byte, error) {
 	for _, peer := range spec.GetPeers() {
 		servers = append(servers, server{ID: peer.GetServerId(), Hostname: peer.GetHost(), Port: peer.GetPort(), Priority: 3})
 	}
+	// Log and snapshot retention are set here rather than left to the
+	// Keeper defaults (the same values in 25.8), so a later Keeper release
+	// cannot change how much a witness keeps on the relay's disk: 3
+	// snapshots, a snapshot every 100000 log entries, 100000 entries kept
+	// behind the newest snapshot.
 	type coordination struct {
 		OperationTimeoutMs int    `xml:"operation_timeout_ms"`
 		SessionTimeoutMs   int    `xml:"session_timeout_ms"`
 		RaftLogsLevel      string `xml:"raft_logs_level"`
+		SnapshotsToKeep    int    `xml:"snapshots_to_keep"`
+		SnapshotDistance   int    `xml:"snapshot_distance"`
+		ReservedLogItems   int    `xml:"reserved_log_items"`
 	}
 	type keeperServer struct {
 		TCPPort                 uint32       `xml:"tcp_port"`
@@ -479,8 +487,9 @@ func renderKeeperConfig(spec *pb.WitnessSpec, dataDir string) ([]byte, error) {
 			LogStoragePath: filepath.Join(dataDir, "coordination", "log"), SnapshotStoragePath: filepath.Join(dataDir, "coordination", "snapshots"),
 			EnableReconfiguration: true, FourLetterWordWhiteList: "ruok,srvr,mntr,conf,isro",
 			MaxMemoryUsageSoftLimit: witnessKeeperSoftLimit,
-			Coordination:            coordination{OperationTimeoutMs: 10000, SessionTimeoutMs: 30000, RaftLogsLevel: "warning"},
-			Servers:                 servers,
+			Coordination: coordination{OperationTimeoutMs: 10000, SessionTimeoutMs: 30000, RaftLogsLevel: "warning",
+				SnapshotsToKeep: 3, SnapshotDistance: 100000, ReservedLogItems: 100000},
+			Servers: servers,
 		},
 	}
 	encoded, err := xml.MarshalIndent(value, "", "    ")

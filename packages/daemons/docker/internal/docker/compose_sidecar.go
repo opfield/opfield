@@ -49,9 +49,9 @@ func (c *Client) runComposeSidecar(ctx context.Context, image, socketPath string
 			Entrypoint: []string{composeSidecarEntrypoint},
 			Cmd:        args,
 			Env:        env,
-			Labels: map[string]string{
+			Labels: helperContainerLabels(helperKindComposeSidecar, map[string]string{
 				"net.opfield.compose.sidecar": "true",
-			},
+			}),
 		},
 		HostConfig: &container.HostConfig{Binds: binds, AutoRemove: false, LogConfig: internalContainerLogConfig()},
 	})

@@ -18,6 +18,7 @@ import {
   openCommercialArchive,
   openDatabaseDump,
   openVolumeArchive,
+  removeExportLeftovers,
   removeLeftoverHelpers,
   type TransferStream,
   volumeSize,
@@ -240,6 +241,17 @@ export class ConfigurationExportService {
         this.tickets.delete(id);
       }
     }
+  }
+
+  /**
+   * Removes what a crashed or cut-off export left on the Opfield host (Housekeeping, Opfield Host Files). Does nothing
+   * while an export runs or waits for its download.
+   */
+  async cleanLeftovers(): Promise<number> {
+    this.prune();
+    if ([...this.tickets.values()].some((ticket) => ticket.state === 'running' || ticket.state === 'ready')) return 0;
+    const installation = await this.installation();
+    return removeExportLeftovers(this.docker, installation);
   }
 
   /** Prepares an export and returns the one-time link that streams it. */

@@ -481,7 +481,7 @@ func (c *Client) replaceLegacyDeploymentRouter(ctx context.Context, current cont
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), deploymentRouterRollbackTimeout)
 	defer cancel()
-	if err := c.RemoveContainer(cleanupCtx, current.ID, true); err != nil {
+	if err := c.RemoveContainerAndAnonymousVolumes(cleanupCtx, current.ID, true); err != nil {
 		return fmt.Errorf("remove the replaced deployment router %s: %w", aside, err)
 	}
 	return nil

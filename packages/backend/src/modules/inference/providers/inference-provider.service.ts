@@ -13,8 +13,10 @@ import {
   inferenceQuotaSnapshots,
 } from '@/db/schema/index.js';
 import type { InferenceConnectionStatus } from '@/db/schema/inference-providers.js';
+import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import { pruneInferenceQuotaSnapshots, QUOTA_READ_LIMIT } from '@/services/inference-usage-retention.js';
 import { providerApiMonthlySpend } from '../accounting/inference-provider-budget.js';
 import { InferenceCoreClientError } from '../core/inference-core.client.js';
 import type { InferenceCoreBridgeService } from '../core/inference-core-bridge.service.js';
@@ -69,6 +71,7 @@ import { knownProviderModel } from './inference-provider-model-catalog.js';
 
 const SYNC_FRESH_MS = 5 * 60_000;
 const SYNC_RETRY_MS = 60_000;
+const logger = createChildLogger('InferenceProviderService');
 const LAST_GOOD_MS = 30 * 60_000;
 const SYNC_RUNNING_RECOVERY_MS = 2 * SYNC_FRESH_MS;
 
@@ -799,6 +802,7 @@ export class InferenceProviderService {
     const quotas = await this.db.query.inferenceQuotaSnapshots.findMany({
       where: and(eq(inferenceQuotaSnapshots.connectionId, connection.id), eq(inferenceQuotaSnapshots.status, 'fresh')),
       orderBy: [desc(inferenceQuotaSnapshots.fetchedAt)],
+      limit: QUOTA_READ_LIMIT,
     });
     return {
       hasQuotaHistory: quotas.length > 0,
@@ -1026,6 +1030,10 @@ export class InferenceProviderService {
         validUntil,
         metadata: window.metadata ?? {},
       }))
+    );
+    // Only the newest readings are ever read; drop this connection's old ones so they do not pile up.
+    await pruneInferenceQuotaSnapshots(this.db, { connectionId }).catch((error) =>
+      logger.warn('Failed to prune old inference quota readings', { connectionId, error })
     );
   }
 

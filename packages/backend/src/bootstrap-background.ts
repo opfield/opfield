@@ -16,6 +16,7 @@ import { UpdateCheckJob } from '@/jobs/update-check.job.js';
 import { logger } from '@/lib/logger.js';
 import { repairDanglingResourceScopes } from '@/lib/resource-scope-cleanup.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { dockerArchiveTransferStore } from '@/modules/ai/ai.docker-archive-transfer.js';
 import { AppHealthService } from '@/modules/apps/app-health.service.js';
 import { AppIncidentRunner } from '@/modules/apps/app-incident-runner.js';
 import { AppMaintenanceService } from '@/modules/apps/app-maintenance.service.js';
@@ -37,6 +38,7 @@ import { CloudMail } from '@/modules/cloud-link/cloud-link-mail.js';
 import { CloudManagedSso } from '@/modules/cloud-link/cloud-link-managed-sso.js';
 import { createCloudLinkProbe } from '@/modules/cloud-link/cloud-link-probe.js';
 import { createCloudSsoClient } from '@/modules/cloud-link/cloud-link-sso-client.js';
+import { ConfigurationExportService } from '@/modules/configuration-transfer/configuration-export.service.js';
 import { DatabaseMonitoringService } from '@/modules/databases/database-monitoring.service.js';
 import { DiagnosticsService } from '@/modules/diagnostics/diagnostics.service.js';
 import { createOpfieldAlertObserver } from '@/modules/diagnostics/diagnostics-alerts.js';
@@ -107,7 +109,7 @@ import {
 import { DaemonUpdateService } from '@/services/daemon-update.service.js';
 import { DockerService } from '@/services/docker.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
-import { HousekeepingService } from '@/services/housekeeping.service.js';
+import { HousekeepingService, isHousekeepingStale } from '@/services/housekeeping.service.js';
 import { ManagedLeftoverRepair } from '@/services/managed-leftover-repair.js';
 import { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
@@ -244,6 +246,16 @@ export async function initializeBackgroundServices(): Promise<void> {
   );
   container.registerInstance(DiagnosticsService, diagnosticsService);
   diagnosticsService.setObserver(createOpfieldAlertObserver(notifEvaluatorService));
+  // Housekeeping shows the disks, database, Redis and container logs of the Opfield host, and cleans what crashed
+  // exports and archive transfers left there.
+  housekeepingService.setDiskUsageSources(
+    container.resolve<RedisClient>(TOKENS.RedisClient),
+    diagnosticsService.hostDisks
+  );
+  housekeepingService.setHostFileSources(
+    container.isRegistered(ConfigurationExportService) ? container.resolve(ConfigurationExportService) : undefined,
+    dockerArchiveTransferStore()
+  );
   // The installation's one socket to its cloud account; started with the scheduler, on the replica holding its lease.
   container.registerInstance(
     CloudLinkAgent,
@@ -578,6 +590,28 @@ export async function initializeBackgroundServices(): Promise<void> {
   const housekeepingJob = new HousekeepingJob(housekeepingService);
   const hkConfig = await housekeepingService.getConfig();
   scheduler.register('housekeeping', hkConfig.cronExpression, () => housekeepingJob.run());
+  // An Opfield host disk almost full: housekeeping runs now instead of at night (at most once an hour).
+  scheduler.registerInterval('housekeeping-low-disk', 60_000, async () => {
+    await housekeepingService.onHostDiskUsage(diagnosticsService.hostDisks.fullest()?.usedPercent ?? null);
+  });
+  // No successful run for two days: retention stopped, which nobody would notice until a disk fills.
+  scheduler.registerInterval('housekeeping-stale-check', 10 * 60_000, async () => {
+    const lastSuccessAt = await housekeepingService.getLastSuccessAt();
+    await notifEvaluatorService.observeStatefulEvent(
+      'opfield',
+      isHousekeepingStale(lastSuccessAt) ? 'housekeeping.stale' : 'ok',
+      { type: 'opfield', id: 'opfield-housekeeping', name: 'Housekeeping' },
+      { last_success_at: lastSuccessAt ?? 'never' },
+      ['housekeeping.stale'],
+      10 * 60_000
+    );
+  });
+  // What a crash or restart left on the Opfield host is removed soon after start, not only at night.
+  setTimeout(() => {
+    void housekeepingService
+      .cleanHostFilesNow()
+      .catch((error) => logger.warn('Startup host file cleanup failed', { error }));
+  }, 60_000).unref?.();
   scheduler.registerInterval('clickhouse-health-guard', 5 * 60 * 1000, async () => {
     const config = await housekeepingService.getConfig();
     // A safety cap, not a scheduled cleanup: each category's own switch decides, the Housekeeping master switch

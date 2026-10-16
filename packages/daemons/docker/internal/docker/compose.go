@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -515,8 +516,12 @@ func (s *dockerComposeSidecar) run(ctx context.Context, request composeRequest) 
 	if request.action == "delete_volumes" {
 		return s.deleteVolumes(ctx, request.projectName, request.volumeNames)
 	}
+	// down removes the project's containers for good; a later up creates new ones with new anonymous volumes. The
+	// anonymous volumes of the removed containers are collected first and removed once down succeeded.
+	var anonymous []string
 	if request.action == "down" {
 		s.client.releaseSecureLinkConnectorFromProject(ctx, request.projectName)
+		anonymous = withoutNamedIn(s.client.composeProjectAnonymousVolumes(ctx, request.projectName), request.composeYAML)
 	}
 	request = s.client.withComposeLabelFamily(ctx, request)
 	stage, cleanup, err := stageComposeInput(request)
@@ -533,7 +538,52 @@ func (s *dockerComposeSidecar) run(ctx context.Context, request composeRequest) 
 			return err
 		}
 	}
+	s.client.removeOrphanedAnonymousVolumes(ctx, anonymous)
 	return nil
+}
+
+// withoutNamedIn drops the volumes the project's compose file names: a service may mount a volume with a
+// Docker-generated name by that name (an external volume), and such a volume is the user's.
+func withoutNamedIn(names []string, composeYAML []byte) []string {
+	if len(composeYAML) == 0 {
+		return names
+	}
+	kept := names[:0:0]
+	for _, name := range names {
+		if !bytes.Contains(composeYAML, []byte(name)) {
+			kept = append(kept, name)
+		}
+	}
+	return kept
+}
+
+// composeProjectAnonymousVolumes lists the anonymous volumes of a Compose project's containers.
+func (c *Client) composeProjectAnonymousVolumes(ctx context.Context, projectName string) []string {
+	listed, err := c.cli.ContainerList(ctx, client.ContainerListOptions{
+		All:     true,
+		Filters: make(client.Filters).Add("label", "com.docker.compose.project="+projectName),
+	})
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Warn("list compose project containers for their anonymous volumes", "project", projectName, "error", err)
+		}
+		return nil
+	}
+	seen := map[string]bool{}
+	var names []string
+	for _, item := range listed.Items {
+		inspected, err := c.cli.ContainerInspect(ctx, item.ID, client.ContainerInspectOptions{})
+		if err != nil {
+			continue
+		}
+		for _, name := range containerAnonymousVolumes(&inspected.Container) {
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
+		}
+	}
+	return names
 }
 
 // withRemoveOrphans removes the services a revision no longer declares when the operation asks for it.
