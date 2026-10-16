@@ -73,12 +73,12 @@ Use find_resource with an empty query and a concrete type when the user asks to 
 - The report is read-only: \`current\` and \`retired\` reflect persisted lifecycle ownership; \`unknown\` means ownership cannot be proven and must never be mutated automatically.
 - Never use generic revoke/delete operations for system certificates or CAs: server policy rejects them. This tool cannot revoke, delete, issue, export keys, or clean up certificates.
 
-## PKI → SSL Workflow
-PKI certificates live in a separate store from SSL certificates. To use a PKI cert with an ingress route:
-1. issue_certificate → returns { certificate, message }
-2. link_internal_cert(internalCertId: certificate.id) → creates an SSL certificate entry
-3. Use the SSL certificate ID (from step 2) when creating/updating routes through the route tools.
-NEVER use a PKI certificate ID directly as sslCertificateId on a route.`,
+## PKI Certificates On Routes
+PKI certificates live in a separate store from SSL certificates. A PKI TLS server certificate (issue_certificate → { certificate, message }) serves a route in one of two ways; both need pki:cert:deploy on the certificate or its issuing CA, and Opfield reissues the leaf before it expires while it holds the key:
+1. Directly: internalCertificateId = certificate.id on create_route or update_route (with sslEnabled: true).
+2. Through the SSL store: link_internal_cert(internalCertId: certificate.id) creates an SSL certificate entry with its own ID, which routes then use as sslCertificateId. Use this to pick it in the console's route SSL settings or to manage it with the SSL certificates.
+When a route has both, the SSL store certificate (sslCertificateId) is served. get_route returns sslCertificateId, internalCertificateId and certificate (source "ssl" or "pki", id, name, status, notAfter: the one served).
+NEVER use a PKI certificate ID as sslCertificateId: that field takes SSL store IDs only.`,
 
   ssl: `# SSL Certificates
 
@@ -104,11 +104,7 @@ SSL certificates in Opfield enable HTTPS on ingress routes. Three types exist:
 - Expiry is parsed from the certificate — no auto-renewal.
 
 ## Using PKI Certificates as SSL
-To use a PKI-issued certificate with an ingress route:
-1. Issue a PKI certificate: issue_certificate(...) → returns cert with id
-2. Link it: link_internal_cert(internalCertId: cert.id) → creates an SSL certificate entry with a separate ID
-3. Use the SSL certificate ID (from step 2) as sslCertificateId on the route
-IMPORTANT: Never use a PKI certificate ID directly as sslCertificateId — you must link it first.
+A PKI-issued certificate (issue_certificate(...) → cert with id) serves a route either directly, with internalCertificateId: cert.id on the route, or through the SSL store: link_internal_cert(internalCertId: cert.id) creates an SSL certificate entry with a separate ID, used as sslCertificateId on the route. Never put a PKI certificate ID in sslCertificateId. When a route has both, sslCertificateId is served; get_route names the served one in certificate.
 
 ## Using SSL Certs with Routes
 - Set sslCertificateId on the route to the SSL certificate UUID.

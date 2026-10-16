@@ -27,7 +27,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_route',
     description:
-      'Get a compact summary of an ingress route. Use manage_route get_config for every setting (headers, rewrites, cache, rate limit, template, health check).',
+      'Get a compact summary of an ingress route, including certificate: the certificate nginx serves (source ssl for sslCertificateId, pki for internalCertificateId; sslCertificateId wins when both are set), or null without HTTPS. Use manage_route get_config for every setting (headers, rewrites, cache, rate limit, template, health check).',
     parameters: {
       type: 'object',
       properties: {
@@ -103,7 +103,8 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
         redirectStatusCode: { type: 'number', enum: [301, 302, 307, 308], description: 'Redirect status code' },
         internalCertificateId: {
           type: 'string',
-          description: 'Internal PKI TLS server certificate UUID; needs pki:cert:deploy on it or its issuing CA',
+          description:
+            'Internal PKI TLS server certificate UUID, used directly without link_internal_cert; needs pki:cert:deploy on it or its issuing CA. sslCertificateId wins when both are set',
         },
         customHeaders: {
           type: 'array',
@@ -550,7 +551,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'link_internal_cert',
     description:
-      'Import a PKI certificate as an SSL certificate so it can be used with ingress routes. This links an existing PKI certificate (from the Certificates table) into the SSL certificates pool. You MUST use this before assigning a PKI-issued cert to a route. Needs ssl:cert:issue on the destination and pki:cert:deploy on the PKI certificate or its issuing CA (pki:cert:export also works); the private key is never returned.',
+      'Import a PKI certificate as an SSL certificate so it can be used with ingress routes. This links an existing PKI certificate (from the Certificates table) into the SSL certificates pool. One of two ways to serve a PKI certificate on a route: link it here and set the returned SSL certificate id as the route\'s sslCertificateId, or set the PKI certificate id directly as the route\'s internalCertificateId without linking (the SSL store certificate wins when a route has both). Needs ssl:cert:issue on the destination and pki:cert:deploy on the PKI certificate or its issuing CA (pki:cert:export also works); the private key is never returned.',
     parameters: {
       type: 'object',
       properties: {

@@ -29,15 +29,16 @@ Start with `using-opfield` for connection, discovery, and safety rules. Read `re
 
 ## Use an internal certificate on a Route
 
-PKI certificates and SSL certificates live in separate stores; a Route needs an SSL certificate ID.
+PKI certificates and SSL certificates live in separate stores. `issue_certificate(...)` returns `{ certificate: { id, ... } }`; a TLS server certificate then serves a Route in one of two ways:
 
-1. `issue_certificate(...)` returns `{ certificate: { id, ... } }`.
-2. `link_internal_cert({ internalCertId: certificate.id })` creates a separate SSL certificate entry with its own ID.
-3. Use that SSL certificate ID as the Route's `sslCertificateId` (`ingress-and-domains`).
+- Directly: set `internalCertificateId: certificate.id` on `create_route` or `update_route` (with `sslEnabled: true`).
+- Through the SSL store: `link_internal_cert({ internalCertId: certificate.id })` creates a separate SSL certificate entry with its own ID; use that ID as the Route's `sslCertificateId` (`ingress-and-domains`). The console's Route SSL settings pick from these.
+
+When a Route has both, the `sslCertificateId` one is served. `get_route` returns both ids and `certificate`, the one served (`source` `ssl` or `pki`). Never put a PKI certificate ID in `sslCertificateId`.
 
 Linking needs `ssl:cert:issue` on the destination and `pki:cert:deploy` on the PKI certificate or its issuing CA (`pki:cert:export` also works). Setting the PKI certificate directly as the Route's `internalCertificateId` needs the same `pki:cert:deploy`. Either way the private key goes to nginx, never to the caller.
 
-When Opfield holds the private key, a linked certificate reissues automatically from the same CA and template once two thirds of its lifetime has passed (shown as "Reissue" under auto-renew). A certificate signed from an external CSR only alerts: issue a new one and re-link it.
+When Opfield holds the private key, a linked or directly attached certificate reissues automatically from the same CA and template once two thirds of its lifetime has passed (shown as "Reissue" under auto-renew). A certificate signed from an external CSR only alerts: issue a new one and re-link it.
 
 ## Expiry alerts
 

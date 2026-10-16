@@ -132,6 +132,13 @@ export interface ProxyHost {
   updatedAt: string;
   // Relations (populated in detail views)
   sslCertificate?: SSLCertificate;
+  /** The PKI certificate attached directly (internalCertificateId); served while no SSL certificate is selected. */
+  internalCertificate?: {
+    id: string;
+    commonName: string;
+    status: string;
+    notAfter: string;
+  } | null;
   tlsDistribution?: CertificateDistributionState | null;
   accessList?: AccessList;
 }

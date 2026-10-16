@@ -188,6 +188,31 @@ function estimateMessagesTokens(messages: Record<string, unknown>[]): number {
   return total;
 }
 
+/**
+ * The certificate nginx serves for a route, as nginx-certificate-distribution.service.ts picks it: an SSL store
+ * certificate (sslCertificateId) wins over a PKI certificate attached directly (internalCertificateId). Only the
+ * detail view resolves the certificates, so a list item carries the ids alone.
+ */
+function routeCertificateForAgent(host: Record<string, any>) {
+  if (host.sslCertificate === undefined && host.internalCertificate === undefined) return {};
+  const ssl = host.sslCertificateId && host.sslCertificate ? host.sslCertificate : null;
+  const pki = host.internalCertificateId && host.internalCertificate ? host.internalCertificate : null;
+  const serving = ssl
+    ? {
+        source: 'ssl',
+        id: ssl.id,
+        name: ssl.name,
+        type: ssl.type,
+        domainNames: ssl.domainNames,
+        status: ssl.status,
+        notAfter: ssl.notAfter,
+      }
+    : pki
+      ? { source: 'pki', id: pki.id, name: pki.commonName, status: pki.status, notAfter: pki.notAfter }
+      : null;
+  return { certificate: host.sslEnabled ? serving : null };
+}
+
 function compactProxyHostForAgent(host: Record<string, any>) {
   const safeHost = stripRawProxyConfigForProgrammatic(host);
   const managedTarget = {
@@ -252,6 +277,8 @@ function compactProxyHostForAgent(host: Record<string, any>) {
     sslEnabled: safeHost.sslEnabled,
     sslForced: safeHost.sslForced,
     sslCertificateId: safeHost.sslCertificateId,
+    internalCertificateId: safeHost.internalCertificateId ?? null,
+    ...routeCertificateForAgent(safeHost),
     accessListId: safeHost.accessListId,
     healthCheckEnabled: safeHost.healthCheckEnabled,
     healthStatus: safeHost.healthStatus,

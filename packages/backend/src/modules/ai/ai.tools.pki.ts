@@ -191,7 +191,7 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'issue_certificate',
     description:
-      'Issue a new PKI certificate from a CA. Returns the certificate. To use it with ingress routes, you must then import it as an SSL certificate using link_internal_cert.',
+      'Issue a new PKI certificate from a CA. Returns the certificate. A TLS server certificate serves an ingress route either directly (internalCertificateId on create_route or update_route) or after link_internal_cert imports it as an SSL certificate (its sslCertificateId).',
     parameters: {
       type: 'object',
       properties: {

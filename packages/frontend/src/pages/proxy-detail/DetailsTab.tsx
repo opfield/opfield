@@ -227,6 +227,35 @@ export function DetailsTab({ host }: { host: ProxyHost }) {
           )}
         </PanelShell>
       )}
+
+      {/* A PKI certificate attached directly (API/MCP internalCertificateId) serves while no SSL certificate is set */}
+      {host.sslEnabled && !host.sslCertificate && host.internalCertificate && (
+        <PanelShell
+          title="SSL Certificate"
+          bodyClassName="divide-y divide-border -mb-px [&>*:last-child]:border-b [&>*:last-child]:border-border"
+        >
+          <DetailRow
+            label="Name"
+            value={
+              <Link to={`/certificates/${host.internalCertificate.id}`}>
+                <Badge variant="info">{host.internalCertificate.commonName}</Badge>
+              </Link>
+            }
+          />
+          <DetailRow label="Type" value={<Badge variant="secondary">PKI</Badge>} />
+          <DetailRow
+            label="Status"
+            value={
+              <Badge
+                variant={host.internalCertificate.status === "active" ? "success" : "destructive"}
+              >
+                {host.internalCertificate.status}
+              </Badge>
+            }
+          />
+          <DetailRow label="Expires" value={formatDate(host.internalCertificate.notAfter)} />
+        </PanelShell>
+      )}
     </div>
   );
 }

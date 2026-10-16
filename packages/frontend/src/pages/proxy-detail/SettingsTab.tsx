@@ -609,7 +609,11 @@ export function SettingsTab({
         </SettingsControlRow>
         <SettingsControlRow
           title="SSL Certificate"
-          description="Certificate used for HTTPS"
+          description={
+            !sslCertificateId && host.internalCertificate
+              ? `Serves PKI certificate ${host.internalCertificate.commonName}, attached through the API; a certificate selected here is served instead`
+              : "Certificate used for HTTPS"
+          }
           help="Selects the certificate distributed to proxy replicas for TLS termination. Its Subject Alternative Names must cover the Route domains."
         >
           <Combobox
