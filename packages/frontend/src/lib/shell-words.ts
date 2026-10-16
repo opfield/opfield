@@ -45,3 +45,10 @@ export function parseShellWords(input: string): string[] {
   if (current) words.push(current);
   return words;
 }
+
+/** The inverse of parseShellWords: words with spaces, quotes or backslashes are double-quoted so they parse back unchanged. */
+export function formatShellWords(words: readonly string[]): string {
+  return words
+    .map((word) => (/^[\w@%+=:,./-]+$/.test(word) ? word : `"${word.replace(/[\\"]/g, "\\$&")}"`))
+    .join(" ");
+}

@@ -25,6 +25,7 @@ import {
   DEFAULT_DOCKER_RUNTIME_DESCRIPTION,
   getSecureDockerRuntimeDescription,
 } from "@/lib/docker-runtime-profile";
+import { formatShellWords, parseShellWords } from "@/lib/shell-words";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { requireLicenseFeature, usePlanIncludes } from "@/stores/license-paywall";
@@ -137,11 +138,11 @@ export function DeploymentSettings({
     state.hasScope(`docker:availability:manage:${nodeId}/${deployment.id}`)
   );
   const initialEntrypoint = useMemo(
-    () => ((deployment.desiredConfig as any).entrypoint ?? []).join(" "),
+    () => formatShellWords((deployment.desiredConfig as any).entrypoint ?? []),
     [deployment.desiredConfig]
   );
   const initialCommand = useMemo(
-    () => ((deployment.desiredConfig as any).command ?? []).join(" "),
+    () => formatShellWords((deployment.desiredConfig as any).command ?? []),
     [deployment.desiredConfig]
   );
   const initialWorkingDir = (deployment.desiredConfig as any).workingDir ?? "";
@@ -638,8 +639,8 @@ export function DeploymentSettings({
                   await api.updateDockerDeployment(nodeId, deployment.id, {
                     desiredConfig: {
                       image: nextImage,
-                      entrypoint: entrypoint.trim() ? entrypoint.trim().split(/\s+/) : [],
-                      command: command.trim() ? command.trim().split(/\s+/) : [],
+                      entrypoint: entrypoint.trim() ? parseShellWords(entrypoint.trim()) : [],
+                      command: command.trim() ? parseShellWords(command.trim()) : [],
                       workingDir,
                       user,
                       mounts: mounts.map(({ hostPath, containerPath, name, readOnly }) => ({
