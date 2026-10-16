@@ -244,6 +244,7 @@ ClickHouse:
 - Browse databases, tables, views, dictionaries, and rows.
 - Run SQL through a scoped console.
 - Insert, update, or delete rows only when the selected table engine, server version, and caller permissions allow the operation; schema mutations are not exposed through the explorer.
+- Managed ClickHouse runs without ClickHouse's system log tables (`system.query_log` and the like). A system log that the database's custom XML configuration turns on again keeps its rows for 7 days, unless that configuration sets its own `ttl` or `engine` for it; a database made by an older release gets this when it next starts.
 
 Credential reveal and query execution are intentionally separate permissions. Users can be allowed to monitor a database without being allowed to reveal credentials or run arbitrary commands. Binding-injected application credentials are not displayed by default.
 
