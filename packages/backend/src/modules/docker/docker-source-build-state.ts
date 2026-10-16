@@ -99,6 +99,10 @@ function describeLatestBuild(source: DockerSourceStateInput, builds: DockerSourc
   if (!source.autoDeploy) {
     return `Build of commit ${commit} succeeded; automatic deployment is off, so it was not deployed. ${deployed}`;
   }
+  // The target runs an earlier commit although the newest build succeeded: it was rolled back.
+  if (source.deployedCommitSha) {
+    return `Build of commit ${commit} succeeded, but the target runs the earlier commit ${short(source.deployedCommitSha)} (rolled back). The next new commit deploys again; to deploy ${commit} now, build it again with force.`;
+  }
   return `Build of commit ${commit} succeeded. ${deployed}`;
 }
 

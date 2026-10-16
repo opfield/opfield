@@ -103,4 +103,11 @@ describe('state of a Git source', () => {
       )
     ).toBe('Commit 0d9a2ae5b1 is deployed.');
   });
+
+  it('says the target was rolled back when it runs an earlier commit than the newest build', () => {
+    const older = 'f53ab3eb00'.padEnd(40, '0');
+    expect(describeDockerSourceState({ ...source, deployedCommitSha: older }, [build()])).toBe(
+      'Build of commit 0d9a2ae5b1 succeeded, but the target runs the earlier commit f53ab3eb00 (rolled back). The next new commit deploys again; to deploy 0d9a2ae5b1 now, build it again with force.'
+    );
+  });
 });
