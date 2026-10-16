@@ -568,7 +568,7 @@ The internal registry keeps build images on a Docker volume of the Opfield host 
 
 The registry cleans up after itself at every maintenance run (after builds and nightly with Housekeeping):
 
-- It keeps per container the build it runs and one to roll back to.
+- It keeps per container the build it runs and one to roll back to. **Roll back** in the container's **Source** tab (Delivery status; API `POST /api/docker/nodes/{nodeId}/containers/{containerName}/source/rollback`, MCP `manage_docker_source` `rollback`) runs that build again; the container stays on it until the next new commit is built and deployed. Older builds are gone: to run older code, push a revert commit.
 - The builds of a Git source that no longer exists (its container, deployment or Pages project was deleted, or the source was detached) are deleted once two maintenance runs at least 12 hours apart found no workload naming them.
 - When you detach the Git source of a container, the container keeps running its build, and the registry keeps that build as the container's own until the container is removed or runs another image, so recreating or migrating the container still finds it. The detach answer names it in `keptImage`.
 - On local disk, the leftovers of pushes that failed or were cancelled are removed after a day.

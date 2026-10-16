@@ -53,6 +53,7 @@ import {
   createComposeProjectFromSource,
   createDockerSourceResource,
 } from './docker-source-resource-creation.js';
+import { registerDockerSourceRollbackRoute } from './docker-source-rollback.routes.js';
 import { documentDockerSourceRoutes } from './docker-source-routes.docs.js';
 import {
   getContainerSourceRoute,
@@ -260,6 +261,8 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
     },
     async (c) => c.json({ data: await container.resolve(DockerSourceService).sync(containerTarget(c), actorFor(c)) })
   );
+  // Rolling back to a kept build deploys it, so it needs the build scope too.
+  registerDockerSourceRollbackRoute(router);
   router.get(
     '/nodes/:nodeId/containers/:containerName/source/build-secrets',
     requireDockerContainerScope('docker:containers:view', 'containerName', { allowPendingSource: true }),

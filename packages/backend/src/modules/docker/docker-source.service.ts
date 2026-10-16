@@ -15,6 +15,7 @@ import type {
 } from './docker-build.schemas.js';
 import type { DockerBuildService } from './docker-build.service.js';
 import type { SupportedSourceProvider } from './docker-source-mappers.js';
+import type { DockerSourceArtifactRollback, DockerSourceRollbackBuild } from './docker-source-rollback.types.js';
 import type { DockerSourceWebhookResult } from './docker-source-webhook.service.js';
 
 export type { DockerSourceWebhookResult } from './docker-source-webhook.service.js';
@@ -81,6 +82,7 @@ export class DockerSourceService {
   ) {}
   setBuildService(_buildService: DockerBuildService): void {}
   setLicensePolicyService(_service: LicensePolicyService): void {}
+  setArtifactRollback(_rollback: DockerSourceArtifactRollback): void {}
   async get(_target: DockerSourceTarget): Promise<{
     id: string;
     target:
@@ -153,6 +155,8 @@ export class DockerSourceService {
     webhookPath: string;
     createdAt: Date;
     updatedAt: Date;
+    /** The build a rollback of a container source goes back to now; null when none is kept or for other targets. */
+    rollbackBuild?: DockerSourceRollbackBuild | null;
   } | null> {
     return null;
   }
@@ -333,6 +337,18 @@ export class DockerSourceService {
     source: NonNullable<Awaited<ReturnType<DockerSourceService['get']>>>;
     changed: boolean;
     build: Awaited<ReturnType<DockerBuildService['enqueue']>>['build'] | null;
+  }> {
+    return commercialModuleUnavailable();
+  }
+  async rollback(
+    _target: DockerSourceTarget,
+    _input: { buildId?: string },
+    _user: User
+  ): Promise<{
+    source: NonNullable<Awaited<ReturnType<DockerSourceService['get']>>>;
+    build: DockerSourceRollbackBuild;
+    previousBuild: DockerSourceRollbackBuild | null;
+    note: string;
   }> {
     return commercialModuleUnavailable();
   }

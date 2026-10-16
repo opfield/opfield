@@ -64,6 +64,7 @@ import type {
 import { RepositorySourceFields } from "../docker-deploy/RepositorySourceFields";
 import { useDockerSourceRepositories } from "../docker-deploy/useDockerSourceRepositories";
 import { DockerSourceLatestBuildRow } from "./DockerSourceLatestBuildRow";
+import { DockerSourceRollbackRow } from "./DockerSourceRollbackRow";
 import { DOCKER_VULNERABILITY_SCOPE_OPTIONS } from "./docker-vulnerability-scope";
 import { EnvTextDialog, envTextErrorLines, parseEnvText } from "./EnvTextDialog";
 
@@ -1596,6 +1597,16 @@ export function DockerGitSourcePanel({
         >
           {commitBadge(source.deployedCommitSha, "No build deployed")}
         </SettingsControlRow>
+        {target?.kind === "container" && canBuild && !pendingContainer && (
+          <DockerSourceRollbackRow
+            target={target}
+            source={source}
+            onRolledBack={(next) => {
+              setSource(next);
+              onSourceChange?.(next);
+            }}
+          />
+        )}
         <DockerSourceLatestBuildRow source={source} />
         <SettingsControlRow
           title="Update detection"

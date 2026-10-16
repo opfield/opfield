@@ -21,6 +21,7 @@ import type {
   DockerSourceLatestBuild,
   DockerSourceResourceCreateRequest,
   DockerSourceResourceCreateResult,
+  DockerSourceRollbackResult,
   DockerSourceSyncResult,
   DockerSourceTarget,
   DockerTask,
@@ -1029,6 +1030,19 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
       return this.unwrapData(
         this.request<{ data: DockerSourceSyncResult }>(`${dockerSourcePath(target)}/sync`, {
           method: "POST",
+        })
+      );
+    }
+
+    /** Runs a kept build of a container source again: `buildId`, or the build the container ran before. */
+    async rollbackDockerSource(
+      target: Extract<DockerSourceTarget, { kind: "container" }>,
+      input: { buildId?: string } = {}
+    ): Promise<DockerSourceRollbackResult> {
+      return this.unwrapData(
+        this.request<{ data: DockerSourceRollbackResult }>(`${dockerSourcePath(target)}/rollback`, {
+          method: "POST",
+          body: JSON.stringify(input),
         })
       );
     }
