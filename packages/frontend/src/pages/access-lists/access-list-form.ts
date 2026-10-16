@@ -1,3 +1,4 @@
+import { arrayMove } from "@dnd-kit/sortable";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { toastApiError } from "@/lib/api-error-toast";
@@ -90,6 +91,10 @@ export function useAccessListForm({
   const removeIpRule = (index: number) => {
     setIpRules((prev) => prev.filter((_, candidateIndex) => candidateIndex !== index));
   };
+  /** nginx checks the rules in this order and the first match wins. */
+  const moveIpRule = (fromIndex: number, toIndex: number) => {
+    setIpRules((prev) => arrayMove(prev, fromIndex, toIndex));
+  };
   const addBasicAuthUser = (
     user: { username: string; password: string } = { username: "", password: "" }
   ) => {
@@ -164,6 +169,7 @@ export function useAccessListForm({
     addIpRule,
     updateIpRule,
     removeIpRule,
+    moveIpRule,
     basicAuthEnabled,
     setBasicAuthEnabled,
     basicAuthUsers,

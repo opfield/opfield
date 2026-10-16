@@ -244,10 +244,12 @@ Access lists provide IP-based access control and HTTP basic authentication for i
 3. Nginx enforces the rules on every request to those routes
 
 ## IP Rules
-- Array of rules: { type: "allow"|"deny", value: "CIDR or IP" }
-- Examples: { type: "allow", value: "10.0.0.0/8" }, { type: "deny", value: "0.0.0.0/0" }
-- Rules are evaluated in order — first match wins
-- Common pattern: allow specific IPs/ranges, deny all others
+- Ordered array of rules: { type: "allow"|"deny", value: "IP, CIDR or all" }
+- Examples: { type: "allow", value: "10.0.0.0/8" }, { type: "deny", value: "192.0.2.7" }, { type: "deny", value: "all" }
+- nginx checks the rules in order and the first match wins; when a list has rules, every address that matches none is denied (Opfield renders deny all; after the last rule)
+- Common pattern: allow specific IPs/ranges; nothing else gets in. To block a few addresses and let everyone else in, put the deny rules first and end with { type: "allow", value: "all" }
+- Order matters: deny all before allow 203.0.113.7 blocks 203.0.113.7 too
+- ipRuleWarnings in every access list response lists the rules that cannot change the outcome: kind "shadowed" (an earlier rule, coveredByIndex, matches every address the rule matches, so it never matches) and kind "no_effect" (a deny rule no later rule allows, so those addresses are denied anyway). Indexes are 0-based; the console numbers rules from 1. Only single-rule coverage is detected
 
 ## Basic Authentication
 - basicAuthEnabled: true to enable HTTP basic auth
@@ -257,13 +259,14 @@ Access lists provide IP-based access control and HTTP basic authentication for i
 
 ## Tool Argument Shapes
 - create_access_list accepts allowIps and denyIps as string arrays plus basicAuthUsers.
-- manage_access_list({ operation: "update", accessListId, ... }) accepts ipRules as ordered { type, value } objects and basicAuthUsers as { username, password } objects.
+- manage_access_list({ operation: "update", accessListId, ... }) accepts ipRules as ordered { type, value } objects (the whole list, in order) and basicAuthUsers as { username, password } objects.
+- manage_access_list({ operation: "move_rule", accessListId, fromIndex, toIndex }) moves one IP rule (0-based positions; the rules between shift by one) against the stored list, so it cannot overwrite a concurrent edit of the other rules. REST: POST /api/access-lists/:id/ip-rules/move.
 - Use basicAuthEnabled to turn HTTP basic auth on or off. If it is enabled, provide at least one basic auth user.
 
 ## Usage
 - One access list can be shared across multiple routes
 - Changing an access list automatically updates all routes using it
-- Deleting an access list detaches it from all hosts first`,
+- An access list cannot be deleted while a route or a Pages project uses it; detach it first`,
 
   templates: `# Certificate Templates
 

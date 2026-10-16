@@ -87,6 +87,19 @@ export const UpdateAccessListSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Move one IP rule — nginx checks the rules in order and the first match wins
+// ---------------------------------------------------------------------------
+
+export const MoveAccessListIpRuleSchema = z.object({
+  fromIndex: z.number().int().min(0).describe('0-based position of the rule to move'),
+  toIndex: z
+    .number()
+    .int()
+    .min(0)
+    .describe('0-based position the rule takes; the rules between shift by one (0 = checked first)'),
+});
+
+// ---------------------------------------------------------------------------
 // List query — pagination + search
 // ---------------------------------------------------------------------------
 
@@ -103,3 +116,4 @@ export const AccessListQuerySchema = z.object({
 export type CreateAccessListInput = z.infer<typeof CreateAccessListSchema>;
 export type UpdateAccessListInput = z.infer<typeof UpdateAccessListSchema>;
 export type AccessListQuery = z.infer<typeof AccessListQuerySchema>;
+export type MoveAccessListIpRuleInput = z.infer<typeof MoveAccessListIpRuleSchema>;

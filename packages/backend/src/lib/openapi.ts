@@ -441,6 +441,7 @@ const tagExamples: Record<string, unknown> = {
     name: 'Office only',
     basicAuthEnabled: false,
     ipRules: [{ type: 'allow', value: '203.0.113.0/24' }],
+    ipRuleWarnings: [],
   },
   Databases: {
     id: '550e8400-e29b-41d4-a716-446655440000',

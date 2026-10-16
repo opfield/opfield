@@ -53,6 +53,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "SSL certificate.move_to_folder": "Moved SSL certificate to a folder",
   "access_list.create": "Created access list",
   "access_list.delete": "Deleted access list",
+  "access_list.move_ip_rule": "Moved access list IP rule",
   "access_list.update": "Updated access list",
   "admin_user_folder.create": "Created user folder",
   "admin_user_folder.delete": "Deleted user folder",

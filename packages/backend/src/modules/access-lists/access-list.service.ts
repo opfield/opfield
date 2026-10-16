@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { and, count, desc, eq, ilike, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import type { BasicAuthUser } from '@/db/schema/access-lists.js';
+import type { BasicAuthUser, IPRule } from '@/db/schema/access-lists.js';
 import { accessLists, nodes, pageProjects } from '@/db/schema/index.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -17,7 +17,13 @@ import type { NginxCertificateDistributionService } from '@/services/nginx-certi
 import type { NginxConfigGenerator } from '@/services/nginx-config-generator.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { PaginatedResponse } from '@/types.js';
-import type { AccessListQuery, CreateAccessListInput, UpdateAccessListInput } from './access-list.schemas.js';
+import type {
+  AccessListQuery,
+  CreateAccessListInput,
+  MoveAccessListIpRuleInput,
+  UpdateAccessListInput,
+} from './access-list.schemas.js';
+import { analyzeAccessListIpRules } from './ip-rule-analysis.js';
 
 const logger = createChildLogger('AccessListService');
 const BCRYPT_ROUNDS = 10;
@@ -27,6 +33,18 @@ const BCRYPT_ROUNDS = 10;
 // ---------------------------------------------------------------------------
 
 type AccessListRow = typeof accessLists.$inferSelect;
+
+/**
+ * The API shape of a list: usernames only (password hashes never leave the server) and the rules that cannot
+ * change the outcome, so a person, an API client and an agent see the same warnings.
+ */
+function presentAccessList<T extends Pick<AccessListRow, 'ipRules' | 'basicAuthUsers'>>(row: T) {
+  return {
+    ...row,
+    basicAuthUsers: ((row.basicAuthUsers as BasicAuthUser[]) ?? []).map((user) => ({ username: user.username })),
+    ipRuleWarnings: analyzeAccessListIpRules((row.ipRules as IPRule[]) ?? []),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Service
@@ -101,7 +119,7 @@ export class AccessListService {
     logger.info('Created access list', { id: accessList.id, name: accessList.name });
     this.emitAcl(accessList.id, 'created');
 
-    return accessList;
+    return presentAccessList(accessList);
   }
 
   // -----------------------------------------------------------------------
@@ -111,10 +129,45 @@ export class AccessListService {
   async update(id: string, input: UpdateAccessListInput, userId: string) {
     // Serialize edits of one list so two updates cannot interleave their
     // re-apply and rollback phases.
-    return withProxyLocks([accessListLockKey(id)], () => this.updateLocked(id, input, userId));
+    const updated = await withProxyLocks([accessListLockKey(id)], () => this.updateLocked(id, input, userId));
+    return presentAccessList(updated);
   }
 
-  private async updateLocked(id: string, input: UpdateAccessListInput, userId: string) {
+  /**
+   * Moves one IP rule to another position (both 0-based; the rules between shift by one), under the same lock as
+   * an update, so the move applies to the rules as they are now and not to a copy a client read earlier. The
+   * routes and Pages previews that use the list are re-applied like on any other edit.
+   */
+  async moveIpRule(id: string, input: MoveAccessListIpRuleInput, userId: string) {
+    const updated = await withProxyLocks([accessListLockKey(id)], async () => {
+      const existing = await this.db.query.accessLists.findFirst({ where: eq(accessLists.id, id) });
+      if (!existing) throw new AppError(404, 'ACCESS_LIST_NOT_FOUND', 'Access list not found');
+      const rules = [...((existing.ipRules as IPRule[]) ?? [])];
+      const { fromIndex, toIndex } = input;
+      if (fromIndex >= rules.length || toIndex >= rules.length) {
+        throw new AppError(
+          400,
+          'IP_RULE_INDEX_OUT_OF_RANGE',
+          `The access list has ${rules.length} IP rule(s); fromIndex and toIndex are 0-based positions below that`
+        );
+      }
+      if (fromIndex === toIndex) return existing;
+      const [moved] = rules.splice(fromIndex, 1);
+      rules.splice(toIndex, 0, moved);
+      return this.updateLocked(id, { ipRules: rules }, userId, {
+        action: 'access_list.move_ip_rule',
+        details: { fromIndex, toIndex, rule: moved },
+      });
+    });
+    return presentAccessList(updated);
+  }
+
+  private async updateLocked(
+    id: string,
+    input: UpdateAccessListInput,
+    userId: string,
+    audit?: { action: string; details: Record<string, unknown> }
+  ) {
     // 1. Get existing access list
     const existing = await this.db.query.accessLists.findFirst({
       where: eq(accessLists.id, id),
@@ -239,10 +292,10 @@ export class AccessListService {
     // 4. Audit log
     await this.auditService.log({
       userId,
-      action: 'access_list.update',
+      action: audit?.action ?? 'access_list.update',
       resourceType: 'access_list',
       resourceId: id,
-      details: { changes: Object.keys(input) },
+      details: audit?.details ?? { changes: Object.keys(input) },
     });
 
     logger.info('Updated access list', { id });
@@ -380,9 +433,7 @@ export class AccessListService {
       .where(eq(proxyHosts.accessListId, id));
 
     return {
-      ...accessList,
-      // Strip password hashes from response, return only usernames
-      basicAuthUsers: (accessList.basicAuthUsers as BasicAuthUser[]).map((u) => ({ username: u.username })),
+      ...presentAccessList(accessList),
       proxyHostCount: Number(usageCount),
     };
   }
@@ -423,10 +474,7 @@ export class AccessListService {
     const total = Number(totalCount);
 
     // Strip password hashes from list responses
-    const sanitizedEntries = entries.map((entry) => ({
-      ...entry,
-      basicAuthUsers: (entry.basicAuthUsers as BasicAuthUser[]).map((u) => ({ username: u.username })),
-    }));
+    const sanitizedEntries = entries.map(presentAccessList);
 
     return {
       data: sanitizedEntries as unknown as AccessListRow[],

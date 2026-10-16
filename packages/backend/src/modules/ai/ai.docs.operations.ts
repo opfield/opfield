@@ -280,6 +280,10 @@ Programmatic clients read and write raw nginx config with the same \`proxy:raw:*
 ### Access Lists
 - \`GET /api/access-lists\` — list access lists
 - \`POST /api/access-lists\` — create access list
+- \`GET /api/access-lists/:id\` — access list detail, with \`ipRuleWarnings\` for rules that cannot change the outcome
+- \`PUT /api/access-lists/:id\` — update access list (\`ipRules\` replaces the whole ordered list)
+- \`POST /api/access-lists/:id/ip-rules/move\` — move one IP rule: \`{ fromIndex, toIndex }\`, 0-based (first match wins)
+- \`DELETE /api/access-lists/:id\` — delete access list (refused while a route or Pages project uses it)
 
 ### Browser-only administration
 - \`/auth/*\`, \`/api/oauth/consent/*\`, \`/api/oauth/authorizations/*\`, \`/api/admin/users\`, \`/api/admin/groups\`, \`/api/tokens\`, \`/api/ai/*\`, raw nginx config endpoints, and system update mutations require a browser session.

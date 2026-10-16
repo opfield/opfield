@@ -1,4 +1,8 @@
-import { CreateAccessListSchema, UpdateAccessListSchema } from '@/modules/access-lists/access-list.schemas.js';
+import {
+  CreateAccessListSchema,
+  MoveAccessListIpRuleSchema,
+  UpdateAccessListSchema,
+} from '@/modules/access-lists/access-list.schemas.js';
 import type { AccessListService } from '@/modules/access-lists/access-list.service.js';
 import type { User } from '@/types.js';
 import { agentPage, agentPageLimit, allowedResourceIdsForScopes } from './ai.service-helpers.js';
@@ -59,6 +63,10 @@ export async function executeAccessListTool(
       if (a.operation === 'update') {
         context.ensureToolScopeForResource(user, 'acl:edit', String(a.accessListId));
         return context.accessListService.update(a.accessListId, UpdateAccessListSchema.parse(args), user.id);
+      }
+      if (a.operation === 'move_rule') {
+        context.ensureToolScopeForResource(user, 'acl:edit', String(a.accessListId));
+        return context.accessListService.moveIpRule(a.accessListId, MoveAccessListIpRuleSchema.parse(args), user.id);
       }
       throw new Error(`Unsupported access list operation: ${String(a.operation)}`);
     default:

@@ -1,6 +1,22 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { AnimatePresence, motion } from "framer-motion";
-import { Minus, Plus } from "lucide-react";
-import { useId } from "react";
+import { AlertTriangle, GripVertical, Minus, Plus } from "lucide-react";
+import { useId, useMemo } from "react";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { PanelShell } from "@/components/common/PanelShell";
 import { Button } from "@/components/ui/button";
@@ -16,7 +32,8 @@ import { Input } from "@/components/ui/input";
 import { SegmentedChoice, type SegmentedChoiceOption } from "@/components/ui/segmented-choice";
 import { Switch } from "@/components/ui/switch";
 import type { AccessList, IPRule } from "@/types";
-import { useAccessListForm } from "./access-list-form";
+import { type IPRuleInput, useAccessListForm } from "./access-list-form";
+import { type AccessListIpRuleWarning, analyzeAccessListIpRules } from "./ip-rule-analysis";
 
 export interface AccessListDialogProps {
   open: boolean;
@@ -34,6 +51,9 @@ const ROW_ANIMATION = {
   transition: { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const },
 };
 
+// A sortable row takes its transform from dnd-kit, so it fades only and never slides through framer's `y`.
+const SORTABLE_ROW_TRANSITION = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const };
+
 const RULE_TYPE_OPTIONS: SegmentedChoiceOption<IPRule["type"]>[] = [
   { value: "allow", label: "Allow", tone: "success" },
   { value: "deny", label: "Deny", tone: "destructive" },
@@ -44,8 +64,10 @@ const CELL_INPUT =
 
 /**
  * Creates or edits an access list in two sections. IP rules are numbered rows
- * (nginx checks them in order and denies whatever matches none); basic
- * authentication is switched by the checkbox in its section title.
+ * (nginx checks them in order and denies whatever matches none) that are
+ * reordered by their drag handle, by pointer or keyboard; a rule that cannot
+ * change the outcome carries a warning. Basic authentication is switched by
+ * the checkbox in its section title.
  */
 export function AccessListDialog({
   open,
@@ -56,6 +78,23 @@ export function AccessListDialog({
   const form = useAccessListForm({ open, accessList, onOpenChange, onSaved });
   const id = useId();
   const storedUsernames = new Set((accessList?.basicAuthUsers ?? []).map((user) => user.username));
+  const ruleWarnings = useMemo(() => {
+    const byIndex = new Map<number, AccessListIpRuleWarning>();
+    for (const warning of analyzeAccessListIpRules(form.ipRules))
+      byIndex.set(warning.index, warning);
+    return byIndex;
+  }, [form.ipRules]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const reorderRules = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const fromIndex = form.ipRules.findIndex((rule) => rule._key === active.id);
+    const toIndex = form.ipRules.findIndex((rule) => rule._key === over.id);
+    if (fromIndex < 0 || toIndex < 0) return;
+    form.moveIpRule(fromIndex, toIndex);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,43 +151,30 @@ export function AccessListDialog({
               }
             >
               {form.ipRules.length > 0 ? (
-                <AnimatePresence initial={false} mode="popLayout">
-                  {form.ipRules.map((rule, index) => (
-                    <motion.div
-                      key={rule._key}
-                      layout
-                      {...ROW_ANIMATION}
-                      className="flex border-b border-border last:border-b-0"
-                    >
-                      <span className="flex w-10 shrink-0 items-center justify-center border-r border-border font-mono text-xs text-muted-foreground tabular-nums">
-                        {index + 1}
-                      </span>
-                      <SegmentedChoice
-                        flush
-                        aria-label={`Rule ${index + 1} action`}
-                        value={rule.type}
-                        options={RULE_TYPE_OPTIONS}
-                        onChange={(type) => form.updateIpRule(index, "type", type)}
-                      />
-                      <Input
-                        aria-label={`Rule ${index + 1} address`}
-                        value={rule.value}
-                        onChange={(event) => form.updateIpRule(index, "value", event.target.value)}
-                        className={`${CELL_INPUT} border-l border-border font-mono`}
-                        placeholder="203.0.113.0/24, 192.0.2.10 or all"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="rounded-none border-l border-border"
-                        aria-label={`Remove IP rule ${index + 1}`}
-                        onClick={() => form.removeIpRule(index)}
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </Button>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={reorderRules}
+                >
+                  <SortableContext
+                    items={form.ipRules.map((rule) => rule._key)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <AnimatePresence initial={false}>
+                      {form.ipRules.map((rule, index) => (
+                        <SortableIpRuleRow
+                          key={rule._key}
+                          rule={rule}
+                          index={index}
+                          warning={ruleWarnings.get(index)}
+                          warningId={`${id}-rule-${rule._key}-warning`}
+                          onChange={form.updateIpRule}
+                          onRemove={form.removeIpRule}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </SortableContext>
+                </DndContext>
               ) : null}
             </PanelShell>
 
@@ -231,5 +257,88 @@ export function AccessListDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SortableIpRuleRow({
+  rule,
+  index,
+  warning,
+  warningId,
+  onChange,
+  onRemove,
+}: {
+  rule: IPRuleInput;
+  index: number;
+  warning: AccessListIpRuleWarning | undefined;
+  warningId: string;
+  onChange: (index: number, field: keyof IPRule, value: string) => void;
+  onRemove: (index: number) => void;
+}) {
+  const sortable = useSortable({ id: rule._key });
+  return (
+    <motion.div
+      ref={sortable.setNodeRef}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: sortable.isDragging ? 0.7 : 1 }}
+      exit={{ opacity: 0 }}
+      transition={SORTABLE_ROW_TRANSITION}
+      style={{
+        transform: CSS.Transform.toString(sortable.transform),
+        transition: sortable.transition,
+        zIndex: sortable.isDragging ? 10 : undefined,
+      }}
+      className="relative border-b border-border bg-card last:border-b-0"
+    >
+      <div className="flex">
+        <Button
+          ref={sortable.setActivatorNodeRef}
+          variant="ghost"
+          size="icon"
+          className="cursor-grab rounded-none text-muted-foreground active:cursor-grabbing"
+          aria-label={`Reorder IP rule ${index + 1}`}
+          {...sortable.attributes}
+          {...sortable.listeners}
+        >
+          <GripVertical />
+        </Button>
+        <span className="flex w-10 shrink-0 items-center justify-center border-x border-border font-mono text-xs text-muted-foreground tabular-nums">
+          {index + 1}
+        </span>
+        <SegmentedChoice
+          flush
+          aria-label={`Rule ${index + 1} action`}
+          value={rule.type}
+          options={RULE_TYPE_OPTIONS}
+          onChange={(type) => onChange(index, "type", type)}
+        />
+        <Input
+          aria-label={`Rule ${index + 1} address`}
+          aria-describedby={warning ? warningId : undefined}
+          value={rule.value}
+          onChange={(event) => onChange(index, "value", event.target.value)}
+          className={`${CELL_INPUT} border-l border-border font-mono`}
+          placeholder="203.0.113.0/24, 192.0.2.10 or all"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-none border-l border-border"
+          aria-label={`Remove IP rule ${index + 1}`}
+          onClick={() => onRemove(index)}
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      {warning ? (
+        <p
+          id={warningId}
+          className="flex items-start gap-2 border-t border-border px-3 py-2 text-xs text-warning-text"
+        >
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>{warning.message}</span>
+        </p>
+      ) : null}
+    </motion.div>
   );
 }
