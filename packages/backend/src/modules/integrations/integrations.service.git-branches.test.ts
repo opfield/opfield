@@ -54,7 +54,12 @@ describe('GitHub branches', () => {
     ).rejects.toMatchObject({ statusCode: 409, code: 'GITHUB_BRANCH_EXISTS' });
     const unknown = service({});
     await expect(
-      unknown.instance.githubCreateBranch(user, { connectorId: 'c-1', repositoryUrl: REPO, branch: 'x', fromRef: 'nope' })
+      unknown.instance.githubCreateBranch(user, {
+        connectorId: 'c-1',
+        repositoryUrl: REPO,
+        branch: 'x',
+        fromRef: 'nope',
+      })
     ).rejects.toMatchObject({ statusCode: 404, code: 'GITHUB_REF_NOT_FOUND' });
   });
 

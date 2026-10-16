@@ -70,10 +70,7 @@ export async function listFiredAlerts(db: DrizzleClient, query: AlertListQuery) 
       firedAt: state.firedAt,
       resolvedAt: state.resolvedAt,
       lastNotifiedAt: state.lastNotifiedAt,
-      durationSeconds: Math.max(
-        0,
-        Math.round(((state.resolvedAt?.getTime() ?? now) - state.firedAt.getTime()) / 1000)
-      ),
+      durationSeconds: Math.max(0, Math.round(((state.resolvedAt?.getTime() ?? now) - state.firedAt.getTime()) / 1000)),
       details: state.context ?? {},
     })),
     total,

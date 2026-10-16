@@ -302,11 +302,7 @@ export abstract class IntegrationsGitRepositoryService extends IntegrationsGitHu
     }
   }
 
-  private async githubDefaultBranch(
-    connector: ConnectorRow,
-    token: string,
-    base: string
-  ): Promise<string> {
+  private async githubDefaultBranch(connector: ConnectorRow, token: string, base: string): Promise<string> {
     const response = await this.githubConnectorRequest(connector, token, base);
     const body = (await response.json().catch(() => null)) as unknown;
     if (!response.ok) throw this.githubRepositoryRequestError(response.status, body);
@@ -590,12 +586,17 @@ export abstract class IntegrationsGitRepositoryService extends IntegrationsGitHu
       user,
       input,
       async (context) =>
-        (await this.runGit(['ls-remote', '--heads', '--', context.repositoryUrl, `refs/heads/${branch}`], context))
-          .stdout.trim() !== '',
+        (
+          await this.runGit(['ls-remote', '--heads', '--', context.repositoryUrl, `refs/heads/${branch}`], context)
+        ).stdout.trim() !== '',
       'write'
     );
     if (exists) {
-      throw new AppError(409, 'GIT_BRANCH_EXISTS', `Branch ${branch} already exists. Use it as it is, or choose another name.`);
+      throw new AppError(
+        409,
+        'GIT_BRANCH_EXISTS',
+        `Branch ${branch} already exists. Use it as it is, or choose another name.`
+      );
     }
     return this.withGenericGitCheckout(
       user,
@@ -622,7 +623,10 @@ export abstract class IntegrationsGitRepositoryService extends IntegrationsGitHu
       input,
       async (context) => {
         const advertised = (
-          await this.runGit(['ls-remote', '--symref', '--', context.repositoryUrl, 'HEAD', `refs/heads/${branch}`], context)
+          await this.runGit(
+            ['ls-remote', '--symref', '--', context.repositoryUrl, 'HEAD', `refs/heads/${branch}`],
+            context
+          )
         ).stdout;
         const lines = advertised.split('\n');
         if (lines.includes(`ref: refs/heads/${branch}\tHEAD`)) {

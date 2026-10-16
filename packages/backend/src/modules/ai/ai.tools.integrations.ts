@@ -224,7 +224,10 @@ export const INTEGRATION_AI_TOOLS: AIToolDefinition[] = [
         connectorId: { type: 'string' },
         repositoryUrl: { type: 'string' },
         branch: { type: 'string', description: 'Name of the new branch' },
-        fromRef: { type: 'string', description: 'Branch, tag or commit SHA to start from; default branch when omitted' },
+        fromRef: {
+          type: 'string',
+          description: 'Branch, tag or commit SHA to start from; default branch when omitted',
+        },
       },
       required: ['connectorId', 'repositoryUrl', 'branch'],
     },

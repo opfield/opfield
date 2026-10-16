@@ -18,8 +18,10 @@ function setup(
   const deleted: unknown[] = [];
   const audit = { log: vi.fn(async () => true) };
   const selectFrom = (table: unknown) => {
-    const rows = table === proxyHosts ? (options.routes ?? []) : table === sslCertificates ? (options.linked ?? []) : [];
-    const where = () => Object.assign(Promise.resolve(rows), { limit: async () => [{ isSystem: options.system ?? false }] });
+    const rows =
+      table === proxyHosts ? (options.routes ?? []) : table === sslCertificates ? (options.linked ?? []) : [];
+    const where = () =>
+      Object.assign(Promise.resolve(rows), { limit: async () => [{ isSystem: options.system ?? false }] });
     return { where };
   };
   const tx = {

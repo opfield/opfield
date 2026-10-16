@@ -120,7 +120,11 @@ function overlaps(a: ParsedRule, b: ParsedRule): boolean {
  */
 export type AccessListIpRuleNumbering = "position" | "index";
 
-function describe(rule: AccessListIpRuleLike, index: number, numbering: AccessListIpRuleNumbering): string {
+function describe(
+  rule: AccessListIpRuleLike,
+  index: number,
+  numbering: AccessListIpRuleNumbering
+): string {
   const name = numbering === "index" ? `the rule at index ${index}` : `rule ${index + 1}`;
   return `${name} (${rule.type} ${rule.value.trim()})`;
 }

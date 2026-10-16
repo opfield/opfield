@@ -11,7 +11,8 @@ import { maintenanceAccessListDirectives, NginxTemplateService } from './nginx-t
 // the route was in maintenance, because the guard answers from its own locations before `location /` with the
 // access list is reached. Deny must win: the guard's locations carry the allow/deny rules (X-O-5).
 const HOST_ID = '11111111-1111-4111-8111-111111111111';
-const ROUTE = 'server {\n    listen 80;\n    location / {\n        allow 10.0.0.0/8;\n        deny all;\n        proxy_set_header Host $host;\n        proxy_pass http://10.0.0.5;\n    }\n}\n';
+const ROUTE =
+  'server {\n    listen 80;\n    location / {\n        allow 10.0.0.0/8;\n        deny all;\n        proxy_set_header Host $host;\n        proxy_pass http://10.0.0.5;\n    }\n}\n';
 const accessList: NonNullable<ProxyHostConfig['accessList']> = {
   id: '22222222-2222-4222-8222-222222222222',
   ipRules: [

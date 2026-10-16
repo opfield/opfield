@@ -639,7 +639,10 @@ export class CertService {
       });
     } catch (error) {
       // Another record (a managed database or storage member) still references it.
-      if ((error as { code?: string; cause?: { code?: string } })?.code === '23503' || (error as any)?.cause?.code === '23503') {
+      if (
+        (error as { code?: string; cause?: { code?: string } })?.code === '23503' ||
+        (error as any)?.cause?.code === '23503'
+      ) {
         throw new AppError(409, 'CERT_IN_USE', 'The certificate is still used by a managed resource');
       }
       throw error;

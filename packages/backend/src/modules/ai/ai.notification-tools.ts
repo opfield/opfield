@@ -9,6 +9,7 @@ import {
   UpdateSiemDestinationSchema,
 } from '@/modules/audit/siem.schemas.js';
 import { ALERT_CATEGORIES } from '@/modules/notifications/notification.constants.js';
+import { listFiredAlerts } from '@/modules/notifications/notification-alert-list.js';
 import {
   createAlertRuleWithEffects,
   deleteAlertRuleWithEffects,
@@ -20,7 +21,6 @@ import {
   CreateAlertRuleSchema,
   UpdateAlertRuleSchema,
 } from '@/modules/notifications/notification-alert-rule.schemas.js';
-import { listFiredAlerts } from '@/modules/notifications/notification-alert-list.js';
 import { DeliveryListQuerySchema } from '@/modules/notifications/notification-delivery.schemas.js';
 import {
   ALERT_RESOURCE_CATEGORIES,

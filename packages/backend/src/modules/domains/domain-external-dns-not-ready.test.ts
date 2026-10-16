@@ -25,7 +25,11 @@ function serviceWithPlan(status: 'missing' | 'invalid' | 'unknown') {
 }
 
 describe('external DNS domain before its DNS resolves', () => {
-  it.each(['missing', 'invalid', 'unknown'] as const)('refuses (%s) with the record to create and the next step', async (status) => {
+  it.each([
+    'missing',
+    'invalid',
+    'unknown',
+  ] as const)('refuses (%s) with the record to create and the next step', async (status) => {
     const { service, insert } = serviceWithPlan(status);
     const error = await (service as any)
       .createExternalDomain({ domain: 'app.example.com', dnsProvider: 'external' }, 'user-1')
