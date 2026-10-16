@@ -352,7 +352,7 @@ func (m *managedDatabaseManager) pgEnsureOrigin(ctx context.Context, members *me
 		// The origin keeps running as the primary: the member settings, but
 		// no standby.signal before this start (nothing else holds data yet).
 		standby := config.StandbyConfig()
-		if err := pgUpdateAutoConf(filepath.Join(record.MountPath, pgdataDirName), pgMemberAutoConfKeys, pgMemberAutoConf(standby, record.StorageSize)); err != nil {
+		if err := writePGMemberAutoConf(filepath.Join(record.MountPath, pgdataDirName), record.StorageSize, standby); err != nil {
 			return "", err
 		}
 		if err := m.replaceWithPGMemberContainer(ctx, &record, input.Database, input.SetID, input.MemberID, networkName); err != nil {

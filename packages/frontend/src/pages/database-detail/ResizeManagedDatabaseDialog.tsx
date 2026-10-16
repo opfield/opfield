@@ -15,7 +15,11 @@ import { Input } from "@/components/ui/input";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import type { DatabaseConnection } from "@/types";
-import { type ManagedDatabaseCapacity, managedDatabaseCapacity } from "./managed-database-capacity";
+import {
+  keyValueStorageWarning,
+  type ManagedDatabaseCapacity,
+  managedDatabaseCapacity,
+} from "./managed-database-capacity";
 
 export function ResizeManagedDatabaseDialog({
   database,
@@ -80,6 +84,15 @@ export function ResizeManagedDatabaseDialog({
     nextStorageSizeGb > currentStorageSizeGb &&
     (maximumStorageSizeGb === undefined || nextStorageSizeGb <= maximumStorageSizeGb);
 
+  const storageWarning =
+    database.type === "redis" && isValidSize
+      ? keyValueStorageWarning(
+          nextStorageSizeGb,
+          managed.runtimeConfig.memoryMb,
+          managed.redisConfig?.maxmemoryPercent
+        )
+      : undefined;
+
   const resize = async () => {
     if (!isValidSize) return;
     setSaving(true);
@@ -125,6 +138,7 @@ export function ResizeManagedDatabaseDialog({
                 ? `Enter a size greater than ${currentStorageSizeGb} GB, with at most one decimal place.`
                 : `Larger than ${currentStorageSizeGb} GB, at most one decimal place. Maximum available now: ${maximumStorageSizeGb} GB.`}
             </p>
+            {storageWarning && <p className="text-xs text-warning-text">{storageWarning}</p>}
           </div>
         </div>
         <DialogFooter>

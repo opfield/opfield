@@ -551,6 +551,7 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 		if missing := m.missingRuntimeFiles(record); len(missing) > 0 {
 			return "", runtimeFilesMissingError("managed database", missing)
 		}
+		m.refreshPostgresDiskSettings(ctx, record, "", false)
 		if err := m.startContainer(ctx, record.ContainerID); err != nil {
 			return "", err
 		}

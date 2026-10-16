@@ -80,6 +80,7 @@ import type {
 } from "@/types";
 import {
   canDeployManagedDatabase,
+  keyValueStorageWarning,
   type ManagedDatabaseCapacity,
   managedDatabaseCapacity,
   minimumManagedDatabaseMemoryMb,
@@ -371,6 +372,20 @@ export function ManagedDatabaseCreateForm({
               draft.type === "clickhouse" ? "ClickHouse requires at least 512 MB. " : undefined
             }
           />
+          {draft.type === "redis" &&
+            keyValueStorageWarning(
+              draft.storageSizeGb,
+              draft.memoryMb,
+              draft.redisConfig?.maxmemoryPercent
+            ) && (
+              <p className="text-xs text-warning-text">
+                {keyValueStorageWarning(
+                  draft.storageSizeGb,
+                  draft.memoryMb,
+                  draft.redisConfig?.maxmemoryPercent
+                )}
+              </p>
+            )}
           <PanelShell
             title="Publish TCP port"
             description="Enables direct network connections in addition to secure managed links."

@@ -1835,6 +1835,13 @@
       "when": 1794763837000,
       "tag": "0267_data_disk_alert_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1794850237000,
+      "tag": "0268_redis_aof_rewrite_on",
+      "breakpoints": true
     }
   ]
 }

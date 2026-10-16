@@ -94,7 +94,11 @@ export const ManagedRedisConfigSchema = z.object({
   rdbSnapshotsEnabled: z.boolean(),
   rdbSaveSeconds: z.number().int().min(1).max(31_536_000),
   rdbSaveChanges: z.number().int().min(1).max(1_000_000_000),
-  autoAofRewritePercentage: z.number().int().min(0).max(10_000),
+  /**
+   * At least 1: 0 turned the automatic AOF rewrite off and the append-only file grew until the disk was full. A 0 from
+   * clients of older releases is read as the default 100.
+   */
+  autoAofRewritePercentage: z.preprocess((value) => (value === 0 ? 100 : value), z.number().int().min(1).max(10_000)),
   autoAofRewriteMinSizeMb: z.number().int().min(1).max(1_048_576),
   maxclients: z.number().int().min(1).max(1_000_000),
   timeoutSeconds: z.number().int().min(0).max(31_536_000),
