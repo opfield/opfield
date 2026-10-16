@@ -238,6 +238,9 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 			return "", fmt.Errorf("attach the member to its availability set network: %w", err)
 		}
 	}
+	// An existing data directory starts with its disk settings; a fresh one
+	// gets them once initdb made it (a reload).
+	m.refreshPostgresDiskSettings(ctx, *record, "", false)
 	if _, err := m.client.cli.ContainerStart(ctx, created.ID, mobyclient.ContainerStartOptions{}); err != nil {
 		_ = m.client.RemoveContainer(ctx, created.ID, true)
 		return "", fmt.Errorf("start managed database container: %w", err)
@@ -246,6 +249,7 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		_ = m.client.RemoveContainer(ctx, created.ID, true)
 		return "", err
 	}
+	m.refreshPostgresDiskSettings(ctx, *record, created.ID, true)
 	if input.Type == "clickhouse" && !availabilityMember {
 		if err := m.cleanupClickHouseSystemLogs(ctx, created.ID, input); err != nil {
 			m.logger.Warn("cleanup legacy ClickHouse system logs", "id", record.ID, "error", err)
@@ -916,6 +920,7 @@ func (m *managedDatabaseManager) reconcile(ctx context.Context) error {
 			}
 			continue
 		}
+		m.refreshPostgresDiskSettings(ctx, record, "", false)
 		if err := m.startContainer(ctx, record.ContainerID); err != nil {
 			m.logger.Warn("managed database could not be started at startup", "id", id, "error", err)
 			continue

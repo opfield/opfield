@@ -86,6 +86,9 @@ func (e *Engine) manualUpkeepLocked(now time.Duration) (string, func(context.Con
 			return nil
 		}, true
 	}
+	if e.state.RebuildKept && commitDue(&e.holder.commitAt, now) {
+		return "commit_rebuild", e.commitRebuild, true
+	}
 	if e.holder.slotsAt != 0 && now-e.holder.slotsAt < slotsInterval {
 		return "", nil, false
 	}

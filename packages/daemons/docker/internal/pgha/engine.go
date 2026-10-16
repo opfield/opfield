@@ -32,7 +32,22 @@ const (
 	// staleReplyAge: a standby that has not replied for longer is not treated
 	// as streaming (its connection may be dead but not yet timed out).
 	staleReplyAge = 10 * time.Second
+	// previousKeptFor bounds how long a rebuild keeps the previous data
+	// directory when the new one neither streams nor serves.
+	previousKeptFor = 24 * time.Hour
+	// commitRetry spaces the attempts to drop a kept previous data directory
+	// (other upkeep runs in between).
+	commitRetry = 10 * time.Minute
 )
+
+// commitDue takes an attempt slot of dropping the previous data directory.
+func commitDue(last *time.Duration, now time.Duration) bool {
+	if *last != 0 && now-*last < commitRetry {
+		return false
+	}
+	*last = now
+	return true
+}
 
 // Clock is the lease clock and the wall clock.
 type Clock interface {
@@ -80,6 +95,8 @@ type standbyRuntime struct {
 	diskFullAt     time.Duration
 	diskFullDetail string
 	slotsAt        time.Duration
+	// commitAt is the last attempt to drop a kept previous data directory.
+	commitAt time.Duration
 }
 
 type holderRuntime struct {
@@ -90,6 +107,8 @@ type holderRuntime struct {
 	lastPFAt       time.Duration
 	degraded       *bool
 	slotsAt        time.Duration
+	// commitAt is the last attempt to drop a kept previous data directory.
+	commitAt time.Duration
 	// identities is the hash of the principals this primary converged.
 	identities string
 }
@@ -128,7 +147,13 @@ func New(config memberha.Config, pg Postgres, store *Store, clock Clock, logger 
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Engine{pg: pg, store: store, clock: clock, logger: logger, cfg: cfg, state: state}, nil
+	engine := &Engine{pg: pg, store: store, clock: clock, logger: logger, cfg: cfg, state: state}
+	if state.RebuildKept && state.RebuildKeptAtUnix == 0 {
+		// Kept by an older release: its clock starts now.
+		engine.state.RebuildKeptAtUnix = clock.Wall().Unix()
+		_ = engine.saveLocked()
+	}
+	return engine, nil
 }
 
 // Reconfigure takes Opfield's newer configuration; settings apply at the
@@ -220,6 +245,14 @@ func (e *Engine) PrepareStandby(ctx context.Context) error {
 	}
 	if !e.pg.DataInitialized() {
 		return errors.New("the data directory is not seeded yet")
+	}
+	e.mu.Lock()
+	expired := e.previousExpiredLocked()
+	e.mu.Unlock()
+	if expired {
+		if err := e.commitRebuild(ctx); err != nil {
+			e.logger.Warn("could not drop the previous data directory", "set_id", e.cfg.SetID, "error", err)
+		}
 	}
 	return e.pg.PrepareStandby(ctx, config)
 }

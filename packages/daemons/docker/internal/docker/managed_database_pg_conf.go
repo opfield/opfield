@@ -71,8 +71,9 @@ func pgReplicationConnInfo(user, applicationName, database string) string {
 	return strings.Join(parts, " ")
 }
 
-// pgMemberAutoConf returns the daemon's settings for a start.
-func pgMemberAutoConf(config pgha.StandbyConfig, storageBytes int64) map[string]string {
+// pgMemberAutoConf returns the daemon's settings for a start; freeBytes is
+// the volume's free space (< 0: unknown), which bounds the slots' WAL.
+func pgMemberAutoConf(config pgha.StandbyConfig, storageBytes, freeBytes int64) map[string]string {
 	values := map[string]string{
 		"primary_conninfo":          pgReplicationConnInfo(config.ReplicationRole, config.MemberID, ""),
 		"primary_slot_name":         config.SlotName,
@@ -96,17 +97,29 @@ func pgMemberAutoConf(config pgha.StandbyConfig, storageBytes int64) map[string]
 	set("max_worker_processes", p.MaxWorkerProcesses)
 	set("max_prepared_transactions", p.MaxPreparedTransactions)
 	set("max_locks_per_transaction", p.MaxLocksPerTransaction)
-	keep := p.MaxSlotWalKeepSizeMB << 20
-	if keep <= 0 {
-		// Bounded by the volume: a quarter of it, at least 32 MiB and never
-		// more than half.
-		keep = max(storageBytes/4, pgMinSlotWALKeep)
-		if storageBytes > 0 {
-			keep = min(keep, storageBytes/2)
-		}
-	}
-	values["max_slot_wal_keep_size"] = strconv.FormatInt(max(keep>>20, 1), 10) + "MB"
+	// Bounded by the volume (a quarter of it, at least 32 MiB and never more
+	// than half) and by half its free space; the primary keeps it current
+	// (pgMember.SyncSlots). The marker lets a lifted member's value count as
+	// Opfield's (pgApplyManagedSettings).
+	keep := pgMegabytes(pgSlotWALKeepBytes(p.MaxSlotWalKeepSizeMB, storageBytes, freeBytes))
+	values["max_slot_wal_keep_size"] = keep
+	values[pgManagedMarkerPrefix+"max_slot_wal_keep_size"] = keep
 	return values
+}
+
+// pgFreeBytesAt is the free space of the filesystem at a path (tests replace
+// it).
+var pgFreeBytesAt = pgFreeBytes
+
+// writePGMemberAutoConf writes a member's settings for a start into its
+// stopped data directory: the member settings, then the disk settings that
+// are not the user's.
+func writePGMemberAutoConf(pgdata string, storageBytes int64, config pgha.StandbyConfig) error {
+	if err := pgUpdateAutoConf(pgdata, pgMemberAutoConfKeys, pgMemberAutoConf(config, storageBytes, pgFreeBytesAt(pgdata))); err != nil {
+		return err
+	}
+	_, err := pgApplyManagedSettings(pgdata, pgDiskSettings(storageBytes))
+	return err
 }
 
 // pgUpdateAutoConf rewrites postgresql.auto.conf with the drop keys removed

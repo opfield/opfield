@@ -227,7 +227,13 @@ func normalizedManagedRedisConfig(input managedDatabaseCommand) managedRedisConf
 	if input.RedisConfig == nil {
 		return defaultManagedRedisConfig()
 	}
-	return *input.RedisConfig
+	config := *input.RedisConfig
+	if config.AutoAOFRewritePercentage == 0 {
+		// 0 turns the automatic AOF rewrite off and the AOF then grows with
+		// every write; older Opfield releases accepted it.
+		config.AutoAOFRewritePercentage = defaultManagedRedisConfig().AutoAOFRewritePercentage
+	}
+	return config
 }
 
 func managedRedisConfigText(input managedDatabaseCommand) string {
@@ -290,6 +296,37 @@ func cutRedisMaxmemory(text string) (int64, string, bool) {
 // with; a live maxmemory change rewrites it under that name.
 func managedRedisBoundConfigPath(record managedDatabaseRecord) string {
 	return filepath.Join(record.MountPath, "gateway-redis-"+record.RedisConfigHash+".conf")
+}
+
+// repairRedisAOFRewrite rewrites a bound config file that turns the
+// automatic AOF rewrite off (older releases accepted a percentage of 0) to
+// the default 100 in place, so the engine's next start, a crash restart
+// included, bounds its AOF. A running engine keeps its setting until then.
+func repairRedisAOFRewrite(record managedDatabaseRecord) (bool, error) {
+	if record.Type != "redis" || record.RedisConfigHash == "" {
+		return false, nil
+	}
+	path := managedRedisBoundConfigPath(record)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	lines := strings.Split(string(raw), "\n")
+	changed := false
+	for i, line := range lines {
+		if fields := strings.Fields(line); len(fields) == 2 && fields[0] == "auto-aof-rewrite-percentage" && fields[1] == "0" {
+			lines[i] = fmt.Sprintf("auto-aof-rewrite-percentage %d", defaultManagedRedisConfig().AutoAOFRewritePercentage)
+			changed = true
+		}
+	}
+	if !changed {
+		return false, nil
+	}
+	// In place: the container binds this very file.
+	return true, writeManagedRedisConfig(path, strings.Join(lines, "\n"))
 }
 
 // redisMaxmemoryOnlyChange reports whether the config file the container
@@ -480,6 +517,7 @@ func (m *managedDatabaseManager) restart(ctx context.Context, record *managedDat
 	if err != nil {
 		return fmt.Errorf("inspect managed database container: %w", err)
 	}
+	m.refreshPostgresDiskSettings(ctx, *record, "", false)
 	if inspect.Container.State != nil && inspect.Container.State.Running {
 		if err := m.client.RestartContainer(ctx, record.ContainerID, 30); err != nil {
 			return fmt.Errorf("restart managed database container: %w", err)
@@ -619,6 +657,7 @@ func (m *managedDatabaseManager) create(ctx context.Context, id string, input ma
 		} else if len(missing) > 0 {
 			return managedDatabaseRecord{}, runtimeFilesMissingError("managed database", missing)
 		}
+		m.refreshPostgresDiskSettings(ctx, existing, "", false)
 		if err := m.startContainer(ctx, existing.ContainerID); err != nil {
 			return managedDatabaseRecord{}, err
 		}

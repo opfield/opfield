@@ -159,6 +159,11 @@ func (e *Engine) HolderWork(view memberha.HolderView) (string, func(context.Cont
 			return nil
 		}, true
 	}
+	if e.state.RebuildKept && commitDue(&e.holder.commitAt, now) {
+		// The primary serves from the rebuilt directory: the previous one is
+		// not needed.
+		return "commit_rebuild", e.commitRebuild, true
+	}
 	if now-e.holder.slotsAt >= slotsInterval {
 		// Slots of members added since the promotion, and none of removed
 		// ones (their WAL retention ends).
