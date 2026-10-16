@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { AppEnv } from '@/types.js';
+import { retryAfterSecondsFromDetails } from './core/inference-retry-after.js';
 
 export type InferenceErrorCode =
   | 'invalid_api_key'
@@ -22,6 +23,9 @@ export function inferenceErrorResponse(
   message: string,
   details?: Record<string, unknown>
 ) {
+  // A refusal that knows when it lifts (an exhausted budget) tells the client when to come back.
+  const retryAfter = retryAfterSecondsFromDetails(details);
+  if (retryAfter !== undefined) c.header('Retry-After', String(retryAfter));
   if (c.get('inferenceAdapter') === 'anthropic' || isAnthropicPath(c.req.path)) {
     const type =
       status === 401

@@ -29,6 +29,7 @@ import type {
 } from './inference-model.types.js';
 import {
   manualSourceAllowed,
+  manualSourceRefusal,
   normalizePublicId,
   validateDefaultEffort,
   validateModelInput,
@@ -187,6 +188,16 @@ export class InferenceModelConfigurationService {
       : [];
     const discoveredById = new Map(discovered.map((item) => [item.id, item]));
 
+    // A source without a discovered model is refused with the ids the connection discovered.
+    for (const input of inputs) {
+      const connection = connectionById.get(input.connectionId);
+      if (!connection || input.discoveredModelId) continue;
+      const { modelsPath } = this.registry.require(connection.providerId);
+      if (!manualSourceAllowed(connection.syncStatus, modelsPath, input.manualMetadata)) {
+        throw await manualSourceRefusal(db, connection, modelsPath, input.upstreamModelId);
+      }
+    }
+
     return inputs.map((input) => {
       const connection = connectionById.get(input.connectionId);
       if (!connection) throw new AppError(404, 'INFERENCE_PROVIDER_NOT_FOUND', 'Provider connection not found');
@@ -197,13 +208,6 @@ export class InferenceModelConfigurationService {
           400,
           'INFERENCE_DISCOVERED_MODEL_INVALID',
           'Discovered model does not belong to the connection'
-        );
-      }
-      if (!discoveredModel && !manualSourceAllowed(connection.syncStatus, provider.modelsPath, input.manualMetadata)) {
-        throw new AppError(
-          400,
-          'INFERENCE_MANUAL_SOURCE_NOT_ALLOWED',
-          'Manual model IDs require unavailable discovery and complete technical metadata'
         );
       }
       const upstreamModelId = discoveredModel?.remoteModelId ?? input.upstreamModelId?.trim();

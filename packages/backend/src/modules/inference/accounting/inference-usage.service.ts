@@ -67,32 +67,37 @@ export class InferenceUsageService {
     const limits = await this.policies.effective(user.id);
     const usage = await this.policies.usage(user.id, limits, now);
     const available = limits.enabled ? await this.availableBudgetTypes(user) : { api: false, subscription: false };
+    const apiConfigured = available.api && limits.apiMonthlyMicrodollars > 0;
+    const configured5h = available.subscription && limits.credits5hEnabled;
+    const configured7d = available.subscription && limits.credits7dEnabled;
+    const configured30d = available.subscription && limits.credits30dEnabled;
+    // A window that does not limit the user is reported at 0%, never as an exhausted 100%.
     return {
       measuredAt: now.toISOString(),
       enabled: limits.enabled,
       api: {
         active: true,
-        configured: available.api && limits.apiMonthlyMicrodollars > 0,
-        percentage: percentage(usage.apiMonthlyMicrodollars, limits.apiMonthlyMicrodollars),
+        configured: apiConfigured,
+        percentage: apiConfigured ? percentage(usage.apiMonthlyMicrodollars, limits.apiMonthlyMicrodollars) : 0,
         recoveryAt: usage.recoveryAt.apiMonthly.toISOString(),
       },
       subscription: {
         '5h': {
           active: usage.active?.credits5h ?? true,
-          configured: available.subscription && limits.credits5hEnabled,
-          percentage: subscriptionPercentage(usage.credits5h, limits.credits5h),
+          configured: configured5h,
+          percentage: configured5h ? subscriptionPercentage(usage.credits5h, limits.credits5h) : 0,
           recoveryAt: usage.recoveryAt.credits5h.toISOString(),
         },
         '7d': {
           active: usage.active?.credits7d ?? true,
-          configured: available.subscription && limits.credits7dEnabled,
-          percentage: subscriptionPercentage(usage.credits7d, limits.credits7d),
+          configured: configured7d,
+          percentage: configured7d ? subscriptionPercentage(usage.credits7d, limits.credits7d) : 0,
           recoveryAt: usage.recoveryAt.credits7d.toISOString(),
         },
         '30d': {
           active: usage.active?.credits30d ?? true,
-          configured: available.subscription && limits.credits30dEnabled,
-          percentage: subscriptionPercentage(usage.credits30d, limits.credits30d),
+          configured: configured30d,
+          percentage: configured30d ? subscriptionPercentage(usage.credits30d, limits.credits30d) : 0,
           recoveryAt: usage.recoveryAt.credits30d.toISOString(),
         },
       },

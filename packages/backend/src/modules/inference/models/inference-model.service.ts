@@ -38,6 +38,7 @@ import type { InferenceModelInput, InferenceModelSourceInput, InferencePricingIn
 import {
   latestPricing,
   manualSourceAllowed,
+  manualSourceRefusal,
   normalizePublicId,
   normalizeSystemPrompt,
   serializeDiscovered,
@@ -219,11 +220,7 @@ export class InferenceModelService {
       );
     }
     if (!discovered && !manualSourceAllowed(connection.syncStatus, provider.modelsPath, input.manualMetadata)) {
-      throw new AppError(
-        400,
-        'INFERENCE_MANUAL_SOURCE_NOT_ALLOWED',
-        'Manual model IDs require unavailable discovery and complete technical metadata'
-      );
+      throw await manualSourceRefusal(this.db, connection, provider.modelsPath, input.upstreamModelId);
     }
     const upstreamModelId = discovered?.remoteModelId ?? input.upstreamModelId?.trim();
     if (!upstreamModelId) throw new AppError(400, 'INFERENCE_UPSTREAM_MODEL_REQUIRED', 'Upstream model ID is required');

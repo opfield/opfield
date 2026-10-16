@@ -34,10 +34,22 @@ import {
   hasSpendableSubscriptionBudget,
   latestPricingSnapshot,
   reservationAmounts,
-  subscriptionBudgetRecoveryAt,
+  subscriptionBudgetRecovery,
   tokenPricing,
   unitPriceKeyForOperation,
 } from './inference-accounting.helpers.js';
+import {
+  ADMISSION_DENIAL_TTL_SECONDS,
+  admissionDenialKey,
+  clientBudgetDenial,
+  coreDenyResponse,
+  isBudgetExhausted,
+  modelDisabledDenial,
+  parseDenial,
+  serializeDenial,
+  subscriptionBudgetExhausted,
+  tenantRevokedDenial,
+} from './inference-admission-denial.js';
 import type { InferenceBudgetLockService } from './inference-budget-lock.service.js';
 import {
   apiMicrodollars,
@@ -58,25 +70,14 @@ type ConnectionRow = typeof inferenceProviderConnections.$inferSelect;
 type SourceRow = typeof inferenceModelSources.$inferSelect;
 type ModelRow = typeof inferenceModels.$inferSelect;
 
-const deny = (
-  reason: 'budget_exceeded' | 'rate_limited' | 'concurrency_limited' | 'model_disabled' | 'tenant_revoked',
-  retryAfterSeconds?: number
-): InferenceCoreAdmissionResponse => ({
-  decision: 'deny',
-  reason,
-  ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-});
+/** Admission verdict, or the refusal Opfield answers the client with. */
+type AdmissionOutcome = { allowed: InferenceCoreAdmissionResponse } | { denial: InferenceProtocolError };
 
-/** Maps a thrown budget rejection to an admission deny; anything else propagates as a 5xx callback failure. */
-function budgetDeny(error: unknown): InferenceCoreAdmissionResponse | null {
-  if (!(error instanceof InferenceProtocolError)) return null;
-  if (error.code !== 'subscription_budget_exhausted' && error.code !== 'api_budget_exhausted') return null;
-  const recoveryAt = (error.details as { recoveryAt?: unknown } | undefined)?.recoveryAt;
-  const retryAfterSeconds =
-    typeof recoveryAt === 'string'
-      ? Math.max(0, Math.ceil((new Date(recoveryAt).getTime() - Date.now()) / 1000))
-      : undefined;
-  return deny('budget_exceeded', retryAfterSeconds);
+/** How long the Opfield-side input estimate of a request stays available to its admissions. */
+const INPUT_ESTIMATE_TTL_SECONDS = 3600;
+
+function inputEstimateKey(requestId: string): string {
+  return `inference:request-input-estimate:${requestId}`;
 }
 
 function coreEstimateUsage(estimate: InferenceCoreAdmissionRequest['estimate']): InferenceUsage {
@@ -143,6 +144,11 @@ export class InferenceCoreAccountingService {
     /** Fixed per-call charge (images/search), added on top of metered tokens at settlement. */
     fixedApiMicrodollars?: number;
     isCompaction?: boolean;
+    /**
+     * Opfield's own input token estimate of the request body. A core lane that reports no
+     * input estimate (native Chat Completions) is reserved with this one instead of 0.
+     */
+    inputTokenEstimate?: number;
   }): Promise<{ requestId: string }> {
     const idempotencyKeyHash = input.idempotencyKey ? hash(`${input.userId}:${input.idempotencyKey}`) : null;
     if (idempotencyKeyHash) {
@@ -181,6 +187,11 @@ export class InferenceCoreAccountingService {
       serviceTier: input.serviceTier ?? null,
       fixedApiMicrodollars: input.fixedApiMicrodollars ?? 0,
     });
+    if (input.inputTokenEstimate !== undefined && input.inputTokenEstimate > 0) {
+      await this.redis
+        .set(inputEstimateKey(requestId), String(Math.ceil(input.inputTokenEstimate)), 'EX', INPUT_ESTIMATE_TTL_SECONDS)
+        .catch(() => undefined);
+    }
     return { requestId };
   }
 
@@ -210,82 +221,133 @@ export class InferenceCoreAccountingService {
   }
 
   async admitCoreAttempt(input: InferenceCoreAdmissionRequest): Promise<InferenceCoreAdmissionResponse> {
+    const outcome = await this.admitCoreAttemptOrDenial(input);
+    return 'allowed' in outcome ? outcome.allowed : coreDenyResponse(outcome.denial);
+  }
+
+  /**
+   * Admission with the client-facing refusal kept: the code, recovery time and window the
+   * client must get whichever path (core or Opfield edge) asked. A refusal is recorded on the
+   * root request so finalization stores it and the proxy can answer with it.
+   */
+  async admitCoreAttemptOrDenial(input: InferenceCoreAdmissionRequest): Promise<AdmissionOutcome> {
     const request = await this.db.query.inferenceRequests.findFirst({
       where: eq(inferenceRequests.id, input.rootRequestId),
     });
     if (!request) throw new AppError(404, 'core_request_not_found', 'The root request is unknown to Opfield');
     if (!request.userId) throw new AppError(409, 'core_request_incomplete', 'The request has no owning tenant');
     const userId = request.userId;
-    return this.locks.withUserLock(userId, async (database) => {
-      // Redelivery of an already-admitted attempt acknowledges without side effects.
-      const existing = await database.query.inferenceRequestAttempts.findFirst({
-        where: eq(inferenceRequestAttempts.coreAttemptId, input.attemptId),
-      });
-      if (existing) {
-        if (existing.requestId !== request.id) {
-          throw new AppError(409, 'core_attempt_conflict', 'The attempt belongs to another root request');
-        }
-        if (
-          existing.attemptKind !== input.attemptKind ||
-          (existing.parentCoreAttemptId ?? null) !== input.parentAttemptId
-        ) {
-          throw new AppError(409, 'core_attempt_conflict', 'The admission payload differs from the recorded attempt');
-        }
-        const existingSource = existing.sourceId
-          ? await database.query.inferenceModelSources.findFirst({
-              where: eq(inferenceModelSources.id, existing.sourceId),
-            })
-          : null;
-        const existingConnection = existing.connectionId
-          ? await database.query.inferenceProviderConnections.findFirst({
-              where: eq(inferenceProviderConnections.id, existing.connectionId),
-            })
-          : null;
-        if (!existingSource || !existingConnection) {
-          throw new AppError(409, 'core_attempt_source_missing', 'The admitted attempt route is no longer available');
-        }
-        assertPinnedRoute(input, existingSource, existingConnection);
-        return {
+    const outcome = await this.locks.withUserLock(userId, async (database): Promise<AdmissionOutcome> => {
+      const decided = await this.decideCoreAttempt(database, input, request, userId);
+      if ('denial' in decided) {
+        // A live root request carries no error code until it is refused: a later admitted attempt clears it.
+        await database
+          .update(inferenceRequests)
+          .set({ errorCode: decided.denial.code })
+          .where(and(eq(inferenceRequests.id, request.id), inArray(inferenceRequests.status, ['reserved', 'running'])));
+      }
+      return decided;
+    });
+    if ('denial' in outcome) {
+      await this.redis
+        .set(admissionDenialKey(request.id), serializeDenial(outcome.denial), 'EX', ADMISSION_DENIAL_TTL_SECONDS)
+        .catch(() => undefined);
+    }
+    return outcome;
+  }
+
+  /**
+   * The refusal Opfield decided for this request's latest admission, while the request is
+   * still live and no later attempt was admitted; null otherwise.
+   */
+  async admissionDenial(requestId: string): Promise<InferenceProtocolError | null> {
+    const denial = parseDenial(await this.redis.get(admissionDenialKey(requestId)).catch(() => null));
+    if (!denial) return null;
+    const request = await this.db.query.inferenceRequests.findFirst({
+      columns: { status: true, errorCode: true },
+      where: eq(inferenceRequests.id, requestId),
+    });
+    return request && ['reserved', 'running'].includes(request.status) && request.errorCode === denial.code
+      ? denial
+      : null;
+  }
+
+  private async decideCoreAttempt(
+    database: DrizzleTransaction,
+    input: InferenceCoreAdmissionRequest,
+    request: typeof inferenceRequests.$inferSelect,
+    userId: string
+  ): Promise<AdmissionOutcome> {
+    // Redelivery of an already-admitted attempt acknowledges without side effects.
+    const existing = await database.query.inferenceRequestAttempts.findFirst({
+      where: eq(inferenceRequestAttempts.coreAttemptId, input.attemptId),
+    });
+    if (existing) {
+      if (existing.requestId !== request.id) {
+        throw new AppError(409, 'core_attempt_conflict', 'The attempt belongs to another root request');
+      }
+      if (
+        existing.attemptKind !== input.attemptKind ||
+        (existing.parentCoreAttemptId ?? null) !== input.parentAttemptId
+      ) {
+        throw new AppError(409, 'core_attempt_conflict', 'The admission payload differs from the recorded attempt');
+      }
+      const existingSource = existing.sourceId
+        ? await database.query.inferenceModelSources.findFirst({
+            where: eq(inferenceModelSources.id, existing.sourceId),
+          })
+        : null;
+      const existingConnection = existing.connectionId
+        ? await database.query.inferenceProviderConnections.findFirst({
+            where: eq(inferenceProviderConnections.id, existing.connectionId),
+          })
+        : null;
+      if (!existingSource || !existingConnection) {
+        throw new AppError(409, 'core_attempt_source_missing', 'The admitted attempt route is no longer available');
+      }
+      assertPinnedRoute(input, existingSource, existingConnection);
+      return {
+        allowed: {
           decision: 'allow' as const,
           // Redelivery replays the cap granted by the first admission.
           ...(existing.admittedMaxOutputTokens !== null && existing.admittedMaxOutputTokens !== undefined
             ? { maxOutputTokens: existing.admittedMaxOutputTokens }
             : {}),
-        };
-      }
+        },
+      };
+    }
 
-      const limits = await this.policies.effective(userId, database);
-      if (!limits.enabled) return deny('tenant_revoked');
-      const modelId = request.modelId;
-      const sourceId = request.sourceId;
-      const connectionId = request.connectionId;
-      if (!modelId || !sourceId || !connectionId) {
-        throw new AppError(409, 'core_request_source_missing', 'The request source binding is no longer available');
-      }
-      const model = await database.query.inferenceModels.findFirst({
-        where: eq(inferenceModels.id, modelId),
-      });
-      if (!model?.enabled) return deny('model_disabled');
-      const source = await database.query.inferenceModelSources.findFirst({
-        where: eq(inferenceModelSources.id, sourceId),
-      });
-      const connection = await database.query.inferenceProviderConnections.findFirst({
-        where: eq(inferenceProviderConnections.id, connectionId),
-      });
-      if (!source || !connection) {
-        throw new AppError(409, 'core_request_source_missing', 'The request source binding is no longer available');
-      }
-      if (!model.enabled || !source.enabled || !connection.enabled || connection.deletedAt) {
-        return deny('model_disabled');
-      }
-      if (!(await this.connectionAllowsNewAttempt(database, connection, source.upstreamModelId))) {
-        return deny('model_disabled');
-      }
-
-      assertPinnedRoute(input, source, connection);
-
-      return this.admitAttempt(database, input, request, userId, model, source, connection, limits);
+    const limits = await this.policies.effective(userId, database);
+    if (!limits.enabled) return { denial: tenantRevokedDenial() };
+    const modelId = request.modelId;
+    const sourceId = request.sourceId;
+    const connectionId = request.connectionId;
+    if (!modelId || !sourceId || !connectionId) {
+      throw new AppError(409, 'core_request_source_missing', 'The request source binding is no longer available');
+    }
+    const model = await database.query.inferenceModels.findFirst({
+      where: eq(inferenceModels.id, modelId),
     });
+    if (!model?.enabled) return { denial: modelDisabledDenial() };
+    const source = await database.query.inferenceModelSources.findFirst({
+      where: eq(inferenceModelSources.id, sourceId),
+    });
+    const connection = await database.query.inferenceProviderConnections.findFirst({
+      where: eq(inferenceProviderConnections.id, connectionId),
+    });
+    if (!source || !connection) {
+      throw new AppError(409, 'core_request_source_missing', 'The request source binding is no longer available');
+    }
+    if (!model.enabled || !source.enabled || !connection.enabled || connection.deletedAt) {
+      return { denial: modelDisabledDenial() };
+    }
+    if (!(await this.connectionAllowsNewAttempt(database, connection, source.upstreamModelId))) {
+      return { denial: modelDisabledDenial() };
+    }
+
+    assertPinnedRoute(input, source, connection);
+
+    return this.admitAttempt(database, input, request, userId, model, source, connection, limits);
   }
 
   private async connectionAllowsNewAttempt(
@@ -333,7 +395,7 @@ export class InferenceCoreAccountingService {
     source: SourceRow,
     connection: ConnectionRow,
     limits: EffectiveInferenceLimits
-  ): Promise<InferenceCoreAdmissionResponse> {
+  ): Promise<AdmissionOutcome> {
     // Use one Opfield admission timestamp for both the window and its ledger
     // entry. The core's earlier callback timestamp can precede a new window.
     const admittedAt = new Date();
@@ -352,18 +414,18 @@ export class InferenceCoreAccountingService {
     const modelMultiplier = Number(source.subscriptionMultiplierOverride ?? model.subscriptionMultiplier);
     const serviceTier = normalizeServiceTier(request.serviceTier);
     const serviceTierMultiplier = serviceTierCreditMultiplier(source.sourceType, connection.providerId, serviceTier);
-    const conservativeUsage = coreEstimateUsage(input.estimate);
+    const conservativeUsage = coreEstimateUsage({
+      ...input.estimate,
+      inputTokens: Math.max(input.estimate.inputTokens, await this.opfieldInputEstimate(request.id, input)),
+    });
     // A turn admitted with a positive balance always runs to completion: admission never
     // truncates its output, and the turn may settle past the window. Only the reservation
     // is bounded by the live tail, so parallel turns cannot stack past the limit. A
     // truncated turn is worse than a small overage: the harness retries it several times
     // and every retry is billed.
     if (source.sourceType === 'subscription' && !hasSpendableSubscriptionBudget(limits, usage)) {
-      const recoveryAt = subscriptionBudgetRecoveryAt(limits, usage);
-      return deny(
-        'budget_exceeded',
-        recoveryAt ? Math.max(0, Math.ceil((recoveryAt.getTime() - admittedAt.getTime()) / 1000)) : undefined
-      );
+      const recovery = subscriptionBudgetRecovery(limits, usage);
+      return { denial: subscriptionBudgetExhausted(recovery?.recoveryAt ?? null, recovery?.dimension ?? null) };
     }
     let estimatedUsage =
       source.sourceType === 'subscription'
@@ -428,8 +490,8 @@ export class InferenceCoreAccountingService {
         }
       }
     } catch (error) {
-      const denied = budgetDeny(error);
-      if (denied) return denied;
+      // An exhausted user or connection budget is a refusal, not a failed admission callback.
+      if (isBudgetExhausted(error)) return { denial: clientBudgetDenial(error) };
       throw error;
     }
     try {
@@ -498,9 +560,23 @@ export class InferenceCoreAccountingService {
       throw error;
     }
     return {
-      decision: 'allow',
-      ...(admittedMaxOutputTokens !== null ? { maxOutputTokens: admittedMaxOutputTokens } : {}),
+      allowed: {
+        decision: 'allow',
+        ...(admittedMaxOutputTokens !== null ? { maxOutputTokens: admittedMaxOutputTokens } : {}),
+      },
     };
+  }
+
+  /**
+   * Opfield's input estimate of a Chat Completions request. The core's native Chat lane
+   * reports 0 input tokens, which would reserve only the output and let a large prompt
+   * overshoot the budget; the request body Opfield read gives the real size.
+   */
+  private async opfieldInputEstimate(requestId: string, input: InferenceCoreAdmissionRequest): Promise<number> {
+    if (input.operation !== 'chat_completions') return 0;
+    const raw = await this.redis.get(inputEstimateKey(requestId)).catch(() => null);
+    const value = Number(raw);
+    return raw && Number.isSafeInteger(value) && value > 0 ? value : 0;
   }
 
   async settleCoreAttempt(input: InferenceCoreSettlement): Promise<void> {
@@ -726,6 +802,12 @@ export class InferenceCoreAccountingService {
     if (!request?.userId) return;
     const userId = request.userId;
     await this.locks.withUserLock(userId, async (database) => {
+      // A live request has an error code only when Opfield refused its admission.
+      const live = await database.query.inferenceRequests.findFirst({
+        columns: { errorCode: true },
+        where: eq(inferenceRequests.id, requestId),
+      });
+      const refusalCode = live?.errorCode ?? null;
       const priorAttempts = await database.query.inferenceRequestAttempts.findMany({
         where: eq(inferenceRequestAttempts.requestId, requestId),
       });
@@ -747,7 +829,7 @@ export class InferenceCoreAccountingService {
           status: effectiveOutcome,
           errorCode:
             effectiveOutcome === 'failed'
-              ? (failedAttempt?.errorCode ?? errorCode(error))
+              ? (refusalCode ?? failedAttempt?.errorCode ?? errorCode(error))
               : effectiveOutcome === 'cancelled'
                 ? 'client_cancelled'
                 : null,
@@ -768,6 +850,7 @@ export class InferenceCoreAccountingService {
       if (attempts.length > 0) this.reservations.awaitSettlement({ id: requestId, userId });
       else await this.reservations.release({ id: requestId, userId });
     });
+    await this.redis.del(inputEstimateKey(requestId), admissionDenialKey(requestId)).catch(() => undefined);
   }
 
   /** Request row totals track the sum of settled attempts and ledger charges. */

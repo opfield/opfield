@@ -182,8 +182,16 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
                 type: 'object',
                 properties: {
                   connectionId: { type: 'string' },
-                  discoveredModelId: { type: 'string' },
-                  upstreamModelId: { type: 'string' },
+                  discoveredModelId: {
+                    type: 'string',
+                    description:
+                      'ID of a model the connection discovered. Required when the connection has working model discovery.',
+                  },
+                  upstreamModelId: {
+                    type: 'string',
+                    description:
+                      'Typed provider model id, only for a connection without model discovery or whose discovery failed; needs manualMetadata with contextWindow, maxInputTokens and autoCompactTokenLimit.',
+                  },
                   enabled: { type: 'boolean' },
                   subscriptionMultiplierOverride: { type: ['number', 'null'] },
                   reasoningEffortMap: { type: 'object', additionalProperties: { type: 'string' } },
@@ -279,7 +287,7 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_inference_usage',
     description:
-      'Read inference usage. Operations: self and self_overview (the current user usage and remaining budget; feat:ai:use), system (Opfield-wide overview), users (per-user usage), activity_filters, activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view. A request on an API source with no price has costUnknown: true (its apiMicrodollars is not its cost); system lists such models of the last 7 days under unpriced with a warning.',
+      'Read inference usage. Operations: self and self_overview (the current user usage and remaining budget; feat:ai:use), system (Opfield-wide overview), users (per-user usage), activity_filters, activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view. In self, a window with configured: false does not limit the caller and reports percentage 0. A request refused for an exhausted budget has status failed and errorCode subscription_budget_exhausted, api_budget_exhausted or provider_api_budget_exhausted. A request on an API source with no price has costUnknown: true (its apiMicrodollars is not its cost); system lists such models of the last 7 days under unpriced with a warning.',
     parameters: {
       type: 'object',
       properties: {

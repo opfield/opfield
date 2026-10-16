@@ -167,24 +167,28 @@ export function hasSpendableSubscriptionBudget(limits: EffectiveInferenceLimits,
 
 /**
  * When a user with no spendable subscription budget can spend again: every exhausted window
- * has to recover, so this is the latest recovery among them.
+ * has to recover, so this is the latest recovery among them, with the window it belongs to.
  */
-export function subscriptionBudgetRecoveryAt(
+export function subscriptionBudgetRecovery(
   limits: EffectiveInferenceLimits,
   usage: InferenceBudgetUsage
-): Date | null {
+): { recoveryAt: Date; dimension: '5h' | '7d' | '30d' } | null {
   const exhausted = [
     limits.credits5hEnabled && usage.credits5h >= limits.credits5h * SUBSCRIPTION_CHAT_BUDGET_FRACTION
-      ? usage.recoveryAt.credits5h
+      ? { recoveryAt: usage.recoveryAt.credits5h, dimension: '5h' as const }
       : null,
     limits.credits7dEnabled && usage.credits7d >= limits.credits7d * SUBSCRIPTION_CHAT_BUDGET_FRACTION
-      ? usage.recoveryAt.credits7d
+      ? { recoveryAt: usage.recoveryAt.credits7d, dimension: '7d' as const }
       : null,
     limits.credits30dEnabled && usage.credits30d >= limits.credits30d * SUBSCRIPTION_CHAT_BUDGET_FRACTION
-      ? usage.recoveryAt.credits30d
+      ? { recoveryAt: usage.recoveryAt.credits30d, dimension: '30d' as const }
       : null,
-  ].filter((value): value is Date => value instanceof Date);
-  return exhausted.length === 0 ? null : new Date(Math.max(...exhausted.map((value) => value.getTime())));
+  ].filter((window) => window !== null && window.recoveryAt instanceof Date);
+  let latest: { recoveryAt: Date; dimension: '5h' | '7d' | '30d' } | null = null;
+  for (const window of exhausted) {
+    if (window && (!latest || window.recoveryAt.getTime() > latest.recoveryAt.getTime())) latest = window;
+  }
+  return latest;
 }
 
 type PricingSnapshot = typeof inferencePricingSnapshots.$inferSelect;

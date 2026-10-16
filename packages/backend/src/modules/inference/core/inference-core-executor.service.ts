@@ -2,6 +2,7 @@ import { injectable } from 'tsyringe';
 import type { DrizzleClient } from '@/db/client.js';
 import { resolveLiveUser } from '@/modules/auth/live-session-user.js';
 import { latestPricingSnapshot, stringExtension, unitCharge } from '../accounting/inference-accounting.helpers.js';
+import { connectionScopedDenial } from '../accounting/inference-admission-denial.js';
 import type { InferenceCoreAccountingService } from '../accounting/inference-core-accounting.service.js';
 import { normalizeServiceTier } from '../accounting/inference-service-tier.js';
 import { mapReasoningEffort } from '../models/inference-reasoning.service.js';
@@ -84,14 +85,27 @@ export class InferenceCoreExecutor implements InferenceExecutor {
     let upstream: Response;
     let effectiveRequest: InferenceRequest = request;
     const excludedConnectionIds: string[] = [];
+    let connectionDenial: InferenceProtocolError | undefined;
     try {
       for (;;) {
         if (excludedConnectionIds.length > 0) {
-          resolved = await this.proxy.resolveTarget(user, request.model, {
-            ...(context.affinityKey ? { affinityKey: context.affinityKey } : {}),
-            ...(context.existingThread !== undefined ? { existingThread: context.existingThread } : {}),
-            excludeConnectionIds: excludedConnectionIds,
-          });
+          resolved = await this.proxy
+            .resolveTarget(user, request.model, {
+              ...(context.affinityKey ? { affinityKey: context.affinityKey } : {}),
+              ...(context.existingThread !== undefined ? { existingThread: context.existingThread } : {}),
+              excludeConnectionIds: excludedConnectionIds,
+            })
+            .catch((error: unknown) => {
+              // No connection left: the refusal of the last one explains why.
+              if (
+                connectionDenial &&
+                error instanceof InferenceProtocolError &&
+                error.code === 'provider_capacity_unavailable'
+              ) {
+                throw connectionDenial;
+              }
+              throw error;
+            });
           fixedApiMicrodollars = await this.fixedApiCharge(resolved.selected.source.id, context);
           await this.coreAccounting.retargetCoreRequest(
             requestId,
@@ -140,6 +154,19 @@ export class InferenceCoreExecutor implements InferenceExecutor {
           }
           if (context.signal.aborted) throw new InferenceProtocolError(499, 'client_cancelled', 'Client disconnected');
           throw new InferenceProtocolError(503, 'inference_core_unavailable', 'The inference core is unavailable');
+        }
+        if (!upstream.ok) {
+          // Opfield refused the admission: surface its refusal, never fail over on it.
+          const denial = await this.coreAccounting.admissionDenial(requestId);
+          if (denial) {
+            await upstream.body?.cancel().catch(() => undefined);
+            if (resolved.candidateConnectionIds.length > 1 && connectionScopedDenial(denial)) {
+              connectionDenial = denial;
+              excludedConnectionIds.push(resolved.selected.connection.id);
+              continue;
+            }
+            throw denial;
+          }
         }
         if (resolved.candidateConnectionIds.length > 1 && (await shouldFailOverCoreResponse(upstream))) {
           await upstream.body?.cancel().catch(() => undefined);

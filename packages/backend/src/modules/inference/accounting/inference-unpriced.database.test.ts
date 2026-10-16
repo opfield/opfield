@@ -214,7 +214,8 @@ describe.skipIf(!url || !redisUrl)('inference requests on an API source without 
     const next = await newRequest(pricedModel, pricedSource);
     await expect(
       accounting.admitCoreAttempt(admission(next.requestId, 'att_priced_2', pricedSource))
-    ).rejects.toMatchObject({ code: 'provider_api_budget_exhausted' });
+    ).resolves.toMatchObject({ decision: 'deny', reason: 'budget_exceeded' });
+    expect(await accounting.admissionDenial(next.requestId)).toMatchObject({ code: 'provider_api_budget_exhausted' });
     await db
       .update(schema.inferenceProviderConnections)
       .set({ apiMonthlyLimitMicrodollars: null })
