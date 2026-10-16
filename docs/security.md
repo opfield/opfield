@@ -207,7 +207,7 @@ Destinations require HTTPS without URL credentials, query strings, or fragments.
 
 For HMAC-SHA256, Opfield sends `X-Opfield-Timestamp` and `X-Opfield-Signature-256: sha256=<hex>`, where the signature is calculated over `timestamp + "." + raw JSON request body`. A collector must verify the exact raw body, compare the HMAC in constant time, and reject stale timestamps to limit replay.
 
-`audit:siem:view` allows destination and delivery-history visibility. `audit:siem:manage` controls configuration, tests, deletion, and replay of failed records; it is an explicit OAuth consent scope. Disabling an individual destination pauses its outstanding work, deletion discards outstanding work, and only terminal failed records may be replayed.
+`audit:siem:view` allows destination and delivery-history visibility. `audit:siem:manage` controls configuration, tests, deletion, and replay of failed records; it is an explicit OAuth consent scope. Disabling an individual destination pauses its outstanding work (kept for 7 days), deletion discards outstanding work, and only terminal failed records may be replayed. Every delivery record, sent or not, is removed once it is older than the Audit Log retention.
 
 ## Operational Hardening Checklist
 

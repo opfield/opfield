@@ -156,6 +156,33 @@ def cleanup_after(cleanup):
     cleanup()
 
 
+@contextlib.contextmanager
+def discard_on_failure(cleanup):
+    """Runs `cleanup` only when the block fails, then reports the original failure. A failed or stopped backup removes
+    the files it already uploaded under its own prefix, so a destination that keeps failing does not fill up with
+    partial dumps. A killed runner cannot clean up: Opfield's sweep of unfinished runs removes those later."""
+    try:
+        yield
+    except BaseException:
+        try:
+            cleanup()
+        except Exception:
+            pass
+        raise
+
+
+def discard_uploads(endpoint, owned_prefix, keys):
+    """Removes the files of this run: everything under its own prefix on S3, else each file it started to upload."""
+    if endpoint["provider"] == "s3":
+        delete_prefix(endpoint, owned_prefix)
+        return
+    for key in keys:
+        try:
+            delete_object(endpoint, key)
+        except Exception:
+            pass
+
+
 def command_failure(program, output):
     """The failed tool and the last lines it printed, which name the actual cause."""
     lines = [line.strip() for line in (output or "").splitlines() if line.strip()]
@@ -392,14 +419,19 @@ def transfer_postgres_ownership(target):
 def upload_artifacts(config, artifact_dir, engine_version):
     owned_prefix = safe_part(config["destination"].get("prefix", "database-backups")) + "/" + config["runId"]
     keys, sizes, checksums = [], {}, {}
-    for file in artifact_dir.iterdir():
-        key = remote_key(config["destination"], f"{owned_prefix}/{file.name}")
-        upload(config["destination"], file, key)
-        keys.append(key); sizes[key] = file.stat().st_size; checksums[key] = sha256(file)
-    manifest = {"engine": config["engine"], "version": 1, "engineVersion": engine_version, "sourceIdentity": config["source"]["connectionId"], "sourceDatabase": config["source"].get("database"), "artifactKeys": keys, "sizes": sizes, "fileChecksums": checksums, "ownedPrefix": owned_prefix}
-    manifest["manifestSha256"] = hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    manifest_path = artifact_dir / "manifest.json"; manifest_path.write_text(json.dumps(manifest, sort_keys=True)); os.chmod(manifest_path, 0o600)
-    manifest_key = remote_key(config["destination"], f"{owned_prefix}/manifest.json"); upload(config["destination"], manifest_path, manifest_key)
+    attempted = []
+    with discard_on_failure(lambda: discard_uploads(config["destination"], owned_prefix, attempted)):
+        for file in sorted(artifact_dir.iterdir()):
+            key = remote_key(config["destination"], f"{owned_prefix}/{file.name}")
+            attempted.append(key)
+            upload(config["destination"], file, key)
+            keys.append(key); sizes[key] = file.stat().st_size; checksums[key] = sha256(file)
+        manifest = {"engine": config["engine"], "version": 1, "engineVersion": engine_version, "sourceIdentity": config["source"]["connectionId"], "sourceDatabase": config["source"].get("database"), "artifactKeys": keys, "sizes": sizes, "fileChecksums": checksums, "ownedPrefix": owned_prefix}
+        manifest["manifestSha256"] = hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        manifest_path = artifact_dir / "manifest.json"; manifest_path.write_text(json.dumps(manifest, sort_keys=True)); os.chmod(manifest_path, 0o600)
+        manifest_key = remote_key(config["destination"], f"{owned_prefix}/manifest.json")
+        attempted.append(manifest_key)
+        upload(config["destination"], manifest_path, manifest_key)
     return manifest
 
 
@@ -543,19 +575,24 @@ def clickhouse_backup(config):
             raise BackupError("clickhouse native backup produced no staged artifacts")
         owned_prefix = safe_part(config["destination"].get("prefix", "database-backups")) + "/" + config["runId"]
         keys, sizes, checksums = [], {}, {}
+        attempted = []
         transfer_dir = WORK / "clickhouse-transfer"; transfer_dir.mkdir(mode=0o700, exist_ok=True)
-        for source_key in entries:
-            relative = source_key.removeprefix(stage_root + "/")
-            local = transfer_dir / pathlib.PurePosixPath(relative)
-            local.parent.mkdir(parents=True, exist_ok=True)
-            download(stage, source_key, local)
-            key = remote_key(config["destination"], f"{owned_prefix}/{relative}")
-            upload(config["destination"], local, key)
-            keys.append(key); sizes[key] = local.stat().st_size; checksums[key] = sha256(local)
-        manifest = {"engine": "clickhouse", "version": 1, "engineVersion": clickhouse_query(config["source"], "SELECT version()").strip(), "sourceIdentity": config["source"]["connectionId"], "sourceDatabase": config["source"].get("database", "default"), "artifactKeys": keys, "sizes": sizes, "fileChecksums": checksums, "ownedPrefix": owned_prefix, "nativeStagePrefix": stage_root}
-        manifest["manifestSha256"] = hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-        manifest_path = transfer_dir / "manifest.json"; manifest_path.write_text(json.dumps(manifest, sort_keys=True)); os.chmod(manifest_path, 0o600)
-        upload(config["destination"], manifest_path, remote_key(config["destination"], f"{owned_prefix}/manifest.json"))
+        with discard_on_failure(lambda: discard_uploads(config["destination"], owned_prefix, attempted)):
+            for source_key in entries:
+                relative = source_key.removeprefix(stage_root + "/")
+                local = transfer_dir / pathlib.PurePosixPath(relative)
+                local.parent.mkdir(parents=True, exist_ok=True)
+                download(stage, source_key, local)
+                key = remote_key(config["destination"], f"{owned_prefix}/{relative}")
+                attempted.append(key)
+                upload(config["destination"], local, key)
+                keys.append(key); sizes[key] = local.stat().st_size; checksums[key] = sha256(local)
+            manifest = {"engine": "clickhouse", "version": 1, "engineVersion": clickhouse_query(config["source"], "SELECT version()").strip(), "sourceIdentity": config["source"]["connectionId"], "sourceDatabase": config["source"].get("database", "default"), "artifactKeys": keys, "sizes": sizes, "fileChecksums": checksums, "ownedPrefix": owned_prefix, "nativeStagePrefix": stage_root}
+            manifest["manifestSha256"] = hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            manifest_path = transfer_dir / "manifest.json"; manifest_path.write_text(json.dumps(manifest, sort_keys=True)); os.chmod(manifest_path, 0o600)
+            manifest_key = remote_key(config["destination"], f"{owned_prefix}/manifest.json")
+            attempted.append(manifest_key)
+            upload(config["destination"], manifest_path, manifest_key)
         return manifest
 
 
@@ -794,9 +831,10 @@ def delete_object(endpoint, remote):
 
 def delete_prefix(endpoint, prefix):
     if endpoint["provider"] != "s3":
-        raise BackupError("native ClickHouse staging must use S3")
+        raise BackupError("deleting a prefix needs S3 storage")
+    # The trailing slash keeps the deletion inside this directory: run `abc` never matches `abcd`.
     prefix = safe_part(prefix)
-    run(rclone_args(endpoint, "delete", "--rmdirs", f"target:{endpoint['bucket']}/{prefix}"))
+    run(rclone_args(endpoint, "delete", "--rmdirs", f"target:{endpoint['bucket']}/{prefix}/"))
 
 
 class ImplicitFTP_TLS(ftplib.FTP_TLS):

@@ -428,6 +428,79 @@ class PreflightProbeFailureTests(unittest.TestCase):
         uploaded.assert_not_called()
 
 
+class FailedUploadCleanupTests(unittest.TestCase):
+    """A backup that fails or is stopped while uploading removes what it already wrote under its own prefix."""
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.artifacts = pathlib.Path(self.directory.name)
+        (self.artifacts / "database.dump").write_bytes(b"dump")
+        self.config = {"runId": "abc", "engine": "postgres", "source": {"connectionId": "source", "database": "app"}}
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def test_s3_upload_failure_deletes_the_run_prefix_and_reports_the_upload_error(self):
+        destination = {"provider": "s3", "endpoint": "https://storage.example.test", "bucket": "backups", "prefix": "nightly"}
+        with patch.object(runner, "upload", side_effect=[None, runner.BackupError("rclone failed: No writable volumes")]), patch.object(runner, "delete_prefix", side_effect=runner.BackupError("rclone failed: directory not found")) as deleted:
+            with self.assertRaises(runner.BackupError) as raised:
+                runner.upload_artifacts({**self.config, "destination": destination}, self.artifacts, "17.2")
+        self.assertEqual(str(raised.exception), "rclone failed: No writable volumes")
+        deleted.assert_called_once_with(destination, "nightly/abc")
+
+    def test_a_stop_request_during_upload_also_cleans_up(self):
+        destination = {"provider": "s3", "endpoint": "https://storage.example.test", "bucket": "backups", "prefix": "nightly"}
+        with patch.object(runner, "upload", side_effect=runner.BackupError("the run was stopped")), patch.object(runner, "delete_prefix") as deleted:
+            with self.assertRaises(runner.BackupError):
+                runner.upload_artifacts({**self.config, "destination": destination}, self.artifacts, "17.2")
+        deleted.assert_called_once_with(destination, "nightly/abc")
+
+    def test_file_protocol_upload_failure_deletes_each_file_it_started(self):
+        destination = {"provider": "sftp", "host": "files.example.test", "port": 22, "bucket": "backups", "prefix": "nightly"}
+        with patch.object(runner, "upload", side_effect=[None, runner.BackupError("SFTP transfer failed")]), patch.object(runner, "delete_object") as deleted:
+            with self.assertRaises(runner.BackupError):
+                runner.upload_artifacts({**self.config, "destination": destination}, self.artifacts, "17.2")
+        self.assertEqual([call.args[1] for call in deleted.call_args_list], ["nightly/abc/database.dump", "nightly/abc/manifest.json"])
+
+    def test_a_completed_upload_keeps_its_files(self):
+        destination = {"provider": "s3", "endpoint": "https://storage.example.test", "bucket": "backups", "prefix": "nightly"}
+        with patch.object(runner, "upload") as uploaded, patch.object(runner, "delete_prefix") as deleted, patch.object(runner, "delete_object") as deleted_object:
+            manifest = runner.upload_artifacts({**self.config, "destination": destination}, self.artifacts, "17.2")
+        self.assertEqual(manifest["artifactKeys"], ["nightly/abc/database.dump"])
+        self.assertEqual(uploaded.call_count, 2)
+        deleted.assert_not_called()
+        deleted_object.assert_not_called()
+
+    def test_clickhouse_upload_failure_cleans_the_destination_and_the_staging(self):
+        original_work = runner.WORK
+        runner.WORK = self.artifacts
+        try:
+            destination = {"provider": "s3", "endpoint": "https://storage.example.test", "bucket": "backups", "prefix": "nightly", "accessKeyId": "key", "secretAccessKey": "secret"}
+            config = {**self.config, "engine": "clickhouse", "limits": {"timeoutSeconds": 60}, "destination": destination}
+
+            def download(_, __, local):
+                local.write_bytes(b"part")
+
+            with patch.object(runner, "clickhouse_query", return_value=""), patch.object(runner, "list_objects", return_value=["nightly/native/abc/data.bin"]), patch.object(runner, "download", side_effect=download), patch.object(runner, "upload", side_effect=runner.BackupError("rclone failed: quota")), patch.object(runner, "delete_prefix") as deleted:
+                with self.assertRaises(runner.BackupError):
+                    runner.clickhouse_backup(config)
+            self.assertEqual([call.args[1] for call in deleted.call_args_list], ["nightly/abc", "nightly/native/abc"])
+        finally:
+            runner.WORK = original_work
+
+    def test_prefix_deletion_stays_inside_the_run_directory(self):
+        destination = {"provider": "s3", "endpoint": "https://storage.example.test", "bucket": "backups"}
+        original_work = runner.WORK
+        runner.WORK = self.artifacts
+        try:
+            with patch.object(runner, "run") as ran:
+                runner.delete_prefix(destination, "nightly/abc")
+        finally:
+            runner.WORK = original_work
+        # rclone gets the directory with a trailing slash, so the sibling run `abcd` is never matched.
+        self.assertEqual(ran.call_args.args[0][-1], "target:backups/nightly/abc/")
+
+
 CA_PEM = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n"
 
 
