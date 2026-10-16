@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NodeDispatchService } from './node-dispatch.service.js';
 import {
+  NODE_CONSOLE_AGENT_SANDBOX_CAPABILITY,
   NODE_CONSOLE_DISABLED_CAPABILITY,
   NODE_CONSOLE_USER_UNAVAILABLE_CAPABILITY,
   NODE_FILES_DISABLED_CAPABILITY,
@@ -37,13 +38,16 @@ describe('node host access switches', () => {
 
   it('refuses console commands with a 409 naming console.user when the daemon cannot switch to it', async () => {
     const { dispatch, sent } = dispatchFor([NODE_CONSOLE_USER_UNAVAILABLE_CAPABILITY]);
-    for (const action of ['create', 'resize', 'run']) {
+    for (const action of ['create', 'resize'] as const) {
       await expect(dispatch.sendNodeExecCommand('node-1', action, { command: ['id'] })).rejects.toMatchObject({
         statusCode: 409,
         code: 'NODE_CONSOLE_USER_UNAVAILABLE',
         message: expect.stringContaining('Remove console.user from the daemon config file'),
       });
     }
+    await expect(dispatch.sendNodeAgentCommand('node-1', ['id'])).rejects.toMatchObject({
+      code: 'NODE_CONSOLE_USER_UNAVAILABLE',
+    });
     expect(sent).toEqual([]);
     await expect(dispatch.sendNodeFileCommand('node-1', 'list', { path: '/' })).resolves.toMatchObject({
       success: true,
@@ -52,13 +56,16 @@ describe('node host access switches', () => {
 
   it('refuses console commands with a 409 before dispatching when the node disabled its console', async () => {
     const { dispatch, sent } = dispatchFor([NODE_CONSOLE_DISABLED_CAPABILITY]);
-    for (const action of ['create', 'resize', 'run']) {
+    for (const action of ['create', 'resize'] as const) {
       await expect(dispatch.sendNodeExecCommand('node-1', action, { command: ['id'] })).rejects.toMatchObject({
         statusCode: 409,
         code: 'NODE_CONSOLE_DISABLED',
         message: expect.stringContaining("Console is disabled in this node's daemon configuration"),
       });
     }
+    await expect(dispatch.sendNodeAgentCommand('node-1', ['id'])).rejects.toMatchObject({
+      code: 'NODE_CONSOLE_DISABLED',
+    });
     expect(sent).toEqual([]);
     // The console switch does not touch file access.
     await expect(dispatch.sendNodeFileCommand('node-1', 'list', { path: '/' })).resolves.toMatchObject({
@@ -67,7 +74,7 @@ describe('node host access switches', () => {
   });
 
   it('refuses host file operations with a 409 when the node disabled file access, but keeps the host identity read', async () => {
-    const { dispatch, sent } = dispatchFor([NODE_FILES_DISABLED_CAPABILITY]);
+    const { dispatch, sent } = dispatchFor([NODE_FILES_DISABLED_CAPABILITY, NODE_CONSOLE_AGENT_SANDBOX_CAPABILITY]);
     for (const action of ['list', 'read', 'write', 'delete', 'move', 'upload-init', 'upload-abort']) {
       await expect(dispatch.sendNodeFileCommand('node-1', action, { path: '/etc/passwd' })).rejects.toMatchObject({
         statusCode: 409,
@@ -78,7 +85,7 @@ describe('node host access switches', () => {
     await expect(dispatch.sendNodeFileCommand('node-1', 'ensure-host-identity')).resolves.toMatchObject({
       success: true,
     });
-    await expect(dispatch.sendNodeExecCommand('node-1', 'run', { command: ['id'] })).resolves.toMatchObject({
+    await expect(dispatch.sendNodeAgentCommand('node-1', ['id'])).resolves.toMatchObject({
       success: true,
     });
     expect(sent).toHaveLength(2);
@@ -103,13 +110,14 @@ describe('node host access switches', () => {
       NODE_CONSOLE_DISABLED_CAPABILITY,
       NODE_FILES_DISABLED_CAPABILITY,
     ]);
-    for (const action of ['create', 'resize', 'run']) {
+    for (const action of ['create', 'resize'] as const) {
       await expect(dispatch.sendNodeExecCommand('node-1', action, { command: ['id'] })).rejects.toMatchObject({
         statusCode: 409,
         code: 'NODE_PROTECTED',
         message: expect.stringContaining('protected mode'),
       });
     }
+    await expect(dispatch.sendNodeAgentCommand('node-1', ['id'])).rejects.toMatchObject({ code: 'NODE_PROTECTED' });
     for (const action of ['list', 'read', 'write', 'delete', 'move', 'create-dir', 'upload-init', 'upload-abort']) {
       await expect(dispatch.sendNodeFileCommand('node-1', action, { path: '/etc/passwd' })).rejects.toMatchObject({
         statusCode: 409,
@@ -130,6 +138,19 @@ describe('node host access switches', () => {
     };
     expect(nodeConsoleRefusal(registry, 'node-1')).toMatchObject({ statusCode: 409, code: 'NODE_PROTECTED' });
     expect(nodeConsoleRefusal({ hasCapability: () => false }, 'node-1')).toBeNull();
+  });
+
+  it('sends agent console commands only to daemons that run them in the agent sandbox', async () => {
+    const old = dispatchFor([]);
+    await expect(old.dispatch.sendNodeAgentCommand('node-1', ['sh', '-c', 'docker ps'])).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'NODE_CONSOLE_AGENT_SANDBOX_REQUIRED',
+      message: expect.stringContaining("Update the node's daemon"),
+    });
+    expect(old.sent).toEqual([]);
+    const current = dispatchFor([NODE_CONSOLE_AGENT_SANDBOX_CAPABILITY]);
+    await current.dispatch.sendNodeAgentCommand('node-1', ['df', '-h']);
+    expect(current.sent).toEqual([{ nodeExec: { action: 'run', command: ['df', '-h'] } }]);
   });
 
   it('dispatches console and file commands to a node that disabled nothing', async () => {

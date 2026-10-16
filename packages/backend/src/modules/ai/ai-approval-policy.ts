@@ -4,6 +4,7 @@ import {
   isGitLabAIToolForcedApproval,
 } from '@/modules/integrations/gitlab-approval-policy.js';
 import type { User } from '@/types.js';
+import { toolCallRefusedBeforeApproval } from './ai.console-preflight.js';
 import { AI_TOOLS } from './ai.tools.js';
 import type { AIToolOperationPolicy } from './ai.types.js';
 
@@ -100,6 +101,12 @@ export function getAIToolApprovalDecision(
   const classification = classifyAIToolForApproval(toolName, toolArguments);
   if (classification === 'system-never-ask') {
     return { classification, approvalPolicy: 'system_skipped', requiresApproval: false };
+  }
+
+  // A console command that is refused whatever the node's state runs at once and returns its refusal: nobody is
+  // asked to approve a command that cannot run.
+  if (toolCallRefusedBeforeApproval(toolName, toolArguments)) {
+    return { classification, approvalPolicy: 'auto_approved', requiresApproval: false };
   }
 
   if (isGitLabAIToolForcedApproval(toolName)) {

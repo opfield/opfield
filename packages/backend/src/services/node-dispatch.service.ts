@@ -15,7 +15,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DaemonUpdateService } from './daemon-update.service.js';
 import { opfieldKeptVolumeNames } from './docker-kept-volumes.js';
-import { assertNodeHostFeatureEnabled } from './node-host-access.js';
+import { assertNodeAgentConsoleSandbox, assertNodeHostFeatureEnabled } from './node-host-access.js';
 import type { DispatchedCommand, NodeRegistryService } from './node-registry.service.js';
 import type { RelayGrantAssignment, RelayGrantBundle } from './relay-policy.service.js';
 
@@ -1491,9 +1491,26 @@ export class NodeDispatchService {
     );
   }
 
+  /**
+   * Runs an agent's one-shot console command on the node. The daemon runs it in the agent sandbox (no container
+   * runtime, no root); a daemon without the sandbox is refused before anything is sent.
+   */
+  async sendNodeAgentCommand(nodeId: string, command: string[], timeoutMs?: number): Promise<CommandResult> {
+    this.assertNodeAgentCommandAvailable(nodeId);
+    await this.assertNodeMutable(nodeId);
+    return this.registry.sendCommand(nodeId, { nodeExec: { action: 'run', command } as any }, timeoutMs);
+  }
+
+  /** Throws why the node's daemon would not run an agent console command now (console off, no agent sandbox). */
+  assertNodeAgentCommandAvailable(nodeId: string): void {
+    assertNodeHostFeatureEnabled(this.registry, nodeId, 'console');
+    assertNodeAgentConsoleSandbox(this.registry, nodeId);
+  }
+
+  /** The browser console's PTY session (create, resize). Agents' one-shot commands go through sendNodeAgentCommand. */
   async sendNodeExecCommand(
     nodeId: string,
-    action: string,
+    action: 'create' | 'resize',
     options: {
       command?: string[];
       tty?: boolean;

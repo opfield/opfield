@@ -404,6 +404,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "node.config_push": "Pushed node configuration",
   "node.console.close": "Closed node console",
   "node.console.managed_resource_refused": "Refused a console command on a managed resource",
+  "node.console.runtime_refused": "Refused a console command that uses the container runtime",
   "node.console.open": "Opened node console",
   "node.create": "Created node",
   "node.disconnected": "Node disconnected",
