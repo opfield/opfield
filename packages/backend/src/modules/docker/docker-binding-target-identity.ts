@@ -3,12 +3,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { DockerManagementService } from './docker.service.js';
 import { isOpfieldInternalContainer } from './docker-internal-containers.js';
 import { DockerSourceService } from './docker-source.service.js';
-
-function isMissingContainerError(error: unknown): boolean {
-  if ((error as { code?: unknown } | null)?.code === 'CONTAINER_NOT_FOUND') return true;
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  return /(?:no such container|container not found)/i.test(message);
-}
+import { isMissingContainerError } from './docker-source-removed-container.js';
 
 /**
  * The access identity (scope resource id) of a managed database or storage link's target container, for the

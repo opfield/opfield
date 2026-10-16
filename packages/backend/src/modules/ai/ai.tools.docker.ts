@@ -113,7 +113,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_docker_container',
     description:
-      'Get detailed information about a specific Docker container including config, state, mounts, and network settings.',
+      'Get detailed information about a specific Docker container including config, state, mounts, and network settings. gitSource names the Git source bound to the container (id, repositoryFullPath, branch, autoBuild, autoDeploy, desiredCommitSha, deployedCommitSha), or null; manage_docker_source get has its builds and state.',
     parameters: {
       type: 'object',
       properties: {
@@ -498,7 +498,8 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_docker_container_logs',
-    description: 'Get recent log output from a Docker container.',
+    description:
+      'Get recent log output from a Docker container: a list of lines, empty when the container wrote nothing.',
     parameters: {
       type: 'object',
       properties: {
@@ -611,7 +612,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_docker_volumes',
     description:
-      'List Opfield-managed volumes plus legacy volumes still attached to visible Opfield containers, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Orphaned unmanaged volumes are hidden.',
+      'List Opfield-managed volumes plus legacy volumes still attached to visible Opfield containers, on one Docker node (nodeId, type docker) or across every Docker node you can see when nodeId is omitted. Orphaned unmanaged volumes are hidden. usedBytes is the bytes the volume uses as the node last measured them in the background (the Size of the volume list; manage_docker_volume metrics has the details), null before the first measurement.',
     parameters: {
       type: 'object',
       properties: {
@@ -898,7 +899,11 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
           type: 'string',
           enum: ['apply', 'pull_apply', 'start', 'stop', 'restart', 'down', 'delete_volumes', 'cancel'],
         },
-        idempotencyKey: { type: 'string' },
+        idempotencyKey: {
+          type: 'string',
+          description:
+            'operation_start: optional key of the lifecycle operation (8-200 characters, e.g. a UUID). A retry with the same key returns the operation it started instead of starting another; without a key every call starts a new operation.',
+        },
         removeOrphans: {
           type: 'boolean',
           description:
@@ -994,7 +999,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_source',
     description:
-      'Inspect, attach, update, remove, resolve, sync, or manually build the Git source bound directly to an existing Docker container, blue/green deployment, or Compose Project, or create a new container, deployment, or Compose Project from a Git source (create). sync (Sync now; docker:containers:manage, or docker:compose:manage for Compose) checks the branch for a new commit now, like one poll iteration, and queues the automatic build only when the source builds automatically and the head changed or has no build yet; it returns { source, changed, build }, needs no integrations:<provider>:use, and within about 10 seconds of the previous check returns the current state without asking the provider. resolve refreshes the desired commit without building (sync without building). pending reads a container that exists only as a queued first source build, with the same latestBuild and state as get (a failed first build says why); pending_volumes (docker:containers:edit) sets its volume mounts, which the first build creates it with. Also lists the Git connectors a source can come from (connectors: id, name, provider) and their repositories (repositories, connectorId, optional search; returns { repositories, truncated }, truncated meaning more may exist past the listing bound, so search by name or owner/name); both need a create or edit scope of the workload the source is for and list only what the integrations:<provider>:use grants of the caller cover (what attaching the source needs). Attaching a source (create, upsert of a new source) or changing its connector, repository or branch also needs integrations:<provider>:use on that repository: unqualified, or limited to its connector, GitLab group or GitHub owner, or the exact project or repository; other upsert changes and build need only the workload scopes. upsert of an existing source changes only the fields you pass; omitted fields and policy keys keep their saved values, and it returns the saved source including policy. A container that a Compose project (a service container) or a blue/green deployment (a slot) owns takes no source of its own: create and upsert refuse it with 409 SOURCE_TARGET_OWNED, naming the Compose Project or deployment to attach the source to instead (targetType compose or deployment with its id); get reports a source attached to one earlier in invalidTarget and state, and its builds fail with SOURCE_TARGET_OWNED without touching the container. Attaching a source, or changing its connector, repository or branch, with autoBuild queues the build of the branch head at once. get and upsert also return latestBuild (latestBuilds: every service build of a Compose commit) with status, errorCode, errorMessage, policyDecision, policyReason and rolloutNote, and state, a plain sentence of what the latest build did and what runs on the target. When deployedCommitSha is null, read state and latestBuild first: a failed build (often a vulnerability policy rejection, whose message names the policy change or package fix) is why nothing was deployed; fix that and build again instead of changing the workload by hand. Manages source-scoped Build Secrets without exposing secret values. Builds always resolve an exact commit and deploy only approved immutable artifacts; while a build rollout deploys, other changes to its target are refused with 409 BUILD_ROLLOUT_IN_PROGRESS. Automatic deployments act for the account that last saved the source (its settings or Build Secrets): a new image on a workload with host bind mounts deploys only while that account holds docker:containers:mounts on it, checked when the rollout runs; otherwise the build fails with MISSING_DOCKER_MOUNTS_SCOPE naming the account and the fix (grant the scope, or save the source as a user who holds it). get returns composeServiceNames for a Compose source: the services of the Compose file it resolved, which the project can be linked to before its first revision.',
+      "Inspect, attach, update, remove, resolve, sync, or manually build the Git source bound directly to an existing Docker container, blue/green deployment, or Compose Project, or create a new container, deployment, or Compose Project from a Git source (create). sync (Sync now; docker:containers:manage, or docker:compose:manage for Compose) checks the branch for a new commit now, like one poll iteration, and queues the automatic build only when the source builds automatically and the head changed or has no build yet; it returns { source, changed, build }, needs no integrations:<provider>:use, and within about 10 seconds of the previous check returns the current state without asking the provider. resolve refreshes the desired commit without building (sync without building). pending reads a container that exists only as a queued first source build, with the same latestBuild and state as get (a failed first build says why); pending_volumes (docker:containers:edit) sets its volume mounts, which the first build creates it with. Also lists the Git connectors a source can come from (connectors: id, name, provider) and their repositories (repositories, connectorId, optional search; returns { repositories, truncated }, truncated meaning more may exist past the listing bound, so search by name or owner/name); both need a create or edit scope of the workload the source is for and list only what the integrations:<provider>:use grants of the caller cover (what attaching the source needs). Attaching a source (create, upsert of a new source) or changing its connector, repository or branch also needs integrations:<provider>:use on that repository: unqualified, or limited to its connector, GitLab group or GitHub owner, or the exact project or repository; other upsert changes and build need only the workload scopes. upsert of an existing source changes only the fields you pass; omitted fields and policy keys keep their saved values, and it returns the saved source including policy. A container that a Compose project (a service container) or a blue/green deployment (a slot) owns takes no source of its own: create and upsert refuse it with 409 SOURCE_TARGET_OWNED, naming the Compose Project or deployment to attach the source to instead (targetType compose or deployment with its id); get reports a source attached to one earlier in invalidTarget and state, and its builds fail with SOURCE_TARGET_OWNED without touching the container. Attaching a source, or changing its connector, repository or branch, with autoBuild queues the build of the branch head at once. Attaching a source to an existing container (upsert of a new source) answers attachNotice: the first deploy replaces the container's image (currentImage, currentExposedPorts) with the built one, keeping its name, env, secrets, volumes, networks and port mappings; the new image sets the command and listening port, so tell the user and update routes or port mappings if the port changes (the deploying build's rolloutNote names a changed exposed port). get and upsert also return latestBuild (latestBuilds: every service build of a Compose commit) with status, errorCode, errorMessage, policyDecision, policyReason and rolloutNote, and state, a plain sentence of what the latest build did and what runs on the target. When deployedCommitSha is null, read state and latestBuild first: a failed build (often a vulnerability policy rejection, whose message names the policy change or package fix) is why nothing was deployed; fix that and build again instead of changing the workload by hand. Manages source-scoped Build Secrets without exposing secret values. Builds always resolve an exact commit and deploy only approved immutable artifacts; while a build rollout deploys, other changes to its target are refused with 409 BUILD_ROLLOUT_IN_PROGRESS. Automatic deployments act for the account that last saved the source (its settings or Build Secrets): a new image on a workload with host bind mounts deploys only while that account holds docker:containers:mounts on it, checked when the rollout runs; otherwise the build fails with MISSING_DOCKER_MOUNTS_SCOPE naming the account and the fix (grant the scope, or save the source as a user who holds it). get returns composeServiceNames for a Compose source: the services of the Compose file it resolved, which the project can be linked to before its first revision. A container removed outside Opfield leaves its source holding the name: get (invalidTarget SOURCE_CONTAINER_REMOVED), remove, secret_list and secret_delete still work by containerName, and remove frees the name; the other operations answer 409 SOURCE_CONTAINER_REMOVED.",
     parameters: {
       type: 'object',
       properties: {
@@ -1067,7 +1072,11 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
           description:
             'repositories only: name or owner/name to find repositories past the listing bound (GitHub search)',
         },
-        projectId: { type: 'string', description: 'Allowlisted repository project UUID' },
+        projectId: {
+          type: 'string',
+          description:
+            'The repository: its id from the repositories operation (a UUID), or its owner/name (GitLab path) with connectorId, which is looked up among the repositories the connector lists for you.',
+        },
         branch: { type: 'string' },
         dockerfilePath: { type: 'string', description: 'Repository-relative Dockerfile path' },
         contextPath: { type: 'string', description: 'Repository-relative build context' },

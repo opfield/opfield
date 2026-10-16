@@ -49,7 +49,7 @@ func (m *Manager) IdleHousekeeping(ctx context.Context) (bool, error) {
 	errs = append(errs, pruneGrypeDB(config.GrypeDBDir()))
 	if err := m.Ready(); err == nil {
 		pruneCtx, cancel := context.WithTimeout(ctx, idlePruneTimeout)
-		errs = append(errs, m.prune(pruneCtx, ""))
+		errs = append(errs, m.prune(pruneCtx))
 		cancel()
 	}
 	return true, errors.Join(errs...)

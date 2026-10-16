@@ -68,6 +68,11 @@ function declaresIdempotencyKey(tool: Pick<AIToolDefinition, 'parameters'>): boo
   return !!properties && Object.hasOwn(properties, MCP_IDEMPOTENCY_KEY_ARGUMENT);
 }
 
+function ownPropertyDescription(schema: JsonSchemaObject): string {
+  const property = schema.properties?.[MCP_IDEMPOTENCY_KEY_ARGUMENT] as { description?: unknown } | undefined;
+  return typeof property?.description === 'string' ? property.description : '';
+}
+
 function operationsText(rule: McpIdempotentToolRule): string {
   if (!rule.operations?.length || !rule.operationField) return '';
   const list = rule.operations.map((operation) => `"${operation}"`).join(' or ');
@@ -94,8 +99,9 @@ export function mcpToolListing(tool: AIToolDefinition): { description: string; i
           ...((inputSchema.properties?.[MCP_IDEMPOTENCY_KEY_ARGUMENT] as object | undefined) ?? {}),
           type: 'string',
           ...(declaresIdempotencyKey(tool) ? {} : { minLength: 1, maxLength: IDEMPOTENCY_KEY_MAX_LENGTH }),
+          // A tool that declares the key for other operations keeps its own description of that use.
           description: declaresIdempotencyKey(tool)
-            ? `${propertyDescription} Other operations keep their own use of this key.`
+            ? [ownPropertyDescription(inputSchema), propertyDescription].filter(Boolean).join(' ')
             : propertyDescription,
         },
       },

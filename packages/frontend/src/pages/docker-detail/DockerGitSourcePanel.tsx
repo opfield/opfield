@@ -893,7 +893,9 @@ export function DockerGitSourcePanel({
               : "Configure how Opfield builds and publishes the Pages artifact."
             : composeTarget
               ? "Build every Compose service that declares build and apply the project only after all artifacts pass policy."
-              : "Build and deploy this Docker resource from an allowlisted repository."}
+              : target?.kind === "container" && !pendingContainer
+                ? "Build and deploy this container from an allowlisted repository. The first build replaces its image: the container keeps its name, environment, volumes, networks and port mappings, while the new image sets the command and the port the app listens on. Update routes and port mappings if that port changes."
+                : "Build and deploy this Docker resource from an allowlisted repository."}
         </DialogDescription>
         {pagesTarget ? (
           <AnimatedHeight>

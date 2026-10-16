@@ -81,12 +81,29 @@ export function isZodError(err: unknown): err is ZodError {
   );
 }
 
-/** The `details` of a VALIDATION_ERROR: one entry per failed field. */
+/**
+ * The `details` of a VALIDATION_ERROR: one entry per failed field, whose message says what the field expects (the
+ * type of a missing field, a UUID, the allowed values) rather than only that it is wrong. The value sent is never
+ * repeated.
+ */
 export function validationErrorDetails(err: ZodError): Array<{ path: string; message: string }> {
   return err.errors.map((e) => ({
     path: e.path.join('.'),
-    message: e.message,
+    message: describeValidationIssue(e),
   }));
+}
+
+function describeValidationIssue(issue: ZodError['errors'][number]): string {
+  if (issue.code === 'invalid_type' && issue.received === 'undefined' && issue.message === 'Required') {
+    return `Required (expected ${issue.expected})`;
+  }
+  if (issue.code === 'invalid_string' && issue.validation === 'uuid' && issue.message === 'Invalid uuid') {
+    return 'Invalid uuid: expected the UUID of the resource (look it up with the matching list operation)';
+  }
+  if (issue.code === 'invalid_enum_value' && issue.message.startsWith('Invalid enum value')) {
+    return `Expected one of: ${issue.options.map(String).join(', ')}`;
+  }
+  return issue.message;
 }
 
 /**

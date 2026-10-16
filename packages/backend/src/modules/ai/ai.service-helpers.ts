@@ -393,6 +393,8 @@ function compactDockerVolumeForAgent(volume: Record<string, any>) {
     mountpoint: volume.mountpoint ?? volume.Mountpoint,
     scope: volume.scope ?? volume.Scope,
     createdAt: volume.createdAt ?? volume.CreatedAt,
+    // Bytes the volume uses as the node last measured them (the volume list's Size); null before a measurement.
+    usedBytes: typeof volume.usedBytes === 'number' ? volume.usedBytes : null,
     usedBy: Array.isArray(usedBy) ? usedBy.slice(0, AGENT_VOLUME_USED_BY_PREVIEW_MAX) : usedBy,
     usedByCount: Array.isArray(usedBy) ? usedBy.length : undefined,
     usedByTruncated: Array.isArray(usedBy) && usedBy.length > AGENT_VOLUME_USED_BY_PREVIEW_MAX,

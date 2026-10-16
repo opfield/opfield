@@ -160,7 +160,8 @@ export async function getContainerLogs(
     tailLines,
     timestamps,
   });
-  return context.parseResult(result);
+  // A container that wrote nothing answers an empty list (daemons before 2.12.3 sent null).
+  return context.parseResult(result) ?? [];
 }
 
 export async function getContainerStats(context: DockerReadOperationContext, nodeId: string, containerId: string) {

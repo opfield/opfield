@@ -25,6 +25,7 @@ export function normalizeVolumeDetailItem(volume: Record<string, any>) {
     managementState: volume.managementState,
     storageKind: volume.storageKind,
     capacityBytes: volume.capacityBytes,
+    usedBytes: typeof volume.usedBytes === 'number' ? volume.usedBytes : null,
     adoptable: Boolean(volume.adoptable),
     adoptionReason: volume.adoptionReason,
     availability: volume.availability,
@@ -67,8 +68,9 @@ export async function inspectDockerVolumeSnapshot(nodeId: string, name: string) 
       .decoratePublicVolumeSnapshot(nodeId, [data], Array.isArray(containerSnapshot.data) ? containerSnapshot.data : [])
   ).find((volume) => String(volume?.Name ?? volume?.name ?? '') === name);
   if (!decorated) throw new HTTPException(404, { message: 'Volume not found' });
+  const metrics = await snapshots.getDetail<{ usedBytes?: number | null }>(nodeId, 'volume-metrics', name);
   return {
-    ...normalizeVolumeDetailItem(decorated),
+    ...normalizeVolumeDetailItem({ ...decorated, usedBytes: metrics?.data?.usedBytes ?? null }),
     nodeId,
     availability: detail ? snapshots.availability(nodeId, detail) : 'unavailable',
   };
@@ -89,4 +91,22 @@ export async function getDockerVolumeMetricsSnapshot(nodeId: string, name: strin
     throw new AppError(503, 'DOCKER_VOLUME_METRICS_PENDING', 'Volume metrics are being collected in the background');
   }
   return metrics.data;
+}
+
+/**
+ * Volumes with the bytes each uses as the node last measured them (`usedBytes`, the volume list's Size column), read
+ * from the cached volume metrics; null for a volume not measured yet. A failed cache read leaves the sizes out.
+ */
+export async function withVolumeUsedBytes<T extends Record<string, any>>(
+  nodeId: string,
+  volumes: T[]
+): Promise<Array<T & { usedBytes: number | null }>> {
+  const metrics = await container
+    .resolve(DockerSnapshotService)
+    .getDetails<{ usedBytes?: number | null }>(nodeId, 'volume-metrics')
+    .catch(() => ({}) as Record<string, { data?: { usedBytes?: number | null } }>);
+  return volumes.map((volume) => {
+    const used = metrics[String(volume.name ?? volume.Name ?? '')]?.data?.usedBytes;
+    return { ...volume, usedBytes: typeof used === 'number' ? used : null };
+  });
 }

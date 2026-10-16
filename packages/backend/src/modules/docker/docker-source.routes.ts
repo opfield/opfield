@@ -34,6 +34,7 @@ import {
 import { DockerBuildService } from './docker-build.service.js';
 import { updatePendingContainerVolumes } from './docker-pending-container-volumes.js';
 import { DockerSourceService } from './docker-source.service.js';
+import { containerSourceAttachNotice, inspectContainerBeforeAttach } from './docker-source-attach-notice.js';
 import {
   getDockerSourceWithBuildState,
   withDockerSourceBuildState,
@@ -186,7 +187,10 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
 
   router.get(
     '/nodes/:nodeId/containers/:containerName/source/pending',
-    requireDockerContainerScope('docker:containers:view', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:view', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'refuse',
+    }),
     async (c) => {
       const pending = await container
         .resolve(DockerSourceService)
@@ -198,7 +202,10 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
   // The volume mounts the first build creates the container with (the whole list).
   router.put(
     '/nodes/:nodeId/containers/:containerName/source/pending/volumes',
-    requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:edit', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'refuse',
+    }),
     async (c) => {
       const input = DockerPendingContainerVolumesSchema.parse(await c.req.json());
       const data = await updatePendingContainerVolumes(
@@ -216,13 +223,17 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
       ...getContainerSourceRoute,
       middleware: requireDockerContainerScope('docker:containers:view', 'containerName', {
         allowPendingSource: true,
+        removedContainerSource: 'allow',
       }),
     },
     async (c) => c.json({ data: await getDockerSourceWithBuildState(containerTarget(c)) })
   );
   router.put(
     '/nodes/:nodeId/containers/:containerName/source',
-    requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:edit', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'refuse',
+    }),
     async (c) => {
       const config = DockerSourceBindingConfigSchema.parse(await c.req.json());
       const target = containerTarget(c);
@@ -230,19 +241,33 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
         c.req.param('nodeId')!,
         decodeURIComponent(c.req.param('containerName')!)
       );
-      const saved = await container.resolve(DockerSourceService).upsert({ ...config, target }, actorFor(c));
-      return c.json({ data: await withDockerSourceBuildState(saved) });
+      const sources = container.resolve(DockerSourceService);
+      // Attaching to an existing container replaces what it runs on the first deploy: the answer says what changes.
+      const before =
+        target.kind === 'container' && !(await sources.get(target))
+          ? await inspectContainerBeforeAttach(target.nodeId, target.containerName)
+          : null;
+      const saved = await sources.upsert({ ...config, target }, actorFor(c));
+      const attachNotice =
+        target.kind === 'container' ? containerSourceAttachNotice(target.containerName, saved, before) : null;
+      return c.json({ data: { ...(await withDockerSourceBuildState(saved)), attachNotice } });
     }
   );
   router.post(
     '/nodes/:nodeId/containers/:containerName/source/resolve',
-    requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:edit', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'refuse',
+    }),
     async (c) =>
       c.json({ data: await container.resolve(DockerSourceService).resolveCurrent(containerTarget(c), actorFor(c)) })
   );
   router.post(
     '/nodes/:nodeId/containers/:containerName/source/builds',
-    requireDockerContainerScope('docker:containers:manage', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:manage', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'refuse',
+    }),
     async (c) => {
       const input = DockerBuildCreateSchema.parse(await c.req.json().catch(() => ({})));
       const data = await container.resolve(DockerSourceService).createBuild(containerTarget(c), input, actorFor(c));
@@ -255,18 +280,25 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
       ...syncContainerSourceRoute,
       middleware: requireDockerContainerScope('docker:containers:manage', 'containerName', {
         allowPendingSource: true,
+        removedContainerSource: 'refuse',
       }),
     },
     async (c) => c.json({ data: await container.resolve(DockerSourceService).sync(containerTarget(c), actorFor(c)) })
   );
   router.get(
     '/nodes/:nodeId/containers/:containerName/source/build-secrets',
-    requireDockerContainerScope('docker:containers:view', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:view', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'allow',
+    }),
     async (c) => c.json({ data: await container.resolve(DockerSourceService).listBuildSecrets(containerTarget(c)) })
   );
   router.put(
     '/nodes/:nodeId/containers/:containerName/source/build-secrets/:secretName',
-    requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:edit', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'refuse',
+    }),
     async (c) => {
       const name = DockerBuildSecretNameSchema.parse(decodeURIComponent(c.req.param('secretName')));
       const { value } = DockerBuildSecretValueSchema.parse(await c.req.json());
@@ -278,7 +310,10 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
   );
   router.delete(
     '/nodes/:nodeId/containers/:containerName/source/build-secrets/:secretName',
-    requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:edit', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'allow',
+    }),
     async (c) => {
       const name = DockerBuildSecretNameSchema.parse(decodeURIComponent(c.req.param('secretName')));
       const removed = await container
@@ -289,7 +324,10 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
   );
   router.delete(
     '/nodes/:nodeId/containers/:containerName/source',
-    requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
+    requireDockerContainerScope('docker:containers:edit', 'containerName', {
+      allowPendingSource: true,
+      removedContainerSource: 'allow',
+    }),
     async (c) => {
       const removed = await container.resolve(DockerSourceService).remove(containerTarget(c), actorFor(c).id);
       return c.json({ success: true, removed });
