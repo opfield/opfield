@@ -226,7 +226,9 @@ export function OverviewTab({
           />
           <DetailRow
             label="Command"
-            value={<span className="font-mono">{cmd.length > 0 ? formatShellWords(cmd) : "-"}</span>}
+            value={
+              <span className="font-mono">{cmd.length > 0 ? formatShellWords(cmd) : "-"}</span>
+            }
           />
           <DetailRow
             label="Working Dir"
