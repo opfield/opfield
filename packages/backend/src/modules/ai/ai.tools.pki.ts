@@ -273,6 +273,22 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
     invalidateStores: ['certificates', 'ca'],
   },
   {
+    name: 'delete_certificate',
+    description:
+      'Permanently delete a PKI certificate that no longer works: revoked, or past its expiry. A valid certificate is refused with CERT_STILL_VALID: revoke it first (revoke_certificate), after the user confirmed. A revoked certificate deleted before it expires stays on its CA CRL until then (keptOnCrlUntil), so deleting never makes it valid again. Refused with CERT_IN_USE while a route uses it as internalCertificateId or an SSL certificate is linked from it (details.routes, details.sslCertificates: move those first), and with SYSTEM_CERT for system certificates. Needs pki:cert:revoke on the certificate; audited as cert.delete.',
+    parameters: {
+      type: 'object',
+      properties: {
+        certificateId: { type: 'string', description: 'Certificate UUID to delete' },
+      },
+      required: ['certificateId'],
+    },
+    destructive: true,
+    category: 'PKI - Certificates',
+    requiredScope: 'pki:cert:revoke',
+    invalidateStores: ['certificates', 'ca'],
+  },
+  {
     name: 'manage_certificate',
     description:
       'Manage PKI certificates beyond generated issuance. Operations: issue_from_csr, export, chain. Export formats: pem, der, chain (intermediates), fullchain, and the private-key formats private-key, pem-bundle (zip), pkcs12 and jks (passphrase required). Binary formats return contentBase64. Private-key exports are audited and refused for system CAs without admin:system. Operation-specific pki:cert:* scopes are enforced.',

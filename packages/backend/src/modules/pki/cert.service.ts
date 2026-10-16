@@ -3,7 +3,14 @@ import { and, asc, count, desc, eq, ilike, inArray, lte, or, sql } from 'drizzle
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { certificateAuthorities, certificates, certificateTemplates } from '@/db/schema/index.js';
+import {
+  certificateAuthorities,
+  certificates,
+  certificateTemplates,
+  pkiRevokedSerials,
+  proxyHosts,
+  sslCertificates,
+} from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { buildWhere, escapeLike } from '@/lib/utils.js';
 import { x509 } from '@/lib/x509.js';
@@ -110,7 +117,7 @@ export class CertService {
     this.eventBus = bus;
   }
 
-  private emitCert(id: string, caId: string, action: 'created' | 'revoked') {
+  private emitCert(id: string, caId: string, action: 'created' | 'revoked' | 'deleted') {
     this.eventBus?.publish('cert.changed', { id, caId, action });
   }
 
@@ -563,6 +570,97 @@ export class CertService {
     // Every revocation path (REST, AI/MCP tools) republishes the CRL here.
     await this.caService.publishCRL(cert.caId);
     return cert.caId;
+  }
+
+  /**
+   * Deletes a certificate that no longer works: revoked, or past its expiry. A valid certificate is revoked first, so
+   * one cannot disappear while a client still trusts it. A revoked one deleted before it expires stays on its CA's CRL
+   * (and revoked for OCSP) until then (pki-revoked-serials.ts). Refused while a route or an SSL certificate uses it.
+   * Needs pki:cert:revoke on the certificate (checked by the caller).
+   */
+  async deleteCertificate(id: string, userId: string) {
+    const cert = await this.db.query.certificates.findFirst({ where: eq(certificates.id, id) });
+    if (!cert) throw new AppError(404, 'CERT_NOT_FOUND', 'Certificate not found');
+    const [caRow] = await this.db
+      .select({ isSystem: certificateAuthorities.isSystem })
+      .from(certificateAuthorities)
+      .where(eq(certificateAuthorities.id, cert.caId))
+      .limit(1);
+    if (caRow?.isSystem) throw new AppError(403, 'SYSTEM_CERT', 'System certificates cannot be deleted');
+    const now = new Date();
+    const expired = cert.status === 'expired' || cert.notAfter <= now;
+    if (cert.status !== 'revoked' && !expired) {
+      throw new AppError(
+        409,
+        'CERT_STILL_VALID',
+        `The certificate is valid until ${cert.notAfter.toISOString()}. Revoke it first (revoke_certificate or POST /api/certificates/${id}/revoke), then delete it.`,
+        { status: cert.status, notAfter: cert.notAfter.toISOString() }
+      );
+    }
+    const routes = await this.db
+      .select({ id: proxyHosts.id, domainNames: proxyHosts.domainNames })
+      .from(proxyHosts)
+      .where(eq(proxyHosts.internalCertificateId, id));
+    const linked = await this.db
+      .select({ id: sslCertificates.id, name: sslCertificates.name })
+      .from(sslCertificates)
+      .where(eq(sslCertificates.internalCertId, id));
+    if (routes.length > 0 || linked.length > 0) {
+      throw new AppError(
+        409,
+        'CERT_IN_USE',
+        `The certificate is still used by ${[
+          routes.length > 0 ? `${routes.length} route(s) (internalCertificateId)` : '',
+          linked.length > 0 ? `${linked.length} SSL certificate(s) linked from it` : '',
+        ]
+          .filter(Boolean)
+          .join(' and ')}. Give those routes another certificate and delete the linked SSL certificates first.`,
+        { routes, sslCertificates: linked }
+      );
+    }
+
+    // Revoked and still within its validity: keep it on the CRL until it would have expired.
+    const keepRevoked = cert.status === 'revoked' && cert.notAfter > now;
+    try {
+      await this.db.transaction(async (tx) => {
+        if (keepRevoked) {
+          await tx
+            .insert(pkiRevokedSerials)
+            .values({
+              caId: cert.caId,
+              serialNumber: cert.serialNumber,
+              revokedAt: cert.revokedAt ?? now,
+              revocationReason: cert.revocationReason,
+              notAfter: cert.notAfter,
+            })
+            .onConflictDoNothing();
+        }
+        await tx.delete(certificates).where(eq(certificates.id, id));
+      });
+    } catch (error) {
+      // Another record (a managed database or storage member) still references it.
+      if ((error as { code?: string; cause?: { code?: string } })?.code === '23503' || (error as any)?.cause?.code === '23503') {
+        throw new AppError(409, 'CERT_IN_USE', 'The certificate is still used by a managed resource');
+      }
+      throw error;
+    }
+
+    await this.auditService.log({
+      userId,
+      action: 'cert.delete',
+      resourceType: 'certificate',
+      resourceId: id,
+      details: {
+        caId: cert.caId,
+        commonName: cert.commonName,
+        serialNumber: cert.serialNumber,
+        status: expired ? 'expired' : cert.status,
+        keptOnCrlUntil: keepRevoked ? cert.notAfter.toISOString() : null,
+      },
+    });
+    logger.info('Deleted certificate', { certId: id, keptOnCrl: keepRevoked });
+    this.emitCert(cert.id, cert.caId, 'deleted');
+    return { deleted: true, keptOnCrlUntil: keepRevoked ? cert.notAfter.toISOString() : null };
   }
 
   async getExpiringCertificates(withinDays: number) {

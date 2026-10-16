@@ -65,6 +65,7 @@ Use find_resource with an empty query and a concrete type when the user asks to 
 - Fields: caId, commonName, keyAlgorithm, validityDays, type, sans (Subject Alternative Names).
 - SANs: array of PLAIN strings — just the value, NO type prefix. Examples: "example.com", "*.example.com", "10.0.0.1", "user@example.com". The system auto-detects the type (dns/ip/email/url). NEVER use "DNS:", "IP:", or other prefixes — they will cause errors.
 - Certificates can be revoked with an RFC 5280 reason: unspecified (default), keyCompromise, caCompromise, affiliationChanged, superseded, cessationOfOperation, or certificateHold.
+- delete_certificate removes a certificate that no longer works (revoked or expired; pki:cert:revoke, audited as cert.delete). A valid one is refused (CERT_STILL_VALID: revoke first), one a route uses as internalCertificateId or an SSL certificate is linked from is refused (CERT_IN_USE with details.routes and details.sslCertificates), and a revoked one deleted before it expires stays on the CRL until then (keptOnCrlUntil). A CA can be deleted once its certificates are gone.
 - Private keys are generated server-side and encrypted at rest.
 
 ## System PKI Audit

@@ -52,6 +52,17 @@ export const revokeCertificateRoute = appRoute({
   responses: okJson(),
 });
 
+export const deleteCertificateRoute = appRoute({
+  method: 'delete',
+  path: '/{id}',
+  tags: ['Certificates'],
+  summary: 'Delete a revoked or expired certificate',
+  description:
+    'Deletes a certificate that no longer works: revoked, or past its expiry. A valid certificate is refused with 409 CERT_STILL_VALID (revoke it first). A revoked certificate deleted before it expires stays on its CA\'s CRL until then (keptOnCrlUntil). Refused with 409 CERT_IN_USE (details.routes, details.sslCertificates) while a route uses it as internalCertificateId or an SSL certificate is linked from it, and with 403 SYSTEM_CERT for system certificates. Audited as cert.delete. Needs pki:cert:revoke on the certificate; works after the license grace period.',
+  request: { params: IdParamSchema },
+  responses: okJson(),
+});
+
 export const exportCertificateRoute = appRoute({
   method: 'post',
   path: '/{id}/export',

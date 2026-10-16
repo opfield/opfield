@@ -145,6 +145,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "ca.move_to_folder": "Moved certificate authority to a folder",
   "ca.revoke": "Revoked certificate authority",
   "ca.update": "Updated certificate authority",
+  "cert.delete": "Deleted certificate",
   "cert.export_key": "Exported certificate key",
   "cert.issue": "Issued certificate",
   "cert.reissue": "Reissued certificate",

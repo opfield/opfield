@@ -1,8 +1,9 @@
-import { Copy, Download, ShieldOff } from "lucide-react";
+import { Copy, Download, ShieldOff, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { IssuingCABadge } from "@/components/certificates/IssuingCABadge";
+import { confirmAction } from "@/components/common/ConfirmDialog";
 import { DetailPageSkeleton } from "@/components/common/DetailPageSkeleton";
 import { DetailRow } from "@/components/common/DetailRow";
 import { PageBackButton } from "@/components/common/PageBackButton";
@@ -77,8 +78,12 @@ export function CertificateDetail() {
   );
 
   useRealtime(id ? "cert.changed" : null, (payload) => {
-    const ev = payload as { id?: string };
+    const ev = payload as { id?: string; action?: string };
     if (!id || ev?.id !== id) return;
+    if (ev.action === "deleted") {
+      navigate("/certificates/pki");
+      return;
+    }
     api
       .getCertificate(id)
       .then(setCert)
@@ -170,6 +175,33 @@ export function CertificateDetail() {
     hasScope(`pki:cert:export:${cert.id}`) || hasScope("pki:cert:export");
   const canRevokeCertificate =
     hasScope(`pki:cert:revoke:${cert.id}`) || hasScope("pki:cert:revoke");
+  // A certificate that no longer works (revoked or expired) can be deleted; a valid one is revoked first.
+  const certificateExpired = cert.status === "expired" || new Date(cert.notAfter) <= new Date();
+  const canDeleteCertificate =
+    canRevokeCertificate && !cert.isSystem && (cert.status === "revoked" || certificateExpired);
+  const deleteCertificate = () =>
+    confirmAction(
+      {
+        title: "Delete Certificate",
+        description:
+          cert.status === "revoked" && !certificateExpired
+            ? "The certificate is removed from Opfield and stays on the revocation list until it expires. This action cannot be undone."
+            : "The certificate is removed from Opfield. This action cannot be undone.",
+        confirmLabel: "Delete",
+        variant: "destructive",
+      },
+      async () => {
+        try {
+          await api.deleteCertificate(cert.id);
+          toast.success("Certificate deleted");
+          navigate("/certificates/pki");
+          return true;
+        } catch (err) {
+          toastApiError(err, "Failed to delete certificate");
+          return false;
+        }
+      }
+    );
   const copySerial = () => {
     void navigator.clipboard.writeText(cert.serialNumber);
     toast.success("Serial number copied");
@@ -282,6 +314,18 @@ export function CertificateDetail() {
                       },
                     ]
                   : []),
+                ...(canDeleteCertificate
+                  ? [
+                      {
+                        id: "certificate:delete",
+                        label: "Delete certificate",
+                        icon: <Trash2 className="h-4 w-4" />,
+                        onClick: () => void deleteCertificate(),
+                        destructive: true,
+                        separatorBefore: true,
+                      },
+                    ]
+                  : []),
               ]}
             >
               {canExportCertificate && (
@@ -330,6 +374,12 @@ export function CertificateDetail() {
                 <Button variant="destructive" onClick={() => setRevokeDialogOpen(true)}>
                   <ShieldOff className="h-4 w-4" />
                   Revoke Certificate
+                </Button>
+              )}
+              {canDeleteCertificate && (
+                <Button variant="destructive" onClick={() => void deleteCertificate()}>
+                  <Trash2 className="h-4 w-4" />
+                  Delete Certificate
                 </Button>
               )}
             </ResponsiveHeaderActions>

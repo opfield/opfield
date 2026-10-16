@@ -192,6 +192,11 @@ export function withPkiApi<TBase extends ApiClientBaseConstructor>(Base: TBase) 
       });
     }
 
+    /** A revoked or expired certificate; a revoked one stays on the CRL until it would have expired. */
+    async deleteCertificate(id: string): Promise<{ keptOnCrlUntil: string | null }> {
+      return this.request<{ keptOnCrlUntil: string | null }>(`/certificates/${id}`, { method: "DELETE" });
+    }
+
     async exportCertificate(
       id: string,
       format: CertificateExportFormat,

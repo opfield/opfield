@@ -1,8 +1,8 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { certificateAuthorities, certificates } from '@/db/schema/index.js';
+import { certificateAuthorities, certificates, pkiRevokedSerials } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { x509 } from '@/lib/x509.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -131,6 +131,15 @@ export class CRLService {
             revocationReason: true,
           },
         });
+        // A revoked certificate deleted before it expired stays listed until then (pki-revoked-serials.ts); past
+        // its expiry it may leave the CRL (RFC 5280 5.1.2.6), and its row goes.
+        await tx
+          .delete(pkiRevokedSerials)
+          .where(and(eq(pkiRevokedSerials.caId, caId), lte(pkiRevokedSerials.notAfter, new Date())));
+        const deletedRevoked = await tx
+          .select({ serialNumber: pkiRevokedSerials.serialNumber, revokedAt: pkiRevokedSerials.revokedAt })
+          .from(pkiRevokedSerials)
+          .where(and(eq(pkiRevokedSerials.caId, caId), gt(pkiRevokedSerials.notAfter, new Date())));
         // A revoked intermediate CA is a certificate this CA issued, so it belongs
         // in this CA's CRL as well.
         const revokedChildCAs = await tx.query.certificateAuthorities.findMany({
@@ -142,7 +151,14 @@ export class CRLService {
         });
 
         // Build CRL entries
-        const entries = [...revokedCerts, ...revokedChildCAs].map((revoked) => ({
+        // A certificate deleted while this runs can be read twice (row, then tombstone): list each serial once.
+        const listed = new Set<string>();
+        const revokedEntries = [...revokedCerts, ...deletedRevoked, ...revokedChildCAs].filter((revoked) => {
+          if (listed.has(revoked.serialNumber)) return false;
+          listed.add(revoked.serialNumber);
+          return true;
+        });
+        const entries = revokedEntries.map((revoked) => ({
           serialNumber: revoked.serialNumber,
           revocationDate: revoked.revokedAt || new Date(),
         })) as unknown as x509.X509CrlEntry[];
