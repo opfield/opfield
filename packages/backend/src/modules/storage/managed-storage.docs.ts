@@ -56,6 +56,8 @@ export const createManagedStorageRoute = appRoute({
   path: '/',
   tags: [TAG],
   summary: 'Deploy a managed object storage cluster',
+  description:
+    'With `availability` (several servers) the create waits until every server took its part, about 90 s at most. When a server fails, it answers 409 `AVAILABILITY_CREATE_FAILED` with the reason, but the storage exists: it stays on its first server with availability off and is never deleted for the failure (`details.kept: true`; find it in the list by name). Fix the cause, then turn availability on with `POST /{id}/availability`, or delete the storage. Past the 90 s the create answers 201 and the setup goes on by itself.',
   request: jsonBody(CreateManagedStorageSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });
