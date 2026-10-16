@@ -22,8 +22,10 @@ import (
 const testGiB = int64(1024 * 1024 * 1024)
 
 // sparseImage creates a file of size bytes that occupies none of them, like
-// an instance image after mkfs (or a trim) punched holes into it.
-func sparseImage(t *testing.T, path string, size int64) {
+// an instance image after mkfs (or a trim) punched holes into it. It returns
+// the bytes the file does not occupy: size on ext4 and tmpfs, slightly less
+// where the filesystem allocates a block even for an empty file (ZFS: 512).
+func sparseImage(t *testing.T, path string, size int64) int64 {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
@@ -36,6 +38,21 @@ func sparseImage(t *testing.T, path string, size int64) {
 	if err := file.Truncate(size); err != nil {
 		t.Fatal(err)
 	}
+	allocated := allocatedBytes(t, path)
+	if allocated > 64*1024 {
+		t.Fatalf("the sparse image %s occupies %d bytes", path, allocated)
+	}
+	return size - allocated
+}
+
+// allocatedBytes is what the filesystem reports a file occupies (st_blocks).
+func allocatedBytes(t *testing.T, path string) int64 {
+	t.Helper()
+	var stat unix.Stat_t
+	if err := unix.Stat(path, &stat); err != nil {
+		t.Fatal(err)
+	}
+	return stat.Blocks * 512
 }
 
 func statfsWithFree(free int64) func(string, *unix.Statfs_t) error {
@@ -51,9 +68,11 @@ func statfsWithFree(free int64) func(string, *unix.Statfs_t) error {
 func TestManagedDiskCapacityCountsWhatTheImagesArePromised(t *testing.T) {
 	root := t.TempDir()
 	// A database image and a storage image that occupy nothing yet.
-	sparseImage(t, filepath.Join(root, "images", "db.img"), 6*testGiB)
-	sparseImage(t, filepath.Join(root, "storage", "images", "s3-0.img"), 3*testGiB)
-	// A record written in full occupies its size and promises nothing more.
+	promised := sparseImage(t, filepath.Join(root, "images", "db.img"), 6*testGiB) +
+		sparseImage(t, filepath.Join(root, "storage", "images", "s3-0.img"), 3*testGiB)
+	// A record written in full occupies its size and promises nothing more (a
+	// filesystem that compresses or allocates late, like ZFS, may report up to
+	// its size as not yet occupied).
 	if err := os.MkdirAll(filepath.Join(root, "records"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -65,12 +84,15 @@ func TestManagedDiskCapacityCountsWhatTheImagesArePromised(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if unallocated < 9*testGiB || unallocated > 9*testGiB+4096 {
-		t.Fatalf("unallocated %d, want the 9 GiB the two images are promised", unallocated)
+	if unallocated < promised || unallocated > promised+8192 || promised < 9*testGiB-64*1024 {
+		t.Fatalf("unallocated %d, want the %d bytes the two images are promised", unallocated, promised)
 	}
 
 	reservations := &managedDiskReservations{pending: map[uint64]int64{}}
-	statfs := statfsWithFree(12 * testGiB)
+	// 12 GiB free, plus what this filesystem counts as promised beyond the 9
+	// GiB of the images (a record ZFS has not allocated yet), whole blocks.
+	excess := (max(0, unallocated-9*testGiB) + 4095) / 4096 * 4096
+	statfs := statfsWithFree(12*testGiB + excess)
 	// 12 GiB free - 9 GiB promised - 1 GiB reserve leaves 2 GiB.
 	release, err := reservations.reserve(root, 2*testGiB, testGiB, statfs, "insufficient managed storage capacity after reserve")
 	if err != nil {
@@ -103,7 +125,7 @@ func TestManagedDiskCapacityCountsWhatTheImagesArePromised(t *testing.T) {
 // oversubscribed (with how much is missing); one that holds them is not.
 func TestManagedDiskOversubscription(t *testing.T) {
 	root := t.TempDir()
-	sparseImage(t, filepath.Join(root, "images", "db.img"), 10*testGiB)
+	promised := sparseImage(t, filepath.Join(root, "images", "db.img"), 10*testGiB)
 	if detail := managedDiskOversubscription(root, testGiB, statfsWithFree(20*testGiB)); detail != nil {
 		t.Fatalf("a disk with room reported oversubscribed: %v", detail)
 	}
@@ -111,14 +133,16 @@ func TestManagedDiskOversubscription(t *testing.T) {
 	if detail == nil {
 		t.Fatal("10 GiB promised on 8 GiB free is not reported")
 	}
-	if short := detail["shortBytes"].(int64); short != 3*testGiB {
-		t.Fatalf("shortBytes %d, want 3 GiB (10 promised + 1 reserve - 8 free)", short)
+	// 3 GiB on ext4 and tmpfs (10 promised + 1 reserve - 8 free).
+	want := promised + testGiB - 8*testGiB
+	if short := detail["shortBytes"].(int64); short != want {
+		t.Fatalf("shortBytes %d, want %d (10 GiB promised + 1 reserve - 8 free)", short, want)
 	}
 	usage, err := readManagedDiskUsage(root, statfsWithFree(8*testGiB))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if usage.Available(testGiB) != -3*testGiB || !usage.Oversubscribed(testGiB) {
+	if usage.Available(testGiB) != -want || !usage.Oversubscribed(testGiB) {
 		t.Fatalf("usage %+v", usage)
 	}
 }
@@ -127,14 +151,14 @@ func TestManagedDiskOversubscription(t *testing.T) {
 // existing images may still take.
 func TestStorageRootHealthCountsPromisedSpace(t *testing.T) {
 	root := t.TempDir()
-	sparseImage(t, filepath.Join(root, "storage", "images", "a-0.img"), 4*testGiB)
+	promised := sparseImage(t, filepath.Join(root, "storage", "images", "a-0.img"), 4*testGiB)
 	m := &managedStorageManager{root: root, reserve: testGiB, statFilesystem: statfsWithFree(10 * testGiB)}
 	mount, err := m.storageRootHealthMount()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mount.FreeBytes != 5*testGiB {
-		t.Fatalf("allocatable %d, want 10 free - 4 promised - 1 reserve = 5 GiB", mount.FreeBytes)
+	if want := 10*testGiB - promised - testGiB; mount.FreeBytes != want {
+		t.Fatalf("allocatable %d, want 10 free - 4 promised - 1 reserve = %d", mount.FreeBytes, want)
 	}
 }
 
@@ -142,7 +166,7 @@ func TestStorageRootHealthCountsPromisedSpace(t *testing.T) {
 // 100%, which Opfield's built-in "Node disk oversubscribed" rule alerts on.
 func TestStorageRootHealthShowsOversubscription(t *testing.T) {
 	root := t.TempDir()
-	sparseImage(t, filepath.Join(root, "storage", "images", "a-0.img"), 12*testGiB)
+	promised := sparseImage(t, filepath.Join(root, "storage", "images", "a-0.img"), 12*testGiB)
 	statfs := func(path string, stat *unix.Statfs_t) error {
 		*stat = unix.Statfs_t{Bsize: 4096, Blocks: uint64(20 * testGiB / 4096), Bavail: uint64(10 * testGiB / 4096), Bfree: uint64(10 * testGiB / 4096)}
 		return nil
@@ -153,7 +177,7 @@ func TestStorageRootHealthShowsOversubscription(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 10 free - 12 promised - 1 reserve: 3 GiB short of what the image may take.
-	if mount.FreeBytes != 0 || mount.UsedBytes != 23*testGiB || mount.UsagePercent <= 100 {
+	if mount.FreeBytes != 0 || mount.UsedBytes != 10*testGiB+promised+testGiB || mount.UsagePercent <= 100 {
 		t.Fatalf("oversubscribed storage root mount = %+v", mount)
 	}
 }

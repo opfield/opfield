@@ -90,7 +90,8 @@ func TestStorageLeftoversAreListedAndRemovedOnlyWhenOpfieldConfirms(t *testing.T
 	if err := os.WriteFile(m.recordPath(zeroedStorageID), make([]byte, 932), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	sparseImage(t, filepath.Join(m.root, "storage", "images", zeroedStorageID+"-0.img"), 2*testGiB)
+	zeroedImage := filepath.Join(m.root, "storage", "images", zeroedStorageID+"-0.img")
+	sparseImage(t, zeroedImage, 2*testGiB)
 	if err := os.MkdirAll(filepath.Join(m.root, "storage", "mounts", zeroedStorageID+"-0"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +113,7 @@ func TestStorageLeftoversAreListedAndRemovedOnlyWhenOpfieldConfirms(t *testing.T
 	if !slices.Equal(ids, []string{zeroedStorageID, deletedStorage}) {
 		t.Fatalf("leftovers %s", detail)
 	}
-	if zeroed := listed.Items[0]; zeroed.Record != "unreadable" || zeroed.ImageBytes != 2*testGiB || zeroed.AllocatedBytes != 0 {
+	if zeroed := listed.Items[0]; zeroed.Record != "unreadable" || zeroed.ImageBytes != 2*testGiB || zeroed.AllocatedBytes != allocatedBytes(t, zeroedImage) {
 		t.Fatalf("zeroed record leftover %+v", zeroed)
 	}
 	if deleted := listed.Items[1]; deleted.Record != "missing" || !slices.Equal(deleted.Containers, []string{"gateway-storage-" + deletedStorage + "-0"}) {
