@@ -26,9 +26,9 @@ import { type ChatRequestEstimate, chatAdmissionEstimate, chatRequestEstimate } 
 import { coreRequestHeaders, newCoreRequestContext } from './inference-core-context.js';
 import {
   admitEdgeChatAttempt,
-  coreSkipsChatAdmission,
   dropEdgeChatAttempt,
   type EdgeChatAttempt,
+  edgeChatAdmissionRequired,
   settleEdgeChatAttempt,
 } from './inference-core-edge-chat.js';
 import { CoreModelIdRewriter } from './inference-core-model-rewrite.js';
@@ -328,7 +328,7 @@ export class InferenceCoreProxyService {
           }
         }
       : undefined;
-    // Chat Completions the core relays natively are admitted and settled here (see coreSkipsChatAdmission).
+    // Chat Completions an older core relays natively are admitted and settled here (see edgeChatAdmissionRequired).
     let edgeAttempt: EdgeChatAttempt | null = null;
     const chatObserved: ChatRelayObservation = { usage: null, emittedOutput: false };
     const finalizeRequest = onceAsync(async (outcome, error) => {
@@ -378,7 +378,7 @@ export class InferenceCoreProxyService {
           coreModelId: resolved.upstreamModel,
           operation: contextOperation(operation),
         });
-        if (prepared.chatEstimate && coreSkipsChatAdmission(resolved.selected.connection)) {
+        if (prepared.chatEstimate && edgeChatAdmissionRequired(resolved.selected.connection, target)) {
           edgeAttempt = await admitEdgeChatAttempt(this.coreAccounting, {
             rootRequestId,
             coreAccountId: resolved.coreAccountId,

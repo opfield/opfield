@@ -28,8 +28,13 @@ export function chatCompletionUsage(value: unknown): InferenceCoreUsage | null {
   if (prompt === undefined && completion === undefined) return null;
   const promptDetails = rec(usage.prompt_tokens_details);
   const completionDetails = rec(usage.completion_tokens_details);
-  const cached = count(promptDetails?.cached_tokens) ?? count(usage.prompt_cache_hit_tokens) ?? 0;
-  const cacheWrite = count(promptDetails?.cache_write_tokens) ?? 0;
+  // LiteLLM-style proxies report the Anthropic cache fields beside prompt_tokens instead.
+  const cached =
+    count(promptDetails?.cached_tokens) ??
+    count(usage.prompt_cache_hit_tokens) ??
+    count(usage.cache_read_input_tokens) ??
+    0;
+  const cacheWrite = count(promptDetails?.cache_write_tokens) ?? count(usage.cache_creation_input_tokens) ?? 0;
   const reasoning = count(completionDetails?.reasoning_tokens) ?? 0;
   return {
     uncachedInputTokens: Math.max(0, (prompt ?? 0) - cached - cacheWrite),

@@ -5,6 +5,7 @@ import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-s
 import type { InferenceCredentialVault } from '../inference-credential-vault.js';
 import { InferenceCoreClient } from './inference-core.client.js';
 import { INFERENCE_CORE_PROTOCOL_MAJOR, OPFIELD_CORE_CONTRACT_ID } from './inference-core.contract.js';
+import { coreAdmitsNativeChat } from './inference-core-edge-chat.js';
 import type { InferenceCoreCredentials } from './inference-core-runtime.service.js';
 import type { InferenceCoreStore } from './inference-core-store.js';
 
@@ -26,6 +27,8 @@ export interface CoreDataPlaneTarget {
   requestLimits?: { httpBodyMaxBytes: number; webSocketMaxPayloadBytes: number };
   /** Whether this core accepts the signed `maxOutputTokens` claim; older cores reject it. */
   outputLimitSupported: boolean;
+  /** Whether this core admits and settles Chat attempts on its native lane (opfield.5 and later). */
+  nativeChatAdmission: boolean;
 }
 
 /**
@@ -40,6 +43,7 @@ export class InferenceCoreBridgeService {
     digest: string | null;
     supported: boolean;
     outputLimitSupported: boolean;
+    nativeChatAdmission: boolean;
     expiresAt: number;
   } | null = null;
   constructor(
@@ -117,6 +121,8 @@ export class InferenceCoreBridgeService {
         digest: row.installedDigest,
         supported: identity?.requestLimitsVersion === 1,
         outputLimitSupported: identity?.outputLimitVersion === 1,
+        // The running core's own version; the installed record only when health did not answer.
+        nativeChatAdmission: coreAdmitsNativeChat(identity?.version ?? row.installedVersion),
         expiresAt: Date.now() + 5_000,
       };
     }
@@ -126,6 +132,7 @@ export class InferenceCoreBridgeService {
       credential: await this.dataPlaneCredential(),
       requestLimitsCapability: this.limitsCapability.supported ? 'negotiated-v1' : 'legacy',
       outputLimitSupported: this.limitsCapability.outputLimitSupported,
+      nativeChatAdmission: this.limitsCapability.nativeChatAdmission,
       ...(this.limitsCapability.supported
         ? {
             requestLimits: {
