@@ -17,7 +17,9 @@ const containerConfigDir = "/run/gateway-storage/config"
 // its output and still exits 0, so the output is checked too.
 func (e *Engine) shell(ctx context.Context, script string) (string, error) {
 	cfg, self := e.self()
-	command := []string{"/usr/bin/weed", "-config_dir=" + containerConfigDir, "shell",
+	// -logtostderr: glog would otherwise write a log file into the
+	// container's writable layer on every run.
+	command := []string{"/usr/bin/weed", "-logtostderr=true", "-config_dir=" + containerConfigDir, "shell",
 		"-master=127.0.0.1:" + strconv.Itoa(MasterHTTPPort), "-filer=" + FilerURL(cfg.MemberID, self.MemberIndex)}
 	out, err := e.host.Exec(ctx, RoleMaster, command, script)
 	text := string(out)

@@ -75,6 +75,9 @@ type managedStorageManager struct {
 	// capacity is whether each SeaweedFS storage takes writes
 	// (managed_storage_capacity.go).
 	capacity seaweedfsCapacityTracker
+	// housekept is when each SeaweedFS storage last had its abandoned
+	// uploads and old metadata log removed (managed_storage_reclaim.go).
+	housekept seaweedfsHousekeeping
 }
 
 func (m *managedStorageManager) loopHost() *loopHost {
