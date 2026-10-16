@@ -15,15 +15,25 @@ import { AvailabilityCreateSection, EMPTY_AVAILABILITY_DRAFT } from "./Availabil
 import { AvailabilityPanel } from "./AvailabilityPanel";
 import { MakePrimaryDialog } from "./MakePrimaryDialog";
 
-const api = vi.hoisted(() => ({
-  getAvailability: vi.fn(),
-  listAvailabilityEvents: vi.fn(),
-  getRelayStatus: vi.fn(),
-  listNodes: vi.fn(),
-  makeAvailabilityPrimary: vi.fn(),
-  updateAuthProvisioningSettings: vi.fn(),
-  setRelayWitnessHosting: vi.fn(),
-}));
+const api = vi.hoisted(() => {
+  const mock = {
+    getAvailability: vi.fn(),
+    getAvailabilityFailure: vi.fn((): unknown => null),
+    getAvailabilityState: vi.fn(),
+    listAvailabilityEvents: vi.fn(),
+    getRelayStatus: vi.fn(),
+    listNodes: vi.fn(),
+    makeAvailabilityPrimary: vi.fn(),
+    updateAuthProvisioningSettings: vi.fn(),
+    setRelayWitnessHosting: vi.fn(),
+  };
+  // The panel reads the view and the last failure in one request; the tests set them apart.
+  mock.getAvailabilityState.mockImplementation(async (owner: unknown) => ({
+    view: (await mock.getAvailability(owner)) ?? null,
+    failure: mock.getAvailabilityFailure(),
+  }));
+  return mock;
+});
 
 const nodes = vi.hoisted(
   () =>
@@ -224,6 +234,27 @@ describe("availability panel", () => {
     );
     expect(await screen.findByText("This database runs on one server.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Make available…/ })).toHaveLength(2);
+  });
+
+  it("says why a create on several servers left the database on one server", async () => {
+    api.getAvailability.mockResolvedValue(null);
+    api.getAvailabilityFailure.mockReturnValueOnce({
+      operation: "create",
+      reason: "Not every server answered within 180 s",
+      at: "2026-10-16T20:27:39.000Z",
+      setId: "set-1",
+    });
+    render(
+      <AvailabilityPanel
+        owner={owner}
+        engine="postgres"
+        resourceName="orders-db"
+        originNodeId="node-a"
+        canManage
+      />
+    );
+    expect(await screen.findByText("Could not be set up on several servers")).toBeInTheDocument();
+    expect(screen.getByText(/Not every server answered within 180 s/)).toBeInTheDocument();
   });
 
   it("shows a healthy pair with its servers and what it can lose", async () => {

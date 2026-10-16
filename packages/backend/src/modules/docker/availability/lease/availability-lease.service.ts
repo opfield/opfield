@@ -66,7 +66,7 @@ import type {
   DockerAvailabilityLeaseView,
   LeasePolicyView,
 } from './lease-types.js';
-import { availabilityLeaseView, type LeaseViewContext, leasePolicyView } from './lease-views.js';
+import { availabilityLeaseView, type LeaseViewContext, leasePolicyView, leaseVoterHosts } from './lease-views.js';
 import { validateLeaseWitness } from './lease-witness.js';
 import {
   ManagedAvailabilityLeaseSource,
@@ -86,6 +86,11 @@ export interface ManagedAvailabilitySetLease {
   /** The member whose node holds the primary slot now, and that node; null while nobody holds it. */
   holderMemberId: string | null;
   holderNodeId: string | null;
+  /**
+   * The hosts of the current voter set (lease members: docker nodes or relays) and whether the lease reaches each
+   * now. A lease witness's status is read from it. Absent without a lease view.
+   */
+  voterHosts?: Array<{ memberId: string; nodeId: string | null; relayInstanceId: string | null; reachable: boolean }>;
 }
 
 /**
@@ -517,7 +522,15 @@ export class AvailabilityLeaseService {
           .where(and(eq(managedAvailabilityMembers.setId, setId), eq(managedAvailabilityMembers.nodeId, holderNodeId)))
           .limit(1)
       : [];
-    return { setId, leasePolicyId: set.leasePolicyId, view, holderMemberId: member?.id ?? null, holderNodeId };
+    const voterHosts = view ? await leaseVoterHosts(this.viewContext(), view.voters, now) : undefined;
+    return {
+      setId,
+      leasePolicyId: set.leasePolicyId,
+      view,
+      holderMemberId: member?.id ?? null,
+      holderNodeId,
+      ...(voterHosts ? { voterHosts } : {}),
+    };
   }
 
   // --- Docker Availability controls ---

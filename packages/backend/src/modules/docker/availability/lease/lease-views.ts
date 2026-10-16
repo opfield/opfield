@@ -81,6 +81,23 @@ async function reachableVoters(context: LeaseViewContext, now: Date) {
   return { members, reachable };
 }
 
+/** The hosts of the given voters (lease member ids) and whether the lease reaches each now. */
+export async function leaseVoterHosts(
+  context: LeaseViewContext,
+  voters: readonly string[],
+  now: Date
+): Promise<Array<{ memberId: string; nodeId: string | null; relayInstanceId: string | null; reachable: boolean }>> {
+  if (voters.length === 0) return [];
+  const { members, reachable } = await reachableVoters(context, now);
+  const byId = new Map(members.map((member) => [member.memberId, member]));
+  return voters.map((memberId) => ({
+    memberId,
+    nodeId: byId.get(memberId)?.nodeId ?? null,
+    relayInstanceId: byId.get(memberId)?.relayInstanceId ?? null,
+    reachable: reachable.has(memberId),
+  }));
+}
+
 async function loadStateAndObservations(db: DrizzleClient, leasePolicyId: string) {
   const [[state], observations] = await Promise.all([
     db

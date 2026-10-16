@@ -1,6 +1,7 @@
 import type {
   AvailabilityEnableInput,
   AvailabilityEvent,
+  AvailabilityFailure,
   AvailabilityOwner,
   AvailabilityPreflightInput,
   AvailabilityPreflightResult,
@@ -37,6 +38,24 @@ export function withAvailabilitySetsApi<TBase extends ApiClientBaseConstructor>(
         this.request<{ data: { availability?: AvailabilityView | null } }>(ownerPath(owner))
       );
       return resource.availability ?? null;
+    }
+
+    /**
+     * The availability view and, while the resource runs on one server because turning availability on failed (a
+     * create on several servers or Make available…), why: one read of the managed resource.
+     */
+    async getAvailabilityState(
+      owner: AvailabilityOwner
+    ): Promise<{ view: AvailabilityView | null; failure: AvailabilityFailure | null }> {
+      const resource = await this.unwrapData(
+        this.request<{
+          data: {
+            availability?: AvailabilityView | null;
+            availabilityFailure?: AvailabilityFailure | null;
+          };
+        }>(ownerPath(owner))
+      );
+      return { view: resource.availability ?? null, failure: resource.availabilityFailure ?? null };
     }
 
     async preflightAvailability(
