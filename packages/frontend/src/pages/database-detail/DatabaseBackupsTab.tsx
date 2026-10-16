@@ -253,7 +253,9 @@ export function useBackupRunColumns({
               (run.status === "queued" || run.status === "running"
                 ? run.phase.replaceAll("_", " ")
                 : run.artifactsDeletedAt
-                  ? "Artifacts removed by retention"
+                  ? run.status === "completed"
+                    ? "Artifacts removed by retention"
+                    : "Unfinished files removed"
                   : "—")}
           </span>
         ),

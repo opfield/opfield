@@ -400,9 +400,9 @@ Each event contains an id, a stable Opfield installation source identifier, type
 - The in-process scheduler claims rows with database leases and sends a JSON body \`{ schemaVersion: 1, events: [...] }\`.
 - 2xx completes delivery. Network errors, 408, 429, and 5xx retry at 30s, 2m, 8m, 30m, 2h, 6h, and 12h, for at most eight attempts. Other 4xx responses fail terminally.
 - Disabling SIEM in Opfield general settings prevents new outbox rows and pauses delivery; destinations, history, and queued records stay intact until SIEM is enabled again.
-- Disabling a destination pauses outstanding work; enabling resumes it. Deleting a destination soft-deletes configuration and discards outstanding work. Only failed deliveries can be manually requeued.
+- Disabling a destination pauses outstanding work; enabling within 7 days resumes it, after 7 days disabled and unchanged the paused rows are removed. Deleting a destination soft-deletes configuration and discards outstanding work. Only failed deliveries can be manually requeued.
 - A test sends a synthetic \`dev.opfield.audit.test.v1\` event only: it creates no audit row and no queued delivery.
-- Terminal delivery history follows Audit Log retention. Do not use notification-webhook delivery semantics for SIEM.
+- Every delivery row, delivered or still waiting, is removed once older than Audit Log retention (a batch being delivered finishes first). Do not use notification-webhook delivery semantics for SIEM.
 
 ## AI Tools
 - SIEM tools are unavailable while \`generalSettings.features.siemEnabled\` is false.
