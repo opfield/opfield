@@ -1,5 +1,5 @@
 {
-  "id": "7ddc01bf-4edb-4ad0-9987-006a9bf65964",
+  "id": "f8aad0ec-c126-4d4f-9660-58b0a03b74ae",
   "prevId": "071ea8ab-09bb-467f-bb0b-595374fe98d0",
   "version": "7",
   "dialect": "postgresql",
@@ -10900,7 +10900,7 @@
         },
         "docker_build_artifacts_owner_check": {
           "name": "docker_build_artifacts_owner_check",
-          "value": "(\n        \"docker_build_artifacts\".\"owner_kind\" = 'build'\n        AND \"docker_build_artifacts\".\"build_id\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"source_binding_id\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"owner_key\" IS NULL\n        AND \"docker_build_artifacts\".\"source_image_reference\" IS NULL\n      ) OR (\n        \"docker_build_artifacts\".\"owner_kind\" IN ('availability', 'promotion')\n        AND \"docker_build_artifacts\".\"build_id\" IS NULL\n        AND \"docker_build_artifacts\".\"source_binding_id\" IS NULL\n        AND \"docker_build_artifacts\".\"owner_key\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"source_image_reference\" IS NOT NULL\n      )"
+          "value": "(\n        \"docker_build_artifacts\".\"owner_kind\" = 'build'\n        AND \"docker_build_artifacts\".\"build_id\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"source_binding_id\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"owner_key\" IS NULL\n        AND \"docker_build_artifacts\".\"source_image_reference\" IS NULL\n      ) OR (\n        \"docker_build_artifacts\".\"owner_kind\" IN ('availability', 'promotion', 'container')\n        AND \"docker_build_artifacts\".\"build_id\" IS NULL\n        AND \"docker_build_artifacts\".\"source_binding_id\" IS NULL\n        AND \"docker_build_artifacts\".\"owner_key\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"source_image_reference\" IS NOT NULL\n      )"
         }
       },
       "isRLSEnabled": false
@@ -27945,18 +27945,6 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
-        },
-        "resource_name": {
-          "name": "resource_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "status": {
           "name": "status",

@@ -1,6 +1,6 @@
 {
-  "id": "f8aad0ec-c126-4d4f-9660-58b0a03b74ae",
-  "prevId": "071ea8ab-09bb-467f-bb0b-595374fe98d0",
+  "id": "7ddc01bf-4edb-4ad0-9987-006a9bf65964",
+  "prevId": "da128efe-6878-436e-b891-0b10a8686cde",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -27945,6 +27945,18 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "resource_name": {
+          "name": "resource_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "status": {
           "name": "status",

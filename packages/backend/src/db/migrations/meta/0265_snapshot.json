@@ -1,6 +1,6 @@
 {
-  "id": "6852dfa4-0587-4dca-b6d9-7d347e852646",
-  "prevId": "7ddc01bf-4edb-4ad0-9987-006a9bf65964",
+  "id": "da128efe-6878-436e-b891-0b10a8686cde",
+  "prevId": "f8aad0ec-c126-4d4f-9660-58b0a03b74ae",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -10900,7 +10900,7 @@
         },
         "docker_build_artifacts_owner_check": {
           "name": "docker_build_artifacts_owner_check",
-          "value": "(\n        \"docker_build_artifacts\".\"owner_kind\" = 'build'\n        AND \"docker_build_artifacts\".\"build_id\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"source_binding_id\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"owner_key\" IS NULL\n        AND \"docker_build_artifacts\".\"source_image_reference\" IS NULL\n      ) OR (\n        \"docker_build_artifacts\".\"owner_kind\" IN ('availability', 'promotion')\n        AND \"docker_build_artifacts\".\"build_id\" IS NULL\n        AND \"docker_build_artifacts\".\"source_binding_id\" IS NULL\n        AND \"docker_build_artifacts\".\"owner_key\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"source_image_reference\" IS NOT NULL\n      )"
+          "value": "(\n        \"docker_build_artifacts\".\"owner_kind\" = 'build'\n        AND \"docker_build_artifacts\".\"build_id\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"source_binding_id\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"owner_key\" IS NULL\n        AND \"docker_build_artifacts\".\"source_image_reference\" IS NULL\n      ) OR (\n        \"docker_build_artifacts\".\"owner_kind\" IN ('availability', 'promotion', 'container')\n        AND \"docker_build_artifacts\".\"build_id\" IS NULL\n        AND \"docker_build_artifacts\".\"source_binding_id\" IS NULL\n        AND \"docker_build_artifacts\".\"owner_key\" IS NOT NULL\n        AND \"docker_build_artifacts\".\"source_image_reference\" IS NOT NULL\n      )"
         }
       },
       "isRLSEnabled": false
@@ -27946,18 +27946,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "resource_name": {
-          "name": "resource_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "varchar(20)",
@@ -40001,114 +39989,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.pki_revoked_serials": {
-      "name": "pki_revoked_serials",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "ca_id": {
-          "name": "ca_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "serial_number": {
-          "name": "serial_number",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revocation_reason": {
-          "name": "revocation_reason",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "not_after": {
-          "name": "not_after",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "pki_revoked_serials_ca_serial_idx": {
-          "name": "pki_revoked_serials_ca_serial_idx",
-          "columns": [
-            {
-              "expression": "ca_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "serial_number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "pki_revoked_serials_not_after_idx": {
-          "name": "pki_revoked_serials_not_after_idx",
-          "columns": [
-            {
-              "expression": "not_after",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "pki_revoked_serials_ca_id_certificate_authorities_id_fk": {
-          "name": "pki_revoked_serials_ca_id_certificate_authorities_id_fk",
-          "tableFrom": "pki_revoked_serials",
-          "tableTo": "certificate_authorities",
-          "columnsFrom": [
-            "ca_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

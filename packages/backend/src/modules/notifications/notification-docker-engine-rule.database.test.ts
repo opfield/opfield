@@ -7,7 +7,7 @@ const seededRule = `select name, enabled, type, severity, category, metric, oper
     resource_ids, webhook_ids, is_builtin, message_template
   from notification_alert_rules where category = 'node' and metric = 'docker_engine_unavailable'`;
 
-/** Migration 0272: a Docker node whose engine cannot start containers alerts out of the box (rc.2 F-12). */
+/** Migration 0268: a Docker node whose engine cannot start containers alerts out of the box (rc.2 F-12). */
 describe.skipIf(!url)('Built-in "Docker runtime unavailable" alert rule on disposable PostgreSQL', () => {
   it('is seeded on upgrade, enabled, with the webhooks of the enabled node rules', async () => {
     const db = await disposableDatabase(url!, 'docker_engine_rule_upgrade');
