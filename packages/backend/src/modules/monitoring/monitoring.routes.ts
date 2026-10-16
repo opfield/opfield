@@ -427,6 +427,13 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
           throw error;
         })
     : Promise.resolve(null);
+  // Models whose recent requests ran on an API source with no price: a warning for whoever can set prices.
+  const unpricedInferencePromise = hasScope(scopes, 'inference:models:manage')
+    ? container
+        .resolve(InferenceUsageService)
+        .unpricedModels()
+        .catch(() => [])
+    : Promise.resolve([]);
   // Hidden update notifications also hide the Nodes sidebar dot for pending daemon updates.
   const daemonUpdatesPromise =
     canViewNodes && hasScope(scopes, 'admin:update') && request.showUpdateNotifications
@@ -700,6 +707,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     managedAvailability,
     license,
     statusPageIncidents,
+    unpricedInference,
   ] = await Promise.all([
     statsPromise,
     healthPromise,
@@ -725,6 +733,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     managedAvailabilityPromise,
     licensePromise,
     statusPageIncidentsPromise,
+    unpricedInferencePromise,
   ]);
   const now = Date.now();
   const nodeCardIds = nodeResponse.data
@@ -864,6 +873,9 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
       : []),
     ...(lowInferenceWindows.length > 0
       ? [{ id: 'inference-usage', severity: 'warning' as const, ids: lowInferenceWindows }]
+      : []),
+    ...(unpricedInference.length > 0
+      ? [{ id: 'inference-unpriced', severity: 'warning' as const, ids: unpricedInference.map((row) => row.model) }]
       : []),
     ...(finalizeSetup && !isFinalizeSetupComplete(finalizeSetup) && !(mfa && !mfaHasFactor && mfa.showReminder)
       ? [{ id: 'finalize-setup', severity: 'info' as const }]

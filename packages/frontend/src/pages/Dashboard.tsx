@@ -68,6 +68,7 @@ import {
 } from "./dashboard/PinnedResourceCard";
 import { QuickStatsCard } from "./dashboard/QuickStatsCard";
 import { RecentActivityCard } from "./dashboard/RecentActivityCard";
+import { InferenceUnpricedNotice } from "./inference/InferenceUnpricedNotice";
 import { DashboardInferenceUsage } from "./inference/InferenceUsagePanels";
 
 type DashboardDevWindow = Window & {
@@ -826,6 +827,8 @@ export function Dashboard() {
             enabled={canViewInferenceUsage}
             usage={dashboardBootstrap?.inferenceUsage as InferenceSelfUsage | null | undefined}
           />
+
+          <InferenceUnpricedNotice models={[...attentionIds("inference-unpriced")]} />
 
           {pinnedApps.map((app) => (
             <PinnedAppCard key={`app:${app.id}`} app={app} />

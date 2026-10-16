@@ -119,7 +119,7 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_inference_model',
     description:
-      'List, atomically create/replace, reorder, inspect source suggestions for, or delete published inference models. Operations: list, suggestions, save, reorder (items of {id, sortOrder}), delete. save always replaces the complete model/source/pricing/access configuration in one transaction.',
+      'List, atomically create/replace, reorder, inspect source suggestions for, or delete published inference models. Operations: list, suggestions, save, reorder (items of {id, sortOrder}), delete. save always replaces the complete model/source/pricing/access configuration in one transaction. Pricing is optional for API sources: list marks an API source with no input/output price priceMissing and the model priceWarning "No price set: requests are not charged to API budgets"; such requests run, record tokens, and have an unknown cost (costUnknown), outside API budget enforcement.',
     parameters: {
       type: 'object',
       properties: {
@@ -279,7 +279,7 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_inference_usage',
     description:
-      'Read inference usage. Operations: self and self_overview (the current user usage and remaining budget; feat:ai:use), system (Opfield-wide overview), users (per-user usage), activity_filters, activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view.',
+      'Read inference usage. Operations: self and self_overview (the current user usage and remaining budget; feat:ai:use), system (Opfield-wide overview), users (per-user usage), activity_filters, activity (request log filtered by search, status, userId, model; paginated). system, users, and activity need inference:usage:view. A request on an API source with no price has costUnknown: true (its apiMicrodollars is not its cost); system lists such models of the last 7 days under unpriced with a warning.',
     parameters: {
       type: 'object',
       properties: {

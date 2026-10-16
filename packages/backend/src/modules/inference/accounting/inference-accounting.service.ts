@@ -19,9 +19,10 @@ import {
   conservativeEstimate,
   errorCode,
   hash,
-  latestPricing,
+  latestPricingSnapshot,
   reservationAmounts,
   stringExtension,
+  tokenPricing,
   unitCharge,
   zeroUsage,
 } from './inference-accounting.helpers.js';
@@ -52,6 +53,8 @@ export interface InferenceAdmission {
   source: InferenceModelSource;
   connection: typeof inferenceProviderConnections.$inferSelect;
   pricing: typeof inferencePricingSnapshots.$inferSelect | null;
+  /** The API source had no price for this call: it runs uncharged and outside API budget enforcement. */
+  costUnknown: boolean;
   modelMultiplier: number;
   burnMultiplier: number;
   serviceTier: string | null;
@@ -92,7 +95,14 @@ export class InferenceAccountingService {
       const usage = await this.policies.usage(input.userId, limits, admittedAt, database, {
         startSubscriptionWindows: input.source.sourceType === 'subscription',
       });
-      const pricing = input.source.sourceType === 'api' ? await latestPricing(database, input.source.id) : null;
+      const pricingSnapshot =
+        input.source.sourceType === 'api' ? await latestPricingSnapshot(database, input.source.id) : null;
+      const pricing = tokenPricing(pricingSnapshot);
+      const unitAmount = input.apiUnitCharge
+        ? unitCharge(pricingSnapshot, input.apiUnitCharge.priceKey, input.apiUnitCharge.units)
+        : 0;
+      const costUnknown =
+        input.source.sourceType === 'api' && (unitAmount === null || (!input.apiUnitCharge && !pricing));
       const burnMultiplier =
         input.source.sourceType === 'subscription'
           ? await modelPoolBurnMultiplier(database, input.model.id, admittedAt, input.request.isCompaction)
@@ -124,9 +134,7 @@ export class InferenceAccountingService {
       if (!preliminaryEstimatedUsage) {
         throw new InferenceProtocolError(429, 'subscription_budget_exhausted', 'Inference budget exhausted');
       }
-      const fixedApiMicrodollars = input.apiUnitCharge
-        ? unitCharge(pricing, input.apiUnitCharge.priceKey, input.apiUnitCharge.units)
-        : 0;
+      const fixedApiMicrodollars = costUnknown ? 0 : (unitAmount ?? 0);
       const amounts = reservationAmounts(
         input.source.sourceType,
         preliminaryEstimatedUsage,
@@ -142,7 +150,7 @@ export class InferenceAccountingService {
       const requestId = input.retryOf?.requestId ?? randomUUID();
       const attemptId = randomUUID();
       const attemptSequence = (input.retryOf?.attemptSequence ?? 0) + 1;
-      if (input.source.sourceType === 'api' && input.connection.apiMonthlyLimitMicrodollars !== null) {
+      if (input.source.sourceType === 'api' && !costUnknown && input.connection.apiMonthlyLimitMicrodollars !== null) {
         await this.locks.lockProviderConnection(database, input.connection.id);
         await assertProviderApiBudget(database, input.connection, amounts.apiMonthlyMicrodollars, requestId);
       }
@@ -185,6 +193,7 @@ export class InferenceAccountingService {
           isCompaction: input.request.isCompaction,
           estimatedUsage: true,
           priceVersion: pricing?.version,
+          costUnknown,
           serviceTier,
           modelMultiplier: String(modelMultiplier),
           burnMultiplier: String(burnMultiplier),
@@ -208,6 +217,7 @@ export class InferenceAccountingService {
           usage,
           limits,
           isCompaction: input.request.isCompaction,
+          ...(costUnknown ? { apiBudgetExempt: true } : {}),
         });
       } catch (error) {
         if (!input.retryOf) await database.delete(inferenceRequests).where(eq(inferenceRequests.id, requestId));
@@ -252,6 +262,7 @@ export class InferenceAccountingService {
             errorCode: null,
             completedAt: null,
             priceVersion: pricing?.version ?? null,
+            costUnknown,
             serviceTier,
             modelMultiplier: String(modelMultiplier),
             burnMultiplier: String(burnMultiplier),
@@ -290,6 +301,7 @@ export class InferenceAccountingService {
         source: input.source,
         connection: input.connection,
         pricing,
+        costUnknown,
         modelMultiplier,
         burnMultiplier,
         serviceTier,
@@ -322,20 +334,11 @@ export class InferenceAccountingService {
       if (!limits.enabled) throw new InferenceProtocolError(403, 'inference_disabled', 'Inference usage is disabled');
       const admittedAt = new Date();
       const usage = await this.policies.usage(input.userId, limits, admittedAt, database);
-      const pricing = await latestPricing(database, input.source.id);
-      const unitPrice = pricing.otherUnitPrices[input.priceKey];
-      const units = Math.max(1, Math.floor(input.units));
-      if (!Number.isSafeInteger(unitPrice) || unitPrice < 0) {
-        throw new InferenceProtocolError(
-          503,
-          'pricing_unavailable',
-          `API pricing for ${input.priceKey} is unavailable`
-        );
-      }
-      const fixedApiMicrodollars = unitPrice * units;
-      if (!Number.isSafeInteger(fixedApiMicrodollars)) {
-        throw new InferenceProtocolError(503, 'pricing_unavailable', 'API price exceeds the supported range');
-      }
+      const pricing = await latestPricingSnapshot(database, input.source.id);
+      const unitAmount = unitCharge(pricing, input.priceKey, input.units);
+      // No price for this call: it still runs, uncharged, with its cost recorded as unknown.
+      const costUnknown = unitAmount === null;
+      const fixedApiMicrodollars = unitAmount ?? 0;
       const requestId = randomUUID();
       const attemptId = randomUUID();
       const amounts: BudgetReservationAmounts = {
@@ -344,7 +347,7 @@ export class InferenceAccountingService {
         credits30d: 0,
         apiMonthlyMicrodollars: fixedApiMicrodollars,
       };
-      if (input.connection.apiMonthlyLimitMicrodollars !== null) {
+      if (!costUnknown && input.connection.apiMonthlyLimitMicrodollars !== null) {
         await this.locks.lockProviderConnection(database, input.connection.id);
         await assertProviderApiBudget(database, input.connection, fixedApiMicrodollars, requestId);
       }
@@ -355,7 +358,7 @@ export class InferenceAccountingService {
         modelId: input.model.id,
         sourceId: input.source.id,
         connectionId: input.connection.id,
-        pricingSnapshotId: pricing.id,
+        pricingSnapshotId: pricing?.id ?? null,
         protocol: input.protocol,
         operation: input.operation.slice(0, 64),
         publicModelId: input.model.publicId,
@@ -364,8 +367,9 @@ export class InferenceAccountingService {
         status: 'reserved',
         startedAt: admittedAt,
         estimatedUsage: false,
-        priceVersion: pricing.version,
+        priceVersion: pricing?.version ?? null,
         apiMicrodollarsCharged: fixedApiMicrodollars,
+        costUnknown,
       });
       let reservation: BudgetReservation;
       try {
@@ -376,6 +380,7 @@ export class InferenceAccountingService {
           usage,
           limits,
           isCompaction: false,
+          ...(costUnknown ? { apiBudgetExempt: true } : {}),
         });
       } catch (error) {
         await database
@@ -391,6 +396,7 @@ export class InferenceAccountingService {
         sourceId: input.source.id,
         connectionId: input.connection.id,
         status: 'pending',
+        costUnknown,
         startedAt: admittedAt,
       });
       return {
@@ -403,6 +409,7 @@ export class InferenceAccountingService {
         source: input.source,
         connection: input.connection,
         pricing,
+        costUnknown,
         modelMultiplier: 1,
         burnMultiplier: 1,
         serviceTier: null,
@@ -456,7 +463,8 @@ export class InferenceAccountingService {
       admission.budgetType === 'api' && admission.pricing && admission.estimatedUsage.totalTokens > 0
         ? apiMicrodollars(usage, admission.pricing)
         : 0;
-    const cost = (admission.fixedApiMicrodollars ?? 0) + tokenCost;
+    const costUnknown = admission.budgetType === 'api' && admission.costUnknown;
+    const cost = costUnknown ? 0 : (admission.fixedApiMicrodollars ?? 0) + tokenCost;
     const status = outcome;
     const claimed = await this.locks.withUserLock(admission.userId, async (database) => {
       const [row] = await database
@@ -466,6 +474,7 @@ export class InferenceAccountingService {
           estimatedUsage: usage.estimated,
           creditsCharged: String(credits),
           apiMicrodollarsCharged: cost,
+          costUnknown,
           uncachedInputTokens: Math.max(0, usage.inputTokens - usage.cachedInputTokens - usage.cacheWriteTokens),
           cachedInputTokens: usage.cachedInputTokens,
           cacheWriteTokens: usage.cacheWriteTokens,
@@ -486,6 +495,7 @@ export class InferenceAccountingService {
           cacheWriteTokens: usage.cacheWriteTokens,
           outputTokens: usage.outputTokens,
           reasoningTokens: usage.reasoningTokens,
+          costUnknown,
           latencyMs,
           completedAt: new Date(),
         })
@@ -497,6 +507,7 @@ export class InferenceAccountingService {
         budgetType: admission.budgetType,
         credits: String(credits),
         apiMicrodollars: cost,
+        costUnknown,
         uncachedInputTokens: Math.max(0, usage.inputTokens - usage.cachedInputTokens),
         cachedInputTokens: usage.cachedInputTokens,
         cacheWriteTokens: usage.cacheWriteTokens,

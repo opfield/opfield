@@ -3,6 +3,7 @@ import { desc, eq } from 'drizzle-orm';
 import type { DrizzleExecutor } from '@/db/client.js';
 import { inferencePricingSnapshots, inferenceQuotaSnapshots } from '@/db/schema/index.js';
 import { QUOTA_READ_LIMIT } from '@/services/inference-usage-retention.js';
+import { hasTokenPrices } from '../inference-pricing.js';
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import type { InferenceRequest, InferenceUsage } from '../protocol/inference-protocol.types.js';
 import { estimateInputTokens } from '../protocol/inference-usage.js';
@@ -78,12 +79,12 @@ export function reservationAmounts(
     const credits = subscriptionEstimateCredits(usage, modelMultiplier, burnMultiplier, serviceTierMultiplier);
     return { credits5h: credits, credits7d: credits, credits30d: credits, apiMonthlyMicrodollars: 0 };
   }
-  if (!pricing) throw new InferenceProtocolError(503, 'pricing_unavailable', 'API pricing is unavailable');
   return {
     credits5h: 0,
     credits7d: 0,
     credits30d: 0,
-    apiMonthlyMicrodollars: apiMicrodollars(usage, pricing) + fixedApiMicrodollars,
+    // No token price: only the known fixed part is reserved (an unpriced request reserves nothing).
+    apiMonthlyMicrodollars: (pricing ? apiMicrodollars(usage, pricing) : 0) + fixedApiMicrodollars,
   };
 }
 
@@ -186,19 +187,47 @@ export function subscriptionBudgetRecoveryAt(
   return exhausted.length === 0 ? null : new Date(Math.max(...exhausted.map((value) => value.getTime())));
 }
 
-export function unitCharge(
-  pricing: typeof inferencePricingSnapshots.$inferSelect | null,
-  priceKey: string,
-  rawUnits: number
-): number {
-  if (!pricing) throw new InferenceProtocolError(503, 'pricing_unavailable', 'API pricing is unavailable');
-  const price = pricing.otherUnitPrices[priceKey];
-  const units = Math.max(1, Math.floor(rawUnits));
-  const total = price * units;
-  if (!Number.isSafeInteger(price) || price < 0 || !Number.isSafeInteger(total)) {
-    throw new InferenceProtocolError(503, 'pricing_unavailable', `API pricing for ${priceKey} is unavailable`);
+type PricingSnapshot = typeof inferencePricingSnapshots.$inferSelect;
+
+/**
+ * The per-call charge of `rawUnits` at the snapshot's `priceKey` price, or null when the source has no such price:
+ * the call then runs with an unknown cost instead of being refused.
+ */
+export function unitCharge(pricing: PricingSnapshot | null, priceKey: string, rawUnits: number): number | null {
+  const price = pricing?.otherUnitPrices?.[priceKey];
+  if (price === undefined || price === null || !Number.isSafeInteger(price) || price < 0) return null;
+  const total = price * Math.max(1, Math.floor(rawUnits));
+  if (!Number.isSafeInteger(total)) {
+    throw new InferenceProtocolError(503, 'pricing_unavailable', 'API price exceeds the supported range');
   }
   return total;
+}
+
+/** Request operations (`inference_requests.operation`) charged per call rather than per token. */
+const UNIT_PRICE_KEYS: Readonly<Record<string, string>> = {
+  image_generation: 'image_generation',
+  image_edit: 'image_edit',
+  search: 'web_search_query',
+  realtime_call: 'realtime_session',
+};
+
+export function unitPriceKeyForOperation(operation: string): string | undefined {
+  return Object.hasOwn(UNIT_PRICE_KEYS, operation) ? UNIT_PRICE_KEYS[operation] : undefined;
+}
+
+/** The snapshot when it prices input and output tokens; token metering needs both. */
+export function tokenPricing(snapshot: PricingSnapshot | null | undefined): PricingSnapshot | null {
+  return snapshot && hasTokenPrices(snapshot) ? snapshot : null;
+}
+
+/**
+ * Whether an API source has no price for this operation: no input/output token price, or no per-call price for an
+ * operation charged per call. Such a request still runs; its cost is recorded as unknown.
+ */
+export function apiCostUnknown(snapshot: PricingSnapshot | null | undefined, operation: string): boolean {
+  const priceKey = unitPriceKeyForOperation(operation);
+  if (priceKey) return unitCharge(snapshot ?? null, priceKey, 1) === null;
+  return tokenPricing(snapshot) === null;
 }
 
 export function stringExtension(value: unknown): string | undefined {
@@ -213,15 +242,14 @@ export function errorCode(error: unknown): string {
   return error instanceof InferenceProtocolError ? error.code.slice(0, 128) : 'upstream_error';
 }
 
-export async function latestPricing(database: DrizzleExecutor, sourceId: string) {
-  const pricing = await database.query.inferencePricingSnapshots.findFirst({
-    where: eq(inferencePricingSnapshots.sourceId, sourceId),
-    orderBy: [desc(inferencePricingSnapshots.effectiveAt)],
-  });
-  if (!pricing || pricing.inputMicrodollarsPerMillion === null || pricing.outputMicrodollarsPerMillion === null) {
-    throw new InferenceProtocolError(503, 'pricing_unavailable', 'API pricing is unavailable');
-  }
-  return pricing;
+/** The source's current pricing snapshot, or null when it has none. */
+export async function latestPricingSnapshot(database: DrizzleExecutor, sourceId: string) {
+  return (
+    (await database.query.inferencePricingSnapshots.findFirst({
+      where: eq(inferencePricingSnapshots.sourceId, sourceId),
+      orderBy: [desc(inferencePricingSnapshots.effectiveAt)],
+    })) ?? null
+  );
 }
 
 export async function latestQuota(database: DrizzleExecutor, connectionId: string) {
@@ -263,4 +291,6 @@ export const __testOnly = {
   hasSpendableSubscriptionBudget,
   reservationAmounts,
   latestQuotaRows,
+  apiCostUnknown,
+  unitCharge,
 };

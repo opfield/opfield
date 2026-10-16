@@ -43,12 +43,15 @@ export interface InferenceUsageOverview {
     credits: string;
     apiMicrodollars: number;
     tokens: number;
+    /** Requests on an API source with no price: their cost is unknown and not in apiMicrodollars. */
+    unpricedRequests?: number;
   }>;
   ledgerTotals: Array<{
     budgetType: string;
     credits: string;
     apiMicrodollars: number;
     tokens: number;
+    unpricedTokens?: number;
   }>;
   dailyUsage: Array<{
     date: string;
@@ -57,6 +60,14 @@ export interface InferenceUsageOverview {
     apiMicrodollars: number;
     tokens: number;
   }>;
+  /** System overview only: models whose recent requests ran without a price. */
+  unpriced?: InferenceUnpricedUsage | null;
+}
+
+export interface InferenceUnpricedUsage {
+  warning: string;
+  windowDays: number;
+  models: Array<{ model: string; requests: number; tokens: number; lastRequestAt: string }>;
 }
 
 export interface InferenceProviderCatalogItem {
@@ -215,6 +226,8 @@ export interface InferenceModelSource {
   capabilitiesOverride: Record<string, boolean> | null;
   metadata: Record<string, unknown>;
   pricing: InferencePricing | null;
+  /** An API source with no input/output price: its requests run with an unknown cost. */
+  priceMissing?: boolean;
 }
 
 export interface InferenceModel {
@@ -241,6 +254,9 @@ export interface InferenceModel {
   subscriptionMultiplier: number;
   sources: InferenceModelSource[];
   accessRules: Array<Record<string, unknown>>;
+  /** Enabled API sources with no price. */
+  unpricedSources?: number;
+  priceWarning?: string | null;
 }
 
 export interface InferenceAccessSubject {
@@ -310,6 +326,8 @@ export interface InferenceActivity {
   status: string;
   credits: number;
   apiMicrodollars: number;
+  /** The API source had no price: apiMicrodollars is not this request's cost. */
+  costUnknown?: boolean;
   uncachedInputTokens: number;
   cachedInputTokens: number;
   cacheWriteTokens: number;

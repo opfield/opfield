@@ -1,7 +1,7 @@
 import { injectable } from 'tsyringe';
 import type { DrizzleClient } from '@/db/client.js';
 import { resolveLiveUser } from '@/modules/auth/live-session-user.js';
-import { latestPricing, stringExtension, unitCharge } from '../accounting/inference-accounting.helpers.js';
+import { latestPricingSnapshot, stringExtension, unitCharge } from '../accounting/inference-accounting.helpers.js';
 import type { InferenceCoreAccountingService } from '../accounting/inference-core-accounting.service.js';
 import { normalizeServiceTier } from '../accounting/inference-service-tier.js';
 import { mapReasoningEffort } from '../models/inference-reasoning.service.js';
@@ -194,18 +194,11 @@ export class InferenceCoreExecutor implements InferenceExecutor {
     }
   }
 
+  /** A source with no price for the call charges nothing; admission then records the cost as unknown. */
   private async fixedApiCharge(sourceId: string, context: InferenceExecutionContext): Promise<number> {
     if (!context.apiUnitCharge) return 0;
-    const pricing = await latestPricing(this.db, sourceId);
-    const amount = unitCharge(pricing, context.apiUnitCharge.priceKey, context.apiUnitCharge.units);
-    if (!Number.isSafeInteger(amount) || amount < 0) {
-      throw new InferenceProtocolError(
-        503,
-        'pricing_unavailable',
-        `API pricing for ${context.apiUnitCharge.priceKey} is unavailable`
-      );
-    }
-    return amount;
+    const pricing = await latestPricingSnapshot(this.db, sourceId);
+    return unitCharge(pricing, context.apiUnitCharge.priceKey, context.apiUnitCharge.units) ?? 0;
   }
 }
 

@@ -102,12 +102,13 @@ export const EMPTY_MODEL_FORM: ModelForm = {
   autoCompactTokenLimit: "",
 };
 
+/** Empty means no price: the model still serves requests, with tokens recorded and the cost unknown. */
 export const EMPTY_MODEL_PRICING: ModelPricingForm = {
-  inputPrice: "0",
-  outputPrice: "0",
-  imagePrice: "0",
-  searchPrice: "0",
-  realtimePrice: "0",
+  inputPrice: "",
+  outputPrice: "",
+  imagePrice: "",
+  searchPrice: "",
+  realtimePrice: "",
 };
 
 /**
@@ -370,15 +371,19 @@ export function normalizeReasoningMap(map: Record<string, string>): Record<strin
   );
 }
 
+function priceField(microdollars: number | null | undefined): string {
+  return microdollars == null ? "" : String(microdollars / 1_000_000);
+}
+
 export function pricingFromModel(model: InferenceModel | null): ModelPricingForm {
   const pricing = model?.sources[0]?.pricing;
   if (!pricing) return EMPTY_MODEL_PRICING;
   return {
-    inputPrice: String((pricing.inputMicrodollarsPerMillion ?? 0) / 1_000_000),
-    outputPrice: String((pricing.outputMicrodollarsPerMillion ?? 0) / 1_000_000),
-    imagePrice: String((pricing.otherUnitPrices.image_generation ?? 0) / 1_000_000),
-    searchPrice: String((pricing.otherUnitPrices.web_search_query ?? 0) / 1_000_000),
-    realtimePrice: String((pricing.otherUnitPrices.realtime_session ?? 0) / 1_000_000),
+    inputPrice: priceField(pricing.inputMicrodollarsPerMillion),
+    outputPrice: priceField(pricing.outputMicrodollarsPerMillion),
+    imagePrice: priceField(pricing.otherUnitPrices.image_generation),
+    searchPrice: priceField(pricing.otherUnitPrices.web_search_query),
+    realtimePrice: priceField(pricing.otherUnitPrices.realtime_session),
   };
 }
 
@@ -387,27 +392,43 @@ export function pricingFromProvider(
 ): ModelPricingForm {
   if (!pricing) return EMPTY_MODEL_PRICING;
   return {
-    inputPrice: String(pricing.inputMicrodollarsPerMillion / 1_000_000),
-    outputPrice: String(pricing.outputMicrodollarsPerMillion / 1_000_000),
-    imagePrice: String((pricing.otherUnitPrices?.image_generation ?? 0) / 1_000_000),
-    searchPrice: String((pricing.otherUnitPrices?.web_search_query ?? 0) / 1_000_000),
-    realtimePrice: String((pricing.otherUnitPrices?.realtime_session ?? 0) / 1_000_000),
+    inputPrice: priceField(pricing.inputMicrodollarsPerMillion),
+    outputPrice: priceField(pricing.outputMicrodollarsPerMillion),
+    imagePrice: priceField(pricing.otherUnitPrices?.image_generation),
+    searchPrice: priceField(pricing.otherUnitPrices?.web_search_query),
+    realtimePrice: priceField(pricing.otherUnitPrices?.realtime_session),
   };
 }
 
+function microdollars(value: string): number {
+  return Math.round(Number(value) * 1_000_000);
+}
+
+/** The manual pricing to save, or undefined for a model left without a price. */
 export function pricingPayload(pricing: ModelPricingForm) {
+  if (!hasTokenPrice(pricing)) return undefined;
+  const unitPrices: Record<string, string> = {
+    image_generation: pricing.imagePrice,
+    image_edit: pricing.imagePrice,
+    web_search_query: pricing.searchPrice,
+    realtime_session: pricing.realtimePrice,
+  };
   return {
     version: `manual-${new Date().toISOString()}`,
-    inputMicrodollarsPerMillion: Math.round(Number(pricing.inputPrice) * 1_000_000),
-    outputMicrodollarsPerMillion: Math.round(Number(pricing.outputPrice) * 1_000_000),
-    otherUnitPrices: {
-      image_generation: Math.round(Number(pricing.imagePrice) * 1_000_000),
-      image_edit: Math.round(Number(pricing.imagePrice) * 1_000_000),
-      web_search_query: Math.round(Number(pricing.searchPrice) * 1_000_000),
-      realtime_session: Math.round(Number(pricing.realtimePrice) * 1_000_000),
-    },
+    inputMicrodollarsPerMillion: microdollars(pricing.inputPrice),
+    outputMicrodollarsPerMillion: microdollars(pricing.outputPrice),
+    otherUnitPrices: Object.fromEntries(
+      Object.entries(unitPrices)
+        .filter(([, value]) => value.trim())
+        .map(([key, value]) => [key, microdollars(value)])
+    ),
     source: "manual" as const,
   };
+}
+
+/** Input and output token prices are both set; without them the model has no price. */
+export function hasTokenPrice(pricing: ModelPricingForm): boolean {
+  return Boolean(pricing.inputPrice.trim() && pricing.outputPrice.trim());
 }
 
 export function parsePositiveNumber(value: string): number | null {
@@ -415,11 +436,19 @@ export function parsePositiveNumber(value: string): number | null {
   return value.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-export function hasCompletePricing(pricing: ModelPricingForm): boolean {
-  return Object.values(pricing).every((value) => {
+/**
+ * Every price set is a non-negative number, and the token prices are either both set or, for a model without a
+ * price, all prices are empty.
+ */
+export function hasValidPricing(pricing: ModelPricingForm): boolean {
+  const valid = Object.values(pricing).every((value) => {
+    if (!value.trim()) return true;
     const parsed = Number(value);
-    return value.trim() && Number.isFinite(parsed) && parsed >= 0;
+    return Number.isFinite(parsed) && parsed >= 0;
   });
+  if (!valid) return false;
+  if (hasTokenPrice(pricing)) return true;
+  return Object.values(pricing).every((value) => !value.trim());
 }
 
 function intersect(values: string[][]) {
