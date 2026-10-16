@@ -18,6 +18,7 @@ import { EventBusService } from '@/services/event-bus.service.js';
 import type { User } from '@/types.js';
 import { AISettingsService } from './ai.settings.service.js';
 import type { WSClientMessage, WSServerMessage } from './ai.types.js';
+import { validateWSCommand, wsCommandFailure } from './ai.ws-commands.js';
 import { AIPlanService } from './ai-plan.service.js';
 import { AIProviderRuntimeService } from './ai-provider-runtime.service.js';
 import { AIRunService, aiUserConversationsChangedChannel } from './ai-run.service.js';
@@ -75,19 +76,30 @@ function sendCommandError(
     return;
   }
 
-  logger.error('AI websocket command failed', {
-    commandType: msg.type,
-    error: error instanceof Error ? error.message : String(error),
-  });
+  const failure = wsCommandFailure(error, fallbackMessage);
+  if (failure.reference) {
+    logger.error('AI websocket command failed', {
+      commandType: msg.type,
+      reference: failure.reference,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  } else {
+    logger.warn('AI websocket command refused by the model provider', {
+      commandType: msg.type,
+      code: failure.code,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
   send(ws, {
     type: 'command.error',
     commandType: msg.type,
     clientCommandId: getClientCommandId(msg),
     conversationId: getConversationId(msg),
     runId: getRunId(msg),
-    code: 'AI_COMMAND_FAILED',
-    message: error instanceof Error ? error.message : fallbackMessage,
-    statusCode: 500,
+    code: failure.code,
+    message: failure.message,
+    statusCode: failure.statusCode,
+    ...(failure.details ? { details: failure.details } : {}),
   });
 }
 
@@ -427,6 +439,21 @@ export function createWSHandlers() {
           }
 
           const user = state.user!;
+
+          const invalid = validateWSCommand(raw);
+          if (invalid) {
+            send(ws, {
+              type: 'command.error',
+              commandType: msg.type,
+              clientCommandId: typeof raw.clientCommandId === 'string' ? raw.clientCommandId : undefined,
+              conversationId: typeof raw.conversationId === 'string' ? raw.conversationId : undefined,
+              runId: typeof raw.runId === 'string' ? raw.runId : undefined,
+              code: invalid.code,
+              message: invalid.message,
+              statusCode: invalid.statusCode,
+            });
+            return;
+          }
 
           if (msg.type === 'conversation.subscribe') {
             try {
