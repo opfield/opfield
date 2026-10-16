@@ -96,15 +96,14 @@ func (m *Manager) testConfigIf(shouldRun func() bool) (ran bool, valid bool, out
 		args = append(args, "-c", m.globalCfg)
 	}
 	cmdOutput, err := m.runNginx(args...)
-	valid = err == nil
+	// A pid file nginx -t could not open says nothing about the
+	// configuration: the service problem reports it (pid_repair.go).
+	valid = err == nil || m.validDespitePIDFile(cmdOutput)
 	m.configMu.Lock()
 	m.configOK = valid
 	m.checkedAt = time.Now()
 	m.configMu.Unlock()
-	if err != nil {
-		return true, false, string(cmdOutput)
-	}
-	return true, true, string(cmdOutput)
+	return true, valid, string(cmdOutput)
 }
 
 // SetConfigTestObserver registers a lightweight before/after hook used by the

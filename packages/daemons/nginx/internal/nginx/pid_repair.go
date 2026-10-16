@@ -14,6 +14,14 @@ package nginx
 // The daemon repairs what its own rights allow and runs nginx once more. What
 // only root can repair is the nginx service problem of the health report: one
 // sentence with the command that fixes it.
+//
+// nginx -t opens the pid file after the configuration was read and found
+// valid ("syntax is ok"). A test that failed only there passes: the
+// configuration is fine, and the pid file is a runtime matter the service
+// problem reports. Otherwise every change, Pages preview and resync of a
+// stopped nginx run by its own user failed as an invalid configuration, and
+// the report said configValid=false for a valid one. A reload or start still
+// fails and says how to start nginx.
 
 import (
 	"context"
@@ -30,6 +38,9 @@ import (
 var (
 	pidFileOpenFailure = regexp.MustCompile(`open\(\) "([^"]+)" failed \((2|13): `)
 	nginxFailureLine   = regexp.MustCompile(`(?m)^.*\[(?:emerg|alert|crit)\].*$`)
+	// nginx -t and -T print this once the configuration was read without an
+	// error, before they open the pid file.
+	configSyntaxOK = regexp.MustCompile(`(?m)the configuration file \S+ syntax is ok$`)
 
 	// Alpine's nginx service tests the configuration as root in start_pre
 	// ($command $command_args -t -q). A checkpath of the pid file before it
@@ -106,6 +117,30 @@ func (m *Manager) repairPIDFile(output []byte) (bool, string) {
 		return true, ""
 	}
 	return false, fmt.Sprintf("nginx's pid file %s belongs to another user; as root: rm %s", failed, failed)
+}
+
+// validDespitePIDFile reports a configuration test whose only failure was
+// opening the pid file nginx.conf names (missing directory, another user's
+// file), after nginx found the configuration valid.
+func (m *Manager) validDespitePIDFile(output []byte) bool {
+	if !configSyntaxOK.Match(output) {
+		return false
+	}
+	failures := nginxFailureLine.FindAll(output, -1)
+	if len(failures) == 0 {
+		return false
+	}
+	pidFile, err := m.statedPIDFile()
+	if err != nil {
+		return false
+	}
+	for _, line := range failures {
+		match := pidFileOpenFailure.FindSubmatch(line)
+		if match == nil || filepath.Clean(string(match[1])) != pidFile {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *Manager) setPIDProblem(problem string) {
