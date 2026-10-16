@@ -13,6 +13,7 @@ import { formatDisplayImageRef, resolveContainerImageReference } from "@/lib/doc
 import { isOpfieldManagedDockerNetwork } from "@/lib/docker-networks";
 import { normalizeDockerRuntimeProfile } from "@/lib/docker-runtime-profile";
 import { dockerVolumeLabel, isAnonymousVolumeName } from "@/lib/docker-volume-label";
+import { formatShellWords } from "@/lib/shell-words";
 import { shortCommitSha } from "@/lib/workload-image-label";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -219,13 +220,13 @@ export function OverviewTab({
             label="Entrypoint"
             value={
               <span className="font-mono">
-                {entrypoint.length > 0 ? entrypoint.join(" ") : "-"}
+                {entrypoint.length > 0 ? formatShellWords(entrypoint) : "-"}
               </span>
             }
           />
           <DetailRow
             label="Command"
-            value={<span className="font-mono">{cmd.length > 0 ? cmd.join(" ") : "-"}</span>}
+            value={<span className="font-mono">{cmd.length > 0 ? formatShellWords(cmd) : "-"}</span>}
           />
           <DetailRow
             label="Working Dir"

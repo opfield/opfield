@@ -203,11 +203,14 @@ const DashboardBootstrapRequestSchema = z.object({
           dockerResources: z
             .array(
               z.object({
-                id: z.string().min(1).max(256),
+                // A container pin's key is `<nodeId>/<name>`; older clients send its Docker ID.
+                id: z.string().min(1).max(512),
                 nodeId: z.string().uuid(),
                 // 'build' comes only from clients older than the removal of build pins; it is skipped.
                 kind: z.enum(['container', 'deployment', 'build', 'compose']),
                 scopeResourceId: z.string().optional(),
+                // A container's name: it is found by it, since its Docker ID changes on every recreate.
+                name: z.string().min(1).max(256).optional(),
               })
             )
             .max(100)
@@ -225,11 +228,14 @@ const DashboardBootstrapRequestSchema = z.object({
           dockerResources: z
             .array(
               z.object({
-                id: z.string().min(1).max(256),
+                // A container pin's key is `<nodeId>/<name>`; older clients send its Docker ID.
+                id: z.string().min(1).max(512),
                 nodeId: z.string().uuid(),
                 // 'build' comes only from clients older than the removal of build pins; it is skipped.
                 kind: z.enum(['container', 'deployment', 'build', 'compose']),
                 scopeResourceId: z.string().optional(),
+                // A container's name: it is found by it, since its Docker ID changes on every recreate.
+                name: z.string().min(1).max(256).optional(),
               })
             )
             .max(100)
@@ -630,12 +636,24 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
             });
             continue;
           }
-          const containerData = containers.find(
-            (item: any) =>
-              (resource.kind === 'deployment'
-                ? item.deploymentId === resource.id || item.id === resource.id
-                : item.id === resource.id) || item.scopeResourceId === resource.scopeResourceId
-          );
+          // A container pinned by name is found by it first (a recreate changes its Docker ID), then by its access
+          // identity like a pin from an older client.
+          const byName =
+            resource.kind === 'container' && resource.name
+              ? containers.find(
+                  (item: any) =>
+                    item.kind !== 'deployment' &&
+                    String(item.name ?? item.Name ?? '').replace(/^\//, '') === resource.name!.replace(/^\//, '')
+                )
+              : undefined;
+          const containerData =
+            byName ??
+            containers.find(
+              (item: any) =>
+                (resource.kind === 'deployment'
+                  ? item.deploymentId === resource.id || item.id === resource.id
+                  : item.id === resource.id) || item.scopeResourceId === resource.scopeResourceId
+            );
           const scopeResourceId = String(containerData?.scopeResourceId ?? '');
           if (
             containerData &&

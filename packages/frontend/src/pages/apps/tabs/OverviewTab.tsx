@@ -39,6 +39,7 @@ import type {
   AppOverviewDatabase,
   AppOverviewEnvironment,
   AppOverviewIssue,
+  AppOverviewPage,
   AppOverviewRange,
 } from "@/types";
 import { useAppLoad } from "../app-resources";
@@ -57,7 +58,7 @@ const FAMILY_WORD: Record<AppOverviewIssue["family"], [string, string]> = {
   domains: ["domain", "domains"],
 };
 
-/** Neutral states (stopped on request, disabled, in maintenance, starting) do not change the health. */
+/** Neutral states (stopped on request, disabled, in maintenance, starting, not started) do not change the health. */
 const ISSUE_BADGE: Record<AppOverviewIssue["state"], "destructive" | "warning" | "secondary"> = {
   failing: "destructive",
   degraded: "warning",
@@ -65,6 +66,7 @@ const ISSUE_BADGE: Record<AppOverviewIssue["state"], "destructive" | "warning" |
   disabled: "secondary",
   maintenance: "secondary",
   starting: "secondary",
+  not_started: "secondary",
 };
 
 const ISSUE_WORD: Record<AppOverviewIssue["state"], string> = {
@@ -74,6 +76,28 @@ const ISSUE_WORD: Record<AppOverviewIssue["state"], string> = {
   disabled: "disabled",
   maintenance: "in maintenance",
   starting: "starting",
+  not_started: "not started",
+};
+
+type PageState = NonNullable<AppOverviewPage["state"]>;
+
+/** A Pages project's deployment card: the same verdict as its health (a server without `state` sends only the route). */
+function pageState(page: AppOverviewPage): PageState {
+  return page.state ?? (page.activeDeployment ? "active" : "not_serving");
+}
+
+const PAGE_STATE_WORD: Record<PageState, string> = {
+  active: "Active",
+  preview: "Preview",
+  not_started: "Not started",
+  not_serving: "Not serving",
+};
+
+const PAGE_STATE_COLOR: Record<PageState, string | undefined> = {
+  active: "var(--color-success-text)",
+  preview: "var(--color-success-text)",
+  not_started: undefined,
+  not_serving: "var(--color-warning-text)",
 };
 
 function issueLabel(issue: AppOverviewIssue): string {
@@ -614,10 +638,10 @@ export function OverviewTab({ app, version }: { app: AppDetail; version: number 
                 <StatCard
                   key={`${page.id}-deployment`}
                   label={`${page.name} · Deployment`}
-                  value={page.activeDeployment ? "Active" : "None"}
+                  value={PAGE_STATE_WORD[pageState(page)]}
                   icon={Rocket}
                   subtitle={env.name}
-                  valueColor={page.activeDeployment ? "var(--color-success-text)" : undefined}
+                  valueColor={PAGE_STATE_COLOR[pageState(page)]}
                 />,
                 <StatCard
                   key={`${page.id}-requests`}

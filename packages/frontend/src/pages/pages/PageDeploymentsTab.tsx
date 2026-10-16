@@ -30,6 +30,13 @@ import {
   pageStatusVariant,
 } from "./page-format";
 
+/** Pinned Deployments always lead the list, newest first within each group (the server's order). */
+function pinnedFirst(deployments: PageDeployment[]): PageDeployment[] {
+  return [...deployments].sort(
+    (a, b) => Number(b.pinned) - Number(a.pinned) || b.sequence - a.sequence
+  );
+}
+
 export function PageDeploymentsTab({
   projectId,
   previewsEnabled = true,
@@ -57,8 +64,7 @@ export function PageDeploymentsTab({
       try {
         const response = await loadPageDeployments(projectId, { fresh });
         if (requestId !== loadRequestRef.current) return;
-        const next = response.data ?? [];
-        setDeployments(next);
+        setDeployments(pinnedFirst(response.data ?? []));
       } catch (error) {
         if (requestId === loadRequestRef.current) {
           toastApiError(error, "Failed to load Deployments");
@@ -83,8 +89,10 @@ export function PageDeploymentsTab({
     try {
       await api.pinPageDeployment(projectId, deployment.id, !deployment.pinned);
       setDeployments((current) =>
-        current.map((item) =>
-          item.id === deployment.id ? { ...item, pinned: !item.pinned } : item
+        pinnedFirst(
+          current.map((item) =>
+            item.id === deployment.id ? { ...item, pinned: !item.pinned } : item
+          )
         )
       );
     } catch (error) {

@@ -468,7 +468,7 @@ export class AppOverviewService {
       this.databaseSection(visible, range, now),
       this.storageSection(visible, range, now),
       this.routeSection(visible, range, now),
-      this.pagesSection(visible, range, now),
+      this.pagesSection(visible, statuses, range, now),
     ]);
 
     const environments = envs
@@ -719,7 +719,12 @@ export class AppOverviewService {
   }
 
   /** Per Pages project: the deployment its routes serve and the requests of those routes. */
-  private async pagesSection(members: readonly AppMember[], range: OverviewRange, now: number) {
+  private async pagesSection(
+    members: readonly AppMember[],
+    statuses: readonly MemberStatus[],
+    range: OverviewRange,
+    now: number
+  ) {
     const projects = members.filter((member) => member.type === 'pages');
     if (projects.length === 0) return [];
     const ids = projects.map((member) => member.id);
@@ -767,6 +772,15 @@ export class AppOverviewService {
         .filter((target) => target.projectId === member.id)
         .map((target) => traffic.get(target.routeId)!);
       const rates = served.map((entry) => entry.requestsPerSecond).filter((value): value is number => value !== null);
+      const status = statuses.find((item) => item.member.type === 'pages' && item.member.id === member.id);
+      // The same verdict as the project's health: a route serving it, its previews, not started yet, or not serving.
+      const state: 'active' | 'preview' | 'not_started' | 'not_serving' = active?.deploymentId
+        ? 'active'
+        : served.length === 0 && status?.health === 'healthy'
+          ? 'preview'
+          : status?.neutral === 'not_started'
+            ? 'not_started'
+            : 'not_serving';
       return [
         {
           environmentId: member.environmentId,
@@ -774,6 +788,8 @@ export class AppOverviewService {
           slug: row.slug,
           name: row.name,
           activeDeployment: active?.deploymentId ? { id: active.deploymentId, createdAt: active.createdAt } : null,
+          /** active: a route serves a deployment; preview: no route, a ready deployment serves its preview URL. */
+          state,
           /** Routes that serve the project (its requests are theirs). */
           routes: served.length,
           requestsPerSecond: rates.length ? rates.reduce((total, value) => total + value, 0) : null,

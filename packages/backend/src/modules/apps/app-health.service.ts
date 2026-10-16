@@ -13,6 +13,8 @@ import {
   managedStorageClusters,
   nodes,
   objectStorageConnections,
+  pageDeployments,
+  pageProjects,
   pageRouteTargets,
   proxyHosts,
   sslCertificates,
@@ -300,6 +302,40 @@ export function workloadKey(type: string, nodeId: string | null | undefined, id:
 }
 
 /**
+ * A Pages project. With a route it serves when an enabled route serves an active deployment, else it is degraded.
+ * Without a route its previews are what it serves: healthy with a ready deployment that has a preview URL (previews
+ * on), neutral "not started" while no deployment is ready yet (none, or the first still being uploaded or staged),
+ * else degraded (only failed deployments, or ready ones without a preview URL).
+ */
+export function pagesState(input: {
+  routes: ReadonlyArray<{ status: string; activeDeploymentId: string | null; routeEnabled: boolean }>;
+  previewsEnabled: boolean;
+  deployments: ReadonlyArray<{ status: string; previewHostname: string | null }>;
+}): MemberAssessment {
+  if (input.routes.length > 0) {
+    const serving = input.routes.some(
+      (target) => target.routeEnabled && target.status === 'ready' && target.activeDeploymentId
+    );
+    return serving
+      ? { health: 'healthy' }
+      : { health: 'degraded', reason: 'Not serving: no enabled route serves an active deployment' };
+  }
+  const live = input.deployments.filter(
+    (deployment) => deployment.status !== 'deleted' && deployment.status !== 'cleaning'
+  );
+  const ready = live.filter((deployment) => deployment.status === 'ready');
+  if (input.previewsEnabled && ready.some((deployment) => deployment.previewHostname)) return { health: 'healthy' };
+  if (ready.length === 0 && live.every((deployment) => deployment.status !== 'failed')) {
+    return { health: 'none', neutral: 'not_started' };
+  }
+  return {
+    health: 'degraded',
+    reason:
+      ready.length === 0 ? 'Not serving: no deployment is ready' : 'Not serving: it has no route and no preview URL',
+  };
+}
+
+/**
  * Rules across members, applied in place: a route whose target member was stopped on request is degraded ("its
  * target is stopped"), not failing, since nothing is meant to answer; a member whose every node is unreachable is
  * degraded ("node unreachable"), since its last snapshot is stale.
@@ -436,105 +472,131 @@ export class AppHealthService implements AppHealthProvider {
   async memberStatuses(members: readonly AppMember[], now = Date.now()): Promise<MemberStatus[]> {
     const ids = (type: AppMember['type']) =>
       members.filter((member) => member.type === type).map((member) => member.id);
-    const [routes, databases, storages, composes, deployments, managedDatabases, managedStorages, pageTargets] =
-      await Promise.all([
-        this.rows(ids('route'), (list) =>
-          this.db
-            .select({
-              id: proxyHosts.id,
-              enabled: proxyHosts.enabled,
-              healthStatus: proxyHosts.healthStatus,
-              rawConfigEnabled: proxyHosts.rawConfigEnabled,
-              maintenanceEnabled: proxyHosts.maintenanceEnabled,
-              appMaintenanceMode: proxyHosts.appMaintenanceMode,
-              upstreamKind: proxyHosts.upstreamKind,
-              dockerNodeId: proxyHosts.dockerNodeId,
-              dockerContainerName: proxyHosts.dockerContainerName,
-              dockerDeploymentId: proxyHosts.dockerDeploymentId,
-              dockerComposeProjectId: proxyHosts.dockerComposeProjectId,
-              sslEnabled: proxyHosts.sslEnabled,
-              certStatus: sslCertificates.status,
-              certNotAfter: sslCertificates.notAfter,
-              certRenewalFailures: sslCertificates.renewalFailureCount,
-            })
-            .from(proxyHosts)
-            .leftJoin(sslCertificates, eq(sslCertificates.id, proxyHosts.sslCertificateId))
-            .where(inArray(proxyHosts.id, list))
-        ),
-        this.rows(ids('database'), (list) =>
-          this.db
-            .select({
-              id: databaseConnections.id,
-              healthStatus: databaseConnections.healthStatus,
-              lastHealthCheckAt: databaseConnections.lastHealthCheckAt,
-            })
-            .from(databaseConnections)
-            .where(inArray(databaseConnections.id, list))
-        ),
-        this.rows(ids('storage'), (list) =>
-          this.db
-            .select({
-              id: objectStorageConnections.id,
-              healthStatus: objectStorageConnections.healthStatus,
-              lastHealthCheckAt: objectStorageConnections.lastHealthCheckAt,
-            })
-            .from(objectStorageConnections)
-            .where(inArray(objectStorageConnections.id, list))
-        ),
-        this.rows(ids('compose'), (list) =>
-          this.db
-            .select({
-              id: dockerComposeProjects.id,
-              name: dockerComposeProjects.name,
-              status: dockerComposeProjects.status,
-              desiredState: dockerComposeProjects.desiredState,
-            })
-            .from(dockerComposeProjects)
-            .where(inArray(dockerComposeProjects.id, list))
-        ),
-        this.rows(ids('deployment'), (list) =>
-          this.db
-            .select({
-              id: dockerDeployments.id,
-              status: dockerDeployments.status,
-              activeSlot: dockerDeployments.activeSlot,
-            })
-            .from(dockerDeployments)
-            .where(inArray(dockerDeployments.id, list))
-        ),
-        this.rows(ids('database'), (list) =>
-          this.db
-            .select({
-              id: managedDatabaseInstances.databaseConnectionId,
-              status: managedDatabaseInstances.status,
-              updatedAt: managedDatabaseInstances.updatedAt,
-            })
-            .from(managedDatabaseInstances)
-            .where(inArray(managedDatabaseInstances.databaseConnectionId, list))
-        ),
-        this.rows(ids('storage'), (list) =>
-          this.db
-            .select({
-              id: managedStorageClusters.objectStorageConnectionId,
-              status: managedStorageClusters.status,
-              updatedAt: managedStorageClusters.updatedAt,
-            })
-            .from(managedStorageClusters)
-            .where(inArray(managedStorageClusters.objectStorageConnectionId, list))
-        ),
-        this.rows(ids('pages'), (list) =>
-          this.db
-            .select({
-              projectId: pageRouteTargets.projectId,
-              status: pageRouteTargets.status,
-              activeDeploymentId: pageRouteTargets.activeDeploymentId,
-              routeEnabled: proxyHosts.enabled,
-            })
-            .from(pageRouteTargets)
-            .innerJoin(proxyHosts, eq(proxyHosts.id, pageRouteTargets.proxyHostId))
-            .where(inArray(pageRouteTargets.projectId, list))
-        ),
-      ]);
+    const [
+      routes,
+      databases,
+      storages,
+      composes,
+      deployments,
+      managedDatabases,
+      managedStorages,
+      pageTargets,
+      pageRows,
+      pageDeploymentRows,
+    ] = await Promise.all([
+      this.rows(ids('route'), (list) =>
+        this.db
+          .select({
+            id: proxyHosts.id,
+            enabled: proxyHosts.enabled,
+            healthStatus: proxyHosts.healthStatus,
+            rawConfigEnabled: proxyHosts.rawConfigEnabled,
+            maintenanceEnabled: proxyHosts.maintenanceEnabled,
+            appMaintenanceMode: proxyHosts.appMaintenanceMode,
+            upstreamKind: proxyHosts.upstreamKind,
+            dockerNodeId: proxyHosts.dockerNodeId,
+            dockerContainerName: proxyHosts.dockerContainerName,
+            dockerDeploymentId: proxyHosts.dockerDeploymentId,
+            dockerComposeProjectId: proxyHosts.dockerComposeProjectId,
+            sslEnabled: proxyHosts.sslEnabled,
+            certStatus: sslCertificates.status,
+            certNotAfter: sslCertificates.notAfter,
+            certRenewalFailures: sslCertificates.renewalFailureCount,
+          })
+          .from(proxyHosts)
+          .leftJoin(sslCertificates, eq(sslCertificates.id, proxyHosts.sslCertificateId))
+          .where(inArray(proxyHosts.id, list))
+      ),
+      this.rows(ids('database'), (list) =>
+        this.db
+          .select({
+            id: databaseConnections.id,
+            healthStatus: databaseConnections.healthStatus,
+            lastHealthCheckAt: databaseConnections.lastHealthCheckAt,
+          })
+          .from(databaseConnections)
+          .where(inArray(databaseConnections.id, list))
+      ),
+      this.rows(ids('storage'), (list) =>
+        this.db
+          .select({
+            id: objectStorageConnections.id,
+            healthStatus: objectStorageConnections.healthStatus,
+            lastHealthCheckAt: objectStorageConnections.lastHealthCheckAt,
+          })
+          .from(objectStorageConnections)
+          .where(inArray(objectStorageConnections.id, list))
+      ),
+      this.rows(ids('compose'), (list) =>
+        this.db
+          .select({
+            id: dockerComposeProjects.id,
+            name: dockerComposeProjects.name,
+            status: dockerComposeProjects.status,
+            desiredState: dockerComposeProjects.desiredState,
+          })
+          .from(dockerComposeProjects)
+          .where(inArray(dockerComposeProjects.id, list))
+      ),
+      this.rows(ids('deployment'), (list) =>
+        this.db
+          .select({
+            id: dockerDeployments.id,
+            status: dockerDeployments.status,
+            activeSlot: dockerDeployments.activeSlot,
+          })
+          .from(dockerDeployments)
+          .where(inArray(dockerDeployments.id, list))
+      ),
+      this.rows(ids('database'), (list) =>
+        this.db
+          .select({
+            id: managedDatabaseInstances.databaseConnectionId,
+            status: managedDatabaseInstances.status,
+            updatedAt: managedDatabaseInstances.updatedAt,
+          })
+          .from(managedDatabaseInstances)
+          .where(inArray(managedDatabaseInstances.databaseConnectionId, list))
+      ),
+      this.rows(ids('storage'), (list) =>
+        this.db
+          .select({
+            id: managedStorageClusters.objectStorageConnectionId,
+            status: managedStorageClusters.status,
+            updatedAt: managedStorageClusters.updatedAt,
+          })
+          .from(managedStorageClusters)
+          .where(inArray(managedStorageClusters.objectStorageConnectionId, list))
+      ),
+      this.rows(ids('pages'), (list) =>
+        this.db
+          .select({
+            projectId: pageRouteTargets.projectId,
+            status: pageRouteTargets.status,
+            activeDeploymentId: pageRouteTargets.activeDeploymentId,
+            routeEnabled: proxyHosts.enabled,
+          })
+          .from(pageRouteTargets)
+          .innerJoin(proxyHosts, eq(proxyHosts.id, pageRouteTargets.proxyHostId))
+          .where(inArray(pageRouteTargets.projectId, list))
+      ),
+      this.rows(ids('pages'), (list) =>
+        this.db
+          .select({ id: pageProjects.id, previewsEnabled: pageProjects.previewsEnabled })
+          .from(pageProjects)
+          .where(inArray(pageProjects.id, list))
+      ),
+      this.rows(ids('pages'), (list) =>
+        this.db
+          .select({
+            projectId: pageDeployments.projectId,
+            status: pageDeployments.status,
+            previewHostname: pageDeployments.previewHostname,
+          })
+          .from(pageDeployments)
+          .where(inArray(pageDeployments.projectId, list))
+      ),
+    ]);
     const [databaseSets, storageSets, nodeRows] = await Promise.all([
       this.rows(ids('database'), (list) =>
         this.db
@@ -697,18 +759,15 @@ export class AppHealthService implements AppHealthProvider {
                 : {}),
           };
         }
-        case 'pages': {
-          const serving = pageTargets.some(
-            (target) =>
-              target.projectId === member.id &&
-              target.routeEnabled &&
-              target.status === 'ready' &&
-              target.activeDeploymentId
-          );
-          return serving
-            ? { ...base, health: 'healthy' }
-            : { ...base, health: 'degraded', reason: 'Not serving: no enabled route serves an active deployment' };
-        }
+        case 'pages':
+          return {
+            ...base,
+            ...pagesState({
+              routes: pageTargets.filter((target) => target.projectId === member.id),
+              previewsEnabled: pageRows.find((row) => row.id === member.id)?.previewsEnabled ?? true,
+              deployments: pageDeploymentRows.filter((row) => row.projectId === member.id),
+            }),
+          };
         case 'compose': {
           const row = composeById.get(member.id);
           const own = [...runtime.entries()]

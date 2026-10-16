@@ -11,6 +11,7 @@ import type { DashboardBootstrapRequest, DashboardPinnedDockerResourceRequest } 
 
 type PinnedDockerMeta = {
   nodeId: string;
+  name?: string;
   kind?: DashboardPinnedDockerResourceRequest["kind"];
   scopeResourceId?: string;
 };
@@ -59,13 +60,16 @@ function dockerResources(
 ): DashboardPinnedDockerResourceRequest[] {
   return ids.flatMap((id) => {
     const item = meta[id];
+    const kind = item?.kind ?? "container";
     return item
       ? [
           {
             id,
             nodeId: item.nodeId,
-            kind: item.kind ?? "container",
+            kind,
             scopeResourceId: item.scopeResourceId,
+            // A container pin is keyed by node and name: the server finds the container by its name.
+            ...(kind === "container" && item.name ? { name: item.name } : {}),
           },
         ]
       : [];

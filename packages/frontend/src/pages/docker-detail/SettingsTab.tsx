@@ -41,6 +41,7 @@ import {
   getSecureDockerRuntimeDescription,
   normalizeDockerRuntimeProfile,
 } from "@/lib/docker-runtime-profile";
+import { formatShellWords } from "@/lib/shell-words";
 import { formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
@@ -366,8 +367,8 @@ export function SettingsTab({
   const [ports, setPorts] = useState<PortMapping[]>(initialPorts);
   const [mounts, setMounts] = useState<MountEntry[]>(initialMounts);
   const [networks, setNetworks] = useState<NetworkEntry[]>(initialNetworks);
-  const [entrypoint, setEntrypoint] = useState(initialEntrypoint.join(" "));
-  const [command, setCommand] = useState(initialCmd.join(" "));
+  const [entrypoint, setEntrypoint] = useState(formatShellWords(initialEntrypoint));
+  const [command, setCommand] = useState(formatShellWords(initialCmd));
   const [stopTimeout, setStopTimeout] = useState(initialStopTimeout);
   const [workingDir, setWorkingDir] = useState(initialWorkdir);
   const [user, setUser] = useState(initialUser);
@@ -389,8 +390,8 @@ export function SettingsTab({
       imageTag: parsedTag,
       ports: JSON.stringify(initialPorts),
       mounts: serializeMounts(initialMounts),
-      entrypoint: initialEntrypoint.join(" "),
-      command: initialCmd.join(" "),
+      entrypoint: formatShellWords(initialEntrypoint),
+      command: formatShellWords(initialCmd),
       stopTimeout: initialStopTimeout,
       workingDir: initialWorkdir,
       user: initialUser,
