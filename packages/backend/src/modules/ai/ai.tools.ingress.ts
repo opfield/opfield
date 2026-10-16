@@ -828,7 +828,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_access_list',
     description:
-      'Get or update an access list. Operations: get; update (name, description, ipRules, basicAuthEnabled, basicAuthUsers; ipRules replaces the whole ordered list); move_rule (fromIndex, toIndex: move one IP rule, 0-based, the rules between shift by one). nginx checks IP rules in order, the first match wins, and every address that matches no rule is denied. get, update and move_rule return ipRuleWarnings: rules that never match because an earlier rule covers them (shadowed, with coveredByIndex) and deny rules with no effect because no later rule allows those addresses. Fix a shadowed rule with move_rule or remove it with update.',
+      'Get or update an access list. Operations: get; update (name, description, ipRules, basicAuthEnabled, basicAuthUsers; ipRules replaces the whole ordered list); move_rule (fromIndex, toIndex: move one IP rule, 0-based, the rules between shift by one). nginx checks IP rules in order, the first match wins, and every address that matches no rule is denied. get, update and move_rule return ipRuleWarnings: rules that never match because an earlier rule covers them (shadowed, with coveredByIndex) and deny rules with no effect because no later rule allows those addresses. index, coveredByIndex and the indexes in the message are 0-based, like move_rule (the UI numbers rows from 1). Fix a shadowed rule with move_rule or remove it with update.',
     parameters: {
       type: 'object',
       properties: {

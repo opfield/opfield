@@ -114,8 +114,19 @@ function overlaps(a: ParsedRule, b: ParsedRule): boolean {
   return covers(a, b) || covers(b, a);
 }
 
-function describe(rule: AccessListIpRuleLike, index: number): string {
-  return `rule ${index + 1} (${rule.type} ${rule.value.trim()})`;
+/**
+ * How a warning names a rule. `position`: "rule 2", counted from 1 as the access list dialog numbers its rows.
+ * `index`: "the rule at index 1", the 0-based index the API fields (index, coveredByIndex, move_rule) use.
+ */
+export type AccessListIpRuleNumbering = "position" | "index";
+
+function describe(rule: AccessListIpRuleLike, index: number, numbering: AccessListIpRuleNumbering): string {
+  const name = numbering === "index" ? `the rule at index ${index}` : `rule ${index + 1}`;
+  return `${name} (${rule.type} ${rule.value.trim()})`;
+}
+
+function describeSelf(index: number, numbering: AccessListIpRuleNumbering): string {
+  return numbering === "index" ? `this rule (index ${index})` : "this rule";
 }
 
 /**
@@ -124,7 +135,8 @@ function describe(rule: AccessListIpRuleLike, index: number): string {
  * /25 ranges that together cover a later /24 do not mark it.
  */
 export function analyzeAccessListIpRules(
-  rules: readonly AccessListIpRuleLike[]
+  rules: readonly AccessListIpRuleLike[],
+  numbering: AccessListIpRuleNumbering = "position"
 ): AccessListIpRuleWarning[] {
   const parsed = rules.map((rule) => parseRule(rule.value));
   const warnings: AccessListIpRuleWarning[] = [];
@@ -142,8 +154,8 @@ export function analyzeAccessListIpRules(
         kind: "shadowed",
         coveredByIndex,
         message: sameAction
-          ? `Never matches: ${describe(earlier, coveredByIndex)} already ${earlier.type === "allow" ? "allows" : "denies"} every address it covers.`
-          : `Never matches: ${describe(earlier, coveredByIndex)} ${earlier.type === "allow" ? "allows" : "denies"} these addresses first. Move this rule above it to ${current.type} them.`,
+          ? `Never matches: ${describe(earlier, coveredByIndex, numbering)} already ${earlier.type === "allow" ? "allows" : "denies"} every address it covers.`
+          : `Never matches: ${describe(earlier, coveredByIndex, numbering)} ${earlier.type === "allow" ? "allows" : "denies"} these addresses first. Move ${describeSelf(index, numbering)} above it to ${current.type} them.`,
       });
       return;
     }

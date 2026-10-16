@@ -19,6 +19,18 @@ describe('Access list IP rule analysis', () => {
     expect(warnings[0].message).toContain('rule 1 (deny all)');
   });
 
+  it('names the 0-based index the API fields use when asked to, so "rule N" is never read as an index', () => {
+    const [warning] = analyzeAccessListIpRules(
+      [rule('allow', '203.0.113.0/24'), rule('deny', 'all'), rule('allow', '172.20.0.138')],
+      'index'
+    );
+    expect(warning).toEqual(expect.objectContaining({ index: 2, coveredByIndex: 1 }));
+    expect(warning.message).toBe(
+      'Never matches: the rule at index 1 (deny all) denies these addresses first. Move this rule (index 2) above it to allow them.'
+    );
+    expect(warning.message).not.toMatch(/\brule 2\b/);
+  });
+
   it('marks a narrower rule behind a wider CIDR with either action, and not the other way round', () => {
     expect(analyzeAccessListIpRules([rule('allow', '10.0.0.0/8'), rule('deny', '10.1.2.0/24')])).toEqual([
       expect.objectContaining({ index: 1, kind: 'shadowed', coveredByIndex: 0 }),
