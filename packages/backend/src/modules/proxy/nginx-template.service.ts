@@ -394,6 +394,19 @@ function accessListPasswordFile(accessListId: string): string {
   return `/etc/nginx/opfield/htpasswd/access-list-${accessListId.replace(DANGEROUS_CHARS, '')}`;
 }
 
+/**
+ * The allow/deny rules of an access list for the maintenance guard's locations: a client the list denies gets 403
+ * during maintenance too, never the maintenance page (deny wins). Basic authentication stays on the route itself.
+ */
+export function maintenanceAccessListDirectives(accessList: ProxyHostConfig['accessList']): string[] {
+  if (!accessList || accessList.ipRules.length === 0) return [];
+  return buildAccessListDirectives({ ...accessList, basicAuthEnabled: false });
+}
+
+function indentedDirectives(directives: readonly string[]): string {
+  return directives.map((directive) => `\n        ${directive}`).join('');
+}
+
 function buildAccessListDirectives(accessList: ProxyHostConfig['accessList']): string[] {
   if (!accessList) return [];
 
@@ -828,10 +841,10 @@ map $gms_${suffix} $gm_cookie_${suffix} {
 `;
 }
 
-function maintenanceAccessLocation(hostId: string) {
+function maintenanceAccessLocation(hostId: string, acl: string) {
   const suffix = maintenanceAccessVariable(hostId);
   return `
-    location = /_opfield/maintenance-access {
+    location = /_opfield/maintenance-access {${acl}
         proxy_pass http://unix:/run/nginx-daemon/maintenance-access.sock:/redeem/${hostId};
         proxy_set_header Host $host;
         proxy_set_header X-Opfield-Maintenance-Host $host;
@@ -842,7 +855,7 @@ function maintenanceAccessLocation(hostId: string) {
         proxy_read_timeout 5s;
     }
 
-    location = /_opfield/maintenance-access/status {
+    location = /_opfield/maintenance-access/status {${acl}
         default_type application/json;
         add_header Cache-Control "no-store" always;
         add_header X-Content-Type-Options "nosniff" always;
@@ -861,17 +874,17 @@ function maintenanceAccessLocation(hostId: string) {
  */
 const MAINTENANCE_PAGE_LOCATION = 'opfield-maintenance';
 
-function maintenancePageLocation(hideExternalBranding: boolean, teamAccess: boolean) {
+function maintenancePageLocation(hideExternalBranding: boolean, teamAccess: boolean, acl: string) {
   return `
     location = ${MAINTENANCE_PAGE_LOCATION} {
-        internal;
+        internal;${acl}
         default_type text/html;
         return 503 ${escapeNginxReturnText(opfieldMaintenanceHtml(hideExternalBranding, teamAccess))};
     }
 `;
 }
 
-function maintenanceServerGuard(hostId: string, accessSecret: string, hideExternalBranding: boolean) {
+function maintenanceServerGuard(hostId: string, accessSecret: string, hideExternalBranding: boolean, acl: string) {
   const suffix = maintenanceAccessVariable(hostId);
   return `
     # Opfield maintenance mode. Server-rewrite directives run before location
@@ -882,11 +895,11 @@ function maintenanceServerGuard(hostId: string, accessSecret: string, hideExtern
     if ($gm_block_${suffix}) {
         rewrite ^ ${MAINTENANCE_PAGE_LOCATION} last;
     }
-${maintenancePageLocation(hideExternalBranding, true)}${maintenanceAccessLocation(hostId)}`;
+${maintenancePageLocation(hideExternalBranding, true, acl)}${maintenanceAccessLocation(hostId, acl)}`;
 }
 
 /** The guard without the access-code bypass: every request but ACME and the ingress health check gets the page. */
-function plainMaintenanceServerGuard(hideExternalBranding: boolean) {
+function plainMaintenanceServerGuard(hideExternalBranding: boolean, acl: string) {
   return `
     # Opfield maintenance mode. Server-rewrite directives run before location
     # selection, so upstream/access/cache/rewrite behavior is never reached.
@@ -894,7 +907,7 @@ function plainMaintenanceServerGuard(hideExternalBranding: boolean) {
     if ($uri !~ ^/\\.well-known/(acme-challenge/|(?:opfield|gateway)-ingress-health$)) {
         rewrite ^ ${MAINTENANCE_PAGE_LOCATION} last;
     }
-${maintenancePageLocation(hideExternalBranding, false)}`;
+${maintenancePageLocation(hideExternalBranding, false, acl)}`;
 }
 
 /**
@@ -1501,11 +1514,13 @@ ${rendered}`;
   applyMaintenanceFlagGuard(
     renderedConfig: string,
     access: { hostId: string; secret: string },
-    hideExternalBranding = false
+    hideExternalBranding = false,
+    accessList: ProxyHostConfig['accessList'] = null
   ): string | null {
     return renderMaintenanceFlagGuard(renderedConfig, {
       ...access,
       pageText: escapeNginxReturnText(opfieldMaintenanceHtml(hideExternalBranding)),
+      accessDirectives: maintenanceAccessListDirectives(accessList),
     });
   }
 
@@ -1517,8 +1532,11 @@ ${rendered}`;
   applyMaintenanceGuard(
     renderedConfig: string,
     access?: { hostId: string; secret: string },
-    hideExternalBranding = false
+    hideExternalBranding = false,
+    accessList: ProxyHostConfig['accessList'] = null
   ): string {
+    // The access list's allow/deny rules guard the maintenance locations too: deny wins over maintenance.
+    const acl = indentedDirectives(maintenanceAccessListDirectives(accessList));
     if (!/^[\t ]*server[\t ]*\{/m.test(renderedConfig)) {
       throw new AppError(500, 'MAINTENANCE_CONFIG_INVALID', 'Rendered proxy config has no server block');
     }
@@ -1532,13 +1550,13 @@ ${rendered}`;
     if (!access || !maintenanceAccessFits(renderedConfig)) {
       return renderedConfig.replace(
         /^[\t ]*server[\t ]*\{/gm,
-        (match) => `${match}${plainMaintenanceServerGuard(hideExternalBranding)}`
+        (match) => `${match}${plainMaintenanceServerGuard(hideExternalBranding, acl)}`
       );
     }
     const cookieDirective = `proxy_set_header Cookie $gm_cookie_${maintenanceAccessVariable(access.hostId)};`;
     const guarded = this.appendLocationDirective(this.stripProxyCookieHeaders(renderedConfig), cookieDirective).replace(
       /^[\t ]*server[\t ]*\{/gm,
-      (match) => `${match}${maintenanceServerGuard(access.hostId, access.secret, hideExternalBranding)}`
+      (match) => `${match}${maintenanceServerGuard(access.hostId, access.secret, hideExternalBranding, acl)}`
     );
     return `${maintenanceMaps(access.hostId)}\n${guarded}`;
   }

@@ -42,7 +42,8 @@ function presentAccessList<T extends Pick<AccessListRow, 'ipRules' | 'basicAuthU
   return {
     ...row,
     basicAuthUsers: ((row.basicAuthUsers as BasicAuthUser[]) ?? []).map((user) => ({ username: user.username })),
-    ipRuleWarnings: analyzeAccessListIpRules((row.ipRules as IPRule[]) ?? []),
+    // API and MCP callers act on the 0-based index (move_rule), so the message names it.
+    ipRuleWarnings: analyzeAccessListIpRules((row.ipRules as IPRule[]) ?? [], 'index'),
   };
 }
 

@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { certificateAuthorities, certificates } from '@/db/schema/index.js';
+import { certificateAuthorities, certificates, pkiRevokedSerials } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CacheService } from '@/services/cache.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
@@ -77,6 +77,19 @@ export class OCSPService {
     });
 
     if (!cert) {
+      // A revoked certificate deleted before it expired is still revoked (pki-revoked-serials.ts).
+      const [deleted] = await this.db
+        .select()
+        .from(pkiRevokedSerials)
+        .where(and(eq(pkiRevokedSerials.caId, caId), eq(pkiRevokedSerials.serialNumber, serialNumber)))
+        .limit(1);
+      if (deleted) {
+        return {
+          status: 'revoked',
+          revokedAt: deleted.revokedAt,
+          revocationReason: deleted.revocationReason || undefined,
+        };
+      }
       return { status: 'unknown' };
     }
 

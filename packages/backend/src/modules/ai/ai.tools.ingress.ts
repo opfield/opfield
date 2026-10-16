@@ -27,7 +27,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'get_route',
     description:
-      'Get a compact summary of an ingress route. Use manage_route get_config for every setting (headers, rewrites, cache, rate limit, template, health check).',
+      'Get a compact summary of an ingress route, including certificate: the certificate nginx serves (source ssl for sslCertificateId, pki for internalCertificateId; sslCertificateId wins when both are set), or null without HTTPS. Use manage_route get_config for every setting (headers, rewrites, cache, rate limit, template, health check).',
     parameters: {
       type: 'object',
       properties: {
@@ -103,7 +103,8 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
         redirectStatusCode: { type: 'number', enum: [301, 302, 307, 308], description: 'Redirect status code' },
         internalCertificateId: {
           type: 'string',
-          description: 'Internal PKI TLS server certificate UUID; needs pki:cert:deploy on it or its issuing CA',
+          description:
+            'Internal PKI TLS server certificate UUID, used directly without link_internal_cert; needs pki:cert:deploy on it or its issuing CA. sslCertificateId wins when both are set',
         },
         customHeaders: {
           type: 'array',
@@ -351,7 +352,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'set_route_maintenance',
     description:
-      'Enter or exit maintenance mode for an enabled managed Route through the canonical maintenance lifecycle.',
+      'Enter or exit maintenance mode for an enabled managed Route through the canonical maintenance lifecycle. In maintenance the Route answers 503 with the maintenance page; a client its access list denies still gets 403.',
     parameters: {
       type: 'object',
       properties: {
@@ -550,7 +551,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'link_internal_cert',
     description:
-      'Import a PKI certificate as an SSL certificate so it can be used with ingress routes. This links an existing PKI certificate (from the Certificates table) into the SSL certificates pool. You MUST use this before assigning a PKI-issued cert to a route. Needs ssl:cert:issue on the destination and pki:cert:deploy on the PKI certificate or its issuing CA (pki:cert:export also works); the private key is never returned.',
+      "Import a PKI certificate as an SSL certificate so it can be used with ingress routes. This links an existing PKI certificate (from the Certificates table) into the SSL certificates pool. One of two ways to serve a PKI certificate on a route: link it here and set the returned SSL certificate id as the route's sslCertificateId, or set the PKI certificate id directly as the route's internalCertificateId without linking (the SSL store certificate wins when a route has both). Needs ssl:cert:issue on the destination and pki:cert:deploy on the PKI certificate or its issuing CA (pki:cert:export also works); the private key is never returned.",
     parameters: {
       type: 'object',
       properties: {
@@ -632,7 +633,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'create_domain',
     description:
-      'Create an Opfield domain on an eligible Nginx ingress node or an ingress group. dnsProvider cloudflare (default) manages A/AAAA records through a synced Cloudflare zone; external only records the domain and expects DNS to be managed elsewhere. With ingressGroupId the domain and its routes are served by every member, and Cloudflare DNS lists every active member address (round robin: DNS failover mode none does not health-check, so an unreachable member keeps receiving its share of clients). If Cloudflare already has different A/AAAA records, the tool returns conflict metadata; retry with overwriteDns only after explicit user approval. Use manage_domain preview first to see the DNS plan.',
+      'Create an Opfield domain on an eligible Nginx ingress node or an ingress group. dnsProvider cloudflare (default) manages A/AAAA records through a synced Cloudflare zone; external leaves DNS to the operator: the domain is registered only once its DNS already points at the selected ingress (an A/AAAA record of the name resolving to the target addresses), as in the Add Domain dialog; Opfield checks it and never changes DNS. Until then create_domain fails with DOMAIN_DNS_NOT_READY and details.targetIps and details.dnsRecords: create the record at the DNS provider, then call it again (manage_domain preview with dnsProvider external runs the same check without creating anything). A name without public DNS (an internal or test name) cannot be registered; a route can still serve it through its domainNames. With ingressGroupId the domain and its routes are served by every member, and Cloudflare DNS lists every active member address (round robin: DNS failover mode none does not health-check, so an unreachable member keeps receiving its share of clients). If Cloudflare already has different A/AAAA records, the tool returns conflict metadata; retry with overwriteDns only after explicit user approval. Use manage_domain preview first to see the DNS plan.',
     parameters: {
       type: 'object',
       properties: {
@@ -828,7 +829,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_access_list',
     description:
-      'Get or update an access list. Operations: get; update (name, description, ipRules, basicAuthEnabled, basicAuthUsers; ipRules replaces the whole ordered list); move_rule (fromIndex, toIndex: move one IP rule, 0-based, the rules between shift by one). nginx checks IP rules in order, the first match wins, and every address that matches no rule is denied. get, update and move_rule return ipRuleWarnings: rules that never match because an earlier rule covers them (shadowed, with coveredByIndex) and deny rules with no effect because no later rule allows those addresses. Fix a shadowed rule with move_rule or remove it with update.',
+      'Get or update an access list. Operations: get; update (name, description, ipRules, basicAuthEnabled, basicAuthUsers; ipRules replaces the whole ordered list); move_rule (fromIndex, toIndex: move one IP rule, 0-based, the rules between shift by one). nginx checks IP rules in order, the first match wins, and every address that matches no rule is denied. get, update and move_rule return ipRuleWarnings: rules that never match because an earlier rule covers them (shadowed, with coveredByIndex) and deny rules with no effect because no later rule allows those addresses. index, coveredByIndex and the indexes in the message are 0-based, like move_rule (the UI numbers rows from 1). Fix a shadowed rule with move_rule or remove it with update.',
     parameters: {
       type: 'object',
       properties: {

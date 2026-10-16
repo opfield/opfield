@@ -20,11 +20,11 @@ Core ingress workflows:
 - Configure SSL termination, manual upstream targets, or managed Docker container/deployment upstreams with published-port validation.
 - Connect managed Docker workloads to nginx through Opfield Secure Links without exposing the workload port as a normal public management endpoint.
 - Switch a route to Raw Config Mode to own its whole nginx configuration. Raw mode starts from the rendered config, and Opfield stops rendering the route until raw mode is switched off. A route to a Docker workload keeps its Secure Link in raw mode: the seeded `upstream` (the link's socket on the nginx node) keeps reaching the workload and follows it when its container is recreated. Edit it as needed, but keep proxying to that upstream.
-- Put an enabled managed route into maintenance mode to return HTTP 503, pause managed health checks, preserve its TLS paths, and expose maintenance state to alerts and status pages. On a node with a current Nginx daemon, entering and leaving maintenance does not reload Nginx, so the other routes of the node keep their connections.
+- Put an enabled managed route into maintenance mode to return HTTP 503 (a client the route's access list denies still gets 403), pause managed health checks, preserve its TLS paths, and expose maintenance state to alerts and status pages. On a node with a current Nginx daemon, entering and leaving maintenance does not reload Nginx, so the other routes of the node keep their connections.
 - Configure WebSocket support, custom headers, rewrites, and proxy behavior.
 - Create proxy, redirect, and 404 routes.
 - Group routes into folders and reorder them with drag-and-drop.
-- Configure access lists with IP rules and basic authentication. nginx checks IP rules in order and the first match wins; once a list has rules, an address that matches none is denied. Drag a rule by its handle (or focus the handle and use the arrow keys) to change the order. A rule that can never change the outcome shows a warning: an earlier rule already matches all of its addresses, or it is a deny rule that no later rule allows. API clients and agents move a rule with `POST /api/access-lists/:id/ip-rules/move` or `manage_access_list` `move_rule`, and read the same warnings in `ipRuleWarnings`.
+- Configure access lists with IP rules and basic authentication. nginx checks IP rules in order and the first match wins; once a list has rules, an address that matches none is denied. Drag a rule by its handle (or focus the handle and use the arrow keys) to change the order. A rule that can never change the outcome shows a warning: an earlier rule already matches all of its addresses, or it is a deny rule that no later rule allows. API clients and agents move a rule with `POST /api/access-lists/:id/ip-rules/move` or `manage_access_list` `move_rule`, and read the same warnings in `ipRuleWarnings`, where indexes and the message count from 0 (the console numbers rules from 1).
 - Choose where a route takes the client IP from (route settings, **Client IP**), so access list IP rules, rate limits, access logs and the `X-Real-IP` / `X-Forwarded-For` sent to the upstream see the visitor, not a proxy:
   - **Auto** (default): Cloudflare when a name of the route is a registered domain proxied by Cloudflare, otherwise the connecting peer. Proxying or unproxying the domain updates its routes.
   - **Direct**: the connecting peer.
@@ -168,12 +168,13 @@ Uploaded SSL:
 
 Internal PKI:
 
-Internal PKI is available on Enterprise. After the grace period existing CAs and certificates stay viewable, revocable, and exportable and CRLs keep publishing; creating and changing them needs the current plan. Authorities, certificates, templates, and audit history are never deleted by a plan change. Opfield's hidden system PKI remains available for internal platform transport.
+Internal PKI is available on Enterprise. After the grace period existing CAs and certificates stay viewable, revocable, deletable, and exportable and CRLs keep publishing; creating and changing them needs the current plan. Authorities, certificates, templates, and audit history are never deleted by a plan change. Opfield's hidden system PKI remains available for internal platform transport.
 
 - Create root and intermediate certificate authorities.
 - Issue TLS server, TLS client, code-signing, and email certificates.
 - Use certificate templates with custom extensions and policies.
 - Generate and publish CRLs.
+- Delete certificates that no longer work (revoked or expired) from the certificate page, `DELETE /api/certificates/{id}`, or MCP `delete_certificate` (`pki:cert:revoke`, audited as `cert.delete`). A valid certificate must be revoked first, one in use by a route or a linked SSL certificate is refused, and a revoked certificate deleted before it expires stays on its CA's CRL until then.
 - Export certificates as PEM, PKCS#12, or JKS when the user has export scopes.
 
 Private key material is encrypted at rest with the configured `PKI_MASTER_KEY`. Export and reveal operations are controlled by explicit scopes.
@@ -185,7 +186,7 @@ Opfield keeps a central registry of public hostnames and their ingress placement
 Domain workflows:
 
 - Track domains independently from routes and certificates.
-- Use either external DNS or a Cloudflare connector. External DNS remains operator-managed; Cloudflare-managed domains can have their A/AAAA records created and reconciled automatically.
+- Use either external DNS or a Cloudflare connector. External DNS remains operator-managed: a domain on external DNS is added once its A/AAAA records already point at the chosen ingress (Opfield checks them first; API and MCP answer `409 DOMAIN_DNS_NOT_READY` with the addresses to use until then). Cloudflare-managed domains can have their A/AAAA records created and reconciled automatically.
 - Select an eligible nginx ingress node or an [ingress group](#ingress-groups) for every domain. Nodes without a detected public service address are not eligible, and a group member without one is not published in DNS.
 - Validate DNS records such as A, AAAA, CNAME, CAA, MX, and TXT.
 - Track domain usage across routes and SSL certificates.
@@ -270,6 +271,10 @@ Managed database backups and restores use configured Storage resources. Opfield 
 On Business and Enterprise, a managed PostgreSQL database, key-value store, ClickHouse database or SeaweedFS storage can run on 2 to 5 Storage nodes, each on its own host. One server is the primary and takes all reads and writes; the others are copies that follow it. Links, bindings and Opfield's own tools always reach the primary. Copies serve only failover and backups, not reads.
 
 Turn it on when you create the database or storage (**Availability** in the create form) or later from its page (**Make available**). The preflight shows what you get before anything changes: the mode, the voters and witnesses, the measured round trip between the servers, the durability and what a failover can lose. Turning it on for an existing resource restarts it once; it keeps its data and serves from its server while the copies are filled.
+
+**When setting it up fails.** A create on several servers waits until every server took its part (about 90 seconds at most). If a server fails, the create answers `409 AVAILABILITY_CREATE_FAILED` with the reason, but the database or storage was created: it stays on its first server with availability off and is never deleted because of the failure. Find it in the list by its name, fix the cause (often a server that did not answer), then turn availability on with **Make available** (API `POST .../availability`, MCP `make_available`), or delete it. Past the 90 seconds the create answers as created and the setup goes on by itself.
+
+**One operation at a time.** Availability changes (turning it on or off, adding, removing or rebuilding a server, the failover order, a planned switch) run one at a time, and the resource cannot be deleted while one runs: another request answers `409 AVAILABILITY_OPERATION_PENDING`, with `details.kind` and `details.step` naming the running operation. Wait until the availability view no longer shows an `operation`, then try again. A failover order that does not list every server exactly once is refused with `400 INVALID_AVAILABILITY_MEMBER_ORDER` (`details.missing`, `details.unknown`, `details.duplicates`).
 
 - **Automatic failover** needs a majority of voters on separate hosts: the data servers plus witnesses. A witness is a relay that an administrator allowed to host witnesses (**Settings > Relay**, the relay's switch in the **Witnesses** column, `PATCH /api/system/relay/instances/{id}`), or a Docker node on another host. A protected relay hosts witnesses only after its owner allowed database witnesses in the relay's local configuration. With two servers Opfield uses one or three witnesses, so one data server, or one data server and one witness, can fail.
 - **Two servers without a witness host** make a replicated pair without automatic failover. Switch to the copy by hand with **Make this copy primary**. The primary stops taking writes when it can reach neither Opfield nor its copy for 30 seconds, so two primaries never take writes.
@@ -371,10 +376,11 @@ Opfield includes connectors, notifications, alerts, and status pages:
 
 - Cloudflare connectors for managed A/AAAA records, DNS inspection, and automated DNS-01 certificate workflows.
 - GitLab connectors with project/group allowlists, scheduled project synchronization, repository and CI operations, variables, webhooks, sandbox clone support, and automatic container-registry discovery and import. GitLab integration requires Personal or higher; GitHub, generic Git, external SSH, and Cloudflare connectors are available on Community.
-- GitHub connectors for repository discovery, tree/file operations, branches, commits, Actions workflows and secrets, using the built-in Device Flow or an explicitly configured token.
+- GitHub connectors for repository discovery, tree/file operations, branches (list, create, delete), commits, Actions workflows and secrets, using the built-in Device Flow or an explicitly configured token. GitLab and generic Git connectors create and delete branches too (MCP `github_create_branch`, `gitlab_create_branch`, `git_create_branch` and the matching `_delete_branch` tools; repo write scope; the default branch is never deleted).
 - Generic Git connectors for authenticated repository access outside the first-class GitLab and GitHub providers.
 - External SSH connectors with encrypted credentials, host-key verification, explicit scopes, and controlled command/file operations against administrator-configured hosts. This is an external integration, not an Opfield-managed node role.
 - Webhook notification targets with custom headers, templates, HMAC signing, retries, and delivery history.
+- The alerts that fire now and the alert history of the last 30 days, with the rule, resource, message and times, through `GET /api/notifications/alerts` (`status` firing, resolved or all; filters by rule, category, severity, resource and time) and the MCP tool `list_alerts` (`notifications:alerts:view`).
 - Enterprise SIEM audit export, when enabled in Opfield settings, to up to five active HTTPS collectors, with encrypted bearer, HMAC-SHA256, or validated custom-header authentication, durable batched delivery, retry history, and least-privilege `audit:siem:*` scopes.
 - Threshold and event alert rules for nodes, containers, Git builds, Compose Projects, routes, Pages, Opfield itself (host CPU, memory and disk, backend memory and event-loop delay, API 5xx rate and latency, PostgreSQL and Redis latency and outages, stack containers, failing background jobs) and relay health, logging, integrations, certificates, security events, PostgreSQL, ClickHouse, and key-value stores. GPU node rules evaluate only metrics reported by each physical device and can target a selected GPU on one scoped node.
 - Public status pages on Personal and higher with managed services, incidents, incident updates, proxy templates, and preview. The Nginx node keeps serving the last published page from its cache while Opfield restarts, updates, or is unreachable.

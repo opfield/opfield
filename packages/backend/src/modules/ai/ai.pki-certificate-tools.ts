@@ -23,6 +23,7 @@ export const PKI_CERTIFICATE_TOOL_NAMES = new Set([
   'get_certificate',
   'issue_certificate',
   'revoke_certificate',
+  'delete_certificate',
   'manage_certificate',
   'audit_system_pki_leaves',
 ]);
@@ -90,6 +91,8 @@ export async function executePkiCertificateTool(
       await context.certService.revokeCertificate(a.certificateId, reason, user.id);
       return { success: true, message: 'Certificate revoked.' };
     }
+    case 'delete_certificate':
+      return context.certService.deleteCertificate(String(a.certificateId), user.id);
     case 'manage_certificate': {
       if (a.operation === 'issue_from_csr') {
         const input = IssueCertFromCSRSchema.parse(args);

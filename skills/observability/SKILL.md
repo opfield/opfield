@@ -39,7 +39,7 @@ Retention is a per-environment TTL plus optional Housekeeping caps on rows and d
 
 ## Alerts and webhooks
 
-`list_alert_rules`, `get_alert_rule`, `create_alert_rule`, `update_alert_rule`, `delete_alert_rule`, and `list_webhooks`, `create_webhook`, `update_webhook`, `delete_webhook`, `test_webhook`, `list_webhook_deliveries`, `get_delivery_stats`. Rule shape, categories, template variables, and helpers: [Alerts and templates](references/alerts-and-templates.md). Use namespaced template variables (`{{alert.*}}`, `{{resource.*}}`); legacy flat names render empty instead of failing.
+`list_alerts` answers what is alerting now (`status: "firing"`, the default) and the alert history (`resolved`, kept 30 days; event rules record each occurrence resolved at once), filtered by rule, category, severity, resource and time. `list_alert_rules`, `get_alert_rule`, `create_alert_rule`, `update_alert_rule`, `delete_alert_rule`, and `list_webhooks`, `create_webhook`, `update_webhook`, `delete_webhook`, `test_webhook`, `list_webhook_deliveries`, `get_delivery_stats`. Rule shape, categories, template variables, and helpers: [Alerts and templates](references/alerts-and-templates.md). Use namespaced template variables (`{{alert.*}}`, `{{resource.*}}`); legacy flat names render empty instead of failing.
 
 ## SIEM audit export
 

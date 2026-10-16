@@ -65,6 +65,7 @@ Use find_resource with an empty query and a concrete type when the user asks to 
 - Fields: caId, commonName, keyAlgorithm, validityDays, type, sans (Subject Alternative Names).
 - SANs: array of PLAIN strings — just the value, NO type prefix. Examples: "example.com", "*.example.com", "10.0.0.1", "user@example.com". The system auto-detects the type (dns/ip/email/url). NEVER use "DNS:", "IP:", or other prefixes — they will cause errors.
 - Certificates can be revoked with an RFC 5280 reason: unspecified (default), keyCompromise, caCompromise, affiliationChanged, superseded, cessationOfOperation, or certificateHold.
+- delete_certificate removes a certificate that no longer works (revoked or expired; pki:cert:revoke, audited as cert.delete). A valid one is refused (CERT_STILL_VALID: revoke first), one a route uses as internalCertificateId or an SSL certificate is linked from is refused (CERT_IN_USE with details.routes and details.sslCertificates), and a revoked one deleted before it expires stays on the CRL until then (keptOnCrlUntil). A CA can be deleted once its certificates are gone.
 - Private keys are generated server-side and encrypted at rest.
 
 ## System PKI Audit
@@ -73,12 +74,12 @@ Use find_resource with an empty query and a concrete type when the user asks to 
 - The report is read-only: \`current\` and \`retired\` reflect persisted lifecycle ownership; \`unknown\` means ownership cannot be proven and must never be mutated automatically.
 - Never use generic revoke/delete operations for system certificates or CAs: server policy rejects them. This tool cannot revoke, delete, issue, export keys, or clean up certificates.
 
-## PKI → SSL Workflow
-PKI certificates live in a separate store from SSL certificates. To use a PKI cert with an ingress route:
-1. issue_certificate → returns { certificate, message }
-2. link_internal_cert(internalCertId: certificate.id) → creates an SSL certificate entry
-3. Use the SSL certificate ID (from step 2) when creating/updating routes through the route tools.
-NEVER use a PKI certificate ID directly as sslCertificateId on a route.`,
+## PKI Certificates On Routes
+PKI certificates live in a separate store from SSL certificates. A PKI TLS server certificate (issue_certificate → { certificate, message }) serves a route in one of two ways; both need pki:cert:deploy on the certificate or its issuing CA, and Opfield reissues the leaf before it expires while it holds the key:
+1. Directly: internalCertificateId = certificate.id on create_route or update_route (with sslEnabled: true).
+2. Through the SSL store: link_internal_cert(internalCertId: certificate.id) creates an SSL certificate entry with its own ID, which routes then use as sslCertificateId. Use this to pick it in the console's route SSL settings or to manage it with the SSL certificates.
+When a route has both, the SSL store certificate (sslCertificateId) is served. get_route returns sslCertificateId, internalCertificateId and certificate (source "ssl" or "pki", id, name, status, notAfter: the one served).
+NEVER use a PKI certificate ID as sslCertificateId: that field takes SSL store IDs only.`,
 
   ssl: `# SSL Certificates
 
@@ -104,11 +105,7 @@ SSL certificates in Opfield enable HTTPS on ingress routes. Three types exist:
 - Expiry is parsed from the certificate — no auto-renewal.
 
 ## Using PKI Certificates as SSL
-To use a PKI-issued certificate with an ingress route:
-1. Issue a PKI certificate: issue_certificate(...) → returns cert with id
-2. Link it: link_internal_cert(internalCertId: cert.id) → creates an SSL certificate entry with a separate ID
-3. Use the SSL certificate ID (from step 2) as sslCertificateId on the route
-IMPORTANT: Never use a PKI certificate ID directly as sslCertificateId — you must link it first.
+A PKI-issued certificate (issue_certificate(...) → cert with id) serves a route either directly, with internalCertificateId: cert.id on the route, or through the SSL store: link_internal_cert(internalCertId: cert.id) creates an SSL certificate entry with a separate ID, used as sslCertificateId on the route. Never put a PKI certificate ID in sslCertificateId. When a route has both, sslCertificateId is served; get_route names the served one in certificate.
 
 ## Using SSL Certs with Routes
 - Set sslCertificateId on the route to the SSL certificate UUID.
@@ -249,7 +246,7 @@ Access lists provide IP-based access control and HTTP basic authentication for i
 - nginx checks the rules in order and the first match wins; when a list has rules, every address that matches none is denied (Opfield renders deny all; after the last rule)
 - Common pattern: allow specific IPs/ranges; nothing else gets in. To block a few addresses and let everyone else in, put the deny rules first and end with { type: "allow", value: "all" }
 - Order matters: deny all before allow 203.0.113.7 blocks 203.0.113.7 too
-- ipRuleWarnings in every access list response lists the rules that cannot change the outcome: kind "shadowed" (an earlier rule, coveredByIndex, matches every address the rule matches, so it never matches) and kind "no_effect" (a deny rule no later rule allows, so those addresses are denied anyway). Indexes are 0-based; the console numbers rules from 1. Only single-rule coverage is detected
+- ipRuleWarnings in every access list response lists the rules that cannot change the outcome: kind "shadowed" (an earlier rule, coveredByIndex, matches every address the rule matches, so it never matches) and kind "no_effect" (a deny rule no later rule allows, so those addresses are denied anyway). Indexes are 0-based, and the message names the same 0-based indexes ("the rule at index 1"); the console numbers rules from 1 ("rule 2"). Only single-rule coverage is detected
 
 ## Basic Authentication
 - basicAuthEnabled: true to enable HTTP basic auth

@@ -74,6 +74,7 @@ export * from './pages.js';
 export * from './permission-group-folders.js';
 export * from './permission-groups.js';
 export * from './pki-folders.js';
+export * from './pki-revoked-serials.js';
 export * from './proxy-additional-routes.js';
 export * from './proxy-additional-secure-links.js';
 export * from './proxy-host-folders.js';

@@ -191,7 +191,7 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'issue_certificate',
     description:
-      'Issue a new PKI certificate from a CA. Returns the certificate. To use it with ingress routes, you must then import it as an SSL certificate using link_internal_cert.',
+      'Issue a new PKI certificate from a CA. Returns the certificate. A TLS server certificate serves an ingress route either directly (internalCertificateId on create_route or update_route) or after link_internal_cert imports it as an SSL certificate (its sslCertificateId).',
     parameters: {
       type: 'object',
       properties: {
@@ -264,6 +264,22 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
           ],
           description: 'RFC 5280 revocation reason (default: unspecified)',
         },
+      },
+      required: ['certificateId'],
+    },
+    destructive: true,
+    category: 'PKI - Certificates',
+    requiredScope: 'pki:cert:revoke',
+    invalidateStores: ['certificates', 'ca'],
+  },
+  {
+    name: 'delete_certificate',
+    description:
+      'Permanently delete a PKI certificate that no longer works: revoked, or past its expiry. A valid certificate is refused with CERT_STILL_VALID: revoke it first (revoke_certificate), after the user confirmed. A revoked certificate deleted before it expires stays on its CA CRL until then (keptOnCrlUntil), so deleting never makes it valid again. Refused with CERT_IN_USE while a route uses it as internalCertificateId or an SSL certificate is linked from it (details.routes, details.sslCertificates: move those first), and with SYSTEM_CERT for system certificates. Needs pki:cert:revoke on the certificate; audited as cert.delete.',
+    parameters: {
+      type: 'object',
+      properties: {
+        certificateId: { type: 'string', description: 'Certificate UUID to delete' },
       },
       required: ['certificateId'],
     },

@@ -182,6 +182,41 @@ export const GITLAB_AI_TOOLS: AIToolDefinition[] = [
     invalidateStores: [],
   },
   {
+    name: 'gitlab_create_branch',
+    description:
+      'Create a branch in a GitLab project at ref (a branch, tag or commit SHA; the project default branch when omitted) without a commit, for example to commit to it with gitlab_commit_files and build it. An existing branch is never moved (GITLAB_BRANCH_EXISTS). A personal GitLab authorization needs Developer access. Requires the exact connectorId UUID from gitlab_list_connectors or a prior GitLab project result.',
+    parameters: {
+      type: 'object',
+      properties: {
+        ...projectSelector,
+        branch: { type: 'string', description: 'Name of the new branch.' },
+        ref: { type: 'string', description: 'Branch, tag or commit SHA to start from; default branch when omitted.' },
+      },
+      required: ['connectorId', 'project', 'branch'],
+    },
+    destructive: true,
+    category: 'GitLab',
+    requiredScope: 'integrations:gitlab:repo:write',
+    invalidateStores: [],
+  },
+  {
+    name: 'gitlab_delete_branch',
+    description:
+      'Delete a branch of a GitLab project after explicit approval. The default branch is refused (GITLAB_DEFAULT_BRANCH) and GitLab refuses protected branches; a missing one answers GITLAB_BRANCH_NOT_FOUND. A personal GitLab authorization needs push access to the branch. Requires the exact connectorId UUID from gitlab_list_connectors or a prior GitLab project result.',
+    parameters: {
+      type: 'object',
+      properties: {
+        ...projectSelector,
+        branch: { type: 'string', description: 'Branch to delete.' },
+      },
+      required: ['connectorId', 'project', 'branch'],
+    },
+    destructive: true,
+    category: 'GitLab',
+    requiredScope: 'integrations:gitlab:repo:write',
+    invalidateStores: [],
+  },
+  {
     name: 'gitlab_lint_ci_config',
     description:
       'Lint GitLab CI YAML through GitLab CI lint. Returns validity, errors, warnings, and merged YAML if available.',

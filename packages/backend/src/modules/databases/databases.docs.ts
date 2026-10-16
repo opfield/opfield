@@ -107,6 +107,8 @@ export const createManagedDatabaseRoute = appRoute({
   path: '/managed',
   tags: ['Databases'],
   summary: 'Deploy a managed database instance',
+  description:
+    'With `availability` (several servers) the create waits until every server took its part, about 90 s at most. When a server fails, it answers 409 `AVAILABILITY_CREATE_FAILED` with the reason, but the database exists: it stays on its first server with availability off and is never deleted for the failure (`details.kept: true`; find it in the list by name). Fix the cause, then turn availability on with `POST /managed/{id}/availability`, or delete the database. Past the 90 s the create answers 201 and the setup goes on by itself.',
   request: jsonBody(CreateManagedDatabaseSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });

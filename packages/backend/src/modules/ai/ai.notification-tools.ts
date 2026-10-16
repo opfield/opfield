@@ -9,12 +9,14 @@ import {
   UpdateSiemDestinationSchema,
 } from '@/modules/audit/siem.schemas.js';
 import { ALERT_CATEGORIES } from '@/modules/notifications/notification.constants.js';
+import { listFiredAlerts } from '@/modules/notifications/notification-alert-list.js';
 import {
   createAlertRuleWithEffects,
   deleteAlertRuleWithEffects,
   updateAlertRuleWithEffects,
 } from '@/modules/notifications/notification-alert-rule.mutations.js';
 import {
+  AlertListQuerySchema,
   AlertRuleListQuerySchema,
   CreateAlertRuleSchema,
   UpdateAlertRuleSchema,
@@ -53,6 +55,7 @@ export const SIEM_NOTIFICATION_TOOL_NAMES = new Set([
 
 export const NOTIFICATION_TOOL_NAMES = new Set([
   'list_alert_rules',
+  'list_alerts',
   'get_alert_rule',
   'create_alert_rule',
   'update_alert_rule',
@@ -127,6 +130,25 @@ export async function executeNotificationTool(
           enabled: a.enabled,
           search: a.search,
         })
+      );
+    case 'list_alerts':
+      return listFiredAlerts(
+        container.resolve<DrizzleClient>(TOKENS.DrizzleClient),
+        AlertListQuerySchema.parse(
+          definedFields({
+            page: agentPage(a.page),
+            limit: agentPageLimit(a.limit),
+            status: a.status,
+            ruleId: a.ruleId,
+            category: a.category,
+            severity: a.severity,
+            resourceType: a.resourceType,
+            resourceId: a.resourceId,
+            since: a.since,
+            until: a.until,
+            search: a.search,
+          })
+        )
       );
     case 'get_alert_rule':
       if (!context.notifRuleService) return { error: 'Notification service not available' };

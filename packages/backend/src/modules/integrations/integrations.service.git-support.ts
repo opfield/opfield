@@ -409,6 +409,39 @@ export abstract class IntegrationsGitSupportService extends IntegrationsPersiste
     }
   }
 
+  /**
+   * Git commands against an allowed generic Git repository without a checkout (ls-remote, push of a ref deletion):
+   * the same credential handling as withGenericGitCheckout, run in an empty temporary directory. Commands name the
+   * repository by context.repositoryUrl.
+   */
+  protected async withGenericGitRemote<T>(
+    user: User,
+    input: { connectorId: string; repositoryUrl: string },
+    callback: (context: GenericGitExecutionContext) => Promise<T>,
+    access: 'read' | 'write' = 'read'
+  ): Promise<T> {
+    const auth = await this.resolveGitRepository(user, 'git', input.connectorId, input.repositoryUrl, access);
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'opfield-git-'));
+    const askpassPath = join(temporaryRoot, 'askpass.sh');
+    await writeFile(
+      askpassPath,
+      '#!/bin/sh\ncase "$1" in *Username*) printf "%s\\n" "$OPFIELD_GIT_USERNAME" ;; *) printf "%s\\n" "$OPFIELD_GIT_SECRET" ;; esac\n',
+      { mode: 0o700 }
+    );
+    await chmod(askpassPath, 0o700);
+    try {
+      return await callback({
+        checkoutDir: temporaryRoot,
+        askpassPath,
+        username: auth.username,
+        token: auth.token,
+        repositoryUrl: auth.repositoryUrl,
+      });
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }
+
   protected async withGenericGitCheckout<T>(
     user: User,
     input: { connectorId: string; repositoryUrl: string; ref?: string },

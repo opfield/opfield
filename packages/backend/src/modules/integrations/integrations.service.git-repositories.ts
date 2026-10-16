@@ -9,7 +9,12 @@ import { buildWhere } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { User } from '@/types.js';
 import type { GitLabConnectorListQuery } from './integrations.schemas.js';
-import { GIT_FILE_READ_LIMIT_BYTES, GIT_FILE_WRITE_LIMIT_BYTES, isPlainRecord } from './integrations.service.core.js';
+import {
+  type ConnectorRow,
+  GIT_FILE_READ_LIMIT_BYTES,
+  GIT_FILE_WRITE_LIMIT_BYTES,
+  isPlainRecord,
+} from './integrations.service.core.js';
 import { invalidateGitHubRepositoryOwners } from './integrations.service.git-support.js';
 import {
   IntegrationsGitHubScopeTargetService,
@@ -201,6 +206,109 @@ export abstract class IntegrationsGitRepositoryService extends IntegrationsGitHu
         protected: branch.protected === true,
       };
     });
+  }
+
+  /**
+   * A new branch at fromRef (a branch, tag or commit SHA; the default branch when omitted). An existing branch is
+   * never moved: 409 GITHUB_BRANCH_EXISTS.
+   */
+  async githubCreateBranch(
+    user: User,
+    input: { connectorId: string; repositoryUrl: string; branch: string; fromRef?: string }
+  ) {
+    this.assertGitHubRepositoryWrite(user, input.connectorId);
+    const context = await this.resolveGitRepository(user, 'github', input.connectorId, input.repositoryUrl, 'write');
+    const { owner, repository } = this.githubRepositoryIdentity(context.repositoryUrl);
+    const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`;
+    const branch = this.gitRefName(input.branch);
+    const fromRef = input.fromRef?.trim()
+      ? this.gitRefName(input.fromRef)
+      : await this.githubDefaultBranch(context.connector, context.token, base);
+    const commitResponse = await this.githubConnectorRequest(
+      context.connector,
+      context.token,
+      `${base}/commits/${encodeURIComponent(fromRef)}`
+    );
+    const commit = (await commitResponse.json().catch(() => null)) as unknown;
+    if (commitResponse.status === 404 || commitResponse.status === 422) {
+      throw new AppError(
+        404,
+        'GITHUB_REF_NOT_FOUND',
+        `${fromRef} is not a branch, tag or commit of the repository. Pass fromRef as one of them (github_list_branches lists the branches), or omit it to start from the default branch.`
+      );
+    }
+    if (!commitResponse.ok) throw this.githubRepositoryRequestError(commitResponse.status, commit);
+    const sha = isPlainRecord(commit) && typeof commit.sha === 'string' ? commit.sha : null;
+    if (!sha) throw new AppError(502, 'GITHUB_REF_UNRESOLVED', `GitHub returned no commit for ${fromRef}`);
+    const response = await this.githubConnectorRequest(context.connector, context.token, `${base}/git/refs`, {
+      method: 'POST',
+      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
+    });
+    const body = (await response.json().catch(() => null)) as unknown;
+    if (response.status === 422 && isPlainRecord(body) && /already exists/i.test(String(body.message ?? ''))) {
+      throw new AppError(
+        409,
+        'GITHUB_BRANCH_EXISTS',
+        `Branch ${branch} already exists. Use it as it is, or choose another name.`
+      );
+    }
+    if (!response.ok) throw this.githubRepositoryRequestError(response.status, body);
+    return { repositoryUrl: context.repositoryUrl, branch, fromRef, commitSha: sha };
+  }
+
+  /** Deletes a branch; the default branch is refused (GitHub also refuses protected ones). */
+  async githubDeleteBranch(user: User, input: { connectorId: string; repositoryUrl: string; branch: string }) {
+    this.assertGitHubRepositoryWrite(user, input.connectorId);
+    const context = await this.resolveGitRepository(user, 'github', input.connectorId, input.repositoryUrl, 'write');
+    const { owner, repository } = this.githubRepositoryIdentity(context.repositoryUrl);
+    const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`;
+    const branch = this.gitRefName(input.branch);
+    if (branch === (await this.githubDefaultBranch(context.connector, context.token, base))) {
+      throw new AppError(
+        409,
+        'GITHUB_DEFAULT_BRANCH',
+        `${branch} is the default branch of the repository and cannot be deleted here. Change the default branch on GitHub first.`
+      );
+    }
+    const response = await this.githubConnectorRequest(
+      context.connector,
+      context.token,
+      `${base}/git/refs/heads/${branch.split('/').map(encodeURIComponent).join('/')}`,
+      { method: 'DELETE' }
+    );
+    if (response.status === 404 || response.status === 422) {
+      const body = (await response.json().catch(() => null)) as unknown;
+      const message = isPlainRecord(body) && typeof body.message === 'string' ? body.message : '';
+      if (response.status === 404 || /does not exist|not found/i.test(message)) {
+        throw new AppError(
+          404,
+          'GITHUB_BRANCH_NOT_FOUND',
+          `Branch ${branch} does not exist (github_list_branches lists the branches)`
+        );
+      }
+      throw this.githubRepositoryRequestError(response.status, body);
+    }
+    if (!response.ok) {
+      throw this.githubRepositoryRequestError(response.status, await response.json().catch(() => null));
+    }
+    return { repositoryUrl: context.repositoryUrl, branch, deleted: true };
+  }
+
+  private assertGitHubRepositoryWrite(user: User, connectorId: string): void {
+    if (!principalHasGitScopeOnConnector(user, 'integrations:github:repo:write', connectorId)) {
+      throw new AppError(403, 'PERMISSION_DENIED', 'GitHub repository write scope is required', {
+        requiredScope: 'integrations:github:repo:write',
+      });
+    }
+  }
+
+  private async githubDefaultBranch(connector: ConnectorRow, token: string, base: string): Promise<string> {
+    const response = await this.githubConnectorRequest(connector, token, base);
+    const body = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok) throw this.githubRepositoryRequestError(response.status, body);
+    const defaultBranch = isPlainRecord(body) && typeof body.default_branch === 'string' ? body.default_branch : null;
+    if (!defaultBranch) throw new AppError(502, 'GITHUB_DEFAULT_BRANCH_UNKNOWN', 'GitHub returned no default branch');
+    return defaultBranch;
   }
 
   async githubListWorkflowRuns(
@@ -461,6 +569,95 @@ export abstract class IntegrationsGitRepositoryService extends IntegrationsGitHu
       .slice(0, 500)
       .map((match) => ({ sha: match[1], ref: match[2] }));
     return { repositoryUrl, refs };
+  }
+
+  /**
+   * A new branch at fromRef (a branch or tag; the default branch when omitted), pushed only if no branch of that
+   * name exists: an existing branch is never moved (409 GIT_BRANCH_EXISTS).
+   */
+  async gitCreateBranch(
+    user: User,
+    input: { connectorId: string; repositoryUrl: string; branch: string; fromRef?: string }
+  ) {
+    this.assertGenericGitRepositoryWrite(user, input.connectorId);
+    const branch = this.gitRefName(input.branch);
+    const fromRef = input.fromRef?.trim() ? this.gitRefName(input.fromRef) : undefined;
+    const exists = await this.withGenericGitRemote(
+      user,
+      input,
+      async (context) =>
+        (
+          await this.runGit(['ls-remote', '--heads', '--', context.repositoryUrl, `refs/heads/${branch}`], context)
+        ).stdout.trim() !== '',
+      'write'
+    );
+    if (exists) {
+      throw new AppError(
+        409,
+        'GIT_BRANCH_EXISTS',
+        `Branch ${branch} already exists. Use it as it is, or choose another name.`
+      );
+    }
+    return this.withGenericGitCheckout(
+      user,
+      { ...input, ref: fromRef },
+      async (context) => {
+        const commitSha = (await this.runGit(['rev-parse', 'HEAD'], context)).stdout.trim();
+        // The lease with no expected value pushes only while the branch does not exist.
+        await this.runGit(
+          ['push', `--force-with-lease=refs/heads/${branch}:`, 'origin', `HEAD:refs/heads/${branch}`],
+          context
+        );
+        return { repositoryUrl: context.repositoryUrl, branch, fromRef: fromRef ?? null, commitSha };
+      },
+      'write'
+    );
+  }
+
+  /** Deletes a branch of an allowed generic Git repository; the default branch (the remote HEAD) is refused. */
+  async gitDeleteBranch(user: User, input: { connectorId: string; repositoryUrl: string; branch: string }) {
+    this.assertGenericGitRepositoryWrite(user, input.connectorId);
+    const branch = this.gitRefName(input.branch);
+    return this.withGenericGitRemote(
+      user,
+      input,
+      async (context) => {
+        const advertised = (
+          await this.runGit(
+            ['ls-remote', '--symref', '--', context.repositoryUrl, 'HEAD', `refs/heads/${branch}`],
+            context
+          )
+        ).stdout;
+        const lines = advertised.split('\n');
+        if (lines.includes(`ref: refs/heads/${branch}\tHEAD`)) {
+          throw new AppError(
+            409,
+            'GIT_DEFAULT_BRANCH',
+            `${branch} is the default branch of the repository and cannot be deleted here. Change the default branch on the Git host first.`
+          );
+        }
+        if (!lines.some((line) => line.endsWith(`\trefs/heads/${branch}`))) {
+          throw new AppError(
+            404,
+            'GIT_BRANCH_NOT_FOUND',
+            `Branch ${branch} does not exist (git_list_remote_refs lists the branches)`
+          );
+        }
+        // push needs a repository to run in, even to delete a remote ref.
+        await this.runGit(['init', '-q'], context);
+        await this.runGit(['push', '--', context.repositoryUrl, `:refs/heads/${branch}`], context);
+        return { repositoryUrl: context.repositoryUrl, branch, deleted: true };
+      },
+      'write'
+    );
+  }
+
+  private assertGenericGitRepositoryWrite(user: User, connectorId: string): void {
+    if (!principalHasGitScopeOnConnector(user, 'integrations:git:repo:write', connectorId)) {
+      throw new AppError(403, 'PERMISSION_DENIED', 'Git repository write scope is required', {
+        requiredScope: 'integrations:git:repo:write',
+      });
+    }
   }
 
   async gitListRepositoryTree(

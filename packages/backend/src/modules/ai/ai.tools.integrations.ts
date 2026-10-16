@@ -193,7 +193,7 @@ export const INTEGRATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'github_upsert_repository_file',
     description:
-      'Create or update one text file up to 512 KiB in an allowed GitHub repository. Use for an explicitly requested, approved repository or CI configuration change.',
+      'Create or update one text file up to 512 KiB on an existing branch of an allowed GitHub repository (github_create_branch makes a new one). Use for an explicitly requested, approved repository or CI configuration change.',
     parameters: {
       type: 'object',
       properties: {
@@ -213,6 +213,52 @@ export const INTEGRATION_AI_TOOLS: AIToolDefinition[] = [
     effect: 'write',
     approvalClass: 'update',
     historyRetention: { mode: 'never_full' },
+  },
+  {
+    name: 'github_create_branch',
+    description:
+      'Create a branch in an allowed GitHub repository at fromRef (a branch, tag or commit SHA; the default branch when omitted), for example to commit to it with github_upsert_repository_file and build it. An existing branch is never moved (GITHUB_BRANCH_EXISTS). Use after explicit approval.',
+    parameters: {
+      type: 'object',
+      properties: {
+        connectorId: { type: 'string' },
+        repositoryUrl: { type: 'string' },
+        branch: { type: 'string', description: 'Name of the new branch' },
+        fromRef: {
+          type: 'string',
+          description: 'Branch, tag or commit SHA to start from; default branch when omitted',
+        },
+      },
+      required: ['connectorId', 'repositoryUrl', 'branch'],
+    },
+    destructive: true,
+    category: 'GitHub',
+    requiredScope: 'integrations:github:repo:write',
+    invalidateStores: ['integrations'],
+    effect: 'write',
+    approvalClass: 'create',
+    historyRetention: { mode: 'persistent_context' },
+  },
+  {
+    name: 'github_delete_branch',
+    description:
+      'Delete a branch of an allowed GitHub repository after explicit approval. The default branch is refused (GITHUB_DEFAULT_BRANCH) and GitHub refuses protected branches; a missing one answers GITHUB_BRANCH_NOT_FOUND.',
+    parameters: {
+      type: 'object',
+      properties: {
+        connectorId: { type: 'string' },
+        repositoryUrl: { type: 'string' },
+        branch: { type: 'string', description: 'Branch to delete' },
+      },
+      required: ['connectorId', 'repositoryUrl', 'branch'],
+    },
+    destructive: true,
+    category: 'GitHub',
+    requiredScope: 'integrations:github:repo:write',
+    invalidateStores: ['integrations'],
+    effect: 'write',
+    approvalClass: 'delete',
+    historyRetention: { mode: 'persistent_context' },
   },
   {
     name: 'github_upsert_actions_variable',
@@ -334,6 +380,49 @@ export const INTEGRATION_AI_TOOLS: AIToolDefinition[] = [
     effect: 'write',
     approvalClass: 'update',
     historyRetention: { mode: 'never_full' },
+  },
+  {
+    name: 'git_create_branch',
+    description:
+      'Create a branch in an allowed generic Git repository at fromRef (a branch or tag; the default branch when omitted) and push it after explicit approval. An existing branch is never moved (GIT_BRANCH_EXISTS).',
+    parameters: {
+      type: 'object',
+      properties: {
+        connectorId: { type: 'string' },
+        repositoryUrl: { type: 'string' },
+        branch: { type: 'string', description: 'Name of the new branch' },
+        fromRef: { type: 'string', description: 'Branch or tag to start from; default branch when omitted' },
+      },
+      required: ['connectorId', 'repositoryUrl', 'branch'],
+    },
+    destructive: true,
+    category: 'Git',
+    requiredScope: 'integrations:git:repo:write',
+    invalidateStores: [],
+    effect: 'write',
+    approvalClass: 'create',
+    historyRetention: { mode: 'persistent_context' },
+  },
+  {
+    name: 'git_delete_branch',
+    description:
+      'Delete a branch of an allowed generic Git repository after explicit approval. The default branch (the remote HEAD) is refused (GIT_DEFAULT_BRANCH); a missing one answers GIT_BRANCH_NOT_FOUND.',
+    parameters: {
+      type: 'object',
+      properties: {
+        connectorId: { type: 'string' },
+        repositoryUrl: { type: 'string' },
+        branch: { type: 'string', description: 'Branch to delete' },
+      },
+      required: ['connectorId', 'repositoryUrl', 'branch'],
+    },
+    destructive: true,
+    category: 'Git',
+    requiredScope: 'integrations:git:repo:write',
+    invalidateStores: [],
+    effect: 'write',
+    approvalClass: 'delete',
+    historyRetention: { mode: 'persistent_context' },
   },
   {
     name: 'create_github_token_connector',

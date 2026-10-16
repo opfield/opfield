@@ -42,6 +42,35 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
     invalidateStores: [],
   },
   {
+    name: 'list_alerts',
+    description:
+      'List the alerts that fired: what is alerting now (status firing, the default) and the alert history (status resolved, kept 30 days; all for both). Newest first. Each alert has status, severity, its rule (ruleId, ruleName, ruleType, category, metric, eventPattern), the resource (resourceType, resourceId, resourceName), the message notified, firedAt, resolvedAt, durationSeconds and details (the values the rule saw). An event rule (node offline, container stopped, backup failed...) records each occurrence resolved at once, so it shows under resolved; a threshold or state rule stays firing until it resolves. Alerts fired before 2.12.3 have no resourceName or message. Same data as GET /api/notifications/alerts. Rules themselves: list_alert_rules.',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['firing', 'resolved', 'all'],
+          description: 'firing (default): alerting now; resolved: history; all: both',
+        },
+        ruleId: { type: 'string', description: 'Only the alerts of this alert rule UUID' },
+        category: { type: 'string', enum: ALERT_CATEGORY_IDS, description: 'Only rules of this category' },
+        severity: { type: 'string', enum: ['info', 'warning', 'critical'] },
+        resourceType: { type: 'string', description: 'Resource type of the alert, e.g. node, proxy, container' },
+        resourceId: { type: 'string', description: 'Resource id (or container name) of the alert' },
+        since: { type: 'string', description: 'ISO date-time: alerts fired at or after it' },
+        until: { type: 'string', description: 'ISO date-time: alerts fired at or before it' },
+        search: { type: 'string', description: 'Search rule name, resource name or id, and message' },
+        page: { type: 'number' },
+        limit: { type: 'number', description: 'Items per page (default 50, max 100)' },
+      },
+    },
+    destructive: false,
+    category: 'Notifications',
+    requiredScope: 'notifications:alerts:view',
+    invalidateStores: [],
+  },
+  {
     name: 'create_alert_rule',
     description:
       "Create a new notification alert rule. Threshold rules fire when a metric crosses a value for durationSeconds; event rules fire on events or states like node offline or an app environment failing. The metric or event must be one of the category's (manage_notifications alert_categories lists them). Example, a route 5xx share of at least 10% for one minute: category proxy, type threshold, metric error_5xx_percent, operator >=, thresholdValue 10, durationSeconds 60.",

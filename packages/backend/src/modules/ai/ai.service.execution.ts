@@ -111,6 +111,7 @@ const PAID_EXISTING_TOOLS = new Set([
   'list_certificates',
   'get_certificate',
   'revoke_certificate',
+  'delete_certificate',
 ]);
 const PAID_EXISTING_OPERATIONS: Record<string, ReadonlySet<string>> = {
   manage_template: new Set(['get']),

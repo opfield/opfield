@@ -45,6 +45,11 @@ export interface MaintenanceFlagGuardInput {
   secret: string;
   /** The maintenance page as an nginx return text. */
   pageText: string;
+  /**
+   * The allow/deny rules of the route's access list (maintenanceAccessListDirectives). The guard's locations carry
+   * them, so a client the access list denies gets 403 during maintenance as well, never the page or its state.
+   */
+  accessDirectives?: readonly string[];
 }
 
 interface TextEdit {
@@ -143,6 +148,7 @@ function overrideVariable(hostId: string, index: number): string {
 
 function serverGuard(input: MaintenanceFlagGuardInput, serverHeaders: string[]): string {
   const copied = serverHeaders.map((header) => `\n        ${header}`).join('');
+  const acl = (input.accessDirectives ?? []).map((directive) => `\n        ${directive}`).join('');
   return `
     # Opfield maintenance mode: answers only while the nginx daemon keeps ${MAINTENANCE_FLAG_DIR}/${input.hostId}.
     # Server-rewrite directives run before location selection; the guard's locations are reachable only through it.
@@ -156,14 +162,14 @@ function serverGuard(input: MaintenanceFlagGuardInput, serverHeaders: string[]):
     secure_link_md5 "\${secure_link_expires}\${host}${input.secret}";
 
     location = opfield-maintenance {
-        internal;
+        internal;${acl}
         default_type text/html;
         add_header Cache-Control "no-store" always;${copied}
         return 503 ${input.pageText};
     }
 
     location = opfield-maintenance-access {
-        internal;
+        internal;${acl}
         add_header Cache-Control "no-store" always;${copied}
         proxy_pass http://unix:/run/nginx-daemon/maintenance-access.sock:/redeem/${input.hostId};
         proxy_set_header Host $host;
@@ -176,7 +182,7 @@ function serverGuard(input: MaintenanceFlagGuardInput, serverHeaders: string[]):
     }
 
     location = opfield-maintenance-status {
-        internal;
+        internal;${acl}
         default_type application/json;
         add_header Cache-Control "no-store" always;
         add_header X-Content-Type-Options "nosniff" always;

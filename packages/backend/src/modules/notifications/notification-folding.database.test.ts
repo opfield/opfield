@@ -6,6 +6,8 @@ import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
 import type { OutboundWebhookFetchResponse } from '@/modules/settings/outbound-webhook-request.js';
+import { listFiredAlerts } from './notification-alert-list.js';
+import { AlertListQuerySchema } from './notification-alert-rule.schemas.js';
 import { NotificationDispatcherService } from './notification-dispatcher.service.js';
 import { NotificationEvaluatorService } from './notification-evaluator.service.js';
 import { OPFIELD_OUTBOUND_RESOURCE_ID, OpfieldOutboundMonitor } from './opfield-outbound-monitor.js';
@@ -151,6 +153,42 @@ describe.skipIf(!url)('Alert folding on disposable PostgreSQL', () => {
         messageTemplate: null,
         resolveMessageTemplate: null,
       }));
+  });
+
+  it('lists what fires now and the history with the resource name and message (list_alerts, X-O-19)', async () => {
+    const list = (query: Record<string, unknown> = {}) => listFiredAlerts(db, AlertListQuerySchema.parse(query));
+    await node('offline');
+    // A row from before 2.12.3 has no name or message and is listed with its resource id.
+    await q(
+      `insert into notification_alert_states (rule_id, resource_type, resource_id, status, severity, fired_at, resolved_at)
+       values ($1, 'node', 'old-node', 'resolved', 'critical', now() - interval '2 days', now() - interval '1 day')`,
+      [rules[0].id]
+    );
+
+    const firing = await list();
+    expect(firing.total).toBe(1);
+    expect(firing.data[0]).toMatchObject({
+      status: 'firing',
+      ruleName: 'Node down',
+      category: 'node',
+      resourceType: 'node',
+      resourceId: nodeId,
+      resourceName: 'node-1',
+      message: 'Node down: node-1',
+      resolvedAt: null,
+    });
+
+    await node('online');
+    expect((await list()).total).toBe(0);
+    const history = await list({ status: 'resolved' });
+    expect(history.data.map((alert) => [alert.resourceId, alert.resourceName])).toEqual([
+      [nodeId, 'node-1'],
+      ['old-node', null],
+    ]);
+    expect((await list({ status: 'all', search: 'node-1' })).total).toBe(1);
+    expect((await list({ status: 'all', category: 'proxy' })).total).toBe(0);
+    expect((await list({ status: 'all', since: new Date(Date.now() - 60_000).toISOString() })).total).toBe(1);
+    expect((await list({ status: 'all', ruleId: rules[0].id, severity: 'critical' })).total).toBe(2);
   });
 
   it('folds a route alert under its node being down and resolves it with the node', async () => {

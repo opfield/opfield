@@ -217,7 +217,7 @@ export function availabilityRouteDocs(input: AvailabilityDocsInput) {
       path: `${base}/availability`,
       tags: [tag],
       summary: `Run a ${noun} on several servers`,
-      description: `Turns availability on: the ${noun} keeps serving from its server, the copies are seeded in the background (202). Refused with 409 \`AVAILABILITY_PREFLIGHT_FAILED\` and the blockers. \`manual: true\` makes a replicated pair of exactly two servers without automatic failover. Needs ${editScope}. ${license('current')}`,
+      description: `Turns availability on: the ${noun} keeps serving from its server, the copies are seeded in the background (202). Refused with 409 \`AVAILABILITY_PREFLIGHT_FAILED\` and the blockers, and with 409 \`AVAILABILITY_OPERATION_PENDING\` while another availability operation runs (\`details.kind\`, \`details.step\`: wait until the availability view shows no \`operation\`, then retry); every changing availability route and the delete of the ${noun} answer the same. \`manual: true\` makes a replicated pair of exactly two servers without automatic failover. Needs ${editScope}. ${license('current')}`,
       request: { params, ...jsonBody(ManagedAvailabilityEnableSchema) },
       responses: {
         202: {

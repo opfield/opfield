@@ -39,12 +39,12 @@ Connectors store an encrypted credential and are never returned with it. GitLab 
 ## GitHub
 - Create: \`create_github_token_connector({ name, baseUrl, token })\` for a personal access token; the OAuth Device Flow runs in the Console only.
 - Read (\`integrations:github:repo:read\`): \`github_list_connectors\`, \`github_list_repositories\`, \`github_list_repository_tree\`, \`github_read_repository_file\`, \`github_list_branches\`, \`github_list_workflow_runs\`, \`github_list_actions_secrets\` (names only).
-- Write (\`integrations:github:repo:write\`, each after explicit approval): \`github_upsert_repository_file\` (one file, existing branch), \`github_upsert_actions_variable\`, \`github_upsert_actions_secret\`. \`github_list_actions_variables\` returns values, so it needs repo:write too.
+- Write (\`integrations:github:repo:write\`, each after explicit approval): \`github_create_branch({ connectorId, repositoryUrl, branch, fromRef? })\` (from a branch, tag or commit; the default branch when omitted; an existing branch is never moved), \`github_upsert_repository_file\` (one file, existing branch), \`github_delete_branch\` (never the default branch; GitHub refuses protected ones), \`github_upsert_actions_variable\`, \`github_upsert_actions_secret\`. For "make your own branch and deploy it": create the branch, commit to it, point the source at it, and delete the branch when the user is done with it. \`github_list_actions_variables\` returns values, so it needs repo:write too.
 
 ## Generic Git (HTTPS)
 - Create: \`create_git_connector({ name, baseUrl, repositoryUrls, username, token })\`; only the listed repositories are reachable.
 - Read (\`integrations:git:repo:read\`): \`git_list_connectors\`, \`git_list_remote_refs\`, \`git_list_repository_tree\`, \`git_read_repository_file\` (text up to 256 KiB).
-- Write (\`integrations:git:repo:write\`): \`git_upsert_repository_file({ connectorId, repositoryUrl, path, branch, message, content })\` commits one text file to an existing branch and pushes it after explicit approval.
+- Write (\`integrations:git:repo:write\`, after explicit approval): \`git_create_branch({ connectorId, repositoryUrl, branch, fromRef? })\` pushes a new branch (from a branch or tag; the default branch when omitted; never moves an existing one), \`git_upsert_repository_file({ connectorId, repositoryUrl, path, branch, message, content })\` commits one text file to an existing branch and pushes it, \`git_delete_branch\` deletes a branch (never the remote's default branch).
 - Git scopes can be limited to a connector, a GitHub owner or a repository (see SCOPES.md, Git Integration Restrictions).
 
 ## External SSH

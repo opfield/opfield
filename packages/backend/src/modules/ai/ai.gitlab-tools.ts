@@ -13,6 +13,8 @@ export const GITLAB_TOOL_NAMES = new Set([
   'gitlab_list_repository_tree',
   'gitlab_read_file',
   'gitlab_commit_files',
+  'gitlab_create_branch',
+  'gitlab_delete_branch',
   'gitlab_lint_ci_config',
   'gitlab_update_ci_config',
   'gitlab_list_pipelines',
@@ -85,6 +87,15 @@ export async function executeGitLabTool(
         offset: optionalNumber(a.offset),
         length: optionalNumber(a.length),
       });
+    case 'gitlab_create_branch':
+      return service.gitLabCreateBranch(user, {
+        connectorId,
+        project,
+        branch: stringArg(a.branch),
+        ref: optionalString(a.ref),
+      });
+    case 'gitlab_delete_branch':
+      return service.gitLabDeleteBranch(user, { connectorId, project, branch: stringArg(a.branch) });
     case 'gitlab_commit_files':
       return service.gitLabCommitFiles(user, {
         connectorId,

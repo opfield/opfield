@@ -18,6 +18,8 @@ export const GITLAB_AUDIT_ACTIONS = {
   repositoryTree: 'connector.gitlab.repository.tree',
   fileRead: 'connector.gitlab.file.read',
   fileCommit: 'connector.gitlab.file.commit',
+  branchCreate: 'connector.gitlab.branch.create',
+  branchDelete: 'connector.gitlab.branch.delete',
   ciLint: 'connector.gitlab.ci.lint',
   ciUpdate: 'connector.gitlab.ci.update',
   pipelineRead: 'connector.gitlab.pipeline.read',

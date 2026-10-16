@@ -14,6 +14,7 @@ import { registerResourceFolderRoutes } from '@/modules/resource-folders/resourc
 import { CAService } from './ca.service.js';
 import {
   certificateChainRoute,
+  deleteCertificateRoute,
   exportCertificateRoute,
   getCertificateRoute,
   issueCertificateFromCSRRoute,
@@ -59,6 +60,7 @@ export const certRouteRuntime = {
   issueCertificateRoute,
   listCertificatesRoute,
   revokeCertificateRoute,
+  deleteCertificateRoute,
   CertificateListQuerySchema,
   ExportCertificateQuerySchema,
   IssueCertFromCSRSchema,

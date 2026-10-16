@@ -167,6 +167,17 @@ interface PostgresOutage {
 }
 
 type AlertStateRow = typeof notificationAlertStates.$inferSelect;
+
+/** What list_alerts shows of a fired alert: the resource's name and the message notified, cut to their columns. */
+function alertStateLabels(
+  resourceName: string | null | undefined,
+  message: string | null | undefined
+): { resourceName: string | null; message: string | null } {
+  return {
+    resourceName: resourceName ? String(resourceName).slice(0, 255) : null,
+    message: message ? String(message).slice(0, 4000) : null,
+  };
+}
 type ResourceKind =
   | 'node'
   | 'proxy'
@@ -725,6 +736,7 @@ export class NotificationEvaluatorService {
             ruleId: alert.rule.id,
             resourceType: 'opfield',
             resourceId: OPFIELD_POSTGRES_RESOURCE_ID,
+            ...alertStateLabels('Postgres', alert.event.message),
             status: 'resolved',
             severity: alert.rule.severity,
             firedAt: new Date(alert.firedAt),
@@ -1959,6 +1971,7 @@ export class NotificationEvaluatorService {
           ruleId: rule.id,
           resourceType,
           resourceId: resourceKey,
+          ...alertStateLabels(resourceName, event.message),
           status: 'firing',
           severity: rule.severity,
           context: parent ? { ...details, folded: parent } : details,
@@ -2393,6 +2406,7 @@ export class NotificationEvaluatorService {
           ruleId: rule.id,
           resourceType,
           resourceId: resourceKey,
+          ...alertStateLabels(resourceName, message),
           status: 'resolved',
           severity: rule.severity,
           context: details,

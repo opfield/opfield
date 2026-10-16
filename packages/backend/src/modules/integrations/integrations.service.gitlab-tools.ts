@@ -281,6 +281,20 @@ export class IntegrationsGitLabToolService extends IntegrationsCloudflareService
   ): Promise<import('./integration-provider.types.js').VcsFileReadResult> {
     return commercialModuleUnavailable();
   }
+  /** A new branch at ref (a branch, tag or commit SHA; the project's default branch when omitted). */
+  async gitLabCreateBranch(
+    _user: User,
+    _input: { connectorId: string; project: string; branch: string; ref?: string }
+  ): Promise<{ project: string; branch: string; ref: string; commitSha: string | null }> {
+    return commercialModuleUnavailable();
+  }
+  /** Deletes a branch; the default branch and protected branches are refused. */
+  async gitLabDeleteBranch(
+    _user: User,
+    _input: { connectorId: string; project: string; branch: string }
+  ): Promise<{ project: string; branch: string; deleted: true }> {
+    return commercialModuleUnavailable();
+  }
   async gitLabCommitFiles(
     _user: User,
     _input: {

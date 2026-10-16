@@ -828,7 +828,8 @@ export abstract class ProxyServiceCore {
         ? this.nginxTemplateService.applyMaintenanceFlagGuard(
             rendered,
             { hostId: host.id, secret: this.maintenanceAccess.secretForHost(host.id) },
-            hideExternalBranding
+            hideExternalBranding,
+            accessList
           )
         : null;
     let result = flagGuard ?? rendered;
@@ -837,7 +838,7 @@ export abstract class ProxyServiceCore {
         !lockdown && this.maintenanceAccess && (await this.maintenanceAccess.isNodeSupported(host.nodeId))
           ? { hostId: host.id, secret: this.maintenanceAccess.secretForHost(host.id) }
           : undefined;
-      result = this.nginxTemplateService.applyMaintenanceGuard(rendered, access, hideExternalBranding);
+      result = this.nginxTemplateService.applyMaintenanceGuard(rendered, access, hideExternalBranding, accessList);
     }
     // A node whose daemon serves the links on loopback TCP gets them there: a cut stream then ends with a reset,
     // which nginx reports, instead of the clean end a Unix socket gives (secure-link-loopback.ts). Rendered per node:
