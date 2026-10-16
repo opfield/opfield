@@ -91,16 +91,50 @@ export interface DockerFileUploadSession {
 const uploadSessions = new Map<string, DockerFileUploadSession>();
 const DOCKER_FILE_UPLOAD_SESSION_TTL_MS = 30 * 60 * 1000;
 
-function cleanupExpiredUploadSessions(now = Date.now()) {
+/**
+ * An expired session's temp file (up to the upload limit) would stay inside the container: the node is told to
+ * remove it. A node that is offline then removes it on the next upload into that directory.
+ */
+function abortExpiredUpload(context: DockerReadOperationContext, session: DockerFileUploadSession) {
+  void Promise.resolve()
+    .then(() =>
+      context.nodeDispatch.sendDockerFileCommand(session.nodeId, 'upload-abort', {
+        containerId: session.containerId,
+        path: session.uploadId,
+        targetPath: session.path,
+      })
+    )
+    .catch(() => undefined);
+}
+
+function cleanupExpiredUploadSessions(context: DockerReadOperationContext, now = Date.now()) {
   for (const [uploadId, session] of uploadSessions) {
     if (session.expiresAt <= now) {
       uploadSessions.delete(uploadId);
+      abortExpiredUpload(context, session);
     }
   }
 }
 
-function getUploadSession(uploadId: string) {
-  cleanupExpiredUploadSessions();
+/** Aborts the session once it expired, also when no other upload comes to clean it up. */
+function scheduleUploadSessionExpiry(context: DockerReadOperationContext, session: DockerFileUploadSession) {
+  const timer = setTimeout(
+    () => {
+      if (uploadSessions.get(session.uploadId) !== session) return;
+      if (session.expiresAt > Date.now()) {
+        scheduleUploadSessionExpiry(context, session);
+        return;
+      }
+      uploadSessions.delete(session.uploadId);
+      abortExpiredUpload(context, session);
+    },
+    Math.max(0, session.expiresAt - Date.now()) + 1000
+  );
+  timer.unref?.();
+}
+
+function getUploadSession(context: DockerReadOperationContext, uploadId: string) {
+  cleanupExpiredUploadSessions(context);
   const session = uploadSessions.get(uploadId);
   if (!session) {
     throw new AppError(404, 'UPLOAD_NOT_FOUND', 'Upload session not found or expired');
@@ -242,7 +276,7 @@ export async function initFileUpload(
   userId: string,
   uploadId = randomUUID()
 ) {
-  cleanupExpiredUploadSessions();
+  cleanupExpiredUploadSessions(context);
   const result = await context.nodeDispatch.sendDockerFileCommand(nodeId, 'upload-init', {
     containerId,
     path: uploadId,
@@ -250,7 +284,7 @@ export async function initFileUpload(
     maxBytes: totalBytes,
   });
   context.parseResult(result);
-  uploadSessions.set(uploadId, {
+  const session: DockerFileUploadSession = {
     uploadId,
     nodeId,
     containerId,
@@ -259,7 +293,9 @@ export async function initFileUpload(
     expectedOffset: 0,
     userId,
     expiresAt: Date.now() + DOCKER_FILE_UPLOAD_SESSION_TTL_MS,
-  });
+  };
+  uploadSessions.set(uploadId, session);
+  scheduleUploadSessionExpiry(context, session);
   return { uploadId, chunkSize: DOCKER_FILE_UPLOAD_CHUNK_BYTES };
 }
 
@@ -271,7 +307,7 @@ export async function appendFileUploadChunk(
   offset: number,
   content: Buffer
 ) {
-  const session = getUploadSession(uploadId);
+  const session = getUploadSession(context, uploadId);
   assertUploadSessionScope(session, nodeId, containerId);
   if (offset !== session.expectedOffset) {
     throw new AppError(
@@ -312,7 +348,7 @@ export async function completeFileUpload(
   path: string,
   totalBytes: number
 ) {
-  const session = getUploadSession(uploadId);
+  const session = getUploadSession(context, uploadId);
   assertUploadSessionScope(session, nodeId, containerId);
   if (path !== session.path || totalBytes !== session.totalBytes) {
     throw new AppError(400, 'UPLOAD_MISMATCH', 'Upload completion does not match upload session');
