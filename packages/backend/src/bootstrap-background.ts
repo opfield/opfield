@@ -580,10 +580,9 @@ export async function initializeBackgroundServices(): Promise<void> {
   scheduler.register('housekeeping', hkConfig.cronExpression, () => housekeepingJob.run());
   scheduler.registerInterval('clickhouse-health-guard', 5 * 60 * 1000, async () => {
     const config = await housekeepingService.getConfig();
-    await loggingMaintenanceService.runGuard(
-      config.enabled ? config.structuredLogs : undefined,
-      config.enabled ? config.clickHouseInternals : undefined
-    );
+    // A safety cap, not a scheduled cleanup: each category's own switch decides, the Housekeeping master switch
+    // (which stops the nightly run) does not, so turning Housekeeping off does not let ClickHouse fill its disk.
+    await loggingMaintenanceService.runGuard(config.structuredLogs, config.clickHouseInternals);
     await notifEvaluatorService.evaluateLoggingRatios();
   });
 

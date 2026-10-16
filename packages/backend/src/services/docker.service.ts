@@ -1248,7 +1248,9 @@ export interface DockerContainerDetails {
   Config: { Image: string; Labels?: Record<string, string>; Env?: string[] };
   State: { Status: string; Running: boolean; Paused?: boolean; Health?: { Status?: string } };
   Mounts?: Array<{ Type: string; Name?: string; Source?: string; Destination: string; RW?: boolean }>;
-  HostConfig?: { NetworkMode?: string };
+  HostConfig?: { NetworkMode?: string; LogConfig?: { Type?: string; Config?: Record<string, string> } };
+  /** Host path of the json-file log; empty for other log drivers. */
+  LogPath?: string;
 }
 
 export interface DockerVolumeInspect {

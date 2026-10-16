@@ -26,6 +26,13 @@ import {
   fetchLatestOpenCodexTag,
   fetchOpenCodexImageManifest,
 } from './inference-core.manifest.js';
+import {
+  CORE_USAGE_LOG_KEEP_BYTES,
+  CORE_USAGE_LOG_MAX_BYTES,
+  trimFileScript,
+  UNROTATED_CORE_LOG_KEEP_BYTES,
+  UNROTATED_CORE_LOG_MAX_BYTES,
+} from './inference-core-disk-bound.js';
 import { type CoreLayout, inferenceCoreLayout } from './inference-core-layout.js';
 import {
   INFERENCE_CORE_CHANGED_CHANNEL,
@@ -53,6 +60,10 @@ const CORE_BACKUP_TIMEOUT_MS = 15_000;
 const CORE_IMAGE_SHELL: Pick<DockerCreateContainerConfig, 'Entrypoint'> = { Entrypoint: ['/bin/sh', '-c'] };
 const CORE_BACKUP_KEEP = 3;
 const HEALTH_PROBE_INTERVAL_MS = 60_000;
+/** The core's container log rotates like the Opfield stack's services. */
+const CORE_LOG_CONFIG = { Type: 'json-file', Config: { 'max-size': '50m', 'max-file': '3' } };
+/** How often the core's disk use is bounded (usage ledger, a container log created before rotation). */
+const CORE_DISK_BOUND_INTERVAL_MS = 60 * 60_000;
 
 const LABEL_OWNED = 'com.wiolett.inference-core.owned';
 const LABEL_PROJECT = 'com.wiolett.inference-core.project';
@@ -141,6 +152,8 @@ export function redactedCoreError(error: unknown): string {
 @injectable()
 export class InferenceCoreRuntimeService {
   private healthProbeTimer: NodeJS.Timeout | null = null;
+  /** When boundCoreDiskUse last ran (ms); the first health probe after a start runs it. */
+  private diskBoundAt = 0;
   private observedRequestLimits: { digest: string; supported: boolean } | null = null;
 
   constructor(
@@ -584,6 +597,7 @@ export class InferenceCoreRuntimeService {
           MemorySwap: CORE_MEMORY_BYTES,
           Tmpfs: { '/tmp': 'rw,noexec,nosuid,size=64m' },
           RestartPolicy: { Name: 'unless-stopped' },
+          LogConfig: CORE_LOG_CONFIG,
         },
       },
       layout.containerName
@@ -1124,8 +1138,54 @@ export class InferenceCoreRuntimeService {
       if (!row?.containerName) return;
       const layout = await this.discoverLayout();
       await this.probeHealth(layout);
+      if (Date.now() - this.diskBoundAt >= CORE_DISK_BOUND_INTERVAL_MS) {
+        this.diskBoundAt = Date.now();
+        await this.boundCoreDiskUse(layout);
+      }
     } catch (error) {
       logger.debug('Core health probe failed', { error: redactedCoreError(error) });
+    }
+  }
+
+  /**
+   * Keeps what the running core writes bounded: usage.jsonl in its state volume, and the container log of a core
+   * created before Opfield set its log rotation (Docker cannot add it without recreating the container; the next
+   * update or repair does). Runs only while the core is ready, in one-shot containers of the installed image.
+   */
+  private async boundCoreDiskUse(layout: CoreLayout): Promise<void> {
+    const row = await this.loadStateRow();
+    if (row?.state !== 'ready' || !row.installedImageRef || !row.containerId) return;
+    const imageRef = row.installedImageRef;
+    const usage = await this.docker.runOneShot({
+      Image: imageRef,
+      User: '0',
+      Labels: { [LABEL_OWNED]: 'true', [LABEL_PROJECT]: layout.project, [LABEL_ROLE]: ROLE_HELPER },
+      HostConfig: { Binds: [`${layout.stateVolume}:/state`], NetworkMode: 'none' },
+      ...CORE_IMAGE_SHELL,
+      Cmd: [trimFileScript('/state/usage.jsonl', CORE_USAGE_LOG_MAX_BYTES, CORE_USAGE_LOG_KEEP_BYTES, 'replace')],
+    });
+    if (usage.exitCode === 0 && usage.output.includes('trimmed')) {
+      logger.info('Trimmed the inference core usage ledger to its newest part', { output: usage.output.trim() });
+    }
+    const details = await this.docker.inspectContainerDetails(row.containerId);
+    const logConfig = details?.HostConfig?.LogConfig;
+    const logPath = details?.LogPath;
+    if (!logPath || logConfig?.Type !== 'json-file' || logConfig.Config?.['max-size']) return;
+    const directory = logPath.slice(0, logPath.lastIndexOf('/'));
+    const file = logPath.slice(logPath.lastIndexOf('/') + 1);
+    if (!directory.startsWith('/') || !/^[0-9a-f]{64}-json\.log$/.test(file)) return;
+    const cut = await this.docker.runOneShot({
+      Image: imageRef,
+      User: '0',
+      Labels: { [LABEL_OWNED]: 'true', [LABEL_PROJECT]: layout.project, [LABEL_ROLE]: ROLE_HELPER },
+      HostConfig: { Binds: [`${directory}:/logs`], NetworkMode: 'none' },
+      ...CORE_IMAGE_SHELL,
+      Cmd: [trimFileScript(`/logs/${file}`, UNROTATED_CORE_LOG_MAX_BYTES, UNROTATED_CORE_LOG_KEEP_BYTES, 'in-place')],
+    });
+    if (cut.exitCode === 0 && cut.output.includes('trimmed')) {
+      logger.info('Cut the inference core container log; the next core update gives it log rotation', {
+        output: cut.output.trim(),
+      });
     }
   }
 

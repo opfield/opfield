@@ -164,7 +164,7 @@ For Responses WebSocket clients, the socket remains usable until the client, Opf
 
 Monitor **Settings > Inference > Overview/Activity** for request/error rate, tokens, cost, account health, quota freshness, reauthentication, estimated usage, and routing failures. Alert operationally on repeated `provider_reauth_required`, `provider_rate_limited`, `provider_unavailable`, stale quota, reservation/reconciliation errors, and unexpected estimated usage.
 
-Back up the PostgreSQL inference tables with the normal database backup and preserve the encryption master key. Redis reservation state is intentionally recoverable or short-lived; the reconciliation job repairs reservation drift from PostgreSQL. Core release artifacts and container state are re-downloadable from the signed release channel and do not need backup.
+Back up the PostgreSQL inference tables with the normal database backup and preserve the encryption master key. Redis reservation state is intentionally recoverable or short-lived; the reconciliation job repairs reservation drift from PostgreSQL. Core release artifacts and container state are re-downloadable from the signed release channel and do not need backup. The core's own request ledger (`usage.jsonl` in its state volume) is cut to its newest 64 MB once it passes 128 MB, checked every hour; Opfield's usage views read Opfield's own records and are not affected.
 
 Troubleshooting:
 
