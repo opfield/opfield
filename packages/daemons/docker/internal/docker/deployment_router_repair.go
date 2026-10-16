@@ -13,6 +13,8 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	mobyclient "github.com/moby/moby/client"
+
+	"github.com/opfield/opfield/daemon-shared/logepisode"
 )
 
 // Router repair after a daemon start or a node reboot.
@@ -419,10 +421,12 @@ func (p *DockerPlugin) reconcileDeploymentRouterAddresses(ctx context.Context) {
 				return
 			}
 			upgraded, err := p.client.upgradeDeploymentRouterConfig(inspectCtx, inspect.Container)
+			subject := logepisode.Subject{Name: "deployment router address update", IDAttr: "deployment_id", ID: deploymentID}
 			if err != nil {
-				p.logger.Warn("deployment router address update failed; retried", "deployment_id", deploymentID, "error", err)
+				p.routerAddressOutcomes.Failed(p.logger, subject, "error", err)
 				return
 			}
+			p.routerAddressOutcomes.Succeeded(p.logger, subject)
 			if upgraded {
 				p.logger.Info("deployment router follows its active slot's address", "deployment_id", deploymentID, "router", members.routers[0].Name)
 			}

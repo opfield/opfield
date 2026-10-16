@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/opfield/opfield/daemon-shared/leasefence"
+	"github.com/opfield/opfield/daemon-shared/logepisode"
 )
 
 // PassInterval bounds how long a stale container, or a docker start that
@@ -40,6 +41,9 @@ type Watchdog struct {
 	lastHeartbeat time.Duration
 	problems      map[string]bool
 	orphansLogged bool
+	// outcomes logs a failure that repeats on every pass (4 per second) when it starts, every few minutes and when it
+	// ends, not on every pass: OpenRC keeps the watchdog's output in a plain file.
+	outcomes logepisode.Tracker
 }
 
 func New(cfg Config) *Watchdog {
@@ -55,8 +59,13 @@ func New(cfg Config) *Watchdog {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Watchdog{cfg: cfg, problems: map[string]bool{}}
+	return &Watchdog{cfg: cfg, problems: map[string]bool{}, outcomes: logepisode.Tracker{Errors: true}}
 }
+
+var (
+	readSubject      = logepisode.Subject{Name: "lease watchdog reading deadline records", IDAttr: "component", ID: "records"}
+	heartbeatSubject = logepisode.Subject{Name: "lease watchdog writing its heartbeat", IDAttr: "component", ID: "heartbeat"}
+)
 
 // PassResult summarizes one enforcement pass.
 type PassResult struct {
@@ -87,10 +96,11 @@ func (w *Watchdog) Pass() PassResult {
 	w.alignOwner()
 	records, problems, err := w.cfg.Dir.ReadRecords()
 	if err != nil {
-		w.cfg.Logger.Error("lease watchdog cannot read deadline records", "error", err)
+		w.outcomes.Failed(w.cfg.Logger, readSubject, "error", err)
 		result.Healthy = false
 		return result
 	}
+	w.outcomes.Succeeded(w.cfg.Logger, readSubject)
 	for _, problem := range problems {
 		if !w.problems[problem] {
 			w.problems[problem] = true
@@ -101,10 +111,12 @@ func (w *Watchdog) Pass() PassResult {
 	result.Records = len(records)
 	if len(records) > 0 && w.orphaned(records, now) {
 		for _, record := range records {
+			subject := logepisode.Subject{Name: "lease watchdog removing an orphaned deadline record", IDAttr: "container_id", ID: record.ContainerID}
 			if err := w.cfg.Dir.DeleteRecord(record.ContainerID); err != nil {
-				w.cfg.Logger.Error("lease watchdog cannot remove an orphaned deadline record", "container_id", record.ContainerID, "error", err)
+				w.outcomes.Failed(w.cfg.Logger, subject, "error", err)
 				continue
 			}
+			w.outcomes.Succeeded(w.cfg.Logger, subject)
 			result.Orphans++
 		}
 		if !w.orphansLogged {
@@ -125,9 +137,12 @@ func (w *Watchdog) Pass() PassResult {
 				continue
 			}
 			killed, killErr := w.cfg.Killer.Kill(path)
+			killSubject := logepisode.Subject{Name: "lease watchdog killing a stale cgroup", IDAttr: "cgroup", ID: path}
 			if killErr != nil {
 				result.Healthy = false
-				w.cfg.Logger.Error("lease watchdog failed to kill a stale cgroup", "container_id", record.ContainerID, "cgroup", path, "error", killErr)
+				w.outcomes.Failed(w.cfg.Logger, killSubject, "container_id", record.ContainerID, "error", killErr)
+			} else {
+				w.outcomes.Succeeded(w.cfg.Logger, killSubject)
 			}
 			if killed > 0 {
 				result.Killed += killed
@@ -167,9 +182,10 @@ func (w *Watchdog) Heartbeat(healthy bool) {
 		return
 	}
 	if err := w.cfg.Dir.WriteHeartbeat(leasefence.Heartbeat{NowNs: int64(now), PID: os.Getpid(), Build: w.cfg.Build}); err != nil {
-		w.cfg.Logger.Error("lease watchdog cannot write its heartbeat", "error", err)
+		w.outcomes.Failed(w.cfg.Logger, heartbeatSubject, "error", err)
 		return
 	}
+	w.outcomes.Succeeded(w.cfg.Logger, heartbeatSubject)
 	w.lastHeartbeat = now
 }
 

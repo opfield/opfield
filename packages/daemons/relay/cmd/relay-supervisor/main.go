@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
+	"github.com/opfield/opfield/daemon-shared/outputcap"
 	"github.com/opfield/opfield/relay-supervisor/internal/config"
 	"github.com/opfield/opfield/relay-supervisor/internal/hostnames"
 	"github.com/opfield/opfield/relay-supervisor/internal/supervisor"
@@ -65,6 +66,8 @@ func main() {
 		os.Exit(1)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel(cfg.LogLevel)}))
+	// OpenRC and manual-mode hosts append the output to a plain file: keep it bounded.
+	outputcap.Start(logger)
 	if err := supervisor.RecoverWorkerIdentity(cfg.Worker.IdentityDir); err != nil {
 		logger.Error("repair the relay worker identity", "error", err)
 	}
