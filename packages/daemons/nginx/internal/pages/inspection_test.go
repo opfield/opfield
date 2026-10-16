@@ -6,7 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 func inspectionFixture(t *testing.T) (*Runtime, *fakeNginx, []BindingExpectation) {
@@ -229,5 +232,23 @@ func BenchmarkPagesBindingInspection(b *testing.B) {
 				b.Fatal(result)
 			}
 		}
+	}
+}
+
+// A node that has not moved to the Opfield names writes its Pages configs with the pre-Opfield names; inspection must
+// still see them as matching, or Opfield republishes the binding (a new runtime-config generation) on every pass.
+func TestBindingInspectionMatchesOnNodeWithPreOpfieldNames(t *testing.T) {
+	naming.SetLegacy(true)
+	t.Cleanup(func() { naming.SetLegacy(false) })
+	r, _, expected := inspectionFixture(t)
+	content, err := os.ReadFile(r.routeIncludePath(routeID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), "gateway") {
+		t.Fatalf("route config not rendered with the pre-Opfield names: %q", content)
+	}
+	if got := r.InspectBindings(expected); !reflect.DeepEqual(got.Matches, []bool{true, true}) {
+		t.Fatalf("inspection on a pre-Opfield node: %#v", got)
 	}
 }
