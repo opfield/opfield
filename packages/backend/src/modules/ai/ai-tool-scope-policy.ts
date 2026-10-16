@@ -314,6 +314,7 @@ export const AI_TOOL_ANY_SCOPE_REQUIREMENTS: Readonly<Record<string, readonly st
   manage_inference_usage: ['feat:ai:use', 'inference:usage:view'],
   // Managing alert rules or webhooks implies viewing them.
   list_alert_rules: ['notifications:alerts:view', 'notifications:alerts:manage'],
+  list_alerts: ['notifications:alerts:view', 'notifications:alerts:manage'],
   get_alert_rule: ['notifications:alerts:view', 'notifications:alerts:manage'],
   list_webhooks: ['notifications:webhooks:view', 'notifications:webhooks:manage'],
   list_webhook_deliveries: ['notifications:webhooks:view', 'notifications:webhooks:manage'],

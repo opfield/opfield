@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, jsonb, pgTable, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 import { notificationAlertRules } from './notification-alert-rules.js';
 
 export const notificationAlertStates = pgTable(
@@ -11,6 +11,9 @@ export const notificationAlertStates = pgTable(
       .references(() => notificationAlertRules.id, { onDelete: 'cascade' }),
     resourceType: varchar('resource_type', { length: 50 }).notNull(),
     resourceId: varchar('resource_id', { length: 255 }).notNull(),
+    /** The resource's name and the alert message as notified when it fired; null on rows written before 2.12.3. */
+    resourceName: varchar('resource_name', { length: 255 }),
+    message: text('message'),
 
     status: varchar('status', { length: 20 }).notNull().default('firing'), // 'firing' | 'resolved'
     severity: varchar('severity', { length: 20 }).notNull(),

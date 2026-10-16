@@ -707,6 +707,7 @@ const PLANNING_SAFE_TOOL_NAMES = new Set([
   'list_access_lists',
   'list_ai_tools',
   'list_alert_rules',
+  'list_alerts',
   'list_artifact_files',
   'list_cas',
   'list_certificates',

@@ -862,6 +862,8 @@ describe('MCP tools', () => {
     const names = refreshed.body.result.tools.map((tool: { name: string }) => tool.name);
     expect(names).toContain('list_alert_rules');
     expect(names).toContain('list_webhook_deliveries');
+    // What is alerting now and the alert history (X-O-19).
+    expect(names).toContain('list_alerts');
   });
 
   it('isolates discovered toolsets by MCP session id when the client echoes the session header', async () => {

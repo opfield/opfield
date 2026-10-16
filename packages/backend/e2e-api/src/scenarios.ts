@@ -120,6 +120,8 @@ export const scenarios: TestCase[] = [
       '/api/housekeeping/history',
       '/api/notifications/alert-rules',
       '/api/notifications/alert-rules/categories',
+      '/api/notifications/alerts',
+      '/api/notifications/alerts?status=all',
       '/api/notifications/webhooks',
       '/api/notifications/deliveries',
       '/api/notifications/deliveries/stats',

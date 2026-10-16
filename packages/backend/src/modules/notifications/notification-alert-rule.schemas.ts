@@ -33,6 +33,26 @@ export const AlertRuleListQuerySchema = z.object({
 
 export type AlertRuleListQuery = z.infer<typeof AlertRuleListQuerySchema>;
 
+/**
+ * Alerts that fired: what fires now (status firing, the default) and the history (resolved; kept 30 days). An event
+ * rule records each occurrence resolved at once. since and until bound firedAt.
+ */
+export const AlertListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  status: z.enum(['firing', 'resolved', 'all']).default('firing'),
+  ruleId: z.string().uuid().optional(),
+  category: alertCategorySchema.optional(),
+  severity: z.enum(['info', 'warning', 'critical']).optional(),
+  resourceType: z.string().max(50).optional(),
+  resourceId: z.string().max(255).optional(),
+  since: z.coerce.date().optional(),
+  until: z.coerce.date().optional(),
+  search: z.string().max(255).optional(),
+});
+
+export type AlertListQuery = z.infer<typeof AlertListQuerySchema>;
+
 export const CreateAlertRuleSchema = z
   .object({
     name: z.string().min(1).max(255),

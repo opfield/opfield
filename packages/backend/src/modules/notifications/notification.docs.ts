@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { appRoute, createdJson, IdParamSchema, jsonBody, okJson, UnknownDataResponseSchema } from '@/lib/openapi.js';
 import {
+  AlertListQuerySchema,
   AlertRuleListQuerySchema,
   CreateAlertRuleSchema,
   UpdateAlertRuleSchema,
@@ -30,6 +31,17 @@ export const listNotificationAlertRulesRoute = appRoute({
   tags: ['Notifications'],
   summary: 'List notification alert rules',
   request: { query: AlertRuleListQuerySchema },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const listFiredAlertsRoute = appRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Notifications'],
+  summary: 'List the alerts that fire now and the alert history',
+  description:
+    'status firing (the default) lists what fires now; resolved lists the history, kept 30 days (an event rule records each occurrence resolved at once); all lists both. Newest first. Each alert carries its rule (ruleId, ruleName, ruleType, category, metric, eventPattern), the resource (resourceType, resourceId, resourceName), the message notified, firedAt, resolvedAt, durationSeconds and the template details. Filter by ruleId, category, severity, resourceType, resourceId, since and until (firedAt), and search (rule name, resource name or id, message). Alerts fired before 2.12.3 have no resourceName or message. Needs notifications:alerts:view.',
+  request: { query: AlertListQuerySchema },
   responses: okJson(UnknownDataResponseSchema),
 });
 
