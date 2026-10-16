@@ -1807,6 +1807,13 @@
       "when": 1793899837000,
       "tag": "0257_container_changed_outside_alert_rule",
       "breakpoints": true
+    },
+    {
+      "idx": 258,
+      "version": "7",
+      "when": 1793986237000,
+      "tag": "0258_disk_full_alert_rules",
+      "breakpoints": true
     }
   ]
 }
