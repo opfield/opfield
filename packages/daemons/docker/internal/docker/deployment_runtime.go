@@ -90,7 +90,7 @@ func (c *Client) createDeploymentSlot(ctx context.Context, deploymentID, network
 			continue
 		}
 		if _, err := c.cli.NetworkConnect(ctx, additionalNetwork, mobyclient.NetworkConnectOptions{Container: resp.ID}); err != nil {
-			_ = c.RemoveContainer(ctx, resp.ID, true)
+			_ = c.RemoveContainerAndAnonymousVolumes(ctx, resp.ID, true)
 			return "", fmt.Errorf("connect deployment slot to managed network: %w", err)
 		}
 	}

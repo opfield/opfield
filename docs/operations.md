@@ -107,6 +107,20 @@ Docker's default `json-file` log driver keeps container logs without a size limi
 
 After a node's Docker daemon is updated to 2.11, the first apply of an unchanged Compose revision on a node where this limit applies recreates its services once, because the added log settings change their configuration. The first apply after Opfield and the daemon run 2.11 also recreates every service once, because each service then gets a label with its own configuration digest instead of the revision digest; from then on a new revision recreates only the services it changes. Plan that apply like any restart of the project.
 
+## What Docker Nodes Clean Up Themselves
+
+Docker keeps a removed container's anonymous volumes (an image `VOLUME`, a bare `-v /path`). When Opfield removes a container for good, the node's daemon removes them too: a replaced or removed blue/green slot or router, an Availability placement that is replaced or removed, a container whose creation failed halfway, and the containers of a Compose project taken down or deleted. A volume stays when another container uses it, when it carries the `opfield.housekeeping.protected=true` label, when Opfield manages it, or when the container's mount list or the Compose file names it. Named volumes are never removed this way, and a recreate (an update, a mount change) keeps the container's anonymous volumes. Anonymous volumes left by earlier releases are still removed by **Housekeeping > Orphaned Volumes**.
+
+The daemon also removes, at start and every 15 minutes:
+
+- short-lived helper containers (volume file access, the Compose sidecar, database helpers) that a daemon restart left behind, 15 minutes after they stopped;
+- the stored environment file (which may hold secrets) of a container that no longer exists, a day after it last changed; a container's file goes as soon as Opfield removes the container;
+- at start only, its own temporary files older than an hour.
+
+Migrations spool images and volumes in the daemon's state directory. A spool never takes the node's disk below the managed-instance reserve (2 GB by default, `docker.database.reserve_bytes`): an export or transfer that would is refused or stopped with a message naming the free space. The spool of a migration nothing has used for 6 hours is removed.
+
+An upload into a container or volume that was abandoned (a closed browser, an Opfield restart) leaves a hidden `.opfield-upload-<id>.tmp` file. Opfield removes it when the upload session expires after 30 minutes without a chunk, and the next upload into the same directory removes any such file older than an hour.
+
 ## Configuration Reference
 
 The installer writes infrastructure/bootstrap values to `.env`. Product settings are stored in Opfield: canonical public URL and internal web TLS are edited in **Settings > General**; sign-in methods, MFA, the OIDC provider, and identity provisioning in **Settings > Authentication**; SMTP, network trust, and the outbound webhook policy in **Settings > Advanced**; structured logging (ClickHouse), OAuth and MCP access, and Housekeeping in **Settings > Features**; request limits, logging ingest guardrails, sessions, rate limiting, and PKI defaults are edited in **Settings > Environment**. ACME uses the acting user's email and the provider selected in the certificate form.

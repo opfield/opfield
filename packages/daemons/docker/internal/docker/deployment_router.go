@@ -600,11 +600,13 @@ func (c *Client) pullImageIfNeeded(ctx context.Context, imageRef string, registr
 	return c.EnsureImage(ctx, imageRef, registryAuth)
 }
 
+// removeContainerByName removes a deployment slot or router for good: a deploy or a router replacement creates a new
+// one and never carries the old one's anonymous volumes over, so they go too.
 func (c *Client) removeContainerByName(ctx context.Context, name string, force bool) error {
 	if name == "" {
 		return nil
 	}
-	err := c.RemoveContainer(ctx, name, force)
+	err := c.RemoveContainerAndAnonymousVolumes(ctx, name, force)
 	if err != nil && !isNotFoundErr(err) {
 		return err
 	}

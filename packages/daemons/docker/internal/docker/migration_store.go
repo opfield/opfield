@@ -13,9 +13,15 @@ import (
 	"time"
 
 	"github.com/opfield/opfield/daemon-shared/atomicfile"
+	"golang.org/x/sys/unix"
 )
 
-const migrationArtifactMaxAge = 72 * time.Hour
+// migrationArtifactMaxAge: the spool of a migration nothing touched for this long is abandoned (Opfield finalizes or
+// aborts a migration it runs; a running one writes, reads or queries its artifacts all the time).
+const migrationArtifactMaxAge = 6 * time.Hour
+
+// migrationSpaceCheckBytes: a spool write checks the free space after every this many bytes.
+const migrationSpaceCheckBytes = 64 << 20
 
 var migrationPathID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
@@ -35,6 +41,124 @@ type migrationArtifactMetadata struct {
 type migrationArtifactStore struct {
 	root string
 	mu   sync.Mutex
+	// reserve is the free space a spool write never takes (the node disk reserve of managed instances); 0 checks
+	// only that the disk is not full.
+	reserve int64
+	statfs  func(string, *unix.Statfs_t) error
+	// removeAll is os.RemoveAll (tests replace it).
+	removeAll func(string) error
+
+	activeMu sync.Mutex
+	// active is when this process last read, wrote or queried each migration's spool: a transfer reading one large
+	// artifact changes no file time.
+	active map[string]time.Time
+}
+
+// migrationSpoolSpaceError is a spool write refused or stopped because the node disk would fall below its reserve.
+type migrationSpoolSpaceError struct {
+	Free, Reserve, Needed int64
+}
+
+func (e *migrationSpoolSpaceError) Error() string {
+	if e.Needed > 0 {
+		return fmt.Sprintf("the migration spool needs %s and the node's disk has %s free, of which %s stays in reserve",
+			formatDiskBytes(e.Needed), formatDiskBytes(e.Free), formatDiskBytes(e.Reserve))
+	}
+	return fmt.Sprintf("the migration spool stopped: the node's disk has %s free and %s stays in reserve",
+		formatDiskBytes(e.Free), formatDiskBytes(e.Reserve))
+}
+
+// checkSpace refuses a spool write of needed more bytes (0: any more) that would leave less than the reserve free.
+// A disk whose free space cannot be read is not refused.
+func (s *migrationArtifactStore) checkSpace(needed int64) error {
+	statfs := s.statfs
+	if statfs == nil {
+		statfs = unix.Statfs
+	}
+	var stat unix.Statfs_t
+	if err := statfs(s.root, &stat); err != nil {
+		return nil
+	}
+	free := int64(stat.Bavail) * int64(stat.Bsize)
+	reserve := s.reserve
+	if reserve < 0 {
+		reserve = 0
+	}
+	if free-needed <= reserve {
+		return &migrationSpoolSpaceError{Free: free, Reserve: reserve, Needed: needed}
+	}
+	return nil
+}
+
+// touch records that the migration's spool is in use now.
+func (s *migrationArtifactStore) touch(migrationID string) {
+	s.activeMu.Lock()
+	defer s.activeMu.Unlock()
+	if s.active == nil {
+		s.active = map[string]time.Time{}
+	}
+	s.active[migrationID] = time.Now()
+}
+
+func (s *migrationArtifactStore) lastActive(migrationID string) time.Time {
+	s.activeMu.Lock()
+	defer s.activeMu.Unlock()
+	return s.active[migrationID]
+}
+
+func (s *migrationArtifactStore) forget(migrationID string) {
+	s.activeMu.Lock()
+	defer s.activeMu.Unlock()
+	delete(s.active, migrationID)
+}
+
+// migrationSpoolGuard stops a spool write that would take the node disk below its reserve, or that grows past limit
+// (0: no limit), the size the artifact may reach by what it declared.
+type migrationSpoolGuard struct {
+	store       *migrationArtifactStore
+	migrationID string
+	limit       int64
+	written     int64
+	unchecked   int64
+}
+
+func (g *migrationSpoolGuard) admit(n int) error {
+	g.written += int64(n)
+	g.unchecked += int64(n)
+	if g.limit > 0 && g.written > g.limit {
+		return fmt.Errorf("the migration artifact grew past %s, more than its declared size allows", formatDiskBytes(g.limit))
+	}
+	if g.unchecked < migrationSpaceCheckBytes {
+		return nil
+	}
+	g.unchecked = 0
+	g.store.touch(g.migrationID)
+	return g.store.checkSpace(0)
+}
+
+// guardedSpoolWriter writes through a migrationSpoolGuard.
+type guardedSpoolWriter struct {
+	writer io.Writer
+	guard  *migrationSpoolGuard
+}
+
+func (w *guardedSpoolWriter) Write(data []byte) (int, error) {
+	if err := w.guard.admit(len(data)); err != nil {
+		return 0, err
+	}
+	return w.writer.Write(data)
+}
+
+func (s *migrationArtifactStore) guard(migrationID string, limit int64) *migrationSpoolGuard {
+	return &migrationSpoolGuard{store: s, migrationID: migrationID, limit: limit}
+}
+
+// migrationArtifactLimit is the most an artifact of a declared size may take: room for archive overhead.
+func migrationArtifactLimit(declared int64) int64 {
+	if declared <= 0 {
+		return 0
+	}
+	return declared + declared/2 + 256<<20
 }
 
 func (p *DockerPlugin) runMigrationArtifactCleanup(ctx context.Context) {
@@ -75,6 +199,7 @@ func (s *migrationArtifactStore) migrationDir(migrationID string, create bool) (
 		return "", err
 	}
 	dir := filepath.Join(s.root, migrationID)
+	s.touch(migrationID)
 	if create {
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return "", fmt.Errorf("create migration directory: %w", err)
@@ -183,6 +308,9 @@ func (s *migrationArtifactStore) openWrite(migrationID, artifactID string, offse
 	if err != nil {
 		return nil, err
 	}
+	if err := s.checkSpace(0); err != nil {
+		return nil, err
+	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("open migration artifact for write: %w", err)
@@ -213,9 +341,13 @@ func (s *migrationArtifactStore) remove(migrationID string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("remove migration artifacts: %w", err)
 	}
+	s.forget(migrationID)
 	return nil
 }
 
+// cleanupStale removes the spools of abandoned migrations: nothing in this process used one for
+// migrationArtifactMaxAge and none of its files changed for as long. One that cannot be removed does not stop the
+// others.
 func (s *migrationArtifactStore) cleanupStale(now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -223,20 +355,51 @@ func (s *migrationArtifactStore) cleanupStale(now time.Time) error {
 	if err != nil {
 		return fmt.Errorf("read migration artifact root: %w", err)
 	}
+	var errs []error
 	for _, entry := range entries {
 		if !entry.IsDir() || !migrationPathID.MatchString(entry.Name()) {
 			continue
 		}
-		info, err := entry.Info()
+		dir := filepath.Join(s.root, entry.Name())
+		latest, err := latestModTime(dir)
 		if err != nil {
-			return fmt.Errorf("stat migration directory %q: %w", entry.Name(), err)
-		}
-		if now.Sub(info.ModTime()) <= migrationArtifactMaxAge {
+			errs = append(errs, fmt.Errorf("stat migration directory %q: %w", entry.Name(), err))
 			continue
 		}
-		if err := os.RemoveAll(filepath.Join(s.root, entry.Name())); err != nil {
-			return fmt.Errorf("remove stale migration %q: %w", entry.Name(), err)
+		if active := s.lastActive(entry.Name()); active.After(latest) {
+			latest = active
+		}
+		if now.Sub(latest) <= migrationArtifactMaxAge {
+			continue
+		}
+		removeAll := s.removeAll
+		if removeAll == nil {
+			removeAll = os.RemoveAll
+		}
+		if err := removeAll(dir); err != nil {
+			errs = append(errs, fmt.Errorf("remove stale migration %q: %w", entry.Name(), err))
+			continue
+		}
+		s.forget(entry.Name())
+	}
+	return errors.Join(errs...)
+}
+
+// latestModTime is the newest modification time of a migration directory and the files in it.
+func latestModTime(dir string) (time.Time, error) {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return time.Time{}, err
+	}
+	latest := info.ModTime()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return time.Time{}, err
+	}
+	for _, entry := range entries {
+		if entryInfo, err := entry.Info(); err == nil && entryInfo.ModTime().After(latest) {
+			latest = entryInfo.ModTime()
 		}
 	}
-	return nil
+	return latest, nil
 }

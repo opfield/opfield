@@ -159,6 +159,9 @@ func InitChunkedFileUpload(ctx context.Context, c *Client, containerID string, u
 
 	initCtx, initCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer initCancel()
+	// Abandoned uploads into this directory (a closed browser, an Opfield restart) leave their temp files. Best
+	// effort: an image without find keeps them.
+	_, _ = execInContainer(initCtx, c, containerID, staleUploadTempCleanupCommand(parent))
 	if _, err := execInContainer(initCtx, c, containerID, []string{"rm", "-f", tempPath}); err != nil {
 		return fmt.Errorf("remove stale upload temp file: %w", err)
 	}
@@ -332,6 +335,17 @@ func uploadTempPath(uploadID string, targetPath string) (string, string, error) 
 	cleanTarget := filepath.Clean(targetPath)
 	parent := filepath.Dir(cleanTarget)
 	return filepath.Join(parent, ".opfield-upload-"+uploadID+".tmp"), cleanTarget, nil
+}
+
+// staleUploadTempMinutes: an upload temp file unchanged this long belongs to no live upload (Opfield drops an upload
+// session after 30 minutes without a chunk).
+const staleUploadTempMinutes = 60
+
+// staleUploadTempCleanupCommand removes the upload temp files directly in dir that have not changed for
+// staleUploadTempMinutes. Only regular files with the upload temp name match; nothing is followed or recursed into.
+func staleUploadTempCleanupCommand(dir string) []string {
+	return []string{"find", dir, "-maxdepth", "1", "-type", "f", "-name", ".opfield-upload-*.tmp",
+		"-mmin", "+" + strconv.Itoa(staleUploadTempMinutes), "-exec", "rm", "-f", "{}", ";"}
 }
 
 func validateUploadID(uploadID string) error {

@@ -74,7 +74,7 @@ func (e *pgMember) runHelper(ctx context.Context, record managedDatabaseRecord, 
 		Config: &container.Config{
 			Image: image, User: fmt.Sprintf("%d:%d", pgPostgresUID, pgPostgresGID),
 			Entrypoint: []string{command[0]}, Cmd: command[1:],
-			Labels: map[string]string{managedDatabaseLabel: record.ID, pgHelperLabel: "1"},
+			Labels: helperContainerLabels(helperKindPostgres, map[string]string{managedDatabaseLabel: record.ID, pgHelperLabel: "1"}),
 		},
 		HostConfig: hostConfig, NetworkingConfig: networking,
 	})

@@ -119,11 +119,26 @@ func (p *DockerPlugin) handleContainerCommand(cmd *pb.DockerContainerCommand, re
 		}
 
 	case "remove":
-		if err := p.client.RemoveContainer(ctx, cmd.ContainerId, cmd.Force); err != nil {
+		// removeAnonymousVolumes: the caller removes the container for good (an Availability placement, a migrated
+		// source) and nothing of it is kept, so its anonymous volumes go too. Opfield's own container removal keeps
+		// it off: it removes them itself, skipping the volumes it manages.
+		var params struct {
+			RemoveAnonymousVolumes bool `json:"removeAnonymousVolumes"`
+		}
+		if cmd.ConfigJson != "" {
+			_ = json.Unmarshal([]byte(cmd.ConfigJson), &params)
+		}
+		containerName, _ := p.client.ContainerName(ctx, cmd.ContainerId)
+		remove := p.client.RemoveContainer
+		if params.RemoveAnonymousVolumes {
+			remove = p.client.RemoveContainerAndAnonymousVolumes
+		}
+		if err := remove(ctx, cmd.ContainerId, cmd.Force); err != nil {
 			result.Success = false
 			result.Error = err.Error()
 			return
 		}
+		p.removeContainerEnvFiles(containerName)
 
 	case "rename":
 		if cmd.NewName == "" {

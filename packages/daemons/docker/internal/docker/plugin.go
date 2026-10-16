@@ -337,9 +337,13 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 	if err != nil {
 		return err
 	}
+	// A spool never takes the node disk below the reserve managed instances keep.
+	p.migrationStore.reserve = p.cfg.Docker.Database.ReserveBytes
 	if err := p.migrationStore.cleanupStale(time.Now()); err != nil {
 		p.logger.Warn("stale migration artifact cleanup failed", "error", err)
 	}
+	// Leftover helper containers, env files of removed containers and crash temp files.
+	p.startNodeHousekeeping()
 	p.archiveStreams = newArchiveLiveStore()
 	p.relayGrants, err = newRelayGrantStore(p.cfg.StateDir)
 	if err != nil {
