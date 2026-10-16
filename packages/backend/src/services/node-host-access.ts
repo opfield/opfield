@@ -121,3 +121,20 @@ export function assertNodeHostFeatureEnabled(
     throw refusal;
   }
 }
+
+/**
+ * Daemons that run agents' one-shot console commands (execute_node_console_command) in the agent sandbox: their own
+ * mount namespace and process group, the container runtime's sockets covered, an unprivileged identity that cannot
+ * become root again. Opfield sends agent commands only to these daemons.
+ */
+export const NODE_CONSOLE_AGENT_SANDBOX_CAPABILITY = 'node_console_agent_sandbox_v1';
+
+/** Refuses an agent console command for a node whose daemon cannot run it in the agent sandbox. */
+export function assertNodeAgentConsoleSandbox(registry: CapabilityRegistry, nodeId: string): void {
+  if (registry.hasCapability(nodeId, NODE_CONSOLE_AGENT_SANDBOX_CAPABILITY)) return;
+  throw new AppError(
+    409,
+    'NODE_CONSOLE_AGENT_SANDBOX_REQUIRED',
+    "This node's daemon is too old to run agent console commands in the agent sandbox, so Opfield does not send them to it. Update the node's daemon (Nodes, the node, Update daemon), then run the command again. People can still use the browser console."
+  );
+}

@@ -6,6 +6,7 @@ import type {
   InferenceTool,
 } from '@/modules/inference/protocol/inference-protocol.types.js';
 import type { AIModelTool, ModelProviderEvent, NormalizedToolCall } from './ai.provider-adapter.js';
+import { CONTENT_FILTER_CODE } from './ai-model-call-retry.js';
 
 export interface OpfieldInferenceStreamOptions {
   runtime: InferenceRuntimeService;
@@ -101,7 +102,12 @@ export async function* streamOpfieldInferenceResponse(
     }
     if (event.type === 'completed') {
       if (event.status && event.status !== 'completed') {
-        throw new Error(event.incompleteReason || `Opfield Inference ended with status ${event.status}`);
+        const reason = event.incompleteReason || event.status;
+        throw new InferenceProtocolError(
+          502,
+          reason === CONTENT_FILTER_CODE ? CONTENT_FILTER_CODE : 'upstream_incomplete',
+          `Opfield Inference ended the answer early (${reason})`
+        );
       }
       completed = true;
     }

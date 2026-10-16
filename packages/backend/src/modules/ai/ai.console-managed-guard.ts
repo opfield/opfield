@@ -243,8 +243,8 @@ export function managedResourceConsoleError(refusal: ConsoleRefusal): AppError {
     `Refused "${command}": it changes ${refusal.object}, which Opfield manages on this node. Agents must not ` +
       'change Opfield-managed Docker objects (containers, Compose projects, volumes, networks, daemon state) ' +
       'through the node console or SSH: Opfield would lose track of them, and their Git-source builds, rollouts, ' +
-      `links and permissions break. Use ${refusal.tool}. Read-only commands (docker ps, inspect, logs, stats, ` +
-      'images) stay available.',
+      `links and permissions break. Use ${refusal.tool}. To read containers use list_docker_containers, ` +
+      'get_docker_container and get_docker_container_logs: agent console commands run without the container runtime.',
     { object: refusal.object, tool: refusal.tool, verb: refusal.mutation.verb }
   );
 }

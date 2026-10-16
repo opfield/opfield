@@ -134,6 +134,27 @@ const SERVER_ERROR_CODES = new Set([
 ]);
 const OVERLOADED_CODES = new Set(['server_is_overloaded', 'overloaded_error']);
 const BROKEN_STREAM_CODES = new Set(['upstream_stream_incomplete', 'inference_core_stream_failed']);
+const BUDGET_CODES = new Set(['budget_exhausted', 'budget_exceeded', 'insufficient_quota']);
+const RATE_LIMIT_CODES = new Set(['rate_limit_exceeded', 'rate_limit_error', 'rate_limited', 'concurrency_limited']);
+export const CONTENT_FILTER_CODE = 'content_filter';
+
+/** A model call refused for the user's own budget, a rate limit, or the provider's content filter; null otherwise. */
+export function modelCallRefusal(error: unknown): 'budget' | 'rate_limit' | 'content_filter' | null {
+  if (!(error instanceof InferenceProtocolError)) return null;
+  // The managed core reports a budget refusal as `admission denied: budget_exceeded`, whatever its code.
+  if (BUDGET_CODES.has(error.code) || /\bbudget_(?:exceeded|exhausted)\b/.test(error.message)) return 'budget';
+  if (error.code === CONTENT_FILTER_CODE) return 'content_filter';
+  if (RATE_LIMIT_CODES.has(error.code) || error.status === 429) return 'rate_limit';
+  return null;
+}
+
+const REFUSAL_MESSAGES = {
+  budget:
+    'Your Opfield Inference budget is used up, so the request was refused. It works again when your budget window resets (see your usage under Inference); an administrator can raise your limit under Inference limits.',
+  rate_limit: 'Opfield Inference is limiting how fast you send requests. Wait a moment and send the message again.',
+  content_filter:
+    "The model provider's content filter stopped this answer. Rephrase the message or choose another model.",
+} as const;
 
 /**
  * What went wrong with a model call, in words a user understands: who failed and how, not only
@@ -142,6 +163,8 @@ const BROKEN_STREAM_CODES = new Set(['upstream_stream_incomplete', 'inference_co
 export function describeModelCallError(error: unknown): string {
   const fallback = error instanceof Error && error.message.trim() ? error.message.trim() : 'The AI request failed';
   if (!(error instanceof InferenceProtocolError)) return fallback;
+  const refusal = modelCallRefusal(error);
+  if (refusal) return REFUSAL_MESSAGES[refusal];
   const provider =
     typeof error.details?.provider === 'string' && error.details.provider ? error.details.provider : 'The AI provider';
   const attempts = typeof error.details?.attempts === 'number' ? error.details.attempts : 1;

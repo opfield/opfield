@@ -4,7 +4,7 @@ Exact tool names in the MCP `docker` toolset. All require the `nodeId` of a Node
 
 ## Instead of `docker` on the Node console
 
-For agents, `execute_node_console_command` and `ssh_execute_command` refuse commands that change Opfield-managed objects (`MANAGED_RESOURCE_CONSOLE_FORBIDDEN`). Use these tools:
+Agent console commands (`execute_node_console_command`) run without the container runtime: `docker`, `podman`, `nerdctl`, `ctr` and runtime sockets are refused (`MANAGED_RESOURCE_CONSOLE_FORBIDDEN` for a change to an Opfield-managed object, `NODE_CONSOLE_RUNTIME_UNAVAILABLE` otherwise), and `ssh_execute_command` refuses Opfield nodes. Use these tools:
 
 | Console command | Tool |
 | --- | --- |
@@ -16,8 +16,7 @@ For agents, `execute_node_console_command` and `ssh_execute_command` refuse comm
 | a blue/green slot container | the Deployment tools |
 | `docker compose up` / `down` / `restart` / `pull` | `manage_docker_compose` |
 | `docker volume rm`, `docker network rm` / `connect` / `disconnect` | `manage_docker_volume`, `manage_docker_network` |
-
-Read-only commands (`docker ps`, `inspect`, `logs`, `stats`, `images`) stay allowed on the console.
+| `docker ps` / `inspect` / `logs` / `stats` / `images` | `list_docker_containers`, `get_docker_container`, `get_docker_container_logs`, `get_docker_container_stats`, `list_docker_images` |
 
 ## Standalone Containers
 

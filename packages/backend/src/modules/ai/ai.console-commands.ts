@@ -249,8 +249,31 @@ const WRAPPERS: Record<string, (list: ShellWord[]) => Unwrapped | null> = {
   },
 };
 
+/** Programs that run code given to them (inline or in a file) that the command line does not show. */
+const INTERPRETERS = new Set([
+  'python',
+  'python2',
+  'python3',
+  'perl',
+  'ruby',
+  'node',
+  'nodejs',
+  'deno',
+  'bun',
+  'php',
+  'lua',
+  'luajit',
+  'tclsh',
+  'expect',
+  'pwsh',
+  'osascript',
+]);
+const AWKS = new Set(['awk', 'gawk', 'mawk', 'nawk']);
+
 class CommandExpander {
   readonly out: EffectiveCommand[] = [];
+  /** Why parts of the command are not visible on its command line (decoded payloads, scripts, interpreters). */
+  readonly opaque: string[] = [];
 
   expandAll(commands: ShellCommand[], context: ExpandContext) {
     for (const command of commands) this.expand(command, context);
@@ -304,6 +327,7 @@ class CommandExpander {
     }
     if (list.length === 0) return;
     const name = commandBaseName(list[0]);
+    if (list[0].dynamic) this.opaque.push('a program it names only when it runs');
 
     if (name === 'cd' || name === 'pushd') {
       const target = list[1];
@@ -321,7 +345,21 @@ class CommandExpander {
       }
       return;
     }
+    if (name === 'source' || name === '.') {
+      this.opaque.push('a script file it sources');
+      return;
+    }
+    if (INTERPRETERS.has(name.replace(/[0-9.]+$/, '')) || INTERPRETERS.has(name)) {
+      this.opaque.push(`code run by ${name}`);
+    }
+    if (AWKS.has(name) && list.slice(1).some((word) => /system\s*\(|\|\s*"|\|&/.test(word.text))) {
+      this.opaque.push(`commands run by ${name}`);
+    }
+    if (name === 'find' && list.some((word) => /^-(?:exec|execdir|ok|okdir)$/.test(word.text))) {
+      this.opaque.push('commands run by find');
+    }
     if (name === 'eval') {
+      if (list.slice(1).some((word) => word.dynamic)) this.opaque.push('eval of text known only when it runs');
       this.expandScript(
         list
           .slice(1)
@@ -334,17 +372,23 @@ class CommandExpander {
     if (isShellProgram(list[0])) {
       const invocation = shellInvocation(list);
       const childContext = { ...context, cwd, env: { ...context.env, ...env } };
-      if (invocation.kind === 'script') this.expandScript(invocation.script.text, childContext);
+      if (invocation.kind === 'script') {
+        if (invocation.script.dynamic) this.opaque.push('a shell script known only when it runs');
+        this.expandScript(invocation.script.text, childContext);
+      }
+      if (invocation.kind === 'file') this.opaque.push('a shell script file');
       if (invocation.kind === 'stdin') {
         for (const body of command.heredocs) this.expandScript(body, childContext);
         const source = command.pipedFrom?.words;
         const sourceName = commandBaseName(source?.[0]);
         if (source && (sourceName === 'echo' || sourceName === 'printf')) {
           const args = source.slice(1).filter((word) => !/^-[neE]+$/.test(word.text));
-          this.expandScript(
-            (sourceName === 'printf' ? args.slice(0, 1) : args).map((w) => w.text).join(' '),
-            childContext
-          );
+          const script = sourceName === 'printf' ? args.slice(0, 1) : args;
+          if (script.some((word) => word.dynamic)) this.opaque.push('shell commands known only when it runs');
+          this.expandScript(script.map((w) => w.text).join(' '), childContext);
+        } else if (command.heredocs.length === 0) {
+          // `base64 -d | sh`, `curl ... | bash`, `sh < file`: the commands arrive on standard input.
+          this.opaque.push('shell commands read from standard input');
         }
       }
       return;
@@ -364,18 +408,35 @@ class CommandExpander {
   }
 }
 
-/** The programs a node console command runs. `command` is the argv the console executes. */
-export function consoleCommands(command: readonly string[]): EffectiveCommand[] {
+/** The programs a console command runs, and what it runs that its command line does not show. */
+export interface ConsoleCommandAnalysis {
+  commands: EffectiveCommand[];
+  /** Empty when every program it runs is on its command line. */
+  opaque: string[];
+}
+
+/** Reads a node console command: `command` is the argv the console executes. */
+export function analyzeConsoleCommand(command: readonly string[]): ConsoleCommandAnalysis {
   const expander = new CommandExpander();
   expander.expandAll([{ words: words(command), writes: [], heredocs: [] }], { cwd: null, env: {}, depth: 0 });
-  return expander.out;
+  return { commands: expander.out, opaque: [...new Set(expander.opaque)] };
+}
+
+/** Reads a POSIX shell command string (SSH connectors run their command through a shell). */
+export function analyzeShellString(script: string): ConsoleCommandAnalysis {
+  const expander = new CommandExpander();
+  expander.expandAll(parseShellScript(script), { cwd: null, env: {}, depth: 0 });
+  return { commands: expander.out, opaque: [...new Set(expander.opaque)] };
+}
+
+/** The programs a node console command runs. `command` is the argv the console executes. */
+export function consoleCommands(command: readonly string[]): EffectiveCommand[] {
+  return analyzeConsoleCommand(command).commands;
 }
 
 /** The programs a POSIX shell command string runs (SSH connectors run their command through a shell). */
 export function shellStringCommands(script: string): EffectiveCommand[] {
-  const expander = new CommandExpander();
-  expander.expandAll(parseShellScript(script), { cwd: null, env: {}, depth: 0 });
-  return expander.out;
+  return analyzeShellString(script).commands;
 }
 
 export function commandText(command: EffectiveCommand): string {
