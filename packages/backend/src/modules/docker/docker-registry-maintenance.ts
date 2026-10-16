@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   dockerArtifactPins,
@@ -14,6 +14,7 @@ import {
   dockerInternalRegistryState,
   dockerRegistryMaintenanceRuns,
   dockerSourceBindings,
+  settings,
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerService } from '@/services/docker.service.js';
@@ -73,6 +74,14 @@ export interface DockerRegistryMaintenanceExecutor {
   storageUsedBytes(): Promise<number>;
   /** Where the registry keeps its data (volume or S3 bucket). */
   storageBackend?(): Promise<'filesystem' | 's3'>;
+  /** The filesystem the registry's volume is on; null on S3. */
+  storageFilesystem?(): Promise<{ totalBytes: number; usedBytes: number; availableBytes: number } | null>;
+  /** Removes upload sessions of failed or cancelled pushes older than `olderThanMinutes`; returns how many. */
+  purgeStaleUploads?(olderThanMinutes: number): Promise<number>;
+  /** Every repository the registry holds (its catalog). */
+  listRepositories?(): Promise<string[]>;
+  /** Deletes the manifests every tag of a repository names; returns how many. */
+  deleteRepositoryTags?(repository: string): Promise<number>;
   pauseAdmissions(): Promise<void>;
   drainUploads(): Promise<void>;
   deleteManifest(repository: string, digest: string): Promise<void>;
@@ -135,10 +144,71 @@ export function createDockerRegistryMaintenanceExecutor(
       signal: AbortSignal.timeout(30_000),
     });
   };
+  const authorized = (grants: DockerRegistryGrant[], catalog = false) =>
+    `Bearer ${
+      tokenService.issueToken({
+        subject: 'opfield:registry-maintenance',
+        requested: grants,
+        allowed: grants,
+        ttlSeconds: 300,
+        catalog,
+      }).token
+    }`;
+  const repositoryPath = (repository: string) => repository.split('/').map(encodeURIComponent).join('/');
   return {
+    listRepositories: async () => {
+      const repositories: string[] = [];
+      let last = '';
+      for (let page = 0; page < 1000; page += 1) {
+        const url = new URL('/v2/_catalog', registryUrl);
+        url.searchParams.set('n', '1000');
+        if (last) url.searchParams.set('last', last);
+        const response = await fetch(url, {
+          headers: { authorization: authorized([], true) },
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!response.ok) throw new Error(`Registry catalog listing failed (${response.status})`);
+        const body = (await response.json()) as { repositories?: unknown };
+        const names = Array.isArray(body.repositories)
+          ? body.repositories.filter((name): name is string => typeof name === 'string')
+          : [];
+        repositories.push(...names);
+        if (names.length < 1000) break;
+        last = names[names.length - 1]!;
+      }
+      return repositories;
+    },
+    deleteRepositoryTags: async (repository) => {
+      const grant = { repository, actions: ['pull', 'delete'] } satisfies DockerRegistryGrant;
+      const tagsResponse = await fetch(new URL(`/v2/${repositoryPath(repository)}/tags/list`, registryUrl), {
+        headers: { authorization: authorized([grant]) },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (tagsResponse.status === 404) return 0;
+      if (!tagsResponse.ok) throw new Error(`Registry tag listing failed (${tagsResponse.status})`);
+      const body = (await tagsResponse.json()) as { tags?: unknown };
+      const tags = Array.isArray(body.tags) ? body.tags.filter((tag): tag is string => typeof tag === 'string') : [];
+      const digests = new Set<string>();
+      for (const tag of tags) {
+        const response = await request(repository, tag, 'GET', 'pull');
+        const digest = response.headers.get('docker-content-digest');
+        await response.body?.cancel();
+        if (response.ok && digest && /^sha256:[0-9a-f]{64}$/.test(digest)) digests.add(digest);
+      }
+      for (const digest of digests) {
+        const response = await request(repository, digest, 'DELETE', 'delete');
+        await response.body?.cancel();
+        if (response.status !== 202 && response.status !== 404) {
+          throw new Error(`Registry manifest deletion failed (${response.status})`);
+        }
+      }
+      return digests.size;
+    },
     hasRepositories: () => docker.managedRegistryHasRepositories(),
     storageUsedBytes: () => docker.managedRegistryStorageUsedBytes(),
     storageBackend: () => docker.managedRegistryStorageBackend(),
+    storageFilesystem: () => docker.managedRegistryFilesystem(),
+    purgeStaleUploads: (olderThanMinutes) => docker.purgeManagedRegistryUploads(olderThanMinutes),
     pauseAdmissions: async () => undefined,
     drainUploads: async () => {
       await wait(REGISTRY_WRITE_DRAIN_GRACE_MS);
@@ -192,6 +262,34 @@ export interface DockerRegistryMaintenanceStore {
   hasActiveRegistryUsers?(): Promise<boolean>;
   /** Whether artifacts were deleted since the last garbage collection, so their layers still take space. */
   hasUncollectedDeletions?(lastGcAt: Date | null): Promise<boolean>;
+  /**
+   * Of the registry's repositories, the build repositories of sources that no longer exist, that no record names and
+   * that hold no tracked artifact, once found so for ORPHANED_REPOSITORY_GRACE_MS (tracked across runs).
+   */
+  orphanedRepositories?(repositories: string[], now: Date): Promise<string[]>;
+}
+
+/** A build repository whose source is gone is deleted once maintenance runs at least this far apart both found it so. */
+export const ORPHANED_REPOSITORY_GRACE_MS = 12 * 60 * 60_000;
+const ORPHANED_REPOSITORIES_KEY = 'docker:registry:orphaned_repositories';
+const BUILD_REPOSITORY = /^gateway\/builds\/([^/]+)(\/.+)?$/;
+
+/**
+ * The build repositories (`gateway/builds/<source>[/<service>]`) whose source binding is gone (its container,
+ * deployment or Pages project was deleted, or the source was detached: the artifact rows went with it, so retention
+ * never sees them), that no runtime record names and that hold no tracked artifact.
+ */
+export function selectOrphanedBuildRepositories(input: {
+  repositories: string[];
+  sourceBindingIds: ReadonlySet<string>;
+  trackedRepositories: ReadonlySet<string>;
+  references: string;
+}): string[] {
+  return input.repositories.filter((repository) => {
+    const match = BUILD_REPOSITORY.exec(repository);
+    if (!match || input.sourceBindingIds.has(match[1]!) || input.trackedRepositories.has(repository)) return false;
+    return !input.references.includes(`${repository}@`) && !input.references.includes(`${repository}:`);
+  });
 }
 
 class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenanceStore {
@@ -395,6 +493,42 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
       )
       .limit(1);
     return Boolean(deleted);
+  }
+
+  async orphanedRepositories(repositories: string[], now: Date): Promise<string[]> {
+    const [bindings, artifacts, references, [tracked]] = await Promise.all([
+      this.db.select({ id: dockerSourceBindings.id }).from(dockerSourceBindings),
+      this.db
+        .selectDistinct({ repository: dockerBuildArtifacts.registryRepository })
+        .from(dockerBuildArtifacts)
+        .where(ne(dockerBuildArtifacts.status, 'deleted')),
+      registryRuntimeReferences(this.db),
+      this.db
+        .select({ value: settings.value })
+        .from(settings)
+        .where(eq(settings.key, ORPHANED_REPOSITORIES_KEY))
+        .limit(1),
+    ]);
+    const orphaned = selectOrphanedBuildRepositories({
+      repositories,
+      sourceBindingIds: new Set(bindings.map((binding) => binding.id)),
+      trackedRepositories: new Set(artifacts.map((artifact) => artifact.repository)),
+      references,
+    });
+    const previous =
+      tracked?.value && typeof tracked.value === 'object' && !Array.isArray(tracked.value)
+        ? (tracked.value as Record<string, unknown>)
+        : {};
+    const next: Record<string, number> = {};
+    for (const repository of orphaned) {
+      const since = previous[repository];
+      next[repository] = typeof since === 'number' && Number.isFinite(since) ? since : now.getTime();
+    }
+    await this.db
+      .insert(settings)
+      .values({ key: ORPHANED_REPOSITORIES_KEY, value: next, updatedAt: now })
+      .onConflictDoUpdate({ target: settings.key, set: { value: next, updatedAt: now } });
+    return orphaned.filter((repository) => now.getTime() - next[repository]! >= ORPHANED_REPOSITORY_GRACE_MS);
   }
 
   async markArtifactDeleted(id: string, now: Date): Promise<void> {

@@ -424,14 +424,16 @@ Operational notes:
 
 ## Docker Image Cleanup
 
-Old images stay on a Docker node until something removes them, and Git-source builds add one per deploy. Opfield keeps per container or blue/green deployment the image it runs plus older ones up to its **Image Cleanup** setting (**Settings** of the container or deployment; on by default, **Keep last N versions** 2, the running one included):
+Old images stay on a node until something removes them, and Git-source builds add one per deploy. Opfield keeps per container or blue/green deployment the image it runs plus older ones up to its **Image Cleanup** setting (**Settings** of the container or deployment; on by default, **Keep last N versions** 2, the running one included):
 
-- After an image change (a Git-source build deploy, an update, a recreate, a webhook deploy) the node removes the older images of that repository at once. Git-source build images, pulled by digest from the internal registry, count like tagged ones.
+- After an image change (a Git-source build deploy, an update, a recreate, a webhook deploy, a Compose apply) the node removes the older images of that repository 2 minutes later, so a rollout that has just pulled one of them again keeps it. Git-source build images, pulled by digest from the internal registry, count like tagged ones.
 - When a Git-source build finishes or a Compose batch is applied, every online Docker node removes that source's older build images, so Availability replicas and Compose services on other nodes keep their running build and one to roll back to as well.
-- Images a container uses (running or stopped) are never removed, and neither are the builds the internal registry keeps for rollback. Blue/green deployments keep both slots' images.
-- **Housekeeping > Docker Images** (on by default) applies the same setting to the build images on every online Docker node on each run and removes dangling images (no tag, no digest, unused); its card counts them. Nodes that kept old builds from earlier releases are cleaned on the first run after the update.
-- **Prune** on a node's Images removes dangling images and applies the same build-image rule; it never removes the builds containers run or roll back to.
-- A container or deployment with Image Cleanup turned off keeps all its images.
+- The setting of a deployment, and of an Availability copy on another node, is that of its workload. When several containers run images of one repository, the largest setting counts, and a container with Image Cleanup turned off keeps all images of its repository.
+- Images nothing on the node runs (the image of a removed container, an earlier Compose tag, a superseded database engine or tool image, the builds of a deleted Git source) and dangling images are removed once Opfield has seen them unused for 12 hours. Of Opfield's tool images (Compose sidecar, Docker CLI, volume helper, backup runner, Keeper witness) the newest stays.
+- Images a container uses (running or stopped) are never removed, and neither are the builds the internal registry keeps for rollback nor images a deployment, Compose revision (the active one and the two newest), Availability policy, rollback release or pull under way names. Blue/green deployments keep both slots' images.
+- **Housekeeping > Docker Images** (on by default) applies all of this on every online Docker node on each run; its card counts every old image, those still within their 12 hours included. It also removes old Opfield app and relay images on the Opfield host (the one Opfield runs and the newest other one stay) and old connector images (the current one and one more stay). Nodes that kept old images from earlier releases are cleaned within a day of the update.
+- Database and storage nodes remove their own unused images: an engine or tool image no container uses and no managed instance names goes after 24 hours unused; the newest of each repository stays.
+- **Prune** on a node's Images removes dangling images (no tag, no digest) at once and applies the same rules.
 
 ## Notifications And Status Pages
 
@@ -514,6 +516,13 @@ The internal registry keeps build images on a Docker volume of the Opfield host 
 - If Opfield restarts during a switch, it finishes the switch at the next start when the new storage was already written, and otherwise puts the registry back on its previous storage. The app log says what it repaired.
 - Switching back to **Local disk** copies the images from the bucket to the volume. The bucket keeps its copy; empty that folder before you move the registry to it again.
 - To move to another bucket or folder, switch to Local disk first, then to the new bucket.
+
+The registry cleans up after itself at every maintenance run (after builds and nightly with Housekeeping):
+
+- It keeps per container the build it runs and one to roll back to.
+- The builds of a Git source that no longer exists (its container, deployment or Pages project was deleted, or the source was detached) are deleted once two maintenance runs at least 12 hours apart found no workload naming them.
+- On local disk, the leftovers of pushes that failed or were cancelled are removed after a day.
+- On local disk, the registry stops taking new builds and image pushes while the disk under its volume is 90% full or more. Builds then fail with a message that says so, and the registry shows **Degraded**. They resume on their own once space is freed. Pulls keep working. A registry on S3 is not limited by the host disk.
 
 The choice is kept in `.env` (`OPFIELD_REGISTRY_STORAGE` and `OPFIELD_REGISTRY_S3_*`), and `docker-compose.yml` reads it, so updates and restarts keep it. If you rotate the S3 keys, enter the new ones in the same panel. Installations that never change this setting keep the local volume.
 
