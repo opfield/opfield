@@ -31,6 +31,11 @@ import {
   DEFAULT_EXPIRED_TOKEN_RETENTION_DAYS,
   purgeExpiredTokens,
 } from './expired-token-retention.js';
+import {
+  type HostImage,
+  opfieldHostImageRepositories,
+  selectOldOpfieldHostImages,
+} from './housekeeping-host-images.js';
 import type { NodeDispatchService } from './node-dispatch.service.js';
 import {
   cleanOperationHistory,
@@ -776,30 +781,15 @@ export class HousekeepingService {
     let freedBytes = 0;
     try {
       const selfInfo = await this.dockerService.inspectSelf();
-      const currentImage = selfInfo.Config.Image;
-      const imageBase = currentImage.includes(':')
-        ? currentImage.substring(0, currentImage.lastIndexOf(':'))
-        : currentImage;
-      const listRes = await this.dockerRequest('GET', `/images/json`);
-      if (listRes.statusCode === 200) {
-        const images = JSON.parse(listRes.body) as Array<{
-          Id: string;
-          RepoTags: string[] | null;
-          Size: number;
-        }>;
-        for (const img of images) {
-          const tags = img.RepoTags || [];
-          if (!tags.some((tag) => tag.startsWith(`${imageBase}:`))) continue;
-          if (tags.some((tag) => tag === currentImage)) continue;
-          try {
-            const delRes = await this.dockerRequest('DELETE', `/images/${encodeURIComponent(img.Id)}`);
-            if (delRes.statusCode === 200) {
-              cleaned += 1;
-              freedBytes += img.Size;
-            }
-          } catch {
-            // Keep cleaning other images.
+      for (const image of await this.oldOpfieldHostImages(selfInfo)) {
+        try {
+          const delRes = await this.dockerRequest('DELETE', `/images/${encodeURIComponent(image.id)}`);
+          if (delRes.statusCode === 200) {
+            cleaned += 1;
+            freedBytes += image.size;
           }
+        } catch {
+          // Keep cleaning other images.
         }
       }
 
@@ -848,9 +838,10 @@ export class HousekeepingService {
   }
 
   /**
-   * On every online Docker node: build images beyond each container's image cleanup setting (the running build and
-   * its rollback builds stay) and dangling images. Catches what a missed or failed cleanup after a deploy left, and the
-   * leftovers of older releases. `dryRun` counts them for the stats.
+   * On every online Docker node, the image cleanup rules (DockerImageCleanupService.enforceNode): each workload's
+   * older images beyond its image cleanup setting, unused images nothing runs or names once old enough, and dangling
+   * images. Catches what a missed or failed cleanup after a change left, and the leftovers of older releases.
+   * `dryRun` counts them for the stats, those still within their minimum unused time included.
    */
   private async applyNodeImageRetention(dryRun: boolean): Promise<{ count: number; bytes: number }> {
     const cleanup = this.imageCleanupService;
@@ -867,8 +858,10 @@ export class HousekeepingService {
       try {
         const result = await cleanup.enforceNode(nodeId, { dangling: true, dryRun });
         if (dryRun) {
-          count += result.candidates.length;
-          bytes += result.candidates.reduce((sum, candidate) => sum + candidate.size, 0);
+          // Every old image the rules remove, also those still within their minimum unused time.
+          const old = [...result.candidates, ...result.waiting];
+          count += old.length;
+          bytes += old.reduce((sum, candidate) => sum + candidate.size, 0);
         } else {
           count += result.removed.length;
           bytes += result.freedBytes;
@@ -1001,27 +994,9 @@ export class HousekeepingService {
     let oldCount = 0;
     let reclaimable = 0;
     try {
-      const selfInfo = await this.dockerService.inspectSelf();
-      const currentImage = selfInfo.Config.Image;
-      const imageBase = currentImage.includes(':')
-        ? currentImage.substring(0, currentImage.lastIndexOf(':'))
-        : currentImage;
-
-      const res = await this.dockerRequest('GET', '/images/json');
-      if (res.statusCode === 200) {
-        const images = JSON.parse(res.body) as Array<{
-          Id: string;
-          RepoTags: string[] | null;
-          Size: number;
-        }>;
-        for (const img of images) {
-          const tags = img.RepoTags || [];
-          if (!tags.some((tag) => tag.startsWith(`${imageBase}:`))) continue;
-          if (tags.some((tag) => tag === currentImage)) continue;
-          oldCount += 1;
-          reclaimable += img.Size;
-        }
-      }
+      const hostImages = await this.oldOpfieldHostImages(await this.dockerService.inspectSelf());
+      oldCount = hostImages.length;
+      reclaimable = hostImages.reduce((sum, image) => sum + image.size, 0);
     } catch {
       // Managed-node connector stats remain available without local Docker.
     }
@@ -1031,6 +1006,33 @@ export class HousekeepingService {
       oldImageCount: oldCount + connectorImages.length + nodeImages.count,
       reclaimableBytes: reclaimable + connectorImages.reduce((sum, image) => sum + image.size, 0) + nodeImages.bytes,
     };
+  }
+
+  /**
+   * Old app and relay images on the Opfield host (see selectOldOpfieldHostImages): they are pulled by digest, so
+   * matching the running image's tag never found them.
+   */
+  private async oldOpfieldHostImages(selfInfo: { Image?: string; Config: { Image: string } }) {
+    const [imagesRes, containersRes] = await Promise.all([
+      this.dockerRequest('GET', '/images/json'),
+      this.dockerRequest('GET', '/containers/json?all=true'),
+    ]);
+    if (imagesRes.statusCode !== 200 || containersRes.statusCode !== 200) return [];
+    const images = JSON.parse(imagesRes.body) as HostImage[];
+    const containers = JSON.parse(containersRes.body) as Array<{ ImageID?: string }>;
+    return selectOldOpfieldHostImages({
+      images,
+      inUseImageIds: new Set(containers.flatMap((container) => (container.ImageID ? [container.ImageID] : []))),
+      selfImageId: selfInfo.Image ?? null,
+      appRepositories: opfieldHostImageRepositories(
+        selfInfo.Config.Image,
+        (this._env.OPFIELD_UPDATE_IMAGE_REPOSITORIES ?? '')
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      ),
+      keepReferences: [this._env.OPFIELD_RELAY_IMAGE_REF],
+    });
   }
 
   private async getObsoleteConnectorImages(): Promise<Array<OpfieldInternalImageCandidate & { nodeId: string }>> {

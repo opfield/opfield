@@ -2,11 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
-import {
-  filterOpfieldInternalImages,
-  isDanglingDockerImage,
-  isOpfieldInternalImage,
-} from './docker-internal-images.js';
+import { selectDanglingImages } from './docker-image-retention.js';
+import { filterOpfieldInternalImages } from './docker-internal-images.js';
 import type { DockerRegistryService } from './docker-registry.service.js';
 import { type DockerTaskService, detachDockerTask, trackDockerTask } from './docker-task.service.js';
 import { isLostTrackError } from './docker-task-reconciler.js';
@@ -160,10 +157,9 @@ export async function pruneImages(context: DockerImageOperationContext, nodeId: 
   const deleted: string[] = [];
   let spaceReclaimed = 0;
   if (Array.isArray(images)) {
-    for (const image of images) {
-      if (isOpfieldInternalImage(image) || !isDanglingDockerImage(image)) continue;
-      const imageId = String(image.id ?? image.Id ?? '');
-      if (!imageId) continue;
+    // Docker's `image prune`: images with no tag and no digest that no container uses. A digest-only image (a build,
+    // an engine or a user's pin pulled by `repo@sha256:…`) is left to the image cleanup rules.
+    for (const { id: imageId, size } of selectDanglingImages(images)) {
       try {
         const result = await context.nodeDispatch.sendDockerImageCommand(nodeId, 'remove', {
           imageRef: imageId,
@@ -171,7 +167,7 @@ export async function pruneImages(context: DockerImageOperationContext, nodeId: 
         });
         context.parseResult(result);
         deleted.push(imageId);
-        spaceReclaimed += Number(image.size ?? image.Size ?? 0);
+        spaceReclaimed += size;
       } catch {
         // Docker rejects in-use or parent images; keep pruning the remaining safe candidates.
       }

@@ -33,7 +33,11 @@ export {
 
 export const INTERNAL_DOCKER_REGISTRY_ID = 'gateway-internal-registry';
 const logger = createChildLogger('DockerInternalRegistryService');
+/** At this share of the registry's filesystem in use, the registry takes no new builds or pushes. */
 const DEFAULT_DISK_PRESSURE_RATIO = 0.9;
+const REGISTRY_DISK_FULL_PREFIX = "The internal registry's disk is";
+/** Upload sessions of failed or cancelled pushes older than this are removed at every maintenance run. */
+const STALE_UPLOAD_MINUTES = 24 * 60;
 const STORAGE_MEASURE_INTERVAL_MS = 5 * 60_000;
 /** How soon a failed maintenance run is checked for a failure that could not be recorded. */
 const UNFINISHED_MAINTENANCE_CHECK_MS = 30_000;
@@ -59,6 +63,8 @@ export class DockerInternalRegistryService {
   private storageMeasuredAt = 0;
   /** Where the last measurement found the registry's data; null before the first one. */
   private measuredStorageBackend: 'filesystem' | 's3' | null = null;
+  /** The registry volume's filesystem at the last measurement; null on S3 or before the first one. */
+  private measuredFilesystem: { totalBytes: number; usedBytes: number; availableBytes: number } | null = null;
   /** Maintenance runs of this process in flight. */
   private maintenanceRuns = 0;
   private readonly buildRetention: DockerRegistryBuildRetention;
@@ -155,11 +161,15 @@ export class DockerInternalRegistryService {
     } catch {
       healthy = false;
     }
+    const usedBytes = await this.storageUsedBytes(healthy);
     return this.reportHealth({
       healthy,
       writable: healthy,
-      usedBytes: await this.storageUsedBytes(healthy),
-      capacityBytes: null,
+      usedBytes,
+      // The size of the disk the registry's volume is on: the registry fills it until it is full, so writes stop
+      // when that disk is DEFAULT_DISK_PRESSURE_RATIO full. Unknown (and never full) on S3.
+      capacityBytes: this.measuredFilesystem?.totalBytes ?? null,
+      filesystem: this.measuredFilesystem,
       storageBackend: this.measuredStorageBackend ?? undefined,
     });
   }
@@ -176,6 +186,13 @@ export class DockerInternalRegistryService {
       this.storageMeasuredAt = Date.now();
       // On S3 the size is the bucket folder's: it is listed at most once per interval as well.
       this.measuredStorageBackend = (await this.executor.storageBackend?.().catch(() => null)) ?? null;
+      this.measuredFilesystem =
+        this.measuredStorageBackend === 's3'
+          ? null
+          : ((await this.executor.storageFilesystem?.().catch((error) => {
+              logger.debug('Managed registry filesystem could not be measured', { error });
+              return this.measuredFilesystem;
+            })) ?? null);
       return measured;
     } catch (error) {
       logger.debug('Managed registry storage usage could not be measured', { error });
@@ -188,14 +205,19 @@ export class DockerInternalRegistryService {
     writable: boolean;
     usedBytes: number;
     capacityBytes?: number | null;
+    /** The filesystem the registry's volume is on: its fill decides the write admission when known. */
+    filesystem?: { totalBytes: number; usedBytes: number; availableBytes: number } | null;
     storageBackend?: 'filesystem' | 's3';
   }) {
     const current = await this.getState();
     const maintenance = current.maintenancePhase !== 'idle' && current.maintenancePhase !== 'failed';
     const usedBytes = Math.max(0, input.usedBytes);
     const capacityBytes = input.capacityBytes == null ? null : Math.max(0, input.capacityBytes);
+    const filesystemFill = input.filesystem ? registryFilesystemFill(input.filesystem) : null;
     const diskPressure =
-      capacityBytes !== null && capacityBytes > 0 && usedBytes / capacityBytes >= DEFAULT_DISK_PRESSURE_RATIO;
+      filesystemFill !== null
+        ? filesystemFill >= DEFAULT_DISK_PRESSURE_RATIO
+        : capacityBytes !== null && capacityBytes > 0 && usedBytes / capacityBytes >= DEFAULT_DISK_PRESSURE_RATIO;
     const writable = input.healthy && input.writable && !maintenance && !diskPressure;
     // A maintenance run stops and restarts the registry itself and records how it ended: a probe that finds it down
     // meanwhile does not turn it unhealthy.
@@ -213,7 +235,7 @@ export class DockerInternalRegistryService {
       : !input.healthy
         ? 'Registry health report marked the service unhealthy'
         : diskPressure
-          ? 'Registry storage is at or above the write-admission threshold'
+          ? registryDiskFullMessage(filesystemFill)
           : null;
     if (
       current.status === status &&
@@ -315,6 +337,9 @@ export class DockerInternalRegistryService {
 
   async assertBuildAdmission(): Promise<void> {
     const state = await this.getState();
+    if (state.status === 'degraded' && state.lastError?.startsWith(REGISTRY_DISK_FULL_PREFIX)) {
+      throw new AppError(503, 'INTERNAL_REGISTRY_NOT_WRITABLE', state.lastError, { retryable: true });
+    }
     if (state.status !== 'ready' || !state.writable || state.maintenancePhase !== 'idle') {
       // Retryable: the registry is back within seconds after an Opfield update or restart, and an Availability heal
       // that failed here for good would leave the workload unavailable until someone retried it by hand.
@@ -429,6 +454,33 @@ export class DockerInternalRegistryService {
     timer.unref?.();
   }
 
+  /**
+   * Deletes the tagged manifests of build repositories whose source is gone (see orphanedRepositories): the garbage
+   * collection that follows removes their layers. A failure leaves them to the next run.
+   */
+  private async deleteOrphanedRepositories(owner: string): Promise<Record<string, unknown>> {
+    if (!this.executor.listRepositories || !this.executor.deleteRepositoryTags || !this.store.orphanedRepositories) {
+      return {};
+    }
+    try {
+      const orphaned = await this.store.orphanedRepositories(await this.executor.listRepositories(), new Date());
+      const deleted: string[] = [];
+      for (const repository of orphaned) {
+        await this.store.renewLease(owner, new Date(Date.now() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS));
+        await this.executor.deleteRepositoryTags(repository);
+        deleted.push(repository);
+      }
+      if (deleted.length)
+        logger.info('Deleted the builds of removed sources from the registry', { count: deleted.length });
+      return deleted.length ? { deletedOrphanedRepositories: deleted } : {};
+    } catch (error) {
+      logger.warn('Builds of removed sources stay in the registry until the next maintenance run', {
+        error: (error as Error).message,
+      });
+      return {};
+    }
+  }
+
   private async runMaintenance(input: {
     owner: string;
     dryRun: boolean;
@@ -498,6 +550,14 @@ export class DockerInternalRegistryService {
         await this.executor.pauseAdmissions();
         await phase('draining_uploads');
         await this.executor.drainUploads();
+        // Upload sessions of pushes that failed or were cancelled stay on the volume until removed.
+        const purged = await this.executor.purgeStaleUploads?.(STALE_UPLOAD_MINUTES).catch((error) => {
+          logger.warn('Old registry upload sessions stay until the next maintenance run', {
+            error: (error as Error).message,
+          });
+          return 0;
+        });
+        if (purged) progress = { ...progress, purgedUploadSessions: purged };
       }
 
       await phase('computing_pins');
@@ -517,6 +577,7 @@ export class DockerInternalRegistryService {
           await this.executor.deleteManifest(artifact.repository, artifact.digest);
           await this.store.markArtifactDeleted(artifact.id, new Date());
         }
+        progress = { ...progress, ...(await this.deleteOrphanedRepositories(input.owner)) };
         await phase('entering_read_only');
         await this.executor.enterReadOnly();
         await phase('collecting_blobs');
@@ -587,4 +648,17 @@ export class DockerInternalRegistryService {
       throw error;
     }
   }
+}
+
+/** The share of the filesystem in use, as df counts it (blocks reserved for root count as unavailable). */
+export function registryFilesystemFill(filesystem: { usedBytes: number; availableBytes: number }): number | null {
+  const usable = filesystem.usedBytes + filesystem.availableBytes;
+  return usable > 0 ? filesystem.usedBytes / usable : null;
+}
+
+function registryDiskFullMessage(fill: number | null): string {
+  if (fill === null) return 'Registry storage is at or above the write-admission threshold';
+  return `${REGISTRY_DISK_FULL_PREFIX} ${Math.floor(fill * 100)}% full (new builds and image pushes stop at ${Math.round(
+    DEFAULT_DISK_PRESSURE_RATIO * 100
+  )}%): free space on the Opfield host or remove old builds, then builds resume`;
 }

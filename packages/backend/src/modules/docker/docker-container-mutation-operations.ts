@@ -155,6 +155,8 @@ export interface DockerContainerMutationContext {
   registryService?: DockerRegistryService;
   imageCleanupService?: {
     scheduleCleanupForContainer(nodeId: string, containerName: string, imageRef: string | undefined): Promise<unknown>;
+    forgetContainer?(nodeId: string, containerName: string): Promise<unknown>;
+    renameContainer?(nodeId: string, oldName: string, newName: string): Promise<unknown>;
   };
   folderService?: {
     deleteContainerAssignment(nodeId: string, containerName: string): Promise<unknown>;
@@ -876,6 +878,8 @@ async function removeStoppedContainer(
     detachContainerSource(ctx.db, nodeId, name, userId),
     // Nor what it received from its app environment layer.
     forgetContainerLayer(nodeId, name),
+    // Nor its image cleanup setting.
+    ctx.imageCleanupService?.forgetContainer?.(nodeId, name),
   ]);
   // Nor its managed database and storage links (network, credentials). After the secrets above: the link secrets
   // are gone with the container's.
@@ -946,6 +950,7 @@ export async function renameContainer(
       ctx.folderService?.deleteContainerAssignment(nodeId, newName),
       ctx.accessResourceService?.removeContainer(nodeId, newName),
       deleteContainerWebhooks(ctx.db, nodeId, newName),
+      ctx.imageCleanupService?.forgetContainer?.(nodeId, newName),
     ]);
     await ctx.releaseContainerLinks?.(nodeId, newName, userId);
 
@@ -992,6 +997,10 @@ export async function renameContainer(
       metadataRollbacks.unshift(() => renameManagedBindingTargets(ctx.db, nodeId, newName, oldName));
       await renameContainerWebhooks(ctx.db, nodeId, oldName, newName);
       metadataRollbacks.unshift(() => renameContainerWebhooks(ctx.db, nodeId, newName, oldName));
+      if (ctx.imageCleanupService?.renameContainer) {
+        await ctx.imageCleanupService.renameContainer(nodeId, oldName, newName);
+        metadataRollbacks.unshift(() => ctx.imageCleanupService!.renameContainer!(nodeId, newName, oldName));
+      }
     } catch (metadataError) {
       try {
         const rollbackResult = await ctx.nodeDispatch.sendDockerContainerCommand(nodeId, 'rename', {

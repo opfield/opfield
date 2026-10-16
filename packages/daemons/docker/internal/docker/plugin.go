@@ -288,6 +288,7 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		if naming.Legacy {
 			lifecycle.OnStartConfirmed(p.switchBuilderToOpfieldNaming)
 		}
+		go p.runBuilderIdlePrune(context.Background())
 		p.logger.Info("builder profile initialized without Docker Engine access")
 		return nil
 	}
@@ -403,6 +404,7 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		p.recoverStorageCopyJobs()
 		go p.runLoopImageRepair(context.Background())
 		go p.runManagedEngineSupervisor(context.Background())
+		go p.runStorageImageSweep(context.Background())
 	}
 	if p.cfg.Docker.Mode != "databases" && p.cfg.Docker.Mode != "storage" {
 		composeExecutor, composeErr := newComposeExecutor(p.cfg, p.client, p.logger)

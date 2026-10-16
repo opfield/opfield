@@ -132,6 +132,8 @@ export class DockerRegistryTokenService {
     context?: { nodeId?: string; buildId?: string; containerId?: string; deploymentId?: string };
     ttlSeconds?: number;
     now?: Date;
+    /** Also the registry's repository list (`/v2/_catalog`): only Opfield's own maintenance asks for it. */
+    catalog?: boolean;
   }): { token: string; accessToken: string; expiresIn: number; issuedAt: string } {
     if (!this.privateKeyPem || !this.certificatePem) {
       throw new AppError(503, 'REGISTRY_TOKEN_SIGNER_UNAVAILABLE', 'Registry token signer is not initialized');
@@ -148,7 +150,8 @@ export class DockerRegistryTokenService {
         throw new AppError(403, 'REGISTRY_SCOPE_DENIED', 'Requested registry repository or action is not allowed');
       }
       return { type: 'repository', name: grant.repository, actions };
-    });
+    }) as Array<{ type: string; name: string; actions: string[] }>;
+    if (input.catalog) access.push({ type: 'registry', name: 'catalog', actions: ['*'] });
     const now = input.now ?? new Date();
     const issuedAt = Math.floor(now.getTime() / 1000);
     const expiresIn = Math.min(Math.max(input.ttlSeconds ?? 120, 30), MAX_TOKEN_TTL_SECONDS);

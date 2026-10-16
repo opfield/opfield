@@ -117,6 +117,43 @@ export class DockerService {
     return kibibytes * 1024;
   }
 
+  /**
+   * The filesystem the managed registry keeps its data on (its volume, on the Opfield host's disk), measured inside
+   * the registry container with `df`; null when the registry keeps its data in S3.
+   */
+  async managedRegistryFilesystem(): Promise<{ totalBytes: number; usedBytes: number; availableBytes: number } | null> {
+    const registryId = await this.managedRegistryContainerId();
+    if (await this.managedRegistryOnS3(registryId)) return null;
+    const result = await this.execInContainer(registryId, ['df', '-kP', '/var/lib/registry']);
+    const parsed = parseDfKilobytes(result.output);
+    if (result.exitCode !== 0 || !parsed) {
+      throw new Error(`Registry filesystem usage is unavailable (${result.exitCode}): ${result.output.trim()}`);
+    }
+    return parsed;
+  }
+
+  /**
+   * Removes upload sessions the registry left behind (a push that failed or was cancelled) that are older than
+   * `olderThanMinutes`: in filesystem mode from the registry volume (the registry is stopped, or no push can be that
+   * old); returns how many were removed. S3: the registry's own upload purging handles them.
+   */
+  async purgeManagedRegistryUploads(olderThanMinutes: number): Promise<number> {
+    const registryId = await this.managedRegistryContainerId();
+    if (await this.managedRegistryOnS3(registryId)) return 0;
+    const minutes = Math.max(60, Math.floor(olderThanMinutes));
+    const result = await this.execInContainer(registryId, [
+      'sh',
+      '-c',
+      `root=/var/lib/registry/docker/registry/v2/repositories; [ -d "$root" ] || exit 0; ` +
+        `find "$root" -type d -path '*/_uploads/*' -prune -mmin +${minutes} -print -exec rm -rf {} + | wc -l`,
+    ]);
+    if (result.exitCode !== 0) {
+      throw new Error(`Registry upload cleanup failed (${result.exitCode}): ${result.output.trim()}`);
+    }
+    const removed = Number(result.output.trim().split(/\s+/).pop());
+    return Number.isSafeInteger(removed) ? removed : 0;
+  }
+
   async runManagedRegistryGarbageCollection(dryRun: boolean): Promise<void> {
     const registryId = await this.managedRegistryContainerId();
     const inspected = await this.request('GET', `${API_VERSION}/containers/${registryId}/json`);
@@ -1327,4 +1364,20 @@ export interface DockerImageSummary {
   RepoTags?: string[] | null;
   RepoDigests?: string[] | null;
   Size?: number;
+}
+
+/** `df -kP` output: total, used and available bytes of the one filesystem it lists; null when unreadable. */
+export function parseDfKilobytes(
+  output: string
+): { totalBytes: number; usedBytes: number; availableBytes: number } | null {
+  const line = output
+    .trim()
+    .split('\n')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .at(-1);
+  const columns = line?.split(/\s+/) ?? [];
+  const [total, used, available] = [columns[1], columns[2], columns[3]].map(Number);
+  if (![total, used, available].every((value) => Number.isSafeInteger(value) && value! >= 0) || !total) return null;
+  return { totalBytes: total! * 1024, usedBytes: used! * 1024, availableBytes: available! * 1024 };
 }

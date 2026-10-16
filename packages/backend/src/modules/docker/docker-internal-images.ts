@@ -190,16 +190,15 @@ export function filterOpfieldInternalImages<T extends DockerImageLike>(images: T
   return images.filter((image) => !isOpfieldInternalImage(image));
 }
 
-export function isDanglingDockerImage(image: DockerImageLike): boolean {
-  const tags = image.repoTags ?? image.RepoTags;
-  return !Array.isArray(tags) || tags.length === 0 || tags.every((tag) => tag === '<none>:<none>');
-}
-
 export function findOpfieldInternalImage(images: DockerImageLike[], imageIdOrReference: string) {
   const image = resolveDockerImageByIdentifier(images, imageIdOrReference);
   return image && isOpfieldInternalImage(image) ? image : undefined;
 }
 
+/**
+ * Connector images no container uses that a node can drop: all but the newest unused one of each kind (the current
+ * reference always stays), whatever repository name they came from.
+ */
 export function selectObsoleteOpfieldConnectorImages(
   images: DockerImageLike[],
   currentSecureLinkReference?: string | null
@@ -224,8 +223,9 @@ export function selectObsoleteOpfieldConnectorImages(
       created: Number(image.created ?? image.Created ?? 0),
       size: Number(image.size ?? image.Size ?? 0),
     };
-    const key = `${kind}:${repository}`;
-    groups.set(key, [...(groups.get(key) ?? []), candidate]);
+    // One group per kind across every repository name it was published under (the-square-labs/gateway,
+    // opfield/opfield, …): an image left under an earlier name counts as an older version.
+    groups.set(kind, [...(groups.get(kind) ?? []), candidate]);
   }
 
   return [...groups.values()].flatMap((candidates) =>
