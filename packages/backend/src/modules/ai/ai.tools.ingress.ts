@@ -163,7 +163,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
             },
             required: ['source', 'destination', 'type'],
           },
-          description: 'URL rewrite rules applied before proxying',
+          description: 'URL rewrite rules applied before proxying, in order: the first rule that matches redirects',
         },
         advancedConfig: { type: 'string', description: 'Advanced nginx snippet; requires proxy:advanced.' },
         accessListId: { type: 'string', description: 'Access list UUID for IP/auth restrictions' },
@@ -320,7 +320,8 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
             },
             required: ['source', 'destination', 'type'],
           },
-          description: 'Full replacement list of URL rewrite rules',
+          description:
+            'Full replacement list of URL rewrite rules, in order: the first rule that matches redirects, so pass them in the new order to reorder',
         },
         advancedConfig: { type: ['string', 'null'], description: 'Advanced nginx snippet; requires proxy:advanced' },
         accessListId: { type: ['string', 'null'], description: 'Access list UUID; null clears it' },
@@ -785,7 +786,8 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
             properties: { type: { type: 'string', enum: ['allow', 'deny'] }, value: { type: 'string' } },
             required: ['type', 'value'],
           },
-          description: 'Ordered allow/deny rules; applied before allowIps and denyIps',
+          description:
+            'Ordered allow/deny rules (first match wins; addresses that match no rule are denied); placed before allowIps, then denyIps',
         },
         basicAuthEnabled: { type: 'boolean', description: 'Enable HTTP basic authentication (default: false)' },
         basicAuthUsers: {
@@ -810,7 +812,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'delete_access_list',
-    description: 'Delete an access list. Routes using it will no longer have access control.',
+    description: 'Delete an access list. Refused while a route or a Pages project uses it: detach it from them first.',
     parameters: {
       type: 'object',
       properties: {
@@ -826,17 +828,27 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_access_list',
     description:
-      'Get or update an access list. Operations: get, update. Update accepts name, description, ipRules, basicAuthEnabled, and basicAuthUsers.',
+      'Get or update an access list. Operations: get; update (name, description, ipRules, basicAuthEnabled, basicAuthUsers; ipRules replaces the whole ordered list); move_rule (fromIndex, toIndex: move one IP rule, 0-based, the rules between shift by one). nginx checks IP rules in order, the first match wins, and every address that matches no rule is denied. get, update and move_rule return ipRuleWarnings: rules that never match because an earlier rule covers them (shadowed, with coveredByIndex) and deny rules with no effect because no later rule allows those addresses. Fix a shadowed rule with move_rule or remove it with update.',
     parameters: {
       type: 'object',
       properties: {
-        operation: { type: 'string', enum: ['get', 'update'] },
+        operation: { type: 'string', enum: ['get', 'update', 'move_rule'] },
         accessListId: { type: 'string' },
         name: { type: 'string' },
         description: { type: ['string', 'null'] },
-        ipRules: { type: 'array', items: { type: 'object' } },
+        ipRules: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { type: { type: 'string', enum: ['allow', 'deny'] }, value: { type: 'string' } },
+            required: ['type', 'value'],
+          },
+          description: 'update: every IP rule in the order nginx checks them (IP, CIDR or "all"); first match wins.',
+        },
         basicAuthEnabled: { type: 'boolean' },
         basicAuthUsers: { type: 'array', items: { type: 'object' } },
+        fromIndex: { type: 'number', description: 'move_rule: 0-based position of the rule to move.' },
+        toIndex: { type: 'number', description: 'move_rule: 0-based position the rule takes (0 = checked first).' },
       },
       required: ['operation', 'accessListId'],
     },

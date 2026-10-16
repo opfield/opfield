@@ -266,6 +266,31 @@ export function NodeFirewallTab({
     setRuleDialog(null);
   };
 
+  // The provider checks the rules of one direction in order and the first match wins, so a rule moves past the
+  // neighbouring rule of its own direction; rules of the other direction keep their places.
+  const moveRule = (rule: HostingFirewallRule, delta: -1 | 1) => {
+    if (rulesLockedRef.current) return;
+    updateDraft((current) => {
+      const from = current.rules.findIndex((candidate) => candidate.id === rule.id);
+      if (from < 0) return current;
+      let to = from + delta;
+      while (
+        to >= 0 &&
+        to < current.rules.length &&
+        current.rules[to]!.direction !== rule.direction
+      ) {
+        to += delta;
+      }
+      if (to < 0 || to >= current.rules.length) return current;
+      const rules = [...current.rules];
+      [rules[from], rules[to]] = [rules[to]!, rules[from]!];
+      return { ...current, rules };
+    });
+  };
+
+  // DigitalOcean applies every deny rule before the allow rules, whatever their order.
+  const orderedRules = provider !== "digitalocean";
+
   const deleteRule = async (rule: HostingFirewallRule) => {
     if (rulesLockedRef.current) return;
     const lifecycle = lifecycleRef.current;
@@ -480,6 +505,7 @@ export function NodeFirewallTab({
               editingLocked={rulesLocked}
               onAdd={openAddRule}
               onEdit={openEditRule}
+              onMove={orderedRules ? moveRule : undefined}
               onDelete={(rule) => void deleteRule(rule)}
             />
           ))

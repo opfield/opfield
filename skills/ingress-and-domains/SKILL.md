@@ -29,7 +29,7 @@ Enable WebSockets, redirects, Access Lists, headers, caching, rate limits, maint
 
 ## Access Lists and maintenance
 
-- An Access List combines ordered IP allow/deny rules (first match wins) with optional HTTP basic auth. It attaches to Routes through `accessListId` and to Pages previews through the Page Project; editing a shared list updates everything that uses it.
+- An Access List combines ordered IP allow/deny rules (first match wins; addresses that match no rule are denied) with optional HTTP basic auth. Reorder rules with `manage_access_list` `move_rule` and check `ipRuleWarnings` for rules an earlier rule shadows. It attaches to Routes through `accessListId` and to Pages previews through the Page Project; editing a shared list updates everything that uses it.
 - Never invent, request, or relay basic-auth passwords in chat. Prefer IP rules for lists you create; for basic auth, let the user add users in the Opfield Console, then attach the list by ID.
 - `set_route_maintenance({ routeId, enabled })` serves HTTP 503 while keeping the vhosts listening and pausing managed health checks. Use it instead of disabling the Route or editing its config, so the change stays audited and reaches notification rules and status pages. It works on enabled, non-raw Routes only.
 

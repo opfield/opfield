@@ -14,9 +14,15 @@ import {
   deleteAccessListRoute,
   getAccessListRoute,
   listAccessListsRoute,
+  moveAccessListIpRuleRoute,
   updateAccessListRoute,
 } from './access-list.docs.js';
-import { AccessListQuerySchema, CreateAccessListSchema, UpdateAccessListSchema } from './access-list.schemas.js';
+import {
+  AccessListQuerySchema,
+  CreateAccessListSchema,
+  MoveAccessListIpRuleSchema,
+  UpdateAccessListSchema,
+} from './access-list.schemas.js';
 import { AccessListService } from './access-list.service.js';
 
 export const accessListRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
@@ -67,6 +73,19 @@ accessListRoutes.openapi(
     const body = await c.req.json();
     const input = UpdateAccessListSchema.parse(body);
     const accessList = await accessListService.update(id, input, user.id);
+    return c.json({ data: accessList });
+  }
+);
+
+// Move one IP rule (first match wins, so order changes who gets in)
+accessListRoutes.openapi(
+  { ...moveAccessListIpRuleRoute, middleware: requireScopeForResource('acl:edit', 'id') },
+  async (c) => {
+    const accessListService = container.resolve(AccessListService);
+    const user = c.get('user')!;
+    const id = c.req.param('id')!;
+    const input = MoveAccessListIpRuleSchema.parse(await c.req.json());
+    const accessList = await accessListService.moveIpRule(id, input, user.id);
     return c.json({ data: accessList });
   }
 );

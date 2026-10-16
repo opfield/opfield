@@ -1,5 +1,23 @@
 import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   FileCode,
+  GripVertical,
   HeartPulse,
   ListPlus,
   Lock,
@@ -12,6 +30,7 @@ import {
   Save,
   ShieldCheck,
 } from "lucide-react";
+import { type ReactNode, useRef } from "react";
 import { Combobox } from "@/components/common/Combobox";
 import { EmptyState } from "@/components/common/EmptyState";
 import { PanelShell } from "@/components/common/PanelShell";
@@ -179,6 +198,32 @@ export function SettingsTab({
   optionsLoading = false,
 }: SettingsTabProps) {
   useContentLoading(optionsLoading);
+  // nginx stops at the first rewrite that matches, so the rows are reordered by drag. Rows carry no id, so each
+  // keeps a key that follows it through moves and removals.
+  const rewriteKeys = useRef<string[]>([]);
+  const nextRewriteKey = useRef(0);
+  while (rewriteKeys.current.length < customRewrites.length) {
+    rewriteKeys.current.push(`rewrite-${nextRewriteKey.current++}`);
+  }
+  if (rewriteKeys.current.length > customRewrites.length) {
+    rewriteKeys.current = rewriteKeys.current.slice(0, customRewrites.length);
+  }
+  const rewriteSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const reorderRewrites = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const fromIndex = rewriteKeys.current.indexOf(String(active.id));
+    const toIndex = rewriteKeys.current.indexOf(String(over.id));
+    if (fromIndex < 0 || toIndex < 0) return;
+    rewriteKeys.current = arrayMove(rewriteKeys.current, fromIndex, toIndex);
+    setCustomRewrites(arrayMove(customRewrites, fromIndex, toIndex));
+  };
+  const removeRewrite = (index: number) => {
+    rewriteKeys.current = rewriteKeys.current.filter((_, i) => i !== index);
+    setCustomRewrites(customRewrites.filter((_, i) => i !== index));
+  };
   const accessListOptions = [
     { value: "", label: "None" },
     ...accessLists.map((accessList) => ({ value: accessList.id, label: accessList.name })),
@@ -792,7 +837,7 @@ export function SettingsTab({
         <PanelShell
           icon={<Replace className="h-4 w-4" />}
           title="URL Rewrites"
-          description="Rewrite request paths before proxying"
+          description="Rewrite request paths before proxying. The first rewrite that matches redirects the request."
           dirty={hasRewritesChanged}
           actions={
             canManage ? (
@@ -827,78 +872,92 @@ export function SettingsTab({
           {customRewrites.length > 0 ? (
             <div className="overflow-x-auto">
               <div className="min-w-[720px]">
-                <div className="grid grid-cols-[1fr_1fr_11rem_2.25rem] border-b border-border bg-header text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <div className="px-3 py-2">Source</div>
+                <div className="grid grid-cols-[2.25rem_1fr_1fr_11rem_2.25rem] border-b border-border bg-header text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <div>
+                    <span className="sr-only">Order</span>
+                  </div>
+                  <div className="border-l border-border px-3 py-2">Source</div>
                   <div className="border-l border-border px-3 py-2">Destination</div>
                   <div className="border-l border-border px-3 py-2">Type</div>
                   <div className="border-l border-border" />
                 </div>
-                {customRewrites.map((rule, index) => (
-                  <div
-                    key={`rewrite-${index}`}
-                    className="grid grid-cols-[1fr_1fr_11rem_2.25rem] border-b border-border last:border-b-0"
+                <DndContext
+                  sensors={rewriteSensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={reorderRewrites}
+                >
+                  <SortableContext
+                    items={rewriteKeys.current}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <Input
-                      placeholder="Source path"
-                      value={rule.source}
-                      disabled={!canManage}
-                      className={tableInputClass}
-                      onChange={(event) => {
-                        const next = [...customRewrites];
-                        next[index] = { ...next[index], source: event.target.value };
-                        setCustomRewrites(next);
-                      }}
-                    />
-                    <Input
-                      placeholder="Destination"
-                      value={rule.destination}
-                      disabled={!canManage}
-                      className={cn(tableInputClass, "border-l border-border")}
-                      onChange={(event) => {
-                        const next = [...customRewrites];
-                        next[index] = { ...next[index], destination: event.target.value };
-                        setCustomRewrites(next);
-                      }}
-                    />
-                    <Select
-                      value={rule.type}
-                      onValueChange={(value) => {
-                        const next = [...customRewrites];
-                        next[index] = {
-                          ...next[index],
-                          type: value as "permanent" | "temporary",
-                        };
-                        setCustomRewrites(next);
-                      }}
-                      disabled={!canManage}
-                    >
-                      <SelectTrigger
-                        className={cn(
-                          tableInputClass,
-                          "border-l border-border font-sans focus:ring-1 focus:ring-inset focus:ring-ring"
-                        )}
+                    {customRewrites.map((rule, index) => (
+                      <SortableRewriteRow
+                        key={rewriteKeys.current[index]}
+                        id={rewriteKeys.current[index]!}
+                        index={index}
+                        disabled={!canManage}
                       >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="font-sans">
-                        <SelectItem value="permanent">Permanent</SelectItem>
-                        <SelectItem value="temporary">Temporary</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-none border-l border-border"
-                      aria-label={`Remove URL rewrite ${index + 1}`}
-                      onClick={() =>
-                        setCustomRewrites(customRewrites.filter((_, i) => i !== index))
-                      }
-                      disabled={!canManage}
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
+                        <Input
+                          placeholder="Source path"
+                          value={rule.source}
+                          disabled={!canManage}
+                          className={cn(tableInputClass, "border-l border-border")}
+                          onChange={(event) => {
+                            const next = [...customRewrites];
+                            next[index] = { ...next[index], source: event.target.value };
+                            setCustomRewrites(next);
+                          }}
+                        />
+                        <Input
+                          placeholder="Destination"
+                          value={rule.destination}
+                          disabled={!canManage}
+                          className={cn(tableInputClass, "border-l border-border")}
+                          onChange={(event) => {
+                            const next = [...customRewrites];
+                            next[index] = { ...next[index], destination: event.target.value };
+                            setCustomRewrites(next);
+                          }}
+                        />
+                        <Select
+                          value={rule.type}
+                          onValueChange={(value) => {
+                            const next = [...customRewrites];
+                            next[index] = {
+                              ...next[index],
+                              type: value as "permanent" | "temporary",
+                            };
+                            setCustomRewrites(next);
+                          }}
+                          disabled={!canManage}
+                        >
+                          <SelectTrigger
+                            className={cn(
+                              tableInputClass,
+                              "border-l border-border font-sans focus:ring-1 focus:ring-inset focus:ring-ring"
+                            )}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="font-sans">
+                            <SelectItem value="permanent">Permanent</SelectItem>
+                            <SelectItem value="temporary">Temporary</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-none border-l border-border"
+                          aria-label={`Remove URL rewrite ${index + 1}`}
+                          onClick={() => removeRewrite(index)}
+                          disabled={!canManage}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                      </SortableRewriteRow>
+                    ))}
+                  </SortableContext>
+                </DndContext>
               </div>
             </div>
           ) : (
@@ -906,6 +965,48 @@ export function SettingsTab({
           )}
         </PanelShell>
       )}
+    </div>
+  );
+}
+
+function SortableRewriteRow({
+  id,
+  index,
+  disabled,
+  children,
+}: {
+  id: string;
+  index: number;
+  disabled: boolean;
+  children: ReactNode;
+}) {
+  const sortable = useSortable({ id, disabled });
+  return (
+    <div
+      ref={sortable.setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(sortable.transform),
+        transition: sortable.transition,
+        zIndex: sortable.isDragging ? 10 : undefined,
+      }}
+      className={cn(
+        "relative grid grid-cols-[2.25rem_1fr_1fr_11rem_2.25rem] border-b border-border bg-card last:border-b-0",
+        sortable.isDragging && "opacity-70"
+      )}
+    >
+      <Button
+        ref={sortable.setActivatorNodeRef}
+        variant="ghost"
+        size="icon"
+        className="cursor-grab rounded-none text-muted-foreground active:cursor-grabbing"
+        aria-label={`Reorder URL rewrite ${index + 1}`}
+        disabled={disabled}
+        {...sortable.attributes}
+        {...sortable.listeners}
+      >
+        <GripVertical />
+      </Button>
+      {children}
     </div>
   );
 }
