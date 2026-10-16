@@ -433,6 +433,22 @@ Old images stay on a Docker node until something removes them, and Git-source bu
 - **Prune** on a node's Images removes dangling images and applies the same build-image rule; it never removes the builds containers run or roll back to.
 - A container or deployment with Image Cleanup turned off keeps all its images.
 
+## Disk Usage And Retention
+
+**Settings > Features > Housekeeping** starts with what Opfield's own data takes on the Opfield host: every disk that holds it (the Docker data root with images, container logs and named volumes, and any volume of the stack on a disk of its own) with its free space, the Postgres database with its largest tables, Redis memory and AOF size, and the size of the container logs (shown only; logs rotate by their Docker log settings). The disks are measured every 10 minutes.
+
+Every record Opfield keeps has a bound, on by default and applied to existing installs on the first run after an update:
+
+- **Operation History** (90 days) removes finished operations and run records, keeping each resource's 10 latest: builds, Compose, Availability and hosting operations, webhook deliveries, registry maintenance runs, relay pool update runs, deployment releases, container migrations, storage copy jobs, sandbox jobs, inference core operations, App promotions and incidents, sign-in sessions, earlier certificate placements of proxy hosts and deleted image records.
+- **Build Logs** (30 days, 2 GiB in total) removes the logs of finished builds past the age, then the oldest while all build logs together are larger. The newest 3 finished builds of each source keep their log.
+- **Inference Usage** (90 days, at least 35) removes settled inference requests with their attempts and usage records. Usage limits and reports read at most the last 30 days or the current month, and each user's lifetime total keeps what was removed. Old provider quota readings and unused price versions go too.
+- **Orphaned Volumes** (3 days) removes an anonymous volume once it was unused that long, only when Opfield created it: a scan saw it attached to a container Opfield created. Unused volumes Opfield did not create, or cannot tell (for example left before this release), are never removed automatically; the card counts them so you can remove them yourself. Blue/green slots and Availability replicas remove their anonymous volumes when they are replaced.
+- **Orphaned AI Artifacts** removes files whose conversation or user was deleted, and keeps tool and sandbox outputs within 10 GiB together (oldest first). Files users attached are not capped.
+- **Opfield Host Files** removes leftovers of interrupted work on the Opfield host: temporary files, MCP archive transfer spools, configuration export snapshots and dumps. It also runs a minute after Opfield starts.
+- **Dismissed Alerts** also keeps one open alert per resource and kind, and removes open alerts older than 90 days.
+
+With the Housekeeping switch off, the scheduled run still runs the categories that bound Opfield's own data (Internal Registry, Operation History, Build Logs, Inference Usage, Expired OAuth Grants, Expired Tokens, Opfield Host Files), each with its own switch. A category that takes more than 30 minutes is stopped and reported, and the rest of the run continues. When a disk holding Opfield data reaches 90%, housekeeping runs at once instead of at night (at most once an hour).
+
 ## Notifications And Status Pages
 
 Opfield supports operational notification workflows:
@@ -447,6 +463,8 @@ Opfield supports operational notification workflows:
 Use status pages for externally visible service health and incidents. Use notifications for internal operational alerts.
 
 Two built-in rules watch disk space out of the box: **Node disk almost full** (Node category, root disk `/` at 85% or more on any node) and **Opfield disk almost full** (Opfield category, the Opfield host's data disk at 85% or more). The upgrade creates them enabled, notifying the webhooks the existing node and Opfield rules notify; on a new install, pick their webhooks in **Notifications > Alerts**. Change the threshold or turn them off there.
+
+Two more built-in Opfield rules come with the update: **Opfield disk full** (critical, 95% or more) and **Housekeeping not running** (no successful housekeeping run for two days, so nothing is being removed). The Opfield host disk they watch is the fullest disk that holds Opfield data: the Docker data root and every volume of the stack, not only the app's data directory.
 
 Notification message and webhook templates use one canonical nested context. Common families are `notification.*`, `alert.*`, `resource.*`, `metric.*`, `node.*`, `health.*`, `certificate.*`, `state.*`, `event.*`, `operation.*`, `failure.*`, `details.*`, `fired.*`, `resolution.*`, and `gateway.*`. For example, use `{{notification.title}}`, `{{alert.severity.emoji}}`, `{{metric.value}}`, and `{{fired.duration}}` (how long the alert lasted, such as `3m 37s`; `{{fired.duration.seconds}}` is the number of seconds). Historical flat names such as `alert_name`, `value`, `threshold`, `fired_at`, and `fired_duration` are not aliases and render empty. The `coalesce` helper can select the first non-empty nested value.
 

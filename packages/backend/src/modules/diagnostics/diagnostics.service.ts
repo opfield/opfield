@@ -6,6 +6,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { RedisClient } from '@/services/cache.service.js';
 import type { DockerContainerListItem, DockerService } from '@/services/docker.service.js';
+import { OpfieldHostDiskReader } from '@/services/opfield-host-disks.js';
 import type { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import type { SchedulerJobStats, SchedulerService } from '@/services/scheduler.service.js';
 import {
@@ -275,6 +276,8 @@ function numericPaths(value: unknown, prefix = ''): string[] {
 
 export class DiagnosticsService {
   private readonly system: SystemReader;
+  /** Every disk of the Opfield host that holds Opfield data, not only the app's own data directory. */
+  readonly hostDisks: OpfieldHostDiskReader;
   private readonly processStartedAt = new Date(Date.now() - process.uptime() * 1000).toISOString();
   private pendingSamples: DiagnosticsSample[] = [];
   private lastSample: DiagnosticsSample | null = null;
@@ -291,6 +294,7 @@ export class DiagnosticsService {
     private readonly appVersion: string
   ) {
     this.system = new SystemReader(DATA_PATHS[0] ?? process.cwd());
+    this.hostDisks = new OpfieldHostDiskReader(docker, DATA_PATHS[0] ?? process.cwd());
   }
 
   /** Alerting receives every minute sample through this callback. */
@@ -511,8 +515,8 @@ export class DiagnosticsService {
         memoryAvailableBytes: hostOk?.memoryAvailableBytes ?? null,
         load1: hostOk?.loadAverage[0] ?? null,
         loadPerCpu: hostOk?.loadPerCpu ?? null,
-        diskUsedPercent: hostOk?.disk?.usedPercent ?? null,
-        diskFreeBytes: hostOk?.disk?.freeBytes ?? null,
+        // The fullest disk that holds Opfield data (Docker data root, stack volumes, the app's data directory).
+        ...fullestDisk(hostOk?.disk ?? null, this.hostDisks.fullest()),
       },
       process: {
         cpuPercent: processReading.cpuPercent,
@@ -915,4 +919,13 @@ export class DiagnosticsService {
     }
     return { id: match.Id, name: serviceOf(match) };
   }
+}
+
+/** The fuller of the app's own data disk and the fullest disk of the stack. */
+export function fullestDisk(
+  own: { usedPercent: number; freeBytes: number } | null,
+  stack: { usedPercent: number; freeBytes: number } | null
+): { diskUsedPercent: number | null; diskFreeBytes: number | null } {
+  const fullest = !own ? stack : !stack ? own : stack.usedPercent > own.usedPercent ? stack : own;
+  return { diskUsedPercent: fullest?.usedPercent ?? null, diskFreeBytes: fullest?.freeBytes ?? null };
 }

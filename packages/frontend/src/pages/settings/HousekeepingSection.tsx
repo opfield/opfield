@@ -22,7 +22,11 @@ interface HousekeepingSectionProps {
   canConfigure: boolean;
 }
 
-import { HousekeepingCard, normalizeHousekeepingConfig } from "./housekeeping-section-helpers";
+import {
+  HousekeepingCard,
+  HousekeepingDiskUsage,
+  normalizeHousekeepingConfig,
+} from "./housekeeping-section-helpers";
 
 export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectionProps) {
   const cachedConfig = api.getCached<HousekeepingConfig>("housekeeping:config");
@@ -45,13 +49,16 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
           clickHouseInternals: { enabled: true, maxSizeBytes: 512 * 1024 ** 2 },
           orphanedAIArtifacts: { enabled: true },
           internalRegistry: { enabled: true, retentionSuccessfulArtifacts: 2 },
-          orphanedVolumes: { enabled: true, retentionDays: 30 },
+          orphanedVolumes: { enabled: true, retentionDays: 3 },
           dockerPrune: { enabled: true },
           orphanedCerts: { enabled: true },
           acmeCleanup: { enabled: true },
           operationHistory: { enabled: true, retentionDays: 90 },
           oauthCleanup: { enabled: true },
           expiredTokens: { enabled: true, retentionDays: 7 },
+          inferenceUsage: { enabled: true, retentionDays: 90 },
+          buildLogs: { enabled: true, retentionDays: 30, maxSizeBytes: 2 * 1024 ** 3 },
+          hostFiles: { enabled: true },
         }
   );
   const [hkSavedConfig, setHkSavedConfig] = useState<HousekeepingConfig | null>(() =>
@@ -140,6 +147,12 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
 
   const masterControlsDisabled = hkRunning || hkSaving || !canConfigure;
   const controlsDisabled = masterControlsDisabled || !hkConfig.enabled;
+  // These keep Opfield's own data bounded and run on schedule even with Housekeeping off.
+  const safetyControlsDisabled = masterControlsDisabled;
+  const buildLogsValid =
+    !hkConfig.buildLogs.enabled ||
+    (Number.isInteger(hkConfig.buildLogs.maxSizeBytes) &&
+      hkConfig.buildLogs.maxSizeBytes >= 64 * 1024 ** 2);
   const structuredLogsValid =
     !hkConfig.structuredLogs.enabled ||
     (Number.isInteger(hkConfig.structuredLogs.maxRows) &&
@@ -230,7 +243,8 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
               masterControlsDisabled ||
               !structuredLogsValid ||
               !clickHouseInternalsValid ||
-              !internalRegistryRetentionValid
+              !internalRegistryRetentionValid ||
+              !buildLogsValid
             }
           >
             <Save className="h-4 w-4" />
@@ -244,7 +258,9 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
             <div>
               <p className="text-sm font-medium">Enabled</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Enable scheduled automatic cleanup
+                Enable scheduled automatic cleanup. When off, the cleanups that keep Opfield's own
+                data bounded (registry, history, build logs, inference usage, tokens, host files)
+                still run.
               </p>
             </div>
             <Switch
@@ -254,6 +270,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
             />
           </div>
         </div>
+        {hkStats?.diskUsage && <HousekeepingDiskUsage usage={hkStats.diskUsage} />}
         <div>
           <div
             className={`p-4 space-y-3 transition-opacity duration-200 ${!hkConfig.enabled ? "opacity-50" : ""}`}
@@ -507,7 +524,15 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
               label="Orphaned AI Artifacts"
               description="Delete AI files no longer attached to a chat"
               stat={hkStats ? formatBytes(hkStats.orphanedAIArtifacts.totalSizeBytes) : "..."}
-              statDetail={hkStats ? `${hkStats.orphanedAIArtifacts.count} files` : "files"}
+              statDetail={
+                hkStats
+                  ? `${hkStats.orphanedAIArtifacts.count} files${
+                      hkStats.orphanedAIArtifacts.allSizeBytes !== undefined
+                        ? ` · ${formatBytes(hkStats.orphanedAIArtifacts.allSizeBytes)} stored in all`
+                        : ""
+                    }`
+                  : "files"
+              }
               enabled={hkConfig.orphanedAIArtifacts.enabled}
               onToggle={(v) =>
                 setHkConfig((current) => ({
@@ -540,11 +565,15 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
             />
             <HousekeepingCard
               label="Orphaned Volumes"
-              description="Remove old anonymous Docker volumes not used by containers"
+              description="Remove anonymous volumes Opfield created once no container uses them"
               stat={hkStats ? String(hkStats.orphanedVolumes.count) : "..."}
               statDetail={
                 hkStats
-                  ? `volumes (${formatBytes(hkStats.orphanedVolumes.reclaimableBytes)})`
+                  ? `volumes (${formatBytes(hkStats.orphanedVolumes.reclaimableBytes)})${
+                      hkStats.orphanedVolumes.unownedCount
+                        ? ` · ${hkStats.orphanedVolumes.unownedCount} unused not created by Opfield (${formatBytes(hkStats.orphanedVolumes.unownedBytes ?? 0)}), kept`
+                        : ""
+                    }`
                   : "volumes"
               }
               enabled={hkConfig.orphanedVolumes.enabled}
@@ -590,10 +619,116 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
                   operationHistory: { ...current.operationHistory, retentionDays: v },
                 }))
               }
+              maxRetentionDays={3650}
               lastResult={hkStats?.lastRun?.categories.find(
                 (c) => c.category === "Operation History"
               )}
-              disabled={controlsDisabled}
+              disabled={safetyControlsDisabled}
+            />
+            <HousekeepingCard
+              label="Build Logs"
+              description="Delete logs of old finished builds and keep all build logs under a size"
+              stat={hkStats?.buildLogs ? formatBytes(hkStats.buildLogs.totalSizeBytes) : "..."}
+              statDetail={
+                hkStats?.buildLogs
+                  ? `stored · ${hkStats.buildLogs.expiredBuilds} builds past the age`
+                  : "stored"
+              }
+              enabled={hkConfig.buildLogs.enabled}
+              onToggle={(enabled) =>
+                setHkConfig((current) => ({
+                  ...current,
+                  buildLogs: { ...current.buildLogs, enabled },
+                }))
+              }
+              retentionDays={hkConfig.buildLogs.retentionDays}
+              maxRetentionDays={3650}
+              onRetentionChange={(retentionDays) =>
+                setHkConfig((current) => ({
+                  ...current,
+                  buildLogs: { ...current.buildLogs, retentionDays },
+                }))
+              }
+              lastResult={hkStats?.lastRun?.categories.find((c) => c.category === "Build Logs")}
+              disabled={safetyControlsDisabled}
+              inlineControls={
+                <>
+                  <span>and under</span>
+                  <input
+                    type="number"
+                    aria-label="Maximum size of all build logs in GiB"
+                    min={0.0625}
+                    step={0.5}
+                    className="w-10 border border-input bg-background px-1 text-center text-xs text-foreground tabular-nums outline-none focus:border-primary disabled:opacity-50"
+                    value={
+                      hkConfig.buildLogs.maxSizeBytes > 0
+                        ? Number((hkConfig.buildLogs.maxSizeBytes / 1024 ** 3).toFixed(3))
+                        : ""
+                    }
+                    disabled={!hkConfig.buildLogs.enabled || safetyControlsDisabled}
+                    onChange={(event) =>
+                      setHkConfig((current) => ({
+                        ...current,
+                        buildLogs: {
+                          ...current.buildLogs,
+                          maxSizeBytes: Math.round(Number(event.target.value) * 1024 ** 3),
+                        },
+                      }))
+                    }
+                  />
+                  <span>GiB</span>
+                </>
+              }
+            />
+            <HousekeepingCard
+              label="Inference Usage"
+              description="Delete old inference requests and usage records; lifetime totals are kept"
+              stat={
+                hkStats?.inferenceUsage ? formatBytes(hkStats.inferenceUsage.totalSizeBytes) : "..."
+              }
+              statDetail={
+                hkStats?.inferenceUsage
+                  ? `stored · ${hkStats.inferenceUsage.count.toLocaleString()} requests past the age`
+                  : "stored"
+              }
+              enabled={hkConfig.inferenceUsage.enabled}
+              onToggle={(enabled) =>
+                setHkConfig((current) => ({
+                  ...current,
+                  inferenceUsage: { ...current.inferenceUsage, enabled },
+                }))
+              }
+              retentionDays={hkConfig.inferenceUsage.retentionDays}
+              minRetentionDays={35}
+              maxRetentionDays={3650}
+              onRetentionChange={(retentionDays) =>
+                setHkConfig((current) => ({
+                  ...current,
+                  inferenceUsage: { ...current.inferenceUsage, retentionDays },
+                }))
+              }
+              lastResult={hkStats?.lastRun?.categories.find(
+                (c) => c.category === "Inference Usage"
+              )}
+              disabled={safetyControlsDisabled}
+            />
+            <HousekeepingCard
+              label="Opfield Host Files"
+              description="Remove what interrupted work left on the Opfield host"
+              stat={hkStats?.hostFiles ? String(hkStats.hostFiles.count) : "..."}
+              statDetail={
+                hkStats?.hostFiles
+                  ? `leftovers (${formatBytes(hkStats.hostFiles.sizeBytes)})`
+                  : "leftovers"
+              }
+              enabled={hkConfig.hostFiles.enabled}
+              onToggle={(enabled) =>
+                setHkConfig((current) => ({ ...current, hostFiles: { enabled } }))
+              }
+              lastResult={hkStats?.lastRun?.categories.find(
+                (c) => c.category === "Opfield Host Files"
+              )}
+              disabled={safetyControlsDisabled}
             />
             <HousekeepingCard
               label="Expired OAuth Grants"
@@ -610,7 +745,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
               lastResult={hkStats?.lastRun?.categories.find(
                 (c) => c.category === "Expired OAuth Grants"
               )}
-              disabled={controlsDisabled}
+              disabled={safetyControlsDisabled}
             />
             <HousekeepingCard
               label="Expired Tokens"
@@ -633,7 +768,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
                 }))
               }
               lastResult={hkStats?.lastRun?.categories.find((c) => c.category === "Expired Tokens")}
-              disabled={controlsDisabled}
+              disabled={safetyControlsDisabled}
             />
             <HousekeepingCard
               label="Retired System PKI Keys"
@@ -704,6 +839,17 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
                 </span>
               ) : (
                 <span>No runs yet</span>
+              )}
+              {hkStats?.stale && (
+                <span className="block text-destructive">
+                  No successful run since{" "}
+                  {hkStats.lastSuccessAt ? (
+                    <RelativeTime value={hkStats.lastSuccessAt} />
+                  ) : (
+                    "the update"
+                  )}
+                  : old data is not being removed.
+                </span>
               )}
             </div>
             <Button

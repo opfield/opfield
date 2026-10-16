@@ -10,11 +10,10 @@ export class HousekeepingJob {
     logger.debug('Running scheduled housekeeping');
     try {
       const config = await this.housekeepingService.getConfig();
-      if (!config.enabled) {
-        logger.debug('Housekeeping is disabled, skipping');
-        return;
-      }
-      const result = await this.housekeepingService.runAll('scheduled');
+      // With Housekeeping off, what keeps Opfield's own data bounded (registry, history, build logs, inference usage,
+      // tokens, host files) still runs; everything else waits until it is turned back on.
+      if (!config.enabled) logger.debug('Housekeeping is off: running only the categories that bound Opfield data');
+      const result = await this.housekeepingService.runAll('scheduled', undefined, { safetyOnly: !config.enabled });
       if (result.overallSuccess) {
         logger.info('Housekeeping completed successfully', {
           durationMs: result.totalDurationMs,

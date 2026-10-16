@@ -681,6 +681,12 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       },
       { id: 'job.failing', label: 'Background Job Failing', defaultSeverity: 'warning', supportsThreshold: true },
       {
+        id: 'housekeeping.stale',
+        label: 'Housekeeping Not Running',
+        defaultSeverity: 'warning',
+        supportsThreshold: true,
+      },
+      {
         id: 'outbound.unavailable',
         label: 'Opfield Lost Outbound Connectivity',
         defaultSeverity: 'critical',
@@ -733,6 +739,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{details.state}}', description: 'Container state or health (container.unhealthy)' },
       { name: '{{details.job}}', description: 'Background job name (job.failing)' },
       { name: '{{details.failures_in_a_row}}', description: 'Failed runs in a row (job.failing)' },
+      { name: '{{details.last_success_at}}', description: 'Last successful housekeeping run (housekeeping.stale)' },
       { name: '{{details.targets}}', description: 'Hosts Opfield could not reach (outbound.unavailable)' },
     ],
   },

@@ -127,6 +127,9 @@ describe('HousekeepingService system certificate cleanup', () => {
       operationHistory: { enabled: true, retentionDays: 90 },
       oauthCleanup: { enabled: true },
       expiredTokens: { enabled: true, retentionDays: 7 },
+      inferenceUsage: { enabled: true, retentionDays: 90 },
+      buildLogs: { enabled: true, retentionDays: 30, maxSizeBytes: 2 * 1024 ** 3 },
+      hostFiles: { enabled: true },
     });
   });
 
@@ -162,6 +165,9 @@ describe('HousekeepingService system certificate cleanup', () => {
       operationHistory: { enabled: true, retentionDays: 60 },
       oauthCleanup: { enabled: true },
       expiredTokens: { enabled: false, retentionDays: 7 },
+      inferenceUsage: { enabled: false, retentionDays: 90 },
+      buildLogs: { enabled: false, retentionDays: 30, maxSizeBytes: 2 * 1024 ** 3 },
+      hostFiles: { enabled: false },
     });
     vi.spyOn(service as any, 'saveRunResult').mockResolvedValue(undefined);
 
@@ -172,7 +178,8 @@ describe('HousekeepingService system certificate cleanup', () => {
       expect.arrayContaining(['docker_compose_operations', 'hosting_operations', 'oauth_clients'])
     );
     expect(result.categories).toEqual([
-      expect.objectContaining({ category: 'Operation History', success: true, itemsCleaned: 4 + 4 }),
+      // 4 tasks, then one row from each of the 16 history tables.
+      expect.objectContaining({ category: 'Operation History', success: true, itemsCleaned: 4 + 16 }),
       expect.objectContaining({ category: 'Expired OAuth Grants', success: true, itemsCleaned: 4 }),
     ]);
   });
@@ -264,6 +271,9 @@ describe('HousekeepingService system certificate cleanup', () => {
       operationHistory: { enabled: false, retentionDays: 90 },
       oauthCleanup: { enabled: false },
       expiredTokens: { enabled: false, retentionDays: 7 },
+      inferenceUsage: { enabled: false, retentionDays: 90 },
+      buildLogs: { enabled: false, retentionDays: 30, maxSizeBytes: 2 * 1024 ** 3 },
+      hostFiles: { enabled: false },
     });
     vi.spyOn(service as any, 'saveRunResult').mockResolvedValue(undefined);
 
@@ -305,6 +315,9 @@ describe('HousekeepingService system certificate cleanup', () => {
       operationHistory: { enabled: false, retentionDays: 90 },
       oauthCleanup: { enabled: false },
       expiredTokens: { enabled: false, retentionDays: 7 },
+      inferenceUsage: { enabled: false, retentionDays: 90 },
+      buildLogs: { enabled: false, retentionDays: 30, maxSizeBytes: 2 * 1024 ** 3 },
+      hostFiles: { enabled: false },
     });
     vi.spyOn(service as any, 'saveRunResult').mockResolvedValue(undefined);
 
@@ -340,6 +353,9 @@ describe('HousekeepingService system certificate cleanup', () => {
       operationHistory: { enabled: false, retentionDays: 90 },
       oauthCleanup: { enabled: false },
       expiredTokens: { enabled: false, retentionDays: 7 },
+      inferenceUsage: { enabled: false, retentionDays: 90 },
+      buildLogs: { enabled: false, retentionDays: 30, maxSizeBytes: 2 * 1024 ** 3 },
+      hostFiles: { enabled: false },
     });
     vi.spyOn(service as any, 'saveRunResult').mockResolvedValue(undefined);
 
@@ -359,6 +375,7 @@ describe('HousekeepingService orphaned volume retention', () => {
   const DAY_MS = 24 * 60 * 60 * 1000;
   const T0 = new Date('2026-09-01T02:00:00.000Z');
   const UNUSED_SINCE_KEY = 'housekeeping:orphaned_volumes:unused_since';
+  const OWNED_KEY = 'housekeeping:orphaned_volumes:opfield_owned';
   const VOLUME_A = 'a'.repeat(64);
   const VOLUME_B = 'b'.repeat(64);
   const daysAgo = (days: number) => new Date(T0.getTime() - days * DAY_MS).toISOString();
@@ -376,9 +393,14 @@ describe('HousekeepingService orphaned volume retention', () => {
     onlineNodeIds?: string[];
     volumes: Record<string, unknown>;
     unusedSince?: unknown;
+    /** Volumes already known as Opfield's; defaults to VOLUME_A and VOLUME_B on node-1. */
+    owned?: unknown;
+    /** Containers Opfield created, by name. */
+    opfieldContainers?: string[];
   }) {
     const stored = new Map<string, unknown>();
     if (options.unusedSince !== undefined) stored.set(UNUSED_SINCE_KEY, options.unusedSince);
+    stored.set(OWNED_KEY, options.owned ?? { 'node-1': { [VOLUME_A]: daysAgo(100), [VOLUME_B]: daysAgo(100) } });
     const persist = vi.fn(async (key: string, value: unknown) => {
       stored.set(key, JSON.parse(JSON.stringify(value)));
     });
@@ -388,9 +410,7 @@ describe('HousekeepingService orphaned volume retention', () => {
           table === settings
             ? {
                 where: vi.fn(() => ({
-                  limit: vi.fn(async () =>
-                    stored.has(UNUSED_SINCE_KEY) ? [{ key: UNUSED_SINCE_KEY, value: stored.get(UNUSED_SINCE_KEY) }] : []
-                  ),
+                  limit: vi.fn(async () => [...stored.entries()].map(([key, value]) => ({ key, value }))),
                 })),
               }
             : { where: vi.fn(async () => (options.onlineNodeIds ?? ['node-1']).map((id) => ({ id }))) }
@@ -412,11 +432,14 @@ describe('HousekeepingService orphaned volume retention', () => {
     };
     const service = new HousekeepingService(db as any, {} as any, {} as any, {} as any);
     service.setDockerManagementService(dockerManagement as any);
+    const opfieldContainers = new Set(options.opfieldContainers ?? []);
+    (service as any).opfieldContainerTest = async () => (name: string) => opfieldContainers.has(name);
     return {
       service,
       dockerManagement,
       persist,
       state: () => stored.get(UNUSED_SINCE_KEY),
+      owned: () => stored.get(OWNED_KEY),
       clean: (retentionDays = 30) => (service as any).cleanOrphanedVolumes(retentionDays, 'user-1'),
     };
   }
@@ -554,6 +577,49 @@ describe('HousekeepingService orphaned volume retention', () => {
     expect(h.state()).toEqual({ 'node-1': { [VOLUME_A]: daysAgo(40), [VOLUME_B]: T0.toISOString() } });
   });
 
+  it('never removes an unused volume Opfield did not create, and reports it', async () => {
+    const h = createHarness({
+      owned: {},
+      volumes: { 'node-1': [volume(VOLUME_A), volume('atelier-minio-data', { UsageData: { Size: 4096 } })] },
+      unusedSince: { 'node-1': { [VOLUME_A]: daysAgo(400) } },
+    });
+    vi.spyOn(h.service, 'getConfig').mockResolvedValue({
+      orphanedVolumes: { enabled: true, retentionDays: 3 },
+    } as any);
+
+    at(400);
+    await expect(h.clean(3)).resolves.toEqual({ itemsCleaned: 0, spaceFreedBytes: 0 });
+    expect(h.dockerManagement.removeOrphanedAnonymousVolume).not.toHaveBeenCalled();
+    await expect((h.service as any).getOrphanedVolumeStats()).resolves.toEqual({
+      count: 0,
+      reclaimableBytes: 0,
+      unownedCount: 2,
+      unownedBytes: 2048 + 4096,
+    });
+  });
+
+  it('removes an anonymous volume of a container Opfield created once it stayed unused for the retention', async () => {
+    const volumes: Record<string, unknown> = {
+      'node-1': [volume(VOLUME_A, { UsedBy: ['gwdep-web-blue'] }), volume(VOLUME_B, { UsedBy: ['user-run'] })],
+    };
+    const h = createHarness({ owned: {}, volumes, opfieldContainers: ['gwdep-web-blue'] });
+
+    await h.clean(3);
+    expect(h.owned()).toEqual({ 'node-1': { [VOLUME_A]: T0.toISOString() } });
+
+    // The slot was replaced: both volumes are unused now.
+    at(1);
+    volumes['node-1'] = [volume(VOLUME_A), volume(VOLUME_B)];
+    await h.clean(3);
+    at(3);
+    await h.clean(3);
+    expect(h.dockerManagement.removeOrphanedAnonymousVolume).not.toHaveBeenCalled();
+    at(4);
+    await expect(h.clean(3)).resolves.toEqual({ itemsCleaned: 1, spaceFreedBytes: 2048 });
+    expect(h.dockerManagement.removeOrphanedAnonymousVolume).toHaveBeenCalledTimes(1);
+    expect(h.dockerManagement.removeOrphanedAnonymousVolume).toHaveBeenCalledWith('node-1', VOLUME_A, 'user-1');
+  });
+
   it('previews eligible volumes in stats without removing them or failing on a tracking write error', async () => {
     const h = createHarness({
       volumes: { 'node-1': [volume(VOLUME_A), volume(VOLUME_B)] },
@@ -564,7 +630,12 @@ describe('HousekeepingService orphaned volume retention', () => {
     } as any);
     h.persist.mockRejectedValueOnce(new Error('database unavailable'));
 
-    await expect((h.service as any).getOrphanedVolumeStats()).resolves.toEqual({ count: 1, reclaimableBytes: 2048 });
+    await expect((h.service as any).getOrphanedVolumeStats()).resolves.toEqual({
+      count: 1,
+      reclaimableBytes: 2048,
+      unownedCount: 0,
+      unownedBytes: 0,
+    });
     expect(h.dockerManagement.removeOrphanedAnonymousVolume).not.toHaveBeenCalled();
 
     // The unsaved observation of VOLUME_B is kept in memory and persisted by the next scan.

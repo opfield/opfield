@@ -1,9 +1,10 @@
 import { readdir, stat } from 'node:fs/promises';
 import httpModule from 'node:http';
 import { join } from 'node:path';
-import { and, count, eq, lt, min, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, lt, min, sql } from 'drizzle-orm';
 import type { Env } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { aiConversations } from '@/db/schema/ai-conversations.js';
 import { alerts } from '@/db/schema/alerts.js';
 import { auditLog } from '@/db/schema/audit-log.js';
 import { nodes } from '@/db/schema/nodes.js';
@@ -18,12 +19,14 @@ import {
   type OpfieldInternalImageCandidate,
   selectObsoleteOpfieldConnectorImages,
 } from '@/modules/docker/docker-internal-images.js';
+import { hasOpfieldLabel, loadDockerManagedRecords } from '@/modules/docker/docker-managed-records.js';
 import type { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
 import { REGISTRY_BUILDS_KEPT_PER_CONTAINER } from '@/modules/docker/docker-registry-retention.js';
 import type { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import type { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
 import type { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance.service.js';
 import type { NotificationDeliveryService } from '@/modules/notifications/notification-delivery.service.js';
+import type { RedisClient } from './cache.service.js';
 import type { DockerService } from './docker.service.js';
 import type { EventBusService } from './event-bus.service.js';
 import {
@@ -31,13 +34,28 @@ import {
   DEFAULT_EXPIRED_TOKEN_RETENTION_DAYS,
   purgeExpiredTokens,
 } from './expired-token-retention.js';
+import { sweepTempLeftovers } from './host-temp-sweep.js';
+import {
+  cleanInferenceUsage,
+  countExpiredInferenceUsage,
+  DEFAULT_INFERENCE_USAGE_RETENTION_DAYS,
+  inferenceUsageCutoff,
+  pruneInferencePricingSnapshots,
+  pruneInferenceQuotaSnapshots,
+} from './inference-usage-retention.js';
 import type { NodeDispatchService } from './node-dispatch.service.js';
 import {
+  buildLogStats,
+  cleanBuildLogs,
   cleanOperationHistory,
   countExpiredOAuthGrants,
   countOperationHistory,
+  DEFAULT_BUILD_LOG_MAX_SIZE_BYTES,
+  DEFAULT_BUILD_LOG_RETENTION_DAYS,
   purgeExpiredOAuthGrants,
 } from './operation-history-retention.js';
+import { type OpfieldDiskUsage, OpfieldDiskUsageReader } from './opfield-disk-usage.js';
+import type { OpfieldHostDiskReader } from './opfield-host-disks.js';
 import type { SystemCertificateLifecycleService } from './system-certificate-lifecycle.service.js';
 
 const logger = createChildLogger('HousekeepingService');
@@ -46,6 +64,28 @@ const VOLUME_CLEANUP_PROTECTED_LABEL = 'opfield.housekeeping.protected';
 // once no protected volume carries it
 const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = 'gateway.housekeeping.protected';
 const SYSTEM_CERTIFICATE_KEY_RETENTION_DAYS = 30;
+/** Alerts nobody dismissed are removed after this long (a renewed failure raises a fresh one). */
+const UNDISMISSED_ALERT_RETENTION_DAYS = 90;
+/** One category may run this long; then the run moves on and reports it as failed. */
+const CATEGORY_TIMEOUT_MS = 30 * 60_000;
+/** A run that has not succeeded for this long is reported as stale (Housekeeping card and the job's failures). */
+export const HOUSEKEEPING_STALE_MS = 48 * 60 * 60_000;
+/** When an Opfield host disk is this full, housekeeping runs at once (at most once per cooldown). */
+export const LOW_DISK_RUN_PERCENT = 90;
+const LOW_DISK_RUN_COOLDOWN_MS = 60 * 60_000;
+/**
+ * Categories that keep Opfield's own data bounded. They run on schedule even when the Housekeeping switch is off
+ * (each still honours its own switch): with them off Opfield's database, registry and host files grow without end.
+ */
+const SAFETY_CATEGORIES = new Set([
+  'Internal Registry',
+  'Operation History',
+  'Build Logs',
+  'Inference Usage',
+  'Expired OAuth Grants',
+  'Expired Tokens',
+  'Opfield Host Files',
+]);
 const LOGGING_SETTINGS_KEY = 'logging:clickhouse';
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -71,7 +111,16 @@ export interface HousekeepingConfig {
   oauthCleanup: { enabled: boolean };
   /** Expired API and inference tokens, removed `retentionDays` after they expired (0: at once). */
   expiredTokens: { enabled: boolean; retentionDays: number };
+  /** Settled inference requests with their attempts and usage records (35 days at least). */
+  inferenceUsage: { enabled: boolean; retentionDays: number };
+  /** Logs of finished builds, by age and by the total size of all build logs. */
+  buildLogs: { enabled: boolean; retentionDays: number; maxSizeBytes: number };
+  /** Leftovers of interrupted work on the Opfield host: temp files, archive transfer spools, export snapshots. */
+  hostFiles: { enabled: boolean };
 }
+
+/** `low-disk`: started because an Opfield host disk passed LOW_DISK_RUN_PERCENT. */
+export type HousekeepingTrigger = 'scheduled' | 'manual' | 'low-disk';
 
 export interface CategoryResult {
   category: string;
@@ -85,7 +134,7 @@ export interface CategoryResult {
 export interface HousekeepingRunResult {
   startedAt: string;
   completedAt: string;
-  trigger: 'scheduled' | 'manual';
+  trigger: HousekeepingTrigger;
   triggeredBy?: string;
   totalDurationMs: number;
   categories: CategoryResult[];
@@ -99,14 +148,26 @@ export interface HousekeepingStats {
   deliveryLog: { total: number; success: number; failed: number; retrying: number };
   structuredLogs: { totalRows: number; totalSizeBytes: number; status: string };
   clickHouseInternals: { totalRows: number; totalSizeBytes: number; status: string; capBytes: number };
-  orphanedAIArtifacts: { count: number; totalSizeBytes: number };
+  orphanedAIArtifacts: {
+    count: number;
+    totalSizeBytes: number;
+    allCount?: number;
+    allSizeBytes?: number;
+    capBytes?: number;
+  };
   internalRegistry: {
     totalSizeBytes: number;
     capacityBytes: number | null;
     status: string;
     lastGcAt: string | null;
   };
-  orphanedVolumes: { count: number; reclaimableBytes: number };
+  orphanedVolumes: {
+    count: number;
+    reclaimableBytes: number;
+    /** Unused volumes Opfield did not create (or cannot tell): never removed automatically, only shown. */
+    unownedCount: number;
+    unownedBytes: number;
+  };
   orphanedCerts: {
     count: number;
     certIds: string[];
@@ -119,7 +180,16 @@ export interface HousekeepingStats {
   operationHistory: { count: number };
   oauthCleanup: { count: number };
   expiredTokens: { count: number };
+  inferenceUsage: { count: number; totalSizeBytes: number };
+  buildLogs: { totalSizeBytes: number; expiredBuilds: number; capBytes: number };
+  hostFiles: { count: number; sizeBytes: number };
+  /** Opfield's own data on the Opfield host: disks, database, Redis, container logs. */
+  diskUsage: OpfieldDiskUsage | null;
   lastRun: HousekeepingRunResult | null;
+  /** When a run last finished with every category successful. */
+  lastSuccessAt: string | null;
+  /** No successful run for HOUSEKEEPING_STALE_MS: retention is not working. */
+  stale: boolean;
   isRunning: boolean;
 }
 
@@ -155,6 +225,15 @@ const KEYS = {
   oauthCleanupEnabled: 'housekeeping:oauth_cleanup:enabled',
   expiredTokensEnabled: 'housekeeping:expired_tokens:enabled',
   expiredTokensRetention: 'housekeeping:expired_tokens:retention_days',
+  inferenceUsageEnabled: 'housekeeping:inference_usage:enabled',
+  inferenceUsageRetention: 'housekeeping:inference_usage:retention_days',
+  buildLogsEnabled: 'housekeeping:build_logs:enabled',
+  buildLogsRetention: 'housekeeping:build_logs:retention_days',
+  buildLogsMaxSizeBytes: 'housekeeping:build_logs:max_size_bytes',
+  hostFilesEnabled: 'housekeeping:host_files:enabled',
+  /** { [nodeId]: { [volumeName]: ISO time it was first seen used by a container Opfield created } } */
+  orphanedVolumesOpfieldOwned: 'housekeeping:orphaned_volumes:opfield_owned',
+  lastSuccessAt: 'housekeeping:last_success_at',
   lastRunResult: 'housekeeping:last_run_result',
   runHistory: 'housekeeping:run_history',
 } as const;
@@ -177,7 +256,8 @@ const DEFAULTS: Record<string, unknown> = {
   [KEYS.orphanedAIArtifactsEnabled]: true,
   [KEYS.internalRegistryRetention]: REGISTRY_BUILDS_KEPT_PER_CONTAINER,
   [KEYS.orphanedVolumesEnabled]: true,
-  [KEYS.orphanedVolumesRetention]: 30,
+  // An anonymous volume of a container Opfield removed: kept 3 days in case it is needed, then removed.
+  [KEYS.orphanedVolumesRetention]: 3,
   [KEYS.dockerPruneEnabled]: true,
   [KEYS.orphanedCertsEnabled]: true,
   [KEYS.acmeCleanupEnabled]: true,
@@ -186,6 +266,12 @@ const DEFAULTS: Record<string, unknown> = {
   [KEYS.oauthCleanupEnabled]: true,
   [KEYS.expiredTokensEnabled]: true,
   [KEYS.expiredTokensRetention]: DEFAULT_EXPIRED_TOKEN_RETENTION_DAYS,
+  [KEYS.inferenceUsageEnabled]: true,
+  [KEYS.inferenceUsageRetention]: DEFAULT_INFERENCE_USAGE_RETENTION_DAYS,
+  [KEYS.buildLogsEnabled]: true,
+  [KEYS.buildLogsRetention]: DEFAULT_BUILD_LOG_RETENTION_DAYS,
+  [KEYS.buildLogsMaxSizeBytes]: DEFAULT_BUILD_LOG_MAX_SIZE_BYTES,
+  [KEYS.hostFilesEnabled]: true,
 };
 
 const MAX_HISTORY = 20;
@@ -304,6 +390,18 @@ export class HousekeepingService {
       oauthCleanup: {
         enabled: get(KEYS.oauthCleanupEnabled, DEFAULTS[KEYS.oauthCleanupEnabled] as boolean),
       },
+      inferenceUsage: {
+        enabled: get(KEYS.inferenceUsageEnabled, DEFAULTS[KEYS.inferenceUsageEnabled] as boolean),
+        retentionDays: get(KEYS.inferenceUsageRetention, DEFAULTS[KEYS.inferenceUsageRetention] as number),
+      },
+      buildLogs: {
+        enabled: get(KEYS.buildLogsEnabled, DEFAULTS[KEYS.buildLogsEnabled] as boolean),
+        retentionDays: get(KEYS.buildLogsRetention, DEFAULTS[KEYS.buildLogsRetention] as number),
+        maxSizeBytes: get(KEYS.buildLogsMaxSizeBytes, DEFAULTS[KEYS.buildLogsMaxSizeBytes] as number),
+      },
+      hostFiles: {
+        enabled: get(KEYS.hostFilesEnabled, DEFAULTS[KEYS.hostFilesEnabled] as boolean),
+      },
     };
   }
 
@@ -359,6 +457,16 @@ export class HousekeepingService {
       updates.push([KEYS.expiredTokensEnabled, partial.expiredTokens.enabled]);
     if (partial.expiredTokens?.retentionDays !== undefined)
       updates.push([KEYS.expiredTokensRetention, partial.expiredTokens.retentionDays]);
+    if (partial.inferenceUsage?.enabled !== undefined)
+      updates.push([KEYS.inferenceUsageEnabled, partial.inferenceUsage.enabled]);
+    if (partial.inferenceUsage?.retentionDays !== undefined)
+      updates.push([KEYS.inferenceUsageRetention, partial.inferenceUsage.retentionDays]);
+    if (partial.buildLogs?.enabled !== undefined) updates.push([KEYS.buildLogsEnabled, partial.buildLogs.enabled]);
+    if (partial.buildLogs?.retentionDays !== undefined)
+      updates.push([KEYS.buildLogsRetention, partial.buildLogs.retentionDays]);
+    if (partial.buildLogs?.maxSizeBytes !== undefined)
+      updates.push([KEYS.buildLogsMaxSizeBytes, partial.buildLogs.maxSizeBytes]);
+    if (partial.hostFiles?.enabled !== undefined) updates.push([KEYS.hostFilesEnabled, partial.hostFiles.enabled]);
 
     await this.db.transaction(async (tx) => {
       for (const [key, value] of updates) {
@@ -393,7 +501,12 @@ export class HousekeepingService {
       operationHistory,
       oauthCleanup,
       expiredTokens,
+      inferenceUsage,
+      buildLogs,
+      hostFiles,
+      diskUsage,
       lastRun,
+      lastSuccessAt,
     ] = await Promise.all([
       this.getNginxLogStats(),
       this.getAuditLogStats(),
@@ -409,7 +522,12 @@ export class HousekeepingService {
       this.getOperationHistoryStats(),
       this.getOAuthCleanupStats(),
       this.getExpiredTokenStats(),
+      this.getInferenceUsageStats(),
+      this.getBuildLogStats(),
+      this.getHostFileStats(),
+      this.getDiskUsage(),
       this.getLastRunResult(),
+      this.getLastSuccessAt(),
     ]);
 
     return {
@@ -437,14 +555,29 @@ export class HousekeepingService {
       operationHistory,
       oauthCleanup,
       expiredTokens,
+      inferenceUsage,
+      buildLogs,
+      hostFiles,
+      diskUsage,
       lastRun,
+      lastSuccessAt,
+      stale: isHousekeepingStale(lastSuccessAt),
       isRunning: this.running,
     };
   }
 
   // ── Run All ─────────────────────────────────────────────────────
 
-  async runAll(trigger: 'scheduled' | 'manual', userId?: string): Promise<HousekeepingRunResult> {
+  /**
+   * Runs every enabled category. `safetyOnly` (the scheduled run while the Housekeeping switch is off) runs only the
+   * categories that keep Opfield's own data bounded (SAFETY_CATEGORIES). Every category gets CATEGORY_TIMEOUT_MS, so
+   * one that hangs cannot stop the others or keep the next runs from starting.
+   */
+  async runAll(
+    trigger: HousekeepingTrigger,
+    userId?: string,
+    options: { safetyOnly?: boolean } = {}
+  ): Promise<HousekeepingRunResult> {
     if (this.running) {
       throw new Error('Housekeeping is already running');
     }
@@ -455,95 +588,114 @@ export class HousekeepingService {
 
     try {
       const config = await this.getConfig();
-
-      if (this.pagesMaintenanceService) {
-        categories.push(await this.runCategory('Pages', () => this.pagesMaintenanceService!.run()));
-      }
-      if (this.internalRegistryMaintenanceService) {
-        categories.push(
-          await this.runCategory('Internal Registry', async () => {
+      const plan: Array<{
+        name: string;
+        enabled: boolean;
+        run: () => Promise<{ itemsCleaned: number; spaceFreedBytes?: number }>;
+      }> = [
+        {
+          name: 'Pages',
+          enabled: !!this.pagesMaintenanceService,
+          run: () => this.pagesMaintenanceService!.run(),
+        },
+        {
+          name: 'Internal Registry',
+          enabled: !!this.internalRegistryMaintenanceService,
+          run: async () => {
             const run = await this.internalRegistryMaintenanceService!.runGarbageCollection({
               requestedById: userId ?? null,
-              reason: trigger === 'scheduled' ? 'scheduled housekeeping' : 'housekeeping run by a user',
+              reason:
+                trigger === 'scheduled'
+                  ? 'scheduled housekeeping'
+                  : trigger === 'low-disk'
+                    ? 'housekeeping for a full Opfield disk'
+                    : 'housekeeping run by a user',
             });
             const candidateIds = Array.isArray(run.progress?.candidateArtifactIds)
               ? run.progress.candidateArtifactIds
               : [];
             return { itemsCleaned: candidateIds.length };
-          })
-        );
-      }
-
-      if (config.nginxLogs.enabled) {
-        categories.push(
-          await this.runCategory('Nginx Logs', () => this.rotateNginxLogs(config.nginxLogs.retentionDays))
-        );
-      }
-      if (config.auditLog.enabled) {
-        categories.push(await this.runCategory('Audit Log', () => this.cleanAuditLog(config.auditLog.retentionDays)));
-      }
-      if (config.dismissedAlerts.enabled) {
-        categories.push(
-          await this.runCategory('Dismissed Alerts', () =>
-            this.cleanDismissedAlerts(config.dismissedAlerts.retentionDays)
-          )
-        );
-      }
-      if (config.deliveryLog.enabled) {
-        categories.push(
-          await this.runCategory('Delivery Log', () => this.cleanDeliveryLog(config.deliveryLog.retentionDays))
-        );
-      }
-      if (config.structuredLogs.enabled) {
-        categories.push(
-          await this.runCategory('Structured Logs', () =>
-            this.cleanStructuredLogs(config.structuredLogs, config.clickHouseInternals)
-          )
-        );
-      }
-      if (config.clickHouseInternals.enabled) {
-        categories.push(
-          await this.runCategory('ClickHouse Internals', () =>
+          },
+        },
+        {
+          name: 'Nginx Logs',
+          enabled: config.nginxLogs.enabled,
+          run: () => this.rotateNginxLogs(config.nginxLogs.retentionDays),
+        },
+        {
+          name: 'Audit Log',
+          enabled: config.auditLog.enabled,
+          run: () => this.cleanAuditLog(config.auditLog.retentionDays),
+        },
+        {
+          name: 'Dismissed Alerts',
+          enabled: config.dismissedAlerts.enabled,
+          run: () => this.cleanDismissedAlerts(config.dismissedAlerts.retentionDays),
+        },
+        {
+          name: 'Delivery Log',
+          enabled: config.deliveryLog.enabled,
+          run: () => this.cleanDeliveryLog(config.deliveryLog.retentionDays),
+        },
+        {
+          name: 'Structured Logs',
+          enabled: config.structuredLogs.enabled,
+          run: () => this.cleanStructuredLogs(config.structuredLogs, config.clickHouseInternals),
+        },
+        {
+          name: 'ClickHouse Internals',
+          enabled: config.clickHouseInternals.enabled,
+          run: () =>
             this.cleanClickHouseInternals(
               config.structuredLogs.enabled ? config.structuredLogs : undefined,
               config.clickHouseInternals
-            )
-          )
-        );
-      }
-      if (config.orphanedAIArtifacts.enabled) {
-        categories.push(await this.runCategory('Orphaned AI Artifacts', () => this.cleanOrphanedAIArtifacts()));
-      }
-      if (config.orphanedVolumes.enabled) {
-        categories.push(
-          await this.runCategory('Orphaned Volumes', () =>
-            this.cleanOrphanedVolumes(config.orphanedVolumes.retentionDays, userId ?? null)
-          )
-        );
-      }
-      if (config.orphanedCerts.enabled) {
-        categories.push(await this.runCategory('Orphaned Certs', () => this.cleanOrphanedCerts()));
-      }
-      if (config.acmeCleanup.enabled) {
-        categories.push(await this.runCategory('ACME Challenges', () => this.cleanAcmeChallenges()));
-      }
-      if (config.dockerPrune.enabled) {
-        categories.push(await this.runCategory('Docker Images', () => this.pruneDockerImages()));
-      }
-      if (config.operationHistory?.enabled) {
-        categories.push(
-          await this.runCategory('Operation History', () =>
-            this.cleanOperationHistory(config.operationHistory.retentionDays)
-          )
-        );
-      }
-      if (config.oauthCleanup?.enabled) {
-        categories.push(await this.runCategory('Expired OAuth Grants', () => this.cleanExpiredOAuthGrants()));
-      }
-      if (config.expiredTokens?.enabled) {
-        categories.push(
-          await this.runCategory('Expired Tokens', () => this.cleanExpiredTokens(config.expiredTokens.retentionDays))
-        );
+            ),
+        },
+        {
+          name: 'Orphaned AI Artifacts',
+          enabled: config.orphanedAIArtifacts.enabled,
+          run: () => this.cleanOrphanedAIArtifacts(),
+        },
+        {
+          name: 'Orphaned Volumes',
+          enabled: config.orphanedVolumes.enabled,
+          run: () => this.cleanOrphanedVolumes(config.orphanedVolumes.retentionDays, userId ?? null),
+        },
+        { name: 'Orphaned Certs', enabled: config.orphanedCerts.enabled, run: () => this.cleanOrphanedCerts() },
+        { name: 'ACME Challenges', enabled: config.acmeCleanup.enabled, run: () => this.cleanAcmeChallenges() },
+        { name: 'Docker Images', enabled: config.dockerPrune.enabled, run: () => this.pruneDockerImages() },
+        {
+          name: 'Operation History',
+          enabled: !!config.operationHistory?.enabled,
+          run: () => this.cleanOperationHistory(config.operationHistory.retentionDays),
+        },
+        {
+          name: 'Build Logs',
+          enabled: config.buildLogs.enabled,
+          run: () => this.cleanBuildLogs(config.buildLogs),
+        },
+        {
+          name: 'Inference Usage',
+          enabled: config.inferenceUsage.enabled,
+          run: () => this.cleanInferenceUsage(config.inferenceUsage.retentionDays),
+        },
+        {
+          name: 'Expired OAuth Grants',
+          enabled: !!config.oauthCleanup?.enabled,
+          run: () => this.cleanExpiredOAuthGrants(),
+        },
+        {
+          name: 'Expired Tokens',
+          enabled: !!config.expiredTokens?.enabled,
+          run: () => this.cleanExpiredTokens(config.expiredTokens.retentionDays),
+        },
+        { name: 'Opfield Host Files', enabled: config.hostFiles.enabled, run: () => this.cleanHostFiles() },
+      ];
+
+      for (const category of plan) {
+        if (!category.enabled) continue;
+        if (options.safetyOnly && !SAFETY_CATEGORIES.has(category.name)) continue;
+        categories.push(await this.runCategory(category.name, category.run));
       }
 
       const completedAt = new Date().toISOString();
@@ -569,6 +721,21 @@ export class HousekeepingService {
     } finally {
       this.running = false;
     }
+  }
+
+  private lowDiskRunAt = 0;
+
+  /**
+   * Called with the fullest Opfield host disk every minute: at LOW_DISK_RUN_PERCENT or more, runs housekeeping at
+   * once (every enabled category, whether or not the Housekeeping switch is on, at most once an hour) instead of
+   * waiting for the nightly run.
+   */
+  async onHostDiskUsage(usedPercent: number | null, now = Date.now()): Promise<HousekeepingRunResult | null> {
+    if (usedPercent === null || usedPercent < LOW_DISK_RUN_PERCENT) return null;
+    if (this.running || now - this.lowDiskRunAt < LOW_DISK_RUN_COOLDOWN_MS) return null;
+    this.lowDiskRunAt = now;
+    logger.warn('An Opfield host disk is almost full; running housekeeping now', { usedPercent });
+    return this.runAll('low-disk');
   }
 
   async getRunHistory(): Promise<HousekeepingRunResult[]> {
@@ -606,8 +773,23 @@ export class HousekeepingService {
       .delete(alerts)
       .where(and(eq(alerts.dismissed, true), lt(alerts.createdAt, threshold)))
       .returning({ id: alerts.id });
+    // A check that failed every day added an open alert a day: keep the newest of each resource and kind, and drop
+    // open alerts nobody looked at for UNDISMISSED_ALERT_RETENTION_DAYS (a failure that continues raises a new one).
+    const undismissedBefore = new Date(Date.now() - UNDISMISSED_ALERT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const duplicates = await this.db.execute(sql`DELETE FROM "alerts" WHERE "id" IN (
+      SELECT "id" FROM (
+        SELECT "id", row_number() OVER (PARTITION BY "type", "resource_type", "resource_id" ORDER BY "created_at" DESC, "id" DESC) AS "rn"
+        FROM "alerts" WHERE "dismissed" = false
+      ) "ranked" WHERE "ranked"."rn" > 1
+    )`);
+    const stale = await this.db
+      .delete(alerts)
+      .where(and(eq(alerts.dismissed, false), lt(alerts.createdAt, undismissedBefore)))
+      .returning({ id: alerts.id });
 
-    return { itemsCleaned: result.length };
+    return {
+      itemsCleaned: result.length + Number((duplicates as { rowCount?: number | null }).rowCount ?? 0) + stale.length,
+    };
   }
 
   private notifDeliveryService?: NotificationDeliveryService;
@@ -638,6 +820,39 @@ export class HousekeepingService {
   private sandboxArtifactService?: AISandboxArtifactService;
   setSandboxArtifactService(svc: AISandboxArtifactService) {
     this.sandboxArtifactService = svc;
+    // Files of deleted conversations (and of deleted users, whose conversations cascade) are orphans too.
+    svc.setConversationLookup(async (conversationIds) => {
+      const existing = new Set<string>();
+      for (let index = 0; index < conversationIds.length; index += 1000) {
+        const rows = await this.db
+          .select({ id: aiConversations.id })
+          .from(aiConversations)
+          .where(inArray(aiConversations.id, conversationIds.slice(index, index + 1000)));
+        for (const row of rows) existing.add(row.id);
+      }
+      return existing;
+    });
+  }
+
+  private redis: RedisClient | null = null;
+  private hostDisks: OpfieldHostDiskReader | null = null;
+  private diskUsageReader: OpfieldDiskUsageReader | null = null;
+  /** Redis and the Opfield host disks, for the disk usage at the top of Housekeeping. */
+  setDiskUsageSources(redis: RedisClient | null, hostDisks: OpfieldHostDiskReader | null) {
+    this.redis = redis;
+    this.hostDisks = hostDisks;
+    this.diskUsageReader = null;
+  }
+
+  private exportLeftovers?: { cleanLeftovers(): Promise<number> };
+  private archiveSpool?: { sweepOrphanedSpools(): Promise<{ removed: number; bytes: number }> };
+  /** What crashed configuration exports and MCP archive transfers left on the Opfield host (Opfield Host Files). */
+  setHostFileSources(
+    exportLeftovers: { cleanLeftovers(): Promise<number> } | undefined,
+    archiveSpool: { sweepOrphanedSpools(): Promise<{ removed: number; bytes: number }> } | undefined
+  ) {
+    this.exportLeftovers = exportLeftovers;
+    this.archiveSpool = archiveSpool;
   }
 
   private dockerManagementService?: DockerManagementService;
@@ -667,6 +882,51 @@ export class HousekeepingService {
     const history = await cleanOperationHistory(this.db, retentionDays);
     if (history.total > 0) logger.info('Removed old operation history', { retentionDays, ...history.removed });
     return { itemsCleaned: tasks + history.total };
+  }
+
+  private async cleanBuildLogs(config: HousekeepingConfig['buildLogs']): Promise<{
+    itemsCleaned: number;
+    spaceFreedBytes: number;
+  }> {
+    const removed = await cleanBuildLogs(this.db, config);
+    if (removed.builds > 0) logger.info('Removed old build logs', { ...config, ...removed });
+    return { itemsCleaned: removed.builds, spaceFreedBytes: removed.bytes };
+  }
+
+  /** Settled inference requests past the retention period, old provider quota readings and unused price versions. */
+  private async cleanInferenceUsage(retentionDays: number): Promise<{ itemsCleaned: number }> {
+    const usage = await cleanInferenceUsage(this.db, retentionDays);
+    const quota = await pruneInferenceQuotaSnapshots(this.db);
+    const pricing = await pruneInferencePricingSnapshots(this.db, inferenceUsageCutoff(retentionDays));
+    if (usage.requests + quota + pricing > 0) {
+      logger.info('Removed old inference usage', {
+        retentionDays,
+        ...usage,
+        quotaReadings: quota,
+        priceVersions: pricing,
+      });
+    }
+    return { itemsCleaned: usage.requests + quota + pricing };
+  }
+
+  /** The Opfield Host Files cleanup outside a run (shortly after start), when that category is on. */
+  async cleanHostFilesNow(): Promise<void> {
+    const config = await this.getConfig();
+    if (!config.hostFiles.enabled) return;
+    const result = await this.cleanHostFiles();
+    if (result.itemsCleaned > 0) logger.info('Removed leftovers of interrupted work on the Opfield host', result);
+  }
+
+  /** Leftovers of interrupted work on the Opfield host. */
+  private async cleanHostFiles(): Promise<{ itemsCleaned: number; spaceFreedBytes: number }> {
+    const temp = await sweepTempLeftovers();
+    const spool = (await this.archiveSpool?.sweepOrphanedSpools()) ?? { removed: 0, bytes: 0 };
+    const exports =
+      (await this.exportLeftovers?.cleanLeftovers().catch((error) => {
+        logger.debug('Configuration export leftovers were not checked', { error });
+        return 0;
+      })) ?? 0;
+    return { itemsCleaned: temp.removed + spool.removed + exports, spaceFreedBytes: temp.bytes + spool.bytes };
   }
 
   private auditService?: Pick<AuditService, 'log'>;
@@ -735,7 +995,7 @@ export class HousekeepingService {
     userId: string | null
   ): Promise<{ itemsCleaned: number; spaceFreedBytes?: number }> {
     if (!this.dockerManagementService) return { itemsCleaned: 0 };
-    const candidates = await this.findOrphanedVolumes(retentionDays, 'cleanup');
+    const { candidates } = await this.findOrphanedVolumes(retentionDays, 'cleanup');
     let itemsCleaned = 0;
     let spaceFreedBytes = 0;
 
@@ -959,10 +1219,12 @@ export class HousekeepingService {
 
   private async getOrphanedVolumeStats(): Promise<HousekeepingStats['orphanedVolumes']> {
     const config = await this.getConfig();
-    const candidates = await this.findOrphanedVolumes(config.orphanedVolumes.retentionDays, 'preview');
+    const { candidates, unowned } = await this.findOrphanedVolumes(config.orphanedVolumes.retentionDays, 'preview');
     return {
       count: candidates.length,
       reclaimableBytes: candidates.reduce((sum, candidate) => sum + (candidate.sizeBytes ?? 0), 0),
+      unownedCount: unowned.length,
+      unownedBytes: unowned.reduce((sum, volume) => sum + (volume.sizeBytes ?? 0), 0),
     };
   }
 
@@ -990,6 +1252,53 @@ export class HousekeepingService {
       logger.debug('Failed to count expired OAuth grants', { error });
       return { count: 0 };
     }
+  }
+
+  private async getInferenceUsageStats(): Promise<HousekeepingStats['inferenceUsage']> {
+    try {
+      const config = await this.getConfig();
+      const [count, size] = await Promise.all([
+        countExpiredInferenceUsage(this.db, config.inferenceUsage.retentionDays),
+        this.db.execute(
+          sql`SELECT coalesce(sum(pg_total_relation_size(c.oid)), 0) AS "bytes" FROM pg_class c WHERE c.relname IN ('inference_requests', 'inference_request_attempts', 'inference_usage_ledger', 'inference_quota_snapshots')`
+        ),
+      ]);
+      const bytes = Number(((size as unknown as { rows?: Array<{ bytes: unknown }> }).rows ?? [])[0]?.bytes ?? 0);
+      return { count, totalSizeBytes: Number.isFinite(bytes) ? bytes : 0 };
+    } catch (error) {
+      logger.debug('Failed to measure inference usage records', { error });
+      return { count: 0, totalSizeBytes: 0 };
+    }
+  }
+
+  private async getBuildLogStats(): Promise<HousekeepingStats['buildLogs']> {
+    const config = await this.getConfig();
+    try {
+      return { ...(await buildLogStats(this.db, config.buildLogs)), capBytes: config.buildLogs.maxSizeBytes };
+    } catch (error) {
+      logger.debug('Failed to measure build logs', { error });
+      return { totalSizeBytes: 0, expiredBuilds: 0, capBytes: config.buildLogs.maxSizeBytes };
+    }
+  }
+
+  private async getHostFileStats(): Promise<HousekeepingStats['hostFiles']> {
+    const temp = await sweepTempLeftovers({ dryRun: true });
+    return { count: temp.removed, sizeBytes: temp.bytes };
+  }
+
+  private async getDiskUsage(): Promise<OpfieldDiskUsage | null> {
+    try {
+      this.diskUsageReader ??= new OpfieldDiskUsageReader(this.db, this.dockerService, this.redis, this.hostDisks);
+      return await this.diskUsageReader.read();
+    } catch (error) {
+      logger.debug('Failed to measure Opfield disk usage', { error });
+      return null;
+    }
+  }
+
+  async getLastSuccessAt(): Promise<string | null> {
+    const row = await this.db.select().from(settings).where(eq(settings.key, KEYS.lastSuccessAt)).limit(1);
+    return typeof row[0]?.value === 'string' ? row[0].value : null;
   }
 
   private async getAcmeChallengeStats(): Promise<HousekeepingStats['acmeChallenges']> {
@@ -1059,10 +1368,16 @@ export class HousekeepingService {
 
   /**
    * Anonymous volumes become eligible only after they have been observed unused for the full retention
-   * period (tracked per node+volume since the first unused sighting), never based on their creation time.
+   * period (tracked per node+volume since the first unused sighting), never based on their creation time,
+   * and only when Opfield created them: a volume counts as Opfield's once a scan saw it attached to a container
+   * Opfield created (its records or its labels). Unused volumes Opfield did not create, or cannot tell (their
+   * container was gone before this tracking existed), are never removed; they are only reported (`unowned`).
    * `preview` scans (stats) record observations too, but never fail on a tracking write error.
    */
-  private findOrphanedVolumes(retentionDays: number, mode: 'cleanup' | 'preview'): Promise<OrphanedVolumeCandidate[]> {
+  private findOrphanedVolumes(
+    retentionDays: number,
+    mode: 'cleanup' | 'preview'
+  ): Promise<{ candidates: OrphanedVolumeCandidate[]; unowned: OrphanedVolumeCandidate[] }> {
     const scan = this.orphanedVolumeScanQueue.then(() => this.scanOrphanedVolumes(retentionDays, mode));
     this.orphanedVolumeScanQueue = scan.then(
       () => undefined,
@@ -1071,12 +1386,33 @@ export class HousekeepingService {
     return scan;
   }
 
+  /** Tells which container names on a node are containers Opfield created. Replaceable in tests. */
+  private opfieldContainerTest = async (nodeId: string): Promise<(containerName: string) => boolean> => {
+    const [containers, records] = await Promise.all([
+      this.dockerManagementService!.listAllContainers(nodeId),
+      loadDockerManagedRecords(this.db, nodeId),
+    ]);
+    const opfieldNames = new Set<string>();
+    for (const container of Array.isArray(containers) ? (containers as Array<Record<string, unknown>>) : []) {
+      const labels = (container.Labels ?? container.labels ?? {}) as Record<string, string>;
+      const names = (Array.isArray(container.Names) ? container.Names : [container.name ?? container.Name]).filter(
+        (name): name is string => typeof name === 'string'
+      );
+      const project = labels['com.docker.compose.project'];
+      if (hasOpfieldLabel(labels) || (project && records.composeProjects.has(project))) {
+        for (const name of names) opfieldNames.add(name.replace(/^\//, ''));
+      }
+    }
+    return (name) => opfieldNames.has(name) || records.recordedNames.has(name) || records.reservedNames.has(name);
+  };
+
   private async scanOrphanedVolumes(
     retentionDays: number,
     mode: 'cleanup' | 'preview'
-  ): Promise<OrphanedVolumeCandidate[]> {
+  ): Promise<{ candidates: OrphanedVolumeCandidate[]; unowned: OrphanedVolumeCandidate[] }> {
     const candidates: OrphanedVolumeCandidate[] = [];
-    if (!this.dockerManagementService) return candidates;
+    const unowned: OrphanedVolumeCandidate[] = [];
+    if (!this.dockerManagementService) return { candidates, unowned };
     const dockerNodes = await this.db
       .select({ id: nodes.id })
       .from(nodes)
@@ -1084,8 +1420,11 @@ export class HousekeepingService {
     const now = Date.now();
     const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
     const previous = this.unsavedUnusedVolumeState ?? (await this.loadUnusedVolumeState());
+    const previousOwned =
+      this.unsavedOwnedVolumeState ?? (await this.loadVolumeState(KEYS.orphanedVolumesOpfieldOwned));
     // Nodes that are offline or fail to list keep their records untouched, so an outage never resets the clock.
     const next: UnusedVolumeState = { ...previous };
+    const nextOwned: UnusedVolumeState = { ...previousOwned };
 
     for (const node of dockerNodes) {
       let volumes: unknown;
@@ -1098,19 +1437,43 @@ export class HousekeepingService {
       }
 
       if (!Array.isArray(volumes)) continue;
+      let isOpfieldContainer: ((name: string) => boolean) | null = null;
+      try {
+        isOpfieldContainer = await this.opfieldContainerTest(node.id);
+      } catch (error) {
+        // Unknown this time: ownership is only kept, never newly recorded.
+        logger.debug('Failed to list containers for orphaned volume ownership', { nodeId: node.id, error });
+      }
       // Successful scan: rebuild this node's records, dropping volumes that are in use or gone.
       const previousForNode = previous[node.id] ?? {};
+      const ownedForNode = previousOwned[node.id] ?? {};
       const unusedSince: Record<string, string> = {};
+      const owned: Record<string, string> = {};
       for (const volume of volumes) {
         const candidate = normalizeHousekeepingVolume(volume);
         if (!candidate) continue;
-        if (!isAnonymousDockerVolumeName(candidate.name)) continue;
-        if (candidate.usedBy.length > 0 || candidate.usedByCount > 0) continue;
+        const anonymous = isAnonymousDockerVolumeName(candidate.name);
+        const inUse = candidate.usedBy.length > 0 || candidate.usedByCount > 0;
+        if (anonymous) {
+          const seenWithOpfield =
+            inUse &&
+            isOpfieldContainer &&
+            candidate.usedBy.some((name) => isOpfieldContainer!(name.replace(/^\//, '')));
+          const ownedSince =
+            ownedForNode[candidate.name] ?? (seenWithOpfield ? new Date(now).toISOString() : undefined);
+          if (ownedSince) owned[candidate.name] = ownedSince;
+        }
+        if (inUse) continue;
         if (
           candidate.labels[VOLUME_CLEANUP_PROTECTED_LABEL] === 'true' ||
           candidate.labels[LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL] === 'true'
         )
           continue;
+        if (!anonymous || !owned[candidate.name]) {
+          // Not created by Opfield (or it cannot tell): shown in Housekeeping, never removed automatically.
+          unowned.push({ nodeId: node.id, name: candidate.name, sizeBytes: candidate.sizeBytes });
+          continue;
+        }
         // Placeholders for volumes missing on the node carry no creation time; never track or remove them.
         if (!candidate.createdAt || !Number.isFinite(Date.parse(candidate.createdAt))) continue;
         const since = previousForNode[candidate.name] ?? new Date(now).toISOString();
@@ -1120,15 +1483,42 @@ export class HousekeepingService {
       }
       if (Object.keys(unusedSince).length > 0) next[node.id] = unusedSince;
       else delete next[node.id];
+      if (Object.keys(owned).length > 0) nextOwned[node.id] = owned;
+      else delete nextOwned[node.id];
     }
 
+    await this.saveOwnedVolumeState(previousOwned, nextOwned, mode);
     await this.saveUnusedVolumeState(previous, next, mode);
-    return candidates;
+    return { candidates, unowned };
   }
 
-  private async loadUnusedVolumeState(): Promise<UnusedVolumeState> {
-    const row = await this.db.select().from(settings).where(eq(settings.key, KEYS.orphanedVolumesUnusedSince)).limit(1);
-    return parseUnusedVolumeState(row[0]?.value);
+  private unsavedOwnedVolumeState: UnusedVolumeState | null = null;
+
+  private async loadVolumeState(key: string): Promise<UnusedVolumeState> {
+    const rows = await this.db.select().from(settings).where(eq(settings.key, key)).limit(1);
+    return parseUnusedVolumeState(rows.find((row) => row.key === key)?.value);
+  }
+
+  private async saveOwnedVolumeState(
+    previous: UnusedVolumeState,
+    next: UnusedVolumeState,
+    mode: 'cleanup' | 'preview'
+  ): Promise<void> {
+    if (!this.unsavedOwnedVolumeState && sameUnusedVolumeState(previous, next)) return;
+    try {
+      await this.upsertSetting(KEYS.orphanedVolumesOpfieldOwned, next);
+      this.unsavedOwnedVolumeState = null;
+    } catch (error) {
+      this.unsavedOwnedVolumeState = next;
+      logger.warn('Failed to save orphaned Docker volume ownership', { error });
+      if (mode === 'cleanup') {
+        throw new Error('Failed to save orphaned volume tracking; no volumes were removed');
+      }
+    }
+  }
+
+  private loadUnusedVolumeState(): Promise<UnusedVolumeState> {
+    return this.loadVolumeState(KEYS.orphanedVolumesUnusedSince);
   }
 
   private async saveUnusedVolumeState(
@@ -1157,8 +1547,18 @@ export class HousekeepingService {
     fn: () => Promise<{ itemsCleaned: number; spaceFreedBytes?: number }>
   ): Promise<CategoryResult> {
     const start = Date.now();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const result = await fn();
+      const result = await Promise.race([
+        fn(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Did not finish within ${Math.round(CATEGORY_TIMEOUT_MS / 60_000)} minutes`)),
+            CATEGORY_TIMEOUT_MS
+          );
+          timer.unref?.();
+        }),
+      ]);
       return {
         category: name,
         success: true,
@@ -1175,6 +1575,8 @@ export class HousekeepingService {
         error: error instanceof Error ? error.message : String(error),
         durationMs: Date.now() - start,
       };
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -1186,6 +1588,10 @@ export class HousekeepingService {
 
   private async saveRunResult(result: HousekeepingRunResult): Promise<void> {
     await this.upsertSetting(KEYS.lastRunResult, result);
+    // A run counts as a success when everything that keeps Opfield's own data bounded worked.
+    if (result.categories.filter((category) => SAFETY_CATEGORIES.has(category.category)).every((c) => c.success)) {
+      await this.upsertSetting(KEYS.lastSuccessAt, result.completedAt);
+    }
 
     // Append to history (keep last N)
     const history = await this.getRunHistory();
@@ -1234,6 +1640,16 @@ export class HousekeepingService {
       req.end();
     });
   }
+}
+
+/**
+ * No run kept Opfield's data bounded for HOUSEKEEPING_STALE_MS. Migration 0266 recorded the update time as the first
+ * success, so an install that has not run since then counts from the update.
+ */
+export function isHousekeepingStale(lastSuccessAt: string | null, now = Date.now()): boolean {
+  if (!lastSuccessAt) return false;
+  const at = Date.parse(lastSuccessAt);
+  return Number.isFinite(at) && now - at > HOUSEKEEPING_STALE_MS;
 }
 
 function isAnonymousDockerVolumeName(name: string): boolean {

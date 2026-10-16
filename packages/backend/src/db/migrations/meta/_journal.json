@@ -1814,6 +1814,20 @@
       "when": 1793986237000,
       "tag": "0258_disk_full_alert_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1795000000000,
+      "tag": "0265_inference_usage_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1795000100000,
+      "tag": "0266_housekeeping_disk_alerts",
+      "breakpoints": true
     }
   ]
 }
