@@ -689,14 +689,19 @@ func (m *Manager) Remove(setID string) error {
 
 // Forget drops a removed member once its container and data are gone.
 func (m *Manager) Forget(setID string) error {
-	err := m.forgetLocked(setID)
+	engine, err := m.forgetLocked(setID)
+	if closer, ok := engine.(Closer); ok {
+		closer.Close()
+	}
 	if m.deps.Forgotten != nil {
 		m.deps.Forgotten(setID)
 	}
 	return err
 }
 
-func (m *Manager) forgetLocked(setID string) error {
+// forgetLocked drops the member and returns its engine (nil when the node
+// had no member of the set).
+func (m *Manager) forgetLocked(setID string) (Engine, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// Every published port of the set goes, named ones included.
@@ -709,7 +714,7 @@ func (m *Manager) forgetLocked(setID string) error {
 	delete(m.unpublished, setID)
 	mem := m.members[setID]
 	if mem == nil {
-		return nil
+		return nil, nil
 	}
 	if mem.cfg.LeasePolicyID != "" {
 		m.deps.Lease.SetStateHandler(mem.cfg.LeasePolicyID, nil)
@@ -717,7 +722,7 @@ func (m *Manager) forgetLocked(setID string) error {
 	}
 	delete(m.members, setID)
 	m.configs.Delete(setID)
-	return m.store.Delete(setID)
+	return mem.engine, m.store.Delete(setID)
 }
 
 // AckEvents drops the events Opfield stored, up to through.

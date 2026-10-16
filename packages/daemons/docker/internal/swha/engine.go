@@ -85,6 +85,8 @@ type Engine struct {
 	peersOK      map[string]time.Time
 	workerStop   chan struct{}
 	workerSince  time.Time
+	// closed: the member was forgotten; no worker starts again (Close).
+	closed       bool
 	lastMetaCert time.Duration
 	timings      workerTimings
 }

@@ -19,6 +19,10 @@ var (
 	workerGrace = 10 * time.Second
 	repairAfter = 10 * time.Second
 	repairRetry = time.Minute
+	// degradeRetryMin/Max space the retries of a switch to one copy that
+	// failed (doubling): never every tick.
+	degradeRetryMin = 5 * time.Second
+	degradeRetryMax = time.Minute
 )
 
 const (
@@ -28,11 +32,12 @@ const (
 	repairTimeout = 12 * time.Hour
 )
 
-// startWorker runs the primary's background work while its master is writable.
+// startWorker runs the primary's background work while its master is
+// writable; a closed engine (its member forgotten) starts none.
 func (e *Engine) startWorker() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.workerStop != nil {
+	if e.workerStop != nil || e.closed {
 		return
 	}
 	stop := make(chan struct{})
@@ -51,6 +56,36 @@ func (e *Engine) stopWorker() {
 	}
 }
 
+// workerEnded is a worker that ends by itself: it clears its own stop
+// channel, never a newer worker's.
+func (e *Engine) workerEnded(stop chan struct{}) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.workerStop == stop {
+		close(stop)
+		e.workerStop = nil
+	}
+}
+
+// Close ends the engine's background work for good (memberha.Closer): the
+// member runtime forgot the member (lift, removal, set deleted), and the
+// member's containers are gone or going.
+func (e *Engine) Close() {
+	e.mu.Lock()
+	e.closed = true
+	e.mu.Unlock()
+	e.stopWorker()
+}
+
+// retryBackoff doubles from low up to high with each failure.
+func retryBackoff(failures int, low, high time.Duration) time.Duration {
+	wait := low
+	for i := 1; i < failures && wait < high; i++ {
+		wait *= 2
+	}
+	return min(wait, high)
+}
+
 func (e *Engine) work(stop chan struct{}) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -60,7 +95,8 @@ func (e *Engine) work(stop chan struct{}) {
 	}()
 	ticker := time.NewTicker(e.timings.tick)
 	defer ticker.Stop()
-	var lastProbe, nextRepair time.Time
+	var lastProbe, nextRepair, nextDegrade time.Time
+	degradeFailures := 0
 	// The first compaction pass comes one interval into the holding period,
 	// the first housekeeping housekeepFirstAfter into it (then daily).
 	lastReclaim := time.Now()
@@ -106,6 +142,17 @@ func (e *Engine) work(stop chan struct{}) {
 				e.mu.Unlock()
 			}
 		}
+		if topology == nil {
+			// The work is the running primary's: a master that no longer runs
+			// (stopped, or removed with its member: a lift, the set deleted)
+			// ends it. The next status that finds this member writable starts
+			// it again.
+			if master, err := e.host.Container(ctx, RoleMaster); err == nil && !master.Running {
+				e.log.Info("SeaweedFS primary work ended: the member's master no longer runs", "master_exists", master.Exists)
+				e.workerEnded(stop)
+				return
+			}
+		}
 		now := time.Now()
 		if now.Sub(lastProbe) >= e.timings.probe {
 			lastProbe = now
@@ -127,8 +174,20 @@ func (e *Engine) work(stop chan struct{}) {
 		e.mu.Unlock()
 		if len(lost) > 0 {
 			allBackSince = time.Time{}
-			if !degraded && now.Sub(started) >= e.timings.grace {
-				e.degrade(ctx, lost, alive)
+			if !degraded && now.Sub(started) >= e.timings.grace && !now.Before(nextDegrade) {
+				if err := e.degrade(ctx, lost, alive); err != nil {
+					if ctx.Err() != nil {
+						// The work was stopped: nothing to retry.
+						return
+					}
+					degradeFailures++
+					wait := retryBackoff(degradeFailures, e.timings.degradeRetryMin, e.timings.degradeRetryMax)
+					nextDegrade = now.Add(wait)
+					e.log.Warn("SeaweedFS could not switch new objects to one copy; retrying", "lost", lost,
+						"retry_in", wait.String(), "error", err)
+				} else {
+					degradeFailures, nextDegrade = 0, time.Time{}
+				}
 			}
 			continue
 		}
@@ -216,13 +275,12 @@ func (e *Engine) lostPeers(peers []memberha.Peer, now time.Time) ([]string, int)
 // two volume servers left new bucket objects get one copy, and the master
 // restarts (through a new promotion) so it drops the silent servers, which it
 // would keep registered for as long as their stream hangs (P0-T01 step 4).
-func (e *Engine) degrade(ctx context.Context, lost []string, alive int) {
+func (e *Engine) degrade(ctx context.Context, lost []string, alive int) error {
 	opCtx, cancel := context.WithTimeout(ctx, workerOpTimeout)
 	defer cancel()
 	if alive < 2 {
 		if _, err := e.shell(opCtx, singleCopyScript()); err != nil {
-			e.log.Warn("SeaweedFS could not switch new objects to one copy; retrying", "lost", lost, "error", err)
-			return
+			return err
 		}
 	}
 	// The master restarts only to drop a lost volume server it still keeps
@@ -240,6 +298,7 @@ func (e *Engine) degrade(ctx context.Context, lost []string, alive int) {
 	e.mu.Unlock()
 	e.log.Warn("SeaweedFS volume servers lost: new objects are written without them until they return",
 		"lost", lost, "single_copy", alive < 2)
+	return nil
 }
 
 // lostStillRegistered reports whether the master keeps any of the lost
@@ -289,10 +348,11 @@ func (e *Engine) repair(ctx context.Context) error {
 
 type workerTimings struct {
 	tick, probe, lost, grace, repairAfter, repairRetry, reclaim, housekeep, housekeepFirst time.Duration
+	degradeRetryMin, degradeRetryMax                                                       time.Duration
 }
 
 func currentWorkerTimings() workerTimings {
 	return workerTimings{tick: workerTick, probe: peerProbeEvery, lost: peerLostAfter, grace: workerGrace,
 		repairAfter: repairAfter, repairRetry: repairRetry, reclaim: reclaimEvery, housekeep: housekeepEvery,
-		housekeepFirst: housekeepFirstAfter}
+		housekeepFirst: housekeepFirstAfter, degradeRetryMin: degradeRetryMin, degradeRetryMax: degradeRetryMax}
 }

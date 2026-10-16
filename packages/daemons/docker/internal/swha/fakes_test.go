@@ -76,6 +76,8 @@ type fakeCluster struct {
 	tokens     []string
 	scripts    []string
 	growCalls  int
+	// shellErr fails every weed shell script (after recording it).
+	shellErr error
 }
 
 func newFakeCluster() *fakeCluster {
@@ -234,6 +236,9 @@ func (c *fakeCluster) shell(script string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.scripts = append(c.scripts, script)
+	if c.shellErr != nil {
+		return c.shellErr
+	}
 	for _, match := range deletePattern.FindAllStringSubmatch(script, -1) {
 		id, _ := strconv.Atoi(match[2])
 		delete(c.volumes[match[1]], uint32(id))

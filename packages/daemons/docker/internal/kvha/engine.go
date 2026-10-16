@@ -149,6 +149,8 @@ type Engine struct {
 	noCopiesSince time.Time
 	lastFloorCert time.Duration
 	workerStop    chan struct{}
+	// closed: the member was forgotten; the ACL mirror never starts again.
+	closed bool
 }
 
 var (
@@ -524,7 +526,7 @@ func (e *Engine) Switchover(ctx context.Context, successorMemberID string) error
 func (e *Engine) startWorker() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.workerStop != nil {
+	if e.workerStop != nil || e.closed {
 		return
 	}
 	stop := make(chan struct{})
@@ -539,6 +541,15 @@ func (e *Engine) stopWorker() {
 		close(e.workerStop)
 		e.workerStop = nil
 	}
+}
+
+// Close ends the ACL mirror for good (memberha.Closer): the member runtime
+// forgot the member.
+func (e *Engine) Close() {
+	e.mu.Lock()
+	e.closed = true
+	e.mu.Unlock()
+	e.stopWorker()
 }
 
 func (e *Engine) mirrorLoop(stop chan struct{}) {
