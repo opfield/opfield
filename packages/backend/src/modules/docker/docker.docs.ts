@@ -1126,7 +1126,7 @@ export const updateInternalRegistryRoute = appRoute({
   tags: ['Docker Registries'],
   summary: 'Update the Opfield internal registry storage (local disk or S3) and Business+ external access',
   description:
-    'storage switches the registry between its local volume and an S3 bucket: the bucket is checked first (write, read and delete of a probe object), then the switch runs in the background, copies the stored images to the new storage, recreates the registry and checks the images in use; storage.lastSwitch in the state reports the outcome. Omitting externalAccessEnabled leaves external access as it is.',
+    'storage switches the registry between its local volume and an S3 bucket: the bucket is checked first (write, read and delete of a probe object), then the switch runs in the background, copies the stored images to the new storage, recreates the registry and checks every image it keeps for workloads; storage.lastSwitch in the state reports the outcome. storage.consistent is false (with storage.repair) while a repair after a restart or a failed rollback is retried; a switch is then refused with 409 REGISTRY_STORAGE_REPAIRING. Managed storage connections are refused with 400 REGISTRY_STORAGE_MANAGED_UNSUPPORTED. Omitting externalAccessEnabled leaves external access as it is.',
   request: jsonBody(DockerInternalRegistryUpdateSchema),
   responses: okJson(UnknownDataResponseSchema),
 });

@@ -24,7 +24,7 @@ import {
 import type { DockerRegistryTokenService } from '../docker-registry-token.service.js';
 import type { RegistryStorageInput } from './registry-storage.schemas.js';
 import { probeRegistryBucket } from './registry-storage-copy.js';
-import { RegistryStorageHost } from './registry-storage-host.js';
+import { RegistryStorageHost, type RegistryStorageHostContext } from './registry-storage-host.js';
 import {
   type RegistryStorageCopyPlan,
   type RegistryStorageSwitchRecord,
@@ -34,13 +34,18 @@ import {
   writeSwitchRecord,
 } from './registry-storage-record.js';
 import { decideRegistryStorageRecovery } from './registry-storage-recovery.js';
-import { RegistryStorageRunner } from './registry-storage-runner.js';
+import {
+  type RegistryStorageObserved,
+  type RegistryStorageRepairStatus,
+  RegistryStorageRunner,
+} from './registry-storage-runner.js';
 import { RegistryS3Client } from './s3-client.js';
 
 const logger = createChildLogger('DockerRegistryStorageService');
 const REGISTRY_ID = 'gateway-internal-registry';
 const RECOVERY_RETRY_MS = 60_000;
-const RECOVERY_ATTEMPTS = 10;
+/** Helpers a stopped Opfield left behind are looked for this often. */
+const LEFTOVER_SWEEP_MS = 30 * 60_000;
 
 export interface RegistryStorageView {
   backend: RegistryStorageBackend;
@@ -48,6 +53,13 @@ export interface RegistryStorageView {
   s3: RegistryS3SettingsView | null;
   /** The last storage switch; `failed` with the reason when it did not finish. */
   lastSwitch: RegistryStorageSwitchView | null;
+  /**
+   * False while a repair is pending: the registry container may run on another storage than .env and
+   * docker-compose.yml select (`repair.observed`). Builds and pushes wait meanwhile.
+   */
+  consistent: boolean;
+  /** The repair Opfield retries until the registry and the files agree; null when nothing needs repairing. */
+  repair: RegistryStorageRepairStatus | null;
 }
 
 export interface DockerRegistryStorageDeps {
@@ -80,6 +92,20 @@ function sameSettings(left: RegistryS3Settings | null, right: RegistryS3Settings
   );
 }
 
+/**
+ * Managed storage cannot hold the registry: Opfield reaches it through a private tunnel that only the Opfield process
+ * has (its endpoint is a loopback placeholder, a fresh port every start), and a published S3 endpoint is a node
+ * address served with Opfield's internal certificate authority that moves when the storage fails over. The registry
+ * container needs a fixed S3 endpoint it can reach and trust.
+ */
+function managedStorageRefused(): AppError {
+  return new AppError(
+    400,
+    'REGISTRY_STORAGE_MANAGED_UNSUPPORTED',
+    "Managed storage cannot hold the internal registry: Opfield reaches it through a private tunnel the registry container cannot use, and its published endpoint moves with failover. Choose an S3 connection to an external service (AWS S3, Cloudflare R2, a MinIO or SeaweedFS you run) or enter its endpoint and keys, or keep the registry on local disk"
+  );
+}
+
 function view(settingsValue: RegistryS3Settings | null): RegistryS3SettingsView | null {
   if (!settingsValue) return null;
   const { secretAccessKey: _secret, ...rest } = settingsValue;
@@ -100,6 +126,8 @@ export class DockerRegistryStorageService {
   private readonly registryUrl: string;
   /** Who started each running switch, for its audit entry. */
   private readonly userIds = new Map<string, string>();
+  private repair: RegistryStorageRepairStatus | null = null;
+  private leftoverTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly deps: DockerRegistryStorageDeps) {
     this.store = createDockerRegistryMaintenanceStore(deps.db);
@@ -114,6 +142,9 @@ export class DockerRegistryStorageService {
       registryUrl: this.registryUrl,
       emit: (action, state) => this.emit(action, state),
       audit: (record, outcome, target) => this.audit(record, outcome, target),
+      repairStatus: (status) => {
+        this.repair = status;
+      },
     });
   }
 
@@ -130,6 +161,8 @@ export class DockerRegistryStorageService {
     return {
       backend,
       s3: view(current?.s3 ?? null),
+      consistent: this.repair === null,
+      repair: this.repair,
       lastSwitch: lastSwitch
         ? switchView(
             interrupted
@@ -142,6 +175,13 @@ export class DockerRegistryStorageService {
 
   /** Validates and starts a switch; it runs on in the background and reports through the registry state. */
   async update(input: RegistryStorageInput, actor: { userId: string; scopes: string[] }): Promise<RegistryStorageView> {
+    if (this.repair) {
+      throw new AppError(
+        409,
+        'REGISTRY_STORAGE_REPAIRING',
+        `The registry storage is being repaired (attempt ${this.repair.attempts} failed: ${this.repair.lastError}). Opfield tries again at ${this.repair.nextAttemptAt}; change the storage once storage.consistent is true again.`
+      );
+    }
     const current = (
       await this.currentStorage().catch((error: Error) => {
         throw new AppError(
@@ -210,68 +250,113 @@ export class DockerRegistryStorageService {
     }
     logger.info('Internal registry storage switch starts', { from: record.from, target: record.target, copy });
     this.userIds.set(owner, actor.userId);
-    void this.runner.runSwitch(context, record, current, target).finally(() => this.userIds.delete(owner));
+    void this.runner
+      .runSwitch(context, record, current, target)
+      .then(async (needsRepair) => {
+        if (needsRepair) await this.repairUntilConsistent(context, owner);
+      })
+      .catch((error: Error) => logger.error('Internal registry storage switch stopped', { error: error.message }))
+      .finally(() => this.userIds.delete(owner));
     return this.getView();
   }
 
   /**
    * At start-up: compares the switch record, the host files and the running registry, and finishes or rolls back a
    * switch a restart interrupted (or makes the registry follow the .env). Returns whether it took the registry over;
-   * when it did, the usual interrupted-maintenance recovery must not run. A failed check is retried in the background.
+   * when it did, the usual interrupted-maintenance recovery must not run. The repair, and a check that failed, are
+   * tried again until the registry and the files agree. Also starts the removal of helper containers an earlier
+   * process left behind.
    */
   async recoverAfterRestart(attempt = 1): Promise<boolean> {
+    this.startLeftoverSweep();
     try {
       return await this.recoverOnce();
     } catch (error) {
-      logger.warn('Internal registry storage could not be checked after the start', {
+      const delay = Math.min(RECOVERY_RETRY_MS * attempt, 10 * RECOVERY_RETRY_MS);
+      logger.warn('Internal registry storage could not be checked after the start; checking again', {
         attempt,
+        retryInMs: delay,
         error: (error as Error).message,
       });
-      if (attempt < RECOVERY_ATTEMPTS) {
-        setTimeout(() => void this.recoverAfterRestart(attempt + 1), RECOVERY_RETRY_MS).unref?.();
-      }
-      return false;
+      setTimeout(() => void this.recoverAfterRestart(attempt + 1), delay).unref?.();
+      // A switch or repair the previous process ran keeps the registry in maintenance until the check succeeds.
+      return this.store
+        .getState()
+        .then((state) => state.maintenanceLeaseOwner?.startsWith('registry-storage:') === true)
+        .catch(() => false);
     }
+  }
+
+  /** What the registry, the host files and the switch record show now, and what to do about it. */
+  private async observe(context: RegistryStorageHostContext): Promise<RegistryStorageObserved> {
+    const record = await readSwitchRecord(this.deps.db);
+    const [hostFiles, current] = await Promise.all([this.host.hostStorage(context), this.currentStorage()]);
+    const observation = { record, hostEnv: hostFiles.env, hostCompose: hostFiles.compose, container: current.backend };
+    return { ...observation, action: decideRegistryStorageRecovery(observation) };
   }
 
   private async recoverOnce(): Promise<boolean> {
     const context = await this.host.context().catch(() => null);
     // Not an installer-managed host (development): nothing on the host to compare.
     if (!context) return false;
-    const record = await readSwitchRecord(this.deps.db);
-    const [hostFiles, current] = await Promise.all([this.host.hostStorage(context), this.currentStorage()]);
-    const observed = {
-      record,
-      hostEnv: hostFiles.env,
-      hostCompose: hostFiles.compose,
-      container: current.backend,
-    };
-    if (record?.status === 'completed' && record.target !== hostFiles.env) {
+    const observed = await this.observe(context);
+    const { record, action } = observed;
+    if (record?.status === 'completed' && record.target !== observed.hostEnv) {
       logger.warn('The .env names another registry storage than the last switch; the registry follows the .env', {
         lastSwitch: record.target,
-        env: hostFiles.env,
+        env: observed.hostEnv,
       });
     }
-    const action = decideRegistryStorageRecovery(observed);
     if (action.kind === 'none') return false;
     logger.warn('Internal registry storage is repaired after a restart', {
       action,
       switchStatus: record?.status ?? null,
       switchPhase: record?.phase ?? null,
-      env: hostFiles.env,
-      compose: hostFiles.compose,
-      container: current.backend,
+      env: observed.hostEnv,
+      compose: observed.hostCompose,
+      container: observed.container,
     });
-    const running = record?.status === 'running' ? record : null;
-    const owner = running?.owner ?? `registry-storage:${randomUUID()}`;
+    // The lease of a switch, or of a repair the previous process ran, is taken over rather than waited out.
+    const leased = (await this.store.getState().catch(() => null))?.maintenanceLeaseOwner;
+    const owner =
+      record?.status === 'running'
+        ? record.owner
+        : leased?.startsWith('registry-storage:')
+          ? leased
+          : `registry-storage:${randomUUID()}`;
+    await this.takeOver(owner);
+    void this.runner
+      .runRecovery(context, owner, observed, () => this.observe(context))
+      .catch((error: Error) => logger.error('Internal registry storage repair stopped', { error: error.message }));
+    return true;
+  }
+
+  /** A switch that could not roll back: repaired like an interrupted one, until the registry and the files agree. */
+  private async repairUntilConsistent(context: RegistryStorageHostContext, owner: string): Promise<void> {
+    await this.takeOver(owner);
+    await this.runner.runRecovery(context, owner, null, () => this.observe(context));
+  }
+
+  /** The registry goes into maintenance under `owner`'s lease while it is repaired. */
+  private async takeOver(owner: string): Promise<void> {
     const now = new Date();
     await this.store.acquireLease(owner, new Date(now.getTime() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS), now);
     this.emit(
       'maintenance',
       await this.store.updateState({ status: 'maintenance', writable: false, maintenancePhase: 'switching_storage' })
     );
-    void this.runner.runRecovery(context, running, action, owner, hostFiles.env);
-    return true;
+  }
+
+  /** Helper containers of a storage switch an earlier process left behind go now and every LEFTOVER_SWEEP_MS. */
+  private startLeftoverSweep(): void {
+    if (this.leftoverTimer || typeof this.deps.docker.removeLeftoverOneShots !== 'function') return;
+    const sweep = () =>
+      void this.deps.docker.removeLeftoverOneShots().catch((error: Error) => {
+        logger.debug('Leftover helper containers could not be removed', { error: error.message });
+      });
+    sweep();
+    this.leftoverTimer = setInterval(sweep, LEFTOVER_SWEEP_MS);
+    this.leftoverTimer.unref?.();
   }
 
   private async resolveTarget(
@@ -286,6 +371,7 @@ export class DockerRegistryStorageService {
       }
       const objectStorage = this.deps.objectStorage?.();
       if (!objectStorage) throw new AppError(404, 'NOT_FOUND', 'Storage connections are unavailable');
+      if ((await objectStorage.get(input.connectionId)).origin === 'managed') throw managedStorageRefused();
       const config = await objectStorage.getDecryptedConfig(input.connectionId);
       if (isFileProtocolConfig(config)) {
         throw new AppError(400, 'VALIDATION_ERROR', 'The registry needs an S3 connection, not a file transfer one');

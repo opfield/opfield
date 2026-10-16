@@ -1,13 +1,14 @@
 import type { DockerRegistryMaintenanceStore } from '../docker-registry-maintenance.js';
+import { selectRegistryRetentionCandidates } from '../docker-registry-retention.js';
 import type { DockerRegistryGrant, DockerRegistryTokenService } from '../docker-registry-token.service.js';
 
-/** Images the storage switch checks on the new storage: the ones running workloads and rollbacks use. */
+/** Images the storage switch checks on the new storage: the ones workloads run and roll back to. */
 export interface RegistryImageRef {
   repository: string;
   digest: string;
 }
 
-const MAX_CHECKED = 500;
+const MAX_CHECKED = 2000;
 const MANIFEST_ACCEPT = [
   'application/vnd.oci.image.index.v1+json',
   'application/vnd.oci.image.manifest.v1+json',
@@ -40,23 +41,29 @@ async function manifestStatus(
   return response.status;
 }
 
-/** The pinned images (in use by workloads) the registry serves now; only those must survive the switch. */
-export async function readablePinnedImages(
+/**
+ * The images the registry keeps for workloads that it serves now: every build a container, deployment or Compose
+ * service runs, the build each keeps to roll back to, and the pinned ones (Availability mirrors, promoted copies,
+ * builds in flight); those must survive the switch. Running ones first, at most MAX_CHECKED.
+ */
+export async function readableImagesInUse(
   store: DockerRegistryMaintenanceStore,
   tokenService: DockerRegistryTokenService,
   registryUrl: string
 ): Promise<RegistryImageRef[]> {
+  const { retained } = selectRegistryRetentionCandidates(await store.listRetentionArtifacts(new Date()));
+  const rank = (artifact: (typeof retained)[number]) => (artifact.running ? 0 : artifact.pinned ? 1 : 2);
   const seen = new Set<string>();
-  const pinned: RegistryImageRef[] = [];
-  for (const artifact of await store.listRetentionArtifacts(new Date())) {
+  const kept: RegistryImageRef[] = [];
+  for (const artifact of [...retained].sort((left, right) => rank(left) - rank(right))) {
     const key = `${artifact.repository}@${artifact.digest}`;
-    if (!artifact.pinned || seen.has(key)) continue;
+    if (seen.has(key)) continue;
     seen.add(key);
-    pinned.push({ repository: artifact.repository, digest: artifact.digest });
-    if (pinned.length >= MAX_CHECKED) break;
+    kept.push({ repository: artifact.repository, digest: artifact.digest });
+    if (kept.length >= MAX_CHECKED) break;
   }
   const readable: RegistryImageRef[] = [];
-  for (const image of pinned) {
+  for (const image of kept) {
     if ((await manifestStatus(tokenService, registryUrl, image).catch(() => 0)) === 200) readable.push(image);
   }
   return readable;

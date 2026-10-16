@@ -446,8 +446,11 @@ export class DockerInternalRegistryService {
     const timer = setTimeout(() => {
       if (this.maintenanceRuns > 0) return;
       void (async () => {
-        // Only a run whose failure was never recorded leaves the registry in maintenance.
-        if ((await this.getState()).status !== 'maintenance' || this.maintenanceRuns > 0) return;
+        // Only a run whose failure was never recorded leaves the registry in maintenance. A registry storage switch,
+        // or its repair, holds the maintenance itself: a garbage collection refused meanwhile must not end it.
+        const state = await this.getState();
+        if (state.status !== 'maintenance' || this.maintenanceRuns > 0) return;
+        if (state.maintenanceLeaseOwner?.startsWith('registry-storage:')) return;
         await this.recoverInterruptedMaintenance('the database was unavailable when it stopped');
       })().catch(() => this.recoverUnfinishedMaintenanceLater());
     }, UNFINISHED_MAINTENANCE_CHECK_MS);

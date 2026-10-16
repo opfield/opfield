@@ -19,6 +19,18 @@ const API_VERSION = '/v1.46';
 export const DOCKER_REQUEST_DEFAULT_TIMEOUT_MS = 5 * 60_000;
 const CONTAINER_START_TIMEOUT_MS = 60_000;
 const stopRequestTimeoutMs = (timeoutSeconds: number) => (Math.max(0, timeoutSeconds) + 30) * 1000;
+/** Marks the one-off containers runOneShot starts (helpers of storage switches, restores, measurements). */
+export const ONE_SHOT_LABEL = 'net.opfield.one-shot';
+/** The process that started a one-off container: only that process reads its output and removes it. */
+export const ONE_SHOT_OWNER_LABEL = 'net.opfield.one-shot.owner';
+/** One-off helpers of registry storage switches started before they carried ONE_SHOT_LABEL. */
+const LEGACY_REGISTRY_STORAGE_LABEL = 'net.opfield.registry-storage';
+const ONE_SHOT_OWNER = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+/**
+ * A one-off container of another (or an earlier) Opfield process that ended this long ago is a leftover: the process
+ * that started it was stopped before it could read the output and remove it.
+ */
+export const ONE_SHOT_LEFTOVER_AGE_MS = 10 * 60_000;
 
 export class DockerService {
   constructor(
@@ -815,8 +827,11 @@ export class DockerService {
   /**
    * Remove a container by ID.
    */
-  async removeContainer(id: string, options: { removeAnonymousVolumes?: boolean } = {}): Promise<void> {
-    const params = new URLSearchParams({ force: 'true' });
+  async removeContainer(
+    id: string,
+    options: { removeAnonymousVolumes?: boolean; force?: boolean } = {}
+  ): Promise<void> {
+    const params = new URLSearchParams({ force: options.force === false ? 'false' : 'true' });
     if (options.removeAnonymousVolumes) params.set('v', 'true');
     const res = await this.request('DELETE', `${API_VERSION}/containers/${encodeURIComponent(id)}?${params}`);
     if (res.statusCode !== 204 && res.statusCode !== 404) {
@@ -1180,26 +1195,75 @@ export class DockerService {
   }
 
   /**
-   * Create, start, wait for completion, and clean up a one-shot container.
+   * Create, start, wait for completion, and clean up a one-shot container. It is labelled as a one-off of this process
+   * (ONE_SHOT_LABEL, ONE_SHOT_OWNER_LABEL), so cleanups of finished containers leave it alone until its output was read,
+   * and one a stopped Opfield left behind is removed later (removeLeftoverOneShots). Output that cannot be read is an
+   * error, never mistaken for the container's output.
    */
   async runOneShot(
     config: DockerCreateContainerConfig,
     timeoutMs?: number
   ): Promise<{ exitCode: number; output: string }> {
-    const id = await this.createContainer(config);
+    const id = await this.createContainer({
+      ...config,
+      Labels: {
+        [ONE_SHOT_LABEL]: 'true',
+        ...(config.Labels ?? {}),
+        [ONE_SHOT_OWNER_LABEL]: ONE_SHOT_OWNER,
+      },
+    });
     try {
       await this.startContainer(id);
       const exitCode = await this.waitContainer(id, timeoutMs);
-      // Capture logs
       const logRes = await this.request(
         'GET',
         `${API_VERSION}/containers/${encodeURIComponent(id)}/logs?stdout=true&stderr=true`
       );
+      if (logRes.statusCode !== 200) {
+        throw new Error(
+          `The helper container ended with exit code ${exitCode}, but its output could not be read (${logRes.statusCode}): ${dockerErrorMessage(logRes.body)}`
+        );
+      }
       const output = this.stripDockerStreamHeaders(logRes.bodyRaw);
       return { exitCode, output };
     } finally {
       await this.removeContainer(id, { removeAnonymousVolumes: true }).catch(() => {});
     }
+  }
+
+  /**
+   * Removes the one-off containers (runOneShot) an earlier or other Opfield process left behind: stopped before it
+   * could remove them (a restart while a registry storage switch ran a step). Only those that ended at least
+   * ONE_SHOT_LEFTOVER_AGE_MS ago (or never started) and never one of this process; never forced, so a running one
+   * stays. Returns how many went.
+   */
+  async removeLeftoverOneShots(now = Date.now()): Promise<number> {
+    let removed = 0;
+    const seen = new Set<string>();
+    for (const label of [ONE_SHOT_LABEL, LEGACY_REGISTRY_STORAGE_LABEL]) {
+      const filters = encodeURIComponent(JSON.stringify({ label: [label] }));
+      const res = await this.request('GET', `${API_VERSION}/containers/json?all=true&filters=${filters}`);
+      if (res.statusCode !== 200) throw new Error(`Docker container list failed (${res.statusCode}): ${res.body}`);
+      for (const item of JSON.parse(res.body) as DockerContainerListItem[]) {
+        if (seen.has(item.Id)) continue;
+        seen.add(item.Id);
+        if (item.Labels?.[ONE_SHOT_OWNER_LABEL] === ONE_SHOT_OWNER) continue;
+        if (!['exited', 'dead', 'created'].includes(item.State)) continue;
+        const details = await this.inspectContainerDetails(item.Id).catch(() => null);
+        if (!details || !isLeftoverOneShot(details, now)) continue;
+        try {
+          await this.removeContainer(item.Id, { removeAnonymousVolumes: true, force: false });
+          removed += 1;
+        } catch (error) {
+          logger.debug('A leftover helper container was kept', {
+            id: item.Id.slice(0, 12),
+            error: (error as Error).message,
+          });
+        }
+      }
+    }
+    if (removed > 0) logger.info('Removed helper containers an earlier Opfield process left behind', { removed });
+    return removed;
   }
 
   /**
@@ -1282,8 +1346,17 @@ export interface DockerContainerDetails {
   Name: string;
   /** Image ID (sha256:...). */
   Image: string;
+  /** When Docker created it (RFC 3339). */
+  Created?: string;
   Config: { Image: string; Labels?: Record<string, string>; Env?: string[] };
-  State: { Status: string; Running: boolean; Paused?: boolean; Health?: { Status?: string } };
+  State: {
+    Status: string;
+    Running: boolean;
+    Paused?: boolean;
+    Health?: { Status?: string };
+    /** When it last stopped (RFC 3339; year 1 when it never ran). */
+    FinishedAt?: string;
+  };
   Mounts?: Array<{ Type: string; Name?: string; Source?: string; Destination: string; RW?: boolean }>;
   HostConfig?: { NetworkMode?: string; LogConfig?: { Type?: string; Config?: Record<string, string> } };
   /** Host path of the json-file log; empty for other log drivers. */
@@ -1382,4 +1455,27 @@ export function parseDfKilobytes(
   const [total, used, available] = [columns[1], columns[2], columns[3]].map(Number);
   if (![total, used, available].every((value) => Number.isSafeInteger(value) && value! >= 0) || !total) return null;
   return { totalBytes: total! * 1024, usedBytes: used! * 1024, availableBytes: available! * 1024 };
+}
+
+/** The `message` of a Docker API error body, else the body itself. */
+function dockerErrorMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    if (typeof parsed.message === 'string') return parsed.message;
+  } catch {
+    // Not JSON.
+  }
+  return body.trim();
+}
+
+/** Whether a stopped one-off container ended (or, never started, was created) ONE_SHOT_LEFTOVER_AGE_MS ago or more. */
+export function isLeftoverOneShot(
+  details: { Created?: string; State?: { Running?: boolean; Status?: string; FinishedAt?: string } },
+  now: number
+): boolean {
+  if (details.State?.Running) return false;
+  const finished = Date.parse(details.State?.FinishedAt ?? '');
+  // Docker reports 0001-01-01 for a container that never ran.
+  const ended = Number.isFinite(finished) && finished > 0 ? finished : Date.parse(details.Created ?? '');
+  return Number.isFinite(ended) && now - ended >= ONE_SHOT_LEFTOVER_AGE_MS;
 }

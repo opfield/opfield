@@ -290,6 +290,15 @@ export interface DockerInternalRegistryStorage {
     copiedBytes: number | null;
     error: string | null;
   } | null;
+  /** False while a repair is pending: the registry may run on another storage than the settings select. */
+  consistent?: boolean;
+  /** The repair Opfield retries until the registry and its settings agree; null when nothing needs repairing. */
+  repair?: {
+    attempts: number;
+    lastError: string;
+    nextAttemptAt: string;
+    observed: { env: "filesystem" | "s3"; compose: "filesystem" | "s3"; container: "filesystem" | "s3" } | null;
+  } | null;
 }
 
 export type DockerInternalRegistryStorageInput =
