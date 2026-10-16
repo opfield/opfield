@@ -433,6 +433,16 @@ The Docker daemon watches its containers: one that is removed, created under a m
 
 `console.user` runs console sessions and one-shot commands as another OS user. Only a daemon running as root can start processes as another user. A daemon that runs as its own user (`--user`) and names another user in `console.user` logs an error at startup, reports it when it connects, and refuses every console session. Opfield refuses those requests with `409 NODE_CONSOLE_USER_UNAVAILABLE`, and the node page names the fix: remove `console.user` or run the daemon as root. Sessions start in the user's home directory, or in `/` when the user has none (for example a system user created with `--no-create-home`).
 
+### Files Daemons Clean Up On Their Own
+
+Daemons remove what their own work leaves on the node, with no setting and on existing nodes from the first start of an updated daemon:
+
+- **Every daemon:** temporary binaries of an update or launcher copy that a crash or power loss interrupted (older than an hour, next to the daemon binary and in the launcher state directory). A daemon download larger than 512 MiB is stopped. A partial file of a node **Files** upload (`.opfield-upload-<id>.tmp`) that nobody wrote to for an hour is removed from the directories the daemon wrote such files to; Opfield also cancels an upload whose session expired (30 minutes without a chunk).
+- **nginx nodes,** once an hour: Pages uploads nobody finished for 6 hours, an upload of a Deployment once a newer upload of it starts, and an upload whose release could not be stored; extraction and certificate stages left by a crash; Pages runtime-configuration versions other than the active one and the one before it (each Pages publication added one before 2.12.3); certificate versions that are neither current, the most recent other one, written within the last hour, nor named by a config (each renewal added one); denial pages of revoked previews older than 30 days, when the managed default HTTPS server is installed; and proxy caches of routes the node no longer serves, also inside nginx's private `/tmp` when its service has `PrivateTmp`. Pages leaves 10 % of the node's filesystem free (at most 4 GiB): a release that would go below it is refused, and Opfield retries it later.
+- **Build Workers:** image scans unpack into the build's own directory, which the build's disk limit counts and the build removes, and the vulnerability database lives in `/var/lib/docker-daemon/builder/grype-db` with only its current schema. Shortly after start and every six hours while no build runs, the worker removes job, secret and Pages build directories a crash left, scanner temp directories in `/tmp` older than an hour, and its BuildKit cache and image store.
+
+Opfield also removes, every hour, Pages releases an ingress node still stores for Deployments that were deleted, and it retries removing the certificate files of a deleted certificate from a node that was offline when it was deleted.
+
 ## Daemon Updates
 
 From the UI:

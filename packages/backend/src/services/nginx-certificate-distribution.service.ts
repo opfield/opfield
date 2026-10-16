@@ -911,9 +911,11 @@ export class NginxCertificateDistributionService {
   }
 
   async cleanupDueReplicas(): Promise<void> {
+    // A removal that failed (the node was offline) stays due: its row keeps cleanupAfter and turns `failed`, and the
+    // certificate and its key stay on the node until a later pass removes them.
     const due = await this.db.query.nginxCertificateReplicas.findMany({
       where: and(
-        eq(nginxCertificateReplicas.status, 'cleanup_pending'),
+        inArray(nginxCertificateReplicas.status, ['cleanup_pending', 'failed']),
         lte(nginxCertificateReplicas.cleanupAfter, new Date())
       ),
     });
@@ -962,7 +964,7 @@ export class NginxCertificateDistributionService {
         const current = await this.db.query.nginxCertificateReplicas.findFirst({
           where: eq(nginxCertificateReplicas.id, replica.id),
         });
-        if (current?.generation !== replica.generation || current.status !== 'cleanup_pending') continue;
+        if (current?.generation !== replica.generation || current.status !== replica.status) continue;
         await this.db
           .update(nginxCertificateReplicas)
           .set({ status: 'failed', lastError: safeError(error), updatedAt: new Date() })

@@ -1,5 +1,5 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +9,7 @@ import {
   type CommercialUpdateGrant,
   commercialHostRoot,
   prepareCommercialUpdate,
+  pruneCommercialVersions,
   readPreparedCommercialUpdate,
 } from './prepare-update.js';
 
@@ -217,5 +218,40 @@ describe('private core update preparation', () => {
       { privateCoreInstalled: false },
       { privateCoreInstalled: false },
     ]);
+  });
+
+  it('keeps only the prepared, running, newer and one spare private core', async () => {
+    const hostDir = await host();
+    const root = join(hostDir, '.opfield-commercial');
+    const versions = ['v2.12.0', 'v2.12.1', 'v2.12.2', 'v2.12.3-rc.1', 'v2.12.3', 'v2.12.4'];
+    for (const [index, version] of versions.entries()) {
+      await mkdir(join(root, 'versions', version, 'releases'), { recursive: true });
+      await mkdir(join(root, 'prepared'), { recursive: true });
+      await writeFile(join(root, 'prepared', `${version}.json`), '{}');
+      const at = new Date(Date.now() - (versions.length - index) * 60_000);
+      await utimes(join(root, 'prepared', `${version}.json`), at, at);
+    }
+    const oldStage = join(root, 'versions', 'v2.12.3', 'releases', '.staged-1');
+    const oldDownload = join(root, '.download-1');
+    const freshDownload = join(root, '.download-2');
+    for (const dir of [oldStage, oldDownload, freshDownload]) await mkdir(dir, { recursive: true });
+    const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await utimes(oldStage, old, old);
+    await utimes(oldDownload, old, old);
+    await writeFile(join(hostDir, '.env'), 'OPFIELD_COMMERCIAL_DIR=/var/lib/gateway/commercial/versions/v2.12.1\n');
+
+    const removed = await pruneCommercialVersions(root, hostDir, 'v2.12.3');
+
+    // v2.12.3 prepared, v2.12.1 running, v2.12.4 newer, v2.12.3-rc.1 the most recent spare.
+    expect(removed.sort()).toEqual(['v2.12.0', 'v2.12.2']);
+    expect((await readdir(join(root, 'versions'))).sort()).toEqual(['v2.12.1', 'v2.12.3', 'v2.12.3-rc.1', 'v2.12.4']);
+    expect((await readdir(join(root, 'prepared'))).sort()).toEqual([
+      'v2.12.1.json',
+      'v2.12.3-rc.1.json',
+      'v2.12.3.json',
+      'v2.12.4.json',
+    ]);
+    expect(await readdir(join(root, 'versions', 'v2.12.3', 'releases'))).toEqual([]);
+    expect((await readdir(root)).filter((name) => name.startsWith('.download-'))).toEqual(['.download-2']);
   });
 });

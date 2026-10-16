@@ -48,4 +48,7 @@ export class PageRetentionService {
   async expireDeployments(_now?: Date): Promise<PageDeploymentExpiryResult> {
     return commercialModuleUnavailable();
   }
+  async sweepNodeReleases(): Promise<number> {
+    return commercialModuleUnavailable();
+  }
 }

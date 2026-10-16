@@ -119,6 +119,8 @@ export async function prepareCommercialUpdate(options: {
     } finally {
       await rm(temporary, { force: true });
     }
+    // Every update used to leave its private core behind. The disk is not worth failing an update over.
+    await pruneCommercialVersions(root, options.hostDir, version).catch(() => undefined);
     return prepared;
   } finally {
     if (staging) await rm(staging, { recursive: true, force: true });
@@ -156,6 +158,110 @@ export async function readPreparedCommercialUpdate(
     if (verified.releaseId !== prepared.releaseId) throw new Error('Prepared core verification failed');
   }
   return prepared;
+}
+
+/** Prepared private cores kept besides the one being prepared and the one running: a spare for a rollback. */
+const SPARE_COMMERCIAL_VERSIONS = 1;
+/** Download and install stages exist only while one preparation runs; older ones were left by a crash. */
+const COMMERCIAL_STAGE_MAX_AGE_MS = 60 * 60 * 1000;
+
+/**
+ * Removes prepared private cores no update or rollback can use: it keeps the version being prepared, the version
+ * the installation runs now (its `.env` names it) and the most recently prepared other one, plus every version
+ * newer than the one being prepared (an update prepared ahead). Crash-left download and install stages go too.
+ */
+export async function pruneCommercialVersions(
+  root: string,
+  hostDir: string,
+  preparedVersion: string
+): Promise<string[]> {
+  const now = Date.now();
+  const removed: string[] = [];
+  const stale = async (path: string) => now - (await lstat(path)).mtimeMs > COMMERCIAL_STAGE_MAX_AGE_MS;
+  for (const entry of await readdir(root, { withFileTypes: true }).catch(() => [] as Dirent[])) {
+    const path = join(root, entry.name);
+    if (entry.isDirectory() && entry.name.startsWith('.download-') && (await stale(path))) {
+      await rm(path, { recursive: true, force: true });
+    }
+  }
+  const versionsDir = join(root, 'versions');
+  const versions = (await readdir(versionsDir, { withFileTypes: true }).catch(() => [] as Dirent[])).filter(
+    (entry) => entry.isDirectory() && isCommercialVersionKey(entry.name)
+  );
+  for (const version of versions) {
+    const releases = join(versionsDir, version.name, 'releases');
+    for (const entry of await readdir(releases, { withFileTypes: true }).catch(() => [] as Dirent[])) {
+      const path = join(releases, entry.name);
+      if (entry.isDirectory() && entry.name.startsWith('.staged-') && (await stale(path))) {
+        await rm(path, { recursive: true, force: true });
+      }
+    }
+  }
+  const running = await runningCommercialVersion(hostDir);
+  const keep = new Set([preparedVersion]);
+  if (running) keep.add(running);
+  const preparedAt = async (name: string) => {
+    for (const path of [join(root, 'prepared', `${name}.json`), join(versionsDir, name)]) {
+      const stat = await lstat(path).catch(() => null);
+      if (stat) return stat.mtimeMs;
+    }
+    return 0;
+  };
+  const others: Array<{ name: string; at: number }> = [];
+  for (const version of versions) {
+    if (keep.has(version.name)) continue;
+    if (compareCommercialVersions(version.name, preparedVersion) > 0) {
+      keep.add(version.name);
+      continue;
+    }
+    others.push({ name: version.name, at: await preparedAt(version.name) });
+  }
+  others.sort((a, b) => b.at - a.at);
+  // Without a readable running version, one more spare stands in for it.
+  const spares = running ? SPARE_COMMERCIAL_VERSIONS : SPARE_COMMERCIAL_VERSIONS + 1;
+  for (const { name } of others.slice(spares)) {
+    await rm(join(versionsDir, name), { recursive: true, force: true });
+    await rm(join(root, 'prepared', `${name}.json`), { force: true });
+    removed.push(name);
+  }
+  return removed;
+}
+
+function isCommercialVersionKey(value: string): boolean {
+  try {
+    commercialVersionKey(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Orders `vX.Y.Z[-rc.N]`; a release sorts after its release candidates. */
+function compareCommercialVersions(a: string, b: string): number {
+  const parse = (value: string) => {
+    const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$/.exec(value);
+    if (!match) return [0, 0, 0, 0];
+    return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] === undefined ? Infinity : Number(match[4])];
+  };
+  const left = parse(a);
+  const right = parse(b);
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return left[index] < right[index] ? -1 : 1;
+  }
+  return 0;
+}
+
+/** The version whose private core the installation runs, from the commercial directory its `.env` names. */
+async function runningCommercialVersion(hostDir: string): Promise<string | null> {
+  const env = await readFile(join(hostDir, '.env'), 'utf8').catch(() => '');
+  for (const line of env.split(/\r?\n/)) {
+    const match =
+      /^(?:OPFIELD|GATEWAY)_COMMERCIAL_DIR=(["']?)\/var\/lib\/gateway\/commercial\/versions\/([^/\s"']+)\1\s*$/.exec(
+        line
+      );
+    if (match && isCommercialVersionKey(match[2])) return match[2];
+  }
+  return null;
 }
 
 async function ensureDirectory(path: string): Promise<void> {

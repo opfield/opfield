@@ -67,6 +67,11 @@ primitives stay shared; user PKI entrypoints require the commercial core.
 4. Let Foundation wire the prepared local core into the target configuration.
 5. Replace Opfield and retain the previous image/core pair for rollback.
 
+Each preparation removes older prepared cores: it keeps the core being prepared,
+the core the installation runs, cores of newer versions, and the most recently
+prepared other one as a spare, so the host keeps at most a few cores however many
+updates it went through.
+
 The target image provides this preparation bridge for older installed Opfield
 versions as well as subsequent updates. Foundation never starts a private download
 after Opfield has been stopped. A failed paid authorization or package validation
