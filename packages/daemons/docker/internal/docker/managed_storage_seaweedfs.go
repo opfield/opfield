@@ -344,7 +344,10 @@ func (m *managedStorageManager) createSeaweedFSContainer(ctx context.Context, re
 		return "", fmt.Errorf("create managed storage container: %w", err)
 	}
 	if _, err := m.client.cli.ContainerStart(ctx, created.ID, mobyclient.ContainerStartOptions{}); err != nil {
-		_ = m.client.RemoveContainer(ctx, created.ID, true)
+		// The command's context may be the reason the start failed: the
+		// container that never started is removed regardless, or it keeps
+		// the storage's name (a recreate could not restore the previous one).
+		m.removeUnstartedContainer(ctx, created.ID)
 		return "", fmt.Errorf("start managed storage container: %w", err)
 	}
 	return created.ID, nil

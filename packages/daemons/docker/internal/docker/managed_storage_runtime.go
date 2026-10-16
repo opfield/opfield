@@ -491,6 +491,7 @@ func (m *managedStorageManager) reconcile(ctx context.Context) error {
 			if err := ensureEngineRestartPolicy(ctx, m.client, record.ContainerID); err != nil {
 				m.logger.Warn("managed storage engine keeps Docker's restart policy", "id", id, "error", err)
 			}
+			m.healReplacedContainers(ctx, record)
 		}
 		if record.Removed || !record.DesiredRunning {
 			continue
