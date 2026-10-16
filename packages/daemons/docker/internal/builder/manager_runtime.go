@@ -325,3 +325,33 @@ func (m *Manager) deliverTerminal(event *pb.DockerBuildEvent) {
 		}
 	}
 }
+
+// PruneIdle removes what earlier builds left in the builder's stores (BuildKit cache, containerd image records) while
+// no build runs: after the daemon starts, so leftovers of a crash or an interrupted job do not wait for the next
+// build, and periodically, so a post-build prune that failed is retried. It reports whether it ran; a build that
+// starts meanwhile prunes again itself.
+func (m *Manager) PruneIdle(ctx context.Context) (bool, error) {
+	m.mu.Lock()
+	busy := len(m.jobs) > 0 || m.paused != nil
+	m.mu.Unlock()
+	if busy {
+		return false, nil
+	}
+	if err := m.Ready(); err != nil {
+		return false, nil
+	}
+	if err := m.removeStoredImages(ctx); err != nil {
+		return true, err
+	}
+	executable, err := m.executable("buildctl")
+	if err != nil {
+		return true, fmt.Errorf("resolve builder executable buildctl: %w", err)
+	}
+	command := exec.CommandContext(ctx, executable, "--addr", "unix://"+m.config.BuildkitSocket, "prune", "--all")
+	command.Env = os.Environ()
+	command.WaitDelay = commandCancellationGrace
+	if output, err := command.CombinedOutput(); err != nil {
+		return true, fmt.Errorf("prune builder cache: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return true, nil
+}
