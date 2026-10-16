@@ -638,6 +638,7 @@ func (p *NginxPlugin) OnSessionStart(ctx context.Context, _ *stream.Writer) erro
 	p.sessionCancel = cancel
 	p.validateConfigIfStale(time.Now())
 	go p.runConfigValidation(sessionCtx)
+	go p.runDiskHousekeeping(sessionCtx)
 	if !p.maintenanceAccessSupported {
 		go p.runLogCleanup(sessionCtx)
 		return nil

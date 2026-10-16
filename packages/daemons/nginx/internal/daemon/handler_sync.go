@@ -262,7 +262,7 @@ func (h *Handler) handleFullSync(cmd *pb.FullSyncCommand, result *pb.CommandResu
 func (h *Handler) finishFullSync(cmd *pb.FullSyncCommand, deletedStaleConfigs map[string][]byte) {
 	// The configs of removed hosts are gone for good: so are their caches.
 	for name := range deletedStaleConfigs {
-		removeHostCache(strings.TrimSuffix(strings.TrimPrefix(name, "proxy-host-"), ".conf"))
+		h.removeHostCache(strings.TrimSuffix(strings.TrimPrefix(name, "proxy-host-"), ".conf"))
 	}
 	h.removeOrphanedHtpasswd()
 	// Update state

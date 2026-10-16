@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 func (r *Runtime) StoragePreflight(required int64) (StoragePreflight, error) {
@@ -25,12 +24,12 @@ func (r *Runtime) StoragePreflight(required int64) (StoragePreflight, error) {
 	if err := ensureDirectory(r.uploadsDir(), privateDirectoryMode); err != nil {
 		return StoragePreflight{}, err
 	}
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(r.root, &stat); err != nil {
+	free, total, err := filesystemSpace(r.root)
+	if err != nil {
 		return StoragePreflight{}, err
 	}
-	free := int64(stat.Bavail) * int64(stat.Bsize)
-	return StoragePreflight{RequiredBytes: required, FreeBytes: free, Available: free >= required}, nil
+	// The node reserve stays free after the release is stored (nodeReserveBytes).
+	return StoragePreflight{RequiredBytes: required, FreeBytes: free, Available: free-nodeReserveBytes(total) >= required}, nil
 }
 
 // RepairStorage migrates legacy permissions at startup, independently of

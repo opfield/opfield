@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 )
 
 const maxRuntimeConfigBytes = 64 << 10
@@ -103,6 +105,7 @@ func (r *Runtime) ActivateRuntimeConfig(kind RuntimeConfigBindingKind, bindingID
 		return "", err
 	}
 	expectedTarget := filepath.Join("versions", strconv.FormatUint(generation, 10)+".js")
+	var previous uint64
 	if info, err := os.Lstat(currentPath); err == nil {
 		if info.Mode()&os.ModeSymlink == 0 {
 			return "", fmt.Errorf("%w: runtime config current.js is not a symlink", errUnsafePagesPath)
@@ -117,6 +120,7 @@ func (r *Runtime) ActivateRuntimeConfig(kind RuntimeConfigBindingKind, bindingID
 		if target == expectedTarget {
 			return currentPath, nil
 		}
+		previous, _ = strconv.ParseUint(strings.TrimSuffix(filepath.Base(target), ".js"), 10, 64)
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
@@ -141,6 +145,9 @@ func (r *Runtime) ActivateRuntimeConfig(kind RuntimeConfigBindingKind, bindingID
 		_ = os.Remove(temporary)
 		return "", err
 	}
+	// Every activation used to leave its generation behind (one file per publication, tens of thousands on a busy
+	// route). The generation just replaced stays as the rollback target; a failed prune is retried by Sweep.
+	_, _ = pruneRuntimeConfigVersions(r.runtimeConfigBindingDir(kind, bindingID), previous, time.Now())
 	return currentPath, nil
 }
 
