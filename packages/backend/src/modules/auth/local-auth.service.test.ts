@@ -135,10 +135,38 @@ describe('LocalAuthService.requestPasswordLink', () => {
     });
   });
 
-  it('does not reserve a slot for a setup link', async () => {
-    const { service, evalReserve } = setup();
+  // O-12 (stand rc.2): four setup links in a row were all sent; setup links now have the reset links' limit.
+  it('limits setup links per user like reset links, in their own window', async () => {
+    const sent = setup();
+    await expect(sent.service.requestPasswordLink(USER.email, 'password_setup', { wait: true })).resolves.toBe('sent');
+    expect(sent.evalReserve).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'local_auth:password_setup:user-1',
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(String),
+      3,
+      3600
+    );
+    expect(sent.sendSecurityEmail).toHaveBeenCalledWith(
+      USER.email,
+      expect.objectContaining({ kind: 'password_setup' }),
+      {
+        wait: true,
+        rateSlot: { key: 'local_auth:password_setup:user-1', member: sent.reservedMember() },
+      }
+    );
 
-    await expect(service.requestPasswordLink(USER.email, 'password_setup', { wait: true })).resolves.toBe('sent');
-    expect(evalReserve).not.toHaveBeenCalled();
+    const throttled = setup({ reserved: [0, 5 * 60_000] });
+    await expect(
+      throttled.service.requestPasswordLink(USER.email, 'password_setup', { wait: true })
+    ).rejects.toMatchObject({
+      statusCode: 429,
+      code: 'PASSWORD_SETUP_RATE_LIMITED',
+      message: expect.stringContaining('password setup links'),
+      details: { retryAfterSeconds: 300 },
+    });
+    expect(throttled.sendSecurityEmail).not.toHaveBeenCalled();
   });
 });
