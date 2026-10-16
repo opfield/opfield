@@ -735,3 +735,52 @@ func TestStandbyWitnessActivationByTheHolder(t *testing.T) {
 		t.Fatal("activation kept after Opfield adopted it")
 	}
 }
+
+// A witness removed from the desired set while the supervisor was down
+// between persisting desired.json and its reconcile leaves its data and run
+// directories; the next start removes them. Directories of desired witnesses,
+// names that are no witness id and plain files are kept.
+func TestWitnessOrphanDirectoriesAreRemovedAtStart(t *testing.T) {
+	h := newWitnessHarness(t)
+	w2 := keeperSpec("w2", "25.3.1", 39420)
+	w2.Peers = nil
+	h.apply(1, keeperSpec("w1", "25.3.1", 39410), w2)
+	// Revision 2 drops w2; the supervisor stops before reconciling it.
+	h.apply(2, keeperSpec("w1", "25.3.1", 39410))
+	work := h.manager.workRoot
+	for _, dir := range []string{"data/w1/coordination", "run/w1", "data/w2/coordination", "run/w2", "data/w3", "data/not.a.witness"} {
+		if err := os.MkdirAll(filepath.Join(work, dir), 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(work, "data", "w5"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	restarted := newWitnessManager(h.manager.dir, work, nil, func() string { return WitnessHostingAllowed }, h.rt)
+	restarted.now = func() time.Time { return h.now }
+	if err := restarted.load(); err != nil {
+		t.Fatal(err)
+	}
+	restarted.reconcile()
+	for dir, kept := range map[string]bool{"data/w1": true, "run/w1": true, "data/w2": false, "run/w2": false, "data/w3": false,
+		"data/not.a.witness": true, "data/w5": true} {
+		_, err := os.Stat(filepath.Join(work, dir))
+		if exists := err == nil; exists != kept {
+			t.Errorf("%s exists %v, want %v", dir, exists, kept)
+		}
+	}
+}
+
+// The witness's Keeper retention is pinned in its config.
+func TestKeeperConfigPinsRetention(t *testing.T) {
+	config, err := renderKeeperConfig(keeperSpec("w1", "25.3.1", 39410), "/var/lib/gateway-relay-witness/data/w1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"<snapshots_to_keep>3</snapshots_to_keep>", "<snapshot_distance>100000</snapshot_distance>",
+		"<reserved_log_items>100000</reserved_log_items>"} {
+		if !strings.Contains(string(config), want) {
+			t.Errorf("keeper config lacks %q:\n%s", want, config)
+		}
+	}
+}

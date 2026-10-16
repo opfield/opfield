@@ -26,11 +26,16 @@ type fakeMoveDocker struct {
 	images     *fakeImageStore
 	created    int
 	calls      []string
+	// createTimesOut: a create makes the container but answers an error
+	// (the command's context ran out while Docker created it).
+	createTimesOut bool
 }
 
 type fakeMoveContainer struct {
 	name, image string
 	running     bool
+	// owner overrides the storage label (another storage's container).
+	owner string
 }
 
 func (d *fakeMoveDocker) client() *Client {
@@ -62,6 +67,9 @@ func (d *fakeMoveDocker) serve(r *http.Request, path string) (*http.Response, er
 	notFound := func() (*http.Response, error) {
 		return reply(http.StatusNotFound, map[string]string{"message": "No such object"})
 	}
+	if strings.HasPrefix(path, "/networks/") && strings.HasSuffix(path, "/connect") && r.Method == http.MethodPost {
+		return reply(http.StatusOK, nil)
+	}
 	if strings.HasPrefix(path, "/networks/") && r.Method == http.MethodGet {
 		return reply(http.StatusOK, map[string]any{"Name": strings.TrimPrefix(path, "/networks/"), "Internal": true, "Labels": map[string]string{managedStorageLabel: d.storageID}})
 	}
@@ -74,8 +82,17 @@ func (d *fakeMoveDocker) serve(r *http.Request, path string) (*http.Response, er
 		}
 		d.created++
 		id := "new" + string(rune('0'+d.created))
-		d.containers[id] = &fakeMoveContainer{name: r.URL.Query().Get("name"), image: body.Image}
+		name := r.URL.Query().Get("name")
+		for _, c := range d.containers {
+			if c.name == name {
+				return reply(http.StatusConflict, map[string]string{"message": "Conflict. The container name \"/" + name + "\" is already in use"})
+			}
+		}
+		d.containers[id] = &fakeMoveContainer{name: name, image: body.Image}
 		d.calls = append(d.calls, "create "+id+" "+body.Image)
+		if d.createTimesOut {
+			return reply(http.StatusInternalServerError, map[string]string{"message": "context deadline exceeded"})
+		}
 		return reply(http.StatusCreated, map[string]any{"Id": id, "Warnings": []string{}})
 	}
 	rest, ok := strings.CutPrefix(path, "/containers/")
@@ -86,7 +103,19 @@ func (d *fakeMoveDocker) serve(r *http.Request, path string) (*http.Response, er
 	id, action, _ := strings.Cut(rest, "/")
 	c := d.containers[id]
 	if c == nil {
+		// Docker finds a container by its name too.
+		for other, candidate := range d.containers {
+			if candidate.name == id {
+				id, c = other, candidate
+			}
+		}
+	}
+	if c == nil {
 		return notFound()
+	}
+	owner := d.storageID
+	if c.owner != "" {
+		owner = c.owner
 	}
 	switch {
 	case r.Method == http.MethodGet && action == "json":
@@ -94,7 +123,7 @@ func (d *fakeMoveDocker) serve(r *http.Request, path string) (*http.Response, er
 			"Id":         id,
 			"Name":       "/" + c.name,
 			"State":      map[string]any{"Running": c.running},
-			"Config":     map[string]any{"Image": c.image, "Labels": map[string]string{managedStorageLabel: d.storageID, managedStorageMemberLabel: "0"}},
+			"Config":     map[string]any{"Image": c.image, "Labels": map[string]string{managedStorageLabel: owner, managedStorageMemberLabel: "0"}},
 			"HostConfig": map[string]any{},
 			"NetworkSettings": map[string]any{"Networks": map[string]any{
 				"gateway-storage-" + d.storageID: map[string]any{"IPAddress": "172.30.0.2"},
@@ -109,6 +138,11 @@ func (d *fakeMoveDocker) serve(r *http.Request, path string) (*http.Response, er
 		d.calls = append(d.calls, "start "+id)
 		return reply(http.StatusNoContent, nil)
 	case r.Method == http.MethodPost && action == "rename":
+		for other, candidate := range d.containers {
+			if other != id && candidate.name == r.URL.Query().Get("name") {
+				return reply(http.StatusConflict, map[string]string{"message": "name in use"})
+			}
+		}
 		c.name = r.URL.Query().Get("name")
 		d.calls = append(d.calls, "rename "+id+" "+c.name)
 		return reply(http.StatusNoContent, nil)

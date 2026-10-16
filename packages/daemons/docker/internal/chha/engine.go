@@ -90,20 +90,24 @@ type engine struct {
 
 	fw *forwarders
 
-	mu           sync.Mutex
-	tracker      degradeTracker
-	certified    Value
-	certifiedOK  bool
-	lastSample   sample
-	inConfig     map[uint32]time.Duration
-	witnessDown  map[uint32]time.Duration
-	opfieldDown  time.Duration
-	voters       string
-	convert      string
-	lastSweep    time.Duration
-	activated    *activation
-	activationOK bool
-	started      time.Time
+	mu          sync.Mutex
+	tracker     degradeTracker
+	certified   Value
+	certifiedOK bool
+	lastSample  sample
+	inConfig    map[uint32]time.Duration
+	witnessDown map[uint32]time.Duration
+	opfieldDown time.Duration
+	voters      string
+	convert     string
+	lastSweep   time.Duration
+	// lastReplicaSweep and removedReplicas pace the holder's drop of
+	// removed members' replicas (replicas.go): "<db>/<member>" -> first seen.
+	lastReplicaSweep time.Duration
+	removedReplicas  map[string]time.Duration
+	activated        *activation
+	activationOK     bool
+	started          time.Time
 	// lastConfigRead and lastRqld pace the Keeper configuration reads and
 	// leadership requests (lease clock).
 	lastConfigRead time.Duration
@@ -151,7 +155,7 @@ func New(config memberha.Config, rt Runtime) (memberha.Engine, error) {
 		return nil, err
 	}
 	e := &engine{rt: rt, logger: rt.Logger(), inConfig: map[uint32]time.Duration{}, witnessDown: map[uint32]time.Duration{},
-		started: time.Now()}
+		removedReplicas: map[string]time.Duration{}, started: time.Now()}
 	if e.logger == nil {
 		e.logger = slog.Default()
 	}
@@ -1042,6 +1046,7 @@ func (e *engine) reconcile(ctx context.Context, snap *configSnapshot) {
 	}
 	e.holderProfiles(ctx, now)
 	e.holderConvert(ctx, snap)
+	e.holderDropRemovedReplicas(ctx, snap, now)
 }
 
 func (e *engine) trackOpfield(now time.Duration) {

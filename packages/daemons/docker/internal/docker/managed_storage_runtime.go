@@ -75,6 +75,9 @@ type managedStorageManager struct {
 	// capacity is whether each SeaweedFS storage takes writes
 	// (managed_storage_capacity.go).
 	capacity seaweedfsCapacityTracker
+	// housekept is when each SeaweedFS storage last had its abandoned
+	// uploads and old metadata log removed (managed_storage_reclaim.go).
+	housekept seaweedfsHousekeeping
 }
 
 func (m *managedStorageManager) loopHost() *loopHost {
@@ -492,6 +495,7 @@ func (m *managedStorageManager) reconcile(ctx context.Context) error {
 			if err := ensureEngineRestartPolicy(ctx, m.client, record.ContainerID); err != nil {
 				m.logger.Warn("managed storage engine keeps Docker's restart policy", "id", id, "error", err)
 			}
+			m.healReplacedContainers(ctx, record)
 		}
 		if record.Removed || !record.DesiredRunning {
 			continue

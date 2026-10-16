@@ -61,9 +61,16 @@ func (e *Engine) work(stop chan struct{}) {
 	ticker := time.NewTicker(e.timings.tick)
 	defer ticker.Stop()
 	var lastProbe, nextRepair time.Time
+	// The first compaction pass comes one interval into the holding period,
+	// the first housekeeping housekeepFirstAfter into it (then daily).
+	lastReclaim := time.Now()
+	lastHousekeep := lastReclaim.Add(e.timings.housekeepFirst - e.timings.housekeep)
 	allBackSince := time.Time{}
-	repairing := false
+	repairing, maintaining := false, false
 	repairDone := make(chan error, 1)
+	// maintenanceDone reports whether a due housekeeping did not run; it is
+	// tried again one compaction interval later.
+	maintenanceDone := make(chan bool, 1)
 	for {
 		select {
 		case <-ctx.Done():
@@ -75,6 +82,12 @@ func (e *Engine) work(stop chan struct{}) {
 				if ctx.Err() == nil {
 					e.log.Warn("SeaweedFS replication repair failed; retrying", "error", err)
 				}
+			}
+			continue
+		case housekeepFailed := <-maintenanceDone:
+			maintaining = false
+			if housekeepFailed {
+				lastHousekeep = time.Now().Add(e.timings.reclaim - e.timings.housekeep)
 			}
 			continue
 		case <-ticker.C:
@@ -120,6 +133,34 @@ func (e *Engine) work(stop chan struct{}) {
 			continue
 		}
 		if !degraded {
+			// Space reclaim and housekeeping (maintenance.go) run in the
+			// background, so heartbeats and probes go on meanwhile.
+			reclaimDue := now.Sub(lastReclaim) >= e.timings.reclaim
+			housekeepDue := now.Sub(lastHousekeep) >= e.timings.housekeep
+			if !maintaining && (reclaimDue || housekeepDue) && e.setWhole(topology, now) {
+				maintaining = true
+				if reclaimDue {
+					lastReclaim = now
+				}
+				if housekeepDue {
+					lastHousekeep = now
+				}
+				go func() {
+					housekeepFailed := false
+					defer func() { maintenanceDone <- housekeepFailed }()
+					if reclaimDue {
+						if err := e.reclaim(ctx); err != nil && ctx.Err() == nil {
+							e.log.Debug("SeaweedFS set space of deleted objects not reclaimed in this pass", "error", err)
+						}
+					}
+					if housekeepDue {
+						if err := e.housekeep(ctx); err != nil && ctx.Err() == nil {
+							housekeepFailed = true
+							e.log.Debug("SeaweedFS set housekeeping skipped", "error", err)
+						}
+					}
+				}()
+			}
 			continue
 		}
 		registered := topology != nil
@@ -247,10 +288,11 @@ func (e *Engine) repair(ctx context.Context) error {
 }
 
 type workerTimings struct {
-	tick, probe, lost, grace, repairAfter, repairRetry time.Duration
+	tick, probe, lost, grace, repairAfter, repairRetry, reclaim, housekeep, housekeepFirst time.Duration
 }
 
 func currentWorkerTimings() workerTimings {
 	return workerTimings{tick: workerTick, probe: peerProbeEvery, lost: peerLostAfter, grace: workerGrace,
-		repairAfter: repairAfter, repairRetry: repairRetry}
+		repairAfter: repairAfter, repairRetry: repairRetry, reclaim: reclaimEvery, housekeep: housekeepEvery,
+		housekeepFirst: housekeepFirstAfter}
 }

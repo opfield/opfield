@@ -122,7 +122,7 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		}
 	}
 	if input.Type == "clickhouse" && input.ClickhouseConfig != "" {
-		if err := writeClickHouseConfig(filepath.Join(record.MountPath, "gateway-managed.xml"), input.ClickhouseConfig); err != nil {
+		if err := writeClickHouseManagedConfig(filepath.Join(record.MountPath, "gateway-managed.xml"), input.ClickhouseConfig); err != nil {
 			return "", fmt.Errorf("write ClickHouse managed config: %w", err)
 		}
 	}
@@ -899,13 +899,16 @@ func (m *managedDatabaseManager) reconcile(ctx context.Context) error {
 			// through standby at rest. Its storage is mounted for it.
 			if err := m.ensureStorageSize(ctx, &record, record.StorageSize); err != nil {
 				m.logger.Warn("availability member storage could not be restored at startup", "id", id, "error", err)
+				continue
 			}
+			m.healClickHouseConfig(record)
 			continue
 		}
 		if err := m.ensureStorageSize(ctx, &record, record.StorageSize); err != nil {
 			m.logger.Warn("managed database storage could not be restored at startup", "id", id, "error", err)
 			continue
 		}
+		m.healClickHouseConfig(record)
 		if missing := m.missingRuntimeFiles(record); len(missing) > 0 {
 			m.logger.Warn("managed database is not started at startup", "id", id, "error", runtimeFilesMissingError("managed database", missing))
 			if err := m.saveRecord(record); err != nil {
@@ -930,6 +933,22 @@ func (m *managedDatabaseManager) reconcile(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// healClickHouseConfig gives a ClickHouse database's user config the system
+// log TTLs it was written without (managed_clickhouse_system_logs.go).
+func (m *managedDatabaseManager) healClickHouseConfig(record managedDatabaseRecord) {
+	if record.Type != "clickhouse" || record.ClickhouseConfigHash == "" {
+		return
+	}
+	healed, err := healClickHouseManagedConfig(record.MountPath)
+	if err != nil {
+		m.logger.Warn("ClickHouse user config keeps system logs without a TTL", "id", record.ID, "error", err)
+		return
+	}
+	if healed {
+		m.logger.Info("ClickHouse user config: system logs it enables expire after "+clickHouseUserSystemLogDays+" days from the next start", "id", record.ID)
+	}
 }
 
 func (m *managedDatabaseManager) tlsDirectory(record managedDatabaseRecord) string {

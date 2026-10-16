@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moby/moby/api/types/network"
@@ -185,13 +186,24 @@ func (m *managedStorageManager) recreate(ctx context.Context, record *managedSto
 		if failed != "" {
 			_ = m.client.RemoveContainer(cleanupCtx, failed, true)
 		}
+		if previous.ContainerID != "" {
+			// A replacement whose create or start failed may still exist
+			// under the storage's name without its id being known (the
+			// create timed out, its removal failed): it is removed too, or
+			// the previous container cannot get its name back and the
+			// replacement stays behind ("Created") for good.
+			if _, err := m.removeSupersededContainer(cleanupCtx, previous, previous.ContainerName); err != nil {
+				m.logger.Warn("remove failed managed storage replacement", "id", previous.ID, "error", err)
+			}
+		}
 		if err := m.ensureNetworkIsolation(cleanupCtx, previous, previous.ContainerID); err != nil {
 			m.logger.Error("restore managed storage network after recreate failure", "id", previous.ID, "error", err)
 		}
 		if previous.ContainerID != "" {
 			if err := m.client.RenameContainer(cleanupCtx, previous.ContainerID, previous.ContainerName); err != nil {
+				// It serves under the rollback name meanwhile; the next
+				// daemon start gives it its name back (healReplacedContainers).
 				m.logger.Error("restore managed storage container name after recreate failure", "id", previous.ID, "error", err)
-				return cause
 			}
 			if err := m.startContainer(cleanupCtx, previous.ContainerID); err != nil {
 				m.logger.Error("restart managed storage after recreate failure", "id", previous.ID, "error", err)
@@ -213,11 +225,101 @@ func (m *managedStorageManager) recreate(ctx context.Context, record *managedSto
 		}
 	}
 	if previous.ContainerID != "" {
-		if err := m.client.RemoveContainer(ctx, previous.ContainerID, true); err != nil && !isNotFoundErr(err) {
+		removeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), managedDatabaseCleanupTimeout)
+		defer cancel()
+		if err := m.client.RemoveContainer(removeCtx, previous.ContainerID, true); err != nil && !isNotFoundErr(err) {
+			// The next daemon start removes it (healReplacedContainers).
 			m.logger.Warn("remove replaced managed storage container", "id", record.ID, "error", err)
 		}
 	}
 	return nil
+}
+
+// removeUnstartedContainer removes a container that was created but never
+// started, also when ctx is already done.
+func (m *managedStorageManager) removeUnstartedContainer(ctx context.Context, id string) {
+	removeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), managedDatabaseCleanupTimeout)
+	defer cancel()
+	if err := m.client.RemoveContainer(removeCtx, id, true); err != nil && !isNotFoundErr(err) && m.logger != nil {
+		m.logger.Warn("remove managed storage container that did not start", "container", id, "error", err)
+	}
+}
+
+// removeSupersededContainer removes the container called name when it is
+// provably a superseded one of record: it carries the storage's id and
+// member labels, it is not the record's container, and it does not run. It
+// holds no data (the data lives on the storage's disk, bind-mounted). A
+// container of another owner, the record's own and a running one are left
+// alone; removed reports whether one was removed.
+func (m *managedStorageManager) removeSupersededContainer(ctx context.Context, record managedStorageRecord, name string) (bool, error) {
+	inspect, err := m.client.cli.ContainerInspect(ctx, name, mobyclient.ContainerInspectOptions{})
+	if isNotFoundErr(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	c := inspect.Container
+	if c.ID == "" || c.ID == record.ContainerID || strings.TrimPrefix(c.Name, "/") != name {
+		return false, nil
+	}
+	if c.Config == nil || c.Config.Labels[managedStorageLabel] != record.ID ||
+		c.Config.Labels[managedStorageMemberLabel] != strconv.Itoa(record.MemberIndex) {
+		return false, nil
+	}
+	if c.State == nil || c.State.Running || c.State.Restarting || c.State.Paused {
+		return false, nil
+	}
+	if err := m.client.RemoveContainer(ctx, c.ID, false); err != nil && !isNotFoundErr(err) {
+		return false, err
+	}
+	return true, nil
+}
+
+// healReplacedContainers repairs what an interrupted or failed replacement
+// of the storage's container left (a daemon start, before the engine runs):
+//   - the record's container still carries the rollback name (the previous
+//     container was restored but could not get its name back): a superseded
+//     container that holds the name is removed and the name given back;
+//   - a superseded container under the rollback name (a replacement that
+//     finished but could not remove the previous one) is removed.
+//
+// Only containers removeSupersededContainer proves superseded are removed.
+func (m *managedStorageManager) healReplacedContainers(ctx context.Context, record managedStorageRecord) {
+	if record.Removed || record.ContainerID == "" || record.ContainerName == "" {
+		return
+	}
+	inspect, err := m.client.cli.ContainerInspect(ctx, record.ContainerID, mobyclient.ContainerInspectOptions{})
+	if err != nil {
+		return
+	}
+	rollbackName := record.ContainerName + "-replaced"
+	switch strings.TrimPrefix(inspect.Container.Name, "/") {
+	case rollbackName:
+		if record.Set != nil {
+			return
+		}
+		removed, err := m.removeSupersededContainer(ctx, record, record.ContainerName)
+		if err != nil {
+			m.logger.Warn("managed storage keeps a superseded container", "id", record.ID, "error", err)
+			return
+		}
+		if removed {
+			m.logger.Info("removed a superseded managed storage container", "id", record.ID, "name", record.ContainerName)
+		}
+		if err := m.client.RenameContainer(ctx, record.ContainerID, record.ContainerName); err != nil {
+			m.logger.Warn("managed storage container keeps its rollback name", "id", record.ID, "error", err)
+		}
+	case record.ContainerName:
+		removed, err := m.removeSupersededContainer(ctx, record, rollbackName)
+		if err != nil {
+			m.logger.Warn("managed storage keeps a superseded container", "id", record.ID, "error", err)
+			return
+		}
+		if removed {
+			m.logger.Info("removed a superseded managed storage container", "id", record.ID, "name", rollbackName)
+		}
+	}
 }
 
 // recreateInput is the create payload for a replacement container. Secrets a

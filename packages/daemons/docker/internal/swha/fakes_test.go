@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -263,6 +264,11 @@ type fakeHost struct {
 	starts     map[Role]int
 	stops      map[Role]int
 	selfURL    string
+	// diskFree is what the volume server reports; plan is what
+	// PlanReclaim answers, planned the fullest disk it was asked with.
+	diskFree uint64
+	plan     ReclaimPlan
+	planned  []DiskSpace
 }
 
 func newFakeHost(cluster *fakeCluster, dir, self string, members []memberha.Peer) *fakeHost {
@@ -277,7 +283,18 @@ func newFakeHost(cluster *fakeCluster, dir, self string, members []memberha.Peer
 	h.selfURL = VolumeURL(self, peer.MemberIndex)
 	h.master = newConnListener(cluster.master())
 	h.filer = newConnListener(cluster.filer(self))
-	h.volume = newConnListener(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	h.volume = newConnListener(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/status" {
+			h.mu.Lock()
+			free := h.diskFree
+			h.mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"Version": "test", "DiskStatuses": []map[string]any{
+				{"dir": "/data", "all": 8 << 30, "free": free}}})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	h.diskFree = 4 << 30
 	return h
 }
 
@@ -365,7 +382,7 @@ func (h *fakeHost) DialContainer(ctx context.Context, role Role, _ uint16) (net.
 }
 
 func (h *fakeHost) Exec(_ context.Context, role Role, command []string, stdin string) ([]byte, error) {
-	if role != RoleMaster || len(command) < 3 || command[2] != "shell" {
+	if role != RoleMaster || !slices.Contains(command, "shell") {
 		return nil, fmt.Errorf("unexpected exec %v in %s", command, role)
 	}
 	return nil, h.cluster.shell(stdin)
@@ -394,6 +411,12 @@ func (h *fakeHost) DialAlias(ctx context.Context, alias string) (net.Conn, error
 func (h *fakeHost) Expose(exposures []Exposure) { h.mu.Lock(); h.exposed = exposures; h.mu.Unlock() }
 func (h *fakeHost) SetLocalPrimary(dial func(ctx context.Context, port string) (net.Conn, bool)) {
 	h.local = dial
+}
+func (h *fakeHost) PlanReclaim(_ []byte, fullest DiskSpace) (ReclaimPlan, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.planned = append(h.planned, fullest)
+	return h.plan, nil
 }
 func (h *fakeHost) FilerToken() (string, error)    { return "token", nil }
 func (h *fakeHost) DiskFree() (uint64, bool, bool) { return 1 << 30, false, true }
