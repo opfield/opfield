@@ -1,6 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
 import httpModule from 'node:http';
-import { join } from 'node:path';
 import { and, count, eq, lt, min, sql } from 'drizzle-orm';
 import type { Env } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
@@ -47,6 +45,7 @@ const VOLUME_CLEANUP_PROTECTED_LABEL = 'opfield.housekeeping.protected';
 const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = 'gateway.housekeeping.protected';
 const SYSTEM_CERTIFICATE_KEY_RETENTION_DAYS = 30;
 const LOGGING_SETTINGS_KEY = 'logging:clickhouse';
+const NGINX_LOG_BUDGET_CAPABILITY = 'nginx_log_budget_v1';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -93,7 +92,18 @@ export interface HousekeepingRunResult {
 }
 
 export interface HousekeepingStats {
-  nginxLogs: { totalSizeBytes: number; fileCount: number; oldestFile: string | null };
+  /**
+   * The nginx logs of every nginx node as its daemon last reported them (nginx_log_budget_v1): route logs and the
+   * default access/error logs, live and rotated. oldestFile is the modification time of the oldest one (ISO).
+   * reportingNodeCount < nodeCount: some nginx daemons are too old to report (and to bound) their logs.
+   */
+  nginxLogs: {
+    totalSizeBytes: number;
+    fileCount: number;
+    oldestFile: string | null;
+    nodeCount: number;
+    reportingNodeCount: number;
+  };
   auditLog: { totalRows: number; oldestEntry: string | null };
   dismissedAlerts: { count: number; oldestAlert: string | null };
   deliveryLog: { total: number; success: number; failed: number; retrying: number };
@@ -196,6 +206,26 @@ type DeepPartial<T> = {
 
 type UnusedVolumeState = Record<string, Record<string, string>>;
 type OrphanedVolumeCandidate = { nodeId: string; name: string; sizeBytes?: number };
+
+/** One nginx daemon's log pass (ConfigureNginxLogsCommand result detail); zeros for what it does not carry. */
+function parseNginxLogPass(detail: string | undefined): {
+  removedFiles: number;
+  truncatedFiles: number;
+  freedBytes: number;
+} {
+  const pass = { removedFiles: 0, truncatedFiles: 0, freedBytes: 0 };
+  if (!detail) return pass;
+  try {
+    const parsed = JSON.parse(detail) as Record<string, unknown>;
+    for (const key of Object.keys(pass) as Array<keyof typeof pass>) {
+      const value = Number(parsed[key]);
+      if (Number.isFinite(value) && value > 0) pass[key] = value;
+    }
+  } catch {
+    // An unreadable detail counts nothing.
+  }
+  return pass;
+}
 
 // ── Service ─────────────────────────────────────────────────────────
 
@@ -372,7 +402,14 @@ export class HousekeepingService {
       }
     });
 
-    return this.getConfig();
+    const config = await this.getConfig();
+    if (partial.nginxLogs?.enabled !== undefined || partial.nginxLogs?.retentionDays !== undefined) {
+      // Nodes apply a changed retention now, not at the next run.
+      void this.rotateNginxLogs(config.nginxLogs.enabled ? config.nginxLogs.retentionDays : 0).catch((error) => {
+        logger.warn('Failed to send the nginx log retention to nginx nodes', { error });
+      });
+    }
+    return config;
   }
 
   // ── Stats ───────────────────────────────────────────────────────
@@ -478,6 +515,12 @@ export class HousekeepingService {
         categories.push(
           await this.runCategory('Nginx Logs', () => this.rotateNginxLogs(config.nginxLogs.retentionDays))
         );
+      } else {
+        // Off: nodes keep rotated logs without an age limit (their size caps stay). Sent on every run so that nodes
+        // added or offline when the setting changed follow it too.
+        await this.rotateNginxLogs(0).catch((error) => {
+          logger.warn('Failed to turn off the nginx log retention on nginx nodes', { error });
+        });
       }
       if (config.auditLog.enabled) {
         categories.push(await this.runCategory('Audit Log', () => this.cleanAuditLog(config.auditLog.retentionDays)));
@@ -579,11 +622,43 @@ export class HousekeepingService {
 
   // ── Category Implementations ────────────────────────────────────
 
-  private async rotateNginxLogs(_retentionDays: number): Promise<{ itemsCleaned: number; spaceFreedBytes?: number }> {
-    // Log rotation is handled by each daemon node locally (7-day retention).
-    // Logs streamed to Opfield are stored in the database / log aggregation.
-    logger.debug('Nginx log rotation is managed by daemon nodes');
-    return { itemsCleaned: 0 };
+  /**
+   * Sends the retention to every online nginx daemon that bounds its logs (nginx_log_budget_v1); each keeps it, deletes
+   * rotated logs past it and reports what it removed. The daemons cap log sizes and remove the logs of deleted routes
+   * on their own every 5 minutes, whatever this sends. Older daemons are skipped: their logs stay with distro logrotate
+   * until they are updated.
+   */
+  private async rotateNginxLogs(retentionDays: number): Promise<{ itemsCleaned: number; spaceFreedBytes?: number }> {
+    const rows = await this.db
+      .select({ id: nodes.id, capabilities: nodes.capabilities })
+      .from(nodes)
+      .where(and(eq(nodes.type, 'nginx'), eq(nodes.status, 'online')));
+    const targets = rows.filter((row) => {
+      const reported = (row.capabilities as Record<string, unknown> | null)?.capabilities;
+      return Array.isArray(reported) && reported.includes(NGINX_LOG_BUDGET_CAPABILITY);
+    });
+    let itemsCleaned = 0;
+    let spaceFreedBytes = 0;
+    const failures: string[] = [];
+    for (const target of targets) {
+      try {
+        const result = await this._nodeDispatch.configureNginxLogs(target.id, retentionDays);
+        if (!result.success) {
+          failures.push(`${target.id}: ${result.error || 'failed'}`);
+          continue;
+        }
+        const pass = parseNginxLogPass(result.detail);
+        itemsCleaned += pass.removedFiles + pass.truncatedFiles;
+        spaceFreedBytes += pass.freedBytes;
+      } catch (error) {
+        failures.push(`${target.id}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (failures.length > 0) {
+      logger.warn('Nginx log retention failed on some nodes', { failures });
+      if (failures.length === targets.length) throw new Error(`Nginx log retention failed: ${failures.join('; ')}`);
+    }
+    return { itemsCleaned, spaceFreedBytes };
   }
 
   private async cleanAuditLog(retentionDays: number): Promise<{ itemsCleaned: number }> {
@@ -882,35 +957,28 @@ export class HousekeepingService {
 
   // ── Stats Helpers ───────────────────────────────────────────────
 
+  /** The nginx logs on the nginx nodes, from each daemon's last health report (nginx_log_budget_v1). */
   private async getNginxLogStats(): Promise<HousekeepingStats['nginxLogs']> {
-    // Logs are managed by daemon nodes (7-day local retention) and streamed to Opfield
-    const logsPath = '/var/log/opfield-logs'; // Opfield-side log storage (future)
-    try {
-      const entries = await readdir(logsPath);
-      let totalSize = 0;
-      let fileCount = 0;
-      let oldestMtime: Date | null = null;
-      let oldestName: string | null = null;
-
-      for (const entry of entries) {
-        try {
-          const s = await stat(join(logsPath, entry));
-          if (!s.isFile()) continue;
-          fileCount++;
-          totalSize += s.size;
-          if (!oldestMtime || s.mtime < oldestMtime) {
-            oldestMtime = s.mtime;
-            oldestName = entry;
-          }
-        } catch {
-          // skip unreadable files
-        }
-      }
-
-      return { totalSizeBytes: totalSize, fileCount, oldestFile: oldestName };
-    } catch {
-      return { totalSizeBytes: 0, fileCount: 0, oldestFile: null };
+    const rows = await this.db.select({ report: nodes.lastHealthReport }).from(nodes).where(eq(nodes.type, 'nginx'));
+    let totalSizeBytes = 0;
+    let fileCount = 0;
+    let oldestUnix = 0;
+    let reportingNodeCount = 0;
+    for (const row of rows) {
+      const usage = row.report?.nginxLogs;
+      if (!usage) continue;
+      reportingNodeCount += 1;
+      totalSizeBytes += usage.bytes;
+      fileCount += usage.files;
+      if (usage.oldestUnix > 0 && (oldestUnix === 0 || usage.oldestUnix < oldestUnix)) oldestUnix = usage.oldestUnix;
     }
+    return {
+      totalSizeBytes,
+      fileCount,
+      oldestFile: oldestUnix > 0 ? new Date(oldestUnix * 1000).toISOString() : null,
+      nodeCount: rows.length,
+      reportingNodeCount,
+    };
   }
 
   private async getAuditLogStats(): Promise<HousekeepingStats['auditLog']> {

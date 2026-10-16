@@ -445,6 +445,14 @@ export class NodeDispatchService {
     });
   }
 
+  /**
+   * Housekeeping "Nginx Logs" on one nginx daemon with nginx_log_budget_v1: rotated logs older than retentionDays are
+   * deleted (0: no age limit). The daemon keeps the value and applies it at once; the detail is its pass as JSON.
+   */
+  async configureNginxLogs(nodeId: string, retentionDays: number): Promise<CommandResult> {
+    return this.registry.sendCommand(nodeId, { configureNginxLogs: { retentionDays } }, 60_000);
+  }
+
   /** Send a pre-built FullSyncCommand to a node */
   async fullSync(
     nodeId: string,

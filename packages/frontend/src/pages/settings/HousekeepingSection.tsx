@@ -22,7 +22,11 @@ interface HousekeepingSectionProps {
   canConfigure: boolean;
 }
 
-import { HousekeepingCard, normalizeHousekeepingConfig } from "./housekeeping-section-helpers";
+import {
+  HousekeepingCard,
+  nginxLogStatDetail,
+  normalizeHousekeepingConfig,
+} from "./housekeeping-section-helpers";
 
 export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectionProps) {
   const cachedConfig = api.getCached<HousekeepingConfig>("housekeeping:config");
@@ -294,9 +298,9 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <HousekeepingCard
               label="Nginx Logs"
-              description="Rotate, compress, and delete old logs"
+              description="Route logs on nginx nodes: size capped, old and deleted-route logs removed"
               stat={hkStats ? formatBytes(hkStats.nginxLogs.totalSizeBytes) : "..."}
-              statDetail={hkStats ? `${hkStats.nginxLogs.fileCount} files` : undefined}
+              statDetail={hkStats ? nginxLogStatDetail(hkStats.nginxLogs) : undefined}
               enabled={hkConfig.nginxLogs.enabled}
               onToggle={(v) =>
                 setHkConfig((current) => ({
