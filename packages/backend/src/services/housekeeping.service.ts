@@ -1716,7 +1716,7 @@ export class HousekeepingService {
 }
 
 /**
- * No run kept Opfield's data bounded for HOUSEKEEPING_STALE_MS. Migration 0266 recorded the update time as the first
+ * No run kept Opfield's data bounded for HOUSEKEEPING_STALE_MS. Migration 0260 recorded the update time as the first
  * success, so an install that has not run since then counts from the update.
  */
 export function isHousekeepingStale(lastSuccessAt: string | null, now = Date.now()): boolean {

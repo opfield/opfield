@@ -1816,31 +1816,31 @@
       "breakpoints": true
     },
     {
-      "idx": 265,
+      "idx": 259,
       "version": "7",
       "when": 1794500000000,
-      "tag": "0265_inference_usage_retention",
+      "tag": "0259_inference_usage_retention",
       "breakpoints": true
     },
     {
-      "idx": 266,
+      "idx": 260,
       "version": "7",
       "when": 1794600000000,
-      "tag": "0266_housekeeping_disk_alerts",
+      "tag": "0260_housekeeping_disk_alerts",
       "breakpoints": true
     },
     {
-      "idx": 267,
+      "idx": 261,
       "version": "7",
       "when": 1794763837000,
-      "tag": "0267_data_disk_alert_rules",
+      "tag": "0261_data_disk_alert_rules",
       "breakpoints": true
     },
     {
-      "idx": 268,
+      "idx": 262,
       "version": "7",
       "when": 1794850237000,
-      "tag": "0268_redis_aof_rewrite_on",
+      "tag": "0262_redis_aof_rewrite_on",
       "breakpoints": true
     }
   ]

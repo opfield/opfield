@@ -16,7 +16,7 @@ function byName(rows: Rule[]): Record<string, Rule> {
   return Object.fromEntries(rows.map((row) => [row.name, row]));
 }
 
-/** Migration 0267: disk alerts for every data disk of a node, managed database disks and oversubscribed nodes. */
+/** Migration 0261: disk alerts for every data disk of a node, managed database disks and oversubscribed nodes. */
 describe.skipIf(!url)('Built-in data disk alert rules on disposable PostgreSQL', () => {
   it('retargets the unedited built-in node disk rule and seeds the new rules with the webhooks the install alerts on', async () => {
     const db = await disposableDatabase(url!, 'data_disk_rules_upgrade');
