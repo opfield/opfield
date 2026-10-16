@@ -12,7 +12,7 @@ export const DEFAULT_IMAGE_RETENTION_COUNT = 2;
 
 const BUILD_REPOSITORY_PREFIX = 'gateway/builds/';
 /** Repositories of Opfield's internal registry: builds, Availability mirrors and app promotion copies. */
-const INTERNAL_REPOSITORY = /(^|\/)gateway\/(builds|availability|promotion)\//;
+const INTERNAL_REPOSITORY = /(^|\/)gateway\/(builds|availability|promotion)\//; // legacy-name: registry namespace
 
 /**
  * The repository an image reference belongs to, for counting a container's images: tags and digests both count, so

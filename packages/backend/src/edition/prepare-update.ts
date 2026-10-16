@@ -255,6 +255,7 @@ function compareCommercialVersions(a: string, b: string): number {
 async function runningCommercialVersion(hostDir: string): Promise<string | null> {
   const env = await readFile(join(hostDir, '.env'), 'utf8').catch(() => '');
   for (const line of env.split(/\r?\n/)) {
+    // legacy-name: installs from before Opfield name the directory GATEWAY_COMMERCIAL_DIR under /var/lib/gateway.
     const match =
       /^(?:OPFIELD|GATEWAY)_COMMERCIAL_DIR=(["']?)\/var\/lib\/gateway\/commercial\/versions\/([^/\s"']+)\1\s*$/.exec(
         line

@@ -270,7 +270,8 @@
         "packages/daemons/docker/internal/kvha/**",
         "packages/daemons/docker/internal/swha/**",
         "packages/daemons/docker/internal/docker/backup_runtime.go",
-        "packages/daemons/docker/internal/docker/storage_copy_runtime.go"
+        "packages/daemons/docker/internal/docker/storage_copy_runtime.go",
+        "packages/backend/src/modules/notifications/notification-metrics.ts"
       ],
       "pattern": "/run/gateway-(?:tls|config|storage|master|minio-certs|minio-sftp|backup)[\\w/.-]*|gateway-redis-[\\w.*-]*|gateway-availability-(?:keeper|recovery)\\.json|gateway-keeper-(?:joining|role)|gateway-availability-internal\\.secret|(?:zz-)?gateway-[\\w-]*\\.(?:xml|conf)|gateway-pg_hba\\.conf|gateway_(?:member|client)\\w*|gateway-(?:ha|root|managed-storage-root|move)\\b[\\w-]*|gateway-ca\\.crt|/\\.gateway/hb/?|\"gateway\"",
       "reason": "Inside managed database/storage containers and between members of an availability set: part of the container spec (renaming would recreate every managed database on update) or shared by set members of different releases.",
@@ -509,7 +510,9 @@
         "scripts/install.sh",
         "commercial:backend/storage/managed-storage-catalog.ts",
         "commercial:README.md",
-        "commercial:.github/workflows/release.yml"
+        "commercial:.github/workflows/release.yml",
+        "packages/backend/src/modules/docker/docker-image-retention.ts",
+        "packages/backend/src/modules/docker/docker-internal-images.ts"
       ],
       "pattern": "(?:ghcr\\\\?\\.io\\\\?/)?the-square-labs\\\\?/gateway\\b[\\w/@:.-]*",
       "reason": "Image mirror kept for at least a year; pinned digests of images already published there.",
@@ -611,7 +614,8 @@
         "packages/backend/src/sandbox-runner/**",
         "packages/backend/src/modules/inference/core/inference-core-runtime.service.ts",
         "packages/backend/src/modules/docker/docker-registry-token.service.ts",
-        "commercial:backend/pages/**"
+        "commercial:backend/pages/**",
+        "packages/backend/src/services/opfield-host-disks.ts"
       ],
       "pattern": "/var/lib/gateway(?:-relay|-registry-auth)?\\b[\\w/.{},*-]*",
       "reason": "Paths inside the app and relay containers (area A): volumes, .env values and the portal's cloud-init point into them; moving them needs an image symlink and a data move.",
@@ -635,7 +639,9 @@
         "packages/frontend/src/pages/DockerDeploymentDetail.tsx",
         "packages/backend/src/modules/apps/app-promotion.service.ts",
         "packages/backend/src/modules/docker/docker-image-source.ts",
-        "packages/frontend/src/lib/workload-image-label.ts"
+        "packages/frontend/src/lib/workload-image-label.ts",
+        "packages/backend/src/modules/docker/docker-image-retention.ts",
+        "packages/backend/src/modules/docker/docker-registry-maintenance.ts"
       ],
       "pattern": "(?:127\\.0\\.0\\.1:5443/)?gateway\\\\?/(?:builds|availability|promotion)\\b[\\w/${}.<>…-]*|gateway\\.invalid/(?:pending-source-build|compose-build)/?|…/gateway/<name>|/gateway/\\$\\{name\\}|`gateway`",
       "reason": "Repository namespace of the internal registry and placeholder image references stored in deployments, sources and Compose revisions; garbage collection and readiness checks match them.",

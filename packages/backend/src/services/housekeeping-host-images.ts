@@ -31,6 +31,7 @@ function referenceRepository(reference: string): string {
 }
 
 /**
+ * legacy-name: images published before Opfield (`…/wiolett/gateway`, the local `gateway`) are the app's too.
  * The repositories Opfield's app image was published under: the one it runs from, the configured update
  * repositories, the official ones, the earlier self-hosted `…/wiolett/gateway` and the local `gateway` of early
  * installs. The relay image is `<app repository>/relay`.
@@ -40,6 +41,7 @@ export function opfieldHostImageRepositories(currentImage: string, configured: s
   return new Set([current, ...configured.map(referenceRepository), ...OFFICIAL_IMAGE_REPOSITORIES, 'gateway']);
 }
 
+// legacy-name: the app and relay images of installs from before Opfield (`…/wiolett/gateway`).
 function imageFamily(image: HostImage, appRepositories: ReadonlySet<string>): 'app' | 'relay' | null {
   for (const reference of [...(image.RepoTags ?? []), ...(image.RepoDigests ?? [])]) {
     if (!reference || reference.startsWith('<none>')) continue;
