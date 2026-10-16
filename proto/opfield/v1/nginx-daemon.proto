@@ -220,6 +220,30 @@ message HealthReport {
   // the default access/error logs under the nginx log directory, as the
   // daemon's log budget last measured them (disk-logs range 210-214).
   NginxLogUsage nginx_logs = 210;
+  // Docker daemons of 2.12.3 and later (not build workers): whether the
+  // node's Docker Engine can start containers, dockerd and the containerd it
+  // runs them with both answering (rc3-avail range 215-219). Absent from
+  // older daemons and from build workers.
+  DockerEngineHealth docker_engine_health = 215;
+}
+
+// Whether a node's Docker Engine can start containers. Running containers keep
+// running while containerd is down, so the node looks fine until the next
+// start, deploy or restart fails.
+message DockerEngineHealth {
+  // dockerd answers its API and its containerd answers a health check.
+  bool available = 1;
+  // The part that does not answer: "dockerd" or "containerd"; empty while
+  // available.
+  string component = 2;
+  // What fails, as one sentence for the operator (the error included); empty
+  // while available.
+  string problem = 3;
+  // When the engine was last checked, Unix milliseconds.
+  int64 checked_at_unix_ms = 4;
+  // Since when it has been unavailable without a break, Unix milliseconds; 0
+  // while available.
+  int64 unavailable_since_unix_ms = 5;
 }
 
 // The nginx logs a daemon bounds (nginx_log_budget_v1): live logs are cut to
@@ -390,6 +414,12 @@ message DiskMount {
   // storage root), "managed_image" (a disk image of a managed database, storage or volume) or "data" (any other).
   // Empty from daemons before 2.12.3.
   string role = 8;
+  // The filesystem behind the mount, the same for every daemon on one host
+  // that sees it (several nodes enrolled on one machine share their disks): a
+  // hash of the host's machine id and the filesystem id. Opfield raises one
+  // disk alert for a disk several nodes report. Empty from daemons before
+  // 2.12.3 and in protected mode (rc3-avail).
+  string disk_id = 20;
 }
 
 message NetworkInterface {
