@@ -11,20 +11,39 @@ type DockerImageLike = Record<string, any>;
 export const DEFAULT_IMAGE_RETENTION_COUNT = 2;
 
 const BUILD_REPOSITORY_PREFIX = 'gateway/builds/';
+/** Repositories of Opfield's internal registry: builds, Availability mirrors and app promotion copies. */
+const INTERNAL_REPOSITORY = /(^|\/)gateway\/(builds|availability|promotion)\//;
 
 /**
  * The repository an image reference belongs to, for counting a container's images: tags and digests both count, so
- * an image pulled by digest only (`repo@sha256:…`, as every build image is) matches its repository too. A build
- * image's repository is the same whatever address of Opfield's registry pulled it (`gateway/builds/<source>[/<service>]`).
+ * an image pulled by digest only (`repo@sha256:…`, as every build image is) matches its repository too. An image of
+ * Opfield's internal registry has the same repository whatever address of the registry pulled it
+ * (`gateway/builds/<source>[/<service>]`, `gateway/availability/…`, `gateway/promotion/…`).
  * Null for an image ID or a reference without a repository.
  */
 export function imageRetentionRepository(reference: string): string | null {
   const value = reference.trim();
   if (!value || value.startsWith('<none>') || /^(sha256:)?[0-9a-f]{12,64}$/i.test(value)) return null;
   const { repository } = canonicalDockerReference(value);
-  const build = repository.indexOf(BUILD_REPOSITORY_PREFIX);
-  if (build === 0 || (build > 0 && repository[build - 1] === '/')) return repository.slice(build);
+  const internal = INTERNAL_REPOSITORY.exec(repository);
+  if (internal) return repository.slice(internal.index + internal[1]!.length);
   return repository;
+}
+
+/**
+ * The keys an image reference is matched by against the references Opfield's records name: `<repository>:<tag>` and
+ * `<repository>@<digest>`, the repository as imageRetentionRepository gives it. So `postgres:16`,
+ * `docker.io/library/postgres:16` and a pull of `postgres:16@sha256:…` all match the image Docker lists as
+ * `postgres:16` / `postgres@sha256:…`.
+ */
+export function imageProtectionKeys(reference: string): string[] {
+  const repository = imageRetentionRepository(reference);
+  if (!repository) return [];
+  const { tag, digest } = canonicalDockerReference(reference.trim());
+  const keys: string[] = [];
+  if (tag) keys.push(`${repository}:${tag}`);
+  if (digest) keys.push(imageRetentionDigestKey(repository, digest));
+  return keys;
 }
 
 export function isBuildImageRepository(repository: string): boolean {
@@ -47,6 +66,8 @@ export interface ImageRetentionEntry {
   repository: string;
   references: string[];
   digestKeys: string[];
+  /** imageProtectionKeys of every reference: an image Opfield's records name is kept. */
+  protectionKeys: string[];
   created: number;
   size: number;
   inUse: boolean;
@@ -76,6 +97,7 @@ export function groupImagesByRepository(
     const references = dockerImageReferences(image).filter((reference) => !reference.startsWith('<none>'));
     const repositories = new Set<string>();
     const digestKeys: string[] = [];
+    const protectionKeys = [...new Set(references.flatMap(imageProtectionKeys))];
     for (const reference of references) {
       const repository = imageRetentionRepository(reference);
       if (!repository) continue;
@@ -89,6 +111,7 @@ export function groupImagesByRepository(
         repository,
         references,
         digestKeys,
+        protectionKeys,
         created: Number(image.created ?? image.Created ?? 0),
         size: Number(image.size ?? image.Size ?? 0),
         inUse: imageInUse(image, inUseImageIds),
@@ -101,19 +124,20 @@ export function groupImagesByRepository(
 
 /**
  * The images of one repository a node keeps, at most `retentionCount` besides those a container uses: every image a
- * container (running or stopped) uses, every build the internal registry keeps for rollback (`protectedDigestKeys`),
- * and the newest other images until the running one and `retentionCount - 1` to roll back to are there. With the
- * default 2 this is the running build and one rollback build. Everything else is removable.
+ * container (running or stopped) uses, every image named by `protectedKeys` (the builds the internal registry keeps for
+ * rollback, and the images Opfield's records name: see imageProtectionKeys), and the newest other images until the
+ * running one and `retentionCount - 1` to roll back to are there. With the default 2 this is the running build and one
+ * rollback build. Everything else is removable.
  */
 export function selectImageRetention(
   entries: ImageRetentionEntry[],
   retentionCount: number,
-  protectedDigestKeys: ReadonlySet<string> = new Set()
+  protectedKeys: ReadonlySet<string> = new Set()
 ): { kept: ImageRetentionEntry[]; removable: ImageRetentionEntry[] } {
   const ordered = [...entries].sort((left, right) => right.created - left.created || left.id.localeCompare(right.id));
   const kept = new Set<string>();
   for (const entry of ordered) {
-    if (entry.inUse || entry.digestKeys.some((key) => protectedDigestKeys.has(key))) kept.add(entry.id);
+    if (entry.inUse || isProtectedEntry(entry, protectedKeys)) kept.add(entry.id);
   }
   const keptUnused = ordered.filter((entry) => kept.has(entry.id) && !entry.inUse).length;
   let rollbackSlots = Math.max(0, Math.max(1, Math.floor(retentionCount)) - 1 - keptUnused);
@@ -127,6 +151,39 @@ export function selectImageRetention(
     kept: ordered.filter((entry) => kept.has(entry.id)),
     removable: ordered.filter((entry) => !kept.has(entry.id)),
   };
+}
+
+function isProtectedEntry(entry: ImageRetentionEntry, protectedKeys: ReadonlySet<string>): boolean {
+  if (protectedKeys.size === 0) return false;
+  return (
+    entry.digestKeys.some((key) => protectedKeys.has(key)) ||
+    (entry.protectionKeys ?? []).some((key) => protectedKeys.has(key))
+  );
+}
+
+/**
+ * Images Opfield itself runs now and then, between which no container uses them: the Compose sidecar, the Docker CLI,
+ * the volume helper, the registry, the Keeper witness and the backup runner. Their newest image stays on a node so
+ * the next run does not pull it again; older ones go like any other unused image.
+ */
+const TOOL_IMAGE_NAMES = new Set([
+  'busybox',
+  'compose-bin',
+  'docker',
+  'registry',
+  'clickhouse-keeper',
+  'backup-runner',
+]);
+
+export function isToolImageRepository(repository: string): boolean {
+  const name = repository.slice(repository.lastIndexOf('/') + 1);
+  if (!TOOL_IMAGE_NAMES.has(name)) return false;
+  return (
+    repository === `docker.io/library/${name}` ||
+    repository === `docker.io/docker/${name}` ||
+    repository === `docker.io/clickhouse/${name}` ||
+    /^ghcr\.io\/(opfield\/opfield|the-square-labs\/gateway)(\/[a-z0-9._-]+)*\/[a-z0-9._-]+$/.test(repository)
+  );
 }
 
 /**

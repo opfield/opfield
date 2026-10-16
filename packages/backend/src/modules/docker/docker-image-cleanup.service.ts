@@ -12,9 +12,18 @@ import {
   imageRetentionRepository,
   isBuildImageRepository,
   isSourceBuildRepository,
+  isToolImageRepository,
   selectDanglingImages,
   selectImageRetention,
 } from './docker-image-retention.js';
+import {
+  DrizzleImageRetentionStore,
+  type ImageRetentionContext,
+  type ImageRetentionStore,
+  type ImageUnusedSince,
+} from './docker-image-retention-store.js';
+import { opfieldInternalImageKind } from './docker-internal-images.js';
+import { labelString } from './docker-managed-labels.js';
 
 const logger = createChildLogger('DockerImageCleanupService');
 
@@ -22,13 +31,29 @@ type CleanupRow = typeof dockerImageCleanupSettings.$inferSelect;
 
 /** How long the cleanup after an image change waits, so the replaced container is gone from the node's list. */
 const CLEANUP_DELAY_MS = 5000;
+/**
+ * An older image of a repository a container or deployment on the node runs (its rollback images beyond the setting)
+ * is removed once cleanups this far apart both found it removable: a rollout that pulled it again a moment ago and is
+ * about to create its container keeps it. Cleanups after a change check again once this passed.
+ */
+export const REPLACED_IMAGE_GRACE_MS = 2 * 60_000;
+/**
+ * Any other unused image (of a removed container, an earlier Compose tag, a superseded engine or tool, a deleted
+ * source's builds, a dangling layer) is removed only once it has been unused this long, as Opfield saw it: housekeeping
+ * removes it at its next run after that.
+ */
+export const UNUSED_IMAGE_MIN_AGE_MS = 12 * 60 * 60_000;
+/** How long one read of Opfield's records serves the cleanups of several nodes. */
+const CONTEXT_TTL_MS = 15_000;
+/** Cleanups after node events: at most one per node in this interval. */
+const NODE_EVENT_CLEANUP_INTERVAL_MS = 2 * 60_000;
 
 type CleanupDocker = Pick<DockerManagementService, 'listAllImages' | 'listAllContainers' | 'removeUnusedImage'>;
 
 export interface NodeImageRetentionOptions {
-  /** Only these build repositories (all when omitted). */
+  /** Only these repositories (all when omitted). */
   repositories?: (repository: string) => boolean;
-  /** Also images nothing names and no container uses. */
+  /** Also images nothing names and no container uses (default true; never with `repositories`). */
   dangling?: boolean;
   /** List what would be removed without removing it. */
   dryRun?: boolean;
@@ -38,15 +63,25 @@ export interface NodeImageRetentionOptions {
 
 export interface NodeImageRetentionCandidate {
   id: string;
-  /** The build repository, or null for a dangling image. */
+  /** The repository, or null for a dangling image. */
   repository: string | null;
   size: number;
+  /** How long the image must have been found removable before it goes (see REPLACED_IMAGE_GRACE_MS). */
+  minUnusedMs: number;
 }
 
 export interface NodeImageRetentionResult {
   removed: string[];
   freedBytes: number;
+  /** The images removed now, or with dryRun those a run now would remove. */
   candidates: NodeImageRetentionCandidate[];
+  /** Removable images still within their wait (removed by a later cleanup). */
+  waiting: NodeImageRetentionCandidate[];
+}
+
+interface RepositoryPlan {
+  retentionCount: number;
+  minUnusedMs: number;
 }
 
 export type DockerImageCleanupSettingsDto =
@@ -65,17 +100,58 @@ export type DockerImageCleanupSettingsDto =
 
 export class DockerImageCleanupService {
   private eventBus?: EventBusService;
+  private unsubscribeEvents: Array<() => void> = [];
   private protectedDigests?: () => Promise<ReadonlySet<string>>;
   private readonly nodeRuns = new Map<string, Promise<unknown>>();
   private sourceQueue: Promise<void> = Promise.resolve();
+  private readonly store: ImageRetentionStore;
+  private contextCache: { at: number; value: Promise<ImageRetentionContext> } | null = null;
+  /** The last tracking state of a node whose save failed: used until a save succeeds. */
+  private readonly unsavedUnusedSince = new Map<string, ImageUnusedSince>();
+  /** Pending follow-up cleanups per node, with the repositories they cover (null: all). */
+  private readonly followUps = new Map<
+    string,
+    { timer: ReturnType<typeof setTimeout>; filters: Array<(repository: string) => boolean> | null }
+  >();
+  private readonly nodeEventCleanups = new Map<string, { timer: ReturnType<typeof setTimeout> | null; at: number }>();
 
   constructor(
     private db: DrizzleClient,
-    private docker: CleanupDocker
-  ) {}
+    private docker: CleanupDocker,
+    store?: ImageRetentionStore,
+    private readonly now: () => number = () => Date.now()
+  ) {
+    this.store = store ?? new DrizzleImageRetentionStore(db);
+  }
 
+  /**
+   * Subscribes to the changes that leave images behind on a node (a container removed or given another image, a
+   * Compose project applied or deleted, a deployment changed or deleted, a migration moved a workload): the node is
+   * cleaned shortly after, at most once per NODE_EVENT_CLEANUP_INTERVAL_MS.
+   */
   setEventBus(bus: EventBusService) {
+    for (const unsubscribe of this.unsubscribeEvents) unsubscribe();
     this.eventBus = bus;
+    const onNode = (payload: unknown, keys: string[]) => {
+      if (!payload || typeof payload !== 'object') return;
+      for (const key of keys) {
+        const nodeId = (payload as Record<string, unknown>)[key];
+        if (typeof nodeId === 'string' && nodeId) this.scheduleNodeCleanup(nodeId);
+      }
+    };
+    this.unsubscribeEvents = [
+      bus.subscribe('docker.container.changed', (payload) => {
+        const action = (payload as { action?: unknown } | null)?.action;
+        if (action === 'removed' || action === 'recreated' || action === 'updated' || action === 'deployment') {
+          onNode(payload, ['nodeId']);
+        }
+      }),
+      bus.subscribe('docker.compose.changed', (payload) => onNode(payload, ['nodeId'])),
+      bus.subscribe('docker.deployment.changed', (payload) => {
+        if ((payload as { action?: unknown } | null)?.action !== 'transitioning') onNode(payload, ['nodeId']);
+      }),
+      bus.subscribe('docker.migration.changed', (payload) => onNode(payload, ['sourceNodeId', 'targetNodeId'])),
+    ];
   }
 
   /** The builds the internal registry keeps (`<repository>@<digest>`): a node never removes those. */
@@ -206,8 +282,10 @@ export class DockerImageCleanupService {
   }
 
   /**
-   * After a container's image changed: the node keeps the image it runs and `retentionCount - 1` to roll back to of
-   * that repository (see selectImageRetention). Build images pulled by digest count like tagged ones.
+   * After a container's image changed: the node is cleaned with every owner's setting (see enforceNode), so the
+   * container keeps the image it runs and `retentionCount - 1` to roll back to of its repository, and its earlier
+   * repository is cleaned too when it changed. Build images pulled by digest count like tagged ones. Nothing happens
+   * when the container's cleanup is off.
    */
   async scheduleCleanupForContainer(nodeId: string, containerName: string, imageRef: string | undefined) {
     const repository = imageRef ? imageRetentionRepository(imageRef) : null;
@@ -216,7 +294,7 @@ export class DockerImageCleanupService {
       const settings = await this.getForContainer(nodeId, containerName);
       if (!settings.enabled) return;
       await delay(CLEANUP_DELAY_MS);
-      await this.enforceRepository(nodeId, repository, settings.retentionCount);
+      await this.enforceNode(nodeId);
     } catch (err) {
       logger.warn('Image cleanup failed; housekeeping applies it again', {
         nodeId,
@@ -234,7 +312,7 @@ export class DockerImageCleanupService {
       const settings = await this.getForDeployment(nodeId, deploymentId);
       if (!settings.enabled) return;
       await delay(CLEANUP_DELAY_MS);
-      await this.enforceRepository(nodeId, repository, settings.retentionCount);
+      await this.enforceNode(nodeId);
     } catch (err) {
       logger.warn('Deployment image cleanup failed; housekeeping applies it again', {
         nodeId,
@@ -243,6 +321,54 @@ export class DockerImageCleanupService {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  /**
+   * A change on the node left images behind (see setEventBus): the node is cleaned a moment later, at most once per
+   * NODE_EVENT_CLEANUP_INTERVAL_MS. Runs in the background and never throws.
+   */
+  scheduleNodeCleanup(nodeId: string): void {
+    const state = this.nodeEventCleanups.get(nodeId);
+    if (state?.timer) return;
+    const wait = Math.max(CLEANUP_DELAY_MS, (state?.at ?? 0) + NODE_EVENT_CLEANUP_INTERVAL_MS - this.now());
+    const timer = setTimeout(() => {
+      this.nodeEventCleanups.set(nodeId, { timer: null, at: this.now() });
+      void this.enforceNode(nodeId).catch((err) => {
+        logger.debug('Image cleanup after a node change failed; housekeeping applies it again', {
+          nodeId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }, wait);
+    timer.unref?.();
+    this.nodeEventCleanups.set(nodeId, { timer, at: state?.at ?? 0 });
+  }
+
+  /** A container was removed: a later container with its name does not inherit its image cleanup setting. */
+  async forgetContainer(nodeId: string, containerName: string): Promise<void> {
+    await this.db
+      .delete(dockerImageCleanupSettings)
+      .where(
+        and(
+          eq(dockerImageCleanupSettings.nodeId, nodeId),
+          eq(dockerImageCleanupSettings.targetType, 'container'),
+          eq(dockerImageCleanupSettings.containerName, containerName)
+        )
+      );
+  }
+
+  /** A container was renamed: its image cleanup setting goes with it. */
+  async renameContainer(nodeId: string, oldName: string, newName: string): Promise<void> {
+    await this.db
+      .update(dockerImageCleanupSettings)
+      .set({ containerName: newName, updatedAt: new Date() })
+      .where(
+        and(
+          eq(dockerImageCleanupSettings.nodeId, nodeId),
+          eq(dockerImageCleanupSettings.targetType, 'container'),
+          eq(dockerImageCleanupSettings.containerName, oldName)
+        )
+      );
   }
 
   /**
@@ -267,43 +393,82 @@ export class DockerImageCleanupService {
   }
 
   /**
-   * Applies the image cleanup settings to the build images on one node: per build repository, the images containers
-   * use, the builds the internal registry keeps for rollback, and the newest others up to the setting of the
-   * containers or deployment running that repository (2 when none is saved or none runs it). A repository whose
-   * container or deployment has cleanup off is left alone. `dangling` also removes images nothing names or uses.
-   * Housekeeping and the manual prune run this; `dryRun` only lists what would go.
+   * Applies the image cleanup rules to one node. Per repository:
+   * - one a container or deployment on the node runs (a build repository, or any other): the images containers use,
+   *   and the newest others up to the setting of the containers or deployment running it (2 when none is saved; the
+   *   largest when several run it; a deployment's or Availability copy's setting is its workload's, on any node).
+   *   A repository whose owner has cleanup off is left alone. The rest goes after REPLACED_IMAGE_GRACE_MS;
+   * - a build repository nothing on the node runs: its source's setting, or nothing kept when the source is gone;
+   * - Opfield's tool images: the newest one;
+   * - any other: nothing kept.
+   * Images a container uses, the builds the internal registry keeps and images Opfield's records name always stay
+   * (see ImageRetentionContext). Everything except a running owner's older images waits UNUSED_IMAGE_MIN_AGE_MS,
+   * counted from the first cleanup that found it removable. Opfield's connector images have their own rule
+   * (housekeeping). `dangling` (default) also removes images nothing names and no container uses.
+   * Housekeeping, the manual prune and the cleanups after changes run this; `dryRun` only lists what would go.
    */
   async enforceNode(nodeId: string, options: NodeImageRetentionOptions = {}): Promise<NodeImageRetentionResult> {
     return this.onNode(nodeId, async () => {
       const snapshot = await this.nodeSnapshot(nodeId);
+      const context = await this.retentionContext();
+      const imagesById = new Map(snapshot.images.map((image) => [String(image.Id ?? image.id ?? ''), image]));
       const groups = groupImagesByRepository(snapshot.images, snapshot.inUseImageIds);
-      const buildGroups = [...groups].filter(
-        ([repository]) =>
-          isBuildImageRepository(repository) && (!options.repositories || options.repositories(repository))
-      );
-      const candidates: NodeImageRetentionCandidate[] = [];
-      if (buildGroups.length > 0) {
-        const [settings, protectedKeys] = await Promise.all([this.nodeSettings(nodeId), this.protectedDigestKeys()]);
-        for (const [repository, entries] of buildGroups) {
-          const retention = repositoryRetention(entries, repository, snapshot.containers, settings);
-          if (retention === null) continue;
-          for (const entry of selectImageRetention(entries, retention, protectedKeys).removable) {
-            candidates.push({ id: entry.id, repository, size: entry.size });
-          }
+      const kept = new Set<string>();
+      const evaluated = new Set<string>();
+      const proposals = new Map<string, NodeImageRetentionCandidate>();
+      for (const [repository, entries] of groups) {
+        const keepAll = () => {
+          for (const entry of entries) kept.add(entry.id);
+        };
+        if (options.repositories && !options.repositories(repository)) {
+          keepAll();
+          continue;
+        }
+        for (const entry of entries) evaluated.add(entry.id);
+        if (entries.some((entry) => isConnectorImage(imagesById.get(entry.id)))) {
+          keepAll();
+          continue;
+        }
+        const plan = repositoryPlan(nodeId, repository, entries, snapshot.containers, context);
+        if (!plan) {
+          keepAll();
+          continue;
+        }
+        const selection = selectImageRetention(entries, plan.retentionCount, context.protectedKeys);
+        for (const entry of selection.kept) kept.add(entry.id);
+        for (const entry of selection.removable) {
+          const previous = proposals.get(entry.id);
+          proposals.set(entry.id, {
+            id: entry.id,
+            repository,
+            size: entry.size,
+            minUnusedMs: Math.max(previous?.minUnusedMs ?? 0, plan.minUnusedMs),
+          });
         }
       }
-      if (options.dangling) {
+      if (options.dangling !== false && !options.repositories) {
         for (const image of selectDanglingImages(snapshot.images, snapshot.inUseImageIds)) {
-          candidates.push({ id: image.id, repository: null, size: image.size });
+          evaluated.add(image.id);
+          proposals.set(image.id, {
+            id: image.id,
+            repository: null,
+            size: image.size,
+            minUnusedMs: UNUSED_IMAGE_MIN_AGE_MS,
+          });
         }
       }
-      const unique = [...new Map(candidates.map((candidate) => [candidate.id, candidate])).values()];
-      if (options.dryRun) return { removed: [], freedBytes: 0, candidates: unique };
-      return { ...(await this.removeImages(nodeId, unique, options.userId ?? null)), candidates: unique };
+      const removable = [...proposals.values()].filter((candidate) => !kept.has(candidate.id));
+      const since = await this.trackUnused(nodeId, removable, evaluated, imagesById);
+      const now = this.now();
+      const ready = removable.filter((candidate) => now - since[candidate.id]! >= candidate.minUnusedMs);
+      const waiting = removable.filter((candidate) => now - since[candidate.id]! < candidate.minUnusedMs);
+      if (options.dryRun) return { removed: [], freedBytes: 0, candidates: ready, waiting };
+      this.followUpReplaced(nodeId, waiting, since, options.repositories);
+      return { ...(await this.removeImages(nodeId, ready, options.userId ?? null)), candidates: ready, waiting };
     });
   }
 
-  /** Online Docker nodes, where build images are cleaned. */
+  /** Online Docker nodes, where images are cleaned (database and storage nodes clean their own). */
   async onlineDockerNodeIds(): Promise<string[]> {
     const rows = await this.db
       .select({ id: nodes.id })
@@ -367,19 +532,98 @@ export class DockerImageCleanupService {
     });
   }
 
-  private async enforceRepository(nodeId: string, repository: string, retentionCount: number) {
-    return this.onNode(nodeId, async () => {
-      const snapshot = await this.nodeSnapshot(nodeId);
-      const entries = groupImagesByRepository(snapshot.images, snapshot.inUseImageIds).get(repository) ?? [];
-      if (entries.length <= 1) return;
-      const protectedKeys = isBuildImageRepository(repository) ? await this.protectedDigestKeys() : new Set<string>();
-      const { removable } = selectImageRetention(entries, retentionCount, protectedKeys);
-      await this.removeImages(
-        nodeId,
-        removable.map((entry) => ({ id: entry.id, repository, size: entry.size })),
-        null
-      );
-    });
+  /** Opfield's records for this cleanup, read at most once per CONTEXT_TTL_MS for the nodes of one run. */
+  private async retentionContext(): Promise<ImageRetentionContext> {
+    const now = this.now();
+    if (!this.contextCache || now - this.contextCache.at > CONTEXT_TTL_MS) {
+      const value = (async () => {
+        const [context, registry] = await Promise.all([this.store.context(), this.protectedDigestKeys()]);
+        return { ...context, protectedKeys: new Set([...context.protectedKeys, ...registry]) };
+      })();
+      this.contextCache = { at: now, value };
+      value.catch(() => {
+        if (this.contextCache?.value === value) this.contextCache = null;
+      });
+    }
+    return this.contextCache.value;
+  }
+
+  /**
+   * Since when each removable image was found removable: kept for those still removable, started now for new ones,
+   * dropped for images used again, kept or gone. Images this run did not look at keep their entry. A failed save is
+   * retried at the next cleanup; until then the unsaved state is used.
+   */
+  private async trackUnused(
+    nodeId: string,
+    removable: NodeImageRetentionCandidate[],
+    evaluated: ReadonlySet<string>,
+    imagesById: ReadonlyMap<string, unknown>
+  ): Promise<ImageUnusedSince> {
+    const previous = this.unsavedUnusedSince.get(nodeId) ?? (await this.store.unusedSince(nodeId));
+    const now = this.now();
+    const next: ImageUnusedSince = {};
+    for (const [id, since] of Object.entries(previous)) {
+      if (!evaluated.has(id) && imagesById.has(id)) next[id] = since;
+    }
+    for (const candidate of removable) next[candidate.id] = previous[candidate.id] ?? now;
+    const changed =
+      Object.keys(next).length !== Object.keys(previous).length ||
+      Object.entries(next).some(([id, since]) => previous[id] !== since);
+    if (changed || this.unsavedUnusedSince.has(nodeId)) {
+      try {
+        await this.store.saveUnusedSince(nodeId, next);
+        this.unsavedUnusedSince.delete(nodeId);
+      } catch (err) {
+        this.unsavedUnusedSince.set(nodeId, next);
+        logger.debug('Image cleanup tracking could not be saved; it is kept in memory', {
+          nodeId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return next;
+  }
+
+  /**
+   * Older images of a running owner still within their grace: one more cleanup of the node, of the same
+   * repositories, once it passed.
+   */
+  private followUpReplaced(
+    nodeId: string,
+    waiting: NodeImageRetentionCandidate[],
+    since: ImageUnusedSince,
+    repositories: ((repository: string) => boolean) | undefined
+  ): void {
+    const due = waiting
+      .filter((candidate) => candidate.minUnusedMs <= REPLACED_IMAGE_GRACE_MS)
+      .map((candidate) => since[candidate.id]! + candidate.minUnusedMs);
+    if (due.length === 0) return;
+    const pending = this.followUps.get(nodeId);
+    if (pending) {
+      pending.filters = pending.filters && repositories ? [...pending.filters, repositories] : null;
+      return;
+    }
+    const followUp = {
+      filters: repositories ? [repositories] : null,
+      timer: setTimeout(
+        () => {
+          this.followUps.delete(nodeId);
+          const filters = followUp.filters;
+          void this.enforceNode(
+            nodeId,
+            filters ? { repositories: (repository) => filters.some((filter) => filter(repository)) } : {}
+          ).catch((err) => {
+            logger.debug('Image cleanup follow-up failed; housekeeping applies it again', {
+              nodeId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        },
+        Math.max(1000, Math.max(...due) - this.now() + 1000)
+      ),
+    };
+    followUp.timer.unref?.();
+    this.followUps.set(nodeId, followUp);
   }
 
   /** The node's images and containers. Without the container list nothing is removed. */
@@ -402,10 +646,6 @@ export class DockerImageCleanupService {
       containers: containers as Array<Record<string, any>>,
       inUseImageIds,
     };
-  }
-
-  private async nodeSettings(nodeId: string): Promise<CleanupRow[]> {
-    return this.db.select().from(dockerImageCleanupSettings).where(eq(dockerImageCleanupSettings.nodeId, nodeId));
   }
 
   private async protectedDigestKeys(): Promise<ReadonlySet<string>> {
@@ -467,18 +707,72 @@ export class DockerImageCleanupService {
   }
 }
 
-const DEPLOYMENT_ID_LABEL = 'wiolett.gateway.deployment.id';
+/** Opfield's connector images: housekeeping keeps the current and one more of each (selectObsoleteOpfieldConnectorImages). */
+function isConnectorImage(image: unknown): boolean {
+  if (!image || typeof image !== 'object') return false;
+  const kind = opfieldInternalImageKind(image as Record<string, unknown>);
+  return kind === 'secure-link-connector' || kind === 'database-connector';
+}
+
+function containerName(container: Record<string, any>): string {
+  return String(container.Names?.[0] ?? container.name ?? container.Name ?? '').replace(/^\/+/, '');
+}
+
+function deploymentSetting(context: ImageRetentionContext, deploymentId: string): CleanupRow | undefined {
+  return context.settings.find((row) => row.targetType === 'deployment' && row.deploymentId === deploymentId);
+}
+
+function containerSetting(context: ImageRetentionContext, nodeId: string, name: string): CleanupRow | undefined {
+  return context.settings.find(
+    (row) => row.targetType === 'container' && row.nodeId === nodeId && row.containerName === name
+  );
+}
 
 /**
- * The cleanup setting for a repository on a node: that of the containers (or the deployment of the slot containers)
- * running it, the largest when several do; null when one of them has cleanup off. The default when none runs it.
+ * The setting of the workload a container on the node belongs to: its deployment's (both label namespaces), the
+ * workload an Availability copy belongs to (the source container on its own node, or the deployment), else the
+ * container's own on this node.
  */
-function repositoryRetention(
-  entries: ImageRetentionEntry[],
+function ownerSetting(
+  nodeId: string,
+  container: Record<string, any>,
+  context: ImageRetentionContext
+): CleanupRow | undefined {
+  const labels = (container.Labels ?? container.labels ?? {}) as Record<string, unknown>;
+  const deploymentId = labelString(labels, 'deployment.id');
+  if (deploymentId) return deploymentSetting(context, deploymentId);
+  const policyId = labelString(labels, 'availability.policy');
+  const owner = policyId ? context.availabilityOwners.get(policyId) : undefined;
+  if (owner?.deploymentId) return deploymentSetting(context, owner.deploymentId);
+  if (owner?.nodeId && owner.containerName) {
+    return (
+      containerSetting(context, owner.nodeId, owner.containerName) ??
+      containerSetting(context, nodeId, containerName(container))
+    );
+  }
+  return containerSetting(context, nodeId, containerName(container));
+}
+
+/** The setting of a Git source's target workload, wherever its build images are. */
+function sourceSetting(sourceBindingId: string, context: ImageRetentionContext): CleanupRow | undefined | null {
+  const binding = context.sourceBindings.get(sourceBindingId);
+  if (!binding) return null;
+  if (binding.targetKind === 'deployment' && binding.deploymentId)
+    return deploymentSetting(context, binding.deploymentId);
+  if (binding.targetKind === 'container' && binding.nodeId && binding.containerName) {
+    return containerSetting(context, binding.nodeId, binding.containerName);
+  }
+  return undefined;
+}
+
+/** How a repository on the node is cleaned (see enforceNode); null leaves it alone. */
+function repositoryPlan(
+  nodeId: string,
   repository: string,
+  entries: ImageRetentionEntry[],
   containers: Array<Record<string, any>>,
-  settings: CleanupRow[]
-): number | null {
+  context: ImageRetentionContext
+): RepositoryPlan | null {
   const imageIds = new Set(entries.flatMap((entry) => [entry.id, entry.id.replace(/^sha256:/, '')]));
   let retention: number | null = null;
   for (const container of containers) {
@@ -488,16 +782,25 @@ function repositoryRetention(
       (imageId && (imageIds.has(imageId) || imageIds.has(imageId.replace(/^sha256:/, '')))) ||
       (imageRef && imageRetentionRepository(imageRef) === repository);
     if (!runsRepository) continue;
-    const labels = (container.Labels ?? container.labels ?? {}) as Record<string, string>;
-    const deploymentId = labels[DEPLOYMENT_ID_LABEL];
-    const name = String(container.Names?.[0] ?? container.name ?? container.Name ?? '').replace(/^\/+/, '');
-    const setting = deploymentId
-      ? settings.find((row) => row.targetType === 'deployment' && row.deploymentId === deploymentId)
-      : settings.find((row) => row.targetType === 'container' && row.containerName === name);
+    const setting = ownerSetting(nodeId, container, context);
     if (setting && !setting.enabled) return null;
     retention = Math.max(retention ?? 0, setting?.retentionCount ?? DEFAULT_IMAGE_RETENTION_COUNT);
   }
-  return retention ?? DEFAULT_IMAGE_RETENTION_COUNT;
+  if (retention !== null) return { retentionCount: retention, minUnusedMs: REPLACED_IMAGE_GRACE_MS };
+  if (isBuildImageRepository(repository)) {
+    const sourceBindingId = repository.split('/')[2] ?? '';
+    const setting = sourceSetting(sourceBindingId, context);
+    // The source is gone (its container, deployment or Pages project was deleted, or it was detached): no workload
+    // can deploy these builds any more.
+    if (setting === null) return { retentionCount: 1, minUnusedMs: UNUSED_IMAGE_MIN_AGE_MS };
+    if (setting && !setting.enabled) return null;
+    return {
+      retentionCount: setting?.retentionCount ?? DEFAULT_IMAGE_RETENTION_COUNT,
+      minUnusedMs: REPLACED_IMAGE_GRACE_MS,
+    };
+  }
+  if (isToolImageRepository(repository)) return { retentionCount: 2, minUnusedMs: UNUSED_IMAGE_MIN_AGE_MS };
+  return { retentionCount: 1, minUnusedMs: UNUSED_IMAGE_MIN_AGE_MS };
 }
 
 function delay(ms: number): Promise<void> {

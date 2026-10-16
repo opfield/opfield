@@ -593,7 +593,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'prune_docker_images',
     description:
-      "Free disk space on a node: removes dangling images (no tag, no digest), then old Git-source build images beyond each container's image cleanup setting (default 2: the build it runs and one to roll back to; images a container uses and the builds the internal registry keeps always stay). Returns the removed image IDs and reclaimed space.",
+      "Free disk space on a node: removes dangling images (no tag, no digest), then applies the image cleanup rules: each container's or deployment's older images beyond its image cleanup setting (default 2: the image it runs and one to roll back to), and unused images nothing runs or names once unused for 12 hours (removed containers' images, earlier Compose tags, superseded engines, builds of deleted sources). Images a container uses, the builds the internal registry keeps and images a deployment, Compose revision, Availability policy or pull names always stay. Returns the removed image IDs and reclaimed space.",
     parameters: {
       type: 'object',
       properties: {
