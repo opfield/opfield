@@ -197,8 +197,12 @@ func (p *DockerPlugin) startSetMembers(runtime *lease.Runtime, fence lease.DirFe
 			return runtime.Node().VerifyOpfieldSigned(memberha.AssignmentDomain, assignment.SigningKeyID,
 				memberha.AssignmentStatement(setID, assignment), assignment.Signature)
 		},
-		// A member that leaves (lift, removal, set deleted) takes its member mesh with it.
-		Forgotten: func(setID string) { p.setMesh().Release(context.Background(), setID) },
+		// A member that leaves (lift, removal, set deleted) takes its member
+		// mesh and its engine's state files with it.
+		Forgotten: func(setID string) {
+			p.setMesh().Release(context.Background(), setID)
+			p.forgetSetMemberState(setID)
+		},
 	}, store)
 	if err != nil {
 		return err
@@ -208,6 +212,8 @@ func (p *DockerPlugin) startSetMembers(runtime *lease.Runtime, fence lease.DirFe
 	// Sets this node no longer has a member of keep no member mesh network
 	// (a set deleted while the daemon was down, or by an older daemon).
 	go p.setMesh().releaseOrphans(context.Background(), manager.Members)
+	// So do their engines' state files.
+	go p.sweepSetMemberStateOrphans(manager.Members)
 	p.SetSetMemberRuntime(setMemberRuntimeAdapter{manager: manager, plugin: p})
 	return nil
 }
