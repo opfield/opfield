@@ -338,6 +338,8 @@ export interface VcsConnectorProvider extends ConnectorProvider {
   getProjectAccess(auth: VcsConnectorAuth, project: VcsProjectRef): Promise<VcsProjectAccess>;
   getBranchAccess(auth: VcsConnectorAuth, project: VcsProjectRef, branch: string): Promise<VcsBranchAccess>;
   createBranch(auth: VcsConnectorAuth, project: VcsProjectRef, branch: string, ref: string): Promise<void>;
+  /** Deletes a branch; providers without it cannot delete branches. */
+  deleteBranch?(auth: VcsConnectorAuth, project: VcsProjectRef, branch: string): Promise<void>;
   listTree(auth: VcsConnectorAuth, project: VcsProjectRef, path: string, ref?: string): Promise<VcsTreeEntry[]>;
   readFile(auth: VcsConnectorAuth, request: VcsFileReadRequest): Promise<VcsFileReadResult>;
   commitFiles(auth: VcsConnectorAuth, request: VcsCommitRequest): Promise<VcsCommitResult>;

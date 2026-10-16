@@ -4,6 +4,7 @@ import { redactGitLabAuditDetails } from './integration-audit.js';
 const FORCED_APPROVAL_TOOLS = new Set([
   'gitlab_delete_project_variable',
   'gitlab_commit_files',
+  'gitlab_delete_branch',
   'gitlab_update_ci_config',
   'gitlab_update_project_settings',
   'gitlab_add_connector_projects',

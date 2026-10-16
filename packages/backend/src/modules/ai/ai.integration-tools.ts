@@ -97,12 +97,16 @@ export const INTEGRATION_TOOL_NAMES = new Set([
   'github_list_actions_variables',
   'github_list_actions_secrets',
   'github_upsert_repository_file',
+  'github_create_branch',
+  'github_delete_branch',
   'github_upsert_actions_variable',
   'github_upsert_actions_secret',
   'git_list_remote_refs',
   'git_list_repository_tree',
   'git_read_repository_file',
   'git_upsert_repository_file',
+  'git_create_branch',
+  'git_delete_branch',
   'create_github_token_connector',
   'create_git_connector',
   'create_gitlab_connector',
@@ -175,6 +179,36 @@ export async function executeIntegrationTool(user: User, toolName: string, args:
       branch: requiredString(a.branch),
       message: requiredString(a.message),
       content: typeof a.content === 'string' ? a.content : requiredString(a.content),
+    });
+  }
+  if (toolName === 'github_create_branch') {
+    return service.githubCreateBranch(user, {
+      connectorId: requiredString(a.connectorId),
+      repositoryUrl: requiredString(a.repositoryUrl),
+      branch: requiredString(a.branch),
+      fromRef: optionalString(a.fromRef),
+    });
+  }
+  if (toolName === 'github_delete_branch') {
+    return service.githubDeleteBranch(user, {
+      connectorId: requiredString(a.connectorId),
+      repositoryUrl: requiredString(a.repositoryUrl),
+      branch: requiredString(a.branch),
+    });
+  }
+  if (toolName === 'git_create_branch') {
+    return service.gitCreateBranch(user, {
+      connectorId: requiredString(a.connectorId),
+      repositoryUrl: requiredString(a.repositoryUrl),
+      branch: requiredString(a.branch),
+      fromRef: optionalString(a.fromRef),
+    });
+  }
+  if (toolName === 'git_delete_branch') {
+    return service.gitDeleteBranch(user, {
+      connectorId: requiredString(a.connectorId),
+      repositoryUrl: requiredString(a.repositoryUrl),
+      branch: requiredString(a.branch),
     });
   }
   if (toolName === 'github_upsert_actions_variable') {

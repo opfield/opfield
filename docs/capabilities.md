@@ -376,7 +376,7 @@ Opfield includes connectors, notifications, alerts, and status pages:
 
 - Cloudflare connectors for managed A/AAAA records, DNS inspection, and automated DNS-01 certificate workflows.
 - GitLab connectors with project/group allowlists, scheduled project synchronization, repository and CI operations, variables, webhooks, sandbox clone support, and automatic container-registry discovery and import. GitLab integration requires Personal or higher; GitHub, generic Git, external SSH, and Cloudflare connectors are available on Community.
-- GitHub connectors for repository discovery, tree/file operations, branches, commits, Actions workflows and secrets, using the built-in Device Flow or an explicitly configured token.
+- GitHub connectors for repository discovery, tree/file operations, branches (list, create, delete), commits, Actions workflows and secrets, using the built-in Device Flow or an explicitly configured token. GitLab and generic Git connectors create and delete branches too (MCP `github_create_branch`, `gitlab_create_branch`, `git_create_branch` and the matching `_delete_branch` tools; repo write scope; the default branch is never deleted).
 - Generic Git connectors for authenticated repository access outside the first-class GitLab and GitHub providers.
 - External SSH connectors with encrypted credentials, host-key verification, explicit scopes, and controlled command/file operations against administrator-configured hosts. This is an external integration, not an Opfield-managed node role.
 - Webhook notification targets with custom headers, templates, HMAC signing, retries, and delivery history.

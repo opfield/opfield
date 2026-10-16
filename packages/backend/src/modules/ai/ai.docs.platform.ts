@@ -249,7 +249,8 @@ Opfield GitLab connectors are configured by admins in Settings -> Integrations. 
 - Prefer direct API tools for ordinary read/write work:
   - gitlab_list_repository_tree for folders.
   - gitlab_read_file for bounded file reads. Use offset and length for large files.
-  - gitlab_commit_files for create/update/delete/move commits.
+  - gitlab_commit_files for create/update/delete/move commits (startBranch creates the branch with the commit).
+  - gitlab_create_branch creates a branch without a commit (ref: a branch, tag or commit; the default branch when omitted); gitlab_delete_branch deletes one after explicit approval (never the default branch; GitLab refuses protected ones). Both need integrations:gitlab:repo:write.
 - Use gitlab_clone_repository_to_sandbox only when local analysis, tests, or multi-file tooling actually requires a checkout.
 - After gitlab_clone_repository_to_sandbox, wait for CLONE_READY with read_process_output, then inspect the checkout through list_artifact_files/read_artifact on the returned processId. Do not call run_process merely to list or read cloned repository files.
 - Clone runs with connector-configured limits: shallow clone, depth, LFS/submodule settings, max size, and timeout.

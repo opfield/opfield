@@ -172,6 +172,8 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "connector.cloudflare.update": "Updated Cloudflare connector",
   "connector.cloudflare.zone.list": "Listed Cloudflare zones",
   "connector.gitlab.allowlist.update": "Updated GitLab allowlist",
+  "connector.gitlab.branch.create": "Created a GitLab branch",
+  "connector.gitlab.branch.delete": "Deleted a GitLab branch",
   "connector.gitlab.ci.lint": "Checked GitLab CI file",
   "connector.gitlab.ci.update": "Updated GitLab CI file",
   "connector.gitlab.create": "Created GitLab connector",
