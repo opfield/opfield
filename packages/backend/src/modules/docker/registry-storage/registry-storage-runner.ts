@@ -141,9 +141,8 @@ export class RegistryStorageRunner {
 
   /**
    * Repairs what a restart (or a switch that could not roll back) left, starting from `first` (checked first when
-   * null), and tries again after
-   * every failure (REPAIR_RETRY_FIRST_MS, doubling up to REPAIR_RETRY_MAX_MS), checking the host files and the
-   * registry afresh each time with `observe`, until they agree. Meanwhile the registry stays in maintenance: pulls
+   * null), and tries again after every failure (REPAIR_RETRY_FIRST_MS, doubling up to REPAIR_RETRY_MAX_MS), checking
+   * the host files and the registry afresh each time with `observe`, until they agree. Meanwhile the registry stays in maintenance: pulls
    * keep working, builds and pushes wait, and the state names the split and the next attempt.
    */
   async runRecovery(
