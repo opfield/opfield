@@ -288,6 +288,7 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 		if naming.Legacy {
 			lifecycle.OnStartConfirmed(p.switchBuilderToOpfieldNaming)
 		}
+		go p.runBuilderHousekeeping()
 		p.logger.Info("builder profile initialized without Docker Engine access")
 		return nil
 	}

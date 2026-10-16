@@ -26,7 +26,10 @@ func (m *Manager) scan(ctx context.Context, command *pb.DockerBuildCommand, jobD
 	}
 	subject := imageRef[:tagSeparator] + "@" + imageDigest
 	sbomPath := filepath.Join(jobDir, "sbom.cdx.json")
-	scanEnv := registryScanEnvironment(os.Environ(), m.config.RegistryCAPath)
+	scanEnv, err := scanEnvironment(registryScanEnvironment(os.Environ(), m.config.RegistryCAPath), jobDir, m.config.GrypeDBDir())
+	if err != nil {
+		return "", err
+	}
 	if err := m.runCommand(ctx, command.GetBuildId(), jobDir, scanEnv, "syft", "registry:"+subject, "-o", "cyclonedx-json="+sbomPath); err != nil {
 		return "", err
 	}
@@ -265,7 +268,8 @@ func (m *Manager) secretValues(buildID string) []string {
 }
 
 func (m *Manager) emitLog(buildID string, chunk []byte) {
-	if len(chunk) == 0 {
+	// Output of work outside a build (IdleHousekeeping) is not a build log.
+	if len(chunk) == 0 || buildID == "" {
 		return
 	}
 	_ = m.emitEvent(&pb.DockerBuildEvent{BuildId: buildID, Status: "log", Sequence: m.sequence.Add(1), LogChunk: append([]byte(nil), chunk...), Attempt: m.attemptFor(buildID), OccurredAtUnixMs: time.Now().UnixMilli()})
