@@ -7,6 +7,7 @@ import type { InferenceCoreAccountingService } from '../accounting/inference-cor
 import { InferenceProtocolError } from '../protocol/inference-protocol.error.js';
 import { InferenceProviderRegistry } from '../providers/inference-provider.registry.js';
 import { type InferenceCoreAdmissionResponse, OPFIELD_CORE_CONTRACT_ID } from './inference-core.contract.js';
+import { compareOpenCodexVersions, parseOpenCodexVersion } from './inference-core.manifest.js';
 import { coreAdapterForWireProtocol } from './inference-core-provider-map.js';
 import type { ChatRelayObservation } from './inference-core-response-relay.js';
 
@@ -15,16 +16,37 @@ const registry = new InferenceProviderRegistry();
 /** Attempt ids Opfield issues itself; the core's own ids start with `att_`. */
 const EDGE_ATTEMPT_PREFIX = 'opfield-edge-';
 
+/** First core release whose native Chat lane admits and settles its own attempts. */
+export const CORE_NATIVE_CHAT_ADMISSION_VERSION = '2.60.0-opfield.5';
+
+/** Whether the running core (by its reported version) admits native Chat attempts itself. */
+export function coreAdmitsNativeChat(version: string | null | undefined): boolean {
+  if (!version || !parseOpenCodexVersion(version)) return false;
+  return compareOpenCodexVersions(version, CORE_NATIVE_CHAT_ADMISSION_VERSION) >= 0;
+}
+
 /**
- * The core relays Chat Completions to an `openai-chat` provider (API key or
- * local) on its native path, which never calls admission or settlement: the
- * request would run unmetered. For those routes Opfield admits and settles the
- * attempt itself, from the usage the relayed answer reports.
+ * Cores before opfield.5 relay Chat Completions to an `openai-chat` provider
+ * (API key or local) on their native path, which never calls admission or
+ * settlement: the request would run unmetered. For those routes Opfield admits
+ * and settles the attempt itself, from the usage the relayed answer reports.
  */
 export function coreSkipsChatAdmission(connection: { providerId: string; authType: string }): boolean {
   if (connection.authType === 'oauth') return false;
   const definition = registry.get(connection.providerId);
   return definition !== undefined && coreAdapterForWireProtocol(definition.wireProtocol) === 'openai-chat';
+}
+
+/**
+ * Whether Opfield must admit this Chat request itself. A core that admits on
+ * its native lane already holds the one reservation; a second one from the
+ * edge would refuse a user close to the limit with a false budget_exhausted.
+ */
+export function edgeChatAdmissionRequired(
+  connection: { providerId: string; authType: string },
+  target: { nativeChatAdmission: boolean }
+): boolean {
+  return !target.nativeChatAdmission && coreSkipsChatAdmission(connection);
 }
 
 export interface EdgeChatAttempt {
