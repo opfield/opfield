@@ -79,3 +79,46 @@ func TestNodeUploadLeftoversAreSweptInRememberedDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSweepStateLeftoversRemovesOnlyOldWriterTemporaries(t *testing.T) {
+	state := t.TempDir()
+	sub := filepath.Join(state, "launcher")
+	deep := filepath.Join(state, "databases", "abc")
+	for _, dir := range []string{sub, deep} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now()
+	old := now.Add(-2 * time.Hour)
+	gone := []string{
+		filepath.Join(state, ".state.json.tmp-123456"),
+		filepath.Join(state, "retiring.json.pending-4242"),
+		filepath.Join(sub, ".control-session.json.tmp-99"),
+	}
+	kept := []string{
+		filepath.Join(state, "state.json"),
+		filepath.Join(state, ".fresh.json.tmp-1"),
+		filepath.Join(state, "notes.tmp"),
+		filepath.Join(state, ".tmp-123"),
+		filepath.Join(state, "file.pending-abc"),
+		filepath.Join(deep, ".inside-a-volume.tmp-7"),
+	}
+	for _, path := range append(gone, kept...) {
+		touchAt(t, path, old)
+	}
+	touchAt(t, filepath.Join(state, ".fresh.json.tmp-1"), now)
+	if removed := sweepStateLeftovers(state, now); removed != len(gone) {
+		t.Fatalf("removed %d, want %d", removed, len(gone))
+	}
+	for _, path := range gone {
+		if _, err := os.Lstat(path); !os.IsNotExist(err) {
+			t.Fatalf("%s kept", path)
+		}
+	}
+	for _, path := range kept {
+		if _, err := os.Lstat(path); err != nil {
+			t.Fatalf("%s removed: %v", path, err)
+		}
+	}
+}

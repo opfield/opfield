@@ -3,7 +3,9 @@ package lifecycle
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -48,4 +50,69 @@ func hasUpdateLeftoverPrefix(name string) bool {
 		}
 	}
 	return false
+}
+
+// stateLeftoverPatterns are the temporary files of the state writers every daemon uses, left by a crash between
+// their write and rename: atomicfile (".<name>.tmp-<digits>") and statecompat ("<name>.pending-<pid>").
+var stateLeftoverPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`^\..+\.tmp-[0-9]+$`),
+	regexp.MustCompile(`^.+\.pending-[0-9]+$`),
+}
+
+// sweepStateLeftovers removes those temporary files older than updateLeftoverAge from the daemon's state directory
+// and its direct subdirectories. It stays on the state directory's filesystem and never follows a link, so mounted
+// data (managed database and volume images) and deeper runtime trees are never looked at.
+func sweepStateLeftovers(stateDir string, now time.Time) int {
+	root, err := os.Lstat(stateDir)
+	if err != nil || !root.IsDir() {
+		return 0
+	}
+	removed := 0
+	dirs := []string{stateDir}
+	if entries, err := os.ReadDir(stateDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			path := filepath.Join(stateDir, entry.Name())
+			if info, err := os.Lstat(path); err == nil && info.IsDir() && sameDevice(root, info) {
+				dirs = append(dirs, path)
+			}
+		}
+	}
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.Type().IsRegular() || !matchesStateLeftover(entry.Name()) {
+				continue
+			}
+			path := filepath.Join(dir, entry.Name())
+			info, err := os.Lstat(path)
+			if err != nil || !info.Mode().IsRegular() || info.ModTime().After(now.Add(-updateLeftoverAge)) {
+				continue
+			}
+			if os.Remove(path) == nil {
+				removed++
+			}
+		}
+	}
+	return removed
+}
+
+func matchesStateLeftover(name string) bool {
+	for _, pattern := range stateLeftoverPatterns {
+		if pattern.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameDevice(a, b os.FileInfo) bool {
+	first, ok := a.Sys().(*syscall.Stat_t)
+	second, ok2 := b.Sys().(*syscall.Stat_t)
+	return ok && ok2 && first.Dev == second.Dev
 }

@@ -162,6 +162,8 @@ func BootstrapLauncher(spec LauncherSpec) error {
 	}
 	// Temporary binaries of an update or launcher copy a crash interrupted (update_leftovers.go).
 	sweepUpdateLeftovers(filepath.Dir(executable), time.Now())
+	// Temporary state files a crash left between write and rename (update_leftovers.go).
+	sweepStateLeftovers(spec.StateDir, time.Now())
 	if err := retireLegacyUpdateGuard(spec.DaemonType, executable); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: legacy update-guard cleanup incomplete: %v\n", err)
 	}
