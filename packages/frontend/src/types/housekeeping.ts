@@ -118,7 +118,17 @@ export interface HousekeepingStats {
     unknownCount: number;
   };
   acmeChallenges: { fileCount: number; totalSizeBytes: number };
-  dockerImages: { oldImageCount: number; reclaimableBytes: number };
+  /**
+   * oldImageCount/reclaimableBytes = opfieldHost + connectors + every node's removableNow and waiting. A run removes
+   * all but `waiting`, which goes at a later run once its unused time is over.
+   */
+  dockerImages: {
+    oldImageCount: number;
+    reclaimableBytes: number;
+    opfieldHost?: { count: number; bytes: number };
+    connectors?: { count: number; bytes: number };
+    nodes?: HousekeepingDockerImageNode[];
+  };
   operationHistory?: { count: number };
   oauthCleanup?: { count: number };
   expiredTokens?: { count: number };
@@ -131,4 +141,13 @@ export interface HousekeepingStats {
   /** No successful run for two days. */
   stale?: boolean;
   isRunning: boolean;
+}
+
+/** One Docker node's old images by the image cleanup rules. */
+export interface HousekeepingDockerImageNode {
+  nodeId: string;
+  nodeName: string;
+  removableNow: { count: number; bytes: number };
+  waiting: { count: number; bytes: number; nextRemovableAt: string | null };
+  error?: string;
 }

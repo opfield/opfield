@@ -218,6 +218,7 @@ export function registerImageRoutes(router: OpenAPIHono<AppEnv>) {
       const service = container.resolve(DockerManagementService);
       const nodeId = c.req.param('nodeId')!;
       const user = c.get('user')!;
+      if (c.req.query('dryRun') === 'true') return c.json({ data: await service.previewPruneImages(nodeId) });
       const data = await service.pruneImages(nodeId, user.id);
       return c.json({ data });
     }

@@ -8,6 +8,7 @@ import type {
   DockerBuildStatus,
   DockerComposeSourceProjectCreateResult,
   DockerImage,
+  DockerImagePrunePreview,
   DockerInternalRegistrySettings,
   DockerInternalRegistryState,
   DockerNetwork,
@@ -160,6 +161,16 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
       await this.request<void>(`/docker/nodes/${nodeId}/images/${encodeURIComponent(imageId)}`, {
         method: "DELETE",
       });
+    }
+
+    /** What a prune of the node would remove now, and what waits for its unused time; removes nothing. */
+    async previewPruneImages(nodeId: string): Promise<DockerImagePrunePreview> {
+      return this.unwrapData(
+        this.request<{ data: DockerImagePrunePreview }>(
+          `/docker/nodes/${nodeId}/images/prune?dryRun=true`,
+          { method: "POST" }
+        )
+      );
     }
 
     async pruneImages(nodeId: string): Promise<Record<string, unknown>> {

@@ -645,6 +645,14 @@ export async function executeDockerTool(
       return { success: true };
     case 'prune_docker_images': {
       context.ensureToolScopeForResource(user, 'docker:images:delete', String(a.nodeId));
+      if (a.dryRun === true) {
+        const preview = await context.dockerService.previewPruneImages(a.nodeId);
+        return {
+          success: true,
+          message: `A prune would remove ${preview.removable.length} image(s) now; ${preview.waiting.length} more wait for their unused time`,
+          data: preview,
+        };
+      }
       const pruneData = await context.dockerService.pruneImages(a.nodeId, user.id);
       return { success: true, message: 'Unused images pruned', data: pruneData };
     }

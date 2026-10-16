@@ -76,6 +76,8 @@ import {
   pullImage as pullDockerImage,
   removeImage as removeDockerImage,
 } from './docker-image-operations.js';
+import { buildImagePrunePreview, type DockerImagePrunePreview } from './docker-image-prune-preview.js';
+import { selectDanglingImages } from './docker-image-retention.js';
 import {
   assertUserContainerAccessible,
   filterOpfieldInternalContainers,
@@ -2009,6 +2011,21 @@ export class DockerManagementService {
   }
 
   /**
+   * What a prune of the node would remove, removing nothing: the dangling images it removes at once and the images
+   * the image cleanup rules remove now (`removable`), and those the rules remove only once their wait is over
+   * (`waiting`, with `removableAt`). Each with its reason. Like any cleanup it starts the wait of newly unused images.
+   */
+  async previewPruneImages(nodeId: string): Promise<DockerImagePrunePreview> {
+    await this.validateDockerNode(nodeId);
+    const images = await this.listAllImages(nodeId);
+    const dangling = Array.isArray(images) ? selectDanglingImages(images) : [];
+    const rules = this.imageCleanupService
+      ? await this.imageCleanupService.enforceNode(nodeId, { dryRun: true })
+      : { candidates: [], waiting: [] };
+    return buildImagePrunePreview(nodeId, dangling, rules);
+  }
+
+  /**
    * Removes the dangling images, then applies the image cleanup settings to the node's build images: each container
    * keeps the build it runs and its rollback builds, the rest goes.
    */
@@ -2572,3 +2589,4 @@ export class DockerManagementService {
     await moveDockerFile(this.readOperationContext(), target.nodeId, target.containerId, fromPath, toPath, userId);
   }
 }
+

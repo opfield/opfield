@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { formatBytes } from "@/lib/utils";
+import { formatBytes, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type {
@@ -110,7 +110,7 @@ function switchSummary(storage: DockerInternalRegistryStorage | undefined): stri
     const split = repair.observed
       ? ` The registry runs on ${storageName(repair.observed.container)}, while the settings select ${storageName(repair.observed.env)}.`
       : "";
-    return `The registry storage is being repaired.${split} Attempt ${repair.attempts} failed: ${repair.lastError}. Opfield tries again at ${new Date(repair.nextAttemptAt).toLocaleTimeString()}; builds wait until then.`;
+    return `The registry storage is being repaired.${split} Attempt ${repair.attempts} failed: ${repair.lastError}. Opfield tries again at ${formatDateTime(repair.nextAttemptAt)}; builds wait until then.`;
   }
   const last = storage?.lastSwitch;
   if (!last) return null;

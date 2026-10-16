@@ -58,6 +58,7 @@ import { useDockerFolderStore } from "@/stores/docker-folders";
 import type {
   DockerFolderTreeNode,
   DockerImage,
+  DockerImagePrunePreview,
   DockerRegistry,
   Node,
   NodeAppearanceColor,
@@ -283,18 +284,37 @@ export function DockerImages({
   );
 
   const handlePrune = useCallback(async () => {
+    if (!pruneNodeId) {
+      toast.error("Select a node to prune images");
+      return;
+    }
+    let preview: DockerImagePrunePreview;
+    try {
+      preview = await api.previewPruneImages(pruneNodeId);
+    } catch (err) {
+      toastApiError(err, "Could not check what a prune would remove");
+      return;
+    }
+    const nextAt = preview.waiting
+      .map((image) => image.removableAt)
+      .filter((at): at is string => Boolean(at))
+      .sort()[0];
+    const waiting =
+      preview.waiting.length > 0
+        ? ` ${preview.waiting.length} more unused image(s) (${formatBytes(preview.waitingBytes)}) wait for their unused time and go at a later cleanup${nextAt ? `, the first at ${formatDateTime(nextAt)}` : ""}.`
+        : "";
+    if (preview.removable.length === 0) {
+      toast.info(`Nothing to prune on this node now.${waiting}`);
+      return;
+    }
     const ok = await confirm({
-      title: "Prune Dangling Images",
-      description: "Remove dangling images from this node? Tagged unused images are preserved.",
+      title: "Prune Images",
+      description: `Remove ${preview.removable.length} image(s) (${formatBytes(preview.removableBytes)}): dangling images, older images beyond each workload's image cleanup setting, and images unused for 12 hours.${waiting} Images containers use, kept builds and images Opfield's records name stay.`,
       confirmLabel: "Prune",
     });
     if (!ok) return;
     setPruning(true);
     try {
-      if (!pruneNodeId) {
-        toast.error("Select a node to prune images");
-        return;
-      }
       const result = await api.pruneImages(pruneNodeId);
       const freed = result.spaceReclaimed ?? result.SpaceReclaimed;
       toast.success(

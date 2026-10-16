@@ -598,6 +598,11 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
       type: 'object',
       properties: {
         nodeId: { type: 'string', description: 'Docker node ID (a node of type docker in list_nodes)' },
+        dryRun: {
+          type: 'boolean',
+          description:
+            'true: remove nothing and list what a prune would remove now (removable: id, repository, size, reason dangling | beyond_cleanup_setting | unused) and the unused images still within their 2-minute or 12-hour wait (waiting, with removableAt), with byte totals. Use it to explain where reclaimable space is before pruning.',
+        },
       },
       required: ['nodeId'],
     },

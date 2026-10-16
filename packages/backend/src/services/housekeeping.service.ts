@@ -192,7 +192,20 @@ export interface HousekeepingStats {
     unknownCount: number;
   };
   acmeChallenges: { fileCount: number; totalSizeBytes: number };
-  dockerImages: { oldImageCount: number; reclaimableBytes: number };
+  /**
+   * oldImageCount/reclaimableBytes = opfieldHost + connectors + every node's removableNow and waiting. A run removes
+   * opfieldHost, connectors and removableNow; `waiting` images go at a later run once their unused time is over.
+   */
+  dockerImages: {
+    oldImageCount: number;
+    reclaimableBytes: number;
+    /** Old Opfield app and relay images on the Opfield host. */
+    opfieldHost?: { count: number; bytes: number };
+    /** Obsolete connector images on the Docker nodes. */
+    connectors?: { count: number; bytes: number };
+    /** Per online Docker node, by the image cleanup rules (see prune_docker_images dryRun for the images). */
+    nodes?: DockerImageNodeBreakdown[];
+  };
   operationHistory: { count: number };
   oauthCleanup: { count: number };
   expiredTokens: { count: number };
@@ -298,6 +311,18 @@ type DeepPartial<T> = {
 
 type UnusedVolumeState = Record<string, Record<string, string>>;
 type OrphanedVolumeCandidate = { nodeId: string; name: string; sizeBytes?: number };
+
+/** One Docker node's old images by the image cleanup rules, as Housekeeping shows them. */
+export interface DockerImageNodeBreakdown {
+  nodeId: string;
+  nodeName: string;
+  /** What a run removes now. */
+  removableNow: { count: number; bytes: number };
+  /** Unused images still within their 2-minute or 12-hour wait; `nextRemovableAt` is the earliest end of one. */
+  waiting: { count: number; bytes: number; nextRemovableAt: string | null };
+  /** The node did not answer: its images are not counted. */
+  error?: string;
+}
 
 /** One nginx daemon's log pass (ConfigureNginxLogsCommand result detail); zeros for what it does not carry. */
 function parseNginxLogPass(detail: string | undefined): {
@@ -1181,9 +1206,11 @@ export class HousekeepingService {
    * images. Catches what a missed or failed cleanup after a change left, and the leftovers of older releases.
    * `dryRun` counts them for the stats, those still within their minimum unused time included.
    */
-  private async applyNodeImageRetention(dryRun: boolean): Promise<{ count: number; bytes: number }> {
+  private async applyNodeImageRetention(
+    dryRun: boolean
+  ): Promise<{ count: number; bytes: number; nodes: DockerImageNodeBreakdown[] }> {
     const cleanup = this.imageCleanupService;
-    if (!cleanup) return { count: 0, bytes: 0 };
+    if (!cleanup) return { count: 0, bytes: 0, nodes: [] };
     let count = 0;
     let bytes = 0;
     let nodeIds: string[] = [];
@@ -1192,23 +1219,61 @@ export class HousekeepingService {
     } catch (error) {
       logger.warn('Failed to list Docker nodes for image cleanup', { error });
     }
+    const names = await this.nodeNames(nodeIds);
+    const breakdown: DockerImageNodeBreakdown[] = [];
     for (const nodeId of nodeIds) {
+      const nodeName = names.get(nodeId) ?? nodeId;
       try {
         const result = await cleanup.enforceNode(nodeId, { dangling: true, dryRun });
+        const sum = (items: Array<{ size: number }>) => items.reduce((total, item) => total + item.size, 0);
+        const nextRemovableAt =
+          result.waiting
+            .map((candidate) => candidate.removableAt)
+            .filter((at): at is string => typeof at === 'string')
+            .sort()[0] ?? null;
+        breakdown.push({
+          nodeId,
+          nodeName,
+          removableNow: dryRun
+            ? { count: result.candidates.length, bytes: sum(result.candidates) }
+            : { count: result.removed.length, bytes: result.freedBytes },
+          waiting: { count: result.waiting.length, bytes: sum(result.waiting), nextRemovableAt },
+        });
         if (dryRun) {
           // Every old image the rules remove, also those still within their minimum unused time.
           const old = [...result.candidates, ...result.waiting];
           count += old.length;
-          bytes += old.reduce((sum, candidate) => sum + candidate.size, 0);
+          bytes += sum(old);
         } else {
           count += result.removed.length;
           bytes += result.freedBytes;
         }
       } catch (error) {
         logger.warn('Node image cleanup failed', { nodeId, error });
+        breakdown.push({
+          nodeId,
+          nodeName,
+          removableNow: { count: 0, bytes: 0 },
+          waiting: { count: 0, bytes: 0, nextRemovableAt: null },
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
-    return { count, bytes };
+    return { count, bytes, nodes: breakdown };
+  }
+
+  /** Display names of nodes, for the breakdowns. */
+  private async nodeNames(nodeIds: string[]): Promise<Map<string, string>> {
+    if (nodeIds.length === 0) return new Map();
+    try {
+      const rows = await this.db
+        .select({ id: nodes.id, hostname: nodes.hostname, displayName: nodes.displayName })
+        .from(nodes)
+        .where(inArray(nodes.id, nodeIds));
+      return new Map(rows.map((row) => [row.id, row.displayName || row.hostname]));
+    } catch {
+      return new Map();
+    }
   }
 
   // ── Stats Helpers ───────────────────────────────────────────────
@@ -1371,20 +1436,24 @@ export class HousekeepingService {
   }
 
   private async getDockerImageStats(): Promise<HousekeepingStats['dockerImages']> {
-    let oldCount = 0;
-    let reclaimable = 0;
+    let hostCount = 0;
+    let hostBytes = 0;
     try {
       const hostImages = await this.oldOpfieldHostImages(await this.dockerService.inspectSelf());
-      oldCount = hostImages.length;
-      reclaimable = hostImages.reduce((sum, image) => sum + image.size, 0);
+      hostCount = hostImages.length;
+      hostBytes = hostImages.reduce((sum, image) => sum + image.size, 0);
     } catch {
       // Managed-node connector stats remain available without local Docker.
     }
     const connectorImages = await this.getObsoleteConnectorImages();
+    const connectorBytes = connectorImages.reduce((sum, image) => sum + image.size, 0);
     const nodeImages = await this.applyNodeImageRetention(true);
     return {
-      oldImageCount: oldCount + connectorImages.length + nodeImages.count,
-      reclaimableBytes: reclaimable + connectorImages.reduce((sum, image) => sum + image.size, 0) + nodeImages.bytes,
+      oldImageCount: hostCount + connectorImages.length + nodeImages.count,
+      reclaimableBytes: hostBytes + connectorBytes + nodeImages.bytes,
+      opfieldHost: { count: hostCount, bytes: hostBytes },
+      connectors: { count: connectorImages.length, bytes: connectorBytes },
+      nodes: nodeImages.nodes,
     };
   }
 

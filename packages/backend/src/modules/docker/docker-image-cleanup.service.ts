@@ -69,6 +69,8 @@ export interface NodeImageRetentionCandidate {
   size: number;
   /** How long the image must have been found removable before it goes (see REPLACED_IMAGE_GRACE_MS). */
   minUnusedMs: number;
+  /** When a cleanup may remove it: the first cleanup that found it removable plus `minUnusedMs` (ISO time). */
+  removableAt?: string;
 }
 
 export interface NodeImageRetentionResult {
@@ -476,6 +478,9 @@ export class DockerImageCleanupService {
       const removable = [...proposals.values()].filter((candidate) => !kept.has(candidate.id));
       const since = await this.trackUnused(nodeId, removable, evaluated, imagesById);
       const now = this.now();
+      for (const candidate of removable) {
+        candidate.removableAt = new Date(since[candidate.id]! + candidate.minUnusedMs).toISOString();
+      }
       const ready = removable.filter((candidate) => now - since[candidate.id]! >= candidate.minUnusedMs);
       const waiting = removable.filter((candidate) => now - since[candidate.id]! < candidate.minUnusedMs);
       if (options.dryRun) return { removed: [], freedBytes: 0, candidates: ready, waiting };

@@ -196,3 +196,21 @@ describe('imageReferenceDigest', () => {
     expect(imageReferenceDigest(undefined)).toBeNull();
   });
 });
+
+describe('enforceNode dry run', () => {
+  it('tells when each waiting image becomes removable (X-O-16)', async () => {
+    const docker = {
+      listAllImages: vi.fn().mockResolvedValue([{ Id: 'sha-unused', RepoTags: ['nginx:1.25'], Created: 100 }]),
+      listNodeContainers: vi.fn().mockResolvedValue([]),
+      removeUnusedImage: vi.fn(),
+    };
+    const now = Date.parse('2026-10-17T12:00:00Z');
+    const service = new DockerImageCleanupService({} as never, docker as never, emptyStore() as never, () => now);
+    const result = await service.enforceNode('node-1', { dryRun: true });
+    expect(result.candidates).toEqual([]);
+    expect(result.waiting).toEqual([
+      expect.objectContaining({ id: 'sha-unused', removableAt: '2026-10-18T00:00:00.000Z' }),
+    ]);
+    expect(docker.removeUnusedImage).not.toHaveBeenCalled();
+  });
+});

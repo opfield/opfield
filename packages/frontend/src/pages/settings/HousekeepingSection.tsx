@@ -29,6 +29,14 @@ import {
   normalizeHousekeepingConfig,
 } from "./housekeeping-section-helpers";
 
+interface DockerImageBreakdownRow {
+  key: string;
+  where: string;
+  now: { count: number; bytes: number };
+  waiting: { count: number; bytes: number } | null;
+  nextAt: string | null;
+}
+
 export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectionProps) {
   const cachedConfig = api.getCached<HousekeepingConfig>("housekeeping:config");
   const cachedStats = api.getCached<HousekeepingStats>("housekeeping:stats");
@@ -74,6 +82,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
   const [hkHistoryOpen, setHkHistoryOpen] = useState(false);
   const [hkHistory, setHkHistory] = useState<HousekeepingRunResult[]>([]);
   const [hkHistoryLoading, setHkHistoryLoading] = useState(false);
+  const [hkImagesOpen, setHkImagesOpen] = useState(false);
 
   const loadHousekeeping = useCallback(async () => {
     try {
@@ -168,6 +177,56 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
     Number.isInteger(hkConfig.internalRegistry.retentionSuccessfulArtifacts) &&
     hkConfig.internalRegistry.retentionSuccessfulArtifacts >= 1 &&
     hkConfig.internalRegistry.retentionSuccessfulArtifacts <= 100;
+  const imageRows: DockerImageBreakdownRow[] = hkStats
+    ? [
+        {
+          key: "opfield-host",
+          where: "Opfield host (old app and relay images)",
+          now: hkStats.dockerImages.opfieldHost ?? { count: 0, bytes: 0 },
+          waiting: null,
+          nextAt: null,
+        },
+        {
+          key: "connectors",
+          where: "Connector images on Docker nodes",
+          now: hkStats.dockerImages.connectors ?? { count: 0, bytes: 0 },
+          waiting: null,
+          nextAt: null,
+        },
+        ...(hkStats.dockerImages.nodes ?? []).map((node) => ({
+          key: node.nodeId,
+          where: node.error ? `${node.nodeName} (not answering: ${node.error})` : node.nodeName,
+          now: node.removableNow,
+          waiting: node.waiting,
+          nextAt: node.waiting.nextRemovableAt,
+        })),
+      ]
+    : [];
+  const imageColumns: SimpleTableColumn<DockerImageBreakdownRow>[] = [
+    { id: "where", header: "Where", className: "w-[40%]", render: (row) => row.where },
+    {
+      id: "now",
+      header: "Next run removes",
+      className: "w-[20%]",
+      cellClassName: "text-muted-foreground whitespace-nowrap",
+      render: (row) => `${row.now.count} (${formatBytes(row.now.bytes)})`,
+    },
+    {
+      id: "waiting",
+      header: "Waiting",
+      className: "w-[20%]",
+      cellClassName: "text-muted-foreground whitespace-nowrap",
+      render: (row) => (row.waiting ? `${row.waiting.count} (${formatBytes(row.waiting.bytes)})` : "—"),
+    },
+    {
+      id: "next",
+      header: "First one due",
+      className: "w-[20%]",
+      cellClassName: "text-muted-foreground whitespace-nowrap",
+      render: (row) => (row.nextAt ? <RelativeTime value={row.nextAt} /> : "—"),
+    },
+  ];
+
   const historyColumns: SimpleTableColumn<HousekeepingRunResult>[] = [
     {
       id: "time",
@@ -825,6 +884,21 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
               }
               lastResult={hkStats?.lastRun?.categories.find((c) => c.category === "Docker Images")}
               disabled={controlsDisabled}
+              inlineControls={
+                hkStats ? (
+                  <>
+                    <span>&middot;</span>
+                    <Button
+                      variant="quiet"
+                      size="inline"
+                      className="text-xs font-normal"
+                      onClick={() => setHkImagesOpen(true)}
+                    >
+                      Where
+                    </Button>
+                  </>
+                ) : undefined
+              }
             />
           </div>
           <div className="flex flex-col gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -865,6 +939,30 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
           </div>
         </div>
       </PanelShell>
+
+      {/* Where the old Docker images are, and what the next run removes */}
+      <Dialog open={hkImagesOpen} onOpenChange={setHkImagesOpen}>
+        <DialogContent className="max-w-full overflow-x-hidden sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Old Docker Images</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            The card counts both columns. The next run removes what the first one shows; unused images nothing
+            runs or names wait until they were unused for 12 hours (older images of a workload beyond its image
+            cleanup setting, 2 minutes) and go at a later run. Prune on the Images page lists a node's images before
+            it removes anything.
+          </p>
+          <div className="min-w-0 border border-border">
+            <SimpleTable
+              columns={imageColumns}
+              rows={imageRows}
+              getRowKey={(row) => row.key}
+              emptyMessage="No Docker nodes"
+              tableClassName="table-fixed"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Housekeeping History Dialog */}
       <Dialog open={hkHistoryOpen} onOpenChange={setHkHistoryOpen}>
