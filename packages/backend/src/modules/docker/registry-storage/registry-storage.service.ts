@@ -102,7 +102,7 @@ function managedStorageRefused(): AppError {
   return new AppError(
     400,
     'REGISTRY_STORAGE_MANAGED_UNSUPPORTED',
-    "Managed storage cannot hold the internal registry: Opfield reaches it through a private tunnel the registry container cannot use, and its published endpoint moves with failover. Choose an S3 connection to an external service (AWS S3, Cloudflare R2, a MinIO or SeaweedFS you run) or enter its endpoint and keys, or keep the registry on local disk"
+    'Managed storage cannot hold the internal registry: Opfield reaches it through a private tunnel the registry container cannot use, and its published endpoint moves with failover. Choose an S3 connection to an external service (AWS S3, Cloudflare R2, a MinIO or SeaweedFS you run) or enter its endpoint and keys, or keep the registry on local disk'
   );
 }
 

@@ -634,7 +634,7 @@ describe('HousekeepingService orphaned volume retention', () => {
     });
   });
 
-  it('reports the real size of unused volumes, which Docker\'s volume list leaves out, and those it cannot measure', async () => {
+  it("reports the real size of unused volumes, which Docker's volume list leaves out, and those it cannot measure", async () => {
     // Docker lists volumes without UsageData: the node measures them in one walk.
     const unsized = (name: string) => volume(name, { UsageData: null });
     const h = createHarness({

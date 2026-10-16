@@ -151,9 +151,12 @@ export class RegistryStorageRunner {
     first: RegistryStorageObserved | null,
     observe: () => Promise<RegistryStorageObserved>
   ): Promise<void> {
-    const sleep = this.deps.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => {
-      setTimeout(resolve, milliseconds).unref?.();
-    }));
+    const sleep =
+      this.deps.sleep ??
+      ((milliseconds: number) =>
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, milliseconds).unref?.();
+        }));
     await this.withLease(owner, async () => {
       let observed: RegistryStorageObserved | null = first;
       for (let attempt = 1; ; attempt += 1) {
@@ -170,7 +173,9 @@ export class RegistryStorageRunner {
             attempts: attempt,
             lastError: reason,
             nextAttemptAt: new Date(Date.now() + delay).toISOString(),
-            observed: checked ? { env: checked.hostEnv, compose: checked.hostCompose, container: checked.container } : null,
+            observed: checked
+              ? { env: checked.hostEnv, compose: checked.hostCompose, container: checked.container }
+              : null,
           };
           this.deps.repairStatus?.(status);
           logger.error('Internal registry storage repair failed; it is tried again', {
@@ -197,7 +202,8 @@ export class RegistryStorageRunner {
     }
     if (action.kind === 'sync' || !record) {
       if (action.kind === 'sync' && action.syncCompose) await this.deps.host.syncCompose(context);
-      if (action.kind === 'sync' && action.recreate) await this.deps.host.recreateRegistry(context, this.deps.registryUrl);
+      if (action.kind === 'sync' && action.recreate)
+        await this.deps.host.recreateRegistry(context, this.deps.registryUrl);
       await this.ready(hostEnv);
       logger.warn('Internal registry storage repaired: the registry follows the storage .env selects', {
         storage: hostEnv,

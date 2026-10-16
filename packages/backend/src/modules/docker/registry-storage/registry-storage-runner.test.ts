@@ -106,7 +106,11 @@ describe('registry storage repair after a restart (F-3)', () => {
     expect(states.findIndex((state) => state.status === 'ready')).toBeGreaterThan(states.indexOf(held!));
     // Finished on the new storage once consistent.
     expect(repairStatus).toHaveBeenLastCalledWith(null);
-    expect(written.at(-1)).toMatchObject({ status: 'completed', phase: null, error: 'Finished after an Opfield restart' });
+    expect(written.at(-1)).toMatchObject({
+      status: 'completed',
+      phase: null,
+      error: 'Finished after an Opfield restart',
+    });
   });
 
   it('keeps retrying while even the check of the host files fails', async () => {

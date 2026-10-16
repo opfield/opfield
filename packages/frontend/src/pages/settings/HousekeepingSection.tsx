@@ -216,7 +216,8 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
       header: "Waiting",
       className: "w-[20%]",
       cellClassName: "text-muted-foreground whitespace-nowrap",
-      render: (row) => (row.waiting ? `${row.waiting.count} (${formatBytes(row.waiting.bytes)})` : "—"),
+      render: (row) =>
+        row.waiting ? `${row.waiting.count} (${formatBytes(row.waiting.bytes)})` : "—",
     },
     {
       id: "next",
@@ -951,10 +952,10 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
             <DialogTitle>Old Docker Images</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            The card counts both columns. The next run removes what the first one shows; unused images nothing
-            runs or names wait until they were unused for 12 hours (older images of a workload beyond its image
-            cleanup setting, 2 minutes) and go at a later run. Prune on the Images page lists a node's images before
-            it removes anything.
+            The card counts both columns. The next run removes what the first one shows; unused
+            images nothing runs or names wait until they were unused for 12 hours (older images of a
+            workload beyond its image cleanup setting, 2 minutes) and go at a later run. Prune on
+            the Images page lists a node's images before it removes anything.
           </p>
           <div className="min-w-0 border border-border">
             <SimpleTable

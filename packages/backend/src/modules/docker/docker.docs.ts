@@ -818,7 +818,10 @@ export const pruneImagesRoute = appRoute({
   request: {
     params: nodeParams,
     query: z.object({
-      dryRun: z.enum(['true', 'false']).optional().openapi({ description: 'List what a prune would remove; remove nothing.' }),
+      dryRun: z
+        .enum(['true', 'false'])
+        .optional()
+        .openapi({ description: 'List what a prune would remove; remove nothing.' }),
     }),
   },
   responses: okJson(UnknownDataResponseSchema),

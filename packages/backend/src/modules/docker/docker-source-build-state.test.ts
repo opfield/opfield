@@ -88,10 +88,9 @@ describe('state of a Git source', () => {
     const full =
       "The internal registry's disk is 91% full (new builds and image pushes stop at 90%): free space on the Opfield host or remove old builds, then builds resume";
     expect(
-      describeDockerSourceState(
-        { ...source, desiredCommitSha: head, deployedCommitSha: COMMIT, lastPollError: full },
-        [build()]
-      )
+      describeDockerSourceState({ ...source, desiredCommitSha: head, deployedCommitSha: COMMIT, lastPollError: full }, [
+        build(),
+      ])
     ).toBe(
       `Commit 87f6052feb was not built: ${full}. The next poll or sync builds it once that is resolved. Commit 0d9a2ae5b1 is deployed.`
     );

@@ -2612,4 +2612,3 @@ export class DockerManagementService {
     await moveDockerFile(this.readOperationContext(), target.nodeId, target.containerId, fromPath, toPath, userId);
   }
 }
-

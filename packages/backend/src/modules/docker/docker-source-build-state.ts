@@ -56,7 +56,12 @@ export function describeDockerSourceState(source: DockerSourceStateInput, builds
   // A newer head whose build was refused (the internal registry takes no pushes, no Build Worker): say so first, the
   // state of the latest build alone reads as if the head were deployed.
   const head = source.desiredCommitSha?.toLowerCase();
-  if (builds.length > 0 && source.lastPollError && head && !builds.some((build) => build.commitSha.toLowerCase() === head)) {
+  if (
+    builds.length > 0 &&
+    source.lastPollError &&
+    head &&
+    !builds.some((build) => build.commitSha.toLowerCase() === head)
+  ) {
     return `Commit ${short(head)} was not built: ${withPeriod(source.lastPollError)} The next poll or sync builds it once that is resolved. ${state}`;
   }
   return state;

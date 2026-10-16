@@ -10,7 +10,10 @@ describe('one-off helper containers (F-3)', () => {
     expect(finishedContainerSweepKind({ Id: 'run', State: 'running', Labels: {} }, null)).toBe('skip');
     expect(finishedContainerSweepKind(helper, null)).toBe('skip');
     expect(
-      finishedContainerSweepKind({ Id: 'other', State: 'exited', Labels: { 'net.opfield.role': 'something-else' } }, null)
+      finishedContainerSweepKind(
+        { Id: 'other', State: 'exited', Labels: { 'net.opfield.role': 'something-else' } },
+        null
+      )
     ).toBe('skip');
     // Update sidecars still go.
     expect(

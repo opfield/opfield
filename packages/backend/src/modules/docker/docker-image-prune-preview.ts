@@ -12,7 +12,13 @@ export interface DockerImagePrunePreview {
     removableAt?: string;
   }>;
   removableBytes: number;
-  waiting: Array<{ id: string; repository: string | null; size: number; reason: DockerImagePruneReason; removableAt?: string }>;
+  waiting: Array<{
+    id: string;
+    repository: string | null;
+    size: number;
+    reason: DockerImagePruneReason;
+    removableAt?: string;
+  }>;
   waitingBytes: number;
 }
 

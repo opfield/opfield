@@ -318,7 +318,11 @@ export interface DockerInternalRegistryStorage {
     attempts: number;
     lastError: string;
     nextAttemptAt: string;
-    observed: { env: "filesystem" | "s3"; compose: "filesystem" | "s3"; container: "filesystem" | "s3" } | null;
+    observed: {
+      env: "filesystem" | "s3";
+      compose: "filesystem" | "s3";
+      container: "filesystem" | "s3";
+    } | null;
   } | null;
 }
 

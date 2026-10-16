@@ -227,7 +227,13 @@ describe('the build kept for a container whose Git source was detached (X-O-11)'
   };
   const classify = (existingContainers: Set<string>) =>
     selectRegistryRetentionCandidates(
-      classifyRegistryRetentionArtifacts({ artifacts: [kept], pins: [], references: '[]', bindings: [], existingContainers })
+      classifyRegistryRetentionArtifacts({
+        artifacts: [kept],
+        pins: [],
+        references: '[]',
+        bindings: [],
+        existingContainers,
+      })
     );
 
   it('stays while the container exists, and goes once it was removed', () => {
