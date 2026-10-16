@@ -701,8 +701,38 @@ func (m *witnessManager) collectGarbage(now time.Time) {
 	for _, entry := range m.witnesses {
 		keep[entry.procSHA], keep[entry.rollbackSHA] = true, true
 	}
+	m.removeOrphanDirsLocked()
 	m.mu.Unlock()
 	m.runtime.gcArtifacts(keep, now)
+}
+
+// removeOrphanDirsLocked removes the data and run directories of witnesses
+// that are neither desired nor known: a witness removed from the desired set
+// whose supervisor stopped after persisting desired.json and before its
+// reconcile dropped the data. Only directories named like a witness id are
+// touched. Directories are created only by the reconcile loop (the caller),
+// so none of a desired witness can appear meanwhile; callers hold m.mu.
+func (m *witnessManager) removeOrphanDirsLocked() {
+	for _, kind := range []string{"data", "run"} {
+		root := filepath.Join(m.workRoot, kind)
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			id := entry.Name()
+			if !entry.IsDir() || !validWitnessID(id) || m.desired[id] != nil || m.witnesses[id] != nil {
+				continue
+			}
+			if err := os.RemoveAll(filepath.Join(root, id)); err != nil {
+				m.logWarn("could not remove the directory of a removed witness", "witness", id, "dir", filepath.Join(root, id), "error", err)
+				continue
+			}
+			if m.logger != nil {
+				m.logger.Info("removed the directory of a removed witness", "witness", id, "dir", filepath.Join(root, id))
+			}
+		}
+	}
 }
 
 // stage writes a witness's config, so a standby is ready to start.
