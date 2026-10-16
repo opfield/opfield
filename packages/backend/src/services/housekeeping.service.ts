@@ -13,11 +13,13 @@ import type { AISandboxArtifactService } from '@/modules/ai/ai.sandbox-artifact.
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
 import type { DockerManagementService } from '@/modules/docker/docker.service.js';
+import type { DockerImageCleanupService } from '@/modules/docker/docker-image-cleanup.service.js';
 import {
   type OpfieldInternalImageCandidate,
   selectObsoleteOpfieldConnectorImages,
 } from '@/modules/docker/docker-internal-images.js';
 import type { DockerInternalRegistryService } from '@/modules/docker/docker-registry-internal.service.js';
+import { REGISTRY_BUILDS_KEPT_PER_CONTAINER } from '@/modules/docker/docker-registry-retention.js';
 import type { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import type { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
 import type { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance.service.js';
@@ -45,7 +47,6 @@ const VOLUME_CLEANUP_PROTECTED_LABEL = 'opfield.housekeeping.protected';
 const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = 'gateway.housekeeping.protected';
 const SYSTEM_CERTIFICATE_KEY_RETENTION_DAYS = 30;
 const LOGGING_SETTINGS_KEY = 'logging:clickhouse';
-const DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT = 1;
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -174,7 +175,7 @@ const DEFAULTS: Record<string, unknown> = {
   [KEYS.structuredLogsMaxSizeBytes]: 10 * 1024 * 1024 * 1024,
   [KEYS.clickHouseInternalsMaxSizeBytes]: 512 * 1024 * 1024,
   [KEYS.orphanedAIArtifactsEnabled]: true,
-  [KEYS.internalRegistryRetention]: DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT,
+  [KEYS.internalRegistryRetention]: REGISTRY_BUILDS_KEPT_PER_CONTAINER,
   [KEYS.orphanedVolumesEnabled]: true,
   [KEYS.orphanedVolumesRetention]: 30,
   [KEYS.dockerPruneEnabled]: true,
@@ -276,7 +277,8 @@ export class HousekeepingService {
       },
       internalRegistry: {
         enabled: true,
-        retentionSuccessfulArtifacts: DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT,
+        // Fixed: the running and the rollback build per container. Reported for released clients.
+        retentionSuccessfulArtifacts: REGISTRY_BUILDS_KEPT_PER_CONTAINER,
       },
       orphanedVolumes: {
         enabled: get(KEYS.orphanedVolumesEnabled, DEFAULTS[KEYS.orphanedVolumesEnabled] as boolean),
@@ -336,8 +338,7 @@ export class HousekeepingService {
       updates.push([KEYS.clickHouseInternalsMaxSizeBytes, partial.clickHouseInternals.maxSizeBytes]);
     if (partial.orphanedAIArtifacts?.enabled !== undefined)
       updates.push([KEYS.orphanedAIArtifactsEnabled, partial.orphanedAIArtifacts.enabled]);
-    if (partial.internalRegistry?.retentionSuccessfulArtifacts !== undefined)
-      updates.push([KEYS.internalRegistryRetention, DEFAULT_INTERNAL_REGISTRY_RETENTION_COUNT]);
+    // internalRegistry.retentionSuccessfulArtifacts is accepted from released clients and ignored: the count is fixed.
     if (partial.orphanedVolumes?.enabled !== undefined)
       updates.push([KEYS.orphanedVolumesEnabled, partial.orphanedVolumes.enabled]);
     if (partial.orphanedVolumes?.retentionDays !== undefined)
@@ -463,7 +464,6 @@ export class HousekeepingService {
           await this.runCategory('Internal Registry', async () => {
             const run = await this.internalRegistryMaintenanceService!.runGarbageCollection({
               requestedById: userId ?? null,
-              retentionCount: config.internalRegistry.retentionSuccessfulArtifacts,
               reason: trigger === 'scheduled' ? 'scheduled housekeeping' : 'housekeeping run by a user',
             });
             const candidateIds = Array.isArray(run.progress?.candidateArtifactIds)
@@ -643,6 +643,12 @@ export class HousekeepingService {
   private dockerManagementService?: DockerManagementService;
   setDockerManagementService(svc: DockerManagementService) {
     this.dockerManagementService = svc;
+  }
+
+  private imageCleanupService?: Pick<DockerImageCleanupService, 'enforceNode' | 'onlineDockerNodeIds'>;
+  /** Applies the image cleanup settings to build images and removes dangling images on every Docker node. */
+  setImageCleanupService(svc: Pick<DockerImageCleanupService, 'enforceNode' | 'onlineDockerNodeIds'>) {
+    this.imageCleanupService = svc;
   }
 
   private systemCertificateLifecycle?: SystemCertificateLifecycleService;
@@ -837,7 +843,41 @@ export class HousekeepingService {
         });
       }
     }
-    return { itemsCleaned: cleaned, spaceFreedBytes: freedBytes };
+    const nodeImages = await this.applyNodeImageRetention(false);
+    return { itemsCleaned: cleaned + nodeImages.count, spaceFreedBytes: freedBytes + nodeImages.bytes };
+  }
+
+  /**
+   * On every online Docker node: build images beyond each container's image cleanup setting (the running build and
+   * its rollback builds stay) and dangling images. Catches what a missed or failed cleanup after a deploy left, and the
+   * leftovers of older releases. `dryRun` counts them for the stats.
+   */
+  private async applyNodeImageRetention(dryRun: boolean): Promise<{ count: number; bytes: number }> {
+    const cleanup = this.imageCleanupService;
+    if (!cleanup) return { count: 0, bytes: 0 };
+    let count = 0;
+    let bytes = 0;
+    let nodeIds: string[] = [];
+    try {
+      nodeIds = await cleanup.onlineDockerNodeIds();
+    } catch (error) {
+      logger.warn('Failed to list Docker nodes for image cleanup', { error });
+    }
+    for (const nodeId of nodeIds) {
+      try {
+        const result = await cleanup.enforceNode(nodeId, { dangling: true, dryRun });
+        if (dryRun) {
+          count += result.candidates.length;
+          bytes += result.candidates.reduce((sum, candidate) => sum + candidate.size, 0);
+        } else {
+          count += result.removed.length;
+          bytes += result.freedBytes;
+        }
+      } catch (error) {
+        logger.warn('Node image cleanup failed', { nodeId, error });
+      }
+    }
+    return { count, bytes };
   }
 
   // ── Stats Helpers ───────────────────────────────────────────────
@@ -986,9 +1026,10 @@ export class HousekeepingService {
       // Managed-node connector stats remain available without local Docker.
     }
     const connectorImages = await this.getObsoleteConnectorImages();
+    const nodeImages = await this.applyNodeImageRetention(true);
     return {
-      oldImageCount: oldCount + connectorImages.length,
-      reclaimableBytes: reclaimable + connectorImages.reduce((sum, image) => sum + image.size, 0),
+      oldImageCount: oldCount + connectorImages.length + nodeImages.count,
+      reclaimableBytes: reclaimable + connectorImages.reduce((sum, image) => sum + image.size, 0) + nodeImages.bytes,
     };
   }
 

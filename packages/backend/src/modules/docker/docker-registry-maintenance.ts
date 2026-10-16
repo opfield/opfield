@@ -9,16 +9,25 @@ import {
   dockerBuilds,
   dockerComposeProjects,
   dockerComposeRevisions,
+  dockerDeploymentSlots,
   dockerDeployments,
   dockerInternalRegistryState,
   dockerRegistryMaintenanceRuns,
+  dockerSourceBindings,
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerService } from '@/services/docker.service.js';
+import { ACTIVE_BUILD_STATUSES, WORKER_ACTIVE_BUILD_STATUSES } from './docker-build-policy.js';
+import { classifyRegistryRetentionArtifacts, type RegistryRetentionArtifact } from './docker-registry-retention.js';
 import type { DockerRegistryGrant, DockerRegistryTokenService } from './docker-registry-token.service.js';
 
+export {
+  REGISTRY_BUILDS_KEPT_PER_CONTAINER,
+  type RegistryRetentionArtifact,
+  selectRegistryRetentionCandidates,
+} from './docker-registry-retention.js';
+
 const REGISTRY_STATE_ID = 'system';
-export const DEFAULT_REGISTRY_RETENTION_COUNT = 1;
 
 export const DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS = 15 * 60_000;
 export const MAX_REGISTRY_WRITE_TOKEN_TTL_SECONDS = 30;
@@ -46,6 +55,10 @@ export async function registryRuntimeReferences(db: DrizzleClient): Promise<stri
         .from(dockerComposeProjects)
         .innerJoin(dockerComposeRevisions, eq(dockerComposeRevisions.id, dockerComposeProjects.activeRevisionId)),
       db.select({ config: dockerDeployments.desiredConfig }).from(dockerDeployments),
+      // A blue/green slot keeps the image it ran until it is reused.
+      db
+        .select({ image: dockerDeploymentSlots.image, config: dockerDeploymentSlots.desiredConfig })
+        .from(dockerDeploymentSlots),
     ])
   );
 }
@@ -54,16 +67,6 @@ export type RegistryState = typeof dockerInternalRegistryState.$inferSelect;
 export type MaintenanceRun = typeof dockerRegistryMaintenanceRuns.$inferSelect;
 type RegistryStateUpdate = Partial<typeof dockerInternalRegistryState.$inferInsert>;
 type MaintenanceRunUpdate = Partial<typeof dockerRegistryMaintenanceRuns.$inferInsert>;
-
-export interface RegistryRetentionArtifact {
-  id: string;
-  sourceBindingId: string | null;
-  repository: string;
-  digest: string;
-  createdAt: Date;
-  pinned: boolean;
-  retainInHistory: boolean;
-}
 
 export interface DockerRegistryMaintenanceExecutor {
   hasRepositories(): Promise<boolean>;
@@ -178,39 +181,14 @@ export interface DockerRegistryMaintenanceStore {
   listRetentionArtifacts(now: Date): Promise<RegistryRetentionArtifact[]>;
   markArtifactDeleted(id: string, now: Date): Promise<void>;
   markInterruptedRunsFailed?(now: Date, message: string): Promise<void>;
-}
-
-export function selectRegistryRetentionCandidates(
-  artifacts: RegistryRetentionArtifact[],
-  retentionCount = DEFAULT_REGISTRY_RETENTION_COUNT
-): { retained: RegistryRetentionArtifact[]; candidates: RegistryRetentionArtifact[] } {
-  const retainedIds = new Set(artifacts.filter((artifact) => artifact.pinned).map((artifact) => artifact.id));
-  const byBinding = new Map<string | null, RegistryRetentionArtifact[]>();
-  for (const artifact of artifacts.filter((candidate) => candidate.retainInHistory)) {
-    const group = byBinding.get(artifact.sourceBindingId) ?? [];
-    group.push(artifact);
-    byBinding.set(artifact.sourceBindingId, group);
-  }
-  for (const group of byBinding.values()) {
-    group
-      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-      .slice(0, retentionCount)
-      .forEach((artifact) => {
-        retainedIds.add(artifact.id);
-      });
-  }
-  const retainedDigests = new Set(
-    artifacts
-      .filter((artifact) => retainedIds.has(artifact.id))
-      .map((artifact) => `${artifact.repository}\0${artifact.digest}`)
-  );
-  for (const artifact of artifacts) {
-    if (retainedDigests.has(`${artifact.repository}\0${artifact.digest}`)) retainedIds.add(artifact.id);
-  }
-  return {
-    retained: artifacts.filter((artifact) => retainedIds.has(artifact.id)),
-    candidates: artifacts.filter((artifact) => !retainedIds.has(artifact.id)),
-  };
+  /** The source binding of a build. */
+  buildSourceBindingId?(buildId: string): Promise<string | null>;
+  /** The repositories builds of this source are building or pushing to now. */
+  busyBuildRepositories?(sourceBindingId: string): Promise<string[]>;
+  /** Whether a build or an Availability operation may push to or pull from the registry now. */
+  hasActiveRegistryUsers?(): Promise<boolean>;
+  /** Whether artifacts were deleted since the last garbage collection, so their layers still take space. */
+  hasUncollectedDeletions?(lastGcAt: Date | null): Promise<boolean>;
 }
 
 class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenanceStore {
@@ -320,11 +298,13 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
   }
 
   async listRetentionArtifacts(now: Date): Promise<RegistryRetentionArtifact[]> {
-    const [artifacts, pins, references] = await Promise.all([
+    const [artifacts, pins, references, bindings] = await Promise.all([
       this.db
         .select({
           id: dockerBuildArtifacts.id,
+          buildId: dockerBuildArtifacts.buildId,
           sourceBindingId: dockerBuildArtifacts.sourceBindingId,
+          ownerKind: dockerBuildArtifacts.ownerKind,
           repository: dockerBuildArtifacts.registryRepository,
           digest: dockerBuildArtifacts.digest,
           createdAt: dockerBuildArtifacts.createdAt,
@@ -336,22 +316,82 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
         .where(inArray(dockerBuildArtifacts.status, ['ready', 'rejected']))
         .orderBy(desc(dockerBuildArtifacts.createdAt)),
       this.db
-        .select({ artifactId: dockerArtifactPins.artifactId })
+        .select({
+          artifactId: dockerArtifactPins.artifactId,
+          kind: dockerArtifactPins.kind,
+          ownerKey: dockerArtifactPins.ownerKey,
+          composeRevisionId: dockerArtifactPins.composeRevisionId,
+        })
         .from(dockerArtifactPins)
         .where(or(isNull(dockerArtifactPins.expiresAt), gt(dockerArtifactPins.expiresAt, now))),
       registryRuntimeReferences(this.db),
+      this.db
+        .select({
+          id: dockerSourceBindings.id,
+          targetKind: dockerSourceBindings.targetKind,
+          nodeId: dockerSourceBindings.nodeId,
+          containerName: dockerSourceBindings.containerName,
+          deploymentId: dockerSourceBindings.deploymentId,
+          composeProjectId: dockerSourceBindings.composeProjectId,
+        })
+        .from(dockerSourceBindings),
     ]);
-    const pinned = new Set(pins.map((pin) => pin.artifactId));
-    return artifacts.map(({ buildStatus, ...artifact }) => ({
-      ...artifact,
-      pinned:
-        pinned.has(artifact.id) ||
-        references.includes(`${artifact.repository}@`) ||
-        references.includes(`${artifact.repository}:`),
-      retainInHistory:
-        artifact.policyDecision === 'approved' &&
-        (buildStatus === 'pushing' || buildStatus === 'deploying' || buildStatus === 'succeeded'),
-    }));
+    return classifyRegistryRetentionArtifacts({ artifacts, pins, references, bindings });
+  }
+
+  async buildSourceBindingId(buildId: string): Promise<string | null> {
+    const [build] = await this.db
+      .select({ sourceBindingId: dockerBuilds.sourceBindingId })
+      .from(dockerBuilds)
+      .where(eq(dockerBuilds.id, buildId))
+      .limit(1);
+    return build?.sourceBindingId ?? null;
+  }
+
+  async busyBuildRepositories(sourceBindingId: string): Promise<string[]> {
+    const builds = await this.db
+      .select({ serviceName: dockerBuilds.serviceName })
+      .from(dockerBuilds)
+      .where(
+        and(
+          eq(dockerBuilds.sourceBindingId, sourceBindingId),
+          inArray(dockerBuilds.status, WORKER_ACTIVE_BUILD_STATUSES)
+        )
+      );
+    // The build worker pushes to `gateway/builds/<source>[/<Compose service>]`. A deploying build's artifact is
+    // recorded already and kept by its in-flight state.
+    return builds.map(({ serviceName }) =>
+      serviceName ? `gateway/builds/${sourceBindingId}/${serviceName}` : `gateway/builds/${sourceBindingId}`
+    );
+  }
+
+  async hasActiveRegistryUsers(): Promise<boolean> {
+    const [[build], [operation]] = await Promise.all([
+      this.db
+        .select({ id: dockerBuilds.id })
+        .from(dockerBuilds)
+        .where(inArray(dockerBuilds.status, ACTIVE_BUILD_STATUSES))
+        .limit(1),
+      this.db
+        .select({ id: dockerAvailabilityOperations.id })
+        .from(dockerAvailabilityOperations)
+        .where(inArray(dockerAvailabilityOperations.status, ['pending', 'running', 'waiting']))
+        .limit(1),
+    ]);
+    return Boolean(build || operation);
+  }
+
+  async hasUncollectedDeletions(lastGcAt: Date | null): Promise<boolean> {
+    const [deleted] = await this.db
+      .select({ id: dockerBuildArtifacts.id })
+      .from(dockerBuildArtifacts)
+      .where(
+        lastGcAt
+          ? and(eq(dockerBuildArtifacts.status, 'deleted'), gt(dockerBuildArtifacts.updatedAt, lastGcAt))
+          : eq(dockerBuildArtifacts.status, 'deleted')
+      )
+      .limit(1);
+    return Boolean(deleted);
   }
 
   async markArtifactDeleted(id: string, now: Date): Promise<void> {

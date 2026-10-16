@@ -119,7 +119,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       structuredLogs: { enabled: true },
       clickHouseInternals: { enabled: true },
       orphanedAIArtifacts: { enabled: true },
-      internalRegistry: { enabled: true, retentionSuccessfulArtifacts: 1 },
+      internalRegistry: { enabled: true, retentionSuccessfulArtifacts: 2 },
       orphanedVolumes: { enabled: true },
       dockerPrune: { enabled: true },
       orphanedCerts: { enabled: true },
@@ -177,7 +177,7 @@ describe('HousekeepingService system certificate cleanup', () => {
     ]);
   });
 
-  it('normalizes persisted registry history retention to one artifact per source', async () => {
+  it('normalizes persisted registry history retention to the fixed two builds per container', async () => {
     const where = vi.fn().mockResolvedValue([
       { key: 'logging:clickhouse', value: { mode: 'local' } },
       { key: 'housekeeping:internal_registry:retention_successful_artifacts', value: 10 },
@@ -192,7 +192,7 @@ describe('HousekeepingService system certificate cleanup', () => {
     );
 
     await expect(service.getConfig()).resolves.toMatchObject({
-      internalRegistry: { enabled: true, retentionSuccessfulArtifacts: 1 },
+      internalRegistry: { enabled: true, retentionSuccessfulArtifacts: 2 },
     });
   });
 
@@ -347,7 +347,6 @@ describe('HousekeepingService system certificate cleanup', () => {
 
     expect(runGarbageCollection).toHaveBeenCalledWith({
       requestedById: 'user-1',
-      retentionCount: 5,
       reason: 'housekeeping run by a user',
     });
     expect(result.categories).toEqual([

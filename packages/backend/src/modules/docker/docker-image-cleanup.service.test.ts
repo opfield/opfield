@@ -35,7 +35,7 @@ describe('DockerImageCleanupService', () => {
     vi.useFakeTimers();
     try {
       const docker = {
-        listImages: vi.fn().mockResolvedValue([
+        listAllImages: vi.fn().mockResolvedValue([
           {
             Id: 'sha-new',
             RepoTags: ['registry.example.com/team/app:new'],
@@ -54,7 +54,7 @@ describe('DockerImageCleanupService', () => {
           { Id: 'sha-in-use', RepoTags: ['registry.example.com/team/app:old-running'], Created: 50 },
         ]),
         listAllContainers: vi.fn().mockResolvedValue([{ ImageID: 'sha-new' }, { ImageID: 'sha-in-use' }]),
-        removeImage: vi.fn().mockResolvedValue(undefined),
+        removeUnusedImage: vi.fn().mockResolvedValue(undefined),
       };
       const db = { select: () => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }) }) };
       const service = new DockerImageCleanupService(db as never, docker as never);
@@ -65,10 +65,10 @@ describe('DockerImageCleanupService', () => {
       await vi.advanceTimersByTimeAsync(5000);
       await cleanup;
 
-      expect(docker.removeImage).toHaveBeenCalledWith('node-1', 'sha-old', false, null);
-      expect(docker.removeImage).not.toHaveBeenCalledWith('node-1', 'sha-previous', false, null);
-      expect(docker.removeImage).not.toHaveBeenCalledWith('node-1', 'sha-new', false, null);
-      expect(docker.removeImage).not.toHaveBeenCalledWith('node-1', 'sha-in-use', false, null);
+      expect(docker.removeUnusedImage).toHaveBeenCalledWith('node-1', 'sha-old', null);
+      expect(docker.removeUnusedImage).not.toHaveBeenCalledWith('node-1', 'sha-previous', null);
+      expect(docker.removeUnusedImage).not.toHaveBeenCalledWith('node-1', 'sha-new', null);
+      expect(docker.removeUnusedImage).not.toHaveBeenCalledWith('node-1', 'sha-in-use', null);
     } finally {
       vi.useRealTimers();
     }

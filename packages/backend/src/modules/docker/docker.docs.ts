@@ -812,6 +812,8 @@ export const pruneImagesRoute = appRoute({
   path: '/nodes/{nodeId}/images/prune',
   tags: ['Docker Images'],
   summary: 'Prune unused images',
+  description:
+    "Removes dangling images, then the node's Git-source build images beyond each container's image cleanup setting (the build it runs and one rollback build by default). Images a container uses are never removed.",
   request: { params: nodeParams },
   responses: okJson(UnknownDataResponseSchema),
 });

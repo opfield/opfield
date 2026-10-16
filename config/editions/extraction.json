@@ -551,7 +551,8 @@
       "path": "modules/docker/docker-build-rollout.service.ts",
       "emptyConstructor": true,
       "emptyMethods": [
-        "setPagesRollout"
+        "setPagesRollout",
+        "setSourceAppliedHandler"
       ],
       "sharedMethods": [
         "recoverInterruptedComposeRollouts"

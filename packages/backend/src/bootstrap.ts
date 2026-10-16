@@ -129,6 +129,8 @@ import {
   createDockerRegistryMaintenanceExecutor,
   DockerInternalRegistryService,
 } from '@/modules/docker/docker-registry-internal.service.js';
+import { createDockerRegistryMaintenanceStore } from '@/modules/docker/docker-registry-maintenance.js';
+import { registryRetainedDigestKeys } from '@/modules/docker/docker-registry-retention.js';
 import { DockerRegistryTokenService } from '@/modules/docker/docker-registry-token.service.js';
 import { DockerRuntimeSettingsService } from '@/modules/docker/docker-runtime-settings.service.js';
 import { DockerSecretService } from '@/modules/docker/docker-secret.service.js';
@@ -1091,6 +1093,11 @@ export async function initializeContainer(): Promise<void> {
   container.registerInstance(DockerImageCleanupService, dockerImageCleanupService);
   dockerManagementService.setImageCleanupService(dockerImageCleanupService);
   dockerDeploymentService.setImageCleanupService(dockerImageCleanupService);
+  // A node keeps the images of the builds the internal registry keeps (each container's running and rollback build).
+  const registryRetentionStore = createDockerRegistryMaintenanceStore(db);
+  dockerImageCleanupService.setProtectedDigestsProvider(async () =>
+    registryRetainedDigestKeys(await registryRetentionStore.listRetentionArtifacts(new Date()))
+  );
   const dockerWebhookService = new DockerWebhookService(
     db,
     dockerManagementService,
@@ -1113,11 +1120,13 @@ export async function initializeContainer(): Promise<void> {
     commercialEdition.createDockerBuild('DockerBuildQuery', [db], dockerBuildCommercialRuntime)
   );
   dockerBuildService.setEventBus(eventBus);
-  if (relayRegistryService) {
-    dockerBuildService.setBuildReleaseHandler((buildId) =>
-      relayRegistryService.revokeContextBinding({ contextKind: 'build', contextId: buildId })
-    );
-  }
+  dockerBuildService.setBuildReleaseHandler(async (buildId) => {
+    // Runs in the background: the registry drops the builds beyond the running and the rollback one per container.
+    dockerInternalRegistryService.buildFinished(buildId);
+    // And every Docker node drops the source's build images beyond each container's image cleanup setting.
+    dockerImageCleanupService.buildFinished(buildId);
+    await relayRegistryService?.revokeContextBinding({ contextKind: 'build', contextId: buildId });
+  });
   container.registerInstance(DockerBuildService, dockerBuildService);
   const dockerBuildRunnerService = relayRegistryService
     ? commercialEdition.createDockerBuild(
@@ -1147,6 +1156,11 @@ export async function initializeContainer(): Promise<void> {
     dockerBuildService.setArtifactRollout((buildId, leaseOwner, operationId) =>
       dockerBuildRolloutService.rollout(buildId, leaseOwner, operationId)
     );
+    // A Compose batch applied or recovered outside its builds' transitions: its source keeps two builds per service.
+    dockerBuildRolloutService.setSourceAppliedHandler((sourceBindingId) => {
+      dockerInternalRegistryService.sourceApplied(sourceBindingId);
+      dockerImageCleanupService.sourceApplied(sourceBindingId);
+    });
   }
   const dockerSourceService = commercialEdition.createDockerSourceService(
     DockerSourceService,
@@ -2434,6 +2448,7 @@ export async function initializeContainer(): Promise<void> {
   const housekeepingService = new HousekeepingService(db, dockerService, nodeDispatch, env);
   housekeepingService.setSandboxArtifactService(aiSandboxArtifactService);
   housekeepingService.setDockerManagementService(dockerManagementService);
+  housekeepingService.setImageCleanupService(dockerImageCleanupService);
   housekeepingService.setLoggingMaintenanceService(loggingMaintenanceService, loggingFeatureService);
   housekeepingService.setSystemCertificateLifecycleService(systemCertificateLifecycleService);
   housekeepingService.setPagesMaintenanceService(pageMaintenanceService);

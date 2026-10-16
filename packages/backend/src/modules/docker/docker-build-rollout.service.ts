@@ -17,6 +17,7 @@ export class DockerBuildRolloutService {
     _auth?: Pick<AuthService, 'getUserById'> | undefined
   ) {}
   setPagesRollout(_service: PageBuildRolloutService): void {}
+  setSourceAppliedHandler(_handler: (sourceBindingId: string) => void): void {}
   async rollout(
     _buildId: string,
     _leaseOwner: string,

@@ -105,7 +105,6 @@ import {
 } from '@/modules/docker/docker-volume-snapshot-reads.js';
 import { IntegrationsService } from '@/modules/integrations/integrations.service.js';
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
-import { HousekeepingService } from '@/services/housekeeping.service.js';
 import { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { User } from '@/types.js';
 import { inspectConsoleCommand, parseConsoleCommandResult } from './ai.console-safety.js';
@@ -1110,11 +1109,9 @@ async function manageDockerRegistry(context: DockerToolContext, user: User, args
       );
     case 'internal_gc': {
       context.ensureToolScope(user, 'docker:registries:edit');
-      const housekeepingConfig = await container.resolve(HousekeepingService).getConfig();
       return container.resolve(DockerInternalRegistryService).runGarbageCollection({
         dryRun: a.dryRun === true,
         requestedById: user.id,
-        retentionCount: housekeepingConfig.internalRegistry.retentionSuccessfulArtifacts,
       });
     }
     case 'internal_resume_maintenance':

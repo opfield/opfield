@@ -594,7 +594,7 @@ Automated cleanup tasks, configurable in Settings.
   - Orphaned AI Artifacts: delete files no longer attached to a chat.
   - Orphaned Certs: remove unreferenced certificate files.
   - ACME Challenges: clean up old validation tokens.
-  - Docker Prune: remove unused Docker images.
+  - Docker Prune (dockerPrune, on by default): old Opfield images on the Opfield host, obsolete connector images, and on every online Docker node the dangling images and the Git-source build images beyond each container's image cleanup setting (the running build and one rollback build by default). Existing installs are cleaned on the first run.
   - Operation History (operationHistory, default 90 days): finished Docker container tasks after a day; finished builds with their logs, compose, availability and hosting operations and source webhook deliveries after the retention. Each resource keeps its 10 latest runs, and rows still referenced (a live build artifact, a hosted node's origin, a snapshot) stay.
   - Expired OAuth Grants (oauthCleanup): expired OAuth codes and tokens (refresh tokens once expired), and OAuth client registrations that never completed an authorization, after 30 days. A client that was ever granted is never removed.
   - Expired Tokens (expiredTokens, default 7 days, 0 removes at once): API and inference tokens whose expiry passed that many days ago. Until then they are listed as Expired and refused like revoked ones; the audit log keeps their history and records each removal.

@@ -44,7 +44,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
           },
           clickHouseInternals: { enabled: true, maxSizeBytes: 512 * 1024 ** 2 },
           orphanedAIArtifacts: { enabled: true },
-          internalRegistry: { enabled: true, retentionSuccessfulArtifacts: 1 },
+          internalRegistry: { enabled: true, retentionSuccessfulArtifacts: 2 },
           orphanedVolumes: { enabled: true, retentionDays: 30 },
           dockerPrune: { enabled: true },
           orphanedCerts: { enabled: true },
@@ -522,7 +522,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
             />
             <HousekeepingCard
               label="Internal Registry"
-              description="Garbage-collect unreferenced build artifacts"
+              description="Remove old build artifacts and their image layers"
               stat={hkStats ? formatBytes(hkStats.internalRegistry.totalSizeBytes) : "..."}
               statDetail="used"
               enabled
@@ -534,7 +534,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
               inlineControls={
                 <>
                   <span>&middot;</span>
-                  <span>keep latest artifact per source</span>
+                  <span>2 per container (running + rollback)</span>
                 </>
               }
             />
@@ -675,7 +675,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
             />
             <HousekeepingCard
               label="Docker Images"
-              description="Prune old Opfield images"
+              description="Prune old Opfield and build images on all nodes"
               stat={hkStats ? String(hkStats.dockerImages.oldImageCount) : "..."}
               statDetail={
                 hkStats ? `old (${formatBytes(hkStats.dockerImages.reclaimableBytes)})` : "old"

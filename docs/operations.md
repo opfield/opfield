@@ -422,6 +422,17 @@ Operational notes:
 - Supported image attachments and generated artifacts are stored and previewed through Opfield-managed artifact routes.
 - Each Work Session can have one active plan. Plans in separate Work Sessions can execute independently.
 
+## Docker Image Cleanup
+
+Old images stay on a Docker node until something removes them, and Git-source builds add one per deploy. Opfield keeps per container or blue/green deployment the image it runs plus older ones up to its **Image Cleanup** setting (**Settings** of the container or deployment; on by default, **Keep last N versions** 2, the running one included):
+
+- After an image change (a Git-source build deploy, an update, a recreate, a webhook deploy) the node removes the older images of that repository at once. Git-source build images, pulled by digest from the internal registry, count like tagged ones.
+- When a Git-source build finishes or a Compose batch is applied, every online Docker node removes that source's older build images, so Availability replicas and Compose services on other nodes keep their running build and one to roll back to as well.
+- Images a container uses (running or stopped) are never removed, and neither are the builds the internal registry keeps for rollback. Blue/green deployments keep both slots' images.
+- **Housekeeping > Docker Images** (on by default) applies the same setting to the build images on every online Docker node on each run and removes dangling images (no tag, no digest, unused); its card counts them. Nodes that kept old builds from earlier releases are cleaned on the first run after the update.
+- **Prune** on a node's Images removes dangling images and applies the same build-image rule; it never removes the builds containers run or roll back to.
+- A container or deployment with Image Cleanup turned off keeps all its images.
+
 ## Notifications And Status Pages
 
 Opfield supports operational notification workflows:
@@ -434,6 +445,8 @@ Opfield supports operational notification workflows:
 - Certificate, domain, health, and runtime alerts.
 
 Use status pages for externally visible service health and incidents. Use notifications for internal operational alerts.
+
+Two built-in rules watch disk space out of the box: **Node disk almost full** (Node category, root disk `/` at 85% or more on any node) and **Opfield disk almost full** (Opfield category, the Opfield host's data disk at 85% or more). The upgrade creates them enabled, notifying the webhooks the existing node and Opfield rules notify; on a new install, pick their webhooks in **Notifications > Alerts**. Change the threshold or turn them off there.
 
 Notification message and webhook templates use one canonical nested context. Common families are `notification.*`, `alert.*`, `resource.*`, `metric.*`, `node.*`, `health.*`, `certificate.*`, `state.*`, `event.*`, `operation.*`, `failure.*`, `details.*`, `fired.*`, `resolution.*`, and `gateway.*`. For example, use `{{notification.title}}`, `{{alert.severity.emoji}}`, `{{metric.value}}`, and `{{fired.duration}}` (how long the alert lasted, such as `3m 37s`; `{{fired.duration.seconds}}` is the number of seconds). Historical flat names such as `alert_name`, `value`, `threshold`, `fired_at`, and `fired_duration` are not aliases and render empty. The `coalesce` helper can select the first non-empty nested value.
 

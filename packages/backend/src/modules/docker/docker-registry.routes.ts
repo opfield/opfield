@@ -2,7 +2,6 @@ import type { OpenAPIHono } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { container } from '@/container.js';
 import { requireScope } from '@/modules/auth/auth.middleware.js';
-import { HousekeepingService } from '@/services/housekeeping.service.js';
 import type { AppEnv } from '@/types.js';
 import {
   createRegistryRoute,
@@ -43,11 +42,9 @@ export function registerRegistryRoutes(router: OpenAPIHono<AppEnv>) {
 
   router.openapi({ ...runInternalRegistryGcRoute, middleware: requireScope('docker:registries:edit') }, async (c) => {
     const input = z.object({ dryRun: z.boolean().default(false) }).parse(await c.req.json().catch(() => ({})));
-    const housekeepingConfig = await container.resolve(HousekeepingService).getConfig();
     const data = await container.resolve(DockerInternalRegistryService).runGarbageCollection({
       dryRun: input.dryRun,
       requestedById: c.get('user')!.id,
-      retentionCount: housekeepingConfig.internalRegistry.retentionSuccessfulArtifacts,
     });
     return c.json({ data });
   });
