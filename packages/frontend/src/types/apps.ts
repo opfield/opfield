@@ -268,10 +268,17 @@ export type AppOverviewRange = "1h" | "24h";
 export interface AppOverviewIssue {
   family: AppMemberFamily;
   /**
-   * stopped: stopped on request; disabled, maintenance (routes) and starting (a health check that has not reported):
-   * shown, but they do not change the health.
+   * stopped: stopped on request; disabled, maintenance (routes), starting (a health check that has not reported) and
+   * not_started (a Pages project before its first deployment is ready): shown, but they do not change the health.
    */
-  state: "failing" | "degraded" | "stopped" | "disabled" | "maintenance" | "starting";
+  state:
+    | "failing"
+    | "degraded"
+    | "stopped"
+    | "disabled"
+    | "maintenance"
+    | "starting"
+    | "not_started";
   count: number;
 }
 
@@ -372,6 +379,12 @@ export interface AppOverviewPage {
   slug: string;
   name: string;
   activeDeployment: { id: string; createdAt: string } | null;
+  /**
+   * The same verdict as the project's health. active: a route serves a deployment; preview: no route, a ready
+   * deployment serves its preview URL; not_started: no deployment is ready yet; not_serving: none of these.
+   * Older servers leave it out.
+   */
+  state?: "active" | "preview" | "not_started" | "not_serving";
   /** Routes that serve the project; its requests are theirs. */
   routes?: number;
   requestsPerSecond: number | null;

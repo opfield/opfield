@@ -14,6 +14,7 @@ import {
   healthFromStatus,
   type MemberStatus,
   oomKilledOf,
+  pagesState,
   recentRestartsOf,
   withAvailabilityState,
   workloadKey,
@@ -317,5 +318,66 @@ describe('environment assessment (Apps list and overview)', () => {
     expect(other.health).toBe('failing');
     expect(remote).toMatchObject({ health: 'degraded', reason: 'Its node is unreachable' });
     expect(container.health).toBe('stopped');
+  });
+});
+
+describe('Pages project health', () => {
+  const route = (status: string, routeEnabled = true, activeDeploymentId: string | null = 'dep-1') => ({
+    status,
+    routeEnabled,
+    activeDeploymentId,
+  });
+  const ready = { status: 'ready', previewHostname: 'a1b2c3.pages.example.com' };
+
+  it('with a route: healthy only while an enabled route serves an active deployment', () => {
+    expect(pagesState({ routes: [route('ready')], previewsEnabled: true, deployments: [ready] })).toEqual({
+      health: 'healthy',
+    });
+    expect(pagesState({ routes: [route('ready', false)], previewsEnabled: true, deployments: [ready] })).toMatchObject({
+      health: 'degraded',
+    });
+    expect(
+      pagesState({ routes: [route('pending', true, null)], previewsEnabled: true, deployments: [ready] })
+    ).toMatchObject({ health: 'degraded' });
+  });
+
+  it('without a route: a ready deployment with a preview URL is healthy', () => {
+    expect(pagesState({ routes: [], previewsEnabled: true, deployments: [ready] })).toEqual({ health: 'healthy' });
+  });
+
+  it('without a route and before the first ready deployment: neutral, not started', () => {
+    const notStarted = { health: 'none', neutral: 'not_started' };
+    expect(pagesState({ routes: [], previewsEnabled: true, deployments: [] })).toEqual(notStarted);
+    expect(
+      pagesState({
+        routes: [],
+        previewsEnabled: true,
+        deployments: [{ status: 'uploading', previewHostname: null }],
+      })
+    ).toEqual(notStarted);
+    expect(pagesState({ routes: [], previewsEnabled: true, deployments: [{ ...ready, status: 'deleted' }] })).toEqual(
+      notStarted
+    );
+  });
+
+  it('without a route and nothing served: degraded', () => {
+    expect(
+      pagesState({ routes: [], previewsEnabled: true, deployments: [{ status: 'failed', previewHostname: null }] })
+    ).toMatchObject({ health: 'degraded', reason: 'Not serving: no deployment is ready' });
+    expect(pagesState({ routes: [], previewsEnabled: false, deployments: [ready] })).toMatchObject({
+      health: 'degraded',
+      reason: 'Not serving: it has no route and no preview URL',
+    });
+  });
+
+  it('a project not started yet leaves the environment healthy', () => {
+    const member = (id: string) => ({ type: 'pages' as const, id, name: id });
+    const healthy = assessEnvironment({
+      envName: 'prod',
+      statuses: [{ member: member('site'), ...pagesState({ routes: [], previewsEnabled: true, deployments: [] }) }],
+      signals: new Map(),
+    });
+    expect(healthy.health).toBe('healthy');
+    expect(healthy.issues).toEqual([{ family: 'pages', state: 'not_started', count: 1 }]);
   });
 });
