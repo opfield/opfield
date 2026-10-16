@@ -216,6 +216,8 @@ export interface HealthReport {
     usagePercent: number;
     /** root, docker_root, opfield_state, managed_image or data; empty from daemons before 2.12.3. */
     role?: string;
+    /** The filesystem's identity on its host, shared by the nodes enrolled there (field 20); empty before 2.12.3. */
+    diskId?: string;
   }>;
   diskReadBytes: string;
   diskWriteBytes: string;
@@ -262,6 +264,17 @@ export interface HealthReport {
   availabilityMembers?: AvailabilityMemberReport[];
   /** Nginx daemons advertising nginx_log_budget_v1: the nginx logs their log budget bounds (field 210). */
   nginxLogs?: NginxLogUsage | null;
+  /** Docker daemons of 2.12.3 and later (not build workers): whether Docker can start containers (field 215). */
+  dockerEngineHealth?: DockerEngineHealth | null;
+}
+
+/** Whether a node's Docker Engine can start containers. int64 fields arrive as strings. */
+export interface DockerEngineHealth {
+  available: boolean;
+  component?: string;
+  problem?: string;
+  checkedAtUnixMs?: string | number;
+  unavailableSinceUnixMs?: string | number;
 }
 
 /** The nginx logs a daemon bounds (nginx_log_budget_v1). uint64/int64 fields may arrive as strings. */

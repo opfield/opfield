@@ -1,4 +1,9 @@
-import { isPerDeviceNodeMetric, NODE_DATA_DISKS_TARGET, ROUTE_SHARE_MIN_REQUESTS } from './notification-catalog.js';
+import {
+  DOCKER_ENGINE_UNAVAILABLE_METRIC,
+  isPerDeviceNodeMetric,
+  NODE_DATA_DISKS_TARGET,
+  ROUTE_SHARE_MIN_REQUESTS,
+} from './notification-catalog.js';
 
 // ── Threshold Metric Extraction ───────────────────────────────────────
 
@@ -45,6 +50,12 @@ export function extractMetricFromHealthReport(
             value: m.usagePercent ?? m.usage_percent ?? 0,
           })),
         };
+      }
+      case DOCKER_ENGINE_UNAVAILABLE_METRIC: {
+        // Docker daemons of 2.12.3 and later report whether their engine can start containers; 1 while it cannot.
+        const engine = healthData.dockerEngine;
+        if (!engine || typeof engine.available !== 'boolean') return null;
+        return { values: [{ resourceId: 'docker', value: engine.available ? 0 : 1 }] };
       }
       case 'managed_disk_promised_pct': {
         // Only storage-profile nodes report it (the managed storage root), and only daemons since 2.12.3 past 100.

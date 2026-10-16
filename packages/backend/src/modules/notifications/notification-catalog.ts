@@ -216,6 +216,9 @@ export const ROUTE_TRAFFIC_METRICS: MetricDefinition[] = [
 /** Requests a minute needs before its 4xx/5xx share counts; see ROUTE_TRAFFIC_METRICS. */
 export const ROUTE_SHARE_MIN_REQUESTS = 10;
 
+/** Node metric: 1 while the node's Docker Engine cannot start containers (HealthReport.docker_engine_health). */
+export const DOCKER_ENGINE_UNAVAILABLE_METRIC = 'docker_engine_unavailable';
+
 /**
  * metricTarget of a node disk rule that watches every data disk of the node: each mount except Opfield's own disk
  * images of managed databases, storage and volumes (sized on purpose, with their own metrics). Each disk fires and
@@ -338,6 +341,15 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
         defaultOperator: '>',
         defaultValue: 100,
       },
+      // 1 while the node's Docker Engine cannot start containers (dockerd or its containerd does not answer): running
+      // containers keep running, but every new start, deploy and restart fails. Docker daemons of 2.12.3 and later.
+      {
+        id: DOCKER_ENGINE_UNAVAILABLE_METRIC,
+        label: 'Docker Engine Unavailable',
+        unit: 'state',
+        defaultOperator: '>=',
+        defaultValue: 1,
+      },
       {
         id: 'gpu_utilization_percent',
         label: 'GPU Utilization (%)',
@@ -394,13 +406,21 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { id: 'online', label: 'Node Online', defaultSeverity: 'info', supportsThreshold: true, recovery: true },
     ],
     variables: [
-      { name: '{{resource.name}}', description: 'Node hostname' },
+      { name: '{{resource.name}}', description: 'Node name (its display name, else its hostname)' },
       { name: '{{resource.id}}', description: 'Node ID' },
       { name: '{{resource.key}}', description: 'Internal alert resource key' },
       { name: '{{node.id}}', description: 'Node ID' },
-      { name: '{{node.name}}', description: 'Node hostname' },
+      { name: '{{node.name}}', description: 'Node name (its display name, else its hostname)' },
       { name: '{{metric.name}}', description: 'Metric name (CPU, memory, disk, or GPU metric)' },
       { name: '{{details.mount}}', description: 'Mount point of the disk (disk rules), such as / or /var/lib/docker' },
+      {
+        name: '{{details.nodes}}',
+        description: 'Every node that reports the disk (disk rules): nodes enrolled on one host share their disks',
+      },
+      {
+        name: '{{details.problem}}',
+        description: 'What fails (Docker Engine Unavailable), such as containerd not answering on its socket',
+      },
       { name: '{{metric.value}}', description: 'Current metric value' },
       { name: '{{metric.threshold}}', description: 'Configured threshold' },
       { name: '{{metric.operator}}', description: 'Comparison operator' },

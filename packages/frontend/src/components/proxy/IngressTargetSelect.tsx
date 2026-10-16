@@ -15,6 +15,7 @@ import type { RouteIngressGroupOption } from "@/types";
 export interface IngressTargetNodeOption {
   id: string;
   hostname: string;
+  displayName?: string | null;
   status: string;
   type: string;
   serviceCreationLocked: boolean;
@@ -113,7 +114,9 @@ export function IngressTargetSelect({
             <span className="min-w-0 flex-1 truncate">Ingress group</span>
           ) : selectedNode ? (
             <div className="flex min-w-0 items-center gap-3 pr-2">
-              <span className="min-w-0 flex-1 truncate">{selectedNode.hostname}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {selectedNode.displayName || selectedNode.hostname}
+              </span>
               <Badge variant="secondary" size="inline" className="shrink-0">
                 {nodeTypeLabel(selectedNode.type)}
               </Badge>
@@ -145,7 +148,7 @@ export function IngressTargetSelect({
             {nodes.map((node) => (
               <SelectItem key={node.id} value={node.id} disabled={locked(node)}>
                 <div className="flex w-full items-center justify-between gap-3">
-                  <span className="min-w-0 truncate">{node.hostname}</span>
+                  <span className="min-w-0 truncate">{node.displayName || node.hostname}</span>
                   <Badge variant="secondary" size="inline">
                     {nodeTypeLabel(node.type)}
                   </Badge>

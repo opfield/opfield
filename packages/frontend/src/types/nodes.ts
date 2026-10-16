@@ -131,6 +131,14 @@ export interface NodeHealthReport {
   legacyNames?: Record<string, number>;
   /** Docker daemons that report it: the version of the node's lease watchdog, which updates on its own schedule. */
   leaseWatchdogVersion?: string;
+  /** Docker daemons of 2.12.3 and later: whether the Docker Engine can start containers, and what fails if not. */
+  dockerEngine?: {
+    available: boolean;
+    component?: string;
+    problem?: string;
+    checkedAt?: string;
+    unavailableSince?: string;
+  };
 }
 
 /** Connections across a daemon update, as the daemon reports them; cut classes are an open set. */

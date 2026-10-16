@@ -21,6 +21,7 @@ import { backgroundWrites } from '@/services/background-writes.js';
 import { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';
 import { MANAGED_AVAILABILITY_MEMBER_CAPABILITY } from '@/services/node-dispatch.service.js';
 import { nodeHostAccessFlags } from '@/services/node-host-access.js';
+import { NODE_CONNECTION_PATTERNS } from '@/services/node-registry.service.js';
 import { bumpRelayPolicyRevision } from '@/services/relay-policy-reconciler.js';
 import { reportedPolicySigningKeyIds } from '@/services/relay-policy-signing-key.service.js';
 import { reportedRelayServiceEndpoint } from '@/services/relay-service-endpoint.js';
@@ -30,6 +31,7 @@ import { matchEnrolledNodeCertificate, promotePendingNodeCertificate } from '../
 import type { GrpcServerDeps } from '../server.js';
 import {
   decodeHealthDiskMounts,
+  dockerEngineHealth,
   managedLinkHealth,
   relayLatencyHealth,
   relayStreamHealth,
@@ -1270,6 +1272,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   ? { legacyNames: legacyNameCounts(msg.healthReport.legacyNames) as Record<string, number> }
                   : {}),
                 ...leaseWatchdogVersion(msg.healthReport),
+                ...dockerEngineHealth(msg.healthReport),
                 ...nginxLogUsageHealth(msg.healthReport),
                 // Docker-specific fields
                 ...(msg.healthReport.dockerVersion ? { dockerVersion: msg.healthReport.dockerVersion } : {}),
@@ -1382,8 +1385,13 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   .observeStatefulEvent(
                     'node',
                     'online',
-                    { type: 'node', id: activeNodeId, name: connectedNode?.hostname ?? activeNodeId },
-                    { hostname: connectedNode?.hostname ?? activeNodeId }
+                    {
+                      type: 'node',
+                      id: activeNodeId,
+                      name: deps.registry.nodeName?.(activeNodeId) ?? connectedNode?.hostname ?? activeNodeId,
+                    },
+                    { hostname: deps.registry.nodeName?.(activeNodeId) ?? connectedNode?.hostname ?? activeNodeId },
+                    NODE_CONNECTION_PATTERNS
                   )
                   .catch((err) => {
                     logger.error('Stateful event observation failed', {
@@ -1429,8 +1437,11 @@ export function createControlHandlers(deps: GrpcServerDeps) {
               const nowMs = Date.now();
               const lastTs = lastRecordedTs.get(activeNodeId) ?? 0;
               if (nowMs - lastTs >= HEALTH_HISTORY_MIN_INTERVAL_MS) {
+                // A Docker node whose engine cannot start containers (containerd down) is degraded, not online.
                 const isHealthy =
-                  connectedNode?.type === 'nginx' ? healthData.nginxRunning && healthData.configValid : true;
+                  connectedNode?.type === 'nginx'
+                    ? healthData.nginxRunning && healthData.configValid
+                    : healthData.dockerEngine?.available !== false;
                 const status = isHealthy ? 'online' : 'degraded';
 
                 try {

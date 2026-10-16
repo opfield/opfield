@@ -22,7 +22,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { useRealtime } from "@/hooks/use-realtime";
 import { DATABASE_TYPE_LABELS } from "@/lib/database-type";
 import { RELAY_LEGACY_HOST_NAMES_HINT, relayLegacyHostNameCount } from "@/lib/node-host-access";
-import { formatBytes, formatUptime } from "@/lib/utils";
+import { formatBytes, formatDateTime, formatUptime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import {
@@ -464,6 +464,18 @@ export function NodeMonitoringTab({
           {nodeType === "relay" && relayLegacyHostNameCount(health?.legacyNames) > 0
             ? RELAY_LEGACY_HOST_NAMES_HINT
             : "They are renamed when they are next recreated. Nothing needs to be done."}
+        </Notice>
+      )}
+      {health?.dockerEngine?.available === false && (
+        <Notice tone="destructive" title="Docker cannot start containers on this node">
+          <span className="break-words">
+            {health.dockerEngine.problem || "The Docker Engine does not answer."}
+            {health.dockerEngine.unavailableSince
+              ? ` Since ${formatDateTime(health.dockerEngine.unavailableSince)}.`
+              : ""}{" "}
+            Running containers keep running; new containers, deploys, restarts and builds fail until
+            it is fixed on the node.
+          </span>
         </Notice>
       )}
       {nodeType === "nginx" && health?.nginxServiceProblem && (

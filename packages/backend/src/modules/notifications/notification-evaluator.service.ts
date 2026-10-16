@@ -39,7 +39,7 @@ import {
   type WindowProbeSample,
 } from './notification.constants.js';
 import type { NotificationAlertRuleService } from './notification-alert-rule.service.js';
-import { isRecoveryEvent } from './notification-catalog.js';
+import { DOCKER_ENGINE_UNAVAILABLE_METRIC, isRecoveryEvent } from './notification-catalog.js';
 import {
   type DispatchResult,
   type DispatchWebhook,
@@ -192,6 +192,11 @@ export interface MetricSnapshot {
   /** Scalar values for {{details.*}}. */
   details?: Record<string, string | number | boolean | null>;
 }
+
+/** A disk several enrolled nodes report: the key of its one alert and the names of the nodes. */
+type SharedDisk = { key: string; names: string };
+/** A node that has not reported a disk for this long no longer shares it (deleted, moved, or offline). */
+const DISK_SHARER_FRESH_MS = 5 * 60_000;
 
 type TemplateDetails = Partial<
   Pick<
@@ -347,6 +352,7 @@ export class NotificationEvaluatorService {
 
   async evaluateHealthReport(nodeId: string, healthData: any): Promise<void> {
     recordNodeCapacitySample(nodeId, healthData);
+    this.recordDiskSharers(nodeId, healthData);
     const rules = await this.getThresholdRules();
     if (rules.length === 0) return;
 
@@ -374,10 +380,18 @@ export class NotificationEvaluatorService {
           if (!rule.resourceIds.includes(resourceId)) continue;
         }
 
-        const compositeResourceId =
+        let compositeResourceId =
           rule.category === 'container' || rule.metric === 'disk' || isPerDeviceNodeMetric(rule.metric)
             ? `${nodeId}:${resourceId}`
             : nodeId;
+        // A disk several enrolled nodes share (one host) alerts once, naming them all (rc.2 O-1).
+        let shared: SharedDisk | null = null;
+        if (rule.category === 'node' && rule.metric === 'disk') {
+          const disk = await this.sharedDiskFor(rule, nodeId, healthData, resourceId);
+          if (disk === 'skip') continue;
+          shared = disk;
+          if (shared) compositeResourceId = shared.key;
+        }
 
         if (Number.isNaN(value)) {
           logger.warn('Skipping NaN metric value', { ruleId: rule.id, metric: rule.metric, resourceId });
@@ -403,9 +417,15 @@ export class NotificationEvaluatorService {
           Math.max(rule.durationSeconds ?? 0, rule.resolveAfterSeconds ?? 0) * 1000
         );
 
-        // A disk rule watches several disks of a node: {{details.mount}} names the one.
+        // A disk rule watches several disks of a node: {{details.mount}} names the one; a shared disk names its nodes.
         const details: TemplateDetails =
-          rule.category === 'node' && rule.metric === 'disk' ? { details: { mount: resourceId } } : {};
+          rule.category === 'node' && rule.metric === 'disk'
+            ? shared
+              ? { details: { mount: resourceId, nodes: shared.names }, node: { id: nodeId, name: shared.names } }
+              : { details: { mount: resourceId } }
+            : rule.category === 'node' && rule.metric === DOCKER_ENGINE_UNAVAILABLE_METRIC
+              ? { details: { problem: healthData.dockerEngine?.problem ?? 'the Docker Engine does not answer' } }
+              : {};
         if (breached) {
           if (!this.sustainedNodeMetricBreach(rule, compositeResourceId)) continue;
           await this.handleThresholdBreach(rule, compositeResourceId, value, nodeId, resourceId, details);
@@ -415,6 +435,72 @@ export class NotificationEvaluatorService {
         }
       }
     }
+  }
+
+  /** Nodes that recently reported each disk (by DiskMount.disk_id): nodes enrolled on one host share their disks. */
+  private readonly diskSharers = new Map<string, Map<string, { mount: string; seenAt: number }>>();
+
+  private recordDiskSharers(nodeId: string, healthData: any, now = Date.now()): void {
+    const mounts: any[] = Array.isArray(healthData?.diskMounts) ? healthData.diskMounts : [];
+    for (const mount of mounts) {
+      const diskId = typeof mount?.diskId === 'string' ? mount.diskId : '';
+      if (!diskId) continue;
+      let sharers = this.diskSharers.get(diskId);
+      if (!sharers) {
+        sharers = new Map();
+        this.diskSharers.set(diskId, sharers);
+      }
+      sharers.set(nodeId, { mount: String(mount.mountPoint ?? '/'), seenAt: now });
+    }
+    // Disks no node reported for a while (nodes deleted or moved) are forgotten.
+    for (const [diskId, sharers] of this.diskSharers) {
+      for (const [sharer, entry] of sharers) if (now - entry.seenAt > DISK_SHARER_FRESH_MS) sharers.delete(sharer);
+      if (sharers.size === 0) this.diskSharers.delete(diskId);
+    }
+  }
+
+  /**
+   * The shared alert of a disk several nodes of the rule's scope report (its key and their names), 'skip' when another
+   * of them evaluates it (the one with the lowest id, so two reports never race to fire it), null for a disk only this
+   * node reports. A disk whose shared alert still fires stays shared until it resolves. Alerts each node raised for it
+   * before it was known to be shared fold into the shared one.
+   */
+  private async sharedDiskFor(
+    rule: any,
+    nodeId: string,
+    healthData: any,
+    mountPoint: string
+  ): Promise<SharedDisk | 'skip' | null> {
+    const mounts: any[] = Array.isArray(healthData?.diskMounts) ? healthData.diskMounts : [];
+    const diskId = mounts.find((mount) => (mount?.mountPoint ?? '/') === mountPoint)?.diskId;
+    if (typeof diskId !== 'string' || !diskId) return null;
+    const key = `disk:${diskId}`;
+    const now = Date.now();
+    const inScope = (id: string) => !(rule.resourceIds?.length > 0) || rule.resourceIds.includes(id);
+    const sharers = [...(this.diskSharers.get(diskId) ?? new Map()).entries()]
+      .filter(([id, entry]) => now - entry.seenAt <= DISK_SHARER_FRESH_MS && inScope(id))
+      .sort(([left], [right]) => left.localeCompare(right));
+    if (sharers.length <= 1 && !(await this.getActiveAlertState(rule.id, rule.category, key))) return null;
+    if (sharers.length > 0 && sharers[0]![0] !== nodeId) return 'skip';
+    const names = (sharers.length > 0 ? sharers : [[nodeId, { mount: mountPoint, seenAt: now }] as const])
+      .map(([id]) => this.getNodeName(id))
+      .sort((left, right) => left.localeCompare(right))
+      .join(', ');
+    for (const [id, entry] of sharers) {
+      const own = `${id}:${entry.mount}`;
+      const state = await this.getActiveAlertState(rule.id, rule.category, own);
+      if (!state) continue;
+      await this.resolveAlert(
+        state.id,
+        rule,
+        rule.category,
+        own,
+        this.getNodeName(id),
+        { details: { mount: entry.mount, nodes: names }, node: { id, name: this.getNodeName(id) } },
+        { notify: false }
+      );
+    }
+    return { key, names };
   }
 
   /**
@@ -1374,8 +1460,14 @@ export class NotificationEvaluatorService {
       return;
     }
 
-    const nodeName = rule.category === 'node' || rule.category === 'container' ? this.getNodeName(nodeId) : undefined;
-    const resourceName = this.getThresholdResourceName(rule, nodeId, rawResourceId);
+    const nodeName =
+      rule.category === 'node' || rule.category === 'container'
+        ? (extraDetails.node?.name ?? this.getNodeName(nodeId))
+        : undefined;
+    const resourceName =
+      rule.category === 'node' && extraDetails.node?.name
+        ? extraDetails.node.name
+        : this.getThresholdResourceName(rule, nodeId, rawResourceId);
 
     await this.fireAlert(rule, rule.category, compositeResourceId, resourceName, {
       ...extraDetails,
@@ -1442,9 +1534,12 @@ export class NotificationEvaluatorService {
 
     const nodeName =
       rule.category === 'node' || rule.category === 'container'
-        ? this.getNodeName(compositeResourceId.split(':')[0] || compositeResourceId)
+        ? (extraDetails.node?.name ?? this.getNodeName(compositeResourceId.split(':')[0] || compositeResourceId))
         : undefined;
-    const resourceName = this.getThresholdResourceName(rule, sourceId ?? compositeResourceId, rawResourceId);
+    const resourceName =
+      rule.category === 'node' && extraDetails.node?.name
+        ? extraDetails.node.name
+        : this.getThresholdResourceName(rule, sourceId ?? compositeResourceId, rawResourceId);
 
     await this.resolveAlert(existingState.id, rule, rule.category, compositeResourceId, resourceName, {
       ...extraDetails,
@@ -1458,7 +1553,9 @@ export class NotificationEvaluatorService {
       },
       node: {
         id:
-          rule.category === 'node' || rule.category === 'container' ? compositeResourceId.split(':')[0] || null : null,
+          rule.category === 'node' || rule.category === 'container'
+            ? (extraDetails.node?.id ?? (compositeResourceId.split(':')[0] || null))
+            : null,
         name: nodeName ?? null,
       },
       fired: {
@@ -2579,9 +2676,10 @@ export class NotificationEvaluatorService {
     };
   }
 
+  /** The node's display name, else its hostname, as the rest of Opfield names it (rc.2 DB-O-5). */
   private getNodeName(nodeId: string): string {
     const node = this.nodeRegistry.getNode(nodeId);
-    return node?.hostname ?? nodeId;
+    return (node ? node.displayName || node.hostname : undefined) ?? nodeId;
   }
 
   /**
@@ -2590,11 +2688,16 @@ export class NotificationEvaluatorService {
    * (stand rc.9, O-5).
    */
   private async nodeNameOf(nodeId: string): Promise<string> {
-    const live = this.nodeRegistry.getNode(nodeId)?.hostname;
+    const connected = this.nodeRegistry.getNode(nodeId);
+    const live = connected ? connected.displayName || connected.hostname : undefined;
     if (live || !UUID_PATTERN.test(nodeId)) return live ?? nodeId;
     try {
-      const [row] = await this.db.select({ hostname: nodes.hostname }).from(nodes).where(eq(nodes.id, nodeId)).limit(1);
-      return row?.hostname ?? nodeId;
+      const [row] = await this.db
+        .select({ hostname: nodes.hostname, displayName: nodes.displayName })
+        .from(nodes)
+        .where(eq(nodes.id, nodeId))
+        .limit(1);
+      return row?.displayName || row?.hostname || nodeId;
     } catch {
       return nodeId;
     }

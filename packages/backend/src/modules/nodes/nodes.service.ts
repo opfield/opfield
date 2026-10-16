@@ -667,6 +667,7 @@ export class NodesService {
         ...(input.builderSettings !== undefined ? { builderSettings: input.builderSettings } : {}),
       },
     });
+    if (displayNameChanged) this.registry.setDisplayName?.(id, updated.displayName ?? null);
     const slugChange = updated.slug === existing.slug ? {} : { oldSlug: existing.slug, slug: updated.slug };
     this.emitNode(id, 'updated', slugChange);
     if (updated.slug !== existing.slug) {

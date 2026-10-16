@@ -1,4 +1,5 @@
 import type {
+  NodeDockerEngineHealth,
   NodeManagedLinkReport,
   NodeRelayStreamReport,
   NodeUpdateConnectionResult,
@@ -17,6 +18,8 @@ type DecodedHealthDiskMount = {
   usagePercent: number;
   /** What the mount holds (root, docker_root, opfield_state, managed_image, data); absent from older daemons. */
   role?: string;
+  /** The filesystem's identity on its host (shared by the nodes enrolled there); absent from older daemons. */
+  diskId?: string;
 };
 
 type ManagedStorageCapacity = {
@@ -54,6 +57,7 @@ export function decodeHealthDiskMounts(rawMounts: unknown): {
       continue;
     }
     const role = typeof value.role === 'string' ? value.role : '';
+    const diskId = typeof value.diskId === 'string' ? value.diskId : '';
     diskMounts.push({
       mountPoint,
       filesystem,
@@ -63,6 +67,7 @@ export function decodeHealthDiskMounts(rawMounts: unknown): {
       freeBytes: Number(value.freeBytes ?? 0),
       usagePercent: Number(value.usagePercent ?? 0),
       ...(role ? { role } : {}),
+      ...(diskId ? { diskId } : {}),
     });
   }
 
@@ -223,6 +228,36 @@ export function updateConnectionsHealth(raw: unknown): { updateConnections?: Nod
       kept: healthCount(value.kept),
       cut: cutByClass(value.cut),
       ...(lastUpdate ? { lastUpdate } : {}),
+    },
+  };
+}
+
+/**
+ * Whether the node's Docker Engine can start containers (HealthReport.docker_engine_health of docker daemons of 2.12.3
+ * and later); absent from older daemons and build workers, so their reports keep their shape.
+ */
+export function dockerEngineHealth(report: unknown): { dockerEngine?: NodeDockerEngineHealth } {
+  const raw = (report as { dockerEngineHealth?: unknown } | null | undefined)?.dockerEngineHealth as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  if (!raw || typeof raw !== 'object') return {};
+  const isoOf = (value: unknown) => {
+    const ms = Number(value ?? 0);
+    return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : undefined;
+  };
+  const available = raw.available === true;
+  const checkedAt = isoOf(raw.checkedAtUnixMs);
+  const unavailableSince = available ? undefined : isoOf(raw.unavailableSinceUnixMs);
+  const component = !available && typeof raw.component === 'string' && raw.component ? raw.component : undefined;
+  const problem = !available && typeof raw.problem === 'string' && raw.problem ? raw.problem : undefined;
+  return {
+    dockerEngine: {
+      available,
+      ...(component ? { component } : {}),
+      ...(problem ? { problem } : {}),
+      ...(checkedAt ? { checkedAt } : {}),
+      ...(unavailableSince ? { unavailableSince } : {}),
     },
   };
 }
