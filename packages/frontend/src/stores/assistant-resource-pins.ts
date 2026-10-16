@@ -1,5 +1,5 @@
 import { useDashboardBootstrapStore } from "@/stores/dashboard-bootstrap";
-import { usePinnedContainersStore } from "@/stores/pinned-containers";
+import { containerPinKey, usePinnedContainersStore } from "@/stores/pinned-containers";
 import { usePinnedDatabasesStore } from "@/stores/pinned-databases";
 import { usePinnedNodesStore } from "@/stores/pinned-nodes";
 import { usePinnedProxiesStore } from "@/stores/pinned-proxies";
@@ -83,21 +83,24 @@ export function applyAssistantResourcePinAction(result: unknown): boolean {
     }));
   } else {
     if (action.pinned && (!action.nodeId || !action.nodeSlug || !action.name)) return false;
+    // A container is pinned by node and name (its Docker ID changes on every recreate).
+    const key =
+      action.resourceType === "docker_container" && action.nodeId && action.name
+        ? containerPinKey(action.nodeId, action.name)
+        : action.resourceId;
     usePinnedContainersStore.setState((state) => {
       const dashboardContainerIds =
         action.target === "dashboard"
-          ? setId(state.dashboardContainerIds, action.resourceId, action.pinned)
+          ? setId(state.dashboardContainerIds, key, action.pinned)
           : state.dashboardContainerIds;
       const sidebarContainerIds =
         action.target === "sidebar"
-          ? setId(state.sidebarContainerIds, action.resourceId, action.pinned)
+          ? setId(state.sidebarContainerIds, key, action.pinned)
           : state.sidebarContainerIds;
-      const stillPinned =
-        dashboardContainerIds.includes(action.resourceId) ||
-        sidebarContainerIds.includes(action.resourceId);
+      const stillPinned = dashboardContainerIds.includes(key) || sidebarContainerIds.includes(key);
       const containerMeta = { ...state.containerMeta };
       if (action.pinned) {
-        containerMeta[action.resourceId] = {
+        containerMeta[key] = {
           nodeId: action.nodeId!,
           nodeSlug: action.nodeSlug!,
           name: action.name!,
@@ -105,7 +108,7 @@ export function applyAssistantResourcePinAction(result: unknown): boolean {
           kind: action.resourceType === "docker_deployment" ? "deployment" : "container",
         };
       } else if (!stillPinned) {
-        delete containerMeta[action.resourceId];
+        delete containerMeta[key];
       }
       return { dashboardContainerIds, sidebarContainerIds, containerMeta };
     });

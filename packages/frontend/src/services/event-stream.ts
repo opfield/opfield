@@ -12,7 +12,7 @@ import {
 import { useAppStatusStore } from "@/stores/app-status";
 import { useAuthStore } from "@/stores/auth";
 import { useNodesStore } from "@/stores/nodes";
-import { usePinnedContainersStore } from "@/stores/pinned-containers";
+import { containerPinKey, usePinnedContainersStore } from "@/stores/pinned-containers";
 import { usePinnedDatabasesStore } from "@/stores/pinned-databases";
 import { usePinnedNodesStore } from "@/stores/pinned-nodes";
 import { usePinnedProxiesStore } from "@/stores/pinned-proxies";
@@ -286,12 +286,34 @@ class EventStream {
           invalidate("req:/api/docker", "docker:");
           if (msg.channel === "docker.container.changed") {
             const payload = msg.payload as
-              | { action?: string; id?: string; oldId?: string }
+              | {
+                  action?: string;
+                  id?: string;
+                  oldId?: string;
+                  nodeId?: string;
+                  name?: string;
+                  oldName?: string;
+                }
               | undefined;
-            const removedId =
-              payload?.action === "removed" ? (payload.id ?? payload.oldId) : undefined;
-            if (removedId) {
-              usePinnedContainersStore.getState().removePin(removedId);
+            // Container pins are keyed by node and name.
+            const pins = usePinnedContainersStore.getState();
+            if (payload?.action === "removed" && payload.nodeId && payload.name) {
+              pins.removePin(containerPinKey(payload.nodeId, payload.name));
+            } else if (
+              payload?.action === "renamed" &&
+              payload.nodeId &&
+              payload.oldName &&
+              payload.name
+            ) {
+              const oldKey = containerPinKey(payload.nodeId, payload.oldName);
+              const meta = pins.containerMeta[oldKey];
+              if (meta) {
+                const newKey = containerPinKey(payload.nodeId, payload.name);
+                pins.migrateId(oldKey, newKey);
+                usePinnedContainersStore
+                  .getState()
+                  .updateMeta(newKey, { ...meta, name: payload.name });
+              }
             }
           } else if (msg.channel === "docker.deployment.changed") {
             const payload = msg.payload as { action?: string; deploymentId?: string } | undefined;

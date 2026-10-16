@@ -266,10 +266,13 @@ export interface RelayReenrollment extends NodeInstallation {
 }
 
 export interface DashboardPinnedDockerResourceRequest {
+  /** The pin key, echoed back: node and name for a container, the ID for a deployment or a Compose project. */
   id: string;
   nodeId: string;
   kind: "container" | "deployment" | "compose";
   scopeResourceId?: string;
+  /** A container's name: the server finds the container by it (its Docker ID changes on every recreate). */
+  name?: string;
 }
 
 export interface DashboardBootstrapRequest {

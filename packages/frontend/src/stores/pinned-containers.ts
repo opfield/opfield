@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import { useDockerStore } from "@/stores/docker";
 import type { DockerContainer } from "@/types";
 
-type PinnedContainerMeta = {
+export type PinnedContainerMeta = {
   nodeId: string;
   nodeSlug: string;
   name: string;
@@ -12,6 +12,23 @@ type PinnedContainerMeta = {
   kind?: "container" | "deployment" | "compose";
   scopeBase?: "docker:containers:view" | "docker:compose:view";
 };
+
+/**
+ * The key of a container pin: its node and name. Moving a container into an app, a Compose or agent recreate and
+ * every other recreate give it a new Docker ID but keep the name, so the pin follows it. Deployments and Compose
+ * projects are pinned by their own IDs, which recreates keep.
+ */
+export function containerPinKey(nodeId: string, name: string): string {
+  return `${nodeId}/${name.replace(/^\//, "")}`;
+}
+
+/** The key a pin with this metadata has: containers by node and name, deployments and Compose projects by ID. */
+function pinKeyOf(id: string, meta: PinnedContainerMeta): string {
+  const kind = meta.kind ?? "container";
+  return kind === "container" && meta.nodeId && meta.name
+    ? containerPinKey(meta.nodeId, meta.name)
+    : id;
+}
 
 function sameMeta(current: PinnedContainerMeta | undefined, next: PinnedContainerMeta): boolean {
   if (!current) return false;
@@ -25,9 +42,13 @@ function sameMeta(current: PinnedContainerMeta | undefined, next: PinnedContaine
 }
 
 interface PinnedContainersState {
+  /**
+   * Pin keys: `containerPinKey(nodeId, name)` for a container, the ID for a deployment or a Compose project. Every
+   * method below takes these keys.
+   */
   dashboardContainerIds: string[];
   sidebarContainerIds: string[];
-  /** Maps container/deployment ID → metadata for sidebar display */
+  /** Maps pin key → metadata for sidebar display */
   containerMeta: Record<string, PinnedContainerMeta>;
   refreshTick: number;
   toggleDashboard: (containerId: string, meta?: PinnedContainerMeta) => void;
@@ -37,7 +58,7 @@ interface PinnedContainersState {
   isPinnedSidebar: (containerId: string) => boolean;
   /** Update display name / state (e.g. after rename or status change) */
   updateMeta: (containerId: string, meta: PinnedContainerMeta) => void;
-  /** Migrate a pin from an old container ID to a new one (e.g. after recreation) */
+  /** Move a pin to a new key (a container renamed or moved to another node) */
   migrateId: (oldId: string, newId: string) => void;
   /** Remove IDs that no longer exist */
   removeOrphans: (validIds: string[]) => void;
@@ -60,6 +81,33 @@ export function dropPinnedBuilds(state: PersistedPins): PersistedPins {
     containerMeta: Object.fromEntries(
       Object.entries(state.containerMeta ?? {}).filter(([id]) => !builds.has(id))
     ),
+  };
+}
+
+/**
+ * Pins saved before v2 name containers by their Docker ID, which a recreate replaces (moving a container into an app
+ * among them): the pin then pointed at a container that no longer existed, and its page could not unpin it. Re-key
+ * them by node and name, which the metadata of every pin carries. A pin without metadata never showed anywhere and
+ * is dropped.
+ */
+export function keyContainerPinsByName(state: PersistedPins): PersistedPins {
+  const meta = state.containerMeta ?? {};
+  const containerMeta: Record<string, PinnedContainerMeta> = {};
+  const rekey = (ids: string[] | undefined) => {
+    const keys: string[] = [];
+    for (const id of ids ?? []) {
+      const item = meta[id];
+      if (!item) continue;
+      const key = pinKeyOf(id, item);
+      if (!keys.includes(key)) keys.push(key);
+      containerMeta[key] ??= item;
+    }
+    return keys;
+  };
+  return {
+    dashboardContainerIds: rekey(state.dashboardContainerIds),
+    sidebarContainerIds: rekey(state.sidebarContainerIds),
+    containerMeta,
   };
 }
 
@@ -126,10 +174,14 @@ export const usePinnedContainersStore = create<PinnedContainersState>()(
         set((s) => {
           if (oldId === newId) return s;
           const replaceId = (ids: string[]) =>
-            ids.includes(oldId) ? ids.map((id) => (id === oldId ? newId : id)) : ids;
+            ids.includes(oldId)
+              ? ids.includes(newId)
+                ? ids.filter((id) => id !== oldId)
+                : ids.map((id) => (id === oldId ? newId : id))
+              : ids;
           const newMeta = { ...s.containerMeta };
           if (newMeta[oldId]) {
-            newMeta[newId] = newMeta[oldId];
+            newMeta[newId] ??= newMeta[oldId];
             delete newMeta[oldId];
           }
           return {
@@ -164,9 +216,10 @@ export const usePinnedContainersStore = create<PinnedContainersState>()(
     }),
     {
       name: "opfield-pinned-containers",
-      version: 1,
+      version: 2,
       // v1: builds can no longer be pinned (a build is one finished run, so its pin went stale).
-      migrate: (persisted) => dropPinnedBuilds(persisted as PersistedPins),
+      // v2: containers are pinned by node and name instead of their Docker ID.
+      migrate: (persisted) => keyContainerPinsByName(dropPinnedBuilds(persisted as PersistedPins)),
       partialize: (s) => ({
         dashboardContainerIds: s.dashboardContainerIds,
         sidebarContainerIds: s.sidebarContainerIds,
@@ -186,8 +239,10 @@ export function syncPinnedContainerMeta(containers: readonly DockerContainer[]) 
   if (pinnedIds.size === 0) return;
 
   for (const c of containers) {
-    if (!pinnedIds.has(c.id)) continue;
-    const existing = pinned.containerMeta[c.id];
+    const key =
+      c.kind !== "deployment" && c._nodeId && c.name ? containerPinKey(c._nodeId, c.name) : c.id;
+    if (!pinnedIds.has(key)) continue;
+    const existing = pinned.containerMeta[key];
     const effectiveState = (c as any)._transition ?? c.state;
     const effectiveKind = c.kind === "deployment" ? "deployment" : (existing?.kind ?? "container");
     if (
@@ -198,7 +253,7 @@ export function syncPinnedContainerMeta(containers: readonly DockerContainer[]) 
         existing.nodeSlug !== c._nodeSlug ||
         existing.scopeResourceId !== c.scopeResourceId)
     ) {
-      usePinnedContainersStore.getState().updateMeta(c.id, {
+      usePinnedContainersStore.getState().updateMeta(key, {
         ...existing,
         nodeSlug: c._nodeSlug || existing.nodeSlug,
         name: c.name || existing.name,

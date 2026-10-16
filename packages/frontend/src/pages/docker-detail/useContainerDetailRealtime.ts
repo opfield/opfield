@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useRealtime } from "@/hooks/use-realtime";
 import { dockerContainerRoute } from "@/lib/resource-routes";
-import { usePinnedContainersStore } from "@/stores/pinned-containers";
 import { useResolvedPageContext } from "@/stores/resolved-page-context";
 import type { DockerMigration } from "@/types";
 
@@ -145,11 +144,7 @@ export function useContainerDetailRealtime({
         void refreshContainer();
         return;
       }
-      try {
-        if (ev.oldId) usePinnedContainersStore.getState().migrateId(ev.oldId, replacementId);
-      } catch {
-        /* ignore */
-      }
+      // Pins are keyed by node and name, which a recreate keeps.
       onContainerIdChange(replacementId);
       if (pageContextToken != null && nodeId) {
         useResolvedPageContext.getState().resolve(pageContextToken, {

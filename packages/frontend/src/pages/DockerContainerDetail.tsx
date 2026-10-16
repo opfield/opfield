@@ -91,7 +91,7 @@ import {
   requireLicenseFeature,
   usePlanIncludes,
 } from "@/stores/license-paywall";
-import { usePinnedContainersStore } from "@/stores/pinned-containers";
+import { containerPinKey, usePinnedContainersStore } from "@/stores/pinned-containers";
 import { useResolvedPageContext } from "@/stores/resolved-page-context";
 import type {
   AppMembershipRef,
@@ -616,6 +616,8 @@ export function DockerContainerDetail({
   const [pinOpen, setPinOpen] = useState(false);
   const { isPinnedDashboard, isPinnedSidebar, toggleDashboard, toggleSidebar, updateMeta } =
     usePinnedContainersStore();
+  // Pinned by node and name: a recreate (into an app, by Compose, by an agent) changes the Docker ID, not these.
+  const pinKey = nodeId && routeContainerName ? containerPinKey(nodeId, routeContainerName) : null;
   const navigationMigration = (location.state as { dockerMigration?: DockerMigration } | null)
     ?.dockerMigration;
   const migrationHandoff =
@@ -628,10 +630,12 @@ export function DockerContainerDetail({
   const handleMigrationCutover = useCallback(
     (migration: DockerMigration) => {
       if (!migration.targetNodeSlug) return;
-      if (containerId && migration.targetResourceId) {
-        const pins = usePinnedContainersStore.getState();
-        pins.migrateId(containerId, migration.targetResourceId);
-        pins.updateMeta(migration.targetResourceId, {
+      const pins = usePinnedContainersStore.getState();
+      if (pinKey && (pins.isPinnedSidebar(pinKey) || pins.isPinnedDashboard(pinKey))) {
+        const targetKey = containerPinKey(migration.targetNodeId, migration.resourceName);
+        pins.migrateId(pinKey, targetKey);
+        pins.updateMeta(targetKey, {
+          ...usePinnedContainersStore.getState().containerMeta[targetKey],
           nodeId: migration.targetNodeId,
           nodeSlug: migration.targetNodeSlug,
           name: migration.resourceName,
@@ -647,7 +651,7 @@ export function DockerContainerDetail({
         },
       });
     },
-    [activeTab, containerId, location.state, navigate, scopeResourceId]
+    [activeTab, location.state, navigate, pinKey, scopeResourceId]
   );
 
   useEffect(() => {
@@ -711,11 +715,6 @@ export function DockerContainerDetail({
   const adoptReplacementContainerId = useCallback(
     (replacementId: string) => {
       if (!containerId || replacementId === containerId) return;
-      try {
-        usePinnedContainersStore.getState().migrateId(containerId, replacementId);
-      } catch {
-        /* ignore */
-      }
       setContainerId(replacementId);
       clearMutationTransition();
       if (pageContextToken != null && nodeId) {
@@ -779,26 +778,20 @@ export function DockerContainerDetail({
           clearMutationTransition();
         }
         // Keep pinned meta in sync
-        if (containerId && usePinnedContainersStore.getState().isPinnedSidebar(containerId)) {
-          const cName =
-            String((data as any)?.Name ?? "").replace(/^\//, "") || containerId.slice(0, 12);
+        if (pinKey && usePinnedContainersStore.getState().isPinnedSidebar(pinKey)) {
           const cState = (data as any)?._transition ?? (data as any)?.State?.Status ?? "unknown";
-          updateMeta(containerId, {
+          updateMeta(pinKey, {
+            ...usePinnedContainersStore.getState().containerMeta[pinKey],
             nodeId,
             nodeSlug,
-            name: cName,
+            name: routeContainerName,
             state: cState,
             scopeResourceId: String((data as any)?.scopeResourceId ?? ""),
           });
         }
       } catch (err) {
-        if (
-          containerId &&
-          !migrationHandoff &&
-          err instanceof ApiRequestError &&
-          err.status === 404
-        ) {
-          usePinnedContainersStore.getState().removePin(containerId);
+        if (pinKey && !migrationHandoff && err instanceof ApiRequestError && err.status === 404) {
+          usePinnedContainersStore.getState().removePin(pinKey);
         }
         if (!silent) {
           toast.error("Failed to load container");
@@ -816,6 +809,7 @@ export function DockerContainerDetail({
       nodeSlug,
       containerId,
       migrationHandoff,
+      pinKey,
       updateMeta,
       routeContainerName,
       logicalWorkloadIdentity,
@@ -1174,7 +1168,7 @@ export function DockerContainerDetail({
     setPendingHeaderAction("Remove");
     try {
       const pending = await api.removeContainer(nodeId!, containerId!);
-      usePinnedContainersStore.getState().removePin(containerId!);
+      if (pinKey) usePinnedContainersStore.getState().removePin(pinKey);
       toast.success(
         pending ? "Container will be removed once it has stopped" : "Container removed"
       );
@@ -2103,12 +2097,13 @@ export function DockerContainerDetail({
             <SwitchCard
               label="Add to dashboard"
               description="Show compact status on the dashboard"
-              checked={isPinnedDashboard(containerId!)}
+              checked={!!pinKey && isPinnedDashboard(pinKey)}
               onCheckedChange={() => {
-                toggleDashboard(containerId!, {
-                  nodeId: nodeId!,
+                if (!pinKey || !nodeId) return;
+                toggleDashboard(pinKey, {
+                  nodeId,
                   nodeSlug,
-                  name,
+                  name: routeContainerName,
                   state: baseState,
                   scopeResourceId,
                 });
@@ -2119,12 +2114,13 @@ export function DockerContainerDetail({
             <SwitchCard
               label="Add to sidebar"
               description="Quick access link in the sidebar"
-              checked={isPinnedSidebar(containerId!)}
+              checked={!!pinKey && isPinnedSidebar(pinKey)}
               onCheckedChange={() => {
-                toggleSidebar(containerId!, {
-                  nodeId: nodeId!,
+                if (!pinKey || !nodeId) return;
+                toggleSidebar(pinKey, {
+                  nodeId,
                   nodeSlug,
-                  name,
+                  name: routeContainerName,
                   state: baseState,
                   scopeResourceId,
                 });
