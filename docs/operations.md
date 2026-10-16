@@ -446,7 +446,14 @@ Opfield supports operational notification workflows:
 
 Use status pages for externally visible service health and incidents. Use notifications for internal operational alerts.
 
-Two built-in rules watch disk space out of the box: **Node disk almost full** (Node category, root disk `/` at 85% or more on any node) and **Opfield disk almost full** (Opfield category, the Opfield host's data disk at 85% or more). The upgrade creates them enabled, notifying the webhooks the existing node and Opfield rules notify; on a new install, pick their webhooks in **Notifications > Alerts**. Change the threshold or turn them off there.
+Built-in rules watch disk space out of the box:
+
+- **Node disk almost full** (85% or more, warning) and **Node disk full** (95% or more, critical): every data disk of every node, each disk alerting on its own and the message naming it. That is the root disk, the disk holding Docker's data root, the disk holding the managed storage root and any other attached disk (**Disk To Watch: Every Data Disk**). The disk images of managed databases, storage and volumes are left out: they have their own rules below. A relay in protected mode reports its root disk only, and that is watched too. A **Node disk almost full** rule edited before 2.12.3 keeps watching the root disk `/` only; pick **Every Data Disk** to widen it.
+- **Node disk oversubscribed**: the disk for managed databases and storage on a node is promised more than it holds, so its instances fill it before they reach their sizes and new instances and disk grows there are refused.
+- **Postgres disk almost full**, **Key-value store disk almost full** and **ClickHouse disk almost full**: the data disk of a database at 85% or more.
+- **Opfield disk almost full** (Opfield category): the Opfield host's data disk at 85% or more.
+
+The upgrade creates them enabled, notifying the webhooks the existing node, Opfield, database and storage rules notify; on a new install, pick their webhooks in **Notifications > Alerts**. Change the thresholds or turn them off there. In a message template, `{{details.mount}}` is the mount point of the disk a node disk rule alerts on.
 
 Notification message and webhook templates use one canonical nested context. Common families are `notification.*`, `alert.*`, `resource.*`, `metric.*`, `node.*`, `health.*`, `certificate.*`, `state.*`, `event.*`, `operation.*`, `failure.*`, `details.*`, `fired.*`, `resolution.*`, and `gateway.*`. For example, use `{{notification.title}}`, `{{alert.severity.emoji}}`, `{{metric.value}}`, and `{{fired.duration}}` (how long the alert lasted, such as `3m 37s`; `{{fired.duration.seconds}}` is the number of seconds). Historical flat names such as `alert_name`, `value`, `threshold`, `fired_at`, and `fired_duration` are not aliases and render empty. The `coalesce` helper can select the first non-empty nested value.
 

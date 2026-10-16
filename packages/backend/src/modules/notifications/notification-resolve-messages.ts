@@ -96,7 +96,11 @@ export function defaultResolveMessage(
     metric?: string | null;
   },
   resourceName: string,
-  details: { metric?: { value?: number | null } | null; fired?: { duration?: number | null } | null } = {}
+  details: {
+    metric?: { value?: number | null } | null;
+    fired?: { duration?: number | null } | null;
+    details?: Record<string, string | number | boolean | null> | null;
+  } = {}
 ): string {
   const category = categoryOf(rule);
   let text: string;
@@ -111,7 +115,9 @@ export function defaultResolveMessage(
     } else if (rule.category === 'backup' && rule.metric === 'hours_since_last_backup') {
       text = `A backup of ${resourceName} succeeded`;
     } else {
-      text = `${label} on ${resourceName} is back to normal`;
+      // A node disk rule watches several disks of a node: name the one.
+      const mount = rule.category === 'node' && rule.metric === 'disk' ? details.details?.mount : null;
+      text = `${label}${typeof mount === 'string' && mount ? ` of ${mount}` : ''} on ${resourceName} is back to normal`;
       if (typeof value === 'number' && Number.isFinite(value)) {
         text += ` at ${formatMetricValue(value, metric?.unit ?? '')}`;
       }
