@@ -137,6 +137,11 @@ func (e *pgMember) pgdata(record managedDatabaseRecord) string {
 
 func (e *pgMember) Container(ctx context.Context) (memberha.ContainerState, error) {
 	record, err := e.record()
+	if errors.Is(err, os.ErrNotExist) {
+		// Opfield configures a new member before its create command made the
+		// record and container: a copy to seed later, not a failed rejoin.
+		return memberha.ContainerState{Absent: true}, nil
+	}
 	if err != nil {
 		return memberha.ContainerState{}, err
 	}

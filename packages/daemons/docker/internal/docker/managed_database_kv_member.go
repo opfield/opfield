@@ -560,7 +560,9 @@ func (m *managedDatabaseManager) kvLift(ctx context.Context, members *memberha.M
 	}
 	if record.AvailabilityMemberID == "" && record.AvailabilitySetID == "" {
 		// Already a single-node store (a set that never converted it, or a
-		// repeated lift): the lift is done, the store is left untouched.
+		// repeated lift): the lift is done, the store is left untouched, and
+		// the member runtime lets go of the set's member.
+		m.plugin.forgetLiftedSetMember(ref.SetID, ref.MemberID, id)
 		return pgOK(map[string]any{"status": "lifted", "singleNode": true, "memberId": ref.MemberID})
 	}
 	if err := validateManagedDatabaseInput(command.Database); err != nil {
@@ -692,7 +694,7 @@ func (h *kvSetHost) record() (managedDatabaseRecord, error) { return h.m.loadRec
 func (h *kvSetHost) Container(ctx context.Context) (kvha.ContainerInfo, error) {
 	record, err := h.record()
 	if errors.Is(err, os.ErrNotExist) {
-		return kvha.ContainerInfo{}, nil
+		return kvha.ContainerInfo{Absent: true}, nil
 	}
 	if err != nil || record.ContainerID == "" {
 		return kvha.ContainerInfo{}, err

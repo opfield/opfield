@@ -775,6 +775,11 @@ func (m *managedDatabaseManager) pgLift(ctx context.Context, members *memberha.M
 		return "", err
 	}
 	if record.AvailabilityMemberID == "" {
+		// The database runs as a single node and names no set: the member
+		// runtime lets go of the set's member at once (a create on several
+		// servers that failed before this node's database became a member
+		// leaves one configured).
+		m.plugin.forgetLiftedSetMember(ref.SetID, ref.MemberID, id)
 		if record.AvailabilityLiftedFrom == ref.MemberID {
 			return pgOK(map[string]any{"status": "ready", "retained": true, "memberId": ref.MemberID})
 		}

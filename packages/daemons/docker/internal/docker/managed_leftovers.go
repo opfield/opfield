@@ -272,6 +272,54 @@ func forgetRuntimeMember(ctx context.Context, p *DockerPlugin, ownerID, memberID
 	}
 }
 
+// forgetLiftedSetMember drops the member runtime's member of setID (named
+// memberID, of ownerID) once the owner's record no longer names the set: it
+// was taken back to a single node (a lift or detach, availability turned
+// off, a create on several servers that failed and was kept on one server).
+// Such a member used to wait for the leftover sweep, and turning
+// availability on again meanwhile warned that its container does not exist.
+// Its mesh and state files go with it (the runtime's Forgotten hook).
+func (p *DockerPlugin) forgetLiftedSetMember(setID, memberID, ownerID string) {
+	if p == nil || p.setMembers == nil || setID == "" || ownerID == "" {
+		return
+	}
+	config, ok := p.setMembers.Config(setID)
+	if !ok || config.OwnerID != ownerID || (memberID != "" && config.MemberID != memberID) {
+		return
+	}
+	if err := p.setMembers.Forget(setID); err != nil {
+		p.logger.Warn("the member runtime keeps the member of a set its owner left", "set_id", setID, "owner_id", ownerID, "error", err)
+		return
+	}
+	p.logger.Info("forgot the availability member of a set its owner left", "set_id", setID, "member_id", config.MemberID, "owner_id", ownerID)
+}
+
+// forgetLoneSetMembersOf drops the member runtime's members of ownerID whose
+// set lists no other member (availability was turned off around it) while
+// the owner's record names no set. A member of a set with other members is
+// kept: it may be one Opfield configured for a make available that has not
+// reached the owner's record yet.
+func (p *DockerPlugin) forgetLoneSetMembersOf(ownerKind, ownerID string) {
+	if p == nil || p.setMembers == nil || ownerID == "" {
+		return
+	}
+	for _, setID := range p.setMembers.ConfiguredSets() {
+		config, ok := p.setMembers.Config(setID)
+		if !ok || config.OwnerKind != ownerKind || config.OwnerID != ownerID {
+			continue
+		}
+		alone := true
+		for _, peer := range config.Members {
+			if peer.MemberID != config.MemberID {
+				alone = false
+			}
+		}
+		if alone {
+			p.forgetLiftedSetMember(setID, config.MemberID, ownerID)
+		}
+	}
+}
+
 // setMember is the availability set member the record is ("" when none).
 func (record managedDatabaseRecord) setMember() (string, string) {
 	if record.AvailabilitySetID != "" {

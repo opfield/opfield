@@ -78,6 +78,9 @@ type ContainerInfo struct {
 	ID         string
 	CgroupPath string
 	StartedAt  time.Time
+	// Absent: the member's resource is not on this node (not created yet,
+	// or deleted): see memberha.ContainerState.Absent.
+	Absent bool
 }
 
 // Exposure is one mesh listener of the member's containers.
@@ -146,6 +149,8 @@ type Engine struct {
 	noCopiesSince time.Time
 	lastFloorCert time.Duration
 	workerStop    chan struct{}
+	// closed: the member was forgotten; the ACL mirror never starts again.
+	closed bool
 }
 
 var (
@@ -208,7 +213,8 @@ func (e *Engine) Container(ctx context.Context) (memberha.ContainerState, error)
 	if err != nil {
 		return memberha.ContainerState{}, err
 	}
-	return memberha.ContainerState{Exists: info.Exists, Running: info.Running, ID: info.ID, CgroupPath: info.CgroupPath, StartedAt: info.StartedAt}, nil
+	return memberha.ContainerState{Exists: info.Exists, Running: info.Running, ID: info.ID, CgroupPath: info.CgroupPath, StartedAt: info.StartedAt,
+		Absent: info.Absent}, nil
 }
 
 // Status samples the member's Valkey.
@@ -520,7 +526,7 @@ func (e *Engine) Switchover(ctx context.Context, successorMemberID string) error
 func (e *Engine) startWorker() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.workerStop != nil {
+	if e.workerStop != nil || e.closed {
 		return
 	}
 	stop := make(chan struct{})
@@ -535,6 +541,15 @@ func (e *Engine) stopWorker() {
 		close(e.workerStop)
 		e.workerStop = nil
 	}
+}
+
+// Close ends the ACL mirror for good (memberha.Closer): the member runtime
+// forgot the member.
+func (e *Engine) Close() {
+	e.mu.Lock()
+	e.closed = true
+	e.mu.Unlock()
+	e.stopWorker()
 }
 
 func (e *Engine) mirrorLoop(stop chan struct{}) {

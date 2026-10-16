@@ -67,6 +67,14 @@ type EventSource interface {
 	DrainEvents() []Event
 }
 
+// Closer is an engine with background work of its own (a SeaweedFS
+// primary's worker, a Valkey copy's ACL mirror). The runtime closes it when it
+// forgets the member (lift, removal, set deleted), so nothing of a member
+// that left keeps running; a closed engine starts no such work again.
+type Closer interface {
+	Close()
+}
+
 // RejoinPlanner reports that a stopped member must rejoin before it may
 // start at all (no data yet: seed; a rewind that failed part-way: rebuild,
 // never start that directory). The copy path then runs Rejoin instead of a

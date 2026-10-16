@@ -287,14 +287,74 @@ func (p *DockerPlugin) watchEngineEvents(ctx context.Context, restarts *engineRe
 	}
 }
 
+// engineStopCause is why an engine stopped that nobody asked to stop.
+type engineStopCause string
+
+const (
+	engineStopExited engineStopCause = "exited"
+	// engineStopKilled: a SIGKILL from another process (exit code 137
+	// without Docker's stop or out-of-memory kill), not out of memory.
+	engineStopKilled      engineStopCause = "killed"
+	engineStopOutOfMemory engineStopCause = "outOfMemory"
+)
+
+// engineStopLog is the supervisor's log line for an unrequested stop.
+func engineStopLog(kind string, cause engineStopCause) string {
+	switch cause {
+	case engineStopOutOfMemory:
+		return "managed " + kind + " engine was killed for memory (out of memory); starting it again"
+	case engineStopKilled:
+		return "managed " + kind + " engine was killed (SIGKILL) by another process, not out of memory; starting it again"
+	}
+	return "managed " + kind + " engine stopped on its own; starting it again"
+}
+
+// unrequestedStopCause tells why an engine died that nobody asked to stop.
+// oomEvent is Docker's "oom" event before the die. Exit code 137 is a SIGKILL:
+// the kernel's out-of-memory killer or another process (kill -9 of the
+// engine's process); Docker's container state tells them apart (it also
+// covers an oom event missed while the event stream reconnected).
+func (p *DockerPlugin) unrequestedStopCause(ctx context.Context, message events.Message, oomEvent bool) engineStopCause {
+	if oomEvent {
+		return engineStopOutOfMemory
+	}
+	if message.Actor.Attributes["exitCode"] != "137" {
+		return engineStopExited
+	}
+	if p.engineOOMKilled(ctx, message.Actor.ID) {
+		return engineStopOutOfMemory
+	}
+	return engineStopKilled
+}
+
+// engineOOMKilled reports Docker's State.OOMKilled of the stopped container.
+func (p *DockerPlugin) engineOOMKilled(ctx context.Context, containerID string) bool {
+	if p.client == nil || p.client.cli == nil || containerID == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	inspect, err := p.client.cli.ContainerInspect(ctx, containerID, mobyclient.ContainerInspectOptions{})
+	return err == nil && inspect.Container.State != nil && inspect.Container.State.OOMKilled
+}
+
 // handleEngineStop starts an engine that died while it should run.
-// requested is a stop asked for through Docker's API (see engineStops).
+// requested is a stop asked for through Docker's API (see engineStops), oom
+// Docker's out-of-memory event before the die.
 func (p *DockerPlugin) handleEngineStop(ctx context.Context, restarts *engineRestarts, message events.Message, requested, oom bool) {
 	containerID := message.Actor.ID
+	cause := engineStopExited
+	if !requested {
+		cause = p.unrequestedStopCause(ctx, message, oom)
+	}
+	logStop := func(kind, id string) {
+		p.logger.Warn(engineStopLog(kind, cause), "id", id, "cause", string(cause),
+			"exitCode", message.Actor.Attributes["exitCode"], "outOfMemory", cause == engineStopOutOfMemory)
+	}
 	if id := labelValue(message.Actor.Attributes, managedDatabaseLabel); id != "" && p.databaseManager != nil {
 		if !requested {
-			p.databaseManager.incidents.record(id, oom)
-			p.logger.Warn("managed database engine stopped on its own; starting it again", "id", id, "outOfMemory", oom)
+			p.databaseManager.incidents.recordStop(id, cause)
+			logStop("database", id)
 		}
 		restarts.schedule("database/"+id, func() {
 			restartCtx, cancel := context.WithTimeout(ctx, engineRestartTimeout)
@@ -305,10 +365,10 @@ func (p *DockerPlugin) handleEngineStop(ctx context.Context, restarts *engineRes
 		})
 	}
 	if id := labelValue(message.Actor.Attributes, managedStorageLabel); id != "" && p.storageManager != nil {
-		p.storageManager.recordEngineStop(containerID, requested, oom)
+		p.storageManager.recordEngineStop(containerID, requested, cause == engineStopOutOfMemory)
 		if !requested {
-			p.storageManager.incidents.record(id, oom)
-			p.logger.Warn("managed storage engine stopped on its own; starting it again", "id", id, "outOfMemory", oom)
+			p.storageManager.incidents.recordStop(id, cause)
+			logStop("storage", id)
 		}
 		restarts.schedule("storage/"+id, func() {
 			restartCtx, cancel := context.WithTimeout(ctx, engineRestartTimeout)
@@ -328,8 +388,9 @@ const engineStopRequestWindow = 2 * time.Minute
 // die. A stop asked for through Docker's API (docker stop, kill or restart, or
 // this daemon's own stop) sends a stop signal first, logged as a "kill"
 // event; a process that crashes dies without one, and the kernel's OOM kill
-// is logged as "oom". A start begins a new run. It is used by the event loop
-// alone.
+// is logged as "oom" (a SIGKILL from another process is neither: exit code
+// 137 alone is no out-of-memory kill, see unrequestedStopCause). A start
+// begins a new run. It is used by the event loop alone.
 type engineStops struct {
 	signalled map[string]time.Time
 	oom       map[string]bool
@@ -362,8 +423,8 @@ func (s *engineStops) observe(message events.Message) (requested, oom, died bool
 		delete(s.oom, containerID)
 	case events.ActionDie:
 		signalled, ok := s.signalled[containerID]
-		oom = s.oom[containerID] || attributes["exitCode"] == "137" && !ok
-		requested = ok && !s.oom[containerID] && at.Sub(signalled) <= engineStopRequestWindow
+		oom = s.oom[containerID]
+		requested = ok && !oom && at.Sub(signalled) <= engineStopRequestWindow
 		delete(s.signalled, containerID)
 		delete(s.oom, containerID)
 		return requested, oom, true

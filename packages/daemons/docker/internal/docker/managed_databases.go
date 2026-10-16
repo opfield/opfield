@@ -601,6 +601,12 @@ func (m *managedDatabaseManager) handle(ctx context.Context, action, id, configJ
 		if err := m.saveRecord(record); err != nil {
 			return "", err
 		}
+		if availability := input.ClickhouseAvailability; availability != nil && availability.Standalone &&
+			record.ClickhouseAvailabilitySetID != availability.SetID {
+			// A ClickHouse member taken back to a single node (availability
+			// turned off): the member runtime lets go of the set's member.
+			m.plugin.forgetLiftedSetMember(availability.SetID, availability.MemberID, record.ID)
+		}
 		return marshalManagedDatabaseDetail(record, "ready")
 	case "stop":
 		record, err := m.loadRecord(id)

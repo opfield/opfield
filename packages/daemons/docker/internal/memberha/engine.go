@@ -13,6 +13,12 @@ type ContainerState struct {
 	ID         string
 	CgroupPath string
 	StartedAt  time.Time
+	// Absent: the member's resource is not on this node (no record of it):
+	// Opfield configures a new member before its create command made it (a
+	// create on several servers, make available), and a deleted one is
+	// forgotten right after. Such a member is neither started nor seeded,
+	// and nothing failed.
+	Absent bool
 }
 
 // EngineStatus is one sample of a member's engine.

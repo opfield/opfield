@@ -978,7 +978,8 @@ func (h *seaweedfsSetHost) Container(ctx context.Context, role swha.Role) (swha.
 	inspect, err := h.plugin.client.cli.ContainerInspect(ctx, h.name(role), mobyclient.ContainerInspectOptions{})
 	if isNotFoundErr(err) {
 		h.storage.setImages.observe(h.initial.SetID, role, "", false)
-		return swha.ContainerInfo{}, nil
+		_, recordErr := h.storage.loadRecord(h.id)
+		return swha.ContainerInfo{Absent: errors.Is(recordErr, os.ErrNotExist)}, nil
 	}
 	if err != nil {
 		return swha.ContainerInfo{}, err
