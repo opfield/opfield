@@ -101,6 +101,8 @@ const TEMPLATE_VALUES: Record<string, () => string[]> = {
   "mcp.${toolName}": () => ["mcp.update_route"],
   "${source}.${toolName}": () => ["ai.manage_node", "mcp.manage_node"],
   "auth.${routeName}${mutation}": () => ["auth.passkeys_register", "auth.me_profile.update"],
+  // The outcome of a storage switch repaired after a restart, written under the switch's own action.
+  "recovered:${action.kind}": () => ["docker.internal-registry.storage.update"],
 };
 for (const verb of ["create", "update", "delete", "test"]) {
   TEMPLATE_VALUES[`integrations.\${provider}.connector.${verb}`] = () =>

@@ -249,6 +249,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
     "Turned off internal registry access (license)",
   "docker.internal-registry.gc": "Cleaned up internal registry",
   "docker.internal-registry.settings.update": "Updated internal registry settings",
+  "docker.internal-registry.storage.update": "Changed internal registry storage",
   "docker.internal_registry.maintenance.resume": "Resumed internal registry",
   "docker.network.connect": "Connected network",
   "docker.network.create": "Created network",
