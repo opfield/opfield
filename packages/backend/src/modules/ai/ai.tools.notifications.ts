@@ -59,11 +59,12 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         metric: {
           type: 'string',
           description:
-            'For threshold: a metric id of the category, e.g. cpu, memory, disk (node), restarts_per_hour (container), error_5xx_percent, error_4xx_percent, requests_per_second, latency_p95_ms (proxy), error_5xx_percent (app), days_until_expiry (certificate, pki), hours_since_last_backup (backup), managed_disk_pct (managed Postgres and key-value)',
+            'For threshold: a metric id of the category, e.g. cpu, memory, disk, managed_disk_promised_pct (node: share of the managed databases and storage disk promised to its instances, over 100 when oversubscribed), restarts_per_hour (container), error_5xx_percent, error_4xx_percent, requests_per_second, latency_p95_ms (proxy), error_5xx_percent (app), days_until_expiry (certificate, pki), hours_since_last_backup (backup), managed_disk_pct (managed Postgres and key-value)',
         },
         metricTarget: {
           type: 'string',
-          description: 'For threshold: optional sub-target like a specific disk mount point',
+          description:
+            'For threshold: optional sub-target. Node disk: "@data" watches every data disk of the node (each mount except Opfield disk images of managed databases, storage and volumes; each disk alerts on its own), "/" or another mount point watches that disk only, omitted watches every reported mount. Hosting account: the currency.',
         },
         operator: { type: 'string', enum: ['>', '>=', '<', '<='], description: 'For threshold: comparison operator' },
         thresholdValue: { type: 'number', description: 'For threshold: threshold value' },
@@ -127,7 +128,10 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         enabled: { type: 'boolean', description: 'Enable/disable' },
         severity: { type: 'string', enum: ['info', 'warning', 'critical'] },
         metric: { type: 'string' },
-        metricTarget: { type: ['string', 'null'] },
+        metricTarget: {
+          type: ['string', 'null'],
+          description: 'Node disk: "@data" (every data disk), a mount point, or null (every reported mount)',
+        },
         operator: { type: 'string', enum: ['>', '>=', '<', '<='] },
         thresholdValue: { type: 'number' },
         durationSeconds: { type: 'number' },

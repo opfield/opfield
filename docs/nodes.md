@@ -28,7 +28,7 @@ Every node counts toward the plan's managed-node limit, whatever its type and in
 Opfield daemons have a small resource footprint compared with the services they manage, so they do not have separate CPU, memory, or disk requirements. Size each host for its operating system and actual workload:
 
 - nginx nodes for nginx traffic, TLS termination, and log volume;
-- Docker nodes for the containers and deployments running on them, plus their images: each container keeps the image it runs and one older version by default (see [Docker Image Cleanup](operations.md#docker-image-cleanup)), and the built-in alert **Node disk almost full** fires at 85% root disk use;
+- Docker nodes for the containers and deployments running on them, plus their images: each container keeps the image it runs and one older version by default (see [Docker Image Cleanup](operations.md#docker-image-cleanup)), and the built-in alerts **Node disk almost full** and **Node disk full** fire at 85% and 95% use of any data disk of the node (the root disk, Docker's data disk or another attached disk);
 - Storage nodes for the CPU, memory, swap, and storage allocated to managed databases, object storage, and backup jobs;
 - monitoring nodes according to the existing host workload being observed.
 
@@ -327,7 +327,7 @@ A relay installed on a machine that belongs to someone else (a partner or custom
 
 - no console: the relay refuses the interactive shell, one-shot commands (including the assistant and MCP `execute_node_console_command`), and console input;
 - no files: the relay refuses every host file operation (browse, read, write, upload, move, delete);
-- no host diagnostics: health reports carry only aggregate CPU, memory, swap, load, uptime, file descriptor and free disk space figures, with no disk mounts, disk I/O, network interfaces, IP addresses, CPU model or kernel version, and the relay does not look up its public IP address;
+- no host diagnostics: health reports carry only aggregate CPU, memory, swap, load, uptime, file descriptor and root disk size and use figures (for the disk alerts), with no other disk mounts, devices or filesystem types, disk I/O, network interfaces, IP addresses, CPU model or kernel version, and the relay does not look up its public IP address;
 - no other commands: the relay runs only its own operation (signed policy, drain, worker update, certificate renewal, its route counters, health, and its own logs) and refuses everything else Opfield sends, including commands added by later Opfield versions, with an error that says the relay is protected.
 
 What Opfield can still do: route traffic through the relay, drain and resume it, renew its certificate, read its own logs and counters, and update it. Updates install only official releases signed with the release key built into the relay, as on every node, and a protected relay accepts no update to an older release than the one it runs (an older release could predate protected mode). A protected relay also refuses a policy that names a built-in local service: only the local relay next to Opfield serves those.

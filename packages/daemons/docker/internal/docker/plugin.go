@@ -36,6 +36,9 @@ type DockerPlugin struct {
 	logger      *slog.Logger
 	client      *Client
 	version     string // Docker engine version
+	// dockerRoot is Docker's data root, for the roles of the disk mounts in
+	// the health report (disk_roles.go).
+	dockerRoot dockerRootCache
 
 	allowlist       *AllowlistChecker
 	envStore        *EnvStore
@@ -319,6 +322,8 @@ func (p *DockerPlugin) Init(cfg *lifecycle.BaseConfig, logger *slog.Logger) erro
 	}
 	p.version = ver
 	p.logger.Info("docker engine connected", "version", ver, "socket", p.cfg.Docker.Socket)
+	// The first health report already names the mount of Docker's data root.
+	p.dockerRoot.refresh(p.lookupDockerRoot)
 	// User workloads get json-file log rotation only when json-file is the
 	// host's default driver; detect it once.
 	p.logger.Info("docker default logging driver", "driver", c.DetectDefaultLoggingDriver(ctx))

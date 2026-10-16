@@ -15,14 +15,27 @@ type DecodedHealthDiskMount = {
   usedBytes: number;
   freeBytes: number;
   usagePercent: number;
+  /** What the mount holds (root, docker_root, opfield_state, managed_image, data); absent from older daemons. */
+  role?: string;
+};
+
+type ManagedStorageCapacity = {
+  storageRoot: string;
+  availableBytes: number;
+  /**
+   * The disk's space promised to managed instances (what they use, what their images may still take, and the reserve)
+   * as a share of its size: over 100 while the disk is oversubscribed. Absent from daemons before 2.12.3, which cap it
+   * at 100.
+   */
+  promisedPercent?: number;
 };
 
 export function decodeHealthDiskMounts(rawMounts: unknown): {
   diskMounts: DecodedHealthDiskMount[];
-  managedStorageCapacity?: { storageRoot: string; availableBytes: number };
+  managedStorageCapacity?: ManagedStorageCapacity;
 } {
   const diskMounts: DecodedHealthDiskMount[] = [];
-  let managedStorageCapacity: { storageRoot: string; availableBytes: number } | undefined;
+  let managedStorageCapacity: ManagedStorageCapacity | undefined;
 
   for (const mount of Array.isArray(rawMounts) ? rawMounts : []) {
     const value = mount as Record<string, unknown>;
@@ -31,10 +44,16 @@ export function decodeHealthDiskMounts(rawMounts: unknown): {
     if (filesystem === managedStorageRootFilesystem) {
       const availableBytes = Number(value.freeBytes ?? 0);
       if (!managedStorageCapacity && mountPoint && Number.isFinite(availableBytes) && availableBytes >= 0) {
-        managedStorageCapacity = { storageRoot: mountPoint, availableBytes };
+        const promisedPercent = Number(value.usagePercent ?? Number.NaN);
+        managedStorageCapacity = {
+          storageRoot: mountPoint,
+          availableBytes,
+          ...(Number.isFinite(promisedPercent) && Number(value.totalBytes ?? 0) > 0 ? { promisedPercent } : {}),
+        };
       }
       continue;
     }
+    const role = typeof value.role === 'string' ? value.role : '';
     diskMounts.push({
       mountPoint,
       filesystem,
@@ -43,6 +62,7 @@ export function decodeHealthDiskMounts(rawMounts: unknown): {
       usedBytes: Number(value.usedBytes ?? 0),
       freeBytes: Number(value.freeBytes ?? 0),
       usagePercent: Number(value.usagePercent ?? 0),
+      ...(role ? { role } : {}),
     });
   }
 

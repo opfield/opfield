@@ -937,7 +937,24 @@ func nodeConsoleSessionKey(ownerKey string) string {
 	return "node-console:" + ownerKey
 }
 
-// newSystemReporter creates a new system metrics reporter.
-func newSystemReporter() *sysmetrics.SystemReporter {
-	return sysmetrics.NewSystemReporter()
+// newSystemReporter creates the system metrics reporter of a daemon: the
+// mounts holding its state directory and the plugin's data directories get
+// their roles in each health report.
+func newSystemReporter(stateDir string, plugin DaemonPlugin) *sysmetrics.SystemReporter {
+	reporter := sysmetrics.NewSystemReporter()
+	reporter.SetDiskRolePaths(func() sysmetrics.DiskRolePaths { return daemonDiskRolePaths(stateDir, plugin) })
+	return reporter
+}
+
+// daemonDiskRolePaths is where a daemon keeps its data: its state directory
+// plus what the plugin names (see DiskRolePlugin).
+func daemonDiskRolePaths(stateDir string, plugin DaemonPlugin) sysmetrics.DiskRolePaths {
+	var paths sysmetrics.DiskRolePaths
+	if rolePlugin, ok := plugin.(DiskRolePlugin); ok {
+		paths = rolePlugin.DiskRolePaths()
+	}
+	if stateDir != "" {
+		paths.StateDirs = append([]string{stateDir}, paths.StateDirs...)
+	}
+	return paths
 }

@@ -462,7 +462,14 @@ Opfield supports operational notification workflows:
 
 Use status pages for externally visible service health and incidents. Use notifications for internal operational alerts.
 
-Two built-in rules watch disk space out of the box: **Node disk almost full** (Node category, root disk `/` at 85% or more on any node) and **Opfield disk almost full** (Opfield category, the Opfield host's data disk at 85% or more). The upgrade creates them enabled, notifying the webhooks the existing node and Opfield rules notify; on a new install, pick their webhooks in **Notifications > Alerts**. Change the threshold or turn them off there.
+Built-in rules watch disk space out of the box:
+
+- **Node disk almost full** (85% or more, warning) and **Node disk full** (95% or more, critical): every data disk of every node, each disk alerting on its own and the message naming it. That is the root disk, the disk holding Docker's data root, the disk holding the managed storage root and any other attached disk (**Disk To Watch: Every Data Disk**). The disk images of managed databases, storage and volumes are left out: they have their own rules below. A relay in protected mode reports its root disk only, and that is watched too. A **Node disk almost full** rule edited before 2.12.3 keeps watching the root disk `/` only; pick **Every Data Disk** to widen it.
+- **Node disk oversubscribed**: the disk for managed databases and storage on a node is promised more than it holds, so its instances fill it before they reach their sizes and new instances and disk grows there are refused.
+- **Postgres disk almost full**, **Key-value store disk almost full** and **ClickHouse disk almost full**: the data disk of a database at 85% or more.
+- **Opfield disk almost full** (Opfield category): the Opfield host's data disk at 85% or more.
+
+The upgrade creates them enabled, notifying the webhooks the existing node, Opfield, database and storage rules notify; on a new install, pick their webhooks in **Notifications > Alerts**. Change the thresholds or turn them off there. In a message template, `{{details.mount}}` is the mount point of the disk a node disk rule alerts on.
 
 Two more built-in Opfield rules come with the update: **Opfield disk full** (critical, 95% or more) and **Housekeeping not running** (no successful housekeeping run for two days, so nothing is being removed). The Opfield host disk they watch is the fullest disk that holds Opfield data: the Docker data root and every volume of the stack, not only the app's data directory.
 

@@ -169,9 +169,19 @@ func TestProtectedRegistrationDropsHostDetails(t *testing.T) {
 
 func TestAggregateHealthHasNoHostInventory(t *testing.T) {
 	report := sysmetrics.NewSystemReporter().CollectAggregateHealth(nil)
-	if len(report.DiskMounts) != 0 || len(report.NetworkInterfaces) != 0 || len(report.LocalIpAddresses) != 0 ||
+	if len(report.NetworkInterfaces) != 0 || len(report.LocalIpAddresses) != 0 ||
 		len(report.PublicIpAddresses) != 0 || len(report.GpuDevices) != 0 || report.DiskReadBytes != 0 || report.DiskWriteBytes != 0 {
 		t.Fatalf("aggregate health carries host inventory: %+v", report)
+	}
+	// Only the root mount, so the disk alert watches a protected node too: no
+	// other mounts, and no device or filesystem type.
+	if len(report.DiskMounts) != 1 {
+		t.Fatalf("aggregate health reports %d disk mounts, want only /: %+v", len(report.DiskMounts), report.DiskMounts)
+	}
+	root := report.DiskMounts[0]
+	if root.MountPoint != "/" || root.Role != sysmetrics.DiskRoleRoot || root.Device != "" || root.Filesystem != "" ||
+		root.TotalBytes <= 0 || root.FreeBytes < 0 || root.UsedBytes != root.TotalBytes-root.FreeBytes {
+		t.Fatalf("aggregate root mount = %+v", root)
 	}
 	if report.Timestamp == 0 {
 		t.Fatal("aggregate health has no timestamp")

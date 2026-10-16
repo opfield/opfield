@@ -15,11 +15,22 @@ type SystemReporter struct {
 	cpuState CPUState
 	diskIO   DiskIOState
 	publicIP *PublicIPDetector
+	// diskRoles names the directories whose mounts get a role; nil gives
+	// every mount root or data.
+	diskRoles func() DiskRolePaths
 }
 
 // NewSystemReporter creates a new SystemReporter.
 func NewSystemReporter() *SystemReporter {
 	return &SystemReporter{publicIP: NewPublicIPDetector()}
+}
+
+// SetDiskRolePaths sets where the daemon keeps its data, for the roles of the
+// disk mounts it reports (see AssignDiskRoles). paths is called once a report.
+func (r *SystemReporter) SetDiskRolePaths(paths func() DiskRolePaths) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.diskRoles = paths
 }
 
 func (r *SystemReporter) RunPublicIPDiscovery(ctx context.Context) {
@@ -34,9 +45,11 @@ func (r *SystemReporter) CollectSystemHealth(report *pb.HealthReport) *pb.Health
 }
 
 // CollectAggregateHealth populates only the aggregate resource usage (CPU,
-// memory, swap, load, uptime, file descriptors and free space of /), without
-// the host inventory: no disk mounts or disk I/O, network interfaces or IP
-// addresses. A daemon in protected mode reports only these.
+// memory, swap, load, uptime, file descriptors and the size and use of /),
+// without the host inventory: no other disk mounts, no device or filesystem
+// type, disk I/O, network interfaces or IP addresses. A daemon in protected
+// mode reports only these. The root mount alone lets the disk alert watch
+// the node; it reveals nothing beyond the free space of /.
 func (r *SystemReporter) CollectAggregateHealth(report *pb.HealthReport) *pb.HealthReport {
 	return r.collect(report, true)
 }
@@ -81,11 +94,19 @@ func (r *SystemReporter) collect(report *pb.HealthReport, aggregateOnly bool) *p
 	report.MaxFileDescriptors = maxFD
 
 	if aggregateOnly {
+		if root := RootDiskMount(); root != nil {
+			report.DiskMounts = []*pb.DiskMount{root}
+		}
 		return report
 	}
 
 	// Disk mounts
 	report.DiskMounts = GetDiskMounts()
+	var rolePaths DiskRolePaths
+	if r.diskRoles != nil {
+		rolePaths = r.diskRoles()
+	}
+	AssignDiskRoles(report.DiskMounts, rolePaths)
 
 	// Disk I/O
 	report.DiskReadBytes, report.DiskWriteBytes = GetDiskIO(&r.diskIO)

@@ -69,6 +69,10 @@ async function allPages<T>(
 }
 
 const ROOT_DISK_TARGET = "/";
+/** Every disk of the node except Opfield's disk images (the backend's NODE_DATA_DISKS_TARGET). */
+const DATA_DISKS_TARGET = "@data";
+/** A disk rule saved without a target (every reported mount, disk images included); stored as null. */
+const ALL_DISKS_TARGET = "__all_disks__";
 const CERTIFICATE_EXPIRY_METRIC = "days_until_expiry";
 const GPU_NODE_METRICS = new Set([
   "gpu_utilization_percent",
@@ -152,7 +156,7 @@ export function AlertDialog({
   const [type, setType] = useState<string>("threshold");
   const [severity, setSeverity] = useState<string>("warning");
   const [metric, setMetric] = useState("");
-  const [metricTarget, setMetricTarget] = useState(ROOT_DISK_TARGET);
+  const [metricTarget, setMetricTarget] = useState(DATA_DISKS_TARGET);
   const [operator, setOperator] = useState(">");
   const [thresholdValue, setThresholdValue] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("0");
@@ -190,7 +194,12 @@ export function AlertDialog({
     setType(rule?.type ?? "threshold");
     setSeverity(rule?.severity ?? "warning");
     setMetric(rule?.metric ?? "");
-    setMetricTarget(rule?.metricTarget ?? ROOT_DISK_TARGET);
+    setMetricTarget(
+      rule?.metricTarget ??
+        (rule?.type === "threshold" && rule.category === "node" && rule.metric === "disk"
+          ? ALL_DISKS_TARGET
+          : DATA_DISKS_TARGET)
+    );
     setOperator(rule?.operator ?? ">");
     setThresholdValue(String(rule?.thresholdValue ?? ""));
     // Minutes as saved (30 s shows 0.5), so saving the rule again keeps its windows.
@@ -651,12 +660,9 @@ export function AlertDialog({
     [filteredWebhooks]
   );
 
-  const canSelectNodeDiskTarget =
-    type === "threshold" &&
-    category === "node" &&
-    metric === "disk" &&
-    scoped &&
-    resourceIds.length === 1;
+  const isNodeDiskThreshold = type === "threshold" && category === "node" && metric === "disk";
+  // A disk of its own is picked on exactly one node; every data disk and the root disk exist on all.
+  const canSelectNodeDiskMount = isNodeDiskThreshold && scoped && resourceIds.length === 1;
   const isNodeGpuThreshold =
     type === "threshold" && category === "node" && GPU_NODE_METRICS.has(metric);
   const isHostingAccountThreshold = type === "threshold" && category === "hosting_account";
@@ -671,10 +677,27 @@ export function AlertDialog({
     [availableResources, resourceIds]
   );
 
-  const diskTargetOptions = useMemo(
-    () => selectedScopedNode?.diskOptions ?? [{ id: ROOT_DISK_TARGET, label: "Root Disk" }],
-    [selectedScopedNode]
-  );
+  const diskTargetOptions = useMemo(() => {
+    const options = [
+      { id: DATA_DISKS_TARGET, label: "Every Data Disk" },
+      ...(canSelectNodeDiskMount && selectedScopedNode?.diskOptions
+        ? selectedScopedNode.diskOptions
+        : [{ id: ROOT_DISK_TARGET, label: "Root Disk" }]),
+    ];
+    // A saved target stays selectable: a rule without one (every disk, disk images included), or a disk of a node
+    // that is not picked now.
+    const saved =
+      rule?.type === "threshold" && rule.category === "node" && rule.metric === "disk"
+        ? (rule.metricTarget ?? ALL_DISKS_TARGET)
+        : null;
+    if (saved && !options.some((option) => option.id === saved)) {
+      options.push({
+        id: saved,
+        label: saved === ALL_DISKS_TARGET ? "Every Disk, Including Disk Images" : saved,
+      });
+    }
+    return options;
+  }, [canSelectNodeDiskMount, rule, selectedScopedNode]);
 
   const gpuTargetOptions = useMemo(
     () =>
@@ -687,13 +710,10 @@ export function AlertDialog({
     isNodeGpuThreshold && scoped && resourceIds.length === 1 && gpuTargetOptions.length > 0;
 
   useEffect(() => {
-    if (
-      canSelectNodeDiskTarget &&
-      !diskTargetOptions.some((option) => option.id === metricTarget)
-    ) {
-      setMetricTarget(ROOT_DISK_TARGET);
+    if (isNodeDiskThreshold && !diskTargetOptions.some((option) => option.id === metricTarget)) {
+      setMetricTarget(DATA_DISKS_TARGET);
     }
-  }, [canSelectNodeDiskTarget, diskTargetOptions, metricTarget]);
+  }, [isNodeDiskThreshold, diskTargetOptions, metricTarget]);
 
   useEffect(() => {
     if (canSelectNodeGpuTarget && !gpuTargetOptions.some((option) => option.id === metricTarget)) {
@@ -774,9 +794,13 @@ export function AlertDialog({
         data.metric = metric;
         data.metricTarget = isHostingAccountThreshold
           ? currency
-          : canSelectNodeDiskTarget || canSelectNodeGpuTarget
-            ? metricTarget
-            : null;
+          : isNodeDiskThreshold
+            ? metricTarget === ALL_DISKS_TARGET
+              ? null
+              : metricTarget
+            : canSelectNodeGpuTarget
+              ? metricTarget
+              : null;
         data.operator = operator;
         data.thresholdValue = Number(thresholdValue);
         data.durationSeconds = isCertificateExpiryThreshold
@@ -1237,14 +1261,10 @@ export function AlertDialog({
                 </div>
               )}
 
-              {type === "threshold" && category === "node" && metric === "disk" && (
+              {isNodeDiskThreshold && (
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Disk To Watch</label>
-                  <Select
-                    value={metricTarget}
-                    onValueChange={setMetricTarget}
-                    disabled={!canSelectNodeDiskTarget}
-                  >
+                  <Select value={metricTarget} onValueChange={setMetricTarget}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -1257,9 +1277,13 @@ export function AlertDialog({
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {canSelectNodeDiskTarget
-                      ? "Choose which disk mount on the selected node should trigger this alert."
-                      : "Select exactly one node above to watch a specific disk. Otherwise the alert evaluates all disks."}
+                    {metricTarget === DATA_DISKS_TARGET
+                      ? "Watches each disk of the node, such as the root disk, the Docker data disk and attached data disks, and alerts for each on its own. Disk images of managed databases, storage and volumes have their own alerts."
+                      : metricTarget === ALL_DISKS_TARGET
+                        ? "Watches every disk the node reports, disk images of managed databases, storage and volumes included."
+                        : canSelectNodeDiskMount
+                          ? "Choose which disk mount on the selected node should trigger this alert."
+                          : "Select exactly one node above to watch another of its disks."}
                   </p>
                 </div>
               )}

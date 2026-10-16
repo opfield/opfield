@@ -1818,15 +1818,22 @@
     {
       "idx": 265,
       "version": "7",
-      "when": 1795000000000,
+      "when": 1794500000000,
       "tag": "0265_inference_usage_retention",
       "breakpoints": true
     },
     {
       "idx": 266,
       "version": "7",
-      "when": 1795000100000,
+      "when": 1794600000000,
       "tag": "0266_housekeeping_disk_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1794763837000,
+      "tag": "0267_data_disk_alert_rules",
       "breakpoints": true
     }
   ]
