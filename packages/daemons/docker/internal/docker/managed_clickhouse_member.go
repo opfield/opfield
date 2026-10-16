@@ -314,7 +314,7 @@ func (r *clickHouseMemberRuntime) Container(ctx context.Context) (memberha.Conta
 	record, err := r.record()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return memberha.ContainerState{}, 0, nil
+			return memberha.ContainerState{Absent: true}, 0, nil
 		}
 		return memberha.ContainerState{}, 0, err
 	}

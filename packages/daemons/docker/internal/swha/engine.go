@@ -203,6 +203,7 @@ func (e *Engine) Container(ctx context.Context) (memberha.ContainerState, error)
 	return memberha.ContainerState{
 		Exists: master.Exists && volume.Exists && filer.Exists, Running: volume.Running && filer.Running,
 		ID: master.ID, CgroupPath: master.CgroupPath, StartedAt: master.StartedAt,
+		Absent: master.Absent && volume.Absent && filer.Absent,
 	}, nil
 }
 

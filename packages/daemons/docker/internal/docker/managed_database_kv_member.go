@@ -692,7 +692,7 @@ func (h *kvSetHost) record() (managedDatabaseRecord, error) { return h.m.loadRec
 func (h *kvSetHost) Container(ctx context.Context) (kvha.ContainerInfo, error) {
 	record, err := h.record()
 	if errors.Is(err, os.ErrNotExist) {
-		return kvha.ContainerInfo{}, nil
+		return kvha.ContainerInfo{Absent: true}, nil
 	}
 	if err != nil || record.ContainerID == "" {
 		return kvha.ContainerInfo{}, err

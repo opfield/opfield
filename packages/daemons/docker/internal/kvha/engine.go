@@ -78,6 +78,9 @@ type ContainerInfo struct {
 	ID         string
 	CgroupPath string
 	StartedAt  time.Time
+	// Absent: the member's resource is not on this node (not created yet,
+	// or deleted): see memberha.ContainerState.Absent.
+	Absent bool
 }
 
 // Exposure is one mesh listener of the member's containers.
@@ -208,7 +211,8 @@ func (e *Engine) Container(ctx context.Context) (memberha.ContainerState, error)
 	if err != nil {
 		return memberha.ContainerState{}, err
 	}
-	return memberha.ContainerState{Exists: info.Exists, Running: info.Running, ID: info.ID, CgroupPath: info.CgroupPath, StartedAt: info.StartedAt}, nil
+	return memberha.ContainerState{Exists: info.Exists, Running: info.Running, ID: info.ID, CgroupPath: info.CgroupPath, StartedAt: info.StartedAt,
+		Absent: info.Absent}, nil
 }
 
 // Status samples the member's Valkey.
