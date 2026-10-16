@@ -115,6 +115,19 @@ export function withAvailabilitySetsApi<TBase extends ApiClientBaseConstructor>(
       );
     }
 
+    /** The failover order: every server once, the preferred one first. It never moves the primary by itself. */
+    async reorderAvailabilityMembers(
+      owner: AvailabilityOwner,
+      memberIds: string[]
+    ): Promise<unknown> {
+      return this.unwrapData(
+        this.request<{ data: unknown }>(`${availabilityPath(owner)}/members/order`, {
+          method: "PUT",
+          body: JSON.stringify({ memberIds }),
+        })
+      );
+    }
+
     async removeAvailabilityMember(owner: AvailabilityOwner, memberId: string): Promise<unknown> {
       return this.unwrapData(
         this.request<{ data: unknown }>(

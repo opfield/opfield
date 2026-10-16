@@ -1,4 +1,4 @@
-import { ArrowUpCircle, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpCircle, MoreVertical, RefreshCw, Trash2 } from "lucide-react";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AvailabilityMember, AvailabilityView } from "@/types";
 import {
+  activeMembers,
   eligibilityText,
   formatLag,
   memberHealthVariant,
@@ -25,6 +26,8 @@ export interface MemberActions {
   onMakePrimary: (member: AvailabilityMember) => void;
   onRebuild: (member: AvailabilityMember) => void;
   onRemove: (member: AvailabilityMember) => void;
+  /** Moves a server one place in the failover order; without it the order shows without move buttons. */
+  onMove?: (member: AvailabilityMember, delta: -1 | 1) => void;
 }
 
 function HealthBadge({ member }: { member: AvailabilityMember }) {
@@ -49,8 +52,9 @@ function HealthBadge({ member }: { member: AvailabilityMember }) {
 }
 
 /**
- * Servers of an availability set: role, whether a copy can take over (and why not), how far it
- * is behind, how it replicates and when it last reported. Row actions sit in a "…" menu.
+ * Servers of an availability set in failover order: role, whether a copy can take over (and why
+ * not), how far it is behind, how it replicates and when it last reported. Up and down move a
+ * server in the order; the other row actions sit in a "…" menu.
  */
 export function MembersTable({
   view,
@@ -64,9 +68,17 @@ export function MembersTable({
   busy: boolean;
   actions: MemberActions;
 }) {
-  const rows = view.members.filter((member) => member.desiredState === "member");
+  const rows = activeMembers(view);
   const removing = view.members.filter((member) => member.desiredState === "removing");
   const columns: SimpleTableColumn<AvailabilityMember>[] = [
+    {
+      id: "order",
+      header: "Order",
+      render: (member) => {
+        const index = rows.indexOf(member);
+        return index === -1 ? "—" : index + 1;
+      },
+    },
     {
       id: "server",
       header: "Server",
@@ -102,43 +114,71 @@ export function MembersTable({
         // Nobody holds the primary role: any server may be made primary (with the loss confirmation).
         const noHolder = view.mode === "automatic" && !!view.lease && !view.lease.holderNodeId;
         if (!canManage || member.desiredState === "removing") return null;
+        const index = rows.indexOf(member);
+        const name = memberName(member);
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Actions for ${memberName(member)}`}
-                title="Actions"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                disabled={(primary && !noHolder) || busy}
-                onClick={() => actions.onMakePrimary(member)}
-              >
-                <ArrowUpCircle />
-                Make this copy primary
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={primary || busy}
-                onClick={() => actions.onRebuild(member)}
-              >
-                <RefreshCw />
-                Rebuild copy
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive"
-                disabled={primary || busy}
-                onClick={() => actions.onRemove(member)}
-              >
-                <Trash2 />
-                Remove server
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex justify-end gap-1">
+            {actions.onMove ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Move ${name} up in the failover order`}
+                  disabled={busy || index <= 0}
+                  onClick={() => actions.onMove?.(member, -1)}
+                >
+                  <ArrowUp />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Move ${name} down in the failover order`}
+                  disabled={busy || index === -1 || index === rows.length - 1}
+                  onClick={() => actions.onMove?.(member, 1)}
+                >
+                  <ArrowDown />
+                </Button>
+              </>
+            ) : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Actions for ${name}`}
+                  title="Actions"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  disabled={(primary && !noHolder) || busy}
+                  onClick={() => actions.onMakePrimary(member)}
+                >
+                  <ArrowUpCircle />
+                  Make this copy primary
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={primary || busy}
+                  onClick={() => actions.onRebuild(member)}
+                >
+                  <RefreshCw />
+                  Rebuild copy
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  disabled={primary || busy}
+                  onClick={() => actions.onRemove(member)}
+                >
+                  <Trash2 />
+                  Remove server
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         );
       },
     },

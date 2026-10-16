@@ -69,6 +69,7 @@ export type ManagedAvailabilityOperationKind =
   | 'make_primary'
   | 'rebuild_member'
   | 'update_settings'
+  | 'reorder_members'
   | 'move_witness'
   | 'rolling_update'
   | 'rolling_restart'

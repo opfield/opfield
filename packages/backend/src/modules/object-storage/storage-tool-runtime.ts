@@ -8,6 +8,7 @@ import {
   ManagedAvailabilityEnableSchema,
   ManagedAvailabilityEventsQuerySchema,
   ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityMemberOrderSchema,
   ManagedAvailabilityPreflightSchema,
   ManagedAvailabilitySettingsSchema,
 } from '@/modules/databases/databases.schemas.js';
@@ -99,6 +100,7 @@ export const storageToolRuntime = {
   ManagedAvailabilityEnableSchema,
   ManagedAvailabilityEventsQuerySchema,
   ManagedAvailabilityMakePrimarySchema,
+  ManagedAvailabilityMemberOrderSchema,
   ManagedAvailabilityPreflightSchema,
   ManagedAvailabilitySettingsSchema,
 };

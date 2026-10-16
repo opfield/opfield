@@ -9,6 +9,7 @@ import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useContentLoading } from "@/components/common/reveal-gate";
+import { movePriorityNode } from "@/components/docker/availability/availability-priority";
 import { LicensePlanBadge } from "@/components/license/LicensePlanBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -402,6 +403,23 @@ export function AvailabilityPanel({
       }
     );
 
+  // The failover order is saved at once (no form): every server once, the preferred one first.
+  const canReorder = canManage && planIncludesAvailability && !view.changesBlocked;
+  const move = async (member: AvailabilityMember, delta: -1 | 1) => {
+    const order = members.map((candidate) => candidate.id);
+    const next = movePriorityNode(order, order.indexOf(member.id), delta);
+    if (next === order) return;
+    try {
+      await api.reorderAvailabilityMembers(stableOwner, next);
+      toast.success("Failover order saved");
+      refresh();
+    } catch (error) {
+      if (!handleLicenseApiError(error, AVAILABILITY_CAPABILITY)) {
+        toastApiError(error, "Failed to change the failover order");
+      }
+    }
+  };
+
   const openAdd = () => {
     if (!requireLicenseFeature(AVAILABILITY_FEATURE, AVAILABILITY_CAPABILITY)) return;
     setAddOpen(true);
@@ -531,13 +549,22 @@ export function AvailabilityPanel({
       <PanelShell
         title="Servers"
         icon={<Users className="h-4 w-4" />}
-        description="The primary takes writes; ready copies can take over."
+        description={
+          view.priorityMode
+            ? "The primary takes writes; ready copies take over in this order, and the primary moves back to the first server."
+            : "The primary takes writes; ready copies take over in this order."
+        }
       >
         <MembersTable
           view={view}
           canManage={canManage}
           busy={busy}
-          actions={{ onMakePrimary: setPromote, onRebuild: rebuild, onRemove: remove }}
+          actions={{
+            onMakePrimary: setPromote,
+            onRebuild: rebuild,
+            onRemove: remove,
+            onMove: canReorder ? (member, delta) => void move(member, delta) : undefined,
+          }}
         />
       </PanelShell>
 

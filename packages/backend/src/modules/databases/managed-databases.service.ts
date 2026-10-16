@@ -544,6 +544,10 @@ export class ManagedDatabaseService {
   ): Promise<unknown> {
     return commercialModuleUnavailable();
   }
+  /** The failover order: every member once, the preferred one first. */
+  async reorderAvailabilityMembers(_id: string, _input: { memberIds: string[] }, _userId: string): Promise<unknown> {
+    return commercialModuleUnavailable();
+  }
   async removeAvailabilityMember(_id: string, _memberId: string, _userId: string): Promise<unknown> {
     return commercialModuleUnavailable();
   }
