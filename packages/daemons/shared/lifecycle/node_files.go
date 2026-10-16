@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
@@ -31,6 +32,7 @@ type nodeFileEntry struct {
 func handleNodeFile(_ context.Context, cmd *pb.OpfieldCommand, hostIdentityPath string) *pb.CommandResult {
 	nodeFile := cmd.GetNodeFile()
 	result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
+	sweepRememberedNodeUploadDirs(time.Now())
 
 	switch nodeFile.GetAction() {
 	case "ensure-host-identity":
@@ -302,6 +304,7 @@ func initNodeFileUpload(uploadID string, targetPath string, totalBytes int64) er
 	if err := os.Remove(tempPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove stale upload temp file: %w", err)
 	}
+	rememberNodeUploadDir(filepath.Dir(cleanTarget), time.Now())
 	file, err := os.OpenFile(tempPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("create upload temp file: %w", err)

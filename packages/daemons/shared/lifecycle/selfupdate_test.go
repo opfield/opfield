@@ -151,3 +151,33 @@ func TestReplaceBinaryAtPathKeepsCurrentBinaryOnChecksumMismatch(t *testing.T) {
 		t.Fatalf("current binary was replaced: %q", contents)
 	}
 }
+
+func TestReplaceBinaryAtPathStopsOversizedDownload(t *testing.T) {
+	previous := maxDaemonArtifactBytes
+	maxDaemonArtifactBytes = 8
+	t.Cleanup(func() { maxDaemonArtifactBytes = previous })
+	artifact := []byte("a-binary-larger-than-the-limit")
+	checksum := fmt.Sprintf("%x", sha256.Sum256(artifact))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(artifact)
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	destination := filepath.Join(dir, "nginx-daemon")
+	if err := os.WriteFile(destination, []byte("old"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	verify := func(string, updateauth.DaemonExpectation) (*updateauth.DaemonManifestPayload, error) {
+		return &updateauth.DaemonManifestPayload{}, nil
+	}
+	downloadURL := server.URL + "/v2.10.0-rc.27-nginx/nginx-daemon-linux-" + updateauth.NormalizeArch(runtime.GOARCH)
+	err := replaceBinaryAtPath(downloadURL, "v2.10.0-rc.27", checksum, "signed-manifest", "nginx", destination,
+		slog.New(slog.NewTextHandler(io.Discard, nil)), verify)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("oversized download = %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("temporary files left: %v, %v", entries, err)
+	}
+}

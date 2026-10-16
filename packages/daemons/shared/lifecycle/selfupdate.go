@@ -112,6 +112,8 @@ func replaceBinaryAtPath(downloadURL, targetVersion, expectedChecksum, signedMan
 		return fmt.Errorf("verify signed update manifest: %w", err)
 	}
 
+	// Partial downloads of an update interrupted by a crash or power loss are never resumed.
+	sweepUpdateLeftovers(filepath.Dir(destination), time.Now())
 	// Download to temp file in the same directory (for atomic rename)
 	tmpFile, err := os.CreateTemp(filepath.Dir(destination), ".daemon-update-*")
 	if err != nil {
@@ -142,9 +144,14 @@ func replaceBinaryAtPath(downloadURL, targetVersion, expectedChecksum, signedMan
 	// Write + compute checksum simultaneously
 	hasher := sha256.New()
 	writer := io.MultiWriter(tmpFile, hasher)
-	if _, err := io.Copy(writer, resp.Body); err != nil {
+	written, err := io.Copy(writer, io.LimitReader(resp.Body, maxDaemonArtifactBytes+1))
+	if err != nil {
 		logger.Error("self-update failed while writing downloaded binary", "error", err)
 		return fmt.Errorf("write binary: %w", err)
+	}
+	if written > maxDaemonArtifactBytes {
+		logger.Error("self-update download exceeds the artifact size limit", "limit_bytes", maxDaemonArtifactBytes)
+		return fmt.Errorf("downloaded binary exceeds %d bytes", maxDaemonArtifactBytes)
 	}
 	// Verify checksum
 	actualChecksum := hex.EncodeToString(hasher.Sum(nil))
