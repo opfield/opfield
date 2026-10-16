@@ -23,6 +23,12 @@ import {
   relayBinary,
   renameLegacyEnvFileKeys,
 } from './opfield-names.js';
+import {
+  type RegistryStorageBackend,
+  registryStorageBackendFromCompose,
+  registryStorageBackendFromEnv,
+  registryStorageComposeEnvironment,
+} from './registry-storage.js';
 
 export const DEFAULT_SANDBOX_WORKSPACE_DIR = '/var/lib/opfield/sandbox-workspaces';
 // legacy-name: the sandbox workspace directory of installations made before 2.12.1; the host move switches a .env
@@ -222,6 +228,8 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
     boundedLogging: composeLoggingEligibility(options.dockerLogDefaults),
     commercialDirName,
     relayBuildVersion: envPatch.values.get('OPFIELD_RELAY_BUILD_VERSION') ?? null,
+    // The storage chosen in Settings lives in the .env: the registry block follows it on every update.
+    registryStorage: registryStorageBackendFromEnv(envPatch.content),
   });
 
   const effectiveSandboxWorkspaceDir =
@@ -376,6 +384,8 @@ export function patchCompose(
     commercialDirName?: string;
     /** Build version of the relay image the file runs; picks the relay binary (see relayBinary). */
     relayBuildVersion?: string | null;
+    /** Storage of the registry block; without it the block keeps the storage it has. */
+    registryStorage?: RegistryStorageBackend;
   } = {}
 ): string {
   const boundedLogging = options.boundedLogging ?? null;
@@ -407,7 +417,7 @@ export function patchCompose(
   const environmentPatched = removeLegacyAppEnvironment(healthcheckPatched);
   const clickHousePatched = removeLegacyClickHouseService(environmentPatched);
   const relayPatched = patchRelayFoundation(clickHousePatched, boundedLogging, layout, options.relayBuildVersion);
-  const registryPatched = patchRegistryFoundation(relayPatched, boundedLogging, layout);
+  const registryPatched = patchRegistryFoundation(relayPatched, boundedLogging, layout, options.registryStorage);
   const loggingPatched =
     boundedLogging === true ? keepValidYaml(registryPatched, patchServiceLogging(registryPatched)) : registryPatched;
   return `${loggingPatched.join('\n')}${hadTrailingNewline ? '\n' : ''}`;
@@ -986,14 +996,26 @@ function relayServiceBlock(logging: boolean, layout: ComposeLayout, binary: stri
   ];
 }
 
+/** docker-compose.yml with the managed registry block on the given storage; the rest of the file stays as it is. */
+export function patchComposeRegistryStorage(content: string, storage: RegistryStorageBackend): string {
+  const renamed = applyComposeVocabulary(content);
+  let lines = renamed.replace(/\r\n/g, '\n').split('\n');
+  const hadTrailingNewline = lines.at(-1) === '';
+  if (hadTrailingNewline) lines = lines.slice(0, -1);
+  const patched = patchRegistryFoundation(lines, null, composeLayout(renamed), storage);
+  return `${patched.join('\n')}${hadTrailingNewline ? '\n' : ''}`;
+}
+
 function patchRegistryFoundation(
   lines: string[],
   boundedLogging: boolean | null = null,
-  layout: ComposeLayout = composeLayout('')
+  layout: ComposeLayout = composeLayout(''),
+  storage: RegistryStorageBackend = registryStorageBackendFromCompose(lines)
 ): string[] {
   const canonical = registryServiceBlock(
     managedBlockLogging(lines, 'registry', REGISTRY_SERVICE_START, REGISTRY_SERVICE_END, boundedLogging),
-    layout
+    layout,
+    storage
   );
   const markerStart = findLineInRange(lines, 0, lines.length, REGISTRY_SERVICE_START);
   const markerEnd = findLineInRange(lines, 0, lines.length, REGISTRY_SERVICE_END);
@@ -1078,7 +1100,7 @@ function upsertAppHostDiagnosticsMounts(lines: string[]): string[] {
   return [...before, ...present, ...missing, ...lines.slice(volumes.end)];
 }
 
-function registryServiceBlock(logging: boolean, layout: ComposeLayout): string[] {
+function registryServiceBlock(logging: boolean, layout: ComposeLayout, storage: RegistryStorageBackend): string[] {
   return [
     `  ${REGISTRY_SERVICE_START}`,
     '  registry:',
@@ -1095,7 +1117,7 @@ function registryServiceBlock(logging: boolean, layout: ComposeLayout): string[]
     `      REGISTRY_AUTH_TOKEN_SERVICE: ${layout.registryTokenService}`,
     `      REGISTRY_AUTH_TOKEN_ISSUER: ${layout.registryTokenService}`,
     '      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/gateway-registry-auth/token-cert.pem',
-    '      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry',
+    ...registryStorageComposeEnvironment(storage).map((entry) => `      ${entry}`),
     '      REGISTRY_STORAGE_DELETE_ENABLED: "true"',
     '      REGISTRY_HEALTH_STORAGEDRIVER_ENABLED: "true"',
     '      REGISTRY_HEALTH_STORAGEDRIVER_INTERVAL: 10s',

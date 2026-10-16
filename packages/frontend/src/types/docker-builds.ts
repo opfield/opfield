@@ -267,10 +267,51 @@ export interface DockerBuildLogChunk {
   createdAt: string;
 }
 
+/** Where the internal registry keeps images; the secret key is never returned. */
+export interface DockerInternalRegistryStorage {
+  backend: "filesystem" | "s3";
+  s3: {
+    endpoint: string | null;
+    region: string;
+    bucket: string;
+    rootDirectory: string;
+    forcePathStyle: boolean;
+    accessKeyId: string;
+  } | null;
+  lastSwitch: {
+    status: "running" | "completed" | "failed";
+    /** The step in progress while running. */
+    phase: string | null;
+    from: "filesystem" | "s3";
+    target: "filesystem" | "s3";
+    startedAt: string;
+    finishedAt: string | null;
+    copiedFiles: number | null;
+    copiedBytes: number | null;
+    error: string | null;
+  } | null;
+}
+
+export type DockerInternalRegistryStorageInput =
+  | { backend: "filesystem" }
+  | {
+      backend: "s3";
+      connectionId?: string;
+      endpoint?: string;
+      region?: string;
+      bucket?: string;
+      rootDirectory?: string;
+      forcePathStyle?: boolean;
+      accessKeyId?: string;
+      secretAccessKey?: string;
+    };
+
 export interface DockerInternalRegistryState {
   status: "starting" | "ready" | "read_only" | "maintenance" | "degraded" | "unhealthy";
   writable: boolean;
-  storageBackend: "filesystem";
+  storageBackend: "filesystem" | "s3";
+  /** Missing from servers before 2.12.3. */
+  storage?: DockerInternalRegistryStorage;
   storageUsedBytes: number;
   storageCapacityBytes: number | null;
   externalAccessEnabled: boolean;
@@ -288,6 +329,7 @@ export interface DockerInternalRegistrySettings {
   externalHostname?: string;
   externalNginxNodeId?: string;
   externalCertificateId?: string;
+  storage?: DockerInternalRegistryStorageInput;
 }
 
 export interface DockerBuildAdmissionStatus {

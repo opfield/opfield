@@ -140,6 +140,7 @@ import { DockerSourceService } from '@/modules/docker/docker-source.service.js';
 import { dockerSourceCommercialRuntime } from '@/modules/docker/docker-source-commercial-runtime.js';
 import { DockerTaskService } from '@/modules/docker/docker-task.service.js';
 import { DockerWebhookService } from '@/modules/docker/docker-webhook.service.js';
+import { DockerRegistryStorageService } from '@/modules/docker/registry-storage/registry-storage.service.js';
 import { DomainsService } from '@/modules/domains/domain.service.js';
 import { DomainFolderService } from '@/modules/domains/domain-folders.service.js';
 import { GroupService } from '@/modules/groups/group.service.js';
@@ -2133,10 +2134,23 @@ export async function initializeContainer(): Promise<void> {
   dockerInternalRegistryService.setExecutor(
     createDockerRegistryMaintenanceExecutor(dockerService, dockerRegistryTokenService)
   );
-  await dockerInternalRegistryService.recoverInterruptedMaintenance().catch((error) => {
-    logger.error('Failed to recover interrupted internal registry maintenance', { error });
+  const dockerRegistryStorageService = new DockerRegistryStorageService({
+    db,
+    docker: dockerService,
+    tokenService: dockerRegistryTokenService,
+    audit: auditService,
+    eventBus,
+    objectStorage: () => objectStorageService,
+    composeProjectDir: env.COMPOSE_PROJECT_DIR,
   });
+  // A storage switch a restart interrupted is finished or rolled back first; it then owns the registry maintenance.
+  if (!(await dockerRegistryStorageService.recoverAfterRestart())) {
+    await dockerInternalRegistryService.recoverInterruptedMaintenance().catch((error) => {
+      logger.error('Failed to recover interrupted internal registry maintenance', { error });
+    });
+  }
   container.registerInstance(DockerService, dockerService);
+  container.registerInstance(DockerRegistryStorageService, dockerRegistryStorageService);
   container.registerInstance(SetupRestoreService, new SetupRestoreService(dockerService));
   container.resolve(ExternalSshService).setDockerService(dockerService);
 

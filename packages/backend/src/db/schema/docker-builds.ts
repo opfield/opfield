@@ -67,6 +67,7 @@ export type DockerRegistryMaintenancePhase =
   | 'collecting_blobs'
   | 'verifying'
   | 'restoring_writes'
+  | 'switching_storage'
   | 'failed';
 
 export type DockerBuildVulnerabilityScope = 'all' | 'application' | 'fixable_application' | 'fixable_all';

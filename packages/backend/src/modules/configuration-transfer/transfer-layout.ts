@@ -3,6 +3,11 @@ import { resolve } from 'node:path';
 import { parseDocument } from 'yaml';
 import { BUILT_IN_GITHUB_OAUTH_CLIENT_ID } from '@/config/env.js';
 import { isOpfieldComposeLayout, OPFIELD_VOLUME_KEYS } from '@/foundation/opfield-names.js';
+import {
+  REGISTRY_STORAGE_ENV_KEYS,
+  registryStorageEnvValues,
+  registryStorageFromContainerEnv,
+} from '@/foundation/registry-storage.js';
 
 /**
  * What a configuration export carries and where each piece lives on a Compose installation. Shared
@@ -90,7 +95,25 @@ export const HOST_SPECIFIC_VALUES = [
   'Sign-in sessions: everyone signs in again',
 ] as const;
 
-export type PortableEnvKey = (typeof PORTABLE_ENV_KEYS)[number];
+/**
+ * The internal registry's S3 storage (choice, endpoint, bucket and keys) travels as well, like the connector secrets in
+ * the database dump; the values are in their .env form (single-quoted), as the registry container runs with them now.
+ */
+const REGISTRY_STORAGE_ENV_NAMES: readonly string[] = Object.values(REGISTRY_STORAGE_ENV_KEYS);
+type RegistryStorageEnvName = (typeof REGISTRY_STORAGE_ENV_KEYS)[keyof typeof REGISTRY_STORAGE_ENV_KEYS];
+
+export type PortableEnvKey = (typeof PORTABLE_ENV_KEYS)[number] | RegistryStorageEnvName;
+
+/** The registry storage values of an export, from the running registry container's environment. */
+export function registryStorageEnvironment(registryEnv: readonly string[]): Partial<Record<PortableEnvKey, string>> {
+  const { s3 } = registryStorageFromContainerEnv(registryEnv);
+  if (!s3) return {};
+  const values: Partial<Record<PortableEnvKey, string>> = {};
+  for (const [key, value] of Object.entries(registryStorageEnvValues(s3))) {
+    if (value !== null) values[key as RegistryStorageEnvName] = value;
+  }
+  return values;
+}
 
 export interface TransferVolumeManifest {
   key: TransferVolumeKey;
@@ -159,6 +182,13 @@ export function parsePortableEnvironment(value: unknown): Partial<Record<Portabl
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('The export environment is invalid');
   const result: Partial<Record<PortableEnvKey, string>> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (REGISTRY_STORAGE_ENV_NAMES.includes(key)) {
+      if (typeof raw !== 'string' || raw.length > 4096 || !/^'[^'\r\n\0]*'$/.test(raw)) {
+        throw new Error(`The exported value of ${key} is invalid`);
+      }
+      result[key as RegistryStorageEnvName] = raw;
+      continue;
+    }
     if (!(PORTABLE_ENV_KEYS as readonly string[]).includes(key)) continue;
     if (typeof raw !== 'string' || raw.length > 4096 || /[\r\n\0]/.test(raw)) {
       throw new Error(`The exported value of ${key} is invalid`);

@@ -20,13 +20,16 @@ import { DockerInternalRegistrySettingsSchema } from './docker-build.schemas.js'
 import { DockerBuildService } from './docker-build.service.js';
 import { DockerRegistryService } from './docker-registry.service.js';
 import { DockerInternalRegistryService } from './docker-registry-internal.service.js';
+import { DockerInternalRegistryUpdateSchema } from './registry-storage/registry-storage.schemas.js';
+import { DockerRegistryStorageService } from './registry-storage/registry-storage.service.js';
 
 export function registerRegistryRoutes(router: OpenAPIHono<AppEnv>) {
   // ─── Registry routes ──────────────────────────────────────────────────
 
   router.openapi({ ...getInternalRegistryRoute, middleware: requireScope('docker:registries:view') }, async (c) => {
-    const data = await container.resolve(DockerInternalRegistryService).getState();
-    return c.json({ data });
+    const state = await container.resolve(DockerInternalRegistryService).getState();
+    const storage = await container.resolve(DockerRegistryStorageService).getView();
+    return c.json({ data: { ...state, storage } });
   });
 
   router.get('/registries/internal/repositories', requireScope('docker:registries:view'), async (c) => {
@@ -35,9 +38,19 @@ export function registerRegistryRoutes(router: OpenAPIHono<AppEnv>) {
   });
 
   router.openapi({ ...updateInternalRegistryRoute, middleware: requireScope('docker:registries:edit') }, async (c) => {
-    const input = DockerInternalRegistrySettingsSchema.parse(await c.req.json());
-    const data = await container.resolve(DockerInternalRegistryService).updateSettings(input, c.get('user')!.id);
-    return c.json({ data });
+    const { storage: storageInput, ...external } = DockerInternalRegistryUpdateSchema.parse(await c.req.json());
+    const user = c.get('user')!;
+    const registry = container.resolve(DockerInternalRegistryService);
+    const storageService = container.resolve(DockerRegistryStorageService);
+    // The storage switch is checked here and runs on in the background; external access changes at once.
+    if (storageInput) {
+      await storageService.update(storageInput, { userId: user.id, scopes: c.get('effectiveScopes') || [] });
+    }
+    const state =
+      external.externalAccessEnabled === undefined
+        ? await registry.getState()
+        : await registry.updateSettings(DockerInternalRegistrySettingsSchema.parse(external), user.id);
+    return c.json({ data: { ...state, storage: await storageService.getView() } });
   });
 
   router.openapi({ ...runInternalRegistryGcRoute, middleware: requireScope('docker:registries:edit') }, async (c) => {

@@ -44,7 +44,7 @@ import {
   VolumeRenameSchema,
   VolumeResizeSchema,
 } from './docker.schemas.js';
-import { DockerInternalRegistrySettingsSchema, DockerSourceResourceCreateSchema } from './docker-build.schemas.js';
+import { DockerSourceResourceCreateSchema } from './docker-build.schemas.js';
 import {
   DockerDeploymentCreateSchema,
   DockerDeploymentDeploySchema,
@@ -65,6 +65,7 @@ import {
 } from './docker-folder.schemas.js';
 import { ImageCleanupUpsertSchema } from './docker-image-cleanup.schemas.js';
 import { WebhookTriggerSchema, WebhookUpsertSchema } from './docker-webhook.schemas.js';
+import { DockerInternalRegistryUpdateSchema } from './registry-storage/registry-storage.schemas.js';
 
 export const nodeParams = pathParamSchema('nodeId');
 export const containerParams = pathParamSchema('nodeId', 'containerId');
@@ -1123,8 +1124,10 @@ export const updateInternalRegistryRoute = appRoute({
   method: 'put',
   path: '/registries/internal/settings',
   tags: ['Docker Registries'],
-  summary: 'Update Business+ external access settings for the Opfield internal registry',
-  request: jsonBody(DockerInternalRegistrySettingsSchema),
+  summary: 'Update the Opfield internal registry storage (local disk or S3) and Business+ external access',
+  description:
+    'storage switches the registry between its local volume and an S3 bucket: the bucket is checked first (write, read and delete of a probe object), then the switch runs in the background, copies the stored images to the new storage, recreates the registry and checks the images in use; storage.lastSwitch in the state reports the outcome. Omitting externalAccessEnabled leaves external access as it is.',
+  request: jsonBody(DockerInternalRegistryUpdateSchema),
   responses: okJson(UnknownDataResponseSchema),
 });
 export const runInternalRegistryGcRoute = appRoute({

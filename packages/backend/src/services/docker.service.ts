@@ -4,6 +4,7 @@ import http from 'node:http';
 import { type Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { LEGACY_MANAGED_SERVICE_LABEL, MANAGED_SERVICE_LABEL } from '@/foundation/opfield-names.js';
+import { type RegistryStorageBackend, registryStorageFromContainerEnv } from '@/foundation/registry-storage.js';
 import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('DockerService');
@@ -82,6 +83,9 @@ export class DockerService {
 
   async managedRegistryHasRepositories(): Promise<boolean> {
     const registryId = await this.managedRegistryContainerId();
+    // A registry on S3 keeps nothing on the volume. Garbage collection then runs only while Opfield tracks build
+    // artifacts, which the storage switch copied into the bucket: on an empty bucket it would fail.
+    if (await this.managedRegistryOnS3(registryId)) return false;
     const result = await this.execInContainer(registryId, [
       'sh',
       '-c',
@@ -90,9 +94,21 @@ export class DockerService {
     return result.exitCode === 0;
   }
 
-  /** Bytes the managed registry keeps on its data volume, measured inside the registry container. */
+  /**
+   * Bytes the managed registry keeps: on its data volume, measured inside the registry container, or in its S3 bucket
+   * folder, summed from the object listing (the caller measures every few minutes, not on every read).
+   */
   async managedRegistryStorageUsedBytes(): Promise<number> {
     const registryId = await this.managedRegistryContainerId();
+    const details = await this.inspectContainerDetails(registryId);
+    const storage = registryStorageFromContainerEnv(details?.Config.Env ?? []);
+    if (storage.s3) {
+      const [{ RegistryS3Client }, { registryBucketUsedBytes }] = await Promise.all([
+        import('@/modules/docker/registry-storage/s3-client.js'),
+        import('@/modules/docker/registry-storage/registry-storage-copy.js'),
+      ]);
+      return registryBucketUsedBytes(new RegistryS3Client(storage.s3), storage.s3.rootDirectory);
+    }
     const result = await this.execInContainer(registryId, ['sh', '-c', 'du -sk /var/lib/registry | cut -f1']);
     const kibibytes = Number(result.output.trim());
     if (result.exitCode !== 0 || !Number.isSafeInteger(kibibytes) || kibibytes < 0) {
@@ -107,8 +123,10 @@ export class DockerService {
     if (inspected.statusCode !== 200) throw new Error(`Registry inspect failed (${inspected.statusCode})`);
     const registry = JSON.parse(inspected.body) as {
       Config?: { Image?: string; Env?: string[]; Entrypoint?: string[] | string | null };
-      HostConfig?: { Binds?: string[]; Mounts?: Array<Record<string, unknown>> };
+      HostConfig?: { Binds?: string[]; Mounts?: Array<Record<string, unknown>>; NetworkMode?: string };
     };
+    // On S3 the collection reads and deletes in the bucket: it needs the registry's network.
+    const onS3 = (registry.Config?.Env ?? []).includes('REGISTRY_STORAGE=s3');
     const image = registry.Config?.Image;
     if (!image) throw new Error('Managed registry image is unavailable');
     const temporaryName = `opfield-registry-gc-${process.pid}-${Date.now()}`;
@@ -139,7 +157,7 @@ export class DockerService {
           HostConfig: {
             Binds: registry.HostConfig?.Binds ?? [],
             Mounts: registry.HostConfig?.Mounts ?? [],
-            NetworkMode: 'none',
+            NetworkMode: onS3 ? (registry.HostConfig?.NetworkMode ?? 'none') : 'none',
           },
         }
       );
@@ -216,6 +234,24 @@ export class DockerService {
       await this.request('DELETE', `${API_VERSION}/containers/${container.Id}?force=1`).catch(() => undefined);
     }
     await this.startManagedRegistry();
+  }
+
+  /** Full inspect of the managed registry container: environment, mounts, network and health. */
+  async inspectManagedRegistry(): Promise<DockerContainerDetails> {
+    const details = await this.inspectContainerDetails(await this.managedRegistryContainerId());
+    if (!details) throw new Error('Managed registry container was not found');
+    return details;
+  }
+
+  /** Where the managed registry keeps its data, read from its environment. */
+  async managedRegistryStorageBackend(): Promise<RegistryStorageBackend> {
+    const details = await this.inspectContainerDetails(await this.managedRegistryContainerId());
+    return registryStorageFromContainerEnv(details?.Config.Env ?? []).backend;
+  }
+
+  private async managedRegistryOnS3(registryId: string): Promise<boolean> {
+    const details = await this.inspectContainerDetails(registryId);
+    return (details?.Config.Env ?? []).includes('REGISTRY_STORAGE=s3');
   }
 
   private async managedRegistryContainerId(): Promise<string> {
@@ -1109,11 +1145,14 @@ export class DockerService {
   /**
    * Create, start, wait for completion, and clean up a one-shot container.
    */
-  async runOneShot(config: DockerCreateContainerConfig): Promise<{ exitCode: number; output: string }> {
+  async runOneShot(
+    config: DockerCreateContainerConfig,
+    timeoutMs?: number
+  ): Promise<{ exitCode: number; output: string }> {
     const id = await this.createContainer(config);
     try {
       await this.startContainer(id);
-      const exitCode = await this.waitContainer(id);
+      const exitCode = await this.waitContainer(id, timeoutMs);
       // Capture logs
       const logRes = await this.request(
         'GET',
@@ -1207,7 +1246,7 @@ export interface DockerContainerDetails {
   /** Image ID (sha256:...). */
   Image: string;
   Config: { Image: string; Labels?: Record<string, string>; Env?: string[] };
-  State: { Status: string; Running: boolean; Paused?: boolean };
+  State: { Status: string; Running: boolean; Paused?: boolean; Health?: { Status?: string } };
   Mounts?: Array<{ Type: string; Name?: string; Source?: string; Destination: string; RW?: boolean }>;
   HostConfig?: { NetworkMode?: string };
 }
