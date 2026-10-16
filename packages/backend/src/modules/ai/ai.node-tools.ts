@@ -73,6 +73,17 @@ export interface NodeToolContext {
 
 type ListedNode = Awaited<ReturnType<NodesService['list']>>['data'][number];
 
+/**
+ * A Docker node whose engine cannot start containers (containerd or dockerd down) still shows status online: list_nodes
+ * names the problem so an agent sees it without opening every node.
+ */
+function dockerEngineProblem(node: ListedNode): { dockerEngineProblem?: string } {
+  const engine = (node as { lastHealthReport?: { dockerEngine?: { available?: boolean; problem?: string } } | null })
+    .lastHealthReport?.dockerEngine;
+  if (!engine || engine.available !== false) return {};
+  return { dockerEngineProblem: engine.problem || 'the Docker Engine cannot start containers' };
+}
+
 function presentListedNode(node: ListedNode, compact: boolean) {
   return compact
     ? {
@@ -87,6 +98,7 @@ function presentListedNode(node: ListedNode, compact: boolean) {
         serviceCreationLocked: node.serviceCreationLocked,
         daemonVersion: node.daemonVersion,
         lastSeenAt: node.lastSeenAt,
+        ...dockerEngineProblem(node),
       }
     : {
         id: node.id,
@@ -105,6 +117,7 @@ function presentListedNode(node: ListedNode, compact: boolean) {
         lastSeenAt: node.lastSeenAt,
         createdAt: node.createdAt,
         updatedAt: node.updatedAt,
+        ...dockerEngineProblem(node),
       };
 }
 

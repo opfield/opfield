@@ -92,6 +92,10 @@ func (m *Manager) copyStepLocked(mem *member, now time.Duration, primaryKnown bo
 		return
 	}
 	if !obs.container.Running {
+		if obs.container.Absent {
+			// Not created on this node yet: nothing to start or seed.
+			return
+		}
 		if m.stoppedNeedsRejoinLocked(mem, now, primaryKnown) {
 			return
 		}

@@ -83,6 +83,18 @@ export interface NodeGpuDevice {
   health?: string;
 }
 
+/** Whether a node's Docker Engine can start containers (HealthReport.docker_engine_health). */
+export interface NodeDockerEngineHealth {
+  available: boolean;
+  /** The part that does not answer: dockerd or containerd; absent while available. */
+  component?: string;
+  /** What fails, as one sentence; absent while available. */
+  problem?: string;
+  checkedAt?: string;
+  /** Since when it has been unavailable; absent while available. */
+  unavailableSince?: string;
+}
+
 export interface NodeHealthReport {
   nginxRunning: boolean;
   configValid: boolean;
@@ -118,6 +130,11 @@ export interface NodeHealthReport {
     usagePercent: number;
     /** root, docker_root, opfield_state, managed_image or data; absent from daemons before 2.12.3. */
     role?: string;
+    /**
+     * The filesystem behind the mount, the same for every node enrolled on one host that sees it: one disk alert
+     * names every such node. Absent from daemons before 2.12.3.
+     */
+    diskId?: string;
   }>;
   diskReadBytes: number;
   diskWriteBytes: number;
@@ -155,6 +172,9 @@ export interface NodeHealthReport {
   // Nginx daemons: a problem of the host's nginx service that only root can fix, as one sentence ending with the
   // command that fixes it. Absent when there is none.
   nginxServiceProblem?: string;
+  // Docker daemons of 2.12.3 and later (not build workers): whether the node's Docker Engine can start containers
+  // (dockerd and its containerd both answer). Absent from older daemons.
+  dockerEngine?: NodeDockerEngineHealth;
   // Daemons of 2.12.1 and later: objects on the node still under their pre-Opfield names, by kind. Absent when none.
   legacyNames?: Record<string, number>;
   // Docker daemons that report it (HealthReport.lease_watchdog_version): the version of the node's lease watchdog,

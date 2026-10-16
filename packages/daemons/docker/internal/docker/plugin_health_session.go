@@ -5,6 +5,7 @@ import (
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 	"github.com/opfield/opfield/daemon-shared/stream"
+	"github.com/opfield/opfield/daemon-shared/sysmetrics"
 )
 
 func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
@@ -15,6 +16,9 @@ func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 		return base
 	}
 	base.DockerVersion = p.version
+	// From the background probe: it must reach Opfield also when dockerd
+	// does not answer below.
+	base.DockerEngineHealth = p.engineHealth.report()
 	base.LeaseWatchdogVersion = leaseWatchdogBuild()
 	// Lease state goes first: it must reach Opfield even when Docker
 	// itself does not answer.
@@ -32,6 +36,10 @@ func (p *DockerPlugin) CollectHealth(base *pb.HealthReport) *pb.HealthReport {
 			base.DiskMounts = append(base.DiskMounts, mount)
 		}
 	}
+	// Every instance disk the daemon runs is in the report, also one the
+	// mount table enumeration missed. (The docker daemon never runs in
+	// protected mode, whose report lists only the root mount.)
+	base.DiskMounts = completeManagedImageMounts(base.DiskMounts, p.knownImageMounts(), systemLoopHost, sysmetrics.DiskMountAt)
 
 	ctx := context.Background()
 	running, stopped, total, err := p.client.CountContainers(ctx)

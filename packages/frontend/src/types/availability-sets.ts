@@ -101,6 +101,14 @@ export interface AvailabilityOperation {
   lastError: string | null;
 }
 
+/** Turning availability on failed and the resource stayed on its first server (the managed resource's get). */
+export interface AvailabilityFailure {
+  operation: "create" | "convert";
+  reason: string;
+  at: string;
+  setId: string | null;
+}
+
 export interface AvailabilityView {
   setId: string;
   mode: AvailabilityMode;

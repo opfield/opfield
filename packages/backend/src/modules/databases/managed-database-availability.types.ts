@@ -103,6 +103,11 @@ export interface ManagedAvailabilityMembersPort {
     onlyMemberId?: string
   ): Promise<Array<{ memberId: string; nodeId: string; error: string; refused: boolean }>>;
   removeMember(setId: string, memberId: string, nodeId: string): Promise<CommandResult | null>;
+  /**
+   * Why a member command returned no result for a node (null): the node is not connected, or its daemon does not run
+   * availability members. Optional: hosts before it lack it.
+   */
+  unsentReason?(nodeId: string): string;
   /** Sends a signed assignment to every member, or only to onlyMemberId (a planned manual switch's step-down). */
   assignPrimary(setId: string, assignment: AvailabilityPrimaryAssignment, onlyMemberId?: string): Promise<string[]>;
   switchover(

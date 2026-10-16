@@ -25,6 +25,9 @@ type ContainerInfo struct {
 	ID         string
 	CgroupPath string
 	StartedAt  time.Time
+	// Absent: the member's resource is not on this node (not created yet,
+	// or deleted): see memberha.ContainerState.Absent.
+	Absent bool
 }
 
 // Host is what the engine needs from the docker daemon for one member.

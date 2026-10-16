@@ -1877,6 +1877,13 @@
       "when": 1794936639000,
       "tag": "0271_pki_revoked_serials",
       "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1795023040000,
+      "tag": "0272_docker_engine_unavailable_alert_rule",
+      "breakpoints": true
     }
   ]
 }

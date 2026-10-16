@@ -295,6 +295,12 @@ func (m *managedStorageManager) handle(ctx context.Context, action, id, configJS
 		if err := m.saveRecord(record); err != nil {
 			return "", err
 		}
+		if record.Set == nil {
+			// A single node again (availability turned off, or a create on
+			// several servers that failed before it became a member): a
+			// member left alone in its set is let go of at once.
+			m.plugin.forgetLoneSetMembersOf("managed_storage", record.ID)
+		}
 		return m.marshalManagedStorageDetail(ctx, record, m.storageStatus(ctx, record))
 	case "start", "restart":
 		record, err := m.loadRecord(id)

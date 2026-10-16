@@ -19,6 +19,7 @@ import type {
 } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { availabilityMemberConfigError } from './availability-member-config.rules.js';
+import { availabilityMemberUnsentReason } from './availability-member-unsent.js';
 import type { NodeDispatchService } from './node-dispatch.service.js';
 
 const logger = createChildLogger('AvailabilityMembers');
@@ -122,7 +123,8 @@ export class AvailabilityMembersService {
 
   constructor(
     private readonly db: DrizzleClient,
-    private readonly dispatch: Pick<NodeDispatchService, 'sendAvailabilityMember'>,
+    private readonly dispatch: Pick<NodeDispatchService, 'sendAvailabilityMember'> &
+      Partial<Pick<NodeDispatchService, 'availabilityMemberUnsentReason'>>,
     private readonly now: () => number = Date.now
   ) {}
 
@@ -284,6 +286,14 @@ export class AvailabilityMembersService {
   }
 
   /**
+   * Why a member command returned no result for the node (null from send): not connected, or a daemon without
+   * availability members. Operations and their events name this instead of guessing.
+   */
+  unsentReason(nodeId: string): string {
+    return this.dispatch.availabilityMemberUnsentReason?.(nodeId) ?? availabilityMemberUnsentReason('disconnected');
+  }
+
+  /**
    * Sends the current configuration to every member's node (after members, settings, the lease policy or published
    * ports changed; bump `config_revision` first). Returns the members whose node did not take it.
    */
@@ -321,7 +331,7 @@ export class AvailabilityMembersService {
         }
         const result = await this.send(member.nodeId, { configure: config });
         if (!result) {
-          fail('the node does not run availability members', false);
+          fail(this.unsentReason(member.nodeId), false);
           continue;
         }
         if (!result.success) {

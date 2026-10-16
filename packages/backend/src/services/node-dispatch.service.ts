@@ -13,6 +13,7 @@ import type {
 } from '@/grpc/generated/types.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { availabilityMemberUnsentReason } from './availability-member-unsent.js';
 import type { DaemonUpdateService } from './daemon-update.service.js';
 import { opfieldKeptVolumeNames } from './docker-kept-volumes.js';
 import { assertNodeAgentConsoleSandbox, assertNodeHostFeatureEnabled } from './node-host-access.js';
@@ -770,6 +771,14 @@ export class NodeDispatchService {
   ): Promise<CommandResult | null> {
     if (!this.registry.hasCapability(nodeId, MANAGED_AVAILABILITY_MEMBER_CAPABILITY)) return null;
     return this.registry.sendCommand(nodeId, { availabilityMember: command }, timeoutMs);
+  }
+
+  /**
+   * Why sendAvailabilityMember sent nothing to the node: it is not connected (offline, or its daemon stopped
+   * answering and its stream closed), or its daemon does not run availability members.
+   */
+  availabilityMemberUnsentReason(nodeId: string): string {
+    return availabilityMemberUnsentReason(this.registry.getNode(nodeId) ? 'unsupported' : 'disconnected');
   }
 
   async applyRelayWitnesses(

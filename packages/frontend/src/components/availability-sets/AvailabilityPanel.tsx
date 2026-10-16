@@ -26,6 +26,7 @@ import {
   isManagedStorageCandidateNode,
   listManagedDatabaseCandidateNodes,
 } from "@/lib/managed-database-nodes";
+import { formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
 import {
@@ -35,6 +36,7 @@ import {
 } from "@/stores/license-paywall";
 import type {
   AvailabilityEvent,
+  AvailabilityFailure,
   AvailabilityMember,
   AvailabilityOwner,
   AvailabilityView,
@@ -141,6 +143,7 @@ export function AvailabilityPanel({
   onChanged?: () => void;
 }) {
   const [view, setView] = useState<AvailabilityView | null | undefined>(undefined);
+  const [failure, setFailure] = useState<AvailabilityFailure | null>(null);
   const [events, setEvents] = useState<AvailabilityEvent[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [witnessNames, setWitnessNames] = useState<WitnessNames>({
@@ -167,8 +170,9 @@ export function AvailabilityPanel({
 
   const load = useCallback(async () => {
     try {
-      const next = await api.getAvailability(stableOwner);
+      const { view: next, failure: lastFailure } = await api.getAvailabilityState(stableOwner);
       setView(next);
+      setFailure(next ? null : lastFailure);
       if (next) {
         setEvents(await api.listAvailabilityEvents(stableOwner, { limit: 20 }).catch(() => []));
         if (primaryRef.current !== null && primaryRef.current !== next.primaryMemberId) {
@@ -328,6 +332,21 @@ export function AvailabilityPanel({
             ) : null
           }
         >
+          {failure ? (
+            <Notice
+              tone="warning"
+              title={
+                failure.operation === "create"
+                  ? "Could not be set up on several servers"
+                  : "Availability could not be turned on"
+              }
+            >
+              <span className="break-words">
+                {failure.reason}. It was kept on this server with availability off (
+                {formatDateTime(failure.at)}). Fix the cause, then make it available again.
+              </span>
+            </Notice>
+          ) : null}
           <EmptyState
             embedded
             message={`This ${ownerNoun(owner)} runs on one server.`}
@@ -539,7 +558,17 @@ export function AvailabilityPanel({
         <DetailRow label="Round trip" value={formatRtt(view.rttP50Ms)} />
         <DetailRow
           label="Witnesses"
-          value={leaseWitnesses.length === 0 ? "None" : leaseWitnesses.map(witnessName).join(", ")}
+          value={
+            leaseWitnesses.length === 0
+              ? "None"
+              : leaseWitnesses
+                  .map((witness) =>
+                    witness.status === "unreachable"
+                      ? `${witnessName(witness)} (unreachable)`
+                      : witnessName(witness)
+                  )
+                  .join(", ")
+          }
         />
       </PanelShell>
       {view.lossWindowText ? (

@@ -85,6 +85,8 @@ type Engine struct {
 	peersOK      map[string]time.Time
 	workerStop   chan struct{}
 	workerSince  time.Time
+	// closed: the member was forgotten; no worker starts again (Close).
+	closed       bool
 	lastMetaCert time.Duration
 	timings      workerTimings
 }
@@ -203,6 +205,7 @@ func (e *Engine) Container(ctx context.Context) (memberha.ContainerState, error)
 	return memberha.ContainerState{
 		Exists: master.Exists && volume.Exists && filer.Exists, Running: volume.Running && filer.Running,
 		ID: master.ID, CgroupPath: master.CgroupPath, StartedAt: master.StartedAt,
+		Absent: master.Absent && volume.Absent && filer.Absent,
 	}, nil
 }
 

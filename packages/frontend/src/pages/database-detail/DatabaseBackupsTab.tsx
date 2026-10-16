@@ -110,7 +110,7 @@ export function backupExecutorOptions(
     )
     .map((node) => ({
       id: node.id,
-      label: node.hostname,
+      label: node.displayName || node.hostname,
       disabledReason: node.status === "online" ? undefined : "Node is offline",
     }));
 }
