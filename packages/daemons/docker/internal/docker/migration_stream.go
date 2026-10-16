@@ -28,6 +28,8 @@ type migrationIncomingArtifact struct {
 	offset      int64
 	file        *os.File
 	writer      io.WriteCloser
+	// guard stops a spool file write below the node's disk reserve (nil for a live archive stream).
+	guard *migrationSpoolGuard
 }
 
 func (a *migrationIncomingArtifact) close() error {
@@ -42,6 +44,11 @@ func (a *migrationIncomingArtifact) close() error {
 
 func (a *migrationIncomingArtifact) write(data []byte) (int, error) {
 	if a.file != nil {
+		if a.guard != nil {
+			if err := a.guard.admit(len(data)); err != nil {
+				return 0, err
+			}
+		}
 		return a.file.Write(data)
 	}
 	if a.writer != nil {
@@ -137,6 +144,9 @@ func (p *DockerPlugin) runMigrationStream(ctx context.Context, conn *grpc.Client
 				file:        f,
 				writer:      writer,
 			}
+			if f != nil {
+				incoming.guard = p.migrationStore.guard(payload.Write.MigrationId, 0)
+			}
 			if err := sendMigrationAck(stream, incoming, false); err != nil {
 				return err
 			}
@@ -206,7 +216,11 @@ func (p *DockerPlugin) sendMigrationArtifact(stream pb.MigrationTransfer_Transfe
 	defer f.Close()
 	offset := req.Offset
 	buf := make([]byte, migrationChunkBytes)
-	for {
+	for chunks := 0; ; chunks++ {
+		if chunks%64 == 0 {
+			// Reading changes no file time; the spool of a long transfer is in use all along.
+			p.migrationStore.touch(req.MigrationId)
+		}
 		n, readErr := f.Read(buf)
 		if n > 0 {
 			chunk := append([]byte(nil), buf[:n]...)

@@ -57,6 +57,9 @@ func (p *DockerPlugin) prepareMigrationVolume(ctx context.Context, migrationID, 
 	if err != nil {
 		return migrationArtifactMetadata{}, err
 	}
+	if err := p.migrationStore.checkSpace(0); err != nil {
+		return migrationArtifactMetadata{}, err
+	}
 	tmp := path + ".tmp"
 	file, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
@@ -71,7 +74,9 @@ func (p *DockerPlugin) prepareMigrationVolume(ctx context.Context, migrationID, 
 	}()
 
 	artifactHasher := blake3.New()
-	encoder, err := zstd.NewWriter(io.MultiWriter(file, artifactHasher), zstd.WithEncoderLevel(zstd.SpeedFastest), zstd.WithEncoderConcurrency(1))
+	// The archive's size is known only once it is written: the reserve check stops it mid-stream.
+	spool := &guardedSpoolWriter{writer: file, guard: p.migrationStore.guard(migrationID, 0)}
+	encoder, err := zstd.NewWriter(io.MultiWriter(spool, artifactHasher), zstd.WithEncoderLevel(zstd.SpeedFastest), zstd.WithEncoderConcurrency(1))
 	if err != nil {
 		return migrationArtifactMetadata{}, fmt.Errorf("create zstd volume encoder: %w", err)
 	}

@@ -62,16 +62,56 @@ const volumeUploadSessions = new Map<string, DockerVolumeFileUploadSession>();
 const DOCKER_VOLUME_EXPORT_MAX_BYTES = 512 * 1024 * 1024;
 const DOCKER_VOLUME_FILE_UPLOAD_SESSION_TTL_MS = 30 * 60 * 1000;
 
-function cleanupExpiredVolumeUploadSessions(now = Date.now()) {
+/**
+ * An expired session's temp file (up to the upload limit) would stay inside the volume: the node is told to remove
+ * it. A node that is offline then removes it on the next upload into that directory.
+ */
+function abortExpiredVolumeUpload(
+  context: DockerVolumeNetworkOperationContext,
+  session: DockerVolumeFileUploadSession
+) {
+  void Promise.resolve()
+    .then(() =>
+      context.nodeDispatch.sendDockerVolumeCommand(session.nodeId, 'upload-abort', {
+        name: session.volumeName,
+        path: session.uploadId,
+        targetPath: session.path,
+      })
+    )
+    .catch(() => undefined);
+}
+
+function cleanupExpiredVolumeUploadSessions(context: DockerVolumeNetworkOperationContext, now = Date.now()) {
   for (const [uploadId, session] of volumeUploadSessions) {
     if (session.expiresAt <= now) {
       volumeUploadSessions.delete(uploadId);
+      abortExpiredVolumeUpload(context, session);
     }
   }
 }
 
-function getVolumeUploadSession(uploadId: string) {
-  cleanupExpiredVolumeUploadSessions();
+/** Aborts the session once it expired, also when no other upload comes to clean it up. */
+function scheduleVolumeUploadSessionExpiry(
+  context: DockerVolumeNetworkOperationContext,
+  session: DockerVolumeFileUploadSession
+) {
+  const timer = setTimeout(
+    () => {
+      if (volumeUploadSessions.get(session.uploadId) !== session) return;
+      if (session.expiresAt > Date.now()) {
+        scheduleVolumeUploadSessionExpiry(context, session);
+        return;
+      }
+      volumeUploadSessions.delete(session.uploadId);
+      abortExpiredVolumeUpload(context, session);
+    },
+    Math.max(0, session.expiresAt - Date.now()) + 1000
+  );
+  timer.unref?.();
+}
+
+function getVolumeUploadSession(context: DockerVolumeNetworkOperationContext, uploadId: string) {
+  cleanupExpiredVolumeUploadSessions(context);
   const session = volumeUploadSessions.get(uploadId);
   if (!session) {
     throw new AppError(404, 'UPLOAD_NOT_FOUND', 'Upload session not found or expired');
@@ -334,7 +374,7 @@ export async function initVolumeFileUpload(
   userId: string,
   uploadId = randomUUID()
 ) {
-  cleanupExpiredVolumeUploadSessions();
+  cleanupExpiredVolumeUploadSessions(context);
   const result = await context.nodeDispatch.sendDockerVolumeCommand(nodeId, 'upload-init', {
     name,
     path: uploadId,
@@ -342,7 +382,7 @@ export async function initVolumeFileUpload(
     maxBytes: totalBytes,
   });
   context.parseResult(result);
-  volumeUploadSessions.set(uploadId, {
+  const session: DockerVolumeFileUploadSession = {
     uploadId,
     nodeId,
     volumeName: name,
@@ -351,7 +391,9 @@ export async function initVolumeFileUpload(
     expectedOffset: 0,
     userId,
     expiresAt: Date.now() + DOCKER_VOLUME_FILE_UPLOAD_SESSION_TTL_MS,
-  });
+  };
+  volumeUploadSessions.set(uploadId, session);
+  scheduleVolumeUploadSessionExpiry(context, session);
   return { uploadId, chunkSize: DOCKER_FILE_UPLOAD_CHUNK_BYTES };
 }
 
@@ -363,7 +405,7 @@ export async function appendVolumeFileUploadChunk(
   offset: number,
   content: Buffer
 ) {
-  const session = getVolumeUploadSession(uploadId);
+  const session = getVolumeUploadSession(context, uploadId);
   assertVolumeUploadSessionScope(session, nodeId, name);
   if (offset !== session.expectedOffset) {
     throw new AppError(
@@ -404,7 +446,7 @@ export async function completeVolumeFileUpload(
   path: string,
   totalBytes: number
 ) {
-  const session = getVolumeUploadSession(uploadId);
+  const session = getVolumeUploadSession(context, uploadId);
   assertVolumeUploadSessionScope(session, nodeId, name);
   if (path !== session.path || totalBytes !== session.totalBytes) {
     throw new AppError(400, 'UPLOAD_MISMATCH', 'Upload completion does not match upload session');

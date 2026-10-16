@@ -130,7 +130,7 @@ func (p *DockerPlugin) emptyWithConnector(ctx context.Context, image, path strin
 		Config: &container.Config{
 			Image: image, User: fmt.Sprintf("%d:%d", connectorUID, connectorUID),
 			Env:    []string{connectorCleanEnv + "=" + connectorCleanMount, legacyConnectorCleanEnv + "=" + connectorCleanMount},
-			Labels: map[string]string{"net.opfield.managed": connectorCleanLabel},
+			Labels: helperContainerLabels(helperKindConnectorCleanup, map[string]string{"net.opfield.managed": connectorCleanLabel}),
 		},
 		HostConfig: &container.HostConfig{
 			Binds:       []string{path + ":" + connectorCleanMount},

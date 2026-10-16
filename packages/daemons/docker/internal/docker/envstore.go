@@ -2,11 +2,13 @@ package docker
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/opfield/opfield/daemon-shared/atomicfile"
 )
@@ -152,6 +154,59 @@ func (s *EnvStore) loadApplied(containerName string) (map[string]string, error) 
 	}
 	defer f.Close()
 	return parseEnvFile(f), nil
+}
+
+// Remove deletes the env files of a removed container. They hold its secrets and nothing reads them once the
+// container is gone.
+func (s *EnvStore) Remove(containerName string) error {
+	if strings.TrimSpace(containerName) == "" || strings.ContainsAny(containerName, "/\\") {
+		return nil
+	}
+	var errs []error
+	for _, path := range []string{s.path(containerName), s.appliedPath(containerName)} {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// RemoveOrphans deletes the env files no container owns: a file whose container name is not in existing (every
+// container on the node, stopped ones included) and that has not changed for minAge. It returns the files removed.
+func (s *EnvStore) RemoveOrphans(existing map[string]bool, minAge time.Duration, now time.Time) ([]string, error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var removed []string
+	var errs []error
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.Type().IsRegular() || strings.HasPrefix(name, ".") || !strings.HasSuffix(name, ".env") {
+			continue
+		}
+		owner := strings.TrimSuffix(name, ".env")
+		// "<name>.applied.env" is the applied file of <name>, or the env file of a container named "<name>.applied".
+		if existing[owner] || (strings.HasSuffix(owner, ".applied") && existing[strings.TrimSuffix(owner, ".applied")]) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if now.Sub(info.ModTime()) < minAge {
+			continue
+		}
+		if err := os.Remove(filepath.Join(s.dir, name)); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, err)
+			continue
+		}
+		removed = append(removed, name)
+	}
+	return removed, errors.Join(errs...)
 }
 
 func (s *EnvStore) path(containerName string) string {
