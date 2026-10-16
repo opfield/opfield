@@ -82,4 +82,25 @@ describe('state of a Git source', () => {
       'No build yet: The first build was not queued: All Build Workers are paused for new builds. Nothing has been deployed from this source yet.'
     );
   });
+
+  it('says a newer head was not built and why, instead of only that the old commit is deployed (O-6)', () => {
+    const head = '87f6052feb'.padEnd(40, '0');
+    const full =
+      "The internal registry's disk is 91% full (new builds and image pushes stop at 90%): free space on the Opfield host or remove old builds, then builds resume";
+    expect(
+      describeDockerSourceState(
+        { ...source, desiredCommitSha: head, deployedCommitSha: COMMIT, lastPollError: full },
+        [build()]
+      )
+    ).toBe(
+      `Commit 87f6052feb was not built: ${full}. The next poll or sync builds it once that is resolved. Commit 0d9a2ae5b1 is deployed.`
+    );
+    // A poll error about the commit already built changes nothing.
+    expect(
+      describeDockerSourceState(
+        { ...source, desiredCommitSha: COMMIT, deployedCommitSha: COMMIT, lastPollError: 'Repository is archived' },
+        [build()]
+      )
+    ).toBe('Commit 0d9a2ae5b1 is deployed.');
+  });
 });

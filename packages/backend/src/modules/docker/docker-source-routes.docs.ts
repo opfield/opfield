@@ -69,7 +69,7 @@ const buildResponses = {
   ...createdJson(UnknownDataResponseSchema),
   503: {
     description:
-      'No Build Worker takes the build: BUILD_WORKERS_PAUSED ("All Build Workers are paused for new builds"), NO_BUILD_WORKER_AVAILABLE, or BUILD_SCHEDULER_UNAVAILABLE.',
+      'The build is not admitted: BUILD_WORKERS_PAUSED ("All Build Workers are paused for new builds"), NO_BUILD_WORKER_AVAILABLE, BUILD_SCHEDULER_UNAVAILABLE, or INTERNAL_REGISTRY_NOT_WRITABLE (the internal registry takes no pushes: its disk is 90% full or more, or it is in maintenance).',
     content: jsonContent(ApiErrorSchema),
   },
 };

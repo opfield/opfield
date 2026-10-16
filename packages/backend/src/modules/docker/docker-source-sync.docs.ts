@@ -10,7 +10,7 @@ import {
 const tags = ['Docker Builds'];
 
 const SYNC_DESCRIPTION =
-  'Checks the source branch for a new commit now instead of waiting for the next poll or webhook: one poll iteration for this source, also when automatic builds are off. The head is resolved with the connector credentials and recorded as the desired commit; a `poll` build is queued only when the source builds automatically and the head changed or has no build yet. Returns `{ source, changed, build }` (`build` is null when nothing was queued). Within about 10 seconds of the previous poll or sync the current state is returned without asking the Git provider. Requires the same scope as a manual build; no integrations:<provider>:use is needed.';
+  'Checks the source branch for a new commit now instead of waiting for the next poll or webhook: one poll iteration for this source, also when automatic builds are off. The head is resolved with the connector credentials and recorded as the desired commit; a `poll` build is queued only when the source builds automatically and the head changed or has no build yet. Returns `{ source, changed, build }` (`build` is null when nothing was queued); a refused build answers 503 instead. Within about 10 seconds of the previous poll or sync the current state is returned without asking the Git provider. Requires the same scope as a manual build; no integrations:<provider>:use is needed.';
 
 const syncResponses = {
   ...okJson(UnknownDataResponseSchema),
@@ -21,7 +21,7 @@ const syncResponses = {
   },
   503: {
     description:
-      'No Build Worker takes the build the check would queue: BUILD_WORKERS_PAUSED ("All Build Workers are paused for new builds") or NO_BUILD_WORKER_AVAILABLE. Nothing is queued; sync again once a worker is unlocked or online.',
+      'The build the check would queue is not admitted: BUILD_WORKERS_PAUSED ("All Build Workers are paused for new builds"), NO_BUILD_WORKER_AVAILABLE, or INTERNAL_REGISTRY_NOT_WRITABLE (the internal registry takes no pushes: its disk is 90% full or more, or it is in maintenance; the message says which). Nothing is queued; also answered within the 10-second window while the branch head still has no build. Sync again once a worker is unlocked or online or the registry is writable; the next poll also builds it then.',
     content: jsonContent(ApiErrorSchema),
   },
 };

@@ -27,6 +27,8 @@ export interface DockerSourceBuildSummary {
 export interface DockerSourceStateInput {
   autoBuild: boolean;
   autoDeploy: boolean;
+  /** The branch head the last poll or sync recorded. */
+  desiredCommitSha?: string | null;
   deployedCommitSha: string | null;
   lastPollError: string | null;
 }
@@ -50,6 +52,17 @@ function withPeriod(text: string): string {
  * was deployed. `builds` are the latest build, or for a Compose source the service builds of its latest commit.
  */
 export function describeDockerSourceState(source: DockerSourceStateInput, builds: DockerSourceBuildSummary[]): string {
+  const state = describeLatestBuild(source, builds);
+  // A newer head whose build was refused (the internal registry takes no pushes, no Build Worker): say so first, the
+  // state of the latest build alone reads as if the head were deployed.
+  const head = source.desiredCommitSha?.toLowerCase();
+  if (builds.length > 0 && source.lastPollError && head && !builds.some((build) => build.commitSha.toLowerCase() === head)) {
+    return `Commit ${short(head)} was not built: ${withPeriod(source.lastPollError)} The next poll or sync builds it once that is resolved. ${state}`;
+  }
+  return state;
+}
+
+function describeLatestBuild(source: DockerSourceStateInput, builds: DockerSourceBuildSummary[]): string {
   const deployed = source.deployedCommitSha
     ? `The target runs commit ${short(source.deployedCommitSha)}.`
     : 'Nothing has been deployed from this source yet.';
@@ -185,6 +198,7 @@ export async function withPendingDockerSourceBuildState<T extends { sourceBindin
     .select({
       autoBuild: dockerSourceBindings.autoBuild,
       autoDeploy: dockerSourceBindings.autoDeploy,
+      desiredCommitSha: dockerSourceBindings.desiredCommitSha,
       deployedCommitSha: dockerSourceBindings.deployedCommitSha,
       lastPollError: dockerSourceBindings.lastPollError,
     })
