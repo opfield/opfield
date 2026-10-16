@@ -48,7 +48,7 @@ const CONTEXT_TTL_MS = 15_000;
 /** Cleanups after node events: at most one per node in this interval. */
 const NODE_EVENT_CLEANUP_INTERVAL_MS = 2 * 60_000;
 
-type CleanupDocker = Pick<DockerManagementService, 'listAllImages' | 'listAllContainers' | 'removeUnusedImage'>;
+type CleanupDocker = Pick<DockerManagementService, 'listAllImages' | 'listNodeContainers' | 'removeUnusedImage'>;
 
 export interface NodeImageRetentionOptions {
   /** Only these repositories (all when omitted). */
@@ -626,11 +626,15 @@ export class DockerImageCleanupService {
     this.followUps.set(nodeId, followUp);
   }
 
-  /** The node's images and containers. Without the container list nothing is removed. */
+  /**
+   * The node's images and containers. Without the container list nothing is removed. The containers are Docker's own
+   * list: a deployment's slot containers carry the deployment label its image cleanup setting is found by (the
+   * user-facing list shows a deployment as one row without labels, which fell back to the default of 2).
+   */
   private async nodeSnapshot(nodeId: string) {
     const images = await this.docker.listAllImages(nodeId);
     if (!Array.isArray(images)) throw new Error('The node did not list its images');
-    const containers = await this.docker.listAllContainers(nodeId);
+    const containers = await this.docker.listNodeContainers(nodeId);
     if (!Array.isArray(containers)) throw new Error('The node did not list its containers');
     const inUseImageIds = new Set<string>();
     for (const container of containers as Array<Record<string, any>>) {
@@ -739,7 +743,10 @@ function ownerSetting(
   context: ImageRetentionContext
 ): CleanupRow | undefined {
   const labels = (container.Labels ?? container.labels ?? {}) as Record<string, unknown>;
-  const deploymentId = labelString(labels, 'deployment.id');
+  // A deployment row of the user-facing list names its deployment without labels.
+  const deploymentId =
+    labelString(labels, 'deployment.id') ||
+    (container.kind === 'deployment' && typeof container.deploymentId === 'string' ? container.deploymentId : '');
   if (deploymentId) return deploymentSetting(context, deploymentId);
   const policyId = labelString(labels, 'availability.policy');
   const owner = policyId ? context.availabilityOwners.get(policyId) : undefined;

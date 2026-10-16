@@ -66,7 +66,7 @@ describe('DockerImageCleanupService', () => {
           },
           { Id: 'sha-in-use', RepoTags: ['registry.example.com/team/app:old-running'], Created: 50 },
         ]),
-        listAllContainers: vi.fn().mockResolvedValue([{ ImageID: 'sha-new' }, { ImageID: 'sha-in-use' }]),
+        listNodeContainers: vi.fn().mockResolvedValue([{ ImageID: 'sha-new' }, { ImageID: 'sha-in-use' }]),
         removeUnusedImage: vi.fn().mockResolvedValue(undefined),
       };
       const db = { select: () => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }) }) };
@@ -98,6 +98,45 @@ describe('DockerImageCleanupService', () => {
     }
   });
 
+  it('keeps every image of a deployment whose image cleanup is off, read from its slot containers (F-4)', async () => {
+    const build = (n: number) => ({
+      Id: `sha-v${n}`,
+      RepoTags: [],
+      RepoDigests: [`127.0.0.1:5443/gateway/builds/src-1@sha256:${String(n).repeat(64)}`],
+      Created: n * 100,
+    });
+    const docker = {
+      listAllImages: vi.fn().mockResolvedValue([build(5), build(6), build(7), build(8)]),
+      // Docker's list: the two slot containers of the deployment, with its label.
+      listNodeContainers: vi.fn().mockResolvedValue([
+        { name: 'dep-blue', imageId: 'sha-v8', labels: { 'net.opfield.deployment.id': 'dep-1' } },
+        { name: 'dep-green', imageId: 'sha-v7', labels: { 'net.opfield.deployment.id': 'dep-1' } },
+      ]),
+      removeUnusedImage: vi.fn().mockResolvedValue(undefined),
+    };
+    const off = {
+      id: 'setting-1',
+      nodeId: 'node-1',
+      targetType: 'deployment',
+      containerName: null,
+      deploymentId: 'dep-1',
+      enabled: false,
+      retentionCount: 2,
+    };
+    const store = {
+      ...emptyStore(),
+      context: async () => ({ ...(await emptyStore().context()), settings: [off] }),
+    };
+    let now = 1_000_000;
+    const service = new DockerImageCleanupService({} as never, docker as never, store as never, () => now);
+    await service.enforceNode('node-1');
+    now += 13 * 60 * 60_000;
+    const result = await service.enforceNode('node-1');
+    expect(result.candidates).toEqual([]);
+    expect(docker.removeUnusedImage).not.toHaveBeenCalled();
+    expect(docker.listNodeContainers).toHaveBeenCalledWith('node-1');
+  });
+
   it("forgets a removed container's setting and moves it with a rename", async () => {
     const where = vi.fn();
     const set = vi.fn(() => ({ where }));
@@ -115,7 +154,7 @@ describe('DockerImageCleanupService', () => {
     try {
       const docker = {
         listAllImages: vi.fn().mockResolvedValue([]),
-        listAllContainers: vi.fn().mockResolvedValue([]),
+        listNodeContainers: vi.fn().mockResolvedValue([]),
         removeUnusedImage: vi.fn(),
       };
       const handlers = new Map<string, (payload: unknown) => void>();

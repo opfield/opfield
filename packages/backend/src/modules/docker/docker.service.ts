@@ -1067,6 +1067,17 @@ export class DockerManagementService {
   }
 
   /**
+   * Every container on the node as Docker lists it, the blue/green slot containers of deployments included (with
+   * their labels), not the user-facing list where a deployment is one synthetic row. For rules that must see what
+   * really runs on the node, such as the image cleanup.
+   */
+  async listNodeContainers(nodeId: string) {
+    await this.validateDockerNode(nodeId);
+    const result = await this.nodeDispatch.sendDockerContainerCommand(nodeId, 'list');
+    return this.parseResult(result);
+  }
+
+  /**
    * Resolve the physical GPUs used by real containers on demand. Container
    * summaries intentionally omit HostConfig, so this read-only view inspects
    * each entry only when the Settings table needs it.
