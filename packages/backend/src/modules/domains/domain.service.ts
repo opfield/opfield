@@ -582,15 +582,17 @@ export class DomainsService extends DomainsServiceIngressGroups {
 
     const plan = await this.prepareExternalDomain(input);
     await assertDomainNodesAllowedInFolder(this.db, input.folderId, plan);
+    // Like the Add Domain dialog: an external domain is registered once its DNS points at the ingress, never before.
     if (plan.status !== 'valid') {
+      const target = `${plan.queryName} to ${plan.targetIps.join(', ')}`;
       throw new AppError(
         409,
         'DOMAIN_DNS_NOT_READY',
         plan.status === 'invalid'
-          ? 'Domain DNS does not match the selected Nginx ingress'
+          ? `Domain DNS does not match the selected Nginx ingress. Point the A/AAAA records of ${target} at your DNS provider, then add the domain again.`
           : plan.status === 'unknown'
-            ? 'Domain DNS could not be resolved'
-            : 'Domain DNS does not have an address record yet',
+            ? `Domain DNS could not be resolved. Create an A/AAAA record for ${target} at your DNS provider, check that it resolves, then add the domain again.`
+            : `Domain DNS does not have an address record yet. Create an A/AAAA record for ${target} at your DNS provider, then add the domain again.`,
         {
           domain: plan.domainName,
           queryName: plan.queryName,

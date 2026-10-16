@@ -185,7 +185,7 @@ Opfield keeps a central registry of public hostnames and their ingress placement
 Domain workflows:
 
 - Track domains independently from routes and certificates.
-- Use either external DNS or a Cloudflare connector. External DNS remains operator-managed; Cloudflare-managed domains can have their A/AAAA records created and reconciled automatically.
+- Use either external DNS or a Cloudflare connector. External DNS remains operator-managed: a domain on external DNS is added once its A/AAAA records already point at the chosen ingress (Opfield checks them first; API and MCP answer `409 DOMAIN_DNS_NOT_READY` with the addresses to use until then). Cloudflare-managed domains can have their A/AAAA records created and reconciled automatically.
 - Select an eligible nginx ingress node or an [ingress group](#ingress-groups) for every domain. Nodes without a detected public service address are not eligible, and a group member without one is not published in DNS.
 - Validate DNS records such as A, AAAA, CNAME, CAA, MX, and TXT.
 - Track domain usage across routes and SSL certificates.

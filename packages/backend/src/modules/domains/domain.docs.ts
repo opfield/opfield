@@ -142,7 +142,7 @@ export const createDomainRoute = appRoute({
   tags: ['Domains'],
   summary: 'Create a domain',
   description:
-    'folderId = placementFolderIds.domains of an app environment creates the domain inside it: the name must match the environment domain allowlist (422 APP_DOMAIN_NOT_ALLOWED) and the ingress node (every member of an ingress group) must be allowed there (APP_NODE_NOT_ALLOWED).',
+    'dnsProvider external registers the domain only once its DNS already points at the selected ingress (A/AAAA records resolving to its addresses); Opfield checks it and never changes DNS. Until then the create answers 409 DOMAIN_DNS_NOT_READY with details.targetIps and details.dnsRecords: create the records at the DNS provider and create the domain again (POST /preview runs the same check). folderId = placementFolderIds.domains of an app environment creates the domain inside it: the name must match the environment domain allowlist (422 APP_DOMAIN_NOT_ALLOWED) and the ingress node (every member of an ingress group) must be allowed there (APP_NODE_NOT_ALLOWED).',
   request: jsonBody(CreateDomainSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });
