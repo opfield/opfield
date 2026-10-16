@@ -314,7 +314,7 @@ func (h *Handler) handleRemoveConfig(cmd *pb.RemoveConfigCommand, result *pb.Com
 	oldConfig, _ := nginx.ReadFile(path)
 	if oldConfig == nil {
 		// Nothing to remove: nginx does not serve the host from this node.
-		removeHostCache(cmd.HostId)
+		h.removeHostCache(cmd.HostId)
 		h.removeMaintenanceFlag(cmd.HostId)
 		if err := h.settleUnchanged(false); err != nil {
 			result.Success = false
@@ -334,7 +334,7 @@ func (h *Handler) handleRemoveConfig(cmd *pb.RemoveConfigCommand, result *pb.Com
 	}
 
 	// Clean up cache directory
-	removeHostCache(cmd.HostId)
+	h.removeHostCache(cmd.HostId)
 
 	valid, output := h.mgr.TestConfig()
 	result.Detail = output

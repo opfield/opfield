@@ -26,7 +26,10 @@ func (m *Manager) scan(ctx context.Context, command *pb.DockerBuildCommand, jobD
 	}
 	subject := imageRef[:tagSeparator] + "@" + imageDigest
 	sbomPath := filepath.Join(jobDir, "sbom.cdx.json")
-	scanEnv := registryScanEnvironment(os.Environ(), m.config.RegistryCAPath)
+	scanEnv, err := scanEnvironment(registryScanEnvironment(os.Environ(), m.config.RegistryCAPath), jobDir, m.config.GrypeDBDir())
+	if err != nil {
+		return "", err
+	}
 	if err := m.runCommand(ctx, command.GetBuildId(), jobDir, scanEnv, "syft", "registry:"+subject, "-o", "cyclonedx-json="+sbomPath); err != nil {
 		return "", err
 	}
@@ -265,7 +268,8 @@ func (m *Manager) secretValues(buildID string) []string {
 }
 
 func (m *Manager) emitLog(buildID string, chunk []byte) {
-	if len(chunk) == 0 {
+	// Output of work outside a build (IdleHousekeeping) is not a build log.
+	if len(chunk) == 0 || buildID == "" {
 		return
 	}
 	_ = m.emitEvent(&pb.DockerBuildEvent{BuildId: buildID, Status: "log", Sequence: m.sequence.Add(1), LogChunk: append([]byte(nil), chunk...), Attempt: m.attemptFor(buildID), OccurredAtUnixMs: time.Now().UnixMilli()})
@@ -328,15 +332,16 @@ func (m *Manager) deliverTerminal(event *pb.DockerBuildEvent) {
 
 // PruneIdle removes what earlier builds left in the builder's stores (BuildKit cache, containerd image records) while
 // no build runs: after the daemon starts, so leftovers of a crash or an interrupted job do not wait for the next
-// build, and periodically, so a post-build prune that failed is retried. It reports whether it ran; a build that
-// starts meanwhile prunes again itself.
+// build, and periodically, so a post-build prune that failed is retried. It reports whether it ran. New builds wait
+// while it runs (TryPause), so it neither races a build nor IdleHousekeeping.
 func (m *Manager) PruneIdle(ctx context.Context) (bool, error) {
-	m.mu.Lock()
-	busy := len(m.jobs) > 0 || m.paused != nil
-	m.mu.Unlock()
-	if busy {
+	if !m.TryPause() {
 		return false, nil
 	}
+	m.mu.Lock()
+	config, askpass := m.config, m.askpass
+	m.mu.Unlock()
+	defer m.Resume(config, askpass)
 	if err := m.Ready(); err != nil {
 		return false, nil
 	}

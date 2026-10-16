@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
 // BindingExpectation carries desired state, never operator-controlled paths.
@@ -108,5 +110,8 @@ func (r *Runtime) bindingMatches(binding BindingExpectation) bool {
 		wanted = r.previewConfig(binding.ID, binding.DeploymentID, binding.CertificateID, binding.CertificateVersion, currentPath, PreviewFallback{SPAFallback: binding.SPAFallback, URL: binding.FallbackURL, Access: binding.Access, ClientIP: binding.ClientIP})
 	}
 	actual, err := readFileNoFollow(configPath)
-	return err == nil && bytes.Equal(actual, []byte(wanted))
+	// The config was written rendered for the names in effect (applyConfigWith): a node that has not moved to the
+	// Opfield names holds it with the pre-Opfield ones, and comparing it unrendered never matched, so Opfield
+	// republished the binding on every reconciliation pass.
+	return err == nil && bytes.Equal(actual, naming.RenderBytes([]byte(wanted)))
 }

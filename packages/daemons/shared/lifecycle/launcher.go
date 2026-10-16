@@ -160,6 +160,10 @@ func BootstrapLauncher(spec LauncherSpec) error {
 	if err != nil {
 		return fmt.Errorf("resolve daemon executable symlink: %w", err)
 	}
+	// Temporary binaries of an update or launcher copy a crash interrupted (update_leftovers.go).
+	sweepUpdateLeftovers(filepath.Dir(executable), time.Now())
+	// Temporary state files a crash left between write and rename (update_leftovers.go).
+	sweepStateLeftovers(spec.StateDir, time.Now())
 	if err := retireLegacyUpdateGuard(spec.DaemonType, executable); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: legacy update-guard cleanup incomplete: %v\n", err)
 	}
@@ -239,6 +243,7 @@ func runLauncher(ctx context.Context, spec LauncherSpec, logger *slog.Logger) er
 	if err := ensurePrivateLauncherDirectory(launcherDir); err != nil {
 		return fmt.Errorf("create launcher state directory: %w", err)
 	}
+	sweepUpdateLeftovers(launcherDir, time.Now())
 	signalCtx, stopSignals := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	defer stopSignals()
 	// A launcher image that execed into this one in place hands over its owner

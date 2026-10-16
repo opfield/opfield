@@ -145,7 +145,12 @@ func (r *Runtime) InitUpload(uploadID, deploymentID string, expectedSize int64, 
 	if err != nil {
 		return err
 	}
-	return writeAtomic(r.uploadMetaPath(uploadID), encoded, 0o600)
+	if err := writeAtomic(r.uploadMetaPath(uploadID), encoded, 0o600); err != nil {
+		return err
+	}
+	// A retry of the Deployment's transfer starts here; the archive of the attempt before it is never finished.
+	r.removeOtherUploads(uploadID, deploymentID)
+	return nil
 }
 
 func (r *Runtime) AppendUpload(uploadID string, offset int64, content []byte) (int64, error) {
@@ -194,7 +199,7 @@ func (r *Runtime) AppendUpload(uploadID string, offset int64, content []byte) (i
 	return current + int64(len(content)), nil
 }
 
-func (r *Runtime) FinalizeUpload(uploadID, deploymentID string) (releaseManifest, error) {
+func (r *Runtime) FinalizeUpload(uploadID, deploymentID string) (manifest releaseManifest, err error) {
 	if err := validateID(uploadID); err != nil {
 		return releaseManifest{}, fmt.Errorf("upload id: %w", err)
 	}
@@ -233,6 +238,13 @@ func (r *Runtime) FinalizeUpload(uploadID, deploymentID string) (releaseManifest
 	if info.Size() != meta.ExpectedSize {
 		return releaseManifest{}, errors.New("archive is incomplete")
 	}
+	// A complete archive that fails here (checksum, extraction, a full disk, an immutable conflict) fails the same
+	// way again: Opfield retries with a new upload, so this one only takes space.
+	defer func() {
+		if err != nil {
+			_ = r.removeUpload(uploadID)
+		}
+	}()
 	digest, err := fileSHA256Reader(archive)
 	if err != nil {
 		return releaseManifest{}, err
@@ -266,7 +278,7 @@ func (r *Runtime) FinalizeUpload(uploadID, deploymentID string) (releaseManifest
 		return releaseManifest{}, fmt.Errorf("create release stage: %w", err)
 	}
 	defer os.RemoveAll(stage)
-	manifest, err := extractArchive(archivePath, filepath.Join(stage, "content"), deploymentID, digest, info.Size())
+	manifest, err = extractArchive(archivePath, filepath.Join(stage, "content"), deploymentID, digest, info.Size())
 	if err != nil {
 		return releaseManifest{}, err
 	}

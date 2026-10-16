@@ -36,6 +36,13 @@ func extractArchive(archivePath, destination, deploymentID, digest string, size 
 	if err := ensureDirectory(destination, publicDirectoryMode); err != nil {
 		return releaseManifest{}, err
 	}
+	// The expanded release must leave the node reserve free (nodeReserveBytes): a release far larger than its
+	// archive must not fill the node.
+	free, total, err := filesystemSpace(destination)
+	if err != nil {
+		return releaseManifest{}, err
+	}
+	budget := free - nodeReserveBytes(total)
 	tr := tar.NewReader(gz)
 	seen := map[string]bool{}
 	regularFiles := map[string]bool{}
@@ -88,6 +95,9 @@ func extractArchive(archivePath, destination, deploymentID, digest string, size 
 		expanded += header.Size
 		if entries > maxFileCount || expanded > maxExpandedBytes {
 			return releaseManifest{}, errors.New("archive exceeds expanded limits")
+		}
+		if expanded > budget {
+			return releaseManifest{}, errors.New("expanded release does not fit the node's free space reserve")
 		}
 		target := filepath.Join(destination, filepath.FromSlash(name))
 		if header.Typeflag == tar.TypeDir {

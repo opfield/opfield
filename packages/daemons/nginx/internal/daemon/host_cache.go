@@ -24,9 +24,13 @@ func hostCacheDir(hostID string) string {
 	return filepath.Join(hostCacheRoot, "nginx-cache-"+hostID)
 }
 
-// removeHostCache deletes a removed proxy host's cache directory.
-func removeHostCache(hostID string) {
-	if dir := hostCacheDir(hostID); dir != "" {
-		_ = nginx.RemoveDir(dir)
+// removeHostCache deletes a removed proxy host's cache directory, also inside nginx's own /tmp when its service has
+// a private one (hostCacheRoots).
+func (h *Handler) removeHostCache(hostID string) {
+	if hostCacheDir(hostID) == "" {
+		return
+	}
+	for _, root := range hostCacheRoots(h.nginxMasterPID()) {
+		_ = nginx.RemoveDir(filepath.Join(root, "nginx-cache-"+hostID))
 	}
 }

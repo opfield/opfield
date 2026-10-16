@@ -40,16 +40,23 @@ function contentByteLength(content: string | Buffer | undefined) {
 const uploadSessions = new Map<string, NodeFileUploadSession>();
 const NODE_FILE_UPLOAD_SESSION_TTL_MS = 30 * 60 * 1000;
 
-function cleanupExpiredUploadSessions(now = Date.now()) {
+/**
+ * Drops expired sessions and, with a context, tells their nodes to remove the partial file: an upload nobody
+ * finishes otherwise leaves `.opfield-upload-<id>.tmp` next to its target (the daemon also sweeps old ones).
+ */
+function cleanupExpiredUploadSessions(context?: NodeFileOperationContext, now = Date.now()) {
   for (const [uploadId, session] of uploadSessions) {
     if (session.expiresAt <= now) {
       uploadSessions.delete(uploadId);
+      context?.nodeDispatch
+        .sendNodeFileCommand(session.nodeId, 'upload-abort', { path: uploadId, targetPath: session.path })
+        .catch(() => undefined);
     }
   }
 }
 
-function getUploadSession(uploadId: string) {
-  cleanupExpiredUploadSessions();
+function getUploadSession(context: NodeFileOperationContext, uploadId: string) {
+  cleanupExpiredUploadSessions(context);
   const session = uploadSessions.get(uploadId);
   if (!session) {
     throw new AppError(404, 'UPLOAD_NOT_FOUND', 'Upload session not found or expired');
@@ -189,7 +196,7 @@ export async function initNodeFileUpload(
   userId: string,
   uploadId = randomUUID()
 ) {
-  cleanupExpiredUploadSessions();
+  cleanupExpiredUploadSessions(context);
   const result = await context.nodeDispatch.sendNodeFileCommand(nodeId, 'upload-init', {
     path: uploadId,
     targetPath: path,
@@ -215,7 +222,7 @@ export async function appendNodeFileUploadChunk(
   offset: number,
   content: Buffer
 ) {
-  const session = getUploadSession(uploadId);
+  const session = getUploadSession(context, uploadId);
   assertUploadSessionScope(session, nodeId);
   if (offset !== session.expectedOffset) {
     throw new AppError(
@@ -249,7 +256,7 @@ export async function completeNodeFileUpload(
   path: string,
   totalBytes: number
 ) {
-  const session = getUploadSession(uploadId);
+  const session = getUploadSession(context, uploadId);
   assertUploadSessionScope(session, nodeId);
   if (path !== session.path || totalBytes !== session.totalBytes) {
     throw new AppError(400, 'UPLOAD_MISMATCH', 'Upload completion does not match upload session');
