@@ -5,6 +5,7 @@ import { container } from '@/container.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { EventBusService } from '@/services/event-bus.service.js';
 import type { User } from '@/types.js';
+import { connectionScopedDenial } from '../accounting/inference-admission-denial.js';
 import { InferenceCoreAccountingService } from '../accounting/inference-core-accounting.service.js';
 import { acquireInferenceConcurrency, consumeInferenceRateLimit } from '../inference-limit.middleware.js';
 import { InferenceTokenService } from '../inference-token.service.js';
@@ -16,6 +17,7 @@ import { coreRequestHeaders, newCoreRequestContext } from './inference-core-cont
 import { rewriteCoreModelIdText } from './inference-core-model-rewrite.js';
 import { InferenceCoreProxyService } from './inference-core-proxy.service.js';
 import { publishResponsesEventModel } from './inference-core-published-model.js';
+import { retryAfterSecondsFromDetails } from './inference-retry-after.js';
 import { startInferenceWebSocketHeartbeat } from './inference-websocket-heartbeat.js';
 
 const logger = createChildLogger('InferenceCoreWebSocketProxy');
@@ -549,7 +551,31 @@ async function connectTurnAttempt(input: {
     // provider connections only repeats the same rejected core handshake.
     retryOrFail(error, false);
   });
-  upstream.on('message', (data) => {
+  // While a failure before output is checked against Opfield's own admission refusal,
+  // later core events wait so they are handled in order once the check ends.
+  let checkingDenial = false;
+  let deferredEvents: Array<() => void> = [];
+  const whenDenialChecked = (handle: () => void) => {
+    if (checkingDenial) deferredEvents.push(handle);
+    else handle();
+  };
+  const answerDenial = (denial: InferenceProtocolError) => {
+    ended = true;
+    clearCloseWatchdog();
+    input.turn.pendingPreludeFrames = [];
+    input.turn.terminalSeen = true;
+    if (!input.turn.terminalSent) send(input.ws, denialEvent(denial));
+    input.turn.terminalSent = true;
+    try {
+      upstream.close();
+    } catch {
+      // Already closed.
+    }
+    if (input.state.active === input.turn) input.state.active = null;
+    finalizeTurn(input.accounting, input.turn, 'failed', denial);
+  };
+
+  const onMessage = (data: WebSocket.RawData, denialChecked: boolean): void => {
     if (ended || input.state.active !== input.turn) return;
     input.state.lastCoreMessageAt = Date.now();
     // The core echoes its internal model id; clients only ever see the published one.
@@ -558,6 +584,33 @@ async function connectTurnAttempt(input: {
     // A Responses object can also carry the provider's model id; only `response.model` changes.
     if (publishResponsesEventModel(parsed, resolved.model.publicId)) text = JSON.stringify(parsed);
     const terminal = parsed !== null && typeof parsed.type === 'string' && TERMINAL_EVENTS.has(parsed.type);
+    if (
+      !denialChecked &&
+      terminal &&
+      !input.turn.emittedOutput &&
+      (parsed?.type === 'error' || parsed?.type === 'response.failed')
+    ) {
+      // Opfield refused the core's admission: answer with Opfield's refusal (code, recovery
+      // time, Retry-After), not the core's rendering of it. Only a connection's own limit fails over.
+      checkingDenial = true;
+      void input.accounting
+        .admissionDenial(input.turn.requestId)
+        .catch(() => null)
+        .then((denial) => {
+          checkingDenial = false;
+          const deferred = deferredEvents;
+          deferredEvents = [];
+          const live = !ended && input.state.active === input.turn && !input.turn.finalized;
+          if (denial && live && connectionScopedDenial(denial) && resolved.candidateConnectionIds.length > 1) {
+            // The connection's own limit: another connection of the model may serve the turn.
+            input.turn.lastProviderError = denial;
+            retryOnceClosed();
+          } else if (denial && live) answerDenial(denial);
+          else onMessage(data, true);
+          for (const handle of deferred) handle();
+        });
+      return;
+    }
     const providerError =
       terminal && !input.turn.emittedOutput && resolved.candidateConnectionIds.length > 1
         ? wsEventProviderError(parsed)
@@ -625,8 +678,8 @@ async function connectTurnAttempt(input: {
       if (input.state.active === input.turn) input.state.active = null;
       finalizeTurn(input.accounting, input.turn, terminalOutcome(parsed));
     }
-  });
-  upstream.on('close', (code) => {
+  };
+  const onUpstreamClose = (code: number): void => {
     logTransportEvent(input.state, input.turn, 'core', 'close', code);
     if (ended) return;
     if (retryAfterClose) {
@@ -644,11 +697,15 @@ async function connectTurnAttempt(input: {
       return;
     }
     retryOrFail();
-  });
-  upstream.on('error', (error) => {
-    logTransportEvent(input.state, input.turn, 'core', 'error');
-    retryOrFail(error);
-  });
+  };
+  upstream.on('message', (data) => whenDenialChecked(() => onMessage(data, false)));
+  upstream.on('close', (code) => whenDenialChecked(() => onUpstreamClose(code)));
+  upstream.on('error', (error) =>
+    whenDenialChecked(() => {
+      logTransportEvent(input.state, input.turn, 'core', 'error');
+      retryOrFail(error);
+    })
+  );
 }
 
 function logTransportEvent(
@@ -697,7 +754,7 @@ function failTurn(
   if (state.active === turn) state.active = null;
   if (!turn.terminalSent) {
     if (error instanceof InferenceProtocolError && error === turn.lastProviderError) {
-      sendError(ws, error.status, error.code, error.message);
+      send(ws, denialEvent(error));
     } else {
       const message =
         error instanceof CoreWebSocketUpgradeError
@@ -839,6 +896,15 @@ function errorEvent(status: number, code: string, message: string): Record<strin
     status,
     error: { type: code, code, message },
   };
+}
+
+/** An error event that keeps the error's details; a budget refusal also says when to retry. */
+function denialEvent(denial: InferenceProtocolError): Record<string, unknown> {
+  const event = errorEvent(denial.status, denial.code, denial.message);
+  if (denial.details) (event.error as Record<string, unknown>).details = denial.details;
+  const retryAfter = retryAfterSecondsFromDetails(denial.details);
+  if (retryAfter !== undefined) event.headers = { 'retry-after': String(retryAfter) };
+  return event;
 }
 
 function sendError(ws: WSContext, status: number, code: string, message: string): void {

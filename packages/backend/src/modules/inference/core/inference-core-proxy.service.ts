@@ -14,7 +14,9 @@ import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-s
 import type { AppEnv, User } from '@/types.js';
 import { latestPricingSnapshot, unitCharge } from '../accounting/inference-accounting.helpers.js';
 import type { InferenceAccountingService } from '../accounting/inference-accounting.service.js';
+import { connectionScopedDenial } from '../accounting/inference-admission-denial.js';
 import type { InferenceCoreAccountingService } from '../accounting/inference-core-accounting.service.js';
+import { inferenceErrorResponse } from '../inference-error.js';
 import type { InferenceModelService } from '../models/inference-model.service.js';
 import { sourceSupportsModel } from '../models/inference-model.validation.js';
 import { mapReasoningEffort } from '../models/inference-reasoning.service.js';
@@ -308,6 +310,7 @@ export class InferenceCoreProxyService {
           ...(prepared.affinityKey ? { affinityKey: prepared.affinityKey } : {}),
           ...(fixedApiMicrodollars ? { fixedApiMicrodollars } : {}),
           ...(prepared.isCompaction ? { isCompaction: true } : {}),
+          ...(prepared.chatEstimate ? { inputTokenEstimate: prepared.chatEstimate.inputTokens } : {}),
         })
       ).requestId;
     }
@@ -506,6 +509,23 @@ export class InferenceCoreProxyService {
       throw new InferenceProtocolError(503, 'inference_core_unavailable', 'The inference core is unavailable');
     }
     const status = upstream.status;
+    if (status >= 400) {
+      // Opfield refused the core's admission: answer with Opfield's refusal (code, recovery
+      // time, Retry-After), not the core's rendering of it. Only a connection's own limit fails over.
+      const denial = await this.coreAccounting.admissionDenial(requestId);
+      if (denial) {
+        await upstream.body?.cancel().catch(() => undefined);
+        if (allowFailover && !clientGone && connectionScopedDenial(denial)) {
+          cleanup();
+          return { kind: 'retry', providerError: denial };
+        }
+        void finishRequest('failed', denial);
+        return {
+          kind: 'response',
+          response: inferenceErrorResponse(c, denial.status, denial.code, denial.message, denial.details),
+        };
+      }
+    }
     if (allowFailover && (await shouldFailOverCoreResponse(upstream))) {
       cleanup();
       const providerError = await coreResponseProviderError(upstream);

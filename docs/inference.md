@@ -103,6 +103,8 @@ Users see percentages only:
 - shared subscription usage for fixed 5-hour, 7-day, and 30-day reset windows;
 - recovery/reset timestamps.
 
+A window that does not limit the user (a disabled 5-hour, 7-day or 30-day window, or API usage that is off) is reported with `configured: false` and `percentage: 0`.
+
 Administrators can see raw cost, tokens, credits, upstream quota, and request metadata.
 
 Profile includes a 30-day request/token/cost overview for the signed-in user. An inference limits administrator can reset all four usage baselines for one user. Resetting does not delete ledger or request history: each fixed 5-hour/7-day/30-day window closes completely at its reset boundary, then the next window starts only when the user next makes a subscription-backed inference request. Usage remains monotonic while a window is active. A manual reset closes the active subscription windows immediately and leaves them idle until the next request, while the API monthly cycle remains anchored to the reset's local calendar date and time.
@@ -127,9 +129,17 @@ credits = weighted tokens / 1000000
 
 One public subscription credit therefore represents 1,000,000 weighted tokens before multipliers. Opfield keeps the legacy internal accounting scale private and converts limits and usage at management and activity boundaries, so existing policies, ledger entries, and active reservations require no migration.
 
-Admission first reserves a conservative input-plus-output estimate without assuming a future cache hit; settlement replaces it with the weighted actual usage above. Dynamic burn compares remaining quota with the fraction of time left in each reported window, enforces a 30% quota-pressure floor, and caps the result at 8x. Stale, exhausted, or invalid quota data fails closed at 8x. The multiplier is frozen at admission. Codex Fast adds a separate fixed 2x service-tier multiplier for eligible ChatGPT subscription sources; API dollar accounting is unaffected.
+Admission first reserves a conservative input-plus-output estimate without assuming a future cache hit (for Chat Completions, Opfield estimates the input from the request body: text characters / 3, a fixed size per image, audio or file part); settlement replaces it with the weighted actual usage above. Dynamic burn compares remaining quota with the fraction of time left in each reported window, enforces a 30% quota-pressure floor, and caps the result at 8x. Stale, exhausted, or invalid quota data fails closed at 8x. The multiplier is frozen at admission. Codex Fast adds a separate fixed 2x service-tier multiplier for eligible ChatGPT subscription sources; API dollar accounting is unaffected.
 
 A request admitted while the user still has a positive balance always runs to completion: Opfield never reduces its output limit, and the turn may settle past the window limit. Only the reservation is bounded by the remaining balance, so parallel turns cannot stack reservations beyond the limit. The next request after the balance is exhausted is denied with the window's recovery time. Truncating a turn is deliberately avoided: harnesses retry an incomplete response several times and every retry is billed.
+
+A budget refusal looks the same on every endpoint and every inference core version. Nothing is sent to the provider and nothing is charged:
+
+- HTTP `429` with a `Retry-After` header: the seconds until the window recovers;
+- error code `subscription_budget_exhausted` (a 5-hour, 7-day or 30-day credit window), `api_budget_exhausted` (the user's monthly API budget) or `provider_api_budget_exhausted` (the connection's monthly API limit);
+- `error.details.recoveryAt`: the ISO time the budget recovers. A user budget refusal also names the window in `error.details.dimension` (`5h`, `7d`, `30d` or `monthly`);
+- a Responses WebSocket turn gets an `error` event with the same status, code and details, and a `retry-after` value under `headers`;
+- Activity records the request as `failed` with the same error code.
 
 The published model **output limit** is the source of truth for the upstream request. Opfield signs it into the per-request context, and a core that negotiated the capability uses it as the provider output ceiling when the client sends no limit of its own. Older cores do not receive the claim and keep their built-in defaults.
 
