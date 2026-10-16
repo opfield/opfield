@@ -14,6 +14,7 @@ import type {
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DaemonUpdateService } from './daemon-update.service.js';
+import { opfieldKeptVolumeNames } from './docker-kept-volumes.js';
 import { assertNodeHostFeatureEnabled } from './node-host-access.js';
 import type { DispatchedCommand, NodeRegistryService } from './node-registry.service.js';
 import type { RelayGrantAssignment, RelayGrantBundle } from './relay-policy.service.js';
@@ -32,6 +33,9 @@ const grantFieldsOnWire: [GrantFieldsOffWire] extends [never] ? true : GrantFiel
 void grantFieldsOnWire;
 
 const logger = createChildLogger('NodeDispatch');
+/** Daemons that keep the volumes Opfield names when they remove a removed container's anonymous volumes. */
+export const DOCKER_KEPT_VOLUMES_CAPABILITY = 'docker_kept_volumes_v1';
+const KEPT_VOLUMES_RESEND_MS = 10 * 60_000;
 const NGINX_SECURE_LINK_SOCKET_ONLY_CAPABILITY = 'nginx_secure_link_socket_only_v1';
 // Reported by Storage daemons that can run SeaweedFS clusters (config payload
 // version 2 and the SeaweedFS IAM path). Legacy MinIO work needs only the
@@ -1190,6 +1194,43 @@ export class NodeDispatchService {
     }
   }
 
+  private keptVolumesSent = new Map<string, { names: string; at: number }>();
+
+  /**
+   * Sends the daemon the volumes it must keep when it removes a removed container's anonymous volumes (slot replace,
+   * Availability placement removal, Compose down): the ones the user manages and the ones Opfield configs name
+   * (docker_kept_volumes_v1). The daemon persists the set. A set unchanged since the last send within
+   * KEPT_VOLUMES_RESEND_MS is not sent again. When a capable daemon cannot be told, the removal is not sent either.
+   */
+  async pushKeptDockerVolumes(nodeId: string): Promise<void> {
+    if (!this.registry.hasCapability(nodeId, DOCKER_KEPT_VOLUMES_CAPABILITY)) return;
+    let names: string;
+    try {
+      names = JSON.stringify([...(await opfieldKeptVolumeNames(this.db, nodeId))].sort());
+    } catch (error) {
+      logger.warn('Failed to read the volumes a Docker node must keep', { nodeId, error });
+      throw new AppError(503, 'DOCKER_KEPT_VOLUMES_UNAVAILABLE', 'Opfield could not read which volumes to keep');
+    }
+    const sent = this.keptVolumesSent.get(nodeId);
+    if (sent && sent.names === names && Date.now() - sent.at < KEPT_VOLUMES_RESEND_MS) return;
+    const result = await this.registry.sendCommand(
+      nodeId,
+      {
+        dockerVolume: { action: 'keep', content: Buffer.from(`{"names":${names}}`) } as any,
+      },
+      15_000
+    );
+    if (!result.success) {
+      this.keptVolumesSent.delete(nodeId);
+      throw new AppError(
+        502,
+        'DOCKER_KEPT_VOLUMES_SYNC_FAILED',
+        `The Docker node did not take the volumes to keep: ${result.error || 'no answer'}`
+      );
+    }
+    this.keptVolumesSent.set(nodeId, { names, at: Date.now() });
+  }
+
   async sendDockerContainerCommand(
     nodeId: string,
     action: string,
@@ -1208,6 +1249,9 @@ export class NodeDispatchService {
     await this.assertGenericDockerNode(nodeId);
     if (!['list', 'inspect', 'stats', 'top', 'http_probe', 'task_status', 'external_changes'].includes(action)) {
       await this.assertNodeMutable(nodeId);
+    }
+    if (action === 'remove' && options.configJson?.includes('removeAnonymousVolumes')) {
+      await this.pushKeptDockerVolumes(nodeId);
     }
     return this.registry.sendCommand(
       nodeId,
@@ -1357,6 +1401,7 @@ export class NodeDispatchService {
     await this.assertGenericDockerNode(nodeId);
     if (action !== 'inspect') {
       await this.assertNodeMutable(nodeId);
+      await this.pushKeptDockerVolumes(nodeId);
     }
     return this.registry.sendCommand(
       nodeId,
@@ -1394,6 +1439,7 @@ export class NodeDispatchService {
         'The connected Docker daemon does not support first-class Compose operations'
       );
     }
+    if (action === 'down') await this.pushKeptDockerVolumes(nodeId);
     const { composeYaml, normalizedModelJson } = this.registry.hasCapability(nodeId, 'compose_logging_v1')
       ? options
       : withoutComposeLogging(options.composeYaml, options.normalizedModelJson);

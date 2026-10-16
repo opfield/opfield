@@ -397,6 +397,8 @@ describe('HousekeepingService orphaned volume retention', () => {
     owned?: unknown;
     /** Containers Opfield created, by name. */
     opfieldContainers?: string[];
+    /** Volumes the user manages or an Opfield config names. */
+    kept?: string[];
   }) {
     const stored = new Map<string, unknown>();
     if (options.unusedSince !== undefined) stored.set(UNUSED_SINCE_KEY, options.unusedSince);
@@ -434,6 +436,7 @@ describe('HousekeepingService orphaned volume retention', () => {
     service.setDockerManagementService(dockerManagement as any);
     const opfieldContainers = new Set(options.opfieldContainers ?? []);
     (service as any).opfieldContainerTest = async () => (name: string) => opfieldContainers.has(name);
+    (service as any).keptVolumeNames = async () => new Set(options.kept ?? []);
     return {
       service,
       dockerManagement,
@@ -536,6 +539,32 @@ describe('HousekeepingService orphaned volume retention', () => {
 
     expect(h.dockerManagement.removeOrphanedAnonymousVolume).not.toHaveBeenCalled();
     expect(h.state()).toEqual({});
+  });
+
+  it('never removes or reports an anonymous volume the user manages or an Opfield config names', async () => {
+    const h = createHarness({
+      volumes: { 'node-1': [volume(VOLUME_A), volume(VOLUME_B)] },
+      unusedSince: { 'node-1': { [VOLUME_A]: daysAgo(90), [VOLUME_B]: daysAgo(90) } },
+      kept: [VOLUME_A, VOLUME_B],
+    });
+
+    await expect(h.clean()).resolves.toEqual({ itemsCleaned: 0, spaceFreedBytes: 0 });
+
+    expect(h.dockerManagement.removeOrphanedAnonymousVolume).not.toHaveBeenCalled();
+    expect(h.state()).toEqual({});
+  });
+
+  it('touches nothing on a node when the volumes to keep cannot be read', async () => {
+    const unusedSince = { 'node-1': { [VOLUME_A]: daysAgo(90) } };
+    const h = createHarness({ volumes: { 'node-1': [volume(VOLUME_A)] }, unusedSince });
+    (h.service as any).keptVolumeNames = async () => {
+      throw new Error('database unavailable');
+    };
+
+    await h.clean();
+
+    expect(h.dockerManagement.removeOrphanedAnonymousVolume).not.toHaveBeenCalled();
+    expect(h.state()).toEqual(unusedSince);
   });
 
   // legacy-name: volumes protected before 2.12.1 carry gateway.housekeeping.protected.

@@ -53,6 +53,9 @@ type Client struct {
 	// events of anyone else's read as changes outside Opfield; nil records
 	// nothing.
 	ownOps *ownContainerOps
+	// keptVolumes are the volumes Opfield said to keep when a removed container's anonymous volumes are removed
+	// (client_kept_volumes.go); nil keeps none.
+	keptVolumes *keptVolumes
 }
 
 func (c *Client) SetRunscHealthy(healthy bool) {
@@ -131,6 +134,7 @@ func NewClient(socketPath string, stateDir string, logger *slog.Logger) (*Client
 		gpuInventory:           gpu.NewCollector(logger),
 		recreateStateDirectory: filepath.Join(stateDir, "recreate-state"),
 		ownOps:                 ownOps,
+		keptVolumes:            newKeptVolumes(keptVolumesPath(stateDir)),
 	}, nil
 }
 

@@ -13,6 +13,15 @@ func (p *DockerPlugin) handleVolumeCommand(cmd *pb.DockerVolumeCommand, result *
 	ctx := context.Background()
 
 	switch cmd.Action {
+	case "keep":
+		count, err := p.client.keptVolumes.replace(cmd.Content)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			return
+		}
+		result.Detail = fmt.Sprintf(`{"kept":%d}`, count)
+
 	case "list":
 		data, err := p.client.ListVolumes(ctx)
 		if err != nil {

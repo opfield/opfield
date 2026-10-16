@@ -1,5 +1,4 @@
 import httpModule from 'node:http';
-import { join } from 'node:path';
 import { and, count, eq, inArray, lt, min, sql } from 'drizzle-orm';
 import type { Env } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
@@ -27,18 +26,19 @@ import type { LoggingMaintenanceService } from '@/modules/logging/logging-mainte
 import type { NotificationDeliveryService } from '@/modules/notifications/notification-delivery.service.js';
 import type { RedisClient } from './cache.service.js';
 import type { DockerService } from './docker.service.js';
+import { opfieldKeptVolumeNames } from './docker-kept-volumes.js';
 import type { EventBusService } from './event-bus.service.js';
 import {
   countExpiredTokens,
   DEFAULT_EXPIRED_TOKEN_RETENTION_DAYS,
   purgeExpiredTokens,
 } from './expired-token-retention.js';
+import { sweepTempLeftovers } from './host-temp-sweep.js';
 import {
   type HostImage,
   opfieldHostImageRepositories,
   selectOldOpfieldHostImages,
 } from './housekeeping-host-images.js';
-import { sweepTempLeftovers } from './host-temp-sweep.js';
 import {
   cleanInferenceUsage,
   countExpiredInferenceUsage,
@@ -1460,6 +1460,9 @@ export class HousekeepingService {
   }
 
   /** Tells which container names on a node are containers Opfield created. Replaceable in tests. */
+  /** Volumes removal must keep on a node (docker-kept-volumes.ts); a field so tests can replace it. */
+  private keptVolumeNames = (nodeId: string): Promise<Set<string>> => opfieldKeptVolumeNames(this.db, nodeId);
+
   private opfieldContainerTest = async (nodeId: string): Promise<(containerName: string) => boolean> => {
     const [containers, records] = await Promise.all([
       this.dockerManagementService!.listAllContainers(nodeId),
@@ -1510,6 +1513,14 @@ export class HousekeepingService {
       }
 
       if (!Array.isArray(volumes)) continue;
+      let kept: Set<string>;
+      try {
+        kept = await this.keptVolumeNames(node.id);
+      } catch (error) {
+        // Unknown which volumes the user manages or a config names: nothing on this node is touched this time.
+        logger.debug('Failed to read the volumes to keep for housekeeping', { nodeId: node.id, error });
+        continue;
+      }
       let isOpfieldContainer: ((name: string) => boolean) | null = null;
       try {
         isOpfieldContainer = await this.opfieldContainerTest(node.id);
@@ -1537,6 +1548,8 @@ export class HousekeepingService {
           if (ownedSince) owned[candidate.name] = ownedSince;
         }
         if (inUse) continue;
+        // Managed by the user (an adopted anonymous volume is a database row only) or named by an Opfield config.
+        if (kept.has(candidate.name) || kept.has(candidate.name.toLowerCase())) continue;
         if (
           candidate.labels[VOLUME_CLEANUP_PROTECTED_LABEL] === 'true' ||
           candidate.labels[LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL] === 'true'

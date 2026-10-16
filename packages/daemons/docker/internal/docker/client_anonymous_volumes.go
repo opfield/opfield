@@ -17,8 +17,9 @@ import (
 // is no such removal: it carries the anonymous volumes over to the new container (preservedVolumeMounts).
 //
 // A volume stays when another container uses it, when it carries the housekeeping protection label or Opfield's
-// managed-volume label, when it is not on the local driver, and when the container's mount list names it (a volume
-// chosen by name is the user's, even with a Docker-generated name). Named volumes are never touched.
+// managed-volume label, when it is not on the local driver, when the container's mount list names it (a volume
+// chosen by name is the user's, even with a Docker-generated name), and when Opfield said to keep it (the user manages
+// it in Opfield or an Opfield config names it, client_kept_volumes.go). Named volumes are never touched.
 
 const (
 	housekeepingProtectedLabel = "opfield.housekeeping.protected"
@@ -124,7 +125,7 @@ func (c *Client) removeOrphanedAnonymousVolume(ctx context.Context, name string)
 		}
 		return false, err
 	}
-	if !anonymousVolumeRemovable(inspected.Volume) {
+	if !anonymousVolumeRemovable(inspected.Volume) || c.keptVolumes.has(name) {
 		return false, nil
 	}
 	used, err := c.volumeInUse(ctx, name)

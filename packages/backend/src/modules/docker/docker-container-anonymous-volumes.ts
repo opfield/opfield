@@ -1,7 +1,7 @@
 import type { DrizzleClient } from '@/db/client.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
-import { isAnonymousDockerVolumeName, isOpfieldManagedVolume } from './docker-volume-network-operations.js';
+import { isAnonymousDockerVolumeName, isOpfieldKeptVolume } from './docker-volume-network-operations.js';
 
 const logger = createChildLogger('DockerContainerAnonymousVolumes');
 
@@ -18,8 +18,8 @@ export function containerAnonymousVolumes(inspect: Record<string, any> | null | 
 
 /**
  * Removes the anonymous volumes of a removed container. Docker keeps them, and nothing reaches them afterwards (the
- * volume list hides anonymous volumes). A volume another container still uses stays, and so does one Opfield manages
- * (an adopted anonymous volume keeps its data); a failure never fails the container removal that already happened.
+ * volume list hides anonymous volumes). A volume another container still uses stays, and so do one Opfield manages
+ * (an adopted anonymous volume keeps its data) and one an Opfield config names; a failure never fails the container removal that already happened.
  */
 export async function removeContainerAnonymousVolumes(
   ctx: {
@@ -35,7 +35,7 @@ export async function removeContainerAnonymousVolumes(
       const volume = ctx.parseResult(await ctx.nodeDispatch.sendDockerVolumeCommand(nodeId, 'inspect', { name }));
       const usedBy = volume?.UsedBy ?? volume?.usedBy;
       if (Array.isArray(usedBy) && usedBy.length > 0) continue;
-      if (await isOpfieldManagedVolume(ctx.db, nodeId, name, volume)) continue;
+      if (await isOpfieldKeptVolume(ctx.db, nodeId, name, volume)) continue;
       // force=false: Docker still refuses a volume a container started using meanwhile.
       ctx.parseResult(await ctx.nodeDispatch.sendDockerVolumeCommand(nodeId, 'remove', { name, force: false }));
     } catch (error) {

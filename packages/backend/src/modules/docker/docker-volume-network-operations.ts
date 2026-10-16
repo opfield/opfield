@@ -7,6 +7,7 @@ import { commandResultDataToBuffer } from '@/lib/command-result-data.js';
 import { isMatchingUniqueConstraintViolation } from '@/lib/resource-slugs.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import { configReferencedVolumeNames } from '@/services/docker-kept-volumes.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import { isOpfieldInternalContainer } from './docker-internal-containers.js';
@@ -703,6 +704,20 @@ export async function isOpfieldManagedVolume(
   return rows.length > 0;
 }
 
+/**
+ * Whether removal must keep the volume: Opfield manages it (isOpfieldManagedVolume) or an Opfield config names it
+ * (a deployment, slot, Availability policy, source container config or active Compose revision).
+ */
+export async function isOpfieldKeptVolume(
+  db: DrizzleClient,
+  nodeId: string,
+  name: string,
+  volume?: Record<string, any> | null
+): Promise<boolean> {
+  if (await isOpfieldManagedVolume(db, nodeId, name, volume)) return true;
+  return (await configReferencedVolumeNames(db)).has(name.toLowerCase());
+}
+
 /** Names of the volumes Opfield manages on a node (created or adopted). */
 export async function opfieldManagedVolumeNames(db: DrizzleClient, nodeId: string): Promise<Set<string>> {
   const rows = await db
@@ -741,6 +756,9 @@ export async function removeOrphanedAnonymousVolume(
   }
   if (await isOpfieldManagedVolume(context.db, nodeId, name, volume)) {
     throw new AppError(409, 'VOLUME_MANAGED', 'Housekeeping never removes a volume managed by Opfield');
+  }
+  if ((await configReferencedVolumeNames(context.db)).has(name.toLowerCase())) {
+    throw new AppError(409, 'VOLUME_REFERENCED', 'Housekeeping never removes a volume an Opfield config names');
   }
   // force=false: Docker still refuses a volume that a container started using meanwhile.
   await removeVolume(context, nodeId, name, false, userId);

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { dockerManagedVolumes } from '@/db/schema/index.js';
+import { dockerDeployments, dockerManagedVolumes } from '@/db/schema/index.js';
 import { DockerManagementService } from './docker.service.js';
 import { DOCKER_MANAGED_VOLUME_LABEL } from './docker-managed-volume.constants.js';
 import { removeOrphanedAnonymousVolume } from './docker-volume-network-operations.js';
@@ -8,17 +8,27 @@ const anonymous = 'a'.repeat(64);
 const shared = 'b'.repeat(64);
 const adopted = 'c'.repeat(64);
 const labelled = 'd'.repeat(64);
+const configured = 'e'.repeat(64);
 
 /** The volume the code inspected last: a per-name managed lookup always follows its inspect. */
 let lastInspected = '';
 
 /**
  * Node lookups return the online docker node. A per-name managed-volume lookup (`.limit(1)`) answers for the volume
- * inspected last; the per-node lookup returns every managed name.
+ * inspected last; the per-node lookup returns every managed name. The config reads (docker-kept-volumes.ts) find
+ * `configuredNames` in a deployment's desired config and nothing elsewhere.
  */
-function dbWithOnlineDockerNode(managedNames: string[] = []) {
-  const select = vi.fn(() => ({
+function dbWithOnlineDockerNode(managedNames: string[] = [], configuredNames: string[] = []) {
+  const select = vi.fn((fields?: Record<string, unknown>) => ({
     from: vi.fn((table: unknown) => {
+      if (fields && ('config' in fields || 'yaml' in fields)) {
+        const rows =
+          table === dockerDeployments ? [{ config: { mounts: configuredNames.map((name) => `${name}:/data`) } }] : [];
+        return Object.assign(Promise.resolve(rows), {
+          where: vi.fn(async () => rows),
+          innerJoin: vi.fn(async () => rows),
+        });
+      }
       if (table === dockerManagedVolumes) {
         const rows = managedNames.map((volumeName) => ({ volumeName }));
         const limit = vi.fn(async () => rows.filter((row) => row.volumeName === lastInspected));
@@ -58,9 +68,13 @@ function volumeDispatch(mounts: Array<Record<string, unknown>>, usedBy: Record<s
   };
 }
 
-function service(dispatch: ReturnType<typeof volumeDispatch>, managedNames: string[] = []) {
+function service(
+  dispatch: ReturnType<typeof volumeDispatch>,
+  managedNames: string[] = [],
+  configuredNames: string[] = []
+) {
   return new DockerManagementService(
-    dbWithOnlineDockerNode(managedNames) as never,
+    dbWithOnlineDockerNode(managedNames, configuredNames) as never,
     { log: vi.fn().mockResolvedValue(undefined) } as never,
     dispatch as never,
     { getNode: vi.fn().mockReturnValue({ id: 'node-1' }) } as never
@@ -94,6 +108,18 @@ describe('DockerManagementService.removeContainer anonymous volumes', () => {
     ]);
 
     await service(dispatch, [adopted]).removeContainer('node-1', 'container-1', false, 'user-1');
+
+    const removed = dispatch.sendDockerVolumeCommand.mock.calls.filter(([, action]) => action === 'remove');
+    expect(removed).toEqual([['node-1', 'remove', { name: anonymous, force: false }]]);
+  });
+
+  it('keeps an anonymous volume an Opfield config names', async () => {
+    const dispatch = volumeDispatch([
+      { Type: 'volume', Name: anonymous, Destination: '/tmp-data' },
+      { Type: 'volume', Name: configured, Destination: '/var/lib/data' },
+    ]);
+
+    await service(dispatch, [], [configured]).removeContainer('node-1', 'container-1', false, 'user-1');
 
     const removed = dispatch.sendDockerVolumeCommand.mock.calls.filter(([, action]) => action === 'remove');
     expect(removed).toEqual([['node-1', 'remove', { name: anonymous, force: false }]]);
@@ -137,6 +163,25 @@ describe('housekeeping of orphaned anonymous volumes', () => {
     );
 
     await expect(remove).rejects.toMatchObject({ code: 'VOLUME_MANAGED' });
+    expect(dispatch.sendDockerVolumeCommand).not.toHaveBeenCalledWith('node-1', 'remove', expect.anything());
+  });
+
+  it('refuses to remove an anonymous volume an Opfield config names', async () => {
+    const dispatch = volumeDispatch([]);
+    lastInspected = '';
+    const remove = removeOrphanedAnonymousVolume(
+      {
+        db: dbWithOnlineDockerNode([], [configured]) as never,
+        nodeDispatch: dispatch as never,
+        auditService: { log: vi.fn() } as never,
+        parseResult: (result: { detail?: string }) => (result.detail ? JSON.parse(result.detail) : undefined),
+      },
+      'node-1',
+      configured,
+      null
+    );
+
+    await expect(remove).rejects.toMatchObject({ code: 'VOLUME_REFERENCED' });
     expect(dispatch.sendDockerVolumeCommand).not.toHaveBeenCalledWith('node-1', 'remove', expect.anything());
   });
 
