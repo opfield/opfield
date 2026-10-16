@@ -467,10 +467,12 @@ export class DockerInternalRegistryService {
     }
     try {
       const orphaned = await this.store.orphanedRepositories(await this.executor.listRepositories(), new Date());
+      // Builds kept as containers' own after their source was detached stay with their tags.
+      const kept = orphaned.length ? ((await this.store.containerKeptDigests?.()) ?? new Map()) : new Map();
       const deleted: string[] = [];
       for (const repository of orphaned) {
         await this.store.renewLease(owner, new Date(Date.now() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS));
-        await this.executor.deleteRepositoryTags(repository);
+        await this.executor.deleteRepositoryTags(repository, kept.get(repository));
         deleted.push(repository);
       }
       if (deleted.length)

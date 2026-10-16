@@ -570,6 +570,7 @@ The registry cleans up after itself at every maintenance run (after builds and n
 
 - It keeps per container the build it runs and one to roll back to.
 - The builds of a Git source that no longer exists (its container, deployment or Pages project was deleted, or the source was detached) are deleted once two maintenance runs at least 12 hours apart found no workload naming them.
+- When you detach the Git source of a container, the container keeps running its build, and the registry keeps that build as the container's own until the container is removed or runs another image, so recreating or migrating the container still finds it. The detach answer names it in `keptImage`.
 - On local disk, the leftovers of pushes that failed or were cancelled are removed after a day.
 - On local disk, the registry stops taking new builds and image pushes while the disk under its volume is 90% full or more. Builds then fail with a message that says so, and the registry shows **Degraded**. They resume on their own once space is freed. Pulls keep working. A registry on S3 is not limited by the host disk.
 

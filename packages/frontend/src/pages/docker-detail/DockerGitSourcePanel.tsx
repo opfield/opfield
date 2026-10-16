@@ -733,11 +733,14 @@ export function DockerGitSourcePanel({
     if (!accepted) return;
     setDisconnecting(true);
     try {
-      await api.removeDockerSource(target);
+      const { keptImage } = await api.removeDockerSource(target);
       setSource(null);
       onSourceChange?.(null);
       setBuildSecrets([]);
-      toast.success("Repository disconnected");
+      toast.success(
+        "Repository disconnected",
+        keptImage ? { description: keptImage.note } : undefined
+      );
       if (pendingContainer) leavePage("/docker/containers");
     } catch (error) {
       if (!handleLicenseApiError(error, "Git push-to-deploy")) {

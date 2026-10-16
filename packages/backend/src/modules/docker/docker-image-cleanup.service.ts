@@ -4,6 +4,7 @@ import { dockerBuilds, dockerImageCleanupSettings, nodes } from '@/db/schema/ind
 import { createChildLogger } from '@/lib/logger.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { DockerManagementService } from './docker.service.js';
+import { imageReferenceDigest, releaseContainerImage, renameContainerImage } from './docker-container-kept-image.js';
 import type { ImageCleanupUpsertInput } from './docker-image-cleanup.schemas.js';
 import {
   DEFAULT_IMAGE_RETENTION_COUNT,
@@ -288,6 +289,16 @@ export class DockerImageCleanupService {
    * when the container's cleanup is off.
    */
   async scheduleCleanupForContainer(nodeId: string, containerName: string, imageRef: string | undefined) {
+    // A build kept for the container after its source was detached is released once it runs another image.
+    if (imageRef) {
+      await releaseContainerImage(this.db, { nodeId, containerName }, imageReferenceDigest(imageRef)).catch((err) =>
+        logger.debug('The kept image of a container could not be released', {
+          nodeId,
+          containerName,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
     const repository = imageRef ? imageRetentionRepository(imageRef) : null;
     if (!repository) return;
     try {
@@ -344,8 +355,12 @@ export class DockerImageCleanupService {
     this.nodeEventCleanups.set(nodeId, { timer, at: state?.at ?? 0 });
   }
 
-  /** A container was removed: a later container with its name does not inherit its image cleanup setting. */
+  /**
+   * A container was removed: a later container with its name does not inherit its image cleanup setting, and the
+   * build kept for it after its source was detached is released.
+   */
   async forgetContainer(nodeId: string, containerName: string): Promise<void> {
+    await releaseContainerImage(this.db, { nodeId, containerName });
     await this.db
       .delete(dockerImageCleanupSettings)
       .where(
@@ -357,8 +372,9 @@ export class DockerImageCleanupService {
       );
   }
 
-  /** A container was renamed: its image cleanup setting goes with it. */
+  /** A container was renamed: its image cleanup setting and its kept build go with it. */
   async renameContainer(nodeId: string, oldName: string, newName: string): Promise<void> {
+    await renameContainerImage(this.db, nodeId, oldName, newName);
     await this.db
       .update(dockerImageCleanupSettings)
       .set({ containerName: newName, updatedAt: new Date() })

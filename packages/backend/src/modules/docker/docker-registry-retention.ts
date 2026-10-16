@@ -26,6 +26,8 @@ export interface RegistryRetentionArtifactRow {
   buildId: string | null;
   sourceBindingId: string | null;
   ownerKind: string;
+  /** `container:<node>:<name>` for a container's kept build (owner kind `container`). */
+  ownerKey?: string | null;
   repository: string;
   digest: string;
   createdAt: Date;
@@ -72,6 +74,11 @@ export function classifyRegistryRetentionArtifacts(input: {
   pins: RegistryRetentionPinRow[];
   references: string;
   bindings: RegistryRetentionBindingTarget[];
+  /**
+   * `container:<node>:<name>` of the containers that exist: a container's kept build (its source was detached) stays
+   * while its container does. Unknown (undefined): every kept build stays.
+   */
+  existingContainers?: ReadonlySet<string>;
 }): RegistryRetentionArtifact[] {
   const pinsByArtifact = new Map<string, RegistryRetentionPinRow[]>();
   for (const pin of input.pins) {
@@ -88,6 +95,10 @@ export function classifyRegistryRetentionArtifacts(input: {
       digest: artifact.digest,
       createdAt: artifact.createdAt,
     };
+    if (artifact.ownerKind === 'container') {
+      const exists = !input.existingContainers || input.existingContainers.has(artifact.ownerKey ?? '');
+      return { ...base, pinned: exists, retainInHistory: false, running: exists };
+    }
     if (artifact.ownerKind !== 'build' || !artifact.sourceBindingId) {
       return {
         ...base,

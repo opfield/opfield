@@ -958,10 +958,18 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
       );
     }
 
-    async removeDockerSource(target: DockerSourceTarget): Promise<void> {
-      await this.request<{ success: true; removed: boolean }>(dockerSourcePath(target), {
+    /** Detaches the source; for a container, `keptImage` is the build it keeps running (kept in the registry). */
+    async removeDockerSource(
+      target: DockerSourceTarget
+    ): Promise<{ removed: boolean; keptImage: { reference: string; note: string } | null }> {
+      const response = await this.request<{
+        success: true;
+        removed: boolean;
+        keptImage?: { reference: string; note: string } | null;
+      }>(dockerSourcePath(target), {
         method: "DELETE",
       });
+      return { removed: response.removed, keptImage: response.keptImage ?? null };
     }
 
     async listDockerBuildSecrets(target: DockerSourceTarget): Promise<DockerBuildSecret[]> {

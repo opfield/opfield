@@ -1611,8 +1611,17 @@ async function manageDockerSource(
         await sourceService.upsert(DockerSourceBindingUpsertSchema.parse({ ...sourceConfig(saved), target }), user)
       );
     }
-    case 'remove':
-      return { success: true, removed: await sourceService.remove(target, user.id) };
+    case 'remove': {
+      if (target.kind !== 'container') return { success: true, removed: await sourceService.remove(target, user.id) };
+      // The container keeps running its build: the registry keeps that build as the container's own (keptImage).
+      const { detachContainerSourceKeepingImage } = await import('@/modules/docker/docker-container-kept-image.js');
+      const detached = await detachContainerSourceKeepingImage(
+        container.resolve<import('@/db/client.js').DrizzleClient>(TOKENS.DrizzleClient),
+        () => sourceService.remove(target, user.id),
+        target
+      );
+      return { success: true, ...detached };
+    }
     case 'resolve':
       return sourceService.resolveCurrent(target, user);
     case 'sync':

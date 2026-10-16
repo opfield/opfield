@@ -32,6 +32,7 @@ import {
   type DockerSourceTarget,
 } from './docker-build.schemas.js';
 import { DockerBuildService } from './docker-build.service.js';
+import { detachContainerSourceKeepingImage } from './docker-container-kept-image.js';
 import { updatePendingContainerVolumes } from './docker-pending-container-volumes.js';
 import { DockerSourceService } from './docker-source.service.js';
 import {
@@ -291,8 +292,14 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
     '/nodes/:nodeId/containers/:containerName/source',
     requireDockerContainerScope('docker:containers:edit', 'containerName', { allowPendingSource: true }),
     async (c) => {
-      const removed = await container.resolve(DockerSourceService).remove(containerTarget(c), actorFor(c).id);
-      return c.json({ success: true, removed });
+      const target = containerTarget(c) as Extract<DockerSourceTarget, { kind: 'container' }>;
+      // The container keeps running its build: the registry keeps that build as the container's own (keptImage).
+      const { removed, keptImage } = await detachContainerSourceKeepingImage(
+        container.resolve<DrizzleClient>(TOKENS.DrizzleClient),
+        () => container.resolve(DockerSourceService).remove(target, actorFor(c).id),
+        target
+      );
+      return c.json({ success: true, removed, keptImage });
     }
   );
 

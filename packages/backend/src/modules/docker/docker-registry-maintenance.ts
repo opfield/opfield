@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
+  dockerAccessResources,
   dockerArtifactPins,
   dockerAvailabilityOperations,
   dockerAvailabilityPlacements,
@@ -80,8 +81,8 @@ export interface DockerRegistryMaintenanceExecutor {
   purgeStaleUploads?(olderThanMinutes: number): Promise<number>;
   /** Every repository the registry holds (its catalog). */
   listRepositories?(): Promise<string[]>;
-  /** Deletes the manifests every tag of a repository names; returns how many. */
-  deleteRepositoryTags?(repository: string): Promise<number>;
+  /** Deletes the manifests every tag of a repository names, except `keep`; returns how many. */
+  deleteRepositoryTags?(repository: string, keep?: ReadonlySet<string>): Promise<number>;
   pauseAdmissions(): Promise<void>;
   drainUploads(): Promise<void>;
   deleteManifest(repository: string, digest: string): Promise<void>;
@@ -178,7 +179,7 @@ export function createDockerRegistryMaintenanceExecutor(
       }
       return repositories;
     },
-    deleteRepositoryTags: async (repository) => {
+    deleteRepositoryTags: async (repository, keep) => {
       const grant = { repository, actions: ['pull', 'delete'] } satisfies DockerRegistryGrant;
       const tagsResponse = await fetch(new URL(`/v2/${repositoryPath(repository)}/tags/list`, registryUrl), {
         headers: { authorization: authorized([grant]) },
@@ -193,7 +194,7 @@ export function createDockerRegistryMaintenanceExecutor(
         const response = await request(repository, tag, 'GET', 'pull');
         const digest = response.headers.get('docker-content-digest');
         await response.body?.cancel();
-        if (response.ok && digest && /^sha256:[0-9a-f]{64}$/.test(digest)) digests.add(digest);
+        if (response.ok && digest && /^sha256:[0-9a-f]{64}$/.test(digest) && !keep?.has(digest)) digests.add(digest);
       }
       for (const digest of digests) {
         const response = await request(repository, digest, 'DELETE', 'delete');
@@ -267,6 +268,8 @@ export interface DockerRegistryMaintenanceStore {
    * that hold no tracked artifact, once found so for ORPHANED_REPOSITORY_GRACE_MS (tracked across runs).
    */
   orphanedRepositories?(repositories: string[], now: Date): Promise<string[]>;
+  /** Per repository, the digests kept as containers' own builds (their source was detached): never deleted with it. */
+  containerKeptDigests?(): Promise<Map<string, Set<string>>>;
 }
 
 /** A build repository whose source is gone is deleted once maintenance runs at least this far apart both found it so. */
@@ -399,13 +402,14 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
   }
 
   async listRetentionArtifacts(now: Date): Promise<RegistryRetentionArtifact[]> {
-    const [artifacts, pins, references, bindings] = await Promise.all([
+    const [artifacts, pins, references, bindings, containers] = await Promise.all([
       this.db
         .select({
           id: dockerBuildArtifacts.id,
           buildId: dockerBuildArtifacts.buildId,
           sourceBindingId: dockerBuildArtifacts.sourceBindingId,
           ownerKind: dockerBuildArtifacts.ownerKind,
+          ownerKey: dockerBuildArtifacts.ownerKey,
           repository: dockerBuildArtifacts.registryRepository,
           digest: dockerBuildArtifacts.digest,
           createdAt: dockerBuildArtifacts.createdAt,
@@ -436,8 +440,18 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
           composeProjectId: dockerSourceBindings.composeProjectId,
         })
         .from(dockerSourceBindings),
+      this.db
+        .select({ nodeId: dockerAccessResources.nodeId, name: dockerAccessResources.resourceKey })
+        .from(dockerAccessResources)
+        .where(eq(dockerAccessResources.resourceType, 'container')),
     ]);
-    return classifyRegistryRetentionArtifacts({ artifacts, pins, references, bindings });
+    return classifyRegistryRetentionArtifacts({
+      artifacts,
+      pins,
+      references,
+      bindings,
+      existingContainers: new Set(containers.map((row) => `container:${row.nodeId}:${row.name}`)),
+    });
   }
 
   async buildSourceBindingId(buildId: string): Promise<string | null> {
@@ -498,10 +512,11 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
   async orphanedRepositories(repositories: string[], now: Date): Promise<string[]> {
     const [bindings, artifacts, references, [tracked]] = await Promise.all([
       this.db.select({ id: dockerSourceBindings.id }).from(dockerSourceBindings),
+      // A container's kept build does not keep the rest of its old source's repository (containerKeptDigests).
       this.db
         .selectDistinct({ repository: dockerBuildArtifacts.registryRepository })
         .from(dockerBuildArtifacts)
-        .where(ne(dockerBuildArtifacts.status, 'deleted')),
+        .where(and(ne(dockerBuildArtifacts.status, 'deleted'), ne(dockerBuildArtifacts.ownerKind, 'container'))),
       registryRuntimeReferences(this.db),
       this.db
         .select({ value: settings.value })
@@ -529,6 +544,16 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
       .values({ key: ORPHANED_REPOSITORIES_KEY, value: next, updatedAt: now })
       .onConflictDoUpdate({ target: settings.key, set: { value: next, updatedAt: now } });
     return orphaned.filter((repository) => now.getTime() - next[repository]! >= ORPHANED_REPOSITORY_GRACE_MS);
+  }
+
+  async containerKeptDigests(): Promise<Map<string, Set<string>>> {
+    const rows = await this.db
+      .select({ repository: dockerBuildArtifacts.registryRepository, digest: dockerBuildArtifacts.digest })
+      .from(dockerBuildArtifacts)
+      .where(and(eq(dockerBuildArtifacts.ownerKind, 'container'), ne(dockerBuildArtifacts.status, 'deleted')));
+    const kept = new Map<string, Set<string>>();
+    for (const row of rows) kept.set(row.repository, (kept.get(row.repository) ?? new Set()).add(row.digest));
+    return kept;
   }
 
   async markArtifactDeleted(id: string, now: Date): Promise<void> {
