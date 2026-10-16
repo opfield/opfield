@@ -29,6 +29,8 @@ type fakeEngineDocker struct {
 	users []string
 	// finishedAt is when a stopped container last exited, if set.
 	finishedAt map[string]time.Time
+	// oomKilled is Docker's State.OOMKilled of a container.
+	oomKilled map[string]bool
 }
 
 func (d *fakeEngineDocker) client() *Client {
@@ -74,7 +76,7 @@ func (d *fakeEngineDocker) serve(request *http.Request) (*http.Response, error) 
 	case request.Method == http.MethodGet && action == "/json":
 		raw, _ := json.Marshal(map[string]any{
 			"Id":         id,
-			"State":      map[string]any{"Running": running, "FinishedAt": d.finished(id)},
+			"State":      map[string]any{"Running": running, "FinishedAt": d.finished(id), "OOMKilled": d.oomKilled[id]},
 			"HostConfig": map[string]any{"RestartPolicy": map[string]any{"Name": d.policy[id]}},
 		})
 		return reply(http.StatusOK, string(raw))

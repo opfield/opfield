@@ -18,6 +18,9 @@ const (
 type engineIncident struct {
 	at  time.Time
 	oom bool
+	// killed: a SIGKILL from another process (kill -9 of the engine's
+	// process), not the kernel's out-of-memory kill.
+	killed bool
 }
 
 // engineIncidents records, per instance, the stops of its engine nobody asked
@@ -35,13 +38,22 @@ func newEngineIncidents() *engineIncidents {
 }
 
 func (e *engineIncidents) record(key string, oom bool) {
+	cause := engineStopExited
+	if oom {
+		cause = engineStopOutOfMemory
+	}
+	e.recordStop(key, cause)
+}
+
+// recordStop records an unrequested stop with its cause.
+func (e *engineIncidents) recordStop(key string, cause engineStopCause) {
 	if e == nil {
 		return
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	now := e.now()
-	events := append(e.prune(key, now), engineIncident{at: now, oom: oom})
+	events := append(e.prune(key, now), engineIncident{at: now, oom: cause == engineStopOutOfMemory, killed: cause == engineStopKilled})
 	if len(events) > engineIncidentLimit {
 		events = events[len(events)-engineIncidentLimit:]
 	}
@@ -74,7 +86,8 @@ func (e *engineIncidents) prune(key string, now time.Time) []engineIncident {
 }
 
 // detail is what inspect reports: the unrequested stops of the last day, how
-// many of them were out-of-memory kills, and when the last one was.
+// many of them were out-of-memory kills and how many SIGKILLs from another
+// process (never counted as out of memory), and when the last ones were.
 func (e *engineIncidents) detail(key string) map[string]any {
 	if e == nil {
 		return nil
@@ -85,12 +98,16 @@ func (e *engineIncidents) detail(key string) map[string]any {
 	if len(events) == 0 {
 		return nil
 	}
-	oom := 0
-	var lastOOM time.Time
+	oom, killed := 0, 0
+	var lastOOM, lastKilled time.Time
 	for _, event := range events {
 		if event.oom {
 			oom++
 			lastOOM = event.at
+		}
+		if event.killed {
+			killed++
+			lastKilled = event.at
 		}
 	}
 	detail := map[string]any{
@@ -101,6 +118,10 @@ func (e *engineIncidents) detail(key string) map[string]any {
 	}
 	if oom > 0 {
 		detail["lastOomAt"] = lastOOM.UTC().Format(time.RFC3339)
+	}
+	if killed > 0 {
+		detail["signalKills"] = killed
+		detail["lastSignalKillAt"] = lastKilled.UTC().Format(time.RFC3339)
 	}
 	return detail
 }
