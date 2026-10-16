@@ -567,7 +567,7 @@ The internal registry keeps build images on a Docker volume of the Opfield host 
 
 The registry cleans up after itself at every maintenance run (after builds and nightly with Housekeeping):
 
-- It keeps per container the build it runs and one to roll back to.
+- It keeps per container the build it runs and one to roll back to. **Roll back** in the container's **Source** tab (Delivery status; API `POST /api/docker/nodes/{nodeId}/containers/{containerName}/source/rollback`, MCP `manage_docker_source` `rollback`) runs that build again; the container stays on it until the next new commit is built and deployed. Older builds are gone: to run older code, push a revert commit.
 - The builds of a Git source that no longer exists (its container, deployment or Pages project was deleted, or the source was detached) are deleted once two maintenance runs at least 12 hours apart found no workload naming them.
 - On local disk, the leftovers of pushes that failed or were cancelled are removed after a day.
 - On local disk, the registry stops taking new builds and image pushes while the disk under its volume is 90% full or more. Builds then fail with a message that says so, and the registry shows **Degraded**. They resume on their own once space is freed. Pulls keep working. A registry on S3 is not limited by the host disk.

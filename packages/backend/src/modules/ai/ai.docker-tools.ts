@@ -1556,7 +1556,7 @@ async function manageDockerSource(
     const requiredScope =
       operation === 'get' || operation === 'secret_list'
         ? 'docker:containers:view'
-        : operation === 'build' || operation === 'sync'
+        : operation === 'build' || operation === 'sync' || operation === 'rollback'
           ? 'docker:containers:manage'
           : 'docker:containers:edit';
     ensureDockerDeploymentScope(context, user, requiredScope, nodeId, deploymentId);
@@ -1568,7 +1568,7 @@ async function manageDockerSource(
     const requiredScope =
       operation === 'get' || operation === 'secret_list' || operation === 'pending'
         ? 'docker:containers:view'
-        : operation === 'build' || operation === 'sync'
+        : operation === 'build' || operation === 'sync' || operation === 'rollback'
           ? 'docker:containers:manage'
           : 'docker:containers:edit';
     await ensureDockerSourceContainerScope(context.dockerService, user, requiredScope, nodeId, containerName);
@@ -1617,6 +1617,17 @@ async function manageDockerSource(
       return sourceService.resolveCurrent(target, user);
     case 'sync':
       return sourceService.sync(target, user);
+    case 'rollback': {
+      // POST /nodes/:nodeId/containers/:containerName/source/rollback; other targets are refused by the service.
+      const { DockerSourceRollbackSchema } = await import('@/modules/docker/docker-source-rollback.routes.js');
+      const result = await sourceService.rollback(
+        target,
+        DockerSourceRollbackSchema.parse({ buildId: optionalNonEmptyString(a.buildId) }),
+        user
+      );
+      const { withDockerSourceBuildState } = await import('@/modules/docker/docker-source-build-state.js');
+      return { ...result, source: await withDockerSourceBuildState(result.source) };
+    }
     case 'build':
       return sourceService.createBuild(
         target,
