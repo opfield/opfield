@@ -596,12 +596,12 @@ export async function initializeBackgroundServices(): Promise<void> {
   });
   // No successful run for two days: retention stopped, which nobody would notice until a disk fills.
   scheduler.registerInterval('housekeeping-stale-check', 10 * 60_000, async () => {
-    const lastSuccessAt = await housekeepingService.getLastSuccessAt();
+    const { lastSuccessAt, since } = await housekeepingService.getStalenessAnchor();
     await notifEvaluatorService.observeStatefulEvent(
       'opfield',
-      isHousekeepingStale(lastSuccessAt) ? 'housekeeping.stale' : 'ok',
+      isHousekeepingStale(since) ? 'housekeeping.stale' : 'ok',
       { type: 'opfield', id: 'opfield-housekeeping', name: 'Housekeeping' },
-      { last_success_at: lastSuccessAt ?? 'never' },
+      { last_success_at: lastSuccessAt ?? `never (watched since ${since})` },
       ['housekeeping.stale'],
       10 * 60_000
     );

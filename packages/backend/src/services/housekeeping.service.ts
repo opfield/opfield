@@ -250,6 +250,11 @@ const KEYS = {
   /** { [nodeId]: { [volumeName]: ISO time it was first seen used by a container Opfield created } } */
   orphanedVolumesOpfieldOwned: 'housekeeping:orphaned_volumes:opfield_owned',
   lastSuccessAt: 'housekeeping:last_success_at',
+  /**
+   * Since when Housekeeping is watched for a successful run when none is known: the update that introduced the check
+   * (migration 0260) or the first look of a new install. Not a run: the stats never show it as one.
+   */
+  successBaselineAt: 'housekeeping:success_baseline_at',
   lastRunResult: 'housekeeping:last_run_result',
   runHistory: 'housekeeping:run_history',
 } as const;
@@ -549,7 +554,7 @@ export class HousekeepingService {
       hostFiles,
       diskUsage,
       lastRun,
-      lastSuccessAt,
+      staleness,
     ] = await Promise.all([
       this.getNginxLogStats(),
       this.getAuditLogStats(),
@@ -570,7 +575,7 @@ export class HousekeepingService {
       this.getHostFileStats(),
       this.getDiskUsage(),
       this.getLastRunResult(),
-      this.getLastSuccessAt(),
+      this.getStalenessAnchor(),
     ]);
 
     return {
@@ -603,8 +608,8 @@ export class HousekeepingService {
       hostFiles,
       diskUsage,
       lastRun,
-      lastSuccessAt,
-      stale: isHousekeepingStale(lastSuccessAt),
+      lastSuccessAt: staleness.lastSuccessAt,
+      stale: isHousekeepingStale(staleness.since),
       isRunning: this.running,
     };
   }
@@ -1360,8 +1365,56 @@ export class HousekeepingService {
     }
   }
 
+  /**
+   * When a run last kept Opfield's data bounded (every safety category succeeded); null when no run did. Migration
+   * 0260 stored the update time under this key as a starting point for the "not running" check, so the stats named a
+   * success no run had (rc.2 X-O-17): a stored time no run in the history finished at moves to the baseline once, and
+   * the last successful run of the history (if any) takes its place.
+   */
   async getLastSuccessAt(): Promise<string | null> {
-    const row = await this.db.select().from(settings).where(eq(settings.key, KEYS.lastSuccessAt)).limit(1);
+    await this.repairLastSuccess();
+    return this.readStringSetting(KEYS.lastSuccessAt);
+  }
+
+  /**
+   * Since when "no successful run" counts: the last success, else the baseline (the update that introduced the check,
+   * or the first time this install looked). The stale check and its alert use it.
+   */
+  async getStalenessAnchor(): Promise<{ lastSuccessAt: string | null; since: string | null }> {
+    const lastSuccessAt = await this.getLastSuccessAt();
+    if (lastSuccessAt) return { lastSuccessAt, since: lastSuccessAt };
+    let since = await this.readStringSetting(KEYS.successBaselineAt);
+    if (!since) {
+      since = new Date().toISOString();
+      await this.upsertSetting(KEYS.successBaselineAt, since);
+    }
+    return { lastSuccessAt: null, since };
+  }
+
+  private lastSuccessRepaired = false;
+
+  private async repairLastSuccess(): Promise<void> {
+    if (this.lastSuccessRepaired) return;
+    const stored = await this.readStringSetting(KEYS.lastSuccessAt);
+    if (stored) {
+      const history = await this.getRunHistory();
+      const repaired = repairedLastSuccess(stored, history);
+      if (repaired.changed) {
+        if (!(await this.readStringSetting(KEYS.successBaselineAt)))
+          await this.upsertSetting(KEYS.successBaselineAt, stored);
+        if (repaired.lastSuccessAt) await this.upsertSetting(KEYS.lastSuccessAt, repaired.lastSuccessAt);
+        else await this.db.delete(settings).where(eq(settings.key, KEYS.lastSuccessAt));
+        logger.info('Housekeeping last success no run had moved to the baseline', {
+          stored,
+          lastSuccessAt: repaired.lastSuccessAt,
+        });
+      }
+    }
+    this.lastSuccessRepaired = true;
+  }
+
+  private async readStringSetting(key: string): Promise<string | null> {
+    const row = await this.db.select().from(settings).where(eq(settings.key, key)).limit(1);
     return typeof row[0]?.value === 'string' ? row[0].value : null;
   }
 
@@ -1675,7 +1728,7 @@ export class HousekeepingService {
   private async saveRunResult(result: HousekeepingRunResult): Promise<void> {
     await this.upsertSetting(KEYS.lastRunResult, result);
     // A run counts as a success when everything that keeps Opfield's own data bounded worked.
-    if (result.categories.filter((category) => SAFETY_CATEGORIES.has(category.category)).every((c) => c.success)) {
+    if (runKeptDataBounded(result)) {
       await this.upsertSetting(KEYS.lastSuccessAt, result.completedAt);
     }
 
@@ -1729,8 +1782,38 @@ export class HousekeepingService {
 }
 
 /**
- * No run kept Opfield's data bounded for HOUSEKEEPING_STALE_MS. Migration 0260 recorded the update time as the first
- * success, so an install that has not run since then counts from the update.
+ * The last success as the run history knows it: a stored time no run of the history completed at is not a run (the
+ * update time migration 0260 stored); the newest run whose safety categories all succeeded takes its place, or none.
+ * A history that lost older runs (it keeps the last few) keeps a stored time older than all of them.
+ */
+export function repairedLastSuccess(
+  stored: string,
+  history: readonly HousekeepingRunResult[]
+): { changed: boolean; lastSuccessAt: string | null } {
+  if (history.some((run) => run.completedAt === stored)) return { changed: false, lastSuccessAt: stored };
+  const storedMs = Date.parse(stored);
+  const oldestRunMs = Math.min(...history.map((run) => Date.parse(run.startedAt)).filter(Number.isFinite));
+  if (Number.isFinite(storedMs) && Number.isFinite(oldestRunMs) && storedMs < oldestRunMs) {
+    return { changed: false, lastSuccessAt: stored };
+  }
+  const success = history
+    .filter((run) => runKeptDataBounded(run))
+    .map((run) => run.completedAt)
+    .sort()
+    .at(-1);
+  return { changed: true, lastSuccessAt: success ?? null };
+}
+
+/** Every safety category of the run (those it ran) succeeded. */
+function runKeptDataBounded(run: HousekeepingRunResult): boolean {
+  return run.categories
+    .filter((category) => SAFETY_CATEGORIES.has(category.category))
+    .every((category) => category.success);
+}
+
+/**
+ * No run kept Opfield's data bounded for HOUSEKEEPING_STALE_MS since `since` (the last success, else the baseline the
+ * check started from).
  */
 export function isHousekeepingStale(lastSuccessAt: string | null, now = Date.now()): boolean {
   if (!lastSuccessAt) return false;
