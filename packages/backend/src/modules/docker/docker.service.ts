@@ -195,6 +195,11 @@ export interface DockerAppFreezeGuard {
   assertNetworkNotHeld(nodeId: string, network: { id: string; name: string }): Promise<void>;
 }
 
+/** The node answers the size of every volume at once (volume command `sizes`). */
+export const DOCKER_VOLUME_SIZES_CAPABILITY = 'docker_volume_sizes_v1';
+/** Measuring walks every volume on the node. */
+const VOLUME_SIZES_TIMEOUT_MS = 5 * 60_000;
+
 export class DockerManagementService {
   private static readonly LONG_DOCKER_OPERATION_TIMEOUT_MS = 600000; // 10 minutes
 
@@ -2347,6 +2352,24 @@ export class DockerManagementService {
     // that the user volume list hides. Housekeeping uses removeOrphanedAnonymousVolume.
     await assertDockerUserVolumeVisible(this.volumeNetworkOperationContext(), nodeId, name);
     await removeDockerVolume(this.volumeNetworkOperationContext(), nodeId, name, force, userId);
+  }
+
+  /**
+   * The size of every volume on the node by name, from one disk-usage walk on the node (the summed file sizes, as the
+   * volume metrics count them); null when the node's daemon is too old to answer it (docker_volume_sizes_v1).
+   */
+  async volumeSizes(nodeId: string): Promise<Map<string, number> | null> {
+    await this.validateDockerNode(nodeId);
+    if (!this.nodeRegistry.hasCapability(nodeId, DOCKER_VOLUME_SIZES_CAPABILITY)) return null;
+    const result = await this.nodeDispatch.sendDockerVolumeCommand(nodeId, 'sizes', {}, VOLUME_SIZES_TIMEOUT_MS);
+    const parsed = this.parseResult(result);
+    const sizes = new Map<string, number>();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      for (const [name, size] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof size === 'number' && Number.isFinite(size) && size >= 0) sizes.set(name, size);
+      }
+    }
+    return sizes;
   }
 
   /** Housekeeping inventory: every volume on the node, including the ones hidden from the user list. */

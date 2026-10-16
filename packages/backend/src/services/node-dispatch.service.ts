@@ -1336,7 +1336,7 @@ export class NodeDispatchService {
     timeoutMs?: number
   ): Promise<CommandResult> {
     await this.assertGenericDockerNode(nodeId);
-    if (!['list', 'inspect', 'metrics'].includes(action)) {
+    if (!['list', 'inspect', 'metrics', 'sizes'].includes(action)) {
       await this.assertNodeMutable(nodeId);
     }
     const payload = {

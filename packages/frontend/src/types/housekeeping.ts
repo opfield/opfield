@@ -109,6 +109,8 @@ export interface HousekeepingStats {
     /** Unused volumes Opfield did not create: never removed automatically, only shown. */
     unownedCount?: number;
     unownedBytes?: number;
+    /** Volumes counted here whose size is unknown (their node's daemon cannot measure them yet). */
+    unmeasuredCount?: number;
   };
   orphanedCerts: {
     count: number;

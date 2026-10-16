@@ -633,6 +633,10 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
                       hkStats.orphanedVolumes.unownedCount
                         ? ` · ${hkStats.orphanedVolumes.unownedCount} unused not created by Opfield (${formatBytes(hkStats.orphanedVolumes.unownedBytes ?? 0)}), kept`
                         : ""
+                    }${
+                      hkStats.orphanedVolumes.unmeasuredCount
+                        ? ` · size unknown for ${hkStats.orphanedVolumes.unmeasuredCount} (node not updated yet)`
+                        : ""
                     }`
                   : "volumes"
               }

@@ -647,6 +647,7 @@ func (p *DockerPlugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		if p.externalChanges != nil {
 			values = append(values, externalChangesCapability)
 		}
+		values = append(values, volumeSizesCapability)
 		values = append(values, p.opfieldNamesCapabilities()...)
 		return values
 	}()

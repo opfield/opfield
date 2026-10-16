@@ -182,7 +182,10 @@ export interface HousekeepingStats {
     reclaimableBytes: number;
     /** Unused volumes Opfield did not create (or cannot tell): never removed automatically, only shown. */
     unownedCount: number;
+    /** The summed file sizes of those volumes, as the node measures them (see unmeasuredCount). */
     unownedBytes: number;
+    /** Volumes counted above whose size is unknown (their node's daemon cannot measure them yet): not in the bytes. */
+    unmeasuredCount?: number;
   };
   orphanedCerts: {
     count: number;
@@ -311,6 +314,8 @@ type DeepPartial<T> = {
 
 type UnusedVolumeState = Record<string, Record<string, string>>;
 type OrphanedVolumeCandidate = { nodeId: string; name: string; sizeBytes?: number };
+/** Volume sizes of a node are measured (a walk of every volume) at most this often. */
+const VOLUME_SIZES_REFRESH_MS = 10 * 60_000;
 
 /** One Docker node's old images by the image cleanup rules, as Housekeeping shows them. */
 export interface DockerImageNodeBreakdown {
@@ -964,6 +969,7 @@ export class HousekeepingService {
   }
 
   private dockerManagementService?: DockerManagementService;
+  private readonly volumeSizeCache = new Map<string, { at: number; sizes: Map<string, number> | null }>();
   setDockerManagementService(svc: DockerManagementService) {
     this.dockerManagementService = svc;
   }
@@ -1354,6 +1360,7 @@ export class HousekeepingService {
       reclaimableBytes: candidates.reduce((sum, candidate) => sum + (candidate.sizeBytes ?? 0), 0),
       unownedCount: unowned.length,
       unownedBytes: unowned.reduce((sum, volume) => sum + (volume.sizeBytes ?? 0), 0),
+      unmeasuredCount: [...candidates, ...unowned].filter((volume) => volume.sizeBytes === undefined).length,
     };
   }
 
@@ -1528,6 +1535,23 @@ export class HousekeepingService {
     return scan;
   }
 
+  /**
+   * The sizes of a node's volumes by name (DockerManagementService.volumeSizes), measured at most every
+   * VOLUME_SIZES_REFRESH_MS; null when the node cannot measure them or the measurement failed.
+   */
+  private async volumeSizes(nodeId: string): Promise<Map<string, number> | null> {
+    const cached = this.volumeSizeCache.get(nodeId);
+    if (cached && Date.now() - cached.at < VOLUME_SIZES_REFRESH_MS) return cached.sizes;
+    try {
+      const sizes = (await this.dockerManagementService?.volumeSizes?.(nodeId)) ?? null;
+      this.volumeSizeCache.set(nodeId, { at: Date.now(), sizes });
+      return sizes;
+    } catch (error) {
+      logger.debug('Volume sizes could not be measured for housekeeping', { nodeId, error });
+      return cached?.sizes ?? null;
+    }
+  }
+
   /** Tells which container names on a node are containers Opfield created. Replaceable in tests. */
   /** Volumes removal must keep on a node (docker-kept-volumes.ts); a field so tests can replace it. */
   private keptVolumeNames = (nodeId: string): Promise<Set<string>> => opfieldKeptVolumeNames(this.db, nodeId);
@@ -1597,6 +1621,8 @@ export class HousekeepingService {
         // Unknown this time: ownership is only kept, never newly recorded.
         logger.debug('Failed to list containers for orphaned volume ownership', { nodeId: node.id, error });
       }
+      // Docker's volume list carries no sizes: one measurement per node gives them (cached, see volumeSizes).
+      const sizes = await this.volumeSizes(node.id);
       // Successful scan: rebuild this node's records, dropping volumes that are in use or gone.
       const previousForNode = previous[node.id] ?? {};
       const ownedForNode = previousOwned[node.id] ?? {};
@@ -1605,6 +1631,7 @@ export class HousekeepingService {
       for (const volume of volumes) {
         const candidate = normalizeHousekeepingVolume(volume);
         if (!candidate) continue;
+        candidate.sizeBytes ??= sizes?.get(candidate.name);
         const anonymous = isAnonymousDockerVolumeName(candidate.name);
         const inUse = candidate.usedBy.length > 0 || candidate.usedByCount > 0;
         if (anonymous) {

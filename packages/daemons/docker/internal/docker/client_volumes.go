@@ -282,6 +282,31 @@ func (c *Client) CreateManagedVolume(ctx context.Context, name string) error {
 	return nil
 }
 
+// volumeSizesCapability: the volume command "sizes" answers the size of every volume in one call.
+const volumeSizesCapability = "docker_volume_sizes_v1"
+
+// VolumeSizes returns the size of every local volume Docker can measure, by name: the summed sizes of its files
+// (Docker's disk usage, the same apparent size as the volume metrics), from one walk of all volumes.
+func (c *Client) VolumeSizes(ctx context.Context) (map[string]int64, error) {
+	usage, err := c.cli.DiskUsage(ctx, client.DiskUsageOptions{Volumes: true, Verbose: true})
+	if err != nil {
+		return nil, fmt.Errorf("volume disk usage: %w", err)
+	}
+	return volumeSizesFromUsage(usage.Volumes.Items), nil
+}
+
+// volumeSizesFromUsage keeps the volumes Docker measured (a size of -1 or no usage data means not measured).
+func volumeSizesFromUsage(items []volume.Volume) map[string]int64 {
+	sizes := make(map[string]int64, len(items))
+	for _, item := range items {
+		if item.Name == "" || item.UsageData == nil || item.UsageData.Size < 0 {
+			continue
+		}
+		sizes[item.Name] = item.UsageData.Size
+	}
+	return sizes
+}
+
 func (c *Client) volumeDiskUsage(ctx context.Context, name string) (int64, error) {
 	usage, err := c.cli.DiskUsage(ctx, client.DiskUsageOptions{Volumes: true, Verbose: true})
 	if err != nil {
