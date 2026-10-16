@@ -352,7 +352,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'set_route_maintenance',
     description:
-      'Enter or exit maintenance mode for an enabled managed Route through the canonical maintenance lifecycle.',
+      'Enter or exit maintenance mode for an enabled managed Route through the canonical maintenance lifecycle. In maintenance the Route answers 503 with the maintenance page; a client its access list denies still gets 403.',
     parameters: {
       type: 'object',
       properties: {
