@@ -28,7 +28,7 @@ const HOUSEKEEPING_HELP: Record<string, string> = {
   "ACME Challenges":
     "Removes expired certificate-validation tokens and temporary challenge files left after ACME issuance attempts.",
   "Docker Images":
-    "Prunes old Opfield-managed images while preserving images still used by containers or required by the active release.",
+    "Prunes old Opfield images and, on every Docker node, dangling images and Git-source build images beyond each container's Image Cleanup setting (by default the build it runs and one to roll back to). Images used by containers are never removed.",
   "Operation History":
     "Deletes finished Docker container tasks after a day, and finished builds (with their logs), compose, availability and hosting operations and source webhook deliveries after the retention period, in batches. Each resource keeps its 10 latest runs (a Compose build batch counts once) and its latest operation of each kind, and anything still referenced (a build artifact, a hosted node's origin, a snapshot) is kept.",
   "Expired OAuth Grants":

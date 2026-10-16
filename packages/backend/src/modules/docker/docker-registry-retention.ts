@@ -1,4 +1,5 @@
 import { ACTIVE_BUILD_STATUSES } from './docker-build-policy.js';
+import { imageRetentionDigestKey } from './docker-image-retention.js';
 
 /**
  * How many builds the internal registry holds per container (per source binding and image repository): the one the
@@ -165,4 +166,10 @@ export function selectRegistryRetentionCandidates(artifacts: RegistryRetentionAr
     retained: artifacts.filter((artifact) => retainedIds.has(artifact.id)),
     candidates: artifacts.filter((artifact) => !retainedIds.has(artifact.id)),
   };
+}
+
+/** The builds the registry keeps, as `<repository>@<digest>`: a node never removes their images either. */
+export function registryRetainedDigestKeys(artifacts: RegistryRetentionArtifact[]): Set<string> {
+  const { retained } = selectRegistryRetentionCandidates(artifacts);
+  return new Set(retained.map((artifact) => imageRetentionDigestKey(artifact.repository, artifact.digest)));
 }

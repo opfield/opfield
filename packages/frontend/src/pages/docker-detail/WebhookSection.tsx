@@ -282,10 +282,10 @@ export function WebhookSection(props: WebhookSectionProps) {
           title={
             <SettingsHelpTitle
               label="Image Cleanup"
-              help="Removes older image versions after successful managed updates while retaining the configured number of previous versions for rollback and inspection."
+              help="Removes older image versions after each update, Git-source builds included. The version the container runs counts toward N; the newest others stay for rollback. Housekeeping applies the same limit to build images on every node."
             />
           }
-          description="Remove old image versions after manual or webhook updates"
+          description="Remove old image versions after updates and builds"
           actions={
             <Switch
               checked={cleanupEnabled}
@@ -302,7 +302,7 @@ export function WebhookSection(props: WebhookSectionProps) {
                 Keep last N versions
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Number of old image versions to retain
+                Versions kept, the running one included
               </p>
             </div>
             <Input

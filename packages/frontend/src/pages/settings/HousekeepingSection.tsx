@@ -675,7 +675,7 @@ export function HousekeepingSection({ canRun, canConfigure }: HousekeepingSectio
             />
             <HousekeepingCard
               label="Docker Images"
-              description="Prune old Opfield images"
+              description="Prune old Opfield and build images on all nodes"
               stat={hkStats ? String(hkStats.dockerImages.oldImageCount) : "..."}
               statDetail={
                 hkStats ? `old (${formatBytes(hkStats.dockerImages.reclaimableBytes)})` : "old"

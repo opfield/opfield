@@ -28,7 +28,7 @@ Every node counts toward the plan's managed-node limit, whatever its type and in
 Opfield daemons have a small resource footprint compared with the services they manage, so they do not have separate CPU, memory, or disk requirements. Size each host for its operating system and actual workload:
 
 - nginx nodes for nginx traffic, TLS termination, and log volume;
-- Docker nodes for the containers and deployments running on them;
+- Docker nodes for the containers and deployments running on them, plus their images: each container keeps the image it runs and one older version by default (see [Docker Image Cleanup](operations.md#docker-image-cleanup)), and the built-in alert **Node disk almost full** fires at 85% root disk use;
 - Storage nodes for the CPU, memory, swap, and storage allocated to managed databases, object storage, and backup jobs;
 - monitoring nodes according to the existing host workload being observed.
 

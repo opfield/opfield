@@ -1989,9 +1989,27 @@ export class DockerManagementService {
     await removeDockerImage(this.imageOperationContext(), nodeId, canonicalImageId, false, null);
   }
 
+  /**
+   * A system removal of an image no container uses, Opfield's build images included (the image cleanup settings and
+   * housekeeping). Never forced: Docker refuses an image a running or stopped container uses.
+   */
+  async removeUnusedImage(nodeId: string, imageId: string, userId: string | null = null) {
+    await removeDockerImage(this.imageOperationContext(), nodeId, imageId, false, userId);
+  }
+
+  /**
+   * Removes the dangling images, then applies the image cleanup settings to the node's build images: each container
+   * keeps the build it runs and its rollback builds, the rest goes.
+   */
   async pruneImages(nodeId: string, userId: string) {
     await this.validateDockerNode(nodeId);
-    return pruneDockerImages(this.imageOperationContext(), nodeId, userId);
+    const data = await pruneDockerImages(this.imageOperationContext(), nodeId, userId);
+    if (!this.imageCleanupService) return data;
+    const builds = await this.imageCleanupService.enforceNode(nodeId, { userId });
+    return {
+      ImagesDeleted: [...data.ImagesDeleted, ...builds.removed],
+      SpaceReclaimed: data.SpaceReclaimed + builds.freedBytes,
+    };
   }
 
   // ─── Volume operations ─────────────────────────────────────────────

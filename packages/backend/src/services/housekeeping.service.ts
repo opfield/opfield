@@ -13,6 +13,7 @@ import type { AISandboxArtifactService } from '@/modules/ai/ai.sandbox-artifact.
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { SiemDeliveryService } from '@/modules/audit/siem-delivery.service.js';
 import type { DockerManagementService } from '@/modules/docker/docker.service.js';
+import type { DockerImageCleanupService } from '@/modules/docker/docker-image-cleanup.service.js';
 import {
   type OpfieldInternalImageCandidate,
   selectObsoleteOpfieldConnectorImages,
@@ -644,6 +645,12 @@ export class HousekeepingService {
     this.dockerManagementService = svc;
   }
 
+  private imageCleanupService?: Pick<DockerImageCleanupService, 'enforceNode' | 'onlineDockerNodeIds'>;
+  /** Applies the image cleanup settings to build images and removes dangling images on every Docker node. */
+  setImageCleanupService(svc: Pick<DockerImageCleanupService, 'enforceNode' | 'onlineDockerNodeIds'>) {
+    this.imageCleanupService = svc;
+  }
+
   private systemCertificateLifecycle?: SystemCertificateLifecycleService;
   setSystemCertificateLifecycleService(svc: SystemCertificateLifecycleService) {
     this.systemCertificateLifecycle = svc;
@@ -836,7 +843,41 @@ export class HousekeepingService {
         });
       }
     }
-    return { itemsCleaned: cleaned, spaceFreedBytes: freedBytes };
+    const nodeImages = await this.applyNodeImageRetention(false);
+    return { itemsCleaned: cleaned + nodeImages.count, spaceFreedBytes: freedBytes + nodeImages.bytes };
+  }
+
+  /**
+   * On every online Docker node: build images beyond each container's image cleanup setting (the running build and
+   * its rollback builds stay) and dangling images. Catches what a missed or failed cleanup after a deploy left, and the
+   * leftovers of older releases. `dryRun` counts them for the stats.
+   */
+  private async applyNodeImageRetention(dryRun: boolean): Promise<{ count: number; bytes: number }> {
+    const cleanup = this.imageCleanupService;
+    if (!cleanup) return { count: 0, bytes: 0 };
+    let count = 0;
+    let bytes = 0;
+    let nodeIds: string[] = [];
+    try {
+      nodeIds = await cleanup.onlineDockerNodeIds();
+    } catch (error) {
+      logger.warn('Failed to list Docker nodes for image cleanup', { error });
+    }
+    for (const nodeId of nodeIds) {
+      try {
+        const result = await cleanup.enforceNode(nodeId, { dangling: true, dryRun });
+        if (dryRun) {
+          count += result.candidates.length;
+          bytes += result.candidates.reduce((sum, candidate) => sum + candidate.size, 0);
+        } else {
+          count += result.removed.length;
+          bytes += result.freedBytes;
+        }
+      } catch (error) {
+        logger.warn('Node image cleanup failed', { nodeId, error });
+      }
+    }
+    return { count, bytes };
   }
 
   // ── Stats Helpers ───────────────────────────────────────────────
@@ -985,9 +1026,10 @@ export class HousekeepingService {
       // Managed-node connector stats remain available without local Docker.
     }
     const connectorImages = await this.getObsoleteConnectorImages();
+    const nodeImages = await this.applyNodeImageRetention(true);
     return {
-      oldImageCount: oldCount + connectorImages.length,
-      reclaimableBytes: reclaimable + connectorImages.reduce((sum, image) => sum + image.size, 0),
+      oldImageCount: oldCount + connectorImages.length + nodeImages.count,
+      reclaimableBytes: reclaimable + connectorImages.reduce((sum, image) => sum + image.size, 0) + nodeImages.bytes,
     };
   }
 

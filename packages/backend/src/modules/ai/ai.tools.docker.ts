@@ -592,7 +592,8 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'prune_docker_images',
-    description: 'Remove all unused Docker images from a node to free disk space. Returns reclaimed space.',
+    description:
+      "Free disk space on a node: removes dangling images (no tag, no digest), then old Git-source build images beyond each container's image cleanup setting (default 2: the build it runs and one to roll back to; images a container uses and the builds the internal registry keeps always stay). Returns the removed image IDs and reclaimed space.",
     parameters: {
       type: 'object',
       properties: {
@@ -1250,7 +1251,7 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_docker_container',
     description:
-      "Change or inspect an existing standalone Docker container beyond start/stop. recreate applies a new configuration by recreating the container: image, ports, mounts (managed volumes by name; existing host bind mounts must be passed back unchanged), entrypoint, command, workingDir, user, hostname, labels, stopTimeout, restartPolicy, maxRetries, memoryLimit, memorySwap, nanoCPUs, cpuShares, pidsLimit, gpu, and runtimeProfile; omitted fields keep their current value, while ports, mounts, labels, and gpu replace the whole list. recreate needs docker:containers:manage plus edit, and changing image, entrypoint, command, user, or runtimeProfile also needs environment and secrets access; the container's own scopes authorize pulling a new image (no docker:images:pull). live_update changes restartPolicy, maxRetries, and resource limits without recreation (docker:containers:edit). update pulls a new tag and/or changes env/removeEnv and redeploys: a new tag runs other code with the env and secrets of the container, so it needs edit, environment and secrets (no docker:images:pull); env/removeEnv alone needs environment, as update_env; neither needs edit. processes lists running processes, stats_history returns recent resource samples, and gpu_usage lists GPU devices with their visible containers on the node. image_cleanup_get and image_cleanup_upsert read or set old-image retention (enabled, retentionCount 1-50) for a container or, with targetType deployment, a blue/green deployment (reading needs docker:containers:view, setting docker:containers:edit). archive_plan_import resolves an archive manifest summary (archiveManifest) against the node before upload_docker_container_archive. Compose-owned containers must be changed through their Compose project and blue/green slot containers through deployment tools; a running build rollout owns its container and changes are refused with 409.",
+      "Change or inspect an existing standalone Docker container beyond start/stop. recreate applies a new configuration by recreating the container: image, ports, mounts (managed volumes by name; existing host bind mounts must be passed back unchanged), entrypoint, command, workingDir, user, hostname, labels, stopTimeout, restartPolicy, maxRetries, memoryLimit, memorySwap, nanoCPUs, cpuShares, pidsLimit, gpu, and runtimeProfile; omitted fields keep their current value, while ports, mounts, labels, and gpu replace the whole list. recreate needs docker:containers:manage plus edit, and changing image, entrypoint, command, user, or runtimeProfile also needs environment and secrets access; the container's own scopes authorize pulling a new image (no docker:images:pull). live_update changes restartPolicy, maxRetries, and resource limits without recreation (docker:containers:edit). update pulls a new tag and/or changes env/removeEnv and redeploys: a new tag runs other code with the env and secrets of the container, so it needs edit, environment and secrets (no docker:images:pull); env/removeEnv alone needs environment, as update_env; neither needs edit. processes lists running processes, stats_history returns recent resource samples, and gpu_usage lists GPU devices with their visible containers on the node. image_cleanup_get and image_cleanup_upsert read or set old-image retention (enabled, retentionCount 1-50, default on with 2) for a container or, with targetType deployment, a blue/green deployment (reading needs docker:containers:view, setting docker:containers:edit): after an image change the node keeps the image the workload runs plus retentionCount - 1 older ones of that repository to roll back to (Git-source build images pulled by digest included), and housekeeping applies the same setting to build images on every Docker node. archive_plan_import resolves an archive manifest summary (archiveManifest) against the node before upload_docker_container_archive. Compose-owned containers must be changed through their Compose project and blue/green slot containers through deployment tools; a running build rollout owns its container and changes are refused with 409.",
     parameters: {
       type: 'object',
       properties: {
@@ -1342,7 +1343,8 @@ export const DOCKER_AI_TOOLS: AIToolDefinition[] = [
           type: 'integer',
           minimum: 1,
           maximum: 50,
-          description: 'image_cleanup_upsert: previous images to keep.',
+          description:
+            'image_cleanup_upsert: images of the repository to keep, the running one included (2 = running + one to roll back to).',
         },
         archiveManifest: {
           type: 'object',
