@@ -84,7 +84,7 @@ class FakeNode {
 function fakeDocker(nodesById: Record<string, FakeNode>) {
   return {
     listAllImages: vi.fn(async (nodeId: string) => nodesById[nodeId]!.images.map((image) => ({ ...image }))),
-    listAllContainers: vi.fn(async (nodeId: string) => {
+    listNodeContainers: vi.fn(async (nodeId: string) => {
       const containers = nodesById[nodeId]!.containers;
       if (!containers) throw new Error('container list failed');
       return containers;
@@ -612,10 +612,22 @@ describe('Housekeeping Docker Images over nodes', () => {
     housekeeping.setImageCleanupService(cleanup);
 
     // 20 old builds and the dangling image on node 1 (the user's unused acme/tool image too), 1 build on node 2.
-    await expect((housekeeping as any).getDockerImageStats()).resolves.toEqual({
+    const stats = await (housekeeping as any).getDockerImageStats();
+    expect(stats).toMatchObject({
       oldImageCount: 20 + 1 + 1 + 1,
       reclaimableBytes: 21 * 1_550_000_000 + 5 + 9,
+      opfieldHost: { count: 0, bytes: 0 },
+      connectors: { count: 0, bytes: 0 },
     });
+    // Per node (X-O-16): nothing is due yet, everything waits; the node that does not answer says so.
+    expect(
+      stats.nodes.map((node: any) => [node.nodeId, node.removableNow.count, node.waiting.count, Boolean(node.error)])
+    ).toEqual([
+      ['node-1', 0, 22, false],
+      ['node-2', 0, 1, false],
+      ['node-3', 0, 0, true],
+    ]);
+    expect(stats.nodes[0].waiting.nextRemovableAt).toEqual(expect.any(String));
     expect(node1.removed).toEqual([]);
 
     time.advance(UNUSED_IMAGE_MIN_AGE_MS);

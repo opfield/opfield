@@ -6,6 +6,7 @@ import type { RelayRegistryService } from '@/services/relay-registry.service.js'
 import type { DockerComposeService } from './compose/compose.service.js';
 import type { DockerManagementService } from './docker.service.js';
 import type { DockerDeploymentService } from './docker-deployment.service.js';
+import type { DockerSourceRollbackCandidate, DockerSourceRollbackResult } from './docker-source-rollback.types.js';
 export class DockerBuildRolloutService {
   // biome-ignore lint/complexity/noUselessConstructor: Preserve the private factory ABI.
   constructor(
@@ -23,6 +24,16 @@ export class DockerBuildRolloutService {
     _leaseOwner: string,
     _operationId: string
   ): Promise<'deployed' | 'superseded' | 'pending'> {
+    return commercialModuleUnavailable();
+  }
+  async rollbackCandidate(_sourceBindingId: string, _buildId?: string): Promise<DockerSourceRollbackCandidate> {
+    return commercialModuleUnavailable();
+  }
+  async rollbackContainer(_input: {
+    sourceBindingId: string;
+    artifactId: string;
+    userId: string;
+  }): Promise<DockerSourceRollbackResult> {
     return commercialModuleUnavailable();
   }
   async recoverInterruptedComposeRollouts(_now?: Date): Promise<

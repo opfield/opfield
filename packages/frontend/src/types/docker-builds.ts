@@ -95,6 +95,27 @@ export interface DockerSourceBinding {
   state?: string;
   /** A container source whose container a Compose project or deployment owns; `state` carries the same advice. */
   invalidTarget?: { code: "SOURCE_TARGET_OWNED"; message: string } | null;
+  /** Container sources: the kept build a rollback goes back to now; null when none is kept. */
+  rollbackBuild?: DockerSourceRollbackBuild | null;
+}
+
+/** A succeeded build of a container source that a rollback runs again. */
+export interface DockerSourceRollbackBuild {
+  id: string;
+  commitSha: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/** Answer of a container source rollback. */
+export interface DockerSourceRollbackResult {
+  source: DockerSourceBinding;
+  /** The build the container runs now. */
+  build: DockerSourceRollbackBuild;
+  /** The build it ran before; kept, so rolling back again returns to it. */
+  previousBuild: DockerSourceRollbackBuild | null;
+  /** What the rollback did and what happens next. */
+  note: string;
 }
 
 export interface DockerSourceLatestBuild {
@@ -296,6 +317,19 @@ export interface DockerInternalRegistryStorage {
     copiedFiles: number | null;
     copiedBytes: number | null;
     error: string | null;
+  } | null;
+  /** False while a repair is pending: the registry may run on another storage than the settings select. */
+  consistent?: boolean;
+  /** The repair Opfield retries until the registry and its settings agree; null when nothing needs repairing. */
+  repair?: {
+    attempts: number;
+    lastError: string;
+    nextAttemptAt: string;
+    observed: {
+      env: "filesystem" | "s3";
+      compose: "filesystem" | "s3";
+      container: "filesystem" | "s3";
+    } | null;
   } | null;
 }
 

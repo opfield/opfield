@@ -38,7 +38,7 @@ import {
 } from '@/lib/update-artifact-trust.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { GeneralSettingsService, UpdateChannel } from '@/modules/settings/general-settings.service.js';
-import type { DockerService } from './docker.service.js';
+import { type DockerContainerListItem, type DockerService, ONE_SHOT_LABEL } from './docker.service.js';
 import { HOST_MOVE_ROLE, HostMoveLauncher, hasLegacyLayout } from './host-move-launcher.js';
 import {
   type OrchestrationActivitySource,
@@ -139,6 +139,25 @@ const LEGACY_UPDATE_SIDECAR_ROLE = 'gateway-update-sidecar';
 const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
 /** The Docker CLI image of update sidecars started before they were labelled (any pinned version). */
 const UNLABELLED_SIDECAR_IMAGE = /^docker\.io\/library\/docker:\d+-cli@sha256:[0-9a-f]{64}$/;
+/**
+ * What the cleanup of finished update containers does with a listed container, before inspecting it: only containers
+ * that ran and ended count (one just created is about to start, and removing it killed a registry storage switch's
+ * helper before its output was read); one-off helpers (runOneShot) are removed by the process that reads their output,
+ * or later as leftovers; a container with another Opfield role is no update sidecar. `maybe-sidecar` is an unlabelled
+ * container that is one only if it looks like a sidecar of an older release.
+ */
+export function finishedContainerSweepKind(
+  item: Pick<DockerContainerListItem, 'Id' | 'State' | 'Labels'>,
+  keepId: string | null
+): 'skip' | 'host-move' | 'sidecar' | 'maybe-sidecar' {
+  if ((item.State !== 'exited' && item.State !== 'dead') || item.Id === keepId) return 'skip';
+  if (item.Labels?.[ONE_SHOT_LABEL] !== undefined) return 'skip';
+  const role = item.Labels?.[UPDATE_SIDECAR_LABEL];
+  if (role === HOST_MOVE_ROLE) return 'host-move';
+  if (role === undefined) return 'maybe-sidecar';
+  return FINISHED_CONTAINER_ROLES.includes(role) ? 'sidecar' : 'skip';
+}
+
 /** A failed update stays reported this long unless an admin acknowledges it. */
 const FAILED_OPFIELD_UPDATE_REPORT_MS = 24 * 60 * 60_000;
 
@@ -1068,15 +1087,15 @@ export class UpdateService {
         this.env.COMPOSE_PROJECT_DIR || self.Config.Labels['com.docker.compose.project.working_dir'] || null;
       const containers = await this.dockerService.listLocalContainers();
       for (const item of containers) {
-        if (item.State === 'running' || item.State === 'restarting' || item.Id === keepId) continue;
-        const role = item.Labels?.[UPDATE_SIDECAR_LABEL];
+        const kind = finishedContainerSweepKind(item, keepId);
+        if (kind === 'skip') continue;
         // The host move container stays until the move it ran is done: its logs explain a move that went back.
-        if (role === HOST_MOVE_ROLE) {
+        if (kind === 'host-move') {
           if (await this.hostMoveNeeded()) continue;
           await this.dockerService.removeContainer(item.Id).catch(() => undefined);
           continue;
         }
-        const labelled = role !== undefined && FINISHED_CONTAINER_ROLES.includes(role);
+        const labelled = kind === 'sidecar';
         if (!labelled) {
           if (!composeDir) continue;
           const details = await this.dockerService.inspectContainerDetails(item.Id);
@@ -1089,7 +1108,8 @@ export class UpdateService {
           if (!socket || !compose || mounts.length !== 2) continue;
         }
         await this.dockerService
-          .removeContainer(item.Id)
+          // Never forced: a container that started meanwhile stays.
+          .removeContainer(item.Id, { force: false })
           .then(() => logger.info('Removed a finished update container', { id: item.Id.slice(0, 12) }))
           .catch((error) =>
             logger.warn('Could not remove a finished update container', {

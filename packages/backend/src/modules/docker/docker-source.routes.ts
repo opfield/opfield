@@ -32,6 +32,7 @@ import {
   type DockerSourceTarget,
 } from './docker-build.schemas.js';
 import { DockerBuildService } from './docker-build.service.js';
+import { detachContainerSourceKeepingImage } from './docker-container-kept-image.js';
 import { updatePendingContainerVolumes } from './docker-pending-container-volumes.js';
 import { DockerSourceService } from './docker-source.service.js';
 import { containerSourceAttachNotice, inspectContainerBeforeAttach } from './docker-source-attach-notice.js';
@@ -53,6 +54,7 @@ import {
   createComposeProjectFromSource,
   createDockerSourceResource,
 } from './docker-source-resource-creation.js';
+import { registerDockerSourceRollbackRoute } from './docker-source-rollback.routes.js';
 import { documentDockerSourceRoutes } from './docker-source-routes.docs.js';
 import {
   getContainerSourceRoute,
@@ -285,6 +287,8 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
     },
     async (c) => c.json({ data: await container.resolve(DockerSourceService).sync(containerTarget(c), actorFor(c)) })
   );
+  // Rolling back to a kept build deploys it, so it needs the build scope too.
+  registerDockerSourceRollbackRoute(router);
   router.get(
     '/nodes/:nodeId/containers/:containerName/source/build-secrets',
     requireDockerContainerScope('docker:containers:view', 'containerName', {
@@ -329,8 +333,14 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
       removedContainerSource: 'allow',
     }),
     async (c) => {
-      const removed = await container.resolve(DockerSourceService).remove(containerTarget(c), actorFor(c).id);
-      return c.json({ success: true, removed });
+      const target = containerTarget(c) as Extract<DockerSourceTarget, { kind: 'container' }>;
+      // The container keeps running its build: the registry keeps that build as the container's own (keptImage).
+      const { removed, keptImage } = await detachContainerSourceKeepingImage(
+        container.resolve<DrizzleClient>(TOKENS.DrizzleClient),
+        () => container.resolve(DockerSourceService).remove(target, actorFor(c).id),
+        target
+      );
+      return c.json({ success: true, removed, keptImage });
     }
   );
 

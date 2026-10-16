@@ -56,7 +56,8 @@ export type DockerBuildBatchStatus =
 export type DockerArtifactStatus = 'pending' | 'ready' | 'rejected' | 'deleting' | 'deleted';
 export type DockerArtifactPolicyDecision = 'pending' | 'approved' | 'rejected' | 'error';
 export type DockerArtifactPinKind = 'active' | 'rollback' | 'build_in_progress' | 'manual';
-export type DockerArtifactOwnerKind = 'build' | 'availability' | 'promotion';
+/** `container`: the build a container ran when its Git source was detached, kept as the container's own. */
+export type DockerArtifactOwnerKind = 'build' | 'availability' | 'promotion' | 'container';
 export type DockerInternalRegistryStatus =
   | 'starting'
   | 'ready'
@@ -430,7 +431,7 @@ export const dockerBuildArtifacts = pgTable(
         AND ${table.ownerKey} IS NULL
         AND ${table.sourceImageReference} IS NULL
       ) OR (
-        ${table.ownerKind} IN ('availability', 'promotion')
+        ${table.ownerKind} IN ('availability', 'promotion', 'container')
         AND ${table.buildId} IS NULL
         AND ${table.sourceBindingId} IS NULL
         AND ${table.ownerKey} IS NOT NULL

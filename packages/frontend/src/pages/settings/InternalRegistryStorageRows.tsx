@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { formatBytes } from "@/lib/utils";
+import { formatBytes, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type {
@@ -105,6 +105,13 @@ export function useRegistryStorageForm(storage: DockerInternalRegistryStorage | 
 }
 
 function switchSummary(storage: DockerInternalRegistryStorage | undefined): string | null {
+  const repair = storage?.repair;
+  if (repair) {
+    const split = repair.observed
+      ? ` The registry runs on ${storageName(repair.observed.container)}, while the settings select ${storageName(repair.observed.env)}.`
+      : "";
+    return `The registry storage is being repaired.${split} Attempt ${repair.attempts} failed: ${repair.lastError}. Opfield tries again at ${formatDateTime(repair.nextAttemptAt)}; builds wait until then.`;
+  }
   const last = storage?.lastSwitch;
   if (!last) return null;
   const target = last.target === "s3" ? "the S3 bucket" : "local disk";
@@ -119,6 +126,10 @@ function switchSummary(storage: DockerInternalRegistryStorage | undefined): stri
       ? ` (${last.copiedFiles} files, ${formatBytes(last.copiedBytes ?? 0)} copied)`
       : "";
   return `Moved to ${target}${copied}.${last.error ? ` ${last.error}` : ""}`;
+}
+
+function storageName(backend: "filesystem" | "s3"): string {
+  return backend === "s3" ? "the S3 bucket" : "local disk";
 }
 
 export function InternalRegistryStorageRows({
@@ -148,7 +159,10 @@ export function InternalRegistryStorageRows({
         setConnections(
           response.data.filter(
             (item) =>
-              !FILE_PROTOCOLS.has(item.provider) && hasScope(`storage:credentials:use:${item.id}`)
+              !FILE_PROTOCOLS.has(item.provider) &&
+              // Managed storage is reached only through Opfield: the registry container cannot use it.
+              item.origin !== "managed" &&
+              hasScope(`storage:credentials:use:${item.id}`)
           )
         );
       })
@@ -169,7 +183,7 @@ export function InternalRegistryStorageRows({
             ? "Images are kept in an S3 bucket."
             : "Images are kept on the registry volume of the Opfield host."
         }
-        help="Switching copies the stored images to the new storage while pulls keep working and builds wait, then restarts the registry and checks the images in use. The bucket is tested first, and a failed switch leaves the registry on its current storage. After a move to S3 the images are removed from the local disk; switching back copies them from the bucket."
+        help="Switching copies the stored images to the new storage while pulls keep working and builds wait, then restarts the registry and checks the images in use. The bucket is tested first, and a failed switch leaves the registry on its current storage. After a move to S3 the images are removed from the local disk; switching back copies them from the bucket. Managed storage cannot hold the registry: Opfield reaches it through a private tunnel the registry container cannot use, so use an external S3 service."
       >
         <Select
           value={form.backend}
@@ -291,7 +305,7 @@ export function InternalRegistryStorageRows({
       {summary && (
         <SettingsControlRow title="Last storage switch" description={summary}>
           <span className="text-right text-sm text-muted-foreground">
-            {storage?.lastSwitch?.status}
+            {storage?.repair ? "repairing" : storage?.lastSwitch?.status}
           </span>
         </SettingsControlRow>
       )}

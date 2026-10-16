@@ -4,6 +4,7 @@ import { dockerBuilds, dockerImageCleanupSettings, nodes } from '@/db/schema/ind
 import { createChildLogger } from '@/lib/logger.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { DockerManagementService } from './docker.service.js';
+import { imageReferenceDigest, releaseContainerImage, renameContainerImage } from './docker-container-kept-image.js';
 import type { ImageCleanupUpsertInput } from './docker-image-cleanup.schemas.js';
 import {
   DEFAULT_IMAGE_RETENTION_COUNT,
@@ -48,7 +49,7 @@ const CONTEXT_TTL_MS = 15_000;
 /** Cleanups after node events: at most one per node in this interval. */
 const NODE_EVENT_CLEANUP_INTERVAL_MS = 2 * 60_000;
 
-type CleanupDocker = Pick<DockerManagementService, 'listAllImages' | 'listAllContainers' | 'removeUnusedImage'>;
+type CleanupDocker = Pick<DockerManagementService, 'listAllImages' | 'listNodeContainers' | 'removeUnusedImage'>;
 
 export interface NodeImageRetentionOptions {
   /** Only these repositories (all when omitted). */
@@ -68,6 +69,8 @@ export interface NodeImageRetentionCandidate {
   size: number;
   /** How long the image must have been found removable before it goes (see REPLACED_IMAGE_GRACE_MS). */
   minUnusedMs: number;
+  /** When a cleanup may remove it: the first cleanup that found it removable plus `minUnusedMs` (ISO time). */
+  removableAt?: string;
 }
 
 export interface NodeImageRetentionResult {
@@ -288,6 +291,16 @@ export class DockerImageCleanupService {
    * when the container's cleanup is off.
    */
   async scheduleCleanupForContainer(nodeId: string, containerName: string, imageRef: string | undefined) {
+    // A build kept for the container after its source was detached is released once it runs another image.
+    if (imageRef) {
+      await releaseContainerImage(this.db, { nodeId, containerName }, imageReferenceDigest(imageRef)).catch((err) =>
+        logger.debug('The kept image of a container could not be released', {
+          nodeId,
+          containerName,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
     const repository = imageRef ? imageRetentionRepository(imageRef) : null;
     if (!repository) return;
     try {
@@ -344,8 +357,12 @@ export class DockerImageCleanupService {
     this.nodeEventCleanups.set(nodeId, { timer, at: state?.at ?? 0 });
   }
 
-  /** A container was removed: a later container with its name does not inherit its image cleanup setting. */
+  /**
+   * A container was removed: a later container with its name does not inherit its image cleanup setting, and the
+   * build kept for it after its source was detached is released.
+   */
   async forgetContainer(nodeId: string, containerName: string): Promise<void> {
+    await releaseContainerImage(this.db, { nodeId, containerName });
     await this.db
       .delete(dockerImageCleanupSettings)
       .where(
@@ -357,8 +374,9 @@ export class DockerImageCleanupService {
       );
   }
 
-  /** A container was renamed: its image cleanup setting goes with it. */
+  /** A container was renamed: its image cleanup setting and its kept build go with it. */
   async renameContainer(nodeId: string, oldName: string, newName: string): Promise<void> {
+    await renameContainerImage(this.db, nodeId, oldName, newName);
     await this.db
       .update(dockerImageCleanupSettings)
       .set({ containerName: newName, updatedAt: new Date() })
@@ -460,6 +478,9 @@ export class DockerImageCleanupService {
       const removable = [...proposals.values()].filter((candidate) => !kept.has(candidate.id));
       const since = await this.trackUnused(nodeId, removable, evaluated, imagesById);
       const now = this.now();
+      for (const candidate of removable) {
+        candidate.removableAt = new Date(since[candidate.id]! + candidate.minUnusedMs).toISOString();
+      }
       const ready = removable.filter((candidate) => now - since[candidate.id]! >= candidate.minUnusedMs);
       const waiting = removable.filter((candidate) => now - since[candidate.id]! < candidate.minUnusedMs);
       if (options.dryRun) return { removed: [], freedBytes: 0, candidates: ready, waiting };
@@ -626,11 +647,15 @@ export class DockerImageCleanupService {
     this.followUps.set(nodeId, followUp);
   }
 
-  /** The node's images and containers. Without the container list nothing is removed. */
+  /**
+   * The node's images and containers. Without the container list nothing is removed. The containers are Docker's own
+   * list: a deployment's slot containers carry the deployment label its image cleanup setting is found by (the
+   * user-facing list shows a deployment as one row without labels, which fell back to the default of 2).
+   */
   private async nodeSnapshot(nodeId: string) {
     const images = await this.docker.listAllImages(nodeId);
     if (!Array.isArray(images)) throw new Error('The node did not list its images');
-    const containers = await this.docker.listAllContainers(nodeId);
+    const containers = await this.docker.listNodeContainers(nodeId);
     if (!Array.isArray(containers)) throw new Error('The node did not list its containers');
     const inUseImageIds = new Set<string>();
     for (const container of containers as Array<Record<string, any>>) {
@@ -739,7 +764,10 @@ function ownerSetting(
   context: ImageRetentionContext
 ): CleanupRow | undefined {
   const labels = (container.Labels ?? container.labels ?? {}) as Record<string, unknown>;
-  const deploymentId = labelString(labels, 'deployment.id');
+  // A deployment row of the user-facing list names its deployment without labels.
+  const deploymentId =
+    labelString(labels, 'deployment.id') ||
+    (container.kind === 'deployment' && typeof container.deploymentId === 'string' ? container.deploymentId : '');
   if (deploymentId) return deploymentSetting(context, deploymentId);
   const policyId = labelString(labels, 'availability.policy');
   const owner = policyId ? context.availabilityOwners.get(policyId) : undefined;

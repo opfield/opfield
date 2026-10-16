@@ -1170,6 +1170,13 @@ export async function initializeContainer(): Promise<void> {
   );
   dockerSourceService.setBuildService(dockerBuildService);
   dockerSourceService.setLicensePolicyService(licensePolicyService);
+  // A container source rolls back to a build the registry keeps through the build rollout (its lock and guards).
+  if (dockerBuildRolloutService) {
+    dockerSourceService.setArtifactRollback({
+      candidate: (sourceBindingId, buildId) => dockerBuildRolloutService.rollbackCandidate(sourceBindingId, buildId),
+      rollback: (input) => dockerBuildRolloutService.rollbackContainer(input),
+    });
+  }
   dockerBuildRunnerService?.setSourceService(dockerSourceService);
   container.registerInstance(DockerSourceService, dockerSourceService);
 

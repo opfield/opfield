@@ -211,3 +211,33 @@ describe('internal registry retention when a build finishes', () => {
     expect(deleted.sort()).toEqual(['c-web-1', 'c-worker-1']);
   });
 });
+
+describe('the build kept for a container whose Git source was detached (X-O-11)', () => {
+  const kept: RegistryRetentionArtifactRow = {
+    id: 'kept-1',
+    buildId: null,
+    sourceBindingId: null,
+    ownerKind: 'container',
+    ownerKey: 'container:node-1:web',
+    repository: repo('gone-source'),
+    digest: digest(7),
+    createdAt: new Date(Date.UTC(2026, 9, 1)),
+    policyDecision: 'approved',
+    buildStatus: null,
+  };
+  const classify = (existingContainers: Set<string>) =>
+    selectRegistryRetentionCandidates(
+      classifyRegistryRetentionArtifacts({
+        artifacts: [kept],
+        pins: [],
+        references: '[]',
+        bindings: [],
+        existingContainers,
+      })
+    );
+
+  it('stays while the container exists, and goes once it was removed', () => {
+    expect(classify(new Set(['container:node-1:web'])).retained.map((artifact) => artifact.id)).toEqual(['kept-1']);
+    expect(classify(new Set()).candidates.map((artifact) => artifact.id)).toEqual(['kept-1']);
+  });
+});

@@ -476,6 +476,30 @@ export interface DockerComposeValidationResult {
   diagnostics: DockerComposeValidationDiagnostic[];
 }
 
+/** Why a prune removes an image (dangling, an older image beyond its workload's cleanup setting, or unused). */
+export type DockerImagePruneReason = "dangling" | "beyond_cleanup_setting" | "unused";
+
+/** What a prune of a node would remove: `removable` now, `waiting` once their unused time is over. */
+export interface DockerImagePrunePreview {
+  dryRun: true;
+  nodeId: string;
+  removable: Array<{
+    id: string;
+    repository: string | null;
+    size: number;
+    reason: DockerImagePruneReason;
+  }>;
+  removableBytes: number;
+  waiting: Array<{
+    id: string;
+    repository: string | null;
+    size: number;
+    reason: DockerImagePruneReason;
+    removableAt?: string;
+  }>;
+  waitingBytes: number;
+}
+
 export interface DockerImage {
   id: string;
   scopeResourceId?: string | null;

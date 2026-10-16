@@ -510,7 +510,8 @@
       "emptyConstructor": true,
       "emptyMethods": [
         "setBuildService",
-        "setLicensePolicyService"
+        "setLicensePolicyService",
+        "setArtifactRollback"
       ],
       "sharedMethods": [
         "get",

@@ -76,6 +76,8 @@ import {
   pullImage as pullDockerImage,
   removeImage as removeDockerImage,
 } from './docker-image-operations.js';
+import { buildImagePrunePreview, type DockerImagePrunePreview } from './docker-image-prune-preview.js';
+import { selectDanglingImages } from './docker-image-retention.js';
 import {
   assertUserContainerAccessible,
   filterOpfieldInternalContainers,
@@ -192,6 +194,11 @@ export interface DockerAppFreezeGuard {
   /** 409 APP_ISOLATED for a network a container isolated by the kill switch is reconnected to on release. */
   assertNetworkNotHeld(nodeId: string, network: { id: string; name: string }): Promise<void>;
 }
+
+/** The node answers the size of every volume at once (volume command `sizes`). */
+export const DOCKER_VOLUME_SIZES_CAPABILITY = 'docker_volume_sizes_v1';
+/** Measuring walks every volume on the node. */
+const VOLUME_SIZES_TIMEOUT_MS = 5 * 60_000;
 
 export class DockerManagementService {
   private static readonly LONG_DOCKER_OPERATION_TIMEOUT_MS = 600000; // 10 minutes
@@ -1064,6 +1071,17 @@ export class DockerManagementService {
     const result = await this.nodeDispatch.sendDockerContainerCommand(nodeId, 'list');
     const containers = this.parseResult(result);
     return this.decorateContainerSnapshot(nodeId, containers);
+  }
+
+  /**
+   * Every container on the node as Docker lists it, the blue/green slot containers of deployments included (with
+   * their labels), not the user-facing list where a deployment is one synthetic row. For rules that must see what
+   * really runs on the node, such as the image cleanup.
+   */
+  async listNodeContainers(nodeId: string) {
+    await this.validateDockerNode(nodeId);
+    const result = await this.nodeDispatch.sendDockerContainerCommand(nodeId, 'list');
+    return this.parseResult(result);
   }
 
   /**
@@ -1998,6 +2016,21 @@ export class DockerManagementService {
   }
 
   /**
+   * What a prune of the node would remove, removing nothing: the dangling images it removes at once and the images
+   * the image cleanup rules remove now (`removable`), and those the rules remove only once their wait is over
+   * (`waiting`, with `removableAt`). Each with its reason. Like any cleanup it starts the wait of newly unused images.
+   */
+  async previewPruneImages(nodeId: string): Promise<DockerImagePrunePreview> {
+    await this.validateDockerNode(nodeId);
+    const images = await this.listAllImages(nodeId);
+    const dangling = Array.isArray(images) ? selectDanglingImages(images) : [];
+    const rules = this.imageCleanupService
+      ? await this.imageCleanupService.enforceNode(nodeId, { dryRun: true })
+      : { candidates: [], waiting: [] };
+    return buildImagePrunePreview(nodeId, dangling, rules);
+  }
+
+  /**
    * Removes the dangling images, then applies the image cleanup settings to the node's build images: each container
    * keeps the build it runs and its rollback builds, the rest goes.
    */
@@ -2319,6 +2352,24 @@ export class DockerManagementService {
     // that the user volume list hides. Housekeeping uses removeOrphanedAnonymousVolume.
     await assertDockerUserVolumeVisible(this.volumeNetworkOperationContext(), nodeId, name);
     await removeDockerVolume(this.volumeNetworkOperationContext(), nodeId, name, force, userId);
+  }
+
+  /**
+   * The size of every volume on the node by name, from one disk-usage walk on the node (the summed file sizes, as the
+   * volume metrics count them); null when the node's daemon is too old to answer it (docker_volume_sizes_v1).
+   */
+  async volumeSizes(nodeId: string): Promise<Map<string, number> | null> {
+    await this.validateDockerNode(nodeId);
+    if (!this.nodeRegistry.hasCapability(nodeId, DOCKER_VOLUME_SIZES_CAPABILITY)) return null;
+    const result = await this.nodeDispatch.sendDockerVolumeCommand(nodeId, 'sizes', {}, VOLUME_SIZES_TIMEOUT_MS);
+    const parsed = this.parseResult(result);
+    const sizes = new Map<string, number>();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      for (const [name, size] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof size === 'number' && Number.isFinite(size) && size >= 0) sizes.set(name, size);
+      }
+    }
+    return sizes;
   }
 
   /** Housekeeping inventory: every volume on the node, including the ones hidden from the user list. */

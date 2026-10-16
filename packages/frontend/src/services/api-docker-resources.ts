@@ -8,6 +8,7 @@ import type {
   DockerBuildStatus,
   DockerComposeSourceProjectCreateResult,
   DockerImage,
+  DockerImagePrunePreview,
   DockerInternalRegistrySettings,
   DockerInternalRegistryState,
   DockerNetwork,
@@ -20,6 +21,7 @@ import type {
   DockerSourceLatestBuild,
   DockerSourceResourceCreateRequest,
   DockerSourceResourceCreateResult,
+  DockerSourceRollbackResult,
   DockerSourceSyncResult,
   DockerSourceTarget,
   DockerTask,
@@ -160,6 +162,16 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
       await this.request<void>(`/docker/nodes/${nodeId}/images/${encodeURIComponent(imageId)}`, {
         method: "DELETE",
       });
+    }
+
+    /** What a prune of the node would remove now, and what waits for its unused time; removes nothing. */
+    async previewPruneImages(nodeId: string): Promise<DockerImagePrunePreview> {
+      return this.unwrapData(
+        this.request<{ data: DockerImagePrunePreview }>(
+          `/docker/nodes/${nodeId}/images/prune?dryRun=true`,
+          { method: "POST" }
+        )
+      );
     }
 
     async pruneImages(nodeId: string): Promise<Record<string, unknown>> {
@@ -958,10 +970,18 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
       );
     }
 
-    async removeDockerSource(target: DockerSourceTarget): Promise<void> {
-      await this.request<{ success: true; removed: boolean }>(dockerSourcePath(target), {
+    /** Detaches the source; for a container, `keptImage` is the build it keeps running (kept in the registry). */
+    async removeDockerSource(
+      target: DockerSourceTarget
+    ): Promise<{ removed: boolean; keptImage: { reference: string; note: string } | null }> {
+      const response = await this.request<{
+        success: true;
+        removed: boolean;
+        keptImage?: { reference: string; note: string } | null;
+      }>(dockerSourcePath(target), {
         method: "DELETE",
       });
+      return { removed: response.removed, keptImage: response.keptImage ?? null };
     }
 
     async listDockerBuildSecrets(target: DockerSourceTarget): Promise<DockerBuildSecret[]> {
@@ -1010,6 +1030,19 @@ export function withDockerResourceApi<TBase extends ApiClientBaseConstructor>(Ba
       return this.unwrapData(
         this.request<{ data: DockerSourceSyncResult }>(`${dockerSourcePath(target)}/sync`, {
           method: "POST",
+        })
+      );
+    }
+
+    /** Runs a kept build of a container source again: `buildId`, or the build the container ran before. */
+    async rollbackDockerSource(
+      target: Extract<DockerSourceTarget, { kind: "container" }>,
+      input: { buildId?: string } = {}
+    ): Promise<DockerSourceRollbackResult> {
+      return this.unwrapData(
+        this.request<{ data: DockerSourceRollbackResult }>(`${dockerSourcePath(target)}/rollback`, {
+          method: "POST",
+          body: JSON.stringify(input),
         })
       );
     }

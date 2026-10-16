@@ -63,13 +63,21 @@ const TARGETS: readonly Target[] = [
 ];
 
 const removedResponse = okJson(successResponseSchema.extend({ removed: z.boolean() }));
+const detachedResponse = okJson(
+  successResponseSchema.extend({
+    removed: z.boolean(),
+    keptImage: z
+      .object({ reference: z.string(), repository: z.string(), digest: z.string(), note: z.string() })
+      .nullable(),
+  })
+);
 
 const buildResponses = {
   ...okJson(UnknownDataResponseSchema),
   ...createdJson(UnknownDataResponseSchema),
   503: {
     description:
-      'No Build Worker takes the build: BUILD_WORKERS_PAUSED ("All Build Workers are paused for new builds"), NO_BUILD_WORKER_AVAILABLE, or BUILD_SCHEDULER_UNAVAILABLE.',
+      'The build is not admitted: BUILD_WORKERS_PAUSED ("All Build Workers are paused for new builds"), NO_BUILD_WORKER_AVAILABLE, BUILD_SCHEDULER_UNAVAILABLE, or INTERNAL_REGISTRY_NOT_WRITABLE (the internal registry takes no pushes: its disk is 90% full or more, or it is in maintenance).',
     content: jsonContent(ApiErrorSchema),
   },
 };
@@ -93,9 +101,13 @@ function targetRoutes(target: Target) {
       path: source,
       tags,
       summary: `Disconnect the Git source of a ${target.noun}`,
-      description: `Removes the Git source binding and its Build Secrets; the workload keeps running its current image. For a container that exists only as a queued first source build, the reservation, its env and secrets go too. Requires ${target.edit}.`,
+      description: `Removes the Git source binding and its Build Secrets; the workload keeps running its current image.${
+        target.noun === 'container'
+          ? " The internal registry keeps the build the container runs as the container's own until the container is removed or runs another image, so a recreate or a migration can still pull it: `keptImage` names it (null when nothing was deployed)."
+          : ''
+      } For a container that exists only as a queued first source build, the reservation, its env and secrets go too. Requires ${target.edit}.`,
       request: { params },
-      responses: removedResponse,
+      responses: target.noun === 'container' ? detachedResponse : removedResponse,
     }),
     appRoute({
       method: 'post',

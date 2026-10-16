@@ -244,6 +244,21 @@ func (p *DockerPlugin) handleVolumeCommand(cmd *pb.DockerVolumeCommand, result *
 			return
 		}
 
+	case "sizes":
+		sizes, err := p.client.VolumeSizes(ctx)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			return
+		}
+		data, err := json.Marshal(sizes)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			return
+		}
+		result.Detail = string(data)
+
 	case "metrics":
 		if cmd.Name == "" {
 			result.Success = false

@@ -651,6 +651,14 @@ export async function executeDockerTool(
       return { success: true };
     case 'prune_docker_images': {
       context.ensureToolScopeForResource(user, 'docker:images:delete', String(a.nodeId));
+      if (a.dryRun === true) {
+        const preview = await context.dockerService.previewPruneImages(a.nodeId);
+        return {
+          success: true,
+          message: `A prune would remove ${preview.removable.length} image(s) now; ${preview.waiting.length} more wait for their unused time`,
+          data: preview,
+        };
+      }
       const pruneData = await context.dockerService.pruneImages(a.nodeId, user.id);
       return { success: true, message: 'Unused images pruned', data: pruneData };
     }
@@ -1569,7 +1577,7 @@ async function manageDockerSource(
     const requiredScope =
       operation === 'get' || operation === 'secret_list'
         ? 'docker:containers:view'
-        : operation === 'build' || operation === 'sync'
+        : operation === 'build' || operation === 'sync' || operation === 'rollback'
           ? 'docker:containers:manage'
           : 'docker:containers:edit';
     ensureDockerDeploymentScope(context, user, requiredScope, nodeId, deploymentId);
@@ -1581,7 +1589,7 @@ async function manageDockerSource(
     const requiredScope =
       operation === 'get' || operation === 'secret_list' || operation === 'pending'
         ? 'docker:containers:view'
-        : operation === 'build' || operation === 'sync'
+        : operation === 'build' || operation === 'sync' || operation === 'rollback'
           ? 'docker:containers:manage'
           : 'docker:containers:edit';
     // The Git source of a container removed outside Opfield can still be read and removed (which releases the name).
@@ -1641,12 +1649,32 @@ async function manageDockerSource(
         target.kind === 'container' ? containerSourceAttachNotice(target.containerName, upserted, before) : null;
       return { ...(await withDockerSourceBuildState(upserted)), attachNotice };
     }
-    case 'remove':
-      return { success: true, removed: await sourceService.remove(target, user.id) };
+    case 'remove': {
+      if (target.kind !== 'container') return { success: true, removed: await sourceService.remove(target, user.id) };
+      // The container keeps running its build: the registry keeps that build as the container's own (keptImage).
+      const { detachContainerSourceKeepingImage } = await import('@/modules/docker/docker-container-kept-image.js');
+      const detached = await detachContainerSourceKeepingImage(
+        container.resolve<import('@/db/client.js').DrizzleClient>(TOKENS.DrizzleClient),
+        () => sourceService.remove(target, user.id),
+        target
+      );
+      return { success: true, ...detached };
+    }
     case 'resolve':
       return sourceService.resolveCurrent(target, user);
     case 'sync':
       return sourceService.sync(target, user);
+    case 'rollback': {
+      // POST /nodes/:nodeId/containers/:containerName/source/rollback; other targets are refused by the service.
+      const { DockerSourceRollbackSchema } = await import('@/modules/docker/docker-source-rollback.routes.js');
+      const result = await sourceService.rollback(
+        target,
+        DockerSourceRollbackSchema.parse({ buildId: optionalNonEmptyString(a.buildId) }),
+        user
+      );
+      const { withDockerSourceBuildState } = await import('@/modules/docker/docker-source-build-state.js');
+      return { ...result, source: await withDockerSourceBuildState(result.source) };
+    }
     case 'build':
       return sourceService.createBuild(
         target,

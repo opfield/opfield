@@ -219,6 +219,9 @@ export class RegistryStorageHost {
           `${context.composeDir}/docker-compose.yml`,
           ...args,
         ],
+        // A one-off of this process (runOneShot labels it): cleanups of finished update sidecars, which look alike,
+        // leave it alone.
+        Labels: { 'net.opfield.registry-storage': `compose-${args[0]}` },
         // Compose keeps its working directory in the container labels: the project is mounted at its own path.
         HostConfig: {
           Binds: [`${context.composeDir}:${context.composeDir}`, '/var/run/docker.sock:/var/run/docker.sock'],

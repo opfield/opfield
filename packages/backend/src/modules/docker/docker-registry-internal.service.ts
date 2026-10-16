@@ -446,8 +446,11 @@ export class DockerInternalRegistryService {
     const timer = setTimeout(() => {
       if (this.maintenanceRuns > 0) return;
       void (async () => {
-        // Only a run whose failure was never recorded leaves the registry in maintenance.
-        if ((await this.getState()).status !== 'maintenance' || this.maintenanceRuns > 0) return;
+        // Only a run whose failure was never recorded leaves the registry in maintenance. A registry storage switch,
+        // or its repair, holds the maintenance itself: a garbage collection refused meanwhile must not end it.
+        const state = await this.getState();
+        if (state.status !== 'maintenance' || this.maintenanceRuns > 0) return;
+        if (state.maintenanceLeaseOwner?.startsWith('registry-storage:')) return;
         await this.recoverInterruptedMaintenance('the database was unavailable when it stopped');
       })().catch(() => this.recoverUnfinishedMaintenanceLater());
     }, UNFINISHED_MAINTENANCE_CHECK_MS);
@@ -464,10 +467,12 @@ export class DockerInternalRegistryService {
     }
     try {
       const orphaned = await this.store.orphanedRepositories(await this.executor.listRepositories(), new Date());
+      // Builds kept as containers' own after their source was detached stay with their tags.
+      const kept = orphaned.length ? ((await this.store.containerKeptDigests?.()) ?? new Map()) : new Map();
       const deleted: string[] = [];
       for (const repository of orphaned) {
         await this.store.renewLease(owner, new Date(Date.now() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS));
-        await this.executor.deleteRepositoryTags(repository);
+        await this.executor.deleteRepositoryTags(repository, kept.get(repository));
         deleted.push(repository);
       }
       if (deleted.length)

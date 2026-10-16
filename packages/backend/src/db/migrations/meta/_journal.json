@@ -1855,6 +1855,13 @@
       "version": "7",
       "when": 1794936638000,
       "tag": "0268_docker_build_rollout_finished",
+        "breakpoints": true
+      },
+      {
+      "idx": 264,
+      "version": "7",
+      "when": 1795109438000,
+      "tag": "0266_container_kept_images",
       "breakpoints": true
     }
   ]

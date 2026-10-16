@@ -64,6 +64,7 @@ import type {
 import { RepositorySourceFields } from "../docker-deploy/RepositorySourceFields";
 import { useDockerSourceRepositories } from "../docker-deploy/useDockerSourceRepositories";
 import { DockerSourceLatestBuildRow } from "./DockerSourceLatestBuildRow";
+import { DockerSourceRollbackRow } from "./DockerSourceRollbackRow";
 import { DOCKER_VULNERABILITY_SCOPE_OPTIONS } from "./docker-vulnerability-scope";
 import { EnvTextDialog, envTextErrorLines, parseEnvText } from "./EnvTextDialog";
 
@@ -733,11 +734,14 @@ export function DockerGitSourcePanel({
     if (!accepted) return;
     setDisconnecting(true);
     try {
-      await api.removeDockerSource(target);
+      const { keptImage } = await api.removeDockerSource(target);
       setSource(null);
       onSourceChange?.(null);
       setBuildSecrets([]);
-      toast.success("Repository disconnected");
+      toast.success(
+        "Repository disconnected",
+        keptImage ? { description: keptImage.note } : undefined
+      );
       if (pendingContainer) leavePage("/docker/containers");
     } catch (error) {
       if (!handleLicenseApiError(error, "Git push-to-deploy")) {
@@ -1595,6 +1599,16 @@ export function DockerGitSourcePanel({
         >
           {commitBadge(source.deployedCommitSha, "No build deployed")}
         </SettingsControlRow>
+        {target?.kind === "container" && canBuild && !pendingContainer && (
+          <DockerSourceRollbackRow
+            target={target}
+            source={source}
+            onRolledBack={(next) => {
+              setSource(next);
+              onSourceChange?.(next);
+            }}
+          />
+        )}
         <DockerSourceLatestBuildRow source={source} />
         <SettingsControlRow
           title="Update detection"

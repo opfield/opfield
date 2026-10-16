@@ -399,6 +399,8 @@ describe('HousekeepingService orphaned volume retention', () => {
     opfieldContainers?: string[];
     /** Volumes the user manages or an Opfield config names. */
     kept?: string[];
+    /** Volume sizes the node measures (volumeSizes), by node; absent: the node cannot measure them. */
+    sizes?: Record<string, Record<string, number>>;
   }) {
     const stored = new Map<string, unknown>();
     if (options.unusedSince !== undefined) stored.set(UNUSED_SINCE_KEY, options.unusedSince);
@@ -431,6 +433,10 @@ describe('HousekeepingService orphaned volume retention', () => {
         return result;
       }),
       removeOrphanedAnonymousVolume: vi.fn().mockResolvedValue(undefined),
+      volumeSizes: vi.fn(async (nodeId: string) => {
+        const sizes = options.sizes?.[nodeId];
+        return sizes ? new Map(Object.entries(sizes)) : null;
+      }),
     };
     const service = new HousekeepingService(db as any, {} as any, {} as any, {} as any);
     service.setDockerManagementService(dockerManagement as any);
@@ -624,7 +630,34 @@ describe('HousekeepingService orphaned volume retention', () => {
       reclaimableBytes: 0,
       unownedCount: 2,
       unownedBytes: 2048 + 4096,
+      unmeasuredCount: 0,
     });
+  });
+
+  it("reports the real size of unused volumes, which Docker's volume list leaves out, and those it cannot measure", async () => {
+    // Docker lists volumes without UsageData: the node measures them in one walk.
+    const unsized = (name: string) => volume(name, { UsageData: null });
+    const h = createHarness({
+      owned: {},
+      onlineNodeIds: ['node-1', 'node-2'],
+      volumes: { 'node-1': [unsized('minio-data'), unsized(VOLUME_A)], 'node-2': [unsized('old-pg')] },
+      sizes: { 'node-1': { 'minio-data': 734_003_200, [VOLUME_A]: 12_288 } },
+    });
+    vi.spyOn(h.service, 'getConfig').mockResolvedValue({
+      orphanedVolumes: { enabled: true, retentionDays: 3 },
+    } as any);
+
+    await expect((h.service as any).getOrphanedVolumeStats()).resolves.toEqual({
+      count: 0,
+      reclaimableBytes: 0,
+      unownedCount: 3,
+      unownedBytes: 734_003_200 + 12_288,
+      // node-2's daemon is too old to measure: its volume is counted, not sized.
+      unmeasuredCount: 1,
+    });
+    // Measured once per node within the refresh period.
+    await (h.service as any).getOrphanedVolumeStats();
+    expect(h.dockerManagement.volumeSizes).toHaveBeenCalledTimes(2);
   });
 
   it('removes an anonymous volume of a container Opfield created once it stayed unused for the retention', async () => {
@@ -664,6 +697,7 @@ describe('HousekeepingService orphaned volume retention', () => {
       reclaimableBytes: 2048,
       unownedCount: 0,
       unownedBytes: 0,
+      unmeasuredCount: 0,
     });
     expect(h.dockerManagement.removeOrphanedAnonymousVolume).not.toHaveBeenCalled();
 
