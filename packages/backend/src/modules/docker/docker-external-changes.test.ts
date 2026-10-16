@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { type DockerExternalChange, managedAs } from './docker-external-changes.service.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  type DockerExternalChange,
+  DockerExternalChangeWatcher,
+  managedAs,
+} from './docker-external-changes.service.js';
 import type { DockerManagedRecords } from './docker-managed-records.js';
 
 const records: DockerManagedRecords = {
@@ -35,5 +39,63 @@ describe('changes outside Opfield', () => {
   it('ignores containers Opfield does not manage', () => {
     expect(managedAs(change({}), records)).toBeNull();
     expect(managedAs(change({ labels: { 'com.docker.compose.project': 'sandbox' } }), records)).toBeNull();
+  });
+});
+
+describe('when the watcher reads a node', () => {
+  const nodeId = 'node-1';
+
+  function watcher() {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const eventBus = {
+      subscribe: (channel: string, fn: (payload: unknown) => void) => {
+        handlers.set(channel, fn);
+        return () => handlers.delete(channel);
+      },
+      publish: vi.fn(),
+    };
+    const registry = {
+      getNode: () => ({ nodeId, type: 'docker', hostname: 'app-node-1' }),
+      hasCapability: () => true,
+      getNodesByType: () => [{ nodeId }],
+    };
+    const instance = new DockerExternalChangeWatcher(
+      {} as never,
+      { sendDockerContainerCommand: vi.fn() } as never,
+      registry as never,
+      eventBus as never,
+      { log: vi.fn() }
+    );
+    const pulls: number[] = [];
+    vi.spyOn(instance, 'pullNow').mockImplementation(async () => {
+      pulls.push(Date.now());
+    });
+    return { instance, handlers, pulls };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // The health report with the container diff leaves at the Docker event; the daemon lists the change 3 s later.
+  it('reads it again after the daemon listed the change', () => {
+    const { instance, handlers, pulls } = watcher();
+    instance.start();
+    handlers.get('docker.container.changed')!({ nodeId, id: 'c1', action: 'updated' });
+    vi.advanceTimersByTime(10_000);
+    expect(pulls).toEqual([1_500, 6_000]);
+    instance.stop();
+  });
+
+  it('reads every capable node once a minute', () => {
+    const { instance, pulls } = watcher();
+    instance.start();
+    vi.advanceTimersByTime(120_000);
+    expect(pulls).toEqual([60_000, 120_000]);
+    instance.stop();
   });
 });

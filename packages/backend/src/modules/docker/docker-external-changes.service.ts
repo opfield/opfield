@@ -14,6 +14,14 @@ const logger = createChildLogger('DockerExternalChanges');
 export const DOCKER_EXTERNAL_CHANGES_CAPABILITY = 'docker_external_changes_v1';
 export const DOCKER_EXTERNAL_CHANGE_AUDIT_ACTION = 'docker.container.changed_outside_opfield';
 const PULL_DEBOUNCE_MS = 1_500;
+/**
+ * The daemon judges a Docker event 3 s after it (externalChangeSettle in external_changes.go) and only then lists it.
+ * The health report that publishes the container diff leaves at the event itself, so the pull it starts usually comes
+ * before the change is listed; a second pull after the settle reads it.
+ */
+const PULL_AFTER_SETTLE_MS = 6_000;
+/** Every capable node is read this often as well, so a change whose trigger was missed is still recorded. */
+const SWEEP_INTERVAL_MS = 60_000;
 const PULL_TIMEOUT_MS = 10_000;
 
 export interface DockerExternalChange {
@@ -59,20 +67,23 @@ function describeChange(change: DockerExternalChange): string {
 /**
  * Reads the container changes a Docker daemon saw outside Opfield (docker rm/run/rename on the node's console, a
  * script, another tool) and records the ones that concern a managed container: an audit entry with the container
- * and node, and the `changed_outside` event of the Container alert category. A daemon reports such a change at once
- * with a health report, whose container diff publishes `docker.container.changed`; the watcher then pulls the
- * daemon's list after its last cursor.
+ * and node, and the `changed_outside` event of the Container alert category. The container diff of a health report
+ * publishes `docker.container.changed`; the watcher then pulls the daemon's list after its last cursor, once at once
+ * and once after the daemon's settle time, and it reads every capable node once a minute as well.
  */
 export class DockerExternalChangeWatcher {
   private readonly cursors = new Map<string, { bootId: string; latest: number }>();
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly running = new Map<string, Promise<void>>();
+  /** The last pull failure per node, so a node that keeps failing logs one warning per new error. */
+  private readonly failures = new Map<string, string>();
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private unsubscribers: Array<() => void> = [];
 
   constructor(
     private readonly db: DrizzleClient,
     private readonly dispatch: Pick<NodeDispatchService, 'sendDockerContainerCommand'>,
-    private readonly registry: Pick<NodeRegistryService, 'getNode' | 'hasCapability'>,
+    private readonly registry: Pick<NodeRegistryService, 'getNode' | 'hasCapability' | 'getNodesByType'>,
     private readonly eventBus: EventBusService,
     private readonly auditService: Pick<AuditService, 'log'>
   ) {}
@@ -81,7 +92,9 @@ export class DockerExternalChangeWatcher {
     if (this.unsubscribers.length > 0) return;
     const onChange = (payload: unknown) => {
       const nodeId = (payload as { nodeId?: unknown; id?: unknown } | null)?.nodeId;
-      if (typeof nodeId === 'string') this.schedule(nodeId);
+      if (typeof nodeId !== 'string') return;
+      this.schedule(nodeId);
+      this.schedule(nodeId, PULL_AFTER_SETTLE_MS);
     };
     const onNode = (payload: unknown) => {
       const nodeId = (payload as { id?: unknown } | null)?.id;
@@ -91,22 +104,35 @@ export class DockerExternalChangeWatcher {
       this.eventBus.subscribe('docker.container.changed', onChange),
       this.eventBus.subscribe('node.changed', onNode)
     );
+    this.sweepTimer = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
+    this.sweepTimer.unref?.();
   }
 
   stop(): void {
     for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    this.sweepTimer = null;
   }
 
-  schedule(nodeId: string): void {
-    if (this.timers.has(nodeId)) return;
+  /** Pulls the node after `delayMs`; a pull already waiting for the same delay covers this request too. */
+  schedule(nodeId: string, delayMs = PULL_DEBOUNCE_MS): void {
+    const key = `${nodeId}:${delayMs}`;
+    if (this.timers.has(key)) return;
     const timer = setTimeout(() => {
-      this.timers.delete(nodeId);
+      this.timers.delete(key);
       void this.pullNow(nodeId);
-    }, PULL_DEBOUNCE_MS);
+    }, delayMs);
     timer.unref?.();
-    this.timers.set(nodeId, timer);
+    this.timers.set(key, timer);
+  }
+
+  /** Reads every connected Docker node that reports changes outside Opfield. */
+  sweep(): void {
+    for (const node of this.registry.getNodesByType('docker')) {
+      if (this.registry.hasCapability(node.nodeId, DOCKER_EXTERNAL_CHANGES_CAPABILITY)) void this.pullNow(node.nodeId);
+    }
   }
 
   /** Pulls and records the node's new changes; one pull per node at a time. */
@@ -114,27 +140,31 @@ export class DockerExternalChangeWatcher {
     const current = this.running.get(nodeId);
     if (current) return current;
     const run = this.pull(nodeId)
+      .then(() => {
+        this.failures.delete(nodeId);
+      })
       .catch((error) => {
-        logger.debug('Reading container changes outside Opfield failed', {
-          nodeId,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        const message = error instanceof Error ? error.message : String(error);
+        if (this.failures.get(nodeId) === message) return;
+        this.failures.set(nodeId, message);
+        logger.warn('Reading container changes outside Opfield failed', { nodeId, error: message });
       })
       .finally(() => this.running.delete(nodeId));
     this.running.set(nodeId, run);
     return run;
   }
 
-  private async read(nodeId: string, after: number): Promise<ChangesPage | null> {
+  private async read(nodeId: string, after: number): Promise<ChangesPage> {
     const result = await this.dispatch.sendDockerContainerCommand(
       nodeId,
       'external_changes',
       { configJson: JSON.stringify({ after }) },
       PULL_TIMEOUT_MS
     );
-    if (!result.success || !result.detail) return null;
-    const page = JSON.parse(result.detail) as ChangesPage;
-    return Array.isArray(page?.changes) ? page : null;
+    if (!result.success) throw new Error(result.error || 'the daemon refused external_changes');
+    const page = JSON.parse(result.detail || 'null') as ChangesPage | null;
+    if (!page || !Array.isArray(page.changes)) throw new Error('the daemon answered external_changes without a list');
+    return page;
   }
 
   private async pull(nodeId: string): Promise<void> {
@@ -143,8 +173,7 @@ export class DockerExternalChangeWatcher {
     const cursor = this.cursors.get(nodeId);
     let page = await this.read(nodeId, cursor?.latest ?? 0);
     // A restarted daemon numbers its changes from 1 again.
-    if (page && cursor && page.bootId !== cursor.bootId && cursor.latest > 0) page = await this.read(nodeId, 0);
-    if (!page) return;
+    if (cursor && page.bootId !== cursor.bootId && cursor.latest > 0) page = await this.read(nodeId, 0);
     if (page.changes.length > 0) {
       const records = await loadDockerManagedRecords(this.db, nodeId);
       for (const change of page.changes) await this.record(nodeId, node.hostname, change, records);
