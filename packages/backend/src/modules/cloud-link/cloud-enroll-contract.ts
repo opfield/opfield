@@ -2,7 +2,7 @@
  * Contract between the provisioning of a managed installation (the account portal, through cloud-init) and Opfield.
  * Documented for the portal in .workflow/impl/cloud-sso.md; keep both in step.
  *
- * The provisioning leaves `/var/lib/gateway/cloud-enroll.json` (inside the app container) with:
+ * The provisioning leaves `cloud-enroll.json` in the app data directory (inside the app container) with:
  *
  * ```json
  * {

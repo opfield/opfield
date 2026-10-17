@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { routeTransportRestartRequired, secureLinkEgressEqual } from './relay-link-routes.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 
 const listener = {
-  networkName: 'gateway-db-a',
+  networkName: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}a`,
   listenAddress: '172.30.0.1',
   listenPort: 5432,
   allowedSources: [] as string[],
@@ -13,7 +14,7 @@ const egress: {
   listenPort: number;
   maxSessions: number;
   consumersUseAlias?: boolean;
-} = { networkName: 'gateway-db-a', alias: 'db-a', listenPort: 5432, maxSessions: 0 };
+} = { networkName: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}a`, alias: 'db-a', listenPort: 5432, maxSessions: 0 };
 const transport = (managedDatabaseListener: typeof listener | null, secureLinkEgress: typeof egress | null) => ({
   managedDatabaseListener,
   secureLinkEgress,

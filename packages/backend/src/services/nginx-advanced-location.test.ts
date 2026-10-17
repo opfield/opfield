@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { injectAccessListIntoAdvancedLocations } from './nginx-advanced-location.js';
+import { LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 
 describe('injectAccessListIntoAdvancedLocations', () => {
   const directives = [
     'allow 192.0.2.0/24;',
     'deny all;',
     'auth_basic "Restricted Access";',
-    'auth_basic_user_file /etc/nginx/gateway/htpasswd/access-list-list-1;',
+    `auth_basic_user_file ${LEGACY_NGINX_DIR}/htpasswd/access-list-list-1;`,
   ];
 
   it('injects directives into each top-level location, including inline locations', () => {

@@ -13,6 +13,7 @@ import { type ExportSummary, type RestoreStatus, restoreErrorMessage, verifyExpo
 import { ownerLinkClaimHash } from './owner-password-link.js';
 import { validatePassphrase } from './transfer-archive.js';
 import { composeVolumeName, currentSchemaMigration, RESTORE_STAGING_DIR } from './transfer-layout.js';
+import { LEGACY_VOLUME_APP_DATA } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('SetupRestore');
 export const SETUP_RESTORE_CHUNK_MAX_BYTES = 32 * 1024 * 1024;
@@ -46,7 +47,7 @@ export interface SetupRestoreStartInput {
 
 /**
  * "Restore from an export" in the first-run setup wizard. The browser uploads the file in chunks
- * into gateway_data, Opfield decrypts and checks it with the passphrase, and the restore then runs
+ * into LEGACY_VOLUME_APP_DATA, Opfield decrypts and checks it with the passphrase, and the restore then runs
  * in a one-off container of this image (dist/cli/configuration-restore.js), which stops this app,
  * replaces the database and volumes and starts the stack again with the restored master key.
  */
@@ -64,7 +65,7 @@ export class SetupRestoreService {
   constructor(
     private readonly docker: DockerService,
     private readonly env: NodeJS.ProcessEnv = process.env,
-    private readonly dataDir = '/var/lib/gateway'
+    private readonly dataDir = '/var/lib/opfield'
   ) {}
 
   private get stagingDir(): string {
@@ -216,7 +217,7 @@ export class SetupRestoreService {
     const details = await this.docker.inspectContainerDetails(self.Id);
     const dataVolume =
       details?.Mounts?.find((mount) => mount.Destination === this.dataDir && mount.Type === 'volume')?.Name ??
-      composeVolumeName(project, 'gateway_data');
+      composeVolumeName(project, LEGACY_VOLUME_APP_DATA);
     if (!details) throw new AppError(409, 'SETUP_RESTORE_UNAVAILABLE', 'Opfield cannot inspect its own container');
 
     this.restoring = true;
@@ -233,7 +234,7 @@ export class SetupRestoreService {
       }
       const name = `${project}-configuration-restore`;
       await this.docker.removeContainer(name).catch(() => {});
-      const containerDataDir = '/var/lib/gateway';
+      const containerDataDir = '/var/lib/opfield';
       const staging = join(containerDataDir, RESTORE_STAGING_DIR);
       const runner = await this.docker.createContainer(
         {

@@ -9,6 +9,7 @@ import {
 } from 'node:crypto';
 import { once } from 'node:events';
 import { PassThrough, Readable } from 'node:stream';
+import { LEGACY_EXPORT_VERSION_FIELD } from '@/lib/legacy-compat.js';
 
 /**
  * The encrypted configuration export file (.opfield-export).
@@ -215,11 +216,12 @@ function parseHeader(json: string): ExportHeader {
   } catch {
     throw new ExportArchiveError('NOT_AN_EXPORT', 'This file is not an Opfield configuration export');
   }
-  const header = value as Partial<ExportHeader> & { gatewayVersion?: unknown };
-  // legacy-name: gatewayVersion — the header field of exports made before 2.12.1 (read to name their version).
+  const header = value as Partial<ExportHeader> & { [LEGACY_EXPORT_VERSION_FIELD]?: unknown };
+  // legacy-name: the earlier version field — the header field of exports made before 2.12.1 (read to name their version).
   if (header && typeof header === 'object' && header.opfieldVersion === undefined) {
-    if (typeof header.gatewayVersion === 'string') header.opfieldVersion = header.gatewayVersion;
-    delete header.gatewayVersion;
+    const legacyVersion = header[LEGACY_EXPORT_VERSION_FIELD];
+    if (typeof legacyVersion === 'string') header.opfieldVersion = legacyVersion;
+    delete header[LEGACY_EXPORT_VERSION_FIELD];
   }
   if (!header || typeof header !== 'object' || header.format !== EXPORT_FORMAT_VERSION) {
     throw new ExportArchiveError(

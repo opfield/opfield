@@ -2,6 +2,7 @@ import { isAlwaysBlockedOutboundIp, normalizeIp } from '@/lib/ip-cidr.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { isPubliclyRoutableIp } from '@/modules/nodes/node-service-address.js';
 import type { HostingRole } from './hosting-provider.types.js';
+import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 
 const INSTALLERS: Record<HostingRole, string> = {
   nginx: 'setup-node.sh',
@@ -33,7 +34,7 @@ export function shellArgument(value: string): string {
 
 export function buildHostingBootstrap(input: {
   role: HostingRole;
-  gateway: string;
+  opfieldAddress: string;
   token: string;
   certificateFingerprint: string;
   relayAddress?: string;
@@ -43,18 +44,18 @@ export function buildHostingBootstrap(input: {
   waitForCloudInit?: boolean;
 }): string {
   if (!INSTALLERS[input.role]) throw new AppError(400, 'HOSTING_ROLE_UNSUPPORTED', 'Unsupported node role');
-  if (!input.gateway || !/^sha256:[a-f0-9]{64}$/i.test(input.certificateFingerprint))
+  if (!input.opfieldAddress || !/^sha256:[a-f0-9]{64}$/i.test(input.certificateFingerprint))
     throw new AppError(
       409,
       'HOSTING_OPFIELD_NOT_READY',
       'Configure the Opfield enrollment endpoint and certificate first'
     );
-  const url = new URL(`https://${input.gateway}`);
+  const url = new URL(`https://${input.opfieldAddress}`);
   if (url.username || url.password || url.pathname !== '/' || url.search || url.hash)
     throw new AppError(400, 'HOSTING_OPFIELD_INVALID', 'Invalid Opfield enrollment endpoint');
   const args = [
     '--opfield',
-    input.gateway,
+    input.opfieldAddress,
     '--token',
     input.token,
     '--opfield-cert-sha256',
@@ -71,7 +72,7 @@ export function buildHostingBootstrap(input: {
     ? `
 # A cloned template must never inherit another Opfield host identity or certificate.
 # legacy-name: the legacy state root of guests installed before 2.12.1 — remove once every node reports none
-if [ -s /var/lib/opfield/host-identity ] || [ -s /var/lib/gateway/host-identity ]; then
+if [ -s /var/lib/opfield/host-identity ] || [ -s ${LEGACY_STATE_ROOT}/host-identity ]; then
   echo 'Opfield identity already exists; refusing to adopt or reinstall a cloned identity' >&2
   exit 42
 fi
@@ -110,9 +111,9 @@ fi`
 }
 ${
   input.expectedOperationMarker
-    ? `# legacy-name: /var/lib/gateway markers of an installation attempt before 2.12.1 — remove once every node reports none
-marker=$(cat /var/lib/opfield/hosting-operation 2>/dev/null || cat /var/lib/gateway/hosting-operation 2>/dev/null || true)
-if [ "$marker" != ${shellArgument(input.expectedOperationMarker)} ] && { [ -n "$marker" ] || [ -s /var/lib/opfield/host-identity ] || [ -s /var/lib/gateway/host-identity ]; }; then
+    ? `# legacy-name: markers in the legacy state root of an installation attempt before 2.12.1 — remove once every node reports none
+marker=$(cat /var/lib/opfield/hosting-operation 2>/dev/null || cat ${LEGACY_STATE_ROOT}/hosting-operation 2>/dev/null || true)
+if [ "$marker" != ${shellArgument(input.expectedOperationMarker)} ] && { [ -n "$marker" ] || [ -s /var/lib/opfield/host-identity ] || [ -s ${LEGACY_STATE_ROOT}/host-identity ]; }; then
   echo 'This guest is not the original hosting installation target' >&2
   exit 45
 fi`
@@ -149,7 +150,7 @@ bash "$installer" ${args.map(shellArgument).join(' ')}
 `;
 }
 
-export function validateHostingGateway(value: string, allowPrivate: boolean): void {
+export function validateHostingOpfieldAddress(value: string, allowPrivate: boolean): void {
   let url: URL;
   try {
     url = new URL(`https://${value}`);

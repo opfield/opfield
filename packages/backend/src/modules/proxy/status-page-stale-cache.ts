@@ -1,4 +1,5 @@
 import { escapeNginxReturnText, opfieldStatusPageUnavailableHtml } from '@/lib/opfield-error-pages.js';
+import { LEGACY_STATUS_PAGE_ZONE_PREFIX } from '@/lib/legacy-compat.js';
 
 /**
  * Status page routes (C-2). A status page must stay up exactly when things are down, but its upstream is Opfield
@@ -29,11 +30,11 @@ function suffixOf(hostId: string): string {
 }
 
 export function statusPageCacheZone(hostId: string): string {
-  return `gateway_status_page_${suffixOf(hostId)}`;
+  return `${LEGACY_STATUS_PAGE_ZONE_PREFIX}${suffixOf(hostId)}`;
 }
 
 export function statusPageFallbackLocation(hostId: string): string {
-  return `@gateway_status_page_unavailable_${suffixOf(hostId)}`;
+  return `@${LEGACY_STATUS_PAGE_ZONE_PREFIX}unavailable_${suffixOf(hostId)}`;
 }
 
 export function statusPageCachePath(hostId: string): string {

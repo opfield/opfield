@@ -45,6 +45,7 @@ import {
 } from './relay-stream-resume.js';
 import { candidateTopology } from './relay-topology.js';
 import { type RelayLatencyTarget, RelayTopologyService } from './relay-topology.service.js';
+import { LEGACY_GRANT_INSTANCE_ID_KEY, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 
 const POLICY_ID = 'current';
 
@@ -57,7 +58,8 @@ export interface RelayGrantClaims {
   schemaVersion: 1 | 2;
   audience: RelayGrantAudience;
   grantId: string;
-  gatewayInstanceId: string;
+  /** The app instance id, under the claim key relays of every version verify. */
+  [LEGACY_GRANT_INSTANCE_ID_KEY]: string;
   kind: GrantKind;
   subjectKind: string;
   subjectId: string;
@@ -705,7 +707,7 @@ export class RelayGrantIssuerService {
 
   async issueOpfieldConnectAssignment(routeId: string, appCertificateFingerprint: string) {
     const [route] = await this.db.select().from(relayRoutes).where(eq(relayRoutes.id, routeId)).limit(1);
-    if (!route || route.sourceKind !== 'gateway' || route.sourceCertificateSha256 !== appCertificateFingerprint)
+    if (!route || route.sourceKind !== LEGACY_RELAY_SOURCE_KIND || route.sourceCertificateSha256 !== appCertificateFingerprint)
       throw new Error('Opfield relay route is unavailable');
     const [endpoint] = await this.db
       .select()
@@ -750,7 +752,7 @@ export class RelayGrantIssuerService {
   private async signGrant(
     input: Omit<
       RelayGrantClaims,
-      'schemaVersion' | 'audience' | 'grantId' | 'gatewayInstanceId' | 'issuedAt' | 'notBefore' | 'expiresAt'
+      'schemaVersion' | 'audience' | 'grantId' | typeof LEGACY_GRANT_INSTANCE_ID_KEY | 'issuedAt' | 'notBefore' | 'expiresAt'
     > & {
       schemaVersion?: 1 | 2;
       /**
@@ -777,7 +779,7 @@ export class RelayGrantIssuerService {
       schemaVersion: claimsInput.schemaVersion ?? 1,
       audience,
       grantId: randomUUID(),
-      gatewayInstanceId: state.gatewayInstanceId,
+      [LEGACY_GRANT_INSTANCE_ID_KEY]: state.opfieldInstanceId,
       ...claimsInput,
       issuedAt: now,
       notBefore: now,

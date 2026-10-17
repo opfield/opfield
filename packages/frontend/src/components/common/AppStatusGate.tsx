@@ -15,6 +15,7 @@ import { useAppStatusStore } from "@/stores/app-status";
 import { useAuthStore } from "@/stores/auth";
 import { useUpdateStore } from "@/stores/update";
 import type { OpfieldUpdateOperation } from "@/types";
+import { LEGACY_STORAGE_KEY_PREFIX } from "../../../../backend/src/lib/legacy-compat";
 
 export { isOpfieldUpdateTargetVersion, normalizeOpfieldUpdateVersion };
 
@@ -30,7 +31,7 @@ const OPFIELD_UPDATE_STATUS_CHECK_INTERVAL_MS = 15_000;
 const MAINTENANCE_RECOVERY_CHECK_INTERVAL_MS = 5_000;
 const MAINTENANCE_AUTO_RELOAD_GUARD_KEY = "opfield-maintenance-auto-reload";
 // legacy-name: reload guard the 2.12.0 bundle sets before it reloads into the update — remove once 2.12.0 is no longer an update source
-const LEGACY_MAINTENANCE_AUTO_RELOAD_GUARD_KEY = "gateway-maintenance-auto-reload";
+const LEGACY_MAINTENANCE_AUTO_RELOAD_GUARD_KEY = `${LEGACY_STORAGE_KEY_PREFIX}-maintenance-auto-reload`;
 
 export function clearMaintenanceAutoReloadGuard(): void {
   window.sessionStorage.removeItem(MAINTENANCE_AUTO_RELOAD_GUARD_KEY);
@@ -39,7 +40,7 @@ export function clearMaintenanceAutoReloadGuard(): void {
 
 /**
  * The maintenance and restart screens mirror OPFIELD_RESTARTING_HTML in
- * packages/backend/src/lib/gateway-error-pages.ts. While Opfield is down the
+ * packages/backend/src/lib/opfield-error-pages.ts. While Opfield is down the
  * browser reloads onto that static page, which is always dark, so these screens
  * keep its fixed palette (and the dark theme for their controls) instead of the
  * current theme: the swap then does not flash between themes.

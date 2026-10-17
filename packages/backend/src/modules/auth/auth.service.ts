@@ -57,6 +57,7 @@ import {
 } from './live-session-user.js';
 import { mfaRequiredChannel } from './mfa-events.js';
 import type { OidcSettingsService } from './oidc-settings.service.js';
+import { LEGACY_SYSTEM_ADMINS_GROUP } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('AuthService');
 
@@ -64,7 +65,7 @@ const PKCE_STATE_PREFIX = 'oidc:pkce:';
 const PRECREATED_SUBJECT_PREFIX = 'manual:';
 const SYSTEM_SUBJECT_PREFIX = 'system:';
 /** Advisory lock serializing changes that can remove a system administrator. */
-const SYSTEM_ADMINS_LOCK = 'gateway-system-admins';
+const SYSTEM_ADMINS_LOCK = LEGACY_SYSTEM_ADMINS_GROUP;
 /** Subject namespaces Opfield writes itself; an identity provider must never be able to claim them. */
 const RESERVED_SUBJECT_PREFIXES = [PRECREATED_SUBJECT_PREFIX, SYSTEM_SUBJECT_PREFIX] as const;
 const OPFIELD_SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';

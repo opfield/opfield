@@ -154,7 +154,7 @@ const ENVIRONMENT_SETTINGS_KEY = 'environment:settings';
 const OPFIELD_RESTARTING_SCRIPT_PATH = '/opfield-restarting.js';
 // legacy-name: restart page script path of error pages rendered before 2.12.1 (nginx node configs re-render on their
 // next sync) — remove once no node config references it
-const LEGACY_RESTARTING_SCRIPT_PATH = '/gateway-restarting.js';
+const LEGACY_RESTARTING_SCRIPT_PATH = LEGACY_RESTART_SCRIPT_PATH;
 const DOCKER_FILE_BODY_LIMIT_PATH =
   /^\/api\/docker\/nodes\/[^/]+\/(?:containers\/[^/]+\/files\/(?:write|create|uploads\/[^/]+\/chunks)|volumes\/[^/]+\/files\/(?:write|create|uploads\/[^/]+\/chunks))$/;
 const NODE_FILE_BODY_LIMIT_PATH = /^\/api\/nodes\/[^/]+\/files\/(?:write|create|uploads\/[^/]+\/chunks)$/;
@@ -1282,3 +1282,4 @@ export function createApp(): OpfieldAppRuntime {
 }
 
 import { acceptedOperations } from '@/edition/accepted-operations.js';
+import { LEGACY_RESTART_SCRIPT_PATH } from '@/lib/legacy-compat.js';

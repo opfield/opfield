@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { describeFullestDisk } from '@/modules/diagnostics/diagnostics.service.js';
 import { defaultFiredMessage, NotificationEvaluatorService } from './notification-evaluator.service.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 // rc.3 stand: a custom threshold rule fired "rc3sp-alert: app-node-2" with no metric (srcparity O-10); the open
 // "Opfield disk almost full" alert kept "86% full" while the disk reached 96 % (housekeeping O-4); the Opfield disk
@@ -83,7 +84,7 @@ describe('a firing threshold alert follows the reading', () => {
     const t = setup(null);
     await t.service.evaluateOpfieldSnapshot(
       { host_disk: 91 },
-      { host_disk: { disk: 'Opfield data (/var/lib/gateway)' } }
+      { host_disk: { disk: `Opfield data (/var/lib/${LEGACY_INSTALL_DIR_NAME})` } }
     );
     expect(t.fireAlert).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'rule-1' }),
@@ -91,7 +92,7 @@ describe('a firing threshold alert follows the reading', () => {
       'opfield',
       'Opfield',
       expect.objectContaining({
-        details: { disk: 'Opfield data (/var/lib/gateway)' },
+        details: { disk: `Opfield data (/var/lib/${LEGACY_INSTALL_DIR_NAME})` },
         metric: expect.objectContaining({ value: 91 }),
       })
     );
@@ -100,12 +101,12 @@ describe('a firing threshold alert follows the reading', () => {
 
 describe('describeFullestDisk', () => {
   it('names the fuller disk and what it holds', () => {
-    expect(describeFullestDisk({ usedPercent: 20 }, null, '/var/lib/gateway')).toBe('Opfield data (/var/lib/gateway)');
+    expect(describeFullestDisk({ usedPercent: 20 }, null, `/var/lib/${LEGACY_INSTALL_DIR_NAME}`)).toBe(`Opfield data (/var/lib/${LEGACY_INSTALL_DIR_NAME})`);
     expect(
       describeFullestDisk(
         { usedPercent: 20 },
         { usedPercent: 96, holds: ['postgres: /var/lib/postgresql/data'], filesystem: '/dev/sdb1' },
-        '/var/lib/gateway'
+        `/var/lib/${LEGACY_INSTALL_DIR_NAME}`
       )
     ).toBe('postgres: /var/lib/postgresql/data on /dev/sdb1');
     expect(describeFullestDisk(null, null, '/x')).toBeNull();

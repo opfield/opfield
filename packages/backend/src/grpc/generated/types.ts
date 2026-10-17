@@ -451,7 +451,7 @@ export interface OpfieldCommand {
   availabilityMember?: AvailabilityMemberCommand;
   syncAvailabilityLease?: SyncAvailabilityLeaseCommand;
   availabilityLeaseHandoff?: AvailabilityLeaseHandoffCommand;
-  /** Daemons with gateway_next_address_v1: the address Opfield moves to. */
+  /** Daemons with LEGACY_HOST_MOVE_CAPABILITY: the address Opfield moves to. */
   setOpfieldNextAddress?: SetOpfieldNextAddressCommand;
   /** Nginx daemons with nginx_log_budget_v1: how long rotated nginx logs are kept (Housekeeping "Nginx Logs"). */
   configureNginxLogs?: ConfigureNginxLogsCommand;

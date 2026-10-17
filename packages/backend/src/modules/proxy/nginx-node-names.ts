@@ -1,5 +1,6 @@
+import { LEGACY_INGRESS_GENERATION_HEADER, LEGACY_INGRESS_HEALTH_HOST, LEGACY_MAINTENANCE_HEADER_PREFIX, LEGACY_NGINX_DIR, LEGACY_NGINX_MARK_PREFIX, LEGACY_NGINX_RUN_PREFIX, LEGACY_NGINX_VARIABLE_PREFIX, LEGACY_RESERVED_PATH_PREFIX } from '@/lib/legacy-compat.js';
 /**
- * The names Opfield gives files, directories and nginx identifiers on an ingress node, and the pre-Opfield (Opfield)
+ * The names Opfield gives files, directories and nginx identifiers on an ingress node, and the pre-Opfield
  * names a node keeps until its nginx daemon moved it (internal/naming in the nginx daemon).
  *
  * Configs are rendered with the Opfield names. A node whose daemon does not report NGINX_OPFIELD_NAMES_CAPABILITY
@@ -19,22 +20,22 @@ export const NGINX_OPFIELD_NAMES_CAPABILITY = 'nginx_opfield_names_v1';
  * legacy-name: pre-Opfield names of nodes and of configs stored before 2.12.1 — remove once every node reports none
  */
 export const NGINX_NAME_PAIRS: ReadonlyArray<readonly [opfield: string, legacy: string]> = [
-  ['/etc/nginx/opfield/', '/etc/nginx/gateway/'],
-  ['/run/opfield-secure-links/', '/run/gateway-secure-links/'],
-  ['/run/opfield-registry-links/', '/run/gateway-registry-links/'],
-  ['/run/opfield-ingress-health/', '/run/gateway-ingress-health/'],
-  ['/_opfield/maintenance-access', '/_gateway/maintenance-access'],
-  ['opfield_maintenance', 'gateway_maintenance'],
-  ['opfield-maintenance', 'gateway-maintenance'],
-  ['opfield_ingress_generation', 'gateway_ingress_generation'],
-  ['X-Opfield-Maintenance-', 'X-Gateway-Maintenance-'],
-  ['X-Opfield-Ingress-Generation', 'X-Gateway-Ingress-Generation'],
-  ['opfield-managed-secure-link-upstream', 'gateway-managed-secure-link-upstream'],
-  ['opfield_pages_', 'gateway_pages_'],
-  ['# opfield-pages ', '# gateway-pages '],
-  ['opfield_secure_link_', 'gateway_secure_link_'],
-  ['opfield_additional_secure_link_', 'gateway_additional_secure_link_'],
-  ['ingress-health.opfield.invalid', 'ingress-health.gateway.invalid'],
+  ['/etc/nginx/opfield/', `${LEGACY_NGINX_DIR}/`],
+  ['/run/opfield-secure-links/', `${LEGACY_NGINX_RUN_PREFIX}secure-links/`],
+  ['/run/opfield-registry-links/', `${LEGACY_NGINX_RUN_PREFIX}registry-links/`],
+  ['/run/opfield-ingress-health/', `${LEGACY_NGINX_RUN_PREFIX}ingress-health/`],
+  ['/_opfield/maintenance-access', `${LEGACY_RESERVED_PATH_PREFIX}/maintenance-access`],
+  ['opfield_maintenance', `${LEGACY_NGINX_VARIABLE_PREFIX}maintenance`],
+  ['opfield-maintenance', `${LEGACY_NGINX_MARK_PREFIX}maintenance`],
+  ['opfield_ingress_generation', `${LEGACY_NGINX_VARIABLE_PREFIX}ingress_generation`],
+  ['X-Opfield-Maintenance-', LEGACY_MAINTENANCE_HEADER_PREFIX],
+  ['X-Opfield-Ingress-Generation', LEGACY_INGRESS_GENERATION_HEADER],
+  ['opfield-managed-secure-link-upstream', `${LEGACY_NGINX_MARK_PREFIX}managed-secure-link-upstream`],
+  ['opfield_pages_', `${LEGACY_NGINX_VARIABLE_PREFIX}pages_`],
+  ['# opfield-pages ', `# ${LEGACY_NGINX_MARK_PREFIX}pages `],
+  ['opfield_secure_link_', `${LEGACY_NGINX_VARIABLE_PREFIX}secure_link_`],
+  ['opfield_additional_secure_link_', `${LEGACY_NGINX_VARIABLE_PREFIX}additional_secure_link_`],
+  ['ingress-health.opfield.invalid', LEGACY_INGRESS_HEALTH_HOST],
 ];
 
 function escapeRegExp(value: string): string {
@@ -56,9 +57,9 @@ export const toLegacyNginxNames = replacer(0);
 export const toOpfieldNginxNames = replacer(1);
 
 /**
- * The access log format the route templates log with. A node still on the pre-Opfield names defines it as
- * `gateway_combined`; a node on the Opfield names defines `opfield_combined` (and keeps `gateway_combined` while a
- * config on it uses it), so the format is not one of the name pairs the daemon renames in nginx.conf.
+ * The access log format the route templates log with. A node still on the pre-Opfield names defines the legacy
+ * format; a node on the Opfield names defines `opfield_combined` (and keeps the legacy one while a config on it uses
+ * it), so the format is not one of the name pairs the daemon renames in nginx.conf.
  */
 const ACCESS_LOG_FORMAT_PATTERN = / opfield_combined;/g;
 
@@ -77,5 +78,5 @@ export function nginxNamesForNode(config: string, opfieldNames: boolean, accessL
   if (!accessLogFormat) return nginxNamesForNode(config.replace(ACCESS_LOG_FORMAT_PATTERN, ';'), opfieldNames);
   return opfieldNames
     ? toOpfieldNginxNames(config)
-    : toLegacyNginxNames(config).replace(ACCESS_LOG_FORMAT_PATTERN, ' gateway_combined;');
+    : toLegacyNginxNames(config).replace(ACCESS_LOG_FORMAT_PATTERN, ` ${LEGACY_NGINX_VARIABLE_PREFIX}combined;`);
 }

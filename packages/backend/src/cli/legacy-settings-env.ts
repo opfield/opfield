@@ -2,6 +2,7 @@ import { parse } from 'dotenv';
 import type { LegacyOidcEnvironment } from '@/modules/auth/oidc-settings.service.js';
 import type { LegacyLoggingEnvironment } from '@/modules/logging/logging-settings.service.js';
 import type { EnvironmentSettingsLegacyUpdate } from '@/modules/settings/environment-settings.schemas.js';
+import { LEGACY_LOGS_DATABASE } from '@/lib/legacy-compat.js';
 
 export interface LegacySettingsEnv {
   env: LegacyOidcEnvironment & LegacyLoggingEnvironment;
@@ -43,7 +44,7 @@ export function parseLegacySettingsEnv(content: string): LegacySettingsEnv {
       CLICKHOUSE_URL: optional('CLICKHOUSE_URL') ?? '',
       CLICKHOUSE_USERNAME: optional('CLICKHOUSE_USERNAME') ?? 'default',
       CLICKHOUSE_PASSWORD: optional('CLICKHOUSE_PASSWORD') ?? '',
-      CLICKHOUSE_DATABASE: optional('CLICKHOUSE_DATABASE') ?? 'gateway_logs',
+      CLICKHOUSE_DATABASE: optional('CLICKHOUSE_DATABASE') ?? LEGACY_LOGS_DATABASE,
       CLICKHOUSE_LOGS_TABLE: optional('CLICKHOUSE_LOGS_TABLE') ?? 'logs',
       CLICKHOUSE_REQUEST_TIMEOUT_MS: integer('CLICKHOUSE_REQUEST_TIMEOUT_MS', 5000),
     },

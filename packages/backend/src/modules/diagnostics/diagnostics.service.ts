@@ -21,6 +21,7 @@ import {
 import { type HostReading, type ProcessReading, readDisk, SystemReader } from './diagnostics-system.js';
 import type { PostgresDetails, PostgresProbe, PostgresProbeResult } from './postgres-probe.js';
 import { type RequestSummary, type RouteSummary, requestStats } from './request-stats.js';
+import { LEGACY_UPDATE_ATTEMPT_KEY } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('OpfieldDiagnostics');
 
@@ -36,10 +37,10 @@ const LOG_SCAN_LIMIT = 20_000;
 const DEFAULT_LOG_LIMIT = 200;
 const MAX_LOG_LIMIT = 1_000;
 const DEFAULT_LOG_WINDOW_MS = 60 * MINUTE_MS;
-const DATA_PATHS = ['/var/lib/gateway', process.cwd()];
+const DATA_PATHS = ['/var/lib/opfield', process.cwd()];
 const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
 const COMPOSE_SERVICE_LABEL = 'com.docker.compose.service';
-const UPDATE_ATTEMPT_KEY = 'update:gateway:attempt';
+const UPDATE_ATTEMPT_KEY = LEGACY_UPDATE_ATTEMPT_KEY;
 const DOCKER_TIMESTAMP_PREFIX = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))\s?(.*)$/;
 /** A job counts as failing after this many failed runs in a row. */
 export const FAILING_JOB_RUNS = 3;

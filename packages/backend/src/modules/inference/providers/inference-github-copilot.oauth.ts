@@ -1,5 +1,6 @@
 import { AppError } from '@/middleware/error-handler.js';
 import type { InferenceCredentialPayload } from './inference-provider.types.js';
+import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
 
 type Fetcher = typeof fetch;
 type JsonObject = Record<string, unknown>;
@@ -7,10 +8,10 @@ type JsonObject = Record<string, unknown>;
 const COPILOT_TOKEN_URL = 'https://api.github.com/copilot_internal/v2/token';
 const GITHUB_USER_URL = 'https://api.github.com/user';
 const HEADERS = {
-  'Editor-Version': 'gateway/1.0',
-  'Editor-Plugin-Version': 'gateway/1.0',
+  'Editor-Version': `${LEGACY_PROVIDER_CLIENT_ID}/1.0`,
+  'Editor-Plugin-Version': `${LEGACY_PROVIDER_CLIENT_ID}/1.0`,
   'Copilot-Integration-Id': 'vscode-chat',
-  'User-Agent': 'gateway',
+  'User-Agent': LEGACY_PROVIDER_CLIENT_ID,
   Accept: 'application/json',
 };
 
@@ -28,7 +29,7 @@ export async function exchangeGithubCopilotCredential(
       headers: {
         Accept: 'application/vnd.github+json',
         Authorization: `Bearer ${githubAccessToken}`,
-        'User-Agent': 'gateway',
+        'User-Agent': LEGACY_PROVIDER_CLIENT_ID,
         'X-GitHub-Api-Version': '2022-11-28',
       },
       redirect: 'manual',

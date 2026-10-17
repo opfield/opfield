@@ -9,6 +9,7 @@ import {
   readExportHeader,
   readJsonPart,
 } from './transfer-archive.js';
+import { LEGACY_EXPORT_VERSION_FIELD, LEGACY_VOLUME_APP_DATA } from '@/lib/legacy-compat.js';
 
 const FAST_KDF = { name: 'scrypt' as const, N: 16_384, r: 8, p: 1 };
 const PASSPHRASE = 'correct horse battery staple';
@@ -59,18 +60,18 @@ describe('configuration export archive', () => {
   it('round-trips every part and keeps the version readable without the passphrase', async () => {
     const file = await makeArchive([
       ['database.tar', database],
-      ['volume/gateway_data.tar', volume],
+      [`volume/${LEGACY_VOLUME_APP_DATA}.tar`, volume],
       ['empty', Buffer.alloc(0)],
     ]);
     const header = await readExportHeader(Readable.from([file]));
     expect(header.opfieldVersion).toBe('v2.12.0');
     expect(header.schemaMigration).toBe('0300_test');
-    // The header of an export made before 2.12.1 names its version gatewayVersion.
+    // The header of an export made before 2.12.1 names its version the earlier version field.
     const lines = file.toString('latin1').split('\n');
     const legacyHeader = JSON.stringify(
       Object.fromEntries(
         Object.entries(JSON.parse(lines[1]!)).map(([key, value]) => [
-          key === 'opfieldVersion' ? 'gatewayVersion' : key,
+          key === 'opfieldVersion' ? LEGACY_EXPORT_VERSION_FIELD : key,
           value,
         ])
       )
@@ -79,10 +80,10 @@ describe('configuration export archive', () => {
     expect((await readExportHeader(Readable.from([legacy]))).opfieldVersion).toBe('v2.12.0');
     expect(file.toString('utf8', 0, 17)).toBe('OPFIELD-EXPORT/1\n');
     const parts = await readAll(file);
-    expect([...parts.keys()]).toEqual([MANIFEST_PART, 'database.tar', 'volume/gateway_data.tar', 'empty']);
+    expect([...parts.keys()]).toEqual([MANIFEST_PART, 'database.tar', `volume/${LEGACY_VOLUME_APP_DATA}.tar`, 'empty']);
     expect(JSON.parse(parts.get(MANIFEST_PART)!.toString())).toEqual({ hello: 'world' });
     expect(parts.get('database.tar')!.equals(database)).toBe(true);
-    expect(parts.get('volume/gateway_data.tar')!.equals(volume)).toBe(true);
+    expect(parts.get(`volume/${LEGACY_VOLUME_APP_DATA}.tar`)!.equals(volume)).toBe(true);
     expect(parts.get('empty')!.length).toBe(0);
     // Nothing of the content is readable in the file.
     expect(file.includes(database.subarray(100, 132))).toBe(false);

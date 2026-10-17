@@ -6,6 +6,7 @@ import {
   hasInstallationSessionCookie,
   LEGACY_SESSION_COOKIE_NAME,
 } from '@/modules/auth/session-cookie.js';
+import { LEGACY_SESSION_COOKIE_PREFIX } from '@/lib/legacy-compat.js';
 
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = 'http://localhost/db';
@@ -29,15 +30,15 @@ describe('Opfield browser session cookie names', () => {
     expect(getAcceptedSessionCookieNames()).toEqual([
       getSessionCookieName('https'),
       getSessionCookieName('http'),
-      `gateway_session_${namespace}_https`,
-      `gateway_session_${namespace}_http`,
+      `${LEGACY_SESSION_COOKIE_PREFIX}${namespace}_https`,
+      `${LEGACY_SESSION_COOKIE_PREFIX}${namespace}_http`,
       LEGACY_SESSION_COOKIE_NAME,
     ]);
   });
 
   it('recognizes current and pre-2.12.1 session cookies in a Cookie header', () => {
     expect(hasInstallationSessionCookie(`${getSessionCookieName('https')}=s1`)).toBe(true);
-    expect(hasInstallationSessionCookie('gateway_session_0123456789ab_https=s1')).toBe(true);
+    expect(hasInstallationSessionCookie(`${LEGACY_SESSION_COOKIE_PREFIX}0123456789ab_https=s1`)).toBe(true);
     expect(hasInstallationSessionCookie('session_id=s1')).toBe(false);
     expect(hasInstallationSessionCookie(undefined)).toBe(false);
   });

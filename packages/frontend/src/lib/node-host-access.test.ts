@@ -11,6 +11,7 @@ import {
   relayLegacyHostNameCount,
   withHostAccessInstallFlags,
 } from "./node-host-access";
+import { LEGACY_INSTALL_DIR_NAME } from "../../../backend/src/lib/legacy-compat";
 
 function node(type: Node["type"], capabilities: Record<string, unknown>): Node {
   return { type, capabilities } as Node;
@@ -43,7 +44,7 @@ describe("node host access", () => {
   });
 
   it("appends the installer flags to a generated setup command", () => {
-    const command = "sudo bash setup-node.sh \\\n  --gateway gw:9443";
+    const command = `sudo bash setup-node.sh \\\n  --${LEGACY_INSTALL_DIR_NAME} gw:9443`;
     expect(withHostAccessInstallFlags(command, DEFAULT_HOST_ACCESS_INSTALL_OPTIONS)).toBe(command);
     const both = { disableConsole: true, disableFiles: true };
     expect(withHostAccessInstallFlags(command, both)).toBe(
@@ -78,10 +79,10 @@ describe("node host access", () => {
   it("names the config file a relay of its version reads", () => {
     const relay = (daemonVersion: string | null) => ({ ...node("relay", {}), daemonVersion });
     expect(nodeHostFeatureDisabledMessage(relay("2.12.0"), "console")).toContain(
-      "(/etc/gateway-relay-supervisor/config.yaml)"
+      `(/etc/${LEGACY_INSTALL_DIR_NAME}-relay-supervisor/config.yaml)`
     );
     expect(nodeHostFeatureDisabledMessage(relay("v2.12.1-rc.2"), "console")).toContain(
-      "(/etc/gateway-relay-supervisor/config.yaml)"
+      `(/etc/${LEGACY_INSTALL_DIR_NAME}-relay-supervisor/config.yaml)`
     );
     expect(nodeHostFeatureDisabledMessage(relay("v2.12.1"), "console")).toContain(
       "(/etc/opfield-relay/config.yaml)"
@@ -100,7 +101,7 @@ describe("node host access", () => {
         : { lastHealthReport: { legacyNames } }),
     });
     const both =
-      "(/etc/opfield-relay/config.yaml, or /etc/gateway-relay-supervisor/config.yaml while the relay keeps its previous paths)";
+      `(/etc/opfield-relay/config.yaml, or /etc/${LEGACY_INSTALL_DIR_NAME}-relay-supervisor/config.yaml while the relay keeps its previous paths)`;
     expect(
       nodeHostFeatureDisabledMessage(relay({ paths: 4, services: 1, config: 1 }), "console")
     ).toContain(both);

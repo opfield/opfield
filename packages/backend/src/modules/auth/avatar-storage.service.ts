@@ -9,7 +9,7 @@ import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 
 const logger = createChildLogger('AvatarStorageService');
-const PRODUCTION_STORAGE_DIR = '/var/lib/gateway/avatars';
+const PRODUCTION_STORAGE_DIR = '/var/lib/opfield/avatars';
 const AVATAR_URL_PREFIX = '/auth/avatars/';
 const AVATAR_FILE = /^[0-9a-f-]{36}\.(png|jpe?g|webp)$/i;
 

@@ -10,7 +10,7 @@ import {
 const CONTEXT_TTL_SECONDS = 60;
 
 /**
- * Opfield side of the wiolett-core/v1 request context: mints the signed
+ * Opfield side of the LEGACY_CORE_CONTRACT request context: mints the signed
  * claims a proxied data-plane request carries. The core validates signature,
  * expiry, and nonce replay before any upstream dispatch; a nonce is consumed
  * on first use, so every request (and every WebSocket turn) needs a fresh one.

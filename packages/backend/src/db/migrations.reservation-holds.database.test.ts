@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { disposableDatabase, migrateDatabase, pgError, rejection } from './migration-database.test-helpers.js';
+import { LEGACY_GUC_PROXY_DOMAIN_CONFLICTS } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
@@ -317,7 +318,7 @@ describe.skipIf(!url)('migration 0209 reservation holds on disposable PostgreSQL
         )
       ).toMatchObject({ code: '23505', constraint: 'proxy_host_domains_node_domain_unique' });
       await inTransaction([
-        ["select set_config('gateway.proxy_domain_conflicts', 'record', true)"],
+        ["select set_config($1, 'record', true)", [LEGACY_GUC_PROXY_DOMAIN_CONFLICTS]],
         [`update proxy_hosts set domain_names = '["legacy.example.com", "x.example.com"]' where id = $1`, [legacy]],
       ]);
       expect(await domainRows(legacy)).toEqual([
@@ -335,7 +336,7 @@ describe.skipIf(!url)('migration 0209 reservation holds on disposable PostgreSQL
         code: '23505',
       });
       await inTransaction([
-        ["select set_config('gateway.proxy_domain_conflicts', 'record', true)"],
+        ["select set_config($1, 'record', true)", [LEGACY_GUC_PROXY_DOMAIN_CONFLICTS]],
         ['update proxy_hosts set enabled = true where id = $1', [host]],
       ]);
       expect(await domainRows(host)).toEqual([['taken.example.com', true, true]]);

@@ -1,4 +1,5 @@
 import { OFFICIAL_IMAGE_REPOSITORIES } from '@/config/vendor-urls.js';
+import { LEGACY_IMAGE_PATH, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 /**
  * Old Opfield images on the Opfield host: the app and the relay. Updates pull them by digest (`repo@sha256:…`), so
@@ -31,14 +32,14 @@ function referenceRepository(reference: string): string {
 }
 
 /**
- * legacy-name: images published before Opfield (`…/wiolett/gateway`, the local `gateway`) are the app's too.
+ * legacy-name: images published before Opfield (`…LEGACY_IMAGE_PATH`, the local LEGACY_INSTALL_DIR_NAME) are the app's too.
  * The repositories Opfield's app image was published under: the one it runs from, the configured update
- * repositories, the official ones, the earlier self-hosted `…/wiolett/gateway` and the local `gateway` of early
- * installs. The relay image is `<app repository>/relay`.
+ * repositories, the official ones, the earlier self-hosted LEGACY_IMAGE_PATH and the local LEGACY_INSTALL_DIR_NAME
+ * of early installs. The relay image is `<app repository>/relay`.
  */
 export function opfieldHostImageRepositories(currentImage: string, configured: string[] = []): Set<string> {
   const current = referenceRepository(currentImage);
-  return new Set([current, ...configured.map(referenceRepository), ...OFFICIAL_IMAGE_REPOSITORIES, 'gateway']);
+  return new Set([current, ...configured.map(referenceRepository), ...OFFICIAL_IMAGE_REPOSITORIES, LEGACY_INSTALL_DIR_NAME]);
 }
 
 // legacy-name: the app and relay images of installs from before Opfield (legacy repository).
@@ -46,10 +47,10 @@ function imageFamily(image: HostImage, appRepositories: ReadonlySet<string>): 'a
   for (const reference of [...(image.RepoTags ?? []), ...(image.RepoDigests ?? [])]) {
     if (!reference || reference.startsWith('<none>')) continue;
     const repository = referenceRepository(reference);
-    if (appRepositories.has(repository) || repository.endsWith('/wiolett/gateway')) return 'app';
+    if (appRepositories.has(repository) || repository.endsWith(LEGACY_IMAGE_PATH)) return 'app';
     if (repository.endsWith('/relay')) {
       const app = repository.slice(0, -'/relay'.length);
-      if (appRepositories.has(app) || app.endsWith('/wiolett/gateway')) return 'relay';
+      if (appRepositories.has(app) || app.endsWith(LEGACY_IMAGE_PATH)) return 'relay';
     }
   }
   return null;

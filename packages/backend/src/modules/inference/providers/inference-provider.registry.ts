@@ -1,4 +1,5 @@
 import type { InferenceProviderDefinition } from './inference-provider.types.js';
+import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
 
 const SUBSCRIPTION_TERMS_VERSION = 'opencodex-unofficial-connectors-2026-07';
 
@@ -94,7 +95,7 @@ const DEFINITIONS: readonly InferenceProviderDefinition[] = [
     subscription: false,
     featured: true,
     modelsPath: '/models',
-    staticHeaders: { 'x-grok-client-identifier': 'gateway' },
+    staticHeaders: { 'x-grok-client-identifier': LEGACY_PROVIDER_CLIENT_ID },
     supportedOperations: ['inference'],
   },
   {
@@ -361,8 +362,8 @@ const DEFINITIONS: readonly InferenceProviderDefinition[] = [
     termsVersion: SUBSCRIPTION_TERMS_VERSION,
     staticModels: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini', 'claude-sonnet-4', 'gemini-2.5-pro'],
     staticHeaders: {
-      'Editor-Version': 'gateway/1.0',
-      'Editor-Plugin-Version': 'gateway/1.0',
+      'Editor-Version': `${LEGACY_PROVIDER_CLIENT_ID}/1.0`,
+      'Editor-Plugin-Version': `${LEGACY_PROVIDER_CLIENT_ID}/1.0`,
       'Copilot-Integration-Id': 'vscode-chat',
     },
     supportedOperations: ['inference'],
@@ -372,7 +373,7 @@ const DEFINITIONS: readonly InferenceProviderDefinition[] = [
       deviceAuthorizationUrl: 'https://github.com/login/device/code',
       tokenUrl: 'https://github.com/login/oauth/access_token',
       scopes: 'read:user',
-      deviceHeaders: { Accept: 'application/json', 'User-Agent': 'gateway' },
+      deviceHeaders: { Accept: 'application/json', 'User-Agent': LEGACY_PROVIDER_CLIENT_ID },
       credentialExchange: 'github-copilot',
     },
   },

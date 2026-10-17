@@ -87,7 +87,7 @@ export class OpfieldHostDiskReader {
 
   constructor(
     private readonly docker: DockerReader,
-    private readonly ownDataPath = '/var/lib/gateway',
+    private readonly ownDataPath = '/var/lib/opfield',
     private readonly refreshMs = REFRESH_MS
   ) {}
 

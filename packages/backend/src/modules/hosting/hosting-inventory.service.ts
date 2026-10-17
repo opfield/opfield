@@ -35,6 +35,7 @@ import {
   type HostingResourceSnapshot,
 } from './hosting-provider.types.js';
 import { reserveProxmoxQuota } from './proxmox-quota.js';
+import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 
 export const HOSTING_RESOURCE_SNAPSHOT = 'hosting-resources';
 export const HOSTING_CATALOG_SNAPSHOT = 'hosting-catalog';
@@ -153,9 +154,11 @@ export class HostingInventoryService {
     try {
       return (await this.nodeService.readFile(nodeId, '/var/lib/opfield/host-identity')).toString('utf8').trim();
     } catch (error) {
-      // legacy-name: /var/lib/gateway/host-identity of daemons before 2.12.1 — remove once every node reports none
+      // legacy-name: host-identity in the legacy state root of daemons before 2.12.1 — remove once every node reports none
       return (
-        await this.nodeService.readFile(nodeId, '/var/lib/gateway/host-identity').catch(() => Promise.reject(error))
+        await this.nodeService
+          .readFile(nodeId, `${LEGACY_STATE_ROOT}/host-identity`)
+          .catch(() => Promise.reject(error))
       )
         .toString('utf8')
         .trim();

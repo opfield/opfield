@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { nginxConfigRejection } from './nginx-config-rejection.js';
+import { LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 
 const UNKNOWN_DIRECTIVE =
-  'nginx config test failed: nginx: [emerg] unknown directive "bogus_directive" in /etc/nginx/gateway/conf.d/proxy-host-1.conf:54';
+  `nginx config test failed: nginx: [emerg] unknown directive "bogus_directive" in ${LEGACY_NGINX_DIR}/conf.d/proxy-host-1.conf:54`;
 
 describe('nginx config rejection', () => {
   it('reports a config the node rejected as the caller error on HTTP and HTTPS routes alike', () => {

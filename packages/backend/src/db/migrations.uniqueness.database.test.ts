@@ -7,13 +7,14 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { LEGACY_GUC_HOST_PORT_CONFLICTS, LEGACY_LOCK_MIGRATIONS } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const migrationsFolder = fileURLToPath(new URL('./migrations', import.meta.url));
 
 /** The migrations up to and including `lastTag`, in a folder drizzle's migrator can read. */
 function migrationsThrough(lastTag: string): string {
-  const folder = mkdtempSync(join(tmpdir(), 'gateway-migrations-'));
+  const folder = mkdtempSync(join(tmpdir(), `${LEGACY_LOCK_MIGRATIONS}-`));
   mkdirSync(join(folder, 'meta'));
   const journal = JSON.parse(readFileSync(join(migrationsFolder, 'meta/_journal.json'), 'utf8')) as {
     entries: Array<{ tag: string }>;
@@ -462,7 +463,7 @@ describe.skipIf(!url)('migration 0207 uniqueness guarantees on disposable Postgr
       const client = await pool.connect();
       try {
         await client.query('begin');
-        await client.query("select set_config('gateway.host_port_conflicts', 'record', true)");
+        await client.query("select set_config($1, 'record', true)", [LEGACY_GUC_HOST_PORT_CONFLICTS]);
         await client.query('update managed_database_instances set published_port = 8081 where id = $1', [id.database2]);
         await client.query('commit');
       } finally {

@@ -21,6 +21,7 @@ import {
   readHostFingerprint as probeHostFingerprint,
   SSH_CONNECT_TIMEOUT_MS,
 } from './external-ssh-transport.js';
+import { LEGACY_INSTALLATION_HOSTNAMES } from '@/lib/legacy-compat.js';
 
 export { isLoopbackAddress };
 
@@ -431,12 +432,7 @@ export class ExternalSshService {
         'opfield-proxy',
         // legacy-name: host names of installations set up before 2.12.1 — remove once every installation runs the
         // Opfield layout
-        'gateway',
-        'gateway-backend',
-        'gateway-frontend',
-        'gateway-daemon',
-        'gateway-agent',
-        'gateway-proxy',
+        ...LEGACY_INSTALLATION_HOSTNAMES,
         'postgres',
         'redis',
         'localhost',

@@ -13,7 +13,7 @@ import { DockerHostMoveHost } from '@/foundation/host-move-host.js';
  * install directory mounted at the same paths. Docker restarts it after a crash or reboot; it resumes the recorded
  * move. Exit codes: 0 done or nothing to do, 3 rolled back, 4 failed (needs an operator), 2 could not plan.
  *
- *   node dist/cli/host-move.js --dir /opt/gateway --project gateway --network gateway_default [--retry]
+ *   node dist/cli/host-move.js --dir the legacy install directory --project gateway --network gateway_default [--retry]
  */
 
 interface Options {

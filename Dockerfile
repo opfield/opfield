@@ -36,6 +36,7 @@ RUN pnpm install --frozen-lockfile
 FROM base AS frontend-builder
 
 COPY packages/frontend/ packages/frontend/
+COPY packages/backend/src/lib/legacy-compat.ts packages/backend/src/lib/legacy-compat.ts
 RUN pnpm --filter frontend build
 
 # ── Build public status page ────────────────────────────────────────

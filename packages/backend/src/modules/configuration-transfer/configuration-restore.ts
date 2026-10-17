@@ -45,6 +45,7 @@ import {
   type TransferVolumeKey,
   versionMismatch,
 } from './transfer-layout.js';
+import { LEGACY_APP_DATA_DIR, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_RELAY_STATE } from '@/lib/legacy-compat.js';
 
 /**
  * Restores a configuration export into a fresh Compose installation of the same Opfield version. It
@@ -129,8 +130,8 @@ export interface RestoreOptions {
   /** Restore over an installation whose setup is complete. */
   replaceConfigured?: boolean;
   /**
-   * The archive was uploaded into gateway_data (setup wizard): the target is a fresh installation,
-   * so gateway_data is not copied for a rollback (a rollback empties it, keeping the upload).
+   * The archive was uploaded into LEGACY_VOLUME_APP_DATA (setup wizard): the target is a fresh installation,
+   * so LEGACY_VOLUME_APP_DATA is not copied for a rollback (a rollback empties it, keeping the upload).
    */
   archiveInOpfieldData?: boolean;
   /** Where to report progress (the wizard reads it). */
@@ -265,7 +266,12 @@ function validateManifest(manifest: ConfigurationExportManifest, header: ExportH
   if (manifest.commercial && (manifest.commercial.root !== 'commercial' || !manifest.commercialDir)) {
     throw invalid('commercial core');
   }
-  if (manifest.commercialDir && !/^\/var\/lib\/gateway\/commercial\/[a-zA-Z0-9._/-]+$/.test(manifest.commercialDir)) {
+  if (
+    manifest.commercialDir &&
+    ![LEGACY_APP_DATA_DIR, '/var/lib/opfield'].some((root) =>
+      new RegExp(String.raw`^${root.replaceAll('/', '\/')}\/commercial\/[a-zA-Z0-9._/-]+$`).test(manifest.commercialDir ?? '')
+    )
+  ) {
     throw invalid('commercial core directory');
   }
 }
@@ -406,10 +412,10 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
     // The volume names follow the layout of this installation's docker-compose.yml (an export keeps the earlier keys).
     const composeFile = await readFile(join(options.hostDir, 'docker-compose.yml'), 'utf8').catch(() => null);
     const volumeName = (key: TransferVolumeKey) => composeVolumeName(options.project, key, composeFile);
-    const replaced: TransferVolumeKey[] = [...manifest.volumes.map((volume) => volume.key), 'gateway_relay_state'];
+    const replaced: TransferVolumeKey[] = [...manifest.volumes.map((volume) => volume.key), LEGACY_VOLUME_RELAY_STATE];
     for (const key of replaced) {
       const volume = volumeName(key);
-      if (!(await docker.inspectVolume(volume)) || (key === 'gateway_data' && options.archiveInOpfieldData)) {
+      if (!(await docker.inspectVolume(volume)) || (key === LEGACY_VOLUME_APP_DATA && options.archiveInOpfieldData)) {
         rollback.volumes.push({ key, volume, file: null });
         continue;
       }
@@ -447,7 +453,7 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
           volumeName(volume.key),
           volume.root,
           part.stream,
-          volume.key === 'gateway_data' ? [RESTORE_STAGING_DIR] : [],
+          volume.key === LEGACY_VOLUME_APP_DATA ? [RESTORE_STAGING_DIR] : [],
           composeVolumeKey(volume.key, composeFile)
         );
         continue;
@@ -475,7 +481,7 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
     }
 
     await step('Clearing the local relay state');
-    await wipeVolume(docker, installation, volumeName('gateway_relay_state'));
+    await wipeVolume(docker, installation, volumeName(LEGACY_VOLUME_RELAY_STATE));
 
     await step('Writing the master key and settings to .env');
     const envPath = join(options.hostDir, '.env');
@@ -511,7 +517,7 @@ export async function restoreExport(docker: DockerService, options: RestoreOptio
       ...(summary.license ? { license: summary.license } : {}),
       ...(summary.ownerSignIn && options.ownerLinkClaimHash ? { ownerLinkClaimHash: options.ownerLinkClaimHash } : {}),
     };
-    await writeMarker(docker, installation, volumeName('gateway_data'), marker);
+    await writeMarker(docker, installation, volumeName(LEGACY_VOLUME_APP_DATA), marker);
     await flushRedis(docker, installation);
     await dropDatabaseRollback(docker, installation);
   } catch (error) {
@@ -594,12 +600,12 @@ async function writeMarker(
     Image: installation.helperImage,
     Cmd: ['true'],
     Labels: { 'net.opfield.configuration-transfer': installation.project },
-    HostConfig: { Binds: [`${volume}:/opfield-transfer/gateway_data`], NetworkMode: 'none' },
+    HostConfig: { Binds: [`${volume}:/opfield-transfer/${LEGACY_VOLUME_APP_DATA}`], NetworkMode: 'none' },
   });
   try {
     const tar = Buffer.concat([
-      directoryTarEntry(`gateway_data/${RESTORE_STAGING_DIR}/`),
-      singleFileTar(`gateway_data/${RESTORE_STAGING_DIR}/${RESTORED_MARKER_FILE}`, Buffer.from(JSON.stringify(marker))),
+      directoryTarEntry(`${LEGACY_VOLUME_APP_DATA}/${RESTORE_STAGING_DIR}/`),
+      singleFileTar(`${LEGACY_VOLUME_APP_DATA}/${RESTORE_STAGING_DIR}/${RESTORED_MARKER_FILE}`, Buffer.from(JSON.stringify(marker))),
     ]);
     await docker.putContainerArchiveStream(helper, '/opfield-transfer', Readable.from([tar]));
   } finally {
@@ -656,7 +662,7 @@ async function undo(docker: DockerService, installation: ComposeInstallation, ro
             docker,
             installation,
             entry.volume,
-            entry.key === 'gateway_data' ? [RESTORE_STAGING_DIR] : []
+            entry.key === LEGACY_VOLUME_APP_DATA ? [RESTORE_STAGING_DIR] : []
           );
         }
         return;

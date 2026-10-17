@@ -35,6 +35,7 @@ import type { AppMemberFreeze } from './app-member-freeze.js';
 import type { AppMembersReader } from './app-members.service.js';
 import { type PromotableType, type PromotionPair, pairMembers, type UnpairedMember } from './app-promotion-pairing.js';
 import type { AppActor, AppEnvironmentRow, AppsService } from './apps.service.js';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('AppPromotion');
 
@@ -989,7 +990,7 @@ export class AppPromotionService {
     }
     await this.resolve(DockerInternalRegistryService)?.assertBuildAdmission();
     const owner = createHash('sha256').update(ownerKey).digest('hex').slice(0, 16);
-    const repository = `gateway/promotion/${owner}/${Date.now()}`;
+    const repository = `${LEGACY_REGISTRY_NAMESPACE}/promotion/${owner}/${Date.now()}`;
     await registry.ensureBinding({
       nodeId,
       role: 'mirror',

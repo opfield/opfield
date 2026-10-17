@@ -117,7 +117,7 @@ function nonNegativeInteger(value: unknown, name: string): number {
 
 export function assertArchiveResolutionSize(resolution: z.infer<typeof ContainerArchiveResolutionSchema>) {
   if (Buffer.byteLength(JSON.stringify(resolution), 'utf8') > RESOLUTION_JSON_MAX_BYTES) {
-    throw new AppError(400, 'GWCA_RESOLUTION_INVALID', 'Archive import resolution is invalid');
+    throw new AppError(400, 'OFCA_RESOLUTION_INVALID', 'Archive import resolution is invalid');
   }
 }
 

@@ -20,6 +20,7 @@ import {
   ReorderIngressGroupSchema,
   UpdateIngressGroupSchema,
 } from './ingress-group.schemas.js';
+import { LEGACY_INGRESS_HEALTH_PATH } from '@/lib/legacy-compat.js';
 
 const TAGS = ['Ingress groups'];
 
@@ -31,7 +32,7 @@ export const listIngressGroupsRoute = appRoute({
   path: '/',
   tags: TAGS,
   summary: 'List ingress groups',
-  description: `${GROUP_DESCRIPTION} Each group lists its members with state (joining, active, draining), node status, published addresses, the health their daemon reports for /.well-known/opfield-ingress-health (/.well-known/gateway-ingress-health on a node IP of an nginx daemon before 2.12.1), and per-member delivery counts.`,
+  description: `${GROUP_DESCRIPTION} Each group lists its members with state (joining, active, draining), node status, published addresses, the health their daemon reports for /.well-known/opfield-ingress-health (${LEGACY_INGRESS_HEALTH_PATH} on a node IP of an nginx daemon before 2.12.1), and per-member delivery counts.`,
   request: { query: IngressGroupListQuerySchema },
   responses: okJson(UnknownListResponseSchema),
 });

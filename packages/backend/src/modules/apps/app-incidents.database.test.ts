@@ -17,6 +17,7 @@ import { AppMemberFreeze } from './app-member-freeze.js';
 import { AppMembersReader, AppMembersService } from './app-members.service.js';
 import { appPlacementForFolder, assertAppPlacement, assertPlacementNotIsolated } from './app-placement-guard.js';
 import { AppsService } from './apps.service.js';
+import { LEGACY_CONTAINER_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 
 vi.mock('@/lib/created-resource-permissions.js', () => ({ grantCreatedResourcePermissions: vi.fn() }));
 
@@ -352,7 +353,7 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
             source,
             alias,
             JSON.stringify(environment),
-            `gateway-link-${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+            `${LEGACY_CONTAINER_LINK_NETWORK_PREFIX}${randomUUID().replace(/-/g, '').slice(0, 16)}`,
             userId,
           ]
         )

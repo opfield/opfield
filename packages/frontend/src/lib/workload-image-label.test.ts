@@ -6,9 +6,10 @@ import {
   shortCommitSha,
   workloadImageLabel,
 } from "./workload-image-label";
+import { LEGACY_INSTALL_DIR_NAME } from "../../../backend/src/lib/legacy-compat";
 
 const DIGEST = `sha256:${"a".repeat(64)}`;
-const BUILT = `127.0.0.1:5443/gateway/builds/3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f@${DIGEST}`;
+const BUILT = `127.0.0.1:5443/${LEGACY_INSTALL_DIR_NAME}/builds/3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f@${DIGEST}`;
 const SOURCE = {
   repositoryFullPath: "acme/shop-api",
   branch: "main",
@@ -36,7 +37,7 @@ describe("workloadImageLabel", () => {
 
   it("shows the image an internal copy was taken from", () => {
     const label = workloadImageLabel({
-      image: "127.0.0.1:5443/gateway/promotion/0011223344556677/1700000000:image",
+      image: `127.0.0.1:5443/${LEGACY_INSTALL_DIR_NAME}/promotion/0011223344556677/1700000000:image`,
       sourceImage: "ghcr.io/acme/web:1.4.2",
     });
     expect(label).toMatchObject({ kind: "image", text: "acme/web:1.4.2" });
@@ -62,8 +63,8 @@ describe("workloadImageLabel", () => {
 describe("internal registry images", () => {
   it("recognises the internal registry host and Opfield repositories", () => {
     expect(isInternalRegistryImage(BUILT)).toBe(true);
-    expect(isInternalRegistryImage("gateway/availability/policy:mirror")).toBe(true);
-    expect(isInternalRegistryImage("registry.example.com/gateway/builds:1")).toBe(false);
+    expect(isInternalRegistryImage(`${LEGACY_INSTALL_DIR_NAME}/availability/policy:mirror`)).toBe(true);
+    expect(isInternalRegistryImage(`registry.example.com/${LEGACY_INSTALL_DIR_NAME}/builds:1`)).toBe(false);
     expect(isInternalRegistryImage("nginx:1.27")).toBe(false);
   });
 

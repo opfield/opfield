@@ -1,7 +1,7 @@
 import os from 'node:os';
 import { join } from 'node:path';
 
-const PRODUCTION_STORAGE_DIR = '/var/lib/gateway/pages';
+const PRODUCTION_STORAGE_DIR = '/var/lib/opfield/pages';
 
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
 export class PageArtifactStore {

@@ -7,6 +7,7 @@ import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { IntegrationsService } from '@/modules/integrations/integrations.service.js';
 import { DomainsService } from './domain.service.js';
 import { domainRecordComment, legacyDomainRecordComment } from './domain.service.shared.js';
+import { LEGACY_DNS_RECORD_COMMENT_PREFIX } from '@/lib/legacy-compat.js';
 
 const DOMAIN_ID = '22222222-2222-4222-8222-222222222222';
 const TARGET = '203.0.113.10';
@@ -78,7 +79,7 @@ const record = (id: string, comment: string | null): DnsRecord => ({
 describe('Cloudflare ownership comment of domain address records', () => {
   it('names records with the Opfield comment', () => {
     expect(domainRecordComment(DOMAIN_ID)).toBe(`opfield:domain:${DOMAIN_ID}`);
-    expect(legacyDomainRecordComment(DOMAIN_ID)).toBe(`wiolett-gateway:domain:${DOMAIN_ID}`);
+    expect(legacyDomainRecordComment(DOMAIN_ID)).toBe(`${LEGACY_DNS_RECORD_COMMENT_PREFIX}${DOMAIN_ID}`);
   });
 
   it('rewrites the pre-2.12.1 comment of a tracked record on reconcile and changes nothing else', async () => {

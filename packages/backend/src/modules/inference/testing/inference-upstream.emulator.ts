@@ -344,10 +344,10 @@ function toolCallFrom(body: unknown): { name: string; arguments: string } {
     .filter((name): name is string => name !== null);
   const name = names.find((candidate) => candidate === 'exec_command') ?? names[0] ?? 'lookup';
   return name === 'exec_command'
-    ? { name, arguments: JSON.stringify({ cmd: "printf 'gateway-tool-ok\\n'" }) }
-    : { name, arguments: JSON.stringify({ q: 'gateway' }) };
+    ? { name, arguments: JSON.stringify({ cmd: "printf 'opfield-tool-ok\\n'" }) }
+    : { name, arguments: JSON.stringify({ q: 'opfield' }) };
 }
 
 function responseText(body: unknown): string {
-  return hasToolResult(asObject(body)) ? 'The command output was `gateway-tool-ok`.' : 'Opfield emulator response.';
+  return hasToolResult(asObject(body)) ? 'The command output was `opfield-tool-ok`.' : 'Opfield emulator response.';
 }

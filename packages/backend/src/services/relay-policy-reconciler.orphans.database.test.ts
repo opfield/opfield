@@ -15,6 +15,7 @@ import {
   storageCopyJobs,
 } from '@/db/schema/index.js';
 import { removeOrphanedRelayState } from './relay-policy-reconciler.js';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const FINGERPRINT = `sha256:${'0'.repeat(64)}`;
@@ -37,7 +38,7 @@ describe.skipIf(!url)('relay state whose owner is gone', () => {
     );
     await migrateDatabase(pool);
     db = drizzle(pool, { schema }) as unknown as DrizzleClient;
-    await db.insert(relayPolicyState).values({ id: 'current', gatewayInstanceId: randomUUID() }).onConflictDoNothing();
+    await db.insert(relayPolicyState).values({ id: 'current', opfieldInstanceId: randomUUID() }).onConflictDoNothing();
   });
 
   afterAll(async () => {
@@ -87,7 +88,7 @@ describe.skipIf(!url)('relay state whose owner is gone', () => {
       })
       .returning();
     // Fixed owners (the internal registry and its ingress) are not judged by this pass.
-    const liveEndpoint = await endpoint('internal_registry', 'gateway-internal-registry', 'gateway');
+    const liveEndpoint = await endpoint('internal_registry', LEGACY_INTERNAL_REGISTRY_ID, `${LEGACY_INSTALL_DIR_NAME}`);
     const liveRoute = await route('registry_secure_link', binding!.id, node!.id, liveEndpoint.id);
     // A storage copy job owns its storage routes under its own id, not a backup run's.
     const [copyJob] = await db

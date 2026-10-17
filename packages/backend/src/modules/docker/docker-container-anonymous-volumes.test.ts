@@ -100,7 +100,7 @@ describe('DockerManagementService.removeContainer anonymous volumes', () => {
     expect(dispatch.sendDockerVolumeCommand).not.toHaveBeenCalledWith('node-1', 'inspect', { name: 'api-uploads' });
   });
 
-  it('keeps an adopted or Gateway-labelled anonymous volume', async () => {
+  it('keeps an adopted or Opfield-labelled anonymous volume', async () => {
     const dispatch = volumeDispatch([
       { Type: 'volume', Name: anonymous, Destination: '/tmp-data' },
       { Type: 'volume', Name: adopted, Destination: '/var/lib/postgresql/data' },
@@ -185,7 +185,7 @@ describe('housekeeping of orphaned anonymous volumes', () => {
     expect(dispatch.sendDockerVolumeCommand).not.toHaveBeenCalledWith('node-1', 'remove', expect.anything());
   });
 
-  it('refuses to remove a Gateway-labelled anonymous volume', async () => {
+  it('refuses to remove a Opfield-labelled anonymous volume', async () => {
     const dispatch = volumeDispatch([]);
     lastInspected = '';
     const remove = removeOrphanedAnonymousVolume(

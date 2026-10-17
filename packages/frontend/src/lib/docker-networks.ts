@@ -1,9 +1,10 @@
+import { LEGACY_OBJECT_NAME_FAMILY } from "../../../backend/src/lib/legacy-compat";
 /**
  * Opfield's own Docker network names (mirrors the backend's docker-object-names.ts). Networks created before 2.12.1
  * keep their earlier names.
  */
 // legacy-name: legacy-prefixed networks of links created before 2.12.1 — remove once every node reports none
-const NETWORK_FAMILY = "(?:opfield|gateway)";
+const NETWORK_FAMILY = `(?:opfield|${LEGACY_OBJECT_NAME_FAMILY})`;
 
 /** A storage link network (`opfield-storage-<16 hex>`) or a managed storage cluster network. */
 const OPFIELD_STORAGE_NETWORK = new RegExp(

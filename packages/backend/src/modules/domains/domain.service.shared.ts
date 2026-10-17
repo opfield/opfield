@@ -1,6 +1,7 @@
 import type { DnsRecords } from '@/db/schema/domains.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CloudflareClient, CloudflareDnsRecordInput } from '@/modules/integrations/cloudflare-client.js';
+import { LEGACY_DNS_RECORD_COMMENT_PREFIX } from '@/lib/legacy-compat.js';
 export const logger = createChildLogger('DomainsService');
 
 /** Comment on the Cloudflare address records Opfield creates for a domain; it recovers them when their ids are lost. */
@@ -11,7 +12,7 @@ export function domainRecordComment(domainId: string): string {
 // legacy-name: the pre-2.12.1 DNS record comment — records created before 2.12.1 carry it until the
 // next reconcile rewrites it; remove once no Cloudflare record carries it.
 export function legacyDomainRecordComment(domainId: string): string {
-  return `wiolett-gateway:domain:${domainId}`;
+  return `${LEGACY_DNS_RECORD_COMMENT_PREFIX}${domainId}`;
 }
 
 export interface DomainUsage {

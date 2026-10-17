@@ -95,7 +95,7 @@ export async function prepareDockerArchiveExport(
       ],
     },
     args: { kind, nodeId, containerId, ...query },
-    suggestedFilename: `${sanitizeFilename(String(inspected?.Name ?? containerId).replace(/^\/+/, '')) || 'container'}.gwca`,
+    suggestedFilename: `${sanitizeFilename(String(inspected?.Name ?? containerId).replace(/^\/+/, '')) || 'container'}.ofca`,
     open: async () => {
       const archive = await openDockerContainerArchiveExport({
         nodeId,

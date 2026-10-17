@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { Env } from '@/config/env.js';
 import { AppError } from '@/middleware/error-handler.js';
 
-const PRODUCTION_ARTIFACT_DIR = '/var/lib/gateway/ai-artifacts';
+const PRODUCTION_ARTIFACT_DIR = '/var/lib/opfield/ai-artifacts';
 const LOCAL_ARTIFACT_DIR = path.join(os.tmpdir(), 'opfield-ai-artifacts');
 export const AI_TOOL_OUTPUT_MAX_BYTES = 50 * 1024 * 1024;
 export const AI_TOOL_OUTPUT_CONVERSATION_MAX_BYTES = 250 * 1024 * 1024;

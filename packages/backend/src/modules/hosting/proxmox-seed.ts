@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { AppError } from '@/middleware/error-handler.js';
 import type { HostingCreateRequest } from './hosting-provider.types.js';
+import { LEGACY_HOSTING_BOOTSTRAP_FILE } from '@/lib/legacy-compat.js';
 
 const execute = promisify(execFile);
 export async function assertProxmoxSeedRuntime() {
@@ -58,7 +59,7 @@ export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
       packages: ['bash', 'curl', 'ca-certificates', 'qemu-guest-agent', 'jq', 'openssl', 'coreutils', 'util-linux'],
       write_files: [
         {
-          path: '/var/lib/gateway-hosting-bootstrap.sh',
+          path: '${LEGACY_HOSTING_BOOTSTRAP_FILE}',
           permissions: '0700',
           owner: 'root:root',
           content: input.userData,
@@ -73,7 +74,7 @@ export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
         [
           'bash',
           '-c',
-          'trap "rm -f /var/lib/gateway-hosting-bootstrap.sh" EXIT; bash /var/lib/gateway-hosting-bootstrap.sh',
+          'trap "rm -f ${LEGACY_HOSTING_BOOTSTRAP_FILE}" EXIT; bash ${LEGACY_HOSTING_BOOTSTRAP_FILE}',
         ],
       ],
     })}\n`,

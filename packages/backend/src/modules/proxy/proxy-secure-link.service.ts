@@ -31,6 +31,7 @@ import {
   syncableAvailabilityMember,
 } from './proxy-secure-link-availability.js';
 import { secureLinkLoopbackAddress } from './secure-link-loopback.js';
+import { LEGACY_NGINX_VARIABLE_PREFIX } from '@/lib/legacy-compat.js';
 
 type ProxyHostRow = typeof proxyHosts.$inferSelect;
 export type ProxyAdditionalSecureLinkRow = typeof proxyAdditionalSecureLinks.$inferSelect;
@@ -110,8 +111,8 @@ function additionalSecureLinkVariablePattern(name: string): RegExp {
 // (hex and dashes), so no regex escaping is required; either separator is accepted.
 function additionalSecureLinkUpstreamPattern(bindingId: string): RegExp {
   const id = bindingId.toLowerCase().split('-').join('[-_]');
-  // legacy-name: gateway_additional_secure_link_ of configs written before 2.12.1 — remove once every node reports none
-  return new RegExp(`(?:opfield|gateway)_additional_secure_link_${id}(?![A-Za-z0-9_])`, 'i');
+  // legacy-name: the legacy upstream names of configs written before 2.12.1 — remove once every node reports none
+  return new RegExp(`(?:opfield_|${LEGACY_NGINX_VARIABLE_PREFIX})additional_secure_link_${id}(?![A-Za-z0-9_])`, 'i');
 }
 
 function firstReference(text: string | null | undefined, patterns: RegExp[]): string | null {

@@ -33,6 +33,7 @@ import { adminRoutes, generalSettingsRollbackFields, generalSettingsRollbackPatc
 import { AdminUserFolderService } from './admin-user-folders.service.js';
 import { findCloudManagedChanges } from './cloud-managed-settings.js';
 import { findIdentityTrustChanges } from './identity-trust-settings.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = 'http://localhost/db';
@@ -573,7 +574,7 @@ describe('admin Opfield settings route permissions', () => {
         username: 'logger',
         passwordLast4: '9012',
         database: 'private_logs',
-        table: 'gateway_events',
+        table: `${LEGACY_INSTALL_DIR_NAME}_events`,
         requestTimeoutMs: 9000,
       }),
     } as unknown as LoggingSettingsService);
@@ -587,7 +588,7 @@ describe('admin Opfield settings route permissions', () => {
         hideExternalBranding: false,
         fileUploadMaxBytes: 100,
         fileOpenMaxBytes: 10,
-        grpcPublicTarget: 'gateway.internal:9443',
+        grpcPublicTarget: `${LEGACY_INSTALL_DIR_NAME}.internal:9443`,
         grpcLocalIp: '10.0.0.2:9443',
         relayAutoRecovery: true,
         relay: { dataLanes: 8 },
@@ -790,7 +791,7 @@ describe('admin Opfield settings route permissions', () => {
           host: 'smtp.example.com',
           port: 587,
           tlsMode: 'starttls',
-          username: 'gateway',
+          username: `${LEGACY_INSTALL_DIR_NAME}`,
           password,
           senderName: 'Opfield',
           senderEmail: 'security@example.com',
@@ -1477,7 +1478,7 @@ describe('identity-trust settings require admin:system', () => {
     host: 'smtp.example.com',
     port: 587,
     tlsMode: 'starttls',
-    username: 'gateway',
+    username: `${LEGACY_INSTALL_DIR_NAME}`,
     senderName: 'Opfield',
     senderEmail: 'security@example.com',
   };
@@ -1490,7 +1491,7 @@ describe('identity-trust settings require admin:system', () => {
     host: 'smtp.example.com',
     port: 587,
     tlsMode: 'starttls' as const,
-    username: 'gateway',
+    username: `${LEGACY_INSTALL_DIR_NAME}`,
     senderName: 'Opfield',
     senderEmail: 'Security@Example.com',
   };
@@ -1507,7 +1508,7 @@ describe('identity-trust settings require admin:system', () => {
         {
           oidc: {
             issuer: 'https://idp.attacker.example',
-            clientId: 'gateway',
+            clientId: `${LEGACY_INSTALL_DIR_NAME}`,
             redirectUri: 'https://opfield.example.com/auth/callback',
           },
         },

@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger.js';
 import { ONE_TIME_LINK_TOKEN_PATH } from '@/lib/one-time-link-path.js';
 import { requestStats } from '@/modules/diagnostics/request-stats.js';
 import type { AppEnv } from '@/types.js';
+import { LEGACY_HEALTH_PROBE_HEADER } from '@/lib/legacy-compat.js';
 
 const DOCKER_WEBHOOK_TOKEN_PATH = /^(\/api\/webhooks\/docker\/)[^/]+(?=\/|$)/;
 
@@ -25,9 +26,9 @@ export const loggerMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       ? {
           healthProbe:
             c.req.header('x-opfield-health-probe') ??
-            // legacy-name: x-gateway-health-probe — sent by a browser that still runs the console of a release before
+            // legacy-name: LEGACY_HEALTH_PROBE_HEADER — sent by a browser that still runs the console of a release before
             // 2.12.1 (cached across the update) — remove once no supported update starts from a version before 2.12.1.
-            c.req.header('x-gateway-health-probe') ??
+            c.req.header(LEGACY_HEALTH_PROBE_HEADER) ??
             'unattributed',
         }
       : {}),

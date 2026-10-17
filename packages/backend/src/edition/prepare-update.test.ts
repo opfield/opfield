@@ -12,6 +12,7 @@ import {
   pruneCommercialVersions,
   readPreparedCommercialUpdate,
 } from './prepare-update.js';
+import { LEGACY_COMMERCIAL_MANIFEST_KIND, LEGACY_ENV_PREFIX, LEGACY_INSTALL_DIR_NAME, LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
 const key = generateKeyPairSync('ed25519');
 const publicKey = key.publicKey.export({ type: 'spki', format: 'pem' });
@@ -28,7 +29,7 @@ function release(version: string, code = 'module.exports.default={apiVersion:1,r
   const files = { 'backend/index.cjs': code, 'frontend/paid.js': '/* paid interface */' };
   const payload = Buffer.from(
     JSON.stringify({
-      kind: 'gateway-commercial',
+      kind: LEGACY_COMMERCIAL_MANIFEST_KIND,
       version,
       hostVersion: version,
       hostApiVersion: 1,
@@ -42,7 +43,7 @@ function release(version: string, code = 'module.exports.default={apiVersion:1,r
   );
   const signedManifest = JSON.stringify({
     schemaVersion: 1,
-    keyId: 'wiolett-update-v1',
+    keyId: LEGACY_UPDATE_KEY_ID,
     payload: payload.toString('base64url'),
     signature: sign(null, payload, key.privateKey).toString('base64url'),
   });
@@ -104,7 +105,7 @@ describe('private core update preparation', () => {
     const source = release(failure === 'wrong-version' ? 'v3.0.0-rc.9' : version);
     if (source.grant.edition !== 'commercial') throw new Error('test fixture');
     if (failure === 'bad-signature')
-      source.grant.signedManifest = source.grant.signedManifest.replace('wiolett-update-v1', 'untrusted');
+      source.grant.signedManifest = source.grant.signedManifest.replace(LEGACY_UPDATE_KEY_ID, 'untrusted');
     if (failure === 'tamper') {
       const originalRead = source.read.getMockImplementation()!;
       source.read.mockImplementation(
@@ -135,7 +136,7 @@ describe('private core update preparation', () => {
     });
     await writeFile(
       join(hostDir, '.env'),
-      `GATEWAY_RELAY_IMAGE_REF=relay@sha256:${'a'.repeat(64)}\nGATEWAY_IMAGE_REF=old-image\nGATEWAY_COMMERCIAL_DIR=/var/lib/gateway/commercial/versions/${oldVersion}\n`
+      `${LEGACY_ENV_PREFIX}RELAY_IMAGE_REF=relay@sha256:${'a'.repeat(64)}\n${LEGACY_ENV_PREFIX}IMAGE_REF=old-image\n${LEGACY_ENV_PREFIX}COMMERCIAL_DIR=/var/lib/${LEGACY_INSTALL_DIR_NAME}/commercial/versions/${oldVersion}\n`
     );
     await writeFile(
       join(hostDir, 'docker-compose.yml'),
@@ -160,7 +161,7 @@ describe('private core update preparation', () => {
     expect(await readFile(join(hostDir, '.env'), 'utf8')).toContain(`/versions/${nextVersion}`);
     // A fresh directory gets the Opfield commercial directory, and Compose mounts the directory the core went to.
     expect(await readFile(join(hostDir, 'docker-compose.yml'), 'utf8')).toContain(
-      './.opfield-commercial:/var/lib/gateway/commercial:ro'
+      `./.opfield-commercial:/var/lib/${LEGACY_INSTALL_DIR_NAME}/commercial:ro`
     );
     await copyFile(join(result.backupDir!, '.env'), join(hostDir, '.env'));
     await copyFile(join(result.backupDir!, 'docker-compose.yml'), join(hostDir, 'docker-compose.yml'));
@@ -238,7 +239,7 @@ describe('private core update preparation', () => {
     const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
     await utimes(oldStage, old, old);
     await utimes(oldDownload, old, old);
-    await writeFile(join(hostDir, '.env'), 'OPFIELD_COMMERCIAL_DIR=/var/lib/gateway/commercial/versions/v2.12.1\n');
+    await writeFile(join(hostDir, '.env'), `OPFIELD_COMMERCIAL_DIR=/var/lib/${LEGACY_INSTALL_DIR_NAME}/commercial/versions/v2.12.1\n`);
 
     const removed = await pruneCommercialVersions(root, hostDir, 'v2.12.3');
 

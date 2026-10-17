@@ -1,5 +1,6 @@
 import { createPublicKey, type KeyObject, randomBytes, verify } from 'node:crypto';
 import type { LicenseServerState } from './license.types.js';
+import { LEGACY_LICENSE_STATE_DOMAIN, LEGACY_LICENSE_STATE_DOMAIN_SHORT } from '@/lib/legacy-compat.js';
 
 /**
  * Ed25519 keys that sign license states, pinned per release by key ID. To rotate,
@@ -10,13 +11,13 @@ export const LICENSE_SIGNING_PUBLIC_KEYS: Readonly<Record<string, string>> = {
   'gls-2026-09': 'MCowBQYDK2VwAyEAZX35QFLWBje3DAcauLqCM7iie8fGYcheVEVKMO+TuQM=',
 };
 
-export const LICENSE_ATTESTATION_KIND = 'gateway-license-state';
+export const LICENSE_ATTESTATION_KIND = LEGACY_LICENSE_STATE_DOMAIN_SHORT;
 /** A fresh response must be issued within this window of the local clock. */
 export const LICENSE_ATTESTATION_MAX_CLOCK_SKEW_MS = 15 * 60 * 1000;
 
 const SCHEMA_VERSION = 1;
 const ALGORITHM = 'Ed25519';
-const MESSAGE_PREFIX = Buffer.from('wiolett-gateway-license-state/v1\n', 'utf8');
+const MESSAGE_PREFIX = Buffer.from(`${LEGACY_LICENSE_STATE_DOMAIN}\n`, 'utf8');
 const MAX_ATTESTATION_BYTES = 256 * 1024;
 
 export type LicenseAttestationPurpose = 'register' | 'heartbeat' | 'activate' | 'deactivate' | 'release-authorize';

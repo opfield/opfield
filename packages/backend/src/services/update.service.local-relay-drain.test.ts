@@ -3,6 +3,7 @@ import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/
 import type { TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import { waitForLocalRelayEvacuation } from './relay-local-takeover.js';
 import { UpdateService } from './update.service.js';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_MIN_VERSION_FIELD, LEGACY_THESQLABS_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 
 vi.mock('./relay-local-takeover.js', () => ({
   waitForLocalRelayEvacuation: vi.fn(),
@@ -13,7 +14,7 @@ vi.mock('./relay-local-takeover.js', () => ({
 const MIGRATED = {
   exitCode: 0,
   output:
-    '{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/gateway/sandbox-workspaces"}',
+    `{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
 };
 const IN_FLIGHT = ['draining', 'updating', 'verifying', 'rolling_back'];
 
@@ -111,8 +112,8 @@ function localStepPool(
       Config: {
         Image: 'registry.example.com/opfield/opfield:v2.4.2',
         Labels: {
-          'com.docker.compose.project.working_dir': '/srv/gateway',
-          'com.docker.compose.project': 'gateway',
+          'com.docker.compose.project.working_dir': '/srv/opfield',
+          'com.docker.compose.project': `${LEGACY_INSTALL_DIR_NAME}`,
         },
       },
     }),
@@ -130,8 +131,8 @@ function localStepPool(
     dockerService as never,
     {
       APP_VERSION: 'v2.4.2',
-      COMPOSE_PROJECT_DIR: '/srv/gateway',
-      RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
+      COMPOSE_PROJECT_DIR: '/srv/opfield',
+      RELEASES_API_URL: `${LEGACY_THESQLABS_UPDATES_BASE_URL}/releases`,
       OPFIELD_RELAY_IMAGE_REF: `registry.example.com/opfield/opfield/relay@sha256:${'b'.repeat(64)}`,
       OPFIELD_RELAY_BUILD_VERSION: 'v2.4.2',
       OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
@@ -164,7 +165,7 @@ function relayArtifact(): TrustedRelayUpdateArtifact {
     digest: `sha256:${'a'.repeat(64)}`,
     buildVersion: 'v2.4.3',
     protocolMajor: 1,
-    minGatewayVersion: 'v2.4.2',
+    minOpfieldVersion: 'v2.4.2',
     secureLinkConnectorImage,
     signedManifest: 'signed-relay',
     payload: {
@@ -175,7 +176,7 @@ function relayArtifact(): TrustedRelayUpdateArtifact {
       digest: `sha256:${'a'.repeat(64)}`,
       imageRef,
       protocolMajor: 1,
-      minGatewayVersion: 'v2.4.2',
+      [LEGACY_MIN_VERSION_FIELD]: 'v2.4.2',
       secureLinkConnectorImage,
       createdAt: '2026-06-30T00:00:00.000Z',
     },

@@ -9,6 +9,7 @@ import { DockerEnvironmentService } from './docker-environment.service.js';
 import { DockerMigrationDispatchAdapter } from './docker-migration-dispatch.js';
 import { DockerRegistryService } from './docker-registry.service.js';
 import { DockerSecretService } from './docker-secret.service.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX, LEGACY_INSTALL_DIR_NAME, LEGACY_SECURE_LINK_NETWORK } from '@/lib/legacy-compat.js';
 
 const NODE_ID = '11111111-1111-4111-8111-111111111111';
 const FOLDER_ID = '22222222-2222-4222-8222-222222222222';
@@ -122,12 +123,12 @@ describe('container archive import destination', () => {
     expect(docker.registerImportedContainer).not.toHaveBeenCalled();
   });
 
-  it('refuses archive networks a direct create refuses: host, shared namespaces and Gateway-managed networks', async () => {
+  it('refuses archive networks a direct create refuses: host, shared namespaces and Opfield-managed networks', async () => {
     const scopes = [`docker:containers:create:${NODE_ID}`, `docker:networks:create:${NODE_ID}`];
-    for (const name of ['host', 'container:abc', 'gateway-secure-links', 'gateway-db-0123456789abcdef']) {
+    for (const name of ['host', 'container:abc', LEGACY_SECURE_LINK_NETWORK, `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}0123456789abcdef`]) {
       const { docker } = setup({ networks: [{ name, createable: true }] });
       await expect(importInto(undefined, scopes)).rejects.toMatchObject({
-        statusCode: name.startsWith('gateway') ? 409 : 400,
+        statusCode: name.startsWith(`${LEGACY_INSTALL_DIR_NAME}`) ? 409 : 400,
       });
       expect(docker.registerImportedContainer).not.toHaveBeenCalled();
       container.reset();

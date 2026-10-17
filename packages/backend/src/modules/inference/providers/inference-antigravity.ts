@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '@/middleware/error-handler.js';
 import type { InferenceCredentialPayload } from './inference-provider.types.js';
+import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
 
 const PROD_API = 'https://cloudcode-pa.googleapis.com';
 const DAILY_API = 'https://daily-cloudcode-pa.googleapis.com';
-const USER_AGENT = 'antigravity/1.104.0 gateway';
+const USER_AGENT = `antigravity/1.104.0 ${LEGACY_PROVIDER_CLIENT_ID}`;
 type Fetcher = typeof fetch;
 
 export async function discoverAntigravityProject(

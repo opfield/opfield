@@ -27,7 +27,7 @@ const PAGE_SIZE = 50;
 const MAX_PAGES = 100;
 const MARKER_LABEL = 'marker';
 // legacy-name: the pre-2.12.1 Hetzner server label — remove once every hosting resource was reconciled by 2.12.1+
-const LEGACY_MARKER_LABEL = 'gateway-marker';
+const LEGACY_MARKER_LABEL = LEGACY_HOSTING_MARKER_LABEL;
 type Json = Record<string, unknown>;
 type HAddress = { ip: string; network: string; mac?: string };
 type HType = {
@@ -532,3 +532,4 @@ export class HetznerHostingAdapter implements HostingProviderAdapter {
 }
 
 import { VmSnapshotAdapter } from './vm-snapshots.js';
+import { LEGACY_HOSTING_MARKER_LABEL } from '@/lib/legacy-compat.js';

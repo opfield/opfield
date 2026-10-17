@@ -38,6 +38,7 @@ import {
   type SignedLicenseState,
 } from './license-attestation.js';
 import { LicenseServiceEndpoints } from './license-endpoints.js';
+import { LEGACY_LICENSE_VERSION_FIELD } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('LicenseService');
 
@@ -399,7 +400,7 @@ export class LicenseService {
       const signed = await this.postSignedState('/api/v1/installations/heartbeat', 'heartbeat', {
         installationToken: credential.token,
         installationName: this.getInstallationName(),
-        gatewayVersion: this.env.APP_VERSION,
+        [LEGACY_LICENSE_VERSION_FIELD]: this.env.APP_VERSION,
         entitlementsVersion: LICENSE_ENTITLEMENTS_VERSION,
       });
       await this.saveServerState(signed);
@@ -477,7 +478,7 @@ export class LicenseService {
       installationId: await this.getInstallationId(),
       registrationNonce: nonce,
       installationName: this.getInstallationName(),
-      gatewayVersion: this.env.APP_VERSION,
+      [LEGACY_LICENSE_VERSION_FIELD]: this.env.APP_VERSION,
       entitlementsVersion: LICENSE_ENTITLEMENTS_VERSION,
       ...this.bindingBody(binding),
     });

@@ -11,12 +11,12 @@ const logger = createChildLogger('ConfigurationRestore');
 /**
  * The first start after a restore: applies the address entered for the new host (before the gRPC
  * and web listener certificates are checked, so they are reissued for it), records the restore in
- * the audit log and removes what the restore left in gateway_data.
+ * the audit log and removes what the restore left in LEGACY_VOLUME_APP_DATA.
  */
 export async function completeConfigurationRestore(
   generalSettings: Pick<GeneralSettingsService, 'updateConfig'>,
   audit: Pick<AuditService, 'log'>,
-  dataDir = '/var/lib/gateway',
+  dataDir = '/var/lib/opfield',
   /** Issues the owner's password link for the wizard browser holding the claim (a managed source's export). */
   issueOwnerLink?: (claimHash: string) => Promise<void>
 ): Promise<RestoredMarker | null> {

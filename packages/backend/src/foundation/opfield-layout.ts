@@ -25,6 +25,7 @@ import {
   renameLegacyEnvFileKeys,
   withRelayBinary,
 } from './opfield-names.js';
+import { LEGACY_REGISTRY_TOKEN_REALM } from '@/lib/legacy-compat.js';
 
 /**
  * docker-compose.yml and .env of the Opfield layout, made from the files of an installation in the earlier layout:
@@ -40,7 +41,7 @@ export interface OpfieldLayoutInput {
   currentProject: string;
   /** Docker volumes that exist on the host. */
   existingVolumes: ReadonlySet<string>;
-  /** Whether the move renames `.gateway-commercial` to `.opfield-commercial`. */
+  /** Whether the move renames `LEGACY_COMMERCIAL_DIR_NAME` to `.opfield-commercial`. */
   renameCommercialDir: boolean;
 }
 
@@ -84,7 +85,7 @@ export function toOpfieldLayout(input: OpfieldLayoutInput): OpfieldLayoutOutput 
         ),
         `$1${REGISTRY_TOKEN_SERVICE}`
       )
-      .replace('https://gateway.invalid/api/docker/registry/token', 'https://opfield.invalid/api/docker/registry/token')
+      .replace(LEGACY_REGISTRY_TOKEN_REALM, 'https://opfield.invalid/api/docker/registry/token')
       .replaceAll(LEGACY_SANDBOX_WORKSPACE_DIR, DEFAULT_SANDBOX_WORKSPACE_DIR)
   );
   // The move recreates the relay: it runs the Opfield binary when its image has one.

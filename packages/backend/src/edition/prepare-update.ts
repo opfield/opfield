@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { installCommercialRelease } from './install.js';
 import { sha256, verifyCommercialRelease } from './loader.js';
 import { COMMERCIAL_RELEASE_ID, verifyCommercialManifest } from './manifest.js';
+import { LEGACY_APP_DATA_DIR, LEGACY_COMMERCIAL_DIR_NAME, LEGACY_ENV_PREFIX } from '@/lib/legacy-compat.js';
 
 export type CommercialUpdateGrant =
   | { edition: 'community' }
@@ -26,7 +27,7 @@ export function commercialVersionKey(version: string): string {
 export const COMMERCIAL_HOST_DIR = '.opfield-commercial';
 // legacy-name: the commercial core directory of installations that have not moved to the Opfield layout yet (the move renames
 // it) — remove once every installation reports the Opfield layout.
-export const LEGACY_COMMERCIAL_HOST_DIR = '.gateway-commercial';
+export const LEGACY_COMMERCIAL_HOST_DIR = LEGACY_COMMERCIAL_DIR_NAME;
 
 /** The commercial directory of an installation: the legacy one while it exists, otherwise the Opfield one. */
 export function commercialHostRoot(hostDir: string): string {
@@ -251,15 +252,18 @@ function compareCommercialVersions(a: string, b: string): number {
   return 0;
 }
 
+const escapePattern = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const COMMERCIAL_DIR_SETTING = new RegExp(
+  `^(?:OPFIELD_|${escapePattern(LEGACY_ENV_PREFIX)})COMMERCIAL_DIR=(["']?)(?:/var/lib/opfield|${escapePattern(LEGACY_APP_DATA_DIR)})/commercial/versions/([^/\\s"']+)\\1\\s*$`
+);
+
 /** The version whose private core the installation runs, from the commercial directory its `.env` names. */
 async function runningCommercialVersion(hostDir: string): Promise<string | null> {
   const env = await readFile(join(hostDir, '.env'), 'utf8').catch(() => '');
   for (const line of env.split(/\r?\n/)) {
-    // legacy-name: installs from before Opfield name the directory GATEWAY_COMMERCIAL_DIR under /var/lib/gateway.
-    const match =
-      /^(?:OPFIELD|GATEWAY)_COMMERCIAL_DIR=(["']?)\/var\/lib\/gateway\/commercial\/versions\/([^/\s"']+)\1\s*$/.exec(
-        line
-      );
+    // legacy-name: installs from before Opfield name the setting with LEGACY_ENV_PREFIX and the directory under
+    // LEGACY_APP_DATA_DIR; installs from 2.12.3 under /var/lib/opfield.
+    const match = COMMERCIAL_DIR_SETTING.exec(line);
     if (match && isCommercialVersionKey(match[2])) return match[2];
   }
   return null;

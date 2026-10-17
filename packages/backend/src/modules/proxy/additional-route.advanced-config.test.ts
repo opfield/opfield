@@ -6,13 +6,14 @@ import type { ProxyHostConfig } from '@/services/nginx-config-generator.service.
 import { AdditionalRouteService } from './additional-route.service.js';
 import { additionalRouteAdvancedConfigErrors } from './additional-route.validation.js';
 import { NginxTemplateService } from './nginx-template.service.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const HOST = '11111111-1111-4111-8111-111111111111';
 
 describe('Additional Route advanced config', () => {
   it.each([
     ['include', 'include /etc/nginx/nginx.conf;'],
-    ['access_log', 'access_log /etc/cron.d/gateway;'],
+    ['access_log', `access_log /etc/cron.d/${LEGACY_INSTALL_DIR_NAME};`],
     ['load_module', 'load_module /tmp/evil.so;'],
     ['lua_', 'access_by_lua_file /tmp/a.lua;'],
     ['allow', 'allow all;'],

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AppError } from '@/middleware/error-handler.js';
 import { RelayRegistryService } from './relay-registry.service.js';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 const binding = (id: string, role: string, repository: string, actions: string[]) => ({
   id,
@@ -16,8 +17,8 @@ const binding = (id: string, role: string, repository: string, actions: string[]
 
 function service(writable: boolean) {
   const bindings = [
-    binding('b1', 'mirror', 'gateway/availability/policy-1/1/3', ['pull', 'push']),
-    binding('b2', 'runtime', 'gateway/availability/policy-1/1/2', ['pull']),
+    binding('b1', 'mirror', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/3`, ['pull', 'push']),
+    binding('b2', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/2`, ['pull']),
   ];
   const db = {
     select: () => ({ from: () => ({ where: async () => bindings }) }),
@@ -54,8 +55,8 @@ describe('registry binding sync while the registry takes no writes', () => {
       Array<{ bindingId: string; authorization: string }>,
     ];
     expect(desired.map((entry) => [entry.bindingId, entry.authorization])).toEqual([
-      ['b1', 'Bearer token:gateway/availability/policy-1/1/3:pull'],
-      ['b2', 'Bearer token:gateway/availability/policy-1/1/2:pull'],
+      ['b1', `Bearer token:${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/3:pull`],
+      ['b2', `Bearer token:${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/2:pull`],
     ]);
   });
 
@@ -68,7 +69,7 @@ describe('registry binding sync while the registry takes no writes', () => {
       string,
       Array<{ bindingId: string; authorization: string }>,
     ];
-    expect(desired[0]!.authorization).toBe('Bearer token:gateway/availability/policy-1/1/3:pull+push');
+    expect(desired[0]!.authorization).toBe(`Bearer token:${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/3:pull+push`);
   });
 });
 
@@ -76,7 +77,7 @@ describe('registry binding sync across an Opfield restart (S6)', () => {
   function hanging() {
     const db = {
       select: () => ({
-        from: () => ({ where: async () => [binding('b1', 'runtime', 'gateway/availability/policy-1/1/14', ['pull'])] }),
+        from: () => ({ where: async () => [binding('b1', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/14`, ['pull'])] }),
       }),
       update: () => ({ set: () => ({ where: async () => undefined }) }),
     };
@@ -141,9 +142,9 @@ describe('registry binding sync across an Opfield restart (S6)', () => {
 describe('registry bindings of earlier Availability images', () => {
   it('revokes the context bindings of repositories no pinned image uses and syncs each node once', async () => {
     const rows = [
-      { ...binding('old-1', 'runtime', 'gateway/availability/policy-1/1/12', ['pull']), nodeId: 'node-1' },
-      { ...binding('old-2', 'runtime', 'gateway/availability/policy-1/1/12', ['pull']), nodeId: 'node-2' },
-      { ...binding('kept', 'runtime', 'gateway/availability/policy-1/1/14', ['pull']), nodeId: 'node-2' },
+      { ...binding('old-1', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/12`, ['pull']), nodeId: 'node-1' },
+      { ...binding('old-2', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/12`, ['pull']), nodeId: 'node-2' },
+      { ...binding('kept', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/14`, ['pull']), nodeId: 'node-2' },
     ];
     const revokedIds: unknown[] = [];
     const db = {
@@ -170,7 +171,7 @@ describe('registry bindings of earlier Availability images', () => {
       relayRegistry.retainContextBindings({
         contextKind: 'availability',
         contextId: 'policy-1',
-        repositories: ['gateway/availability/policy-1/1/14'],
+        repositories: [`${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/14`],
       })
     ).resolves.toBe(2);
 

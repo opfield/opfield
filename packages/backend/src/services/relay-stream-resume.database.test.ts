@@ -22,6 +22,7 @@ import {
   RelayStreamResumeService,
   relayInstanceFullyResumable,
 } from './relay-stream-resume.js';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
@@ -57,7 +58,7 @@ describe.skipIf(!url)('resumable relay streams', () => {
     await migrateDatabase(pool, '0226_relay_pool_update_step_skipped');
     const nodeId = randomUUID();
     const endpointId = randomUUID();
-    await pool.query(`insert into relay_policy_state (id, gateway_instance_id, revision) values ('current', $1, 7)`, [
+    await pool.query(`insert into relay_policy_state (id, ${LEGACY_INSTALL_DIR_NAME}_instance_id, revision) values ('current', $1, 7)`, [
       randomUUID(),
     ]);
     await pool.query(`insert into nodes (id, type, hostname, slug) values ($1, 'docker', 'n', $2)`, [
@@ -307,7 +308,7 @@ describe.skipIf(!url)('resumable relay streams', () => {
     it('makes a new Opfield route resumable before Opfield opens it', async () => {
       await db
         .update(relayRoutes)
-        .set({ sourceKind: 'gateway', sourceId: 'gateway' })
+        .set({ sourceKind: LEGACY_RELAY_SOURCE_KIND, sourceId: `${LEGACY_INSTALL_DIR_NAME}` })
         .where(eq(relayRoutes.id, routeId));
       await service.enableBeforeSourceSync({ routeIds: [routeId] });
       expect(syncs.map(({ nodeId, state }) => [nodeId, state])).toEqual([[targetId, 'enabling']]);
@@ -317,7 +318,7 @@ describe.skipIf(!url)('resumable relay streams', () => {
     it('needs no delivery for an Opfield source', async () => {
       await db
         .update(relayRoutes)
-        .set({ sourceKind: 'gateway', sourceId: 'gateway' })
+        .set({ sourceKind: LEGACY_RELAY_SOURCE_KIND, sourceId: `${LEGACY_INSTALL_DIR_NAME}` })
         .where(eq(relayRoutes.id, routeId));
       await service.reconcile();
       expect(syncs.map(({ nodeId, state }) => [nodeId, state])).toEqual([[targetId, 'enabling']]);

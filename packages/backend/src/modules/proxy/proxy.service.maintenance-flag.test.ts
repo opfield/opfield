@@ -7,6 +7,7 @@ import { MAINTENANCE_FLAG_CAPABILITY, MAINTENANCE_FLAG_DIR } from './nginx-maint
 import { NGINX_OPFIELD_NAMES_CAPABILITY } from './nginx-node-names.js';
 import { NginxTemplateService } from './nginx-template.service.js';
 import { ProxyService } from './proxy.service.js';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 
 const HOST_ID = '22222222-2222-4222-8222-222222222222';
 
@@ -125,8 +126,8 @@ describe('Maintenance mode on a node that keeps maintenance flags', () => {
     ]);
     await enter.service.toggleMaintenance(HOST_ID, true, 'user-id');
     const config = enter.applyConfig.mock.calls[0]![2] as string;
-    expect(config).toContain(`if (-f /etc/nginx/gateway/maintenance/${HOST_ID})`);
-    expect(config).toContain('set $gateway_maintenance 1;');
+    expect(config).toContain(`if (-f ${LEGACY_NGINX_DIR}/maintenance/${HOST_ID})`);
+    expect(config).toContain(`set $${LEGACY_INSTALL_DIR_NAME}_maintenance 1;`);
     expect(config).toContain('location = opfield-maintenance-access {');
     expect(config).not.toMatch(/\$opfield_|opfield-maintenance|\/etc\/nginx\/opfield|X-Opfield-/);
   });

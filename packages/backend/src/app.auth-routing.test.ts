@@ -12,6 +12,7 @@ import { OAuthService } from '@/modules/oauth/oauth.service.js';
 import { PageDeployTokenService } from '@/modules/pages/tokens/page-deploy-token.service.js';
 import { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import { createApp } from './app.js';
+import { LEGACY_CORE_RELEASE_LINE } from '@/lib/legacy-compat.js';
 
 const validateOAuth = vi.fn(async (_token: string, options: { resource?: string }) =>
   options.resource === 'http://opfield.test/api/mcp'
@@ -178,7 +179,7 @@ describe('unknown API paths', () => {
     ['GET', '/api/system/diagnostics', true],
     ['DELETE', '/api/not-a-module/1', false],
     ['POST', '/auth/not-a-route', false],
-    ['GET', '/.well-known/wiolett-inference', false],
+    ['GET', `/.well-known/${LEGACY_CORE_RELEASE_LINE}-inference`, false],
     ['GET', '/.well-known/oauth-protected-resource/api/inference/setup', false],
   ])('answers %s %s with a JSON 404, not the Console page', async (method, path, signedIn) => {
     if (signedIn) {

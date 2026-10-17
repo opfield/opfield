@@ -1,9 +1,10 @@
 import type { NodeIngressHealth } from '@/db/schema/nodes.js';
+import { LEGACY_INGRESS_HEALTH_PATH } from '@/lib/legacy-compat.js';
 
 /**
  * The ingress health an nginx daemon reports (HealthReport.ingress_health, sf-ingress). It is what the daemon's
  * reserved health endpoint `/.well-known/opfield-ingress-health` (and the pre-Opfield
- * `/.well-known/gateway-ingress-health`) answers at that moment: serving only while nginx runs the config generation
+ * `LEGACY_INGRESS_HEALTH_PATH`) answers at that moment: serving only while nginx runs the config generation
  * the daemon applied last and, for a node with Secure Link sources, at least one relay transport is usable. DNS
  * failover (Cloudflare monitors, the DNS steward) probes the endpoint itself; Opfield shows the reported copy per
  * ingress group member.
@@ -17,7 +18,7 @@ export const INGRESS_HEALTH_PATH = '/.well-known/opfield-ingress-health';
  * probe it.
  * legacy-name: health path external monitors were set up with — remove once no customer monitor probes it
  */
-export const LEGACY_INGRESS_HEALTH_PATH = '/.well-known/gateway-ingress-health';
+export { LEGACY_INGRESS_HEALTH_PATH };
 /** Unix socket of the nginx daemon's health responder that the reserved locations proxy to. */
 export const INGRESS_HEALTH_SOCKET = '/run/opfield-ingress-health/health.sock';
 /** Host name the daemon-managed health server answers on :80 and :443 (with a self-signed certificate). */

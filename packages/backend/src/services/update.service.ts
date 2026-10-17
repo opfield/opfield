@@ -65,6 +65,7 @@ import {
   relayStreamCounters,
   relayStreamOutcome,
 } from './relay-stream-resume.js';
+import { LEGACY_APP_IMAGE_MANIFEST_ASSET, LEGACY_LOCK_RELAY_POOL_REBALANCE, LEGACY_MIN_VERSION_FIELD, LEGACY_RELAY_MIN_VERSION_KEY, LEGACY_UPDATE_ATTEMPT_KEY, LEGACY_UPDATE_SIDECAR_NAME } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('UpdateService');
 
@@ -122,7 +123,7 @@ const UPDATE_HANDOFF_SETTLE_MS = 20 * 60_000;
  * reads it: the target version marks it started and clears it once the update
  * settles, any other version reports a failure.
  */
-const OPFIELD_UPDATE_ATTEMPT_KEY = 'update:gateway:attempt';
+const OPFIELD_UPDATE_ATTEMPT_KEY = LEGACY_UPDATE_ATTEMPT_KEY;
 /**
  * The sidecar keeps checking a started target for about 5 minutes and rolls it
  * back if it never becomes healthy. The target keeps the attempt record this
@@ -134,7 +135,7 @@ const UPDATE_SIDECAR_LABEL = 'net.opfield.role';
 const UPDATE_SIDECAR_ROLE = 'opfield-update-sidecar';
 // legacy-name: legacy update sidecars — started by releases before 2.12.1; only cleaned up — remove once no
 // supported update starts from a version before 2.12.1.
-const LEGACY_UPDATE_SIDECAR_ROLE = 'gateway-update-sidecar';
+const LEGACY_UPDATE_SIDECAR_ROLE = LEGACY_UPDATE_SIDECAR_NAME;
 /** Exited update and host move containers this process cleans up. */
 const FINISHED_CONTAINER_ROLES: readonly string[] = [UPDATE_SIDECAR_ROLE, LEGACY_UPDATE_SIDECAR_ROLE];
 /** The Docker CLI image of update sidecars started before they were labelled (any pinned version). */
@@ -360,11 +361,11 @@ export function isStaleRelayWorkerVersionError(error: unknown, targetVersion: st
   );
 }
 
-export function isOpfieldCompatibleWithRelayUpdate(currentVersion: string, minGatewayVersion: string): boolean {
+export function isOpfieldCompatibleWithRelayUpdate(currentVersion: string, minOpfieldVersion: string): boolean {
   const current = parseSemver(currentVersion);
-  const minimum = parseSemver(minGatewayVersion);
+  const minimum = parseSemver(minOpfieldVersion);
   if (!current || !minimum) return currentVersion === 'dev';
-  return compareSemver(currentVersion, minGatewayVersion) >= 0;
+  return compareSemver(currentVersion, minOpfieldVersion) >= 0;
 }
 
 const SETTINGS_KEYS = {
@@ -375,7 +376,7 @@ const SETTINGS_KEYS = {
   relayLatestVersion: 'update:relay:latest_version',
   relayReleaseNotes: 'update:relay:release_notes',
   relayReleaseUrl: 'update:relay:release_url',
-  relayMinOpfieldVersion: 'update:relay:min_gateway_version',
+  relayMinOpfieldVersion: LEGACY_RELAY_MIN_VERSION_KEY,
 } as const;
 
 export class UpdateService {
@@ -429,7 +430,7 @@ export class UpdateService {
   }
 
   private async fetchNextRelease(
-    component: 'gateway' | 'relay',
+    component: 'opfield' | 'relay',
     currentVersion: string,
     channel: UpdateChannel
   ): Promise<ReleaseRecord | null> {
@@ -656,7 +657,7 @@ export class UpdateService {
       const currentRelayVersion = this.env.OPFIELD_RELAY_BUILD_VERSION ?? currentVersion;
       const updateChannel = await this.getUpdateChannel();
       const [latest, latestRelay] = await Promise.all([
-        this.fetchNextRelease('gateway', currentVersion, updateChannel),
+        this.fetchNextRelease('opfield', currentVersion, updateChannel),
         this.fetchNextRelease('relay', currentRelayVersion, updateChannel),
       ]);
       if (latest) {
@@ -672,7 +673,7 @@ export class UpdateService {
         await this.upsertSetting(SETTINGS_KEYS.relayLatestVersion, relayVersion);
         await this.upsertSetting(SETTINGS_KEYS.relayReleaseNotes, releaseNotes(latestRelay));
         await this.upsertSetting(SETTINGS_KEYS.relayReleaseUrl, releaseUrl(latestRelay));
-        await this.upsertSetting(SETTINGS_KEYS.relayMinOpfieldVersion, relayArtifact.minGatewayVersion);
+        await this.upsertSetting(SETTINGS_KEYS.relayMinOpfieldVersion, relayArtifact.minOpfieldVersion);
       } else {
         await this.deleteSettings([
           SETTINGS_KEYS.relayLatestVersion,
@@ -719,8 +720,8 @@ export class UpdateService {
     const selfInfo = await this.dockerService.inspectSelf();
     const currentImage = imageRepositoryFromRef(selfInfo.Config.Image);
     const signedManifest = await this.fetchSignedManifest(
-      this.getManifestSource('gateway', tag, 'gateway-image.update.json'),
-      'gateway'
+      this.getManifestSource('opfield', tag, LEGACY_APP_IMAGE_MANIFEST_ASSET),
+      'Opfield'
     );
     let artifact: TrustedOpfieldUpdateArtifact | null = null;
     let verificationError: unknown;
@@ -781,12 +782,12 @@ export class UpdateService {
     }
     if (
       !allowIncompatibleOpfield &&
-      !isOpfieldCompatibleWithRelayUpdate(this.getCurrentVersion(), artifact.minGatewayVersion)
+      !isOpfieldCompatibleWithRelayUpdate(this.getCurrentVersion(), artifact.minOpfieldVersion)
     ) {
       throw new AppError(
         409,
         'OPFIELD_UPDATE_REQUIRED',
-        `Relay ${version} requires Opfield ${artifact.minGatewayVersion} or newer`
+        `Relay ${version} requires Opfield ${artifact.minOpfieldVersion} or newer`
       );
     }
     return artifact;
@@ -1209,7 +1210,7 @@ export class UpdateService {
 
     const currentImage = selfInfo.Config.Image;
     const imageBase = imageRepositoryFromRef(currentImage);
-    // The sidecar snapshots and restores the database the app uses: `gateway` before the host move, `opfield` after.
+    // The sidecar snapshots and restores the database the app uses: LEGACY_INSTALL_DIR_NAME before the host move, `opfield` after.
     const database = databaseIdentity(this.env.DATABASE_URL) ?? {
       role: LEGACY_DATABASE_ROLE,
       database: LEGACY_DATABASE,
@@ -2065,7 +2066,7 @@ exit 1`,
 
   private async ensureRelayPoolUpdateRun(targetVersion: string, artifact: TrustedRelayUpdateArtifact) {
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-pool-rebalance'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POOL_REBALANCE}))`);
       return this.ensureRelayPoolUpdateRunLocked(tx, targetVersion, artifact);
     });
   }
@@ -2424,7 +2425,7 @@ exit 1`,
   ): Promise<string[]> {
     return this.db.transaction(async (tx) => {
       // The fence that serializes run creation and rebalance placement.
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-pool-rebalance'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POOL_REBALANCE}))`);
       const failed = await tx
         .update(relayPoolUpdateRuns)
         .set({ state: 'failed', terminalError: message, updatedAt: new Date() })
@@ -2606,7 +2607,7 @@ backup="$FOUNDATION_BACKUP_DIR"
 
   getOpfieldManifestUrl(version: string): string {
     const tag = normalizeVersionTag(version);
-    return this.getManifestSource('gateway', tag, 'gateway-image.update.json').url;
+    return this.getManifestSource('opfield', tag, LEGACY_APP_IMAGE_MANIFEST_ASSET).url;
   }
 
   getRelayManifestUrl(version: string): string {

@@ -75,6 +75,7 @@ import { SystemCAService } from '@/services/system-ca.service.js';
 import { WebIdentityService } from '@/services/web-identity.service.js';
 import { WebTransportSettingsService } from '@/services/web-transport-settings.service.js';
 import { drainWebSocketsForRestart, terminateRemainingWebSockets } from '@/services/websocket-shutdown.js';
+import { LEGACY_LOCK_MIGRATIONS } from '@/lib/legacy-compat.js';
 
 /**
  * Apply pending migrations on one dedicated connection. A session advisory lock keeps two starting instances from
@@ -92,7 +93,7 @@ async function runMigrations(databaseUrl: string) {
       "select current_setting('server_version_num')::int as version"
     );
     if (rows[0].version >= 140000) await client.query("set client_connection_check_interval = '5s'");
-    await client.query("select pg_advisory_lock(hashtext('gateway-migrations'))");
+    await client.query('select pg_advisory_lock(hashtext($1))', [LEGACY_LOCK_MIGRATIONS]);
     await migrate(drizzle(client), { migrationsFolder: resolve('src/db/migrations') });
   } finally {
     await client.end();

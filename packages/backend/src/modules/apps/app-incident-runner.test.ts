@@ -6,6 +6,7 @@ import type { IncidentTargets } from './app-incident-targets.js';
 import type { NewIncidentItem } from './app-incidents.repo.js';
 import { buildIsolationItems, summarizeIsolation } from './app-isolation.service.js';
 import { buildShutdownItems, summarizeShutdown } from './app-shutdown.service.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 
 /** An in-memory incident store with the repo methods the runner uses. */
 function memoryRepo(incident: AppIncident, items: NewIncidentItem[]) {
@@ -180,7 +181,7 @@ describe('App incident runner', () => {
 
   it('keeps what a restore could not put back as the detail of a done item, never as a failure', async () => {
     const store = memoryRepo(INCIDENT, ITEMS);
-    const note = 'Skipped network gateway-db-1: it no longer exists';
+    const note = `Skipped network ${LEGACY_DATABASE_LINK_NETWORK_PREFIX}1: it no longer exists`;
     const actions: AppIncidentActions = {
       apply: vi.fn(async () => ({ status: 'applied', priorState: { x: 1 } }) as IncidentActionOutcome),
       restore: vi.fn(async (item) =>

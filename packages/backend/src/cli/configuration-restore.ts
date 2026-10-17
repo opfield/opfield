@@ -18,7 +18,7 @@ import { DockerService } from '@/services/docker.service.js';
  *
  *   inspect <file>                       the plaintext header (version), as one JSON line
  *   verify  <file> --passphrase-file F   decrypts and checks the whole file
- *   restore <file> --passphrase-file F --host-dir /host --host-path /opt/gateway --project gateway
+ *   restore <file> --passphrase-file F --host-dir /host --host-path /opt/opfield --project opfield
  *           [--public-url URL] [--grpc-target HOST:PORT] [--grpc-local-ip IP] [--start]
  *           [--replace-existing] [--status-file F] [--remove-passphrase-file] [--wizard]
  *

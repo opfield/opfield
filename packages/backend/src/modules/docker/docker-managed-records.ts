@@ -8,6 +8,7 @@ import {
   dockerManagedVolumes,
   dockerSourceBindings,
 } from '@/db/schema/index.js';
+import { LEGACY_COM_LABEL_PREFIX, LEGACY_LABEL_PREFIX, LEGACY_NET_LABEL_PREFIX } from '@/lib/legacy-compat.js';
 
 /**
  * What Opfield's records say it manages on a Docker node, whether or not the objects exist right now: the
@@ -92,7 +93,9 @@ export async function loadDockerManagedRecords(db: DrizzleClient, nodeId: string
 }
 
 // legacy-name: pre-2.12.1 labels — remove once every node reports none
-const OPFIELD_LABEL = /^(?:net\.opfield\.|wiolett\.gateway\.|net\.wiolett\.gateway\.|com\.wiolett\.gateway\.)/;
+const OPFIELD_LABEL = new RegExp(
+  `^(?:${['net.opfield.', LEGACY_LABEL_PREFIX, LEGACY_NET_LABEL_PREFIX, LEGACY_COM_LABEL_PREFIX].map((prefix) => prefix.replaceAll('.', '\\.')).join('|')})`
+);
 
 /** Whether a Docker object carries an Opfield label (either namespace). */
 export function hasOpfieldLabel(labels: Record<string, string>): boolean {

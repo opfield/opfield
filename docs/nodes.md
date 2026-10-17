@@ -9,7 +9,7 @@ Opfield manages infrastructure hosts through small Go daemons. Each daemon conne
 | Type | Daemon | Purpose |
 |------|--------|---------|
 | nginx | `nginx-daemon` | Public ingress, routes, TLS termination, access lists, configuration, logs, and stats for host-native nginx. |
-| docker | `docker-daemon` | Docker containers, deployments, cross-node migrations, portable and registry-backed `.gwca` archives, images, volumes, networks, tasks, files, consoles, registries, and offline inventory snapshots. |
+| docker | `docker-daemon` | Docker containers, deployments, cross-node migrations, portable and registry-backed `.ofca` archives, images, volumes, networks, tasks, files, consoles, registries, and offline inventory snapshots. |
 | builder | `docker-daemon` (`builder` profile) | Build Worker: builds Git revisions and scans artifacts on an isolated Docker worker; application workloads and managed databases are rejected. |
 | storage | `docker-daemon` (`storage` profile) | Managed Postgres, key-value stores, ClickHouse, SeaweedFS object storage (legacy MinIO clusters keep running), and native backup jobs; generic workloads are rejected. |
 | monitoring | `monitoring-daemon` | Metrics-only host monitoring without nginx or Docker control. |
@@ -160,7 +160,7 @@ Opfield advertises Secure as available only after `runsc` is installed, configur
 - Secure workloads cannot attach GPUs or host devices.
 - Secure workloads cannot use host bind mounts. New or changed mounts use Opfield-managed local volumes in both profiles.
 - Secure standalone containers and deployments cannot migrate between nodes in the current version.
-- Secure standalone containers cannot be exported as `.gwca` archives because custom runtimes are outside the portable archive contract.
+- Secure standalone containers cannot be exported as `.ofca` archives because custom runtimes are outside the portable archive contract.
 - Changing a saved workload between Default and Secure uses the normal recreate flow.
 - All newly created Opfield workloads, including the Default profile, are non-privileged, add no Linux capabilities, and receive `no-new-privileges`.
 
@@ -184,7 +184,7 @@ The GPU must appear as attachable on the node before it can be selected. A devic
 - GPU changes use the normal recreate path. Duplicating a container preserves its GPU selection. A blue/green deployment gives the same selection to both application slots; the router never receives a GPU mapping.
 - Node monitoring and GPU alerts use only device metrics that the daemon explicitly reports. A container's monitoring panel repeats that physical shared-device telemetry and does not claim it belongs only to that container.
 - Opfield does not manage MIG, vGPU, SR-IOV, mediated devices, exclusive GPU allocation, or host driver/runtime installation. Existing unrecognized manual GPU mappings stay read-only so Opfield does not rewrite arbitrary host devices.
-- GPU-attached containers and deployments cannot migrate between nodes in v1. GPU-attached standalone containers also cannot be exported as `.gwca` archives. Detach the GPU and recreate the workload before using those portability workflows.
+- GPU-attached containers and deployments cannot migrate between nodes in v1. GPU-attached standalone containers also cannot be exported as `.ofca` archives. Detach the GPU and recreate the workload before using those portability workflows.
 
 ## Lease Watchdog
 

@@ -20,13 +20,14 @@ import { DockerEnvironmentService } from './docker-environment.service.js';
 import { DockerSecretService } from './docker-secret.service.js';
 import { DockerSourceService } from './docker-source.service.js';
 import { assertContainerSourceTargetNotOwned } from './docker-source-target-owner.js';
+import { LEGACY_PLACEHOLDER_REGISTRY_HOST } from '@/lib/legacy-compat.js';
 
 /**
  * Creation of Git-source workloads, shared by the REST routes and the AI/MCP
  * source tool. Callers check the entry scope and the license entitlement.
  */
 
-const PENDING_SOURCE_IMAGE = 'gateway.invalid/pending-source-build:latest';
+const PENDING_SOURCE_IMAGE = `${LEGACY_PLACEHOLDER_REGISTRY_HOST}/pending-source-build:latest`;
 
 export const ComposeSourceProjectCreateSchema = z
   .object({

@@ -22,6 +22,7 @@ import type { DockerService } from '@/services/docker.service.js';
 import { ACTIVE_BUILD_STATUSES, WORKER_ACTIVE_BUILD_STATUSES } from './docker-build-policy.js';
 import { classifyRegistryRetentionArtifacts, type RegistryRetentionArtifact } from './docker-registry-retention.js';
 import type { DockerRegistryGrant, DockerRegistryTokenService } from './docker-registry-token.service.js';
+import { LEGACY_INTERNAL_REGISTRY_ID, LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 export {
   REGISTRY_BUILDS_KEPT_PER_CONTAINER,
@@ -275,10 +276,10 @@ export interface DockerRegistryMaintenanceStore {
 /** A build repository whose source is gone is deleted once maintenance runs at least this far apart both found it so. */
 export const ORPHANED_REPOSITORY_GRACE_MS = 12 * 60 * 60_000;
 const ORPHANED_REPOSITORIES_KEY = 'docker:registry:orphaned_repositories';
-const BUILD_REPOSITORY = /^gateway\/builds\/([^/]+)(\/.+)?$/;
+const BUILD_REPOSITORY = new RegExp(String.raw`^${LEGACY_REGISTRY_NAMESPACE}\/builds\/([^/]+)(\/.+)?$`);
 
 /**
- * The build repositories (`gateway/builds/<source>[/<service>]`) whose source binding is gone (its container,
+ * The build repositories (LEGACY_REGISTRY_NAMESPACE/builds/<source>[/<service>]`) whose source binding is gone (its container,
  * deployment or Pages project was deleted, or the source was detached: the artifact rows went with it, so retention
  * never sees them), that no runtime record names and that hold no tracked artifact.
  */
@@ -326,7 +327,7 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
 
   async acquireLease(owner: string, leaseExpiresAt: Date, now: Date): Promise<RegistryState> {
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-internal-registry-maintenance'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('${LEGACY_INTERNAL_REGISTRY_ID}-maintenance'))`);
       const [state] = await tx
         .select()
         .from(dockerInternalRegistryState)
@@ -473,10 +474,12 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
           inArray(dockerBuilds.status, WORKER_ACTIVE_BUILD_STATUSES)
         )
       );
-    // The build worker pushes to `gateway/builds/<source>[/<Compose service>]`. A deploying build's artifact is
+    // The build worker pushes to `<LEGACY_REGISTRY_NAMESPACE>/builds/<source>[/<Compose service>]`. A deploying build's artifact is
     // recorded already and kept by its in-flight state.
     return builds.map(({ serviceName }) =>
-      serviceName ? `gateway/builds/${sourceBindingId}/${serviceName}` : `gateway/builds/${sourceBindingId}`
+      serviceName
+        ? `${LEGACY_REGISTRY_NAMESPACE}/builds/${sourceBindingId}/${serviceName}`
+        : `${LEGACY_REGISTRY_NAMESPACE}/builds/${sourceBindingId}`
     );
   }
 

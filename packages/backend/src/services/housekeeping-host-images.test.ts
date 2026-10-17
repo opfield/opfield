@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { opfieldHostImageRepositories, selectOldOpfieldHostImages } from './housekeeping-host-images.js';
+import { LEGACY_IMAGE_REPOSITORY, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const digest = (n: number) => `sha256:${String(n).repeat(64).slice(0, 64)}`;
 
@@ -14,7 +15,7 @@ describe('old Opfield images on the Opfield host', () => {
       // Under the earlier repository names, and the local name of early installs.
       {
         Id: 'sha256:app-legacy',
-        RepoDigests: [`ghcr.io/the-square-labs/gateway@${digest(4)}`],
+        RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}@${digest(4)}`],
         Created: 20,
         Size: 400,
       },
@@ -24,12 +25,12 @@ describe('old Opfield images on the Opfield host', () => {
         Created: 5,
         Size: 300,
       },
-      { Id: 'sha256:app-local', RepoTags: ['gateway:2.8.17'], Created: 1, Size: 200 },
+      { Id: 'sha256:app-local', RepoTags: [`${LEGACY_INSTALL_DIR_NAME}:2.8.17`], Created: 1, Size: 200 },
       { Id: 'sha256:relay-current', RepoDigests: [`${app}/relay@${digest(5)}`], Created: 50, Size: 30 },
       { Id: 'sha256:relay-unused-new', RepoDigests: [`${app}/relay@${digest(6)}`], Created: 45, Size: 30 },
       {
         Id: 'sha256:relay-old',
-        RepoDigests: [`ghcr.io/the-square-labs/gateway/relay@${digest(7)}`],
+        RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}/relay@${digest(7)}`],
         Created: 10,
         Size: 30,
       },

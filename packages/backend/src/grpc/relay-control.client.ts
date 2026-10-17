@@ -43,7 +43,7 @@ export interface RelayTunnelCandidate {
 
 export interface RelayPolicySnapshot {
   revision: string;
-  gatewayInstanceId: string;
+  opfieldInstanceId: string;
   publicKeys: Array<{ keyId: string; publicKey: Buffer }>;
   endpoints: Array<{
     endpointId: string;

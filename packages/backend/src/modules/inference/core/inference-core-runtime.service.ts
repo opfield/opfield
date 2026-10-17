@@ -39,6 +39,7 @@ import {
   type InferenceCoreOperationService,
 } from './inference-core-operation.service.js';
 import type { InferenceCoreLatestInfo, InferenceCoreStore } from './inference-core-store.js';
+import { LEGACY_CORE_ENV_PREFIX, LEGACY_CORE_INTERNAL_URL_KEY, LEGACY_CORE_LABEL_PREFIX, LEGACY_CORE_SECRETS_DIR } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('InferenceCoreRuntimeService');
 
@@ -65,15 +66,15 @@ const CORE_LOG_CONFIG = { Type: 'json-file', Config: { 'max-size': '50m', 'max-f
 /** How often the core's disk use is bounded (usage ledger, a container log created before rotation). */
 const CORE_DISK_BOUND_INTERVAL_MS = 60 * 60_000;
 
-const LABEL_OWNED = 'com.wiolett.inference-core.owned';
-const LABEL_PROJECT = 'com.wiolett.inference-core.project';
-const LABEL_DIGEST = 'com.wiolett.inference-core.digest';
-const LABEL_VERSION = 'com.wiolett.inference-core.version';
-const LABEL_ROLE = 'com.wiolett.inference-core.role';
+const LABEL_OWNED = `${LEGACY_CORE_LABEL_PREFIX}owned`;
+const LABEL_PROJECT = `${LEGACY_CORE_LABEL_PREFIX}project`;
+const LABEL_DIGEST = `${LEGACY_CORE_LABEL_PREFIX}digest`;
+const LABEL_VERSION = `${LEGACY_CORE_LABEL_PREFIX}version`;
+const LABEL_ROLE = `${LEGACY_CORE_LABEL_PREFIX}role`;
 const ROLE_RUNTIME = 'runtime';
 const ROLE_HELPER = 'helper';
 
-const BACKUP_DIR = '/var/lib/gateway/inference-core-backups';
+const BACKUP_DIR = '/var/lib/opfield/inference-core-backups';
 
 /** Stage labels rendered by the UI; keep in sync with ui-contract.md. */
 const STAGE = {
@@ -570,8 +571,8 @@ export class InferenceCoreRuntimeService {
         Image: artifact.imageRef,
         User: CORE_UID,
         Env: [
-          'OPENCODEX_WIOLETT_MODE=1',
-          'OPENCODEX_WIOLETT_CREDENTIALS_FILE=/run/wiolett-secrets/credentials.json',
+          `${LEGACY_CORE_ENV_PREFIX}MODE=1`,
+          `${LEGACY_CORE_ENV_PREFIX}CREDENTIALS_FILE=${LEGACY_CORE_SECRETS_DIR}/credentials.json`,
           'OPENCODEX_HOME=/var/lib/opencodex',
           'CODEX_HOME=/var/lib/opencodex',
           `OPENCODEX_PORT=${CORE_PORT}`,
@@ -588,7 +589,7 @@ export class InferenceCoreRuntimeService {
           EndpointsConfig: { [layout.network]: { Aliases: [CORE_CONTAINER_ALIAS] } },
         },
         HostConfig: {
-          Binds: [`${layout.stateVolume}:/var/lib/opencodex`, `${layout.secretVolume}:/run/wiolett-secrets:ro`],
+          Binds: [`${layout.stateVolume}:/var/lib/opencodex`, `${layout.secretVolume}:${LEGACY_CORE_SECRETS_DIR}:ro`],
           ReadonlyRootfs: true,
           CapDrop: ['ALL'],
           SecurityOpt: ['no-new-privileges'],
@@ -898,7 +899,7 @@ export class InferenceCoreRuntimeService {
       dataCredential: credentials.dataCredential,
       managementCredential: credentials.managementCredential,
       callbackCredential: credentials.callbackCredential,
-      gatewayInternalUrl: `http://${layout.opfieldAlias}:${INFERENCE_CORE_INTERNAL_PORT}`,
+      [LEGACY_CORE_INTERNAL_URL_KEY]: `http://${layout.opfieldAlias}:${INFERENCE_CORE_INTERNAL_PORT}`,
     });
     const tar = buildSingleFileTar('credentials.json', Buffer.from(payload, 'utf8'), 0o600, 10001, 10001);
     const helper = await this.docker.createContainer({

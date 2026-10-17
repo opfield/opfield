@@ -1,14 +1,15 @@
 import { createHash } from 'node:crypto';
 import type { DockerAvailabilityLeaseBallot } from '@/db/schema/index.js';
 import { decodeRelayV1Message, encodeRelayV1Message } from '@/grpc/relay-proto.js';
+import { LEGACY_AVAILABILITY_LEASE_DOMAIN } from '@/lib/legacy-compat.js';
 
 /**
  * Byte-exact counterparts of daemon-shared/availabilitylease (crypto.go, keychain.go). Every signed byte string
  * starts with its domain and a zero byte, so a signature can never be replayed as another message type.
  */
 export const LEASE_SIGNATURE_DOMAINS = {
-  manifest: 'gateway-availability-lease/manifest/v1',
-  keyRotation: 'gateway-availability-lease/key-rotation/v1',
+  manifest: `${LEGACY_AVAILABILITY_LEASE_DOMAIN}/manifest/v1`,
+  keyRotation: `${LEGACY_AVAILABILITY_LEASE_DOMAIN}/key-rotation/v1`,
 } as const;
 
 /** Voter configs travel inside manifests since A18; only manifests are signed as blocks. */

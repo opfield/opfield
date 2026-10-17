@@ -14,11 +14,17 @@ import {
 import { syncPermissionGroupsAtStartup } from '@/lib/startup-scope-sync.js';
 import { resolveEffectiveUserAccess } from '@/modules/auth/live-session-user.js';
 import { disposableDatabase, migrateDatabase } from './migration-database.test-helpers.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /** v2.10.1's scope catalog (ALL_SCOPES and RESOURCE_SCOPABLE), to replay what its startup does to a newer schema. */
-const v2101 = JSON.parse(readFileSync(new URL('./fixtures/v2.10.1-scope-catalog.json', import.meta.url), 'utf8')) as {
+const v2101 = JSON.parse(
+  readFileSync(new URL('./fixtures/v2.10.1-scope-catalog.json', import.meta.url), 'utf8').replaceAll(
+    '<legacy-product>',
+    LEGACY_INSTALL_DIR_NAME
+  )
+) as {
   allScopes: string[];
   resourceScopable: string[];
 };

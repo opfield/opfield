@@ -10,20 +10,21 @@ import {
   verifyOpfieldImageManifest,
   verifyRelayImageManifest,
 } from './update-artifact-trust.js';
+import { LEGACY_APP_IMAGE_MANIFEST_KIND, LEGACY_CORE_RELEASE_LINE, LEGACY_INSTALL_DIR_NAME, LEGACY_MIN_VERSION_FIELD, LEGACY_UPDATES_BASE_URL, LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
 const checksum = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const daemonUrl =
-  'https://gitlab.example.com/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64';
+  'https://gitlab.example.com/api/v4/projects/opfield%2Fopfield/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64';
 const daemonManifest = `{
   "schemaVersion": 1,
-  "keyId": "wiolett-update-v1",
+  "keyId": "${LEGACY_UPDATE_KEY_ID}",
   "payload": "eyJraW5kIjoiZGFlbW9uLWJpbmFyeSIsInZlcnNpb24iOiJ2OS45LjkiLCJ0YWciOiJ2OS45LjktbmdpbngiLCJkYWVtb25UeXBlIjoibmdpbngiLCJhcmNoIjoiYW1kNjQiLCJhcnRpZmFjdE5hbWUiOiJuZ2lueC1kYWVtb24tbGludXgtYW1kNjQiLCJkb3dubG9hZFVybCI6Imh0dHBzOi8vZ2l0bGFiLndpb2xldHQubmV0L2FwaS92NC9wcm9qZWN0cy93aW9sZXR0JTJGZ2F0ZXdheS9wYWNrYWdlcy9nZW5lcmljL25naW54LWRhZW1vbi92OS45LjktbmdpbngvbmdpbngtZGFlbW9uLWxpbnV4LWFtZDY0Iiwic2hhMjU2IjoiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsImNyZWF0ZWRBdCI6IjIwMjYtMDUtMDJUMTQ6Mzk6MDNaIiwiZ2l0Q29tbWl0U2hhIjoidGVzdCIsImdpdFBpcGVsaW5lSWQiOiIxIn0",
   "signature": "sNy92HOZyOUMyGJkXQ1nRmTSFm3BosuaAUaInP_Svo0cWGx50jvMlnsfU64FyubGDXK4ihvpgtlcNCfqN61ABw"
 }`;
 const opfieldSigningKey = generateKeyPairSync('ed25519');
 const opfieldPayload = Buffer.from(
   JSON.stringify({
-    kind: 'gateway-image',
+    kind: LEGACY_APP_IMAGE_MANIFEST_KIND,
     version: 'v9.9.9',
     tag: 'v9.9.9',
     image: 'registry.example.com/opfield/opfield',
@@ -35,7 +36,7 @@ const opfieldPayload = Buffer.from(
 );
 const opfieldManifest = JSON.stringify({
   schemaVersion: 1,
-  keyId: 'wiolett-update-v1',
+  keyId: LEGACY_UPDATE_KEY_ID,
   payload: opfieldPayload.toString('base64url'),
   signature: sign(null, opfieldPayload, opfieldSigningKey.privateKey).toString('base64url'),
 });
@@ -49,37 +50,37 @@ const relayPayload = Buffer.from(
     digest: `sha256:${checksum}`,
     imageRef: `registry.example.com/opfield/opfield/relay@sha256:${checksum}`,
     protocolMajor: 1,
-    minGatewayVersion: 'v1.2.0',
+    [LEGACY_MIN_VERSION_FIELD]: 'v1.2.0',
     secureLinkConnectorImage: `registry.example.com/opfield/opfield/secure-link-connector@sha256:${checksum}`,
     createdAt: '2026-05-02T14:39:10Z',
   })
 );
 const relayManifest = JSON.stringify({
   schemaVersion: 1,
-  keyId: 'wiolett-update-v1',
+  keyId: LEGACY_UPDATE_KEY_ID,
   payload: relayPayload.toString('base64url'),
   signature: sign(null, relayPayload, opfieldSigningKey.privateKey).toString('base64url'),
 });
 const opencodexPayload = Buffer.from(
   JSON.stringify({
     kind: 'opencodex-image',
-    version: '2.26.0-wiolett.1',
-    tag: 'v2.26.0-wiolett.1',
+    version: `2.26.0-${LEGACY_CORE_RELEASE_LINE}.1`,
+    tag: `v2.26.0-${LEGACY_CORE_RELEASE_LINE}.1`,
     image: 'registry.example.com/opfield/opfield/opencodex',
     digest: `sha256:${checksum}`,
     imageRef: `registry.example.com/opfield/opfield/opencodex@sha256:${checksum}`,
     sizeBytes: 412345678,
     coreProtocolMajor: 1,
     stateSchemaVersion: 1,
-    minGatewayVersion: 'v2.6.0',
-    releaseNotesUrl: 'https://docs.example.com/releases/opencodex-2.26.0-wiolett.1',
+    [LEGACY_MIN_VERSION_FIELD]: 'v2.6.0',
+    releaseNotesUrl: `https://docs.example.com/releases/opencodex-2.26.0-${LEGACY_CORE_RELEASE_LINE}.1`,
     buildRevision: 'cd762f832',
     createdAt: '2026-08-19T00:00:00.000Z',
   })
 );
 const opencodexManifest = JSON.stringify({
   schemaVersion: 1,
-  keyId: 'wiolett-update-v1',
+  keyId: LEGACY_UPDATE_KEY_ID,
   payload: opencodexPayload.toString('base64url'),
   signature: sign(null, opencodexPayload, opfieldSigningKey.privateKey).toString('base64url'),
 });
@@ -87,8 +88,8 @@ const opencodexManifest = JSON.stringify({
 describe('update artifact trust', () => {
   it('normalizes GitLab API base URLs for exact signed URL comparisons', () => {
     expect(normalizeGitLabApiUrl('https://gitlab.example.com/')).toBe('https://gitlab.example.com');
-    expect(trustedGitLabPackagePrefix('https://gitlab.example.com/', 'wiolett/gateway')).toBe(
-      'https://gitlab.example.com/api/v4/projects/wiolett%2Fgateway/packages/generic/'
+    expect(trustedGitLabPackagePrefix('https://gitlab.example.com/', `${LEGACY_CORE_RELEASE_LINE}/${LEGACY_INSTALL_DIR_NAME}`)).toBe(
+      'https://gitlab.example.com/api/v4/projects/opfield%2Fopfield/packages/generic/'
     );
   });
 
@@ -100,7 +101,7 @@ describe('update artifact trust', () => {
       arch: 'amd64',
       artifactName: 'nginx-daemon-linux-amd64',
       downloadUrl: daemonUrl,
-      trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'wiolett/gateway'),
+      trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', `${LEGACY_CORE_RELEASE_LINE}/${LEGACY_INSTALL_DIR_NAME}`),
     });
 
     expect(artifact.checksum).toBe(checksum);
@@ -114,8 +115,8 @@ describe('update artifact trust', () => {
       tag: 'v9.9.9-nginx',
       arch: 'amd64',
       artifactName: 'nginx-daemon-linux-amd64',
-      downloadUrl: 'https://get.opfield.dev/gateway/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64',
-      trustedPackagePrefix: 'https://get.opfield.dev/gateway/',
+      downloadUrl: `${LEGACY_UPDATES_BASE_URL}/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64`,
+      trustedPackagePrefix: `${LEGACY_UPDATES_BASE_URL}/`,
     };
 
     expect(() => verifyDaemonUpdateManifest(daemonManifest, expected)).toThrow('Update download URL mismatch');
@@ -136,7 +137,7 @@ describe('update artifact trust', () => {
         arch: 'arm64',
         artifactName: 'nginx-daemon-linux-amd64',
         downloadUrl: daemonUrl,
-        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'wiolett/gateway'),
+        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', `${LEGACY_CORE_RELEASE_LINE}/${LEGACY_INSTALL_DIR_NAME}`),
       })
     ).toThrow(UpdateArtifactTrustError);
   });
@@ -153,12 +154,12 @@ describe('update artifact trust', () => {
         arch: 'amd64',
         artifactName: 'nginx-daemon-linux-amd64',
         downloadUrl: daemonUrl,
-        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'wiolett/gateway'),
+        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', `${LEGACY_CORE_RELEASE_LINE}/${LEGACY_INSTALL_DIR_NAME}`),
       })
     ).toThrow(UpdateArtifactTrustError);
   });
 
-  it('verifies a gateway image manifest with a digest-pinned image reference', () => {
+  it('verifies a opfield image manifest with a digest-pinned image reference', () => {
     const artifact = verifyOpfieldImageManifest(
       opfieldManifest,
       {
@@ -188,7 +189,7 @@ describe('update artifact trust', () => {
 
     expect(artifact.buildVersion).toBe('v1.2.3');
     expect(artifact.protocolMajor).toBe(1);
-    expect(artifact.minGatewayVersion).toBe('v1.2.0');
+    expect(artifact.minOpfieldVersion).toBe('v1.2.0');
     expect(artifact.imageRef).toContain('/relay@sha256:');
     expect('databaseConnectorImage' in artifact).toBe(false);
     expect(artifact.secureLinkConnectorImage).toContain('/secure-link-connector@sha256:');
@@ -204,14 +205,14 @@ describe('update artifact trust', () => {
         digest: `sha256:${checksum}`,
         imageRef: `registry.example.com/opfield/opfield/relay@sha256:${checksum}`,
         protocolMajor: 1,
-        minGatewayVersion: 'v2.10.0-rc.1',
+        [LEGACY_MIN_VERSION_FIELD]: 'v2.10.0-rc.1',
         secureLinkConnectorImage: `registry.example.com/opfield/opfield/secure-link-connector@sha256:${checksum}`,
         createdAt: '2026-08-30T00:00:00.000Z',
       })
     );
     const manifest = JSON.stringify({
       schemaVersion: 1,
-      keyId: 'wiolett-update-v1',
+      keyId: LEGACY_UPDATE_KEY_ID,
       payload: payload.toString('base64url'),
       signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
@@ -228,7 +229,7 @@ describe('update artifact trust', () => {
     );
 
     expect(artifact.buildVersion).toBe('v2.10.0-rc.2');
-    expect(artifact.minGatewayVersion).toBe('v2.10.0-rc.1');
+    expect(artifact.minOpfieldVersion).toBe('v2.10.0-rc.1');
   });
 
   it('uses the signed Relay version as the compatibility floor for legacy manifests', () => {
@@ -248,7 +249,7 @@ describe('update artifact trust', () => {
     );
     const manifest = JSON.stringify({
       schemaVersion: 1,
-      keyId: 'wiolett-update-v1',
+      keyId: LEGACY_UPDATE_KEY_ID,
       payload: payload.toString('base64url'),
       signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
@@ -264,7 +265,7 @@ describe('update artifact trust', () => {
       opfieldPublicKey
     );
 
-    expect(artifact.minGatewayVersion).toBe('v1.2.3');
+    expect(artifact.minOpfieldVersion).toBe('v1.2.3');
   });
 
   it('rejects a mutable Secure Link connector image in a Relay manifest', () => {
@@ -284,7 +285,7 @@ describe('update artifact trust', () => {
     );
     const manifest = JSON.stringify({
       schemaVersion: 1,
-      keyId: 'wiolett-update-v1',
+      keyId: LEGACY_UPDATE_KEY_ID,
       payload: payload.toString('base64url'),
       signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
@@ -320,7 +321,7 @@ describe('update artifact trust', () => {
     );
     const manifest = JSON.stringify({
       schemaVersion: 1,
-      keyId: 'wiolett-update-v1',
+      keyId: LEGACY_UPDATE_KEY_ID,
       payload: payload.toString('base64url'),
       signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
@@ -354,7 +355,7 @@ describe('update artifact trust', () => {
     ).toThrow('Relay update protocol major is incompatible');
   });
 
-  it('rejects gateway manifests for a different image repository', () => {
+  it('rejects opfield manifests for a different image repository', () => {
     expect(() =>
       verifyOpfieldImageManifest(
         opfieldManifest,
@@ -378,7 +379,7 @@ describe('update artifact trust', () => {
   it('rejects a mutable Secure Link connector image even when the manifest signature is valid', () => {
     const payload = Buffer.from(
       JSON.stringify({
-        kind: 'gateway-image',
+        kind: LEGACY_APP_IMAGE_MANIFEST_KIND,
         version: 'v9.9.9',
         tag: 'v9.9.9',
         image: 'registry.example.com/opfield/opfield',
@@ -390,7 +391,7 @@ describe('update artifact trust', () => {
     );
     const manifest = JSON.stringify({
       schemaVersion: 1,
-      keyId: 'wiolett-update-v1',
+      keyId: LEGACY_UPDATE_KEY_ID,
       payload: payload.toString('base64url'),
       signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });
@@ -415,16 +416,16 @@ describe('update artifact trust', () => {
         kind: 'relay-image',
         version: '../mutable',
         tag: '../mutable-relay',
-        image: 'registry.example/gateway/relay',
+        image: 'registry.example/opfield/relay',
         digest: `sha256:${checksum}`,
-        imageRef: `registry.example/gateway/relay@sha256:${checksum}`,
+        imageRef: `registry.example/opfield/relay@sha256:${checksum}`,
         protocolMajor: 1,
         createdAt: '2026-08-07T00:00:00.000Z',
       })
     );
     const envelope = JSON.stringify({
       schemaVersion: 1,
-      keyId: 'wiolett-update-v1',
+      keyId: LEGACY_UPDATE_KEY_ID,
       payload: payload.toString('base64url'),
       signature: sign(null, payload, privateKey).toString('base64url'),
     });
@@ -432,7 +433,7 @@ describe('update artifact trust', () => {
     expect(() =>
       verifyRelayImageManifest(
         envelope,
-        { version: '../mutable', tag: '../mutable-relay', image: 'registry.example/gateway/relay', protocolMajor: 1 },
+        { version: '../mutable', tag: '../mutable-relay', image: 'registry.example/opfield/relay', protocolMajor: 1 },
         publicKey.export({ type: 'spki', format: 'pem' })
       )
     ).toThrow('Relay update build version is invalid');
@@ -448,14 +449,14 @@ describe('update artifact trust', () => {
       opfieldPublicKey
     );
 
-    expect(artifact.version).toBe('2.26.0-wiolett.1');
+    expect(artifact.version).toBe(`2.26.0-${LEGACY_CORE_RELEASE_LINE}.1`);
     expect(artifact.digest).toBe(`sha256:${checksum}`);
     expect(artifact.imageRef).toBe(`registry.example.com/opfield/opfield/opencodex@sha256:${checksum}`);
     expect(artifact.sizeBytes).toBe(412345678);
     expect(artifact.coreProtocolMajor).toBe(1);
     expect(artifact.stateSchemaVersion).toBe(1);
     expect(artifact.minOpfieldVersion).toBe('v2.6.0');
-    expect(artifact.releaseNotesUrl).toBe('https://docs.example.com/releases/opencodex-2.26.0-wiolett.1');
+    expect(artifact.releaseNotesUrl).toBe(`https://docs.example.com/releases/opencodex-2.26.0-${LEGACY_CORE_RELEASE_LINE}.1`);
   });
 
   it('rejects an OpenCodex manifest pinned to a different version', () => {
@@ -465,7 +466,7 @@ describe('update artifact trust', () => {
         {
           image: 'registry.example.com/opfield/opfield/opencodex',
           coreProtocolMajor: 1,
-          version: '2.26.0-wiolett.2',
+          version: `2.26.0-${LEGACY_CORE_RELEASE_LINE}.2`,
         },
         opfieldPublicKey
       )
@@ -516,7 +517,7 @@ describe('update artifact trust', () => {
     );
     const manifest = JSON.stringify({
       schemaVersion: 1,
-      keyId: 'wiolett-update-v1',
+      keyId: LEGACY_UPDATE_KEY_ID,
       payload: payload.toString('base64url'),
       signature: sign(null, payload, opfieldSigningKey.privateKey).toString('base64url'),
     });

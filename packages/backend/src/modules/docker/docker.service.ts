@@ -461,7 +461,7 @@ export class DockerManagementService {
         nodeId,
       });
     await placeCreatedDockerResource(this.db, nodeId, 'container', name, folderId);
-    this.emitContainer(nodeId, name, runtimeId, 'created', { source: 'gwca-import' });
+    this.emitContainer(nodeId, name, runtimeId, 'created', { source: 'ofca-import' });
   }
 
   emitTransition(nodeId: string, name: string, id: string, transition: ContainerTransition | null) {

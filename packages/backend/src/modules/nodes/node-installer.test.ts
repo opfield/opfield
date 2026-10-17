@@ -14,13 +14,14 @@ import {
   OPFIELD_FLAG_INSTALLERS,
   secureRuntimeLocalCommand,
 } from './node-installer.js';
+import { LEGACY_ADDRESS_FLAG, LEGACY_CERT_FLAG, LEGACY_INSTALLER_CHECKSUMS_ASSET, LEGACY_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 
 vi.mock('@/config/env.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/config/env.js')>()),
   getEnv: () => ({ APP_VERSION: '2.11.0', GRPC_PORT: 9443 }),
 }));
 
-const RELEASE = 'https://get.opfield.dev/gateway/releases/download/v2.11.0';
+const RELEASE = `${LEGACY_UPDATES_BASE_URL}/releases/download/v2.11.0`;
 const CERT = `sha256:${'a'.repeat(64)}`;
 
 function storageCommands(release: string | null) {
@@ -137,7 +138,7 @@ describe('node setup commands', () => {
       /--opfield opfield\.example\.com:9443 \\\n.*\n.*\n {2}--advertise-address relay\.example\.com \\\n {2}--service-port 9444 \\\n {2}--version v2\.12\.1-rc\.3$/
     );
     expect(commands[0]?.curl).toContain(`--opfield-cert-sha256 ${CERT}`);
-    expect(commands[0]?.curl).not.toContain('--gateway');
+    expect(commands[0]?.curl).not.toContain(LEGACY_ADDRESS_FLAG);
   });
 
   it('give a relay pool before 2.12.1 the installer of its own release with the flags it takes', () => {
@@ -153,10 +154,10 @@ describe('node setup commands', () => {
 
     expect(command?.curl).toContain('/download/v2.12.0/setup-relay-node.sh');
     expect(command?.curl).toContain(
-      "/download/v2.12.0/gateway-daemon-installers.sha256 && \\\ngrep ' setup-relay-node.sh$' gateway-daemon-installers.sha256"
+      `/download/v2.12.0/${LEGACY_INSTALLER_CHECKSUMS_ASSET} && \\\ngrep ' setup-relay-node.sh$' ${LEGACY_INSTALLER_CHECKSUMS_ASSET}`
     );
-    expect(command?.curl).toContain('--gateway opfield.example.com:9443');
-    expect(command?.curl).toContain(`--gateway-cert-sha256 ${CERT}`);
+    expect(command?.curl).toContain(`${LEGACY_ADDRESS_FLAG} opfield.example.com:9443`);
+    expect(command?.curl).toContain(`${LEGACY_CERT_FLAG} ${CERT}`);
     expect(command?.curl).toMatch(/--version 2\.12\.0$/);
   });
 
@@ -201,7 +202,7 @@ describe('DaemonUpdateService.installVersion', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   function service(appVersion: string) {
-    const env = { APP_VERSION: appVersion, RELEASES_API_URL: 'https://updates.example.test/gateway/releases' } as Env;
+    const env = { APP_VERSION: appVersion, RELEASES_API_URL: 'https://updates.example.test/opfield/releases' } as Env;
     const settings = { getConfig: async () => ({ updateChannel: 'preview' }) } as unknown as GeneralSettingsService;
     return new DaemonUpdateService({} as never, env, settings);
   }
@@ -253,8 +254,8 @@ describe('DaemonUpdateService.relayInstallVersion', () => {
   function service(appVersion = 'v2.12.1', updateChannel = 'stable') {
     const env = {
       APP_VERSION: appVersion,
-      RELEASES_API_URL: 'https://updates.example.test/gateway/releases',
-      ARTIFACT_BASE_URL: 'https://updates.example.test/gateway',
+      RELEASES_API_URL: 'https://updates.example.test/opfield/releases',
+      ARTIFACT_BASE_URL: 'https://updates.example.test/opfield',
     } as Env;
     const settings = { getConfig: async () => ({ updateChannel }) } as unknown as GeneralSettingsService;
     return new DaemonUpdateService({} as never, env, settings);
@@ -282,7 +283,7 @@ describe('DaemonUpdateService.relayInstallVersion', () => {
     const fetchMock = feed(['v2.12.0-relay'], { '2.12:stable': 'v2.12.1-relay' });
     await expect(service().relayInstallVersion('2.12.0')).resolves.toBe('v2.12.0');
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(
-      'https://updates.example.test/gateway/relay-supervisor/v2.12.0-relay/relay-supervisor-linux-amd64.update.json'
+      'https://updates.example.test/opfield/relay-supervisor/v2.12.0-relay/relay-supervisor-linux-amd64.update.json'
     );
   });
 

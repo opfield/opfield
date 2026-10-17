@@ -7,6 +7,7 @@ import {
 } from '../hosting-firewall.types.js';
 import { HostingProviderError, type HostingRequestOptions } from '../hosting-http.js';
 import type { HostingResourceSnapshot } from '../hosting-provider.types.js';
+import { LEGACY_HOSTING_FIREWALL_PREFIX } from '@/lib/legacy-compat.js';
 
 type Json = Record<string, unknown>;
 type Request = <T>(path: string, options?: HostingRequestOptions) => Promise<T>;
@@ -65,7 +66,7 @@ function ownedName(ownerKey: string, remoteId: string): string {
 }
 // legacy-name: the pre-2.12.1 DigitalOcean firewall name — remove once every hosting resource was reconciled by 2.12.1+
 function legacyOwnedName(ownerKey: string, remoteId: string): string {
-  return `gateway-fw-${createHash('sha256').update(`${ownerKey}:${remoteId}`).digest('hex').slice(0, 20)}`;
+  return `${LEGACY_HOSTING_FIREWALL_PREFIX}${createHash('sha256').update(`${ownerKey}:${remoteId}`).digest('hex').slice(0, 20)}`;
 }
 function ownedNames(ownerKey: string, remoteId: string): string[] {
   return [ownedName(ownerKey, remoteId), legacyOwnedName(ownerKey, remoteId)];

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DockerImageCleanupService, REPLACED_IMAGE_GRACE_MS } from './docker-image-cleanup.service.js';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 function emptyStore() {
   return {
@@ -102,7 +103,7 @@ describe('DockerImageCleanupService', () => {
     const build = (n: number) => ({
       Id: `sha-v${n}`,
       RepoTags: [],
-      RepoDigests: [`127.0.0.1:5443/gateway/builds/src-1@sha256:${String(n).repeat(64)}`],
+      RepoDigests: [`127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/builds/src-1@sha256:${String(n).repeat(64)}`],
       Created: n * 100,
     });
     const docker = {
@@ -191,7 +192,7 @@ describe('imageReferenceDigest', () => {
   it('reads the digest a pinned reference names, nothing from a tag', async () => {
     const { imageReferenceDigest } = await import('./docker-container-kept-image.js');
     const digest = `sha256:${'A'.repeat(64)}`;
-    expect(imageReferenceDigest(`127.0.0.1:5443/gateway/builds/s@${digest}`)).toBe(digest.toLowerCase());
+    expect(imageReferenceDigest(`127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/builds/s@${digest}`)).toBe(digest.toLowerCase());
     expect(imageReferenceDigest('nginx:1.27')).toBeNull();
     expect(imageReferenceDigest(undefined)).toBeNull();
   });

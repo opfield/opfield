@@ -23,6 +23,7 @@ vi.mock("@/stores/pinned-containers", () => ({ syncPinnedContainerMeta: vi.fn() 
 
 import { ApiRequestError } from "@/services/api-base";
 import { loadAppCompute, loadAppNetwork, useAppLoad } from "./app-resources";
+import { LEGACY_INSTALL_DIR_NAME } from "../../../../backend/src/lib/legacy-compat";
 
 const APP = "app-1";
 const container = {
@@ -83,7 +84,7 @@ describe("app member loading by scope", () => {
     api.getDockerComposeProject.mockResolvedValue({
       services: [
         service("worker", {
-          image: `127.0.0.1:5443/gateway/builds/x@sha256:${"a".repeat(64)}`,
+          image: `127.0.0.1:5443/${LEGACY_INSTALL_DIR_NAME}/builds/x@sha256:${"a".repeat(64)}`,
           source: { repositoryFullPath: "acme/shop", branch: "main", commitSha: "0123456789ab" },
         }),
         service("api"),

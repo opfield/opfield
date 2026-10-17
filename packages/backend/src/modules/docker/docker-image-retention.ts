@@ -4,21 +4,22 @@ import {
   dockerImageReferences,
   isOpfieldInternalImage,
 } from './docker-internal-images.js';
+import { LEGACY_IMAGE_REPOSITORY, LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 type DockerImageLike = Record<string, any>;
 
 /** The image cleanup setting of a container or deployment when none was saved: on, the running image and one more. */
 export const DEFAULT_IMAGE_RETENTION_COUNT = 2;
 
-const BUILD_REPOSITORY_PREFIX = 'gateway/builds/';
+const BUILD_REPOSITORY_PREFIX = `${LEGACY_REGISTRY_NAMESPACE}/builds/`;
 /** Repositories of Opfield's internal registry: builds, Availability mirrors and app promotion copies. */
-const INTERNAL_REPOSITORY = /(^|\/)gateway\/(builds|availability|promotion)\//; // legacy-name: registry namespace
+const INTERNAL_REPOSITORY = new RegExp(String.raw`(^|\/)${LEGACY_REGISTRY_NAMESPACE}\/(builds|availability|promotion)\/`);
 
 /**
  * The repository an image reference belongs to, for counting a container's images: tags and digests both count, so
  * an image pulled by digest only (`repo@sha256:…`, as every build image is) matches its repository too. An image of
  * Opfield's internal registry has the same repository whatever address of the registry pulled it
- * (`gateway/builds/<source>[/<service>]`, `gateway/availability/…`, `gateway/promotion/…`).
+ * (LEGACY_REGISTRY_NAMESPACE/builds/<source>[/<service>]`, LEGACY_REGISTRY_NAMESPACE/availability/…`, LEGACY_REGISTRY_NAMESPACE/promotion/…`).
  * Null for an image ID or a reference without a repository.
  */
 export function imageRetentionRepository(reference: string): string | null {
@@ -182,7 +183,9 @@ export function isToolImageRepository(repository: string): boolean {
     repository === `docker.io/library/${name}` ||
     repository === `docker.io/docker/${name}` ||
     repository === `docker.io/clickhouse/${name}` ||
-    /^ghcr\.io\/(opfield\/opfield|the-square-labs\/gateway)(\/[a-z0-9._-]+)*\/[a-z0-9._-]+$/.test(repository)
+    new RegExp(
+      String.raw`^(?:ghcr\.io\/opfield\/opfield|${LEGACY_IMAGE_REPOSITORY.replaceAll('.', '\\.')})(\/[a-z0-9._-]+)*\/[a-z0-9._-]+$`
+    ).test(repository)
   );
 }
 

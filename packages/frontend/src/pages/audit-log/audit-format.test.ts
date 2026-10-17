@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AuditLogEntry } from "@/types";
 import { formatAuditExport, getAuditDescription, getAuditResourceDisplay } from "./audit-format";
+import { LEGACY_INSTALL_DIR_NAME } from "../../../../backend/src/lib/legacy-compat";
 
 const base: AuditLogEntry = {
   id: "e1",
@@ -57,7 +58,7 @@ describe("audit resource display", () => {
       resourceId: "img1",
       resourceName: null,
       summary: null,
-      details: { imageRef: "127.0.0.1:5443/gateway/builds/x@sha256:abc" },
+      details: { imageRef: `127.0.0.1:5443/${LEGACY_INSTALL_DIR_NAME}/builds/x@sha256:abc` },
     };
     expect(getAuditResourceDisplay(entry, { feed: true }).label).not.toContain("5443");
   });

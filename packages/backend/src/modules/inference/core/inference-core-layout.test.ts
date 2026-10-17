@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { inferenceCoreLayout } from './inference-core-layout.js';
+import { LEGACY_INFERENCE_FEATURE, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 describe('inference core layout', () => {
   it('names a new core after the Compose project', () => {
@@ -15,17 +16,17 @@ describe('inference core layout', () => {
 
   it('keeps the names and label project of a core installed before 2.12.1 after the host move', () => {
     const layout = inferenceCoreLayout('opfield', 'opfield_default', 'app', {
-      containerName: 'gateway-inference-core',
-      stateVolumeName: 'gateway-inference-core-state',
-      secretVolumeName: 'gateway-inference-core-secrets',
+      containerName: `${LEGACY_INFERENCE_FEATURE}-core`,
+      stateVolumeName: `${LEGACY_INFERENCE_FEATURE}-core-state`,
+      secretVolumeName: `${LEGACY_INFERENCE_FEATURE}-core-secrets`,
     });
     expect(layout).toEqual({
-      project: 'gateway',
+      project: `${LEGACY_INSTALL_DIR_NAME}`,
       network: 'opfield_default',
       opfieldAlias: 'app',
-      containerName: 'gateway-inference-core',
-      stateVolume: 'gateway-inference-core-state',
-      secretVolume: 'gateway-inference-core-secrets',
+      containerName: `${LEGACY_INFERENCE_FEATURE}-core`,
+      stateVolume: `${LEGACY_INFERENCE_FEATURE}-core-state`,
+      secretVolume: `${LEGACY_INFERENCE_FEATURE}-core-secrets`,
     });
   });
 

@@ -7,6 +7,7 @@ import { DockerManagementService } from './docker.service.js';
 import { duplicateContainer } from './docker-container-mutation-operations.js';
 import { getContainerEnv } from './docker-env-operations.js';
 import { DOCKER_DUPLICATE_ENV_REMOVAL_CAPABILITY } from './docker-secret-env.js';
+import { LEGACY_LABEL_PREFIX } from '@/lib/legacy-compat.js';
 
 vi.mock('@/modules/nodes/service-creation-lock.js', () => ({
   assertNodeAllowsServiceCreation: vi.fn().mockResolvedValue(undefined),
@@ -33,7 +34,7 @@ const slotInspect = () => ({
   Id: 'slot-id',
   Name: '/web-blue',
   Config: {
-    Labels: { 'wiolett.gateway.deployment.managed': 'true', 'wiolett.gateway.deployment.id': DEPLOYMENT_ID },
+    Labels: { [`${LEGACY_LABEL_PREFIX}deployment.managed`]: 'true', [`${LEGACY_LABEL_PREFIX}deployment.id`]: DEPLOYMENT_ID },
     Env: [`DATABASE_URL=${DATABASE_URL}`, `AWS_SECRET_ACCESS_KEY=${S3_SECRET}`, 'MODE=prod'],
   },
 });
@@ -43,7 +44,7 @@ const composeInspect = () => ({
   Id: 'compose-id',
   Name: '/shop-api-1',
   Config: {
-    Labels: { 'wiolett.gateway.compose.project-id': COMPOSE_PROJECT_ID, 'com.docker.compose.project': 'shop' },
+    Labels: { [`${LEGACY_LABEL_PREFIX}compose.project-id`]: COMPOSE_PROJECT_ID, 'com.docker.compose.project': 'shop' },
     Env: [`DB=${DATABASE_URL}`, `API_URL=https://user:${COMPOSE_TOKEN}@api.example`, 'MODE=prod'],
   },
 });

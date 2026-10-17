@@ -16,6 +16,7 @@ import {
   RelayRecoverySafetyError,
 } from './relay-docker-recovery.service.js';
 import { type RelayExternalActivity, relayRecoveryWait } from './relay-recovery-decision.js';
+import { LEGACY_LOCK_RELAY_RECOVERY } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('RelaySupervisor');
 const CONTROL_STATE_KEY = 'relay:control-state';
@@ -782,7 +783,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
 
   private async allocateAttempt(attempt: number, startedAt: string): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-recovery'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_RECOVERY}))`);
       this.state = {
         ...this.state,
         state: 'recovering',

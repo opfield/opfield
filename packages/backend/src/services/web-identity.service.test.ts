@@ -8,6 +8,7 @@ import { connect, type TLSSocket } from 'node:tls';
 import forge from 'node-forge';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebIdentityService } from './web-identity.service.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 function rsaKeys() {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -38,7 +39,7 @@ function createRenewedCertificates() {
     leafCert.serialNumber = serialNumber;
     leafCert.validity.notBefore = new Date(now - 60_000);
     leafCert.validity.notAfter = new Date(now + 86_400_000);
-    leafCert.setSubject([{ name: 'commonName', value: 'gateway-web' }]);
+    leafCert.setSubject([{ name: 'commonName', value: `${LEGACY_INSTALL_DIR_NAME}-web` }]);
     leafCert.setIssuer(caCert.subject.attributes);
     leafCert.setExtensions([
       { name: 'basicConstraints', cA: false },

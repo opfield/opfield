@@ -26,7 +26,7 @@ AI Workspace 把目标或现成的 Scenario 变成由你审阅的计划，只有
 - 运行 proxy、Docker、存储和监控节点，节点上无需开放任何入站管理端口。
 - 为运维人员提供处理生产任务的 UI 和 API，而不是 root shell 访问。
 - 在一处集中管理 TLS、内部 PKI、ACME 证书、域名、状态页、通知和审计历史。
-- 跨所有节点管理 Docker 容器、Compose 项目、部署、`.gwca` 归档、日志、文件、控制台、secrets 和镜像仓库。
+- 跨所有节点管理 Docker 容器、Compose 项目、部署、`.ofca` 归档、日志、文件、控制台、secrets 和镜像仓库。
 - 通过 API tokens、OAuth、CI/CD webhooks 和 MCP 客户端实现自动化，权限范围与人工操作相同。
 - 在 AI Workspace 中规划多步骤变更，并在明确确认后执行。
 
@@ -90,7 +90,7 @@ curl -fsSL https://get.opfield.dev | bash
 | 安装 Opfield | [Installation guide](docs/installation.md) |
 | 添加 Ingress、Docker、Build Worker、Storage、Monitoring 或 Relay 节点 | [Nodes and daemons](docs/nodes.md) |
 | 运行 Storage 节点、storage connections 和数据库备份 | [Storage and backups](docs/storage-and-backups.md) |
-| 导出或导入包含或不包含内嵌 image 的 Docker containers | [GWCA container archives](docs/docker-container-archives.md) |
+| 导出或导入包含或不包含内嵌 image 的 Docker containers | [OFCA container archives](docs/docker-container-archives.md) |
 | 配置 tokens、OAuth、MCP、logging、updates 和 AI | [Operations guide](docs/operations.md) |
 | 配置 multi-provider inference proxy | [Inference proxy](docs/inference.md) |
 | 查看 security model | [Security model](docs/security.md) |

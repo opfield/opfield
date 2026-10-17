@@ -8,6 +8,7 @@ import {
   DOCKER_NETWORK_ISOLATION_CAPABILITY,
   type IsolatedEndpoint,
 } from './app-network-isolation.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 
 const NO_NODE = Symbol('no node');
 
@@ -161,16 +162,16 @@ describe('app network isolation', () => {
     const { isolation } = setup({
       detail: JSON.stringify({
         restored: [],
-        gone: ['gateway-db-fbde43'],
+        gone: [`${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43`],
         failed: [],
-        networkModeGone: 'gateway-db-fbde43',
+        networkModeGone: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43`,
         fallbackNetwork: 'bridge',
       }),
     });
     await expect(isolation.restore('n1', 'app', [endpoint])).resolves.toEqual({
       restored: [],
-      gone: ['gateway-db-fbde43'],
-      networkModeGone: 'gateway-db-fbde43',
+      gone: [`${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43`],
+      networkModeGone: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43`,
       fallbackNetwork: 'bridge',
       failed: [],
     });

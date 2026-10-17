@@ -1,3 +1,4 @@
+import { LEGACY_INFERENCE_FEATURE } from '@/lib/legacy-compat.js';
 export const LICENSE_LEGACY_ENTITLEMENTS_VERSION = 3;
 export const LICENSE_PREVIOUS_ENTITLEMENTS_VERSION = 4;
 export const LICENSE_ENTITLEMENTS_VERSION = 5;
@@ -158,7 +159,7 @@ const SHARED_FEATURES = [
 
 // legacy-name: the legacy inference license feature key — the license server still signs it in place of `inference`;
 // remove once the license server issues only `inference`.
-const LEGACY_FEATURE_NAMES: Readonly<Record<string, string>> = { 'gateway-inference': 'inference' };
+const LEGACY_FEATURE_NAMES: Readonly<Record<string, string>> = { [LEGACY_INFERENCE_FEATURE]: 'inference' };
 
 /** A signed feature key under its current name. */
 export function canonicalLicenseFeature(feature: string): string {

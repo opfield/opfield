@@ -21,6 +21,7 @@ import {
   MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER,
 } from '@/modules/docker/availability/lease/lease-policy-relays.js';
 import { setLeaseCandidates } from '@/modules/docker/availability/lease/managed-availability-lease-source.js';
+import { LEGACY_LOCK_RELAY_POLICY_RECONCILIATION } from '@/lib/legacy-compat.js';
 
 /**
  * Relay data paths of database and storage availability sets (member mesh, decision 3 of the plan).
@@ -1063,7 +1064,7 @@ export async function reconcileSetPathsOfEndpoint(tx: DrizzleExecutor, endpointI
     )
     .limit(1);
   if (typeof set?.id !== 'string') return false;
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_RECONCILIATION}))`);
   return reconcileSetRelayPaths(tx, [set.id]);
 }
 

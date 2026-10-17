@@ -109,6 +109,10 @@ import {
 import type { RelayAssignmentRole } from './relay-topology.js';
 import { RelayTopologyService } from './relay-topology.service.js';
 import { parseRelayGrantEgressStatuses, type SecureLinkEgressStatus } from './secure-link-egress-status.js';
+import { LEGACY_INTERNAL_REGISTRY_ID, LEGACY_LOCK_RELAY_POLICY_RECONCILIATION, LEGACY_MANAGED_DATABASE_OWNER_KIND, LEGACY_MANAGED_STORAGE_OWNER_KIND, LEGACY_RELAY_INSTANCE_CHANGED_ERROR, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
+
+/** The error a relay returns for a snapshot of another Opfield instance (relays before 2.12.1: LEGACY_RELAY_INSTANCE_CHANGED_ERROR). */
+const RELAY_INSTANCE_CHANGED_ERROR = 'snapshot Opfield instance changed';
 
 export type { RelayGrantAssignment, RelayGrantBundle, RelayGrantClaims } from './relay-grant-issuer.service.js';
 
@@ -197,8 +201,8 @@ export interface RelayGrantSyncOptions {
  * identity changes and reconnects always deliver.
  */
 const ROUTINE_GRANT_SYNC: RelayGrantSyncOptions = { skipUnchanged: true };
-const INTERNAL_REGISTRY_ID = 'gateway-internal-registry';
-const INTERNAL_REGISTRY_CERTIFICATE_ID = 'local:gateway-internal-registry';
+const INTERNAL_REGISTRY_ID = LEGACY_INTERNAL_REGISTRY_ID;
+const INTERNAL_REGISTRY_CERTIFICATE_ID = `local:${LEGACY_INTERNAL_REGISTRY_ID}`;
 const REGISTRY_ROUTE_OWNER_KINDS = ['registry_secure_link', 'registry_ingress'] as const;
 type RegistryRouteOwnerKind = (typeof REGISTRY_ROUTE_OWNER_KINDS)[number];
 type RelayOwnerKind =
@@ -208,9 +212,9 @@ type RelayOwnerKind =
   | 'storage_backup_staging'
   | 'managed_storage'
   | 'managed_storage_binding'
-  | 'managed_storage_gateway'
+  | typeof LEGACY_MANAGED_STORAGE_OWNER_KIND
   | 'managed_database_binding'
-  | 'managed_database_gateway'
+  | typeof LEGACY_MANAGED_DATABASE_OWNER_KIND
   | 'managed_database'
   | 'proxy_host_secure_link'
   | 'container_link'
@@ -419,7 +423,7 @@ function isLocalPolicyLockout(error: unknown): boolean {
   const message = errorMessage(error);
   return (
     (error as { code?: number } | null)?.code === GrpcStatus.FAILED_PRECONDITION &&
-    (message.includes('policy envelope signature is invalid') || message.includes('snapshot gateway instance changed'))
+    (message.includes('policy envelope signature is invalid') || message.includes(RELAY_INSTANCE_CHANGED_ERROR) || message.includes(LEGACY_RELAY_INSTANCE_CHANGED_ERROR))
   );
 }
 
@@ -1270,7 +1274,10 @@ export class RelayPolicyService {
         try {
           response = await this.applyLocalSnapshot(signed);
         } catch (retryError) {
-          if (errorMessage(retryError).includes('snapshot gateway instance changed')) {
+          if (
+            errorMessage(retryError).includes(RELAY_INSTANCE_CHANGED_ERROR) ||
+            errorMessage(retryError).includes(LEGACY_RELAY_INSTANCE_CHANGED_ERROR)
+          ) {
             // The reset took, but this relay build cannot rebind to this Opfield instance.
             this.setLocalPolicyTrust(
               'recovery_unsupported',
@@ -2400,10 +2407,10 @@ export class RelayPolicyService {
     const endpointId = await this.ensureManagedDatabaseEndpoint(managedDatabaseId, targetNodeId);
     const state = await this.grantIssuer.requireState();
     const routeId = await this.ensureRoute(
-      'managed_database_gateway',
+      LEGACY_MANAGED_DATABASE_OWNER_KIND,
       managedDatabaseId,
-      'gateway',
-      state.gatewayInstanceId,
+      LEGACY_RELAY_SOURCE_KIND,
+      state.opfieldInstanceId,
       appCertificateFingerprint,
       endpointId
     );
@@ -2465,7 +2472,7 @@ export class RelayPolicyService {
    */
   async reconcileSetRelayPaths(setId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_RECONCILIATION}))`);
       if (await reconcileSetPaths(tx, [setId])) await bumpRelayPolicyRevision(tx);
     });
     await this.syncSetPaths([setId]);
@@ -2479,7 +2486,7 @@ export class RelayPolicyService {
     const [set] = await loadSetRelayViews(this.db, { setIds: [setId] });
     if (!set) return;
     await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_RECONCILIATION}))`);
       if (await releaseSetPaths(tx, setId, keepMemberId)) await bumpRelayPolicyRevision(tx);
     });
     await this.syncSnapshot();
@@ -2537,7 +2544,7 @@ export class RelayPolicyService {
     }
     const routeId =
       (await this.currentOpfieldRoute(
-        'managed_database_gateway',
+        LEGACY_MANAGED_DATABASE_OWNER_KIND,
         'managed_database',
         managedDatabaseId,
         database.nodeId,
@@ -2856,10 +2863,10 @@ export class RelayPolicyService {
     const endpointId = await this.ensureManagedStorageEndpoint(clusterId, targetNodeId);
     const state = await this.grantIssuer.requireState();
     const routeId = await this.ensureRoute(
-      'managed_storage_gateway',
+      LEGACY_MANAGED_STORAGE_OWNER_KIND,
       clusterId,
-      'gateway',
-      state.gatewayInstanceId,
+      LEGACY_RELAY_SOURCE_KIND,
+      state.opfieldInstanceId,
       appCertificateFingerprint,
       endpointId
     );
@@ -2895,7 +2902,7 @@ export class RelayPolicyService {
     }
     const routeId =
       (await this.currentOpfieldRoute(
-        'managed_storage_gateway',
+        LEGACY_MANAGED_STORAGE_OWNER_KIND,
         'managed_storage',
         clusterId,
         database.nodeId,
@@ -3277,7 +3284,7 @@ export class RelayPolicyService {
    * target daemon's whole grant bundle every time.
    */
   private async currentOpfieldRoute(
-    ownerKind: 'managed_database_gateway' | 'managed_storage_gateway',
+    ownerKind: typeof LEGACY_MANAGED_DATABASE_OWNER_KIND | typeof LEGACY_MANAGED_STORAGE_OWNER_KIND,
     endpointOwnerKind: 'managed_database' | 'managed_storage',
     ownerId: string,
     nodeId: string,
@@ -3294,7 +3301,7 @@ export class RelayPolicyService {
       .from(relayRoutes)
       .where(and(eq(relayRoutes.ownerKind, ownerKind), eq(relayRoutes.ownerId, ownerId)))
       .limit(1);
-    if (!route || route.sourceKind !== 'gateway' || route.sourceCertificateSha256 !== appCertificateFingerprint) {
+    if (!route || route.sourceKind !== LEGACY_RELAY_SOURCE_KIND || route.sourceCertificateSha256 !== appCertificateFingerprint) {
       return null;
     }
     const [endpoint] = await this.db
@@ -3332,7 +3339,7 @@ export class RelayPolicyService {
         )
         .limit(1),
     ]);
-    if (route.sourceId !== state.gatewayInstanceId || node?.certificateFingerprint !== endpoint.certificateSha256) {
+    if (route.sourceId !== state.opfieldInstanceId || node?.certificateFingerprint !== endpoint.certificateSha256) {
       return null;
     }
     return assigned ? route.id : null;
@@ -3416,7 +3423,7 @@ export class RelayPolicyService {
 
   private async reconcileInternalRegistryEndpoint(): Promise<string> {
     const endpoint = await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-internal-registry-relay-endpoint'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('${LEGACY_INTERNAL_REGISTRY_ID}-relay-endpoint'))`);
       const [current] = await tx
         .select()
         .from(relayEndpoints)
@@ -3479,7 +3486,7 @@ export class RelayPolicyService {
         const activeEndpointIds = new Set(activeEndpoints.map(({ id }) => id));
         return {
           revision: String(state.revision),
-          gatewayInstanceId: state.gatewayInstanceId,
+          opfieldInstanceId: state.opfieldInstanceId,
           admissionPolicy: {
             enabled: relaySettings.adaptiveAdmissionEnabled,
             proxyTargetPressurePercent: relaySettings.proxyTargetPressurePercent,
@@ -3712,7 +3719,7 @@ export class RelayPolicyService {
       // Never fail open: without the lease gate ids the relay would admit a lease-mode placement like a legacy one.
       const leaseGate = this.availabilityLeaseGate ? await this.availabilityLeaseGate(endpoints, routes) : null;
       const content = relayPolicySnapshotContent({
-        gatewayInstanceId: state.gatewayInstanceId,
+        opfieldInstanceId: state.opfieldInstanceId,
         poolId: instance.poolId,
         relayInstanceId: instance.id,
         grantKeys,

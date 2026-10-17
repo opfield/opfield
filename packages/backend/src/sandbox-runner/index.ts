@@ -58,6 +58,7 @@ import {
   measureWorkspaceUsageBytes,
   remainingWorkspaceReservationBytes,
 } from './workspace-policy.js';
+import { LEGACY_APP_DATA_DIR, LEGACY_SANDBOX_LABEL, LEGACY_SANDBOX_NAME_PREFIX } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('SandboxRunner');
 
@@ -65,7 +66,6 @@ const logger = createChildLogger('SandboxRunner');
 const SANDBOX_LABEL = 'net.opfield.sandbox';
 // legacy-name: legacy sandbox labels of sandbox containers created before 2.12.1 (they expire with their job) —
 // remove once no installation runs one
-const LEGACY_SANDBOX_LABEL = 'gateway.sandbox';
 
 function sandboxLabelKey(name: string | null, prefix = SANDBOX_LABEL): string {
   return name ? `${prefix}.${name}` : prefix;
@@ -112,8 +112,8 @@ const ARTIFACT_ROOT = '/workspace';
 const WORKSPACE_HOST_ROOT =
   process.env.SANDBOX_RUNNER_WORKSPACE_DIR ||
   (process.env.NODE_ENV === 'production'
-    ? '/var/lib/gateway/sandbox-workspaces'
-    : path.join(os.tmpdir(), 'gateway-sandbox-workspaces'));
+    ? `${LEGACY_APP_DATA_DIR}/sandbox-workspaces`
+    : path.join(os.tmpdir(), 'opfield-sandbox-workspaces'));
 
 const docker = new DockerService(DOCKER_SOCKET, '');
 const runningTimeouts = new Map<string, NodeJS.Timeout>();
@@ -134,7 +134,7 @@ function runtimeImageSpec(runtime: string): RuntimeImageSpec {
     return {
       upstreamImage: 'node',
       upstreamTag: '22-alpine',
-      internalRepo: 'gateway-sandbox-node',
+      internalRepo: `${LEGACY_SANDBOX_NAME_PREFIX}node`,
       internalTag: '22-alpine',
     };
   }
@@ -142,14 +142,14 @@ function runtimeImageSpec(runtime: string): RuntimeImageSpec {
     return {
       upstreamImage: 'python',
       upstreamTag: '3.12-alpine',
-      internalRepo: 'gateway-sandbox-python',
+      internalRepo: `${LEGACY_SANDBOX_NAME_PREFIX}python`,
       internalTag: '3.12-alpine',
     };
   }
   return {
     upstreamImage: 'alpine',
     upstreamTag: '3.20',
-    internalRepo: 'gateway-sandbox-alpine',
+    internalRepo: `${LEGACY_SANDBOX_NAME_PREFIX}alpine`,
     internalTag: '3.20',
   };
 }

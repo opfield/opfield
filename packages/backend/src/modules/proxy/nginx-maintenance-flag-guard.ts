@@ -1,4 +1,5 @@
 import { type NginxConfigDirective, parseNginxConfig, walkNginxConfig } from './nginx-config-tree.js';
+import { LEGACY_NGINX_MARK_PREFIX, LEGACY_NGINX_VARIABLE_PREFIX } from '@/lib/legacy-compat.js';
 
 /**
  * Maintenance without an nginx reload, for nodes whose daemon reports proxy_maintenance_flag_v1.
@@ -35,9 +36,11 @@ const PAGES_ROUTE_INCLUDE = /\/pages\/routes\/[A-Za-z0-9-]+\.inc$/;
 const SECURE_LINK_DIRECTIVES = new Set(['secure_link', 'secure_link_md5', 'secure_link_secret']);
 /**
  * The names of the guard's own locations, as `location = <name>` or `location =<name>`.
- * legacy-name: gateway-maintenance locations of configs rendered before 2.12.1 — remove once every node reports none
+ * legacy-name: legacy maintenance locations of configs rendered before 2.12.1 — remove once every node reports none
  */
-const GUARD_LOCATION = /^[=@]?(?:opfield|gateway)-maintenance(?:-access|-status|-page|-state)?$/;
+const GUARD_LOCATION = new RegExp(
+  String.raw`^[=@]?(?:opfield-|${LEGACY_NGINX_MARK_PREFIX})maintenance(?:-access|-status|-page|-state)?$`
+);
 
 /**
  * Why the guard's locations answer through try_files and error_page instead of `return`: `return` runs in nginx's
@@ -97,9 +100,9 @@ function usesReservedFeatures(directives: NginxConfigDirective[]): boolean {
       directive.name === 'proxy_pass_request_headers' ||
       (directive.name === 'include' && !PAGES_ROUTE_INCLUDE.test(directive.args[0]?.value ?? '')) ||
       (directive.name === 'location' && directive.args.some((arg) => GUARD_LOCATION.test(arg.value))) ||
-      // legacy-name: $gateway_maintenance of configs written before 2.12.1 — remove once every node reports none
+      // legacy-name: the legacy maintenance variable of configs written before 2.12.1 — remove once every node reports none
       directive.args.some((arg) =>
-        /\$\{?(secure_link|opfield_maintenance|gateway_maintenance|gm_cookie_)/.test(arg.raw)
+        new RegExp(String.raw`\$\{?(secure_link|opfield_maintenance|${LEGACY_NGINX_VARIABLE_PREFIX}maintenance|gm_cookie_)`).test(arg.raw)
       )
     ) {
       reserved = true;

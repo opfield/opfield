@@ -8,6 +8,7 @@ import { GeneralSettingsService } from '@/modules/settings/general-settings.serv
 import { DaemonUpdateService, daemonTypeForNodeType } from '@/services/daemon-update.service.js';
 import { RelayPoolService } from '@/services/relay-pool.service.js';
 import { DEFAULT_RELAY_SERVICE_PORT, requestedRelayServicePort } from '@/services/relay-service-endpoint.js';
+import { LEGACY_ADDRESS_FLAG, LEGACY_CERT_FLAG, LEGACY_INSTALLER_CHECKSUMS_ASSET } from '@/lib/legacy-compat.js';
 
 // The update Worker serves a release's installers in GitHub's release download layout.
 const RELEASE_DOWNLOADS = `${INSTALLER_RELEASES_URL}/download`;
@@ -16,7 +17,7 @@ const MAIN_INSTALLERS = 'https://raw.githubusercontent.com/opfield/opfield/main/
 const INSTALLER_CHECKSUMS = 'opfield-node-installers.sha256';
 // legacy-name: checksum list of releases before 2.12.1, whose relay installer a pool on such a release needs — remove
 // once every relay pool runs 2.12.1 or later
-const LEGACY_INSTALLER_CHECKSUMS = 'gateway-daemon-installers.sha256';
+const LEGACY_INSTALLER_CHECKSUMS = LEGACY_INSTALLER_CHECKSUMS_ASSET;
 // The first relay release this release's relay installer installs (setup-relay-node.sh MIN_RELAY_VERSION).
 const OPFIELD_RELAY_INSTALLER_MIN = 'v2.12.1-rc.3';
 
@@ -48,7 +49,7 @@ function enrollmentFlags(installer: string): { address: string; certificate: str
   return OPFIELD_FLAG_INSTALLERS.has(installer)
     ? { address: '--opfield', certificate: '--opfield-cert-sha256' }
     : // legacy-name: --gateway flags of installers not yet taking --opfield — remove once every installer does.
-      { address: '--gateway', certificate: '--gateway-cert-sha256' };
+      { address: LEGACY_ADDRESS_FLAG, certificate: LEGACY_CERT_FLAG };
 }
 
 export type InstallTransport = 'curl' | 'wget';
@@ -224,7 +225,7 @@ export function nodeInstallCommands(input: {
     if (!address) return [];
     const flags = legacyRelay
       ? // legacy-name: --gateway flags of a relay installer before 2.12.1 — remove once every relay pool runs 2.12.1+
-        { address: '--gateway', certificate: '--gateway-cert-sha256' }
+        { address: LEGACY_ADDRESS_FLAG, certificate: LEGACY_CERT_FLAG }
       : enrollmentFlags(installer);
     const args: Array<readonly [string, string]> = [
       [flags.address, address],

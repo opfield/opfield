@@ -24,6 +24,7 @@ import { effectiveMaintenance, NOT_IN_EFFECTIVE_MAINTENANCE } from './effective-
 import type { HealthCheckBodyMatchMode } from './proxy.service-helpers.js';
 import { matchesExpectedBody } from './proxy.service-helpers.js';
 import { loadAvailabilityRouteProbeLinks, probeSecureLinkRoute } from './proxy-secure-link-health-probe.js';
+import { LEGACY_CLICKHOUSE_CONTAINER } from '@/lib/legacy-compat.js';
 
 export const PROXY_HEALTH_CHECK_TIMEOUT_MS = 10_000;
 // Same ceiling as the daemon-side Secure Link and Pages probes.
@@ -126,7 +127,7 @@ function opfieldInternalServiceNames(env: Partial<Env>): Set<string> {
     urlHostname(env.OPFIELD_RELAY_TARGET),
     env.OPFIELD_RELAY_SERVICE_NAME?.toLowerCase(),
     urlHostname(process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000'),
-    'gateway-clickhouse',
+    LEGACY_CLICKHOUSE_CONTAINER,
   ];
   // Compose service names are single-label; a dotted or literal-IP host may be a shared server
   // that also runs legitimate upstreams, so it is left to the outbound policy.

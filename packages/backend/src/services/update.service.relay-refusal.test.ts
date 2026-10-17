@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { nodes, relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
 import type { TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import { UpdateService, updateCommandFailure } from './update.service.js';
+import { LEGACY_MIN_VERSION_FIELD, LEGACY_THESQLABS_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 
 const IMAGE_REF = `registry.example.com/opfield/opfield/relay@sha256:${'a'.repeat(64)}`;
 const REFUSAL =
@@ -14,7 +15,7 @@ function relayArtifact(): TrustedRelayUpdateArtifact {
     digest: `sha256:${'a'.repeat(64)}`,
     buildVersion: 'v2.4.3',
     protocolMajor: 1,
-    minGatewayVersion: 'v2.4.2',
+    minOpfieldVersion: 'v2.4.2',
     secureLinkConnectorImage,
     signedManifest: 'signed-relay',
     payload: {
@@ -25,7 +26,7 @@ function relayArtifact(): TrustedRelayUpdateArtifact {
       digest: `sha256:${'a'.repeat(64)}`,
       imageRef: IMAGE_REF,
       protocolMajor: 1,
-      minGatewayVersion: 'v2.4.2',
+      [LEGACY_MIN_VERSION_FIELD]: 'v2.4.2',
       secureLinkConnectorImage,
       createdAt: '2026-06-30T00:00:00.000Z',
     },
@@ -100,8 +101,8 @@ function poolWithProtectedRelay() {
     {} as never,
     {
       APP_VERSION: 'v2.4.2',
-      COMPOSE_PROJECT_DIR: '/srv/gateway',
-      RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
+      COMPOSE_PROJECT_DIR: '/srv/opfield',
+      RELEASES_API_URL: `${LEGACY_THESQLABS_UPDATES_BASE_URL}/releases`,
       OPFIELD_RELAY_IMAGE_REF: IMAGE_REF,
       OPFIELD_RELAY_BUILD_VERSION: 'v2.4.3',
       OPFIELD_RELAY_PROTOCOL_MAJOR: 1,

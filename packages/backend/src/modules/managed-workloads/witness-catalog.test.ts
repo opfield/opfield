@@ -2,17 +2,18 @@ import { generateKeyPairSync, sign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { currentWitnessVersion, WITNESS_ARTIFACTS, WitnessCatalog } from './witness-catalog.js';
+import { LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
 const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 const publicPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
-const BASE = 'https://updates.example/gateway';
+const BASE = 'https://updates.example/opfield';
 const SHA = 'c'.repeat(64);
 
 function manifest(payload: Record<string, unknown>, key = privateKey): string {
   const bytes = Buffer.from(JSON.stringify(payload));
   return JSON.stringify({
     schemaVersion: 1,
-    keyId: 'wiolett-update-v1',
+    keyId: LEGACY_UPDATE_KEY_ID,
     payload: bytes.toString('base64url'),
     signature: sign(null, bytes, key).toString('base64url'),
   });

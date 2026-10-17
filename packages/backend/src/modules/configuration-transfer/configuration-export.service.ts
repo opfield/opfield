@@ -42,6 +42,7 @@ import {
   type TransferVolumeManifest,
   volumePartName,
 } from './transfer-layout.js';
+import { LEGACY_APP_DATA_DIR, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_REGISTRY_AUTH, LEGACY_VOLUME_REGISTRY_DATA, LEGACY_VOLUME_RELAY_IDENTITY } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('ConfigurationExport');
 const TICKET_TTL_MS = 15 * 60 * 1000;
@@ -161,12 +162,14 @@ export class ConfigurationExportService {
       return installation.clickhouse?.volume ?? composeVolumeName(installation.project, key);
     const spec = TRANSFER_VOLUMES.find((volume) => volume.key === key);
     // The app's own mounts name its volumes exactly; Compose's naming covers the rest.
-    if (spec?.appMount && installation.app) {
+    if (spec?.appMounts && installation.app) {
       const details = await this.docker.inspectContainerDetails(installation.app);
-      const mount = details?.Mounts?.find((entry) => entry.Destination === spec.appMount && entry.Type === 'volume');
+      const mount = details?.Mounts?.find(
+        (entry) => spec.appMounts?.includes(entry.Destination ?? '') && entry.Type === 'volume'
+      );
       if (mount?.Name) return mount.Name;
     }
-    if (key === 'gateway_registry_data' && installation.registry) {
+    if (key === LEGACY_VOLUME_REGISTRY_DATA && installation.registry) {
       const details = await this.docker.inspectContainerDetails(installation.registry);
       const mount = details?.Mounts?.find(
         (entry) => entry.Destination === '/var/lib/registry' && entry.Type === 'volume'
@@ -205,7 +208,7 @@ export class ConfigurationExportService {
         hostSpecific: HOST_SPECIFIC_VALUES,
       };
     }
-    const fileVolumes: TransferVolumeKey[] = ['gateway_data', 'gateway_relay_identity', 'gateway_registry_auth'];
+    const fileVolumes: TransferVolumeKey[] = [LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_RELAY_IDENTITY, LEGACY_VOLUME_REGISTRY_AUTH];
     const [database, files, registryVolume, logs] = await Promise.all([
       databaseSize(this.docker, installation).catch(() => null),
       Promise.all(
@@ -213,7 +216,7 @@ export class ConfigurationExportService {
           volumeSize(this.docker, installation, await this.volumeName(installation, key)).catch(() => null)
         )
       ),
-      this.volumeName(installation, 'gateway_registry_data'),
+      this.volumeName(installation, LEGACY_VOLUME_REGISTRY_DATA),
       this.logsSection(installation),
     ]);
     const registryBytes = await volumeSize(this.docker, installation, registryVolume).catch(() => null);
@@ -373,10 +376,13 @@ export class ConfigurationExportService {
           (volume.optional === 'logs' && ticket.options.includeLogs)
       );
       // Only an installed core goes into the export; the community directory holds none.
-      const commercialDir = this.env.OPFIELD_COMMERCIAL_DIR?.startsWith('/var/lib/gateway/commercial/versions/')
+      // An installation made before 2.12.3 names the directory under LEGACY_APP_DATA_DIR, which the app image links.
+      const commercialDir = ['/var/lib/opfield', LEGACY_APP_DATA_DIR].some((root) =>
+        this.env.OPFIELD_COMMERCIAL_DIR?.startsWith(`${root}/commercial/versions/`)
+      )
         ? this.env.OPFIELD_COMMERCIAL_DIR
         : null;
-      const hasCommercial = Boolean(commercialDir && installation.app && existsSync('/var/lib/gateway/commercial'));
+      const hasCommercial = Boolean(commercialDir && installation.app && existsSync('/var/lib/opfield/commercial'));
       for (const volume of included) {
         volumes.push({
           key: volume.key,
@@ -397,7 +403,7 @@ export class ConfigurationExportService {
           composeProject: installation.project,
         },
         includes: { registry: ticket.options.includeRegistry, logs: ticket.options.includeLogs },
-        commercialDir: hasCommercial ? commercialDir : null,
+        commercialDir: hasCommercial ? (commercialDir ?? null) : null,
         database: { part: DATABASE_PART, file: DATABASE_DUMP_FILE },
         volumes,
         commercial: hasCommercial ? { part: COMMERCIAL_PART, root: 'commercial' } : null,

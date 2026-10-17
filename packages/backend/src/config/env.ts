@@ -5,12 +5,15 @@ import {
   OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES,
   UPDATES_BASE_URL,
 } from './vendor-urls.js';
+import { LEGACY_ENV_PREFIX, LEGACY_IMAGE_REPOSITORY } from '@/lib/legacy-compat.js';
 
 export const DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE = 'opfield-secure-link-connector:dev';
 export const BUILT_IN_GITHUB_OAUTH_CLIENT_ID = 'Ov23likbDL1gM8asWzfC';
 const IMMUTABLE_CONNECTOR_IMAGE_PATTERN = /^.+@sha256:[0-9a-f]{64}$/i;
 const OFFICIAL_CONNECTOR_RELEASE_TAG_PATTERN =
-  /^ghcr\.io\/(?:opfield\/opfield|the-square-labs\/gateway)\/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$/;
+  new RegExp(
+    String.raw`^(?:ghcr\.io\/opfield\/opfield|${LEGACY_IMAGE_REPOSITORY.replaceAll('.', '\\.')})\/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`
+  );
 const deploymentModeSchema = z.enum(['standard', 'demo']).default('standard');
 
 const optionalNonEmptyString = z.preprocess(
@@ -41,13 +44,13 @@ const envSchema = z.object({
   // App
   APP_URL: z.string().url().default('http://localhost:3000'),
   APP_VERSION: z.string().default('dev'),
-  OPFIELD_COMMERCIAL_DIR: z.string().min(1).default('/var/lib/gateway/commercial'),
+  OPFIELD_COMMERCIAL_DIR: z.string().min(1).default('/var/lib/opfield/commercial'),
   OPFIELD_DEPLOYMENT_MODE: deploymentModeSchema,
   BIND_HOST: z.string().default('0.0.0.0'),
   OPFIELD_LOCAL_HOSTS: z.string().optional(),
   WEB_TLS_BOOTSTRAP_MODE: z.enum(['http', 'https']).optional(),
-  WEB_TLS_AUTO_DIR: nonEmptyStringWithDefault('/var/lib/gateway/tls'),
-  PAGES_STORAGE_DIR: nonEmptyStringWithDefault('/var/lib/gateway/pages'),
+  WEB_TLS_AUTO_DIR: nonEmptyStringWithDefault('/var/lib/opfield/tls'),
+  PAGES_STORAGE_DIR: nonEmptyStringWithDefault('/var/lib/opfield/pages'),
 
   // Console on its own domain (managed cloud VMs, installer --domain/--acme-email): HTTPS with a Let's Encrypt
   // certificate the app obtains over HTTP-01 and renews itself. Unset keeps only the PORT listener.
@@ -129,8 +132,8 @@ const envSchema = z.object({
   GRPC_PORT: z.coerce.number().default(9443),
   GRPC_TLS_CERT: optionalNonEmptyString,
   GRPC_TLS_KEY: optionalNonEmptyString,
-  GRPC_TLS_AUTO_DIR: nonEmptyStringWithDefault('/var/lib/gateway/tls'),
-  OPFIELD_RELAY_IDENTITY_DIR: nonEmptyStringWithDefault('/var/lib/gateway-relay'),
+  GRPC_TLS_AUTO_DIR: nonEmptyStringWithDefault('/var/lib/opfield/tls'),
+  OPFIELD_RELAY_IDENTITY_DIR: nonEmptyStringWithDefault('/var/lib/opfield-relay'),
   OPFIELD_RELAY_TARGET: nonEmptyStringWithDefault('relay:9443'),
   OPFIELD_RELAY_REQUIRED: z
     .string()
@@ -148,7 +151,7 @@ const envSchema = z.object({
   BACKUP_RUNNER_IMAGE: optionalNonEmptyString,
 
   // AI sandbox artifacts
-  AI_SANDBOX_ARTIFACT_DIR: nonEmptyStringWithDefault('/var/lib/gateway/ai-artifacts'),
+  AI_SANDBOX_ARTIFACT_DIR: nonEmptyStringWithDefault('/var/lib/opfield/ai-artifacts'),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -157,7 +160,7 @@ export type Env = z.infer<typeof envSchema>;
 export const ENV_PREFIX = 'OPFIELD_';
 // legacy-name: the pre-2.12.1 environment names of .env and docker-compose.yml files written before 2.12.1 — remove once
 // every installation's files were rewritten by the 2.12.1 foundation migrator, which renames them to OPFIELD_*.
-export const LEGACY_ENV_PREFIX = 'GATEWAY_';
+export { LEGACY_ENV_PREFIX };
 
 /** The OPFIELD_* name of a pre-2.12.1 environment variable; null for any other name. */
 export function opfieldEnvName(legacyName: string): string | null {
@@ -166,7 +169,7 @@ export function opfieldEnvName(legacyName: string): string | null {
 }
 
 /**
- * Gives every legacy GATEWAY_* variable its OPFIELD_* name, unless the OPFIELD_* one is set: an installation whose
+ * Gives every pre-2.12.1 variable its OPFIELD_* name, unless the OPFIELD_* one is set: an installation whose
  * files still carry the old names runs as if it had the new ones. Mutates and returns `env`.
  */
 export function applyLegacyEnvNames(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -180,7 +183,7 @@ export function applyLegacyEnvNames(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 /**
  * An empty APP_VERSION takes the installed version from OPFIELD_VERSION: a .env whose APP_VERSION referred to a
- * variable that was later renamed (`APP_VERSION=${GATEWAY_VERSION}` of the early Go installer) would otherwise run with
+ * variable that was later renamed (an `APP_VERSION` reference to the pre-2.12.1 version variable of the early Go installer) would otherwise run with
  * no version, and the paid core refuses a host without one. Mutates and returns `env`.
  */
 export function applyVersionFallback(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -191,7 +194,7 @@ export function applyVersionFallback(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv 
 
 /** The OPFIELD_<suffix> variable, or its pre-2.12.1 name when only that is set. */
 export function readOpfieldEnv(suffix: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
-  // legacy-name: GATEWAY_<suffix> — see LEGACY_ENV_PREFIX.
+  // legacy-name: the pre-2.12.1 name — see LEGACY_ENV_PREFIX.
   return env[`${ENV_PREFIX}${suffix}`] ?? env[`${LEGACY_ENV_PREFIX}${suffix}`];
 }
 

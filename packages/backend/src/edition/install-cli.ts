@@ -4,7 +4,7 @@ import { activatePreviousCommercialRelease, installCommercialRelease } from './i
 const { values } = parseArgs({
   options: {
     source: { type: 'string' },
-    directory: { type: 'string', default: '/var/lib/gateway/commercial' },
+    directory: { type: 'string', default: '/var/lib/opfield/commercial' },
     'host-version': { type: 'string' },
     rollback: { type: 'boolean', default: false },
   },

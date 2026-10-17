@@ -9,7 +9,7 @@ import { importDockerArchiveUploadLink, openDockerArchiveDownloadLink } from './
  */
 export const dockerArchiveLinkRoutes = new Hono<AppEnv>();
 
-// `curl -T` sends PUT; POST also carries the raw .gwca bytes (`curl --data-binary`).
+// `curl -T` sends PUT; POST also carries the raw .ofca bytes (`curl --data-binary`).
 dockerArchiveLinkRoutes.on(['PUT', 'POST'], '/:token', async (c) => {
   const data = await importDockerArchiveUploadLink(c.req.param('token'), c.req.raw.body);
   return c.json({ data }, 201);

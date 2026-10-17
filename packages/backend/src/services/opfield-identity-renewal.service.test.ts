@@ -9,6 +9,7 @@ import {
   OPFIELD_IDENTITY_RENEW_BEFORE_MS,
 } from './grpc-server-certificate.js';
 import { OpfieldIdentityRenewalService } from './opfield-identity-renewal.service.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2027, 8, 1);
@@ -415,13 +416,13 @@ describe('OpfieldIdentityRenewalService', () => {
 
   it('still renews the web listener when the gRPC check itself fails', async () => {
     const certPath = join(directory, 'web.crt');
-    writeFileSync(certPath, certificatePem('gateway-web', OPFIELD_IDENTITY_RENEW_BEFORE_MS - DAY));
+    writeFileSync(certPath, certificatePem(`${LEGACY_INSTALL_DIR_NAME}-web`, OPFIELD_IDENTITY_RENEW_BEFORE_MS - DAY));
     let served = readFileSync(certPath);
     const webIdentity = {
       resolve: vi.fn(async () => ({ certPath, keyPath: join(directory, 'web.key'), certSha256: 'sha256:w' })),
       servedCertificate: () => served,
       reloadServed: vi.fn(async () => {
-        writeFileSync(certPath, certificatePem('gateway-web', 365 * DAY));
+        writeFileSync(certPath, certificatePem(`${LEGACY_INSTALL_DIR_NAME}-web`, 365 * DAY));
         served = readFileSync(certPath);
         return { certPath, keyPath: join(directory, 'web.key'), certSha256: 'sha256:v' };
       }),
@@ -446,13 +447,13 @@ describe('OpfieldIdentityRenewalService', () => {
 
   it('renews the web listener certificate in place and reports a failed switch', async () => {
     const certPath = join(directory, 'web.crt');
-    writeFileSync(certPath, certificatePem('gateway-web', OPFIELD_IDENTITY_RENEW_BEFORE_MS - DAY));
+    writeFileSync(certPath, certificatePem(`${LEGACY_INSTALL_DIR_NAME}-web`, OPFIELD_IDENTITY_RENEW_BEFORE_MS - DAY));
     let served = readFileSync(certPath);
     const webIdentity = {
       resolve: vi.fn(async () => ({ certPath, keyPath: join(directory, 'web.key'), certSha256: 'sha256:w' })),
       servedCertificate: () => served,
       reloadServed: vi.fn(async () => {
-        writeFileSync(certPath, certificatePem('gateway-web', 365 * DAY));
+        writeFileSync(certPath, certificatePem(`${LEGACY_INSTALL_DIR_NAME}-web`, 365 * DAY));
         served = readFileSync(certPath);
         return { certPath, keyPath: join(directory, 'web.key'), certSha256: 'sha256:v' };
       }),

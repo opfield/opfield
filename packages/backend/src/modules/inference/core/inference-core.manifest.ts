@@ -3,6 +3,7 @@ import { compareSemver, parseSemver } from '@/lib/semver.js';
 import { type TrustedOpenCodexImageArtifact, verifyOpenCodexImageManifest } from '@/lib/update-artifact-trust.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { INFERENCE_CORE_PROTOCOL_MAJOR } from './inference-core.contract.js';
+import { LEGACY_CORE_RELEASE_LINE } from '@/lib/legacy-compat.js';
 
 /**
  * Release channel for the managed inference core (opfield-inference, built from OpenCodex). Releases are published
@@ -26,11 +27,12 @@ const CORE_MANIFEST_SOURCES: readonly { packageName: string; fileName: string }[
 // Release lines in the order they replaced each other: the first line up to 2.25.0, then `-thesqlabs.N`, and
 // `-opfield.N` from the repository's move to the opfield organization. Installed versions of every line must
 // stay valid and comparable, so all three suffixes are accepted.
-export const OPENCODEX_RELEASE_LINES = ['wiolett', 'thesqlabs', 'opfield'] as const;
+export const OPENCODEX_RELEASE_LINES = [LEGACY_CORE_RELEASE_LINE, 'thesqlabs', 'opfield'] as const;
 export type OpenCodexReleaseLine = (typeof OPENCODEX_RELEASE_LINES)[number];
 /** A core version without the leading `v`, as signed manifests and the API carry it. */
-export const OPENCODEX_VERSION_RE = /^\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/;
-export const OPENCODEX_RELEASE_TAG_RE = /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/;
+const RELEASE_LINE_PATTERN = OPENCODEX_RELEASE_LINES.join('|');
+export const OPENCODEX_VERSION_RE = new RegExp(String.raw`^\d+\.\d+\.\d+-(?:${RELEASE_LINE_PATTERN})\.\d+$`);
+export const OPENCODEX_RELEASE_TAG_RE = new RegExp(String.raw`^v\d+\.\d+\.\d+-(?:${RELEASE_LINE_PATTERN})\.\d+$`);
 
 /**
  * Fetch the newest published core tag, or null when none exist yet. The feed is asked for the opfield-inference
@@ -69,7 +71,7 @@ async function fetchLatestComponentTag(releasesApiUrl: string, component: string
 
 /**
  * Compare `1.2.3-opfield.4` style versions: semver first, then the release line (on the same base a later
- * line supersedes an earlier one: wiolett < thesqlabs < opfield), then the build number.
+ * line supersedes an earlier one: LEGACY_CORE_RELEASE_LINE < thesqlabs < opfield), then the build number.
  */
 export function compareOpenCodexVersions(a: string, b: string): number {
   const parsedA = parseOpenCodexVersion(a);
@@ -86,7 +88,7 @@ export function compareOpenCodexVersions(a: string, b: string): number {
 export function parseOpenCodexVersion(
   version: string
 ): { base: string; line: OpenCodexReleaseLine; build: number } | null {
-  const match = /^v?(\d+\.\d+\.\d+)-(wiolett|thesqlabs|opfield)\.(\d+)$/.exec(version);
+  const match = new RegExp(String.raw`^v?(\d+\.\d+\.\d+)-(${RELEASE_LINE_PATTERN})\.(\d+)$`).exec(version);
   if (!match || !parseSemver(match[1])) return null;
   return { base: match[1], line: match[2] as OpenCodexReleaseLine, build: Number(match[3]) };
 }

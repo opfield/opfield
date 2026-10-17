@@ -61,12 +61,13 @@ import {
 import { type OpfieldDiskUsage, OpfieldDiskUsageReader } from './opfield-disk-usage.js';
 import type { OpfieldHostDiskReader } from './opfield-host-disks.js';
 import type { SystemCertificateLifecycleService } from './system-certificate-lifecycle.service.js';
+import { LEGACY_HOUSEKEEPING_PROTECTED_LABEL } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('HousekeepingService');
 const VOLUME_CLEANUP_PROTECTED_LABEL = 'opfield.housekeeping.protected';
 // legacy-name: cleanup protection label set on volumes before 2.12.1 (Docker cannot relabel a volume in place) — remove
 // once no protected volume carries it
-const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = 'gateway.housekeeping.protected';
+const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = LEGACY_HOUSEKEEPING_PROTECTED_LABEL;
 const SYSTEM_CERTIFICATE_KEY_RETENTION_DAYS = 30;
 /** Alerts nobody dismissed are removed after this long (a renewed failure raises a fresh one). */
 const UNDISMISSED_ALERT_RETENTION_DAYS = 90;

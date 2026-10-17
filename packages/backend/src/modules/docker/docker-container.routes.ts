@@ -689,7 +689,7 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
       });
       return new Response(archive.stream, {
         headers: {
-          'Content-Type': 'application/vnd.opfield.gwca',
+          'Content-Type': 'application/vnd.opfield.ofca',
           'Content-Disposition': `attachment; filename="${archive.filename}"`,
           'Cache-Control': 'no-store',
           'X-Content-Type-Options': 'nosniff',
@@ -722,18 +722,18 @@ export function registerContainerRoutes(router: OpenAPIHono<AppEnv>) {
         nodeId,
         query.folderId
       );
-      if (c.req.header('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/vnd.opfield.gwca') {
-        throw new AppError(415, 'GWCA_MEDIA_TYPE_REQUIRED', 'Content-Type must be application/vnd.opfield.gwca');
+      if (c.req.header('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/vnd.opfield.ofca') {
+        throw new AppError(415, 'OFCA_MEDIA_TYPE_REQUIRED', 'Content-Type must be application/vnd.opfield.ofca');
       }
       const body = c.req.raw.body;
-      if (!body) throw new AppError(400, 'GWCA_EMPTY', 'Container archive body is required');
+      if (!body) throw new AppError(400, 'OFCA_EMPTY', 'Container archive body is required');
       await assertNodeAllowsServiceCreation(container.resolve(TOKENS.DrizzleClient) as DrizzleClient, nodeId, 'docker');
       let resolution: ReturnType<typeof ContainerArchiveResolutionSchema.parse> = {};
       if (query.resolution) {
         try {
           resolution = ContainerArchiveResolutionSchema.parse(JSON.parse(query.resolution));
         } catch {
-          throw new AppError(400, 'GWCA_RESOLUTION_INVALID', 'Archive import resolution is invalid');
+          throw new AppError(400, 'OFCA_RESOLUTION_INVALID', 'Archive import resolution is invalid');
         }
       }
       const data = await importDockerContainerArchive({

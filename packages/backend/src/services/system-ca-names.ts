@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { certificateAuthorities } from '@/db/schema/index.js';
+import { LEGACY_PRODUCT_TITLE } from '@/lib/legacy-compat.js';
 
 export type SystemCaPurpose = 'node-mtls' | 'database-tls' | 'storage-tls';
 
@@ -18,9 +19,9 @@ export const SYSTEM_CA_COMMON_NAMES: Readonly<Record<SystemCaPurpose, string>> =
 // legacy-name: the common names of system CAs created before 2.12.1; their certificates keep them (owner decision:
 // existing CAs are not rotated), so this list stays as long as such a CA may be in use.
 const LEGACY_SYSTEM_CA_COMMON_NAMES: Readonly<Record<SystemCaPurpose, string>> = {
-  'node-mtls': 'Gateway Node CA',
-  'database-tls': 'Gateway Database CA',
-  'storage-tls': 'Gateway Storage CA',
+  'node-mtls': `${LEGACY_PRODUCT_TITLE} Node CA`,
+  'database-tls': `${LEGACY_PRODUCT_TITLE} Database CA`,
+  'storage-tls': `${LEGACY_PRODUCT_TITLE} Storage CA`,
 };
 
 /** Shows a system CA made before 2.12.1 under its Opfield name. Idempotent; a renamed CA is left alone. */

@@ -20,7 +20,7 @@ With Opfield you:
 - Run proxy, Docker, storage, and monitoring nodes with no inbound management ports on them.
 - Give operators a UI and API for production work instead of root shell access.
 - Get TLS, internal PKI, ACME certificates, domains, status pages, notifications, and audit history in one place.
-- Manage Docker containers, Compose projects, deployments, `.gwca` archives, logs, files, consoles, secrets, and registries across every node.
+- Manage Docker containers, Compose projects, deployments, `.ofca` archives, logs, files, consoles, secrets, and registries across every node.
 - Automate through API tokens, OAuth, CI/CD webhooks, and MCP clients under the same scoped permissions.
 - Plan a multi-step change in AI Workspace and run it after explicit confirmation.
 
@@ -85,7 +85,7 @@ For flags, non-interactive installs, custom SSL, OIDC details, updates, and node
 | Move Opfield to another host | [Configuration export and restore](docs/configuration-transfer.md) |
 | Add Ingress, Docker, Build Worker, Storage, Monitoring, or Relay nodes | [Nodes and daemons](docs/nodes.md) |
 | Run Storage nodes, storage connections, and database backups | [Storage and backups](docs/storage-and-backups.md) |
-| Export or import Docker containers with or without an embedded image | [GWCA container archives](docs/docker-container-archives.md) |
+| Export or import Docker containers with or without an embedded image | [OFCA container archives](docs/docker-container-archives.md) |
 | Configure tokens, OAuth, MCP, logging, updates, and AI | [Operations guide](docs/operations.md) |
 | Configure the multi-provider inference proxy | [Inference proxy](docs/inference.md) |
 | Review the security model | [Security model](docs/security.md) |

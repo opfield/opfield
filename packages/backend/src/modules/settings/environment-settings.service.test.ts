@@ -7,6 +7,7 @@ import {
   normalizeEnvironmentSettings,
 } from './environment-settings.service.js';
 import { normalizeEnvironmentSettings as v2113ReadEnvironmentSettings } from './fixtures/v2.11.3-environment-settings.js';
+import { LEGACY_ENV_PREFIX } from '@/lib/legacy-compat.js';
 
 /** A settings table of one optional row; records what was written. */
 function fakeDb(existing?: unknown) {
@@ -32,7 +33,7 @@ function fakeDb(existing?: unknown) {
 describe('legacy environment settings import (runs before the pre-update snapshot)', () => {
   it('writes no row when the .env has nothing legacy', async () => {
     const { db, writes } = fakeDb();
-    const parsed = parseLegacySettingsEnv('GATEWAY_VERSION=v2.11.3\n');
+    const parsed = parseLegacySettingsEnv(`${LEGACY_ENV_PREFIX}VERSION=v2.11.3\n`);
     expect(legacyEnvironmentOverrides(parsed.environment)).toBeNull();
     await expect(new EnvironmentSettingsService(db).importLegacy(parsed.environment)).resolves.toBe(false);
     expect(writes).toEqual([]);

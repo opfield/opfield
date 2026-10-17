@@ -11,7 +11,7 @@ import type { ManagedSsoInput, ManagedSsoOutcome } from './cloud-link-managed-ss
 const logger = createChildLogger('CloudLinkEnrollFile');
 
 /** Left by the provisioning of a managed installation (cloud-init) inside the app container. */
-export const CLOUD_ENROLL_FILE_PATH = '/var/lib/gateway/cloud-enroll.json';
+export const CLOUD_ENROLL_FILE_PATH = '/var/lib/opfield/cloud-enroll.json';
 /** One replica redeems the single-use code and activates the key. */
 const LEASE_KEY = operationLeaseKey('cloud-link', 'enroll-file');
 /**

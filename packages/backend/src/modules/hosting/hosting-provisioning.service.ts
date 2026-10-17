@@ -25,7 +25,7 @@ import { DEFAULT_RELAY_SERVICE_PORT } from '@/services/relay-service-endpoint.js
 import type { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import type { User } from '@/types.js';
 import { type HostingProvisionInput, HostingProvisionSchema } from './hosting.schemas.js';
-import { buildHostingBootstrap, validateHostingGateway } from './hosting-bootstrap.js';
+import { buildHostingBootstrap, validateHostingOpfieldAddress } from './hosting-bootstrap.js';
 import type { HostingConnectorRow, HostingConnectorsService } from './hosting-connectors.service.js';
 import { compareHostingDecimal } from './hosting-decimal.js';
 import { HostingProviderError } from './hosting-http.js';
@@ -172,15 +172,15 @@ export class HostingProvisioningService {
     let acceptedInput: HostingProvisionInput = input;
     let proxmoxDiscovery: HostingProxmoxDiscovery | undefined;
     const targets = await this.nodeService.getOpfieldEnrollmentTargets();
-    const gateway =
+    const opfieldAddress =
       connector.provider === 'proxmox' ? targets.local?.address || targets.public.address : targets.public.address;
-    if (!gateway)
+    if (!opfieldAddress)
       throw new AppError(
         409,
         'HOSTING_OPFIELD_NOT_READY',
         'Configure a reachable Opfield enrollment endpoint before creating a VM'
       );
-    validateHostingGateway(gateway, connector.provider === 'proxmox');
+    validateHostingOpfieldAddress(opfieldAddress, connector.provider === 'proxmox');
     const catalog = await adapter.catalog();
     assertHostingQuote(input, catalog, connector.provider === 'proxmox');
     if (connector.provider === 'proxmox' && !input.existingResourceId) {
@@ -335,7 +335,7 @@ export class HostingProvisioningService {
           // are installed after the fact.
           waitForCloudInit: connector.provider === 'proxmox' ? !proxmoxProfile?.imageStorage : true,
           role: acceptedRequest.role,
-          gateway,
+          opfieldAddress,
           token: created.enrollmentToken,
           certificateFingerprint: created.opfieldCertSha256,
           relayAddress,
@@ -458,11 +458,11 @@ export class HostingProvisioningService {
       throw new AppError(409, 'HOSTING_VM_STOPPED', 'Start the existing VM before retrying its installation');
     if (input.sshConnectorId) assertHostingScope(user.scopes, 'integrations:ssh:use');
     const targets = await this.nodeService.getOpfieldEnrollmentTargets();
-    const gateway =
+    const opfieldAddress =
       connector.provider === 'proxmox' ? targets.local?.address || targets.public.address : targets.public.address;
-    if (!gateway)
+    if (!opfieldAddress)
       throw new AppError(409, 'HOSTING_OPFIELD_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
-    validateHostingGateway(gateway, connector.provider === 'proxmox');
+    validateHostingOpfieldAddress(opfieldAddress, connector.provider === 'proxmox');
     const certificateFingerprint = await this.nodeService.getOpfieldEnrollmentCertificateFingerprint();
     const marker =
       typeof original.result?.bootstrapMarker === 'string' ? original.result.bootstrapMarker : `gw-${original.id}`;
@@ -495,7 +495,7 @@ export class HostingProvisioningService {
         const script = buildHostingBootstrap({
           waitForCloudInit: true,
           role: previous.role,
-          gateway,
+          opfieldAddress,
           certificateFingerprint,
           token: token.token,
           relayAddress: previous.relayAddress,
@@ -1395,15 +1395,15 @@ export class HostingProvisioningService {
   /** Built at SSH dispatch time so the embedded token is fresh (30 min) instead of the reservation token. */
   private async sshInstallScript(row: HostingOperationRow, connector: HostingConnectorRow): Promise<string> {
     const input = acceptedProvisionInput(row.request);
-    const gateway = (await this.nodeService.getOpfieldEnrollmentTargets()).public.address;
-    if (!gateway)
+    const opfieldAddress = (await this.nodeService.getOpfieldEnrollmentTargets()).public.address;
+    if (!opfieldAddress)
       throw new AppError(409, 'HOSTING_OPFIELD_NOT_READY', 'Configure a reachable Opfield enrollment endpoint');
-    validateHostingGateway(gateway, connector.provider === 'proxmox');
+    validateHostingOpfieldAddress(opfieldAddress, connector.provider === 'proxmox');
     return buildHostingBootstrap({
       // SSH comes up while cloud-init still runs apt on the new server.
       waitForCloudInit: true,
       role: input.role,
-      gateway,
+      opfieldAddress,
       certificateFingerprint: await this.nodeService.getOpfieldEnrollmentCertificateFingerprint(),
       token: await rotateSshInstallToken(this.db, row.nodeId!),
       relayAddress: input.role === 'relay' ? input.relayAddress : undefined,

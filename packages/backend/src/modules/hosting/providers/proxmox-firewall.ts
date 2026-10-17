@@ -8,6 +8,7 @@ import {
 import { HostingProviderError, type HostingRequestOptions } from '../hosting-http.js';
 import type { HostingResourceSnapshot } from '../hosting-provider.types.js';
 import { disableProxmoxFirewall, restoreProxmoxFirewallBinding } from './proxmox-firewall-disable.js';
+import { LEGACY_PRODUCT_TITLE } from '@/lib/legacy-compat.js';
 
 type Request = <T>(path: string, options?: HostingRequestOptions) => Promise<T>;
 type PveConfig = Record<string, string | number | boolean | undefined>;
@@ -65,7 +66,9 @@ function comment(token: string, key?: string): string {
 }
 // legacy-name: the pre-2.12.1 Proxmox firewall group/rule comment — remove once every hosting resource was reconciled by 2.12.1+
 function legacyComment(token: string, key?: string): string {
-  return key ? `Gateway firewall ${token} ${key}` : `Gateway firewall ${token}`;
+  return key
+    ? `${LEGACY_PRODUCT_TITLE} firewall ${token} ${key}`
+    : `${LEGACY_PRODUCT_TITLE} firewall ${token}`;
 }
 function enabled(rule: PveRule): boolean {
   return rule.enable === undefined || Number(rule.enable) !== 0;

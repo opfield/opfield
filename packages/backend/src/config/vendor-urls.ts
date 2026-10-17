@@ -1,3 +1,4 @@
+import { LEGACY_CORE_IMAGE_REPOSITORY, LEGACY_IMAGE_REPOSITORY, LEGACY_THESQLABS_UPDATES_BASE_URL, LEGACY_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 /**
  * Default addresses of the vendor services every installation talks to. They live together so a rebrand moves them
  * at once; CLOUD_PORTAL_URL, RELEASES_API_URL and ARTIFACT_BASE_URL can still be overridden through the environment
@@ -17,32 +18,31 @@ export const LICENSE_SERVICE_URLS: readonly string[] = [
 export const LICENSE_ENDPOINTS_DOCUMENT = 'license-endpoints.json';
 export const DEFAULT_CLOUD_PORTAL_URL = 'https://account.opfield.dev';
 /** Release feed and artifact host (the update Worker): `${UPDATES_BASE_URL}/releases`, `/<package>/<tag>/<file>`. */
-export const UPDATES_BASE_URL = 'https://get.opfield.dev/gateway';
+export const UPDATES_BASE_URL = 'https://get.opfield.dev/opfield';
 /**
- * Earlier names of the same update Worker. Installs up to 2.11.5 read the feed there by default, and they stay served
- * forever. Manifests signed before the move name their artifacts there, so an artifact URL under any of them is
- * accepted for the same path.
+ * Earlier names of the same update Worker: the namespace installs up to 2.12.2 read and signed manifests name as the
+ * artifact host, and the host installs up to 2.11.5 read. They stay served forever, so an artifact URL under any of
+ * them is accepted for the same path.
  */
-export const LEGACY_UPDATES_BASE_URLS: readonly string[] = ['https://updates.thesqlabs.com/gateway'];
+export const LEGACY_UPDATES_BASE_URLS: readonly string[] = [LEGACY_UPDATES_BASE_URL, LEGACY_THESQLABS_UPDATES_BASE_URL];
 /** Node installers of a release, GitHub release download layout: `/download/<tag>/<file>`, `/latest/download/<file>`. */
 export const INSTALLER_RELEASES_URL = `${UPDATES_BASE_URL}/releases`;
 /**
- * Image repositories Opfield images are published under: the opfield organization, which release manifests name from
- * 2.12, and the earlier repository, which keeps receiving every release as a mirror for installs that still name it.
- * Installs from 2.11.5 accept both.
+ * Image repositories of Opfield images: the opfield organization, which release manifests name from 2.12, and the
+ * repository of earlier releases, which running containers and pinned references of older installs still name.
  */
 export const OPFIELD_IMAGE_REPOSITORY = 'ghcr.io/opfield/opfield';
-export const LEGACY_IMAGE_REPOSITORIES: readonly string[] = ['ghcr.io/the-square-labs/gateway'];
+export const LEGACY_IMAGE_REPOSITORIES: readonly string[] = [LEGACY_IMAGE_REPOSITORY];
 export const OFFICIAL_IMAGE_REPOSITORIES: readonly string[] = [OPFIELD_IMAGE_REPOSITORY, ...LEGACY_IMAGE_REPOSITORIES];
 /**
  * The same for the managed inference core image: opfield-inference, and the repositories core releases were published
- * under before the rename, which keep receiving every release as mirrors.
+ * under before the rename.
  */
 export const OPFIELD_INFERENCE_IMAGE_REPOSITORY = 'ghcr.io/opfield/opfield-inference';
 // legacy-name: inference-core image repositories — remove once every supported core release is published to opfield-inference
 export const LEGACY_INFERENCE_CORE_IMAGE_REPOSITORIES: readonly string[] = [
   'ghcr.io/opfield/inference-core',
-  'ghcr.io/the-square-labs/inference-core',
+  LEGACY_CORE_IMAGE_REPOSITORY,
 ];
 export const OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES: readonly string[] = [
   OPFIELD_INFERENCE_IMAGE_REPOSITORY,

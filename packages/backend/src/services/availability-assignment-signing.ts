@@ -3,13 +3,14 @@ import type { DrizzleClient } from '@/db/client.js';
 import { relayPolicySigningKeys } from '@/db/schema/index.js';
 import type { AvailabilityPrimaryAssignment } from '@/grpc/generated/types.js';
 import type { RelayPolicySigningKeyService } from '@/services/relay-policy-signing-key.service.js';
+import { LEGACY_AVAILABILITY_MEMBER_DOMAIN } from '@/lib/legacy-compat.js';
 
 /**
  * Manual pairs' primary assignments (decision 6) are signed by Opfield with the relay policy signing key, like lease
  * manifests: a member accepts an assignment, from Opfield or relayed by its peer over member-control, only with a
  * valid signature of a key it trusts (docker daemon `memberha.AssignmentStatement`, verified with the lease keychain).
  */
-export const PRIMARY_ASSIGNMENT_DOMAIN = 'gateway-availability-member/primary-assignment/v1';
+export const PRIMARY_ASSIGNMENT_DOMAIN = `${LEGACY_AVAILABILITY_MEMBER_DOMAIN}/primary-assignment/v1`;
 
 export interface PrimaryAssignmentInput {
   setId: string;

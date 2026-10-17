@@ -81,6 +81,7 @@ import { FilesTab } from "./docker-detail/FilesTab";
 import { buildRolloutBusyReason, type InspectData } from "./docker-detail/helpers";
 import { LogsTab } from "./docker-detail/LogsTab";
 import { MultiContainerMonitoring } from "./docker-detail/MultiContainerMonitoring";
+import { LEGACY_REGISTRY_NAMESPACE } from "../../../backend/src/lib/legacy-compat";
 
 const MIGRATION_RELOCATION_GRACE_MS = 2_000;
 
@@ -598,7 +599,7 @@ export function DockerDeploymentDetail({
         image &&
         !/^sha256:[0-9a-f]{64}$/i.test(image) &&
         !/^127\.0\.0\.1:5443\//i.test(image) &&
-        !/(^|\/)gateway\/availability\//i.test(image)
+        !new RegExp(String.raw`(^|\/)${LEGACY_REGISTRY_NAMESPACE}\/availability\/`, "i").test(image)
     ) ??
     active?.image ??
     deployment?.desiredConfig.image;

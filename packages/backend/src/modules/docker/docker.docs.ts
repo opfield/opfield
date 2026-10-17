@@ -275,8 +275,8 @@ export const exportContainerArchiveRoute = appRoute({
   request: { params: containerParams, query: ContainerArchiveExportQuerySchema },
   responses: {
     200: {
-      description: 'GWCA v1 stream. Volume contents are never included.',
-      content: { 'application/vnd.opfield.gwca': { schema: { type: 'string', format: 'binary' } } },
+      description: 'OFCA v1 stream. Volume contents are never included.',
+      content: { 'application/vnd.opfield.ofca': { schema: { type: 'string', format: 'binary' } } },
     },
     409: {
       description:
@@ -305,7 +305,7 @@ export const importContainerArchiveRoute = appRoute({
     query: ContainerArchiveImportQuerySchema,
     body: {
       required: true,
-      content: { 'application/vnd.opfield.gwca': { schema: { type: 'string', format: 'binary' } } },
+      content: { 'application/vnd.opfield.ofca': { schema: { type: 'string', format: 'binary' } } },
     },
   },
   responses: createdJson(UnknownDataResponseSchema),

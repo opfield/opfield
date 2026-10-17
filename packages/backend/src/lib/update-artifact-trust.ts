@@ -2,8 +2,14 @@ import { verify } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LEGACY_APP_IMAGE_MANIFEST_KIND, LEGACY_CORE_RELEASE_LINE, LEGACY_MAX_VERSION_FIELD, LEGACY_MIN_VERSION_FIELD, LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
-export const UPDATE_SIGNING_KEY_ID = 'wiolett-update-v1';
+/** Release lines of inference core builds, oldest first. */
+const OPENCODEX_VERSION_PATTERN = new RegExp(
+  String.raw`^\d+\.\d+\.\d+-(?:${[LEGACY_CORE_RELEASE_LINE, 'thesqlabs', 'opfield'].join('|')})\.\d+$`
+);
+
+export const UPDATE_SIGNING_KEY_ID = LEGACY_UPDATE_KEY_ID;
 
 export const UPDATE_SIGNING_PUBLIC_KEY_PEM = loadSigningPublicKey('update-signing-public-key.pem');
 export const OPENCODEX_SIGNING_PUBLIC_KEY_PEM = loadSigningPublicKey('opencodex-signing-public-key.pem');
@@ -42,7 +48,7 @@ export interface DaemonUpdateManifestPayload {
 }
 
 export interface OpfieldImageManifestPayload {
-  kind: 'gateway-image';
+  kind: typeof LEGACY_APP_IMAGE_MANIFEST_KIND;
   version: string;
   tag: string;
   image: string;
@@ -63,7 +69,7 @@ export interface RelayImageManifestPayload {
   digest: string;
   imageRef: string;
   protocolMajor: number;
-  minGatewayVersion?: string;
+  [LEGACY_MIN_VERSION_FIELD]?: string;
   /** Legacy field accepted only so existing Relay manifests remain readable. */
   databaseConnectorImage?: string;
   secureLinkConnectorImage: string;
@@ -89,9 +95,9 @@ export interface OpenCodexImageManifestPayload {
   stateSchemaVersion: number;
   minOpfieldVersion?: string;
   maxOpfieldVersion?: string;
-  // legacy-name: minGatewayVersion/maxGatewayVersion — remove once every core manifest carries minOpfieldVersion/maxOpfieldVersion
-  minGatewayVersion?: string;
-  maxGatewayVersion?: string;
+  // legacy-name: the pre-2.12.1 field names — remove once every core manifest carries minOpfieldVersion/maxOpfieldVersion
+  [LEGACY_MIN_VERSION_FIELD]?: string;
+  [LEGACY_MAX_VERSION_FIELD]?: string;
   releaseNotesUrl?: string;
   buildRevision: string;
   createdAt: string;
@@ -121,7 +127,7 @@ export interface TrustedRelayUpdateArtifact {
   digest: string;
   buildVersion: string;
   protocolMajor: number;
-  minGatewayVersion: string;
+  minOpfieldVersion: string;
   secureLinkConnectorImage: string;
 }
 
@@ -209,7 +215,7 @@ export function verifyOpfieldImageManifest(
   publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
 ): TrustedOpfieldUpdateArtifact {
   const payload = verifySignedPayload<OpfieldImageManifestPayload>(signedManifest, publicKey);
-  if (payload.kind !== 'gateway-image') throw new UpdateArtifactTrustError('Update manifest kind is not gateway-image');
+  if (payload.kind !== LEGACY_APP_IMAGE_MANIFEST_KIND) throw new UpdateArtifactTrustError(`Update manifest kind is not ${LEGACY_APP_IMAGE_MANIFEST_KIND}`);
   if (payload.version !== expected.version) throw new UpdateArtifactTrustError('Opfield update version mismatch');
   if (payload.tag !== expected.tag) throw new UpdateArtifactTrustError('Opfield update tag mismatch');
   if (payload.image !== expected.image) throw new UpdateArtifactTrustError('Opfield update image mismatch');
@@ -261,7 +267,8 @@ export function verifyRelayImageManifest(
   if (!Number.isInteger(payload.protocolMajor) || payload.protocolMajor !== expected.protocolMajor) {
     throw new UpdateArtifactTrustError('Relay update protocol major is incompatible');
   }
-  if (payload.minGatewayVersion !== undefined && !OPFIELD_COMPONENT_VERSION_RE.test(payload.minGatewayVersion)) {
+  const relayMinVersion = payload[LEGACY_MIN_VERSION_FIELD];
+  if (relayMinVersion !== undefined && !OPFIELD_COMPONENT_VERSION_RE.test(relayMinVersion)) {
     throw new UpdateArtifactTrustError('Relay update minimum Opfield version is invalid');
   }
   const opfieldRepository = payload.image.endsWith('/relay') ? payload.image.slice(0, -'/relay'.length) : '';
@@ -288,7 +295,7 @@ export function verifyRelayImageManifest(
     digest: payload.digest,
     buildVersion: payload.version,
     protocolMajor: payload.protocolMajor,
-    minGatewayVersion: payload.minGatewayVersion ?? payload.version,
+    minOpfieldVersion: relayMinVersion ?? payload.version,
     secureLinkConnectorImage: payload.secureLinkConnectorImage,
   };
 }
@@ -308,7 +315,7 @@ export function verifyOpenCodexImageManifest(
     throw new UpdateArtifactTrustError('OpenCodex update tag mismatch');
   }
   if (payload.image !== expected.image) throw new UpdateArtifactTrustError('OpenCodex update image mismatch');
-  if (!/^\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/.test(payload.version)) {
+  if (!OPENCODEX_VERSION_PATTERN.test(payload.version)) {
     throw new UpdateArtifactTrustError('OpenCodex update version is not an Opfield release');
   }
   if (!DIGEST_RE.test(payload.digest)) throw new UpdateArtifactTrustError('OpenCodex update digest is invalid');
@@ -324,11 +331,11 @@ export function verifyOpenCodexImageManifest(
   if (!Number.isInteger(payload.stateSchemaVersion) || payload.stateSchemaVersion <= 0) {
     throw new UpdateArtifactTrustError('OpenCodex state schema version is invalid');
   }
-  const minOpfieldVersion = payload.minOpfieldVersion ?? payload.minGatewayVersion;
-  const maxOpfieldVersion = payload.maxOpfieldVersion ?? payload.maxGatewayVersion;
+  const minOpfieldVersion = payload.minOpfieldVersion ?? payload[LEGACY_MIN_VERSION_FIELD];
+  const maxOpfieldVersion = payload.maxOpfieldVersion ?? payload[LEGACY_MAX_VERSION_FIELD];
   for (const [field, value] of [
     ['minOpfieldVersion', payload.minOpfieldVersion],
-    ['minGatewayVersion', payload.minGatewayVersion],
+    [LEGACY_MIN_VERSION_FIELD, payload[LEGACY_MIN_VERSION_FIELD]],
   ] as const) {
     if (value !== undefined && !/^v?\d+\.\d+\.\d+$/.test(value)) {
       throw new UpdateArtifactTrustError(`OpenCodex minimum Opfield version is invalid (${field})`);
@@ -336,7 +343,7 @@ export function verifyOpenCodexImageManifest(
   }
   for (const [field, value] of [
     ['maxOpfieldVersion', payload.maxOpfieldVersion],
-    ['maxGatewayVersion', payload.maxGatewayVersion],
+    [LEGACY_MAX_VERSION_FIELD, payload[LEGACY_MAX_VERSION_FIELD]],
   ] as const) {
     if (value !== undefined && !/^v?\d+\.\d+\.\d+$/.test(value)) {
       throw new UpdateArtifactTrustError(`OpenCodex maximum Opfield version is invalid (${field})`);

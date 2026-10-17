@@ -27,6 +27,7 @@ import {
   ENVIRONMENT_PART,
   portableEnvironment,
 } from './transfer-layout.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const PG_DUMP = process.env.PG_DUMP_BIN || 'pg_dump';
@@ -124,7 +125,7 @@ describe.skipIf(!url)('configuration export round trip, on disposable PostgreSQL
         publicUrl: 'https://old.example.com',
         grpcPublicTarget: 'old.example.com:9443',
         grpcLocalIp: null,
-        composeProject: 'gateway',
+        composeProject: `${LEGACY_INSTALL_DIR_NAME}`,
       },
       includes: { registry: false, logs: false },
       commercialDir: null,

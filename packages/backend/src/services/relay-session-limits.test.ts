@@ -11,6 +11,7 @@ import {
   RELAY_UNCAPPED_SESSIONS,
   relaySessionLimitTarget,
 } from './relay-session-limits.js';
+import { LEGACY_MANAGED_DATABASE_OWNER_KIND } from '@/lib/legacy-compat.js';
 
 const listener = {
   networkName: 'opfield-db-binding',
@@ -133,13 +134,13 @@ describe('relay session limits', () => {
       CONTAINER_LINK_RELAY_MAX_CONCURRENT_SESSIONS
     );
     expect(
-      effectiveRelayMaxConcurrentSessions({ ownerKind: 'managed_database_gateway', maxConcurrentSessions: 16 })
+      effectiveRelayMaxConcurrentSessions({ ownerKind: LEGACY_MANAGED_DATABASE_OWNER_KIND, maxConcurrentSessions: 16 })
     ).toBe(16);
   });
 
   it('carries the limits in the relay snapshot without moving the route generation', () => {
     const content = relayPolicySnapshotContent({
-      gatewayInstanceId: 'opfield-1',
+      opfieldInstanceId: 'opfield-1',
       poolId: 'system',
       relayInstanceId: 'relay-1',
       grantKeys: [],
@@ -197,7 +198,7 @@ describe('relay session limits', () => {
       {} as never
     ) as any;
     service.requireNodeIdentity = vi.fn().mockResolvedValue({ certificateFingerprint: 'sha256:workload' });
-    service.requireState = vi.fn().mockResolvedValue({ revision: 30, gatewayInstanceId: 'opfield-1' });
+    service.requireState = vi.fn().mockResolvedValue({ revision: 30, opfieldInstanceId: 'opfield-1' });
     service.getPoolProjection = vi.fn().mockResolvedValue(
       new Map([
         ['endpoint-database', [poolRelay('endpoint-database')]],
@@ -262,7 +263,7 @@ describe('relay session limits', () => {
         trafficClass: ownerKind === 'container_link' && target?.registryFairShare ? 'registry' : 'database',
       }));
       const content = relayPolicySnapshotContent({
-        gatewayInstanceId: 'opfield-1',
+        opfieldInstanceId: 'opfield-1',
         poolId: 'system',
         relayInstanceId: 'relay-1',
         grantKeys: [],
@@ -308,7 +309,7 @@ describe('relay session limits', () => {
       {} as never
     ) as any;
     service.requireNodeIdentity = vi.fn().mockResolvedValue({ certificateFingerprint: 'sha256:workload' });
-    service.requireState = vi.fn().mockResolvedValue({ revision: 30, gatewayInstanceId: 'opfield-1' });
+    service.requireState = vi.fn().mockResolvedValue({ revision: 30, opfieldInstanceId: 'opfield-1' });
     service.getPoolProjection = vi.fn().mockResolvedValue(
       new Map([
         [

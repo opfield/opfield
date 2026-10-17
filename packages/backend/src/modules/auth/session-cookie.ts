@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { getEnv } from '@/config/env.js';
+import { LEGACY_SESSION_COOKIE_PREFIX } from '@/lib/legacy-compat.js';
 
 export const LEGACY_SESSION_COOKIE_NAME = 'session_id';
 
@@ -18,14 +19,14 @@ export function getSessionCookieName(transport: SessionCookieTransport): string 
 // legacy-name: pre-2.12.1 session cookies — browser sessions signed in before 2.12.1 keep working; remove once those
 // sessions have expired (the release after 2.12.1).
 function getLegacySessionCookieName(transport: SessionCookieTransport): string {
-  return `gateway_session_${getInstallationCookieNamespace()}_${transport}`;
+  return `${LEGACY_SESSION_COOKIE_PREFIX}${getInstallationCookieNamespace()}_${transport}`;
 }
 
 /** Whether a Cookie header carries a per-installation session cookie (current or pre-2.12.1 name). */
 export function hasInstallationSessionCookie(cookieHeader: string | null | undefined): boolean {
   if (!cookieHeader) return false;
-  // legacy-name: gateway_session_ prefix — see getLegacySessionCookieName.
-  return cookieHeader.includes('opfield_session_') || cookieHeader.includes('gateway_session_');
+  // legacy-name: LEGACY_SESSION_COOKIE_PREFIX prefix — see getLegacySessionCookieName.
+  return cookieHeader.includes('opfield_session_') || cookieHeader.includes(LEGACY_SESSION_COOKIE_PREFIX);
 }
 
 export function getSessionCookieNameForUrl(publicUrl: string): string {

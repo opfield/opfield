@@ -46,7 +46,7 @@ function witness(id: string, overrides: Partial<RelayWitnessRow> = {}): RelayWit
 
 const artifact: WitnessArtifact = {
   version: '25.3.6',
-  downloadUrl: 'https://updates.example/gateway/witness-clickhouse-keeper/v2.12.0/keeper',
+  downloadUrl: 'https://updates.example/opfield/witness-clickhouse-keeper/v2.12.0/keeper',
   sha256: SHA,
   signedManifest: '{}',
   component: 'witness-clickhouse-keeper',

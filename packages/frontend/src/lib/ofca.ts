@@ -1,4 +1,4 @@
-const GWCA_MAGIC = new Uint8Array([0x47, 0x57, 0x43, 0x41, 0x0d, 0x0a, 0x1a, 0x0a]);
+const OFCA_MAGIC = new Uint8Array([0x47, 0x57, 0x43, 0x41, 0x0d, 0x0a, 0x1a, 0x0a]);
 const MANIFEST_FRAME = 1;
 const FRAME_HEADER_BYTES = 9;
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
@@ -54,7 +54,7 @@ const MOUNT_KEYS = new Set([
 ]);
 const PORT_KEYS = new Set(["containerPort", "hostPort", "protocol"]);
 
-export interface GwcaNetworkMetadata {
+export interface OfcaNetworkMetadata {
   name: string;
   driver?: string;
   subnet?: string;
@@ -64,7 +64,7 @@ export interface GwcaNetworkMetadata {
   requiresMapping?: boolean;
 }
 
-export interface GwcaMountMetadata {
+export interface OfcaMountMetadata {
   type: "bind" | "volume";
   source: string;
   target: string;
@@ -75,25 +75,25 @@ export interface GwcaMountMetadata {
   requiresMapping?: boolean;
 }
 
-export interface GwcaPortMetadata {
+export interface OfcaPortMetadata {
   containerPort: number;
   hostPort: number;
   protocol: "tcp" | "udp";
 }
 
-export interface GwcaImportMetadata {
+export interface OfcaImportMetadata {
   name: string;
-  networks: GwcaNetworkMetadata[];
-  mounts: GwcaMountMetadata[];
-  ports: GwcaPortMetadata[];
+  networks: OfcaNetworkMetadata[];
+  mounts: OfcaMountMetadata[];
+  ports: OfcaPortMetadata[];
   secretKeys: string[];
   warnings: string[];
 }
 
-export type GwcaPortMappingInput = number | "";
+export type OfcaPortMappingInput = number | "";
 
-export function normalizeGwcaPortMappings(
-  mappings: Record<string, GwcaPortMappingInput>
+export function normalizeOfcaPortMappings(
+  mappings: Record<string, OfcaPortMappingInput>
 ): Record<string, number> | null {
   const normalized: Record<string, number> = {};
   for (const [key, value] of Object.entries(mappings)) {
@@ -126,24 +126,24 @@ async function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
   });
 }
 
-export function gwcaPortKey(port: GwcaPortMetadata): string {
+export function ofcaPortKey(port: OfcaPortMetadata): string {
   return `${port.containerPort}/${port.protocol}:${port.hostPort}`;
 }
 
-export async function readGwcaImportMetadata(file: File): Promise<GwcaImportMetadata> {
-  const prefixLength = GWCA_MAGIC.length + FRAME_HEADER_BYTES;
+export async function readOfcaImportMetadata(file: File): Promise<OfcaImportMetadata> {
+  const prefixLength = OFCA_MAGIC.length + FRAME_HEADER_BYTES;
   if (file.size < prefixLength) throw new Error("Container archive is truncated");
 
   const prefix = new Uint8Array(await readBlobBytes(file.slice(0, prefixLength)));
-  if (!bytesEqual(prefix.subarray(0, GWCA_MAGIC.length), GWCA_MAGIC)) {
+  if (!bytesEqual(prefix.subarray(0, OFCA_MAGIC.length), OFCA_MAGIC)) {
     throw new Error("File is not an Opfield container archive");
   }
-  if (prefix[GWCA_MAGIC.length] !== MANIFEST_FRAME) {
+  if (prefix[OFCA_MAGIC.length] !== MANIFEST_FRAME) {
     throw new Error("Container archive manifest is missing");
   }
 
   const view = new DataView(prefix.buffer, prefix.byteOffset, prefix.byteLength);
-  const manifestLength = Number(view.getBigUint64(GWCA_MAGIC.length + 1));
+  const manifestLength = Number(view.getBigUint64(OFCA_MAGIC.length + 1));
   if (
     !Number.isSafeInteger(manifestLength) ||
     manifestLength <= 0 ||
@@ -166,9 +166,9 @@ export async function readGwcaImportMetadata(file: File): Promise<GwcaImportMeta
     container?: {
       schemaVersion?: number;
       name?: string;
-      networks?: GwcaNetworkMetadata[];
-      mounts?: GwcaMountMetadata[];
-      ports?: GwcaPortMetadata[];
+      networks?: OfcaNetworkMetadata[];
+      mounts?: OfcaMountMetadata[];
+      ports?: OfcaPortMetadata[];
       secrets?: Record<string, string>;
       warnings?: string[];
     };
@@ -176,7 +176,7 @@ export async function readGwcaImportMetadata(file: File): Promise<GwcaImportMeta
   if (
     !hasOnlyKeys(parsed, MANIFEST_KEYS) ||
     !hasOnlyKeys(parsed.container, CONTAINER_KEYS) ||
-    parsed.format !== "gwca" ||
+    parsed.format !== "ofca" ||
     parsed.version !== 1 ||
     parsed.container?.schemaVersion !== 1 ||
     !parsed.container.name

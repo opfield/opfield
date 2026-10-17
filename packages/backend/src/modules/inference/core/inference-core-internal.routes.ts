@@ -39,7 +39,7 @@ async function verifyCallback(c: {
     text(): Promise<string>;
   };
 }): Promise<string> {
-  // legacy-name: a core released before the Opfield names signs with x-wiolett-* only.
+  // legacy-name: a core released before the Opfield names signs with LEGACY_CORE_HEADER_PREFIX* only.
   const header = (name: keyof typeof INFERENCE_CORE_CALLBACK_HEADERS) =>
     (
       c.req.header(INFERENCE_CORE_CALLBACK_HEADERS[name]) ?? c.req.header(LEGACY_INFERENCE_CORE_CALLBACK_HEADERS[name])

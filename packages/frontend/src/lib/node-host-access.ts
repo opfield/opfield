@@ -1,4 +1,5 @@
 import type { Node, NodeDetail, NodeHealthReport, NodeType } from "@/types";
+import { LEGACY_RELAY_SUPERVISOR } from "../../../backend/src/lib/legacy-compat";
 
 /** Host access a node operator can turn off in the daemon config file on the node. */
 export type NodeHostFeature = "console" | "files";
@@ -32,7 +33,7 @@ const DAEMON_CONFIG_PATHS: Partial<Record<NodeType, string>> = {
 };
 
 // legacy-name: config path of relay supervisors before 2.12.1 (v2.12.1-rc.3) — remove once every relay reports none
-const LEGACY_RELAY_CONFIG_PATH = "/etc/gateway-relay-supervisor/config.yaml";
+const LEGACY_RELAY_CONFIG_PATH = `/etc/${LEGACY_RELAY_SUPERVISOR}/config.yaml`;
 
 function beforeOpfieldRelayLayout(version: string | null | undefined): boolean {
   const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?/.exec(version ?? "");

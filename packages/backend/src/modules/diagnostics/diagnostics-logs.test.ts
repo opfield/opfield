@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { redactText } from './diagnostics-logs.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 describe('redactText', () => {
   it('masks the secret formats Opfield and its stack containers write to their logs', () => {
     const cases: Array<[string, string]> = [
       ['redis://:RedisPassw0rd@redis:6379/0', 'RedisPassw0rd'],
-      ['connect postgres://gateway:S3cr3tPass@postgres:5432/gateway', 'S3cr3tPass'],
+      [`connect postgres://${LEGACY_INSTALL_DIR_NAME}:S3cr3tPass@postgres:5432/${LEGACY_INSTALL_DIR_NAME}`, 'S3cr3tPass'],
       ['POSTGRES_PASSWORD=S3cr3tPass', 'S3cr3tPass'],
       ['AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', 'wJalrXUtnFEMI'],
       ['GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789', 'ghp_abcdef'],
@@ -37,7 +38,7 @@ describe('redactText', () => {
 
   it('keeps ordinary log lines readable', () => {
     for (const line of [
-      'FATAL: password authentication failed for user "gateway"',
+      `FATAL: password authentication failed for user "${LEGACY_INSTALL_DIR_NAME}"`,
       'listening on http://0.0.0.0:3000',
       'checkpoint complete: wrote 12 buffers (0.1%)',
     ]) {

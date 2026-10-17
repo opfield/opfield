@@ -17,6 +17,7 @@ import {
   TEST_INSTALLATION_ID,
 } from './license-attestation.test-helpers.js';
 import { LicensePolicyService } from './license-policy.service.js';
+import { LEGACY_COMMERCIAL_MANIFEST_KIND, LEGACY_LICENSE_VERSION_FIELD } from '@/lib/legacy-compat.js';
 
 const signer = createTestLicenseSigner();
 const verifier = createTestLicenseVerifier(signer);
@@ -455,7 +456,7 @@ describe('LicenseService', () => {
     const body = JSON.parse(request.body);
     expect(body).toMatchObject({
       installationName: 'opfield.example.com',
-      gatewayVersion: 'v2.6.12',
+      [LEGACY_LICENSE_VERSION_FIELD]: 'v2.6.12',
       entitlementsVersion: 5,
     });
     expect(body.installationId).toMatch(/^[0-9a-f-]{36}$/);
@@ -1167,7 +1168,7 @@ describe('LicenseService signed states', () => {
     ['another purpose', { purpose: 'register' }],
     ['another request (replay)', { requestNonce: 'captured-from-an-earlier-request' }],
     ['a stale issue time', { issuedAt: new Date(Date.now() - 16 * 60 * 1000).toISOString() }],
-    ['another kind', { kind: 'gateway-commercial' }],
+    ['another kind', { kind: LEGACY_COMMERCIAL_MANIFEST_KIND }],
   ])('rejects a state signed for %s', async (_label, override) => {
     const db = await activatedService('business');
     const other = createTestLicenseSigner(override.keyId ?? 'gls-test');

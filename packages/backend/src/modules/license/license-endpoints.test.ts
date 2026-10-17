@@ -11,20 +11,21 @@ import {
   TEST_INSTALLATION_ID,
 } from './license-attestation.test-helpers.js';
 import { LicenseServiceEndpoints, verifyLicenseEndpointsDocument } from './license-endpoints.js';
+import { LEGACY_APP_IMAGE_MANIFEST_KIND, LEGACY_THESQLABS_UPDATES_BASE_URL, LEGACY_UPDATES_BASE_URL, LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-10-11T12:00:00.000Z');
 const updateKeys = generateKeyPairSync('ed25519');
 const PUBLIC_KEY = updateKeys.publicKey.export({ type: 'spki', format: 'pem' }).toString();
-const DOCUMENT_URL = 'https://get.opfield.dev/gateway/license-endpoints.json';
-const LEGACY_DOCUMENT_URL = 'https://updates.thesqlabs.com/gateway/license-endpoints.json';
+const DOCUMENT_URL = `${LEGACY_UPDATES_BASE_URL}/license-endpoints.json`;
+const LEGACY_DOCUMENT_URL = `${LEGACY_THESQLABS_UPDATES_BASE_URL}/license-endpoints.json`;
 
 /** Signs like scripts/release/license-endpoints.mjs and the update-trust tool. */
 function signDocument(payload: Record<string, unknown>, privateKey: KeyObject = updateKeys.privateKey): string {
   const bytes = Buffer.from(JSON.stringify(payload), 'utf8');
   return JSON.stringify({
     schemaVersion: 1,
-    keyId: 'wiolett-update-v1',
+    keyId: LEGACY_UPDATE_KEY_ID,
     payload: bytes.toString('base64url'),
     signature: sign(null, bytes, privateKey).toString('base64url'),
   });
@@ -151,7 +152,7 @@ describe('license endpoints document', () => {
       'another signed kind',
       () =>
         signDocument({
-          kind: 'gateway-image',
+          kind: LEGACY_APP_IMAGE_MANIFEST_KIND,
           endpoints: ['https://license.example.net'],
           issuedAt: NOW.toISOString(),
           expiresAt: new Date(NOW.getTime() + DAY).toISOString(),
@@ -232,9 +233,9 @@ describe('LicenseServiceEndpoints', () => {
 
   it('fetches the document from a configured artifact host first', async () => {
     const fetcher = documentHost({});
-    await createEndpoints(createDb(), fetcher, { ARTIFACT_BASE_URL: 'https://mirror.example/gateway/' }).refresh();
+    await createEndpoints(createDb(), fetcher, { ARTIFACT_BASE_URL: 'https://mirror.example/opfield/' }).refresh();
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      'https://mirror.example/gateway/license-endpoints.json',
+      'https://mirror.example/opfield/license-endpoints.json',
       DOCUMENT_URL,
       LEGACY_DOCUMENT_URL,
     ]);

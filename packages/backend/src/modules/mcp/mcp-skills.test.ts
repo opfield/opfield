@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { describe, expect, it } from 'vitest';
 import { type OpfieldSkill, registerMcpSkills } from './mcp-skills.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 function recordingServer() {
   const resources: string[] = [];
@@ -33,6 +34,6 @@ describe('registerMcpSkills', () => {
       'opfield://skills/databases/references/connection.md',
     ]);
     expect(prompts).toEqual(['skill-using-opfield', 'skill-databases']);
-    expect(resources.some((uri) => uri.includes('using-gateway'))).toBe(false);
+    expect(resources.some((uri) => uri.includes(`using-${LEGACY_INSTALL_DIR_NAME}`))).toBe(false);
   });
 });

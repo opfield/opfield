@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DockerService } from './docker.service.js';
+import { LEGACY_REGISTRY_AUTH_DIR } from '@/lib/legacy-compat.js';
 
 describe('managed registry garbage collection', () => {
   it('mounts the same named volumes and bind mounts in the offline collector', async () => {
     const mounts = [
       { Type: 'volume', Source: 'registry-data', Target: '/var/lib/registry' },
-      { Type: 'volume', Source: 'registry-auth', Target: '/var/lib/gateway-registry-auth', ReadOnly: true },
+      { Type: 'volume', Source: 'registry-auth', Target: LEGACY_REGISTRY_AUTH_DIR, ReadOnly: true },
     ];
     const binds = ['/config/registry.yml:/etc/distribution/config.yml:ro'];
     const docker = new DockerService('/unused.sock', '') as any;

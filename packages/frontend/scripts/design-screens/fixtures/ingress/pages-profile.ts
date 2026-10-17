@@ -10,8 +10,8 @@ import { ago, ahead, uuid } from "../time";
 export const PAGES_DOMAIN = "pages.example.com";
 
 const OPFIELD_ISOLATION = {
-  gatewayHost: "opfield.example.com",
-  gatewayRegistrableDomain: "example.com",
+  opfieldHost: "opfield.example.com",
+  opfieldRegistrableDomain: "example.com",
 };
 
 /** pages.example.com shares example.com with the console; pages.example.net does not. */

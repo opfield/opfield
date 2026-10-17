@@ -216,7 +216,7 @@ function parseUrlOrNull(value: string | undefined): URL | null {
 }
 
 function isLocalClickHouseHost(hostname: string): boolean {
-  // legacy-name: gateway-clickhouse — the alias of a local ClickHouse in settings saved before 2.12.1; the host move
+  // legacy-name: LEGACY_CLICKHOUSE_CONTAINER — the alias of a local ClickHouse in settings saved before 2.12.1; the host move
   // rewrites it — remove once every installation reports the Opfield layout.
   return hostname === 'clickhouse' || hostname === OPFIELD_CLICKHOUSE_ALIAS || hostname === LEGACY_CLICKHOUSE_ALIAS;
 }

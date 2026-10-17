@@ -30,6 +30,7 @@ import {
   SET_CLIENT_ENDPOINT_KIND,
   SET_WITNESS_ENDPOINT_KIND,
 } from './relay-managed-availability.js';
+import { LEGACY_LOCK_RELAY_POLICY_RECONCILIATION, LEGACY_MANAGED_DATABASE_OWNER_KIND, LEGACY_MANAGED_STORAGE_OWNER_KIND } from '@/lib/legacy-compat.js';
 
 const POLICY_ID = 'current';
 
@@ -74,7 +75,7 @@ export async function updateManagedDatabaseRelayStatus(
   return db.transaction(async (tx) => {
     // After a reconciliation pass that is running: a pass that read the database before it became ready commits its
     // endpoint as inactive, and a status change that ran beside it would not see that endpoint and leave it so.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_RECONCILIATION}))`);
     // A database served by an availability set: its endpoints follow the set (reconcileSetRelayPaths).
     const [set] = await tx
       .select({ id: managedAvailabilitySets.id })
@@ -103,7 +104,7 @@ export async function updateManagedDatabaseRelayStatus(
 
 export async function reconcileManagedDatabaseRelayPolicy(db: DrizzleClient): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_RECONCILIATION}))`);
     // Everything is read under the lock, relay state first: an endpoint or route created while another pass held the
     // lock must not be judged by data read before it existed (it would be deleted, with every route to it). Every
     // database and link row is committed before its relay state, so the owner of every row read here is visible below.
@@ -320,7 +321,7 @@ export async function reconcileManagedDatabaseRelayPolicy(db: DrizzleClient): Pr
  */
 export async function reconcileManagedStorageRelayPolicy(db: DrizzleClient): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_RECONCILIATION}))`);
     // Routes first: a link row is committed before its route is created, so every link whose
     // route this read sees is visible to the read below.
     const routes = await tx
@@ -368,8 +369,8 @@ const ENDPOINT_OWNERS: Record<string, OwnerTable[]> = {
 const ROUTE_OWNERS: Record<string, OwnerTable[]> = {
   container_link: CONTAINER_LINK_OWNERS,
   proxy_host_secure_link: PROXY_SECURE_LINK_OWNERS,
-  managed_storage_gateway: MANAGED_STORAGE_OWNERS,
-  managed_database_gateway: [{ table: managedDatabaseInstances, id: managedDatabaseInstances.id }],
+  [LEGACY_MANAGED_STORAGE_OWNER_KIND]: MANAGED_STORAGE_OWNERS,
+  [LEGACY_MANAGED_DATABASE_OWNER_KIND]: [{ table: managedDatabaseInstances, id: managedDatabaseInstances.id }],
   database_backup_source: BACKUP_RUN_OWNERS,
   database_backup_restore: BACKUP_RUN_OWNERS,
   storage_backup_target: STORAGE_RUN_OWNERS,
@@ -395,7 +396,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export async function removeOrphanedRelayState(db: DrizzleClient): Promise<string[]> {
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-reconciliation'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_RECONCILIATION}))`);
     // Relay state first: every owner row is committed before its relay state is created, so the owner of every row
     // read here is visible to the reads below unless it is gone.
     const endpoints = await tx

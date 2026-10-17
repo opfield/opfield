@@ -473,7 +473,7 @@ export function DockerContainerDetail({
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
     const opfieldDev = (window.opfieldDev ??= {});
-    const openGwcaExportModal = () => {
+    const openOfcaExportModal = () => {
       setArchiveDevPreview(true);
       setArchiveImageMode("portable");
       setArchiveWritableLayer(true);
@@ -481,10 +481,10 @@ export function DockerContainerDetail({
       setArchiveIncludeSecrets(true);
       setArchiveOpen(true);
     };
-    opfieldDev.openGwcaExportModal = openGwcaExportModal;
+    opfieldDev.openOfcaExportModal = openOfcaExportModal;
     return () => {
-      if (opfieldDev.openGwcaExportModal === openGwcaExportModal) {
-        delete opfieldDev.openGwcaExportModal;
+      if (opfieldDev.openOfcaExportModal === openOfcaExportModal) {
+        delete opfieldDev.openOfcaExportModal;
       }
     };
   }, []);
@@ -1214,7 +1214,7 @@ export function DockerContainerDetail({
 
   const handleArchiveExport = async () => {
     if (archiveDevPreview) {
-      toast.info("GWCA export development preview", {
+      toast.info("OFCA export development preview", {
         description: "No archive was downloaded.",
       });
       return;
@@ -1255,7 +1255,7 @@ export function DockerContainerDetail({
       const link = document.createElement("a");
       const downloadUrl = URL.createObjectURL(archive);
       link.href = downloadUrl;
-      link.download = `${containerDisplayName(container?.Name ?? "container")}.gwca`;
+      link.download = `${containerDisplayName(container?.Name ?? "container")}.ofca`;
       link.click();
       URL.revokeObjectURL(downloadUrl);
       setArchiveOpen(false);
@@ -2247,7 +2247,7 @@ export function DockerContainerDetail({
               Cancel
             </Button>
             <Button onClick={() => void handleArchiveExport()} pending={archiveExporting}>
-              Download .gwca
+              Download .ofca
             </Button>
           </DialogFooter>
         </DialogContent>

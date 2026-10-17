@@ -7,6 +7,7 @@ import { TokensService } from '@/modules/tokens/tokens.service.js';
 import type { AppEnv } from '@/types.js';
 import { __testOnly, dockerRegistryAuthRoutes } from './docker-registry-auth.routes.js';
 import { DockerInternalRegistryService } from './docker-registry-internal.service.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const ORIGINAL_DEPLOYMENT_MODE = process.env.OPFIELD_DEPLOYMENT_MODE;
 
@@ -33,8 +34,8 @@ describe('docker registry external token request parsing', () => {
   });
 
   it('accepts an Opfield API token only as the Basic password', () => {
-    expect(__testOnly.basicPassword(`Basic ${Buffer.from('gateway:gw_secret').toString('base64')}`)).toBe('gw_secret');
-    expect(__testOnly.basicPassword(`Basic ${Buffer.from('gateway:gwo_oauth').toString('base64')}`)).toBeNull();
+    expect(__testOnly.basicPassword(`Basic ${Buffer.from('opfield:gw_secret').toString('base64')}`)).toBe('gw_secret');
+    expect(__testOnly.basicPassword(`Basic ${Buffer.from('opfield:gwo_oauth').toString('base64')}`)).toBeNull();
     expect(__testOnly.basicPassword('Bearer gw_secret')).toBeNull();
   });
 
@@ -83,7 +84,7 @@ describe('docker registry external token request parsing', () => {
     const response = await app.request(
       '/registry/token?service=opfield-internal-registry&scope=repository:tenant/app:pull,push',
       {
-        headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+        headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
       }
     );
 
@@ -117,7 +118,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
 
     const response = await app.request('/registry/token?scope=repository:tenant/app:push', {
-      headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+      headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
     });
 
     expect(response.status).toBe(403);
@@ -155,7 +156,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
 
     const response = await app.request(`/registry/token?scope=repository:${repository}:pull`, {
-      headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+      headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
     });
 
     expect(response.status).toBe(403);
@@ -182,7 +183,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
     const pull = (repository: string) =>
       app.request(`/registry/token?scope=repository:${repository}:pull`, {
-        headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+        headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
       });
 
     expect((await pull('tenant/app')).status).toBe(200);
@@ -205,7 +206,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
 
     const response = await app.request('/registry/token?scope=repository:tenant/app:pull', {
-      headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+      headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
     });
 
     expect(response.status).toBe(403);

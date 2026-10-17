@@ -68,6 +68,7 @@ import {
   type DockerImageUsageContainer,
   normalizeDockerImageUsageContainers,
 } from "./docker-images-usage";
+import { LEGACY_INTERNAL_REGISTRY_ID } from "../../../backend/src/lib/legacy-compat";
 
 interface DockerImageListItem extends DockerImage {
   _nodeId: string;
@@ -177,7 +178,7 @@ export function DockerImages({
   const loadImagePageState = useCallback(async () => {
     try {
       const regs = await api.listDockerRegistries();
-      setRegistries(regs.filter((registry) => registry.id !== "gateway-internal-registry"));
+      setRegistries(regs.filter((registry) => registry.id !== LEGACY_INTERNAL_REGISTRY_ID));
     } catch {}
 
     if (embedded && !fixedNodeId) {

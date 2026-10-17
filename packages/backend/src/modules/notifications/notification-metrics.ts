@@ -4,6 +4,7 @@ import {
   NODE_DATA_DISKS_TARGET,
   ROUTE_SHARE_MIN_REQUESTS,
 } from './notification-catalog.js';
+import { LEGACY_MANAGED_STORAGE_ROOT } from '@/lib/legacy-compat.js';
 
 // ── Threshold Metric Extraction ───────────────────────────────────────
 
@@ -112,7 +113,7 @@ export function extractMetricFromHealthReport(
 }
 
 /** The marker mount of the managed storage root (its allocatable space), not a disk. */
-const MANAGED_STORAGE_ROOT_FILESYSTEM = 'gateway-managed-storage-root';
+const MANAGED_STORAGE_ROOT_FILESYSTEM = LEGACY_MANAGED_STORAGE_ROOT;
 
 /**
  * A disk the NODE_DATA_DISKS_TARGET rule watches: every mount except Opfield's own disk images (role managed_image).

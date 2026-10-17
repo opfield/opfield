@@ -21,6 +21,7 @@ import {
   NODE_CONSOLE_RUNTIME_UNAVAILABLE,
   nodeConsoleRuntimeError,
 } from './ai.console-runtime.js';
+import { LEGACY_RELAY_BINARY, LEGACY_RELAY_IDENTITY_DIR } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('ConsoleManagedGuard');
 const AUDIT_COMMAND_MAX = 500;
@@ -38,8 +39,8 @@ const OPFIELD_NODE_DIRS = [
   '/etc/monitoring-daemon',
   '/var/lib/opfield-relay',
   '/etc/opfield-relay',
-  '/var/lib/gateway-relay',
-  '/etc/gateway-relay-supervisor',
+  LEGACY_RELAY_IDENTITY_DIR,
+  `/etc${LEGACY_RELAY_BINARY}-supervisor`,
 ];
 const OPFIELD_NODE_PROBE = `for d in ${OPFIELD_NODE_DIRS.join(' ')}; do [ -e "$d" ] && echo "$d"; done; true`;
 

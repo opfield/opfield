@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RelayControlClient } from '../relay-control.client.js';
 import { loadRelayV1Proto } from '../relay-proto.js';
 import { RelayTunnelHost } from './host.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 /** A CA with a server leaf for 127.0.0.1 and a client leaf, as the local relay and Opfield present them. */
 function issueIdentities() {
@@ -45,7 +46,7 @@ function issueIdentities() {
   return {
     ca: forge.pki.certificateToPem(ca),
     server: leaf('relay', { name: 'extKeyUsage', serverAuth: true }),
-    client: leaf('gateway-app', { name: 'extKeyUsage', clientAuth: true }),
+    client: leaf(`${LEGACY_INSTALL_DIR_NAME}-app`, { name: 'extKeyUsage', clientAuth: true }),
   };
 }
 
