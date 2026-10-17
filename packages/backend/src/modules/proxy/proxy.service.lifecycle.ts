@@ -44,7 +44,12 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
 
     // A route on an ingress group is removed from its connected members; an offline member drops the stale config
     // in the full sync that follows its reconnect resync, so a group route never needs the abandon path.
-    const abandoningOfflineNode = options.abandonOfflineNode === true && !existing.ingressGroupId;
+    // A route whose own node is offline is deleted the same way: the node drops its config in the full sync that
+    // follows its reconnect resync (removeStaleConfigsOnNode), and the certificate it used leaves the node through
+    // the replica cleanup that runs on that reconnect. Waiting for the node, or deleting it, is never needed.
+    const nodeOffline =
+      !existing.ingressGroupId && !!existing.nodeId && !this.nodeDispatch.isNodeConnected(existing.nodeId);
+    const abandoningOfflineNode = (options.abandonOfflineNode === true || nodeOffline) && !existing.ingressGroupId;
     if (abandoningOfflineNode) {
       if (this.nodeDispatch.isNodeConnected(existing.nodeId)) {
         throw new AppError(409, 'NGINX_NODE_CONNECTED', 'Connected Nginx nodes require confirmed config cleanup');
@@ -104,7 +109,14 @@ export abstract class ProxyServiceLifecycle extends ProxyServiceMutations {
       details: {
         domainNames: existing.domainNames,
         abandonedOfflineNode: abandoningOfflineNode,
-        ...(abandoningOfflineNode ? { nodeId: existing.nodeId, orphanedNginxConfigPossible: true } : {}),
+        ...(abandoningOfflineNode
+          ? {
+              nodeId: existing.nodeId,
+              ...(options.abandonOfflineNode
+                ? { orphanedNginxConfigPossible: true }
+                : { nodeCleanupOnReconnect: true }),
+            }
+          : {}),
       },
     });
 
