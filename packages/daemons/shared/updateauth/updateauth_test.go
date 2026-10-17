@@ -3,6 +3,7 @@ package updateauth
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
@@ -10,10 +11,22 @@ import (
 )
 
 const testChecksum = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-const testURL = "https://gitlab.example.com/api/v4/projects/opfield%2Fopfield/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64"
-const testManifest = `{
+
+// testURL is the artifact the signed fixture names (the self-hosted GitLab of an early release).
+var testURL = func() string {
+	var envelope struct{ Payload string }
+	_ = json.Unmarshal([]byte(testManifest), &envelope)
+	raw, _ := base64.RawURLEncoding.DecodeString(envelope.Payload)
+	var payload struct {
+		DownloadURL string `json:"downloadUrl"`
+	}
+	_ = json.Unmarshal(raw, &payload)
+	return payload.DownloadURL
+}()
+
+var testManifest = `{
   "schemaVersion": 1,
-  "keyId": legacycompat.UpdateKeyID,
+  "keyId": "` + legacycompat.UpdateKeyID + `",
   "payload": "eyJraW5kIjoiZGFlbW9uLWJpbmFyeSIsInZlcnNpb24iOiJ2OS45LjkiLCJ0YWciOiJ2OS45LjktbmdpbngiLCJkYWVtb25UeXBlIjoibmdpbngiLCJhcmNoIjoiYW1kNjQiLCJhcnRpZmFjdE5hbWUiOiJuZ2lueC1kYWVtb24tbGludXgtYW1kNjQiLCJkb3dubG9hZFVybCI6Imh0dHBzOi8vZ2l0bGFiLndpb2xldHQubmV0L2FwaS92NC9wcm9qZWN0cy93aW9sZXR0JTJGZ2F0ZXdheS9wYWNrYWdlcy9nZW5lcmljL25naW54LWRhZW1vbi92OS45LjktbmdpbngvbmdpbngtZGFlbW9uLWxpbnV4LWFtZDY0Iiwic2hhMjU2IjoiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsImNyZWF0ZWRBdCI6IjIwMjYtMDUtMDJUMTQ6Mzk6MDNaIiwiZ2l0Q29tbWl0U2hhIjoidGVzdCIsImdpdFBpcGVsaW5lSWQiOiIxIn0",
   "signature": "sNy92HOZyOUMyGJkXQ1nRmTSFm3BosuaAUaInP_Svo0cWGx50jvMlnsfU64FyubGDXK4ihvpgtlcNCfqN61ABw"
 }`

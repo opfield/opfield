@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"os"
@@ -50,7 +51,8 @@ func TestServiceDefinitionsMatchTheNodeInstaller(t *testing.T) {
 	if argsLine == nil || argsLine[1] != RunArgs("${RUN_USER}", "${RELEASES_API_URL}", "${ARTIFACT_BASE_URL}", "$(lease_watchdog_channel)") {
 		t.Fatalf("installer watchdog args %q differ from RunArgs", argsLine)
 	}
-	replacer := strings.NewReplacer("${LEASE_WATCHDOG_BIN}", BinaryPath, "${args}", "ARGS", "${LEASE_WATCHDOG_UNIT}", UnitName, `\${RC_SVCNAME}`, "${RC_SVCNAME}")
+	replacer := strings.NewReplacer("${LEASE_WATCHDOG_BIN}", BinaryPath, "${args}", "ARGS", "${LEASE_WATCHDOG_UNIT}", UnitName,
+		"${LEGACY_LEASE_WATCHDOG_UNIT}", legacycompat.LeaseWatchdogName, `\${RC_SVCNAME}`, "${RC_SVCNAME}")
 	systemd := replacer.Replace(heredoc(t, script, `cat > "/etc/systemd/system/${LEASE_WATCHDOG_UNIT}.service" <<UNIT`))
 	if systemd != SystemdUnit(BinaryPath, "ARGS") {
 		t.Fatalf("systemd unit differs from the installer:\n%s\n---\n%s", systemd, SystemdUnit(BinaryPath, "ARGS"))
