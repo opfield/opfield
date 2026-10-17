@@ -104,7 +104,11 @@ export class CryptoService {
    * Generate a unique serial number (20 bytes as hex).
    */
   generateSerialNumber(): string {
-    return crypto.randomBytes(20).toString('hex');
+    // A positive DER INTEGER of at most 20 octets (RFC 5280 4.1.2.2): with the high bit clear the certificate needs no
+    // leading zero byte, and a non-zero first byte keeps the stored hex equal to the serial the certificate carries.
+    const bytes = crypto.randomBytes(20);
+    bytes[0] = (bytes[0] & 0x7f) || 0x01;
+    return bytes.toString('hex');
   }
 
   /**

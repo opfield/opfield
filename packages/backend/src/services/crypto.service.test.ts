@@ -129,6 +129,14 @@ describe('CryptoService', () => {
       expect(serial.length).toBe(40); // 20 bytes = 40 hex chars
     });
 
+    it('keeps the serial a positive 20-octet integer with no leading zero byte', () => {
+      for (let i = 0; i < 200; i++) {
+        const first = Number.parseInt(cryptoService.generateSerialNumber().slice(0, 2), 16);
+        expect(first).toBeGreaterThan(0);
+        expect(first).toBeLessThan(0x80);
+      }
+    });
+
     it('should generate unique serial numbers', () => {
       const serials = new Set(Array.from({ length: 100 }, () => cryptoService.generateSerialNumber()));
       expect(serials.size).toBe(100);

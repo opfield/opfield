@@ -719,6 +719,8 @@ export async function initializeContainer(): Promise<void> {
     logger.info('Reconciled existing system certificate lifecycle records', systemCertificateReconciliation);
   }
   await systemCertificateLifecycleService.retryPendingCRLs();
+  // CRLs signed by older releases (negative serials, no CRL Number/AKI) are signed again in the background.
+  void crlService.republishOutdatedCrls().catch((error) => logger.error('CRL republish on startup failed', { error }));
 
   const grpcIdentityService = new GrpcIdentityService(env, systemCA);
   container.registerInstance(GrpcIdentityService, grpcIdentityService);
