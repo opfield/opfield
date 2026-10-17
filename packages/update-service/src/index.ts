@@ -1,6 +1,7 @@
 const GITHUB_API_VERSION = "2022-11-28";
 const USER_AGENT = "opfield-update-facade";
-const RELEASE_LIST_LIMIT_BYTES = 2 * 1024 * 1024;
+// A page of 100 releases with 20 assets each is already past 2 MiB; the cap only guards against a runaway answer.
+const RELEASE_LIST_LIMIT_BYTES = 16 * 1024 * 1024;
 const RELEASE_PAGE_SIZE = 100;
 // GitHub lists releases newest first; a search that is still unsettled after this many pages
 // answers from what it has read.
