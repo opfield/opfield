@@ -92,7 +92,7 @@ export async function executeGitLabTool(
         connectorId,
         project,
         branch: stringArg(a.branch),
-        ref: optionalString(a.ref),
+        ref: optionalString(a.ref) ?? optionalString(a.fromRef),
       });
     case 'gitlab_delete_branch':
       return service.gitLabDeleteBranch(user, { connectorId, project, branch: stringArg(a.branch) });
