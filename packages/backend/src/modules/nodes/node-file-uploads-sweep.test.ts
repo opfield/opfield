@@ -38,8 +38,15 @@ describe('abandoned node file uploads', () => {
 
   it('keeps an upload in progress and removes an expired one at the next pass', async () => {
     const t = context({});
-    const { uploadId } = await initNodeFileUpload(t.context, 'node-2', '/tmp/b.bin', 100, 'user-1', 'live-1');
-    expect(t.pending).toEqual({ 'live-1': { nodeId: 'node-2', path: '/tmp/b.bin' } });
+    const { uploadId } = await initNodeFileUpload(
+      t.context,
+      'node-2',
+      '/tmp/b.bin',
+      100,
+      'user-1',
+      '00000000-0000-4000-8000-00000000000a'
+    );
+    expect(t.pending).toEqual({ '00000000-0000-4000-8000-00000000000a': { nodeId: 'node-2', path: '/tmp/b.bin' } });
     await sweepNodeFileUploads(t.context);
     expect(t.commands.filter((c) => c.action === 'upload-abort')).toEqual([]);
 
@@ -50,8 +57,10 @@ describe('abandoned node file uploads', () => {
   it('says whether there was an upload to cancel', async () => {
     const t = context({});
     await expect(abortNodeFileUpload(t.context, 'node-3', 'unknown')).resolves.toEqual({ aborted: false });
-    await initNodeFileUpload(t.context, 'node-3', '/tmp/c.bin', 10, 'user-1', 'live-2');
-    await expect(abortNodeFileUpload(t.context, 'node-3', 'live-2')).resolves.toEqual({ aborted: true });
+    await initNodeFileUpload(t.context, 'node-3', '/tmp/c.bin', 10, 'user-1', '00000000-0000-4000-8000-00000000000b');
+    await expect(abortNodeFileUpload(t.context, 'node-3', '00000000-0000-4000-8000-00000000000b')).resolves.toEqual({
+      aborted: true,
+    });
     expect(t.pending).toEqual({});
   });
 });

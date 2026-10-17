@@ -185,14 +185,23 @@ function alertStateLabels(
 export function defaultFiredMessage(
   rule: { name: string; type?: string },
   resourceName: string,
-  details: { metric?: { name?: string; value?: number; threshold?: number; operator?: string; duration?: number } }
+  details: {
+    metric?: {
+      name?: string | null;
+      value?: number | null;
+      threshold?: number | null;
+      operator?: string | null;
+      duration?: number | null;
+    };
+  }
 ): string {
   const metric = details.metric;
   if (rule.type !== 'threshold' || !metric?.name || typeof metric.value !== 'number') {
     return `${rule.name}: ${resourceName}`;
   }
   const value = Number.isInteger(metric.value) ? String(metric.value) : metric.value.toFixed(1);
-  const limit = metric.operator && metric.threshold !== undefined ? ` ${metric.operator} ${metric.threshold}` : '';
+  const limit =
+    metric.operator && typeof metric.threshold === 'number' ? ` ${metric.operator} ${metric.threshold}` : '';
   const sustained = metric.duration ? ` for ${metric.duration} s` : '';
   return `${rule.name}: ${resourceName}: ${metric.name} is ${value} (rule${limit}${sustained})`;
 }
@@ -623,7 +632,7 @@ export class NotificationEvaluatorService {
   async evaluateOpfieldSnapshot(
     metrics: Record<string, number | null>,
     /** Per metric: what the reading was taken from ({{details.*}}), e.g. host_disk: { disk }. */
-    metricDetails?: Record<string, Record<string, unknown>>
+    metricDetails?: Record<string, Record<string, string | number | boolean | null>>
   ): Promise<void> {
     const rules = await this.getThresholdRules();
     for (const rule of rules) {

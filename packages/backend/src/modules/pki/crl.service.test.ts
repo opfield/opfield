@@ -20,12 +20,13 @@ const LOW = '3e79edfb00112233445566778899aabbccdd2ced';
 const LOW_DELETED = '05641391aabbccddeeff00112233445566d475';
 const NOT_REVOKED = 'f00dfeed00112233445566778899aabbccddeeff';
 const DAY = 24 * 60 * 60 * 1000;
+type CryptoKeyPairLike = { publicKey: CryptoKey; privateKey: CryptoKey };
 
 const workDir = mkdtempSync(path.join(tmpdir(), 'crl-test-'));
 afterAll(() => rmSync(workDir, { recursive: true, force: true }));
 
-async function issue(serialNumber: string, caCert: x509.X509Certificate, caKeys: CryptoKeyPair) {
-  const keys = (await crypto.subtle.generateKey(ALG, true, ['sign', 'verify'])) as CryptoKeyPair;
+async function issue(serialNumber: string, caCert: x509.X509Certificate, caKeys: CryptoKeyPairLike) {
+  const keys = (await crypto.subtle.generateKey(ALG, true, ['sign', 'verify'])) as CryptoKeyPairLike;
   return x509.X509CertificateGenerator.create({
     serialNumber,
     subject: `CN=${serialNumber.slice(0, 8)}.test`,
@@ -43,7 +44,7 @@ async function issue(serialNumber: string, caCert: x509.X509Certificate, caKeys:
 }
 
 async function setup() {
-  const caKeys = (await crypto.subtle.generateKey(ALG, true, ['sign', 'verify'])) as CryptoKeyPair;
+  const caKeys = (await crypto.subtle.generateKey(ALG, true, ['sign', 'verify'])) as CryptoKeyPairLike;
   const caCert = await x509.X509CertificateGenerator.createSelfSigned({
     serialNumber: '01',
     name: 'CN=crl-test Root CA',
@@ -161,7 +162,7 @@ describe('CRLService.generateCRL', () => {
     expect(serials).toEqual([`00${HIGH}`, `00${HIGH_DELETED}`, LOW, LOW_DELETED].sort());
     expect(crl.extensions.map((extension) => extension.type).sort()).toEqual(['2.5.29.20', '2.5.29.35']);
     expect(crlNeedsRepublish(der)).toBe(false);
-    expect(await crl.verify({ publicKey: caKeys.publicKey, signatureOnly: true })).toBe(true);
+    expect(await crl.verify({ publicKey: caKeys.publicKey })).toBe(true);
 
     if (!opensslAvailable()) return;
     const caPath = path.join(workDir, 'ca.pem');
