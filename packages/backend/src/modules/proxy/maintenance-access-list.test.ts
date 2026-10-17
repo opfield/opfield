@@ -28,7 +28,8 @@ function guardLocations(config: string): Map<string, string[]> {
     for (const directive of directives) {
       if (directive.name === 'location') {
         const name = directive.args.at(-1)!.value;
-        if (/maintenance/.test(name)) {
+        // Named locations answer after the access phase of the location that hands the request to them.
+        if (/maintenance/.test(name) && !name.startsWith('@')) {
           result.set(
             name,
             directive
@@ -45,6 +46,35 @@ function guardLocations(config: string): Map<string, string[]> {
 }
 
 const RULES = ['allow 10.0.0.0/8', 'deny 192.0.2.7', 'deny all'];
+
+/**
+ * `return` runs in nginx's rewrite phase, before allow/deny: a guard location with access rules must answer through
+ * try_files + error_page instead, or deny never applies (X-O-5, still broken in rc.3).
+ */
+function expectAnswersAfterAccess(config: string) {
+  const visit = (directives: NginxConfigDirective[]) => {
+    for (const directive of directives) {
+      if (directive.name === 'location' && directive.block) {
+        const children = directive.block.children;
+        if (children.some((child) => child.name === 'deny')) {
+          const name = directive.args.at(-1)!.value;
+          expect(
+            children.some((child) => child.name === 'return' || (child.block && child.name === 'if')),
+            name
+          ).toBe(false);
+          if (!children.some((child) => child.name === 'proxy_pass')) {
+            expect(
+              children.map((child) => child.name),
+              name
+            ).toEqual(expect.arrayContaining(['error_page', 'try_files']));
+          }
+        }
+      }
+      if (directive.block) visit(directive.block.children);
+    }
+  };
+  visit(parseNginxConfig(config));
+}
 
 describe('maintenance behind the access list', () => {
   it('takes the allow/deny rules of the list, without its basic authentication', () => {
@@ -67,6 +97,12 @@ describe('maintenance behind the access list', () => {
       'opfield-maintenance-status',
     ]);
     for (const [name, rules] of locations) expect(rules, name).toEqual(RULES);
+    expectAnswersAfterAccess(guarded);
+  });
+
+  it('emits "deny all" once when the list ends in its own', () => {
+    const own = { ...accessList, ipRules: [...accessList.ipRules, { type: 'deny' as const, value: 'all' }] };
+    expect(maintenanceAccessListDirectives(own)).toEqual(['allow 10.0.0.0/8;', 'deny 192.0.2.7;', 'deny all;']);
   });
 
   it('guards every location of the reload-based guard, with and without team access', () => {
@@ -80,9 +116,13 @@ describe('maintenance behind the access list', () => {
       '/_opfield/maintenance-access/status',
     ]);
     for (const [name, rules] of withAccess) expect(rules, name).toEqual(RULES);
+    expectAnswersAfterAccess(
+      templates.applyMaintenanceGuard(ROUTE, { hostId: HOST_ID, secret: 'route-secret' }, false, accessList)
+    );
 
-    const plain = guardLocations(templates.applyMaintenanceGuard(ROUTE, undefined, false, accessList));
-    expect(plain.get('opfield-maintenance')).toEqual(RULES);
+    const plainConfig = templates.applyMaintenanceGuard(ROUTE, undefined, false, accessList);
+    expect(guardLocations(plainConfig).get('opfield-maintenance')).toEqual(RULES);
+    expectAnswersAfterAccess(plainConfig);
   });
 
   it('adds nothing for a route without an access list', () => {

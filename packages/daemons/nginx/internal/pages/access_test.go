@@ -137,7 +137,8 @@ func TestPreviewAccessAcceptsTheAllKeyword(t *testing.T) {
 		t.Fatalf("the access-list schema accepts `all`; the daemon must too: %v", err)
 	}
 	config, _ := os.ReadFile(runtime.previewConfigPath("all.pages.example"))
-	want := "    satisfy all;\n    allow 10.0.0.0/8;\n    deny all;\n    deny all;\n"
+	// The list's own `deny all` is rendered once (no second, implicit one).
+	want := "    satisfy all;\n    allow 10.0.0.0/8;\n    deny all;\n    root "
 	if !strings.Contains(string(config), want) {
 		t.Fatalf("`deny all` rule rendered incorrectly:\n%s", config)
 	}

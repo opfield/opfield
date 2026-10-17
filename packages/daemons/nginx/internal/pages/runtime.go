@@ -54,6 +54,14 @@ type Runtime struct {
 	// beginChange and scheduleReload: see SetDeferredReload.
 	beginChange    func() (func(), error)
 	scheduleReload func(batch bool)
+	// errorPages: see SetErrorPages.
+	errorPages bool
+}
+
+// SetErrorPages tells the runtime the node keeps the page variables of errorpages.Config, so the server blocks it
+// writes answer nginx's own errors with the Opfield pages.
+func (r *Runtime) SetErrorPages(enabled bool) {
+	r.errorPages = enabled
 }
 
 // SetDeferredReload lets the handler load Pages changes: each change is
@@ -395,7 +403,8 @@ func (r *Runtime) RemovePreview(hostname string) error {
 	// fall through to another preview or a tag route acting as nginx's default.
 	// The tombstone references neither artifacts nor certificates, survives
 	// restarts, and is atomically replaced by MaterializePreview on re-enable.
-	content := fmt.Sprintf(revokedPreviewMarker+"\nserver {\n    listen 80;\n    listen 443 ssl;\n    server_name %s;\n    ssl_reject_handshake on;\n    return 404;\n}\n", hostname)
+	lines := append([]string{revokedPreviewMarker, "server {", "    listen 80;", "    listen 443 ssl;", "    server_name " + hostname + ";", "    ssl_reject_handshake on;"}, r.errorPageDirectives()...)
+	content := strings.Join(append(lines, "    return 404;", "}"), "\n") + "\n"
 	return r.applyConfig(r.previewConfigPath(hostname), []byte(content))
 }
 
