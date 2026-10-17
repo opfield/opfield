@@ -1,7 +1,7 @@
 import { container } from '@/container.js';
 import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { getResourceScopedIds, hasScope, hasScopeForCreation } from '@/lib/permissions.js';
-import { AppError } from '@/middleware/error-handler.js';
+import { AppError, isZodError, validationErrorDetails } from '@/middleware/error-handler.js';
 import {
   DockerBuildCreateSchema,
   DockerBuildSecretNameSchema,
@@ -68,8 +68,33 @@ import {
  */
 const MCP_PAGE_UPLOAD_CHUNK_MAX_BYTES = 1024 * 1024;
 const USE_UPLOAD_LINK = 'to send a file from disk, use operation "link" and stream it with curl';
+const PROJECT_ID_FIELD = 'projectId (the Page Project UUID from project_list or project_create)';
 
+/** What to do next after an upload refusal an agent could not act on from its code and message alone. */
+const PAGES_UPLOAD_ERROR_HINTS: Record<string, string> = {
+  PAGES_DEPLOYMENT_EXPIRY_AMBIGUOUS:
+    'Send at most one of them, and leave both out for a Deployment that does not expire (the usual case)',
+  PAGES_UPLOAD_CHECKSUM_MISMATCH:
+    'sha256 and declaredSizeBytes at begin describe the exact bytes the chunks send (for format "html" the HTML file itself, every byte including a final newline). Compare the offset the last chunk returned with declaredSizeBytes, then start again with begin and the corrected bytes',
+};
+
+/**
+ * Runs an upload_pages_artifact operation; a refusal listed in PAGES_UPLOAD_ERROR_HINTS keeps its status and code
+ * and gains the next step.
+ */
 export async function uploadPagesArtifact(user: User, args: Record<string, unknown>) {
+  try {
+    return await runPagesUpload(user, args);
+  } catch (error) {
+    if (!(error instanceof AppError) || !PAGES_UPLOAD_ERROR_HINTS[error.code]) {
+      throw withEmptyArgumentHints(error, args, true);
+    }
+    const hint = PAGES_UPLOAD_ERROR_HINTS[error.code];
+    throw new AppError(error.statusCode, error.code, `${error.message.replace(/\.?$/, '.')} ${hint}`, error.details);
+  }
+}
+
+async function runPagesUpload(user: User, args: Record<string, unknown>) {
   const operation = requiredEnum(args.operation, ['link', 'begin', 'chunk', 'finalize', 'cancel'] as const);
   await container.resolve(LicensePolicyService).requireFeature('pages');
   await container.resolve(PageProfileService).requireEnabled();
@@ -77,7 +102,7 @@ export async function uploadPagesArtifact(user: User, args: Record<string, unkno
   const deployments = container.resolve(PageDeploymentService);
   const principal: PageDeployPrincipal = { kind: 'user', userId: user.id, scopes: user.scopes };
   if (operation === 'link') {
-    ensureResourceScope(user, 'pages:deploy', requiredString(args.projectId));
+    ensureResourceScope(user, 'pages:deploy', requiredString(args.projectId, PROJECT_ID_FIELD));
     return createPageUploadLink(user, args);
   }
   if (operation === 'begin') {
@@ -86,17 +111,20 @@ export async function uploadPagesArtifact(user: User, args: Record<string, unkno
     return deployments.create(input, principal);
   }
 
-  const uploadId = requiredString(args.uploadId);
+  const uploadId = requiredString(args.uploadId, 'uploadId (upload.id from the begin result)');
   if (operation === 'cancel') return deployments.cancelUpload(uploadId, principal);
   if (operation === 'chunk') {
-    const offset = requiredNumber(args.offset);
+    const offset = requiredNumber(
+      args.offset,
+      'offset (0 for the first chunk, then the offset the previous chunk returned)'
+    );
     if (!Number.isInteger(offset) || offset < 0) {
       throw new AppError(400, 'INVALID_AI_TOOL_ARGUMENT', 'Upload offset must be a non-negative integer');
     }
     return deployments.appendChunk(
       uploadId,
       offset,
-      decodeMcpPageUploadChunk(requiredString(args.contentBase64)),
+      decodeMcpPageUploadChunk(requiredString(args.contentBase64, 'contentBase64 (the base64 of the next bytes)')),
       principal
     );
   }
@@ -104,6 +132,38 @@ export async function uploadPagesArtifact(user: User, args: Record<string, unkno
   const expiresAt = resolvePageDeploymentExpiry(FinalizePageUploadSchema.parse(args));
   const stored = await deployments.finalize(uploadId, principal, expiresAt === undefined ? undefined : { expiresAt });
   return publishStoredDeployment(stored.deployment.id);
+}
+
+/** An optional argument sent without a value: "", 0, or an object whose fields are all empty. */
+function isEmptyArgument(value: unknown): boolean {
+  if (value === '' || value === 0) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value).every((field) => field === undefined || field === '' || field === null);
+}
+
+/**
+ * A validation refusal of a Pages tool call: each failed field sent empty ("" or 0, as clients that fill every
+ * schema field do) says to leave it out, and `tag: "latest"` says why. Anything else is returned unchanged.
+ */
+function withEmptyArgumentHints(error: unknown, args: Record<string, unknown>, upload = false): unknown {
+  if (!isZodError(error)) return error;
+  const details = validationErrorDetails(error).map(({ path, message }) => {
+    const field = path.split('.')[0] ?? '';
+    if (upload && field === 'tag' && args.tag === 'latest') {
+      return {
+        path,
+        message: `${message}: every ready Deployment already moves \`latest\`; leave tag out, or pass a Tag name of your own`,
+      };
+    }
+    if (field && isEmptyArgument(args[field])) {
+      return {
+        path,
+        message: `${message}. ${field} was sent empty: leave optional fields you do not use out of the call instead of sending "", 0 or an empty object`,
+      };
+    }
+    return { path, message };
+  });
+  return new AppError(400, 'VALIDATION_ERROR', 'Request validation failed', details);
 }
 
 function decodeMcpPageUploadChunk(value: string): Uint8Array {
@@ -177,7 +237,16 @@ const PAGES_READ_OPERATIONS = new Set([
   'source_secret_list',
 ]);
 
+/** Runs a manage_pages operation; a validation refusal of a field sent empty says to leave it out. */
 export async function managePages(user: User, args: Record<string, unknown>) {
+  try {
+    return await runManagePages(user, args);
+  } catch (error) {
+    throw withEmptyArgumentHints(error, args);
+  }
+}
+
+async function runManagePages(user: User, args: Record<string, unknown>) {
   const operation = requiredString(args.operation);
   const policy = container.resolve(LicensePolicyService);
   if (PAGES_EXISTING_OPERATIONS.has(operation)) await policy.requireFeatureForExistingRuntime('pages');
@@ -234,14 +303,14 @@ export async function managePages(user: User, args: Record<string, unknown>) {
         });
   }
   if (operation === 'project_get_by_slug') {
-    const project = await projects.getBySlug(requiredString(args.slug));
+    const project = await projects.getBySlug(requiredString(args.slug, 'slug'));
     if (!canAccessPageProject(user.scopes, 'pages:view', project.id)) {
       throw new AppError(403, 'PAGE_PROJECT_FORBIDDEN', 'Missing pages:view for this Project');
     }
     return project;
   }
 
-  const projectId = requiredString(args.projectId);
+  const projectId = requiredString(args.projectId, PROJECT_ID_FIELD);
   if (operation === 'project_get') {
     ensureResourceScope(user, 'pages:view', projectId);
     return projects.get(projectId);
@@ -289,22 +358,29 @@ export async function managePages(user: User, args: Record<string, unknown>) {
   const deploymentId = optionalString(args.deploymentId);
   if (operation === 'deployment_get') {
     ensureResourceScope(user, 'pages:view', projectId);
-    return deployments().getForProject(projectId, requiredValue(deploymentId));
+    return deployments().getForProject(projectId, requiredValue(deploymentId, 'deploymentId'));
   }
   if (operation === 'deployment_links') {
     ensureResourceScope(user, 'pages:view', projectId);
-    const deployment = await deployments().getForProject(projectId, requiredValue(deploymentId));
+    const deployment = await deployments().getForProject(projectId, requiredValue(deploymentId, 'deploymentId'));
     return deployments().publicationLinks(deployment.id);
   }
   if (operation === 'deployment_pin') {
     ensureResourceScope(user, 'pages:deployments:manage', projectId);
     return container
       .resolve(PageRetentionService)
-      .setPinned(projectId, requiredValue(deploymentId), requiredBoolean(args.pinned), user.id);
+      .setPinned(
+        projectId,
+        requiredValue(deploymentId, 'deploymentId'),
+        requiredBoolean(args.pinned, 'pinned'),
+        user.id
+      );
   }
   if (operation === 'deployment_delete') {
     ensureResourceScope(user, 'pages:deployments:manage', projectId);
-    await container.resolve(PageRetentionService).deleteDeployment(projectId, requiredValue(deploymentId), user.id);
+    await container
+      .resolve(PageRetentionService)
+      .deleteDeployment(projectId, requiredValue(deploymentId, 'deploymentId'), user.id);
     return { success: true };
   }
 
@@ -315,13 +391,13 @@ export async function managePages(user: User, args: Record<string, unknown>) {
   const tag = optionalString(args.tag);
   if (operation === 'tag_move') {
     ensureResourceScope(user, 'pages:tags:manage', projectId);
-    const parsed = PageTagParamSchema.parse({ projectId, tag: requiredValue(tag) });
+    const parsed = PageTagParamSchema.parse({ projectId, tag: requiredValue(tag, 'tag') });
     const move = MovePageTagSchema.parse(args);
     return container.resolve(PagePublicationService).moveUserTag(projectId, parsed.tag, move.deploymentId, user.id);
   }
   if (operation === 'tag_delete') {
     ensureResourceScope(user, 'pages:tags:manage', projectId);
-    const parsed = PageTagParamSchema.parse({ projectId, tag: requiredValue(tag) });
+    const parsed = PageTagParamSchema.parse({ projectId, tag: requiredValue(tag, 'tag') });
     await container.resolve(PageTagService).delete(projectId, parsed.tag, user.id);
     return { success: true };
   }
@@ -337,7 +413,7 @@ export async function managePages(user: User, args: Record<string, unknown>) {
   }
   if (operation === 'token_revoke') {
     ensureResourceScope(user, 'pages:tokens:manage', projectId);
-    await tokens.revoke(projectId, requiredString(args.tokenId), user.id);
+    await tokens.revoke(projectId, requiredString(args.tokenId, 'tokenId'), user.id);
     return { success: true };
   }
 
@@ -350,7 +426,7 @@ export async function managePages(user: User, args: Record<string, unknown>) {
     ensureResourceScope(user, 'pages:edit', projectId);
     return configs.saveDefault(projectId, SavePageRuntimeConfigSchema.parse(args), user.id);
   }
-  const tagId = requiredString(args.tagId);
+  const tagId = requiredString(args.tagId, 'tagId');
   if (operation === 'config_save_tag') {
     ensureResourceScope(user, 'pages:edit', projectId);
     return configs.saveTag(projectId, tagId, SavePageRuntimeConfigSchema.parse(args), user.id);
@@ -381,7 +457,11 @@ async function manageProjectSource(
     ensureResourceScope(user, 'pages:edit', projectId);
     return container
       .resolve(IntegrationsService)
-      .findDockerBuildSourceRepositories(user, requiredString(args.sourceConnectorId), optionalString(args.search));
+      .findDockerBuildSourceRepositories(
+        user,
+        requiredString(args.sourceConnectorId, 'sourceConnectorId'),
+        optionalString(args.search)
+      );
   }
   if (operation === 'source_discover') {
     ensureResourceScope(user, 'pages:edit', projectId);
