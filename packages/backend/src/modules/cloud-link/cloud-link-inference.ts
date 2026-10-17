@@ -11,7 +11,9 @@ import {
   users,
 } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { AISettingsService } from '@/modules/ai/ai.settings.service.js';
 import { InferenceCoreBridgeService } from '@/modules/inference/core/inference-core-bridge.service.js';
+import { INFERENCE_CORE_CHANGED_CHANNEL } from '@/modules/inference/core/inference-core-operation.service.js';
 import { coreKeyProviderName } from '@/modules/inference/core/inference-core-provider-map.js';
 import { InferenceCoreRuntimeService } from '@/modules/inference/core/inference-core-runtime.service.js';
 import { InferenceModelService } from '@/modules/inference/models/inference-model.service.js';
@@ -20,15 +22,18 @@ import { InferenceModelConfigurationService } from '@/modules/inference/models/i
 import {
   CLOUD_INFERENCE_CONNECTION_NAME,
   CLOUD_MANAGED_METADATA_KEY,
+  type CloudInferenceMode,
   type CloudInferenceModel,
   type CloudInferenceState,
   isCloudManagedConnection,
   readStoredCloudInference,
   type StoredCloudInference,
+  workspaceOnCloudEndpoint,
 } from '@/modules/inference/providers/inference-cloud.js';
 import { InferenceProviderService } from '@/modules/inference/providers/inference-provider.service.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
+import { EventBusService } from '@/services/event-bus.service.js';
 import { ensureCloudDefaultApiBudget } from './cloud-link-inference-budget.js';
 import { CLOUD_ADDON_SETTING_KEYS, writeCloudSetting } from './cloud-link-settings.js';
 
@@ -41,6 +46,11 @@ const RECHECK_MS = 15_000;
 /** A failed core install is started again at most this often. */
 const CORE_INSTALL_RETRY_MS = 10 * 60_000;
 const CORE_BUSY_STATES = new Set(['resolving', 'pulling', 'installing', 'starting', 'updating', 'rolling_back']);
+/** Direct mode reads the endpoint's model list this long at most. */
+const MODELS_TIMEOUT_MS = 10_000;
+/** The bounds AI Workspace settings accept (AIConfigUpdateSchema). */
+const WORKSPACE_CONTEXT_TOKENS = { min: 4_000, max: 1_000_000 };
+const WORKSPACE_COMPLETION_TOKENS = { min: 256, max: 128_000 };
 /**
  * The model's price as the account states it (USD per million tokens, the customer price), so per-user API budgets
  * here count Opfield Cloud usage. An account that sends no price leaves the model free here.
@@ -73,16 +83,49 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function clamp(value: number, bounds: { min: number; max: number }): number {
+  return Math.min(bounds.max, Math.max(bounds.min, value));
+}
+
+/** The mode a state runs in; a state written before modes ran in core mode once it was configured. */
+function modeOf(stored: StoredCloudInference): CloudInferenceMode | null {
+  return stored.mode ?? (stored.appliedKeyHash ? 'core' : null);
+}
+
+/** Whether AI Workspace was already switched to the add-on (a ready state from before modes counts as switched). */
+function workspaceAppliedOf(stored: StoredCloudInference): boolean {
+  return stored.workspaceApplied ?? (stored.mode === undefined && Boolean(stored.appliedKeyHash));
+}
+
+/** AI Workspace on the account's endpoint, the way an administrator would set up an OpenAI-compatible provider. */
+function directWorkspaceSettings(baseUrl: string, apiKey: string, model: CloudInferenceModel): Record<string, unknown> {
+  return {
+    providerType: 'openai_compatible',
+    providerUrl: baseUrl,
+    apiKey,
+    model: model.publicId,
+    endpointMode: 'chat_completions',
+    maxContextTokens: clamp(model.maxInputTokens, WORKSPACE_CONTEXT_TOKENS),
+    ...(model.maxOutputTokens
+      ? { maxCompletionTokens: clamp(model.maxOutputTokens, WORKSPACE_COMPLETION_TOKENS) }
+      : {}),
+    supportsImages: model.modalities.includes('image'),
+  };
+}
+
 function answerOf(stored: StoredCloudInference | null): CloudInferenceAnswer {
   if (!stored) return { state: 'removed' };
   return { state: stored.state, ...(stored.state === 'failed' && stored.error ? { error: stored.error } : {}) };
 }
 
 /**
- * The "Opfield Cloud" AI add-on of a managed installation (cloud link inference-cloud), the way an administrator would
- * set it up: inference on, the inference core installed, an OpenAI-compatible connection "Opfield Cloud" with the
- * account's key, synced, and its models published to everyone. The connection and models are the account's: people
- * and agents cannot change them (CLOUD_MANAGED). Turning the add-on off removes the models and the connection.
+ * The "Opfield Cloud" AI add-on of a linked installation (cloud link inference-cloud), the way an administrator would
+ * set it up. With the inference core installed (core mode): inference on, an OpenAI-compatible connection "Opfield
+ * Cloud" with the account's key, synced, its models published to everyone, and AI Workspace on the first model. The
+ * connection and models are the account's: people and agents cannot change them (CLOUD_MANAGED). Without the core
+ * (direct mode, the core is never installed for it): AI Workspace talks to the account's endpoint with the key. AI
+ * Workspace is switched once per enabling or mode change, so an administrator's later choice holds. Turning the add-on
+ * off removes the models and the connection, or takes the key out of AI Workspace.
  */
 export class CloudInference {
   private chain: Promise<void> = Promise.resolve();
@@ -91,10 +134,40 @@ export class CloudInference {
 
   constructor(private readonly db: DrizzleClient) {}
 
-  /** After a restart: carries on with an add-on that was still being set up or removed. */
+  /**
+   * After a restart: carries on with an add-on that was still being set up or removed, or whose mode no longer matches
+   * the core. Then follows the core: an install that completes moves direct mode to core mode, a core that is gone
+   * moves core mode to direct mode. The core's status event is the hook (not the recheck): the recheck only runs while
+   * the add-on is installing, and a ready direct-mode add-on would otherwise need a poll for an install it cannot see.
+   */
   async start(): Promise<void> {
+    container.resolve(EventBusService).subscribe(INFERENCE_CORE_CHANGED_CHANNEL, (status) => {
+      void this.onCoreChanged(status).catch((error) =>
+        logger.warn('Opfield Cloud AI could not follow the inference core', { error: errorMessage(error) })
+      );
+    });
     const stored = await readStoredCloudInference(this.db).catch(() => null);
-    if (stored && stored.state === 'installing') void this.kick();
+    if (stored && (stored.state === 'installing' || (await this.modeChanged(stored)))) void this.kick();
+  }
+
+  private async onCoreChanged(status: unknown): Promise<void> {
+    const installed = Boolean((status as { installed?: unknown } | null)?.installed);
+    const stored = await readStoredCloudInference(this.db);
+    if (!stored?.enabled) return;
+    const mode = modeOf(stored);
+    if ((mode === 'direct' && installed) || (mode === 'core' && !installed)) void this.kick();
+  }
+
+  /** An enabled add-on whose mode is not the one the core asks for now. */
+  private async modeChanged(stored: StoredCloudInference): Promise<boolean> {
+    if (!stored.enabled) return false;
+    return modeOf(stored) !== ((await this.coreInstalled()) ? 'core' : 'direct');
+  }
+
+  /** The core is installed (a version is recorded), whether ready, busy, degraded or failed after an update. */
+  private async coreInstalled(): Promise<boolean> {
+    const status = await container.resolve(InferenceCoreRuntimeService).getStatus();
+    return status.installed !== null;
   }
 
   /** inference-cloud: stores what the account asks for (idempotent) and answers the state reached within ~9 s. */
@@ -123,6 +196,10 @@ export class CloudInference {
           coreInstallAt: stored?.coreInstallAt ?? null,
           tierMonthlyUsd: input.tierMonthlyUsd ?? null,
           budgetChecked: stored?.enabled === true && stored.budgetChecked === true,
+          // A new enabling switches AI Workspace again; a new key or model list does not.
+          ...(stored?.mode ? { mode: stored.mode } : {}),
+          workspaceApplied: stored?.enabled === true ? workspaceAppliedOf(stored) : false,
+          workspaceBaseUrl: stored?.workspaceBaseUrl ?? null,
         });
       } else if ((stored.tierMonthlyUsd ?? null) !== (input.tierMonthlyUsd ?? null)) {
         await this.update({ tierMonthlyUsd: input.tierMonthlyUsd ?? null });
@@ -183,11 +260,45 @@ export class CloudInference {
     try {
       if (!stored.enabled) {
         await this.remove();
-        await this.update({ state: 'removed', error: null, appliedKeyHash: null, appliedBaseUrl: null });
+        await this.releaseWorkspace(stored);
+        await this.update({
+          state: 'removed',
+          error: null,
+          appliedKeyHash: null,
+          appliedBaseUrl: null,
+          workspaceApplied: false,
+          workspaceBaseUrl: null,
+        });
         return;
       }
       if (!stored.apiKey || !stored.baseUrl) throw new Error('The add-on has no key');
       secret = container.resolve(CryptoService).decryptString(stored.apiKey);
+      const mode: CloudInferenceMode = (await this.coreInstalled()) ? 'core' : 'direct';
+      if (modeOf(stored) !== mode) {
+        // Core gone: its connection and models go (best effort, the core may not answer). Direct mode left: AI
+        // Workspace keeps the endpoint until core mode switches it.
+        if (modeOf(stored) === 'core') {
+          await this.remove().catch((error) =>
+            logger.warn('Opfield Cloud AI could not remove the core connection', { error: errorMessage(error) })
+          );
+        }
+        await this.update({ mode, workspaceApplied: false, appliedKeyHash: null, appliedBaseUrl: null });
+        logger.info('Opfield Cloud AI changes mode', { from: modeOf(stored), to: mode });
+        return this.reconcile();
+      }
+      if (mode === 'direct') {
+        const workspaceBaseUrl = await this.applyDirect(stored, secret);
+        await this.update({
+          state: 'ready',
+          error: null,
+          appliedKeyHash: stored.keyHash,
+          appliedBaseUrl: stored.baseUrl,
+          workspaceApplied: true,
+          workspaceBaseUrl,
+        });
+        logger.info('Opfield Cloud AI is ready in AI Workspace', { model: stored.models[0]?.publicId });
+        return;
+      }
       if (!(await this.coreReady(stored))) return;
       const adminId = await this.firstSystemAdmin();
       const connectionId = await this.ensureConnection(stored, secret, adminId);
@@ -196,12 +307,16 @@ export class CloudInference {
       await this.requirePublished(stored, connectionId);
       // Ready only now: the connection read the endpoint's models and both models are published.
       if (!stored.budgetChecked) await ensureCloudDefaultApiBudget(this.db, adminId, stored.tierMonthlyUsd);
+      if (!workspaceAppliedOf(stored)) await this.switchWorkspaceToCore(stored);
       await this.update({
         state: 'ready',
         error: null,
         appliedKeyHash: stored.keyHash,
         appliedBaseUrl: stored.baseUrl,
         budgetChecked: true,
+        mode: 'core',
+        workspaceApplied: true,
+        workspaceBaseUrl: workspaceAppliedOf(stored) ? (stored.workspaceBaseUrl ?? null) : null,
       });
       logger.info('Opfield Cloud AI is ready', { connectionId, models: stored.models.map((model) => model.publicId) });
     } catch (error) {
@@ -209,6 +324,66 @@ export class CloudInference {
       logger.warn('Opfield Cloud AI could not be set up', { error: message });
       await this.update({ state: 'failed', error: message.slice(0, 500) });
     }
+  }
+
+  /**
+   * Direct mode: the endpoint lists the first model with the key, then AI Workspace uses it (all settings once per
+   * enabling; afterwards a new key or URL, or a model the account dropped, only while AI Workspace still uses the
+   * endpoint). Answers the base URL AI Workspace now uses from the add-on.
+   */
+  private async applyDirect(stored: StoredCloudInference, apiKey: string): Promise<string | null> {
+    const baseUrl = stored.baseUrl ?? '';
+    const [model] = stored.models;
+    if (!model) throw new Error('The add-on has no models');
+    await this.requireListed(baseUrl, apiKey, model.publicId);
+    const workspace = container.resolve(AISettingsService);
+    if (!workspaceAppliedOf(stored)) {
+      await workspace.updateConfig({ enabled: true, ...directWorkspaceSettings(baseUrl, apiKey, model) });
+      return baseUrl;
+    }
+    const config = await workspace.getConfig();
+    if (!workspaceOnCloudEndpoint(stored, config)) return stored.workspaceBaseUrl ?? null;
+    if (!stored.models.some((candidate) => candidate.publicId === config.model)) {
+      await workspace.updateConfig(directWorkspaceSettings(baseUrl, apiKey, model));
+    } else if (stored.appliedKeyHash !== stored.keyHash || stored.appliedBaseUrl !== baseUrl) {
+      await workspace.updateConfig({ providerUrl: baseUrl, apiKey });
+    }
+    return baseUrl;
+  }
+
+  /** `GET {baseUrl}/models` with the key lists the model; otherwise the add-on is failed with the reason. */
+  private async requireListed(baseUrl: string, apiKey: string, modelId: string): Promise<void> {
+    const response = await fetch(`${baseUrl}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+      redirect: 'error',
+      signal: AbortSignal.timeout(MODELS_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`The Opfield Cloud endpoint answered HTTP ${response.status} to the model list`);
+    const body = (await response.json().catch(() => null)) as { data?: unknown } | null;
+    const listed = Array.isArray(body?.data)
+      ? body.data.some((item) => (item as { id?: unknown } | null)?.id === modelId)
+      : false;
+    if (!listed) throw new Error(`The Opfield Cloud endpoint does not list ${modelId}`);
+  }
+
+  /** Core mode is ready: AI Workspace on Opfield Inference with the account's default model (its first). */
+  private async switchWorkspaceToCore(stored: StoredCloudInference): Promise<void> {
+    const workspace = container.resolve(AISettingsService);
+    const config = await workspace.getConfig();
+    await workspace.updateConfig({
+      enabled: true,
+      providerType: 'opfield_inference',
+      opfieldInferenceModel: stored.models[0]?.publicId ?? '',
+      // The endpoint and key direct mode left behind go with it.
+      ...(workspaceOnCloudEndpoint(stored, config) ? { providerUrl: '', apiKey: '' } : {}),
+    });
+  }
+
+  /** The add-on is off: AI Workspace still on the endpoint direct mode wrote loses the key and turns off. */
+  private async releaseWorkspace(stored: StoredCloudInference): Promise<void> {
+    const workspace = container.resolve(AISettingsService);
+    if (!workspaceOnCloudEndpoint(stored, await workspace.getConfig())) return;
+    await workspace.updateConfig({ apiKey: '', enabled: false });
   }
 
   /** Inference on and the core ready; otherwise starts (or waits for) the core install and keeps `installing`. */
@@ -342,12 +517,20 @@ export class CloudInference {
     if (!connection) return;
     const adminId = await this.firstSystemAdmin();
     const modelIds = await this.db
-      .selectDistinct({ id: inferenceModelSources.modelId })
+      .selectDistinct({ id: inferenceModelSources.modelId, publicId: inferenceModels.publicId })
       .from(inferenceModelSources)
+      .innerJoin(inferenceModels, eq(inferenceModels.id, inferenceModelSources.modelId))
       .where(eq(inferenceModelSources.connectionId, connection.id));
+    const workspace = container.resolve(AISettingsService);
+    const config = await workspace.getConfig();
+    const workspaceOnRemoved =
+      config.providerType === 'opfield_inference' &&
+      modelIds.some((model) => model.publicId === config.opfieldInferenceModel);
     const models = container.resolve(InferenceModelService);
     for (const { id } of modelIds) await models.remove(adminId, id);
     await container.resolve(InferenceProviderService).disconnect(adminId, connection.id);
+    // AI Workspace on one of those models falls back as when inference is turned off.
+    if (workspaceOnRemoved) await workspace.handleInferenceDisabled();
     logger.info('Opfield Cloud AI removed', { connectionId: connection.id, models: modelIds.length });
   }
 

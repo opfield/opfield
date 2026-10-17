@@ -46,6 +46,7 @@ const AI_SETTINGS_DEFAULTS: Record<string, unknown> = {
 export class AISettingsService {
   private inferenceFeatureEnabled: () => Promise<boolean> = async () => false;
   private opfieldInferenceModelAvailable: (model: string) => Promise<boolean> = async () => false;
+  private cloudConnected: (config: AIConfig) => Promise<boolean> = async () => false;
 
   constructor(
     private readonly db: DrizzleClient,
@@ -58,6 +59,11 @@ export class AISettingsService {
 
   setOpfieldInferenceModelValidator(validator: (model: string) => Promise<boolean>): void {
     this.opfieldInferenceModelAvailable = validator;
+  }
+
+  /** Whether the Opfield Cloud AI add-on runs AI Workspace directly (its URL, key and model are the account's). */
+  setCloudConnectionResolver(resolver: (config: AIConfig) => Promise<boolean>): void {
+    this.cloudConnected = resolver;
   }
 
   async getConfig(): Promise<AIConfig> {
@@ -113,6 +119,7 @@ export class AISettingsService {
       apiKeyLast4: string;
       hasWebSearchKey: boolean;
       webSearchApiKeyLast4: string;
+      cloudConnected: boolean;
     }
   > {
     const config = await this.getConfig();
@@ -145,6 +152,7 @@ export class AISettingsService {
       apiKeyLast4,
       hasWebSearchKey: !!webSearchEncrypted,
       webSearchApiKeyLast4,
+      cloudConnected: await this.cloudConnected(config).catch(() => false),
     };
   }
 

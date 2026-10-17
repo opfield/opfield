@@ -26,6 +26,16 @@ export async function isCloudManaged(): Promise<boolean> {
   }
 }
 
+/** For display and locks: whether an agent is enrolled (managed or self-hosted); false when it cannot be read. */
+export async function isCloudLinked(): Promise<boolean> {
+  try {
+    if (!container.isRegistered(CloudLinkService)) return false;
+    return await container.resolve(CloudLinkService).isEnrolled();
+  } catch {
+    return false;
+  }
+}
+
 /** 409 CLOUD_MANAGED with the given message on a managed installation. */
 export async function assertNotCloudManaged(message: string): Promise<void> {
   if (await managedByCloud()) {

@@ -18,6 +18,11 @@ const USAGE_CACHE_MS = 60_000;
 const USAGE_TIMEOUT_MS = 4_000;
 
 export type CloudInferenceState = 'installing' | 'ready' | 'failed' | 'removed';
+/**
+ * How the add-on runs: `core` (the inference core is installed: a connection and published models) or `direct` (no
+ * core: AI Workspace talks to the account's endpoint itself).
+ */
+export type CloudInferenceMode = 'core' | 'direct';
 
 /** One model of the add-on, as the account describes it (inference-cloud `models`). */
 export interface CloudInferenceModel {
@@ -53,6 +58,12 @@ export interface StoredCloudInference {
   tierMonthlyUsd?: number | null;
   /** The default API budget was checked when the add-on first became ready (once per enabling). */
   budgetChecked?: boolean;
+  /** The mode the add-on runs in; absent in a state written before modes (then `core`). */
+  mode?: CloudInferenceMode;
+  /** AI Workspace was switched to the add-on since it was enabled or its mode changed (once, so later choices hold). */
+  workspaceApplied?: boolean;
+  /** The base URL direct mode wrote into AI Workspace; null when it wrote none. */
+  workspaceBaseUrl?: string | null;
 }
 
 /** Usage of the add-on as the account's endpoint reports it (`GET {baseUrl}/usage`). */
@@ -69,11 +80,38 @@ function cloudManagedError(): AppError {
   return new AppError(409, 'CLOUD_MANAGED', CLOUD_MANAGED_INFERENCE_MESSAGE);
 }
 
-/** The lock holds while the account manages this installation (a restored copy or an ended link has no owner). */
+/**
+ * The lock holds while the account manages this installation, or while a linked installation has the add-on on (a
+ * restored copy or an ended link has no owner).
+ */
 export async function lockedByCloud(): Promise<boolean> {
   // Loaded on use: the cloud link module is not part of the inference services' import graph.
-  const { isCloudManaged } = await import('@/modules/cloud-link/cloud-link-managed-locks.js');
-  return isCloudManaged();
+  const { isCloudLinked, isCloudManaged } = await import('@/modules/cloud-link/cloud-link-managed-locks.js');
+  if (await isCloudManaged()) return true;
+  if (!(await isCloudLinked())) return false;
+  return (await readStoredCloudInference(inferenceCloudDb()).catch(() => null))?.enabled === true;
+}
+
+/** AI Workspace still uses the endpoint direct mode wrote into it (an administrator may have moved it elsewhere). */
+export function workspaceOnCloudEndpoint(
+  stored: Pick<StoredCloudInference, 'workspaceBaseUrl'> | null,
+  config: { providerType: string; providerUrl: string }
+): boolean {
+  return (
+    Boolean(stored?.workspaceBaseUrl) &&
+    config.providerType === 'openai_compatible' &&
+    config.providerUrl === stored?.workspaceBaseUrl
+  );
+}
+
+/** AI Workspace runs on the add-on in direct mode: its URL, key and model are the account's (read-only in Settings). */
+export async function workspaceConnectedToCloud(
+  db: DrizzleClient,
+  config: { providerType: string; providerUrl: string }
+): Promise<boolean> {
+  const stored = await readStoredCloudInference(db).catch(() => null);
+  if (!stored?.enabled || stored.mode !== 'direct' || !workspaceOnCloudEndpoint(stored, config)) return false;
+  return lockedByCloud();
 }
 
 /** 409 CLOUD_MANAGED for the Opfield Cloud connection (people and agents; the cloud link uses the services). */

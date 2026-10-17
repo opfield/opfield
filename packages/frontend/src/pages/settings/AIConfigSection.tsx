@@ -75,6 +75,8 @@ interface AIConfigState {
   webSearchBaseUrl: string;
   sandboxEnabled: boolean;
   sandboxDefaultTier: "low" | "medium" | "high";
+  /** The Opfield Cloud AI add-on runs AI Workspace directly: URL, key and model are the account's. */
+  cloudConnected?: boolean;
 }
 
 function normalizeAIConfigState(config: AIConfigState): AIConfigState {
@@ -1104,9 +1106,11 @@ export function AIConfigSection() {
           icon={<Server className="h-4 w-4" />}
           title="Provider"
           description={
-            aiConfig.providerType === "opfield_inference"
-              ? "Opfield Inference model used for Workspace responses"
-              : "OpenAI-compatible provider connection used for Workspace responses"
+            aiConfig.cloudConnected
+              ? "Connected to Opfield Cloud AI"
+              : aiConfig.providerType === "opfield_inference"
+                ? "Opfield Inference model used for Workspace responses"
+                : "OpenAI-compatible provider connection used for Workspace responses"
           }
           actions={
             <SaveSettingsButton
@@ -1216,6 +1220,7 @@ export function AIConfigSection() {
                   aria-label="Base URL"
                   className="text-sm"
                   placeholder="https://api.openai.com/v1"
+                  readOnly={aiConfig.cloudConnected}
                   value={aiConfig.providerUrl}
                   onChange={(e) => setAiConfig({ ...aiConfig, providerUrl: e.target.value })}
                 />
@@ -1257,6 +1262,7 @@ export function AIConfigSection() {
                   aria-label="Model"
                   className="text-sm"
                   placeholder="gpt-4o"
+                  readOnly={aiConfig.cloudConnected}
                   value={aiConfig.model}
                   onChange={(e) => setAiConfig({ ...aiConfig, model: e.target.value })}
                 />
@@ -1305,6 +1311,7 @@ export function AIConfigSection() {
                   className="text-sm"
                   type="password"
                   placeholder={aiConfig.hasApiKey ? `****${aiConfig.apiKeyLast4}` : "sk-..."}
+                  readOnly={aiConfig.cloudConnected}
                   value={aiApiKey}
                   onChange={(e) => setAiApiKey(e.target.value)}
                 />

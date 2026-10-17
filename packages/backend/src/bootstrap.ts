@@ -173,6 +173,7 @@ import { InferenceTokenService } from '@/modules/inference/inference-token.servi
 import { InferenceModelService } from '@/modules/inference/models/inference-model.service.js';
 import { InferenceModelAccessService } from '@/modules/inference/models/inference-model-access.service.js';
 import { InferenceModelConfigurationService } from '@/modules/inference/models/inference-model-configuration.service.js';
+import { workspaceConnectedToCloud } from '@/modules/inference/providers/inference-cloud.js';
 import { InferenceDestinationPolicy } from '@/modules/inference/providers/inference-destination-policy.js';
 import { InferenceOAuthService } from '@/modules/inference/providers/inference-oauth.service.js';
 import { InferenceProviderRegistry } from '@/modules/inference/providers/inference-provider.registry.js';
@@ -1921,6 +1922,7 @@ export async function initializeContainer(): Promise<void> {
     aiSettingsService.handleOpfieldInferenceModelRemoved(removedModel, replacementModel)
   );
   generalSettingsService.setInferenceDisabledHandler(() => aiSettingsService.handleInferenceDisabled());
+  aiSettingsService.setCloudConnectionResolver((config) => workspaceConnectedToCloud(db, config));
   container.registerInstance(AISettingsService, aiSettingsService);
   commercialEdition.initializeAI(aiCommercialRuntime);
   const aiSandboxArtifactService = new AISandboxArtifactService(env);

@@ -7,7 +7,7 @@ import {
   NOT_MANAGED_BY_CLOUD,
 } from './cloud-link.types.js';
 
-/** Kinds the account sends a managed installation for its add-ons; idempotent desired-state requests. */
+/** Kinds the account sends for its add-ons (inference-cloud to any linked installation, the others to a managed one); idempotent desired-state requests. */
 export const CLOUD_ADDON_REQUEST_TYPES: ReadonlySet<string> = new Set([
   'public-alias',
   'mail-config',
@@ -62,13 +62,15 @@ function invalid(id: string, code: string, error: string): CloudAnswer {
   return { id, ok: false, code, error };
 }
 
-/** Answers an add-on kind; only a managed installation takes them. Never throws. */
+/** Answers an add-on kind; only a managed installation takes them, except inference-cloud (any linked one). Never throws. */
 export async function answerAddonRequest(
   probe: CloudLinkProbe,
   request: CloudRequest,
   access: CloudLinkAccess
 ): Promise<CloudAnswer> {
-  if (!(await access.managedByCloud())) return { id: request.id, ok: false, ...NOT_MANAGED_BY_CLOUD };
+  if (request.type !== 'inference-cloud' && !(await access.managedByCloud())) {
+    return { id: request.id, ok: false, ...NOT_MANAGED_BY_CLOUD };
+  }
   switch (request.type) {
     case 'public-alias': {
       const { domain, retry } = request.params;

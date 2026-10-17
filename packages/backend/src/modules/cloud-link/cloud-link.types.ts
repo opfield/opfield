@@ -221,7 +221,7 @@ export type CloudAnswer =
  * account gave it; both check that themselves. Nor does sso-revoke: it only removes access the account gave.
  */
 export const CLOUD_PRIVILEGED_REQUEST_TYPES: ReadonlySet<string> = new Set(['node-token', 'update', 'setup-link']);
-/** Refusal of the add-on kinds (public-alias, mail-config, inference-cloud) on an installation the cloud does not manage. */
+/** Refusal of the managed-only add-on kinds (public-alias, mail-config) on an installation the cloud does not manage. */
 export const NOT_MANAGED_BY_CLOUD = {
   code: 'NOT_MANAGED_BY_CLOUD',
   error: 'This installation is not managed by Opfield Cloud',
@@ -330,8 +330,8 @@ export interface CloudLinkActions {
   /** mail-config (managed only): the cloud email the account set up, or none; answers the transport in use. */
   mailConfig(input: CloudMailConfigInput): Promise<{ transport: 'cloud' | 'smtp' }>;
   /**
-   * inference-cloud (managed only): the Opfield Cloud AI add-on, or none. Answers within ~9 s with the state reached;
-   * the core install continues behind it and the account asks again.
+   * inference-cloud (any linked installation): the Opfield Cloud AI add-on, or none. Answers within ~9 s with the state
+   * reached; slower work continues behind it and the account asks again.
    */
   inferenceCloud(input: CloudInferenceInput): Promise<CloudInferenceAnswer>;
 }
