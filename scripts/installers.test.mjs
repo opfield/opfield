@@ -1799,7 +1799,7 @@ test('the relay installer downloads its binaries from the mirror and checks them
       return runShell(
         [
           'set -euo pipefail',
-          `${env} LEGACY_ENV_PREFIX=${LEGACY.LEGACY_ENV_PREFIX}`,
+          `${env} LEGACY_ENV_PREFIX=${LEGACY.LEGACY_ENV_PREFIX} LEGACY_UPDATE_KEY_ID=${LEGACY.LEGACY_UPDATE_KEY_ID}`,
           shellFunction(source, 'legacy_installer_env'),
           'OPFIELD_ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-$(legacy_installer_env ARTIFACT_BASE_URL)}"',
           'ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/opfield}"',

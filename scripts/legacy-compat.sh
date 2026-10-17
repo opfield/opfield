@@ -10,6 +10,7 @@ LEGACY_APP_IMAGE_MANIFEST_KIND=gateway-image # kind inside that manifest, verifi
 LEGACY_INSTALLER_CHECKSUMS_ASSET=gateway-daemon-installers.sha256 # checksum list setup commands of releases before 2.12.1 download
 LEGACY_UPDATE_NAMESPACE=gateway # feed path namespace installed releases request and check signed downloadUrls against
 LEGACY_APP_UPDATE_COMPONENT=gateway # app component of the update feed, asked for by releases up to 2.12.2
+LEGACY_UPDATE_KEY_ID=wiolett-update-v1 # key id of signed update manifests, checked by setup-relay-node.sh and installed releases
 LEGACY_MIN_VERSION_FIELD=minGatewayVersion # relay manifest field with the minimum app version (install.sh, installed releases)
 
 # Images

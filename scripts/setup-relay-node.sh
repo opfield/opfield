@@ -1097,7 +1097,7 @@ fetch_verified() {
   local signature="${TEMP_DIR}/${name}.sig"
   local binary="${TEMP_DIR}/${name}" url
   curl -fsSL "${PACKAGE_BASE}/${name}.update.json" -o "$manifest"
-  [[ "$(jq -r '.schemaVersion' "$manifest")" == "1" && "$(jq -r '.keyId' "$manifest")" == "wiolett-update-v1" ]] || { echo "Untrusted manifest envelope for ${name}" >&2; exit 1; }
+  [[ "$(jq -r '.schemaVersion' "$manifest")" == "1" && "$(jq -r '.keyId' "$manifest")" == "$LEGACY_UPDATE_KEY_ID" ]] || { echo "Untrusted manifest envelope for ${name}" >&2; exit 1; }
   decode_base64url "$(jq -r '.payload' "$manifest")" >"$payload"
   decode_base64url "$(jq -r '.signature' "$manifest")" >"$signature"
   openssl pkeyutl -verify -pubin -inkey "${TEMP_DIR}/update-public-key.pem" -rawin -in "$payload" -sigfile "$signature" >/dev/null
