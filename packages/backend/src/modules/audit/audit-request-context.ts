@@ -34,6 +34,15 @@ export function runWithAuditRequestContext<T>(context: AuditRequestContext, call
   return storage.run(context, callback);
 }
 
+/**
+ * Runs work that is not part of the current request (a shared timer, a pull or a queue several requests feed) without
+ * its audit context, so the rows that work writes do not carry the IP, user agent, token and tool arguments of
+ * whichever request happened to start it.
+ */
+export function runOutsideAuditRequestContext<T>(callback: () => T): T {
+  return storage.exit(callback);
+}
+
 export function getAuditRequestContext(): AuditRequestContext | undefined {
   return storage.getStore();
 }

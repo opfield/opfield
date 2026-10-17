@@ -20,6 +20,7 @@ import { sameTimestamp } from '@/db/timestamp-equality.js';
 import { logger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import { runOutsideAuditRequestContext } from '@/modules/audit/audit-request-context.js';
 import { AVAILABILITY_LEASE_CAPABILITY } from '@/modules/docker/availability/lease/lease-constants.js';
 import { createNodeEnrollmentToken, nodeEnrollmentTokenExpiresAt } from '@/modules/nodes/node-enrollment-token.js';
 import { relayRemovableAfter } from '@/modules/nodes/relay-removal.js';
@@ -2628,20 +2629,23 @@ export class RelayPoolService {
 
   /** Plans one endpoint again soon, after a staged generation of it was rolled back as out of date. */
   private replanSoon(endpointId: string): void {
-    const timer = setTimeout(() => {
-      if (this.rebalanceFlight) return; // The running placement, or the next reconciliation, takes it.
-      void this.stageRebalance(undefined, {
-        allowNoop: true,
-        automatic: true,
-        evacuation: true,
-        endpointIds: [endpointId],
-      }).catch((error) =>
-        logger.debug('Relay placement of a workload was not repeated yet', {
-          endpointId,
-          error: relayPoolErrorMessage(error),
-        })
-      );
-    }, REPLAN_AFTER_SUPERSEDE_MS);
+    // Automatic placement: no request it was scheduled from is its actor.
+    const timer = runOutsideAuditRequestContext(() =>
+      setTimeout(() => {
+        if (this.rebalanceFlight) return; // The running placement, or the next reconciliation, takes it.
+        void this.stageRebalance(undefined, {
+          allowNoop: true,
+          automatic: true,
+          evacuation: true,
+          endpointIds: [endpointId],
+        }).catch((error) =>
+          logger.debug('Relay placement of a workload was not repeated yet', {
+            endpointId,
+            error: relayPoolErrorMessage(error),
+          })
+        );
+      }, REPLAN_AFTER_SUPERSEDE_MS)
+    );
     timer.unref?.();
   }
 
