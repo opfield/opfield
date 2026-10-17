@@ -725,6 +725,11 @@ version_is_newer() {
   ((10#${candidate[3]} > 10#${current[3]}))
 }
 
+# Whether VERSION is a release before $1. A --source-dir build (local-*) is built from current source: never older.
+release_predates() {
+  [[ "$2" != local-* ]] && version_is_newer "$1" "$2"
+}
+
 prepare_install_metadata() {
   if [[ -n "$SOURCE_DIR" ]]; then
     [[ "$FRESH" == 1 ]] || die "--source-dir is supported only for a fresh Opfield installation"
@@ -1172,7 +1177,7 @@ fi
 # The layout of what this run writes: a fresh install of a release before 2.12.1 (only --restore installs one) gets the
 # layout that release knows; everything else gets the Opfield layout, an existing installation through its host move.
 LEGACY_LAYOUT=0
-if [[ "$FRESH" == 1 ]] && version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$VERSION"; then
+if [[ "$FRESH" == 1 ]] && release_predates "$FIRST_OPFIELD_LAYOUT_VERSION" "$VERSION"; then
   LEGACY_LAYOUT=1
   ENV_PREFIX="$LEGACY_ENV_PREFIX" # legacy-name: the settings names of the release this run installs
 fi
@@ -1580,7 +1585,7 @@ if [[ "$FRESH" == 1 ]]; then
     write_legacy_compose
   else
     write_opfield_compose
-    if version_is_newer "$FIRST_OPFIELD_DATA_DIR_VERSION" "$VERSION"; then
+    if release_predates "$FIRST_OPFIELD_DATA_DIR_VERSION" "$VERSION"; then
       # legacy-name: an app image before FIRST_OPFIELD_DATA_DIR_VERSION keeps its data in the legacy directories.
       tmp_compose="$(mktemp)"
       sed -e "s#/var/lib/opfield-relay#${LEGACY_RELAY_IDENTITY_DIR}#g" \
@@ -1590,7 +1595,7 @@ if [[ "$FRESH" == 1 ]]; then
       cat "$tmp_compose" >docker-compose.yml
       rm -f "$tmp_compose"
     fi
-    if version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$RELAY_BUILD_VERSION"; then
+    if release_predates "$FIRST_OPFIELD_LAYOUT_VERSION" "$RELAY_BUILD_VERSION"; then
       # legacy-name: a relay image before 2.12.1 has only the legacy entrypoint (later ones keep it as a link).
       tmp_compose="$(mktemp)"
       awk -v legacy="\"${LEGACY_RELAY_BINARY}\"" '{ gsub("\"/opfield-relay\"", legacy); print }' docker-compose.yml >"$tmp_compose"
