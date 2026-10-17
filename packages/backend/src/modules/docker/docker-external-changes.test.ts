@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getAuditRequestContext, runWithAuditRequestContext } from '@/modules/audit/audit-request-context.js';
 import {
   type DockerExternalChange,
   DockerExternalChangeWatcher,
+  externalChangeConsequence,
   managedAs,
 } from './docker-external-changes.service.js';
 import type { DockerManagedRecords } from './docker-managed-records.js';
@@ -34,6 +36,17 @@ describe('changes outside Opfield', () => {
       'Compose project "shop"'
     );
     expect(managedAs(change({ labels: { 'net.opfield.deployment.id': 'd1' } }), records)).toBe('Opfield workload');
+  });
+
+  // rc.3 GO-3 and explore O-6: stops, kills, pauses and updates count, and each says what it means.
+  it('says what each kind of change means', () => {
+    expect(managedAs(change({ containerId: '1a2b3c', action: 'stopped' }), records)).toBe('container');
+    expect(externalChangeConsequence('removed')).toContain('permissions were reset');
+    expect(externalChangeConsequence('created')).toContain('new container under a managed name');
+    for (const action of ['stopped', 'killed', 'paused', 'unpaused', 'updated'] as const) {
+      expect(externalChangeConsequence(action)).not.toContain('permissions were reset');
+    }
+    expect(externalChangeConsequence('updated')).toContain('docker update');
   });
 
   it('ignores containers Opfield does not manage', () => {
@@ -89,6 +102,26 @@ describe('when the watcher reads a node', () => {
     vi.advanceTimersByTime(10_000);
     expect(pulls).toEqual([1_500, 6_000]);
     instance.stop();
+  });
+
+  // rc.3 GF-2: the pull started from a request's event wrote the request's IP, token and tool arguments into the
+  // audit row of a change root made on the node.
+  it('pulls outside the audit context of the request that triggered it', async () => {
+    const { instance } = watcher();
+    vi.mocked(instance.pullNow).mockRestore();
+    const contexts: unknown[] = [];
+    (instance as unknown as { pull: (nodeId: string) => Promise<void> }).pull = async () => {
+      contexts.push(getAuditRequestContext());
+    };
+    const request = {
+      ipAddress: '172.20.0.138',
+      mcp: { toolName: 'create_docker_container', category: 'x', arguments: {} },
+    };
+    runWithAuditRequestContext(request, () => instance.schedule(nodeId));
+    vi.advanceTimersByTime(2_000);
+    await runWithAuditRequestContext(request, () => instance.pullNow('node-2'));
+    await vi.runAllTimersAsync();
+    expect(contexts).toEqual([undefined, undefined]);
   });
 
   it('reads every capable node once a minute', () => {

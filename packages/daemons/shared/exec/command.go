@@ -13,6 +13,15 @@ type CommandResult struct {
 	Stderr    string `json:"stderr,omitempty"`
 	ExitCode  int    `json:"exitCode"`
 	Truncated bool   `json:"truncated,omitempty"`
+	// TimedOut: the command was stopped at its time limit; the output is what
+	// it wrote until then.
+	TimedOut bool `json:"timedOut,omitempty"`
+	// Agent console commands: the user the command ran as, how it was
+	// sandboxed (AgentSandbox*) and, when the daemon is not root, what that
+	// limits, as a sentence for the agent.
+	RunAs   string `json:"runAs,omitempty"`
+	Sandbox string `json:"sandbox,omitempty"`
+	Limits  string `json:"limits,omitempty"`
 }
 
 type limitedBuffer struct {

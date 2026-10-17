@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertAgentSshCommandAllowed, clearSshProbeCache } from './ai.console-agent-guard.js';
 import { analyzeConsoleCommand, shellStringCommands } from './ai.console-commands.js';
+import { consoleMutations } from './ai.console-docker-mutations.js';
+import { emptyInventory, evaluateConsoleMutations } from './ai.console-managed-guard.js';
 import { nodeConsoleCommandStaticRefusal } from './ai.console-preflight.js';
 import {
   consoleCommandRisky,
@@ -83,6 +85,36 @@ describe('agent console commands and the container runtime', () => {
       expect(nodeConsoleCommandStaticRefusal({ nodeId: 'n1', command: argv })).toBeNull();
     }
   });
+
+  // rc.3 GO-5 / explore O-1: disk and file checks that name a runtime path were refused as runtime use.
+  it('allows read-only disk and file checks of runtime paths', () => {
+    for (const argv of [
+      ['df', '-h', '/', '/var/lib/docker'],
+      ['findmnt', '-T', '/var/lib/docker'],
+      ['sh', '-c', 'ls -l /var/run/docker.sock /run/containerd/'],
+      ['du', '-sh', '/var/lib/docker/overlay2'],
+    ]) {
+      expect(usesRuntime(argv)).toBe(false);
+      expect(nodeConsoleCommandStaticRefusal({ nodeId: 'n1', command: argv })).toBeNull();
+    }
+    // Still refused: a write next to such a check, and a program that talks to the socket.
+    expect(usesRuntime(['sh', '-c', 'ls /var/lib/docker > /var/run/docker.sock'])).toBe(true);
+    expect(usesRuntime(['sh', '-c', 'cat /var/lib/docker/containers/x/config.v2.json'])).toBe(true);
+  });
+
+  // rc.3 GO-6: the sandbox stopped both, but risky was false.
+  it('marks namespace tools and unix-socket clients risky whatever the path spelling', () => {
+    expect(risky(['nsenter', '-t', '1', '-m', 'true'])).toBe(true);
+    expect(risky(['unshare', '-m', 'sh'])).toBe(true);
+    expect(
+      risky([
+        'sh',
+        '-c',
+        's=/var/run/dock; t=er.sock; curl -s --unix-socket $s$t -X POST http://localhost/containers/x/stop',
+      ])
+    ).toBe(true);
+    expect(risky(['sh', '-c', 'nc -U /tmp/some.sock'])).toBe(true);
+  });
 });
 
 // O-10: the assistant asked a person to approve `docker stop` and the guard refused it after the approval.
@@ -125,6 +157,32 @@ describe('agent SSH commands to an Opfield node', () => {
       ).rejects.toMatchObject({ code: 'SSH_MANAGED_TARGET_BLOCKED', statusCode: 403 });
     }
     expect(probe).toHaveBeenCalledTimes(1);
+  });
+
+  // rc.3 GF-4: an nginx node reached through an unreported address took agent commands.
+  it('refuses every command on a host with any Opfield daemon', async () => {
+    for (const dir of ['/var/lib/nginx-daemon', '/etc/monitoring-daemon', '/var/lib/opfield-relay']) {
+      clearSshProbeCache();
+      const probe = vi.fn(async (command: string) => ({ stdout: command.includes(dir) ? `${dir}\n` : '' }));
+      await expect(
+        assertAgentSshCommandAllowed({
+          user: { id: 'u1' } as never,
+          connectorId: 'c-ingress',
+          commands: shellStringCommands('touch /tmp/x && hostname'),
+          probe,
+        })
+      ).rejects.toMatchObject({ code: 'SSH_MANAGED_TARGET_BLOCKED', message: expect.stringContaining(dir) });
+    }
+  });
+
+  // rc.3 GO-7: the refusal audit of docker stop over SSH named no tool.
+  it('names the Docker tool for a managed-container change over SSH', () => {
+    const refusal = evaluateConsoleMutations(consoleMutations(shellStringCommands('docker stop rc3g-tgt')), {
+      ...emptyInventory(),
+      containers: null,
+      allManaged: true,
+    });
+    expect(refusal?.tool).toBe('stop_docker_container');
   });
 
   it('lets commands through on other hosts', async () => {

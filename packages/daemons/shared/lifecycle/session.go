@@ -874,8 +874,9 @@ func (d *DaemonBase) installRenewedClientCert(expiresAt int64) error {
 }
 
 // handleNodeExec handles node-level console commands: the browser console's
-// PTY session (create/resize, as console.user) and agents' one-shot commands
-// (run), which always run in the agent sandbox (exec.RunAgentCommand).
+// PTY session (create/resize) and agents' one-shot commands (run), which run
+// in the agent sandbox without the container runtime (exec.RunAgentCommand).
+// Both run as console.user when it is set, as root otherwise.
 func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.OpfieldCommand, consoleUser string) *pb.CommandResult {
 	nodeExec := cmd.GetNodeExec()
 	result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
@@ -883,9 +884,9 @@ func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.OpfieldComma
 
 	switch nodeExec.GetAction() {
 	case "run":
-		runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		runCtx, cancel := context.WithTimeout(ctx, agentCommandTimeout(nodeExec.GetTimeoutSeconds()))
 		defer cancel()
-		commandResult, err := exec.RunAgentCommand(runCtx, nodeExec.GetCommand(), 128*1024)
+		commandResult, err := exec.RunAgentCommand(runCtx, nodeExec.GetCommand(), consoleUser, 128*1024)
 		detailJSON, _ := json.Marshal(commandResult)
 		result.Detail = string(detailJSON)
 		if err != nil {
@@ -933,6 +934,20 @@ func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.OpfieldComma
 	}
 
 	return result
+}
+
+// Agent console commands run 30 s unless Opfield asks for another limit, up
+// to 5 minutes (package installs, long diagnostics).
+const (
+	defaultAgentCommandTimeout = 30 * time.Second
+	maxAgentCommandTimeout     = 5 * time.Minute
+)
+
+func agentCommandTimeout(seconds int32) time.Duration {
+	if seconds <= 0 {
+		return defaultAgentCommandTimeout
+	}
+	return min(time.Duration(seconds)*time.Second, maxAgentCommandTimeout)
 }
 
 func nodeConsoleSessionKey(ownerKey string) string {

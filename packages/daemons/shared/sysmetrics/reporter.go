@@ -47,7 +47,7 @@ func (r *SystemReporter) CollectSystemHealth(report *pb.HealthReport) *pb.Health
 // CollectAggregateHealth populates only the aggregate resource usage (CPU,
 // memory, swap, load, uptime, file descriptors and the size and use of /),
 // without the host inventory: no other disk mounts, no device or filesystem
-// type, disk I/O, network interfaces or IP addresses. A daemon in protected
+// type, disk I/O, network interfaces, IP addresses or SSH host keys. A daemon in protected
 // mode reports only these. The root mount alone lets the disk alert watch
 // the node; it reveals nothing beyond the free space of /.
 func (r *SystemReporter) CollectAggregateHealth(report *pb.HealthReport) *pb.HealthReport {
@@ -116,6 +116,7 @@ func (r *SystemReporter) collect(report *pb.HealthReport, aggregateOnly bool) *p
 	localIPAddresses, publicInterfaceIPAddresses := GetInterfaceIPAddresses()
 	report.LocalIpAddresses = localIPAddresses
 	report.PublicIpAddresses = mergePublicIPAddresses(publicInterfaceIPAddresses, r.publicIP.Addresses())
+	report.SshHostKeyFingerprints = SSHHostKeyFingerprints()
 
 	return report
 }

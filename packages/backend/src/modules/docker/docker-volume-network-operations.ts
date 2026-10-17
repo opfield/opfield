@@ -654,7 +654,16 @@ export async function createVolume(
     },
   });
   context.eventBus?.publish('docker.volume.changed', { nodeId, name: config.name, action: 'created' });
-  return data;
+  // The daemon answers a create without a body; the caller (REST, MCP) still gets the volume it created (rc.3 GO-8:
+  // manage_docker_volume create answered null).
+  return {
+    ...(data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : {}),
+    name: config.name,
+    nodeId,
+    storageKind,
+    capacityBytes: config.capacityBytes ?? null,
+    managed: true,
+  };
 }
 
 export async function removeVolume(

@@ -453,7 +453,8 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
     events: [
       { id: 'stopped', label: 'Container Stopped', defaultSeverity: 'warning', supportsThreshold: true },
       { id: 'started', label: 'Container Started', defaultSeverity: 'info' },
-      // A managed container removed, created under its name or renamed by something other than Opfield.
+      // A managed container removed, created under its name, renamed, stopped, killed, paused, resumed or updated by
+      // something other than Opfield.
       { id: 'changed_outside', label: 'Changed Outside Opfield', defaultSeverity: 'warning' },
       { id: 'exited', label: 'Container Exited', defaultSeverity: 'warning', supportsThreshold: true },
       { id: 'health.offline', label: 'Health Offline', defaultSeverity: 'critical', supportsThreshold: true },
@@ -480,7 +481,14 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{resource.key}}', description: 'Internal alert resource key' },
       { name: '{{node.id}}', description: 'Docker node ID' },
       { name: '{{node.name}}', description: 'Node hosting this container' },
-      { name: '{{details.change}}', description: 'removed, created or renamed (changed_outside)' },
+      {
+        name: '{{details.change}}',
+        description: 'removed, created, renamed, stopped, killed, paused, unpaused or updated (changed_outside)',
+      },
+      {
+        name: '{{details.consequence}}',
+        description: 'what the change means for the container and what to do (changed_outside)',
+      },
       { name: '{{metric.name}}', description: 'Metric name (cpu, memory, log_size, restarts_per_hour)' },
       { name: '{{metric.value}}', description: 'Current metric value' },
       { name: '{{metric.threshold}}', description: 'Configured threshold' },

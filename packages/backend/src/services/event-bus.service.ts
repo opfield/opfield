@@ -1,3 +1,4 @@
+import { AsyncResource } from 'node:async_hooks';
 import { EventEmitter } from 'node:events';
 import { createChildLogger } from '@/lib/logger.js';
 
@@ -40,11 +41,18 @@ export class EventBusService {
   /**
    * Subscribe to a channel. Returns an unsubscribe function. Always call
    * the returned function on connection close to avoid leaks.
+   *
+   * The handler runs in the async context of the subscription, never in the
+   * publisher's: an event published inside an API request must not hand that
+   * request's audit context (its user agent, IP, MCP token and tool arguments),
+   * held locks or admission to the background work a subscriber starts (timers,
+   * pulls, reconciliations). A Redis-backed bus would not carry it either.
    */
   subscribe(channel: string, fn: (payload: unknown) => void): () => void {
-    this.emitter.on(channel, fn);
+    const handler = AsyncResource.bind(fn);
+    this.emitter.on(channel, handler);
     return () => {
-      this.emitter.off(channel, fn);
+      this.emitter.off(channel, handler);
     };
   }
 

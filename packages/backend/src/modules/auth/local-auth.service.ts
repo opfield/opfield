@@ -107,6 +107,9 @@ function passwordLinkRateLimited(purpose: PasswordLinkPurpose, retryAfterMs: num
     429,
     purpose === 'password_setup' ? 'PASSWORD_SETUP_RATE_LIMITED' : 'PASSWORD_RESET_RATE_LIMITED',
     `Too many password ${kind} links were requested for this user (${MAX_PASSWORD_RESETS_PER_WINDOW} per hour). ` +
+      (purpose === 'password_setup'
+        ? 'The setup link sent when the account was created or switched to password counts as one of them. '
+        : '') +
       `The limit resets in about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'} (${resetsAt}).`,
     { retryAfterSeconds, resetsAt }
   );

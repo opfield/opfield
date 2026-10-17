@@ -66,14 +66,83 @@ func TestOwnOpsTransportPassesOtherRequestsThrough(t *testing.T) {
 	for _, request := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/v1.47/containers/json?all=1", nil),
 		httptest.NewRequest(http.MethodGet, "/v1.47/containers/web/json", nil),
-		httptest.NewRequest(http.MethodPost, "/v1.47/containers/web/start", nil),
+		httptest.NewRequest(http.MethodGet, "/v1.47/containers/web/logs", nil),
+		httptest.NewRequest(http.MethodPost, "/v1.47/containers/web/exec", nil),
 	} {
 		if _, err := transport.RoundTrip(request); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if ops.owns("", []string{"web"}, "") {
-		t.Fatal("reads and starts must not claim the container")
+		t.Fatal("reads and execs must not claim the container")
+	}
+}
+
+// The daemon's own stops, kills, pauses and updates are its own; the same
+// operations by anyone else are not.
+func TestOwnOpsTransportClaimsStateChanges(t *testing.T) {
+	for _, operation := range []string{"start", "stop", "kill", "restart", "pause", "unpause", "update"} {
+		now := time.Unix(1_700_000_000, 0)
+		ops := ownOpsAt(&now)
+		transport := &ownOpsTransport{base: recordingRoundTripper{status: http.StatusNoContent}, ops: ops}
+		if _, err := transport.RoundTrip(httptest.NewRequest(http.MethodPost, "/v1.47/containers/web/"+operation, nil)); err != nil {
+			t.Fatal(err)
+		}
+		if !ops.owns("", []string{"web"}, "") {
+			t.Fatalf("the daemon's own %s is not its own", operation)
+		}
+		if ops.owns("", []string{"db"}, "") {
+			t.Fatalf("a %s of web claims db", operation)
+		}
+	}
+}
+
+// An outside change soon after one of the daemon's own operations on the same
+// container is still recorded: only events stamped during the daemon's request
+// (and a few seconds after it) are the daemon's (rc.3 GO-4: a rename 97 s
+// after Opfield created the container was ignored).
+func TestOwnOpsClaimCoversOnlyTheRequestsEvents(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	ops := ownOpsAt(&now)
+	created := now
+	transport := &ownOpsTransport{base: recordingRoundTripper{status: http.StatusCreated, body: `{"Id":"4f3c2b1a0e9d8c7b6a5f4e3d"}`}, ops: ops}
+	if _, err := transport.RoundTrip(httptest.NewRequest(http.MethodPost, "/v1.47/containers/create?name=web", nil)); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(30 * time.Second)
+	if !ops.ownsAt("4f3c2b1a0e9d8c7b6a5f4e3d", []string{"web"}, "", created) {
+		t.Fatal("the create event of the daemon's own request, judged later, is not its own")
+	}
+	if ops.ownsAt("4f3c2b1a0e9d8c7b6a5f4e3d", []string{"web"}, "", now) {
+		t.Fatal("a change 30 s after the daemon's create is taken for the daemon's")
+	}
+	if ops.ownsAt("4f3c2b1a0e9d8c7b6a5f4e3d", []string{"web"}, "", created.Add(-time.Minute)) {
+		t.Fatal("a change before the daemon's request is taken for the daemon's")
+	}
+}
+
+func TestContainerSignalsTellKillsFromStopsAndExits(t *testing.T) {
+	var signals containerSignals
+	at := time.Unix(1_700_000_000, 0)
+	// docker kill: kill, then die.
+	signals.note("kill", "a", at)
+	if got := signals.killThatEnded("a", at.Add(50*time.Millisecond)); !got.Equal(at) {
+		t.Fatalf("docker kill: kill = %v", got)
+	}
+	// docker stop: kill (SIGTERM), die, stop: the stop is recorded instead.
+	signals.note("kill", "b", at)
+	signals.note("stop", "b", at.Add(60*time.Millisecond))
+	if got := signals.killThatEnded("b", at.Add(50*time.Millisecond)); !got.IsZero() {
+		t.Fatalf("docker stop counted as a kill: %v", got)
+	}
+	// A crash: die without a kill signal.
+	if got := signals.killThatEnded("c", at); !got.IsZero() {
+		t.Fatalf("an exit nobody caused counted as a kill: %v", got)
+	}
+	// A kill long before the exit did not cause it.
+	signals.note("kill", "d", at)
+	if got := signals.killThatEnded("d", at.Add(externalKillWindow+time.Minute)); !got.IsZero() {
+		t.Fatalf("an old kill signal counted: %v", got)
 	}
 }
 

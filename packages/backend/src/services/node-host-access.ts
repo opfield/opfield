@@ -124,8 +124,8 @@ export function assertNodeHostFeatureEnabled(
 
 /**
  * Daemons that run agents' one-shot console commands (execute_node_console_command) in the agent sandbox: their own
- * mount namespace and process group, the container runtime's sockets covered, an unprivileged identity that cannot
- * become root again. Opfield sends agent commands only to these daemons.
+ * mount namespace and process group, with the container runtime's sockets and CLIs covered. Opfield sends agent
+ * commands only to these daemons.
  */
 export const NODE_CONSOLE_AGENT_SANDBOX_CAPABILITY = 'node_console_agent_sandbox_v1';
 

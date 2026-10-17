@@ -1501,13 +1501,23 @@ export class NodeDispatchService {
   }
 
   /**
-   * Runs an agent's one-shot console command on the node. The daemon runs it in the agent sandbox (no container
-   * runtime, no root); a daemon without the sandbox is refused before anything is sent.
+   * Runs an agent's one-shot console command on the node. The daemon runs it in the agent sandbox (root, without the
+   * container runtime); a daemon without the sandbox is refused before anything is sent.
    */
-  async sendNodeAgentCommand(nodeId: string, command: string[], timeoutMs?: number): Promise<CommandResult> {
+  /** timeoutSeconds: how long the daemon lets the command run (its default is 30 s). */
+  async sendNodeAgentCommand(
+    nodeId: string,
+    command: string[],
+    timeoutMs?: number,
+    timeoutSeconds?: number
+  ): Promise<CommandResult> {
     this.assertNodeAgentCommandAvailable(nodeId);
     await this.assertNodeMutable(nodeId);
-    return this.registry.sendCommand(nodeId, { nodeExec: { action: 'run', command } as any }, timeoutMs);
+    return this.registry.sendCommand(
+      nodeId,
+      { nodeExec: { action: 'run', command, ...(timeoutSeconds ? { timeoutSeconds } : {}) } as any },
+      timeoutMs
+    );
   }
 
   /** Throws why the node's daemon would not run an agent console command now (console off, no agent sandbox). */

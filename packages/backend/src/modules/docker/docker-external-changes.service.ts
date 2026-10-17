@@ -3,6 +3,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { auditLog, nodes } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import { runOutsideAuditRequestContext } from '@/modules/audit/audit-request-context.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
@@ -24,10 +25,28 @@ const PULL_AFTER_SETTLE_MS = 6_000;
 const SWEEP_INTERVAL_MS = 60_000;
 const PULL_TIMEOUT_MS = 10_000;
 
+/** What was done to the container (external_changes.go in the daemon). */
+export type DockerExternalChangeAction =
+  | 'removed'
+  | 'created'
+  | 'renamed'
+  | 'stopped'
+  | 'killed'
+  | 'paused'
+  | 'unpaused'
+  | 'updated';
+
+/** Changes that give the container a new identity to Opfield: its grants are reset and its Git source refuses it. */
+export const DOCKER_EXTERNAL_IDENTITY_CHANGES: readonly DockerExternalChangeAction[] = [
+  'removed',
+  'created',
+  'renamed',
+];
+
 export interface DockerExternalChange {
   seq: number;
   at: string;
-  action: 'removed' | 'created' | 'renamed';
+  action: DockerExternalChangeAction;
   containerId: string;
   name: string;
   oldName?: string;
@@ -59,14 +78,43 @@ export function managedAs(change: DockerExternalChange, records: DockerManagedRe
 }
 
 function describeChange(change: DockerExternalChange): string {
-  if (change.action === 'removed') return `removed`;
-  if (change.action === 'renamed') return `renamed from "${change.oldName ?? ''}" to "${change.name}"`;
-  return 'created under its name';
+  switch (change.action) {
+    case 'renamed':
+      return `renamed from "${change.oldName ?? ''}" to "${change.name}"`;
+    case 'created':
+      return 'created under its name';
+    case 'unpaused':
+      return 'resumed (unpaused)';
+    case 'updated':
+      return 'updated (docker update)';
+    default:
+      return change.action;
+  }
+}
+
+/** What a change outside Opfield means for the managed container and what to do, for the audit entry and the alert. */
+export function externalChangeConsequence(action: DockerExternalChangeAction): string {
+  switch (action) {
+    case 'removed':
+    case 'renamed':
+      return 'Opfield no longer tracks it as before: its permissions were reset and its Git source builds refuse it.';
+    case 'created':
+      return 'It is a new container under a managed name: Opfield does not take it for the managed one, so it has no permissions and its Git source builds refuse it. Remove it and recreate the container in Opfield.';
+    case 'stopped':
+    case 'killed':
+      return 'It is not running now, and Opfield did not stop it. Start it from Opfield if it should run.';
+    case 'paused':
+      return 'Its processes are frozen, and Opfield did not pause it. Restart it from Opfield if it should run.';
+    case 'unpaused':
+      return 'It runs again, and Opfield did not resume it.';
+    case 'updated':
+      return "Its resources or restart policy were changed with docker update, so Opfield's settings for it no longer match. Change them in Opfield (live update).";
+  }
 }
 
 /**
- * Reads the container changes a Docker daemon saw outside Opfield (docker rm/run/rename on the node's console, a
- * script, another tool) and records the ones that concern a managed container: an audit entry with the container
+ * Reads the container changes a Docker daemon saw outside Opfield (docker rm/run/rename/stop/kill/pause/update on the
+ * node's console, a script, another tool) and records the ones that concern a managed container: an audit entry with the container
  * and node, and the `changed_outside` event of the Container alert category. The container diff of a health report
  * publishes `docker.container.changed`; the watcher then pulls the daemon's list after its last cursor, once at once
  * and once after the daemon's settle time, and it reads every capable node once a minute as well.
@@ -116,14 +164,19 @@ export class DockerExternalChangeWatcher {
     this.sweepTimer = null;
   }
 
-  /** Pulls the node after `delayMs`; a pull already waiting for the same delay covers this request too. */
+  /**
+   * Pulls the node after `delayMs`; a pull already waiting for the same delay covers this request too. The timer and
+   * the pull belong to no request: what they record was done on the node by someone else (rc.3 GF-2).
+   */
   schedule(nodeId: string, delayMs = PULL_DEBOUNCE_MS): void {
     const key = `${nodeId}:${delayMs}`;
     if (this.timers.has(key)) return;
-    const timer = setTimeout(() => {
-      this.timers.delete(key);
-      void this.pullNow(nodeId);
-    }, delayMs);
+    const timer = runOutsideAuditRequestContext(() =>
+      setTimeout(() => {
+        this.timers.delete(key);
+        void this.pullNow(nodeId);
+      }, delayMs)
+    );
     timer.unref?.();
     this.timers.set(key, timer);
   }
@@ -139,7 +192,7 @@ export class DockerExternalChangeWatcher {
   pullNow(nodeId: string): Promise<void> {
     const current = this.running.get(nodeId);
     if (current) return current;
-    const run = this.pull(nodeId)
+    const run = runOutsideAuditRequestContext(() => this.pull(nodeId))
       .then(() => {
         this.failures.delete(nodeId);
       })
@@ -226,6 +279,7 @@ export class DockerExternalChangeWatcher {
         image: change.image ?? null,
         changeKey,
         summary: `Container "${change.oldName || change.name}" on ${nodeName} was ${describeChange(change)} outside Opfield`,
+        consequence: externalChangeConsequence(change.action),
       },
       ...(Number.isFinite(occurredAt.getTime()) ? { occurredAt } : {}),
     });
@@ -235,6 +289,7 @@ export class DockerExternalChangeWatcher {
       id: change.containerId,
       name: change.oldName && change.action === 'renamed' ? change.oldName : change.name,
       change: change.action,
+      consequence: externalChangeConsequence(change.action),
       managedAs: kind,
     });
     logger.warn('Managed container changed outside Opfield', {

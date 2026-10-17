@@ -45,7 +45,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'execute_node_console_command',
     description:
-      'Run a one-shot command on a node, in the agent sandbox: an unprivileged user (no root, no sudo) in its own mount namespace, without the container runtime; background processes end with the command. Use it to read the host (logs, disk, memory, network, files any user may read). Use command as argv, for example ["sh","-lc","journalctl -u nginx --since -10min --no-pager"]. Clearly dangerous commands are blocked; the call needs explicit user approval. docker/podman/nerdctl/ctr/crictl/runc commands and runtime sockets are refused before sending: MANAGED_RESOURCE_CONSOLE_FORBIDDEN for a change to an Opfield-managed object or a write under the daemon state (it names the object and the tool to use: manage_docker_container recreate, remove/stop/start/restart_docker_container, manage_docker_deployment, manage_docker_compose, manage_docker_volume, manage_docker_network), NODE_CONSOLE_RUNTIME_UNAVAILABLE otherwise (read containers with list_docker_containers, get_docker_container, get_docker_container_logs, get_docker_container_stats). Other spellings (scripts, decoded payloads) cannot reach the runtime either. NODE_CONSOLE_AGENT_SANDBOX_REQUIRED means the node daemon must be updated first. The result has stdout, stderr, exitCode and risky (true for risky patterns, Docker changes, runtime use, or code the command line does not show).',
+      'Run a one-shot command on a node as root (or console.user), in the agent sandbox. Agents CAN repair the host: systemctl, journalctl, apt, editing config files, restarting services that are not containers, reading logs, disk, memory and network. Agents CANNOT use the container runtime: the Docker/containerd/Podman sockets and the docker, ctr, nerdctl, podman, crictl and runc programs are covered in the sandbox, so containers change only through the Docker tools. Use command as argv, for example ["sh","-lc","systemctl restart nginx && journalctl -u nginx -n 20 --no-pager"]. Clearly dangerous commands are blocked; the call needs explicit user approval. Runtime use is refused before sending: MANAGED_RESOURCE_CONSOLE_FORBIDDEN for a change to an Opfield-managed object or a write under the daemon state (it names the object and the tool to use: manage_docker_container recreate, remove/stop/start/restart_docker_container, manage_docker_deployment, manage_docker_compose, manage_docker_volume, manage_docker_network), NODE_CONSOLE_RUNTIME_UNAVAILABLE otherwise (read containers with list_docker_containers, get_docker_container, get_docker_container_logs, get_docker_container_stats). The sandbox is an accident guard, not a security boundary: do not try to leave it (nsenter, unmounting, systemd units, cron). NODE_CONSOLE_AGENT_SANDBOX_REQUIRED means the node daemon must be updated first. Disk and file checks of runtime paths (df, du, findmnt, ls, stat of /var/lib/docker or a socket) run normally. A command runs at most timeoutSeconds (default 30, up to 300); at the limit it is stopped with everything it started, and the result has timedOut: true with the output so far. Background processes end with the command. The result has stdout, stderr, exitCode and risky (true for risky patterns, Docker changes, runtime use, namespace tools such as nsenter, unix-socket clients, or code the command line does not show), also when the command fails (then error says why, for example a non-zero exit). On a node whose daemon does not run as root (an installer --user), the command runs as the daemon user instead: the result names it in runAs and says in limits what that limits (no root: package installs, service changes and system files fail; the container runtime stays out of reach).',
     parameters: {
       type: 'object',
       properties: {
@@ -54,6 +54,13 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
           type: 'array',
           items: { type: 'string' },
           description: 'Command argv to execute. Use ["sh","-lc","..."] for shell syntax.',
+        },
+        timeoutSeconds: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 300,
+          description:
+            'How long the command may run, in seconds (default 30, at most 300). Raise it for package installs and long diagnostics.',
         },
       },
       required: ['nodeId', 'command'],

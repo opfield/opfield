@@ -83,4 +83,39 @@ describe.skipIf(!url)('Built-in "Container changed outside Opfield" alert rule o
       await fresh.drop();
     }
   }, 60_000);
+
+  /** Migration 0269: the message says what each change means, and an edited message stays. */
+  it('gets the message with the consequence of each change, unless someone edited it', async () => {
+    const db = await disposableDatabase(url!, 'changed_outside_rule_message');
+    try {
+      await migrateDatabase(db.pool, '0268_docker_engine_unavailable_alert_rule');
+      const template = `select message_template from notification_alert_rules
+        where category = 'container' and event_pattern = 'changed_outside' and is_builtin`;
+      expect((await db.pool.query(template)).rows[0].message_template).toContain('its permissions were reset');
+      await migrateDatabase(db.pool);
+      expect((await db.pool.query(template)).rows[0].message_template).toBe(
+        'Container {{resource.name}} on {{node.name}} was {{details.change}} outside Opfield. {{details.consequence}} Change managed containers through Opfield.'
+      );
+    } finally {
+      await db.drop();
+    }
+
+    const edited = await disposableDatabase(url!, 'changed_outside_rule_message_edited');
+    try {
+      await migrateDatabase(edited.pool, '0268_docker_engine_unavailable_alert_rule');
+      await edited.pool.query(
+        `update notification_alert_rules set message_template = 'Drift on {{resource.name}}'
+         where category = 'container' and event_pattern = 'changed_outside'`
+      );
+      await migrateDatabase(edited.pool);
+      const rows = (
+        await edited.pool.query(
+          `select message_template from notification_alert_rules where category = 'container' and event_pattern = 'changed_outside'`
+        )
+      ).rows;
+      expect(rows).toEqual([{ message_template: 'Drift on {{resource.name}}' }]);
+    } finally {
+      await edited.drop();
+    }
+  }, 60_000);
 });

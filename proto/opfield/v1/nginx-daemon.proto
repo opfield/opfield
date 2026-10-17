@@ -211,6 +211,12 @@ message HealthReport {
   // lease watchdog as its heartbeat names it (vX.Y.Z or vX.Y.Z-rc.N); empty
   // when no watchdog runs on the node.
   string lease_watchdog_version = 45;
+  // Daemons of 2.12.3 and later: the SHA256 fingerprints of the host's SSH
+  // host keys (/etc/ssh/ssh_host_*_key.pub, "SHA256:<base64>" as ssh-keygen
+  // prints them). Opfield refuses an agent SSH connector whose pinned host
+  // key is one of an enrolled node's, whatever address reaches it. Not sent
+  // by a protected relay.
+  repeated string ssh_host_key_fingerprints = 46;
   // Nginx daemons advertising ingress_group_v1: what the reserved endpoint
   // /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
   IngressHealthReport ingress_health = 195;
@@ -1342,6 +1348,9 @@ message NodeExecCommand {
   int32 rows = 4;
   int32 cols = 5;
   string session_key = 6;     // authenticated Opfield user ID
+  // "run": how long the command may run, in seconds (1-300). 0 is the
+  // default of 30 s; daemons before 2.12.3 always use 30 s.
+  int32 timeout_seconds = 7;
 }
 
 message NodeFileCommand {

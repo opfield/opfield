@@ -4,7 +4,7 @@ Exact tool names in the MCP `docker` toolset. All require the `nodeId` of a Node
 
 ## Instead of `docker` on the Node console
 
-Agent console commands (`execute_node_console_command`) run without the container runtime: `docker`, `podman`, `nerdctl`, `ctr` and runtime sockets are refused (`MANAGED_RESOURCE_CONSOLE_FORBIDDEN` for a change to an Opfield-managed object, `NODE_CONSOLE_RUNTIME_UNAVAILABLE` otherwise), and `ssh_execute_command` refuses Opfield nodes. Use these tools:
+Agent console commands (`execute_node_console_command`) run as root but without the container runtime (an accident guard, not a security boundary): `docker`, `podman`, `nerdctl`, `ctr` and runtime sockets are refused (`MANAGED_RESOURCE_CONSOLE_FORBIDDEN` for a change to an Opfield-managed object, `NODE_CONSOLE_RUNTIME_UNAVAILABLE` otherwise), and `ssh_execute_command` refuses Opfield nodes (by address, by SSH host key, or by an Opfield daemon on the host). Disk and file checks of runtime paths (`df -h /var/lib/docker`, `ls -l /var/run/docker.sock`) work. Use these tools:
 
 | Console command | Tool |
 | --- | --- |

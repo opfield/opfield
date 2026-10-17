@@ -4,16 +4,17 @@ package exec
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	osexec "os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -25,9 +26,8 @@ import (
 const agentSandboxWaitDelay = 500 * time.Millisecond
 
 // A daemon binary started with agentSandboxArg is the sandbox setup of one
-// agent command (see RunAgentCommand): it covers the runtime paths, drops to
-// the sandbox identity and executes the command. It never returns to the
-// daemon's own start-up.
+// agent command (see RunAgentCommand): it covers the runtime paths and
+// executes the command. It never returns to the daemon's own start-up.
 func init() {
 	if len(os.Args) > 1 && os.Args[1] == agentSandboxArg {
 		runAgentSandbox(os.Args[2:])
@@ -39,76 +39,189 @@ func init() {
 func AgentSandboxSupported() bool { return true }
 
 // RunAgentCommand runs an agent's one-shot console command in the sandbox
-// described in agent_sandbox.go. It needs a root daemon (namespaces and the
-// identity switch); without one, or when a runtime path cannot be covered,
-// the command does not run and the error says why.
-func RunAgentCommand(ctx context.Context, command []string, maxOutputBytes int64) (CommandResult, error) {
-	return runAgentCommand(ctx, command, agentSandboxMasks, maxOutputBytes)
+// described in agent_sandbox.go, as root or as runAsUser (console.user) when
+// one is configured. A daemon that does not run as root runs it as its own
+// user instead (see runUnprivilegedAgentCommand); the result says so. When a
+// runtime path cannot be covered the command does not run and the error says
+// why. A command still running at ctx's deadline is stopped with everything it
+// started; its output so far is returned with TimedOut set.
+func RunAgentCommand(ctx context.Context, command []string, runAsUser string, maxOutputBytes int64) (CommandResult, error) {
+	masks := agentSandboxMaskPaths()
+	if os.Geteuid() != 0 {
+		return runUnprivilegedAgentCommand(ctx, command, masks, runAsUser, maxOutputBytes)
+	}
+	return runAgentCommand(ctx, command, masks, runAsUser, maxOutputBytes)
 }
 
-func runAgentCommand(ctx context.Context, command []string, masks []string, maxOutputBytes int64) (CommandResult, error) {
+// errUserNamespaceUnavailable marks a host (or a daemon unit) that does not let
+// an unprivileged process create a user namespace.
+var errUserNamespaceUnavailable = errors.New("unprivileged user namespaces are not available")
+
+// runUnprivilegedAgentCommand runs an agent command for a daemon that does not
+// run as root (an installer's --user, OPFIELD_RELAY_RUN_USER). Such a daemon
+// cannot give the command root, so it runs as the daemon's user:
+//
+//   - when that user cannot reach any container runtime socket (the usual
+//     case), directly, in its own process group;
+//   - when it can (it is in the docker group, or a rootless runtime runs as
+//     it), in a user and mount namespace that covers the runtime like the root
+//     sandbox does; a host without unprivileged user namespaces refuses the
+//     command then, naming the socket and the fix.
+//
+// The result names the user and what is limited, so the agent knows why a
+// command that needs root fails.
+func runUnprivilegedAgentCommand(ctx context.Context, command, masks []string, runAsUser string, maxOutputBytes int64) (CommandResult, error) {
+	daemonUser := processUserName()
+	if runAsUser != "" {
+		if err := CheckRunAsUser(runAsUser); err != nil {
+			return CommandResult{}, fmt.Errorf("cannot run as user %q: %w", runAsUser, err)
+		}
+	}
+	reachable := reachableRuntimeSockets(append(masks, rootlessRuntimeSockets()...))
+	if len(reachable) == 0 {
+		result, err := runDaemonUserCommand(ctx, command, runAsUser, maxOutputBytes)
+		result.RunAs = daemonUser
+		result.Sandbox = AgentSandboxDaemonUser
+		result.Limits = fmt.Sprintf("The node's daemon runs as %s, not root, so this command ran as %s: commands that need root (installing packages, changing services, editing system files) fail with permission errors. %s cannot reach the container runtime. Background processes the command started in a new session are not ended with it.", daemonUser, daemonUser, daemonUser)
+		return result, err
+	}
+	result, started, err := runAgentCommandIn(ctx, command, append(masks, reachable...), runAsUser, maxOutputBytes, true)
+	if errors.Is(err, errUserNamespaceUnavailable) {
+		return CommandResult{}, fmt.Errorf("the node's daemon runs as %s, not root, and %s can reach the container runtime (%s), which Opfield cannot cover on this host because it does not allow unprivileged user namespaces; agent console commands are refused on this node. Take %s out of the group that owns the socket (usually docker), or run the daemon as root, and restart the daemon", daemonUser, daemonUser, strings.Join(reachable, ", "), daemonUser)
+	}
+	if !started {
+		return result, err
+	}
+	result.RunAs = daemonUser
+	result.Sandbox = AgentSandboxUserNamespace
+	result.Limits = fmt.Sprintf("The node's daemon runs as %s, not root, so this command ran as %s in a user namespace that covers the container runtime: commands that need root fail with permission errors, and files and processes of other users (root included) show as owned by nobody (65534).", daemonUser, daemonUser)
+	return result, err
+}
+
+// reachableRuntimeSockets lists the runtime sockets among paths (and in the
+// runtime directories among them) this process could connect to.
+func reachableRuntimeSockets(paths []string) []string {
+	var reachable []string
+	seen := map[string]bool{}
+	check := func(path string) {
+		if resolved, err := filepath.EvalSymlinks(path); err == nil {
+			path = resolved
+		}
+		if seen[path] {
+			return
+		}
+		seen[path] = true
+		info, err := os.Stat(path)
+		if err != nil || info.Mode()&os.ModeSocket == 0 {
+			return
+		}
+		// Connecting to a unix socket needs write permission on it.
+		if unix.Access(path, unix.W_OK) == nil {
+			reachable = append(reachable, path)
+		}
+	}
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		if !info.IsDir() {
+			check(path)
+			continue
+		}
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			check(filepath.Join(path, entry.Name()))
+		}
+	}
+	return reachable
+}
+
+// rootlessRuntimeSockets are where rootless Docker and Podman of this
+// process's user listen, and the socket DOCKER_HOST names.
+func rootlessRuntimeSockets() []string {
+	runtimeDir := os.Getenv("XDG_RUNTIME_DIR")
+	if runtimeDir == "" {
+		runtimeDir = "/run/user/" + strconv.Itoa(os.Getuid())
+	}
+	paths := []string{
+		filepath.Join(runtimeDir, "docker.sock"),
+		filepath.Join(runtimeDir, "podman", "podman.sock"),
+		filepath.Join(runtimeDir, "containerd-rootless"),
+	}
+	if host := os.Getenv("DOCKER_HOST"); strings.HasPrefix(host, "unix://") {
+		paths = append(paths, strings.TrimPrefix(host, "unix://"))
+	}
+	return paths
+}
+
+// runDaemonUserCommand runs the command as this (non-root) process's user, or
+// runAsUser, in its own process group, which is killed when the command ends
+// or at the deadline.
+func runDaemonUserCommand(ctx context.Context, command []string, runAsUser string, maxOutputBytes int64) (CommandResult, error) {
 	if len(command) == 0 {
 		return CommandResult{}, fmt.Errorf("command is required")
 	}
 	if maxOutputBytes <= 0 {
 		maxOutputBytes = 128 * 1024
 	}
-	args := []string{agentSandboxArg, strconv.Itoa(len(masks))}
-	args = append(args, masks...)
-	args = append(args, "--")
-	args = append(args, command...)
-	// /proc/self/exe is this daemon's binary even after an update replaced the file.
-	cmd := osexec.CommandContext(ctx, "/proc/self/exe", args...)
-	cmd.Env = []string{"PATH=" + agentSandboxPath}
-	cmd.Dir = "/"
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		// A PID namespace would hide nothing the identity does not already
-		// keep away and would break ps, which looks for its own PID in the
-		// node's /proc; the process group lets the daemon end what the
-		// command left running.
-		Cloneflags: syscall.CLONE_NEWNS,
-		Setpgid:    true,
-		Pdeathsig:  syscall.SIGKILL,
-	}
-	statusRead, statusWrite, err := os.Pipe()
+	program, err := osexec.LookPath(command[0])
 	if err != nil {
-		return CommandResult{}, fmt.Errorf("agent console sandbox: %w", err)
+		return CommandResult{}, err
 	}
-	defer statusRead.Close()
-	cmd.ExtraFiles = []*os.File{statusWrite}
+	cmd := osexec.Command(program, command[1:]...)
+	cmd.Args = command
+	cmd.Env = os.Environ()
+	cmd.Dir = "/"
+	if err := applyRunAsUser(cmd, runAsUser); err != nil {
+		return CommandResult{}, err
+	}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Setpgid = true
+	cmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
 	stdout := &limitedBuffer{limit: maxOutputBytes}
 	stderr := &limitedBuffer{limit: maxOutputBytes}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
+	started := time.Now()
+	if err := cmd.Start(); err != nil {
+		return CommandResult{}, err
+	}
+	killGroup := func() { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			killGroup()
+		case <-done:
+		}
+	}()
+	waitErr := waitWithDelay(cmd)
+	close(done)
+	killGroup()
+	return finishAgentResult(ctx, started, cmd, stdout, stderr, waitErr)
+}
 
-	// On the deadline the whole group is killed, and Wait stops waiting for
-	// output pipes a background process still holds soon after the command
-	// itself exited.
-	cmd.Cancel = func() error {
-		killAgentSandboxGroup(cmd.Process.Pid)
+// waitWithDelay waits for cmd, but stops waiting for its output pipes soon
+// after it exited while a background process it started still holds them.
+func waitWithDelay(cmd *osexec.Cmd) error {
+	cmd.WaitDelay = agentSandboxWaitDelay
+	err := cmd.Wait()
+	if errors.Is(err, osexec.ErrWaitDelay) {
 		return nil
 	}
-	cmd.WaitDelay = agentSandboxWaitDelay
+	return err
+}
 
-	if err := cmd.Start(); err != nil {
-		statusWrite.Close()
-		if errors.Is(err, syscall.EPERM) {
-			return CommandResult{}, fmt.Errorf("agent console commands run in a sandbox that needs a daemon running as root: %w", err)
-		}
-		return CommandResult{}, fmt.Errorf("agent console sandbox could not start: %w", err)
-	}
-	statusWrite.Close()
-	// EOF once the command replaced the setup (the descriptor is close-on-exec) or the setup exited.
-	status, _ := io.ReadAll(statusRead)
-	waitErr := cmd.Wait()
-	// Background processes the command started (`sleep 600 &`) end with it.
-	killAgentSandboxGroup(cmd.Process.Pid)
-	if errors.Is(waitErr, osexec.ErrWaitDelay) {
-		waitErr = nil
-	}
-	if len(status) > 0 {
-		return CommandResult{}, fmt.Errorf("agent console sandbox could not start: %s", strings.TrimSpace(string(status)))
-	}
+// finishAgentResult builds the result of a finished agent command. A command
+// stopped at its deadline keeps its output, with TimedOut set and an error
+// that says so.
+func finishAgentResult(ctx context.Context, started time.Time, cmd *osexec.Cmd, stdout, stderr *limitedBuffer, waitErr error) (CommandResult, error) {
 	exitCode := 0
 	if cmd.ProcessState != nil {
 		exitCode = cmd.ProcessState.ExitCode()
@@ -119,14 +232,130 @@ func runAgentCommand(ctx context.Context, command []string, masks []string, maxO
 		ExitCode:  exitCode,
 		Truncated: stdout.Truncated() || stderr.Truncated(),
 	}
+	if waitErr != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		result.TimedOut = true
+		return result, fmt.Errorf("the command was still running after %s, its time limit, and was stopped with everything it started", time.Since(started).Round(time.Second))
+	}
 	return result, waitErr
 }
 
-// killAgentSandboxGroup kills the processes left in a command's process
-// group. Only processes of the sandbox identity are touched: the group's
-// leader is reaped by then, and its number could in principle belong to
-// another group already.
-func killAgentSandboxGroup(pgid int) {
+func runAgentCommand(ctx context.Context, command, masks []string, runAsUser string, maxOutputBytes int64) (CommandResult, error) {
+	result, started, err := runAgentCommandIn(ctx, command, masks, runAsUser, maxOutputBytes, false)
+	if started {
+		result.RunAs = agentRunAsName(runAsUser)
+		result.Sandbox = AgentSandboxRoot
+	}
+	return result, err
+}
+
+func agentRunAsName(runAsUser string) string {
+	if runAsUser != "" {
+		return runAsUser
+	}
+	return processUserName()
+}
+
+// runAgentCommandIn runs the sandbox setup and the command in a new mount
+// namespace; userNamespace adds a user namespace that maps only this
+// process's own uid and gid, for a daemon that is not root. started is false
+// when the command did not run (the sandbox could not be set up).
+func runAgentCommandIn(ctx context.Context, command, masks []string, runAsUser string, maxOutputBytes int64, userNamespace bool) (result CommandResult, started bool, err error) {
+	if len(command) == 0 {
+		return CommandResult{}, false, fmt.Errorf("command is required")
+	}
+	if maxOutputBytes <= 0 {
+		maxOutputBytes = 128 * 1024
+	}
+	if runAsUser != "" {
+		if _, err := resolveRunAsUser(runAsUser); err != nil {
+			return CommandResult{}, false, fmt.Errorf("cannot run as user %q: %w", runAsUser, err)
+		}
+	}
+	args := []string{agentSandboxArg, runAsUser, strconv.Itoa(len(masks))}
+	args = append(args, masks...)
+	args = append(args, "--")
+	args = append(args, command...)
+	// /proc/self/exe is this daemon's binary even after an update replaced the file.
+	cmd := osexec.CommandContext(ctx, "/proc/self/exe", args...)
+	cmd.Env = os.Environ()
+	cmd.Dir = "/"
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		// No PID namespace: ps looks for its own PID in the node's /proc and
+		// fails inside one. The process group and the mount namespace let the
+		// daemon find and end what the command left running.
+		Cloneflags: syscall.CLONE_NEWNS,
+		Setpgid:    true,
+		Pdeathsig:  syscall.SIGKILL,
+	}
+	if userNamespace {
+		cmd.SysProcAttr.Cloneflags |= syscall.CLONE_NEWUSER
+		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{{ContainerID: os.Getuid(), HostID: os.Getuid(), Size: 1}}
+		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{{ContainerID: os.Getgid(), HostID: os.Getgid(), Size: 1}}
+		cmd.SysProcAttr.GidMappingsEnableSetgroups = false
+		// The setup runs as the daemon's own (non-zero) uid in the namespace,
+		// so exec would drop the capabilities the namespace gave it; ambient
+		// CAP_SYS_ADMIN keeps the one the covers need. The setup clears it
+		// before it executes the command.
+		cmd.SysProcAttr.AmbientCaps = []uintptr{unix.CAP_SYS_ADMIN}
+	}
+	statusRead, statusWrite, err := os.Pipe()
+	if err != nil {
+		return CommandResult{}, false, fmt.Errorf("agent console sandbox: %w", err)
+	}
+	defer statusRead.Close()
+	cmd.ExtraFiles = []*os.File{statusWrite}
+	stdout := &limitedBuffer{limit: maxOutputBytes}
+	stderr := &limitedBuffer{limit: maxOutputBytes}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	// The sandbox's mount namespace, read once the setup started: every process
+	// still in it when the command ends is the command's.
+	var namespace atomic.Value
+	namespace.Store("")
+	// On the deadline everything in the sandbox is killed, and Wait stops
+	// waiting for output pipes a background process still holds soon after the
+	// command itself exited.
+	cmd.Cancel = func() error {
+		killAgentSandboxProcesses(namespace.Load().(string))
+		return cmd.Process.Kill()
+	}
+
+	startedAt := time.Now()
+	if err := cmd.Start(); err != nil {
+		statusWrite.Close()
+		if userNamespace && (errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EACCES)) {
+			return CommandResult{}, false, fmt.Errorf("%w: %v", errUserNamespaceUnavailable, err)
+		}
+		if errors.Is(err, syscall.EPERM) {
+			return CommandResult{}, false, fmt.Errorf("agent console commands run in a sandbox that needs a daemon running as root: %w", err)
+		}
+		return CommandResult{}, false, fmt.Errorf("agent console sandbox could not start: %w", err)
+	}
+	statusWrite.Close()
+	if link, err := os.Readlink("/proc/" + strconv.Itoa(cmd.Process.Pid) + "/ns/mnt"); err == nil {
+		if own, err := os.Readlink("/proc/self/ns/mnt"); err == nil && own != link {
+			namespace.Store(link)
+		}
+	}
+	// EOF once the command replaced the setup (the descriptor is close-on-exec) or the setup exited.
+	status, _ := io.ReadAll(statusRead)
+	waitErr := waitWithDelay(cmd)
+	// Background processes the command started (`sleep 600 &`) end with it.
+	killAgentSandboxProcesses(namespace.Load().(string))
+	if len(status) > 0 {
+		return CommandResult{}, false, fmt.Errorf("agent console sandbox could not start: %s", strings.TrimSpace(string(status)))
+	}
+	result, err = finishAgentResult(ctx, startedAt, cmd, stdout, stderr, waitErr)
+	return result, true, err
+}
+
+// killAgentSandboxProcesses kills every process in the sandbox's mount
+// namespace (namespace is its /proc/<pid>/ns/mnt link; empty does nothing).
+func killAgentSandboxProcesses(namespace string) {
+	if namespace == "" {
+		return
+	}
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return
@@ -136,46 +365,81 @@ func killAgentSandboxGroup(pgid int) {
 		if err != nil {
 			continue
 		}
-		info, err := os.Stat("/proc/" + entry.Name())
-		if err != nil {
-			continue
-		}
-		if stat, ok := info.Sys().(*syscall.Stat_t); !ok || stat.Uid != AgentSandboxUID {
-			continue
-		}
-		if processGroup(pid) == pgid {
+		if link, err := os.Readlink("/proc/" + entry.Name() + "/ns/mnt"); err == nil && link == namespace {
 			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 	}
 }
 
-// processGroup reads a process's group from /proc/<pid>/stat, or -1.
-func processGroup(pid int) int {
-	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
-	if err != nil {
-		return -1
+// agentSandboxMaskPaths lists what the sandbox covers on this node: the
+// runtime sockets and directories, those the Docker and containerd
+// configuration names, the sockets daemons registered, and the runtime CLIs
+// installed.
+func agentSandboxMaskPaths() []string {
+	paths := append([]string(nil), agentSandboxMasks...)
+	paths = append(paths, registeredAgentSandboxMasks()...)
+	paths = append(paths, configuredRuntimePaths()...)
+	for _, dir := range agentSandboxProgramDirs {
+		for _, program := range agentSandboxPrograms {
+			paths = append(paths, filepath.Join(dir, program))
+		}
 	}
-	// The command name in parentheses may contain spaces; the fields after it are fixed.
-	end := strings.LastIndexByte(string(data), ')')
-	if end < 0 {
-		return -1
+	seen := map[string]bool{}
+	result := paths[:0]
+	for _, path := range paths {
+		if path == "" || seen[path] {
+			continue
+		}
+		if _, err := os.Lstat(path); err != nil {
+			continue
+		}
+		seen[path] = true
+		result = append(result, path)
 	}
-	fields := strings.Fields(string(data[end+1:]))
-	// state, ppid, pgrp
-	if len(fields) < 3 {
-		return -1
+	return result
+}
+
+// configuredRuntimePaths reads the Docker daemon's hosts and exec-root
+// (/etc/docker/daemon.json) and containerd's gRPC address
+// (/etc/containerd/config.toml).
+func configuredRuntimePaths() []string {
+	var paths []string
+	if data, err := os.ReadFile("/etc/docker/daemon.json"); err == nil {
+		var config struct {
+			Hosts    []string `json:"hosts"`
+			ExecRoot string   `json:"exec-root"`
+		}
+		if json.Unmarshal(data, &config) == nil {
+			for _, host := range config.Hosts {
+				if strings.HasPrefix(host, "unix://") {
+					paths = append(paths, strings.TrimPrefix(host, "unix://"))
+				}
+			}
+			if strings.HasPrefix(config.ExecRoot, "/") {
+				paths = append(paths, config.ExecRoot)
+			}
+		}
 	}
-	pgrp, err := strconv.Atoi(fields[2])
-	if err != nil {
-		return -1
+	if data, err := os.ReadFile("/etc/containerd/config.toml"); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			key, value, found := strings.Cut(strings.TrimSpace(line), "=")
+			if !found || strings.TrimSpace(key) != "address" {
+				continue
+			}
+			value = strings.Trim(strings.TrimSpace(value), `"'`)
+			if strings.HasPrefix(value, "/") {
+				paths = append(paths, value)
+			}
+		}
 	}
-	return pgrp
+	return paths
 }
 
 // runAgentSandbox is the setup process, started in its own mount namespace.
-// args are: the number of masks, the masks, "--", the command.
+// args are: the run-as user (may be empty), the number of masks, the masks,
+// "--", the command.
 func runAgentSandbox(args []string) {
-	// Namespace and identity calls below act on this thread; exec replaces the process from it.
+	// Mount and identity calls below act on this thread; exec replaces the process from it.
 	runtime.LockOSThread()
 	status := os.NewFile(agentSandboxStatusFD, "agent-sandbox-status")
 	fail := func(format string, values ...any) {
@@ -187,7 +451,11 @@ func runAgentSandbox(args []string) {
 	if status != nil {
 		unix.CloseOnExec(agentSandboxStatusFD)
 	}
-	masks, command, err := parseAgentSandboxArgs(args)
+	if len(args) == 0 {
+		fail("missing sandbox arguments")
+	}
+	runAsUser := args[0]
+	masks, command, err := parseAgentSandboxArgs(args[1:])
 	if err != nil {
 		fail("%v", err)
 	}
@@ -200,33 +468,41 @@ func runAgentSandbox(args []string) {
 			fail("cover %s: %v", path, err)
 		}
 	}
-	groups := agentSandboxGroups()
-	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
-		fail("set no_new_privs: %v", err)
+	// A non-root daemon's setup held CAP_SYS_ADMIN as an ambient capability for
+	// the covers; the command must not keep it (it could remove them).
+	if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0); err != nil && !errors.Is(err, unix.EINVAL) {
+		fail("drop ambient capabilities: %v", err)
 	}
-	// syscall's identity calls apply to every thread of the process.
-	if err := syscall.Setgroups(groups); err != nil {
-		fail("set groups: %v", err)
+	env := os.Environ()
+	if runAsUser != "" {
+		target, err := resolveRunAsUser(runAsUser)
+		if err != nil {
+			fail("cannot run as user %q: %v", runAsUser, err)
+		}
+		if target.credential != nil {
+			// syscall's identity calls apply to every thread of the process.
+			if err := syscall.Setgroups([]int{}); err != nil {
+				fail("set groups: %v", err)
+			}
+			if err := syscall.Setgid(int(target.credential.Gid)); err != nil {
+				fail("set gid: %v", err)
+			}
+			if err := syscall.Setuid(int(target.credential.Uid)); err != nil {
+				fail("set uid: %v", err)
+			}
+		}
+		env = append(env, "HOME="+target.home, "USER="+runAsUser)
+		if err := os.Chdir(target.dir); err != nil {
+			fail("chdir %s: %v", target.dir, err)
+		}
 	}
-	if err := syscall.Setgid(AgentSandboxGID); err != nil {
-		fail("set gid %d: %v", AgentSandboxGID, err)
-	}
-	if err := syscall.Setuid(AgentSandboxUID); err != nil {
-		fail("set uid %d: %v", AgentSandboxUID, err)
-	}
-	if os.Geteuid() != AgentSandboxUID || os.Getegid() != AgentSandboxGID {
-		fail("the identity did not change")
-	}
-	env := []string{"PATH=" + agentSandboxPath, "HOME=/tmp", "LANG=C.UTF-8", "USER=opfield-agent", "LOGNAME=opfield-agent"}
-	if err := os.Setenv("PATH", agentSandboxPath); err != nil {
-		fail("set PATH: %v", err)
+	if os.Getenv("PATH") == "" {
+		_ = os.Setenv("PATH", agentSandboxPath)
+		env = append(env, "PATH="+agentSandboxPath)
 	}
 	program, err := osexec.LookPath(command[0])
 	if err != nil {
 		fail("%v", err)
-	}
-	if err := os.Chdir("/"); err != nil {
-		fail("chdir /: %v", err)
 	}
 	err = syscall.Exec(program, command, env)
 	fail("run %s: %v", command[0], err)
@@ -249,18 +525,19 @@ func parseAgentSandboxArgs(args []string) (masks, command []string, err error) {
 }
 
 // maskAgentSandboxPath covers a directory with an empty read-only tmpfs and
-// anything else (a socket) with /dev/null. A path the node does not have is
-// left alone.
+// anything else (a socket, a program) with /dev/null, which cannot be
+// connected to or executed. A path the node does not have is left alone.
 func maskAgentSandboxPath(path string) error {
+	// A path the command's user cannot even look up is out of its reach too.
 	resolved, err := filepath.EvalSymlinks(path)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
 	info, err := os.Stat(resolved)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
 		return nil
 	}
 	if err != nil {
@@ -270,24 +547,4 @@ func maskAgentSandboxPath(path string) error {
 		return unix.Mount("tmpfs", resolved, "tmpfs", unix.MS_RDONLY|unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC, "mode=000,size=4k")
 	}
 	return unix.Mount("/dev/null", resolved, "", unix.MS_BIND, "")
-}
-
-// agentSandboxGroups are the log reader groups the node has.
-func agentSandboxGroups() []int {
-	var groups []int
-	for _, name := range agentSandboxLogGroups {
-		group, err := user.LookupGroup(name)
-		if err != nil {
-			continue
-		}
-		gid, err := strconv.Atoi(group.Gid)
-		if err != nil || gid == 0 {
-			continue
-		}
-		groups = append(groups, gid)
-	}
-	if groups == nil {
-		groups = []int{}
-	}
-	return groups
 }

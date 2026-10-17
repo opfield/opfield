@@ -2496,6 +2496,7 @@ export class NotificationEvaluatorService {
     };
 
     // Record notification time for cooldown, in the same transaction as its deliveries.
+    const firedAt = new Date(now);
     await this.commitWithDeliveries(rule, event, async (tx) => {
       const [state] = await tx
         .insert(notificationAlertStates)
@@ -2507,7 +2508,10 @@ export class NotificationEvaluatorService {
           status: 'resolved',
           severity: rule.severity,
           context: details,
-          resolvedAt: new Date(),
+          // One instant: an event alert has no duration. firedAt from the database clock and resolvedAt from Opfield's
+          // made it resolve before it fired (rc.3 GO-2).
+          firedAt,
+          resolvedAt: firedAt,
         })
         .returning({ id: notificationAlertStates.id });
       return state?.id ?? null;

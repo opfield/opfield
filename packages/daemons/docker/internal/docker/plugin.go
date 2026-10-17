@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	sharedexec "github.com/opfield/opfield/daemon-shared/exec"
 	"github.com/opfield/opfield/daemon-shared/handover"
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
 	"github.com/opfield/opfield/daemon-shared/listenerkeep"
@@ -102,6 +103,11 @@ type DockerPlugin struct {
 	healthRefresh chan struct{}
 	// externalChanges keeps the container changes made outside Opfield (external_changes.go).
 	externalChanges *externalChangeLog
+	// containerSignals and containerEventsGeneration let the external change
+	// watcher tell an outside stop or kill from an exit nobody caused and
+	// from Docker stopping its own containers (external_changes.go).
+	containerSignals          containerSignals
+	containerEventsGeneration atomic.Uint64
 	// relayPenalties orders relays that failed a route's tunnel recently after the others.
 	relayPenalties relaybridge.RelayPenalties
 	// relayStability is since when each relay's transport has been up without a break: resumable streams return
@@ -197,6 +203,8 @@ func dockerTimeoutProvided(configJSON string) bool {
 
 // NewDockerPlugin creates a new DockerPlugin with the given configuration.
 func NewDockerPlugin(cfg *config.Config) *DockerPlugin {
+	// Agents' console commands must not reach the Docker socket this daemon is configured with either.
+	sharedexec.AddAgentSandboxMasks(cfg.Docker.Socket)
 	return &DockerPlugin{
 		cfg:                 cfg,
 		registrationChanged: make(chan struct{}, 1),

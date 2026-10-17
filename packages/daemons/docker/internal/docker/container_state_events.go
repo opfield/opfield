@@ -25,9 +25,12 @@ const (
 
 // containerStateActions are the events that change a container's state or whether it exists. An OOM kill is
 // followed by its die.
+// Stop, kill and update are watched for changes made outside Opfield
+// (external_changes.go).
 var containerStateActions = []events.Action{
 	events.ActionCreate, events.ActionStart, events.ActionDie, events.ActionDestroy,
 	events.ActionPause, events.ActionUnPause, events.ActionRename,
+	events.ActionStop, events.ActionKill, events.ActionUpdate,
 }
 
 // HealthRefreshRequested implements lifecycle.HealthRefreshPlugin.
@@ -58,6 +61,8 @@ func (p *DockerPlugin) followContainerStates(ctx context.Context, collector *Sta
 func (p *DockerPlugin) watchContainerStates(ctx context.Context, collector *StatsCollector) {
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// Stops and kills seen before the stream broke may be Docker's own shutdown.
+	defer p.containerEventsGeneration.Add(1)
 	filters := mobyclient.Filters{}.Add("type", string(events.ContainerEventType))
 	for _, action := range containerStateActions {
 		filters = filters.Add("event", string(action))
