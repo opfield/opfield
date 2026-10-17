@@ -178,6 +178,25 @@ function alertStateLabels(
     message: message ? String(message).slice(0, 4000) : null,
   };
 }
+/**
+ * The message of a rule without its own template. A threshold rule says what crossed the limit
+ * ("cpu 41.5 >= 0 for 60 s"), not only the rule and resource names.
+ */
+export function defaultFiredMessage(
+  rule: { name: string; type?: string },
+  resourceName: string,
+  details: { metric?: { name?: string; value?: number; threshold?: number; operator?: string; duration?: number } }
+): string {
+  const metric = details.metric;
+  if (rule.type !== 'threshold' || !metric?.name || typeof metric.value !== 'number') {
+    return `${rule.name}: ${resourceName}`;
+  }
+  const value = Number.isInteger(metric.value) ? String(metric.value) : metric.value.toFixed(1);
+  const limit = metric.operator && metric.threshold !== undefined ? ` ${metric.operator} ${metric.threshold}` : '';
+  const sustained = metric.duration ? ` for ${metric.duration} s` : '';
+  return `${rule.name}: ${resourceName}: ${metric.name} is ${value} (rule${limit}${sustained})`;
+}
+
 type ResourceKind =
   | 'node'
   | 'proxy'
@@ -601,7 +620,11 @@ export class NotificationEvaluatorService {
   }
 
   /** Opfield's own metrics from the diagnostics sampler, once a minute; the resource is Opfield itself. */
-  async evaluateOpfieldSnapshot(metrics: Record<string, number | null>): Promise<void> {
+  async evaluateOpfieldSnapshot(
+    metrics: Record<string, number | null>,
+    /** Per metric: what the reading was taken from ({{details.*}}), e.g. host_disk: { disk }. */
+    metricDetails?: Record<string, Record<string, unknown>>
+  ): Promise<void> {
     const rules = await this.getThresholdRules();
     for (const rule of rules) {
       if (rule.category !== 'opfield') continue;
@@ -617,10 +640,11 @@ export class NotificationEvaluatorService {
         Math.max(rule.durationSeconds ?? 0, rule.resolveAfterSeconds ?? 0) * 1000,
         OPFIELD_SAMPLING_MS
       );
+      const extra: TemplateDetails = metricDetails?.[rule.metric] ? { details: metricDetails[rule.metric] } : {};
       if (breached) {
-        await this.handleThresholdBreach(rule, OPFIELD_RESOURCE_ID, value, OPFIELD_RESOURCE_ID, 'Opfield');
+        await this.handleThresholdBreach(rule, OPFIELD_RESOURCE_ID, value, OPFIELD_RESOURCE_ID, 'Opfield', extra);
       } else {
-        await this.handleThresholdClear(rule, OPFIELD_RESOURCE_ID, value, OPFIELD_RESOURCE_ID, 'Opfield');
+        await this.handleThresholdClear(rule, OPFIELD_RESOURCE_ID, value, OPFIELD_RESOURCE_ID, 'Opfield', extra);
       }
     }
   }
@@ -1467,10 +1491,6 @@ export class NotificationEvaluatorService {
     }
 
     const existingState = await this.getActiveAlertState(rule.id, rule.category, compositeResourceId);
-    if (existingState) {
-      logger.debug('Alert already firing', { ruleId: rule.id, stateId: existingState.id });
-      return;
-    }
 
     const nodeName =
       rule.category === 'node' || rule.category === 'container'
@@ -1480,8 +1500,7 @@ export class NotificationEvaluatorService {
       rule.category === 'node' && extraDetails.node?.name
         ? extraDetails.node.name
         : this.getThresholdResourceName(rule, nodeId, rawResourceId);
-
-    await this.fireAlert(rule, rule.category, compositeResourceId, resourceName, {
+    const details: TemplateDetails = {
       ...extraDetails,
       resourceId: await this.getThresholdResourceId(rule, nodeId, rawResourceId),
       metric: {
@@ -1495,7 +1514,38 @@ export class NotificationEvaluatorService {
         id: rule.category === 'node' || rule.category === 'container' ? nodeId : null,
         name: nodeName ?? null,
       },
-    });
+    };
+
+    if (existingState) {
+      // Already notified once. The open alert follows the reading ("86% full" while the disk reached 96 % read
+      // stale), without notifying again.
+      await this.refreshFiringMessage(existingState, rule, compositeResourceId, resourceName, details);
+      return;
+    }
+
+    await this.fireAlert(rule, rule.category, compositeResourceId, resourceName, details);
+  }
+
+  /** Rewrites the message and metric of a firing threshold alert when the reading changed what it says. */
+  private async refreshFiringMessage(
+    state: { id: string; message?: string | null; context?: unknown },
+    rule: any,
+    resourceKey: string,
+    resourceName: string,
+    details: TemplateDetails
+  ): Promise<void> {
+    details = await this.withNodeName(details);
+    const event = this.buildFiredEvent(rule, rule.category, resourceKey, resourceName, details);
+    const labels = alertStateLabels(resourceName, event.message);
+    if (labels.message === (state.message ?? null)) return;
+    const previous = (state.context && typeof state.context === 'object' ? state.context : {}) as Record<string, unknown>;
+    await this.db
+      .update(notificationAlertStates)
+      .set({
+        message: labels.message,
+        context: { ...previous, metric: details.metric, ...(details.details ? { details: details.details } : {}) },
+      })
+      .where(and(eq(notificationAlertStates.id, state.id), eq(notificationAlertStates.status, 'firing')));
   }
 
   private async handleThresholdClear(
@@ -2403,7 +2453,7 @@ export class NotificationEvaluatorService {
     });
     const message = rule.messageTemplate
       ? renderTemplate(rule.messageTemplate, messageContext)
-      : `${rule.name}: ${resourceName}`;
+      : defaultFiredMessage(rule, resourceName, details);
     return {
       type: 'alert.fired',
       title: rule.name,

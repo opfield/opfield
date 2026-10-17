@@ -481,6 +481,7 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{node.id}}', description: 'Docker node ID' },
       { name: '{{node.name}}', description: 'Node hosting this container' },
       { name: '{{details.change}}', description: 'removed, created or renamed (changed_outside)' },
+      { name: '{{details.effect}}', description: 'What the change means for Opfield (changed_outside)' },
       { name: '{{metric.name}}', description: 'Metric name (cpu, memory, log_size, restarts_per_hour)' },
       { name: '{{metric.value}}', description: 'Current metric value' },
       { name: '{{metric.threshold}}', description: 'Configured threshold' },
@@ -778,6 +779,10 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{details.job}}', description: 'Background job name (job.failing)' },
       { name: '{{details.failures_in_a_row}}', description: 'Failed runs in a row (job.failing)' },
       { name: '{{details.last_success_at}}', description: 'Last successful housekeeping run (housekeeping.stale)' },
+      {
+        name: '{{details.disk}}',
+        description: 'The disk that is full and what it holds, such as "postgres: /var/lib/postgresql/data" (host_disk)',
+      },
       { name: '{{details.targets}}', description: 'Hosts Opfield could not reach (outbound.unavailable)' },
     ],
   },

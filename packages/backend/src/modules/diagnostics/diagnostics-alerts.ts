@@ -17,7 +17,7 @@ export function createOpfieldAlertObserver(
 ): (observation: DiagnosticsObservation) => Promise<void> {
   let composeServices = new Set<string>();
 
-  return async ({ sample, postgres, redis, containers, jobs }) => {
+  return async ({ sample, postgres, redis, containers, jobs, hostDisk }) => {
     // First: the Postgres outage path works without the database, everything below needs it.
     await evaluator.observeOpfieldPostgres(postgres.status === 'ok', postgres.error);
     if (postgres.status !== 'ok') return;
@@ -33,7 +33,7 @@ export function createOpfieldAlertObserver(
       postgres_latency: postgres.latencyMs,
       postgres_pool_waiting: postgres.pool?.waiting ?? null,
       redis_latency: redis.latencyMs,
-    });
+    }, hostDisk ? { host_disk: { disk: hostDisk } } : undefined);
 
     await evaluator.observeStatefulEvent(
       'opfield',

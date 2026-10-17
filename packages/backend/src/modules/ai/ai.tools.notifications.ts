@@ -57,7 +57,11 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         category: { type: 'string', enum: ALERT_CATEGORY_IDS, description: 'Only rules of this category' },
         severity: { type: 'string', enum: ['info', 'warning', 'critical'] },
         resourceType: { type: 'string', description: 'Resource type of the alert, e.g. node, proxy, container' },
-        resourceId: { type: 'string', description: 'Resource id (or container name) of the alert' },
+        resourceId: {
+          type: 'string',
+          description:
+            "Resource of the alert: its id (a node id also finds that node's disk and container alerts, keyed <nodeId>:<mount or name>), the full alert key, or the resource's name (a container name)",
+        },
         since: { type: 'string', description: 'ISO date-time: alerts fired at or after it' },
         until: { type: 'string', description: 'ISO date-time: alerts fired at or before it' },
         search: { type: 'string', description: 'Search rule name, resource name or id, and message' },

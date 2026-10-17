@@ -65,6 +65,27 @@ function describeChange(change: DockerExternalChange): string {
 }
 
 /**
+ * What the change means for Opfield, for the alert ({{details.effect}}): a container created by hand under a managed
+ * name had no permissions or source to lose, unlike a managed container that was renamed or removed.
+ */
+export function describeEffect(change: Pick<DockerExternalChange, 'action'>, kind: string): string {
+  const source = kind === 'Git-source container';
+  if (change.action === 'created') {
+    return source
+      ? 'Opfield does not manage the new container, and the Git source that holds this name does not build into it.'
+      : 'Opfield does not manage the new container: it has no Opfield permissions.';
+  }
+  if (change.action === 'renamed') {
+    return source
+      ? 'Opfield no longer tracks it as before: its permissions were reset and its Git source builds refuse it.'
+      : 'Opfield no longer tracks it as before: its permissions were reset.';
+  }
+  return source
+    ? 'Its permissions went with it; its Git source still holds the name until it is removed.'
+    : 'Its permissions went with it.';
+}
+
+/**
  * Reads the container changes a Docker daemon saw outside Opfield (docker rm/run/rename on the node's console, a
  * script, another tool) and records the ones that concern a managed container: an audit entry with the container
  * and node, and the `changed_outside` event of the Container alert category. The container diff of a health report
@@ -236,6 +257,7 @@ export class DockerExternalChangeWatcher {
       name: change.oldName && change.action === 'renamed' ? change.oldName : change.name,
       change: change.action,
       managedAs: kind,
+      effect: describeEffect(change, kind),
     });
     logger.warn('Managed container changed outside Opfield', {
       nodeId,
