@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import OpenAI from 'openai';
 import { AppError } from '@/middleware/error-handler.js';
+import { isBudgetExhausted } from '@/modules/inference/accounting/inference-admission-denial.js';
 import type { InferenceBudgetPolicyService } from '@/modules/inference/accounting/inference-budget-policy.js';
 import type { InferenceRuntimeService } from '@/modules/inference/inference-runtime.service.js';
 import type { InferenceModelService } from '@/modules/inference/models/inference-model.service.js';
@@ -221,6 +222,10 @@ export class AIProviderRuntimeService {
     let selected = models.find((model) => model.id === (requestedModel || config.opfieldInferenceModel));
     if (!selected && !requestedModel && config.opfieldInferenceAllowUserModelSelection) selected = models[0];
     if (!selected) {
+      // A model held back by the user's budget answers with that refusal (AI_BUDGET_EXCEEDED, when it recovers), the
+      // same one the data plane gives; anything else stays unavailable.
+      const wanted = requestedModel || config.opfieldInferenceModel;
+      if (wanted) await this.inferenceModels.resolveForUser(user, wanted).catch(rethrowBudgetRefusal);
       throw new AppError(404, 'AI_MODEL_UNAVAILABLE', 'The selected Opfield Inference model is unavailable');
     }
     const requestedReasoningEffort = options.requestedReasoningEffort?.trim();
@@ -337,6 +342,11 @@ export class AIProviderRuntimeService {
 
     return parts.length > 0 ? parts : options.content;
   }
+}
+
+/** Passes on a budget refusal; any other failure to resolve the model is left to the caller's own answer. */
+function rethrowBudgetRefusal(error: unknown): void {
+  if (isBudgetExhausted(error)) throw error;
 }
 
 function minimumReasoningEffort(efforts: string[]): string | null {

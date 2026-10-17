@@ -17,7 +17,7 @@ import {
   hasSpendableSubscriptionBudget,
   subscriptionBudgetRecovery,
 } from '../accounting/inference-accounting.helpers.js';
-import { subscriptionBudgetExhausted } from '../accounting/inference-admission-denial.js';
+import { apiBudgetExhausted, subscriptionBudgetExhausted } from '../accounting/inference-admission-denial.js';
 import type { InferenceBudgetPolicyService } from '../accounting/inference-budget-policy.js';
 import type { InferenceCoreBridgeService } from '../core/inference-core-bridge.service.js';
 import {
@@ -461,6 +461,11 @@ export class InferenceModelService {
     }
     const availability = await this.modelAvailabilityForUser(user.id, [model.id]);
     if (!availability.modelIds.length) {
+      // Held back only because API usage is off (a monthly API budget of 0): say so, with when the month recovers.
+      if (availability.apiBudgetHeldModelIds.includes(model.id)) {
+        const limits = await this.budgetPolicies.effective(user.id);
+        throw apiBudgetExhausted((await this.budgetPolicies.usage(user.id, limits)).recoveryAt.apiMonthly);
+      }
       throw new InferenceProtocolError(404, 'model_not_found', `Model "${publicId}" is not available`);
     }
     const full = await this.serializeModel(model);
@@ -479,10 +484,7 @@ export class InferenceModelService {
     const remaining = sourcesWithinBudgets(enabled, spent);
     if (remaining) return { model, sources: remaining };
     if (spent.api && enabled.some((source) => source.sourceType === 'api' && !source.priceMissing)) {
-      throw new InferenceProtocolError(429, 'api_budget_exhausted', 'Inference budget exhausted', {
-        recoveryAt: usage.recoveryAt.apiMonthly.toISOString(),
-        dimension: 'monthly',
-      });
+      throw apiBudgetExhausted(usage.recoveryAt.apiMonthly);
     }
     const recovery = subscriptionBudgetRecovery(limits, usage);
     throw subscriptionBudgetExhausted(recovery?.recoveryAt ?? null, recovery?.dimension ?? null);
@@ -491,10 +493,10 @@ export class InferenceModelService {
   private async modelAvailabilityForUser(
     userId: string,
     modelIds: string[]
-  ): Promise<{ modelIds: string[]; apiUsageEnabled: boolean }> {
-    if (!modelIds.length) return { modelIds: [], apiUsageEnabled: false };
+  ): Promise<{ modelIds: string[]; apiUsageEnabled: boolean; apiBudgetHeldModelIds: string[] }> {
+    if (!modelIds.length) return { modelIds: [], apiUsageEnabled: false, apiBudgetHeldModelIds: [] };
     const limits = await this.budgetPolicies.effective(userId);
-    if (!limits.enabled) return { modelIds: [], apiUsageEnabled: false };
+    if (!limits.enabled) return { modelIds: [], apiUsageEnabled: false, apiBudgetHeldModelIds: [] };
     const availableSources = await this.db
       .select({ modelId: inferenceModelSources.modelId, sourceType: inferenceModelSources.sourceType })
       .from(inferenceModelSources)
@@ -511,16 +513,18 @@ export class InferenceModelService {
       );
     const availableModelIds = [...new Set(availableSources.map((source) => source.modelId))];
     if (limits.apiMonthlyMicrodollars > 0) {
-      return { modelIds: availableModelIds, apiUsageEnabled: true };
+      return { modelIds: availableModelIds, apiUsageEnabled: true, apiBudgetHeldModelIds: [] };
     }
 
+    const listed = filterModelIdsByApiBudget(
+      availableModelIds,
+      availableSources.filter((source) => source.sourceType === 'subscription').map((source) => source.modelId),
+      limits.apiMonthlyMicrodollars
+    );
     return {
-      modelIds: filterModelIdsByApiBudget(
-        availableModelIds,
-        availableSources.filter((source) => source.sourceType === 'subscription').map((source) => source.modelId),
-        limits.apiMonthlyMicrodollars
-      ),
+      modelIds: listed,
       apiUsageEnabled: false,
+      apiBudgetHeldModelIds: availableModelIds.filter((modelId) => !listed.includes(modelId)),
     };
   }
 

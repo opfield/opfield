@@ -40,6 +40,14 @@ export function subscriptionBudgetExhausted(recoveryAt: Date | null, dimension: 
   });
 }
 
+/** The monthly API budget is spent, or API usage is off (a budget of 0); it recovers with the next billing month. */
+export function apiBudgetExhausted(recoveryAt: Date): InferenceProtocolError {
+  return new InferenceProtocolError(429, 'api_budget_exhausted', 'Inference budget exhausted', {
+    recoveryAt: recoveryAt.toISOString(),
+    dimension: 'monthly',
+  });
+}
+
 export function modelDisabledDenial(): InferenceProtocolError {
   return new InferenceProtocolError(403, 'model_disabled', 'The model is currently unavailable');
 }
