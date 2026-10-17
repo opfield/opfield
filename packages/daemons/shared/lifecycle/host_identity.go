@@ -33,7 +33,7 @@ func loadOrCreateHostIdentity(path string) (string, error) {
 	err := hostrename.WithLock(hostrename.StateRoot, func() error {
 		for _, candidate := range []string{
 			hostrename.StateRoot.New + "/" + hostrename.HostIdentityName,
-			// legacy-name: /var/lib/gateway/host-identity until the shared state directory moved — remove once every node reports none
+			// legacy-name: legacycompat.StateRoot/host-identity until the shared state directory moved — remove once every node reports none
 			hostrename.StateRoot.Old + "/" + hostrename.HostIdentityName,
 		} {
 			found, ok, err := readHostIdentity(candidate)

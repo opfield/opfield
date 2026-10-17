@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import forge from 'node-forge';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { type ConsoleTlsDeps, ConsoleTlsService, consoleHttpResponse } from './console-tls.service.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -32,7 +33,11 @@ let renewed: { cert: string; key: string };
 let otherDomain: { cert: string; key: string };
 
 beforeAll(() => {
-  fallback = certificate('gateway-web', new Date(start.getTime() - DAY), new Date(start.getTime() + 365 * DAY));
+  fallback = certificate(
+    `${LEGACY_INSTALL_DIR_NAME}-web`,
+    new Date(start.getTime() - DAY),
+    new Date(start.getTime() + 365 * DAY)
+  );
   issued = certificate(DOMAIN, start, new Date(start.getTime() + 90 * DAY));
   renewed = certificate(DOMAIN, new Date(start.getTime() + 60 * DAY), new Date(start.getTime() + 150 * DAY));
   otherDomain = certificate('old.opfield.test', start, new Date(start.getTime() + 90 * DAY));

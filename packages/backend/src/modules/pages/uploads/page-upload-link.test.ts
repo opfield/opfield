@@ -26,7 +26,7 @@ function registerServices(maxBytes = 1024) {
     }),
   } as unknown as CacheService);
   container.registerInstance(GeneralSettingsService, {
-    getPublicUrl: vi.fn().mockResolvedValue('https://gateway.example'),
+    getPublicUrl: vi.fn().mockResolvedValue('https://opfield.example'),
     getConfig: vi.fn().mockResolvedValue({ fileUploadMaxBytes: maxBytes }),
   } as unknown as GeneralSettingsService);
   container.registerInstance(PageProjectService, {
@@ -65,7 +65,7 @@ function body(bytes: Buffer): ReadableStream<Uint8Array> {
 
 async function linkToken(args: Record<string, unknown> = {}) {
   const link = await createPageUploadLink(user, { projectId: PROJECT_ID, tag: 'demo', ...args });
-  expect(link.uploadUrl).toMatch(/^https:\/\/gateway\.example\/api\/pages-upload\/opfpu_/);
+  expect(link.uploadUrl).toMatch(/^https:\/\/opfield\.example\/api\/pages-upload\/opfpu_/);
   expect(link.commands.folder).toContain(`tar czf - -C dist . | curl`);
   return link.uploadUrl.split('/').at(-1) as string;
 }

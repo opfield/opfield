@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net/http"
@@ -201,7 +202,7 @@ func TestStorageMemberLeftWithoutItsRecordKeepsItsImage(t *testing.T) {
 	orphanImage := filepath.Join(root, "storage", "images", orphan+"-0.img")
 	writeFile(t, orphanImage)
 	docker.containers = append(docker.containers, fakeLabelledContainer{
-		id: "s1", name: "gateway-storage-" + kept + "-0", running: true,
+		id: "s1", name: legacycompat.StorageLinkNetworkPrefix + kept + "-0", running: true,
 		labels: map[string]string{managedStorageLabel: kept, managedStorageMemberLabel: "0"},
 	})
 
@@ -309,14 +310,14 @@ func TestStorageRemovalRemovesWhatIsLeftWithoutItsRecord(t *testing.T) {
 			loops.attach("/dev/loop4", "7:4", image)
 			loops.mount("7:4", mount)
 			docker.containers = append(docker.containers, fakeLabelledContainer{
-				id: "s1", name: "gateway-storage-" + id + "-0",
+				id: "s1", name: legacycompat.StorageLinkNetworkPrefix + id + "-0",
 				labels: map[string]string{managedStorageLabel: id, managedStorageMemberLabel: "0"},
 			})
 
 			if _, err := m.handle(context.Background(), tc.action, id, ""); err != nil {
 				t.Fatal(err)
 			}
-			for _, want := range []string{"remove s1", "remove network gateway-storage-" + id, "detach /dev/loop4"} {
+			for _, want := range []string{"remove s1", "remove network " + legacycompat.StorageLinkNetworkPrefix + id, "detach /dev/loop4"} {
 				if !slices.Contains(loops.calls, want) {
 					t.Fatalf("calls = %v, want %q", loops.calls, want)
 				}

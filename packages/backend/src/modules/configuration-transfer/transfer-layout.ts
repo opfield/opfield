@@ -8,6 +8,16 @@ import {
   registryStorageEnvValues,
   registryStorageFromContainerEnv,
 } from '@/foundation/registry-storage.js';
+import {
+  LEGACY_APP_DATA_DIR,
+  LEGACY_REGISTRY_AUTH_DIR,
+  LEGACY_RELAY_IDENTITY_DIR,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+  type LEGACY_VOLUME_RELAY_STATE,
+} from '@/lib/legacy-compat.js';
 
 /**
  * What a configuration export carries and where each piece lives on a Compose installation. Shared
@@ -21,18 +31,19 @@ export const CONFIGURATION_EXPORT_FORMAT = 1;
  * these keys; composeVolumeKey maps them to the Opfield layout).
  */
 export type TransferVolumeKey =
-  | 'gateway_data'
-  | 'gateway_relay_identity'
-  | 'gateway_registry_auth'
-  | 'gateway_registry_data'
+  | typeof LEGACY_VOLUME_APP_DATA
+  | typeof LEGACY_VOLUME_RELAY_IDENTITY
+  | typeof LEGACY_VOLUME_REGISTRY_AUTH
+  | typeof LEGACY_VOLUME_REGISTRY_DATA
   | 'clickhouse_data'
   /** The local relay's state: never exported; a restore empties it so the relay pins the restored policy key. */
-  | 'gateway_relay_state';
+  | typeof LEGACY_VOLUME_RELAY_STATE;
 
 export interface TransferVolumeSpec {
   key: TransferVolumeKey;
   /** Path the volume is mounted at in the app container, when it is. */
-  appMount?: string;
+  /** Where the app mounts the volume: the Opfield directory, or the one of installations made before 2.12.3. */
+  appMounts?: readonly string[];
   /** Included only when the export asks for it. */
   optional?: 'registry' | 'logs';
   description: string;
@@ -40,22 +51,22 @@ export interface TransferVolumeSpec {
 
 export const TRANSFER_VOLUMES: readonly TransferVolumeSpec[] = [
   {
-    key: 'gateway_data',
-    appMount: '/var/lib/gateway',
+    key: LEGACY_VOLUME_APP_DATA,
+    appMounts: ['/var/lib/opfield', LEGACY_APP_DATA_DIR],
     description: 'Pages artifacts, avatars, AI artifacts, listener certificates and other Opfield files',
   },
   {
-    key: 'gateway_relay_identity',
-    appMount: '/var/lib/gateway-relay',
+    key: LEGACY_VOLUME_RELAY_IDENTITY,
+    appMounts: ['/var/lib/opfield-relay', LEGACY_RELAY_IDENTITY_DIR],
     description: 'Identity of the local relay',
   },
   {
-    key: 'gateway_registry_auth',
-    appMount: '/var/lib/gateway-registry-auth',
+    key: LEGACY_VOLUME_REGISTRY_AUTH,
+    appMounts: ['/var/lib/opfield-registry-auth', LEGACY_REGISTRY_AUTH_DIR],
     description: 'Token signing material of the internal registry',
   },
   {
-    key: 'gateway_registry_data',
+    key: LEGACY_VOLUME_REGISTRY_DATA,
     optional: 'registry',
     description: 'Images in the internal registry',
   },
@@ -66,7 +77,7 @@ export const TRANSFER_VOLUMES: readonly TransferVolumeSpec[] = [
   },
 ];
 
-/** Directory of gateway_data where the setup wizard keeps an uploaded export; a restore keeps it until the end. */
+/** Directory of the app data volume where the setup wizard keeps an uploaded export; a restore keeps it until the end. */
 export const RESTORE_STAGING_DIR = 'configuration-restore';
 
 /**
@@ -149,7 +160,7 @@ export const DATABASE_PART = 'database.tar';
 export const DATABASE_DUMP_FILE = 'opfield-configuration-export.dump';
 /**
  * Part of the commercial core. The restore takes part names and roots from the manifest, so exports of earlier releases
- * (`host/gateway-commercial.tar`, `volume/gateway_data.tar`, ...) restore as they are.
+ * (`host/LEGACY_COMMERCIAL_MANIFEST_KIND.tar`, `volume/LEGACY_VOLUME_APP_DATA.tar`, ...) restore as they are.
  */
 export const COMMERCIAL_PART = 'host/opfield-commercial.tar';
 

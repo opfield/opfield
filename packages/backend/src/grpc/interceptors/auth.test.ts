@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as grpc from '@grpc/grpc-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LEGACY_RELAY_METADATA_PREFIX } from '@/lib/legacy-compat.js';
 import {
   configureRelayForwardedIdentityTrust,
   extractDaemonCertificateIdentity,
@@ -126,9 +127,9 @@ describe('relay-forwarded daemon identity', () => {
     expect(
       extractDaemonCertificateIdentity(
         forwardedCall(raw, {
-          'x-wiolett-relay-node-id': nodeId,
-          'x-wiolett-relay-cert-serial': 'AA:01',
-          'x-wiolett-relay-cert-sha256': `sha256:${'ab'.repeat(32)}`,
+          [`${LEGACY_RELAY_METADATA_PREFIX}node-id`]: nodeId,
+          [`${LEGACY_RELAY_METADATA_PREFIX}cert-serial`]: 'AA:01',
+          [`${LEGACY_RELAY_METADATA_PREFIX}cert-sha256`]: `sha256:${'ab'.repeat(32)}`,
           'x-opfield-relay-node-id': forged,
           'x-opfield-relay-cert-serial': 'FF',
           'x-opfield-relay-cert-sha256': `sha256:${'cd'.repeat(32)}`,
@@ -142,7 +143,7 @@ describe('relay-forwarded daemon identity', () => {
     expect(
       extractDaemonCertificateIdentity(
         forwardedCall(raw, {
-          'x-wiolett-relay-node-id': nodeId,
+          [`${LEGACY_RELAY_METADATA_PREFIX}node-id`]: nodeId,
           'x-opfield-relay-cert-serial': 'AA:01',
           'x-opfield-relay-cert-sha256': `sha256:${'ab'.repeat(32)}`,
         })

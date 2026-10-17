@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { relayEndpoints, relayRoutes } from '@/db/schema/index.js';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 import { RelayGrantIssuerService } from './relay-grant-issuer.service.js';
 import { LOCAL_RELAY_DRAIN_CAPABILITY } from './relay-local-takeover.js';
 import {
@@ -343,7 +344,7 @@ function issuer(answers: Rows[], deadline: Date | null = null) {
   const service = new RelayGrantIssuerService(database(answers) as never, {} as never, {} as never) as any;
   service.setResumeSecretSource(async () => SECRET);
   service.requireNodeIdentity = vi.fn().mockResolvedValue({ certificateFingerprint: 'sha256:node' });
-  service.requireState = vi.fn().mockResolvedValue({ revision: 20, gatewayInstanceId: 'gateway' });
+  service.requireState = vi.fn().mockResolvedValue({ revision: 20, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` });
   service.getPoolProjection = vi
     .fn()
     .mockResolvedValue(new Map([['endpoint-1', [relay('relay-a'), relay('relay-draining', 'draining', deadline)]]]));
@@ -413,7 +414,12 @@ describe('RelayGrantIssuerService RSv1 fields', () => {
 
   it("gives Opfield's own source its route key", async () => {
     const service = issuer([
-      { table: relayRoutes, projected: false, filtered: true, rows: [{ ...route, sourceKind: 'gateway' }] },
+      {
+        table: relayRoutes,
+        projected: false,
+        filtered: true,
+        rows: [{ ...route, sourceKind: LEGACY_RELAY_SOURCE_KIND }],
+      },
       { table: relayEndpoints, projected: false, filtered: true, rows: [endpoint] },
     ]);
     const assignment = await service.issueOpfieldConnectAssignment('route-1', 'sha256:app');
@@ -468,7 +474,7 @@ describe("Opfield's own streams", () => {
       'local-relay-id'
     );
     expect(failedMoves).toMatchObject({ migrationsOkTotal: 0, migrationsFailedTotal: 8, cutTotal: 4 });
-    expect(relaySessionSplit([{ nodeId: 'gateway', report }], 'local-relay-id')).toEqual({
+    expect(relaySessionSplit([{ nodeId: `${LEGACY_INSTALL_DIR_NAME}`, report }], 'local-relay-id')).toEqual({
       resumable: 0,
       legacy: 1,
       reporting: true,

@@ -2,6 +2,10 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# legacy-compat: scripts/stage-installers.sh puts scripts/legacy-compat.sh in place of this line.
+# shellcheck source=legacy-compat.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"
+
 OPFIELD_ADDRESS=""
 TOKEN=""
 OPFIELD_CERT_SHA256=""
@@ -10,22 +14,34 @@ SERVICE_PORT="9443"
 SERVICE_PORT_GIVEN=0
 VERSION="latest"
 # Settings from the environment use OPFIELD_* names.
-# legacy-name: GATEWAY_* installer environment (each setting falls back to it) — remove once every node reports none
-OPFIELD_ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-${GATEWAY_ARTIFACT_BASE_URL:-}}"
-RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}}"
-ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
-RUN_USER="${OPFIELD_RELAY_RUN_USER:-${GATEWAY_RELAY_RUN_USER:-root}}"
+# legacy-name: pre-2.12.1 installer environment (each setting falls back to it) — remove once every node reports none
+# The value of installer variable <suffix> under its pre-2.12.1 name (LEGACY_ENV_PREFIX), empty when unset.
+legacy_installer_env() {
+  local name="${LEGACY_ENV_PREFIX}$1"
+  printf '%s' "${!name:-}"
+}
+OPFIELD_ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-$(legacy_installer_env ARTIFACT_BASE_URL)}"
+RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-$(legacy_installer_env RELEASES_API_URL)}"
+RELEASES_API_URL="${RELEASES_API_URL:-https://get.opfield.dev/opfield/releases}"
+ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/opfield}"
+RUN_USER="${OPFIELD_RELAY_RUN_USER:-$(legacy_installer_env RELAY_RUN_USER)}"
+RUN_USER="${RUN_USER:-root}"
 # Defaults to the run user's primary group (root for root).
-RUN_GROUP="${OPFIELD_RELAY_RUN_GROUP:-${GATEWAY_RELAY_RUN_GROUP:-}}"
+RUN_GROUP="${OPFIELD_RELAY_RUN_GROUP:-$(legacy_installer_env RELAY_RUN_GROUP)}"
 # The setup log: OPFIELD_RELAY_SETUP_LOG, or a new file under /tmp as the other installers keep. A dry run writes none.
-SETUP_LOG_PATH="${OPFIELD_RELAY_SETUP_LOG:-${GATEWAY_RELAY_SETUP_LOG:-}}"
+SETUP_LOG_PATH="${OPFIELD_RELAY_SETUP_LOG:-$(legacy_installer_env RELAY_SETUP_LOG)}"
 LOG_FILE=/dev/null
-MANUAL_LAUNCH_TIMEOUT_SECONDS="${OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS:-${GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS:-30}}"
+MANUAL_LAUNCH_TIMEOUT_SECONDS="${OPFIELD_MANUAL_LAUNCH_TIMEOUT_SECONDS:-$(legacy_installer_env MANUAL_LAUNCH_TIMEOUT_SECONDS)}"
+MANUAL_LAUNCH_TIMEOUT_SECONDS="${MANUAL_LAUNCH_TIMEOUT_SECONDS:-30}"
 MANUAL_FALLBACK_USED=0
-ENROLLMENT_WAIT_SECONDS="${OPFIELD_RELAY_ENROLLMENT_WAIT_SECONDS:-${GATEWAY_RELAY_ENROLLMENT_WAIT_SECONDS:-90}}"
-DISABLE_CONSOLE="${OPFIELD_NODE_DISABLE_CONSOLE:-${GATEWAY_NODE_DISABLE_CONSOLE:-0}}"
-DISABLE_FILES="${OPFIELD_NODE_DISABLE_FILES:-${GATEWAY_NODE_DISABLE_FILES:-0}}"
-PROTECTED="${OPFIELD_RELAY_PROTECTED:-${GATEWAY_RELAY_PROTECTED:-0}}"
+ENROLLMENT_WAIT_SECONDS="${OPFIELD_RELAY_ENROLLMENT_WAIT_SECONDS:-$(legacy_installer_env RELAY_ENROLLMENT_WAIT_SECONDS)}"
+ENROLLMENT_WAIT_SECONDS="${ENROLLMENT_WAIT_SECONDS:-90}"
+DISABLE_CONSOLE="${OPFIELD_NODE_DISABLE_CONSOLE:-$(legacy_installer_env NODE_DISABLE_CONSOLE)}"
+DISABLE_CONSOLE="${DISABLE_CONSOLE:-0}"
+DISABLE_FILES="${OPFIELD_NODE_DISABLE_FILES:-$(legacy_installer_env NODE_DISABLE_FILES)}"
+DISABLE_FILES="${DISABLE_FILES:-0}"
+PROTECTED="${OPFIELD_RELAY_PROTECTED:-$(legacy_installer_env RELAY_PROTECTED)}"
+PROTECTED="${PROTECTED:-0}"
 ALLOW_DATABASE_WITNESS=0
 DRY_RUN=0
 
@@ -35,11 +51,11 @@ RELAY_STATE_DIR=/var/lib/opfield-relay
 RELAY_PROGRAM_DIR=/usr/local/lib/opfield-relay
 RELAY_SERVICE=opfield-relay-supervisor
 RELAY_WORKER_BINARY="${RELAY_PROGRAM_DIR}/opfield-relay"
-# legacy-name: gateway-relay-* directories and service of relays installed before the Opfield names — remove once every node reports none
-LEGACY_RELAY_CONFIG_DIR=/etc/gateway-relay-supervisor
-LEGACY_RELAY_STATE_DIR=/var/lib/gateway-relay-supervisor
-LEGACY_RELAY_PROGRAM_DIR=/usr/local/lib/gateway-relay
-LEGACY_RELAY_SERVICE=gateway-relay-supervisor
+# legacy-name: legacy relay directories and service of relays installed before the Opfield names — remove once every node reports none
+LEGACY_RELAY_CONFIG_DIR="/etc/${LEGACY_RELAY_SUPERVISOR}"
+LEGACY_RELAY_STATE_DIR="/var/lib/${LEGACY_RELAY_SUPERVISOR}"
+LEGACY_RELAY_PROGRAM_DIR="$LEGACY_RELAY_PROGRAM_PATH"
+LEGACY_RELAY_SERVICE="$LEGACY_RELAY_SUPERVISOR"
 # The oldest supervisor that runs under these names (its configuration has an opfield: section); older releases come with
 # the installer of their release.
 MIN_RELAY_VERSION="v2.12.1-rc.3"
@@ -283,8 +299,8 @@ seed_host_identity_copy() {
 # In non-root mode /usr/local/bin/<daemon> is a root-owned wrapper, not the binary: the binary belongs to the service
 # user, who replaces it on update, so root must never execute it. The wrapper switches a root caller to that user.
 DAEMON_WRAPPER_MARK="# opfield-daemon-wrapper: runs the service user's binary, never as root"
-# legacy-name: gateway-daemon-wrapper mark of wrappers written before the Opfield names — remove once every node reports none
-LEGACY_DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
+# legacy-name: the legacy wrapper mark of wrappers written before the Opfield names — remove once every node reports none
+LEGACY_DAEMON_WRAPPER_MARK="$LEGACY_DAEMON_WRAPPER_LINE"
 write_daemon_wrapper() {
   local command_path="$1" binary="$2" temporary
   temporary=$(mktemp "$(dirname "$command_path")/.opfield-daemon-wrapper.XXXXXX") || return 1
@@ -483,8 +499,8 @@ fail_supervisor_start() {
 # started counts.
 CONTROL_SESSION_SINCE="v2.11.1-rc.2"
 CONTROL_SESSION_FILE="${RELAY_STATE_DIR}/control-session.json"
-# legacy-name: gateway-session.json, the only record of supervisors before the Opfield names — remove once every node reports none
-LEGACY_CONTROL_SESSION_FILE="${RELAY_STATE_DIR}/gateway-session.json"
+# legacy-name: the legacy session file, the only record of supervisors before the Opfield names — remove once every node reports none
+LEGACY_CONTROL_SESSION_FILE="${RELAY_STATE_DIR}/${LEGACY_SESSION_FILE_NAME}"
 CONTROL_SESSION_STARTED=0
 
 forget_control_session() {
@@ -824,7 +840,7 @@ relay_config_advertised_address() {
   ' "$RELAY_CONFIG" | grep .
 }
 
-# legacy-name: the move of a relay installed before the Opfield names (gateway-relay-*) — remove once every node reports none
+# legacy-name: the move of a relay installed before the Opfield names — remove once every node reports none
 # A relay installed under the pre-Opfield names, or one its supervisor moved but whose old service or links remain.
 legacy_relay_install_present() {
   local path
@@ -866,7 +882,7 @@ retire_legacy_relay_program_dir() {
     return 0
   fi
   [[ -d "$LEGACY_RELAY_PROGRAM_DIR" ]] || return 0
-  rm -f "${LEGACY_RELAY_PROGRAM_DIR}/run-supervisor" "${LEGACY_RELAY_PROGRAM_DIR}/gateway-relay" \
+  rm -f "${LEGACY_RELAY_PROGRAM_DIR}/run-supervisor" "${LEGACY_RELAY_PROGRAM_DIR}/$(basename "$LEGACY_RELAY_BINARY")" \
     "${LEGACY_RELAY_PROGRAM_DIR}/bin/relay-supervisor"
   rmdir "${LEGACY_RELAY_PROGRAM_DIR}/bin" 2>/dev/null || true
   rmdir "$LEGACY_RELAY_PROGRAM_DIR" 2>/dev/null \
@@ -909,7 +925,7 @@ retire_legacy_relay_service() {
 # supervisor, which moves them itself without stopping the witnesses.
 migrate_legacy_relay_install() {
   legacy_relay_install_present || return 0
-  echo "Moving the relay from its pre-Opfield names (gateway-relay-*) to opfield-relay."
+  echo "Moving the relay from its pre-Opfield names to opfield-relay."
   if ! stop_relay_supervisor; then
     echo "Could not stop the relay supervisor to move it to its Opfield names; Relay installation stopped." >&2
     exit 1
@@ -931,9 +947,9 @@ while [[ $# -gt 0 ]]; do
     --opfield) OPFIELD_ADDRESS="$2"; shift 2 ;;
     --token) TOKEN="$2"; shift 2 ;;
     --opfield-cert-sha256) OPFIELD_CERT_SHA256="$2"; shift 2 ;;
-    # legacy-name: --gateway and --gateway-cert-sha256 in install commands of Opfield 2.12.0 — remove once every node reports none
-    --gateway) OPFIELD_ADDRESS="$2"; shift 2 ;;
-    --gateway-cert-sha256) OPFIELD_CERT_SHA256="$2"; shift 2 ;;
+    # legacy-name: the pre-2.12.1 address and fingerprint flags in install commands of Opfield 2.12.0 — remove once every node reports none
+    "$LEGACY_ADDRESS_FLAG") OPFIELD_ADDRESS="$2"; shift 2 ;;
+    "$LEGACY_CERT_FLAG") OPFIELD_CERT_SHA256="$2"; shift 2 ;;
     --advertise-address) ADVERTISE_ADDRESS="$2"; shift 2 ;;
     --service-port) SERVICE_PORT="$2"; SERVICE_PORT_GIVEN=1; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
@@ -950,9 +966,9 @@ done
 [[ -s "$RELAY_IDENTITY" && -f "$RELAY_CONFIG" ]] && RELAY_ENROLLED=1
 if [[ "$RELAY_ENROLLED" -eq 1 && -z "$TOKEN" ]]; then
   RERUN_WITHOUT_TOKEN=1
-  # legacy-name: gateway: section of configurations written before the Opfield names — remove once every node reports none
-  [[ -n "$OPFIELD_ADDRESS" ]] || OPFIELD_ADDRESS=$(relay_config_value opfield address || relay_config_value gateway address || true)
-  [[ -n "$OPFIELD_CERT_SHA256" ]] || OPFIELD_CERT_SHA256=$(relay_config_value opfield cert_sha256 || relay_config_value gateway cert_sha256 || true)
+  # legacy-name: the pre-Opfield section of configurations written before the Opfield names — remove once every node reports none
+  [[ -n "$OPFIELD_ADDRESS" ]] || OPFIELD_ADDRESS=$(relay_config_value opfield address || relay_config_value "$LEGACY_CONFIG_SECTION" address || true)
+  [[ -n "$OPFIELD_CERT_SHA256" ]] || OPFIELD_CERT_SHA256=$(relay_config_value opfield cert_sha256 || relay_config_value "$LEGACY_CONFIG_SECTION" cert_sha256 || true)
   [[ -n "$ADVERTISE_ADDRESS" ]] || ADVERTISE_ADDRESS=$(relay_config_advertised_address || true)
   [[ "$SERVICE_PORT_GIVEN" -eq 1 ]] || SERVICE_PORT=$(relay_config_value worker service_port || echo "$SERVICE_PORT")
   if [[ -z "$OPFIELD_ADDRESS" || -z "$OPFIELD_CERT_SHA256" || -z "$ADVERTISE_ADDRESS" ]]; then
@@ -1081,7 +1097,7 @@ fetch_verified() {
   local signature="${TEMP_DIR}/${name}.sig"
   local binary="${TEMP_DIR}/${name}" url
   curl -fsSL "${PACKAGE_BASE}/${name}.update.json" -o "$manifest"
-  [[ "$(jq -r '.schemaVersion' "$manifest")" == "1" && "$(jq -r '.keyId' "$manifest")" == "wiolett-update-v1" ]] || { echo "Untrusted manifest envelope for ${name}" >&2; exit 1; }
+  [[ "$(jq -r '.schemaVersion' "$manifest")" == "1" && "$(jq -r '.keyId' "$manifest")" == "$LEGACY_UPDATE_KEY_ID" ]] || { echo "Untrusted manifest envelope for ${name}" >&2; exit 1; }
   decode_base64url "$(jq -r '.payload' "$manifest")" >"$payload"
   decode_base64url "$(jq -r '.signature' "$manifest")" >"$signature"
   openssl pkeyutl -verify -pubin -inkey "${TEMP_DIR}/update-public-key.pem" -rawin -in "$payload" -sigfile "$signature" >/dev/null
@@ -1113,9 +1129,9 @@ if host_feature_disabled "$RELAY_CONFIG" files; then DISABLE_FILES=1; fi
 if relay_protected_setting "$RELAY_CONFIG" enabled; then PROTECTED=1; fi
 if relay_protected_setting "$RELAY_CONFIG" allow_database_witness; then ALLOW_DATABASE_WITNESS=1; fi
 # The host identity every daemon of the host shares, in the shared state directory under the name it has now: daemons
-# move /var/lib/gateway to /var/lib/opfield themselves. The supervisor treats the Opfield path below as that default.
-# legacy-name: /var/lib/gateway until a daemon of the host moved it — remove once every node reports none
-SHARED_HOST_IDENTITY="$(current_relay_dir /var/lib/opfield /var/lib/gateway)/host-identity"
+# move the legacy state root to /var/lib/opfield themselves. The supervisor treats the Opfield path below as that default.
+# legacy-name: the legacy state root until a daemon of the host moved it — remove once every node reports none
+SHARED_HOST_IDENTITY="$(current_relay_dir /var/lib/opfield "$LEGACY_STATE_ROOT")/host-identity"
 HOST_IDENTITY_PATH=/var/lib/opfield/host-identity
 if [[ "$RUN_USER" != "root" ]]; then
   HOST_IDENTITY_PATH="${RELAY_STATE_DIR}/host-identity"

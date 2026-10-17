@@ -63,7 +63,7 @@ type fakeRuntime struct {
 	answers   func(query string) (string, error)
 	keeper    []string
 	probeOK   map[string]bool
-	gateway   bool
+	opfield   bool
 	bridged   []string
 	bridge    func(connection net.Conn, alias string) error
 	started   int
@@ -74,7 +74,7 @@ type fakeRuntime struct {
 
 func newFakeRuntime(config memberha.Config) *fakeRuntime {
 	return &fakeRuntime{config: config, known: true, files: map[string][]byte{}, exists: map[string]bool{},
-		probeOK: map[string]bool{}, gateway: true}
+		probeOK: map[string]bool{}, opfield: true}
 }
 
 func (f *fakeRuntime) Container(context.Context) (memberha.ContainerState, int, error) {
@@ -226,7 +226,7 @@ func (f *fakeRuntime) Config() (memberha.Config, bool) {
 func (f *fakeRuntime) OpfieldConnected() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.gateway
+	return f.opfield
 }
 
 func (f *fakeRuntime) Sign(domain string, payload []byte) ([]byte, error) {

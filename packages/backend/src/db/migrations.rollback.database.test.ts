@@ -4,6 +4,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import * as schema from '@/db/schema/index.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import {
   canonicalizeScopes,
   isApiTokenScope,
@@ -18,7 +19,12 @@ import { disposableDatabase, migrateDatabase } from './migration-database.test-h
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 
 /** v2.10.1's scope catalog (ALL_SCOPES and RESOURCE_SCOPABLE), to replay what its startup does to a newer schema. */
-const v2101 = JSON.parse(readFileSync(new URL('./fixtures/v2.10.1-scope-catalog.json', import.meta.url), 'utf8')) as {
+const v2101 = JSON.parse(
+  readFileSync(new URL('./fixtures/v2.10.1-scope-catalog.json', import.meta.url), 'utf8').replaceAll(
+    '<legacy-product>',
+    LEGACY_INSTALL_DIR_NAME
+  )
+) as {
   allScopes: string[];
   resourceScopable: string[];
 };

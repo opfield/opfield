@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_CORE_RELEASE_LINE } from '@/lib/legacy-compat.js';
 import { chatCompletionUsage } from './inference-core-chat-usage.js';
 import { coreAdmitsNativeChat, edgeChatAdmissionRequired } from './inference-core-edge-chat.js';
 
@@ -6,7 +7,14 @@ const openRouterKey = { providerId: 'openrouter', authType: 'api_key' };
 
 describe('edge Chat admission', () => {
   it('admits at the edge only for cores before opfield.5', () => {
-    for (const version of ['2.60.0-opfield.4', '2.60.0-thesqlabs.6', '2.25.0-wiolett.27', '2.60.0', 'dev', null]) {
+    for (const version of [
+      '2.60.0-opfield.4',
+      '2.60.0-thesqlabs.6',
+      `2.25.0-${LEGACY_CORE_RELEASE_LINE}.27`,
+      '2.60.0',
+      'dev',
+      null,
+    ]) {
       expect(coreAdmitsNativeChat(version)).toBe(false);
       expect(edgeChatAdmissionRequired(openRouterKey, { nativeChatAdmission: coreAdmitsNativeChat(version) })).toBe(
         true

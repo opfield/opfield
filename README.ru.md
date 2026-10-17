@@ -26,7 +26,7 @@ AI Workspace превращает цель или готовый Scenario в п�
 - Ведёте прокси, Docker-, storage- и monitoring-ноды без входящих портов управления на них.
 - Даёте операторам интерфейс и API для рабочих задач вместо root-доступа к серверам.
 - Держите TLS, внутренний PKI, ACME-сертификаты, домены, статус-страницы, уведомления и журнал аудита в одном месте.
-- Управляете Docker-контейнерами, Compose-проектами, развёртываниями, архивами `.gwca`, логами, файлами, консолями, секретами и реестрами на всех нодах.
+- Управляете Docker-контейнерами, Compose-проектами, развёртываниями, архивами `.ofca`, логами, файлами, консолями, секретами и реестрами на всех нодах.
 - Автоматизируете работу через API-токены, OAuth, CI/CD-вебхуки и MCP-клиентов с теми же ограниченными правами.
 - Планируете многошаговое изменение в AI Workspace и выполняете его после явного подтверждения.
 
@@ -90,7 +90,7 @@ Installer запускает Opfield и выводит одноразовый к
 | Установить Opfield | [Installation guide](docs/installation.md) |
 | Добавить Ingress, Docker, Build Worker, Storage, Monitoring или Relay узлы | [Nodes and daemons](docs/nodes.md) |
 | Запустить Storage-узлы, storage connections и бэкапы баз данных | [Storage and backups](docs/storage-and-backups.md) |
-| Экспортировать или импортировать Docker-контейнеры со встроенным image или без него | [GWCA container archives](docs/docker-container-archives.md) |
+| Экспортировать или импортировать Docker-контейнеры со встроенным image или без него | [OFCA container archives](docs/docker-container-archives.md) |
 | Настроить tokens, OAuth, MCP, logging, updates и AI | [Operations guide](docs/operations.md) |
 | Настроить multi-provider inference proxy | [Inference proxy](docs/inference.md) |
 | Изучить security model | [Security model](docs/security.md) |

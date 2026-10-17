@@ -4,10 +4,7 @@
   var theme = "system";
   try {
     var stored = JSON.parse(
-      window.localStorage.getItem("opfield-ui") ||
-        // legacy-name: UI store key written before 2.12.1 — remove once 2.12.0 is no longer an update source
-        window.localStorage.getItem("gateway-ui") ||
-        "null"
+      window.localStorage.getItem("opfield-ui") || "null"
     );
     var value = stored && stored.state && stored.state.theme;
     if (value === "light" || value === "dark" || value === "system") theme = value;

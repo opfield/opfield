@@ -12,7 +12,7 @@ import { FOLDER_CREATION_SCOPES } from "@/types/scope-resource-restrictions";
 
 /**
  * Access lines: a readable view over ordinary scopes. A line is a role in a place ("Developer in
- * folder orders"), a Git level on repositories ("Use group square-labs/orders"), or the scopes no
+ * folder orders"), a Git level on repositories ("Use group example-labs/orders"), or the scopes no
  * line covers ("Custom scopes"). Nothing new is stored: lines build plain scopes with folder,
  * resource and Git qualifiers, and stored scopes parse back into lines.
  */

@@ -1,6 +1,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { nodes, settings } from '@/db/schema/index.js';
+import { LEGACY_HOST_MOVE_CAPABILITY } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { type GeneralSettingsService, normalizeHostPortTarget } from '@/modules/settings/general-settings.service.js';
@@ -8,7 +9,7 @@ import type { NodeRegistryService } from '@/services/node-registry.service.js';
 
 const logger = createChildLogger('OpfieldMove');
 const SETTINGS_KEY = 'configuration-transfer:next-address';
-export const OPFIELD_NEXT_ADDRESS_CAPABILITY = 'gateway_next_address_v1';
+export const OPFIELD_NEXT_ADDRESS_CAPABILITY = LEGACY_HOST_MOVE_CAPABILITY;
 const RESEND_INTERVAL_MS = 60_000;
 const COMMAND_TIMEOUT_MS = 15_000;
 

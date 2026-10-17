@@ -9,6 +9,7 @@ import {
   relayRoutes,
 } from '@/db/schema/index.js';
 import type { RelayPolicyRouteEntry } from '@/db/schema/relay.js';
+import { LEGACY_LOCK_RELAY_REMOTE_POLICY_REVISION } from '@/lib/legacy-compat.js';
 import {
   type BuiltPolicyRoute,
   type CurrentPolicyRoute,
@@ -28,7 +29,7 @@ import {
  * reconciliation updates an instance and then bumps relay_policy_state without this lock, so an
  * instance row lock taken after relay_policy_state would deadlock with it.
  */
-export const RELAY_POLICY_REVISION_LOCK = 'gateway-relay-remote-policy-revision';
+export const RELAY_POLICY_REVISION_LOCK = LEGACY_LOCK_RELAY_REMOTE_POLICY_REVISION;
 
 const HAS_UNACKNOWLEDGED_REMOVAL = sql`jsonb_path_exists(${relayInstancePolicyState.routes}, '$[*] ? (exists(@.removedAtRevision))')`;
 const HAS_STALE_ROUTE = sql`jsonb_path_exists(${relayInstancePolicyState.routes}, '$[*] ? (exists(@.staleAt))')`;

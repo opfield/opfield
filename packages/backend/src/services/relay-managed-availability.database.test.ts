@@ -5,6 +5,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
+import {
+  LEGACY_DATABASE_LINK_NETWORK_PREFIX,
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_MANAGED_DATABASE_OWNER_KIND,
+} from '@/lib/legacy-compat.js';
 import { relayLeasePolicyIds } from '@/modules/docker/availability/lease/lease-relay-gate.js';
 import {
   memberRouteOwnerId,
@@ -104,7 +109,7 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
           consumer,
           anchorId,
           JSON.stringify({
-            networkName: 'gateway-db-x',
+            networkName: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}x`,
             listenAddress: '172.30.0.1',
             listenPort: 5432,
             allowedSources: ['a'],
@@ -115,7 +120,7 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
     opfieldRouteId = (
       await q(
         `insert into relay_routes (owner_kind, owner_id, source_kind, source_id, source_certificate_sha256,
-           target_endpoint_id) values ('managed_database_gateway', $1, 'gateway', 'gw', 'sha256:app', $2) returning id`,
+           target_endpoint_id) values ('${LEGACY_MANAGED_DATABASE_OWNER_KIND}', $1, '${LEGACY_INSTALL_DIR_NAME}', 'gw', 'sha256:app', $2) returning id`,
         [databaseId, anchorId]
       )
     ).rows[0].id;
@@ -175,7 +180,7 @@ describe.skipIf(!url)('availability set relay paths on disposable PostgreSQL', (
       await route('set_member:managed_database_binding', memberRouteOwnerId(bindingRouteId, memberB))
     ).toMatchObject({ source_id: consumer, target_endpoint_id: clientB.id, parent_route_id: bindingRouteId });
     expect(
-      await route('set_member:managed_database_gateway', memberRouteOwnerId(opfieldRouteId, memberB))
+      await route(`set_member:${LEGACY_MANAGED_DATABASE_OWNER_KIND}`, memberRouteOwnerId(opfieldRouteId, memberB))
     ).toMatchObject({
       source_id: 'gw',
       target_endpoint_id: clientB.id,

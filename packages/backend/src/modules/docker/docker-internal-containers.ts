@@ -12,8 +12,7 @@ function nonEmpty(value: unknown): boolean {
   return typeof value === 'string' && value !== '';
 }
 const SANDBOX_LABEL = 'net.opfield.sandbox';
-// legacy-name: gateway.sandbox marker of sandbox containers created before 2.12.1 — remove once no installation runs one
-const LEGACY_SANDBOX_LABEL = 'gateway.sandbox';
+// legacy-name: the legacy sandbox marker of sandbox containers created before 2.12.1 — remove once no installation runs one
 const INTERNAL_MARKERS = new Set(['secure-link-connector', 'backup-runner', 'backup-redis-stage', 'connector-cleanup']);
 
 function containerLabels(container: Record<string, any>): Record<string, unknown> {
@@ -65,4 +64,5 @@ export async function inspectUserContainer(
   return data;
 }
 
+import { LEGACY_SANDBOX_LABEL } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';

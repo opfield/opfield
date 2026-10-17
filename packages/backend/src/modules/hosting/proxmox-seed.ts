@@ -58,7 +58,7 @@ export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
       packages: ['bash', 'curl', 'ca-certificates', 'qemu-guest-agent', 'jq', 'openssl', 'coreutils', 'util-linux'],
       write_files: [
         {
-          path: '/var/lib/gateway-hosting-bootstrap.sh',
+          path: '/var/lib/opfield-hosting-bootstrap.sh',
           permissions: '0700',
           owner: 'root:root',
           content: input.userData,
@@ -73,7 +73,7 @@ export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
         [
           'bash',
           '-c',
-          'trap "rm -f /var/lib/gateway-hosting-bootstrap.sh" EXIT; bash /var/lib/gateway-hosting-bootstrap.sh',
+          'trap "rm -f /var/lib/opfield-hosting-bootstrap.sh" EXIT; bash /var/lib/opfield-hosting-bootstrap.sh',
         ],
       ],
     })}\n`,

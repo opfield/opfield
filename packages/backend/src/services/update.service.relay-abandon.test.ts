@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
+import {
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_MIN_VERSION_FIELD,
+  LEGACY_THESQLABS_UPDATES_BASE_URL,
+} from '@/lib/legacy-compat.js';
 import type { TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import { UpdateService } from './update.service.js';
 
 const MIGRATED = {
   exitCode: 0,
-  output:
-    '{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/gateway/sandbox-workspaces"}',
+  output: `{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
 };
 
 /** A Relay Pool whose run has one step left: the local relay, as the last step of every run. */
@@ -58,10 +62,10 @@ function localStepPool() {
   const dockerService = {
     inspectSelf: vi.fn().mockResolvedValue({
       Config: {
-        Image: 'registry.example.com/wiolett/gateway:v2.4.2',
+        Image: 'registry.example.com/opfield/opfield:v2.4.2',
         Labels: {
-          'com.docker.compose.project.working_dir': '/srv/gateway',
-          'com.docker.compose.project': 'gateway',
+          'com.docker.compose.project.working_dir': '/srv/opfield',
+          'com.docker.compose.project': `${LEGACY_INSTALL_DIR_NAME}`,
         },
       },
     }),
@@ -79,9 +83,9 @@ function localStepPool() {
     dockerService as never,
     {
       APP_VERSION: 'v2.4.2',
-      COMPOSE_PROJECT_DIR: '/srv/gateway',
-      RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
-      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/wiolett/gateway/relay@sha256:${'b'.repeat(64)}`,
+      COMPOSE_PROJECT_DIR: '/srv/opfield',
+      RELEASES_API_URL: `${LEGACY_THESQLABS_UPDATES_BASE_URL}/releases`,
+      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/opfield/opfield/relay@sha256:${'b'.repeat(64)}`,
       OPFIELD_RELAY_BUILD_VERSION: 'v2.4.2',
       OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
     } as never,
@@ -100,25 +104,25 @@ function localStepPool() {
 }
 
 function relayArtifact(): TrustedRelayUpdateArtifact {
-  const imageRef = `registry.example.com/wiolett/gateway/relay@sha256:${'a'.repeat(64)}`;
-  const secureLinkConnectorImage = `registry.example.com/wiolett/gateway/secure-link-connector@sha256:${'c'.repeat(64)}`;
+  const imageRef = `registry.example.com/opfield/opfield/relay@sha256:${'a'.repeat(64)}`;
+  const secureLinkConnectorImage = `registry.example.com/opfield/opfield/secure-link-connector@sha256:${'c'.repeat(64)}`;
   return {
     imageRef,
     digest: `sha256:${'a'.repeat(64)}`,
     buildVersion: 'v2.4.3',
     protocolMajor: 1,
-    minGatewayVersion: 'v2.4.2',
+    minOpfieldVersion: 'v2.4.2',
     secureLinkConnectorImage,
     signedManifest: 'signed-relay',
     payload: {
       kind: 'relay-image',
       version: 'v2.4.3',
       tag: 'v2.4.3-relay',
-      image: 'registry.example.com/wiolett/gateway/relay',
+      image: 'registry.example.com/opfield/opfield/relay',
       digest: `sha256:${'a'.repeat(64)}`,
       imageRef,
       protocolMajor: 1,
-      minGatewayVersion: 'v2.4.2',
+      [LEGACY_MIN_VERSION_FIELD]: 'v2.4.2',
       secureLinkConnectorImage,
       createdAt: '2026-06-30T00:00:00.000Z',
     },

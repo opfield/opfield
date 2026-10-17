@@ -68,7 +68,7 @@ describe('DaemonUpdateService.checkForUpdates', () => {
   }
 
   function service(db: unknown) {
-    const env = { APP_VERSION: 'v2.12.1', RELEASES_API_URL: 'https://updates.example.test/gateway/releases' } as Env;
+    const env = { APP_VERSION: 'v2.12.1', RELEASES_API_URL: 'https://updates.example.test/opfield/releases' } as Env;
     const settings = { getConfig: async () => ({ updateChannel: 'preview' }) } as unknown as GeneralSettingsService;
     return new DaemonUpdateService(db as never, env, settings);
   }

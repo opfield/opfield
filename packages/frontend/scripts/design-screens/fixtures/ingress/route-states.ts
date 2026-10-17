@@ -28,8 +28,8 @@ server {
   http2 on;
   server_name status.example.com;
 
-  ssl_certificate     /etc/gateway/tls/status.example.com/fullchain.pem;
-  ssl_certificate_key /etc/gateway/tls/status.example.com/privkey.pem;
+  ssl_certificate     /etc/opfield/tls/status.example.com/fullchain.pem;
+  ssl_certificate_key /etc/opfield/tls/status.example.com/privkey.pem;
 
   # Cache the public status JSON for 15 seconds.
   location = /api/status.json {

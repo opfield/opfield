@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"os"
 	"path/filepath"
@@ -26,7 +27,7 @@ import (
 
 const (
 	proxySecureLinkOwnerKind   = "proxy_host_secure_link"
-	developmentSecureLinkImage = "gateway-secure-link-connector:dev"
+	developmentSecureLinkImage = "opfield-secure-link-connector:dev"
 	secureLinkConnectorPathEnv = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 	secureLinkRecoveryWindow   = time.Second
 )
@@ -56,7 +57,7 @@ var secureLinkConnectorDrainPoll = time.Second
 var secureLinkConnectorSockets = [3]string{"secure-link.sock", "secure-link-next.sock", "secure-link-third.sock"}
 
 var immutableConnectorImagePattern = regexp.MustCompile(`^.+@sha256:[0-9a-f]{64}$`)
-var officialConnectorReleaseTagPattern = regexp.MustCompile(`^ghcr\.io/(?:opfield/opfield|the-square-labs/gateway)/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`)
+var officialConnectorReleaseTagPattern = regexp.MustCompile(`^(?:ghcr\.io/opfield/opfield|` + regexp.QuoteMeta(legacycompat.ImageRepository) + `)/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`)
 var proxySecureLinkIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 var errSecureLinkTargetUnavailable = errors.New("target container is unavailable")
 
@@ -1191,15 +1192,15 @@ func managedSecureLinkConnector(inspect container.InspectResponse, controlDirect
 
 // The connector's control directory is mounted at /run/opfield and named by
 // OPFIELD_SECURE_LINK_SOCKET. A connector image of an earlier release reads only
-// GATEWAY_SECURE_LINK_SOCKET, so new connectors get both; a connector created
-// before Opfield (mount /run/gateway, the old variable only) stays valid until it
+// the pre-Opfield socket variable, so new connectors get both; a connector created
+// before Opfield (legacy runtime mount, the old variable only) stays valid until it
 // is replaced for its own reasons (an image update).
 const (
 	secureLinkConnectorMount     = "/run/opfield"
 	secureLinkConnectorSocketVar = "OPFIELD_SECURE_LINK_SOCKET"
-	// legacy-name: /run/gateway mount and GATEWAY_SECURE_LINK_SOCKET of connectors before Opfield — remove once every node reports none
-	legacySecureLinkConnectorMount     = "/run/gateway"
-	legacySecureLinkConnectorSocketVar = "GATEWAY_SECURE_LINK_SOCKET"
+	// legacy-name: legacycompat.ConnectorRunDir mount and legacycompat.EnvPrefixSECURE_LINK_SOCKET of connectors before Opfield — remove once every node reports none
+	legacySecureLinkConnectorMount     = legacycompat.ConnectorRunDir
+	legacySecureLinkConnectorSocketVar = legacycompat.EnvPrefix + "SECURE_LINK_SOCKET"
 )
 
 // connectorControlMount is the mount target of a connector's control

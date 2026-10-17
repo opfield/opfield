@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { MIGRATION_0200_RETIRED_SCOPES, SCOPE_CLEANUP_MIGRATION_ADDITIONS } from '@/lib/scopes-aliases.js';
 
 const MIGRATION_TAG = '0200_scope_catalog_cleanup';
@@ -90,13 +91,13 @@ describe('0200 scope catalog cleanup migration', () => {
     for (const [table, column, keepRetired] of SCOPE_COLUMNS) {
       expect(migration, `${table}.${column}`).toContain(`UPDATE "${table}"`);
       expect(migration, `${table}.${column}`).toContain(
-        `"${column}" IS DISTINCT FROM gateway_scope_catalog_cleanup_0200("${column}", ${keepRetired})`
+        `"${column}" IS DISTINCT FROM ${LEGACY_INSTALL_DIR_NAME}_scope_catalog_cleanup_0200("${column}", ${keepRetired})`
       );
     }
     expect(migration).toContain('WHERE matched.old_scope IS NULL OR keep_retired');
     // Finished tool calls are history: only calls that can still run are rewritten.
     expect(migration).toContain(`WHERE "status" IN ('created', 'pending_approval', 'approved', 'running')`);
-    expect(migration).toContain('DROP FUNCTION gateway_scope_catalog_cleanup_0200(jsonb, boolean);');
+    expect(migration).toContain(`DROP FUNCTION ${LEGACY_INSTALL_DIR_NAME}_scope_catalog_cleanup_0200(jsonb, boolean);`);
     expect(migration).not.toMatch(/DELETE FROM|DROP TABLE|ALTER TABLE/i);
   });
 });

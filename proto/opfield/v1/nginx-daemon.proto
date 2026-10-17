@@ -218,7 +218,7 @@ message HealthReport {
   // by a protected relay.
   repeated string ssh_host_key_fingerprints = 46;
   // Nginx daemons advertising ingress_group_v1: what the reserved endpoint
-  // /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
+  // /.well-known/legacycompat.IngressHealthName answers (sf-ingress range 195-199).
   IngressHealthReport ingress_health = 195;
   // Storage-profile docker daemons: their availability set members.
   repeated AvailabilityMemberReport availability_members = 196;
@@ -571,7 +571,7 @@ message OpfieldCommand {
     // Storage-profile docker daemons (managed_availability_member_v1): this
     // node's member of a database or storage availability set.
     AvailabilityMemberCommand availability_member = 81;
-    // Every daemon advertising gateway_next_address_v1: the address Opfield
+    // Every daemon advertising legacycompat.NextAddressCapability: the address Opfield
     // moves to. See SetOpfieldNextAddressCommand.
     SetOpfieldNextAddressCommand set_opfield_next_address = 82;
     // Nginx daemons advertising nginx_log_budget_v1: how long rotated nginx
@@ -744,7 +744,7 @@ message AvailabilityPrimaryAssignment {
   string primary_member_id = 2;
   uint64 generation = 3;
   // Opfield signs every assignment with its relay policy signing key: Ed25519
-  // over "gateway-availability-member/primary-assignment/v1" || 0x00 ||
+  // over "legacycompat.AvailabilityMemberDomain/primary-assignment/v1" || 0x00 ||
   // u32be(len(set_id)) || set_id || u32be(len(primary_member_id)) ||
   // primary_member_id || u64be(generation). A member accepts an assignment,
   // from Opfield or relayed by its peer, only with a valid signature of a key

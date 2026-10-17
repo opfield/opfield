@@ -106,7 +106,7 @@ function coreSettlementUsage(input: InferenceCoreSettlement['usage'], estimated:
 }
 
 /**
- * Opfield side of the wiolett-core/v1 admission/settlement contract (plan T5).
+ * Opfield side of the LEGACY_CORE_CONTRACT admission/settlement contract (plan T5).
  * The managed core calls admission before every upstream dispatch — root,
  * retry, compaction, and subagent attempts alike — and settles each attempt
  * exactly once. Both callbacks are idempotent per core attempt id; ledger

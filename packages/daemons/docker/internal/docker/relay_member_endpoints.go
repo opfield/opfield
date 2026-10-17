@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"net/http"
 	"sort"
@@ -58,8 +59,8 @@ const (
 	// deploymentRouterUnavailableHeader marks a response the deployment router
 	// generated itself because it could not reach the active slot.
 	deploymentRouterUnavailableHeader = "X-Opfield-Deployment-Router"
-	// legacy-name: X-Gateway-Deployment-Router of routers rendered before Opfield (re-rendered on their next deploy) — remove once every node reports none
-	legacyDeploymentRouterUnavailableHeader = "X-Gateway-Deployment-Router"
+	// legacy-name: legacycompat.DeploymentRouterHeader of routers rendered before Opfield (re-rendered on their next deploy) — remove once every node reports none
+	legacyDeploymentRouterUnavailableHeader = legacycompat.DeploymentRouterHeader
 )
 
 // memberProbeResult is one readiness probe of a policy's member links on this

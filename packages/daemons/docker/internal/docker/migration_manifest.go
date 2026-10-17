@@ -57,7 +57,7 @@ func migrationManifestLabels(labels map[string]string) map[string]string {
 	out := make(map[string]string, len(labels))
 	for key, value := range labels {
 		if next := opfieldLabelKey(key); next != "" {
-			// legacy-name: wiolett.gateway.* labels of a source container — remove once every node reports none
+			// legacy-name: legacycompat.LabelPrefix* labels of a source container — remove once every node reports none
 			if _, ok := labels[next]; !ok {
 				out[next] = value
 			}

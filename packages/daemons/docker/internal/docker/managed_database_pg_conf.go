@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"sort"
@@ -36,12 +37,12 @@ const (
 	// replication port on the set's private bridge.
 	pgReplicationHost   = "primary-" + pgha.ReplicationPort
 	pgReplicationPort   = 5432
-	pgMemberDirName     = "gateway-ha"
+	pgMemberDirName     = legacycompat.PostgresMemberDir
 	pgdataDirName       = "pgdata"
 	pgRebuildDirName    = "pgdata.rebuild"
 	pgPreviousDirName   = "pgdata.previous"
 	pgContainerDataDir  = "/var/lib/postgresql/data"
-	pgContainerTLSDir   = "/run/gateway-tls"
+	pgContainerTLSDir   = legacycompat.RunDirPrefix + "tls"
 	pgContainerHAConf   = pgContainerDataDir + "/" + pgMemberDirName
 	pgContainerPassfile = pgContainerHAConf + "/pgpass"
 	pgMinSlotWALKeep    = 32 << 20

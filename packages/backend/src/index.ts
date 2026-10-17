@@ -27,6 +27,7 @@ import { acceptedOperations } from '@/edition/accepted-operations.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { RelayControlClient } from '@/grpc/relay-control.client.js';
 import { startGrpcServer, stopGrpcServer } from '@/grpc/server.js';
+import { LEGACY_LOCK_MIGRATIONS } from '@/lib/legacy-compat.js';
 import { closeApplicationLogger, logger } from '@/lib/logger.js';
 import { AISandboxService } from '@/modules/ai/ai.sandbox.service.js';
 import { AISandboxRunnerService } from '@/modules/ai/ai.sandbox-runner.service.js';
@@ -92,7 +93,7 @@ async function runMigrations(databaseUrl: string) {
       "select current_setting('server_version_num')::int as version"
     );
     if (rows[0].version >= 140000) await client.query("set client_connection_check_interval = '5s'");
-    await client.query("select pg_advisory_lock(hashtext('gateway-migrations'))");
+    await client.query('select pg_advisory_lock(hashtext($1))', [LEGACY_LOCK_MIGRATIONS]);
     await migrate(drizzle(client), { migrationsFolder: resolve('src/db/migrations') });
   } finally {
     await client.end();

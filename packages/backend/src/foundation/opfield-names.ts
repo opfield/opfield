@@ -1,4 +1,23 @@
 import { ENV_PREFIX, LEGACY_ENV_PREFIX, opfieldEnvName } from '@/config/env.js';
+import {
+  LEGACY_CLICKHOUSE_CONTAINER,
+  LEGACY_COMPOSE_MARKER,
+  LEGACY_DB_DUMP,
+  LEGACY_FOUNDATION_BACKUP_DIR,
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_INTERNAL_REGISTRY_ID,
+  LEGACY_LOCAL_CLICKHOUSE_MANAGED_LABEL,
+  LEGACY_LOCAL_CLICKHOUSE_OWNER_LABEL,
+  LEGACY_LOGS_DATABASE,
+  LEGACY_MANAGED_SERVICE_LABEL,
+  LEGACY_PRODUCT_TITLE,
+  LEGACY_RELAY_BINARY,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+  LEGACY_VOLUME_RELAY_STATE,
+} from '@/lib/legacy-compat.js';
 import { compareSemver, parseSemver } from '@/lib/semver.js';
 
 /**
@@ -14,21 +33,21 @@ export const OPFIELD_DATABASE_ROLE = 'opfield';
 export const OPFIELD_LOGS_DATABASE = 'opfield_logs';
 export const OPFIELD_CLICKHOUSE_ALIAS = 'opfield-clickhouse';
 
-// legacy-name: the layout of installations made before 2.12.1 (/opt/gateway, Compose project and database `gateway`,
-// ClickHouse database `gateway_logs`) — remove once every installation reports the Opfield layout.
-export const LEGACY_INSTALL_DIR_NAME = 'gateway';
-export const LEGACY_COMPOSE_PROJECT = 'gateway';
-export const LEGACY_DATABASE = 'gateway';
-export const LEGACY_DATABASE_ROLE = 'gateway';
-export const LEGACY_LOGS_DATABASE = 'gateway_logs';
-export const LEGACY_CLICKHOUSE_ALIAS = 'gateway-clickhouse';
+// legacy-name: the layout of installations made before 2.12.1 (legacy install directory, Compose project, database
+// and ClickHouse database; see legacy-compat.ts) — remove once every installation reports the Opfield layout.
+export { LEGACY_INSTALL_DIR_NAME };
+export const LEGACY_COMPOSE_PROJECT = LEGACY_INSTALL_DIR_NAME;
+export const LEGACY_DATABASE = LEGACY_INSTALL_DIR_NAME;
+export const LEGACY_DATABASE_ROLE = LEGACY_INSTALL_DIR_NAME;
+export { LEGACY_LOGS_DATABASE };
+export const LEGACY_CLICKHOUSE_ALIAS = LEGACY_CLICKHOUSE_CONTAINER;
 
 /** The first release in the Opfield layout; its relay image is the first with RELAY_BINARY. */
 export const FIRST_OPFIELD_RELEASE = 'v2.12.1-rc.3';
 export const RELAY_BINARY = '/opfield-relay';
-// legacy-name: /gateway-relay — the only binary of relay images before 2.12.1; later relay images keep it as a link,
+// legacy-name: the legacy relay binary path — the only binary of relay images before 2.12.1; later relay images keep it as a link,
 // so Compose names it until the relay image of the installation is new enough.
-export const LEGACY_RELAY_BINARY = '/gateway-relay';
+export { LEGACY_RELAY_BINARY };
 
 /** The relay binary Compose may run for a relay image of `buildVersion` (unknown versions get the one every image has). */
 export function relayBinary(buildVersion: string | null | undefined): string {
@@ -39,54 +58,62 @@ export function relayBinary(buildVersion: string | null | undefined): string {
 /** Points the relay entrypoint and healthcheck of docker-compose.yml lines at `binary`. */
 export function withRelayBinary(line: string, binary: string): string {
   return line
-    .replace(/^(\s*entrypoint:\s*\[")\/(?:gateway|opfield)-relay("\]\s*)$/, `$1${binary}$2`)
-    .replace(/^(\s*test:\s*\["CMD",\s*")\/(?:gateway|opfield)-relay(",\s*"healthcheck"\]\s*)$/, `$1${binary}$2`);
+    .replace(
+      new RegExp(String.raw`^(\s*entrypoint:\s*\[")(?:${escapeRegExp(LEGACY_RELAY_BINARY)}|\/opfield-relay)("\]\s*)$`),
+      `$1${binary}$2`
+    )
+    .replace(
+      new RegExp(
+        String.raw`^(\s*test:\s*\["CMD",\s*")(?:${escapeRegExp(LEGACY_RELAY_BINARY)}|\/opfield-relay)(",\s*"healthcheck"\]\s*)$`
+      ),
+      `$1${binary}$2`
+    );
 }
 
 /** Label of the installer-managed Compose services (app, relay, registry). */
 export const MANAGED_SERVICE_LABEL = 'net.opfield.managed-service';
-// legacy-name: com.wiolett.gateway.managed-service — containers created before 2.12.1 keep it until they are
+// legacy-name: the pre-2.12.1 managed-service label — containers created before 2.12.1 keep it until they are
 // recreated (the host move recreates all of them) — remove once every installation reports the Opfield layout.
-export const LEGACY_MANAGED_SERVICE_LABEL = 'com.wiolett.gateway.managed-service';
+export { LEGACY_MANAGED_SERVICE_LABEL };
 
 /** Labels of the local ClickHouse container the logging core manages. */
 export const MANAGED_CLICKHOUSE_LABEL = 'net.opfield.managed';
 export const MANAGED_CLICKHOUSE_OWNER_LABEL = 'net.opfield.owner';
-// legacy-name: net.wiolett.gateway.managed / net.wiolett.gateway.owner of a local ClickHouse created before 2.12.1
+// legacy-name: the pre-2.12.1 managed/owner labels of a local ClickHouse created before 2.12.1
 // (the host move recreates it with the new labels) — remove once every installation reports the Opfield layout.
-export const LEGACY_MANAGED_CLICKHOUSE_LABEL = 'net.wiolett.gateway.managed';
-export const LEGACY_MANAGED_CLICKHOUSE_OWNER_LABEL = 'net.wiolett.gateway.owner';
+export const LEGACY_MANAGED_CLICKHOUSE_LABEL = LEGACY_LOCAL_CLICKHOUSE_MANAGED_LABEL;
+export const LEGACY_MANAGED_CLICKHOUSE_OWNER_LABEL = LEGACY_LOCAL_CLICKHOUSE_OWNER_LABEL;
 
 /** Audience and issuer of internal registry tokens; the registry checks both against its own environment. */
 export const REGISTRY_TOKEN_SERVICE = 'opfield-internal-registry';
-// legacy-name: gateway-internal-registry — the registry of an installation that has not moved to the Opfield layout
+// legacy-name: the legacy internal registry name — the registry of an installation that has not moved to the Opfield layout
 // keeps checking it (the move recreates the registry with the new name) — remove once every installation reports the
 // Opfield layout.
-export const LEGACY_REGISTRY_TOKEN_SERVICE = 'gateway-internal-registry';
+export const LEGACY_REGISTRY_TOKEN_SERVICE = LEGACY_INTERNAL_REGISTRY_ID;
 
 /** Backups of .env and docker-compose.yml (and the pre-update database dump) in the install directory. */
 export const FOUNDATION_BACKUPS_DIR = '.opfield-foundation-backups';
-// legacy-name: `.gateway-foundation-backups` written by updates before 2.12.1; only pruned — remove once every
+// legacy-name: the foundation backup directory written by updates before 2.12.1; only pruned — remove once every
 // installation reports the Opfield layout.
-export const LEGACY_FOUNDATION_BACKUPS_DIR = '.gateway-foundation-backups';
+export const LEGACY_FOUNDATION_BACKUPS_DIR = LEGACY_FOUNDATION_BACKUP_DIR;
 export const DATABASE_SNAPSHOT_FILE = 'opfield-db.dump';
-// legacy-name: `gateway-db.dump` snapshots of updates before 2.12.1; only pruned.
-export const LEGACY_DATABASE_SNAPSHOT_FILE = 'gateway-db.dump';
+// legacy-name: database dump snapshots of updates before 2.12.1; only pruned.
+export const LEGACY_DATABASE_SNAPSHOT_FILE = LEGACY_DB_DUMP;
 
 /** Marker comments around the installer-managed blocks of docker-compose.yml. */
 export const MANAGED_MARKER_PREFIX = '# opfield-managed:';
-// legacy-name: `# gateway-managed:` markers of docker-compose.yml files written before 2.12.1; the migrator rewrites
+// legacy-name: the managed-block markers of docker-compose.yml files written before 2.12.1; the migrator rewrites
 // them — remove once every installation reports the Opfield layout.
-export const LEGACY_MANAGED_MARKER_PREFIX = '# gateway-managed:';
+export const LEGACY_MANAGED_MARKER_PREFIX = LEGACY_COMPOSE_MARKER;
 
 /** Compose volume keys of the Opfield layout, by the key the earlier layout used. */
 export const OPFIELD_VOLUME_KEYS: Readonly<Record<string, string>> = {
   // legacy-name: the earlier keys on the left — the host move renames them and binds the physical volumes by name.
-  gateway_data: 'app_data',
-  gateway_relay_identity: 'relay_identity',
-  gateway_relay_state: 'relay_state',
-  gateway_registry_data: 'registry_data',
-  gateway_registry_auth: 'registry_auth',
+  [LEGACY_VOLUME_APP_DATA]: 'app_data',
+  [LEGACY_VOLUME_RELAY_IDENTITY]: 'relay_identity',
+  [LEGACY_VOLUME_RELAY_STATE]: 'relay_state',
+  [LEGACY_VOLUME_REGISTRY_DATA]: 'registry_data',
+  [LEGACY_VOLUME_REGISTRY_AUTH]: 'registry_auth',
   postgres_data: 'postgres_data',
   redis_data: 'redis_data',
 };
@@ -110,11 +137,11 @@ export const OPFIELD_COMPOSE_VOLUME_KEYS: ComposeVolumeKeys = {
 
 // legacy-name: volume keys of docker-compose.yml files before the host move.
 export const LEGACY_COMPOSE_VOLUME_KEYS: ComposeVolumeKeys = {
-  appData: 'gateway_data',
-  relayIdentity: 'gateway_relay_identity',
-  relayState: 'gateway_relay_state',
-  registryData: 'gateway_registry_data',
-  registryAuth: 'gateway_registry_auth',
+  appData: LEGACY_VOLUME_APP_DATA,
+  relayIdentity: LEGACY_VOLUME_RELAY_IDENTITY,
+  relayState: LEGACY_VOLUME_RELAY_STATE,
+  registryData: LEGACY_VOLUME_REGISTRY_DATA,
+  registryAuth: LEGACY_VOLUME_REGISTRY_AUTH,
 };
 
 /** Whether docker-compose.yml is in the Opfield layout: it names its project `opfield` itself. */
@@ -122,16 +149,18 @@ export function isOpfieldComposeLayout(compose: string): boolean {
   return /^name\s*:\s*["']?opfield["']?\s*(?:#.*)?$/m.test(compose.replace(/\r\n/g, '\n'));
 }
 
-/** `${GATEWAY_X}` and `$GATEWAY_X` references in a value or a compose file, under their OPFIELD_* names. */
+/** References to pre-2.12.1 variable names in a value or a compose file, under their OPFIELD_* names. */
 export function renameLegacyEnvReferences(content: string): string {
-  return content.replace(/\$\{GATEWAY_([A-Z0-9_]+)/g, '${OPFIELD_$1').replace(/\$GATEWAY_([A-Z0-9_]+)/g, '$OPFIELD_$1');
+  return content
+    .replace(new RegExp(`\\$\\{${LEGACY_ENV_PREFIX}([A-Z0-9_]+)`, 'g'), '${OPFIELD_$1')
+    .replace(new RegExp(`\\$${LEGACY_ENV_PREFIX}([A-Z0-9_]+)`, 'g'), '$OPFIELD_$1');
 }
 
 /**
- * Renames the legacy GATEWAY_* keys of a .env file to OPFIELD_*, and the references to them in the values
- * (`APP_VERSION=${GATEWAY_VERSION}` of the early Go installer). When both names are set, the OPFIELD_* value wins
+ * Renames the legacy LEGACY_ENV_PREFIX* keys of a .env file to OPFIELD_*, and the references to them in the values
+ * (`APP_VERSION=${LEGACY_ENV_PREFIXVERSION}` of the early Go installer). When both names are set, the OPFIELD_* value wins
  * and the legacy line is dropped. Comments, blank lines and every other key stay as they are. A .env renamed before
- * 2.12.2 still holding a reference to a GATEWAY_* key it no longer has is repaired the same way.
+ * 2.12.2 still holding a reference to a LEGACY_ENV_PREFIX* key it no longer has is repaired the same way.
  */
 export function renameLegacyEnvFileKeys(content: string): string {
   const hadTrailingNewline = content.endsWith('\n');
@@ -163,12 +192,15 @@ export function renameLegacyEnvFileKeys(content: string): string {
 export function applyComposeVocabulary(content: string): string {
   const legacyLabel = escapeRegExp(LEGACY_MANAGED_SERVICE_LABEL);
   return renameLegacyEnvReferences(content)
-    .replace(/^(\s*(?:-\s*)?["']?)GATEWAY_([A-Z0-9_]+)(["']?\s*[:=])/gm, '$1OPFIELD_$2$3')
-    .replace(/^(\s*-\s*["']?)GATEWAY_([A-Z0-9_]+)(["']?\s*)$/gm, '$1OPFIELD_$2$3')
+    .replace(
+      new RegExp(`^(\\s*(?:-\\s*)?["']?)${LEGACY_ENV_PREFIX}([A-Z0-9_]+)(["']?\\s*[:=])`, 'gm'),
+      '$1OPFIELD_$2$3'
+    )
+    .replace(new RegExp(`^(\\s*-\\s*["']?)${LEGACY_ENV_PREFIX}([A-Z0-9_]+)(["']?\\s*)$`, 'gm'), '$1OPFIELD_$2$3')
     .replace(new RegExp(`^(\\s*(?:-\\s*)?["']?)${legacyLabel}(["']?\\s*[:=])`, 'gm'), `$1${MANAGED_SERVICE_LABEL}$2`)
     .replaceAll(LEGACY_MANAGED_MARKER_PREFIX, MANAGED_MARKER_PREFIX)
-    .replace(/^(\s*#.*?)\bGateway-managed\b/gm, '$1Opfield-managed')
-    .replace(/^(\s*#.*?)\bRun Gateway on\b/gm, '$1Run Opfield on');
+    .replace(new RegExp(String.raw`^(\s*#.*?)\b${LEGACY_PRODUCT_TITLE}-managed\b`, 'gm'), '$1Opfield-managed')
+    .replace(new RegExp(String.raw`^(\s*#.*?)\bRun ${LEGACY_PRODUCT_TITLE} on\b`, 'gm'), '$1Run Opfield on');
 }
 
 export function envLineKey(line: string): string | null {
@@ -176,7 +208,7 @@ export function envLineKey(line: string): string | null {
   return match?.[1] ?? null;
 }
 
-/** The value of `name` in a .env file, under its OPFIELD_* name or its legacy GATEWAY_* name. */
+/** The value of `name` in a .env file, under its OPFIELD_* name or its pre-2.12.1 name. */
 export function envFileValue(content: string, suffix: string): string | null {
   const values = new Map<string, string>();
   for (const line of content.replace(/\r\n/g, '\n').split('\n')) {
@@ -184,7 +216,7 @@ export function envFileValue(content: string, suffix: string): string | null {
     if (!key || values.has(key)) continue;
     values.set(key, line.slice(key.length + 1));
   }
-  // legacy-name: GATEWAY_<suffix> of a .env file the migrator has not rewritten yet.
+  // legacy-name: LEGACY_ENV_PREFIX<suffix> of a .env file the migrator has not rewritten yet.
   return values.get(`${ENV_PREFIX}${suffix}`) ?? values.get(`${LEGACY_ENV_PREFIX}${suffix}`) ?? null;
 }
 

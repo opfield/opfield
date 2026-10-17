@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +59,7 @@ func keygen(args []string) {
 
 func sign(args []string) {
 	fs := flag.NewFlagSet("sign", flag.ExitOnError)
-	kind := fs.String("kind", "", "gateway-image, relay-image, daemon-binary, or witness-binary")
+	kind := fs.String("kind", "", "opfield-image, relay-image, daemon-binary, or witness-binary")
 	component := fs.String("component", "", "witness component (witness-binary)")
 	out := fs.String("out", "", "output signed manifest path")
 	version := fs.String("version", "", "version")
@@ -72,7 +73,7 @@ func sign(args []string) {
 	digest := fs.String("digest", "", "Opfield image digest")
 	secureLinkConnectorImage := fs.String("secure-link-connector-image", "", "digest-pinned secure-link connector image reference")
 	relayProtocolMajor := fs.Int("relay-protocol-major", 0, "standalone relay protocol major")
-	minGatewayVersion := fs.String("min-gateway-version", "", "minimum compatible Opfield version")
+	minOpfieldVersion := fs.String("min-opfield-version", "", "minimum compatible Opfield version")
 	commitSHA := fs.String("git-commit-sha", "", "Git commit SHA")
 	pipelineID := fs.String("git-pipeline-id", "", "GitLab pipeline ID")
 	must(fs.Parse(args))
@@ -129,7 +130,7 @@ func sign(args []string) {
 			CreatedAt:    createdAt,
 			GitCommitSHA: *commitSHA,
 		}
-	case "gateway-image":
+	case "opfield-image":
 		required(map[string]string{
 			"--version": *version,
 			"--tag":     *tag,
@@ -137,7 +138,7 @@ func sign(args []string) {
 			"--digest":  *digest,
 		})
 		payloadMap := map[string]any{
-			"kind":          "gateway-image",
+			"kind":          legacycompat.AppImageManifestKind,
 			"version":       *version,
 			"tag":           *tag,
 			"image":         *image,
@@ -157,28 +158,28 @@ func sign(args []string) {
 			"--tag":                         *tag,
 			"--image":                       *image,
 			"--digest":                      *digest,
-			"--min-gateway-version":         *minGatewayVersion,
+			"--min-opfield-version":         *minOpfieldVersion,
 			"--secure-link-connector-image": *secureLinkConnectorImage,
 		})
 		if *relayProtocolMajor < 1 {
 			die("--relay-protocol-major must be positive")
 		}
 		payload = map[string]any{
-			"kind":                     "relay-image",
-			"version":                  *version,
-			"tag":                      *tag,
-			"image":                    *image,
-			"digest":                   *digest,
-			"imageRef":                 fmt.Sprintf("%s@%s", *image, *digest),
-			"protocolMajor":            *relayProtocolMajor,
-			"minGatewayVersion":        *minGatewayVersion,
-			"secureLinkConnectorImage": *secureLinkConnectorImage,
-			"createdAt":                createdAt,
-			"gitCommitSha":             *commitSHA,
-			"gitPipelineId":            *pipelineID,
+			"kind":                       "relay-image",
+			"version":                    *version,
+			"tag":                        *tag,
+			"image":                      *image,
+			"digest":                     *digest,
+			"imageRef":                   fmt.Sprintf("%s@%s", *image, *digest),
+			"protocolMajor":              *relayProtocolMajor,
+			legacycompat.MinVersionField: *minOpfieldVersion,
+			"secureLinkConnectorImage":   *secureLinkConnectorImage,
+			"createdAt":                  createdAt,
+			"gitCommitSha":               *commitSHA,
+			"gitPipelineId":              *pipelineID,
 		}
 	default:
-		die("--kind must be gateway-image, relay-image, daemon-binary, or witness-binary")
+		die("--kind must be opfield-image, relay-image, daemon-binary, or witness-binary")
 	}
 
 	payloadBytes, err := json.Marshal(payload)

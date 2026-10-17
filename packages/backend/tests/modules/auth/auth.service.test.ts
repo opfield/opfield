@@ -15,6 +15,7 @@ import {
   computeEffectiveUserAccess,
   fetchGroupScopeMap,
 } from '@/modules/auth/live-session-user.js';
+import { LEGACY_SYSTEM_ADMINS_GROUP } from '@/lib/legacy-compat.js';
 
 const authorizationCodeGrantMock = vi.hoisted(() => vi.fn());
 
@@ -165,7 +166,7 @@ describe('AuthService remaining system administrator', () => {
     expect(results[1]).toMatchObject({ status: 'rejected', reason: { statusCode: 409, code: 'LAST_SYSTEM_ADMIN' } });
     expect(rows.get(ADMIN_A)!.isBlocked).toBe(false);
     expect(rows.get(ADMIN_B)!.isBlocked).toBe(true);
-    expect(locks.acquired).toEqual(['gateway-system-admins', 'gateway-system-admins']);
+    expect(locks.acquired).toEqual([LEGACY_SYSTEM_ADMINS_GROUP, LEGACY_SYSTEM_ADMINS_GROUP]);
   });
 
   it('refuses to demote the last active admin but allows keeping the admin group', async () => {
@@ -799,7 +800,7 @@ describe('AuthService OIDC identity binding', () => {
       code: 'AUTH_METHOD_DISABLED',
     });
     await expect(
-      harness.service.handleCallback('https://gateway.example.com/callback?code=code&state=state', 'state')
+      harness.service.handleCallback('https://opfield.example.com/callback?code=code&state=state', 'state')
     ).rejects.toMatchObject({ statusCode: 409, code: 'AUTH_METHOD_DISABLED' });
     expect(authorizationCodeGrantMock).not.toHaveBeenCalled();
   });
@@ -1351,7 +1352,7 @@ function createAuthServiceHarness(options: {
       });
 
       return service.handleCallback(
-        'https://gateway.example.com/callback?code=code&state=state',
+        'https://opfield.example.com/callback?code=code&state=state',
         'state',
         sessionMetadata
       );

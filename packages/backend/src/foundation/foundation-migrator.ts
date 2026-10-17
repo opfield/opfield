@@ -7,6 +7,14 @@ import {
   LEGACY_COMMERCIAL_HOST_DIR,
   type PreparedCommercialUpdate,
 } from '@/edition/prepare-update.js';
+import {
+  LEGACY_APP_DATA_DIR,
+  LEGACY_ENV_PREFIX,
+  LEGACY_REGISTRY_AUTH_DIR,
+  LEGACY_REGISTRY_IMAGE,
+  LEGACY_REGISTRY_TOKEN_REALM,
+  LEGACY_RELAY_IDENTITY_DIR,
+} from '@/lib/legacy-compat.js';
 import { FOUNDATION_MIGRATION_BACKUP, pruneBackupDirectories, REGISTRY_STORAGE_BACKUP } from './backup-retention.js';
 import {
   applyComposeVocabulary,
@@ -34,7 +42,7 @@ import {
 export const DEFAULT_SANDBOX_WORKSPACE_DIR = '/var/lib/opfield/sandbox-workspaces';
 // legacy-name: the sandbox workspace directory of installations made before 2.12.1; the host move switches a .env
 // that still has it to DEFAULT_SANDBOX_WORKSPACE_DIR — remove once every installation reports the Opfield layout.
-export const LEGACY_SANDBOX_WORKSPACE_DIR = '/var/lib/gateway/sandbox-workspaces';
+export const LEGACY_SANDBOX_WORKSPACE_DIR = `${LEGACY_APP_DATA_DIR}/sandbox-workspaces`;
 
 const SANDBOX_VOLUME_START = `${MANAGED_MARKER_PREFIX}start sandbox-workspace`;
 const SANDBOX_VOLUME_END = `${MANAGED_MARKER_PREFIX}end sandbox-workspace`;
@@ -43,8 +51,7 @@ const RELAY_SERVICE_END = `${MANAGED_MARKER_PREFIX}end relay-service`;
 const REGISTRY_SERVICE_START = `${MANAGED_MARKER_PREFIX}start registry-service`;
 const REGISTRY_SERVICE_END = `${MANAGED_MARKER_PREFIX}end registry-service`;
 const MANAGED_SERVICE_LABEL_PATTERN = `(?:${escapeRegExp(MANAGED_SERVICE_LABEL)}|${escapeRegExp(LEGACY_MANAGED_SERVICE_LABEL)})`;
-const DEFAULT_REGISTRY_IMAGE_REF =
-  'ghcr.io/the-square-labs/gateway/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8';
+const DEFAULT_REGISTRY_IMAGE_REF = LEGACY_REGISTRY_IMAGE;
 /** Bounded container logs for installer-managed services; Docker keeps json-file logs forever otherwise. */
 export const COMPOSE_LOG_MAX_SIZE = '50m';
 export const COMPOSE_LOG_MAX_FILE = '3';
@@ -134,11 +141,11 @@ export function dockerLogDefaultsEnv(defaults: DockerLogDefaults | undefined): s
  * variables, unlike new CLI flags, are ignored by older migrator images.
  */
 export function dockerLogDefaultsFromEnv(env: NodeJS.ProcessEnv): DockerLogDefaults | undefined {
-  // legacy-name: GATEWAY_DOCKER_LOG_* — what an updating 2.12.0 passes to this migrator; remove once no supported
+  // legacy-name: the pre-2.12.1 names of OPFIELD_DOCKER_LOG_* — what an updating 2.12.0 passes to this migrator; remove once no supported
   // update starts from a version before 2.12.1.
-  const driver = (env.OPFIELD_DOCKER_LOG_DRIVER ?? env.GATEWAY_DOCKER_LOG_DRIVER)?.trim();
+  const driver = (env.OPFIELD_DOCKER_LOG_DRIVER ?? env[`${LEGACY_ENV_PREFIX}DOCKER_LOG_DRIVER`])?.trim();
   if (!driver) return undefined;
-  const opts = (env.OPFIELD_DOCKER_LOG_OPTS ?? env.GATEWAY_DOCKER_LOG_OPTS)?.trim();
+  const opts = (env.OPFIELD_DOCKER_LOG_OPTS ?? env[`${LEGACY_ENV_PREFIX}DOCKER_LOG_OPTS`])?.trim();
   return { driver, logOpts: opts === 'none' || opts === 'set' ? opts : null };
 }
 
@@ -168,6 +175,7 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
   const envContent = await fs.readFile(envPath, 'utf8');
   const composeContent = await fs.readFile(composePath, 'utf8');
   const opfieldLayout = isOpfieldComposeLayout(composeContent);
+  const dataDirs = composeDataDirs(composeContent);
   // A legacy installation keeps its sandbox directory until the host move; it is in its .env anyway.
   const defaultSandboxWorkspaceDir =
     options.sandboxWorkspaceDir ?? (opfieldLayout ? DEFAULT_SANDBOX_WORKSPACE_DIR : LEGACY_SANDBOX_WORKSPACE_DIR);
@@ -201,8 +209,8 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
       ? {
           OPFIELD_COMMERCIAL_DIR:
             options.commercial.edition === 'commercial'
-              ? `/var/lib/gateway/commercial/versions/${options.commercial.hostVersion}`
-              : '/var/lib/gateway/commercial/community',
+              ? `${dataDirs.app}/commercial/versions/${options.commercial.hostVersion}`
+              : `${dataDirs.app}/commercial/community`,
         }
       : {}),
     ...(options.targetVersion ? { OPFIELD_VERSION: options.targetVersion } : {}),
@@ -297,9 +305,9 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
 }
 
 /**
- * The migrated .env and docker-compose.yml must not refer to a GATEWAY_* variable the .env no longer defines, and an
+ * The migrated .env and docker-compose.yml must not refer to a LEGACY_ENV_PREFIX* variable the .env no longer defines, and an
  * APP_VERSION set in the .env must not come out empty: either would start Opfield without the value (in 2.12.1 an
- * early Go installer's `APP_VERSION=${GATEWAY_VERSION}` lost its key and the paid core refused the versionless host).
+ * early Go installer's `APP_VERSION=${LEGACY_ENV_PREFIXVERSION}` lost its key and the paid core refused the versionless host).
  */
 export function assertEnvReferencesResolve(envContent: string, composeContent: string): void {
   const values = parseEnvValues(envContent);
@@ -313,7 +321,7 @@ export function assertEnvReferencesResolve(envContent: string, composeContent: s
     ['.env', uncommented(envContent)],
     ['docker-compose.yml', uncommented(composeContent)],
   ] as const) {
-    for (const match of content.matchAll(/\$\{?(GATEWAY_[A-Z0-9_]+)/g)) {
+    for (const match of content.matchAll(new RegExp(String.raw`\$\{?(${LEGACY_ENV_PREFIX}[A-Z0-9_]+)`, 'g'))) {
       const name = match[1]!;
       if (!values.has(name)) {
         throw new Error(`foundation migration left ${file} referring to ${name}, which the .env does not define`);
@@ -423,7 +431,11 @@ export function patchCompose(
   );
   const runtimePatched = patchAppRuntimeStorageAndSocket(
     commercialPrepared
-      ? patchCommercialCore(volumesPatched, options.commercialDirName ?? mountedCommercialDirName(volumesPatched))
+      ? patchCommercialCore(
+          volumesPatched,
+          options.commercialDirName ?? mountedCommercialDirName(volumesPatched),
+          layout.dataDirs.app
+        )
       : volumesPatched,
     layout
   );
@@ -438,9 +450,43 @@ export function patchCompose(
   return `${loggingPatched.join('\n')}${hadTrailingNewline ? '\n' : ''}`;
 }
 
+/** Directories inside the app, relay and registry containers that docker-compose.yml mounts the data volumes at. */
+export interface ComposeDataDirs {
+  app: string;
+  relay: string;
+  registryAuth: string;
+}
+
+const OPFIELD_DATA_DIRS: ComposeDataDirs = {
+  app: '/var/lib/opfield',
+  relay: '/var/lib/opfield-relay',
+  registryAuth: '/var/lib/opfield-registry-auth',
+};
+// legacy-name: the data directories of installations made before 2.12.3; the app image links them to the Opfield ones.
+const LEGACY_DATA_DIRS: ComposeDataDirs = {
+  app: LEGACY_APP_DATA_DIR,
+  relay: LEGACY_RELAY_IDENTITY_DIR,
+  registryAuth: LEGACY_REGISTRY_AUTH_DIR,
+};
+
+/** The data directories of docker-compose.yml: the Opfield ones when it mounts the app data there, else the earlier. */
+export function composeDataDirs(content: string): ComposeDataDirs {
+  return new RegExp(`^\\s*-\\s*[^#\\s]+:${escapeRegExp(OPFIELD_DATA_DIRS.app)}(?::(?:ro|rw))?\\s*$`, 'm').test(content)
+    ? OPFIELD_DATA_DIRS
+    : LEGACY_DATA_DIRS;
+}
+
+/** A volume line of a service that mounts at one of the data directories of `pick` (either layout). */
+function dataDirMountPattern(pick: (dirs: ComposeDataDirs) => string, suffix = ''): RegExp {
+  const dirs = [OPFIELD_DATA_DIRS, LEGACY_DATA_DIRS].map((dirs) => escapeRegExp(pick(dirs) + suffix)).join('|');
+  return new RegExp(`^\\s*-\\s*[^#]*:(?:${dirs})(?::(?:ro|rw))?\\s*(?:#.*)?$`);
+}
+
 /** What the managed blocks of docker-compose.yml name differently in the two layouts. */
 interface ComposeLayout {
   volumes: ComposeVolumeKeys;
+  /** Where the data volumes are mounted inside the containers. */
+  dataDirs: ComposeDataDirs;
   /** Fallback of SANDBOX_RUNNER_WORKSPACE_DIR in the sandbox mount. */
   sandboxWorkspaceDir: string;
   /** Audience and issuer of the registry's token auth; see configuredRegistryTokenService. */
@@ -453,25 +499,28 @@ interface ComposeLayout {
  * checks that audience until the host move recreates it, and the volumes are bound by the project's name.
  */
 export function composeLayout(content: string): ComposeLayout {
+  const dataDirs = composeDataDirs(content);
   return isOpfieldComposeLayout(content)
     ? {
         volumes: OPFIELD_COMPOSE_VOLUME_KEYS,
+        dataDirs,
         sandboxWorkspaceDir: DEFAULT_SANDBOX_WORKSPACE_DIR,
         registryTokenService: REGISTRY_TOKEN_SERVICE,
         registryTokenRealm: 'https://opfield.invalid/api/docker/registry/token',
       }
     : {
         volumes: LEGACY_COMPOSE_VOLUME_KEYS,
+        dataDirs,
         sandboxWorkspaceDir: LEGACY_SANDBOX_WORKSPACE_DIR,
         registryTokenService: LEGACY_REGISTRY_TOKEN_SERVICE,
         // legacy-name: the registry token realm of the legacy layout; replaced by the host move.
-        registryTokenRealm: 'https://gateway.invalid/api/docker/registry/token',
+        registryTokenRealm: LEGACY_REGISTRY_TOKEN_REALM,
       };
 }
 
 /** The commercial directory docker-compose.yml mounts already, or the Opfield one. */
 function mountedCommercialDirName(lines: string[]): string {
-  return lines.some((line) => line.includes(`./${LEGACY_COMMERCIAL_HOST_DIR}:/var/lib/gateway/commercial`))
+  return lines.some((line) => line.includes(`./${LEGACY_COMMERCIAL_HOST_DIR}:`))
     ? LEGACY_COMMERCIAL_HOST_DIR
     : COMMERCIAL_HOST_DIR;
 }
@@ -542,18 +591,16 @@ function patchServiceLogging(lines: string[]): string[] {
   return next;
 }
 
-function patchCommercialCore(lines: string[], commercialDirName: string): string[] {
+function patchCommercialCore(lines: string[], commercialDirName: string, appDataDir: string): string[] {
   const app = findServiceBlock(lines, 'app');
   if (!app) throw new Error('Commercial core requires services.app');
   const volumes = findNestedBlock(lines, app, 'volumes');
   if (!volumes) throw new Error('Commercial core requires app volumes');
-  const mount = `${' '.repeat(volumes.indent + 2)}- ./${commercialDirName}:/var/lib/gateway/commercial:ro`;
+  const mount = `${' '.repeat(volumes.indent + 2)}- ./${commercialDirName}:${appDataDir}/commercial:ro`;
   const next = [...lines];
   const existing = next.findIndex(
     (line, index) =>
-      index > volumes.start &&
-      index < volumes.end &&
-      /^\s*-\s*[^#]+:\/var\/lib\/gateway\/commercial(?::(?:ro|rw))?\s*$/.test(line)
+      index > volumes.start && index < volumes.end && dataDirMountPattern((dirs) => dirs.app, '/commercial').test(line)
   );
   if (existing >= 0) next[existing] = mount;
   else next.splice(volumes.end, 0, mount);
@@ -650,13 +697,17 @@ function patchAppRuntimeStorageAndSocket(lines: string[], layout: ComposeLayout)
 
   const hasRuntimeStorage = next
     .slice(refreshedVolumes.start + 1, refreshedVolumes.end)
-    .some((line) => /^\s*-\s*[^#]+:\/var\/lib\/gateway(?::(?:ro|rw))?\s*$/.test(line));
+    .some((line) => dataDirMountPattern((dirs) => dirs.app).test(line));
   if (hasRuntimeStorage) return next;
 
   const indent = ' '.repeat(refreshedVolumes.indent + 2);
   const socketLine = findDockerSocketVolume(next, refreshedVolumes.start + 1, refreshedVolumes.end);
   const insertAt = socketLine >= 0 ? socketLine + 1 : refreshedVolumes.end;
-  next = [...next.slice(0, insertAt), `${indent}- ${layout.volumes.appData}:/var/lib/gateway`, ...next.slice(insertAt)];
+  next = [
+    ...next.slice(0, insertAt),
+    `${indent}- ${layout.volumes.appData}:${layout.dataDirs.app}`,
+    ...next.slice(insertAt),
+  ];
   return ensureTopLevelVolume(next, layout.volumes.appData);
 }
 
@@ -842,7 +893,7 @@ function upsertAppRelayEnvironment(lines: string[], layout: ComposeLayout): stri
       'OPFIELD_RELAY_REQUIRED: "true"',
       'OPFIELD_RELAY_MANAGED: "true"',
       'OPFIELD_RELAY_TARGET: relay:9443',
-      'OPFIELD_RELAY_IDENTITY_DIR: /var/lib/gateway-relay',
+      `OPFIELD_RELAY_IDENTITY_DIR: ${layout.dataDirs.relay}`,
       `OPFIELD_RELAY_IMAGE_REF: \${OPFIELD_RELAY_IMAGE_REF}`,
       'OPFIELD_RELAY_SERVICE_NAME: relay',
       `OPFIELD_RELAY_BUILD_VERSION: \${OPFIELD_RELAY_BUILD_VERSION}`,
@@ -920,14 +971,14 @@ function upsertAppRelayIdentityVolume(lines: string[], layout: ComposeLayout): s
   const indent = volumes.indent + 2;
   const next = lines.filter((line, index) => {
     if (index <= volumes.start || index >= volumes.end) return true;
-    return !/^\s*-\s*[^#]*:\/var\/lib\/gateway-relay(?::(?:ro|rw))?\s*(?:#.*)?$/.test(line);
+    return !dataDirMountPattern((dirs) => dirs.relay).test(line);
   });
   const refreshedApp = findServiceBlock(next, 'app');
   const refreshed = refreshedApp ? findNestedBlock(next, refreshedApp, 'volumes') : null;
   if (!refreshed) throw new Error('foundation migration failed: services.app.volumes block disappeared');
   return [
     ...next.slice(0, refreshed.end),
-    `${' '.repeat(indent)}- ${layout.volumes.relayIdentity}:/var/lib/gateway-relay`,
+    `${' '.repeat(indent)}- ${layout.volumes.relayIdentity}:${layout.dataDirs.relay}`,
     ...next.slice(refreshed.end),
   ];
 }
@@ -990,16 +1041,16 @@ function relayServiceBlock(logging: boolean, layout: ComposeLayout, binary: stri
     '    labels:',
     `      ${MANAGED_SERVICE_LABEL}: relay`,
     '    environment:',
-    '      RELAY_IDENTITY_DIR: /var/lib/gateway-relay/identity',
-    '      RELAY_STATE_DIR: /var/lib/gateway-relay/state',
+    `      RELAY_IDENTITY_DIR: ${layout.dataDirs.relay}/identity`,
+    `      RELAY_STATE_DIR: ${layout.dataDirs.relay}/state`,
     '      RELAY_APP_GRPC_TARGET: app:9443',
     '      RELAY_POOL_ID: system',
     '      RELAY_INSTANCE_ID: 00000000-0000-4000-8000-000000000001',
     '    ports:',
     '      - "9443:9443"',
     '    volumes:',
-    `      - ${layout.volumes.relayIdentity}:/var/lib/gateway-relay/identity:ro`,
-    `      - ${layout.volumes.relayState}:/var/lib/gateway-relay/state`,
+    `      - ${layout.volumes.relayIdentity}:${layout.dataDirs.relay}/identity:ro`,
+    `      - ${layout.volumes.relayState}:${layout.dataDirs.relay}/state`,
     '    healthcheck:',
     `      test: ["CMD", "${binary}", "healthcheck"]`,
     '      interval: 5s',
@@ -1066,14 +1117,14 @@ function upsertAppRegistryAuthVolume(lines: string[], layout: ComposeLayout): st
   const indent = volumes.indent + 2;
   const next = lines.filter((line, index) => {
     if (index <= volumes.start || index >= volumes.end) return true;
-    return !/^\s*-\s*[^#]*:\/var\/lib\/gateway-registry-auth(?::(?:ro|rw))?\s*(?:#.*)?$/.test(line);
+    return !dataDirMountPattern((dirs) => dirs.registryAuth).test(line);
   });
   const refreshedApp = findServiceBlock(next, 'app');
   const refreshed = refreshedApp ? findNestedBlock(next, refreshedApp, 'volumes') : null;
   if (!refreshed) throw new Error('foundation migration failed: services.app.volumes block disappeared');
   return [
     ...next.slice(0, refreshed.end),
-    `${' '.repeat(indent)}- ${layout.volumes.registryAuth}:/var/lib/gateway-registry-auth`,
+    `${' '.repeat(indent)}- ${layout.volumes.registryAuth}:${layout.dataDirs.registryAuth}`,
     ...next.slice(refreshed.end),
   ];
 }
@@ -1131,7 +1182,7 @@ function registryServiceBlock(logging: boolean, layout: ComposeLayout, storage: 
     `      REGISTRY_AUTH_TOKEN_REALM: \${OPFIELD_REGISTRY_TOKEN_REALM:-${layout.registryTokenRealm}}`,
     `      REGISTRY_AUTH_TOKEN_SERVICE: ${layout.registryTokenService}`,
     `      REGISTRY_AUTH_TOKEN_ISSUER: ${layout.registryTokenService}`,
-    '      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/gateway-registry-auth/token-cert.pem',
+    `      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: ${layout.dataDirs.registryAuth}/token-cert.pem`,
     ...registryStorageComposeEnvironment(storage).map((entry) => `      ${entry}`),
     '      REGISTRY_STORAGE_DELETE_ENABLED: "true"',
     '      REGISTRY_HEALTH_STORAGEDRIVER_ENABLED: "true"',
@@ -1141,7 +1192,7 @@ function registryServiceBlock(logging: boolean, layout: ComposeLayout, storage: 
     '      - "5000"',
     '    volumes:',
     `      - ${layout.volumes.registryData}:/var/lib/registry`,
-    `      - ${layout.volumes.registryAuth}:/var/lib/gateway-registry-auth:ro`,
+    `      - ${layout.volumes.registryAuth}:${layout.dataDirs.registryAuth}:ro`,
     '    healthcheck:',
     '      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/debug/health >/dev/null"]',
     '      interval: 10s',

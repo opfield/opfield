@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"net"
 	"sort"
@@ -39,7 +40,7 @@ const (
 	// ReplicationUser is the set's own ACL user: replication (masteruser),
 	// promotion, status and the ACL mirror. Its password is the set's
 	// (engine_config replicationPassword); copies never mirror it.
-	ReplicationUser = "gateway-ha"
+	ReplicationUser = legacycompat.PostgresMemberDir
 	// ServerPort is the plain Valkey port inside the member container.
 	ServerPort = 6379
 	// PortRepl is the primary's replication port on the member mesh.

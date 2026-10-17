@@ -30,7 +30,7 @@ func newTestCA(t *testing.T) testCA {
 		t.Fatal(err)
 	}
 	template := &x509.Certificate{
-		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "gateway-system-ca"},
+		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "opfield-system-ca"},
 		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(10 * 365 * 24 * time.Hour),
 		IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign,
 	}

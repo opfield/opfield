@@ -9,6 +9,7 @@ import {
 } from '@/db/schema/index.js';
 import { commandResultDataToBuffer } from '@/lib/command-result-data.js';
 import { normalizeIp } from '@/lib/ip-cidr.js';
+import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -153,9 +154,9 @@ export class HostingInventoryService {
     try {
       return (await this.nodeService.readFile(nodeId, '/var/lib/opfield/host-identity')).toString('utf8').trim();
     } catch (error) {
-      // legacy-name: /var/lib/gateway/host-identity of daemons before 2.12.1 — remove once every node reports none
+      // legacy-name: host-identity in the legacy state root of daemons before 2.12.1 — remove once every node reports none
       return (
-        await this.nodeService.readFile(nodeId, '/var/lib/gateway/host-identity').catch(() => Promise.reject(error))
+        await this.nodeService.readFile(nodeId, `${LEGACY_STATE_ROOT}/host-identity`).catch(() => Promise.reject(error))
       )
         .toString('utf8')
         .trim();

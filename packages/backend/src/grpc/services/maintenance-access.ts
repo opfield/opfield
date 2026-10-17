@@ -2,6 +2,7 @@ import * as grpc from '@grpc/grpc-js';
 import { eq } from 'drizzle-orm';
 import { container } from '@/container.js';
 import { nodes } from '@/db/schema/index.js';
+import { LEGACY_MAINTENANCE_HOST_HEADER } from '@/lib/legacy-compat.js';
 import { ProxyMaintenanceAccessService } from '@/modules/proxy/proxy-maintenance-access.service.js';
 import { extractDaemonCertificateIdentity } from '../interceptors/auth.js';
 import { matchEnrolledNodeCertificate } from '../node-certificate.js';
@@ -41,8 +42,8 @@ export function createMaintenanceAccessHandlers(deps: GrpcServerDeps) {
           nodeId,
           String(
             call.metadata.get('x-opfield-maintenance-host')[0] ??
-              // legacy-name: nginx daemons before 2.12.1 send x-gateway-maintenance-host — remove once every node reports none
-              call.metadata.get('x-gateway-maintenance-host')[0] ??
+              // legacy-name: nginx daemons before 2.12.1 send LEGACY_MAINTENANCE_HOST_HEADER — remove once every node reports none
+              call.metadata.get(LEGACY_MAINTENANCE_HOST_HEADER)[0] ??
               ''
           ),
           call.request.code ?? ''

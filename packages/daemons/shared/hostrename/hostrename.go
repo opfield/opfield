@@ -1,5 +1,5 @@
 // Package hostrename moves the host directories of the pre-Opfield names
-// (/var/lib/gateway, /run/gateway-lease-watchdog, /etc/gateway-builder, ...)
+// (state root, lease fence, builder directories, ...; see legacycompat)
 // to their Opfield names, and resolves which of the two a component uses now.
 //
 // A move renames the old directory to the new name and leaves the old name as
@@ -18,6 +18,7 @@ package hostrename
 import (
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"os"
 	"path/filepath"
@@ -37,7 +38,7 @@ type Pair struct {
 var (
 	// StateRoot holds the host identity shared by every daemon of a host
 	// (host-identity) and the cloud-init hosting markers.
-	StateRoot = Pair{Old: "/var/lib/gateway", New: "/var/lib/opfield"}
+	StateRoot = Pair{Old: legacycompat.StateRoot, New: "/var/lib/opfield"}
 )
 
 // HostIdentity is the identity file inside StateRoot.
@@ -327,7 +328,7 @@ func moveLocked(p Pair, create bool, mode os.FileMode, linkOld bool) (Outcome, e
 			// A component of the new release created entries under the new
 			// name first (the app's host move binds
 			// /var/lib/opfield/sandbox-workspaces on a host whose node daemon
-			// still has /var/lib/gateway): carry them into the old directory,
+			// still has legacycompat.StateRoot): carry them into the old directory,
 			// which then moves as a whole. Two entries of the same name are a
 			// conflict unless they merge (see mergeNewEntries); then nothing
 			// changes.

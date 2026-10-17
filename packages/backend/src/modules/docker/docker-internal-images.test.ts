@@ -34,8 +34,8 @@ describe('canonical Docker references', () => {
       tag: '9.1',
       digest: otherDigest,
     });
-    expect(canonicalDockerReference(`172.20.0.138:5443/gateway/api@${digest}`)).toEqual({
-      repository: '172.20.0.138:5443/gateway/api',
+    expect(canonicalDockerReference(`172.20.0.138:5443/opfield/api@${digest}`)).toEqual({
+      repository: '172.20.0.138:5443/opfield/api',
       tag: null,
       digest,
     });

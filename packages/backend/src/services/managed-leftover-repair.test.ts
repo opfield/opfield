@@ -5,6 +5,7 @@ import {
   managedStorageClusters,
   nodes,
 } from '@/db/schema/index.js';
+import { LEGACY_STORAGE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 import { LEFTOVER_CONFIRMATION_MS, type ManagedLeftover, ManagedLeftoverRepair } from './managed-leftover-repair.js';
 
 const NODE = 'db78707c-5894-4bd4-a2e4-080c80228f4a';
@@ -46,7 +47,7 @@ const zeroed: ManagedLeftover = {
 const deleted: ManagedLeftover = {
   id: DELETED,
   record: 'missing',
-  containers: [`gateway-storage-${DELETED}-0`],
+  containers: [`${LEGACY_STORAGE_LINK_NETWORK_PREFIX}${DELETED}-0`],
   imageBytes: 0,
   allocatedBytes: 0,
 };

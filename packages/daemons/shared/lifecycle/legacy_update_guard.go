@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +19,7 @@ var legacySystemdUnits = map[string]string{
 	"docker":     "docker-daemon.service",
 	"nginx":      "nginx-daemon.service",
 	"monitoring": "monitoring-daemon.service",
-	"relay":      "gateway-relay-supervisor.service",
+	"relay":      legacycompat.RelaySupervisorName + ".service",
 }
 
 // retireLegacyUpdateGuard removes only artifacts produced by the retired

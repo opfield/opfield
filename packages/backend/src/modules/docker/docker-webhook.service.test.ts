@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { assertDockerMountChangeAllowed, normalizeMountDefinitionsFromConfig } from './docker-socket-mount.guard.js';
 import { DockerWebhookService } from './docker-webhook.service.js';
 
@@ -85,7 +86,7 @@ describe('DockerWebhookService', () => {
 
   it.each([true, false])('updates only the canonical HA image while preserving shouldRun=%s', async (shouldRun) => {
     const { cleanup, dispatch, docker, registry, service, tasks } = createService({
-      Image: '127.0.0.1:5443/gateway/availability/policy:mirror',
+      Image: `127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/availability/policy:mirror`,
       Env: ['PROJECTED_SECRET=must-not-copy'],
     });
     docker.getManagedContainerConfiguration.mockResolvedValue({

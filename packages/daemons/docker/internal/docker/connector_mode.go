@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -47,8 +48,8 @@ const (
 	// clean mode (secure-link-connector clean.go).
 	connectorCleanMount = "/run/opfield-clean"
 	connectorCleanEnv   = "OPFIELD_CONNECTOR_CLEAN_DIR"
-	// legacy-name: GATEWAY_CONNECTOR_CLEAN_DIR read by connector images before Opfield — remove once every node reports none
-	legacyConnectorCleanEnv = "GATEWAY_CONNECTOR_CLEAN_DIR"
+	// legacy-name: legacycompat.EnvPrefixCONNECTOR_CLEAN_DIR read by connector images before Opfield — remove once every node reports none
+	legacyConnectorCleanEnv = legacycompat.EnvPrefix + "CONNECTOR_CLEAN_DIR"
 	connectorCleanLabel     = "connector-cleanup"
 	connectorUID            = 65532
 )

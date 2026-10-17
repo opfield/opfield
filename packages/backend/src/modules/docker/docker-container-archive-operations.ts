@@ -28,7 +28,7 @@ import { DockerSecretService } from './docker-secret.service.js';
 import { assertDockerMountChangeAllowed } from './docker-socket-mount.guard.js';
 
 /**
- * Container archive (.gwca) plan, export and import, shared by the REST routes
+ * Container archive (.ofca) plan, export and import, shared by the REST routes
  * and the MCP archive transfer tools. Callers enforce the route middleware
  * scope and the `container-export` license entitlement before calling in.
  */
@@ -216,7 +216,7 @@ export async function openDockerContainerArchiveExport(args: {
   if (query.includeEnvironment) {
     environment = envListToMap(await docker.getContainerEnv(nodeId, containerId));
     const containerName = String(inspected?.Name ?? '').replace(/^\/+/, '');
-    if (!containerName) throw new AppError(409, 'GWCA_SOURCE_INVALID', 'Could not resolve container name');
+    if (!containerName) throw new AppError(409, 'OFCA_SOURCE_INVALID', 'Could not resolve container name');
     const secretService = container.resolve(DockerSecretService);
     // Database and storage link credentials belong to the link: the archive carries the user's secrets only.
     if (query.includeSecrets) {
@@ -232,10 +232,10 @@ export async function openDockerContainerArchiveExport(args: {
     'archive_export',
     `Export of container ${String(inspected?.Name ?? containerId).replace(/^\/+/, '')}`
   );
-  let archive: Awaited<ReturnType<DockerArchiveOperations['openGwcaExport']>>;
+  let archive: Awaited<ReturnType<DockerArchiveOperations['openOfcaExport']>>;
   try {
     archive = await container.resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition).executeDockerArchive(
-      'openGwcaExport',
+      'openOfcaExport',
       {
         dispatch,
         nodeId,
@@ -315,7 +315,7 @@ async function importArchive(
   const dispatch = container.resolve(DockerMigrationDispatchAdapter);
   const registryService = container.resolve(DockerRegistryService);
   const data = await container.resolve<CommercialEditionRuntime>(TOKENS.CommercialEdition).executeDockerArchive(
-    'importGwca',
+    'importOfca',
     {
       dispatch,
       nodeId,

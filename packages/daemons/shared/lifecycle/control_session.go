@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,8 +21,8 @@ const ControlSessionFile = "control-session.json"
 
 // LegacyControlSessionFile is the same record under its pre-Opfield name, still
 // written for installers that wait on it.
-// legacy-name: gateway-session.json read by the setup-*.sh installers — remove once every installer reads control-session.json
-const LegacyControlSessionFile = "gateway-session.json"
+// legacy-name: the legacy session file read by the setup-*.sh installers — remove once every installer reads control-session.json
+const LegacyControlSessionFile = legacycompat.ControlSessionFile
 
 type controlSessionRecord struct {
 	PID         int    `json:"pid"`

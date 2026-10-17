@@ -3,6 +3,7 @@ package docker
 import (
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ const (
 	storageConnectorSocketDirectory = "storage-connector"
 	storageConnectorSocketName      = "storage-relay.sock"
 	storageConnectorMount           = "/run/opfield"
-	legacyStorageConnectorMount     = "/run/gateway"
+	legacyStorageConnectorMount     = legacycompat.ConnectorRunDir
 	storageBindingOwnerKind         = "managed_storage_binding"
 	// managedStorageLinkCapability: the node hosts managed storage link connectors (this socket). Availability
 	// projects a workload's storage links only to Docker nodes that advertise it.
@@ -195,8 +196,8 @@ func storageConnectorRelayRefusal(reason string, err error) string {
 // validStorageConnectorInternalWorkload is used by the internal-workload
 // dispatcher before it creates the dedicated managed-storage connector. Opfield
 // sends OPFIELD_CONNECTOR_* with the socket directory at /run/opfield; a
-// control plane or connector of an earlier release uses the GATEWAY_CONNECTOR_*
-// names and /run/gateway, which stay valid (legacy-name below). A variable may
+// control plane or connector of an earlier release uses the pre-Opfield connector
+// names and runtime directory, which stay valid (legacy-name below). A variable may
 // come under both names when the values agree.
 func validStorageConnectorInternalWorkload(env []string, binds []string, socketHostPath string) bool {
 	mount := ""
@@ -205,7 +206,7 @@ func validStorageConnectorInternalWorkload(env []string, binds []string, socketH
 		return false
 	case binds[0] == socketHostPath+":"+storageConnectorMount+":ro":
 		mount = storageConnectorMount
-	// legacy-name: /run/gateway socket mount of storage connectors before Opfield — remove once every node reports none
+	// legacy-name: legacycompat.ConnectorRunDir socket mount of storage connectors before Opfield — remove once every node reports none
 	case binds[0] == socketHostPath+":"+legacyStorageConnectorMount+":ro":
 		mount = legacyStorageConnectorMount
 	default:
@@ -245,13 +246,13 @@ func validStorageConnectorInternalWorkload(env []string, binds []string, socketH
 }
 
 // connectorEnvKey is the variable name of a connector environment entry
-// without its OPFIELD_CONNECTOR_ (or pre-Opfield GATEWAY_CONNECTOR_) prefix.
+// without its OPFIELD_CONNECTOR_ (or pre-Opfield) prefix.
 func connectorEnvKey(name string) (string, bool) {
 	if key, ok := strings.CutPrefix(name, "OPFIELD_CONNECTOR_"); ok && key != "" {
 		return key, true
 	}
-	// legacy-name: GATEWAY_CONNECTOR_* environment of connectors before Opfield — remove once every node reports none
-	if key, ok := strings.CutPrefix(name, "GATEWAY_CONNECTOR_"); ok && key != "" {
+	// legacy-name: legacycompat.EnvPrefixCONNECTOR_* environment of connectors before Opfield — remove once every node reports none
+	if key, ok := strings.CutPrefix(name, legacycompat.EnvPrefix+"CONNECTOR_"); ok && key != "" {
 		return key, true
 	}
 	return "", false

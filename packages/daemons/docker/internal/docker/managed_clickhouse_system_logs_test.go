@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,7 +64,7 @@ func TestHealClickHouseManagedConfig(t *testing.T) {
 	if healed, err := healClickHouseManagedConfig(dir); healed || err != nil {
 		t.Fatalf("missing file: %v %v", healed, err)
 	}
-	path := filepath.Join(dir, "gateway-managed.xml")
+	path := filepath.Join(dir, legacycompat.ClickHouseManagedConfigFile)
 	if err := os.WriteFile(path, []byte(`<clickhouse><query_log/></clickhouse>`), 0o644); err != nil {
 		t.Fatal(err)
 	}

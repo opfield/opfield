@@ -28,7 +28,7 @@ func TestApplyIsDurableMonotonicAndIdempotent(t *testing.T) {
 		t.Fatalf("identical apply was not idempotent: unchanged=%v err=%v", unchanged, err)
 	}
 	conflict := validSnapshot(publicKey)
-	conflict.GatewayInstanceId = "different"
+	conflict.OpfieldInstanceId = "different"
 	if _, _, err := store.Apply(conflict); err == nil {
 		t.Fatal("conflicting content at one revision was accepted")
 	}
@@ -48,7 +48,7 @@ func TestApplyIsDurableMonotonicAndIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	if reopened.Current().Revision != 2 || reopened.Current().GatewayInstanceID != "gateway-1" {
+	if reopened.Current().Revision != 2 || reopened.Current().OpfieldInstanceID != "opfield-1" {
 		t.Fatalf("persisted snapshot was not restored: %#v", reopened.Current())
 	}
 }
@@ -352,7 +352,7 @@ func TestSignedPolicyKeepsActiveAndStagingAssignmentGenerations(t *testing.T) {
 
 func validSnapshot(publicKey ed25519.PublicKey) *relayv1.ApplySnapshotRequest {
 	return &relayv1.ApplySnapshotRequest{
-		Revision: 1, GatewayInstanceId: "gateway-1",
+		Revision: 1, OpfieldInstanceId: "opfield-1",
 		PublicKeys: []*relayv1.PublicKey{{KeyId: "key-1", PublicKey: publicKey}},
 		Endpoints:  []*relayv1.EndpointPolicy{{EndpointId: "endpoint-1", Generation: 1, SubjectKind: "daemon", SubjectId: "node-target", CertificateSha256: "sha256:target"}},
 		Routes:     []*relayv1.RoutePolicy{{RouteId: "route-1", Generation: 1, SourceKind: "daemon", SourceId: "node-source", SourceCertificateSha256: "sha256:source", TargetEndpointId: "endpoint-1"}},
@@ -374,7 +374,7 @@ func signedSnapshotWithPolicyKeys(t *testing.T, privateKey ed25519.PrivateKey, k
 func signedSnapshotWithPolicyKeysForTarget(t *testing.T, privateKey ed25519.PrivateKey, keyID string, grantPublic ed25519.PublicKey, revision uint64, now time.Time, policyKeys []*relayv1.PolicySigningKey, poolID, relayInstanceID string) *relayv1.ApplySnapshotRequest {
 	t.Helper()
 	payload := &relayv1.PolicyEnvelopePayload{
-		SchemaVersion: 2, GatewayInstanceId: "gateway-1", PoolId: poolID, RelayInstanceId: relayInstanceID,
+		SchemaVersion: 2, OpfieldInstanceId: "opfield-1", PoolId: poolID, RelayInstanceId: relayInstanceID,
 		Revision: revision, IssuedAtUnix: now.Unix(), ExpiresAtUnix: now.Add(MaxPolicyLease).Unix(),
 		GrantPublicKeys: []*relayv1.PublicKey{{KeyId: "grant-1", PublicKey: grantPublic}},
 		Endpoints: []*relayv1.EndpointPolicy{{
@@ -712,7 +712,7 @@ func TestResetLocalPolicyTrustRebindsNextSnapshot(t *testing.T) {
 	if _, err := local.BootstrapPolicyTrust("old", oldPublic, PublicKeyFingerprint(oldPublic)); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := local.Apply(signedSnapshotForOpfield(t, oldPrivate, "old", oldPublic, grantPublic, 50, now, "gateway-1")); err != nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, oldPrivate, "old", oldPublic, grantPublic, 50, now, "opfield-1")); err != nil {
 		t.Fatal(err)
 	}
 	replaced, err := local.ResetLocalPolicyTrust("new", newPublic, PublicKeyFingerprint(newPublic))
@@ -726,16 +726,16 @@ func TestResetLocalPolicyTrustRebindsNextSnapshot(t *testing.T) {
 	if _, err := local.ResetLocalPolicyTrust("new", oldPublic, PublicKeyFingerprint(oldPublic)); err == nil {
 		t.Fatal("reset replaced the material of a pinned key id")
 	}
-	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 3, now, "gateway-2")); err != nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 3, now, "opfield-2")); err != nil {
 		t.Fatalf("first snapshot after a reset could not rebind the relay: %v", err)
 	}
-	if current := local.Current(); current.Revision != 3 || current.GatewayInstanceID != "gateway-2" {
-		t.Fatalf("relay did not rebind: revision=%d gateway=%s", current.Revision, current.GatewayInstanceID)
+	if current := local.Current(); current.Revision != 3 || current.OpfieldInstanceID != "opfield-2" {
+		t.Fatalf("relay did not rebind: revision=%d opfield=%s", current.Revision, current.OpfieldInstanceID)
 	}
-	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 2, now, "gateway-2")); err == nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 2, now, "opfield-2")); err == nil {
 		t.Fatal("an older revision was accepted after the rebind")
 	}
-	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 4, now, "gateway-1")); err == nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 4, now, "opfield-1")); err == nil {
 		t.Fatal("another Opfield instance was accepted after the rebind")
 	}
 }
@@ -759,7 +759,7 @@ func TestResetLocalPolicyTrustRebindSurvivesRestart(t *testing.T) {
 	if _, err := local.BootstrapPolicyTrust("key", policyPublic, PublicKeyFingerprint(policyPublic)); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := local.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 50, now, "gateway-1")); err != nil {
+	if _, _, err := local.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 50, now, "opfield-1")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := local.ResetLocalPolicyTrust("key", policyPublic, PublicKeyFingerprint(policyPublic)); err != nil {
@@ -774,7 +774,7 @@ func TestResetLocalPolicyTrustRebindSurvivesRestart(t *testing.T) {
 	if reopened.Current().Revision != 50 {
 		t.Fatalf("persisted snapshot signed by the re-pinned key was dropped: revision=%d", reopened.Current().Revision)
 	}
-	if _, _, err := reopened.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 3, now, "gateway-2")); err != nil {
+	if _, _, err := reopened.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 3, now, "opfield-2")); err != nil {
 		t.Fatalf("the rebind did not survive the restart: %v", err)
 	}
 	reopened.Close()
@@ -784,15 +784,15 @@ func TestResetLocalPolicyTrustRebindSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer again.Close()
-	if _, _, err := again.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 2, now, "gateway-2")); err == nil {
+	if _, _, err := again.Apply(signedSnapshotForOpfield(t, policyPrivate, "key", policyPublic, grantPublic, 2, now, "opfield-2")); err == nil {
 		t.Fatal("the rebind outlived the snapshot that used it")
 	}
 }
 
-func signedSnapshotForOpfield(t *testing.T, privateKey ed25519.PrivateKey, keyID string, policyPublic, grantPublic ed25519.PublicKey, revision uint64, now time.Time, gatewayInstanceID string) *relayv1.ApplySnapshotRequest {
+func signedSnapshotForOpfield(t *testing.T, privateKey ed25519.PrivateKey, keyID string, policyPublic, grantPublic ed25519.PublicKey, revision uint64, now time.Time, opfieldInstanceID string) *relayv1.ApplySnapshotRequest {
 	t.Helper()
 	payload := &relayv1.PolicyEnvelopePayload{
-		SchemaVersion: 2, GatewayInstanceId: gatewayInstanceID, PoolId: "system", RelayInstanceId: "relay-1",
+		SchemaVersion: 2, OpfieldInstanceId: opfieldInstanceID, PoolId: "system", RelayInstanceId: "relay-1",
 		Revision: revision, IssuedAtUnix: now.Unix(), ExpiresAtUnix: now.Add(MaxPolicyLease).Unix(),
 		GrantPublicKeys:   []*relayv1.PublicKey{{KeyId: "grant-1", PublicKey: grantPublic}},
 		Capabilities:      []string{PoolCapability},

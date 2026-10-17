@@ -33,7 +33,7 @@ import { DockerImages } from "./DockerImages";
 import { DockerNetworks } from "./DockerNetworks";
 import { DockerTasks } from "./DockerTasks";
 import { DockerVolumes } from "./DockerVolumes";
-import { GwcaImportDialog } from "./docker/GwcaImportDialog";
+import { OfcaImportDialog } from "./docker/OfcaImportDialog";
 
 // Creation scopes list nodes too, so a folder-only creator (whose folder may still be empty) gets the same node
 // pickers the backend accepts instead of a "no Docker nodes" page.
@@ -305,14 +305,14 @@ export function Docker() {
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
     const opfieldDev = (window.opfieldDev ??= {});
-    const openGwcaImportModal = () => {
+    const openOfcaImportModal = () => {
       setImportDevPreview(true);
       setImportOpen(true);
     };
-    opfieldDev.openGwcaImportModal = openGwcaImportModal;
+    opfieldDev.openOfcaImportModal = openOfcaImportModal;
     return () => {
-      if (opfieldDev.openGwcaImportModal === openGwcaImportModal) {
-        delete opfieldDev.openGwcaImportModal;
+      if (opfieldDev.openOfcaImportModal === openOfcaImportModal) {
+        delete opfieldDev.openOfcaImportModal;
       }
     };
   }, []);
@@ -335,7 +335,7 @@ export function Docker() {
             {planIncludesContainerExport && canCreate("docker:containers:create") && (
               <Button disabled={nodeActionsDisabled} variant="outline" onClick={openImport}>
                 <ArchiveRestore className="h-4 w-4 mr-1" />
-                Import .gwca
+                Import .ofca
               </Button>
             )}
             {canCreate("docker:containers:create") && (
@@ -460,7 +460,7 @@ export function Docker() {
           ...(planIncludesContainerExport
             ? [
                 {
-                  label: "Import .gwca",
+                  label: "Import .ofca",
                   icon: <ArchiveRestore className="h-4 w-4" />,
                   onClick: openImport,
                 },
@@ -708,7 +708,7 @@ export function Docker() {
             {renderTabContent(<DockerBuilds embedded />)}
           </TabsContent>
         </Tabs>
-        <GwcaImportDialog
+        <OfcaImportDialog
           open={importOpen}
           onOpenChange={setImportOpen}
           nodes={archiveImportNodes}

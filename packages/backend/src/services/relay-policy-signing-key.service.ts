@@ -2,6 +2,10 @@ import { createHash, createPrivateKey, generateKeyPairSync, randomUUID, sign } f
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { relayInstances, relayPolicySigningKeys } from '@/db/schema/index.js';
+import {
+  LEGACY_LOCK_RELAY_POLICY_KEY_ROTATION,
+  LEGACY_LOCK_RELAY_POLICY_SIGNING_BOOTSTRAP,
+} from '@/lib/legacy-compat.js';
 import type { CryptoService } from './crypto.service.js';
 import {
   PolicyKeyRotationStallLog,
@@ -228,7 +232,7 @@ export class RelayPolicySigningKeyService {
 
   async ensureInitialized(): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-signing-bootstrap'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_SIGNING_BOOTSTRAP}))`);
       const [active] = await tx
         .select({ id: relayPolicySigningKeys.id })
         .from(relayPolicySigningKeys)
@@ -325,7 +329,7 @@ export class RelayPolicySigningKeyService {
 
   async beginRotationIfDue(now = new Date()): Promise<string | null> {
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-key-rotation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_KEY_ROTATION}))`);
       const [pending] = await tx
         .select({ keyId: relayPolicySigningKeys.keyId })
         .from(relayPolicySigningKeys)
@@ -346,7 +350,7 @@ export class RelayPolicySigningKeyService {
 
   async promoteAcknowledgedPending(now = new Date()): Promise<boolean> {
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-key-rotation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_KEY_ROTATION}))`);
       const [pending] = await tx
         .select({
           id: relayPolicySigningKeys.id,
@@ -394,7 +398,7 @@ export class RelayPolicySigningKeyService {
   async destroyUnneededPrivateKeys(now = new Date()): Promise<boolean> {
     const retained = new Set(this.retainedKeyIds ? await this.retainedKeyIds() : []);
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-key-rotation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_KEY_ROTATION}))`);
       const [active] = await tx
         .select({ keyId: relayPolicySigningKeys.keyId })
         .from(relayPolicySigningKeys)
@@ -435,7 +439,7 @@ export class RelayPolicySigningKeyService {
 
   async retireExpiredVerificationKeys(now = new Date()): Promise<boolean> {
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-key-rotation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_KEY_ROTATION}))`);
       const retired = await tx
         .update(relayPolicySigningKeys)
         .set({ status: 'retired', retiredAt: now })

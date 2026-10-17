@@ -29,7 +29,7 @@ const (
 )
 
 // ingressHealthStatus is what the reserved health paths (/.well-known/opfield-ingress-health and the pre-Opfield
-// /.well-known/gateway-ingress-health) answer: serving only while nginx runs, runs the configuration of the daemon's
+// the legacy health path) answer: serving only while nginx runs, runs the configuration of the daemon's
 // last successful reload, and — on a node that sources Secure Links — at least one relay transport is up. Everything
 // is local: it keeps answering while Opfield is unreachable.
 type ingressHealthStatus struct {

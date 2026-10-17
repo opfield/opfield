@@ -1,5 +1,5 @@
 // Turns the exported DOM snapshots (out/dom/*.json) and the compiled stylesheet
-// (out/gateway.css) into the foss-design canvas `gateway` in the repository's
+// (out/opfield.css) into the foss-design canvas `opfield` in the repository's
 // .design folder: one HTML screen per snapshot, laid out by canvas.json.
 // The viewer (`design preview`) switches every screen between light and dark.
 import { execSync } from "node:child_process";
@@ -13,7 +13,7 @@ const repoRoot = path.resolve(frontendRoot, "../..");
 const outDir = path.join(here, "out");
 const domDir = path.join(outDir, "dom");
 const publicDir = path.join(frontendRoot, "public");
-export const CANVAS_ID = "gateway";
+export const CANVAS_ID = "opfield";
 const canvasDir = path.join(repoRoot, ".design/canvas", CANVAS_ID);
 
 const SECTION_COLUMNS = 4;
@@ -274,7 +274,7 @@ function screenHtml(screen, copied) {
 <meta charset="utf-8">
 <title>${escapeText(screen.title)}</title>
 ${THEME_SYNC}
-<link rel="stylesheet" href="./gateway.css">
+<link rel="stylesheet" href="./opfield.css">
 <style>
 body{margin:0}
 ${styles.join("\n")}
@@ -362,7 +362,7 @@ export function writeCanvas() {
   fs.rmSync(canvasDir, { recursive: true, force: true });
   const screensDir = path.join(canvasDir, "screens");
   fs.mkdirSync(screensDir, { recursive: true });
-  fs.copyFileSync(path.join(outDir, "gateway.css"), path.join(screensDir, "gateway.css"));
+  fs.copyFileSync(path.join(outDir, "opfield.css"), path.join(screensDir, "opfield.css"));
   for (const file of fs.readdirSync(outDir)) {
     if (file.endsWith(".woff2")) fs.copyFileSync(path.join(outDir, file), path.join(screensDir, file));
   }

@@ -2,6 +2,7 @@ package docker
 
 import (
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"strconv"
 	"syscall"
@@ -16,7 +17,7 @@ import (
 
 // registryProxyKeepName names the proxy's listening socket in the listener keeper.
 func registryProxyKeepName() string {
-	return "gateway-registry-proxy/" + registryProxyAddress + "/" + strconv.Itoa(registryProxyPort)
+	return legacycompat.RegistryProxyHandoverPrefix + registryProxyAddress + "/" + strconv.Itoa(registryProxyPort)
 }
 
 // adoptKeptListener takes over the socket the previous process kept, for the first sync that starts the proxy. A

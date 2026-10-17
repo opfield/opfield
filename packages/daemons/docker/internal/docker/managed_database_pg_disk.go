@@ -19,7 +19,7 @@ import (
 
 const (
 	// pgDivergedDirName holds the diverged WAL copies of a set member under
-	// its gateway-ha directory.
+	// its legacycompat.PostgresMemberDir directory.
 	pgDivergedDirName = "diverged"
 	// pgDivergedCopiesKept is how many diverged WAL copies a member keeps.
 	pgDivergedCopiesKept = 2
@@ -216,7 +216,7 @@ func (m *managedDatabaseManager) refreshPostgresDiskSettings(ctx context.Context
 
 // prunePGMemberLeftovers bounds what a rejoin kept on a database's volume:
 // the diverged WAL copies (any database: a lifted member keeps its
-// gateway-ha directory).
+// HA directory).
 func (m *managedDatabaseManager) prunePGMemberLeftovers(record managedDatabaseRecord) {
 	if record.Type != "postgres" || record.MountPath == "" {
 		return

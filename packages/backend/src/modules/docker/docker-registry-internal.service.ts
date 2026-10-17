@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DrizzleClient } from '@/db/client.js';
 import type { DockerRegistryMaintenancePhase } from '@/db/schema/index.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
+import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -31,7 +32,7 @@ export {
   selectRegistryRetentionCandidates,
 } from './docker-registry-maintenance.js';
 
-export const INTERNAL_DOCKER_REGISTRY_ID = 'gateway-internal-registry';
+export const INTERNAL_DOCKER_REGISTRY_ID = LEGACY_INTERNAL_REGISTRY_ID;
 const logger = createChildLogger('DockerInternalRegistryService');
 /** At this share of the registry's filesystem in use, the registry takes no new builds or pushes. */
 const DEFAULT_DISK_PRESSURE_RATIO = 0.9;

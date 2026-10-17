@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -23,7 +24,7 @@ const (
 	ingressHealthServerFilename = "00-opfield-ingress-health.conf"
 	ingressHealthCertDirName    = "opfield-ingress-health"
 	// legacy-name: certificate directory of the reserved server written before 2.12.1 — remove once every node reports none
-	legacyIngressHealthCertDirName = "gateway-ingress-health"
+	legacyIngressHealthCertDirName = legacycompat.IngressHealthName
 	// The reserved server's self-signed certificate lives a year and is replaced 30 days before it expires, while
 	// the daemon runs (checked at start and every 12 hours).
 	ingressHealthCertLifetime    = 365 * 24 * time.Hour

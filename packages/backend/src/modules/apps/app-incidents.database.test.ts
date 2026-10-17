@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
+import { LEGACY_CONTAINER_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 import { AppFolderService } from './app-folders.service.js';
 import type { AppIncidentActions } from './app-incident-actions.js';
 import { AppIncidentConsumerEnv } from './app-incident-consumer-env.js';
@@ -352,7 +353,7 @@ describe.skipIf(!url)('app incidents on disposable PostgreSQL', () => {
             source,
             alias,
             JSON.stringify(environment),
-            `gateway-link-${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+            `${LEGACY_CONTAINER_LINK_NETWORK_PREFIX}${randomUUID().replace(/-/g, '').slice(0, 16)}`,
             userId,
           ]
         )

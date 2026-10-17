@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { hostingFirewalls, hostingNodeBindings, hostingResources, nodes } from '@/db/schema/index.js';
+import { LEGACY_RELAY_SUPERVISOR } from '@/lib/legacy-compat.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -34,10 +35,10 @@ const SERVICES: Record<string, string> = {
   relay: 'opfield-relay-supervisor',
 };
 
-// legacy-name: gateway-relay-supervisor unit — a relay installed before 2.12.1 keeps running under it until its next
+// legacy-name: the legacy relay supervisor unit — a relay installed before 2.12.1 keeps running under it until its next
 // start. The new unit refuses to start while the old one is enabled, and a moved relay keeps the old unit file, disabled,
 // until its cleanup; remove once every relay reports none.
-const LEGACY_SERVICES: Record<string, string> = { 'opfield-relay-supervisor': 'gateway-relay-supervisor' };
+const LEGACY_SERVICES: Record<string, string> = { 'opfield-relay-supervisor': LEGACY_RELAY_SUPERVISOR };
 export function hostingRecoveryScript(roles: string[]): string {
   const services = [...new Set(roles.map((role) => SERVICES[role]))];
   if (!services.length || services.some((service) => !service))

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"os"
 	"sort"
@@ -45,10 +46,10 @@ const (
 
 	// The launcher and the daemon can be different releases: the launcher sets
 	// both names, the daemon reads the Opfield one first.
-	// legacy-name: GATEWAY_DAEMON_* listener keep environment of pre-Opfield launchers and daemons — remove once every node reports none
-	legacyChannelFDEnv       = "GATEWAY_DAEMON_LISTENER_KEEP_FD"
-	legacyKeptEnv            = "GATEWAY_DAEMON_KEPT_LISTENERS"
-	legacyLauncherManagedEnv = "GATEWAY_DAEMON_LAUNCHER_MANAGED"
+	// legacy-name: legacycompat.EnvPrefixDAEMON_* listener keep environment of pre-Opfield launchers and daemons — remove once every node reports none
+	legacyChannelFDEnv       = legacycompat.EnvPrefix + "DAEMON_LISTENER_KEEP_FD"
+	legacyKeptEnv            = legacycompat.EnvPrefix + "DAEMON_KEPT_LISTENERS"
+	legacyLauncherManagedEnv = legacycompat.EnvPrefix + "DAEMON_LAUNCHER_MANAGED"
 
 	messageKeep = "keep"
 	messageDrop = "drop"
@@ -592,6 +593,6 @@ func envEither(name, legacy string) string {
 	if value, ok := os.LookupEnv(name); ok {
 		return value
 	}
-	// legacy-name: GATEWAY_DAEMON_* set by a pre-Opfield launcher copy — remove once every node reports none
+	// legacy-name: legacycompat.EnvPrefixDAEMON_* set by a pre-Opfield launcher copy — remove once every node reports none
 	return os.Getenv(legacy)
 }

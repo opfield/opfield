@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { LEGACY_UPDATE_KEY_ID } from '../../packages/backend/src/lib/legacy-compat.ts';
 
 const script = fileURLToPath(new URL('./license-endpoints.mjs', import.meta.url));
 const config = JSON.parse(readFileSync(new URL('../../config/license-service.json', import.meta.url), 'utf8'));
@@ -35,7 +36,7 @@ test('signs the configured endpoints with the update key envelope and a validity
   assert.equal(result.status, 0, result.stderr);
   const envelope = JSON.parse(readFileSync(out, 'utf8'));
   assert.equal(envelope.schemaVersion, 1);
-  assert.equal(envelope.keyId, 'wiolett-update-v1');
+  assert.equal(envelope.keyId, LEGACY_UPDATE_KEY_ID);
   const payload = Buffer.from(envelope.payload, 'base64url');
   assert.ok(verify(null, payload, key.publicKey, Buffer.from(envelope.signature, 'base64url')));
   const document = JSON.parse(payload.toString('utf8'));

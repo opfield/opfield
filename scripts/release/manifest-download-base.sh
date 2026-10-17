@@ -6,4 +6,7 @@
 # 2.11.5 on accepts a daemon manifest naming its artifact under either host (LEGACY_UPDATES_BASE_URLS in
 # packages/backend/src/config/vendor-urls.ts); the update feed takes every 2.11 install to 2.11.5 before 2.12.
 # A 2.11.4 backend accepts only its own updates.thesqlabs.com base. Guarded by release-manifest-host.test.ts.
-MANIFEST_DOWNLOAD_BASE_URL="https://get.opfield.dev/gateway"
+# The path namespace is the one installed backends check the downloadUrl against (LEGACY_UPDATE_NAMESPACE).
+# shellcheck source=../legacy-compat.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/../legacy-compat.sh"
+MANIFEST_DOWNLOAD_BASE_URL="https://get.opfield.dev/${LEGACY_UPDATE_NAMESPACE}"

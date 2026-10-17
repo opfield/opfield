@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"strings"
 	"sync"
@@ -16,17 +17,17 @@ import (
 
 const (
 	opfieldPackagePrefix = "/opfield.v1."
-	// legacy-name: gateway.v1 package — remove once every node reports none
-	legacyPackagePrefix = "/gateway.v1."
+	// legacy-name: legacycompat.GRPCPackage package — remove once every node reports none
+	legacyPackagePrefix = "/" + legacycompat.GRPCPackage + "."
 	enrollmentService   = "NodeEnrollment/Enroll"
 	// MetadataPrefix starts every identity header the relay forwards to
 	// Opfield. A client's own header with this or the legacy prefix is
 	// dropped, so only the relay can set them.
 	MetadataPrefix = "x-opfield-relay-"
-	// legacy-name: x-wiolett-relay-* headers — remove once every node reports none.
+	// legacy-name: legacycompat.RelayMetadataPrefix* headers — remove once every node reports none.
 	// Still stripped from client metadata: an Opfield that reads them trusts
 	// them only from a relay, never from the client behind it.
-	legacyMetadataPrefix = "x-wiolett-relay-"
+	legacyMetadataPrefix = legacycompat.RelayMetadataPrefix
 	// MetadataCapability tells Opfield this relay forwards the identity of a
 	// verified daemon as x-opfield-relay-* and strips client headers with
 	// either prefix.

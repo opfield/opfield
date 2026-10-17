@@ -2089,7 +2089,7 @@ func (x *AdmissionPolicy) GetHardPressurePercent() uint32 {
 type PolicyEnvelopePayload struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	SchemaVersion     uint32                 `protobuf:"varint,1,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
-	GatewayInstanceId string                 `protobuf:"bytes,2,opt,name=gateway_instance_id,json=gatewayInstanceId,proto3" json:"gateway_instance_id,omitempty"`
+	OpfieldInstanceId string                 `protobuf:"bytes,2,opt,name=opfield_instance_id,json=opfieldInstanceId,proto3" json:"opfield_instance_id,omitempty"`
 	PoolId            string                 `protobuf:"bytes,3,opt,name=pool_id,json=poolId,proto3" json:"pool_id,omitempty"`
 	RelayInstanceId   string                 `protobuf:"bytes,4,opt,name=relay_instance_id,json=relayInstanceId,proto3" json:"relay_instance_id,omitempty"`
 	Revision          uint64                 `protobuf:"varint,5,opt,name=revision,proto3" json:"revision,omitempty"`
@@ -2147,9 +2147,9 @@ func (x *PolicyEnvelopePayload) GetSchemaVersion() uint32 {
 	return 0
 }
 
-func (x *PolicyEnvelopePayload) GetGatewayInstanceId() string {
+func (x *PolicyEnvelopePayload) GetOpfieldInstanceId() string {
 	if x != nil {
-		return x.GatewayInstanceId
+		return x.OpfieldInstanceId
 	}
 	return ""
 }
@@ -2308,7 +2308,7 @@ func (x *SignedPolicyEnvelope) GetSignature() []byte {
 type ApplySnapshotRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Revision          uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
-	GatewayInstanceId string                 `protobuf:"bytes,2,opt,name=gateway_instance_id,json=gatewayInstanceId,proto3" json:"gateway_instance_id,omitempty"`
+	OpfieldInstanceId string                 `protobuf:"bytes,2,opt,name=opfield_instance_id,json=opfieldInstanceId,proto3" json:"opfield_instance_id,omitempty"`
 	PublicKeys        []*PublicKey           `protobuf:"bytes,3,rep,name=public_keys,json=publicKeys,proto3" json:"public_keys,omitempty"`
 	Endpoints         []*EndpointPolicy      `protobuf:"bytes,4,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
 	Routes            []*RoutePolicy         `protobuf:"bytes,5,rep,name=routes,proto3" json:"routes,omitempty"`
@@ -2357,9 +2357,9 @@ func (x *ApplySnapshotRequest) GetRevision() uint64 {
 	return 0
 }
 
-func (x *ApplySnapshotRequest) GetGatewayInstanceId() string {
+func (x *ApplySnapshotRequest) GetOpfieldInstanceId() string {
 	if x != nil {
-		return x.GatewayInstanceId
+		return x.OpfieldInstanceId
 	}
 	return ""
 }
@@ -3600,7 +3600,7 @@ type VerifyHolderStatementRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	PolicyId string                 `protobuf:"bytes,1,opt,name=policy_id,json=policyId,proto3" json:"policy_id,omitempty"`
 	Slot     uint32                 `protobuf:"varint,2,opt,name=slot,proto3" json:"slot,omitempty"`
-	// Must start with "gateway-availability-holder/".
+	// Must start with "legacycompat.AvailabilityHolderDomain/".
 	Domain        string `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
 	Payload       []byte `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
 	Signature     []byte `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
@@ -3725,7 +3725,7 @@ type CoordinationFrame struct {
 	SenderId      string `protobuf:"bytes,2,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
 	// Encoded LeaseBatch.
 	Payload []byte `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
-	// ECDSA P-256 ASN.1 signature over SHA-256("gateway-availability-lease/frame/v1" 0x00 || payload).
+	// ECDSA P-256 ASN.1 signature over SHA-256("<lease domain>/frame/v1" 0x00 || payload).
 	Signature []byte `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
 	// During an identity-key rotation the sender also signs the same bytes
 	// with its previous key. A frame is valid when any signature verifies
@@ -5559,7 +5559,7 @@ func (x *LeaseForcedMarker) GetBase() *LeaseBallot {
 }
 
 // Signed by the relay policy signing key (Ed25519) over
-// "gateway-availability-lease/manifest/v1" 0x00 || payload.
+// "<lease domain>/manifest/v1" 0x00 || payload.
 type LeaseSignedBlock struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SigningKeyId  string                 `protobuf:"bytes,1,opt,name=signing_key_id,json=signingKeyId,proto3" json:"signing_key_id,omitempty"`
@@ -6095,7 +6095,7 @@ func (x *LeaseQuorumSet) GetVoterIds() []string {
 }
 
 // A14: key_id introduced by previous_key_id. The signature is Ed25519 by the
-// previous key over "gateway-availability-lease/key-rotation/v1" 0x00 ||
+// previous key over "<lease domain>/key-rotation/v1" 0x00 ||
 // be32(len(key_id)) || key_id || public_key.
 type LeasePolicyKeyRotation struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
@@ -7252,7 +7252,7 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\x15hard_pressure_percent\x18\x04 \x01(\rR\x13hardPressurePercent\"\x8c\x06\n" +
 	"\x15PolicyEnvelopePayload\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12.\n" +
-	"\x13gateway_instance_id\x18\x02 \x01(\tR\x11gatewayInstanceId\x12\x17\n" +
+	"\x13opfield_instance_id\x18\x02 \x01(\tR\x11opfieldInstanceId\x12\x17\n" +
 	"\apool_id\x18\x03 \x01(\tR\x06poolId\x12*\n" +
 	"\x11relay_instance_id\x18\x04 \x01(\tR\x0frelayInstanceId\x12\x1a\n" +
 	"\brevision\x18\x05 \x01(\x04R\brevision\x12$\n" +
@@ -7273,7 +7273,7 @@ const file_relay_v1_relay_proto_rawDesc = "" +
 	"\tsignature\x18\x03 \x01(\fR\tsignature\"\x8e\x03\n" +
 	"\x14ApplySnapshotRequest\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x12.\n" +
-	"\x13gateway_instance_id\x18\x02 \x01(\tR\x11gatewayInstanceId\x124\n" +
+	"\x13opfield_instance_id\x18\x02 \x01(\tR\x11opfieldInstanceId\x124\n" +
 	"\vpublic_keys\x18\x03 \x03(\v2\x13.relay.v1.PublicKeyR\n" +
 	"publicKeys\x126\n" +
 	"\tendpoints\x18\x04 \x03(\v2\x18.relay.v1.EndpointPolicyR\tendpoints\x12-\n" +

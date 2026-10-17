@@ -21,7 +21,7 @@ it("certs-dialog-ca-intermediate", async () => {
       await user.click(within(dialog).getAllByRole("combobox")[0]);
       await user.click(await screen.findByRole("option", { name: "Northwind Partner Root CA" }));
       await fillCAForm(user, dialog, {
-        commonName: "Partner Gateway CA",
+        commonName: "Partner Exchange CA",
         algorithm: "ECDSA P-256",
         years: "5",
         pathLength: "0",

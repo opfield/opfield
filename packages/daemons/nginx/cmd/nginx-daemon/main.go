@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -141,13 +142,13 @@ func runInstall() {
 	var address, token, certSHA256 string
 	for i := 2; i < len(os.Args)-1; i++ {
 		switch os.Args[i] {
-		// legacy-name: --gateway and --gateway-cert-sha256 of installers and scripts written before 2.12.1 — remove once
+		// legacy-name: legacycompat.AddressFlag and legacycompat.CertFlag of installers and scripts written before 2.12.1 — remove once
 		// no installer passes them
-		case "--opfield", "--gateway":
+		case "--opfield", legacycompat.AddressFlag:
 			address = os.Args[i+1]
 		case "--token":
 			token = os.Args[i+1]
-		case "--opfield-cert-sha256", "--gateway-cert-sha256":
+		case "--opfield-cert-sha256", legacycompat.CertFlag:
 			certSHA256 = os.Args[i+1]
 		}
 	}

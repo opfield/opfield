@@ -1,5 +1,6 @@
 import type { DrizzleClient } from '@/db/client.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
+import { LEGACY_PAGES_HOST_KEY } from '@/lib/legacy-compat.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -58,9 +59,9 @@ export class PageProfileService {
         isolation: {
           overrideRequired: boolean;
           overrideCurrent: boolean;
-          gatewayHost: string;
+          opfieldHost: string;
           pagesHost: string;
-          gatewayRegistrableDomain: string | null;
+          opfieldRegistrableDomain: string | null;
           pagesRegistrableDomain: string;
           same: boolean;
         } | null;
@@ -71,7 +72,7 @@ export class PageProfileService {
         labelTemplate: string;
         overrideSameRegistrableDomain: boolean;
         overrideComparedHosts: {
-          gatewayHost: string;
+          [LEGACY_PAGES_HOST_KEY]: string;
           pagesHost: string;
         } | null;
         overrideAcknowledgedById: string | null;
@@ -86,9 +87,9 @@ export class PageProfileService {
   async getOptions(): Promise<{
     domains: {
       isolation: {
-        gatewayHost: string;
+        opfieldHost: string;
         pagesHost: string;
-        gatewayRegistrableDomain: string | null;
+        opfieldRegistrableDomain: string | null;
         pagesRegistrableDomain: string;
         same: boolean;
       };
@@ -156,9 +157,9 @@ export class PageProfileService {
         isolation: {
           overrideRequired: boolean;
           overrideCurrent: boolean;
-          gatewayHost: string;
+          opfieldHost: string;
           pagesHost: string;
-          gatewayRegistrableDomain: string | null;
+          opfieldRegistrableDomain: string | null;
           pagesRegistrableDomain: string;
           same: boolean;
         } | null;
@@ -169,7 +170,7 @@ export class PageProfileService {
         labelTemplate: string;
         overrideSameRegistrableDomain: boolean;
         overrideComparedHosts: {
-          gatewayHost: string;
+          [LEGACY_PAGES_HOST_KEY]: string;
           pagesHost: string;
         } | null;
         overrideAcknowledgedById: string | null;
@@ -225,9 +226,9 @@ export class PageProfileService {
         isolation: {
           overrideRequired: boolean;
           overrideCurrent: boolean;
-          gatewayHost: string;
+          opfieldHost: string;
           pagesHost: string;
-          gatewayRegistrableDomain: string | null;
+          opfieldRegistrableDomain: string | null;
           pagesRegistrableDomain: string;
           same: boolean;
         } | null;
@@ -238,7 +239,7 @@ export class PageProfileService {
         labelTemplate: string;
         overrideSameRegistrableDomain: boolean;
         overrideComparedHosts: {
-          gatewayHost: string;
+          [LEGACY_PAGES_HOST_KEY]: string;
           pagesHost: string;
         } | null;
         overrideAcknowledgedById: string | null;

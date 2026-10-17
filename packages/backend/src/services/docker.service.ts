@@ -5,6 +5,7 @@ import { type Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { LEGACY_MANAGED_SERVICE_LABEL, MANAGED_SERVICE_LABEL } from '@/foundation/opfield-names.js';
 import { type RegistryStorageBackend, registryStorageFromContainerEnv } from '@/foundation/registry-storage.js';
+import { LEGACY_REGISTRY_GC_PREFIX } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('DockerService');
@@ -277,9 +278,9 @@ export class DockerService {
   }
 
   async recoverManagedRegistryMaintenance(): Promise<void> {
-    // legacy-name: gateway-registry-gc- containers left by an update from a release before 2.12.1 — remove once
+    // legacy-name: LEGACY_REGISTRY_GC_PREFIX containers left by an update from a release before 2.12.1 — remove once
     // every installation runs 2.12.1+
-    const filters = encodeURIComponent(JSON.stringify({ name: ['opfield-registry-gc-', 'gateway-registry-gc-'] }));
+    const filters = encodeURIComponent(JSON.stringify({ name: ['opfield-registry-gc-', LEGACY_REGISTRY_GC_PREFIX] }));
     const listed = await this.request('GET', `${API_VERSION}/containers/json?all=1&filters=${filters}`);
     if (listed.statusCode !== 200) throw new Error(`Docker GC container lookup failed (${listed.statusCode})`);
     const containers = JSON.parse(listed.body) as Array<{ Id?: string }>;

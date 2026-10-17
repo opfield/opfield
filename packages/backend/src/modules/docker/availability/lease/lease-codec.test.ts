@@ -1,6 +1,7 @@
 import { createHash, createPrivateKey, sign } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { decodeRelayV1Message } from '@/grpc/relay-proto.js';
+import { LEGACY_AVAILABILITY_LEASE_DOMAIN } from '@/lib/legacy-compat.js';
 import {
   compareLeaseBallots,
   decodeLeaseSignedBlock,
@@ -74,10 +75,10 @@ describe('availability lease codec', () => {
 
   it('prefixes every signed statement with its domain and a zero byte', () => {
     expect(leaseBlockMessage('LEASE_BLOCK_KIND_MANIFEST', Buffer.from('p')).toString()).toBe(
-      'gateway-availability-lease/manifest/v1\u0000p'
+      `${LEGACY_AVAILABILITY_LEASE_DOMAIN}/manifest/v1\u0000p`
     );
     const rotation = leaseKeyRotationMessage('ab', Buffer.from([9]));
-    expect(rotation.subarray(0, 43).toString()).toBe('gateway-availability-lease/key-rotation/v1\u0000');
+    expect(rotation.subarray(0, 43).toString()).toBe(`${LEGACY_AVAILABILITY_LEASE_DOMAIN}/key-rotation/v1\u0000`);
     expect([...rotation.subarray(43)]).toEqual([0, 0, 0, 2, 0x61, 0x62, 9]);
     expect(policyKeyFingerprint(Buffer.from('abc'))).toBe(
       'sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'

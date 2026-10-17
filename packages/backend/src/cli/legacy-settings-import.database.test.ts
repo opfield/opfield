@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
+import { LEGACY_ENV_PREFIX, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import {
   DEFAULT_ENVIRONMENT_SETTINGS,
   EnvironmentSettingsService,
@@ -20,8 +21,8 @@ const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const V2113_LAST_MIGRATION = '0227_relay_stream_resume';
 
 /** A .env of an install that has been on 2.11 since before 2.11.3: nothing legacy is left in it. */
-const V2113_ENV = `GATEWAY_VERSION=v2.11.3
-DATABASE_URL=postgresql://gateway:secret@postgres:5432/gateway
+const V2113_ENV = `${LEGACY_ENV_PREFIX}VERSION=v2.11.3
+DATABASE_URL=postgresql://${LEGACY_INSTALL_DIR_NAME}:secret@postgres:5432/${LEGACY_INSTALL_DIR_NAME}
 PKI_MASTER_KEY=${'a'.repeat(64)}
 `;
 

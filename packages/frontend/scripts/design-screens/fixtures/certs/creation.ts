@@ -94,11 +94,11 @@ export async function createTemplateUpTo(user: UserEventApi, lastStep: number) {
       await user.click(inDialog.getByRole("button", { name: "Add CRL URL" }));
       await user.type(
         inDialog.getByPlaceholderText("http://crl.example.com/ca.crl"),
-        "https://gateway.example.com/pki/crl/services.crl"
+        "https://opfield.example.com/pki/crl/services.crl"
       );
       await user.type(
         inDialog.getByPlaceholderText("http://ca.example.com/cert.pem"),
-        "https://gateway.example.com/pki/ca/services.crt"
+        "https://opfield.example.com/pki/ca/services.crt"
       );
     },
     async () => {

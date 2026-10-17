@@ -5,6 +5,7 @@ import type { Env } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { settings } from '@/db/schema/settings.js';
 import { type CommercialUpdateGrant, commercialVersionKey } from '@/edition/prepare-update.js';
+import { LEGACY_LICENSE_VERSION_FIELD } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
@@ -399,7 +400,7 @@ export class LicenseService {
       const signed = await this.postSignedState('/api/v1/installations/heartbeat', 'heartbeat', {
         installationToken: credential.token,
         installationName: this.getInstallationName(),
-        gatewayVersion: this.env.APP_VERSION,
+        [LEGACY_LICENSE_VERSION_FIELD]: this.env.APP_VERSION,
         entitlementsVersion: LICENSE_ENTITLEMENTS_VERSION,
       });
       await this.saveServerState(signed);
@@ -477,7 +478,7 @@ export class LicenseService {
       installationId: await this.getInstallationId(),
       registrationNonce: nonce,
       installationName: this.getInstallationName(),
-      gatewayVersion: this.env.APP_VERSION,
+      [LEGACY_LICENSE_VERSION_FIELD]: this.env.APP_VERSION,
       entitlementsVersion: LICENSE_ENTITLEMENTS_VERSION,
       ...this.bindingBody(binding),
     });

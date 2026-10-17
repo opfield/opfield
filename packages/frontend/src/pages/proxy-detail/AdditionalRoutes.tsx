@@ -67,6 +67,7 @@ import type {
   ProxyHost,
   UpdateProxyAdditionalRouteRequest,
 } from "@/types";
+import { LEGACY_RESERVED_PATH_PREFIX } from "../../../../backend/src/lib/legacy-compat";
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const PATH_SEGMENT = /^[A-Za-z0-9._~-]+$/;
@@ -198,7 +199,7 @@ export function validateAdditionalRoutePath(
   const normalized = normalizeAdditionalRoutePath(path);
   if (!normalized) return "Enter a valid literal path prefix.";
   const lower = normalized.toLowerCase();
-  const reserved = ["/.well-known/acme-challenge", "/_opfield", "/_gateway"];
+  const reserved = ["/.well-known/acme-challenge", "/_opfield", LEGACY_RESERVED_PATH_PREFIX];
   if (reserved.some((prefix) => lower === prefix || lower.startsWith(`${prefix}/`))) {
     return "This path is reserved by Opfield.";
   }

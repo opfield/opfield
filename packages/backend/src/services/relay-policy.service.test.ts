@@ -12,6 +12,12 @@ import {
   relayRoutes,
 } from '@/db/schema/index.js';
 import { decodeRelayV1Message } from '@/grpc/relay-proto.js';
+import {
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_INTERNAL_REGISTRY_ID,
+  LEGACY_MANAGED_DATABASE_OWNER_KIND,
+  LEGACY_RELAY_SOURCE_KIND,
+} from '@/lib/legacy-compat.js';
 import { logger } from '@/lib/logger.js';
 import { RelayPolicyNotAcknowledgedError } from './relay-grant-issuer.service.js';
 import {
@@ -176,12 +182,12 @@ describe('managed database listener equality', () => {
   it('treats JSONB key and source ordering as semantically unchanged', () => {
     const persisted = {
       listenPort: 8123,
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       allowedSources: ['container:worker', 'container:api'],
     };
     const desired = {
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       listenPort: 8123,
       allowedSources: ['container:api', 'container:worker'],
@@ -192,7 +198,7 @@ describe('managed database listener equality', () => {
 
   it('detects a listener routing change', () => {
     const current = {
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       listenPort: 5432,
       allowedSources: ['container:api'],
@@ -214,7 +220,12 @@ describe('RelayPolicyService route runtime', () => {
   afterEach(() => remoteHolders.mockRestore());
 
   it('allocates signed revisions above both pool and legacy/global revisions', async () => {
-    const rows = [[{ revision: 900, gatewayInstanceId: 'gateway' }], [{ id: 'local', poolId: 'system' }], [], []];
+    const rows = [
+      [{ revision: 900, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` }],
+      [{ id: 'local', poolId: 'system' }],
+      [],
+      [],
+    ];
     const lock = vi.fn();
     const select = () => {
       if (rows.length < 4) expect(lock).toHaveBeenCalledWith('share');
@@ -247,7 +258,7 @@ describe('RelayPolicyService route runtime', () => {
   it('records the route tuples each relay snapshot carries and keeps dropped ones until acknowledged', async () => {
     const dropped = { routeId: 'route-old', endpointId: 'endpoint', routeGeneration: 1, endpointGeneration: 2 };
     const rows = [
-      [{ revision: 900, gatewayInstanceId: 'gateway' }],
+      [{ revision: 900, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` }],
       [{ id: 'remote', poolId: 'system' }],
       [],
       [{ endpointId: 'endpoint', assignmentGeneration: 3, generationState: 'active' }],
@@ -738,7 +749,7 @@ describe('RelayPolicyService route runtime', () => {
     vi.spyOn(service, 'syncSnapshot').mockResolvedValue(9);
     vi.spyOn(service as any, 'syncNodeGrants').mockResolvedValue(undefined);
     const listener = {
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       listenPort: 5432,
       allowedSources: ['container:api'],
@@ -770,7 +781,7 @@ describe('RelayPolicyService route runtime', () => {
 
   describe('adopting a binding route for a new owner', () => {
     const listener = {
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       listenPort: 5432,
       allowedSources: ['deployment:api'],
@@ -988,7 +999,7 @@ describe('RelayPolicyService snapshots', () => {
           then: (resolve: (rows: unknown[]) => unknown) =>
             Promise.resolve(
               table === relayPolicyState
-                ? [{ revision: globalRevision, gatewayInstanceId: 'gateway' }]
+                ? [{ revision: globalRevision, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` }]
                 : table === relayInstances
                   ? [local]
                   : table === relayGrantSigningKeys
@@ -1079,7 +1090,7 @@ describe('RelayPolicyService snapshots', () => {
           then: (resolve: (rows: unknown[]) => unknown) =>
             Promise.resolve(
               table === relayPolicyState
-                ? [{ revision: 10, gatewayInstanceId: 'gateway' }]
+                ? [{ revision: 10, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` }]
                 : table === relayInstances
                   ? [local]
                   : table === relayGrantSigningKeys
@@ -1272,7 +1283,7 @@ describe('RelayPolicyService snapshots', () => {
 
   it('reads the complete snapshot in one read-only repeatable-read transaction', async () => {
     const rows = new Map<unknown, unknown[]>([
-      [relayPolicyState, [{ revision: 7, gatewayInstanceId: 'gateway-1' }]],
+      [relayPolicyState, [{ revision: 7, opfieldInstanceId: 'opfield-1' }]],
       [relayGrantSigningKeys, [{ keyId: 'key-1', publicKey: Buffer.alloc(32, 1).toString('base64') }]],
       [
         relayEndpoints,
@@ -1345,7 +1356,7 @@ describe('RelayPolicyService snapshots', () => {
     expect(applySnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         revision: '7',
-        gatewayInstanceId: 'gateway-1',
+        opfieldInstanceId: 'opfield-1',
         admissionPolicy: {
           enabled: true,
           proxyTargetPressurePercent: 70,
@@ -1567,7 +1578,7 @@ describe('RelayPolicyService snapshots', () => {
       .mockReturnValueOnce({
         from: () => ({
           where: () => ({
-            limit: () => Promise.resolve([{ nodeId: 'gateway-internal-registry', subjectKind: 'local_service' }]),
+            limit: () => Promise.resolve([{ nodeId: LEGACY_INTERNAL_REGISTRY_ID, subjectKind: 'local_service' }]),
           }),
         }),
       })
@@ -1727,7 +1738,7 @@ describe('RelayPolicyService lifecycle events', () => {
   });
 });
 
-describe('RelayPolicyService gateway tunnels', () => {
+describe('RelayPolicyService opfield tunnels', () => {
   it.each(['error', 'deleting', 'stopped'])('does not reactivate a database in %s status', async (status) => {
     const db = {
       select: vi.fn(() => ({
@@ -1837,7 +1848,7 @@ describe('RelayPolicyService policy signing trust', () => {
               tables.has(table)
                 ? tables.get(table)!
                 : table === relayPolicyState
-                  ? [{ revision: 10, gatewayInstanceId: 'gateway' }]
+                  ? [{ revision: 10, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` }]
                   : table === relayInstances
                     ? [local]
                     : []
@@ -2202,7 +2213,7 @@ describe('RelayPolicyService policy signing trust', () => {
 describe('RelayPolicyService relay recovery surfaces', () => {
   it('allocates a revision above the one a relay reported after an Opfield database restore', async () => {
     const rows = [
-      [{ revision: 900, gatewayInstanceId: 'gateway' }],
+      [{ revision: 900, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` }],
       [{ id: 'remote', poolId: 'system', appliedPolicyRevision: 7000 }],
       [],
       [],
@@ -2394,7 +2405,7 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     const service = createService({}, { applySnapshot: vi.fn() });
     const issuer = (service as any).grantIssuer;
     let revision = 12;
-    issuer.requireState = async () => ({ revision, gatewayInstanceId: 'gateway' });
+    issuer.requireState = async () => ({ revision, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` });
     issuer.settings = { getConfig: async () => ({ relayGrantTtlHours: 4 }) };
     issuer.db = {
       select: () => {
@@ -2418,8 +2429,8 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
       route: [
         {
           id: 'route-1',
-          sourceKind: 'gateway',
-          sourceId: 'gateway',
+          sourceKind: LEGACY_RELAY_SOURCE_KIND,
+          sourceId: `${LEGACY_INSTALL_DIR_NAME}`,
           sourceCertificateSha256: 'sha256:app',
           targetEndpointId: 'endpoint-1',
         },
@@ -2446,10 +2457,10 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     };
     const service = createService(db, { applySnapshot: vi.fn() });
     const issuer = (service as any).grantIssuer;
-    issuer.requireState = async () => ({ revision: 1, gatewayInstanceId: 'gateway' });
+    issuer.requireState = async () => ({ revision: 1, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` });
     issuer.requireNodeIdentity = async () => ({ certificateFingerprint: 'sha256:node' });
     const route = (service as any).currentOpfieldRoute(
-      'managed_database_gateway',
+      LEGACY_MANAGED_DATABASE_OWNER_KIND,
       'managed_database',
       'db-1',
       'node-1',
@@ -2462,7 +2473,7 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     issuer.requireNodeIdentity = async () => ({ certificateFingerprint: 'sha256:renewed' });
     await expect(
       (service as any).currentOpfieldRoute(
-        'managed_database_gateway',
+        LEGACY_MANAGED_DATABASE_OWNER_KIND,
         'managed_database',
         'db-1',
         'node-1',
@@ -2475,7 +2486,10 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     const set = vi.fn(() => ({ where: async () => undefined }));
     const db: any = { update: () => ({ set }) };
     const service = createService(db, { applySnapshot: vi.fn() });
-    (service as any).grantIssuer.requireState = async () => ({ revision: 40, gatewayInstanceId: 'gateway' });
+    (service as any).grantIssuer.requireState = async () => ({
+      revision: 40,
+      opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}`,
+    });
     const sync = vi.spyOn(service, 'syncSnapshot').mockResolvedValue(1);
     const bundles = vi
       .spyOn(service, 'syncNodeGrantBundle')
@@ -2499,7 +2513,10 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
   it('treats only real restore evidence as a reason to raise the revision, by a bounded jump', async () => {
     const set = vi.fn(() => ({ where: async () => undefined }));
     const service = createService({ update: () => ({ set }) } as never, { applySnapshot: vi.fn() });
-    (service as any).grantIssuer.requireState = async () => ({ revision: 40, gatewayInstanceId: 'gateway' });
+    (service as any).grantIssuer.requireState = async () => ({
+      revision: 40,
+      opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}`,
+    });
     vi.spyOn(service, 'syncSnapshot').mockResolvedValue(1);
     const raise = (error: string) => (service as any).raiseRevisionAboveDaemon('node-1', error);
 
@@ -2568,7 +2585,10 @@ describe('RelayPolicyService local trust reset guards', () => {
   it('tells the operator to update a local relay that cannot rebind to this Opfield', async () => {
     const reset = vi.fn();
     const service = recoveryService(reset);
-    const refusal = Object.assign(new Error('9 FAILED_PRECONDITION: snapshot gateway instance changed'), { code: 9 });
+    const refusal = Object.assign(
+      new Error(`9 FAILED_PRECONDITION: snapshot ${LEGACY_INSTALL_DIR_NAME} instance changed`),
+      { code: 9 }
+    );
     await expect(service.recoverLocalPolicyTrust(ACTIVE, health(['relay_pool_v1']), refusal)).rejects.toThrow(
       'Update the Relay Pool'
     );

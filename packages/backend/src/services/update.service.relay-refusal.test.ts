@@ -1,31 +1,32 @@
 import { describe, expect, it, vi } from 'vitest';
 import { nodes, relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
+import { LEGACY_MIN_VERSION_FIELD, LEGACY_THESQLABS_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 import type { TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import { UpdateService, updateCommandFailure } from './update.service.js';
 
-const IMAGE_REF = `registry.example.com/wiolett/gateway/relay@sha256:${'a'.repeat(64)}`;
+const IMAGE_REF = `registry.example.com/opfield/opfield/relay@sha256:${'a'.repeat(64)}`;
 const REFUSAL =
   'refused: this node runs in protected mode and accepts no update to an older release (v2.4.3 is older than the running v2.4.4)';
 
 function relayArtifact(): TrustedRelayUpdateArtifact {
-  const secureLinkConnectorImage = `registry.example.com/wiolett/gateway/secure-link-connector@sha256:${'c'.repeat(64)}`;
+  const secureLinkConnectorImage = `registry.example.com/opfield/opfield/secure-link-connector@sha256:${'c'.repeat(64)}`;
   return {
     imageRef: IMAGE_REF,
     digest: `sha256:${'a'.repeat(64)}`,
     buildVersion: 'v2.4.3',
     protocolMajor: 1,
-    minGatewayVersion: 'v2.4.2',
+    minOpfieldVersion: 'v2.4.2',
     secureLinkConnectorImage,
     signedManifest: 'signed-relay',
     payload: {
       kind: 'relay-image',
       version: 'v2.4.3',
       tag: 'v2.4.3-relay',
-      image: 'registry.example.com/wiolett/gateway/relay',
+      image: 'registry.example.com/opfield/opfield/relay',
       digest: `sha256:${'a'.repeat(64)}`,
       imageRef: IMAGE_REF,
       protocolMajor: 1,
-      minGatewayVersion: 'v2.4.2',
+      [LEGACY_MIN_VERSION_FIELD]: 'v2.4.2',
       secureLinkConnectorImage,
       createdAt: '2026-06-30T00:00:00.000Z',
     },
@@ -100,8 +101,8 @@ function poolWithProtectedRelay() {
     {} as never,
     {
       APP_VERSION: 'v2.4.2',
-      COMPOSE_PROJECT_DIR: '/srv/gateway',
-      RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
+      COMPOSE_PROJECT_DIR: '/srv/opfield',
+      RELEASES_API_URL: `${LEGACY_THESQLABS_UPDATES_BASE_URL}/releases`,
       OPFIELD_RELAY_IMAGE_REF: IMAGE_REF,
       OPFIELD_RELAY_BUILD_VERSION: 'v2.4.3',
       OPFIELD_RELAY_PROTOCOL_MAJOR: 1,

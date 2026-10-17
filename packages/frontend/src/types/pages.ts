@@ -159,9 +159,9 @@ export interface PageProjectFolderTreeNode {
 }
 
 export interface PageProfileIsolation {
-  gatewayHost: string;
+  opfieldHost: string;
   pagesHost: string;
-  gatewayRegistrableDomain: string | null;
+  opfieldRegistrableDomain: string | null;
   pagesRegistrableDomain: string | null;
   same: boolean;
   overrideRequired: boolean;
@@ -205,7 +205,7 @@ export interface PageProfileOptions {
     nginxNodeId: string | null;
     isolation: Pick<
       PageProfileIsolation,
-      "gatewayHost" | "pagesHost" | "gatewayRegistrableDomain" | "pagesRegistrableDomain" | "same"
+      "opfieldHost" | "pagesHost" | "opfieldRegistrableDomain" | "pagesRegistrableDomain" | "same"
     >;
   }>;
   nodes: Array<{

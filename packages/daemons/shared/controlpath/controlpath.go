@@ -2,11 +2,11 @@
 // predates the opfield.v1 service names.
 //
 // Daemons call the opfield.v1 services. Opfield answers them under both the
-// opfield.v1 and the gateway.v1 names, but every daemon connects through the
-// local relay, and a relay of 2.12.0 forwards only gateway.v1 paths: it answers
+// opfield.v1 and the legacy package names, but every daemon connects through the
+// local relay, and a relay of 2.12.0 forwards only legacy package paths: it answers
 // any other path with Unimplemented before anything reaches Opfield. Relays are
 // updated separately from Opfield and its daemons, so a 2.12.1 daemon can meet
-// such a relay. The interceptors here send a call again under its gateway.v1
+// such a relay. The interceptors here send a call again under its legacy package
 // name when its opfield.v1 name was refused with Unimplemented; nothing reached
 // Opfield in that case, so the retry repeats no work.
 package controlpath
@@ -14,6 +14,7 @@ package controlpath
 import (
 	"context"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"strings"
 	"sync"
@@ -29,11 +30,11 @@ const (
 	// Prefix is the path prefix of the opfield.v1 services.
 	Prefix = "/opfield.v1."
 	// LegacyPrefix is the same services' path prefix in 2.12.0.
-	// legacy-name: gateway.v1 method paths, the only ones 2.12.0 relays forward — remove once every relay reports none
-	LegacyPrefix = "/gateway.v1."
+	// legacy-name: legacy package method paths, the only ones 2.12.0 relays forward — remove once every relay reports none
+	LegacyPrefix = "/" + legacycompat.GRPCPackage + "."
 )
 
-// LegacyMethod returns the gateway.v1 path of an opfield.v1 method.
+// LegacyMethod returns the legacy package path of an opfield.v1 method.
 func LegacyMethod(method string) (string, bool) {
 	rest, ok := strings.CutPrefix(method, Prefix)
 	if !ok {
@@ -52,7 +53,7 @@ func DialOptions() []grpc.DialOption {
 	}
 }
 
-// UnaryInterceptor sends a refused opfield.v1 call again under its gateway.v1
+// UnaryInterceptor sends a refused opfield.v1 call again under its legacy package
 // name.
 func UnaryInterceptor(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	err := invoker(ctx, method, req, reply, cc, opts...)
@@ -62,7 +63,7 @@ func UnaryInterceptor(ctx context.Context, method string, req, reply any, cc *gr
 	return err
 }
 
-// StreamInterceptor opens opfield.v1 streams that reopen under their gateway.v1
+// StreamInterceptor opens opfield.v1 streams that reopen under their legacy package
 // name when the first answer is Unimplemented. Until the stream received its
 // first message, what was sent on it is kept and sent again on the reopened
 // stream.

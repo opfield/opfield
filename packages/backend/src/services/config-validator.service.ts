@@ -1,3 +1,4 @@
+import { LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('ConfigValidatorService');
@@ -37,8 +38,11 @@ const TEMPLATE_LOG_PATH = /{{\s*logPath\s*}}/g;
 /** Statements with forbidden directive names that Opfield's own templates emit, in their template form. */
 const OPFIELD_TEMPLATE_STATEMENTS: readonly RegExp[] = [
   /include\s+{{\s*pagesRouteIncludePath\s*}}\s*;/g,
-  // legacy-name: /etc/nginx/gateway in templates saved before 2.12.1 — remove once every node reports none
-  /auth_basic_user_file\s+\/etc\/nginx\/(?:opfield|gateway)\/htpasswd\/access-list-{{\s*accessList\.id\s*}}\s*;/g,
+  // legacy-name: the legacy nginx tree in templates saved before 2.12.1 — remove once every node reports none
+  new RegExp(
+    String.raw`auth_basic_user_file\s+(?:\/etc\/nginx\/opfield|${LEGACY_NGINX_DIR.replaceAll('/', '/')})\/htpasswd\/access-list-{{\s*accessList\.id\s*}}\s*;`,
+    'g'
+  ),
 ];
 
 const RAW_MAX_LENGTH = 262144;

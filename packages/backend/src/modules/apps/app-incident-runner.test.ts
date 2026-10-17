@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AppIncident, AppIncidentItem } from '@/db/schema/index.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 import type { AppIncidentActions, IncidentActionOutcome } from './app-incident-actions.js';
 import { AppIncidentRunner } from './app-incident-runner.js';
 import type { IncidentTargets } from './app-incident-targets.js';
@@ -180,7 +181,7 @@ describe('App incident runner', () => {
 
   it('keeps what a restore could not put back as the detail of a done item, never as a failure', async () => {
     const store = memoryRepo(INCIDENT, ITEMS);
-    const note = 'Skipped network gateway-db-1: it no longer exists';
+    const note = `Skipped network ${LEGACY_DATABASE_LINK_NETWORK_PREFIX}1: it no longer exists`;
     const actions: AppIncidentActions = {
       apply: vi.fn(async () => ({ status: 'applied', priorState: { x: 1 } }) as IncidentActionOutcome),
       restore: vi.fn(async (item) =>

@@ -30,8 +30,19 @@ wrappers=(setup-daemon.sh setup-database-node.sh setup-storage-node.sh)
 
 scripts_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 mkdir -p "$out"
+# Every installer runs on its own (curl | bash), so the compatibility include it sources from a checkout is put in
+# place of that line.
+include_line='. "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"'
 for installer in "${installers[@]}"; do
-  cp "${scripts_dir}/${installer}" "${out}/${installer}"
+  if grep -qxF "$include_line" "${scripts_dir}/${installer}"; then
+    awk -v line="$include_line" -v include="${scripts_dir}/legacy-compat.sh" '
+      $0 == line { while ((getline l < include) > 0) print l; close(include); next }
+      { print }
+    ' "${scripts_dir}/${installer}" >"${out}/${installer}"
+    chmod 755 "${out}/${installer}"
+  else
+    cp "${scripts_dir}/${installer}" "${out}/${installer}"
+  fi
 done
 for wrapper in "${wrappers[@]}"; do
   sed -i "s/^INSTALLER_RELEASE=latest\$/INSTALLER_RELEASE=${tag}/" "${out}/${wrapper}"
@@ -42,6 +53,8 @@ for wrapper in "${wrappers[@]}"; do
   fi
 done
 (cd "$out" && sha256sum "${installers[@]}") > "${out}/opfield-node-installers.sha256"
-# legacy-name: gateway-daemon-installers.sha256, the same list under the name setup commands and wrappers of releases
+# legacy-name: the legacy checksum list, the same list under the name setup commands and wrappers of releases
 # before 2.12.1 read (a wrapper of 2.12.0 pinned to this release with --version) — remove once no supported release reads it.
-cp "${out}/opfield-node-installers.sha256" "${out}/gateway-daemon-installers.sha256"
+# shellcheck source=legacy-compat.sh
+. "${scripts_dir}/legacy-compat.sh"
+cp "${out}/opfield-node-installers.sha256" "${out}/${LEGACY_INSTALLER_CHECKSUMS_ASSET}"

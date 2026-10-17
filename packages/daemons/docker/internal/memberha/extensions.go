@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"time"
 
 	"github.com/opfield/opfield/daemon-shared/availabilitylease"
@@ -712,7 +713,7 @@ func (m *Manager) restartHolderCleanLocked(mem *member, status HolderStatus) {
 
 // AssignmentDomain separates Opfield's assignment signatures from every other
 // statement signed with the relay policy key.
-const AssignmentDomain = "gateway-availability-member/primary-assignment/v1"
+const AssignmentDomain = legacycompat.AvailabilityMemberDomain + "/primary-assignment/v1"
 
 // AssignmentStatement is the payload Opfield signs (under AssignmentDomain,
 // as domain || 0x00 || payload): the set id, the primary member id (each a

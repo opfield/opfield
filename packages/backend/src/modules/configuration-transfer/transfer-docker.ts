@@ -9,6 +9,11 @@ import {
   MANAGED_CLICKHOUSE_LABEL,
   MANAGED_CLICKHOUSE_OWNER_LABEL,
 } from '@/foundation/opfield-names.js';
+import {
+  LEGACY_APP_DATA_DIR,
+  LEGACY_CONFIGURATION_TRANSFER_LABEL,
+  LEGACY_UPDATE_ATTEMPT_KEY,
+} from '@/lib/legacy-compat.js';
 import type { DockerService } from '@/services/docker.service.js';
 import { composeVolumeName, DATABASE_DUMP_FILE, type TransferVolumeKey } from './transfer-layout.js';
 
@@ -21,7 +26,7 @@ import { composeVolumeName, DATABASE_DUMP_FILE, type TransferVolumeKey } from '.
 
 const HELPER_LABEL = 'net.opfield.configuration-transfer';
 // legacy-name: helpers a release before 2.12.1 left behind carry this label; only cleaned up.
-const LEGACY_HELPER_LABEL = 'com.wiolett.gateway.configuration-transfer';
+const LEGACY_HELPER_LABEL = LEGACY_CONFIGURATION_TRANSFER_LABEL;
 const MOUNT_BASE = '/opfield-transfer';
 const CLICKHOUSE_SNAPSHOT_DIR = '.opfield-export-snapshot';
 
@@ -33,7 +38,7 @@ export interface ComposeInstallation {
   relay: string | null;
   registry: string | null;
   postgres: string;
-  /** Role and database the app uses: `opfield` in the Opfield layout, `gateway` in the earlier one. */
+  /** Role and database the app uses: `opfield` in the Opfield layout, LEGACY_INSTALL_DIR_NAME in the earlier one. */
   database: { role: string; name: string };
   redis: string | null;
   clickhouse: { id: string; running: boolean; volume: string } | null;
@@ -333,7 +338,8 @@ export async function openCommercialArchive(
   appContainer: string
 ): Promise<TransferStream> {
   const source = (await docker.inspectContainerDetails(appContainer))?.Mounts?.find(
-    (mount) => mount.Destination === '/var/lib/gateway/commercial'
+    (mount) =>
+      mount.Destination === '/var/lib/opfield/commercial' || mount.Destination === `${LEGACY_APP_DATA_DIR}/commercial`
   )?.Source;
   if (!source) throw new Error('The commercial core directory is not mounted into the Opfield app');
   const helper = await createHelper(docker, installation, [`${source}:${MOUNT_BASE}/commercial:ro`]);
@@ -452,7 +458,7 @@ async function replaceDatabase(docker: DockerService, installation: ComposeInsta
     );
     return;
   }
-  // A dump of the other layout (database and role `gateway` before the host move, `opfield` after): its objects
+  // A dump of the other layout (database and role LEGACY_INSTALL_DIR_NAME before the host move, `opfield` after): its objects
   // belong to this installation's role, and the database gets this installation's name.
   await execChecked(
     docker,
@@ -589,7 +595,7 @@ export const RESTORE_FORGOTTEN_SETTINGS = [
   'cloud:public-alias',
   'cloud:mail',
   'cloud:inference',
-  'update:gateway:attempt',
+  LEGACY_UPDATE_ATTEMPT_KEY,
 ] as const;
 
 /** Drops {@link RESTORE_FORGOTTEN_SETTINGS} from the restored database; the export itself keeps them. */

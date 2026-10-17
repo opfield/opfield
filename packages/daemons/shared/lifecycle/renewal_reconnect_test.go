@@ -18,7 +18,7 @@ func TestRequestControlReconnectDefersTunnelSwitch(t *testing.T) {
 	}
 	select {
 	case <-d.tunnelIdentityChanged:
-		t.Fatal("the tunnel must wait until the gateway accepted the renewed certificate")
+		t.Fatal("the tunnel must wait until Opfield accepted the renewed certificate")
 	default:
 	}
 	if !d.tunnelIdentityPending.Load() {

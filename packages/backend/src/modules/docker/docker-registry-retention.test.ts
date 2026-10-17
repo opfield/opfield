@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { DockerRegistryBuildRetention } from './docker-registry-build-retention.js';
 import {
   classifyRegistryRetentionArtifacts,
@@ -9,7 +10,7 @@ import {
 } from './docker-registry-retention.js';
 
 const digest = (n: number) => `sha256:${n.toString(16).padStart(64, '0')}`;
-const repo = (binding: string) => `gateway/builds/${binding}`;
+const repo = (binding: string) => `${LEGACY_REGISTRY_NAMESPACE}/builds/${binding}`;
 const image = (binding: string, n: number) => `127.0.0.1:5443/${repo(binding)}@${digest(n)}`;
 
 /** Build `n` of a source, newer for a larger `n`; digests are unique per source. */

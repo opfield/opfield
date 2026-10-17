@@ -3,6 +3,7 @@ import { getEnv } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { proxyAdditionalSecureLinks } from '@/db/schema/proxy-additional-secure-links.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
+import { LEGACY_NGINX_RUN_PREFIX } from '@/lib/legacy-compat.js';
 
 /**
  * Route Secure Link over loopback TCP (2.11.4). nginx reached a link's nginx daemon over a Unix socket, which has no
@@ -16,9 +17,11 @@ import { proxyHosts } from '@/db/schema/proxy-hosts.js';
  */
 export const NGINX_SECURE_LINK_LOOPBACK_CAPABILITY = 'nginx_secure_link_loopback_tcp_v1';
 
-// legacy-name: /run/gateway-secure-links of configs stored before 2.12.1 — remove once every node reports none
-const SECURE_LINK_SOCKET_SERVER =
-  /(\bserver\s+)unix:\/run\/(?:opfield|gateway)-secure-links\/([0-9a-fA-F-]{36})\.sock\b/g;
+// legacy-name: the legacy secure links runtime directory of configs stored before 2.12.1 — remove once every node reports none
+const SECURE_LINK_SOCKET_SERVER = new RegExp(
+  String.raw`(\bserver\s+)unix:(?:\/run\/opfield-|${LEGACY_NGINX_RUN_PREFIX.replaceAll('/', '/')})secure-links\/([0-9a-fA-F-]{36})\.sock\b`,
+  'g'
+);
 
 /** The loopback endpoint of the link with this slot ("127.a.b.c:port"); undefined without a slot. */
 export function secureLinkLoopbackAddress(slot: number | null | undefined, port?: number): string | undefined {

@@ -6,6 +6,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { proxyHosts } from '@/db/schema/index.js';
 import { compactHealthHistory } from '@/lib/health-history.js';
 import { normalizeIp } from '@/lib/ip-cidr.js';
+import { LEGACY_CLICKHOUSE_CONTAINER } from '@/lib/legacy-compat.js';
 import { formatHostPort } from '@/lib/network-endpoint.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import {
@@ -126,7 +127,7 @@ function opfieldInternalServiceNames(env: Partial<Env>): Set<string> {
     urlHostname(env.OPFIELD_RELAY_TARGET),
     env.OPFIELD_RELAY_SERVICE_NAME?.toLowerCase(),
     urlHostname(process.env.OPFIELD_INTERNAL_REGISTRY_URL || 'http://registry:5000'),
-    'gateway-clickhouse',
+    LEGACY_CLICKHOUSE_CONTAINER,
   ];
   // Compose service names are single-label; a dotted or literal-IP host may be a shared server
   // that also runs legitimate upstreams, so it is left to the outbound policy.

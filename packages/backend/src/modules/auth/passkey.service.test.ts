@@ -56,7 +56,7 @@ describe('PasskeyService authentication challenge claims', () => {
       db as never,
       cache as never,
       { getConfig: vi.fn().mockResolvedValue({ methods: { passkeyLogin: true } }) } as never,
-      { getCachedPublicUrl: () => 'https://gateway.example.com' } as never
+      { getCachedPublicUrl: () => 'https://opfield.example.com' } as never
     );
     const response = { id: 'credential-1' } as never;
 

@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net/http"
@@ -126,7 +127,7 @@ func (d *fakeMoveDocker) serve(r *http.Request, path string) (*http.Response, er
 			"Config":     map[string]any{"Image": c.image, "Labels": map[string]string{managedStorageLabel: owner, managedStorageMemberLabel: "0"}},
 			"HostConfig": map[string]any{},
 			"NetworkSettings": map[string]any{"Networks": map[string]any{
-				"gateway-storage-" + d.storageID: map[string]any{"IPAddress": "172.30.0.2"},
+				legacycompat.StorageLinkNetworkPrefix + d.storageID: map[string]any{"IPAddress": "172.30.0.2"},
 			}},
 		})
 	case r.Method == http.MethodPost && action == "stop":
@@ -161,7 +162,7 @@ func newMoveTest(t *testing.T, running string, local, pullable map[string]bool) 
 	root := t.TempDir()
 	store := &fakeImageStore{local: local, pullable: pullable}
 	docker := &fakeMoveDocker{t: t, storageID: id, images: store, containers: map[string]*fakeMoveContainer{
-		"old1": {name: "gateway-storage-" + id, image: running, running: true},
+		"old1": {name: legacycompat.StorageLinkNetworkPrefix + id, image: running, running: true},
 	}}
 	m := &managedStorageManager{root: root, logger: slog.New(slog.DiscardHandler), client: docker.client(),
 		chown:      func(string, int, int) error { return nil },
@@ -171,13 +172,13 @@ func newMoveTest(t *testing.T, running string, local, pullable map[string]bool) 
 		t.Fatal(err)
 	}
 	record := managedStorageRecord{
-		ID: id, Engine: managedStorageEngineSeaweedFS, ContainerID: "old1", ContainerName: "gateway-storage-" + id,
-		NetworkName: "gateway-storage-" + id, Image: running, DesiredRunning: true, MemberCount: 1,
+		ID: id, Engine: managedStorageEngineSeaweedFS, ContainerID: "old1", ContainerName: legacycompat.StorageLinkNetworkPrefix + id,
+		NetworkName: legacycompat.StorageLinkNetworkPrefix + id, Image: running, DesiredRunning: true, MemberCount: 1,
 		MemoryBytes: 768 * mebibyte, StorageBytes: 4 * gibibyte,
 		ImagePath: filepath.Join(root, "storage", "images", id+"-0.img"),
 		MountPath: filepath.Join(root, "storage", "mounts", id+"-0"),
 	}
-	if _, err := m.stageSeaweedFS(record, managedStorageCommand{RootCredentials: managedStorageRootCreds{AccessKey: "gateway-root", SecretKey: "secret-key-1"}}); err != nil {
+	if _, err := m.stageSeaweedFS(record, managedStorageCommand{RootCredentials: managedStorageRootCreds{AccessKey: legacycompat.SeaweedFSRootIdentity, SecretKey: "secret-key-1"}}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = removeStagingTree(m.seaweedfsStagingDir(record)) })

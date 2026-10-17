@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -133,7 +134,7 @@ func probeLauncherFeatures(path string) (launcherProbeFeatures, error) {
 		return launcherProbeFeatures{}, err
 	}
 	line := strings.TrimSpace(string(output))
-	if line == fmt.Sprintf("gateway-daemon-launcher %d", LauncherProtocolVersion) {
+	if line == fmt.Sprintf(legacycompat.LauncherProbe+" %d", LauncherProtocolVersion) {
 		return launcherProbeFeatures{Protocol: LauncherProtocolVersion}, nil
 	}
 	var probe launcherProbeFeatures

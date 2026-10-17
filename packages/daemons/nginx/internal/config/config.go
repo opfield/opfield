@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"strings"
 
@@ -18,9 +19,9 @@ const (
 
 type Config struct {
 	// Control is the control plane connection in effect: the opfield: section of the file, else its pre-Opfield
-	// gateway: section (see Load).
-	// legacy-name: gateway: config section of pre-Opfield installs — remove once every node reports none
-	Control ControlConfig `yaml:"gateway"`
+	// pre-Opfield section (see Load).
+	// legacy-name: pre-Opfield config section of pre-Opfield installs — remove once every node reports none
+	legacycompat.ConfigSectionField[ControlConfig] `yaml:",inline"`
 	// Opfield is the opfield: section as written in the file.
 	Opfield ControlConfig `yaml:"opfield"`
 	TLS     TLSConfig     `yaml:"tls"`
@@ -123,7 +124,7 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// UsesLegacyControlSection reports whether the file's control section is still the pre-Opfield gateway: one.
+// UsesLegacyControlSection reports whether the file's control section is still the pre-Opfield one.
 func (c *Config) UsesLegacyControlSection() bool {
 	return strings.TrimSpace(c.Opfield.Address) == "" && strings.TrimSpace(c.Control.Address) != ""
 }

@@ -241,7 +241,7 @@ export async function startGrpcServer(
   const logs = createLogStreamHandlers(deps);
   const migration = createMigrationTransferHandlers(deps);
   const maintenanceAccess = createMaintenanceAccessHandlers(deps);
-  // 2.12.1+ daemons call opfield.v1.*; the same handlers also answer under the gateway.v1.* names.
+  // 2.12.1+ daemons call opfield.v1.*; the same handlers also answer under the LEGACY_GRPC_PACKAGE.* names.
   const addService = (service: grpc.ServiceDefinition, implementation: grpc.UntypedServiceImplementation) => {
     server!.addService(service, implementation);
     server!.addService(legacyGrpcServiceDefinition(service), implementation);

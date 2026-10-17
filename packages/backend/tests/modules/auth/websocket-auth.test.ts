@@ -12,12 +12,12 @@ describe('browser WebSocket credentials', () => {
 
   it('accepts a transport-specific browser session cookie', () => {
     expect(
-      getSessionWebSocketCredential(`${getSessionCookieName('http')}=session-1`, 'http://gateway.test', allowedOrigin)
+      getSessionWebSocketCredential(`${getSessionCookieName('http')}=session-1`, 'http://opfield.test', allowedOrigin)
     ).toEqual({ type: 'session', value: 'session-1' });
   });
 
   it('continues to accept legacy browser session cookies', () => {
-    expect(getSessionWebSocketCredential('session_id=legacy-session', 'https://gateway.test', allowedOrigin)).toEqual({
+    expect(getSessionWebSocketCredential('session_id=legacy-session', 'https://opfield.test', allowedOrigin)).toEqual({
       type: 'session',
       value: 'legacy-session',
     });
@@ -26,7 +26,7 @@ describe('browser WebSocket credentials', () => {
   it('prefers the cookie matching the WebSocket origin transport', () => {
     const cookieHeader = `${getSessionCookieName('https')}=stale-session; ${getSessionCookieName('http')}=current-session`;
 
-    expect(getSessionWebSocketCredential(cookieHeader, 'http://gateway.test', allowedOrigin)).toEqual({
+    expect(getSessionWebSocketCredential(cookieHeader, 'http://opfield.test', allowedOrigin)).toEqual({
       type: 'session',
       value: 'current-session',
     });

@@ -2,6 +2,7 @@ package docker
 
 import (
 	"bufio"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net/netip"
 	"strings"
 	"testing"
@@ -39,7 +40,7 @@ func TestLinkSubnetAllocation(t *testing.T) {
 		t.Fatalf("IPAM %+v reserved %s", ipam, reserved)
 	}
 	inspected := network.Inspect{Network: network.Network{
-		Name: "gateway-link-0123456789abcdef", Labels: map[string]string{"net.opfield.managed": linkNetworkLabel},
+		Name: legacycompat.ContainerLinkNetworkPrefix + "0123456789abcdef", Labels: map[string]string{"net.opfield.managed": linkNetworkLabel},
 		IPAM: network.IPAM{Config: []network.IPAMConfig{ipam}},
 	}}
 	if address, static := linkNetworkReservedAddress(inspected); !static || address.String() != reserved {
@@ -47,7 +48,7 @@ func TestLinkSubnetAllocation(t *testing.T) {
 	}
 	// A database network created before the pool (Docker's subnet, no reserved address): the connector gets a
 	// dynamic address there.
-	inspected.Name, inspected.Labels = "gateway-db-0123456789abcdef", nil
+	inspected.Name, inspected.Labels = legacycompat.DatabaseLinkNetworkPrefix+"0123456789abcdef", nil
 	if _, static := linkNetworkReservedAddress(inspected); static {
 		t.Fatal("a network created before the pool was taken for a link network")
 	}

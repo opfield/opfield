@@ -23,7 +23,7 @@ func TestRecordOpfieldSessionWritesTheInstallerRecord(t *testing.T) {
 	}
 	connectedAt := time.Unix(1_700_000_000, 0)
 	if err := recordControlSession(stateDir, connectedAt); err != nil {
-		t.Fatalf("record gateway session: %v", err)
+		t.Fatalf("record control session: %v", err)
 	}
 	contents, err := os.ReadFile(path)
 	if err != nil {

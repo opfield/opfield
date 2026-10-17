@@ -172,7 +172,7 @@ func TestServerCertificateServesRetainedCertificateByItsIdentity(t *testing.T) {
 
 func TestLoadedFingerprintsNameTheLoadedIdentity(t *testing.T) {
 	now := time.Now()
-	external := selfSignedServerCertificate(t, "gateway-grpc", now.Add(time.Hour))
+	external := selfSignedServerCertificate(t, "opfield-grpc", now.Add(time.Hour))
 	relayClient := selfSignedServerCertificate(t, "relay-app-client", now.Add(time.Hour))
 	appClient := "sha256:" + repeatHex("c")
 	snapshot := &Snapshot{External: external, RelayClient: relayClient, Trust: TrustManifest{AppRelayClientFingerprint: appClient}}

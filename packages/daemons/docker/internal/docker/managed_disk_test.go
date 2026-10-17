@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net/http"
@@ -554,7 +555,7 @@ func TestStorageRemovalRemovesLeftoverMemberContainers(t *testing.T) {
 			switch {
 			case request.Method == http.MethodGet && strings.HasSuffix(request.URL.Path, "/containers/json"):
 				filters = request.URL.Query().Get("filters")
-				return reply(http.StatusOK, `[{"Id":"left1","Names":["/gateway-storage-s-0"]}]`)
+				return reply(http.StatusOK, `[{"Id":"left1","Names":["/`+legacycompat.StorageLinkNetworkPrefix+`s-0"]}]`)
 			case request.Method == http.MethodDelete && strings.HasSuffix(request.URL.Path, "/containers/left1"):
 				removed = append(removed, "left1")
 				return reply(http.StatusNoContent, "")

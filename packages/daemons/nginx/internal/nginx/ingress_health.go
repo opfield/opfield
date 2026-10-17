@@ -3,6 +3,7 @@ package nginx
 import (
 	"bytes"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,7 +28,7 @@ const (
 	// IngressGenerationHeader carries the config generation of the nginx configuration that handled a probe.
 	IngressGenerationHeader = "X-Opfield-Ingress-Generation"
 	// legacy-name: header of configs rendered for the pre-Opfield names — remove once every node reports none
-	LegacyIngressGenerationHeader = "X-Gateway-Ingress-Generation"
+	LegacyIngressGenerationHeader = legacycompat.IngressGenerationHeader
 
 	ingressGenerationFilename = "00-opfield-ingress-generation.conf"
 	ingressGenerationVariable = "$opfield_ingress_generation"

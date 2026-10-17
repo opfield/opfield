@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net"
 	"net/netip"
@@ -28,7 +29,7 @@ import (
 //
 // Every set gets its own internal bridge network (opfield-set-<16 hex of the set
 // id>, a /26 of the link subnet pool; a network created before 2.12.1 keeps
-// gateway-set-). The daemon listens on that network's
+// the legacy set prefix). The daemon listens on that network's
 // gateway address, one port per exposed alias, and the containers resolve each
 // alias host to that address through an ExtraHosts entry (the pattern of the
 // database host listener). Each accepted connection is carried to its alias
@@ -45,8 +46,8 @@ import (
 
 const (
 	setMeshNetworkPrefix = "opfield-set-"
-	// legacy-name: gateway-set-<hex> networks of sets that joined a node before 2.12.1 — remove once every node reports none
-	legacySetMeshNetworkPrefix = "gateway-set-"
+	// legacy-name: legacycompat.SetNetworkPrefix<hex> networks of sets that joined a node before 2.12.1 — remove once every node reports none
+	legacySetMeshNetworkPrefix = legacycompat.SetNetworkPrefix
 	setMeshNetworkLabel        = "availability-set"
 	setMeshRetry               = 5 * time.Second
 	setMeshInspectWait         = 5 * time.Second

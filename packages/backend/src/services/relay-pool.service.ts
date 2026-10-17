@@ -17,6 +17,7 @@ import {
   relayRoutes,
 } from '@/db/schema/index.js';
 import { sameTimestamp } from '@/db/timestamp-equality.js';
+import { LEGACY_LOCK_RELAY_POOL_REBALANCE, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 import { logger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -1781,7 +1782,7 @@ export class RelayPoolService {
       )
     );
     const staged = await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-pool-rebalance'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POOL_REBALANCE}))`);
       // An update run pauses automatic placement, but never the evacuation of a relay it drains:
       // otherwise that relay's workloads have no relay accepting new connections for the whole
       // drain, update and verification window.
@@ -2442,7 +2443,7 @@ export class RelayPoolService {
     const activated = await this.db.transaction(async (tx) => {
       // Removal must not delete a staged assignment between this readiness read
       // and activation. Use the same pool fence as placement and member removal.
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-pool-rebalance'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POOL_REBALANCE}))`);
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`relay-assignment-generation:${generationId}`}))`);
       const [generation] = await tx
         .select()
@@ -2782,7 +2783,7 @@ export class RelayPoolService {
         await acknowledge(false, 'Relay source route is unavailable');
         continue;
       }
-      if (route.sourceKind === 'gateway') {
+      if (route.sourceKind === LEGACY_RELAY_SOURCE_KIND) {
         const result = await this.runProbe(null, 'source', () =>
           this.policy.probeOpfieldRelayCandidate(
             route.id,

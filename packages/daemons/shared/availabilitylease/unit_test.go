@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/hex"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func TestBallotOrderingPutsRoundFirst(t *testing.T) {
 // other implementation verifying QCs must produce these exact bytes.
 func TestAcceptStatementGolden(t *testing.T) {
 	got := hex.EncodeToString(acceptStatement(Key{PolicyID: "p", Slot: 1}, Ballot{Round: 2, Incarnation: 3, Proposer: "d"}, 4, 5, "r", 6))
-	want := hex.EncodeToString([]byte("gateway-availability-lease/accept/v1\x00")) +
+	want := hex.EncodeToString([]byte(legacycompat.AvailabilityLeaseDomain+"/accept/v1\x00")) +
 		"0000000170" + "0000000000000001" + "0000000000000002" + "0000000000000003" + "0000000164" +
 		"0000000000000004" + "0000000000000005" + "0000000172" + "0000000000000006"
 	if got != want {

@@ -88,7 +88,7 @@ const FIXED_PRICE_KEYS: Partial<Record<CoreProxyOperation, string>> = {
   'realtime/calls': 'realtime_session',
 };
 
-/** Operations the core admits/settles itself through the wiolett-core/v1 contract. */
+/** Operations the core admits/settles itself through the core contract. */
 const CORE_ADMITTED: ReadonlySet<CoreProxyOperation> = new Set([
   'responses',
   'responses/compact',

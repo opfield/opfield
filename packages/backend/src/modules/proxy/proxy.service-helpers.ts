@@ -1,5 +1,6 @@
 import { isIP } from 'node:net';
 import { getEnv } from '@/config/env.js';
+import { LEGACY_NGINX_RUN_PREFIX, LEGACY_NGINX_VARIABLE_PREFIX } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { PreparedTlsCertificate } from '@/services/nginx-certificate-distribution.service.js';
 
@@ -154,10 +155,13 @@ export function storedRawConfigForRawModeEnablement(
  */
 export function rawConfigUsesSecureLink(hostId: string, rawConfig: string): boolean {
   // legacy-name: raw configs saved before 2.12.1 name the pre-Opfield socket and upstream — remove once every node reports none
-  return ['opfield', 'gateway'].some(
-    (prefix) =>
-      rawConfig.includes(`/run/${prefix}-secure-links/${hostId}.sock`) ||
-      rawConfig.includes(`${prefix}_secure_link_${hostId.replace(/-/g, '_')}`)
+  return [
+    ['/run/opfield-', 'opfield_'],
+    [LEGACY_NGINX_RUN_PREFIX, LEGACY_NGINX_VARIABLE_PREFIX],
+  ].some(
+    ([runPrefix, variablePrefix]) =>
+      rawConfig.includes(`${runPrefix}secure-links/${hostId}.sock`) ||
+      rawConfig.includes(`${variablePrefix}secure_link_${hostId.replace(/-/g, '_')}`)
   );
 }
 

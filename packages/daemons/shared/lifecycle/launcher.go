@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -127,7 +128,7 @@ func PrintLauncherProbe() {
 		fmt.Println(string(encoded))
 		return
 	}
-	fmt.Printf("gateway-daemon-launcher %d\n", LauncherProtocolVersion)
+	fmt.Printf(legacycompat.LauncherProbe+" %d\n", LauncherProtocolVersion)
 }
 
 // BootstrapLauncher replaces a direct daemon invocation with a stable launcher
@@ -901,11 +902,11 @@ func writeLauncherReadiness(event launcherReadinessEvent, last bool) {
 func ensureStableLauncher(preferredStateDir, daemonType, executable string) (string, string, error) {
 	candidates := []string{preferredStateDir}
 	if cacheDir, err := os.UserCacheDir(); err == nil {
-		candidates = append(candidates, fallbackLauncherDir(filepath.Join(cacheDir, "opfield-daemon", daemonType), filepath.Join(cacheDir, "gateway-daemon", daemonType)))
+		candidates = append(candidates, fallbackLauncherDir(filepath.Join(cacheDir, "opfield-daemon", daemonType), filepath.Join(cacheDir, legacycompat.LauncherNamePrefix, daemonType)))
 	}
 	candidates = append(candidates, fallbackLauncherDir(
 		filepath.Join(os.TempDir(), fmt.Sprintf("opfield-daemon-%d", os.Getuid()), daemonType),
-		filepath.Join(os.TempDir(), fmt.Sprintf("gateway-daemon-%d", os.Getuid()), daemonType)))
+		filepath.Join(os.TempDir(), fmt.Sprintf(legacycompat.LauncherNamePrefix+"-%d", os.Getuid()), daemonType)))
 	return ensureStableLauncherIn(candidates, executable, os.Lstat)
 }
 
@@ -917,7 +918,7 @@ func fallbackLauncherDir(dir, legacy string) string {
 	if _, err := os.Lstat(dir); err == nil {
 		return dir
 	}
-	// legacy-name: gateway-daemon launcher fallback directory of pre-Opfield daemons — remove once every node reports none
+	// legacy-name: legacycompat.LauncherNamePrefix launcher fallback directory of pre-Opfield daemons — remove once every node reports none
 	if _, err := os.Lstat(legacy); err == nil {
 		return legacy
 	}
@@ -978,7 +979,7 @@ func probeLauncher(path string) error {
 	if err != nil {
 		return err
 	}
-	expected := fmt.Sprintf("gateway-daemon-launcher %d", LauncherProtocolVersion)
+	expected := fmt.Sprintf(legacycompat.LauncherProbe+" %d", LauncherProtocolVersion)
 	if strings.TrimSpace(string(output)) != expected {
 		return fmt.Errorf("unsupported launcher probe response %q", strings.TrimSpace(string(output)))
 	}
@@ -1011,10 +1012,10 @@ func launcherStateDirFromEnvironment(executable string) string {
 	case "monitoring-daemon":
 		return "/var/lib/monitoring-daemon"
 	case "relay-supervisor":
-		// legacy-name: /var/lib/gateway-relay-supervisor until the relay supervisor moved it — remove once every node reports none
-		return hostrename.Resolve(hostrename.Pair{Old: "/var/lib/gateway-relay-supervisor", New: "/var/lib/opfield-relay"})
+		// legacy-name: legacycompat.StateRoot-relay-supervisor until the relay supervisor moved it — remove once every node reports none
+		return hostrename.Resolve(hostrename.Pair{Old: legacycompat.StateRoot + "-relay-supervisor", New: "/var/lib/opfield-relay"})
 	default:
-		return fallbackLauncherDir(filepath.Join(filepath.Dir(executable), ".opfield-launcher"), filepath.Join(filepath.Dir(executable), ".gateway-launcher"))
+		return fallbackLauncherDir(filepath.Join(filepath.Dir(executable), ".opfield-launcher"), filepath.Join(filepath.Dir(executable), legacycompat.LauncherWorkDirPrefix))
 	}
 }
 

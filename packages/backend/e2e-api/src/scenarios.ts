@@ -628,7 +628,7 @@ export const scenarios: TestCase[] = [
     async (ctx) => {
       const webhook = await ctx.client.post('/api/notifications/webhooks', {
         name: e2eName('webhook'),
-        url: 'https://example.test/gateway-e2e',
+        url: 'https://example.test/opfield-e2e',
         method: 'POST',
         enabled: false,
         signingHeader: 'X-Signature-256',
@@ -756,7 +756,7 @@ export const scenarios: TestCase[] = [
               {
                 severity: 'info',
                 message: 'API e2e ingest smoke',
-                service: 'gateway-e2e',
+                service: 'opfield-e2e',
                 labels: { suite: 'api' },
               },
               { auth: false, headers: { Authorization: `Bearer ${rawToken}` } }
@@ -847,7 +847,7 @@ export const scenarios: TestCase[] = [
       const created = await ctx.client.post(`/api/docker/nodes/${node.id}/containers`, {
         image,
         name,
-        labels: { 'wiolett.e2e': 'true' },
+        labels: { 'opfield.e2e': 'true' },
         restartPolicy: 'no',
       });
       expectOk(created, 'POST docker container');
@@ -976,7 +976,7 @@ export const scenarios: TestCase[] = [
           ports: [{ hostPort: 0, containerPort: 8080, protocol: 'tcp' }],
           mounts: [{ name: volumeName, containerPath: '/tmp/codex-e2e-data', readOnly: false }],
           env: { CODEX_E2E_RECREATE: 'true' },
-          labels: { 'wiolett.e2e.recreated': 'true' },
+          labels: { 'opfield.e2e.recreated': 'true' },
           restartPolicy: 'no',
         }
       );

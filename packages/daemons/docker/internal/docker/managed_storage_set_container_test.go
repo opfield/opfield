@@ -12,7 +12,7 @@ package docker
 //
 //	DOCKER_HOST=unix:///run/dbha/docker.sock go test -tags swhacontainer -run TestSeaweedFSSetContainers -v ./internal/docker/
 //
-// It needs the pinned seaweedfs-gateway image (pulled when missing).
+// It needs the pinned SeaweedFS image (pulled when missing).
 
 import (
 	"bytes"
@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net"
@@ -251,7 +252,7 @@ func startMember(t *testing.T, root string, mesh *ctMesh, memberID string, index
 	_, _ = dockerCLI("network", "rm", network)
 	prefix := netip.MustParsePrefix(subnet)
 	gateway := prefix.Addr().Next()
-	mustDocker(t, "network", "create", "--internal", "--subnet", subnet, "--gateway", gateway.String(), network)
+	mustDocker(t, "network", "create", "--internal", "--subnet", subnet, legacycompat.AddressFlag, gateway.String(), network)
 	t.Cleanup(func() { _, _ = dockerCLI("network", "rm", network) })
 	dir := filepath.Join(root, fmt.Sprintf("member-%d", index))
 	for _, sub := range []string{"data", "config", "engine"} {

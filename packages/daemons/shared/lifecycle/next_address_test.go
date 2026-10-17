@@ -23,7 +23,7 @@ import (
 )
 
 const nextAddressTestConfig = `# Opfield node configuration
-gateway:
+opfield:
   address: old.example:9443 # current Opfield
   cert_sha256: abc123
 tls:
@@ -142,11 +142,11 @@ func TestSetNextAddressPersistsAndKeepsEveryOtherKey(t *testing.T) {
 		t.Fatalf("set = %q, %v", stored, err)
 	}
 	after := readYAMLMap(t, path)
-	gateway := after["gateway"].(map[string]any)
-	if gateway["next_address"] != "new.example:9443" {
-		t.Fatalf("next_address not saved: %v", gateway)
+	section := after["opfield"].(map[string]any)
+	if section["next_address"] != "new.example:9443" {
+		t.Fatalf("next_address not saved: %v", section)
 	}
-	delete(gateway, "next_address")
+	delete(section, "next_address")
 	if !reflect.DeepEqual(before, after) {
 		t.Fatalf("other keys changed:\nbefore %v\nafter  %v", before, after)
 	}
@@ -191,9 +191,9 @@ func TestSetNextAddressEmptyOrCurrentClearsIt(t *testing.T) {
 		if err != nil || stored != "" || tm.next != "" {
 			t.Fatalf("set(%q) = %q, %v; next %q", clear, stored, err, tm.next)
 		}
-		gateway := readYAMLMap(t, path)["gateway"].(map[string]any)
-		if _, ok := gateway["next_address"]; ok || gateway["address"] != "old.example:9443" {
-			t.Fatalf("set(%q) left %v", clear, gateway)
+		section := readYAMLMap(t, path)["opfield"].(map[string]any)
+		if _, ok := section["next_address"]; ok || section["address"] != "old.example:9443" {
+			t.Fatalf("set(%q) left %v", clear, section)
 		}
 		// Nothing to switch to once cleared.
 		tm.advance(time.Hour)
@@ -266,9 +266,9 @@ func TestNextAddressIsTriedOnlyAfterTenMinutesWithoutASession(t *testing.T) {
 	if tm.probes() != 3 || len(tm.applied) != 0 {
 		t.Fatalf("probes %d, applied %v", tm.probes(), tm.applied)
 	}
-	gateway := readYAMLMap(t, path)["gateway"].(map[string]any)
-	if gateway["address"] != "old.example:9443" {
-		t.Fatalf("a failed probe changed the address: %v", gateway)
+	section := readYAMLMap(t, path)["opfield"].(map[string]any)
+	if section["address"] != "old.example:9443" {
+		t.Fatalf("a failed probe changed the address: %v", section)
 	}
 }
 
@@ -287,15 +287,15 @@ func TestNextAddressPromotionPersistsAndSwitches(t *testing.T) {
 		t.Fatalf("probed %v, applied %v", tm.probed, tm.applied)
 	}
 	after := readYAMLMap(t, path)
-	gateway := after["gateway"].(map[string]any)
-	if gateway["address"] != "new.example:9443" {
-		t.Fatalf("address not saved: %v", gateway)
+	section := after["opfield"].(map[string]any)
+	if section["address"] != "new.example:9443" {
+		t.Fatalf("address not saved: %v", section)
 	}
-	if _, ok := gateway["next_address"]; ok {
-		t.Fatalf("next_address kept after the switch: %v", gateway)
+	if _, ok := section["next_address"]; ok {
+		t.Fatalf("next_address kept after the switch: %v", section)
 	}
-	before["gateway"].(map[string]any)["address"] = "new.example:9443"
-	delete(before["gateway"].(map[string]any), "next_address")
+	before["opfield"].(map[string]any)["address"] = "new.example:9443"
+	delete(before["opfield"].(map[string]any), "next_address")
 	if !reflect.DeepEqual(before, after) {
 		t.Fatalf("other keys changed:\nbefore %v\nafter  %v", before, after)
 	}
@@ -469,7 +469,7 @@ func TestSetNextAddressRetriesAnUnsavedConfigFile(t *testing.T) {
 	if _, err := tm.set("new.example:9443"); err != nil {
 		t.Fatal(err)
 	}
-	if gateway := readYAMLMap(t, path)["gateway"].(map[string]any); gateway["next_address"] != "new.example:9443" {
-		t.Fatalf("the repeat did not save it: %v", gateway)
+	if section := readYAMLMap(t, path)["opfield"].(map[string]any); section["next_address"] != "new.example:9443" {
+		t.Fatalf("the repeat did not save it: %v", section)
 	}
 }

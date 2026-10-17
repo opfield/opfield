@@ -251,74 +251,6 @@ cases:
         none:
           external: true
 
-  - name: external Secure Links management network
-    valid: false
-    backendCode: RESERVED_NETWORK
-    daemonError: uses reserved network name "gateway-secure-links"
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          networks: [links]
-      networks:
-        links:
-          external: true
-          name: gateway-secure-links
-
-  - name: external managed database network under a user key
-    valid: false
-    backendCode: RESERVED_NETWORK
-    daemonError: uses reserved network name "gateway-db-0123456789abcdef"
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          networks: [db]
-      networks:
-        db:
-          external: true
-          name: gateway-db-0123456789abcdef
-
-  - name: project network named like a managed storage network
-    valid: false
-    backendCode: RESERVED_NETWORK
-    daemonError: uses reserved network name "gateway-storage-0123456789abcdef"
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          networks: [storage]
-      networks:
-        storage:
-          name: gateway-storage-0123456789abcdef
-
-  - name: managed database link network added by Opfield
-    valid: true
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          networks:
-            gateway_db_0123456789abcdef:
-      networks:
-        gateway_db_0123456789abcdef:
-          external: true
-          name: gateway-db-0123456789abcdef
-
-  - name: managed database link key naming another reserved network
-    valid: false
-    backendCode: RESERVED_NETWORK
-    daemonError: uses reserved network name "gateway-secure-links"
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          networks: [gateway_db_0123456789abcdef]
-      networks:
-        gateway_db_0123456789abcdef:
-          external: true
-          name: gateway-secure-links
-
   - name: external Opfield Secure Links management network
     valid: false
     backendCode: RESERVED_NETWORK
@@ -332,6 +264,82 @@ cases:
         links:
           external: true
           name: opfield-secure-links
+
+  - name: external managed database network under a user key
+    valid: false
+    backendCode: RESERVED_NETWORK
+    daemonError: uses reserved network name "opfield-db-0123456789abcdef"
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          networks: [db]
+      networks:
+        db:
+          external: true
+          name: opfield-db-0123456789abcdef
+
+  - name: project network named like a managed storage network
+    valid: false
+    backendCode: RESERVED_NETWORK
+    daemonError: uses reserved network name "opfield-storage-0123456789abcdef"
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          networks: [storage]
+      networks:
+        storage:
+          name: opfield-storage-0123456789abcdef
+
+  - name: managed database link network added by Opfield
+    valid: true
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          networks:
+            opfield_db_0123456789abcdef:
+      networks:
+        opfield_db_0123456789abcdef:
+          external: true
+          name: opfield-db-0123456789abcdef
+
+  - name: managed database link key naming another reserved network
+    valid: false
+    backendCode: RESERVED_NETWORK
+    daemonError: uses reserved network name "opfield-secure-links"
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          networks: [opfield_db_0123456789abcdef]
+      networks:
+        opfield_db_0123456789abcdef:
+          external: true
+          name: opfield-secure-links
+
+  - name: label key from a variable
+    valid: false
+    backendCode: RESERVED_LABEL
+    daemonError: cannot use variables in its key
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          labels:
+            - ${LABEL_KEY:-net.opfield.role}=true
+
+  - name: labels next to the reserved namespaces
+    valid: true
+    yaml: |
+      services:
+        web:
+          image: nginx:alpine
+          labels:
+            org.example.opfield.note: kept
+            net.opfield: owner
+            org.example.net.opfield.note: kept
 
   - name: external Opfield managed database network under a user key
     valid: false
@@ -401,28 +409,6 @@ cases:
         backend:
           name: example-backend
 
-  - name: service label gateway.sandbox
-    valid: false
-    backendCode: RESERVED_LABEL
-    daemonError: compose label "gateway.sandbox" is reserved
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          labels:
-            gateway.sandbox: "true"
-
-  - name: service label in the wiolett.gateway. namespace
-    valid: false
-    backendCode: RESERVED_LABEL
-    daemonError: compose label "wiolett.gateway.deployment.id" is reserved
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          labels:
-            wiolett.gateway.deployment.id: 00000000-0000-4000-8000-000000000000
-
   - name: service label in the net.opfield. namespace
     valid: false
     backendCode: RESERVED_LABEL
@@ -433,66 +419,6 @@ cases:
           image: nginx:alpine
           labels:
             net.opfield.deployment.id: 00000000-0000-4000-8000-000000000000
-
-  - name: service label in the net.wiolett.gateway. namespace
-    valid: false
-    backendCode: RESERVED_LABEL
-    daemonError: compose label "net.wiolett.gateway.managed" is reserved
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          labels:
-            - net.wiolett.gateway.managed=true
-
-  - name: service label in the com.wiolett.gateway. namespace
-    valid: false
-    backendCode: RESERVED_LABEL
-    daemonError: compose label "com.wiolett.gateway.managed-service" is reserved
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          labels:
-            com.wiolett.gateway.managed-service: database
-
-  - name: network label in the wiolett.gateway. namespace
-    valid: false
-    backendCode: RESERVED_LABEL
-    daemonError: compose label "wiolett.gateway.internal-workload" is reserved
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          networks: [app]
-      networks:
-        app:
-          labels:
-            wiolett.gateway.internal-workload: managed-storage-connector
-
-  - name: label key from a variable
-    valid: false
-    backendCode: RESERVED_LABEL
-    daemonError: cannot use variables in its key
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          labels:
-            - ${LABEL_KEY:-gateway.sandbox}=true
-
-  - name: labels next to the reserved namespaces
-    valid: true
-    yaml: |
-      services:
-        web:
-          image: nginx:alpine
-          labels:
-            gateway.sandboxed: "true"
-            wiolett.gateway: owner
-            org.example.wiolett.gateway.note: kept
-            net.opfield: owner
-            org.example.net.opfield.note: kept
 
   - name: depends_on list and long syntax with condition
     valid: true

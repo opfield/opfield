@@ -223,7 +223,7 @@ func dialOptionsWith(tlsCfg *tls.Config, lane bool, dialed func(*tlsbatch.Conn))
 	}
 	options := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCredentials),
-		// opfield.v1 calls fall back to their gateway.v1 names behind a 2.12.0 relay.
+		// opfield.v1 calls fall back to their legacycompat.GRPCPackage names behind a 2.12.0 relay.
 		grpc.WithChainUnaryInterceptor(controlpath.UnaryInterceptor),
 		grpc.WithChainStreamInterceptor(controlpath.StreamInterceptor),
 		grpc.WithConnectParams(ReconnectParams),

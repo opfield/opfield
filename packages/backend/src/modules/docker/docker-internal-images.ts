@@ -1,4 +1,5 @@
 import { OFFICIAL_IMAGE_REPOSITORIES } from '@/config/vendor-urls.js';
+import { LEGACY_CONNECTOR_IMAGE_PREFIX, LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 export type OpfieldInternalImageKind =
   | 'secure-link-connector'
@@ -40,10 +41,10 @@ function normalizedReference(reference: string): string {
   return reference.replace(/^index\.docker\.io\//, 'docker.io/');
 }
 
-/** Whether a repository is `<name>` under an Opfield image repository: any `…/gateway/<name>`, or an official one. */
+/** Whether a repository is `<name>` under an Opfield image repository: any `…/<LEGACY_REGISTRY_NAMESPACE>/<name>`, or an official one. */
 function isOpfieldComponentRepository(repository: string, name: string): boolean {
   return (
-    repository.endsWith(`/gateway/${name}`) ||
+    repository.endsWith(`/${LEGACY_REGISTRY_NAMESPACE}/${name}`) ||
     OFFICIAL_IMAGE_REPOSITORIES.some((official) => repository === `${official}/${name}`)
   );
 }
@@ -164,18 +165,24 @@ export function opfieldInternalImageKind(image: DockerImageLike): OpfieldInterna
   for (const reference of dockerImageReferences(image)) {
     const repository = normalizedRepository(reference);
     if (
-      repository === 'gateway-secure-link-connector' ||
+      repository === `${LEGACY_CONNECTOR_IMAGE_PREFIX}secure-link-connector` ||
       isOpfieldComponentRepository(repository, 'secure-link-connector')
     ) {
       return 'secure-link-connector';
     }
-    if (repository === 'gateway-database-connector' || isOpfieldComponentRepository(repository, 'database-connector')) {
+    if (
+      repository === `${LEGACY_CONNECTOR_IMAGE_PREFIX}database-connector` ||
+      isOpfieldComponentRepository(repository, 'database-connector')
+    ) {
       return 'database-connector';
     }
     if (repository === 'docker/compose-bin' || repository === 'docker.io/docker/compose-bin') {
       return 'compose-sidecar';
     }
-    if (repository.startsWith('gateway/builds/') || repository.includes('/gateway/builds/')) {
+    if (
+      repository.startsWith(`${LEGACY_REGISTRY_NAMESPACE}/builds/`) ||
+      repository.includes(`/${LEGACY_REGISTRY_NAMESPACE}/builds/`)
+    ) {
       return 'build-artifact';
     }
   }
@@ -223,7 +230,7 @@ export function selectObsoleteOpfieldConnectorImages(
       created: Number(image.created ?? image.Created ?? 0),
       size: Number(image.size ?? image.Size ?? 0),
     };
-    // One group per kind across every repository name it was published under (the-square-labs/gateway,
+    // One group per kind across every repository name it was published under (LEGACY_IMAGE_REPOSITORY,
     // opfield/opfield, …): an image left under an earlier name counts as an older version.
     groups.set(kind, [...(groups.get(kind) ?? []), candidate]);
   }

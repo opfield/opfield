@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -40,8 +41,8 @@ const (
 	// LegacyRoot is the pre-Opfield name of DefaultRoot. A watchdog or daemon
 	// of an older release uses it; the watchdog moves it to DefaultRoot and
 	// leaves a link (EnsureDefaultRoot), so both meet in one directory.
-	// legacy-name: /run/gateway-lease-watchdog of pre-Opfield watchdogs and docker daemons — remove once every node reports none
-	LegacyRoot = "/run/gateway-lease-watchdog"
+	// legacy-name: legacycompat.RunDirPrefixlease-watchdog of pre-Opfield watchdogs and docker daemons — remove once every node reports none
+	LegacyRoot = legacycompat.RunDirPrefix + "lease-watchdog"
 	// FormatVersion is the record and heartbeat schema version.
 	FormatVersion = 1
 	// HeartbeatInterval is how often the watchdog proves its kill loop runs.

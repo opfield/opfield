@@ -15,6 +15,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { LEGACY_PAGES_HOST_KEY } from '@/lib/legacy-compat.js';
 import { accessLists } from './access-lists.js';
 import { appEnvironments, apps } from './apps.js';
 import { domains } from './domains.js';
@@ -407,7 +408,10 @@ export const pageWildcardProfiles = pgTable(
     labelTemplate: varchar('label_template', { length: 255 }).notNull().default('{hash}'),
     status: pageProfileStatusEnum('status').notNull().default('disabled'),
     overrideSameRegistrableDomain: boolean('override_same_registrable_domain').notNull().default(false),
-    overrideComparedHosts: jsonb('override_compared_hosts').$type<{ gatewayHost: string; pagesHost: string }>(),
+    overrideComparedHosts: jsonb('override_compared_hosts').$type<{
+      [LEGACY_PAGES_HOST_KEY]: string;
+      pagesHost: string;
+    }>(),
     overrideAcknowledgedById: uuid('override_acknowledged_by_id').references(() => users.id, {
       onDelete: 'set null',
     }),

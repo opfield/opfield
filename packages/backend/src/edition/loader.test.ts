@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 import { activatePreviousCommercialRelease, installCommercialRelease } from './install.js';
 import { loadCommercialPackage, sha256 } from './loader.js';
 
@@ -16,7 +17,7 @@ afterEach(async () => {
 });
 
 async function fixture(patch: Record<string, unknown> = {}, entry = code) {
-  const root = await mkdtemp(join(tmpdir(), 'gateway-edition-'));
+  const root = await mkdtemp(join(tmpdir(), 'opfield-edition-'));
   dirs.push(root);
   const files = [
     { path: 'backend/index.cjs', sha256: sha256(Buffer.from(entry)), size: Buffer.byteLength(entry) },
@@ -35,7 +36,7 @@ async function fixture(patch: Record<string, unknown> = {}, entry = code) {
   );
   const signed = JSON.stringify({
     schemaVersion: 1,
-    keyId: 'wiolett-update-v1',
+    keyId: LEGACY_UPDATE_KEY_ID,
     payload: payload.toString('base64url'),
     signature: sign(null, payload, key.privateKey).toString('base64url'),
   });

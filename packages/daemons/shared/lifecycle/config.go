@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"strings"
 
@@ -46,10 +47,10 @@ type FilesConfig struct {
 // BaseConfig holds the configuration common to all daemons.
 type BaseConfig struct {
 	// Control is the control plane connection in effect: the opfield: section
-	// of the config file, else its pre-Opfield gateway: section
+	// of the config file, else its pre-Opfield pre-Opfield section
 	// (ResolveControlSection picks it after loading).
-	// legacy-name: gateway: config section of pre-Opfield installs — remove once every node reports none
-	Control ControlConfig `yaml:"gateway"`
+	// legacy-name: the pre-Opfield config section of pre-Opfield installs — remove once every node reports none
+	legacycompat.ConfigSectionField[ControlConfig] `yaml:",inline"`
 	// Opfield is the opfield: section as written in the file.
 	Opfield  ControlConfig `yaml:"opfield"`
 	TLS      TLSConfig     `yaml:"tls"`
@@ -59,7 +60,7 @@ type BaseConfig struct {
 	// HostIdentityPath points at the one opaque identity shared by every
 	// installer-managed daemon on the physical host. Empty (or either default
 	// path) means the shared default, /var/lib/opfield/host-identity, or the
-	// pre-Opfield /var/lib/gateway/host-identity until that directory moved.
+	// pre-Opfield legacycompat.StateRoot/host-identity until that directory moved.
 	HostIdentityPath string `yaml:"host_identity_path"`
 	LogLevel         string `yaml:"log_level"`
 	LogFormat        string `yaml:"log_format"`
@@ -130,11 +131,11 @@ func LoadBaseConfig(path string) (*BaseConfig, error) {
 
 // ControlSectionKeys are the config file keys of the control plane section:
 // the Opfield one first.
-// legacy-name: gateway: config section — remove once every node reports none
-var ControlSectionKeys = []string{"opfield", "gateway"}
+// legacy-name: the pre-Opfield config section — remove once every node reports none
+var ControlSectionKeys = []string{"opfield", legacycompat.ConfigSection}
 
 // ResolveControlSection makes Opfield the section in effect: opfield: when the
-// file has one with an address, else the pre-Opfield gateway: section.
+// file has one with an address, else the pre-Opfield section.
 func (c *BaseConfig) ResolveControlSection() {
 	if strings.TrimSpace(c.Opfield.Address) != "" {
 		c.Control = c.Opfield
@@ -142,7 +143,7 @@ func (c *BaseConfig) ResolveControlSection() {
 }
 
 // UsesLegacyControlSection reports whether the file's control section is still
-// the pre-Opfield gateway: one.
+// the pre-Opfield one.
 func (c *BaseConfig) UsesLegacyControlSection() bool {
 	return strings.TrimSpace(c.Opfield.Address) == "" && strings.TrimSpace(c.Control.Address) != ""
 }

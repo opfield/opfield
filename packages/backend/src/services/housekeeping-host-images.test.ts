@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_IMAGE_PATH, LEGACY_IMAGE_REPOSITORY, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { opfieldHostImageRepositories, selectOldOpfieldHostImages } from './housekeeping-host-images.js';
 
 const digest = (n: number) => `sha256:${String(n).repeat(64).slice(0, 64)}`;
@@ -14,34 +15,34 @@ describe('old Opfield images on the Opfield host', () => {
       // Under the earlier repository names, and the local name of early installs.
       {
         Id: 'sha256:app-legacy',
-        RepoDigests: [`ghcr.io/the-square-labs/gateway@${digest(4)}`],
+        RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}@${digest(4)}`],
         Created: 20,
         Size: 400,
       },
       {
         Id: 'sha256:app-gitlab',
-        RepoTags: ['registry.gitlab.wiolett.net/wiolett/gateway:2.9.0'],
+        RepoTags: [`registry.example.com${LEGACY_IMAGE_PATH}:2.9.0`],
         Created: 5,
         Size: 300,
       },
-      { Id: 'sha256:app-local', RepoTags: ['gateway:2.8.17'], Created: 1, Size: 200 },
+      { Id: 'sha256:app-local', RepoTags: [`${LEGACY_INSTALL_DIR_NAME}:2.8.17`], Created: 1, Size: 200 },
       { Id: 'sha256:relay-current', RepoDigests: [`${app}/relay@${digest(5)}`], Created: 50, Size: 30 },
       { Id: 'sha256:relay-unused-new', RepoDigests: [`${app}/relay@${digest(6)}`], Created: 45, Size: 30 },
       {
         Id: 'sha256:relay-old',
-        RepoDigests: [`ghcr.io/the-square-labs/gateway/relay@${digest(7)}`],
+        RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}/relay@${digest(7)}`],
         Created: 10,
         Size: 30,
       },
       {
         Id: 'sha256:relay-gitlab',
-        RepoDigests: [`registry.gitlab.wiolett.net/wiolett/gateway/relay@${digest(8)}`],
+        RepoDigests: [`registry.example.com${LEGACY_IMAGE_PATH}/relay@${digest(8)}`],
         Created: 9,
         Size: 30,
       },
       // Not Opfield's: never touched.
       { Id: 'sha256:postgres', RepoTags: ['postgres:16.15-alpine'], Created: 1, Size: 100 },
-      { Id: 'sha256:user', RepoTags: ['myorg/gateway:1'], Created: 1, Size: 100 },
+      { Id: 'sha256:user', RepoTags: ['myorg/opfield:1'], Created: 1, Size: 100 },
     ];
 
     const removable = selectOldOpfieldHostImages({

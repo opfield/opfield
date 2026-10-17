@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { LEGACY_CORE_CONTRACT, LEGACY_CORE_HEADER_PREFIX } from '@/lib/legacy-compat.js';
 
 /**
- * wiolett-core/v1 — the versioned internal contract between Opfield and the
+ * LEGACY_CORE_CONTRACT — the versioned internal contract between Opfield and the
  * managed OpenCodex core. The same literal values and wire shapes are
  * implemented by the OpenCodex integration module; the frozen fixtures under
  * ./fixtures are the shared source of truth protected by hash-pinned tests in
@@ -9,7 +10,7 @@ import { z } from 'zod';
  */
 // Wire value shared with the separately released inference core (frozen fixtures in both repositories): kept on
 // purpose; it changes only with a core release that accepts both.
-export const OPFIELD_CORE_CONTRACT_ID = 'wiolett-core/v1';
+export const OPFIELD_CORE_CONTRACT_ID = LEGACY_CORE_CONTRACT;
 export const INFERENCE_CORE_PROTOCOL_MAJOR = 1;
 export const INFERENCE_CORE_STATE_SCHEMA_VERSION = 1;
 
@@ -177,12 +178,12 @@ export const INFERENCE_CORE_CONTEXT_HEADERS = {
   signature: 'x-opfield-signature',
 } as const;
 
-// legacy-name: x-wiolett-* core contract headers — cores released before the Opfield names read and send only these;
+// legacy-name: legacy core contract headers — cores released before the Opfield names read and send only these;
 // sent next to the new ones and accepted on callbacks until the minimum supported core reads x-opfield-*.
 export const LEGACY_INFERENCE_CORE_CONTEXT_HEADERS = {
-  contract: 'x-wiolett-contract',
-  context: 'x-wiolett-context',
-  signature: 'x-wiolett-signature',
+  contract: `${LEGACY_CORE_HEADER_PREFIX}contract`,
+  context: `${LEGACY_CORE_HEADER_PREFIX}context`,
+  signature: `${LEGACY_CORE_HEADER_PREFIX}signature`,
 } as const;
 
 /** Opfield internal listener paths the core calls for admission and settlement. */
@@ -198,11 +199,11 @@ export const INFERENCE_CORE_CALLBACK_HEADERS = {
   signature: 'x-opfield-signature',
 } as const;
 
-// legacy-name: x-wiolett-* callback headers — see LEGACY_INFERENCE_CORE_CONTEXT_HEADERS.
+// legacy-name: legacy callback headers — see LEGACY_INFERENCE_CORE_CONTEXT_HEADERS.
 export const LEGACY_INFERENCE_CORE_CALLBACK_HEADERS = {
-  contract: 'x-wiolett-contract',
-  timestamp: 'x-wiolett-timestamp',
-  signature: 'x-wiolett-signature',
+  contract: `${LEGACY_CORE_HEADER_PREFIX}contract`,
+  timestamp: `${LEGACY_CORE_HEADER_PREFIX}timestamp`,
+  signature: `${LEGACY_CORE_HEADER_PREFIX}signature`,
 } as const;
 
 /**

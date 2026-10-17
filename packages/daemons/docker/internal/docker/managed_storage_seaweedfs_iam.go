@@ -7,6 +7,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -25,7 +26,7 @@ import (
 const (
 	seaweedfsIAMRegion         = "us-east-1"
 	seaweedfsIAMVersion        = "2010-05-08"
-	seaweedfsInlinePolicyName  = "gateway"
+	seaweedfsInlinePolicyName  = legacycompat.SeaweedFSPolicyName
 	seaweedfsIAMRequestTimeout = 15 * time.Second
 	seaweedfsKeyConfirmTimeout = 10 * time.Second
 	seaweedfsIAMMaxPages       = 100

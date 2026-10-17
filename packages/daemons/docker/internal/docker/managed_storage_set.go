@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"math"
 	"net"
@@ -40,7 +41,7 @@ import (
 const (
 	managedStorageSetPayloadVersion = 3
 	managedStorageRoleLabel         = "net.opfield.managed-storage.role"
-	seaweedfsSetMasterDataDir       = "/run/gateway-master"
+	seaweedfsSetMasterDataDir       = legacycompat.RunDirPrefix + "master"
 	seaweedfsSetStateRoot           = "seaweedfs-set"
 	seaweedfsSetHostsFile           = "hosts"
 	setFilerTokenLifetime           = 2 * time.Minute

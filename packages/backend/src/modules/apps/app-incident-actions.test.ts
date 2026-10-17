@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container } from '@/container.js';
 import type { AppIncidentItem } from '@/db/schema/index.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 import { ManagedDatabaseBindingService } from '@/modules/databases/managed-database-bindings.service.js';
 import { DockerManagementService } from '@/modules/docker/docker.service.js';
 import { DockerSnapshotReconciler } from '@/modules/docker/docker-snapshot-reconciler.service.js';
@@ -89,9 +90,9 @@ function setup(
 
 const ISOLATED = item({
   priorState: {
-    networkMode: 'gateway-db-fbde43aa00000000',
+    networkMode: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000`,
     endpoints: [
-      { networkId: 'id-db', networkName: 'gateway-db-fbde43aa00000000' },
+      { networkId: 'id-db', networkName: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000` },
       { networkId: 'id-bridge', networkName: 'bridge' },
     ],
   },
@@ -106,15 +107,15 @@ describe('Kill switch release of a container', () => {
     const { actions, network } = setup({
       restore: restoreResult({
         restored: ['bridge'],
-        gone: ['gateway-db-fbde43aa00000000'],
-        networkModeGone: 'gateway-db-fbde43aa00000000',
+        gone: [`${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000`],
+        networkModeGone: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000`,
       }),
     });
     await expect(actions.restore(ISOLATED, CONTEXT)).resolves.toEqual({
       status: 'restored',
       detail:
-        'Skipped network gateway-db-fbde43aa00000000: it no longer exists. ' +
-        'Primary network gateway-db-fbde43aa00000000 is gone; the container keeps its other networks',
+        `Skipped network ${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000: it no longer exists. ` +
+        `Primary network ${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000 is gone; the container keeps its other networks`,
     });
     const endpoints = (ISOLATED.priorState as { endpoints: unknown }).endpoints;
     expect(network.restore).toHaveBeenCalledWith('n1', 'api', endpoints);
@@ -123,15 +124,15 @@ describe('Kill switch release of a container', () => {
   it('names the network a container whose primary network is gone was put on', async () => {
     const { actions } = setup({
       restore: restoreResult({
-        gone: ['gateway-db-fbde43aa00000000'],
-        networkModeGone: 'gateway-db-fbde43aa00000000',
+        gone: [`${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000`],
+        networkModeGone: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000`,
         fallbackNetwork: 'bridge',
       }),
     });
     const outcome = await actions.restore(ISOLATED, CONTEXT);
     expect(outcome).toMatchObject({ status: 'restored' });
     expect((outcome as { detail?: string }).detail).toContain(
-      'Primary network gateway-db-fbde43aa00000000 is gone, so the container is on bridge now'
+      `Primary network ${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000 is gone, so the container is on bridge now`
     );
   });
 
@@ -141,7 +142,7 @@ describe('Kill switch release of a container', () => {
         restored: ['bridge'],
         failed: [
           {
-            networkName: 'gateway-db-fbde43aa00000000',
+            networkName: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000`,
             networkId: 'id-db',
             error: 'Error response from daemon: network id-db not found',
           },
@@ -216,7 +217,7 @@ describe('Container snapshot after isolation and release', () => {
   it('reads back the networks a partial restore put back before the item fails', async () => {
     const { actions, snapshots } = setup({
       restore: restoreResult({
-        restored: ['gateway-db-fbde43aa00000000'],
+        restored: [`${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43aa00000000`],
         failed: [{ networkName: 'bridge', networkId: 'id-bridge', error: 'endpoint is busy' }],
       }),
     });

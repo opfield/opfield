@@ -12,6 +12,7 @@ import {
 } from '@/db/schema/index.js';
 import type { NodeRelayStreamReport } from '@/db/schema/nodes.js';
 import type { RelayRouteResumeState } from '@/db/schema/relay.js';
+import { LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CryptoService } from './crypto.service.js';
 
@@ -366,7 +367,7 @@ export function opfieldStreamReport(
 }
 
 /** The report source name of Opfield's own streams. */
-export const OPFIELD_STREAM_REPORT_SOURCE = 'gateway';
+export const OPFIELD_STREAM_REPORT_SOURCE = LEGACY_RELAY_SOURCE_KIND;
 
 /** Per daemon: streams it moved to another relay and resumable streams it lost, since it started. */
 export type RelayStreamCounters = Map<string, { moved: number; cut: number }>;
@@ -629,7 +630,7 @@ export class RelayStreamResumeService {
       const targetNodeId = route.endpointSubjectKind === 'daemon' ? route.targetNodeId : null;
       ends.set(route.id, { id: route.id, sourceKind: route.sourceKind, sourceId: route.sourceId, targetNodeId });
       const sourceCapable =
-        route.sourceKind === 'gateway'
+        route.sourceKind === LEGACY_RELAY_SOURCE_KIND
           ? OPFIELD_STREAM_RESUME_CAPABLE
           : route.sourceKind === 'daemon' && capable.has(route.sourceId);
       return {

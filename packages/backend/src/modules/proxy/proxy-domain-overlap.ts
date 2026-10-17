@@ -1,6 +1,7 @@
 import { and, eq, ne, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
 import { proxyHostDomains, proxyHosts } from '@/db/schema/index.js';
+import { LEGACY_GUC_PROXY_DOMAIN_CONFLICTS } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { proxyHostsServedByNode } from '@/modules/ingress-groups/ingress-nodes.js';
 
@@ -124,7 +125,7 @@ export async function restoringProxyHostState<T>(
   write: (executor: DrizzleExecutor) => Promise<T>
 ): Promise<T> {
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('gateway.proxy_domain_conflicts', 'record', true)`);
+    await tx.execute(sql`select set_config(${LEGACY_GUC_PROXY_DOMAIN_CONFLICTS}, 'record', true)`);
     return write(tx);
   });
 }

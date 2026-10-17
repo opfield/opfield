@@ -1,4 +1,5 @@
 import { generateKeyPairSync, type KeyObject, sign } from 'node:crypto';
+import { LEGACY_LICENSE_STATE_DOMAIN } from '@/lib/legacy-compat.js';
 import type { LicenseServerState } from './license.types.js';
 import {
   LICENSE_ATTESTATION_KIND,
@@ -9,7 +10,7 @@ import {
 
 export const TEST_INSTALLATION_ID = '11111111-1111-4111-8111-111111111111';
 
-const MESSAGE_PREFIX = Buffer.from('wiolett-gateway-license-state/v1\n', 'utf8');
+const MESSAGE_PREFIX = Buffer.from(`${LEGACY_LICENSE_STATE_DOMAIN}\n`, 'utf8');
 
 export interface TestLicenseSigner {
   keyId: string;

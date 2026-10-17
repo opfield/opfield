@@ -2,6 +2,10 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# legacy-compat: scripts/stage-installers.sh puts scripts/legacy-compat.sh in place of this line.
+# shellcheck source=legacy-compat.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"
+
 # Opfield managed-database node setup.
 #
 # This is intentionally a thin, root-only wrapper around setup-docker-node.sh:
@@ -71,21 +75,22 @@ prompt_choice() {
     echo "${reply:-$default}"
 }
 
-# legacy-name: GATEWAY_SETUP_VERSION, GATEWAY_RELEASE_DOWNLOAD_BASE, GATEWAY_DATABASE_STORAGE_ROOT and GATEWAY_DOCKER_MODE
+# legacy-name: pre-2.12.1 names of the variables
 # installer environment — customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is not
 # set (the new name wins).
-for legacy_env in GATEWAY_SETUP_VERSION GATEWAY_RELEASE_DOWNLOAD_BASE GATEWAY_DATABASE_STORAGE_ROOT GATEWAY_DOCKER_MODE; do
-    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+for legacy_suffix in SETUP_VERSION RELEASE_DOWNLOAD_BASE DATABASE_STORAGE_ROOT DOCKER_MODE; do
+    legacy_env="${LEGACY_ENV_PREFIX}${legacy_suffix}"
+    opfield_env="OPFIELD_${legacy_suffix}"
     if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
         printf -v "$opfield_env" '%s' "${!legacy_env}"
     fi
 done
-unset legacy_env opfield_env
+unset legacy_suffix legacy_env opfield_env
 
 # A release publishes this file with its own tag here, so setup-docker-node.sh comes from the same release.
 INSTALLER_RELEASE=latest
 SETUP_VERSION="${OPFIELD_SETUP_VERSION:-$INSTALLER_RELEASE}"
-RELEASE_DOWNLOAD_BASE="${OPFIELD_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/gateway/releases}"
+RELEASE_DOWNLOAD_BASE="${OPFIELD_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/opfield/releases}"
 STORAGE_ROOT="${OPFIELD_DATABASE_STORAGE_ROOT:-}"
 RUN_USER="root"
 DRY_RUN=0
@@ -197,10 +202,10 @@ else
     fi
     DOWNLOADED_DOCKER_SCRIPT=$(mktemp /tmp/opfield-setup-docker.XXXXXX)
     checksums=$(mktemp /tmp/opfield-setup-checksums.XXXXXX)
-    # legacy-name: gateway-daemon-installers.sha256, the only checksum list of releases before 2.12.1 (a pinned
+    # legacy-name: LEGACY_INSTALLER_CHECKSUMS_ASSET, the only checksum list of releases before 2.12.1 (a pinned
     # OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
     curl -fsSL "${release_url}/opfield-node-installers.sha256" -o "$checksums" 2>/dev/null ||
-        curl -fsSL "${release_url}/gateway-daemon-installers.sha256" -o "$checksums" ||
+        curl -fsSL "${release_url}/${LEGACY_INSTALLER_CHECKSUMS_ASSET}" -o "$checksums" ||
         die "Could not download installer checksums."
     curl -fsSL "${release_url}/setup-docker-node.sh" -o "$DOWNLOADED_DOCKER_SCRIPT" ||
         die "Could not download setup-docker-node.sh."
@@ -221,16 +226,16 @@ case "$OPFIELD_DOCKER_MODE" in
     databases|storage) export OPFIELD_DOCKER_MODE ;;
     *) die "Invalid restricted Docker mode '${OPFIELD_DOCKER_MODE}'" ;;
 esac
-# legacy-name: GATEWAY_DATABASE_STORAGE_ROOT and GATEWAY_DOCKER_MODE for a setup-docker-node.sh of a release before
+# legacy-name: pre-2.12.1 names of the variables for a setup-docker-node.sh of a release before
 # 2.12.1 (a pinned OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
-export GATEWAY_DATABASE_STORAGE_ROOT="$OPFIELD_DATABASE_STORAGE_ROOT" GATEWAY_DOCKER_MODE="$OPFIELD_DOCKER_MODE"
+export "${LEGACY_ENV_PREFIX}DATABASE_STORAGE_ROOT=$OPFIELD_DATABASE_STORAGE_ROOT" "${LEGACY_ENV_PREFIX}DOCKER_MODE=$OPFIELD_DOCKER_MODE"
 if ! grep -Eq '^[[:space:]]*--opfield\)' "$DOCKER_SCRIPT"; then
-    # legacy-name: --gateway flags for a setup-docker-node.sh of a release before 2.12.1 (a pinned
+    # legacy-name: the pre-2.12.1 address flags for a setup-docker-node.sh of a release before 2.12.1 (a pinned
     # OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
     for i in "${!PASSTHROUGH[@]}"; do
         case "${PASSTHROUGH[$i]}" in
-            --opfield) PASSTHROUGH[$i]="--gateway" ;;
-            --opfield-cert-sha256) PASSTHROUGH[$i]="--gateway-cert-sha256" ;;
+            --opfield) PASSTHROUGH[$i]="$LEGACY_ADDRESS_FLAG" ;;
+            --opfield-cert-sha256) PASSTHROUGH[$i]="$LEGACY_CERT_FLAG" ;;
         esac
     done
 fi

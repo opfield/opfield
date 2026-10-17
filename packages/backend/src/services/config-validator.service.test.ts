@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 import { ConfigValidatorService } from './config-validator.service.js';
 
 describe('ConfigValidatorService', () => {
@@ -129,9 +130,9 @@ server {
   });
 
   it.each([
-    'access_log /etc/cron.d/gateway gateway_combined;',
+    `access_log /etc/cron.d/${LEGACY_INSTALL_DIR_NAME} ${LEGACY_INSTALL_DIR_NAME}_combined;`,
     'error_log /root/.ssh/authorized_keys;',
-    'access_log /var/log/nginx/../../etc/cron.d/gateway;',
+    `access_log /var/log/nginx/../../etc/cron.d/${LEGACY_INSTALL_DIR_NAME};`,
     'access_log /var/log/nginx/$host.log;',
   ])('keeps raw mode logs in the nginx log directory: %s', (snippet) => {
     expect(service.validate(snippet, true).errors).toEqual([
@@ -143,7 +144,7 @@ server {
   it('allows raw mode logs in the nginx log directory, syslog and off', () => {
     const result = service.validate(
       [
-        'access_log /var/log/nginx/proxy-1.access.log gateway_combined;',
+        `access_log /var/log/nginx/proxy-1.access.log ${LEGACY_INSTALL_DIR_NAME}_combined;`,
         'error_log /var/log/nginx/proxy-1.error.log warn;',
         'access_log syslog:server=127.0.0.1;',
         'access_log off;',
@@ -243,7 +244,7 @@ describe('ConfigValidatorService templates', () => {
         'server {',
         '    include {{pagesRouteIncludePath}};',
         '    location / {',
-        '        auth_basic_user_file /etc/nginx/gateway/htpasswd/access-list-{{accessList.id}};',
+        `        auth_basic_user_file ${LEGACY_NGINX_DIR}/htpasswd/access-list-{{accessList.id}};`,
         '        proxy_pass {{upstream}};',
         '    }',
         '}',
@@ -270,14 +271,16 @@ describe('ConfigValidatorService templates', () => {
   });
 
   it('allows forbidden statements in rendered output only where the route authorized them', () => {
-    const rendered = 'server {\n  include /var/lib/gateway/pages/a.conf;\n  include /etc/nginx/snippets/x.conf;\n}';
+    const rendered = `server {\n  include /var/lib/${LEGACY_INSTALL_DIR_NAME}/pages/a.conf;\n  include /etc/nginx/snippets/x.conf;\n}`;
 
     expect(
-      service.validateRenderedTemplate(rendered, { statements: [['include', '/var/lib/gateway/pages/a.conf']] }).errors
+      service.validateRenderedTemplate(rendered, {
+        statements: [['include', `/var/lib/${LEGACY_INSTALL_DIR_NAME}/pages/a.conf`]],
+      }).errors
     ).toEqual(['Forbidden directive "include" found on line 3']);
     expect(
       service.validateRenderedTemplate(rendered, {
-        statements: [['include', '/var/lib/gateway/pages/a.conf']],
+        statements: [['include', `/var/lib/${LEGACY_INSTALL_DIR_NAME}/pages/a.conf`]],
         snippets: ['include /etc/nginx/snippets/x.conf;'],
       }).valid
     ).toBe(true);

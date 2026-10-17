@@ -18,6 +18,7 @@ import {
   pageTags,
   users,
 } from '@/db/schema/index.js';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -989,7 +990,7 @@ export class AppPromotionService {
     }
     await this.resolve(DockerInternalRegistryService)?.assertBuildAdmission();
     const owner = createHash('sha256').update(ownerKey).digest('hex').slice(0, 16);
-    const repository = `gateway/promotion/${owner}/${Date.now()}`;
+    const repository = `${LEGACY_REGISTRY_NAMESPACE}/promotion/${owner}/${Date.now()}`;
     await registry.ensureBinding({
       nodeId,
       role: 'mirror',

@@ -11,12 +11,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net/url"
 	"runtime"
 	"strings"
 )
 
-const KeyID = "wiolett-update-v1"
+const KeyID = legacycompat.UpdateKeyID
 
 // publicKeyPEM is generated from config/update-trust/update-signing-public-key.pem
 // by scripts/sync-update-trust-anchor.sh so daemon binaries can embed it.

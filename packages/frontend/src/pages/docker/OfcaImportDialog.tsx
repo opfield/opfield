@@ -22,12 +22,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  type GwcaImportMetadata,
-  type GwcaPortMappingInput,
-  gwcaPortKey,
-  normalizeGwcaPortMappings,
-  readGwcaImportMetadata,
-} from "@/lib/gwca";
+  normalizeOfcaPortMappings,
+  type OfcaImportMetadata,
+  type OfcaPortMappingInput,
+  ofcaPortKey,
+  readOfcaImportMetadata,
+} from "@/lib/ofca";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { cn, formatBytes } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -48,16 +48,16 @@ const BRIDGE_NETWORK: DockerNetwork = {
   scope: "local",
 };
 
-const DEV_PREVIEW_NODE_ID = "gwca-dev-preview-node";
+const DEV_PREVIEW_NODE_ID = "ofca-dev-preview-node";
 const EMPTY_SCOPES: string[] = [];
-const CREATE_NEW_VALUE = "__gwca_create_new__";
+const CREATE_NEW_VALUE = "__ofca_create_new__";
 const REMAP_BLOCK_ANIMATION = {
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -4 },
   transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const },
 };
-const DEV_PREVIEW_METADATA: GwcaImportMetadata = {
+const DEV_PREVIEW_METADATA: OfcaImportMetadata = {
   name: "payments-api-preview",
   networks: [
     { name: "frontend", driver: "bridge", createable: true },
@@ -102,7 +102,7 @@ const DEV_PREVIEW_VOLUMES: DockerVolume[] = [
   },
 ];
 
-interface GwcaImportDialogProps {
+interface OfcaImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   nodes: OpfieldNode[];
@@ -130,13 +130,13 @@ function flattenFolders(folders: DockerFolderTreeNode[]): DockerFolderTreeNode[]
   return folders.flatMap((folder) => [folder, ...flattenFolders(folder.children)]);
 }
 
-export function GwcaImportDialog({
+export function OfcaImportDialog({
   open,
   onOpenChange,
   nodes,
   onImported,
   devPreview = false,
-}: GwcaImportDialogProps) {
+}: OfcaImportDialogProps) {
   const hasScope = useAuthStore((state) => state.hasScope);
   const scopes = useAuthStore((state) => state.user?.scopes ?? EMPTY_SCOPES);
   const dockerFolders = useDockerFolderStore((state) => state.foldersByType.container);
@@ -144,7 +144,7 @@ export function GwcaImportDialog({
   const fetchFolders = useDockerFolderStore((state) => state.fetchFolders);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [metadata, setMetadata] = useState<GwcaImportMetadata | null>(null);
+  const [metadata, setMetadata] = useState<OfcaImportMetadata | null>(null);
   const [name, setName] = useState("");
   const [nodeId, setNodeId] = useState("");
   const [folderId, setFolderId] = useState("");
@@ -152,7 +152,7 @@ export function GwcaImportDialog({
   const [targetVolumes, setTargetVolumes] = useState<DockerVolume[]>([]);
   const [networkMappings, setNetworkMappings] = useState<Record<string, string>>({});
   const [volumeMappings, setVolumeMappings] = useState<Record<string, string>>({});
-  const [portMappings, setPortMappings] = useState<Record<string, GwcaPortMappingInput>>({});
+  const [portMappings, setPortMappings] = useState<Record<string, OfcaPortMappingInput>>({});
   const [planError, setPlanError] = useState("");
   const [planning, setPlanning] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -207,8 +207,8 @@ export function GwcaImportDialog({
     setNodeId(defaultNodeId);
     if (devPreview) {
       setFile(
-        new File(["Opfield container archive development preview"], "payments-api-full.gwca", {
-          type: "application/vnd.opfield.gwca",
+        new File(["Opfield container archive development preview"], "payments-api-full.ofca", {
+          type: "application/vnd.opfield.ofca",
         })
       );
       setMetadata(DEV_PREVIEW_METADATA);
@@ -221,8 +221,8 @@ export function GwcaImportDialog({
       });
       setVolumeMappings({ "payments-database": "payments-database-target" });
       setPortMappings({
-        [gwcaPortKey(DEV_PREVIEW_METADATA.ports[0])]: 9443,
-        [gwcaPortKey(DEV_PREVIEW_METADATA.ports[1])]: 0,
+        [ofcaPortKey(DEV_PREVIEW_METADATA.ports[0])]: 9443,
+        [ofcaPortKey(DEV_PREVIEW_METADATA.ports[1])]: 0,
       });
     }
   }, [defaultNodeId, devPreview, fetchFolders, open, resetImportState]);
@@ -236,7 +236,7 @@ export function GwcaImportDialog({
     let cancelled = false;
     setPlanning(true);
     setPlanError("");
-    readGwcaImportMetadata(file)
+    readOfcaImportMetadata(file)
       .then(async (archive) => ({
         archive,
         plan: await api.planContainerArchiveImport(nodeId, {
@@ -302,13 +302,13 @@ export function GwcaImportDialog({
     [volumeMappings]
   );
   const resolvedPortMappings = useMemo(
-    () => normalizeGwcaPortMappings(portMappings),
+    () => normalizeOfcaPortMappings(portMappings),
     [portMappings]
   );
   const externalVolumes =
     metadata?.mounts.filter((entry) => entry.type === "volume" && entry.requiresMapping) ?? [];
   const conflictingPorts =
-    metadata?.ports.filter((entry) => Object.hasOwn(portMappings, gwcaPortKey(entry))) ?? [];
+    metadata?.ports.filter((entry) => Object.hasOwn(portMappings, ofcaPortKey(entry))) ?? [];
 
   const handleImport = async () => {
     if (
@@ -323,7 +323,7 @@ export function GwcaImportDialog({
     )
       return;
     if (devPreview) {
-      toast.info("GWCA import development preview", {
+      toast.info("OFCA import development preview", {
         description: "No container was created.",
       });
       return;
@@ -440,10 +440,10 @@ export function GwcaImportDialog({
                 <span className="text-sm font-medium">Archive</span>
                 <input
                   ref={fileInputRef}
-                  id="gwca-file"
+                  id="ofca-file"
                   type="file"
                   className="hidden"
-                  accept=".gwca,application/vnd.opfield.gwca"
+                  accept=".ofca,application/vnd.opfield.ofca"
                   onChange={(event) => {
                     const selected = event.target.files?.[0] ?? null;
                     setFile(selected);
@@ -527,11 +527,11 @@ export function GwcaImportDialog({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="gwca-name">
+                <label className="text-sm font-medium" htmlFor="ofca-name">
                   Container name
                 </label>
                 <Input
-                  id="gwca-name"
+                  id="ofca-name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                 />
@@ -662,7 +662,7 @@ export function GwcaImportDialog({
                         <div className="border-l border-border px-3 py-2">Target port</div>
                       </div>
                       {conflictingPorts.map((port) => {
-                        const key = gwcaPortKey(port);
+                        const key = ofcaPortKey(port);
                         return (
                           <div
                             key={key}

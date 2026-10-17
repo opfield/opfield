@@ -5,6 +5,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterAll, describe, expect, it, vi } from 'vitest';
+import {
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_UPDATE_ATTEMPT_KEY,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+  LEGACY_VOLUME_RELAY_STATE,
+} from '@/lib/legacy-compat.js';
 import { OPFIELD_ACCOUNT_CLIENT_KEY } from '@/modules/auth/oidc-settings.service.js';
 import { RestoreError, singleFileTar, verifyExport } from './configuration-restore.js';
 import { withDefaultPort } from './opfield-move.service.js';
@@ -43,12 +52,14 @@ function manifest(overrides: Partial<ConfigurationExportManifest> = {}): Configu
       publicUrl: 'https://old.example.com',
       grpcPublicTarget: 'old.example.com:9443',
       grpcLocalIp: null,
-      composeProject: 'gateway',
+      composeProject: `${LEGACY_INSTALL_DIR_NAME}`,
     },
     includes: { registry: false, logs: false },
     commercialDir: null,
     database: { part: DATABASE_PART, file: DATABASE_DUMP_FILE },
-    volumes: [{ key: 'gateway_data', part: volumePartName('gateway_data'), root: 'gateway_data' }],
+    volumes: [
+      { key: LEGACY_VOLUME_APP_DATA, part: volumePartName(LEGACY_VOLUME_APP_DATA), root: LEGACY_VOLUME_APP_DATA },
+    ],
     commercial: null,
     environmentPart: ENVIRONMENT_PART,
     ...overrides,
@@ -73,7 +84,10 @@ async function exportFile(
   await writer.addJsonPart(ENVIRONMENT_PART, { PKI_MASTER_KEY: MASTER_KEY });
   await writer.addPart(DATABASE_PART, Readable.from([randomBytes(20_000)]));
   if (!options.skipVolume) {
-    await writer.addPart(options.volumePart ?? volumePartName('gateway_data'), Readable.from([randomBytes(9_000)]));
+    await writer.addPart(
+      options.volumePart ?? volumePartName(LEGACY_VOLUME_APP_DATA),
+      Readable.from([randomBytes(9_000)])
+    );
   }
   await writer.finish();
   await ended;
@@ -107,30 +121,32 @@ describe('restoring a configuration export', () => {
       MANIFEST_PART,
       ENVIRONMENT_PART,
       DATABASE_PART,
-      volumePartName('gateway_data'),
+      volumePartName(LEGACY_VOLUME_APP_DATA),
     ]);
     expect(verified.summary.parts.find((part) => part.name === DATABASE_PART)?.bytes).toBe(20_000);
     expect(progress).toBe(readFileSync(path).length);
   });
 
   it('names the parts of a new export with the Opfield names and still reads an export of an earlier release', async () => {
-    expect(volumePartName('gateway_data')).toBe('volume/app_data.tar');
-    expect(volumePartName('gateway_relay_identity')).toBe('volume/relay_identity.tar');
+    expect(volumePartName(LEGACY_VOLUME_APP_DATA)).toBe('volume/app_data.tar');
+    expect(volumePartName(LEGACY_VOLUME_RELAY_IDENTITY)).toBe('volume/relay_identity.tar');
     expect(volumePartName('clickhouse_data')).toBe('volume/clickhouse_data.tar');
-    expect(exportVolumeName('gateway_registry_auth')).toBe('registry_auth');
+    expect(exportVolumeName(LEGACY_VOLUME_REGISTRY_AUTH)).toBe('registry_auth');
     expect(COMMERCIAL_PART).toBe('host/opfield-commercial.tar');
 
     // legacy-name: part and root names of exports made before 2.12.1 — they restore as long as such exports can.
     const earlier = manifest({
-      volumes: [{ key: 'gateway_data', part: 'volume/gateway_data.tar', root: 'gateway_data' }],
+      volumes: [
+        { key: LEGACY_VOLUME_APP_DATA, part: `volume/${LEGACY_VOLUME_APP_DATA}.tar`, root: LEGACY_VOLUME_APP_DATA },
+      ],
     });
     const path = await exportFile('earlier.opfield-export', {
       manifest: { ...earlier, ...CURRENT },
-      volumePart: 'volume/gateway_data.tar',
+      volumePart: `volume/${LEGACY_VOLUME_APP_DATA}.tar`,
     });
     const verified = await verifyExport(path, PASSPHRASE, CURRENT);
-    expect(verified.summary.parts.map((part) => part.name)).toContain('volume/gateway_data.tar');
-    expect(verified.manifest.volumes[0]).toMatchObject({ key: 'gateway_data', root: 'gateway_data' });
+    expect(verified.summary.parts.map((part) => part.name)).toContain(`volume/${LEGACY_VOLUME_APP_DATA}.tar`);
+    expect(verified.manifest.volumes[0]).toMatchObject({ key: LEGACY_VOLUME_APP_DATA, root: LEGACY_VOLUME_APP_DATA });
   });
 
   it('refuses a wrong passphrase', async () => {
@@ -169,7 +185,9 @@ describe('restoring a configuration export', () => {
 
   it('refuses a manifest with unsafe names', async () => {
     const path = await exportFile('unsafe.opfield-export', {
-      manifest: manifest({ volumes: [{ key: 'gateway_data', part: volumePartName('gateway_data'), root: '..' }] }),
+      manifest: manifest({
+        volumes: [{ key: LEGACY_VOLUME_APP_DATA, part: volumePartName(LEGACY_VOLUME_APP_DATA), root: '..' }],
+      }),
     });
     expect(await failure(() => verifyExport(path, PASSPHRASE, CURRENT))).toBe('INVALID_EXPORT');
   });
@@ -212,9 +230,12 @@ describe('configuration export layout', () => {
 
   it('writes a single-file tar that tar reads', () => {
     const path = join(work, 'marker.tar');
-    writeFileSync(path, singleFileTar('gateway_data/configuration-restore/restored.json', Buffer.from('{"a":1}')));
+    writeFileSync(
+      path,
+      singleFileTar(`${LEGACY_VOLUME_APP_DATA}/configuration-restore/restored.json`, Buffer.from('{"a":1}'))
+    );
     const listing = execFileSync('tar', ['-tvf', path], { encoding: 'utf8' });
-    expect(listing).toContain('gateway_data/configuration-restore/restored.json');
+    expect(listing).toContain(`${LEGACY_VOLUME_APP_DATA}/configuration-restore/restored.json`);
     const content = execFileSync('tar', ['-xOf', path], { encoding: 'utf8' });
     expect(content).toBe('{"a":1}');
   });
@@ -233,7 +254,7 @@ describe('a restored copy and the cloud link', () => {
     expect(command.at(-1)).toBe(
       "DELETE FROM settings WHERE key IN ('cloud:enrollment', 'cloud:remote_management', 'cloud:disconnected', " +
         "'cloud:opfield_account_client', 'cloud:sso_client_request', 'cloud:public-alias', 'cloud:mail', " +
-        "'cloud:inference', 'update:gateway:attempt')"
+        `'cloud:inference', '${LEGACY_UPDATE_ATTEMPT_KEY}')`
     );
     expect(RESTORE_FORGOTTEN_SETTINGS).toEqual([
       'cloud:enrollment',
@@ -244,7 +265,7 @@ describe('a restored copy and the cloud link', () => {
       'cloud:public-alias',
       'cloud:mail',
       'cloud:inference',
-      'update:gateway:attempt',
+      LEGACY_UPDATE_ATTEMPT_KEY,
     ]);
   });
 
@@ -268,24 +289,28 @@ volumes:
   app_data:
   relay_state:
   registry_data:
-    name: gateway_gateway_registry_data
+    name: ${LEGACY_INSTALL_DIR_NAME}_${LEGACY_VOLUME_REGISTRY_DATA}
     external: true
 `;
 
   it('maps the export volume keys to the volumes of the installation it restores into', () => {
-    expect(composeVolumeName('gateway', 'gateway_data', 'services: {}\n')).toBe('gateway_gateway_data');
-    expect(composeVolumeName('opfield', 'gateway_data', opfieldCompose)).toBe('opfield_app_data');
-    expect(composeVolumeName('opfield', 'gateway_relay_state', opfieldCompose)).toBe('opfield_relay_state');
+    expect(composeVolumeName(`${LEGACY_INSTALL_DIR_NAME}`, LEGACY_VOLUME_APP_DATA, 'services: {}\n')).toBe(
+      `${LEGACY_INSTALL_DIR_NAME}_${LEGACY_VOLUME_APP_DATA}`
+    );
+    expect(composeVolumeName('opfield', LEGACY_VOLUME_APP_DATA, opfieldCompose)).toBe('opfield_app_data');
+    expect(composeVolumeName('opfield', LEGACY_VOLUME_RELAY_STATE, opfieldCompose)).toBe('opfield_relay_state');
     // A moved installation keeps its volumes by name.
-    expect(composeVolumeName('opfield', 'gateway_registry_data', opfieldCompose)).toBe('gateway_gateway_registry_data');
-    expect(composeVolumeKey('gateway_data', opfieldCompose)).toBe('app_data');
-    expect(composeVolumeKey('gateway_data', null)).toBe('gateway_data');
+    expect(composeVolumeName('opfield', LEGACY_VOLUME_REGISTRY_DATA, opfieldCompose)).toBe(
+      `${LEGACY_INSTALL_DIR_NAME}_${LEGACY_VOLUME_REGISTRY_DATA}`
+    );
+    expect(composeVolumeKey(LEGACY_VOLUME_APP_DATA, opfieldCompose)).toBe('app_data');
+    expect(composeVolumeKey(LEGACY_VOLUME_APP_DATA, null)).toBe(LEGACY_VOLUME_APP_DATA);
     expect(composeVolumeName('opfield', 'clickhouse_data', opfieldCompose)).toBe('opfield_clickhouse_data');
   });
 
   it('reads the database a dump recreates from its table of contents', () => {
-    const list = ';\n; Archive created at 2026-10-13\n;     dbname: gateway\n;     TOC Entries: 812\n';
-    expect(dumpDatabaseName(list)).toBe('gateway');
+    const list = `;\n; Archive created at 2026-10-13\n;     dbname: ${LEGACY_INSTALL_DIR_NAME}\n;     TOC Entries: 812\n`;
+    expect(dumpDatabaseName(list)).toBe(`${LEGACY_INSTALL_DIR_NAME}`);
     expect(dumpDatabaseName('; nothing')).toBeNull();
   });
 
@@ -295,7 +320,8 @@ volumes:
       commands.push(command);
       return {
         exitCode: 0,
-        output: command[0] === 'pg_restore' && command[1] === '--list' ? ';     dbname: gateway\n' : '',
+        output:
+          command[0] === 'pg_restore' && command[1] === '--list' ? `;     dbname: ${LEGACY_INSTALL_DIR_NAME}\n` : '',
       };
     });
     const docker = { execInContainer: exec, putContainerArchiveStream: vi.fn(async () => undefined) };
@@ -310,6 +336,6 @@ volumes:
     expect(sql).toContainEqual(
       expect.stringContaining('pg_restore --create --no-owner --exit-on-error --no-password -U opfield -d postgres')
     );
-    expect(sql).toContainEqual(expect.stringContaining('ALTER DATABASE gateway RENAME TO opfield'));
+    expect(sql).toContainEqual(expect.stringContaining(`ALTER DATABASE ${LEGACY_INSTALL_DIR_NAME} RENAME TO opfield`));
   });
 });

@@ -20,12 +20,12 @@
 # 4. Runs the base updater's own rollback() on the migrated database, checks the base (license, node
 #    creation, group scopes, Pages insert), updates again and compares effective access with step 2.
 #    A candidate with the Opfield layout (FIRST_OPFIELD_LAYOUT) runs this right after step 2, then waits for the
-#    host move (/opt/gateway -> /opt/opfield, project and database `opfield`) the settled update starts, checks
+#    host move (legacy directory -> /opt/opfield, project and database `opfield`) the settled update starts, checks
 #    the moved stack, the volumes and data it kept and the outage, and only then runs step 3: rolling back to
 #    the base after the move is not supported.
 # 5. Installs the candidate fresh with the candidate's installer and completes setup and first sign-in; the
 #    upgraded install's built-in groups must equal the fresh install's.
-# 6. With GATEWAY_E2E_LICENSE_KEY set: activates the key on the base and checks that the candidate's
+# 6. With OPFIELD_E2E_LICENSE_KEY set: activates the key on the base and checks that the candidate's
 #    private core is downloaded and loaded after the update. The key is deactivated before teardown.
 #
 # A local release feed pins the base and candidate tags; images, manifests and signatures are the real
@@ -49,7 +49,7 @@ Options:
   --base TAG               Stable release to upgrade from (default: v2.10.1)
   --host-address IP        Address nodes and containers use to reach this host (default: the source
                            address of the default route)
-  --public-url URL         Public URL given to setup (default: https://gateway-e2e-<run>.invalid:3000;
+  --public-url URL         Public URL given to setup (default: https://opfield-e2e-<run>.invalid:3000;
                            its host name is the installation name the license server sees)
   --docker-address-pool CIDR
                            default-address-pools base for the Docker the run installs (e.g. 10.201.0.0/16)
@@ -57,13 +57,13 @@ Options:
                            block-all: never reachable (Community updates must succeed without it);
                            allow: never blocked. A license key implies allow until the fresh install.
   --max-api-downtime SEC   Longest acceptable API outage during an Opfield update (default: 120)
-  --workdir DIR            Working directory (default: /var/tmp/gateway-e2e-<run>)
+  --workdir DIR            Working directory (default: /var/tmp/opfield-e2e-<run>)
   --logs-out FILE          Write a tar.gz of the run logs and API evidence before removing the workdir
   --via TAG                Stable release to update to first (Opfield, daemons, relay), then to the candidate:
                            the path a customer on --base takes through an intermediate release
   --before-candidate CMD   With --via: run CMD (bash -c) between the two hops and go on when it exits 0; the
-                           probes, the release feed and the DNS guard keep running. CMD sees GATEWAY_E2E_WORK,
-                           GATEWAY_E2E_INSTALL_DIR and GATEWAY_E2E_PROJECT (e.g. to swap test-signed builds in)
+                           probes, the release feed and the DNS guard keep running. CMD sees OPFIELD_E2E_WORK,
+                           OPFIELD_E2E_INSTALL_DIR and OPFIELD_E2E_PROJECT (e.g. to swap test-signed builds in)
   --pin HOP:COMPONENT=TAG  Pin a release feed component for one hop (HOP via or candidate; an empty TAG answers
                            204); repeatable. Unpinned components resolve on the real feed
   --skip-rollback          Skip step 4 (forced rollback with the base updater)
@@ -74,37 +74,39 @@ Options:
   -h, --help               Show this help
 
 Environment:
-  GATEWAY_E2E_LICENSE_KEY  Paid license key for step 6 (optional)
-  GATEWAY_GITHUB_REPOSITORY  GitHub repository releases come from (default opfield/opfield; the-square-labs/gateway
-                           before the repository moved)
-  GATEWAY_E2E_LICENSE_HOSTS  License service host names to block, comma-separated (default: config/license-service.json)
+  OPFIELD_E2E_LICENSE_KEY  Paid license key for step 6 (optional)
+  OPFIELD_GITHUB_REPOSITORY  GitHub repository releases come from (default opfield/opfield)
+  OPFIELD_E2E_LICENSE_HOSTS  License service host names to block, comma-separated (default: config/license-service.json)
 
 DNS for Docker: lines `NAME ADDRESS` in WORK/dns-overrides make the DNS guard answer NAME (and its subdomains) with
 ADDRESS; the file is read on every query, so a --before-candidate command can point release hosts at a stand mirror.
 EOF
 }
 
-REPO="${GATEWAY_GITHUB_REPOSITORY:-opfield/opfield}"
+# The pre-2.12.1 names of a base installation (scripts/legacy-compat.sh; --ssh sends it ahead of this script).
+# shellcheck source=legacy-compat.sh
+[[ -n "${LEGACY_ENV_PREFIX:-}" ]] || . "${BASH_SOURCE[0]%/*}/legacy-compat.sh"
+REPO="${OPFIELD_GITHUB_REPOSITORY:-opfield/opfield}"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}"
 RELEASE_DOWNLOAD="https://github.com/${REPO}/releases/download"
-REAL_FEED="https://get.opfield.dev/gateway/releases"
+REAL_FEED="https://get.opfield.dev/opfield/releases"
 # Every address of the license service (config/license-service.json; --ssh passes them along): the DNS guard blocks
 # them all and check_license_guard looks every one up in the app container.
-if [[ -z "${GATEWAY_E2E_LICENSE_HOSTS:-}" && -f "${BASH_SOURCE[0]%/*}/../config/license-service.json" ]]; then
-  GATEWAY_E2E_LICENSE_HOSTS="$(python3 -c 'import json, sys, urllib.parse
+if [[ -z "${OPFIELD_E2E_LICENSE_HOSTS:-}" && -f "${BASH_SOURCE[0]%/*}/../config/license-service.json" ]]; then
+  OPFIELD_E2E_LICENSE_HOSTS="$(python3 -c 'import json, sys, urllib.parse
 print(",".join(urllib.parse.urlsplit(u).hostname for u in json.load(open(sys.argv[1]))["endpoints"]))' \
     "${BASH_SOURCE[0]%/*}/../config/license-service.json")"
 fi
-LICENSE_HOSTS="${GATEWAY_E2E_LICENSE_HOSTS:?run from a checkout (config/license-service.json) or set GATEWAY_E2E_LICENSE_HOSTS}"
+LICENSE_HOSTS="${OPFIELD_E2E_LICENSE_HOSTS:?run from a checkout (config/license-service.json) or set OPFIELD_E2E_LICENSE_HOSTS}"
 MAILPIT_IMAGE="docker.io/axllent/mailpit:v1.31.3"
 WEB_IMAGE="nginx:1.27-alpine"
-INSTALL_DIR="/opt/gateway"
+INSTALL_DIR="$LEGACY_INSTALL_DIR"
 # The directory of the Opfield layout; the host move of a candidate from FIRST_OPFIELD_LAYOUT on puts the installation
 # there, and a fresh candidate installs there.
 OPFIELD_DIR="/opt/opfield"
 FIRST_OPFIELD_LAYOUT="v2.12.1-rc.3"
-DB_ROLE="gateway"
-DB_NAME="gateway"
+DB_ROLE="$LEGACY_DATABASE"
+DB_NAME="$LEGACY_DATABASE"
 API="https://127.0.0.1:3000"
 FEED_PORT=18081
 WEB_PORT=18088
@@ -119,7 +121,7 @@ OPERATOR_EMAIL="operator@e2e.test"
 # host, and docker:volumes:create on the docker node.
 GROUP_SCOPES_PLAIN=(
   nodes:details nodes:logs docker:containers:view docker:containers:manage proxy:view proxy:edit
-  ssl:cert:view pki:cert:view settings:gateway:view
+  ssl:cert:view pki:cert:view settings:opfield:view
   notifications:view notifications:manage logs:manage proxy:raw:toggle proxy:templates:create
   docker:containers:folders:manage docker:containers:config ssl:cert:export pki:ca:view:root
 )
@@ -163,7 +165,7 @@ LOGS_OUT=""
 KEEP=0
 CLEANUP_ONLY=""
 SSH_TARGET=""
-LICENSE_KEY="${GATEWAY_E2E_LICENSE_KEY:-}"
+LICENSE_KEY="${OPFIELD_E2E_LICENSE_KEY:-}"
 
 PHASE="0"
 PASSED=0
@@ -212,8 +214,9 @@ parse_args() {
     local self="${BASH_SOURCE[0]}"
     [[ -f "$self" ]] || { echo "--ssh needs the script as a file" >&2; exit 2; }
     {
-      [[ -n "$LICENSE_KEY" ]] && printf 'export GATEWAY_E2E_LICENSE_KEY=%q\n' "$LICENSE_KEY"
-      printf 'export GATEWAY_E2E_LICENSE_HOSTS=%q\n' "$LICENSE_HOSTS"
+      [[ -n "$LICENSE_KEY" ]] && printf 'export OPFIELD_E2E_LICENSE_KEY=%q\n' "$LICENSE_KEY"
+      printf 'export OPFIELD_E2E_LICENSE_HOSTS=%q\n' "$LICENSE_HOSTS"
+      cat "${self%/*}/legacy-compat.sh"
       cat "$self"
     } | ssh "$SSH_TARGET" "sudo -n bash -s -- $(printf '%q ' "${remote[@]}")"
     exit $?
@@ -774,15 +777,15 @@ ensure_session() {
 
 api_healthy() { [[ "$(curl_code -ks -m 5 -o /dev/null -w '%{http_code}' "$API/health")" == 200 ]]; }
 
-gateway_version() {
+opfield_version() {
   tapi GET /api/system/version
   [[ "$CODE" == 200 ]] && jx "$RESP" 'D["currentVersion"]'
 }
-version_is() { [[ "$(gateway_version)" == "$1" ]] && api_healthy; }
+version_is() { [[ "$(opfield_version)" == "$1" ]] && api_healthy; }
 
 dc() { docker compose --project-name "$PROJECT" --project-directory "$INSTALL_DIR" -f "$INSTALL_DIR/docker-compose.yml" "$@"; }
 service_id() { dc ps -q "$1" 2>/dev/null | head -n1; }
-psql_gateway() { dc exec -T postgres psql -U "$DB_ROLE" -d "$DB_NAME" -v ON_ERROR_STOP=1 -Atc "$1" 2>&1; }
+psql_opfield() { dc exec -T postgres psql -U "$DB_ROLE" -d "$DB_NAME" -v ON_ERROR_STOP=1 -Atc "$1" 2>&1; }
 
 # version_at_least A B: release A is B or later (vX.Y.Z[-rc.N], a release after its candidates).
 version_at_least() {
@@ -813,14 +816,14 @@ refresh_layout() {
     env="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$pg")"
     DB_ROLE="$(sed -n 's/^POSTGRES_USER=//p' <<<"$env")"
     DB_NAME="$(sed -n 's/^POSTGRES_DB=//p' <<<"$env")"
-    DB_ROLE="${DB_ROLE:-gateway}"
+    DB_ROLE="${DB_ROLE:-$LEGACY_DATABASE}"
     DB_NAME="${DB_NAME:-$DB_ROLE}"
   fi
 }
 
 # The commercial directory of the installation (.opfield-commercial after the host move).
 commercial_dir() {
-  if [[ -d "$INSTALL_DIR/.gateway-commercial" ]]; then echo "$INSTALL_DIR/.gateway-commercial"; else echo "$INSTALL_DIR/.opfield-commercial"; fi
+  if [[ -d "$INSTALL_DIR/${LEGACY_COMMERCIAL_DIR_NAME}" ]]; then echo "$INSTALL_DIR/${LEGACY_COMMERCIAL_DIR_NAME}"; else echo "$INSTALL_DIR/.opfield-commercial"; fi
 }
 container_identity() {
   local id="${1:-}"
@@ -872,11 +875,15 @@ check_license_guard() {
 }
 
 feed_pin() {
-  python3 - "$WORK/feed-state.json" "$@" <<'PY'
+  python3 - "$LEGACY_APP_UPDATE_COMPONENT" "$WORK/feed-state.json" "$@" <<'PY'
 import json, sys
-path, channel, pins = sys.argv[1], sys.argv[2], sys.argv[3:]
+legacy, path, channel, pins = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
 with open(path, 'w') as f:
-    json.dump({'channel': channel, 'pins': dict(p.split('=', 1) for p in pins)}, f)
+    pins = dict(p.split('=', 1) for p in pins)
+    # The base asks for the app under the component name of its release (LEGACY_APP_UPDATE_COMPONENT before 2.12.3).
+    if 'opfield' in pins:
+        pins.setdefault(legacy, pins['opfield'])
+    json.dump({'channel': channel, 'pins': pins}, f)
 PY
   say "release feed: ${1} channel, pinned: ${*:2}"
 }
@@ -913,7 +920,7 @@ window_value() {
 SNAPSHOT_DIRS=(/etc /var/lib /opt /run /var/log /var/cache /usr/local/bin /usr/local/lib /etc/systemd/system
   /etc/systemd/system/multi-user.target.wants /etc/systemd/system/sockets.target.wants /etc/apt/sources.list.d
   /etc/apt/keyrings /usr/share/keyrings)
-PRODUCT_ENTRY='^(docker|docker\..*|docker-.*|containerd|containerd\..*|nginx|nginx\..*|nginx-.*|monitoring-daemon.*|gateway|gateway-.*|runsc.*|containerd-shim-runsc.*|lease-watchdog.*|gvisor.*|buildkit)$'
+PRODUCT_ENTRY='^(docker|docker\..*|docker-.*|containerd|containerd\..*|nginx|nginx\..*|nginx-.*|monitoring-daemon.*|opfield|opfield-.*|'"${LEGACY_DATABASE}|${LEGACY_DATABASE}"'-.*|runsc.*|containerd-shim-runsc.*|lease-watchdog.*|gvisor.*|buildkit)$'
 PACKAGE_MARKER='docker-ce|containerd|nginx|gnupg|lsb-release|ca-certificates|curl|iptables|uidmap'
 
 entry_list() { ls -A1 "$1" 2>/dev/null | sort; }
@@ -999,7 +1006,7 @@ cleanup_host() {
   fi
 
   # Node daemons, the lease watchdog and other product units.
-  for unit in $(new_entries /etc/systemd/system | grep -E '^(docker-daemon|nginx-daemon|monitoring-daemon|gateway-)'); do
+  for unit in $(new_entries /etc/systemd/system | grep -E "^(docker-daemon|nginx-daemon|monitoring-daemon|opfield-|${LEGACY_DATABASE}-)"); do
     [[ "$unit" == *.service ]] && systemctl disable --now "$unit" >/dev/null 2>&1
     rm -rf "/etc/systemd/system/${unit}"
   done
@@ -1008,7 +1015,7 @@ cleanup_host() {
   if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
     if [[ "$(cat "$WORK/snapshot/docker-preexisting" 2>/dev/null)" == 1 ]]; then
       [[ -f "$INSTALL_DIR/docker-compose.yml" ]] && dc down -v --remove-orphans >/dev/null 2>&1
-      docker ps -aq --filter name=gateway-e2e- | xargs -r docker rm -f >/dev/null 2>&1
+      docker ps -aq --filter name=opfield-e2e- | xargs -r docker rm -f >/dev/null 2>&1
       docker rm -f opfield-host-move >/dev/null 2>&1
       docker rm -f e2e-web >/dev/null 2>&1
       comm -13 "$WORK/snapshot/docker-volumes" <(docker volume ls -q | sort) | xargs -r docker volume rm -f >/dev/null 2>&1
@@ -1050,13 +1057,13 @@ cleanup_host() {
 
   # Files, directories, units, apt sources, users and groups the product created.
   rm -rf "$INSTALL_DIR" "$OPFIELD_DIR"
-  [[ -L /opt/gateway ]] && rm -f /opt/gateway
+  [[ -L "$LEGACY_INSTALL_DIR" ]] && rm -f "$LEGACY_INSTALL_DIR"
   for dir in "${SNAPSHOT_DIRS[@]}"; do
     for entry in $(new_entries "$dir" | grep -E "$PRODUCT_ENTRY"); do
       rm -rf "${dir:?}/${entry}"
     done
   done
-  for entry in $(new_entries /usr/local/bin | grep -E '^(docker-daemon|nginx-daemon|monitoring-daemon|gateway-|runsc|containerd-shim-runsc)'); do
+  for entry in $(new_entries /usr/local/bin | grep -E "^(docker-daemon|nginx-daemon|monitoring-daemon|opfield-|${LEGACY_DATABASE}-|runsc|containerd-shim-runsc)"); do
     rm -f "/usr/local/bin/${entry}"
   done
   for dir in /etc/apt/sources.list.d /etc/apt/keyrings /usr/share/keyrings; do
@@ -1066,10 +1073,10 @@ cleanup_host() {
   done
   [[ -f "$WORK/snapshot/etc-docker-existed" ]] || rm -rf /etc/docker
   systemctl daemon-reload 2>/dev/null
-  for user in $(comm -13 "$WORK/snapshot/users" <(cut -d: -f1 /etc/passwd | sort) | grep -E '^(nginx|docker|gateway.*)$'); do
+  for user in $(comm -13 "$WORK/snapshot/users" <(cut -d: -f1 /etc/passwd | sort) | grep -E "^(nginx|docker|opfield.*|${LEGACY_DATABASE}.*)\$"); do
     userdel "$user" >/dev/null 2>&1
   done
-  for group in $(comm -13 "$WORK/snapshot/groups" <(cut -d: -f1 /etc/group | sort) | grep -E '^(nginx|docker|gateway.*)$'); do
+  for group in $(comm -13 "$WORK/snapshot/groups" <(cut -d: -f1 /etc/group | sort) | grep -E "^(nginx|docker|opfield.*|${LEGACY_DATABASE}.*)\$"); do
     groupdel "$group" >/dev/null 2>&1
   done
   DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 update -qq >>"$WORK/logs/cleanup-apt.log" 2>&1
@@ -1109,7 +1116,7 @@ cleanup_host() {
     done
   done
   [[ -e "$INSTALL_DIR" ]] && leftovers+=("$INSTALL_DIR")
-  [[ -e "$OPFIELD_DIR" || -L /opt/gateway ]] && leftovers+=("$OPFIELD_DIR")
+  [[ -e "$OPFIELD_DIR" || -L "$LEGACY_INSTALL_DIR" ]] && leftovers+=("$OPFIELD_DIR")
   for link in $(comm -13 "$WORK/snapshot/links" <(host_links)); do
     leftovers+=("interface ${link}")
   done
@@ -1245,8 +1252,9 @@ setup_request() {
 run_installer() {
   local label="$1" script="$2" start=$SECONDS status app
   say "running the ${label} installer (log: logs/install-${label}.out)"
-  env TERM=dumb RELEASES_API_URL="http://${HOST_ADDR}:${FEED_PORT}/releases" GATEWAY_INSTALL_DIR="$INSTALL_DIR" \
-    GATEWAY_INSTALL_LOG_FILE="$WORK/logs/install-${label}.detail.log" \
+  env TERM=dumb RELEASES_API_URL="http://${HOST_ADDR}:${FEED_PORT}/releases" OPFIELD_INSTALL_DIR="$INSTALL_DIR" \
+    OPFIELD_INSTALL_LOG_FILE="$WORK/logs/install-${label}.detail.log" "${LEGACY_ENV_PREFIX}INSTALL_DIR=$INSTALL_DIR" \
+    "${LEGACY_ENV_PREFIX}INSTALL_LOG_FILE=$WORK/logs/install-${label}.detail.log" \
     timeout 1500 bash "$script" --https </dev/null >"$WORK/logs/install-${label}.out" 2>&1
   status=$?
   TIMING["install ${label}"]="$((SECONDS - start)) s"
@@ -1268,14 +1276,14 @@ prepare_stack() {
   local app net
   app="$(service_id app)"
   net="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' "$app" | head -n1)"
-  docker rm -f gateway-e2e-mailpit >/dev/null 2>&1
-  docker run -d --name gateway-e2e-mailpit --restart unless-stopped --network "$net" --network-alias mailpit \
+  docker rm -f opfield-e2e-mailpit >/dev/null 2>&1
+  docker run -d --name opfield-e2e-mailpit --restart unless-stopped --network "$net" --network-alias mailpit \
     -v "$WORK/smtp:/certs:ro" -e MP_SMTP_TLS_CERT=/certs/cert.pem -e MP_SMTP_TLS_KEY=/certs/key.pem \
     -e MP_SMTP_REQUIRE_STARTTLS=true -e MP_SMTP_AUTH_ACCEPT_ANY=true "$MAILPIT_IMAGE" >/dev/null 2>>"$WORK/logs/docker.log" ||
     { fail "Mailpit started" "see logs/docker.log"; return 1; }
-  docker cp "$WORK/smtp/ca.pem" "${app}:/var/lib/gateway/e2e-smtp-ca.pem" >/dev/null || { fail "SMTP CA copied" "$app"; return 1; }
+  docker cp "$WORK/smtp/ca.pem" "${app}:${LEGACY_APP_DATA_DIR}/e2e-smtp-ca.pem" >/dev/null || { fail "SMTP CA copied" "$app"; return 1; }
   env_set RELEASES_API_URL "http://${HOST_ADDR}:${FEED_PORT}/releases"
-  env_set NODE_EXTRA_CA_CERTS /var/lib/gateway/e2e-smtp-ca.pem
+  env_set NODE_EXTRA_CA_CERTS "${LEGACY_APP_DATA_DIR}/e2e-smtp-ca.pem"
   dc up -d app >>"$WORK/logs/compose.log" 2>&1
   wait_for 300 "Opfield health" api_healthy || { fail "Opfield healthy after the .env change" ""; return 1; }
 }
@@ -1322,12 +1330,12 @@ install_node() {
   keep_json "node-${type}"
   id="$(jx "$RESP" 'D["node"]["id"]')"
   token="$(jx "$RESP" 'D["enrollmentToken"]')"
-  fp="$(jx "$RESP" 'D["gatewayCertSha256"]')"
+  fp="$(jx "$RESP" 'D["opfieldCertSha256"]')"
   check "${label} node created" "HTTP ${CODE}" test "$CODE" = 201 -a -n "$id" || return 1
   FACT["${type}_node"]="$id"
   say "installing the ${BASE} ${label} node daemon (log: logs/node-${type}.out)"
-  env TERM=dumb timeout 1500 bash "$script" -y --no-logo --version "$BASE" "$@" --gateway "${HOST_ADDR}:9443" \
-    --token "$token" --gateway-cert-sha256 "$fp" </dev/null >"$WORK/logs/node-${type}.out" 2>&1
+  env TERM=dumb timeout 1500 bash "$script" -y --no-logo --version "$BASE" "$@" --opfield "${HOST_ADDR}:9443" \
+    --token "$token" --opfield-cert-sha256 "$fp" </dev/null >"$WORK/logs/node-${type}.out" 2>&1
   status=$?
   sed -i 's/\x1b\[[0-9;]*[A-Za-z]//g' "$WORK/logs/node-${type}.out"
   check "${label} node installer" "exit ${status} in $((SECONDS - start)) s" test "$status" = 0 ||
@@ -1366,9 +1374,9 @@ phase1_base() {
   phase 1 "Install ${BASE} and seed state"
   # A base without a relay release of its own (2.11.3) installs the newest stable relay, as a customer's install did.
   if curl -fsS -m 20 -o /dev/null -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/${REPO}/releases/tags/${BASE}-relay" 2>/dev/null; then
-    feed_pin stable "gateway=${BASE}" "relay=${BASE}-relay"
+    feed_pin stable "opfield=${BASE}" "relay=${BASE}-relay"
   else
-    feed_pin stable "gateway=${BASE}"
+    feed_pin stable "opfield=${BASE}"
   fi
   curl -fsSL "${RAW_BASE}/${BASE}/scripts/install.sh" -o "$installer" &&
     curl -fsSL "${RELEASE_DOWNLOAD}/${BASE}/setup-docker-node.sh" -o "$docker_script" &&
@@ -1377,7 +1385,7 @@ phase1_base() {
     test -s "$installer" -a -s "$docker_script" -a -s "$nginx_script" || return 1
 
   run_installer base "$installer" || return 1
-  FACT[base_image]="$(grep '^GATEWAY_IMAGE_REF=' "$INSTALL_DIR/.env" | cut -d= -f2-)"
+  FACT[base_image]="$(grep -E "^(OPFIELD_|${LEGACY_ENV_PREFIX})IMAGE_REF=" "$INSTALL_DIR/.env" | head -n1 | cut -d= -f2-)"
   prepare_stack || return 1
   check_license_guard
   complete_setup base || return 1
@@ -1387,9 +1395,9 @@ phase1_base() {
 
   # The base updater's own rollback for phase 4, taken from the code the base runs.
   # Rendered by the base's own code with node in its app container, so phase 4 runs exactly what the base runs.
-  docker cp "$WORK/py/sidecar-render.cjs" "$(service_id app):/tmp/gateway-e2e-sidecar-render.cjs" >/dev/null 2>&1
+  docker cp "$WORK/py/sidecar-render.cjs" "$(service_id app):/tmp/opfield-e2e-sidecar-render.cjs" >/dev/null 2>&1
   for src in $(docker exec "$(service_id app)" sh -c 'grep -rl "trap on_exit EXIT" /app/packages/backend/dist 2>/dev/null' | grep -v '\.test\.js$' | grep '\.js$'); do
-    docker exec "$(service_id app)" node /tmp/gateway-e2e-sidecar-render.cjs "$src" "$PROJECT" "$INSTALL_DIR" \
+    docker exec "$(service_id app)" node /tmp/opfield-e2e-sidecar-render.cjs "$src" "$PROJECT" "$INSTALL_DIR" \
       >"$WORK/json/base-sidecar.json" 2>"$WORK/logs/sidecar-extract.log" &&
       FACT[sidecar_image]="$(jx "$WORK/json/base-sidecar.json" 'D["image"]')" &&
       jx "$WORK/json/base-sidecar.json" 'D["script"]' >"$WORK/rollback-functions-${BASE}.sh" &&
@@ -1478,7 +1486,7 @@ phase1_base() {
   TOKEN="$(jx "$RESP" 'D["token"]')"
   check "API token created" "HTTP ${CODE} ${TOKEN:0:10}… $([[ -n "$TOKEN" ]] || short "$RESP" 200)" test -n "$TOKEN" || return 1
 
-  api POST /api/notifications/webhooks '{"name":"e2e-webhook","url":"https://example.com/gateway-e2e-webhook","method":"POST","enabled":true,"signingSecret":"e2e-signing-secret-123"}'
+  api POST /api/notifications/webhooks '{"name":"e2e-webhook","url":"https://example.com/opfield-e2e-webhook","method":"POST","enabled":true,"signingSecret":"e2e-signing-secret-123"}'
   FACT[webhook]="$(jx "$RESP" 'D["id"]')"
   check "webhook created" "HTTP ${CODE} ${FACT[webhook]}" test -n "${FACT[webhook]}" || return 1
   api POST /api/notifications/alert-rules "$(mkjson '{"name": "e2e-node-offline", "enabled": True, "type": "event", "category": "node",
@@ -1508,7 +1516,7 @@ LOG_ALLOW=(
   'license[^"]*(ENOTFOUND|EAI_AGAIN|getaddrinfo|fetch failed|unreachable)'
   'ENOTFOUND license\.(thesqlabs\.com|opfield\.dev)'
   # The seeded webhook points at example.com, which does not accept the POST.
-  'gateway-e2e-webhook'
+  'opfield-e2e-webhook'
   # The run's own refusal probes: a folder-limited token at the top level, a daemon update to the version it runs.
   'Managing top-level folders and ungrouped items requires proxy:folders:manage'
   '"path":"/api/proxy-host-folders".*"status":403'
@@ -1667,7 +1675,7 @@ seed_secure_links() {
   api POST /api/docker/container-links "$(mkjson '{"sourceNodeId": a[0], "sourceType": "container", "sourceResourceId": "e2e-echo-client",
     "targetNodeId": a[0], "targetType": "container", "targetResourceId": "e2e-echo", "targetPort": 7000, "alias": "e2e-echo"}' "${FACT[docker_node]}")"
   if grep -q COMMERCIAL_MODULE_UNAVAILABLE "$RESP" 2>/dev/null; then
-    FACT[echo_skip]="container links need the private core (Community answers COMMERCIAL_MODULE_UNAVAILABLE); set GATEWAY_E2E_LICENSE_KEY"
+    FACT[echo_skip]="container links need the private core (Community answers COMMERCIAL_MODULE_UNAVAILABLE); set OPFIELD_E2E_LICENSE_KEY"
     skip "container link between two containers" "${FACT[echo_skip]}"
     return 0
   fi
@@ -1900,7 +1908,7 @@ seed_alert_history() {
 
 alert_snapshot() {
   api GET "/api/notifications/alert-rules"
-  jx "$RESP" '[(r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])) for r in items(d) if r.get("category") == "gateway" and r.get("eventPattern") == "outbound.unavailable"]' \
+  jx "$RESP" '[(r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])) for r in items(d) if r.get("category") == "opfield" and r.get("eventPattern") == "outbound.unavailable"]' \
     >"$WORK/json/builtin-outbound-rule-$1.json"
   jx "$RESP" '[{k: r.get(k) for k in ("name", "enabled", "type", "category", "severity", "eventPattern", "webhookIds", "cooldownSeconds")} for r in items(d) if r["id"] == args[0]]' \
     "${FACT[rule]}" >"$WORK/json/rule-$1.json"
@@ -1912,19 +1920,17 @@ check_alerts_migrated() {
   local label="$1" rule
   api GET "/api/notifications/alert-rules"
   keep_json "alert-rules-${label// /-}"
-  rule="$(jx "$RESP" '[r for r in items(d) if r.get("category") == "gateway" and r.get("eventPattern") == "outbound.unavailable"]')"
+  rule="$(jx "$RESP" '[r for r in items(d) if r.get("category") == "opfield" and r.get("eventPattern") == "outbound.unavailable"]')"
   # 2.12 renames the untouched built-in rule to the Opfield name (bootstrap); a rule the user renamed keeps its name.
-  # legacy-name: built-in rule name "Gateway lost outbound connectivity" from older releases — remove once every install has passed 2.12.1
-  check "${label}: built-in \"Opfield lost outbound connectivity\" rule (or its old name) exists once" \
+  check "${label}: built-in \"Opfield lost outbound connectivity\" rule exists once" \
     "$(window_value "$rule" '[(r.get("name"), r.get("isBuiltin")) for r in D]')" \
-    test "$(window_value "$rule" 'len(D) == 1 and D[0].get("name") in ("Gateway lost outbound connectivity", "Opfield lost outbound connectivity")')" = true
+    test "$(window_value "$rule" 'len(D) == 1 and D[0].get("name") == "Opfield lost outbound connectivity"')" = true
   if [[ "$(jx "$WORK/json/builtin-outbound-rule-base.json" 'len(d)')" == 1 ]]; then
     # The base already has the rule (2.11.4 on: migration 0235 creates it once, at the base's own install, before the
     # e2e webhook existed). An install that has such a rule keeps its own: expect it exactly as the base stored it.
-    # legacy-name: built-in rule name "Gateway lost outbound connectivity" from older releases — remove once every install has passed 2.12.1
     check "${label}: built-in rule kept as the base had it" \
       "$(window_value "$rule" '[(r.get("name"), r.get("enabled"), r.get("isBuiltin"), sorted(r.get("webhookIds") or [])) for r in D]'), base $(cat "$WORK/json/builtin-outbound-rule-base.json")" \
-      test "$(window_value "$rule" '(lambda base: len(D) == 1 and D[0].get("name") in (base[0], base[0].replace("Gateway lost", "Opfield lost")) and [D[0].get("enabled"), D[0].get("isBuiltin"), sorted(D[0].get("webhookIds") or [])] == base[1:])(json.load(open(args[0]))[0])' "$WORK/json/builtin-outbound-rule-base.json")" = true
+      test "$(window_value "$rule" '(lambda base: len(D) == 1 and D[0].get("name") == base[0] and [D[0].get("enabled"), D[0].get("isBuiltin"), sorted(D[0].get("webhookIds") or [])] == base[1:])(json.load(open(args[0]))[0])' "$WORK/json/builtin-outbound-rule-base.json")" = true
   else
     check "${label}: built-in rule enabled, marked built-in, bound to the proxy/node rules' webhooks" \
       "$(window_value "$rule" '[(r.get("enabled"), r.get("isBuiltin"), r.get("webhookIds")) for r in D]'), expected webhook ${FACT[webhook]}" \
@@ -2018,7 +2024,7 @@ check_logs() {
   {
     docker logs --since "$since" "$(service_id app)" 2>&1 | sed 's/^/app: /'
     docker logs --since "$since" "$(service_id relay)" 2>&1 | sed 's/^/relay: /'
-    journalctl -u docker-daemon -u nginx-daemon -u gateway-lease-watchdog --since "@${since}" --no-pager -o json 2>/dev/null |
+    journalctl -u docker-daemon -u nginx-daemon -u opfield-lease-watchdog -u "$LEGACY_LEASE_WATCHDOG" --since "@${since}" --no-pager -o json 2>/dev/null |
       python3 "$WORK/py/journal-tag.py" "$(base_daemon_pids)"
   } | grep -aiE '"level":"?(warn|warning|error|fatal|40|50|60)("|,)|level=(WARN|ERROR)' >"$out"
   bad="$(python3 - "$out" "${LOG_ALLOW[@]}" 2>"${out%.txt}-grouped.txt" <<'PY'
@@ -2080,8 +2086,8 @@ update_settled() {
   [[ -n "$UPDATE_ERROR" ]]
 }
 
-# gateway_update LABEL: check-update and update through the product, timed against the probes.
-gateway_update() {
+# opfield_update LABEL: check-update and update through the product, timed against the probes.
+opfield_update() {
   local label="$1" start_ms end_ms latest window sidecar
   if [[ "$LICENSE_MODE" == block && -z "$LICENSE_KEY" ]]; then
     license_block 0
@@ -2200,7 +2206,7 @@ phase2_update() {
   local -a pins=()
   mapfile -t pins < <(hop_pins)
   phase "2${HOP}" "Update ${HOP_FROM} -> ${CANDIDATE} through the product"
-  feed_pin "$CHANNEL" "gateway=${CANDIDATE}" "${pins[@]}"
+  feed_pin "$CHANNEL" "opfield=${CANDIDATE}" "${pins[@]}"
   ensure_session
   # Nodes keep the daemon they run until phase 3 updates them.
   for id in "${FACT[docker_node]}" "${FACT[nginx_node]}"; do
@@ -2208,13 +2214,13 @@ phase2_update() {
   done
   # A base that snapshots the database before an update removes the snapshot once the update succeeded; phase 4
   # needs it for the base's own restore, so its inode is kept by a hard link while the update runs.
-  start_background dump-capture sh -c 'while :; do for f in "$1"/.gateway-foundation-backups/pre-update-*/gateway-db.dump "$1"/.opfield-foundation-backups/pre-update-*/opfield-db.dump; do
-      [ -s "$f" ] && ln -f "$f" "$2/pre-update-db.dump" 2>/dev/null; done; sleep 0.2; done' sh "$INSTALL_DIR" "$WORK"
-  gateway_update "update${HOP_NOTE}"
+  start_background dump-capture sh -c 'while :; do for f in "$1"/"$3"/pre-update-*/"$4" "$1"/.opfield-foundation-backups/pre-update-*/opfield-db.dump; do
+      [ -s "$f" ] && ln -f "$f" "$2/pre-update-db.dump" 2>/dev/null; done; sleep 0.2; done' sh "$INSTALL_DIR" "$WORK" "$LEGACY_FOUNDATION_BACKUP_DIR" "$LEGACY_DB_DUMP"
+  opfield_update "update${HOP_NOTE}"
   local updated=$?
   stop_background dump-capture
   ((updated == 0)) || return 1
-  check "database migrated" "$(psql_gateway 'select count(*) from drizzle.__drizzle_migrations') applied migrations" true
+  check "database migrated" "$(psql_opfield 'select count(*) from drizzle.__drizzle_migrations') applied migrations" true
   check_foundation_kept
   check_upgraded_state "after update${HOP_NOTE}" "upgrade1${HOP}"
   check_alerts_migrated "after update${HOP_NOTE}"
@@ -2235,7 +2241,7 @@ phase2_update() {
 # ── Host move to the Opfield layout ───────────────────────────────────
 
 host_move_done() {
-  [[ -L /opt/gateway && -f "$OPFIELD_DIR/docker-compose.yml" ]] || return 1
+  [[ -L "$LEGACY_INSTALL_DIR" && -f "$OPFIELD_DIR/docker-compose.yml" ]] || return 1
   [[ "$(docker inspect -f '{{.State.Status}}' opfield-host-move 2>/dev/null)" == exited ]] || return 1
   refresh_layout
   version_is "$CANDIDATE"
@@ -2259,19 +2265,19 @@ phase_host_move() {
     test "$code" = 0 || return 1
   wait_for 300 "Opfield after the host move" host_move_done
   end_ms="$(now_ms)"
-  check "installation moved" "${INSTALL_DIR}; /opt/gateway -> $(readlink /opt/gateway); project ${PROJECT}; database ${DB_ROLE}/${DB_NAME}" \
+  check "installation moved" "${INSTALL_DIR}; ${LEGACY_INSTALL_DIR} -> $(readlink "$LEGACY_INSTALL_DIR"); project ${PROJECT}; database ${DB_ROLE}/${DB_NAME}" \
     test "$INSTALL_DIR" = "$OPFIELD_DIR" -a "$PROJECT" = opfield -a "$DB_ROLE" = opfield -a "$DB_NAME" = opfield || return 1
   compose_head="$(head -n1 "$INSTALL_DIR/docker-compose.yml")"
-  env_names="$(grep -cE '^GATEWAY_' "$INSTALL_DIR/.env")"
-  check "Opfield files" "${compose_head}; ${env_names} GATEWAY_ settings; $(grep -c 'com.wiolett' "$INSTALL_DIR/docker-compose.yml") earlier labels" \
-    test "$compose_head" = "name: opfield" -a "$env_names" = 0 -a "$(grep -c 'com.wiolett' "$INSTALL_DIR/docker-compose.yml")" = 0
+  env_names="$(grep -cE "^${LEGACY_ENV_PREFIX}" "$INSTALL_DIR/.env")"
+  check "Opfield files" "${compose_head}; ${env_names} earlier settings; $(grep -c "$LEGACY_MANAGED_SERVICE_LABEL" "$INSTALL_DIR/docker-compose.yml") earlier labels" \
+    test "$compose_head" = "name: opfield" -a "$env_names" = 0 -a "$(grep -c "$LEGACY_MANAGED_SERVICE_LABEL" "$INSTALL_DIR/docker-compose.yml")" = 0
   projects="$(docker ps -a --format '{{.Label "com.docker.compose.project"}}' | sort -u | tr '\n' ' ')"
   check "no container of the earlier project left" "projects: ${projects}" \
-    test "$(docker ps -aq --filter label=com.docker.compose.project=gateway | wc -l)" = 0
+    test "$(docker ps -aq --filter "label=com.docker.compose.project=${LEGACY_DATABASE}" | wc -l)" = 0
   volumes_after="$(docker volume ls -q | sort | tr '\n' ' ')"
   check "volumes kept by name, none added" "before: ${volumes_before}; after: ${volumes_after}" test "$volumes_before" = "$volumes_after"
-  check "app data kept" "$(psql_gateway "select count(*) from users") users, $(psql_gateway "select count(*) from nodes") nodes" \
-    test "$(psql_gateway "select count(*) from users where email = '${ADMIN_EMAIL}'")" = 1
+  check "app data kept" "$(psql_opfield "select count(*) from users") users, $(psql_opfield "select count(*) from nodes") nodes" \
+    test "$(psql_opfield "select count(*) from users where email = '${ADMIN_EMAIL}'")" = 1
   window="$(probe_window "$start_ms" "$end_ms")"
   echo "$window" >"$WORK/json/probes-host-move.json"
   TIMING["host move API outage"]="$(window_value "$window" 'D["apiOutageSeconds"]') s"
@@ -2300,7 +2306,7 @@ phase_host_move() {
 # ── Phase 3: daemons and relay ────────────────────────────────────────
 
 watchdog_ready() {
-  systemctl is-active --quiet gateway-lease-watchdog 2>/dev/null || return 1
+  systemctl is-active --quiet opfield-lease-watchdog 2>/dev/null || systemctl is-active --quiet "$LEGACY_LEASE_WATCHDOG" 2>/dev/null || return 1
   api GET "/api/nodes/${FACT[docker_node]}"
   [[ "$(jx "$RESP" '"availability_lease_watchdog_missing_v1" in (D.get("capabilities") or {}).get("capabilities", [])')" == false ]]
 }
@@ -2357,7 +2363,7 @@ phase3_components() {
   check_launcher
   wait_for 240 "lease watchdog installed by the docker daemon" watchdog_ready
   check "lease watchdog installed" \
-    "unit $(systemctl is-active gateway-lease-watchdog 2>/dev/null) $(journalctl -u gateway-lease-watchdog --no-pager -o cat 2>/dev/null | grep -o '"version":"[^"]*"' | tail -n1)" \
+    "unit $(systemctl is-active opfield-lease-watchdog 2>/dev/null) $(journalctl -u opfield-lease-watchdog --no-pager -o cat 2>/dev/null | grep -o '"version":"[^"]*"' | tail -n1)" \
     watchdog_ready
 
   relay_update
@@ -2411,14 +2417,15 @@ relay_update() {
 
 # ── Phase 4: forced rollback with the base updater's rollback() ───────
 
-sidecar_exited() { [[ "$(docker inspect -f '{{.State.Status}}' gateway-e2e-rollback 2>/dev/null)" == exited ]]; }
+sidecar_exited() { [[ "$(docker inspect -f '{{.State.Status}}' opfield-e2e-rollback 2>/dev/null)" == exited ]]; }
 
 phase4_rollback() {
   local backup start=$SECONDS status code license_state probe_id pages id
   phase 4 "Forced rollback to ${BASE}, then update again"
   [[ -s "$WORK/rollback-functions-${BASE}.sh" ]] || { fail "rollback script available" "the base rollback() was not rendered"; return 1; }
-  for backup in "$INSTALL_DIR"/.gateway-foundation-backups/*/; do
-    if grep -qxF "GATEWAY_IMAGE_REF=${FACT[base_image]}" "${backup}.env" 2>/dev/null; then
+  for backup in "$INSTALL_DIR"/.opfield-foundation-backups/*/ "$INSTALL_DIR/${LEGACY_FOUNDATION_BACKUP_DIR}"/*/; do
+    if grep -qxF "OPFIELD_IMAGE_REF=${FACT[base_image]}" "${backup}.env" 2>/dev/null ||
+      grep -qxF "${LEGACY_ENV_PREFIX}IMAGE_REF=${FACT[base_image]}" "${backup}.env" 2>/dev/null; then
       FACT[backup]="${backup%/}"
       break
     fi
@@ -2432,30 +2439,32 @@ phase4_rollback() {
       # The snapshot the update took is back where the base updater wrote it, as if the health gate had failed.
       printf 'db_snapshot_ready=1\n'
     fi
-    printf 'echo "gateway-e2e: forced update failure, running rollback()"\nexit 1\n'
+    printf 'echo "opfield-e2e: forced update failure, running rollback()"\nexit 1\n'
   } >"$WORK/rollback-${BASE}.sh"
   if [[ "${FACT[base_snapshots]}" == 1 ]]; then
     check "pre-update database snapshot of the update captured" "$(stat -c '%s bytes' "$WORK/pre-update-db.dump" 2>/dev/null || echo missing)" \
       test -s "$WORK/pre-update-db.dump" || return 1
-    cp "$WORK/pre-update-db.dump" "${FACT[backup]}/gateway-db.dump" && chmod 600 "${FACT[backup]}/gateway-db.dump"
+    local dump_name=opfield-db.dump
+    [[ "${FACT[backup]}" != *"/${LEGACY_FOUNDATION_BACKUP_DIR}/"* ]] || dump_name="$LEGACY_DB_DUMP"
+    cp "$WORK/pre-update-db.dump" "${FACT[backup]}/${dump_name}" && chmod 600 "${FACT[backup]}/${dump_name}"
   fi
-  docker rm -f gateway-e2e-rollback >/dev/null 2>&1
-  docker run -d --name gateway-e2e-rollback -e "FOUNDATION_BACKUP_DIR=${FACT[backup]}" -v "${INSTALL_DIR}:${INSTALL_DIR}" \
+  docker rm -f opfield-e2e-rollback >/dev/null 2>&1
+  docker run -d --name opfield-e2e-rollback -e "FOUNDATION_BACKUP_DIR=${FACT[backup]}" -v "${INSTALL_DIR}:${INSTALL_DIR}" \
     -v /var/run/docker.sock:/var/run/docker.sock -v "$WORK/rollback-${BASE}.sh:/rollback.sh:ro" \
     "${FACT[sidecar_image]}" sh /rollback.sh >/dev/null
   wait_for 420 "rollback sidecar" sidecar_exited
-  status="$(docker inspect -f '{{.State.ExitCode}}' gateway-e2e-rollback 2>/dev/null)"
-  docker logs gateway-e2e-rollback >"$WORK/logs/rollback-sidecar.log" 2>&1
+  status="$(docker inspect -f '{{.State.ExitCode}}' opfield-e2e-rollback 2>/dev/null)"
+  docker logs opfield-e2e-rollback >"$WORK/logs/rollback-sidecar.log" 2>&1
   wait_for 300 "${BASE} after the rollback" version_is "$BASE"
   TIMING["rollback"]="$((SECONDS - start)) s"
-  check "rollback() brought ${BASE} back" "sidecar exit ${status} (1 = forced failure), $(gateway_version) healthy after $((SECONDS - start)) s" \
+  check "rollback() brought ${BASE} back" "sidecar exit ${status} (1 = forced failure), $(opfield_version) healthy after $((SECONDS - start)) s" \
     version_is "$BASE" || { tail -n 20 "$WORK/logs/rollback-sidecar.log"; return 1; }
   sleep 15
   ensure_session
   api GET /api/ui/bootstrap
   license_state="$(jx "$RESP" 'D["license"]["status"]')"
   check "${BASE} license state valid after the rollback" \
-    "policy status ${license_state}; license:cached_state entitlementsVersion $(psql_gateway "select value->>'entitlementsVersion' from settings where key='license:cached_state'")" \
+    "policy status ${license_state}; license:cached_state entitlementsVersion $(psql_opfield "select value->>'entitlementsVersion' from settings where key='license:cached_state'")" \
     test -n "$license_state" -a "$license_state" != invalid
   check "no invalid license policy in the ${BASE} log" \
     "$(docker logs "$(service_id app)" 2>&1 | grep -c 'License policy state is invalid') occurrences" \
@@ -2470,14 +2479,14 @@ phase4_rollback() {
     "$(python3 "$WORK/py/access.py" compare "$WORK/json/access-base.json" "$WORK/json/access-rollback.json" superset)" \
     python3 "$WORK/py/access.py" compare "$WORK/json/access-base.json" "$WORK/json/access-rollback.json" superset
   # The insert the base's ORM issues for a Pages project: columns it knows, no preview_hash.
-  pages="$(psql_gateway "insert into page_projects (name, slug, description, node_id, folder_id, sort_order, max_deployments, storage_quota_bytes, created_by_id, updated_by_id) select 'e2e-rollback', 'e2e-rollback', null, null, null, 0, 20, 1073741824, id, id from users where email = '${ADMIN_EMAIL}' returning preview_hash" | head -n1)"
+  pages="$(psql_opfield "insert into page_projects (name, slug, description, node_id, folder_id, sort_order, max_deployments, storage_quota_bytes, created_by_id, updated_by_id) select 'e2e-rollback', 'e2e-rollback', null, null, null, 0, 20, 1073741824, id, id from users where email = '${ADMIN_EMAIL}' returning preview_hash" | head -n1)"
   check "Pages project insert with the ${BASE} column set" "preview_hash ${pages}" grep -qE '^[a-z2-7]{12}$' <<<"$pages"
-  psql_gateway "delete from page_projects where slug = 'e2e-rollback'" >/dev/null
+  psql_opfield "delete from page_projects where slug = 'e2e-rollback'" >/dev/null
   check "route serves after the rollback" "https://${ROUTE_DOMAIN}" route_ok
   check "workload container untouched by the rollback" "$(container_identity e2e-web | cut -d' ' -f2-)" \
     test "$(container_identity e2e-web)" = "${FACT[container_identity]}"
 
-  gateway_update "update after rollback" || return 1
+  opfield_update "update after rollback" || return 1
   ensure_session
   say "second update access: $(access_snapshot upgrade2)"
   check "effective access equals the first update" \
@@ -2502,14 +2511,14 @@ teardown_stack() {
     api DELETE /api/system/license/key
     check "license key deactivated before teardown" "HTTP ${CODE}" test "$CODE" = 200 && FACT[license_activated]=0
   fi
-  for unit in docker-daemon nginx-daemon gateway-lease-watchdog; do
+  for unit in docker-daemon nginx-daemon opfield-lease-watchdog "$LEGACY_LEASE_WATCHDOG"; do
     systemctl stop "$unit" >/dev/null 2>&1
   done
-  docker rm -f e2e-web e2e-sl e2e-echo e2e-echo-client gateway-e2e-mailpit gateway-e2e-rollback >/dev/null 2>&1
+  docker rm -f e2e-web e2e-sl e2e-echo e2e-echo-client opfield-e2e-mailpit opfield-e2e-rollback >/dev/null 2>&1
   [[ -f "$INSTALL_DIR/docker-compose.yml" ]] && dc down -v --remove-orphans >>"$WORK/logs/compose.log" 2>&1
   docker ps -aq --filter "ancestor=${FACT[sidecar_image]:-docker.io/library/docker:27-cli}" | xargs -r docker rm -f >/dev/null 2>&1
   rm -rf "$INSTALL_DIR" "$OPFIELD_DIR"
-  [[ -L /opt/gateway ]] && rm -f /opt/gateway
+  [[ -L "$LEGACY_INSTALL_DIR" ]] && rm -f "$LEGACY_INSTALL_DIR"
   docker rm -f opfield-host-move >/dev/null 2>&1
   # The fresh candidate installs where its installer puts it.
   if version_at_least "$CANDIDATE" "$FIRST_OPFIELD_LAYOUT"; then INSTALL_DIR="$OPFIELD_DIR"; fi
@@ -2520,7 +2529,7 @@ phase5_fresh() {
   phase 5 "Fresh install of ${CANDIDATE}"
   command -v docker >/dev/null && teardown_stack
   [[ "$LICENSE_MODE" == allow ]] || license_block 1
-  feed_pin "$CHANNEL" "gateway=${CANDIDATE}"
+  feed_pin "$CHANNEL" "opfield=${CANDIDATE}"
   curl -fsSL "${RAW_BASE}/${CANDIDATE}/scripts/install.sh" -o "$installer"
   check "${CANDIDATE} installer downloaded" "install.sh sha256 $(sha256sum "$installer" 2>/dev/null | cut -c1-12)" test -s "$installer" || return 1
   if [[ "$CANDIDATE" == *-rc.* ]]; then
@@ -2531,14 +2540,14 @@ phase5_fresh() {
     check "installer accepts -rc.N tags (test-only patch)" "${patched} version patterns widened" test "$patched" -gt 0 || return 1
   fi
   run_installer fresh "$installer" || return 1
-  check "fresh install runs ${CANDIDATE}" "$(grep -E '^(OPFIELD|GATEWAY)_VERSION=' "$INSTALL_DIR/.env")" \
-    grep -qxE "(OPFIELD|GATEWAY)_VERSION=${CANDIDATE}" "$INSTALL_DIR/.env"
+  check "fresh install runs ${CANDIDATE}" "$(grep -E "^(OPFIELD_|${LEGACY_ENV_PREFIX})VERSION=" "$INSTALL_DIR/.env")" \
+    grep -qxE "(OPFIELD_|${LEGACY_ENV_PREFIX})VERSION=${CANDIDATE}" "$INSTALL_DIR/.env"
   if version_at_least "$CANDIDATE" "$FIRST_OPFIELD_LAYOUT"; then
     check "fresh install in the Opfield layout" \
       "${INSTALL_DIR}; $(head -n1 "$INSTALL_DIR/docker-compose.yml"); project ${PROJECT}; database ${DB_ROLE}/${DB_NAME}" \
       test "$INSTALL_DIR" = "$OPFIELD_DIR" -a "$PROJECT" = opfield -a "$DB_NAME" = opfield -a "$DB_ROLE" = opfield
-    check "fresh install has no earlier names" "$(grep -cE '^GATEWAY_' "$INSTALL_DIR/.env") GATEWAY_ settings" \
-      test "$(grep -cE '^GATEWAY_' "$INSTALL_DIR/.env")" = 0
+    check "fresh install has no earlier names" "$(grep -cE "^${LEGACY_ENV_PREFIX}" "$INSTALL_DIR/.env") earlier settings" \
+      test "$(grep -cE "^${LEGACY_ENV_PREFIX}" "$INSTALL_DIR/.env")" = 0
   fi
   prepare_stack || return 1
   check_license_guard
@@ -2566,7 +2575,7 @@ run_via_hop() {
     PHASE="2b"
     say "running the --before-candidate command"
     local status=0
-    GATEWAY_E2E_WORK="$WORK" GATEWAY_E2E_INSTALL_DIR="$INSTALL_DIR" GATEWAY_E2E_PROJECT="$PROJECT" \
+    OPFIELD_E2E_WORK="$WORK" OPFIELD_E2E_INSTALL_DIR="$INSTALL_DIR" OPFIELD_E2E_PROJECT="$PROJECT" \
       bash -c "$BEFORE_CANDIDATE" </dev/null >>"$WORK/logs/before-candidate.out" 2>&1 || status=$?
     check "--before-candidate command" "exit ${status} (logs/before-candidate.out)" test "$status" = 0 || return 1
   fi
@@ -2693,8 +2702,8 @@ main() {
   fi
   preflight
   RUN_ID="$(date -u +%Y%m%d%H%M%S)"
-  WORK="${WORK:-/var/tmp/gateway-e2e-${RUN_ID}}"
-  PUBLIC_URL="${PUBLIC_URL:-https://gateway-e2e-${RUN_ID}.invalid:3000}"
+  WORK="${WORK:-/var/tmp/opfield-e2e-${RUN_ID}}"
+  PUBLIC_URL="${PUBLIC_URL:-https://opfield-e2e-${RUN_ID}.invalid:3000}"
   [[ "$CANDIDATE" == *-rc.* ]] && CHANNEL="preview"
   # The base rollback() belongs to the base; after a hop through --via it is not the path that release takes.
   [[ -n "$VIA" ]] && SKIP_ROLLBACK=1
@@ -2761,7 +2770,7 @@ main() {
   fi
   if [[ -z "$LICENSE_KEY" ]]; then
     PHASE=6
-    skip "paid path" "GATEWAY_E2E_LICENSE_KEY is not set"
+    skip "paid path" "OPFIELD_E2E_LICENSE_KEY is not set"
   fi
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { relayEndpoints, relayInstancePolicyState, relayRoutes } from '@/db/schema/index.js';
 import type { RelayPolicyRouteEntry } from '@/db/schema/relay.js';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 import { RelayGrantIssuerService } from './relay-grant-issuer.service.js';
 
 const STALE_AT = '2026-09-27T10:01:30.000Z';
@@ -61,7 +62,7 @@ function relay(instanceId: string) {
 function issuer(answers: Rows[]) {
   const service = new RelayGrantIssuerService(database(answers) as never, {} as never, {} as never) as any;
   service.requireNodeIdentity = vi.fn().mockResolvedValue({ certificateFingerprint: 'sha256:node' });
-  service.requireState = vi.fn().mockResolvedValue({ revision: 20, gatewayInstanceId: 'gateway' });
+  service.requireState = vi.fn().mockResolvedValue({ revision: 20, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` });
   service.getPoolProjection = vi
     .fn()
     .mockResolvedValue(new Map([['endpoint-1', [relay('relay-stale'), relay('relay-current')]]]));
@@ -156,7 +157,7 @@ describe('RelayGrantIssuerService revocation fences', () => {
   it('keeps Opfield itself away from a stale relay for the revoked route', async () => {
     const opfieldRoute = {
       ...route('route-narrowed', 2),
-      sourceKind: 'gateway',
+      sourceKind: LEGACY_RELAY_SOURCE_KIND,
       sourceCertificateSha256: 'sha256:app',
     };
     const service = issuer([

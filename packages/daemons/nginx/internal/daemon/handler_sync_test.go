@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"os"
@@ -37,7 +38,7 @@ func TestFullSyncRemovesOrphanedHtpasswd(t *testing.T) {
 		t.Fatal(err)
 	}
 	authFile := func(accessListID string) string {
-		return "auth_basic_user_file /etc/nginx/gateway/htpasswd/access-list-" + accessListID + ";"
+		return "auth_basic_user_file " + legacycompat.NginxDir + "/htpasswd/access-list-" + accessListID + ";"
 	}
 	// A Pages preview and an operator's global config reference credentials outside the synced host configs.
 	writeSyncTestFile(t, filepath.Join(configDir, "pages-preview-0123456789abcdef01234567.conf"), "server { "+authFile(previewList)+" }\n")

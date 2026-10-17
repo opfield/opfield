@@ -2,6 +2,7 @@ package availabilitylease
 
 import (
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 )
 
@@ -12,7 +13,7 @@ import (
 // holder its latest verified commit names. The domain must start with
 // HolderStatementDomainPrefix, so a statement can never be replayed as a lease
 // frame or accept.
-const HolderStatementDomainPrefix = "gateway-availability-holder/"
+const HolderStatementDomainPrefix = legacycompat.AvailabilityHolderDomain + "/"
 
 // HolderStatementMessage is the signed byte string of a holder statement.
 func HolderStatementMessage(domain string, payload []byte) []byte {

@@ -1,4 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import {
+  LEGACY_CONTAINER_LINK_NETWORK_PREFIX,
+  LEGACY_DATABASE_LINK_NETWORK_PREFIX,
+  LEGACY_SECURE_LINK_NETWORK,
+  LEGACY_STORAGE_LINK_NETWORK_PREFIX,
+} from '@/lib/legacy-compat.js';
 import { isOpfieldManagedDockerNetwork, isReservedOpfieldNetworkName } from './docker-internal-networks.js';
 
 describe("Opfield's own Docker networks", () => {
@@ -10,10 +16,10 @@ describe("Opfield's own Docker networks", () => {
     'opfield-storage-6f1c2a1e-3b4d-4c5e-8f9a-0b1c2d3e4f5a',
     'opfield-link-0123456789abcdef',
     // Networks created before 2.12.1 keep their names.
-    'gateway-secure-links',
-    'gateway-db-0123456789abcdef',
-    'gateway-storage-0123456789abcdef',
-    'gateway-link-0123456789abcdef',
+    LEGACY_SECURE_LINK_NETWORK,
+    `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}0123456789abcdef`,
+    `${LEGACY_STORAGE_LINK_NETWORK_PREFIX}0123456789abcdef`,
+    `${LEGACY_CONTAINER_LINK_NETWORK_PREFIX}0123456789abcdef`,
   ])('hides and reserves %s', (name) => {
     expect(isOpfieldManagedDockerNetwork(name)).toBe(true);
     expect(isReservedOpfieldNetworkName(name)).toBe(true);

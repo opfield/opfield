@@ -2,11 +2,11 @@
 // which the MCP server serves as opfield://skills so a connected agent reads
 // the version matching this Opfield release. Run before tagging a release:
 //   node scripts/sync-agent-skills.mjs [path/to/opfield-skills]
-// Without a path it uses a sibling checkout named opfield-skills, or gateway-skills (its earlier name).
+// Without a path it uses a sibling checkout named opfield-skills.
 import { cpSync, existsSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const checkout = process.argv[2] ?? ['../opfield-skills', '../gateway-skills'].find((path) => existsSync(path)) ?? '../opfield-skills';
+const checkout = process.argv[2] ?? '../opfield-skills';
 const source = join(resolve(checkout), 'skills');
 const target = resolve('skills');
 if (!existsSync(source)) {

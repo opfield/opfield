@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container } from '@/container.js';
+import { LEGACY_LABEL_PREFIX } from '@/lib/legacy-compat.js';
 import { executeDockerTool } from '@/modules/ai/ai.docker-tools.js';
 import type { User } from '@/types.js';
 import { DockerManagementService } from './docker.service.js';
@@ -33,7 +34,10 @@ const slotInspect = () => ({
   Id: 'slot-id',
   Name: '/web-blue',
   Config: {
-    Labels: { 'wiolett.gateway.deployment.managed': 'true', 'wiolett.gateway.deployment.id': DEPLOYMENT_ID },
+    Labels: {
+      [`${LEGACY_LABEL_PREFIX}deployment.managed`]: 'true',
+      [`${LEGACY_LABEL_PREFIX}deployment.id`]: DEPLOYMENT_ID,
+    },
     Env: [`DATABASE_URL=${DATABASE_URL}`, `AWS_SECRET_ACCESS_KEY=${S3_SECRET}`, 'MODE=prod'],
   },
 });
@@ -43,7 +47,7 @@ const composeInspect = () => ({
   Id: 'compose-id',
   Name: '/shop-api-1',
   Config: {
-    Labels: { 'wiolett.gateway.compose.project-id': COMPOSE_PROJECT_ID, 'com.docker.compose.project': 'shop' },
+    Labels: { [`${LEGACY_LABEL_PREFIX}compose.project-id`]: COMPOSE_PROJECT_ID, 'com.docker.compose.project': 'shop' },
     Env: [`DB=${DATABASE_URL}`, `API_URL=https://user:${COMPOSE_TOKEN}@api.example`, 'MODE=prod'],
   },
 });

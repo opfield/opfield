@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net"
 	"net/http"
@@ -468,7 +469,7 @@ func TestValidateWitnessesRefusesUnsafeSpecs(t *testing.T) {
 func TestKeeperConfigAndProbe(t *testing.T) {
 	spec := keeperSpec("w1", "25.3.1", 39410)
 	spec.RaftHost = "127.0.2.3"
-	config, err := renderKeeperConfig(spec, "/var/lib/gateway-relay-witness/data/w1")
+	config, err := renderKeeperConfig(spec, legacycompat.StateRoot+"-relay-witness/data/w1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +479,7 @@ func TestKeeperConfigAndProbe(t *testing.T) {
 		"<enable_reconfiguration>true</enable_reconfiguration>",
 		"<id>3</id>\n                <hostname>127.0.2.3</hostname>\n                <port>39411</port>\n                <priority>1</priority>",
 		"<id>1</id>\n                <hostname>127.0.1.1</hostname>\n                <port>39501</port>\n                <priority>3</priority>",
-		"<log_storage_path>/var/lib/gateway-relay-witness/data/w1/coordination/log</log_storage_path>",
+		"<log_storage_path>" + legacycompat.StateRoot + "-relay-witness/data/w1/coordination/log</log_storage_path>",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("keeper config lacks %q:\n%s", want, text)
@@ -773,7 +774,7 @@ func TestWitnessOrphanDirectoriesAreRemovedAtStart(t *testing.T) {
 
 // The witness's Keeper retention is pinned in its config.
 func TestKeeperConfigPinsRetention(t *testing.T) {
-	config, err := renderKeeperConfig(keeperSpec("w1", "25.3.1", 39410), "/var/lib/gateway-relay-witness/data/w1")
+	config, err := renderKeeperConfig(keeperSpec("w1", "25.3.1", 39410), legacycompat.StateRoot+"-relay-witness/data/w1")
 	if err != nil {
 		t.Fatal(err)
 	}

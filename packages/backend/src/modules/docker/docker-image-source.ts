@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { dockerBuildArtifacts, dockerBuilds, dockerSourceBindings } from '@/db/schema/index.js';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 /** Host of the internal registry Git builds, Availability mirrors and promotion copies are pushed to. */
 export const INTERNAL_REGISTRY_PREFIX = '127.0.0.1:5443/';
@@ -22,7 +23,7 @@ interface InternalImageReference {
 }
 
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/i;
-const BUILD_REPOSITORY_RE = /^gateway\/builds\/([0-9a-f-]{36})(?:\/|$)/i;
+const BUILD_REPOSITORY_RE = new RegExp(String.raw`^${LEGACY_REGISTRY_NAMESPACE}\/builds\/([0-9a-f-]{36})(?:\/|$)`, 'i');
 /** Availability mirrors and promotion copies point at another image; follow at most this many hops. */
 const MAX_HOPS = 3;
 

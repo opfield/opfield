@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"strings"
@@ -11,7 +12,7 @@ import (
 	"github.com/moby/moby/client"
 )
 
-const testPatchedSeaweedFSImage = "ghcr.io/the-square-labs/gateway/seaweedfs-gateway@sha256:" + "ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12"
+const testPatchedSeaweedFSImage = legacycompat.ImageRepository + "/" + legacycompat.SeaweedFSImageRepository + "@sha256:" + "ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12"
 
 // Before Opfield's own build is pinned the upstream image (either reference)
 // is current; once it is pinned only that build is, so existing storages move

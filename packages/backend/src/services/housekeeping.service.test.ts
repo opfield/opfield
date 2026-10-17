@@ -1,6 +1,7 @@
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { settings } from '@/db/schema/settings.js';
+import { LEGACY_HOUSEKEEPING_PROTECTED_LABEL, LEGACY_IMAGE_REPOSITORY } from '@/lib/legacy-compat.js';
 import { HousekeepingService } from './housekeeping.service.js';
 
 describe('HousekeepingService system certificate cleanup', () => {
@@ -12,7 +13,7 @@ describe('HousekeepingService system certificate cleanup', () => {
     };
     const dockerService = {
       inspectSelf: vi.fn().mockResolvedValue({
-        Config: { Image: 'the-square-labs/gateway:v2.10.0-rc.8', Labels: {} },
+        Config: { Image: `${LEGACY_IMAGE_REPOSITORY}:v2.10.0-rc.8`, Labels: {} },
       }),
     };
     const service = new HousekeepingService(
@@ -20,7 +21,7 @@ describe('HousekeepingService system certificate cleanup', () => {
       dockerService as any,
       {} as any,
       {
-        SECURE_LINK_CONNECTOR_IMAGE: 'the-square-labs/gateway/secure-link-connector@sha256:current',
+        SECURE_LINK_CONNECTOR_IMAGE: `${LEGACY_IMAGE_REPOSITORY}/secure-link-connector@sha256:current`,
       } as any
     );
     vi.spyOn(service as any, 'dockerRequest').mockResolvedValue({ statusCode: 200, body: '[]' });
@@ -28,21 +29,21 @@ describe('HousekeepingService system certificate cleanup', () => {
       listAllImages: vi.fn().mockResolvedValue([
         {
           Id: 'current',
-          RepoDigests: ['the-square-labs/gateway/secure-link-connector@sha256:current'],
+          RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}/secure-link-connector@sha256:current`],
           Created: 3,
           Containers: 0,
           Size: 10,
         },
         {
           Id: 'rollback',
-          RepoDigests: ['the-square-labs/gateway/secure-link-connector@sha256:rollback'],
+          RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}/secure-link-connector@sha256:rollback`],
           Created: 2,
           Containers: 0,
           Size: 20,
         },
         {
           Id: 'obsolete',
-          RepoDigests: ['the-square-labs/gateway/secure-link-connector@sha256:obsolete'],
+          RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}/secure-link-connector@sha256:obsolete`],
           Created: 1,
           Containers: 0,
           Size: 30,
@@ -76,14 +77,14 @@ describe('HousekeepingService system certificate cleanup', () => {
       listAllImages: vi.fn().mockResolvedValue([
         {
           Id: 'rollback',
-          RepoDigests: ['the-square-labs/gateway/secure-link-connector@sha256:rollback'],
+          RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}/secure-link-connector@sha256:rollback`],
           Created: 2,
           Containers: 0,
           Size: 20,
         },
         {
           Id: 'obsolete',
-          RepoDigests: ['the-square-labs/gateway/secure-link-connector@sha256:obsolete'],
+          RepoDigests: [`${LEGACY_IMAGE_REPOSITORY}/secure-link-connector@sha256:obsolete`],
           Created: 1,
           Containers: 0,
           Size: 30,
@@ -585,14 +586,14 @@ describe('HousekeepingService orphaned volume retention', () => {
     expect(h.state()).toEqual(unusedSince);
   });
 
-  // legacy-name: volumes protected before 2.12.1 carry gateway.housekeeping.protected.
+  // legacy-name: volumes protected before 2.12.1 carry LEGACY_HOUSEKEEPING_PROTECTED_LABEL.
   it('keeps volumes protected with the earlier label', async () => {
     const h = createHarness({
       volumes: {
         'node-1': [
           volume('pgdata'),
           volume(VOLUME_A, { UsedBy: [], usedByCount: 1 }),
-          volume(VOLUME_B, { Labels: { 'gateway.housekeeping.protected': 'true' } }),
+          volume(VOLUME_B, { Labels: { [LEGACY_HOUSEKEEPING_PROTECTED_LABEL]: 'true' } }),
         ],
       },
       unusedSince: { 'node-1': { pgdata: daysAgo(90), [VOLUME_A]: daysAgo(90), [VOLUME_B]: daysAgo(90) } },

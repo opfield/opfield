@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { ServerDuplexStream, ServerUnaryCall } from '@grpc/grpc-js';
+import { LEGACY_RELAY_METADATA_PREFIX } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('GrpcAuth');
@@ -10,12 +11,12 @@ const RELAY_METADATA = {
   certificateSerial: 'x-opfield-relay-cert-serial',
   certificateFingerprint: 'x-opfield-relay-cert-sha256',
 } as const;
-// legacy-name: a relay before 2.12.1 sets x-wiolett-relay-* and passes client-supplied x-opfield-relay-* through, so
+// legacy-name: a relay before 2.12.1 sets the legacy relay identity keys and passes client-supplied x-opfield-relay-* through, so
 // when any legacy key is present only the legacy keys count; remove once every relay reports none.
 const LEGACY_RELAY_METADATA = {
-  nodeId: 'x-wiolett-relay-node-id',
-  certificateSerial: 'x-wiolett-relay-cert-serial',
-  certificateFingerprint: 'x-wiolett-relay-cert-sha256',
+  nodeId: `${LEGACY_RELAY_METADATA_PREFIX}node-id`,
+  certificateSerial: `${LEGACY_RELAY_METADATA_PREFIX}cert-serial`,
+  certificateFingerprint: `${LEGACY_RELAY_METADATA_PREFIX}cert-sha256`,
 } as const;
 let trustedRelayFingerprints = new Set<string>();
 let relayTrustGeneration = 0;

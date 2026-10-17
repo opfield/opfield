@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 	"sync"
 	"time"
@@ -47,7 +48,7 @@ var (
 func BootOrigin() uint64 {
 	bootOriginOnce.Do(func() {
 		if id := strings.TrimSpace(readBootID()); id != "" {
-			sum := sha256.Sum256([]byte("gateway-availability-lease/clock-origin/v1\x00" + id))
+			sum := sha256.Sum256([]byte(legacycompat.AvailabilityLeaseDomain + "/clock-origin/v1\x00" + id))
 			bootOriginValue = binary.BigEndian.Uint64(sum[:8])
 		}
 		for bootOriginValue == 0 {

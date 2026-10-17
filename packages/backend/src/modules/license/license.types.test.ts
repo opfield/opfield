@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import legacy from './fixtures/entitlements-legacy.json';
+import { LEGACY_INFERENCE_FEATURE } from '@/lib/legacy-compat.js';
+import legacyFixture from './fixtures/entitlements-legacy.json';
 import {
   COMMUNITY_ENTITLEMENTS,
   canonicalLicenseFeature,
@@ -10,11 +11,16 @@ import {
   licensePlanEntitlementsForVersion,
 } from './license.types.js';
 
+// The fixture names the feature key the license server signs (LEGACY_INFERENCE_FEATURE) by a placeholder.
+const legacy = JSON.parse(
+  JSON.stringify(legacyFixture).replaceAll('<legacy-inference-feature>', LEGACY_INFERENCE_FEATURE)
+) as typeof legacyFixture;
+
 const plans: LicensePlan[] = ['community', 'personal', 'business', 'enterprise'];
 
 describe('versioned entitlement contracts', () => {
   it.each([3, 4] as const)('preserves every published v%s grant', (version) => {
-    // The license server signs `gateway-inference`; Opfield names the same feature `inference`.
+    // The license server signs `LEGACY_INFERENCE_FEATURE`; Opfield names the same feature `inference`.
     const published = Object.fromEntries(
       plans.map((plan) => [
         plan,
@@ -78,10 +84,10 @@ describe('versioned entitlement contracts', () => {
       const signed = {
         ...LICENSE_PLAN_ENTITLEMENTS[plan],
         features: LICENSE_PLAN_ENTITLEMENTS[plan].features.map((feature) =>
-          feature === 'inference' ? 'gateway-inference' : feature
+          feature === 'inference' ? LEGACY_INFERENCE_FEATURE : feature
         ),
       };
-      expect(signed.features).toContain('gateway-inference');
+      expect(signed.features).toContain(LEGACY_INFERENCE_FEATURE);
       expect(isCanonicalEntitlements(plan, signed)).toBe(true);
       expect(isCanonicalEntitlements(plan, LICENSE_PLAN_ENTITLEMENTS[plan])).toBe(true);
       expect(isCanonicalEntitlements(plan, { ...signed, features: [...signed.features, 'inference'] })).toBe(false);

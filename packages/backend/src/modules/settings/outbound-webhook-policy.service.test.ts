@@ -8,7 +8,7 @@ vi.mock('node:dns/promises', () => ({
 }));
 
 const ENV = {
-  APP_URL: 'https://gateway.example.com',
+  APP_URL: 'https://opfield.example.com',
   BIND_HOST: '0.0.0.0',
 } as Env;
 

@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"os"
@@ -50,7 +51,8 @@ func TestServiceDefinitionsMatchTheNodeInstaller(t *testing.T) {
 	if argsLine == nil || argsLine[1] != RunArgs("${RUN_USER}", "${RELEASES_API_URL}", "${ARTIFACT_BASE_URL}", "$(lease_watchdog_channel)") {
 		t.Fatalf("installer watchdog args %q differ from RunArgs", argsLine)
 	}
-	replacer := strings.NewReplacer("${LEASE_WATCHDOG_BIN}", BinaryPath, "${args}", "ARGS", "${LEASE_WATCHDOG_UNIT}", UnitName, `\${RC_SVCNAME}`, "${RC_SVCNAME}")
+	replacer := strings.NewReplacer("${LEASE_WATCHDOG_BIN}", BinaryPath, "${args}", "ARGS", "${LEASE_WATCHDOG_UNIT}", UnitName,
+		"${LEGACY_LEASE_WATCHDOG_UNIT}", legacycompat.LeaseWatchdogName, `\${RC_SVCNAME}`, "${RC_SVCNAME}")
 	systemd := replacer.Replace(heredoc(t, script, `cat > "/etc/systemd/system/${LEASE_WATCHDOG_UNIT}.service" <<UNIT`))
 	if systemd != SystemdUnit(BinaryPath, "ARGS") {
 		t.Fatalf("systemd unit differs from the installer:\n%s\n---\n%s", systemd, SystemdUnit(BinaryPath, "ARGS"))
@@ -84,8 +86,8 @@ func TestReleaseResolutionAndForgedManifest(t *testing.T) {
 	_, forged, _ := ed25519.GenerateKey(rand.Reader)
 	payload, _ := json.Marshal(updateauth.DaemonManifestPayload{Kind: "daemon-binary", DaemonType: DaemonType, Tag: tag, ArtifactName: ArtifactName()})
 	envelope, _ := json.Marshal(updateauth.SignPayload(forged, payload))
-	client = &http.Client{Transport: fakeTransport{"https://u.test/gateway/lease-watchdog/": string(envelope)}}
-	if _, _, err := FetchManifest(context.Background(), client, "https://u.test/gateway", tag); err == nil {
+	client = &http.Client{Transport: fakeTransport{"https://u.test/opfield/lease-watchdog/": string(envelope)}}
+	if _, _, err := FetchManifest(context.Background(), client, "https://u.test/opfield", tag); err == nil {
 		t.Fatal("a manifest not signed by the update key must be rejected")
 	}
 }

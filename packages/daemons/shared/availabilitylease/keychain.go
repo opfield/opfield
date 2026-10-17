@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 
 	pb "github.com/opfield/opfield/daemon-shared/relayv1"
@@ -187,7 +188,7 @@ func blockDomain(pb.LeaseBlockKind) string { return domainManifest }
 // primary assignment): signature over domain || 0x00 || payload. The domain
 // must differ from every lease domain.
 func (n *Node) VerifyOpfieldSigned(domain, keyID string, payload, signature []byte) error {
-	if domain == "" || strings.HasPrefix(domain, "gateway-availability-lease/") {
+	if domain == "" || strings.HasPrefix(domain, legacycompat.AvailabilityLeaseDomain+"/") {
 		return errors.New("statement domain is reserved")
 	}
 	n.mu.Lock()

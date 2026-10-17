@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,7 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const managedStorageRootFilesystem = "gateway-managed-storage-root"
+const managedStorageRootFilesystem = legacycompat.StorageRootFilesystem
 
 type managedStorageManager struct {
 	client *Client
@@ -96,7 +97,7 @@ func (m *managedStorageManager) stageTLS(record managedStorageRecord, tlsConfig 
 		return "", err
 	}
 	for _, file := range []struct{ name, content string }{
-		{"CAs/gateway-ca.crt", tlsConfig.CAPEM},
+		{"CAs/" + legacycompat.StorageCAFile, tlsConfig.CAPEM},
 		{"private.key", tlsConfig.KeyPEM},
 		{"public.crt", tlsConfig.CertPEM},
 	} {
@@ -633,7 +634,7 @@ func (m *managedStorageManager) checkReady(ctx context.Context, record managedSt
 	scheme := "http"
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if record.TLSEnabled {
-		caPEM, err := os.ReadFile(filepath.Join(m.root, "storage", "tls", fmt.Sprintf("%s-%d", record.ID, record.MemberIndex), "CAs", "gateway-ca.crt"))
+		caPEM, err := os.ReadFile(filepath.Join(m.root, "storage", "tls", fmt.Sprintf("%s-%d", record.ID, record.MemberIndex), "CAs", legacycompat.StorageCAFile))
 		if err != nil {
 			return fmt.Errorf("read managed storage health CA: %w", err)
 		}

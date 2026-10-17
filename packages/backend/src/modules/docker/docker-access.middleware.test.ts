@@ -100,7 +100,7 @@ describe('Docker container emergency scope identity', () => {
     expect(resolvePersisted).not.toHaveBeenCalled();
   });
 
-  it('never falls back to persisted identity for a Gateway-owned internal container', async () => {
+  it('never falls back to persisted identity for a Opfield-owned internal container', async () => {
     const inspect = vi.fn().mockRejectedValue(new AppError(404, 'OPFIELD_INTERNAL_CONTAINER', 'Container not found'));
     const resolvePersisted = vi.fn().mockResolvedValue('resource-1');
 

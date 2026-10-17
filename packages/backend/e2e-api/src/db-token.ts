@@ -5,7 +5,7 @@ import { API_TOKEN_SCOPES } from '../../src/lib/scopes.js';
 const GROUP_NAME = 'codex-e2e-api-all-scopes';
 const TOKEN_NAME = 'codex-e2e-api-token';
 const USER_OIDC_SUBJECT = 'codex-e2e-api-user';
-const USER_EMAIL = 'codex-e2e-api-user@gateway.local';
+const USER_EMAIL = 'codex-e2e-api-user@opfield.local';
 
 export type SeededToken = {
   token: string;

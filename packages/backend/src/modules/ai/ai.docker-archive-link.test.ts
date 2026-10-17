@@ -61,7 +61,7 @@ function registerServices(owner: User) {
     }),
   } as unknown as CacheService);
   container.registerInstance(GeneralSettingsService, {
-    getPublicUrl: vi.fn().mockResolvedValue('https://gateway.example'),
+    getPublicUrl: vi.fn().mockResolvedValue('https://opfield.example'),
   } as unknown as GeneralSettingsService);
   container.registerInstance(LicensePolicyService, {
     requireFeature: vi.fn().mockResolvedValue(undefined),
@@ -121,8 +121,8 @@ async function uploadLink(docker: unknown, user: User) {
     name: 'restored-api',
     resolution: { ports: { '80/tcp': 8081 } },
   })) as { uploadUrl: string; commands: { file: string } };
-  expect(link.uploadUrl).toMatch(/^https:\/\/gateway\.example\/api\/docker-archive-link\/opfau_/);
-  expect(link.commands.file).toBe(`curl -sS --fail-with-body -T container.gwca '${link.uploadUrl}'`);
+  expect(link.uploadUrl).toMatch(/^https:\/\/opfield\.example\/api\/docker-archive-link\/opfau_/);
+  expect(link.commands.file).toBe(`curl -sS --fail-with-body -T container.ofca '${link.uploadUrl}'`);
   return `/${link.uploadUrl.split('/').at(-1)}`;
 }
 
@@ -131,7 +131,7 @@ async function downloadLink(docker: unknown, user: User, args: Record<string, un
     operation: 'link',
     ...args,
   })) as { downloadUrl: string; filename: string; commands: { download: string } };
-  expect(link.downloadUrl).toMatch(/^https:\/\/gateway\.example\/api\/docker-archive-link\/opfad_/);
+  expect(link.downloadUrl).toMatch(/^https:\/\/opfield\.example\/api\/docker-archive-link\/opfad_/);
   expect(link.commands.download).toBe(`curl -fsS -o '${link.filename}' '${link.downloadUrl}'`);
   return { path: `/${link.downloadUrl.split('/').at(-1)}`, filename: link.filename };
 }
@@ -151,7 +151,7 @@ describe('Docker archive upload links', () => {
 
     const response = await app.request(path, {
       method: 'PUT',
-      body: body(Buffer.from('gwca-'), Buffer.from('archive')),
+      body: body(Buffer.from('ofca-'), Buffer.from('archive')),
       duplex: 'half',
     } as RequestInit);
 
@@ -159,7 +159,7 @@ describe('Docker archive upload links', () => {
     expect(await response.json()).toEqual({
       data: { container: { containerId: 'new-1', containerName: 'restored-api', imageId: 'sha256:1' } },
     });
-    expect(received.bytes.toString()).toBe('gwca-archive');
+    expect(received.bytes.toString()).toBe('ofca-archive');
     expect(importDockerContainerArchive).toHaveBeenCalledWith(
       expect.objectContaining({
         nodeId: NODE_ID,
@@ -195,10 +195,10 @@ describe('Docker archive upload links', () => {
     const path = await uploadLink(docker, user);
     getUserById.mockResolvedValue(userWith(['docker:containers:view']));
 
-    await expect(importDockerArchiveUploadLink(path.slice(1), body(Buffer.from('gwca')))).rejects.toMatchObject({
+    await expect(importDockerArchiveUploadLink(path.slice(1), body(Buffer.from('ofca')))).rejects.toMatchObject({
       statusCode: 403,
     });
-    await expect(importDockerArchiveUploadLink(path.slice(1), body(Buffer.from('gwca')))).rejects.toMatchObject({
+    await expect(importDockerArchiveUploadLink(path.slice(1), body(Buffer.from('ofca')))).rejects.toMatchObject({
       code: 'DOCKER_ARCHIVE_LINK_INVALID',
     });
     expect(importDockerContainerArchive).not.toHaveBeenCalled();
@@ -210,7 +210,7 @@ describe('Docker archive upload links', () => {
     const path = await uploadLink(docker, user);
     getUserById.mockResolvedValue(userWith([CREATE], { isBlocked: true }));
 
-    await expect(importDockerArchiveUploadLink(path.slice(1), body(Buffer.from('gwca')))).rejects.toMatchObject({
+    await expect(importDockerArchiveUploadLink(path.slice(1), body(Buffer.from('ofca')))).rejects.toMatchObject({
       statusCode: 403,
     });
     expect(importDockerContainerArchive).not.toHaveBeenCalled();
@@ -223,7 +223,7 @@ describe('Docker archive upload links', () => {
     const path = await uploadLink(docker, user);
 
     await expect(
-      importDockerArchiveUploadLink(path.slice(1), body(Buffer.from('gwca'), new Error('client went away')))
+      importDockerArchiveUploadLink(path.slice(1), body(Buffer.from('ofca'), new Error('client went away')))
     ).rejects.toThrow('client went away');
     expect(received.error).toBeInstanceOf(Error);
     expect(received.bytes.byteLength).toBe(0);
@@ -273,7 +273,7 @@ describe('Docker archive download links', () => {
     const user = userWith([CONTAINER_EXPORT]);
     const { docker } = registerServices(userWith([CONTAINER_EXPORT, 'docker:containers:secrets']));
     vi.mocked(openDockerContainerArchiveExport).mockResolvedValue({
-      filename: 'api.gwca',
+      filename: 'api.ofca',
       stream: body(Buffer.from('gw'), Buffer.from('ca')),
     });
     const { path, filename } = await downloadLink(docker, user, {
@@ -283,11 +283,11 @@ describe('Docker archive download links', () => {
       imageMode: 'registry',
       includeEnvironment: false,
     });
-    expect(filename).toBe('api.gwca');
+    expect(filename).toBe('api.ofca');
 
     const response = await app.request(path);
-    expect(response.headers.get('content-type')).toBe('application/vnd.opfield.gwca');
-    expect(await response.text()).toBe('gwca');
+    expect(response.headers.get('content-type')).toBe('application/vnd.opfield.ofca');
+    expect(await response.text()).toBe('ofca');
     expect(openDockerContainerArchiveExport).toHaveBeenCalledWith({
       nodeId: 'node-1',
       containerId: 'api',
@@ -333,7 +333,7 @@ describe('Docker archive download links', () => {
     await expect(openDockerArchiveDownloadLink(upload.slice(1))).rejects.toMatchObject({
       code: 'DOCKER_ARCHIVE_LINK_INVALID',
     });
-    const response = await app.request(upload, { method: 'PUT', body: 'gwca' });
+    const response = await app.request(upload, { method: 'PUT', body: 'ofca' });
     expect(response.status).toBe(201);
   });
 

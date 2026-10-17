@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -23,7 +24,7 @@ import (
 )
 
 // Labels of managed objects are net.opfield.<name>. Pre-Opfield daemons wrote
-// wiolett.gateway.<name> (and com.wiolett.gateway.managed-volume* on volumes);
+// the pre-2.12.1 label keys (legacycompat);
 // containers, networks and volumes cannot be relabelled in place, so those
 // keys stay until an object is recreated for its own reasons (a deploy, an
 // update), never just to rename it.
@@ -44,9 +45,9 @@ import (
 // composeLabelKeys.
 const (
 	labelPrefix = "net.opfield."
-	// legacy-name: wiolett.gateway.* and com.wiolett.gateway.managed-volume* labels — remove once every node reports none
-	legacyLabelPrefix       = "wiolett.gateway."
-	legacyVolumeLabelPrefix = "com.wiolett.gateway.managed-volume"
+	// legacy-name: legacycompat.LabelPrefix* and legacycompat.ComLabelPrefixmanaged-volume* labels — remove once every node reports none
+	legacyLabelPrefix       = legacycompat.LabelPrefix
+	legacyVolumeLabelPrefix = legacycompat.ComLabelPrefix + "managed-volume"
 )
 
 // legacyLabelKey is the pre-Opfield key of an Opfield label key ("" for any
@@ -57,7 +58,7 @@ func legacyLabelKey(key string) string {
 		return ""
 	}
 	if strings.HasPrefix(rest, "managed-volume") {
-		return "com.wiolett.gateway." + rest
+		return legacycompat.ComLabelPrefix + rest
 	}
 	return legacyLabelPrefix + rest
 }
@@ -66,7 +67,7 @@ func legacyLabelKey(key string) string {
 // other key).
 func opfieldLabelKey(key string) string {
 	if strings.HasPrefix(key, legacyVolumeLabelPrefix) {
-		return labelPrefix + strings.TrimPrefix(key, "com.wiolett.gateway.")
+		return labelPrefix + strings.TrimPrefix(key, legacycompat.ComLabelPrefix)
 	}
 	if rest, ok := strings.CutPrefix(key, legacyLabelPrefix); ok && rest != "" {
 		return labelPrefix + rest
@@ -511,13 +512,13 @@ func labelHTTPClient(host string) (*http.Client, error) {
 
 // Compose labels are part of the configuration hash Compose compares to decide
 // whether a service is recreated. A project whose containers were labelled
-// wiolett.gateway.compose.* before Opfield keeps those keys, or its next
+// the pre-Opfield compose label keys keeps those keys, or its next
 // revision would recreate every service, not only the changed ones; the keys
 // change with a recreate the project's owner chooses (and the node reports the
 // project among its legacy names until then).
 const composeLabelNamespace = labelPrefix + "compose."
 
-// legacy-name: wiolett.gateway.compose.* labels of pre-Opfield Compose projects — remove once every node reports none
+// legacy-name: compose labels of pre-Opfield Compose projects — remove once every node reports none
 const legacyComposeLabelNamespace = legacyLabelPrefix + "compose."
 
 // withComposeLabelFamily writes the injected Compose labels of request with the

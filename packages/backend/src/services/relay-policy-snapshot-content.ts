@@ -9,7 +9,7 @@ import {
 } from './relay-session-limits.js';
 
 export interface RelayPolicySnapshotInput {
-  gatewayInstanceId: string;
+  opfieldInstanceId: string;
   poolId: string;
   relayInstanceId: string;
   grantKeys: Array<Pick<typeof relayGrantSigningKeys.$inferSelect, 'keyId' | 'publicKey'>>;
@@ -55,7 +55,7 @@ export function relayPolicySnapshotContent(input: RelayPolicySnapshotInput) {
   }
   return {
     schemaVersion: 2,
-    gatewayInstanceId: input.gatewayInstanceId,
+    opfieldInstanceId: input.opfieldInstanceId,
     poolId: input.poolId,
     relayInstanceId: input.relayInstanceId,
     grantPublicKeys: [...input.grantKeys]

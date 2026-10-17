@@ -2,6 +2,7 @@ package statecompat
 
 import (
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-// oldSchemas are the gateway.v1 schemas of releases a node may be rolled back
+// oldSchemas are the legacy-package schemas of releases a node may be rolled back
 // to: v2.10.0 (embedded), v2.11.0-rc.4 (the stand's docker-daemon.previous)
 // and v2.11.0-rc.18 (the stand's docker-daemon.pre-rc18pre).
 func oldSchemas(t *testing.T) map[string]*protoregistry.Files {
@@ -36,7 +37,7 @@ func oldSchemas(t *testing.T) map[string]*protoregistry.Files {
 	}
 	load("v2.10.0", legacyStateSchema)
 	for _, tag := range []string{"v2.11.0-rc.4", "v2.11.0-rc.18"} {
-		data, err := os.ReadFile(filepath.Join("testdata", "gateway-v1-"+tag+".binpb"))
+		data, err := os.ReadFile(filepath.Join("..", "legacycompat", "testdata", "state-schema-"+tag+".binpb"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,7 +209,7 @@ func TestReadTakesALegacyCopyAnOlderBinaryRewrote(t *testing.T) {
 	if err := file.Write(grantsAt(5)); err != nil {
 		t.Fatal(err)
 	}
-	old := oldMessage(t, oldSchemas(t)["v2.11.0-rc.4"], "gateway.v1.SyncRelayGrantsCommand")
+	old := oldMessage(t, oldSchemas(t)["v2.11.0-rc.4"], legacycompat.GRPCPackage+".SyncRelayGrantsCommand")
 	old.Set(old.Descriptor().Fields().ByName("policy_revision"), protoreflect.ValueOfUint64(8))
 	written, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(old)
 	if err != nil {
@@ -245,7 +246,7 @@ func TestReadIgnoresAFullCopyWhoseLegacyCopyWasRemoved(t *testing.T) {
 func TestReadUpgradesFromTheFilesOlderBinariesWrote(t *testing.T) {
 	for release, files := range oldSchemas(t) {
 		file := testFile(t)
-		old := oldMessage(t, files, "gateway.v1.SyncRelayGrantsCommand")
+		old := oldMessage(t, files, legacycompat.GRPCPackage+".SyncRelayGrantsCommand")
 		populate(old, 6)
 		written, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(old)
 		if err != nil {

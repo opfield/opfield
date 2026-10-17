@@ -99,7 +99,7 @@ export async function resolveDockerRuntimeImage(ctx: Parameters<TestCase['run']>
 
   const images = await listRows(ctx, `/api/docker/nodes/${nodeId}/images`);
   const tags = images.flatMap((image) => (Array.isArray(image.repoTags) ? image.repoTags : []));
-  const candidates = ['nginx', 'caddy', 'httpd', 'traefik', 'redis', 'busybox', 'alpine', 'node', 'wiolett', 'gateway'];
+  const candidates = ['nginx', 'caddy', 'httpd', 'traefik', 'redis', 'busybox', 'alpine', 'node', 'opfield'];
   for (const candidate of candidates) {
     const tag = tags.find((value) => String(value).toLowerCase().includes(candidate));
     if (tag) return tag;
@@ -108,11 +108,11 @@ export async function resolveDockerRuntimeImage(ctx: Parameters<TestCase['run']>
 }
 
 export function skipWithoutMutations(ctx: Parameters<NonNullable<TestCase['skip']>>[0]) {
-  return ctx.config.allowMutations ? false : 'set GATEWAY_E2E_ALLOW_MUTATIONS=1';
+  return ctx.config.allowMutations ? false : 'set OPFIELD_E2E_ALLOW_MUTATIONS=1';
 }
 
 export function skipWithoutRuntimeMutations(ctx: Parameters<NonNullable<TestCase['skip']>>[0]) {
-  return ctx.config.allowRuntimeMutations ? false : 'set GATEWAY_E2E_ALLOW_RUNTIME_MUTATIONS=1';
+  return ctx.config.allowRuntimeMutations ? false : 'set OPFIELD_E2E_ALLOW_RUNTIME_MUTATIONS=1';
 }
 
 export function isLocalDockerRuntimeUnavailable(text: string) {

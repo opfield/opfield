@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net"
@@ -54,12 +55,12 @@ func connectKeeper(t *testing.T, store *listenerkeep.Store, inherited map[string
 		descriptors = append(descriptors, kept{Name: name, FD: descriptor})
 	}
 	encoded, _ := json.Marshal(descriptors)
-	t.Setenv("GATEWAY_DAEMON_LAUNCHER_MANAGED", "1")
+	t.Setenv(legacycompat.EnvPrefix+"DAEMON_LAUNCHER_MANAGED", "1")
 	t.Setenv(listenerkeep.ChannelFDEnv, strconv.Itoa(channel))
 	t.Setenv(listenerkeep.KeptEnv, string(encoded))
 	listenerkeep.ReinitForTest()
 	t.Cleanup(func() {
-		_ = os.Unsetenv("GATEWAY_DAEMON_LAUNCHER_MANAGED")
+		_ = os.Unsetenv(legacycompat.EnvPrefix + "DAEMON_LAUNCHER_MANAGED")
 		listenerkeep.ReinitForTest()
 	})
 }

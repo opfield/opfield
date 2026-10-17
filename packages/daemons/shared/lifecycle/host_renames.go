@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 
@@ -13,13 +14,13 @@ import (
 	"github.com/opfield/opfield/daemon-shared/hostrename"
 )
 
-// MigrateControlConfigKey renames the pre-Opfield gateway: section of the
+// MigrateControlConfigKey renames the pre-Opfield section of the
 // daemon config file at path to opfield:, keeping its content, every other key,
 // their order and comments. It does nothing when the file already has an
-// opfield: section with an address (then a leftover gateway: section goes). Run
+// opfield: section with an address (then a leftover pre-Opfield section goes). Run
 // it only on a confirmed start (OnStartConfirmed) and only for daemons whose
 // loader reads opfield: (ResolveControlSection), since a binary the launcher
-// rolls back to before that may know only gateway:.
+// rolls back to before that may know only the pre-Opfield section.
 func MigrateControlConfigKey(path string) (bool, error) {
 	controlConfigFileMu.Lock()
 	defer controlConfigFileMu.Unlock()
@@ -42,7 +43,7 @@ func MigrateControlConfigKey(path string) (bool, error) {
 	legacyIndex, opfieldIndex := -1, -1
 	for index := 0; index+1 < len(root.Content); index += 2 {
 		switch root.Content[index].Value {
-		case "gateway":
+		case legacycompat.ConfigSection:
 			legacyIndex = index
 		case "opfield":
 			opfieldIndex = index
@@ -92,14 +93,14 @@ func isDefaultHostIdentityPath(path string) bool {
 	switch path {
 	case "",
 		hostrename.StateRoot.New + "/" + hostrename.HostIdentityName,
-		// legacy-name: /var/lib/gateway/host-identity written into configs by pre-Opfield installers — remove once every node reports none
+		// legacy-name: legacycompat.StateRoot/host-identity written into configs by pre-Opfield installers — remove once every node reports none
 		hostrename.StateRoot.Old + "/" + hostrename.HostIdentityName:
 		return true
 	}
 	return false
 }
 
-// MoveSharedStateRoot moves /var/lib/gateway to /var/lib/opfield (leaving a
+// MoveSharedStateRoot moves the legacy state root to /var/lib/opfield (leaving a
 // link under the old name) on a confirmed start. Every daemon of a host runs
 // it; the first one moves, the others find it done.
 func MoveSharedStateRoot(logger *slog.Logger) {
@@ -121,21 +122,21 @@ func LegacyHostPaths() uint32 {
 	return 0
 }
 
-// MigrateControlConfigKeyOnConfirmedStart renames the gateway: section of the
+// MigrateControlConfigKeyOnConfirmedStart renames the pre-Opfield section of the
 // daemon's config file to opfield: once this start is confirmed. Only daemons
 // whose loader calls ResolveControlSection may use it.
 func MigrateControlConfigKeyOnConfirmedStart(cfg *BaseConfig, path string, logger *slog.Logger) {
 	OnStartConfirmed(func() {
 		changed, err := MigrateControlConfigKey(path)
 		if err != nil {
-			logger.Warn("config keeps its pre-Opfield gateway: section", "path", path, "error", err)
+			logger.Warn("config keeps its pre-Opfield section", "path", path, "error", err)
 			return
 		}
 		if changed {
 			if cfg != nil && cfg.UsesLegacyControlSection() {
 				cfg.Opfield = cfg.Control
 			}
-			logger.Info("renamed the config section gateway: to opfield:", "path", path)
+			logger.Info("renamed the pre-Opfield config section to opfield:", "path", path)
 		}
 	})
 }

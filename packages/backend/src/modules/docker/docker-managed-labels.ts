@@ -1,17 +1,19 @@
+import { LEGACY_COM_LABEL_PREFIX, LEGACY_LABEL_PREFIX } from '@/lib/legacy-compat.js';
 /**
  * Keys of the labels Opfield puts on the Docker objects it manages on a node (containers, networks, volumes).
  *
  * Docker daemons that advertise `opfield_labels_v1` write `net.opfield.<rest>`, read both namespaces and move an
- * object to the new keys when they next recreate it. Older daemons write and read only `wiolett.gateway.<rest>`
- * (`com.wiolett.gateway.managed-volume*` on volumes). So readers accept both keys, the `net.opfield.` one winning,
+ * object to the new keys when they next recreate it. Older daemons write and read only `LEGACY_LABEL_PREFIX<rest>`
+ * (`LEGACY_COM_LABEL_PREFIXmanaged-volume*` on volumes). So readers accept both keys, the `net.opfield.` one winning,
  * and writers use the namespace of the node they write to.
  */
 export const OPFIELD_LABELS_CAPABILITY = 'opfield_labels_v1';
 export const OPFIELD_LABEL_PREFIX = 'net.opfield.';
-// legacy-name: wiolett.gateway.* labels — remove once every node reports none
-export const LEGACY_LABEL_PREFIX = 'wiolett.gateway.';
-// legacy-name: wiolett.gateway.* labels — remove once every node reports none
-const LEGACY_VOLUME_LABEL_PREFIX = 'com.wiolett.gateway.';
+// legacy-name: pre-2.12.1 labels — remove once every node reports none
+export { LEGACY_LABEL_PREFIX };
+
+// legacy-name: pre-2.12.1 labels — remove once every node reports none
+const LEGACY_VOLUME_LABEL_PREFIX = LEGACY_COM_LABEL_PREFIX;
 const MANAGED_VOLUME_SUFFIX = 'managed-volume';
 
 export type DockerLabels = Record<string, unknown> | null | undefined;
@@ -22,7 +24,7 @@ export function opfieldLabelKey(suffix: string): string {
 }
 
 /** The key a 2.12.0 daemon reads for a managed label. */
-// legacy-name: wiolett.gateway.* labels — remove once every node reports none
+// legacy-name: pre-2.12.1 labels — remove once every node reports none
 export function legacyLabelKey(suffix: string): string {
   return suffix.startsWith(MANAGED_VOLUME_SUFFIX)
     ? `${LEGACY_VOLUME_LABEL_PREFIX}${suffix}`
@@ -39,7 +41,7 @@ export function labelValue(labels: DockerLabels, suffix: string): unknown {
   if (!labels || typeof labels !== 'object') return undefined;
   const value = labels[opfieldLabelKey(suffix)];
   if (value !== undefined) return value;
-  // legacy-name: wiolett.gateway.* labels — remove once every node reports none
+  // legacy-name: pre-2.12.1 labels — remove once every node reports none
   return labels[legacyLabelKey(suffix)];
 }
 

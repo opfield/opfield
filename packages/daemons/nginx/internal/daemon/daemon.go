@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"sync"
 	"time"
@@ -39,12 +40,12 @@ func New(cfg *config.Config, cfgPath string, logger *slog.Logger) (*Daemon, erro
 
 	// Build base config from the nginx config
 	baseCfg := &lifecycle.BaseConfig{
-		Control: lifecycle.ControlConfig{
+		ConfigSectionField: legacycompat.ConfigSectionField[lifecycle.ControlConfig]{Control: lifecycle.ControlConfig{
 			Address:     cfg.Control.Address,
 			Token:       cfg.Control.Token,
 			CertSHA256:  cfg.Control.CertSHA256,
 			NextAddress: cfg.Control.NextAddress,
-		},
+		}},
 		Opfield: lifecycle.ControlConfig{
 			Address:     cfg.Opfield.Address,
 			Token:       cfg.Opfield.Token,
@@ -79,9 +80,9 @@ func New(cfg *config.Config, cfgPath string, logger *slog.Logger) (*Daemon, erro
 		// daemon that reads only the pre-Opfield one.
 		lifecycle.OnStartConfirmed(func() {
 			if renamed, err := lifecycle.MigrateControlConfigKey(cfgPath); err != nil {
-				logger.Warn("daemon config keeps its pre-Opfield gateway: section", "path", cfgPath, "error", err)
+				logger.Warn("daemon config keeps its pre-Opfield section", "path", cfgPath, "error", err)
 			} else if renamed {
-				logger.Info("renamed the daemon config section gateway: to opfield:", "path", cfgPath)
+				logger.Info("renamed the pre-Opfield daemon config section to opfield:", "path", cfgPath)
 			}
 		})
 	}

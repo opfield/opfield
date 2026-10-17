@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { LEGACY_PRODUCT_TITLE } from '@/lib/legacy-compat.js';
 import {
   firewallFingerprint,
   type HostingFirewallAdapter,
@@ -63,9 +64,9 @@ function ownerToken(ownerKey: string, remoteId: string): string {
 function comment(token: string, key?: string): string {
   return key ? `Opfield firewall ${token} ${key}` : `Opfield firewall ${token}`;
 }
-// legacy-name: Proxmox firewall group/rule comment "Gateway firewall <token> [key]" — remove once every hosting resource was reconciled by 2.12.1+
+// legacy-name: the pre-2.12.1 Proxmox firewall group/rule comment — remove once every hosting resource was reconciled by 2.12.1+
 function legacyComment(token: string, key?: string): string {
-  return key ? `Gateway firewall ${token} ${key}` : `Gateway firewall ${token}`;
+  return key ? `${LEGACY_PRODUCT_TITLE} firewall ${token} ${key}` : `${LEGACY_PRODUCT_TITLE} firewall ${token}`;
 }
 function enabled(rule: PveRule): boolean {
   return rule.enable === undefined || Number(rule.enable) !== 0;

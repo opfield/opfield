@@ -25,7 +25,7 @@ const assigned = (candidate: OpfieldRelayCandidate) => ({
 const local: OpfieldRelayCandidate = {
   relayInstanceId: 'relay-local',
   assignmentState: 'active',
-  addresses: ['gateway.example'],
+  addresses: ['opfield.example'],
   port: 443,
   local: true,
   topology: { role: 'primary' },

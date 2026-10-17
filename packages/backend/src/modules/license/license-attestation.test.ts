@@ -1,5 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { LEGACY_INFERENCE_FEATURE, LEGACY_LICENSE_STATE_DOMAIN_SHORT } from '@/lib/legacy-compat.js';
 import {
   canonicalLicenseFeature,
   isCanonicalEntitlements,
@@ -53,13 +54,13 @@ describe('LicenseAttestationVerifier', () => {
     );
 
     expect(payload).toMatchObject({
-      kind: 'gateway-license-state',
+      kind: LEGACY_LICENSE_STATE_DOMAIN_SHORT,
       installationId: TEST_INSTALLATION_ID,
       issuedAt: '2026-09-25T12:00:00Z',
       state: { effectivePlan: 'community', paidLicenseStatus: 'none', entitlementsVersion: 5 },
     });
     // The license server signs the inference feature under its pre-2.12.1 key; Opfield accepts both.
-    expect(payload.state.entitlements.features).toContain('gateway-inference');
+    expect(payload.state.entitlements.features).toContain(LEGACY_INFERENCE_FEATURE);
     expect({
       ...payload.state.entitlements,
       features: payload.state.entitlements.features.map(canonicalLicenseFeature),

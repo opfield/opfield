@@ -1,3 +1,9 @@
+import {
+  LEGACY_COM_LABEL_PREFIX,
+  LEGACY_LABEL_PREFIX,
+  LEGACY_NET_LABEL_PREFIX,
+  LEGACY_SANDBOX_LABEL,
+} from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 
 /**
@@ -11,11 +17,11 @@ const RESERVED_DOCKER_LABEL_PREFIXES = [
   'net.opfield.',
   // The pre-Opfield namespaces stay reserved for good: containers created before the rename still carry them and
   // older daemons still read them, so a user must never forge one on an object.
-  'wiolett.gateway.',
-  'net.wiolett.gateway.',
-  'com.wiolett.gateway.',
+  LEGACY_LABEL_PREFIX,
+  LEGACY_NET_LABEL_PREFIX,
+  LEGACY_COM_LABEL_PREFIX,
 ] as const;
-const RESERVED_DOCKER_LABELS = new Set(['gateway.sandbox']);
+const RESERVED_DOCKER_LABELS = new Set([LEGACY_SANDBOX_LABEL]);
 
 export function isReservedDockerLabel(key: string): boolean {
   return RESERVED_DOCKER_LABELS.has(key) || RESERVED_DOCKER_LABEL_PREFIXES.some((prefix) => key.startsWith(prefix));
@@ -51,10 +57,10 @@ const DUPLICATE_KEPT_LABELS = new Set([
   'net.opfield.archive.image.reference',
   'net.opfield.gpu.group-ids',
   'net.opfield.gpu.group-ids-version',
-  // legacy-name: wiolett.gateway.* labels — remove once every node reports none
-  'wiolett.gateway.archive.image.reference',
-  'wiolett.gateway.gpu.group-ids',
-  'wiolett.gateway.gpu.group-ids-version',
+  // legacy-name: LEGACY_LABEL_PREFIX* labels — remove once every node reports none
+  `${LEGACY_LABEL_PREFIX}archive.image.reference`,
+  `${LEGACY_LABEL_PREFIX}gpu.group-ids`,
+  `${LEGACY_LABEL_PREFIX}gpu.group-ids-version`,
 ]);
 
 /** Reserved labels of a source container that a duplicate must not inherit. */

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"regexp"
 	"strings"
 
@@ -18,7 +19,7 @@ import (
 // trust anchor whichever registry serves it. Releases publish the mirror under
 // ghcr.io/opfield/opfield too; nodes keep pulling the earlier repository, which
 // stays published, because running containers are matched by this exact reference.
-const thirdPartyMirrorRepository = "ghcr.io/the-square-labs/gateway"
+const thirdPartyMirrorRepository = legacycompat.ImageRepository
 
 // thirdPartyAlternateMirrorRepositories hold the same mirror under other
 // official names (releases from 2.12 publish it under ghcr.io/opfield/opfield

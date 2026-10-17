@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"math/rand/v2"
 	"net"
@@ -715,7 +716,7 @@ func (r *relayTunnelRouter) dialEndpoint(ctx context.Context, assignment *pb.Rel
 		}
 		connection, err := r.plugin.secureLinks.dial(ctx, assignment.OwnerId)
 		return dialedEndpoint{conn: connection, ingress: true}, err
-	case "managed_storage", "managed_storage_binding", "managed_storage_gateway":
+	case "managed_storage", "managed_storage_binding", legacycompat.ManagedStorageRouteOwnerKind:
 		if r.plugin.storageManager == nil {
 			return dialedEndpoint{}, errEndpointNotServed
 		}
@@ -754,7 +755,7 @@ func isConnectorIngressOwnerKind(ownerKind string) bool {
 }
 
 func isManagedStorageRelayOwnerKind(ownerKind string) bool {
-	return ownerKind == "managed_storage" || ownerKind == "managed_storage_binding" || ownerKind == "managed_storage_gateway" || ownerKind == "storage_backup_target" || ownerKind == "storage_backup_staging"
+	return ownerKind == "managed_storage" || ownerKind == "managed_storage_binding" || ownerKind == legacycompat.ManagedStorageRouteOwnerKind || ownerKind == "storage_backup_target" || ownerKind == "storage_backup_staging"
 }
 
 func isManagedDatabaseRelayOwnerKind(ownerKind string) bool {

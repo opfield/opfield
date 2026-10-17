@@ -204,7 +204,7 @@ func TestReenteredLeaseAdoptsTheCopyItFinds(t *testing.T) {
 	replacement := d1.addContainer(testPolicy, true)
 	w.run(5 * time.Second)
 	w.reopen(map[uint32]string{0: "d1"})
-	reopened := w.lastIndexOf("gateway reopens")
+	reopened := w.lastIndexOf("opfield reopens")
 	w.run(60 * time.Second)
 	w.requireClean()
 	if !replacement.Running || w.holderOf() != "d1" || w.lastIndexOf("d1 docker stop") > reopened {

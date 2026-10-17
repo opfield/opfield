@@ -244,19 +244,16 @@ pnpm build:all
 ## Release Images
 
 Workflows `Image` and `Release` publish every image (`…/relay`, `…/secure-link-connector`, `…/backup-runner`,
-`…/seaweedfs-gateway`, the managed PostgreSQL images `…/postgres` and extension bundles `…/postgres-ext/<id>` of
-`packages/daemons/postgres-image`, the third-party mirrors) under two repositories, resolved by
+the patched SeaweedFS build, the managed PostgreSQL images `…/postgres` and extension bundles `…/postgres-ext/<id>` of
+`packages/daemons/postgres-image`, the third-party mirrors) under one repository, resolved by
 `scripts/release/image-repositories.sh`:
 
 | Setting | Kind | Effect |
 | --- | --- | --- |
-| `OPFIELD_GHCR` | repository variable | `true` once the opfield organization publishes images: `ghcr.io/opfield/opfield` becomes the primary repository (main builds, release tags) and `ghcr.io/the-square-labs/gateway` the mirror, which receives every release tag (`vX.Y.Z`, `X.Y.Z`, `latest`), the patched SeaweedFS builds and the third-party mirrors with the same digests. Unset: everything goes to `ghcr.io/the-square-labs/gateway` only. |
-| `OPFIELD_SIGNED_IMAGE` | repository variable | The repository signed release manifests name, which installs then pull from. Defaults to the primary repository: `ghcr.io/opfield/opfield` with `OPFIELD_GHCR=true`. Installs from 2.11.5 accept both repositories, and the update feed takes every 2.11 install to 2.11.5 before 2.12. |
-| `OPFIELD_IMAGE`, `OPFIELD_IMAGE_MIRROR` | repository variables | Override the primary repository and the mirror (forks). The workflows still read the earlier names `GATEWAY_IMAGE`, `GATEWAY_IMAGE_MIRROR` and `GATEWAY_SIGNED_IMAGE` while the new ones are unset. |
-| `GHCR_PUSH_TOKEN` | repository secret | A token that can write packages in both organizations (a classic token with `write:packages`). Needed while the repository and one of the image repositories live in different organizations. Without it the workflow token is used. |
+| `OPFIELD_SIGNED_IMAGE` | repository variable | The repository signed release manifests name, which installs then pull from. Defaults to the image repository. |
+| `OPFIELD_IMAGE` | repository variable | Overrides the image repository (forks). Defaults to `ghcr.io/opfield/opfield`. |
+| `GHCR_PUSH_TOKEN` | repository secret | A token that can write packages in the image repository's organization (a classic token with `write:packages`). Needed while the repository and the image repository live in different organizations. Without it the workflow token is used. |
 | `COMMERCIAL_REPOSITORY` | repository variable | The private commercial core repository CI and releases dispatch to. Defaults to `opfield/opfield-commercial` in the opfield organization, `<owner>/opfield-commercial` elsewhere. |
 | `SIGN_IMAGES` | repository variable | `true` signs every published image keyless with cosign (GitHub OIDC, `id-token: write`, no secret), attaches SPDX SBOM attestations made with syft, and adds the SBOMs to the release assets (`scripts/release/supply-chain.sh`). Turn it on once the repository publishes from the opfield organization, so the signing identity is the one [Verifying releases](verify-releases.md) documents; the first Image run then also signs the builds that already exist. The Ed25519 update manifests do not depend on it. |
 
-Docker nodes and the installer pull the third-party mirrors and the patched SeaweedFS from
-`ghcr.io/the-square-labs/gateway`, where existing containers were created from. Keep publishing there for at least a
-year after the move: GHCR does not redirect image pulls the way GitHub redirects repository and release URLs.
+Docker nodes and the installer pull the third-party mirrors and the patched SeaweedFS from `ghcr.io/opfield/opfield`.

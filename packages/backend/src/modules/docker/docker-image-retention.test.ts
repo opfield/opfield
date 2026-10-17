@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dockerBuilds, nodes } from '@/db/schema/index.js';
+import { LEGACY_IMAGE_REPOSITORY, LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { HousekeepingService } from '@/services/housekeeping.service.js';
 import {
   DockerImageCleanupService,
@@ -17,7 +18,8 @@ import type { ImageRetentionContext, ImageUnusedSince } from './docker-image-ret
 
 const REGISTRY = '127.0.0.1:5443';
 const digestOf = (id: string) => `sha256:${createHash('sha256').update(id).digest('hex')}`;
-const buildRef = (repository: string, id: string) => `${REGISTRY}/gateway/builds/${repository}@${digestOf(id)}`;
+const buildRef = (repository: string, id: string) =>
+  `${REGISTRY}/${LEGACY_REGISTRY_NAMESPACE}/builds/${repository}@${digestOf(id)}`;
 
 type FakeImage = Record<string, any>;
 type FakeContainer = { id: string; name: string; image: string; imageId: string; labels?: Record<string, string> };
@@ -206,13 +208,15 @@ afterEach(() => {
 
 describe('image references', () => {
   it('gives an internal registry image the same repository from any registry address, by digest or tag', () => {
-    expect(imageRetentionRepository(buildRef('src-rin', 'a'))).toBe('gateway/builds/src-rin');
-    expect(imageRetentionRepository('registry.internal:5000/gateway/builds/src-rin:build-1')).toBe(
-      'gateway/builds/src-rin'
+    expect(imageRetentionRepository(buildRef('src-rin', 'a'))).toBe(`${LEGACY_REGISTRY_NAMESPACE}/builds/src-rin`);
+    expect(imageRetentionRepository(`registry.internal:5000/${LEGACY_REGISTRY_NAMESPACE}/builds/src-rin:build-1`)).toBe(
+      `${LEGACY_REGISTRY_NAMESPACE}/builds/src-rin`
     );
-    expect(imageRetentionRepository('gateway/builds/src/web@sha256:' + 'a'.repeat(64))).toBe('gateway/builds/src/web');
-    expect(imageRetentionRepository(`${REGISTRY}/gateway/availability/policy-1/1/3:image`)).toBe(
-      'gateway/availability/policy-1/1/3'
+    expect(imageRetentionRepository(`${LEGACY_REGISTRY_NAMESPACE}/builds/src/web@sha256:${'a'.repeat(64)}`)).toBe(
+      `${LEGACY_REGISTRY_NAMESPACE}/builds/src/web`
+    );
+    expect(imageRetentionRepository(`${REGISTRY}/${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/3:image`)).toBe(
+      `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/3`
     );
     expect(imageRetentionRepository('nginx:1.27')).toBe('docker.io/library/nginx');
     expect(imageRetentionRepository('ghcr.io/opfield/opfield/relay:v2.12.3')).toBe('ghcr.io/opfield/opfield/relay');
@@ -226,12 +230,14 @@ describe('image references', () => {
       'docker.io/library/postgres:16',
       `docker.io/library/postgres@${digest}`,
     ]);
-    expect(imageProtectionKeys(`${REGISTRY}/gateway/builds/src@${digest}`)).toEqual([`gateway/builds/src@${digest}`]);
+    expect(imageProtectionKeys(`${REGISTRY}/${LEGACY_REGISTRY_NAMESPACE}/builds/src@${digest}`)).toEqual([
+      `${LEGACY_REGISTRY_NAMESPACE}/builds/src@${digest}`,
+    ]);
   });
 
   it('knows the tools Opfield runs now and then, and nothing else by that name', () => {
     expect(isToolImageRepository('docker.io/docker/compose-bin')).toBe(true);
-    expect(isToolImageRepository('ghcr.io/the-square-labs/gateway/compose-bin')).toBe(true);
+    expect(isToolImageRepository(`${LEGACY_IMAGE_REPOSITORY}/compose-bin`)).toBe(true);
     expect(isToolImageRepository('docker.io/library/busybox')).toBe(true);
     expect(isToolImageRepository('ghcr.io/opfield/opfield/backup-runner')).toBe(true);
     expect(isToolImageRepository('docker.io/myorg/busybox')).toBe(false);
@@ -274,7 +280,11 @@ describe('DockerImageCleanupService on build images', () => {
     const { service, time } = cleanupService({ nodes: { 'node-1': node } });
     service.setProtectedDigestsProvider(
       async () =>
-        new Set(['rin-20', 'rin-19'].map((id) => imageRetentionDigestKey('gateway/builds/src-rin', digestOf(id))))
+        new Set(
+          ['rin-20', 'rin-19'].map((id) =>
+            imageRetentionDigestKey(`${LEGACY_REGISTRY_NAMESPACE}/builds/src-rin`, digestOf(id))
+          )
+        )
     );
 
     await enforceAcross(service, time, REPLACED_IMAGE_GRACE_MS);
@@ -500,7 +510,7 @@ describe('DockerImageCleanupService on other images', () => {
       taggedImage('myorg/web:sha-1', 'web-1', 1),
       taggedImage('myorg/web:sha-3', 'web-3', 3),
       // A superseded engine pulled by digest and a re-pulled mutable tag.
-      digestOnlyImage('ghcr.io/the-square-labs/gateway/postgres', 'pg-old', 1),
+      digestOnlyImage(`${LEGACY_IMAGE_REPOSITORY}/postgres`, 'pg-old', 1),
       digestOnlyImage('docker.io/library/nginx', 'nginx-old', 1),
       // A deployment names this one in its config (a rollout about to create its container).
       taggedImage('redis:7', 'redis', 1),
@@ -510,7 +520,7 @@ describe('DockerImageCleanupService on other images', () => {
       // A connector image has its own rule.
       taggedImage('ghcr.io/opfield/opfield/secure-link-connector:v1', 'connector-old', 1),
       // An Availability copy the registry still holds.
-      { ...digestOnlyImage(`${REGISTRY}/gateway/availability/policy-1/1/4`, 'mirror', 1) },
+      { ...digestOnlyImage(`${REGISTRY}/${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/4`, 'mirror', 1) },
       { Id: 'sha256:dangling', RepoTags: ['<none>:<none>'], RepoDigests: [], Created: 1, Size: 5, Containers: 0 },
     ];
     const node = new FakeNode(images, []);
@@ -519,7 +529,7 @@ describe('DockerImageCleanupService on other images', () => {
     const store = fakeStore({
       protectedKeys: new Set([
         ...imageProtectionKeys('docker.io/library/redis:7'),
-        imageRetentionDigestKey('gateway/availability/policy-1/1/4', mirrorDigest),
+        imageRetentionDigestKey(`${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/4`, mirrorDigest),
       ]),
     });
     const { service, time } = cleanupService({ nodes: { 'node-1': node }, store });
@@ -564,14 +574,16 @@ describe('DockerImageCleanupService on other images', () => {
   it('keeps an image another repository still keeps (one image, two names)', async () => {
     const shared = {
       Id: 'sha256:shared',
-      RepoTags: ['python:3.12-alpine', `${REGISTRY}/gateway/availability/policy-2/1/2:image`],
+      RepoTags: ['python:3.12-alpine', `${REGISTRY}/${LEGACY_REGISTRY_NAMESPACE}/availability/policy-2/1/2:image`],
       RepoDigests: [],
       Created: 1,
       Size: 10,
       Containers: 0,
     };
     const node = new FakeNode([shared], []);
-    const store = fakeStore({ protectedKeys: new Set(['gateway/availability/policy-2/1/2:image']) });
+    const store = fakeStore({
+      protectedKeys: new Set([`${LEGACY_REGISTRY_NAMESPACE}/availability/policy-2/1/2:image`]),
+    });
     const { service, time } = cleanupService({ nodes: { 'node-1': node }, store });
 
     await enforceAcross(service, time, UNUSED_IMAGE_MIN_AGE_MS);

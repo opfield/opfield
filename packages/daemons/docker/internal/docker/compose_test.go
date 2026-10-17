@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -391,7 +392,7 @@ func TestComposeBindingsCannotReconfigureTheSidecarClient(t *testing.T) {
 func TestReservedRulesBlockStartsButNotStopOrDown(t *testing.T) {
 	legacy := func(action string) *pb.DockerComposeCommand {
 		command := validComposeCommand(action, "operation-legacy-"+action)
-		command.ComposeYaml = []byte("services:\n  web:\n    image: nginx:alpine\n    labels:\n      gateway.sandbox: \"true\"\n    networks: [outside]\nnetworks:\n  outside:\n    external: true\n    name: host\n")
+		command.ComposeYaml = []byte("services:\n  web:\n    image: nginx:alpine\n    labels:\n      " + legacycompat.SandboxLabel + ": \"true\"\n    networks: [outside]\nnetworks:\n  outside:\n    external: true\n    name: host\n")
 		command.Variables = map[string]string{"DOCKER_HOST": "tcp://203.0.113.1:2375", "TAG": "1"}
 		return command
 	}

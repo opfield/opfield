@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -35,14 +36,14 @@ const (
 
 const clickHouseRuntimeProfileVersion = 3
 
-const clickHouseOwnerOverrideContainerPath = "/etc/clickhouse-server/users.d/zz-gateway-owner.xml"
+const clickHouseOwnerOverrideContainerPath = "/etc/clickhouse-server/users.d/" + legacycompat.ClickHouseOwnerOverrideFile
 
 // ClickHouse's upstream defaults are sized for dedicated analytics servers:
 // they create large background pools and several MergeTree-backed system log
 // tables. In a small managed container those logs can continuously merge until
 // they consume the whole cgroup allowance, starving both user traffic and the
 // monitoring queries. Keep the managed baseline intentionally small; a user's
-// later gateway-managed.xml may still override these defaults when needed.
+// later managed XML file may still override these defaults when needed.
 const clickHouseRuntimeConfig = `<clickhouse>
     <logger replace="replace">
         <level>warning</level>

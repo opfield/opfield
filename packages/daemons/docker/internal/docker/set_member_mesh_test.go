@@ -3,6 +3,7 @@ package docker
 import (
 	"bufio"
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -114,7 +115,7 @@ func TestSetMeshNetworkNameIsStable(t *testing.T) {
 	// A set that joined the node before 2.12.1 keeps its network; a start the launcher may still roll back names a
 	// new one the earlier way.
 	names := setMeshNetworkNames(meshTestSet)
-	if len(names) != 2 || names[0] != name || names[1] != "gateway-set-"+strings.TrimPrefix(name, "opfield-set-") {
+	if len(names) != 2 || names[0] != name || names[1] != legacycompat.SetNetworkPrefix+strings.TrimPrefix(name, "opfield-set-") {
 		t.Fatalf("network names %v", names)
 	}
 	withOpfieldNamesActive(t, false)

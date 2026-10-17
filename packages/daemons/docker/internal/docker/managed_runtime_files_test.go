@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -65,7 +66,7 @@ func TestStorageEngineWithLostRuntimeFilesWaitsForRestage(t *testing.T) {
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"version": 2, "engine": managedStorageEngineSeaweedFS, "memberIndex": 0,
-		"rootCredentials": map[string]string{"accessKey": "gateway-root", "secretKey": "root-secret-key"},
+		"rootCredentials": map[string]string{"accessKey": legacycompat.SeaweedFSRootIdentity, "secretKey": "root-secret-key"},
 		"tls":             map[string]string{"certPem": "CERT", "keyPem": "KEY", "caPem": "CA", "serverName": "storage.test"},
 	})
 	if _, err := m.handle(ctx, "restart", id, string(payload)); err != nil {
@@ -78,7 +79,7 @@ func TestStorageEngineWithLostRuntimeFilesWaitsForRestage(t *testing.T) {
 		t.Fatal("engine not started after its runtime files were restaged")
 	}
 	accessKey, secretKey, err := m.readSeaweedFSRootCredentials(record)
-	if err != nil || accessKey != "gateway-root" || secretKey != "root-secret-key" {
+	if err != nil || accessKey != legacycompat.SeaweedFSRootIdentity || secretKey != "root-secret-key" {
 		t.Fatalf("staged root identity = %q/%q, %v", accessKey, secretKey, err)
 	}
 }

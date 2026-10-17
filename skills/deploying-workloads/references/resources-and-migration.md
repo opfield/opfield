@@ -26,9 +26,9 @@
 
 ## Archive export and import
 
-- `download_docker_archive` exports a Container (`.gwca`) or a volume (`.tar.gz`); it needs `docker:containers:export` or `docker:volumes:export`, plus `docker:containers:secrets` to include secret values. Secure Runtime workloads and Containers with host bind mounts cannot be exported.
-- `upload_docker_container_archive` imports a `.gwca` archive as a new, stopped Container; host bind mounts are rejected. Run `manage_docker_container({ operation: "archive_plan_import" })` first and pass its `resolution`.
-- With a shell, always use `operation: "link"`. It takes the same arguments as `begin` (without size or hash) and returns a one-time URL, valid 15 minutes and usable once, with a ready command in `commands`: `curl -fsS -o <file> <url>` streams an export from the node; `curl -sS --fail-with-body -T container.gwca <url>` streams an archive into the import and prints the new Container. Run it right away. A failed or interrupted upload imports nothing; if a download's curl exits non-zero, delete the partial file. Either way, create a new link to retry.
+- `download_docker_archive` exports a Container (`.ofca`) or a volume (`.tar.gz`); it needs `docker:containers:export` or `docker:volumes:export`, plus `docker:containers:secrets` to include secret values. Secure Runtime workloads and Containers with host bind mounts cannot be exported.
+- `upload_docker_container_archive` imports a `.ofca` archive as a new, stopped Container; host bind mounts are rejected. Run `manage_docker_container({ operation: "archive_plan_import" })` first and pass its `resolution`.
+- With a shell, always use `operation: "link"`. It takes the same arguments as `begin` (without size or hash) and returns a one-time URL, valid 15 minutes and usable once, with a ready command in `commands`: `curl -fsS -o <file> <url>` streams an export from the node; `curl -sS --fail-with-body -T container.ofca <url>` streams an archive into the import and prints the new Container. Run it right away. A failed or interrupted upload imports nothing; if a download's curl exits non-zero, delete the partial file. Either way, create a new link to retry.
 - Without a shell, `begin`/`chunk` carries at most 1 MiB of base64 per call; it fails for anything but small archives.
 - A link is a credential for one transfer, and an export that includes secrets is itself a secret. Keep both out of chat, repositories, and shared storage.
 

@@ -1,3 +1,4 @@
+import { LEGACY_HOSTING_IMAGE_PREFIX } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { HostingRole } from './hosting-provider.types.js';
 
@@ -86,7 +87,7 @@ export function hostingCloudImage(id: string, role?: HostingRole): HostingCloudI
 export function hostingImageFilename(image: HostingCloudImage) {
   return `opfield-${image.id}-${image.checksum.slice(0, 16)}.qcow2`;
 }
-// legacy-name: Proxmox operation image "gateway-<image>-<checksum>…" — remove once no create operation started before 2.12.1 is still preparing
+// legacy-name: legacy-prefixed Proxmox operation images — remove once no create operation started before 2.12.1 is still preparing
 export function legacyHostingImageFilename(image: HostingCloudImage) {
-  return `gateway-${image.id}-${image.checksum.slice(0, 16)}.qcow2`;
+  return `${LEGACY_HOSTING_IMAGE_PREFIX}${image.id}-${image.checksum.slice(0, 16)}.qcow2`;
 }

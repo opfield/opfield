@@ -8,7 +8,7 @@ import { isLoopbackRedirectUri, OAuthService } from '@/modules/oauth/oauth.servi
 
 vi.mock('@/config/env.js', () => ({
   getEnv: () => ({
-    APP_URL: 'https://gateway.example.com',
+    APP_URL: 'https://opfield.example.com',
   }),
 }));
 
@@ -302,7 +302,7 @@ describe('OAuthService.createConsentRequest', () => {
       scope: 'mcp:use nodes:details',
     });
 
-    expect(pending.resource).toBe('https://gateway.example.com/api/mcp');
+    expect(pending.resource).toBe('https://opfield.example.com/api/mcp');
     expect(pending.requestedScopes).toEqual(['nodes:details']);
     expect(pending.grantableScopes).toEqual(['nodes:details']);
     expect(pending.unavailableScopes).toEqual([]);
@@ -425,13 +425,13 @@ describe('OAuthService.createConsentRequest', () => {
     await expect(
       service.createConsentRequest(
         { ...USER, scopes: ['feat:ai:use', 'nodes:details'] },
-        { ...request, scope: 'nodes:details', resource: 'https://gateway.example.com/api/inference/setup' }
+        { ...request, scope: 'nodes:details', resource: 'https://opfield.example.com/api/inference/setup' }
       )
     ).rejects.toThrow('OAuth authorization is not available for this resource');
     await expect(
       service.createConsentRequest(
         { ...USER, scopes: ['feat:ai:use'] },
-        { ...request, scope: 'inference:setup', resource: 'https://gateway.example.com/api' }
+        { ...request, scope: 'inference:setup', resource: 'https://opfield.example.com/api' }
       )
     ).rejects.toThrow('Scopes are not recognized: inference:setup');
   });
@@ -500,7 +500,7 @@ describe('OAuthService.getConsentRequest', () => {
         unavailableScopes: [],
         manualApprovalScopes: [],
         codeChallenge: 'challenge',
-        resource: 'https://gateway.example.com/api',
+        resource: 'https://opfield.example.com/api',
         expiresAt: Date.now() + 60_000,
       },
     });
@@ -527,7 +527,7 @@ describe('OAuthService.approveConsent', () => {
       unavailableScopes: [],
       manualApprovalScopes: ['docker:containers:secrets'],
       codeChallenge: 'challenge',
-      resource: 'https://gateway.example.com/api',
+      resource: 'https://opfield.example.com/api',
       expiresAt: Date.now() + 60_000,
       ...overrides,
     };
@@ -615,7 +615,7 @@ describe('OAuthService.updateUserAuthorizationScopes', () => {
       clientId: 'goc_client',
       userId: USER.id,
       scopes: ['nodes:details'],
-      resource: 'https://gateway.example.com/api/mcp',
+      resource: 'https://opfield.example.com/api/mcp',
       expiresAt: null,
       createdAt: new Date('2026-04-29T10:00:00Z'),
       revokedAt: null,
@@ -650,7 +650,7 @@ describe('OAuthService.updateUserAuthorizationScopes', () => {
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
-          resource: 'https://gateway.example.com/api/mcp',
+          resource: 'https://opfield.example.com/api/mcp',
           expiresAt: new Date(Date.now() + 60_000),
           createdAt: new Date('2026-04-29T10:00:00Z'),
           revokedAt: null,
@@ -678,7 +678,7 @@ describe('OAuthService.listUserAuthorizations', () => {
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
-          resource: 'https://gateway.example.com/api',
+          resource: 'https://opfield.example.com/api',
           expiresAt: new Date(Date.now() + 60_000),
           createdAt: new Date('2026-04-29T10:00:00Z'),
           revokedAt: null,
@@ -689,7 +689,7 @@ describe('OAuthService.listUserAuthorizations', () => {
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
-          resource: 'https://gateway.example.com/api/mcp',
+          resource: 'https://opfield.example.com/api/mcp',
           expiresAt: new Date(Date.now() + 60_000),
           createdAt: new Date('2026-04-29T11:00:00Z'),
           revokedAt: null,
@@ -703,7 +703,7 @@ describe('OAuthService.listUserAuthorizations', () => {
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
-          resource: 'https://gateway.example.com/api/mcp',
+          resource: 'https://opfield.example.com/api/mcp',
           expiresAt: null,
           createdAt: new Date('2026-04-29T11:00:00Z'),
           revokedAt: null,
@@ -716,8 +716,8 @@ describe('OAuthService.listUserAuthorizations', () => {
 
     expect(authorizations).toHaveLength(2);
     expect(authorizations.map((authorization) => authorization.resource).sort()).toEqual([
-      'https://gateway.example.com/api',
-      'https://gateway.example.com/api/mcp',
+      'https://opfield.example.com/api',
+      'https://opfield.example.com/api/mcp',
     ]);
   });
 
@@ -729,7 +729,7 @@ describe('OAuthService.listUserAuthorizations', () => {
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details', 'docker:containers:secrets'],
-          resource: 'https://gateway.example.com/api/mcp',
+          resource: 'https://opfield.example.com/api/mcp',
           expiresAt: null,
           createdAt: new Date('2026-10-02T10:00:00Z'),
           revokedAt: null,
@@ -739,7 +739,7 @@ describe('OAuthService.listUserAuthorizations', () => {
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
-          resource: 'https://gateway.example.com/api/mcp',
+          resource: 'https://opfield.example.com/api/mcp',
           expiresAt: null,
           createdAt: new Date('2026-10-12T07:00:00Z'),
           revokedAt: null,
@@ -766,7 +766,7 @@ describe('OAuthService.listUserAuthorizations', () => {
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details', 'nodes:details'],
-          resource: 'https://gateway.example.com/api',
+          resource: 'https://opfield.example.com/api',
           expiresAt: new Date(Date.now() + 60_000),
           createdAt: new Date('2026-04-29T10:00:00Z'),
           revokedAt: null,
@@ -788,7 +788,7 @@ describe('OAuthService.listUserAuthorizations', () => {
           clientId: 'goc_client',
           userId: USER.id,
           scopes: ['nodes:details'],
-          resource: 'https://gateway.example.com/api/mcp',
+          resource: 'https://opfield.example.com/api/mcp',
           expiresAt: null,
           createdAt: new Date('2026-04-29T10:00:00Z'),
           revokedAt: null,
@@ -799,7 +799,7 @@ describe('OAuthService.listUserAuthorizations', () => {
 
     const [authorization] = await service.listUserAuthorizations(USER.id);
 
-    expect(authorization.resource).toBe('https://gateway.example.com/api/mcp');
+    expect(authorization.resource).toBe('https://opfield.example.com/api/mcp');
     expect(authorization.activeAccessTokens).toBe(1);
     expect(authorization.activeRefreshTokens).toBe(0);
     expect(authorization.expiresAt).toBeNull();
@@ -817,7 +817,7 @@ describe('OAuthService.exchangeToken authorization code flow', () => {
         redirectUri: 'http://127.0.0.1:8765/callback',
         codeChallenge: s256(verifier),
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api',
+        resource: 'https://opfield.example.com/api',
         usedAt: null,
         expiresAt: new Date(Date.now() + 60_000),
       },
@@ -842,14 +842,14 @@ describe('OAuthService.exchangeToken authorization code flow', () => {
         expect.objectContaining({
           table: oauthRefreshTokens,
           values: expect.objectContaining({
-            resource: 'https://gateway.example.com/api',
+            resource: 'https://opfield.example.com/api',
             expiresAt: expect.any(Date),
           }),
         }),
         expect.objectContaining({
           table: oauthAccessTokens,
           values: expect.objectContaining({
-            resource: 'https://gateway.example.com/api',
+            resource: 'https://opfield.example.com/api',
             refreshTokenId: 'refresh-new',
             expiresAt: expect.any(Date),
           }),
@@ -868,7 +868,7 @@ describe('OAuthService.exchangeToken authorization code flow', () => {
         redirectUri: 'http://127.0.0.1:8765/callback',
         codeChallenge: s256(verifier),
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api/mcp',
+        resource: 'https://opfield.example.com/api/mcp',
         usedAt: null,
         expiresAt: new Date(Date.now() + 60_000),
       },
@@ -891,7 +891,7 @@ describe('OAuthService.exchangeToken authorization code flow', () => {
       expect.objectContaining({
         table: oauthAccessTokens,
         values: expect.objectContaining({
-          resource: 'https://gateway.example.com/api/mcp',
+          resource: 'https://opfield.example.com/api/mcp',
           refreshTokenId: null,
           expiresAt: null,
         }),
@@ -908,7 +908,7 @@ describe('OAuthService.exchangeToken authorization code flow', () => {
         redirectUri: 'http://127.0.0.1:8765/callback',
         codeChallenge: 'stored-challenge',
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api',
+        resource: 'https://opfield.example.com/api',
         usedAt: null,
         expiresAt: new Date(Date.now() + 60_000),
       },
@@ -940,7 +940,7 @@ describe('OAuthService.validateAccessToken', () => {
         clientId: 'goc_client',
         userId: USER.id,
         scopes: [`proxy:view:folder/${folderId}`],
-        resource: 'https://gateway.example.com/api',
+        resource: 'https://opfield.example.com/api',
         refreshTokenId: null,
         expiresAt: new Date(Date.now() + 60_000),
         revokedAt: null,
@@ -953,7 +953,7 @@ describe('OAuthService.validateAccessToken', () => {
       }),
     });
 
-    const validated = await service.validateAccessToken('gwo_folder', { resource: 'https://gateway.example.com/api' });
+    const validated = await service.validateAccessToken('gwo_folder', { resource: 'https://opfield.example.com/api' });
 
     expect(validated?.scopes).toEqual([`proxy:view:folder/${folderId}`, 'proxy:view:host-1']);
     expect(validated?.scopes).not.toContain('proxy:view');
@@ -970,7 +970,7 @@ describe('OAuthService.validateAccessToken', () => {
         clientId: 'goc_client',
         userId: USER.id,
         scopes: ['docker:containers:view', 'docker:containers:view:node/n1'],
-        resource: 'https://gateway.example.com/api/mcp',
+        resource: 'https://opfield.example.com/api/mcp',
         refreshTokenId: null,
         expiresAt: null,
         revokedAt: null,
@@ -978,7 +978,7 @@ describe('OAuthService.validateAccessToken', () => {
     });
 
     await expect(
-      service.validateAccessToken('gwo_creator', { resource: 'https://gateway.example.com/api/mcp' })
+      service.validateAccessToken('gwo_creator', { resource: 'https://opfield.example.com/api/mcp' })
     ).resolves.toBeNull();
 
     const pending = await service.createConsentRequest(
@@ -1004,7 +1004,7 @@ describe('OAuthService.validateAccessToken', () => {
         clientId: 'goc_client',
         userId: USER.id,
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api/mcp',
+        resource: 'https://opfield.example.com/api/mcp',
         refreshTokenId: null,
         expiresAt: null,
         revokedAt: null,
@@ -1012,7 +1012,7 @@ describe('OAuthService.validateAccessToken', () => {
     });
 
     await expect(
-      service.validateAccessToken('gwo_valid', { resource: 'https://gateway.example.com/api/mcp' })
+      service.validateAccessToken('gwo_valid', { resource: 'https://opfield.example.com/api/mcp' })
     ).resolves.toMatchObject({
       tokenId: 'access-1',
       tokenPrefix: 'gwo_valid123',
@@ -1030,7 +1030,7 @@ describe('OAuthService.validateAccessToken', () => {
         clientId: 'goc_client',
         userId: USER.id,
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api/mcp',
+        resource: 'https://opfield.example.com/api/mcp',
         refreshTokenId: null,
         expiresAt: null,
         revokedAt: new Date('2026-04-29T10:00:00Z'),
@@ -1038,7 +1038,7 @@ describe('OAuthService.validateAccessToken', () => {
     });
 
     await expect(
-      service.validateAccessToken('gwo_valid', { resource: 'https://gateway.example.com/api/mcp' })
+      service.validateAccessToken('gwo_valid', { resource: 'https://opfield.example.com/api/mcp' })
     ).resolves.toBeNull();
   });
 });
@@ -1052,7 +1052,7 @@ describe('OAuthService.revokeToken', () => {
         clientId: 'goc_client',
         userId: USER.id,
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api',
+        resource: 'https://opfield.example.com/api',
         revokedAt: null,
         replacedByTokenId: null,
         expiresAt: new Date(Date.now() + 60_000),
@@ -1097,7 +1097,7 @@ describe('OAuthService.revokeToken', () => {
         clientId: 'goc_client',
         userId: USER.id,
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api/mcp',
+        resource: 'https://opfield.example.com/api/mcp',
         revokedAt: null,
         replacedByTokenId: null,
         expiresAt: new Date(Date.now() + 60_000),
@@ -1120,7 +1120,7 @@ describe('OAuthService.revokeToken', () => {
       expect.objectContaining({
         table: oauthAccessTokens,
         values: expect.objectContaining({
-          resource: 'https://gateway.example.com/api/mcp',
+          resource: 'https://opfield.example.com/api/mcp',
           refreshTokenId: null,
           expiresAt: null,
         }),
@@ -1174,7 +1174,7 @@ describe('OAuthService.revokeToken', () => {
         clientId: 'goc_client',
         userId: USER.id,
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api',
+        resource: 'https://opfield.example.com/api',
         revokedAt: new Date('2026-04-29T10:00:00Z'),
         replacedByTokenId: 'refresh-2',
         expiresAt: new Date(Date.now() + 60_000),
@@ -1184,14 +1184,14 @@ describe('OAuthService.revokeToken', () => {
           id: 'refresh-1',
           clientId: 'goc_client',
           userId: USER.id,
-          resource: 'https://gateway.example.com/api',
+          resource: 'https://opfield.example.com/api',
           replacedByTokenId: 'refresh-2',
         },
         {
           id: 'refresh-2',
           clientId: 'goc_client',
           userId: USER.id,
-          resource: 'https://gateway.example.com/api',
+          resource: 'https://opfield.example.com/api',
           replacedByTokenId: null,
         },
       ],
@@ -1219,7 +1219,7 @@ describe('OAuthService.revokeToken', () => {
         clientId: 'goc_client',
         userId: USER.id,
         scopes: ['nodes:details'],
-        resource: 'https://gateway.example.com/api',
+        resource: 'https://opfield.example.com/api',
         revokedAt: null,
         replacedByTokenId: null,
         expiresAt: new Date(Date.now() + 60_000),
@@ -1229,14 +1229,14 @@ describe('OAuthService.revokeToken', () => {
           id: 'refresh-1',
           clientId: 'goc_client',
           userId: USER.id,
-          resource: 'https://gateway.example.com/api',
+          resource: 'https://opfield.example.com/api',
           replacedByTokenId: 'refresh-2',
         },
         {
           id: 'refresh-2',
           clientId: 'goc_client',
           userId: USER.id,
-          resource: 'https://gateway.example.com/api',
+          resource: 'https://opfield.example.com/api',
           replacedByTokenId: null,
         },
       ],

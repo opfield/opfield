@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LEGACY_COMMERCIAL_MANIFEST_KIND } from '@/lib/legacy-compat.js';
 import { verifySignedPayload } from '@/lib/update-artifact-trust.js';
 import { COMMERCIAL_HOST_API_VERSION } from './contract.js';
 
@@ -25,10 +26,10 @@ const fileSchema = z
 
 export const commercialManifestSchema = z
   .object({
-    // legacy-name: `gateway-commercial` manifest kind — 2.12.0 verifies the private core of the release it updates to
+    // legacy-name: `LEGACY_COMMERCIAL_MANIFEST_KIND` manifest kind — 2.12.0 verifies the private core of the release it updates to
     // and the license server checks the kind, so commercial builds keep emitting it; remove once 2.12.0 is no longer an
     // update source (2.13.0 core emits `opfield-commercial`).
-    kind: z.enum(['opfield-commercial', 'gateway-commercial']),
+    kind: z.enum(['opfield-commercial', LEGACY_COMMERCIAL_MANIFEST_KIND]),
     version: z.string().min(1).max(80),
     hostVersion: z.string().min(1).max(80),
     hostApiVersion: z.literal(COMMERCIAL_HOST_API_VERSION),

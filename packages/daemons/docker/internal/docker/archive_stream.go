@@ -37,7 +37,7 @@ type archiveImportRequest struct {
 }
 
 type archiveExportDetail struct {
-	Manifest           gwcaContainerManifest `json:"manifest"`
+	Manifest           ofcaContainerManifest `json:"manifest"`
 	ImageID            string                `json:"imageId"`
 	ImageTags          []string              `json:"imageTags"`
 	CaptureMode        string                `json:"captureMode"`
@@ -54,7 +54,7 @@ type archiveImportResult struct {
 }
 
 type archiveImportFinishRequest struct {
-	Manifest               gwcaContainerManifest `json:"manifest"`
+	Manifest               ofcaContainerManifest `json:"manifest"`
 	Name                   string                `json:"name"`
 	ExpectedArtifactDigest string                `json:"expectedArtifactDigest"`
 }
@@ -84,7 +84,7 @@ func (p *DockerPlugin) openArchiveExport(ctx context.Context, archiveID, artifac
 		}
 	}
 	includeEnvironment := req.IncludeEnvironment == nil || *req.IncludeEnvironment
-	manifest, err := buildGwcaContainerManifest(ctx, p, containerID, req.Environment, req.Secrets)
+	manifest, err := buildOfcaContainerManifest(ctx, p, containerID, req.Environment, req.Secrets)
 	if err != nil {
 		return archiveExportDetail{}, err
 	}
@@ -608,32 +608,32 @@ func (p *DockerPlugin) finishArchiveImport(ctx context.Context, archiveID, artif
 	if err != nil {
 		return nil, err
 	}
-	if err := p.assertGwcaHostPortsAvailable(ctx, req.Manifest); err != nil {
+	if err := p.assertOfcaHostPortsAvailable(ctx, req.Manifest); err != nil {
 		return nil, err
 	}
 	imageReference, preservedReference := p.prepareArchiveCreateImageReference(loaded.ID, req.Manifest.ImageReference)
-	createdNetworks, err := p.prepareGwcaNetworks(ctx, archiveID, &req.Manifest)
+	createdNetworks, err := p.prepareOfcaNetworks(ctx, archiveID, &req.Manifest)
 	if err != nil {
-		p.cleanupGwcaCreatedNetworks(createdNetworks)
+		p.cleanupOfcaCreatedNetworks(createdNetworks)
 		return nil, err
 	}
-	createdVolumes, err := p.prepareGwcaMounts(ctx, archiveID, name, &req.Manifest)
+	createdVolumes, err := p.prepareOfcaMounts(ctx, archiveID, name, &req.Manifest)
 	if err != nil {
-		p.cleanupGwcaCreatedVolumes(createdVolumes)
-		p.cleanupGwcaCreatedNetworks(createdNetworks)
+		p.cleanupOfcaCreatedVolumes(createdVolumes)
+		p.cleanupOfcaCreatedNetworks(createdNetworks)
 		return nil, err
 	}
-	createRequest, err := gwcaManifestToMigration(req.Manifest, loaded.ID, imageReference, name, archiveID)
+	createRequest, err := ofcaManifestToMigration(req.Manifest, loaded.ID, imageReference, name, archiveID)
 	if err != nil {
-		p.cleanupGwcaCreatedVolumes(createdVolumes)
-		p.cleanupGwcaCreatedNetworks(createdNetworks)
+		p.cleanupOfcaCreatedVolumes(createdVolumes)
+		p.cleanupOfcaCreatedNetworks(createdNetworks)
 		return nil, err
 	}
 	setArchiveImageReferenceLabel(createRequest.Manifest.Config, preservedReference)
 	containerID, err := p.client.CreateContainerStopped(ctx, createRequest)
 	if err != nil {
-		p.cleanupGwcaCreatedVolumes(createdVolumes)
-		p.cleanupGwcaCreatedNetworks(createdNetworks)
+		p.cleanupOfcaCreatedVolumes(createdVolumes)
+		p.cleanupOfcaCreatedNetworks(createdNetworks)
 		return nil, err
 	}
 	completed = true
@@ -658,7 +658,7 @@ func setArchiveImageReferenceLabel(config *container.Config, sourceReference str
 	config.Labels[archiveImageReferenceLabel] = sourceReference
 }
 
-func (p *DockerPlugin) cleanupGwcaCreatedNetworks(networks []string) {
+func (p *DockerPlugin) cleanupOfcaCreatedNetworks(networks []string) {
 	for _, networkName := range networks {
 		if _, err := p.client.cli.NetworkRemove(
 			context.Background(),
@@ -670,7 +670,7 @@ func (p *DockerPlugin) cleanupGwcaCreatedNetworks(networks []string) {
 	}
 }
 
-func (p *DockerPlugin) cleanupGwcaCreatedVolumes(volumes []string) {
+func (p *DockerPlugin) cleanupOfcaCreatedVolumes(volumes []string) {
 	for _, volumeName := range volumes {
 		if _, err := p.client.cli.VolumeRemove(
 			context.Background(),

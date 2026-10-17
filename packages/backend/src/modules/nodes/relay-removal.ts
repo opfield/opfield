@@ -6,6 +6,7 @@ import {
   relayInstances,
   relayPoolUpdateRuns,
 } from '@/db/schema/index.js';
+import { LEGACY_LOCK_RELAY_POOL_REBALANCE } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { parkedDrainedAssignmentIds } from '@/services/relay-topology.js';
 
@@ -86,7 +87,7 @@ export function assertOfflineRelayCoverage(
 }
 
 export async function validateRelayRemoval(tx: DrizzleTransaction, instanceId: string, disconnected: () => boolean) {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-pool-rebalance'))`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POOL_REBALANCE}))`);
   const instances = await tx
     .select()
     .from(relayInstances)

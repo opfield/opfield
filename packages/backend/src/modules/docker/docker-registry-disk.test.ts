@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { parseDfKilobytes } from '@/services/docker.service.js';
 import { collectImageReferences } from './docker-image-retention-store.js';
 import { DockerInternalRegistryService, registryFilesystemFill } from './docker-registry-internal.service.js';
@@ -95,23 +96,25 @@ describe('registry disk guard', () => {
 
 describe('build repositories of removed sources', () => {
   it('selects only build repositories whose source is gone, untracked and unnamed', () => {
-    const references = JSON.stringify([{ config: { image: '127.0.0.1:5443/gateway/builds/src-named@sha256:abc' } }]);
+    const references = JSON.stringify([
+      { config: { image: `127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/builds/src-named@sha256:abc` } },
+    ]);
     expect(
       selectOrphanedBuildRepositories({
         repositories: [
-          'gateway/builds/src-live',
-          'gateway/builds/src-gone',
-          'gateway/builds/src-gone/web',
-          'gateway/builds/src-tracked',
-          'gateway/builds/src-named',
-          'gateway/availability/policy-1/1/2',
-          'gateway/promotion/abc/1',
+          `${LEGACY_REGISTRY_NAMESPACE}/builds/src-live`,
+          `${LEGACY_REGISTRY_NAMESPACE}/builds/src-gone`,
+          `${LEGACY_REGISTRY_NAMESPACE}/builds/src-gone/web`,
+          `${LEGACY_REGISTRY_NAMESPACE}/builds/src-tracked`,
+          `${LEGACY_REGISTRY_NAMESPACE}/builds/src-named`,
+          `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/2`,
+          `${LEGACY_REGISTRY_NAMESPACE}/promotion/abc/1`,
         ],
         sourceBindingIds: new Set(['src-live']),
-        trackedRepositories: new Set(['gateway/builds/src-tracked']),
+        trackedRepositories: new Set([`${LEGACY_REGISTRY_NAMESPACE}/builds/src-tracked`]),
         references,
       })
-    ).toEqual(['gateway/builds/src-gone', 'gateway/builds/src-gone/web']);
+    ).toEqual([`${LEGACY_REGISTRY_NAMESPACE}/builds/src-gone`, `${LEGACY_REGISTRY_NAMESPACE}/builds/src-gone/web`]);
   });
 });
 

@@ -22,7 +22,7 @@ function createCertificatePair(options: { serverAuth?: boolean; clientAuth?: boo
   caCert.serialNumber = '01';
   caCert.validity.notBefore = new Date(now - 60_000);
   caCert.validity.notAfter = new Date(now + 86_400_000);
-  caCert.setSubject([{ name: 'commonName', value: 'gateway-system-ca' }]);
+  caCert.setSubject([{ name: 'commonName', value: 'opfield-system-ca' }]);
   caCert.setIssuer(caCert.subject.attributes);
   caCert.setExtensions([
     { name: 'basicConstraints', cA: true },
@@ -36,7 +36,7 @@ function createCertificatePair(options: { serverAuth?: boolean; clientAuth?: boo
   leafCert.serialNumber = '02';
   leafCert.validity.notBefore = new Date(now - 60_000);
   leafCert.validity.notAfter = new Date(now + 86_400_000);
-  leafCert.setSubject([{ name: 'commonName', value: 'gateway-grpc' }]);
+  leafCert.setSubject([{ name: 'commonName', value: 'opfield-grpc' }]);
   leafCert.setIssuer(caCert.subject.attributes);
   const extKeyUsage: { name: 'extKeyUsage'; serverAuth?: boolean; clientAuth?: boolean } = { name: 'extKeyUsage' };
   if (serverAuth) extKeyUsage.serverAuth = true;
@@ -69,7 +69,7 @@ describe('GrpcIdentityService', () => {
   });
 
   function writeTlsFiles(certPem: string, keyPem = 'test-key') {
-    const dir = mkdtempSync(join(tmpdir(), 'gateway-identity-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'opfield-identity-test-'));
     tempDirs.push(dir);
     const certPath = join(dir, 'grpc-server.crt');
     const keyPath = join(dir, 'grpc-server.key');
@@ -81,7 +81,7 @@ describe('GrpcIdentityService', () => {
   function customService(certPem: string, keyPem: string, caPem: string) {
     const { certPath, keyPath } = writeTlsFiles(certPem, keyPem);
     const service = new GrpcIdentityService(
-      { GRPC_TLS_CERT: certPath, GRPC_TLS_KEY: keyPath, GRPC_TLS_AUTO_DIR: '/tmp/gateway-tls' } as any,
+      { GRPC_TLS_CERT: certPath, GRPC_TLS_KEY: keyPath, GRPC_TLS_AUTO_DIR: '/tmp/opfield-tls' } as any,
       { ensureGrpcServerCert: vi.fn(), getSystemCACertPem: vi.fn().mockResolvedValue(caPem) } as any
     );
     return { service, certPath, keyPath };
@@ -94,7 +94,7 @@ describe('GrpcIdentityService', () => {
       ensureGrpcServerCert: vi.fn().mockResolvedValueOnce(first).mockResolvedValue(renewed),
       getSystemCACertPem: vi.fn(),
     };
-    const service = new GrpcIdentityService({ GRPC_TLS_AUTO_DIR: '/tmp/gateway-tls' } as any, systemCA as any);
+    const service = new GrpcIdentityService({ GRPC_TLS_AUTO_DIR: '/tmp/opfield-tls' } as any, systemCA as any);
     const served = (await service.resolve()).opfieldCertSha256;
 
     const next = await service.refresh({ renewBeforeMs: 30 * 86_400_000 });
@@ -118,7 +118,7 @@ describe('GrpcIdentityService', () => {
         .mockRejectedValueOnce(new Error('issuance failed')),
       getSystemCACertPem: vi.fn(),
     };
-    const service = new GrpcIdentityService({ GRPC_TLS_AUTO_DIR: '/tmp/gateway-tls' } as any, systemCA as any);
+    const service = new GrpcIdentityService({ GRPC_TLS_AUTO_DIR: '/tmp/opfield-tls' } as any, systemCA as any);
     const current = await service.resolve();
 
     await expect(service.refresh()).rejects.toThrow('issuance failed');
@@ -140,7 +140,7 @@ describe('GrpcIdentityService', () => {
       }),
       getSystemCACertPem: vi.fn(),
     };
-    const service = new GrpcIdentityService({ GRPC_TLS_AUTO_DIR: '/tmp/gateway-tls' } as any, systemCA as any);
+    const service = new GrpcIdentityService({ GRPC_TLS_AUTO_DIR: '/tmp/opfield-tls' } as any, systemCA as any);
 
     await Promise.all([service.resolve(), service.refresh(), service.getOpfieldCertSha256(), service.refresh()]);
     expect(overlapped).toBe(false);

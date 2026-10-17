@@ -14,6 +14,7 @@ import {
   relayRoutes,
   storageCopyJobs,
 } from '@/db/schema/index.js';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 import { removeOrphanedRelayState } from './relay-policy-reconciler.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
@@ -37,7 +38,7 @@ describe.skipIf(!url)('relay state whose owner is gone', () => {
     );
     await migrateDatabase(pool);
     db = drizzle(pool, { schema }) as unknown as DrizzleClient;
-    await db.insert(relayPolicyState).values({ id: 'current', gatewayInstanceId: randomUUID() }).onConflictDoNothing();
+    await db.insert(relayPolicyState).values({ id: 'current', opfieldInstanceId: randomUUID() }).onConflictDoNothing();
   });
 
   afterAll(async () => {
@@ -87,7 +88,7 @@ describe.skipIf(!url)('relay state whose owner is gone', () => {
       })
       .returning();
     // Fixed owners (the internal registry and its ingress) are not judged by this pass.
-    const liveEndpoint = await endpoint('internal_registry', 'gateway-internal-registry', 'gateway');
+    const liveEndpoint = await endpoint('internal_registry', LEGACY_INTERNAL_REGISTRY_ID, `${LEGACY_INSTALL_DIR_NAME}`);
     const liveRoute = await route('registry_secure_link', binding!.id, node!.id, liveEndpoint.id);
     // A storage copy job owns its storage routes under its own id, not a backup run's.
     const [copyJob] = await db
@@ -102,7 +103,7 @@ describe.skipIf(!url)('relay state whose owner is gone', () => {
       .returning();
     const copySourceRoute = await route('storage_backup_staging', copyJob!.id, 'copy-runner', liveEndpoint.id);
     const copyTargetRoute = await route('storage_backup_target', copyJob!.id, 'copy-runner', liveEndpoint.id);
-    const fixedOwnerRoute = await route('registry_ingress', 'gateway-registry-ingress', 'nginx-live', liveEndpoint.id);
+    const fixedOwnerRoute = await route('registry_ingress', 'opfield-registry-ingress', 'nginx-live', liveEndpoint.id);
 
     const deletedRoute = randomUUID();
     const orphanEndpoint = await endpoint('proxy_host_secure_link', deletedRoute, 'docker-orphan');

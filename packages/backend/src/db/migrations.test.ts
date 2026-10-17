@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { LEGACY_GUC_PROXY_DOMAIN_CONFLICTS, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 interface JournalEntry {
   idx: number;
@@ -85,9 +86,9 @@ describe('drizzle migration metadata', () => {
     const migration = readFileSync(join(process.cwd(), 'src/db/migrations/0056_strange_yellowjacket.sql'), 'utf8');
 
     expect(migration.match(/ORDER BY "created_at", "id"/g)).toHaveLength(3);
-    expect(migration).toContain('"gateway_slug_transliterate"');
-    expect(migration).toContain('"gateway_slug_base"');
-    expect(migration).toContain('"gateway_slug_candidate"');
+    expect(migration).toContain(`"${LEGACY_INSTALL_DIR_NAME}_slug_transliterate"`);
+    expect(migration).toContain(`"${LEGACY_INSTALL_DIR_NAME}_slug_base"`);
+    expect(migration).toContain(`"${LEGACY_INSTALL_DIR_NAME}_slug_candidate"`);
     expect(migration).toContain("WHEN \"base_value\" IN ('file', 'console') THEN 1");
     expect(migration).toContain('WHEN "base_value" = \'new\' THEN 1');
 
@@ -111,7 +112,7 @@ describe('drizzle migration metadata', () => {
     expect(migration).toContain('"encrypted_dek" text NOT NULL');
     expect(migration).not.toContain('"access_token"');
     expect(migration).not.toContain('"refresh_token"');
-    expect(migration).toContain('gateway_reject_inference_usage_ledger_mutation');
+    expect(migration).toContain(`${LEGACY_INSTALL_DIR_NAME}_reject_inference_usage_ledger_mutation`);
     expect(migration).toContain('BEFORE UPDATE OR DELETE ON "inference_usage_ledger"');
   });
 
@@ -142,11 +143,11 @@ describe('drizzle migration metadata', () => {
   it('removes the legacy relay database authorization surface', () => {
     const migration = readFileSync(join(process.cwd(), 'src/db/migrations/0099_slow_karnak.sql'), 'utf8');
 
-    expect(migration).toContain('DROP VIEW IF EXISTS "public"."gateway_relay_node_identities_v1"');
-    expect(migration).toContain('DROP VIEW IF EXISTS "public"."gateway_relay_managed_databases_v1"');
-    expect(migration).toContain('DROP VIEW IF EXISTS "public"."gateway_relay_bindings_v1"');
-    expect(migration).toContain('DROP OWNED BY gateway_relay');
-    expect(migration).toContain('DROP ROLE gateway_relay');
+    expect(migration).toContain(`DROP VIEW IF EXISTS "public"."${LEGACY_INSTALL_DIR_NAME}_relay_node_identities_v1"`);
+    expect(migration).toContain(`DROP VIEW IF EXISTS "public"."${LEGACY_INSTALL_DIR_NAME}_relay_managed_databases_v1"`);
+    expect(migration).toContain(`DROP VIEW IF EXISTS "public"."${LEGACY_INSTALL_DIR_NAME}_relay_bindings_v1"`);
+    expect(migration).toContain(`DROP OWNED BY ${LEGACY_INSTALL_DIR_NAME}_relay`);
+    expect(migration).toContain(`DROP ROLE ${LEGACY_INSTALL_DIR_NAME}_relay`);
   });
 
   it('collapses existing inference token grants into the manage permission', () => {
@@ -464,7 +465,7 @@ describe('drizzle migration metadata', () => {
     // Holds survive the owner's own sync; only a node the owner left or a settle ends them.
     expect(migration).toContain('OR ("held"."pending_until" IS NULL AND NOT ("held"."host_port" = ANY ("v_ports")))');
     // Rollbacks record a clashing name instead of failing; an enabled-only change keeps the legacy flag.
-    expect(migration).toContain("current_setting('gateway.proxy_domain_conflicts', true)");
+    expect(migration).toContain(`current_setting('${LEGACY_GUC_PROXY_DOMAIN_CONFLICTS}', true)`);
     expect(migration).toContain(
       'UPDATE "proxy_host_domains" SET "enabled" = NEW."enabled" WHERE "proxy_host_id" = NEW."id"'
     );

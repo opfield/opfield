@@ -1,3 +1,11 @@
+import {
+	LEGACY_APP_IMAGE_MANIFEST_ASSET,
+	LEGACY_APP_UPDATE_COMPONENT,
+	LEGACY_CORE_RELEASE_LINE,
+	LEGACY_INSTALLER_CHECKSUMS_ASSET,
+	LEGACY_UPDATE_NAMESPACE,
+} from "../../backend/src/lib/legacy-compat.js";
+
 const GITHUB_API_VERSION = "2022-11-28";
 const USER_AGENT = "opfield-update-facade";
 // A page of 100 releases with 20 assets each is already past 2 MiB; the cap only guards against a runaway answer.
@@ -6,7 +14,20 @@ const RELEASE_PAGE_SIZE = 100;
 // GitHub lists releases newest first; a search that is still unsettled after this many pages
 // answers from what it has read.
 const RELEASE_PAGE_LIMIT = 10;
-const PRODUCT_NAMESPACE = "gateway";
+// Path namespaces of the feed: the Opfield one, and the earlier one installed releases up to 2.12.2 request.
+const PRODUCT_NAMESPACES: ReadonlySet<string> = new Set([
+	"opfield",
+	LEGACY_UPDATE_NAMESPACE,
+]);
+// Component of the app release: the Opfield name, and the earlier one installed releases up to 2.12.2 ask for.
+const APP_COMPONENTS: ReadonlySet<string> = new Set([
+	"opfield",
+	LEGACY_APP_UPDATE_COMPONENT,
+]);
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 type Fetcher = typeof fetch;
 
@@ -63,11 +84,22 @@ interface NextUpdateResponse {
 }
 
 // Inference core release lines, oldest first (see parseReleaseVersion).
-const CORE_RELEASE_LINES = ["wiolett", "thesqlabs", "opfield"];
-const CORE_TAG_PATTERN = /^v\d+\.\d+\.\d+-(?:wiolett|thesqlabs|opfield)\.\d+$/;
+const CORE_RELEASE_LINES = [LEGACY_CORE_RELEASE_LINE, "thesqlabs", "opfield"];
+const CORE_LINE_ALTERNATION = CORE_RELEASE_LINES.map(escapeRegExp).join("|");
+const CORE_TAG_PATTERN = new RegExp(
+	`^v\\d+\\.\\d+\\.\\d+-(?:${CORE_LINE_ALTERNATION})\\.\\d+$`,
+);
+const CORE_VERSION_PATTERN = new RegExp(
+	`^(\\d+)\\.(\\d+)\\.(\\d+)-(${CORE_LINE_ALTERNATION})\\.(\\d+)$`,
+);
+const APP_TAG_PATTERN = /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/;
+const APP_ARTIFACT_PATTERN = new RegExp(
+	`^${escapeRegExp(LEGACY_APP_IMAGE_MANIFEST_ASSET)}$`,
+);
 
 const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
-	gateway: /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/,
+	opfield: APP_TAG_PATTERN,
+	[LEGACY_APP_UPDATE_COMPONENT]: APP_TAG_PATTERN,
 	relay: /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-relay$/,
 	"nginx-daemon": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-nginx$/,
 	"docker-daemon": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-docker$/,
@@ -84,7 +116,8 @@ const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 };
 
 const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
-	gateway: /^gateway-image\.update\.json$/,
+	opfield: APP_ARTIFACT_PATTERN,
+	[LEGACY_APP_UPDATE_COMPONENT]: APP_ARTIFACT_PATTERN,
 	relay: /^relay-image\.update\.json$/,
 	"nginx-daemon":
 		/^(nginx-daemon-linux-(amd64|arm64)(\.update\.json)?|checksums\.txt)$/,
@@ -105,16 +138,17 @@ const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
 };
 
 // Installers an Opfield release carries (scripts/stage-installers.sh), served in GitHub's release download layout:
-// /gateway/releases/download/<tag>/<file> and /gateway/releases/latest/download/<file>. "/" and "/install.sh" are the
+// /<namespace>/releases/download/<tag>/<file> and /<namespace>/releases/latest/download/<file>. "/" and "/install.sh" are the
 // server installer of the latest stable release.
-// legacy-name: gateway-daemon-installers.sha256, the checksum list setup commands and wrappers of releases before
+// legacy-name: the legacy checksum list setup commands and wrappers of releases before
 // 2.12.1 read — remove once no served release is older than 2.12.1.
-const INSTALLER_ASSET_PATTERN =
-	/^(install\.sh|setup-(daemon|node|docker-node|database-node|storage-node|monitoring-node|relay-node)\.sh|opfield-node-installers\.sha256|gateway-daemon-installers\.sha256)$/;
+const INSTALLER_ASSET_PATTERN = new RegExp(
+	`^(install\\.sh|setup-(daemon|node|docker-node|database-node|storage-node|monitoring-node|relay-node)\\.sh|opfield-node-installers\\.sha256|${escapeRegExp(LEGACY_INSTALLER_CHECKSUMS_ASSET)})$`,
+);
 const LATEST_INSTALLER_CACHE_CONTROL = "public, max-age=300";
 // The signed list of license service addresses Opfield installations fetch daily
 // (scripts/release/license-endpoints.mjs): an asset of the latest stable release, re-signed on a schedule.
-const LICENSE_ENDPOINTS_PATH = "/gateway/license-endpoints.json";
+const LICENSE_ENDPOINTS_FILE = "license-endpoints.json";
 const LICENSE_ENDPOINTS_ASSET = "license-endpoints.json";
 
 interface GitHubRepository {
@@ -217,10 +251,9 @@ function parseReleaseVersion(
 ): ParsedReleaseVersion | null {
 	const clean = value.replace(/^v/, "");
 	if (isInferenceCore(component)) {
-		const match =
-			/^(\d+)\.(\d+)\.(\d+)-(wiolett|thesqlabs|opfield)\.(\d+)$/.exec(clean);
+		const match = CORE_VERSION_PATTERN.exec(clean);
 		if (!match) return null;
-		// Release lines replaced each other: wiolett, then thesqlabs, then opfield. On the
+		// Release lines replaced each other in the order of CORE_RELEASE_LINES. On the
 		// same base version every build of a later line orders after every build of an
 		// earlier one.
 		const lineOffset = CORE_RELEASE_LINES.indexOf(match[4]) * 1_000_000;
@@ -233,7 +266,7 @@ function parseReleaseVersion(
 		};
 	}
 	const suffix =
-		component === "gateway" || component === "witness-clickhouse-keeper"
+		APP_COMPONENTS.has(component) || component === "witness-clickhouse-keeper"
 			? ""
 			: component === "relay" || component === "relay-supervisor"
 				? "-relay"
@@ -497,7 +530,7 @@ async function handleReleaseList(
 			read.some(
 				(release) =>
 					listedOnChannel(channel, release, false) &&
-					TAG_PATTERNS.gateway.test(release.tag_name),
+					APP_TAG_PATTERN.test(release.tag_name),
 			),
 		),
 		fetchReleases(env, inferenceCoreRepository(env), fetcher, (read) =>
@@ -525,7 +558,8 @@ function parseArtifactPath(
 	pathname: string,
 ): { packageName: string; tag: string; artifactName: string } | null {
 	const segments = pathname.split("/").filter(Boolean);
-	if (segments.length !== 4 || segments[0] !== PRODUCT_NAMESPACE) return null;
+	if (segments.length !== 4 || !PRODUCT_NAMESPACES.has(segments[0] ?? ""))
+		return null;
 	const [, packageName, tag, artifactName] = segments.map((segment) =>
 		decodeURIComponent(segment),
 	);
@@ -656,7 +690,7 @@ function parseInstallerPath(
 	const segments = pathname.split("/").filter(Boolean);
 	if (
 		segments.length !== 5 ||
-		segments[0] !== PRODUCT_NAMESPACE ||
+		!PRODUCT_NAMESPACES.has(segments[0] ?? "") ||
 		segments[1] !== "releases"
 	)
 		return null;
@@ -665,7 +699,7 @@ function parseInstallerPath(
 	);
 	let tag: string | null;
 	if (first === "latest" && second === "download") tag = null;
-	else if (first === "download" && TAG_PATTERNS.gateway?.test(second ?? ""))
+	else if (first === "download" && APP_TAG_PATTERN.test(second ?? ""))
 		tag = second ?? null;
 	else return null;
 	if (!file || !INSTALLER_ASSET_PATTERN.test(file)) return null;
@@ -778,7 +812,10 @@ export async function handleRequest(
 			200,
 			"no-store",
 		);
-	if (pathname === "/gateway/releases")
+	const segments = pathname.split("/").filter(Boolean);
+	const namespaced =
+		segments.length === 2 && PRODUCT_NAMESPACES.has(segments[0] ?? "");
+	if (namespaced && segments[1] === "releases")
 		return handleReleaseList(request, env, fetcher);
 	let installer: ReturnType<typeof parseInstallerPath>;
 	try {
@@ -787,7 +824,7 @@ export async function handleRequest(
 		return jsonResponse({ error: "invalid_artifact_path" }, 400);
 	}
 	if (installer) return handleInstaller(request, env, fetcher, installer);
-	if (pathname === LICENSE_ENDPOINTS_PATH)
+	if (namespaced && segments[1] === LICENSE_ENDPOINTS_FILE)
 		return handleInstaller(request, env, fetcher, {
 			tag: null,
 			assetName: LICENSE_ENDPOINTS_ASSET,

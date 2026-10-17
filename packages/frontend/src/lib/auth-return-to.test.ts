@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getLoginRedirectUrl, resolveAuthReturnTo } from "./auth-return-to";
 
-const ORIGIN = "https://gateway.example.com";
+const ORIGIN = "https://opfield.example.com";
 
 describe("getLoginRedirectUrl", () => {
   it("sends OAuth consent returns through the login page so local sign-in works", () => {

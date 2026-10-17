@@ -17,7 +17,7 @@ function certificatePem(commonName: string, notAfter: Date): string {
   certificate.validity.notBefore = new Date(Date.now() - 2 * DAY);
   certificate.validity.notAfter = notAfter;
   certificate.setSubject([{ name: 'commonName', value: commonName }]);
-  certificate.setIssuer([{ name: 'commonName', value: 'gateway-system-ca' }]);
+  certificate.setIssuer([{ name: 'commonName', value: 'opfield-system-ca' }]);
   certificate.sign(keys.privateKey, forge.md.sha256.create());
   return forge.pki.certificateToPem(certificate);
 }

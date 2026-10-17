@@ -59,6 +59,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
 import { useUIStore } from "@/stores/ui";
 import type { DockerVolume, DockerVolumeMetrics } from "@/types";
+import { LEGACY_HOUSEKEEPING_PROTECTED_LABEL } from "../../../backend/src/lib/legacy-compat";
 import { type FileManagerOperations, FilesTab } from "./docker-detail/FilesTab";
 import { LabelsSection } from "./docker-detail/LabelsSection";
 import { VolumeSpaceStatCard } from "./docker-detail/VolumeSpaceStatCard";
@@ -85,7 +86,7 @@ function unlistedUsage(usedBy: string[]): VolumeUsageContainer[] {
 
 const VOLUME_CLEANUP_PROTECTED_LABEL = "opfield.housekeeping.protected";
 // legacy-name: cleanup protection label of volumes protected before 2.12.1 — remove once no protected volume carries it
-const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = "gateway.housekeeping.protected";
+const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = LEGACY_HOUSEKEEPING_PROTECTED_LABEL;
 
 function labelsToEntries(labels: Record<string, string> | undefined): LabelEntry[] {
   return Object.entries(labels ?? {}).map(([key, value]) => ({ key, value }));

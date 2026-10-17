@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"maps"
 	"os"
@@ -161,6 +162,6 @@ func launcherStateDir() string {
 	if value := os.Getenv(lifecycle.LauncherStateDirEnv); value != "" {
 		return value
 	}
-	// legacy-name: GATEWAY_DAEMON_LAUNCHER_STATE_DIR set by a pre-Opfield launcher — remove once every node reports none
-	return os.Getenv("GATEWAY_DAEMON_LAUNCHER_STATE_DIR")
+	// legacy-name: legacycompat.EnvPrefixDAEMON_LAUNCHER_STATE_DIR set by a pre-Opfield launcher — remove once every node reports none
+	return os.Getenv(legacycompat.EnvPrefix + "DAEMON_LAUNCHER_STATE_DIR")
 }

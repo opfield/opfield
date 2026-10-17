@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -161,7 +162,7 @@ func startKVMember(t *testing.T, root string, mesh *kvMesh, member string, index
 	_, _ = dockerCLI("network", "rm", network)
 	prefix := netip.MustParsePrefix(subnet)
 	gateway := prefix.Addr().Next()
-	mustDocker(t, "network", "create", "--internal", "--subnet", subnet, "--gateway", gateway.String(), network)
+	mustDocker(t, "network", "create", "--internal", "--subnet", subnet, legacycompat.AddressFlag, gateway.String(), network)
 	t.Cleanup(func() { _, _ = dockerCLI("rm", "-f", name); _, _ = dockerCLI("network", "rm", network) })
 	t.Cleanup(func() {
 		if t.Failed() {
@@ -198,8 +199,8 @@ func startKVMember(t *testing.T, root string, mesh *kvMesh, member string, index
 		mustDocker(t, "pull", kvImage)
 	}
 	mustDocker(t, append([]string{"run", "-d", "--name", name, "--network", network, "--add-host", kvha.PrimaryHost + ":" + gateway.String(),
-		"-v", data + ":/data", "-v", conf + ":/run/gateway-config/redis.conf:ro",
-		kvImage, "valkey-server", "/run/gateway-config/redis.conf", "--dir", "/data"}, memberArgs...)...)
+		"-v", data + ":/data", "-v", conf + ":" + legacycompat.RunDirPrefix + "config/redis.conf:ro",
+		kvImage, "valkey-server", legacycompat.RunDirPrefix + "config/redis.conf", "--dir", "/data"}, memberArgs...)...)
 	host := &kvTestHost{mesh: mesh, cfg: cfg, name: name, network: network, gateway: gateway}
 	engine, err := kvha.New(host)
 	if err != nil {

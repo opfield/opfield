@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LICENSE_SERVICE_URLS } from '@/config/vendor-urls.js';
+import { LEGACY_COMMERCIAL_MANIFEST_KIND, LEGACY_LICENSE_VERSION_FIELD } from '@/lib/legacy-compat.js';
 import { LicenseServerRequestError, LicenseService } from './license.service.js';
 import {
   COMMUNITY_ENTITLEMENTS,
@@ -79,7 +80,7 @@ function createCrypto() {
 }
 
 const env = {
-  APP_URL: 'https://gateway.example.com',
+  APP_URL: 'https://opfield.example.com',
   APP_VERSION: 'v2.6.12',
 } as never;
 
@@ -127,7 +128,7 @@ const paidState = (plan: 'personal' | 'business' | 'enterprise' = 'business'): L
     entitlements: LICENSE_PLAN_ENTITLEMENTS[plan],
     activation: {
       installationId: '11111111-1111-4111-8111-111111111111',
-      installationName: 'gateway.example.com',
+      installationName: 'opfield.example.com',
       activatedAt: new Date().toISOString(),
       lastHeartbeatAt: new Date().toISOString(),
     },
@@ -454,8 +455,8 @@ describe('LicenseService', () => {
     expect(url).toBe('https://license.opfield.dev/api/v1/installations/register');
     const body = JSON.parse(request.body);
     expect(body).toMatchObject({
-      installationName: 'gateway.example.com',
-      gatewayVersion: 'v2.6.12',
+      installationName: 'opfield.example.com',
+      [LEGACY_LICENSE_VERSION_FIELD]: 'v2.6.12',
       entitlementsVersion: 5,
     });
     expect(body.installationId).toMatch(/^[0-9a-f-]{36}$/);
@@ -507,7 +508,6 @@ describe('LicenseService', () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(new Response('<html>Bad gateway</html>', { status: 502 }))
-      .mockResolvedValueOnce(new Response('{}', { status: 404 }))
       .mockImplementation(() => registerResponse());
     const service = createService(db, fetcher);
 
@@ -516,7 +516,7 @@ describe('LicenseService', () => {
     expect(fetcher.mock.calls.map(([url]) => new URL(url).origin)).toEqual(LICENSE_SERVICE_URLS);
     expect(await service.getStatus()).toMatchObject({
       registrationStatus: 'registered',
-      serverUrl: LICENSE_SERVICE_URLS[2],
+      serverUrl: LICENSE_SERVICE_URLS[1],
     });
   });
 
@@ -1167,7 +1167,7 @@ describe('LicenseService signed states', () => {
     ['another purpose', { purpose: 'register' }],
     ['another request (replay)', { requestNonce: 'captured-from-an-earlier-request' }],
     ['a stale issue time', { issuedAt: new Date(Date.now() - 16 * 60 * 1000).toISOString() }],
-    ['another kind', { kind: 'gateway-commercial' }],
+    ['another kind', { kind: LEGACY_COMMERCIAL_MANIFEST_KIND }],
   ])('rejects a state signed for %s', async (_label, override) => {
     const db = await activatedService('business');
     const other = createTestLicenseSigner(override.keyId ?? 'gls-test');

@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,7 +55,7 @@ func TestNamingsRenderTheirOwnNames(t *testing.T) {
 		// The bundle directory is wherever the installer put it (it may still be
 		// under the pre-Opfield name on this host until a confirmed start moves it).
 		text = strings.ReplaceAll(text, filepath.Dir(OpfieldNaming.BinDir()), "<bundle>")
-		if strings.Contains(text, "gateway-builder") || strings.Contains(text, "GATEWAY_") || strings.Contains(text, "gateway-builds0") {
+		if strings.Contains(text, legacycompat.BuilderNamePrefix) || strings.Contains(text, legacycompat.EnvPrefix) || strings.Contains(text, legacycompat.BuilderBridge) {
 			t.Fatalf("Opfield runtime carries an old name:\n%s", text)
 		}
 	}

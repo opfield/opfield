@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -35,7 +36,7 @@ import (
 // ready the next address becomes opfield.address, on disk and in the running
 // process: the control session dials it on its next attempt. Relay lanes and
 // tunnel connections that are up are not touched, and no daemon restarts.
-const OpfieldNextAddressCapability = "gateway_next_address_v1"
+const OpfieldNextAddressCapability = legacycompat.NextAddressCapability
 
 const (
 	// nextAddressAfter is how long the control session must have failed
@@ -210,7 +211,7 @@ func editControlConfigFile(path string, set map[string]string, remove ...string)
 		return errors.New("config file is not a YAML mapping")
 	}
 	root := document.Content[0]
-	// The section the daemon loaded: opfield:, else the pre-Opfield gateway:.
+	// The section the daemon loaded: opfield:, else the pre-Opfield section.
 	var section *yaml.Node
 	for _, key := range ControlSectionKeys {
 		if section = yamlMappingValue(root, key); section != nil {

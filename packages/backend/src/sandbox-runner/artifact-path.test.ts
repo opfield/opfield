@@ -18,7 +18,7 @@ let outsideDir: string;
 
 describe('sandbox artifact host path resolution', () => {
   beforeEach(async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-sandbox-artifact-path-test-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-sandbox-artifact-path-test-'));
     workspaceDir = path.join(tempDir, 'workspace');
     outsideDir = path.join(tempDir, 'outside');
     await Promise.all([mkdir(workspaceDir), mkdir(outsideDir)]);

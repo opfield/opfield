@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net/netip"
 	"regexp"
 	"sort"
@@ -51,16 +52,16 @@ const (
 // Names of the configuration files of a member (in its data mount) and where
 // the container sees them.
 const (
-	ServerConfigFile   = "gateway-availability.xml"
-	UsersConfigFile    = "gateway-availability-users.xml"
-	RoleConfigFile     = "gateway-availability-role.xml"
-	ServerConfigTarget = "/etc/clickhouse-server/config.d/zz-gateway-availability.xml"
-	UsersConfigTarget  = "/etc/clickhouse-server/users.d/zz-gateway-availability.xml"
-	RoleConfigTarget   = "/etc/clickhouse-server/users.d/zz-gateway-availability-role.xml"
+	ServerConfigFile   = legacycompat.AvailabilityFilePrefix + ".xml"
+	UsersConfigFile    = legacycompat.AvailabilityFilePrefix + "-users.xml"
+	RoleConfigFile     = legacycompat.AvailabilityFilePrefix + "-role.xml"
+	ServerConfigTarget = "/etc/clickhouse-server/config.d/zz-" + legacycompat.AvailabilityFilePrefix + ".xml"
+	UsersConfigTarget  = "/etc/clickhouse-server/users.d/zz-" + legacycompat.AvailabilityFilePrefix + ".xml"
+	RoleConfigTarget   = "/etc/clickhouse-server/users.d/zz-" + legacycompat.AvailabilityFilePrefix + "-role.xml"
 	// ClientProfile is the settings profile every client user has.
-	ClientProfile = "gateway_client"
+	ClientProfile = legacycompat.ClickHouseClientProfile
 	// InternalUser is the daemon's own user (status, reconfiguration).
-	InternalUser = "gateway_member"
+	InternalUser = legacycompat.ClickHouseInternalUser
 	// DatabasePathPrefix is the Keeper path of the set's Replicated databases.
 	DatabasePathPrefix = "/gw/db"
 	// AccessPath is the Keeper path of the replicated access storage.

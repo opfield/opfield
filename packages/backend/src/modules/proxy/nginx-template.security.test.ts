@@ -1,6 +1,7 @@
 // The schema barrel first: loading the template service alone enters the schema import cycle mid-way.
 import '@/db/schema/index.js';
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import type { ProxyHostConfig } from '@/services/nginx-config-generator.service.js';
 import { NginxTemplateService } from './nginx-template.service.js';
@@ -168,7 +169,7 @@ describe('NginxTemplateService template content', () => {
     ['lua_', 'server {\n    location / { access_by_lua_file /tmp/a.lua; }\n}', 'Forbidden directive "lua_"'],
     [
       'access_log',
-      "log_format cron '* * * * * root $arg_c';\nserver {\n    access_log /etc/cron.d/gateway cron;\n}",
+      `log_format cron '* * * * * root $arg_c';\nserver {\n    access_log /etc/cron.d/${LEGACY_INSTALL_DIR_NAME} cron;\n}`,
       'Directive "access_log" may only write to /var/log/nginx/',
     ],
   ])('refuses %s without proxy:unrestricted and accepts it with it', async (_directive, content, error) => {
@@ -223,7 +224,7 @@ describe('NginxTemplateService template content', () => {
         '    listen 80;',
         '    include {{pagesRouteIncludePath}};',
         '    location / {',
-        '        auth_basic_user_file /etc/nginx/gateway/htpasswd/access-list-{{accessList.id}};',
+        `        auth_basic_user_file ${LEGACY_NGINX_DIR}/htpasswd/access-list-{{accessList.id}};`,
         '    }',
         '}',
       ].join('\n'),
@@ -232,13 +233,13 @@ describe('NginxTemplateService template content', () => {
       {
         ...host,
         advancedConfig: null,
-        pagesRouteIncludePath: '/etc/nginx/gateway/pages/routes/a.conf',
+        pagesRouteIncludePath: `${LEGACY_NGINX_DIR}/pages/routes/a.conf`,
         accessList: { id: TEMPLATE, ipRules: [], basicAuthEnabled: true },
       },
       TEMPLATE
     );
 
-    expect(rendered).toContain('include /etc/nginx/gateway/pages/routes/a.conf;');
+    expect(rendered).toContain(`include ${LEGACY_NGINX_DIR}/pages/routes/a.conf;`);
   });
 
   it('never sends test content with forbidden directives to a node', async () => {
@@ -289,7 +290,7 @@ describe('NginxTemplateService Pages missing-path answer', () => {
     ...host,
     advancedConfig: null,
     templateVariables: {},
-    pagesRouteIncludePath: '/etc/nginx/gateway/pages/routes/a.inc',
+    pagesRouteIncludePath: `${LEGACY_NGINX_DIR}/pages/routes/a.inc`,
     additionalRoutes: [
       {
         id: routeId,
@@ -298,7 +299,7 @@ describe('NginxTemplateService Pages missing-path answer', () => {
         forwardScheme: 'http',
         forwardHost: null,
         forwardPort: null,
-        pagesRouteIncludePath: '/etc/nginx/gateway/pages/routes/b.inc',
+        pagesRouteIncludePath: `${LEGACY_NGINX_DIR}/pages/routes/b.inc`,
         pagesRuntimeConfigPath: '/var/lib/pages/b.js',
         stripPrefix: true,
         websocketSupport: false,

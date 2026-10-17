@@ -49,7 +49,7 @@ export const webInspect = {
     Labels: {
       "org.opencontainers.image.source": "https://git.example.com/northwind/web",
       "org.opencontainers.image.version": "2.8.1",
-      "wiolett.gateway.managed": "true",
+      "net.opfield.managed": "true",
     },
     Healthcheck: {
       Test: ["CMD", "wget", "-qO-", "http://localhost/healthz"],

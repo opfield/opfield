@@ -39,7 +39,7 @@ export const webhooks: NotificationWebhook[] = [
     method: "POST",
     enabled: true,
     signingSecret: "configured",
-    signingHeader: "X-Gateway-Signature",
+    signingHeader: "X-Opfield-Signature",
     templatePreset: "json",
     bodyTemplate: null,
     headers: { "X-Routing-Key": "northwind-platform" },
@@ -63,7 +63,7 @@ export const webhooks: NotificationWebhook[] = [
   {
     id: uuid(64004),
     name: "Legacy email relay",
-    url: "https://mail-relay.example.net/hooks/gateway",
+    url: "https://mail-relay.example.net/hooks/opfield",
     method: "POST",
     enabled: false,
     signingSecret: null,
@@ -319,7 +319,7 @@ export const siemDestinations: SiemDestination[] = [
   {
     id: uuid(64150),
     name: "Security Operations",
-    url: "https://siem.example.com/ingest/gateway-audit",
+    url: "https://siem.example.com/ingest/opfield-audit",
     authType: "hmac_sha256",
     customHeaderName: null,
     secretConfigured: true,
@@ -347,7 +347,7 @@ export const siemDestinations: SiemDestination[] = [
   {
     id: uuid(64152),
     name: "Partner audit feed",
-    url: "https://audit.partner.example.org/gateway",
+    url: "https://audit.partner.example.org/opfield",
     authType: "custom_header",
     customHeaderName: "X-Audit-Key",
     secretConfigured: true,

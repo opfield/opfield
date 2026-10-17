@@ -50,7 +50,7 @@ func TestWorkingDirectoryFallsBackToRootWithoutAHome(t *testing.T) {
 
 func TestCheckRunAsUserRefusesAnotherUserWithoutRootOrCapabilities(t *testing.T) {
 	withProcessIdentity(t, 54321, false)
-	for _, username := range []string{"root", "gateway-test-no-such-user"} {
+	for _, username := range []string{"root", "opfield-test-no-such-user"} {
 		err := CheckRunAsUser(username)
 		if !errors.Is(err, ErrCannotSwitchUser) {
 			t.Fatalf("CheckRunAsUser(%q) = %v, want ErrCannotSwitchUser", username, err)
@@ -73,7 +73,7 @@ func TestCheckRunAsUserAcceptsAnotherUserWithRootOrCapabilities(t *testing.T) {
 	if err := CheckRunAsUser("root"); err != nil {
 		t.Fatalf("root must allow another user: %v", err)
 	}
-	if err := CheckRunAsUser("gateway-test-no-such-user"); err == nil || errors.Is(err, ErrCannotSwitchUser) {
+	if err := CheckRunAsUser("opfield-test-no-such-user"); err == nil || errors.Is(err, ErrCannotSwitchUser) {
 		t.Fatalf("an unknown user on a root daemon must fail the lookup, got %v", err)
 	}
 }

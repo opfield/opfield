@@ -2,6 +2,7 @@ package docker
 
 import (
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -16,10 +17,10 @@ import (
 
 const (
 	egressTestLinkID  = "6a1b2c3d-4e5f-4a6b-8c7d-8e9f0a1b2c3d"
-	egressTestNetwork = "gateway-link-6a1b2c3d4e5f4a6b"
-	egressTestDBNet   = "gateway-db-0123456789abcdef"
+	egressTestNetwork = legacycompat.ContainerLinkNetworkPrefix + "6a1b2c3d4e5f4a6b"
+	egressTestDBNet   = legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"
 	// egressTestStorageNet is a storage link network created before the pool: Docker's subnet, no reserved address.
-	egressTestStorageNet = "gateway-storage-0011223344556677"
+	egressTestStorageNet = legacycompat.StorageLinkNetworkPrefix + "0011223344556677"
 )
 
 // egressFakeEngine adds the link networks of create_link_network to the connector engine: network inspects, and
@@ -98,7 +99,7 @@ func (e *egressFakeEngine) serveLinks(request *http.Request) (*http.Response, er
 			}
 		}
 		for id, address := range e.sidecars {
-			containers[id] = map[string]any{"Name": "gateway-storage-connector-" + id, "IPv4Address": address + "/24"}
+			containers[id] = map[string]any{"Name": legacycompat.StorageConnectorPrefix + id, "IPv4Address": address + "/24"}
 		}
 		ipam := map[string]string{"Subnet": "172.31.0.0/24", "Gateway": "172.31.0.1"}
 		if e.storageUserSubnet {
@@ -304,8 +305,8 @@ func TestEgressFollowsTheGrantBundle(t *testing.T) {
 func TestDatabaseExtraHostsLeaveOutLinksServedByTheConnector(t *testing.T) {
 	engine := &egressFakeEngine{fakeConnectorEngine: newFakeConnectorEngine(t)}
 	cli := engine.client()
-	other := "gateway-db-fedcba9876543210"
-	migrating := "gateway-db-00112233445566ff"
+	other := legacycompat.DatabaseLinkNetworkPrefix + "fedcba9876543210"
+	migrating := legacycompat.DatabaseLinkNetworkPrefix + "00112233445566ff"
 	connect := func(id, networkName string, listener bool) *pb.RelayGrantAssignment {
 		assignment := &pb.RelayGrantAssignment{Role: "connect", OwnerKind: linkKindManagedDatabaseBinding, OwnerId: id,
 			SecureLinkEgress: &pb.SecureLinkEgress{NetworkName: networkName, Alias: "db", ListenPort: 5432, RouteGeneration: 2}}

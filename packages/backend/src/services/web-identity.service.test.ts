@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { connect, type TLSSocket } from 'node:tls';
 import forge from 'node-forge';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { WebIdentityService } from './web-identity.service.js';
 
 function rsaKeys() {
@@ -24,7 +25,7 @@ function createRenewedCertificates() {
   caCert.serialNumber = '01';
   caCert.validity.notBefore = new Date(now - 60_000);
   caCert.validity.notAfter = new Date(now + 86_400_000);
-  caCert.setSubject([{ name: 'commonName', value: 'gateway-system-ca' }]);
+  caCert.setSubject([{ name: 'commonName', value: 'opfield-system-ca' }]);
   caCert.setIssuer(caCert.subject.attributes);
   caCert.setExtensions([
     { name: 'basicConstraints', cA: true },
@@ -38,7 +39,7 @@ function createRenewedCertificates() {
     leafCert.serialNumber = serialNumber;
     leafCert.validity.notBefore = new Date(now - 60_000);
     leafCert.validity.notAfter = new Date(now + 86_400_000);
-    leafCert.setSubject([{ name: 'commonName', value: 'gateway-web' }]);
+    leafCert.setSubject([{ name: 'commonName', value: `${LEGACY_INSTALL_DIR_NAME}-web` }]);
     leafCert.setIssuer(caCert.subject.attributes);
     leafCert.setExtensions([
       { name: 'basicConstraints', cA: false },
@@ -76,7 +77,7 @@ describe('WebIdentityService hot reload', () => {
   });
 
   async function setup() {
-    const dir = mkdtempSync(join(tmpdir(), 'gateway-web-identity-'));
+    const dir = mkdtempSync(join(tmpdir(), 'opfield-web-identity-'));
     tempDirs.push(dir);
     const certPath = join(dir, 'web-server.crt');
     const keyPath = join(dir, 'web-server.key');
@@ -133,7 +134,7 @@ describe('WebIdentityService hot reload', () => {
   });
 
   it('never issues two web certificates at once and keeps the identity when a refresh fails', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'gateway-web-identity-'));
+    const dir = mkdtempSync(join(tmpdir(), 'opfield-web-identity-'));
     tempDirs.push(dir);
     const installedCert = join(dir, 'web-server.crt');
     const keyPath = join(dir, 'web-server.key');

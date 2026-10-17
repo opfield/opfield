@@ -84,7 +84,7 @@ func (c *Client) UpdateContainer(ctx context.Context, id string, newTag string, 
 }
 
 // containerRecreateImageReference deliberately prefers Config.Image. Imported
-// GWCA containers use an immutable image ID there, while their preserved source
+// OFCA containers use an immutable image ID there, while their preserved source
 // tag is only suitable for an explicit tag-changing update after a pull.
 func containerRecreateImageReference(insp *container.InspectResponse) string {
 	if insp != nil && insp.Config != nil {

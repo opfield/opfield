@@ -10,7 +10,7 @@ export interface CoreLayout {
 
 const CORE_NAME_SUFFIX = '-inference';
 // legacy-name: `<project>-inference-core` container and volumes of cores installed before 2.12.1 (under the project
-// `gateway` before the host move) — remove once every installation reports none
+// the legacy name before the host move) — remove once every installation reports none
 const LEGACY_CORE_NAME_SUFFIX = '-inference-core';
 
 /**

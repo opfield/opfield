@@ -2,6 +2,7 @@ package pgha
 
 import (
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ func filter(log []string, prefix string) []string {
 func TestRejoinRewindsDivergedMember(t *testing.T) {
 	h := newHarness(t)
 	h.pg.set(func(p *fakePG) {
-		p.rewind = RewindResult{DivergedAt: MustLSN("0/4000000"), TargetEnd: MustLSN("0/4200000"), Timeline: 2, KeptAt: "/data/gateway-ha/diverged/1"}
+		p.rewind = RewindResult{DivergedAt: MustLSN("0/4000000"), TargetEnd: MustLSN("0/4200000"), Timeline: 2, KeptAt: "/data/" + legacycompat.PostgresMemberDir + "/diverged/1"}
 	})
 	divergedStandby(h, `FATAL:  could not start WAL streaming: ERROR:  requested starting point 0/4200000 on timeline 2 is not in this server's history`)
 	h.settle()

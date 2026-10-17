@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import {
   parseInternalImageReference,
   resolveDockerImageOrigins,
@@ -9,7 +10,7 @@ import {
 const DIGEST = `sha256:${'b'.repeat(64)}`;
 const COPY_DIGEST = `sha256:${'c'.repeat(64)}`;
 const BINDING = '3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f';
-const BUILT = `127.0.0.1:5443/gateway/builds/${BINDING}@${DIGEST}`;
+const BUILT = `127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/builds/${BINDING}@${DIGEST}`;
 
 /** A query builder that answers each `select()` with the next prepared row set, whatever the chain. */
 function fakeDb(results: unknown[][]): DrizzleClient {
@@ -27,9 +28,12 @@ function fakeDb(results: unknown[][]): DrizzleClient {
 
 describe('parseInternalImageReference', () => {
   it('splits an internal reference into repository and digest', () => {
-    expect(parseInternalImageReference(BUILT)).toEqual({ repository: `gateway/builds/${BINDING}`, digest: DIGEST });
-    expect(parseInternalImageReference('127.0.0.1:5443/gateway/availability/abc:image')).toEqual({
-      repository: 'gateway/availability/abc',
+    expect(parseInternalImageReference(BUILT)).toEqual({
+      repository: `${LEGACY_REGISTRY_NAMESPACE}/builds/${BINDING}`,
+      digest: DIGEST,
+    });
+    expect(parseInternalImageReference(`127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/availability/abc:image`)).toEqual({
+      repository: `${LEGACY_REGISTRY_NAMESPACE}/availability/abc`,
       digest: null,
     });
   });
@@ -46,7 +50,7 @@ describe('resolveDockerImageOrigins', () => {
     const db = fakeDb([
       [
         {
-          registryRepository: `gateway/builds/${BINDING}`,
+          registryRepository: `${LEGACY_REGISTRY_NAMESPACE}/builds/${BINDING}`,
           digest: DIGEST,
           sourceImageReference: null,
           repositoryFullPath: 'acme/shop-api',
@@ -63,11 +67,11 @@ describe('resolveDockerImageOrigins', () => {
   });
 
   it('follows a promotion copy to the build it copied', async () => {
-    const copy = `127.0.0.1:5443/gateway/promotion/0011223344556677/1700000000@${COPY_DIGEST}`;
+    const copy = `127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/promotion/0011223344556677/1700000000@${COPY_DIGEST}`;
     const db = fakeDb([
       [
         {
-          registryRepository: 'gateway/promotion/0011223344556677/1700000000',
+          registryRepository: `${LEGACY_REGISTRY_NAMESPACE}/promotion/0011223344556677/1700000000`,
           digest: COPY_DIGEST,
           sourceImageReference: BUILT,
           repositoryFullPath: null,
@@ -77,7 +81,7 @@ describe('resolveDockerImageOrigins', () => {
       ],
       [
         {
-          registryRepository: `gateway/builds/${BINDING}`,
+          registryRepository: `${LEGACY_REGISTRY_NAMESPACE}/builds/${BINDING}`,
           digest: DIGEST,
           sourceImageReference: null,
           repositoryFullPath: 'acme/shop-api',
@@ -93,11 +97,11 @@ describe('resolveDockerImageOrigins', () => {
   });
 
   it('answers an Availability mirror of a public image with that image', async () => {
-    const mirror = '127.0.0.1:5443/gateway/availability/policy-1:image';
+    const mirror = `127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1:image`;
     const db = fakeDb([
       [
         {
-          registryRepository: 'gateway/availability/policy-1',
+          registryRepository: `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1`,
           digest: COPY_DIGEST,
           sourceImageReference: 'ghcr.io/acme/web:1.4.2',
           repositoryFullPath: null,

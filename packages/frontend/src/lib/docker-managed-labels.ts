@@ -1,11 +1,12 @@
+import { LEGACY_LABEL_PREFIX } from "../../../backend/src/lib/legacy-compat";
 /**
  * Labels Opfield puts on the Docker objects it manages. Docker daemons of 2.12.1 and later write `net.opfield.<rest>`
  * and move an object to those keys when they next recreate it; objects created earlier still carry
- * `wiolett.gateway.<rest>`. Readers take the `net.opfield.` key first.
+ * LEGACY_LABEL_PREFIX<rest>. Readers take the `net.opfield.` key first.
  */
 export const OPFIELD_LABEL_PREFIX = "net.opfield.";
-// legacy-name: wiolett.gateway.* Docker labels — remove once every node reports none
-export const LEGACY_LABEL_PREFIX = "wiolett.gateway.";
+// legacy-name: pre-2.12.1 Docker labels — remove once every node reports none
+export { LEGACY_LABEL_PREFIX };
 
 type Labels = Record<string, string | undefined> | null | undefined;
 

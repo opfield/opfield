@@ -16,7 +16,7 @@ import {
 } from './ai.docker-archive-transfer.js';
 
 /**
- * One-time links for MCP archive transfer: an agent's shell streams a .gwca
+ * One-time links for MCP archive transfer: an agent's shell streams a .ofca
  * archive to import with `curl -T`, or saves an export with `curl -o`, instead
  * of carrying base64 chunks through tool calls. A link is bound to its owner,
  * the MCP token scopes and the exact import target or export it was made for;
@@ -105,9 +105,9 @@ export async function createDockerArchiveUploadLink(user: User, args: Record<str
     maxBytes: ARCHIVE_MAX_BYTES,
     nodeId: target.nodeId,
     name: target.name,
-    commands: { file: `curl -sS --fail-with-body -T container.gwca ${shellQuote(url)}` },
+    commands: { file: `curl -sS --fail-with-body -T container.ofca ${shellQuote(url)}` },
     usage:
-      'Run the command from a shell that has the archive (replace container.gwca with its path). Only an Opfield container archive (.gwca) is accepted, not a folder or a plain tar. The link works once: the response is { data: { container } } with the new, stopped container. A failed or interrupted transfer imports nothing; create a new link to retry.',
+      'Run the command from a shell that has the archive (replace container.ofca with its path). Only an Opfield container archive (.ofca) is accepted, not a folder or a plain tar. The link works once: the response is { data: { container } } with the new, stopped container. A failed or interrupted transfer imports nothing; create a new link to retry.',
   };
 }
 
@@ -119,7 +119,7 @@ export async function importDockerArchiveUploadLink(token: string, body: Readabl
   const { target } = grant;
   // POST /containers/archive entry checks, with the current grants, before anything reaches the node.
   await assertArchiveImportAccess(user, target.nodeId, target.folderId);
-  if (!body) throw new AppError(400, 'GWCA_EMPTY', 'Container archive body is required');
+  if (!body) throw new AppError(400, 'OFCA_EMPTY', 'Container archive body is required');
   const imported = await importDockerContainerArchive({
     nodeId: target.nodeId,
     name: target.name,
@@ -170,7 +170,7 @@ export async function openDockerArchiveDownloadLink(token: string): Promise<Resp
   const data = await archive.source();
   return new Response(Buffer.isBuffer(data) ? new Uint8Array(data) : data, {
     headers: {
-      'Content-Type': prepared.access.kind === 'container' ? 'application/vnd.opfield.gwca' : 'application/gzip',
+      'Content-Type': prepared.access.kind === 'container' ? 'application/vnd.opfield.ofca' : 'application/gzip',
       'Content-Disposition': `attachment; filename="${archive.filename}"`,
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',

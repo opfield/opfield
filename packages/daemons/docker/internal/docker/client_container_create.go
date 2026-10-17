@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/netip"
@@ -538,8 +539,8 @@ func dockerDaemonConfigPath() string {
 	if value := strings.TrimSpace(os.Getenv("OPFIELD_DOCKER_DAEMON_CONFIG")); value != "" {
 		return value
 	}
-	// legacy-name: GATEWAY_DOCKER_DAEMON_CONFIG of pre-Opfield service environments — remove once every node reports none
-	if value := strings.TrimSpace(os.Getenv("GATEWAY_DOCKER_DAEMON_CONFIG")); value != "" {
+	// legacy-name: legacycompat.EnvPrefixDOCKER_DAEMON_CONFIG of pre-Opfield service environments — remove once every node reports none
+	if value := strings.TrimSpace(os.Getenv(legacycompat.EnvPrefix + "DOCKER_DAEMON_CONFIG")); value != "" {
 		return value
 	}
 	return defaultDockerDaemonConfig
@@ -789,13 +790,13 @@ var reservedDockerLabelPrefixes = []string{
 	// The pre-Opfield namespaces stay reserved for good: objects created
 	// before Opfield still carry them, and a user label must never pass for
 	// one of their managed labels.
-	"wiolett.gateway.",
-	"net.wiolett.gateway.",
-	"com.wiolett.gateway.",
+	legacycompat.LabelPrefix,
+	legacycompat.NetLabelPrefix,
+	legacycompat.ComLabelPrefix,
 }
 
 func isReservedDockerLabel(key string) bool {
-	if key == "gateway.sandbox" {
+	if key == legacycompat.SandboxLabel {
 		return true
 	}
 	for _, prefix := range reservedDockerLabelPrefixes {

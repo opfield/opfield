@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { relayInstances } from '@/db/schema/index.js';
 import type { RelayControlClient, RelayHealthResponse } from '@/grpc/relay-control.client.js';
+import { LEGACY_LOCK_RELAY_RECOVERY } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -782,7 +783,7 @@ export class RelaySupervisorService implements LocalRelayOutageSignal {
 
   private async allocateAttempt(attempt: number, startedAt: string): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-recovery'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_RECOVERY}))`);
       this.state = {
         ...this.state,
         state: 'recovering',

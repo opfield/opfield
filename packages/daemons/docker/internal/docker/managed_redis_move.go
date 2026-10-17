@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"hash/fnv"
 	"io"
 	"net"
@@ -210,7 +211,7 @@ func (m *managedDatabaseManager) switchRedisToValkey(ctx context.Context, record
 		m.logger.Warn("remove the Redis data of a key-value store moved to Valkey", "id", previous.ID, "error", err)
 	}
 	if previous.RedisConfigHash != "" && previous.RedisConfigHash != record.RedisConfigHash {
-		if err := os.Remove(filepath.Join(record.MountPath, "gateway-redis-"+previous.RedisConfigHash+".conf")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(filepath.Join(record.MountPath, legacycompat.RedisConfigPrefix+previous.RedisConfigHash+".conf")); err != nil && !errors.Is(err, os.ErrNotExist) {
 			m.logger.Warn("remove superseded managed Redis config", "id", previous.ID, "error", err)
 		}
 	}
@@ -599,10 +600,10 @@ func (c *redisMoveKeyCopier) copyStream(ctx context.Context, key string) error {
 	}
 	if entries == 0 {
 		// An empty stream exists only through a consumer group.
-		if err := c.out.emit("XGROUP", "CREATE", key, "gateway-move", "$", "MKSTREAM"); err != nil {
+		if err := c.out.emit("XGROUP", "CREATE", key, legacycompat.RedisMoveGroup, "$", "MKSTREAM"); err != nil {
 			return err
 		}
-		if err := c.out.emit("XGROUP", "DESTROY", key, "gateway-move"); err != nil {
+		if err := c.out.emit("XGROUP", "DESTROY", key, legacycompat.RedisMoveGroup); err != nil {
 			return err
 		}
 	}

@@ -1,4 +1,5 @@
 import { managedLabel } from "@/lib/docker-managed-labels";
+import { LEGACY_REGISTRY_NAMESPACE } from "../../../backend/src/lib/legacy-compat";
 
 /** Managed label holding the image reference an imported archive was built from. */
 export const ARCHIVE_IMAGE_REFERENCE_LABEL = "archive.image.reference";
@@ -10,7 +11,11 @@ export function resolveDeploymentImageReference(
   inspect?: Record<string, any>
 ): string {
   const isPublicReference = (value?: string | null) =>
-    Boolean(value && !/^sha256:/i.test(value) && !/(^|\/)gateway\/availability\//i.test(value));
+    Boolean(
+      value &&
+        !/^sha256:/i.test(value) &&
+        !new RegExp(String.raw`(^|\/)${LEGACY_REGISTRY_NAMESPACE}\/availability\/`, "i").test(value)
+    );
   const inspectedImage = inspect && resolveContainerImageReference(inspect);
   if (isPublicReference(inspectedImage)) return inspectedImage!;
   if (isPublicReference(image)) return image!;

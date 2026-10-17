@@ -27,8 +27,8 @@ import {
 } from './opfield-names.js';
 
 /**
- * The host move: an installation made before 2.12.1 (/opt/gateway, Compose project `gateway`, database and role
- * `gateway`) gets the Opfield layout (/opt/opfield, project `opfield`, database and role `opfield`). Docker volumes keep
+ * The host move: an installation made before 2.12.1 (the legacy install directory, Compose project LEGACY_INSTALL_DIR_NAME, database and role
+ * LEGACY_INSTALL_DIR_NAME) gets the Opfield layout (/opt/opfield, project `opfield`, database and role `opfield`). Docker volumes keep
  * their names. It runs after an update to 2.12.1 has settled (the earlier version's rollback can no longer start), in
  * its own container that Docker restarts after a crash or reboot, and it resumes from the step it recorded.
  *
@@ -199,7 +199,7 @@ export interface HostMoveTarget {
   network: string;
 }
 
-/** Where an installation in `dir` moves to: a sibling `opfield` for `…/gateway`, otherwise it stays. */
+/** Where an installation in `dir` moves to: a sibling `opfield` for the legacy directory name, otherwise it stays. */
 export function hostMoveNewDir(dir: string): string {
   return path.basename(dir) === LEGACY_INSTALL_DIR_NAME ? path.join(path.dirname(dir), OPFIELD_INSTALL_DIR_NAME) : dir;
 }
@@ -841,7 +841,7 @@ async function moveDirectory(host: HostMoveHost, state: HostMoveState): Promise<
  * it is empty.
  */
 async function foldLegacyBackups(host: HostMoveHost, dir: string): Promise<void> {
-  // legacy-name: `.gateway-foundation-backups` of updates before 2.12.1 — remove once every installation reports the
+  // legacy-name: `LEGACY_FOUNDATION_BACKUP_DIR` of updates before 2.12.1 — remove once every installation reports the
   // Opfield layout.
   const legacy = path.join(dir, LEGACY_FOUNDATION_BACKUPS_DIR);
   const current = path.join(dir, FOUNDATION_BACKUPS_DIR);

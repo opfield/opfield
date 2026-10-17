@@ -1,3 +1,4 @@
+import { LEGACY_CORE_API_PREFIX } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { type InferenceCoreHealthIdentity, inferenceCoreHealthIdentitySchema } from './inference-core.contract.js';
 
@@ -87,7 +88,7 @@ export class InferenceCoreClient {
 
   /** Opfield-only extended status (drain state + identity). */
   async drainStatus(): Promise<{ draining: boolean; drained?: boolean } | null> {
-    const response = await this.request('GET', '/api/wiolett/status');
+    const response = await this.request('GET', `${LEGACY_CORE_API_PREFIX}status`);
     if (!response || response.status !== 200) return null;
     const body = response.body as { draining?: unknown; drained?: unknown };
     return {
@@ -451,7 +452,7 @@ export class InferenceCoreClient {
 
   /** Ask the core to stop accepting new work and finish in-flight turns. */
   async drain(): Promise<void> {
-    const response = await this.request('POST', '/api/wiolett/drain');
+    const response = await this.request('POST', `${LEGACY_CORE_API_PREFIX}drain`);
     if (!response || response.status !== 200) {
       throw new InferenceCoreClientError(`Core drain failed (${response?.status ?? 'unreachable'})`, response?.status);
     }
@@ -459,7 +460,7 @@ export class InferenceCoreClient {
 
   /** Resume after a drain (used when an update aborts before replacement). */
   async resume(): Promise<void> {
-    const response = await this.request('POST', '/api/wiolett/resume');
+    const response = await this.request('POST', `${LEGACY_CORE_API_PREFIX}resume`);
     if (!response || response.status !== 200) {
       throw new InferenceCoreClientError(`Core resume failed (${response?.status ?? 'unreachable'})`, response?.status);
     }

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { auditContextMiddleware } from '@/middleware/audit-context.js';
 import { AppError, errorHandler } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -228,7 +229,7 @@ describe('browser-session routes', () => {
       getUserById: vi.fn().mockResolvedValue(actor),
     } as unknown as AuthService);
     container.registerInstance(GeneralSettingsService, {
-      requirePublicUrl: vi.fn().mockResolvedValue('https://gateway.example.com'),
+      requirePublicUrl: vi.fn().mockResolvedValue('https://opfield.example.com'),
     } as unknown as GeneralSettingsService);
     container.registerInstance(AuditService, { log: auditLog } as unknown as AuditService);
 
@@ -282,10 +283,10 @@ describe('OIDC callback route', () => {
     const handleCallback = vi.fn().mockResolvedValue({ sessionId: 'new-session-id', user: USER });
     container.registerInstance(AuthService, { handleCallback } as unknown as AuthService);
     container.registerInstance(OidcSettingsService, {
-      getRuntimeConfig: vi.fn().mockResolvedValue({ redirectUri: 'https://gateway.example.com/auth/callback' }),
+      getRuntimeConfig: vi.fn().mockResolvedValue({ redirectUri: 'https://opfield.example.com/auth/callback' }),
     } as unknown as OidcSettingsService);
     container.registerInstance(GeneralSettingsService, {
-      requirePublicUrl: vi.fn().mockResolvedValue('https://gateway.example.com'),
+      requirePublicUrl: vi.fn().mockResolvedValue('https://opfield.example.com'),
     } as unknown as GeneralSettingsService);
     container.registerInstance(NetworkSettingsService, {
       getConfig: vi.fn().mockResolvedValue({
@@ -308,7 +309,7 @@ describe('OIDC callback route', () => {
 
     expect(response.status).toBe(302);
     expect(handleCallback).toHaveBeenCalledWith(
-      'https://gateway.example.com/auth/callback?code=code&state=state',
+      'https://opfield.example.com/auth/callback?code=code&state=state',
       'state',
       {
         ipAddress: '203.0.113.10',
@@ -320,14 +321,14 @@ describe('OIDC callback route', () => {
 
   it('preserves a same-origin return path through the frontend callback', async () => {
     registerDependencies();
-    const returnTo = 'https://gateway.example.com/proxy-hosts/route-1?tab=ssl';
+    const returnTo = 'https://opfield.example.com/proxy-hosts/route-1?tab=ssl';
     const handleCallback = vi.fn().mockResolvedValue({ sessionId: 'new-session-id', user: USER, returnTo });
     container.registerInstance(AuthService, { handleCallback } as unknown as AuthService);
     container.registerInstance(OidcSettingsService, {
-      getRuntimeConfig: vi.fn().mockResolvedValue({ redirectUri: 'https://gateway.example.com/auth/callback' }),
+      getRuntimeConfig: vi.fn().mockResolvedValue({ redirectUri: 'https://opfield.example.com/auth/callback' }),
     } as unknown as OidcSettingsService);
     container.registerInstance(GeneralSettingsService, {
-      requirePublicUrl: vi.fn().mockResolvedValue('https://gateway.example.com'),
+      requirePublicUrl: vi.fn().mockResolvedValue('https://opfield.example.com'),
     } as unknown as GeneralSettingsService);
     container.registerInstance(NetworkSettingsService, {
       getConfig: vi.fn().mockResolvedValue({
@@ -346,7 +347,7 @@ describe('OIDC callback route', () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe(
-      `https://gateway.example.com/callback?return_to=${encodeURIComponent(returnTo)}`
+      `https://opfield.example.com/callback?return_to=${encodeURIComponent(returnTo)}`
     );
   });
 });
@@ -358,13 +359,15 @@ describe('OIDC login CSRF binding', () => {
       handleCallback,
       getAuthorizationUrl: vi
         .fn()
-        .mockResolvedValue('https://idp.example.com/authorize?client_id=gateway&state=state-from-login'),
+        .mockResolvedValue(
+          `https://idp.example.com/authorize?client_id=${LEGACY_INSTALL_DIR_NAME}&state=state-from-login`
+        ),
     } as unknown as AuthService);
     container.registerInstance(OidcSettingsService, {
-      getRuntimeConfig: vi.fn().mockResolvedValue({ redirectUri: 'https://gateway.example.com/auth/callback' }),
+      getRuntimeConfig: vi.fn().mockResolvedValue({ redirectUri: 'https://opfield.example.com/auth/callback' }),
     } as unknown as OidcSettingsService);
     container.registerInstance(GeneralSettingsService, {
-      requirePublicUrl: vi.fn().mockResolvedValue('https://gateway.example.com'),
+      requirePublicUrl: vi.fn().mockResolvedValue('https://opfield.example.com'),
     } as unknown as GeneralSettingsService);
     container.registerInstance(NetworkSettingsService, {
       getConfig: vi.fn().mockResolvedValue({
@@ -395,7 +398,7 @@ describe('OIDC login CSRF binding', () => {
 
   it('moves a login started on another origin to the callback origin before binding state', async () => {
     const { app } = registerOidcRouteDependencies();
-    const returnTo = 'https://gateway.example.com/nodes';
+    const returnTo = 'https://opfield.example.com/nodes';
 
     const response = await app.request(`/auth/login?return_to=${encodeURIComponent(returnTo)}`, {
       headers: { host: '192.168.1.10:3000' },
@@ -403,7 +406,7 @@ describe('OIDC login CSRF binding', () => {
 
     expect(response.status).toBe(302);
     const location = new URL(response.headers.get('location') ?? '');
-    expect(location.origin + location.pathname).toBe('https://gateway.example.com/auth/login');
+    expect(location.origin + location.pathname).toBe('https://opfield.example.com/auth/login');
     expect(location.searchParams.get('return_to')).toBe(returnTo);
     expect(response.headers.get('set-cookie')).toBeNull();
   });
@@ -412,7 +415,7 @@ describe('OIDC login CSRF binding', () => {
     const { app } = registerOidcRouteDependencies();
 
     const response = await app.request('/auth/login', {
-      headers: { host: 'gateway.example.com', 'x-forwarded-proto': 'https' },
+      headers: { host: 'opfield.example.com', 'x-forwarded-proto': 'https' },
     });
 
     expect(response.headers.get('location')).toContain('https://idp.example.com/authorize');

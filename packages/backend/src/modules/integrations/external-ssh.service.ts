@@ -5,6 +5,7 @@ import ssh2, { Client } from 'ssh2';
 import type { DrizzleClient } from '@/db/client.js';
 import { externalSshConnectors, nodes } from '@/db/schema/index.js';
 import { normalizeIp } from '@/lib/ip-cidr.js';
+import { LEGACY_INSTALLATION_HOSTNAMES } from '@/lib/legacy-compat.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { CryptoService } from '@/services/crypto.service.js';
@@ -431,12 +432,7 @@ export class ExternalSshService {
         'opfield-proxy',
         // legacy-name: host names of installations set up before 2.12.1 — remove once every installation runs the
         // Opfield layout
-        'gateway',
-        'gateway-backend',
-        'gateway-frontend',
-        'gateway-daemon',
-        'gateway-agent',
-        'gateway-proxy',
+        ...LEGACY_INSTALLATION_HOSTNAMES,
         'postgres',
         'redis',
         'localhost',

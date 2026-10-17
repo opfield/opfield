@@ -1,3 +1,5 @@
+import { LEGACY_AUDIT_MOVE_PREFIX } from "../../../../backend/src/lib/legacy-compat";
+
 const AUDIT_TOKEN_ACRONYMS = new Set([
   "acme",
   "ai",
@@ -544,8 +546,8 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "system.opfield_move_announced": "Announced a new address to nodes",
   "system.opfield_move_withdrawn": "Withdrew the new address",
   // legacy-name: audit rows written before 2.12.1 keep these action names — remove once audit retention dropped them
-  "system.gateway_move_announced": "Announced a new address to nodes",
-  "system.gateway_move_withdrawn": "Withdrew the new address",
+  [`${LEGACY_AUDIT_MOVE_PREFIX}announced`]: "Announced a new address to nodes",
+  [`${LEGACY_AUDIT_MOVE_PREFIX}withdrawn`]: "Withdrew the new address",
   "system.identity.renew": "Renewed Opfield identity",
   "system.relay.instance.drain": "Drained relay",
   "system.relay.instance.resume": "Resumed relay",

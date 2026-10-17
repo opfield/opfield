@@ -63,6 +63,7 @@ import type {
   Node,
   NodeAppearanceColor,
 } from "@/types";
+import { LEGACY_INTERNAL_REGISTRY_ID } from "../../../backend/src/lib/legacy-compat";
 import { filterDockerImages } from "./docker-images-filter";
 import {
   type DockerImageUsageContainer,
@@ -177,7 +178,7 @@ export function DockerImages({
   const loadImagePageState = useCallback(async () => {
     try {
       const regs = await api.listDockerRegistries();
-      setRegistries(regs.filter((registry) => registry.id !== "gateway-internal-registry"));
+      setRegistries(regs.filter((registry) => registry.id !== LEGACY_INTERNAL_REGISTRY_ID));
     } catch {}
 
     if (embedded && !fixedNodeId) {

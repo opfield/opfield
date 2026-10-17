@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { LEGACY_INFERENCE_ERROR_TYPE } from '@/lib/legacy-compat.js';
 import type { AppEnv } from '@/types.js';
 import { retryAfterSecondsFromDetails } from './core/inference-retry-after.js';
 
@@ -47,7 +48,7 @@ export function inferenceErrorResponse(
     {
       error: {
         message,
-        type: status === 401 ? 'invalid_request_error' : 'gateway_error',
+        type: status === 401 ? 'invalid_request_error' : LEGACY_INFERENCE_ERROR_TYPE,
         param: null,
         code,
         ...(details ? { details } : {}),

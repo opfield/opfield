@@ -67,6 +67,7 @@ import type {
   DockerSourceBinding,
   DockerWebhook,
 } from "@/types";
+import { LEGACY_REGISTRY_NAMESPACE } from "../../../backend/src/lib/legacy-compat";
 import {
   DeploymentConfig,
   DeploymentOverview,
@@ -598,7 +599,7 @@ export function DockerDeploymentDetail({
         image &&
         !/^sha256:[0-9a-f]{64}$/i.test(image) &&
         !/^127\.0\.0\.1:5443\//i.test(image) &&
-        !/(^|\/)gateway\/availability\//i.test(image)
+        !new RegExp(String.raw`(^|\/)${LEGACY_REGISTRY_NAMESPACE}\/availability\/`, "i").test(image)
     ) ??
     active?.image ??
     deployment?.desiredConfig.image;

@@ -275,7 +275,7 @@ func (w *world) closeGracefully() {
 			}
 		}
 	}
-	w.logf("gateway closes gracefully, retained %v", w.retained)
+	w.logf("opfield closes gracefully, retained %v", w.retained)
 	w.closeLease()
 }
 
@@ -284,7 +284,7 @@ func (w *world) reopen(bootstrap map[uint32]string) {
 	w.closed, w.retained = false, nil
 	w.bootstrapID = max(w.bootstrapID, 1) + 1
 	w.bootstrapSlots = bootstrap
-	w.logf("gateway reopens, bootstrap %v", bootstrap)
+	w.logf("opfield reopens, bootstrap %v", bootstrap)
 	w.publishManifest()
 }
 

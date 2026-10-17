@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_NGINX_RUN_PREFIX } from '@/lib/legacy-compat.js';
 import { managedSecureLinkUpstreamBody } from './nginx-availability-upstream.js';
 import {
   referencedSecureLinkIds,
@@ -29,13 +30,16 @@ describe('Secure Link loopback endpoints', () => {
 
   it('points the upstream servers of known links at their endpoints and leaves everything else alone', () => {
     const config = [
-      `upstream link {\n${managedSecureLinkUpstreamBody([`/run/gateway-secure-links/${LINK}.sock`], false)}\n}`,
+      `upstream link {\n${managedSecureLinkUpstreamBody([`${LEGACY_NGINX_RUN_PREFIX}secure-links/${LINK}.sock`], false)}\n}`,
       `upstream members {\n${managedSecureLinkUpstreamBody(
-        [`/run/gateway-secure-links/${MEMBER}.sock`, `/run/gateway-secure-links/${OTHER}.sock`],
+        [
+          `${LEGACY_NGINX_RUN_PREFIX}secure-links/${MEMBER}.sock`,
+          `${LEGACY_NGINX_RUN_PREFIX}secure-links/${OTHER}.sock`,
+        ],
         true
       )}\n}`,
-      `upstream registry {\n    server unix:/run/gateway-registry-links/${LINK}.sock;\n}`,
-      `location /raw { proxy_pass http://unix:/run/gateway-secure-links/${LINK}.sock:/; }`,
+      `upstream registry {\n    server unix:${LEGACY_NGINX_RUN_PREFIX}registry-links/${LINK}.sock;\n}`,
+      `location /raw { proxy_pass http://unix:${LEGACY_NGINX_RUN_PREFIX}secure-links/${LINK}.sock:/; }`,
     ].join('\n');
     expect(referencedSecureLinkIds(config).sort()).toEqual([LINK, MEMBER, OTHER]);
     const rewritten = withSecureLinkLoopbackUpstreams(
@@ -49,9 +53,11 @@ describe('Secure Link loopback endpoints', () => {
     expect(rewritten).toContain('    server 127.64.0.2:17613 max_fails=1 fail_timeout=1s;');
     expect(rewritten).toContain('    server 127.64.0.2:17613 max_fails=0 backup;');
     // A link without an endpoint keeps its socket; so do the registry and a direct unix proxy_pass.
-    expect(rewritten).toContain(`    server unix:/run/gateway-secure-links/${OTHER}.sock max_fails=1 fail_timeout=1s;`);
-    expect(rewritten).toContain(`server unix:/run/gateway-registry-links/${LINK}.sock;`);
-    expect(rewritten).toContain(`proxy_pass http://unix:/run/gateway-secure-links/${LINK}.sock:/;`);
+    expect(rewritten).toContain(
+      `    server unix:${LEGACY_NGINX_RUN_PREFIX}secure-links/${OTHER}.sock max_fails=1 fail_timeout=1s;`
+    );
+    expect(rewritten).toContain(`server unix:${LEGACY_NGINX_RUN_PREFIX}registry-links/${LINK}.sock;`);
+    expect(rewritten).toContain(`proxy_pass http://unix:${LEGACY_NGINX_RUN_PREFIX}secure-links/${LINK}.sock:/;`);
     expect(withSecureLinkLoopbackUpstreams(config, new Map())).toBe(config);
   });
 });

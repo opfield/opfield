@@ -274,7 +274,7 @@ func selfTest(_ []string) error {
 	return nil
 }
 
-// migrateLegacyService moves a node from the pre-Opfield gateway-lease-watchdog
+// migrateLegacyService moves a node from the pre-Opfield watchdog
 // service to opfield-lease-watchdog once this watchdog enforces (its first
 // pass ran), so the switch-over gap is one stop and one start.
 func migrateLegacyService(ctx context.Context, logger *slog.Logger) {

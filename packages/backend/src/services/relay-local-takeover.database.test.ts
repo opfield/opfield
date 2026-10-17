@@ -246,7 +246,7 @@ describe.skipIf(!url)('local relay takeover during a Relay Pool update', () => {
       .where(eq(relayEndpoints.id, workload.endpointId));
     await db
       .insert(schema.relayPolicyState)
-      .values({ id: 'current', gatewayInstanceId: randomUUID(), revision: 1 })
+      .values({ id: 'current', opfieldInstanceId: randomUUID(), revision: 1 })
       .onConflictDoNothing();
     const { service } = poolService();
 

@@ -17,7 +17,7 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     // The console is served from its public origin, so origin-derived text reads real.
-    environmentOptions: { jsdom: { url: "https://gateway.example.com/" } },
+    environmentOptions: { jsdom: { url: "https://opfield.example.com/" } },
     setupFiles: [
       path.resolve(frontendRoot, "src/test/setup.ts"),
       path.resolve(__dirname, "setup.ts"),

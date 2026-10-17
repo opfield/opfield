@@ -30,6 +30,7 @@ import {
   usePlanIncludes,
 } from "@/stores/license-paywall";
 import type { DockerInternalRegistryState, Node, SSLCertificate } from "@/types";
+import { LEGACY_INTERNAL_REGISTRY_ID } from "../../../../backend/src/lib/legacy-compat";
 import { InternalRegistryStorageRows, useRegistryStorageForm } from "./InternalRegistryStorageRows";
 
 interface InternalRegistrySectionProps {
@@ -227,7 +228,7 @@ export function InternalRegistrySection({ nodesList }: InternalRegistrySectionPr
     "docker.registry.changed",
     (payload) => {
       const event = payload as { id?: string; action?: string } | undefined;
-      if (event?.id !== "gateway-internal-registry") return;
+      if (event?.id !== LEGACY_INTERNAL_REGISTRY_ID) return;
       void api
         .getDockerInternalRegistryState()
         .then((next) =>

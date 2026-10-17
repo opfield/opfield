@@ -9,9 +9,9 @@ import { ago, ahead, uuid } from "../time";
 
 export const PAGES_DOMAIN = "pages.example.com";
 
-const GATEWAY_ISOLATION = {
-  gatewayHost: "gateway.example.com",
-  gatewayRegistrableDomain: "example.com",
+const OPFIELD_ISOLATION = {
+  opfieldHost: "opfield.example.com",
+  opfieldRegistrableDomain: "example.com",
 };
 
 /** pages.example.com shares example.com with the console; pages.example.net does not. */
@@ -23,7 +23,7 @@ export const pagesProfileOptions: PageProfileOptions = {
       dnsStatus: "valid",
       nginxNodeId: edgeNode.id,
       isolation: {
-        ...GATEWAY_ISOLATION,
+        ...OPFIELD_ISOLATION,
         pagesHost: PAGES_DOMAIN,
         pagesRegistrableDomain: "example.com",
         same: true,
@@ -35,7 +35,7 @@ export const pagesProfileOptions: PageProfileOptions = {
       dnsStatus: "valid",
       nginxNodeId: edgeNode.id,
       isolation: {
-        ...GATEWAY_ISOLATION,
+        ...OPFIELD_ISOLATION,
         pagesHost: "pages.example.net",
         pagesRegistrableDomain: "example.net",
         same: false,
@@ -109,7 +109,7 @@ export const pagesProfileConfigured: PageProfile = {
     notAfter: sharedCertificate.notAfter,
   },
   isolation: {
-    ...GATEWAY_ISOLATION,
+    ...OPFIELD_ISOLATION,
     pagesHost: PAGES_DOMAIN,
     pagesRegistrableDomain: "example.com",
     same: true,

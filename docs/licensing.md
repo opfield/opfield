@@ -138,7 +138,7 @@ Contact [support@opfield.dev](mailto:support@opfield.dev) or [Opfield on Telegra
 
 Opfield verifies paid product license keys with the Opfield license server and finds it automatically:
 it keeps an up-to-date list of the license server's addresses and uses whichever answers. Today these are
-`https://license.opfield.dev`, `https://license.thesqlabs.com` and `https://license.wiolett.cloud`; allow them in an
+`https://license.opfield.dev` and `https://license.thesqlabs.com`; allow them in an
 egress allowlist, together with the update host `https://get.opfield.dev`.
 
 To send license requests through an address of your own, such as an egress proxy, set `LICENSE_SERVICE_URL` in

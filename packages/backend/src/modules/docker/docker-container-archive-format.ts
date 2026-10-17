@@ -1,17 +1,18 @@
 import { z } from 'zod';
+import { LEGACY_LABEL_PREFIX } from '@/lib/legacy-compat.js';
 
 const DOCKER_IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 const IMMUTABLE_IMAGE_REFERENCE = /@sha256:[0-9a-f]{64}$/;
 
 const StringMapSchema = z.record(z.string(), z.string());
-const GwcaPortSchema = z
+const OfcaPortSchema = z
   .object({
     containerPort: z.number().int().min(1).max(65535),
     hostPort: z.number().int().min(0).max(65535),
     protocol: z.enum(['tcp', 'udp']),
   })
   .strict();
-const GwcaMountSchema = z
+const OfcaMountSchema = z
   .object({
     type: z.enum(['bind', 'volume']),
     source: z.string().min(1),
@@ -23,7 +24,7 @@ const GwcaMountSchema = z
     requiresMapping: z.boolean().optional(),
   })
   .strict();
-const GwcaNetworkSchema = z
+const OfcaNetworkSchema = z
   .object({
     name: z.string().min(1),
     driver: z.string().optional(),
@@ -35,7 +36,7 @@ const GwcaNetworkSchema = z
   })
   .strict();
 
-export const GwcaContainerSchema = z
+export const OfcaContainerSchema = z
   .object({
     schemaVersion: z.literal(1),
     name: z.string().min(1),
@@ -49,9 +50,9 @@ export const GwcaContainerSchema = z
     labels: StringMapSchema.optional(),
     environment: StringMapSchema.optional(),
     secrets: StringMapSchema.optional(),
-    ports: z.array(GwcaPortSchema).max(256).optional(),
-    mounts: z.array(GwcaMountSchema).max(256).optional(),
-    networks: z.array(GwcaNetworkSchema).max(64).optional(),
+    ports: z.array(OfcaPortSchema).max(256).optional(),
+    mounts: z.array(OfcaMountSchema).max(256).optional(),
+    networks: z.array(OfcaNetworkSchema).max(64).optional(),
     restartPolicy: z.enum(['', 'no', 'always', 'unless-stopped', 'on-failure']).optional(),
     maxRetries: z.number().int().min(0).optional(),
     stopTimeout: z.number().int().min(0).max(300).nullable().optional(),
@@ -77,33 +78,33 @@ export const GwcaContainerSchema = z
     }
   });
 
-export type GwcaContainerManifest = z.infer<typeof GwcaContainerSchema>;
+export type OfcaContainerManifest = z.infer<typeof OfcaContainerSchema>;
 
 const RESERVED_LABEL_PREFIXES = [
   'com.docker.compose.',
   'net.opfield.archive.',
   'net.opfield.deployment.',
   'net.opfield.migration.',
-  // legacy-name: wiolett.gateway.* labels — remove once every node reports none
-  'wiolett.gateway.archive.',
-  'wiolett.gateway.deployment.',
-  'wiolett.gateway.migration.',
+  // legacy-name: LEGACY_LABEL_PREFIX* labels — remove once every node reports none
+  `${LEGACY_LABEL_PREFIX}archive.`,
+  `${LEGACY_LABEL_PREFIX}deployment.`,
+  `${LEGACY_LABEL_PREFIX}migration.`,
 ] as const;
 
-export function stripReservedGwcaLabels(labels: Record<string, string> | undefined): Record<string, string> {
+export function stripReservedOfcaLabels(labels: Record<string, string> | undefined): Record<string, string> {
   return Object.fromEntries(
     Object.entries(labels ?? {}).filter(([key]) => !RESERVED_LABEL_PREFIXES.some((prefix) => key.startsWith(prefix)))
   );
 }
 
-export const GwcaManifestSchema = z
+export const OfcaManifestSchema = z
   .object({
-    format: z.literal('gwca'),
+    format: z.literal('ofca'),
     version: z.literal(1),
     createdAt: z.string().datetime(),
     captureMode: z.enum(['image', 'container-commit-no-pause', 'registry-reference']),
     volumes: z.object({ contentsIncluded: z.literal(false) }).strict(),
-    container: GwcaContainerSchema,
+    container: OfcaContainerSchema,
     image: z
       .object({
         id: z.string().regex(DOCKER_IMAGE_ID),
@@ -124,9 +125,9 @@ export const GwcaManifestSchema = z
     }
   });
 
-export type GwcaManifest = z.infer<typeof GwcaManifestSchema>;
+export type OfcaManifest = z.infer<typeof OfcaManifestSchema>;
 
-export interface GwcaImportResolution {
+export interface OfcaImportResolution {
   networks?: Record<string, string>;
   createNetworks?: string[];
   volumes?: Record<string, string>;

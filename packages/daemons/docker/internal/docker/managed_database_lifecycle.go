@@ -8,6 +8,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"os"
 	"path/filepath"
@@ -295,7 +296,7 @@ func cutRedisMaxmemory(text string) (int64, string, bool) {
 // managedRedisBoundConfigPath is the config file the container was created
 // with; a live maxmemory change rewrites it under that name.
 func managedRedisBoundConfigPath(record managedDatabaseRecord) string {
-	return filepath.Join(record.MountPath, "gateway-redis-"+record.RedisConfigHash+".conf")
+	return filepath.Join(record.MountPath, legacycompat.RedisConfigPrefix+record.RedisConfigHash+".conf")
 }
 
 // repairRedisAOFRewrite rewrites a bound config file that turns the
@@ -382,7 +383,7 @@ func managedRedisConfigHash(input managedDatabaseCommand) string {
 }
 
 func managedRedisConfigPath(record managedDatabaseRecord, input managedDatabaseCommand) string {
-	return filepath.Join(record.MountPath, "gateway-redis-"+managedRedisConfigHash(input)+".conf")
+	return filepath.Join(record.MountPath, legacycompat.RedisConfigPrefix+managedRedisConfigHash(input)+".conf")
 }
 
 func clickHouseOwnerOverridePath(record managedDatabaseRecord) string {
@@ -616,7 +617,7 @@ func (m *managedDatabaseManager) recreateContainer(ctx context.Context, record *
 		}
 	}
 	if record.Type == "redis" && previous.RedisConfigHash != "" && previous.RedisConfigHash != record.RedisConfigHash {
-		previousConfigPath := filepath.Join(record.MountPath, "gateway-redis-"+previous.RedisConfigHash+".conf")
+		previousConfigPath := filepath.Join(record.MountPath, legacycompat.RedisConfigPrefix+previous.RedisConfigHash+".conf")
 		if err := os.Remove(previousConfigPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			m.logger.Warn("remove superseded managed Redis config", "id", previous.ID, "error", err)
 		}

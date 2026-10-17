@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"os"
@@ -39,7 +40,7 @@ const (
 	// mount point of a disk-image volume whose image could not be mounted.
 	volumePlaceholderSource = "opfield-volume-placeholder"
 	// legacy-name: placeholder mounted by a pre-Opfield daemon (until the next boot) — remove once every node reports none
-	legacyVolumePlaceholderSource = "gateway-volume-placeholder"
+	legacyVolumePlaceholderSource = legacycompat.VolumePlaceholderSource
 )
 
 // loopDevice is one bound loop device as sysfs reports it.

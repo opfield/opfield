@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"math/big"
 	"net"
 	"net/http"
@@ -248,10 +249,12 @@ func (muEngine) DialPeer(context.Context, string) (net.Conn, error) {
 // muMesh is the set's member mesh as a recreate sees it.
 type muMesh struct{}
 
-func (muMesh) Ensure(context.Context, string) (string, error) { return "gateway-set-test", nil }
-func (muMesh) Expose(string, string, uint16, string)          {}
-func (muMesh) ExtraHosts(string) []string                     { return []string{"primary-pg-repl:10.1.2.1"} }
-func (muMesh) Release(string)                                 {}
+func (muMesh) Ensure(context.Context, string) (string, error) {
+	return legacycompat.SetNetworkPrefix + "test", nil
+}
+func (muMesh) Expose(string, string, uint16, string) {}
+func (muMesh) ExtraHosts(string) []string            { return []string{"primary-pg-repl:10.1.2.1"} }
+func (muMesh) Release(string)                        {}
 
 // muPlainLoops mounts an image as a plain directory.
 func muPlainLoops() *loopHost {
@@ -348,7 +351,7 @@ func newMUFixture(t *testing.T, dataMajor, oldMajor, newMajor string) *muFixture
 	m.loops = muPlainLoops()
 	m.client = docker.client()
 	record := saveTestDatabase(t, m, muDB)
-	record.Type, record.ContainerID, record.ContainerName, record.NetworkName = "postgres", "old", "gwdb-"+muDB, "gateway-set-test"
+	record.Type, record.ContainerID, record.ContainerName, record.NetworkName = "postgres", "old", "gwdb-"+muDB, legacycompat.SetNetworkPrefix+"test"
 	record.AvailabilitySetID, record.AvailabilityMemberID = muSet, muMember
 	record.StorageSize, record.TLSEnabled, record.TLSCertificateID, record.OperationID = 1<<30, true, "leaf-1", "op-before"
 	if err := os.MkdirAll(filepath.Join(record.MountPath, pgdataDirName), 0o700); err != nil {
@@ -419,7 +422,7 @@ func TestAMemberCopyIsRecreatedOnANewImageUnderTheHold(t *testing.T) {
 	if created.Labels[pgMemberLabel] != muMember || created.Labels["net.opfield.availability.set"] != muSet {
 		t.Fatalf("the recreated container keeps the member labels: %v", created.Labels)
 	}
-	if len(created.Networks) != 1 || created.Networks[0] != "gateway-set-test" || len(created.ExtraHosts) == 0 {
+	if len(created.Networks) != 1 || created.Networks[0] != legacycompat.SetNetworkPrefix+"test" || len(created.ExtraHosts) == 0 {
 		t.Fatalf("the recreated container keeps the set network and mesh hosts: %+v", created)
 	}
 	record, err := f.m.loadRecord(muDB)

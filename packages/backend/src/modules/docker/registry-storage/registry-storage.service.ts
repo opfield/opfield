@@ -7,6 +7,7 @@ import {
   type RegistryStorageBackend,
   registryStorageFromContainerEnv,
 } from '@/foundation/registry-storage.js';
+import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -42,7 +43,7 @@ import {
 import { RegistryS3Client } from './s3-client.js';
 
 const logger = createChildLogger('DockerRegistryStorageService');
-const REGISTRY_ID = 'gateway-internal-registry';
+const REGISTRY_ID = LEGACY_INTERNAL_REGISTRY_ID;
 const RECOVERY_RETRY_MS = 60_000;
 /** Helpers a stopped Opfield left behind are looked for this often. */
 const LEFTOVER_SWEEP_MS = 30 * 60_000;

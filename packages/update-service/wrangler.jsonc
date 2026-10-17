@@ -1,6 +1,6 @@
 {
 	"$schema": "../../node_modules/wrangler/config-schema.json",
-	"name": "gateway-updates",
+	"name": "opfield-updates",
 	"main": "src/index.ts",
 	"account_id": "22dece7280b0afbe29b9ce6c79161b85",
 	"compatibility_date": "2026-08-27",

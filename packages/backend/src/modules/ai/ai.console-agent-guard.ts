@@ -1,5 +1,6 @@
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { LEGACY_RELAY_BINARY, LEGACY_RELAY_IDENTITY_DIR } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -38,8 +39,8 @@ const OPFIELD_NODE_DIRS = [
   '/etc/monitoring-daemon',
   '/var/lib/opfield-relay',
   '/etc/opfield-relay',
-  '/var/lib/gateway-relay',
-  '/etc/gateway-relay-supervisor',
+  LEGACY_RELAY_IDENTITY_DIR,
+  `/etc${LEGACY_RELAY_BINARY}-supervisor`,
 ];
 const OPFIELD_NODE_PROBE = `for d in ${OPFIELD_NODE_DIRS.join(' ')}; do [ -e "$d" ] && echo "$d"; done; true`;
 

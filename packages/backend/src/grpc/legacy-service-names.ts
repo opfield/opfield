@@ -1,11 +1,12 @@
 import type * as grpc from '@grpc/grpc-js';
+import { LEGACY_GRPC_PACKAGE } from '@/lib/legacy-compat.js';
 
 export const GRPC_PACKAGE_PATH_PREFIX = '/opfield.v1.';
-// legacy-name: gateway.v1 service names that 2.12.0 daemons call — remove once every node reports none
-export const LEGACY_GRPC_PACKAGE_PATH_PREFIX = '/gateway.v1.';
+// legacy-name: the legacy gRPC package service names that 2.12.0 daemons call — remove once every node reports none
+export const LEGACY_GRPC_PACKAGE_PATH_PREFIX = `/${LEGACY_GRPC_PACKAGE}.`;
 
 /**
- * The same service under its gateway.v1 name. The package name is not part of
+ * The same service under its LEGACY_GRPC_PACKAGE name. The package name is not part of
  * the protobuf wire encoding, so only the method paths differ.
  */
 export function legacyGrpcServiceDefinition(service: grpc.ServiceDefinition): grpc.ServiceDefinition {

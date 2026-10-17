@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import forge from 'node-forge';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { RelayControlClient } from './relay-control.client.js';
 import { loadRelayV1Proto } from './relay-proto.js';
 
@@ -44,7 +45,7 @@ function issueIdentities() {
   return {
     ca: forge.pki.certificateToPem(ca),
     server: leaf('relay', { name: 'extKeyUsage', serverAuth: true }),
-    client: leaf('gateway-app', { name: 'extKeyUsage', clientAuth: true }),
+    client: leaf(`${LEGACY_INSTALL_DIR_NAME}-app`, { name: 'extKeyUsage', clientAuth: true }),
   };
 }
 

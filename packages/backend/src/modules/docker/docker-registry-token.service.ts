@@ -24,7 +24,7 @@ export function configuredRegistryTokenService(environment: NodeJS.ProcessEnv = 
 export function isRegistryTokenService(service: string): boolean {
   return REGISTRY_TOKEN_SERVICES.includes(service);
 }
-const PRODUCTION_AUTH_DIR = '/var/lib/gateway-registry-auth';
+const PRODUCTION_AUTH_DIR = '/var/lib/opfield-registry-auth';
 const TOKEN_CERT_FILE = 'token-cert.pem';
 const TOKEN_KEY_FILE = 'token-key.pem';
 const MAX_TOKEN_TTL_SECONDS = 300;

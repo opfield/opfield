@@ -48,8 +48,8 @@ interface PveResource {
 type PveConfig = Record<string, string | number | undefined>;
 
 const DESCRIPTION_MARKER = /Opfield hosting (gw-[a-zA-Z0-9-]+)/;
-// legacy-name: Proxmox VM description "Gateway hosting <marker>" — remove once every hosting resource was reconciled by 2.12.1+
-const LEGACY_DESCRIPTION_MARKER = /Gateway hosting (gw-[a-zA-Z0-9-]+)/;
+// legacy-name: the pre-2.12.1 Proxmox VM description — remove once every hosting resource was reconciled by 2.12.1+
+const LEGACY_DESCRIPTION_MARKER = new RegExp(`${LEGACY_PRODUCT_TITLE} hosting (gw-[a-zA-Z0-9-]+)`);
 function description(marker: string): string {
   return `Opfield hosting ${marker}`;
 }
@@ -57,8 +57,8 @@ function description(marker: string): string {
 function seedFilenames(marker: string): string[] {
   return [
     `opfield-seed-${marker}.iso`,
-    // legacy-name: Proxmox seed ISO "gateway-seed-<marker>.iso" — remove once no create operation started before 2.12.1 is still preparing
-    `gateway-seed-${marker}.iso`,
+    // legacy-name: Proxmox seed ISO "LEGACY_HOSTING_SEED_PREFIX<marker>.iso" — remove once no create operation started before 2.12.1 is still preparing
+    `${LEGACY_HOSTING_SEED_PREFIX}${marker}.iso`,
   ];
 }
 /** Per-operation image imports, current name first. */
@@ -1155,7 +1155,7 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
   }
 
   /**
-   * Rewrites a description an older release wrote ("Gateway hosting <marker>") to the current form.
+   * Rewrites a description an older release wrote (LEGACY_DESCRIPTION_MARKER) to the current form.
    * Description only, compare-and-set on the config digest; any other text in the description is kept.
    */
   async rewriteLegacyMarker(resource: HostingResourceSnapshot): Promise<boolean> {
@@ -1287,8 +1287,8 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
   async guestIdentity(resource: HostingResourceSnapshot): Promise<string | null> {
     if (resource.kind !== 'vm' || !resource.capabilities.guestIdentity.available || resource.powerState !== 'running')
       return null;
-    // legacy-name: /var/lib/gateway/host-identity of guests installed before 2.12.1 — remove once every node reports none
-    for (const file of ['/var/lib/opfield/host-identity', '/var/lib/gateway/host-identity']) {
+    // legacy-name: host-identity in the legacy state root of guests installed before 2.12.1 — remove once every node reports none
+    for (const file of ['/var/lib/opfield/host-identity', `${LEGACY_STATE_ROOT}/host-identity`]) {
       try {
         const data = await this.request<{ content: string }>(`${this.base(resource)}/agent/file-read`, {
           // Proxmox VE 9.1 accepts only `file`; count/decode were introduced in later API revisions.
@@ -1321,4 +1321,5 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
   }
 }
 
+import { LEGACY_HOSTING_SEED_PREFIX, LEGACY_PRODUCT_TITLE, LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 import { VmSnapshotAdapter } from './vm-snapshots.js';

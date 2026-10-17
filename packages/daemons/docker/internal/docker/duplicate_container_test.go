@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -19,8 +20,8 @@ import (
 // source's database and storage link networks and their host aliases, and keeps everything else.
 func TestDuplicateContainerLeavesOutLinkVariablesAndNetworks(t *testing.T) {
 	const (
-		databaseNetwork = "gateway-db-0123456789abcdef"
-		storageNetwork  = "gateway-storage-fedcba9876543210"
+		databaseNetwork = legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"
+		storageNetwork  = legacycompat.StorageLinkNetworkPrefix + "fedcba9876543210"
 	)
 	var mu sync.Mutex
 	var created struct {
@@ -99,7 +100,7 @@ func TestDuplicateContainerLeavesOutLinkVariablesAndNetworks(t *testing.T) {
 
 // A source whose own network is a link network gets its next network as the copy's, or none.
 func TestDuplicateHostConfigLeavesALinkNetworkMode(t *testing.T) {
-	linked := &container.HostConfig{NetworkMode: "gateway-db-0123456789abcdef"}
+	linked := &container.HostConfig{NetworkMode: legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"}
 	if got := duplicateHostConfig(linked, []string{"backend-net"}).NetworkMode; got != "backend-net" {
 		t.Fatalf("network mode %q, want backend-net", got)
 	}

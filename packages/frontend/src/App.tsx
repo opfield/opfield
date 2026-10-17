@@ -114,6 +114,7 @@ import { syncAILiteModeFromStorageValue, UI_STORAGE_KEY, useUIStore } from "@/st
 import { useUIBootstrapStore } from "@/stores/ui-bootstrap";
 import { useUpdateStore } from "@/stores/update";
 import { AI_SCOPE, APPS_REALTIME_CHANNEL, type DockerMigration } from "@/types";
+import { LEGACY_STORAGE_KEY_PREFIX } from "../../backend/src/lib/legacy-compat";
 
 const REALTIME_RECONCILIATION_CACHE_PREFIXES = [
   "req:/api/ui/bootstrap",
@@ -1395,7 +1396,7 @@ function OpfieldApp() {
 
   useEffect(() => {
     // legacy-name: auth key old releases wrote, removed on load — remove once 2.12.0 is no longer an update source
-    localStorage.removeItem("gateway-auth");
+    localStorage.removeItem(`${LEGACY_STORAGE_KEY_PREFIX}-auth`);
 
     let cancelled = false;
 

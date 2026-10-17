@@ -46,7 +46,7 @@ import (
 )
 
 const (
-	rhGatewayID   = "gateway-harness"
+	rhOpfieldID   = "opfield-harness"
 	rhGrantKeyID  = "harness-key"
 	rhSourceNode  = "node-source"
 	rhTargetNode  = "node-target"
@@ -186,7 +186,7 @@ func (h *rhHarness) snapshotLocked() *relayv1.ApplySnapshotRequest {
 	h.revision++
 	request := &relayv1.ApplySnapshotRequest{
 		Revision:          h.revision,
-		GatewayInstanceId: rhGatewayID,
+		OpfieldInstanceId: rhOpfieldID,
 		PublicKeys:        []*relayv1.PublicKey{{KeyId: rhGrantKeyID, PublicKey: h.grantPublic}},
 	}
 	if h.endpoint == 0 {
@@ -367,7 +367,7 @@ func (h *rhHarness) sign(claims grant.Claims) *relayv1.SignedGrant {
 	claims.SchemaVersion = 1
 	claims.Audience = grant.Audience
 	claims.GrantID = fmt.Sprintf("grant-%d", h.grants.Add(1))
-	claims.GatewayInstanceID = rhGatewayID
+	claims.OpfieldInstanceID = rhOpfieldID
 	claims.IssuedAt = now.Add(-time.Minute).Unix()
 	claims.NotBefore = claims.IssuedAt
 	claims.ExpiresAt = now.Add(time.Hour).Unix()

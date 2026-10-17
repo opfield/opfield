@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net"
 	"net/http"
@@ -17,7 +18,7 @@ import (
 const (
 	httpTimeout    = 3 * time.Second
 	responseLimit  = 8 << 20
-	heartbeatDir   = "/.gateway/hb/"
+	heartbeatDir   = legacycompat.HeartbeatPath
 	heartbeatLimit = 64
 	growTimeout    = time.Minute
 )

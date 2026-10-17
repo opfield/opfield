@@ -3,6 +3,7 @@ import { and, eq, lte, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { relayGrantSigningKeys, relayInstances, relayPolicyState, relayPools } from '@/db/schema/index.js';
 import type { RelayInstanceCapabilities } from '@/db/schema/relay.js';
+import { LEGACY_LOCK_RELAY_POLICY_BOOTSTRAP, LEGACY_LOCK_RELAY_SIGNING_KEY_ROTATION } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import {
@@ -51,10 +52,10 @@ export class RelayGrantKeyService {
 
   async ensureInitialized(): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-policy-bootstrap'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_POLICY_BOOTSTRAP}))`);
       await tx
         .insert(relayPolicyState)
-        .values({ id: POLICY_ID, gatewayInstanceId: randomUUID(), revision: 0 })
+        .values({ id: POLICY_ID, opfieldInstanceId: randomUUID(), revision: 0 })
         .onConflictDoNothing();
       const [active] = await tx
         .select({ id: relayGrantSigningKeys.id })
@@ -74,7 +75,7 @@ export class RelayGrantKeyService {
     refreshGrants: () => Promise<void>
   ): Promise<boolean> {
     const pending: PendingKey | null = await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-signing-key-rotation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_SIGNING_KEY_ROTATION}))`);
       const [existingPending] = await tx
         .select({
           id: relayGrantSigningKeys.id,
@@ -129,7 +130,7 @@ export class RelayGrantKeyService {
     const verifyUntilMs = this.retiredKeyVerifyUntilMs(now, settings);
 
     const activated = await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-signing-key-rotation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_SIGNING_KEY_ROTATION}))`);
       const [pending] = await tx
         .select({ status: relayGrantSigningKeys.status })
         .from(relayGrantSigningKeys)
@@ -256,7 +257,7 @@ export class RelayGrantKeyService {
 
   private async retireExpiredVerificationKeys(now: Date): Promise<boolean> {
     const retiredCount = await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('gateway-relay-signing-key-rotation'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${LEGACY_LOCK_RELAY_SIGNING_KEY_ROTATION}))`);
       const retired = await tx
         .update(relayGrantSigningKeys)
         .set({ status: 'retired', retiredAt: now })

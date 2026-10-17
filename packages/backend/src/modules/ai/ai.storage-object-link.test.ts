@@ -41,7 +41,7 @@ function registerServices(owner: User) {
     }),
   } as unknown as CacheService);
   container.registerInstance(GeneralSettingsService, {
-    getPublicUrl: vi.fn().mockResolvedValue('https://gateway.example'),
+    getPublicUrl: vi.fn().mockResolvedValue('https://opfield.example'),
   } as unknown as GeneralSettingsService);
   const getUserById = vi.fn().mockResolvedValue(owner);
   container.registerInstance(AuthService, { getUserById } as unknown as AuthService);
@@ -70,7 +70,7 @@ describe('download_storage_object link', () => {
 
     const link = await createStorageObjectDownloadLink(user, ARGS);
     expect(link).toMatchObject({ method: 'GET', sizeBytes: CONTENT.byteLength, filename: 'q3 report.bin' });
-    expect(link.downloadUrl).toMatch(/^https:\/\/gateway\.example\/api\/storage-object-link\/opfsd_/);
+    expect(link.downloadUrl).toMatch(/^https:\/\/opfield\.example\/api\/storage-object-link\/opfsd_/);
     expect(link.commands.download).toBe(`curl -fsS -o 'q3 report.bin' '${link.downloadUrl}'`);
     expect(storage.headObject).toHaveBeenCalledWith(STORAGE, 'exports', 'reports/2026/q3 report.bin');
 

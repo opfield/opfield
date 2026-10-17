@@ -15,7 +15,7 @@ import (
 )
 
 type archiveImportPlanRequest struct {
-	Manifest          gwcaContainerManifest `json:"manifest"`
+	Manifest          ofcaContainerManifest `json:"manifest"`
 	CanViewNetworks   bool                  `json:"canViewNetworks"`
 	CanCreateNetworks bool                  `json:"canCreateNetworks"`
 	CanViewVolumes    bool                  `json:"canViewVolumes"`
@@ -51,27 +51,27 @@ type archiveImportPlanResult struct {
 	ConflictingPorts []string                     `json:"conflictingPorts"`
 }
 
-func gwcaPortMappingKey(port gwcaPortMapping) string {
+func ofcaPortMappingKey(port ofcaPortMapping) string {
 	return fmt.Sprintf("%d/%s:%d", port.ContainerPort, strings.ToLower(port.Protocol), port.HostPort)
 }
 
-func gwcaHostPortBindingKey(hostPort int, protocol string) string {
+func ofcaHostPortBindingKey(hostPort int, protocol string) string {
 	return fmt.Sprintf("%d/%s", hostPort, strings.ToLower(protocol))
 }
 
-func gwcaPortConflicts(manifest gwcaContainerManifest, containers []ContainerInfo) []string {
+func ofcaPortConflicts(manifest ofcaContainerManifest, containers []ContainerInfo) []string {
 	occupied := make(map[string]struct{})
 	for _, target := range containers {
 		for _, port := range target.Ports {
 			if port.PublicPort > 0 {
-				occupied[gwcaHostPortBindingKey(int(port.PublicPort), port.Type)] = struct{}{}
+				occupied[ofcaHostPortBindingKey(int(port.PublicPort), port.Type)] = struct{}{}
 			}
 		}
 	}
 	desiredCounts := make(map[string]int)
 	for _, port := range manifest.Ports {
 		if port.HostPort > 0 {
-			desiredCounts[gwcaHostPortBindingKey(port.HostPort, port.Protocol)]++
+			desiredCounts[ofcaHostPortBindingKey(port.HostPort, port.Protocol)]++
 		}
 	}
 	conflicts := make([]string, 0)
@@ -79,9 +79,9 @@ func gwcaPortConflicts(manifest gwcaContainerManifest, containers []ContainerInf
 		if port.HostPort == 0 {
 			continue
 		}
-		binding := gwcaHostPortBindingKey(port.HostPort, port.Protocol)
+		binding := ofcaHostPortBindingKey(port.HostPort, port.Protocol)
 		if _, exists := occupied[binding]; exists || desiredCounts[binding] > 1 {
-			conflicts = append(conflicts, gwcaPortMappingKey(port))
+			conflicts = append(conflicts, ofcaPortMappingKey(port))
 		}
 	}
 	sort.Strings(conflicts)
@@ -93,15 +93,15 @@ func uniqueArchiveNetworkName(source string, used map[string]struct{}) string {
 		return source
 	}
 	for index := 2; index <= 9999; index++ {
-		candidate := fmt.Sprintf("%s-gwca-%d", source, index)
+		candidate := fmt.Sprintf("%s-ofca-%d", source, index)
 		if _, exists := used[candidate]; !exists {
 			return candidate
 		}
 	}
-	return source + "-gwca"
+	return source + "-ofca"
 }
 
-func (p *DockerPlugin) planGwcaArchiveImport(ctx context.Context, configJSON string) (archiveImportPlanResult, error) {
+func (p *DockerPlugin) planOfcaArchiveImport(ctx context.Context, configJSON string) (archiveImportPlanResult, error) {
 	var req archiveImportPlanRequest
 	if err := json.Unmarshal([]byte(configJSON), &req); err != nil {
 		return archiveImportPlanResult{}, fmt.Errorf("parse archive import plan request: %w", err)
@@ -208,7 +208,7 @@ func (p *DockerPlugin) planGwcaArchiveImport(ctx context.Context, configJSON str
 		}
 	}
 
-	conflictingPorts := gwcaPortConflicts(req.Manifest, containers)
+	conflictingPorts := ofcaPortConflicts(req.Manifest, containers)
 	for _, key := range conflictingPorts {
 		resolution.Ports[key] = 0
 	}
@@ -217,12 +217,12 @@ func (p *DockerPlugin) planGwcaArchiveImport(ctx context.Context, configJSON str
 	}, nil
 }
 
-func (p *DockerPlugin) assertGwcaHostPortsAvailable(ctx context.Context, manifest gwcaContainerManifest) error {
+func (p *DockerPlugin) assertOfcaHostPortsAvailable(ctx context.Context, manifest ofcaContainerManifest) error {
 	containers, err := p.client.ListContainers(ctx)
 	if err != nil {
 		return err
 	}
-	if conflicts := gwcaPortConflicts(manifest, containers); len(conflicts) > 0 {
+	if conflicts := ofcaPortConflicts(manifest, containers); len(conflicts) > 0 {
 		return fmt.Errorf("archive host ports are occupied; remap these bindings to port 0: %s", strings.Join(conflicts, ", "))
 	}
 	return nil
@@ -252,13 +252,13 @@ func (p *DockerPlugin) availableArchiveContainerName(ctx context.Context, reques
 	return "", fmt.Errorf("could not allocate an available container name")
 }
 
-func (p *DockerPlugin) prepareGwcaNetworks(
+func (p *DockerPlugin) prepareOfcaNetworks(
 	ctx context.Context,
 	archiveID string,
-	manifest *gwcaContainerManifest,
+	manifest *ofcaContainerManifest,
 ) ([]string, error) {
 	created := make([]string, 0)
-	if err := validateGwcaNetworks(manifest.Networks); err != nil {
+	if err := validateOfcaNetworks(manifest.Networks); err != nil {
 		return created, err
 	}
 	for index := range manifest.Networks {
@@ -331,7 +331,7 @@ func (p *DockerPlugin) availableArchiveNetworkName(ctx context.Context, requeste
 		return "", fmt.Errorf("inspect target network name: %w", err)
 	}
 	for index := 2; index <= 9999; index++ {
-		candidate := fmt.Sprintf("%s-gwca-%d", requested, index)
+		candidate := fmt.Sprintf("%s-ofca-%d", requested, index)
 		if _, err := p.client.cli.NetworkInspect(ctx, candidate, mobyclient.NetworkInspectOptions{}); isNotFoundErr(err) {
 			return candidate, nil
 		} else if err != nil {
@@ -341,11 +341,11 @@ func (p *DockerPlugin) availableArchiveNetworkName(ctx context.Context, requeste
 	return "", fmt.Errorf("could not allocate an available network name")
 }
 
-func (p *DockerPlugin) prepareGwcaMounts(
+func (p *DockerPlugin) prepareOfcaMounts(
 	ctx context.Context,
 	archiveID string,
 	containerName string,
-	manifest *gwcaContainerManifest,
+	manifest *ofcaContainerManifest,
 ) ([]string, error) {
 	created := make([]string, 0)
 	shortID := strings.ReplaceAll(archiveID, "-", "")
@@ -371,7 +371,7 @@ func (p *DockerPlugin) prepareGwcaMounts(
 			}
 			return '-'
 		}, containerName)
-		name := fmt.Sprintf("%s-gwca-%s-%d", base, shortID, index+1)
+		name := fmt.Sprintf("%s-ofca-%s-%d", base, shortID, index+1)
 		createdVolume, err := p.client.cli.VolumeCreate(ctx, mobyclient.VolumeCreateOptions{
 			Name: name, Driver: "local", Labels: mergeArchiveLabels(entry.Labels, archiveID),
 		})
@@ -386,7 +386,7 @@ func (p *DockerPlugin) prepareGwcaMounts(
 }
 
 func mergeArchiveLabels(labels map[string]string, archiveID string) map[string]string {
-	result := sanitizeGwcaLabels(labels)
+	result := sanitizeOfcaLabels(labels)
 	if result == nil {
 		result = map[string]string{}
 	}
@@ -396,7 +396,7 @@ func mergeArchiveLabels(labels map[string]string, archiveID string) map[string]s
 	return result
 }
 
-func (p *DockerPlugin) cleanupGwcaImportResources(ctx context.Context, archiveID string) error {
+func (p *DockerPlugin) cleanupOfcaImportResources(ctx context.Context, archiveID string) error {
 	if strings.TrimSpace(archiveID) == "" {
 		return fmt.Errorf("archive ID is required")
 	}

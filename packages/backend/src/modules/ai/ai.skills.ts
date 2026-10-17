@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { LEGACY_INFERENCE_FEATURE, LEGACY_SKILL_PREFIX } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AISettingsService } from './ai.settings.service.js';
 
@@ -356,8 +357,8 @@ function toAgentSkill(skill: AIUserSkillRecord): AIAgentSkill {
 
 // legacy-name: system skill ids from before the Opfield rename — remove once no stored conversation loads a skill by its old id
 const LEGACY_SYSTEM_SKILL_IDS: Readonly<Record<string, string>> = {
-  'system:gateway-inference': 'system:opfield-inference',
-  'system:gateway-administration-and-lifecycle': 'system:opfield-administration-and-lifecycle',
+  [`system:${LEGACY_INFERENCE_FEATURE}`]: 'system:opfield-inference',
+  [`${LEGACY_SKILL_PREFIX}administration-and-lifecycle`]: 'system:opfield-administration-and-lifecycle',
 };
 
 export class AISkillService {

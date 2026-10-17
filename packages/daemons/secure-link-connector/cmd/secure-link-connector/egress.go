@@ -18,7 +18,7 @@ import (
 )
 
 // egressSocketName is the daemon's egress socket, next to the control socket in the shared directory
-// (/run/gateway/egress.sock in the container).
+// (egress.sock in the runtime directory of the container).
 const egressSocketName = "egress.sock"
 
 // egressOwnerKinds are the links a connector listens for on a link network.

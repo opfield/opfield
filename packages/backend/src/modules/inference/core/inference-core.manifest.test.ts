@@ -1,5 +1,6 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LEGACY_CORE_RELEASE_LINE, LEGACY_MIN_VERSION_FIELD } from '@/lib/legacy-compat.js';
 import { UPDATE_SIGNING_KEY_ID } from '@/lib/update-artifact-trust.js';
 import { INFERENCE_CORE_PROTOCOL_MAJOR } from './inference-core.contract.js';
 import {
@@ -13,8 +14,8 @@ import {
 } from './inference-core.manifest.js';
 
 describe('core release lines', () => {
-  it('accepts the wiolett, thesqlabs and opfield lines', () => {
-    for (const tag of ['v2.25.0-wiolett.27', 'v2.60.6-thesqlabs.6', 'v2.61.0-opfield.1']) {
+  it('accepts the earliest, thesqlabs and opfield lines', () => {
+    for (const tag of [`v2.25.0-${LEGACY_CORE_RELEASE_LINE}.27`, 'v2.60.6-thesqlabs.6', 'v2.61.0-opfield.1']) {
       expect(OPENCODEX_RELEASE_TAG_RE.test(tag)).toBe(true);
       expect(OPENCODEX_VERSION_RE.test(tag.slice(1))).toBe(true);
       expect(parseOpenCodexVersion(tag)).not.toBeNull();
@@ -28,7 +29,7 @@ describe('core release lines', () => {
     expect(compareOpenCodexVersions('v2.60.6-thesqlabs.6', 'v2.61.0-opfield.1')).toBeLessThan(0);
     // On the same base a later line wins whatever the build numbers.
     expect(compareOpenCodexVersions('2.60.0-opfield.1', '2.60.0-thesqlabs.9')).toBeGreaterThan(0);
-    expect(compareOpenCodexVersions('2.60.0-thesqlabs.1', '2.60.0-wiolett.40')).toBeGreaterThan(0);
+    expect(compareOpenCodexVersions('2.60.0-thesqlabs.1', `2.60.0-${LEGACY_CORE_RELEASE_LINE}.40`)).toBeGreaterThan(0);
     expect(compareOpenCodexVersions('2.60.0-opfield.2', '2.60.0-opfield.10')).toBeLessThan(0);
     expect(compareOpenCodexVersions('2.61.0-opfield.3', 'v2.61.0-opfield.3')).toBe(0);
   });
@@ -115,7 +116,7 @@ describe('core release feed and manifest names', () => {
   it('reads the opfield-inference manifest first and honours minOpfieldVersion', async () => {
     const calls = mockFetch({
       [`https://get.example/opfield-inference/${tag}/opfield-inference-image.update.json`]: () =>
-        new Response(coreManifest({ minOpfieldVersion: 'v2.12.1', minGatewayVersion: 'v2.12.1' })),
+        new Response(coreManifest({ minOpfieldVersion: 'v2.12.1', [LEGACY_MIN_VERSION_FIELD]: 'v2.12.1' })),
     });
 
     const artifact = await fetchOpenCodexImageManifest('https://get.example', tag, [image], publicKey);
@@ -135,7 +136,7 @@ describe('core release feed and manifest names', () => {
             kind: 'opencodex-image',
             image: legacyImage,
             imageRef: `${legacyImage}@sha256:${sha}`,
-            minGatewayVersion: 'v2.13.0',
+            [LEGACY_MIN_VERSION_FIELD]: 'v2.13.0',
           })
         ),
     });

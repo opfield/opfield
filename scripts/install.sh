@@ -3,42 +3,52 @@ set -euo pipefail
 IFS=$'\n\t'
 
 DEFAULT_IMAGE="ghcr.io/opfield/opfield"
-# Official image repositories: the opfield organization and the earlier one every release is still published to.
-# A release's signed manifest names one of them (ghcr.io/opfield/opfield from 2.12; earlier releases the other one);
-# unless --image or OPFIELD_IMAGE names another repository, the installer installs the one the manifest names.
-OFFICIAL_IMAGES=("ghcr.io/opfield/opfield" "ghcr.io/the-square-labs/gateway")
+# legacy-compat: scripts/stage-installers.sh puts scripts/legacy-compat.sh in place of this line.
+# shellcheck source=legacy-compat.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"
+# Official image repositories: the Opfield one, and the one signed manifests of releases before 2.12 name (--restore).
+# Unless --image or OPFIELD_IMAGE names another repository, the installer installs the one the manifest names.
+OFFICIAL_IMAGES=("ghcr.io/opfield/opfield" "$LEGACY_IMAGE_REPOSITORY")
 DOCKER_COMPOSE_CLI_IMAGE_REF="docker.io/library/docker:27-cli@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c"
 # Third-party service images, pinned by digest and mirrored to GHCR by the release pipeline
 # (config/third-party-images.json). The GHCR mirror is pulled first; Docker Hub serves the same
-# digest when the mirror cannot be pulled. Releases mirror them under both official repositories; the
-# earlier one stays the pull source, like on Docker nodes (packages/daemons/docker third_party_images.go).
-THIRD_PARTY_MIRROR_REPOSITORY="ghcr.io/the-square-labs/gateway"
+# digest when the mirror cannot be pulled, like on Docker nodes (packages/daemons/docker third_party_images.go).
+THIRD_PARTY_MIRROR_REPOSITORY="ghcr.io/opfield/opfield"
 REGISTRY_UPSTREAM_IMAGE_REF="docker.io/library/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8" # 3.1.2
 POSTGRES_UPSTREAM_IMAGE_REF="docker.io/library/postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea" # 16.15-alpine
 REDIS_UPSTREAM_IMAGE_REF="docker.io/library/redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499" # 7.4.11-alpine
 DEFAULT_INSTALL_DIR="/opt/opfield"
-# legacy-name: /opt/gateway — installations made before 2.12.1 live there until their host move; an update finds
-# them there. Remove once every installation reports the Opfield layout.
-LEGACY_INSTALL_DIR="/opt/gateway"
+# LEGACY_INSTALL_DIR (legacy-compat.sh): installations made before 2.12.1 live there until their host move; an update
+# finds them there.
 # Present from the start of a fresh install until its setup code is shown; a re-run resumes it.
 INSTALL_PENDING_MARKER=".opfield-install-pending"
-# legacy-name: .gateway-install-pending — a fresh install of a release before 2.12.1 that stopped early.
-LEGACY_INSTALL_PENDING_MARKER=".gateway-install-pending"
+# LEGACY_INSTALL_PENDING_MARKER (legacy-compat.sh): a fresh install of a release before 2.12.1 that stopped early.
 # The first release that runs in the Opfield layout (directory /opt/opfield, Compose project, database and role
 # `opfield`, OPFIELD_* settings). --restore installs older releases in the layout they know.
 FIRST_OPFIELD_LAYOUT_VERSION="v2.12.1-rc.3"
+# The first release whose app image keeps its data under /var/lib/opfield* inside the containers (earlier images use the
+# legacy-compat.sh directories; later images link those to the Opfield ones).
+FIRST_OPFIELD_DATA_DIR_VERSION="v2.12.3-rc.1"
 HOST_MOVE_CONTAINER="opfield-host-move"
-RELEASES_API_URL="${RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
-ARTIFACT_BASE_URL="${ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
-# legacy-name: GATEWAY_* installer variables — automation written for releases before 2.12.1 still sets them; the
+RELEASES_API_URL="${RELEASES_API_URL:-https://get.opfield.dev/opfield/releases}"
+ARTIFACT_BASE_URL="${ARTIFACT_BASE_URL:-https://get.opfield.dev/opfield}"
+# legacy-name: pre-2.12.1 installer variables — automation written for releases before 2.12.1 still sets them; the
 # OPFIELD_* name wins when both are set.
-INSTALL_DIR="${OPFIELD_INSTALL_DIR:-${GATEWAY_INSTALL_DIR:-}}"
-IMAGE="${OPFIELD_IMAGE:-${GATEWAY_IMAGE:-$DEFAULT_IMAGE}}"
-TRANSPORT="${OPFIELD_WEB_TRANSPORT:-${GATEWAY_WEB_TRANSPORT:-}}"
-SOURCE_DIR="${OPFIELD_SOURCE_DIR:-${GATEWAY_SOURCE_DIR:-}}"
-LOG_FILE="${OPFIELD_INSTALL_LOG_FILE:-${GATEWAY_INSTALL_LOG_FILE:-/tmp/opfield-install.log}}"
-DOCKER_DAEMON_CONFIG="${OPFIELD_DOCKER_DAEMON_CONFIG:-${GATEWAY_DOCKER_DAEMON_CONFIG:-/etc/docker/daemon.json}}"
-# OPFIELD_ for the release this run installs; GATEWAY_ when --restore installs a release before 2.12.1.
+# The value of installer variable <suffix> under its pre-2.12.1 name (LEGACY_ENV_PREFIX), empty when unset.
+legacy_installer_env() {
+  local name="${LEGACY_ENV_PREFIX}$1"
+  printf '%s' "${!name:-}"
+}
+INSTALL_DIR="${OPFIELD_INSTALL_DIR:-$(legacy_installer_env INSTALL_DIR)}"
+IMAGE="${OPFIELD_IMAGE:-$(legacy_installer_env IMAGE)}"
+IMAGE="${IMAGE:-$DEFAULT_IMAGE}"
+TRANSPORT="${OPFIELD_WEB_TRANSPORT:-$(legacy_installer_env WEB_TRANSPORT)}"
+SOURCE_DIR="${OPFIELD_SOURCE_DIR:-$(legacy_installer_env SOURCE_DIR)}"
+LOG_FILE="${OPFIELD_INSTALL_LOG_FILE:-$(legacy_installer_env INSTALL_LOG_FILE)}"
+LOG_FILE="${LOG_FILE:-/tmp/opfield-install.log}"
+DOCKER_DAEMON_CONFIG="${OPFIELD_DOCKER_DAEMON_CONFIG:-$(legacy_installer_env DOCKER_DAEMON_CONFIG)}"
+DOCKER_DAEMON_CONFIG="${DOCKER_DAEMON_CONFIG:-/etc/docker/daemon.json}"
+# OPFIELD_ for the release this run installs; the legacy prefix when --restore installs a release before 2.12.1.
 ENV_PREFIX="OPFIELD_"
 DRY_RUN=0
 RELAY_BOOTSTRAP=0
@@ -504,13 +514,13 @@ verify_signed_release() {
   local payload signature kind manifest_version tag image digest image_ref secure_connector_image_ref secure_connector_image secure_connector_digest
 
   tmp_dir="$(mktemp -d)"
-  manifest_file="${tmp_dir}/gateway-image.update.json"
+  manifest_file="${tmp_dir}/${LEGACY_APP_IMAGE_MANIFEST_ASSET}"
   payload_file="${tmp_dir}/payload.json"
   signature_file="${tmp_dir}/signature.bin"
   key_file="${tmp_dir}/update-signing-public-key.pem"
 
   info "Verifying signed release manifest for ${version}"
-  if ! download_release_artifact gateway "$version" gateway-image.update.json "$manifest_file"; then
+  if ! download_release_artifact opfield "$version" "$LEGACY_APP_IMAGE_MANIFEST_ASSET" "$manifest_file"; then
     rm -rf "$tmp_dir"
     die "Could not download the signed release manifest. Check ${LOG_FILE} for details."
   fi
@@ -542,7 +552,7 @@ verify_signed_release() {
   if [[ "$image" != "$IMAGE" ]] && official_image "$IMAGE" && official_image "$image"; then
     IMAGE="$image"
   fi
-  if [[ "$kind" != "gateway-image" || "$manifest_version" != "$version" || "$tag" != "$version" ||
+  if [[ "$kind" != "$LEGACY_APP_IMAGE_MANIFEST_KIND" || "$manifest_version" != "$version" || "$tag" != "$version" ||
     "$image" != "$IMAGE" || ! "$digest" =~ ^sha256:[a-f0-9]{64}$ || "$image_ref" != "${IMAGE}@${digest}" ]]; then
     rm -rf "$tmp_dir"
     die "Signed release manifest does not match the requested Opfield image."
@@ -565,7 +575,7 @@ verify_signed_release() {
 verify_signed_relay() {
   local relay_tag="$1"
   local tmp_dir manifest_file payload_file signature_file key_file
-  local payload signature kind manifest_version tag image digest image_ref protocol_major min_gateway_version
+  local payload signature kind manifest_version tag image digest image_ref protocol_major min_opfield_version
   local secure_connector_image_ref secure_connector_image secure_connector_digest
 
   tmp_dir="$(mktemp -d)"
@@ -601,7 +611,7 @@ verify_signed_relay() {
   digest="$(json_string_field "$payload_file" digest)"
   image_ref="$(json_string_field "$payload_file" imageRef)"
   protocol_major="$(json_number_field "$payload_file" protocolMajor)"
-  min_gateway_version="$(json_string_field "$payload_file" minGatewayVersion)"
+  min_opfield_version="$(json_string_field "$payload_file" "$LEGACY_MIN_VERSION_FIELD")"
   secure_connector_image_ref="$(json_string_field "$payload_file" secureLinkConnectorImage)"
   if [[ "$kind" != "relay-image" || "$tag" != "$relay_tag" || "$relay_tag" != "${manifest_version}-relay" ||
     ! "$manifest_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ || "$image" != "${IMAGE}/relay" ||
@@ -609,10 +619,10 @@ verify_signed_relay() {
     rm -rf "$tmp_dir"
     die "Signed relay manifest does not match a compatible Relay image."
   fi
-  [[ -n "$min_gateway_version" ]] || min_gateway_version="$manifest_version"
-  if [[ ! "$min_gateway_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || version_is_newer "$min_gateway_version" "$VERSION"; then
+  [[ -n "$min_opfield_version" ]] || min_opfield_version="$manifest_version"
+  if [[ ! "$min_opfield_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || version_is_newer "$min_opfield_version" "$VERSION"; then
     rm -rf "$tmp_dir"
-    die "Relay ${manifest_version} requires Opfield ${min_gateway_version} or newer."
+    die "Relay ${manifest_version} requires Opfield ${min_opfield_version} or newer."
   fi
   secure_connector_image="${IMAGE}/secure-link-connector"
   secure_connector_digest="${secure_connector_image_ref##*@}"
@@ -651,18 +661,18 @@ env_value() {
 }
 
 # The value of OPFIELD_<suffix> in .env.
-# legacy-name: GATEWAY_<suffix> of a .env the foundation migrator has not rewritten yet (releases before 2.12.1).
+# legacy-name: pre-2.12.1 names of a .env the foundation migrator has not rewritten yet (releases before 2.12.1).
 setting_value() {
   local value
   value="$(env_value "OPFIELD_$1")"
-  [[ -n "$value" ]] || value="$(env_value "GATEWAY_$1")"
+  [[ -n "$value" ]] || value="$(env_value "${LEGACY_ENV_PREFIX}$1")"
   printf '%s' "$value"
 }
 
 # The .env key that holds setting <suffix>: the one the file has, or the current layout's name for a new one.
 setting_key() {
-  if ! grep -q "^OPFIELD_$1=" .env 2>/dev/null && grep -q "^GATEWAY_$1=" .env 2>/dev/null; then
-    printf 'GATEWAY_%s' "$1" # legacy-name: kept until the foundation migrator renames it
+  if ! grep -q "^OPFIELD_$1=" .env 2>/dev/null && grep -q "^${LEGACY_ENV_PREFIX}$1=" .env 2>/dev/null; then
+    printf '%s%s' "$LEGACY_ENV_PREFIX" "$1" # legacy-name: kept until the foundation migrator renames it
   else
     printf '%s%s' "$ENV_PREFIX" "$1"
   fi
@@ -763,7 +773,7 @@ prepare_install_metadata() {
       current_opfield_version="${current_opfield_version##*:}"
     fi
     [[ "$current_opfield_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || current_opfield_version=""
-    release_json="$(fetch_release gateway "$current_opfield_version")" || die "Unable to query Opfield releases"
+    release_json="$(fetch_release opfield "$current_opfield_version")" || die "Unable to query Opfield releases"
     if [[ -z "$release_json" && -n "$current_opfield_version" ]]; then
       VERSION="$current_opfield_version"
     else
@@ -825,8 +835,8 @@ read_export_version() {
   header_file="$(mktemp)"
   head -c 65536 "$RESTORE_FILE" | LC_ALL=C sed -n '2p' >"$header_file"
   RESTORE_VERSION="$(json_string_field "$header_file" opfieldVersion)"
-  # legacy-name: gatewayVersion — the header of an export made before 2.12.1.
-  [[ -n "$RESTORE_VERSION" ]] || RESTORE_VERSION="$(json_string_field "$header_file" gatewayVersion)"
+  # legacy-name: the version field of the header of an export made before 2.12.1.
+  [[ -n "$RESTORE_VERSION" ]] || RESTORE_VERSION="$(json_string_field "$header_file" "$LEGACY_EXPORT_VERSION_FIELD")"
   rm -f "$header_file"
   [[ "$RESTORE_VERSION" =~ ^[A-Za-z0-9._+-]+$ ]] || die "The header of ${RESTORE_FILE} is invalid"
 }
@@ -965,15 +975,15 @@ add_console_ports() {
 installation_needs_host_move() {
   [[ "$LEGACY_LAYOUT" == 0 && "$FRESH" == 0 && -f "$INSTALL_DIR/docker-compose.yml" ]] || return 1
   ! version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$VERSION" || return 1
-  [[ "$(basename "$INSTALL_DIR")" != gateway ]] || return 0
+  [[ "$(basename "$INSTALL_DIR")" != "$(basename "$LEGACY_INSTALL_DIR")" ]] || return 0
   grep -Eq '^name:[[:space:]]*["'"'"']?opfield["'"'"']?[[:space:]]*$' "$INSTALL_DIR/docker-compose.yml" || return 0
   [[ "$DB_NAME" == opfield ]] || return 0
   return 1
 }
 
-# Where the host move puts the installation: a sibling `opfield` of a `gateway` directory, otherwise where it is.
+# Where the host move puts the installation: a sibling `opfield` of the legacy directory, otherwise where it is.
 host_move_target_dir() {
-  if [[ "$(basename "$INSTALL_DIR")" == gateway && ! -e "$(dirname "$INSTALL_DIR")/opfield" ]]; then
+  if [[ "$(basename "$INSTALL_DIR")" == "$(basename "$LEGACY_INSTALL_DIR")" && ! -e "$(dirname "$INSTALL_DIR")/opfield" ]]; then
     printf '%s/opfield' "$(dirname "$INSTALL_DIR")"
   else
     printf '%s' "$INSTALL_DIR"
@@ -1027,7 +1037,7 @@ Usage: install.sh [--install-dir PATH] [--image IMAGE] [--source-dir PATH] [--ht
        install.sh --restore FILE [--public-url URL] [--grpc-target HOST:PORT] [--install-dir PATH]
 
 Installs or updates Opfield in /opt/opfield (or --install-dir). An update
-finds an installation made before 2.12.1 in /opt/gateway and, once the new
+finds an installation made before 2.12.1 in the earlier directory and, once the new
 release runs, moves it to /opt/opfield. On a fresh interactive install, the
 only prompt selects native HTTPS or HTTP for port 3000. Non-interactive
 installs default to native HTTPS. All product configuration continues in the
@@ -1164,18 +1174,18 @@ fi
 LEGACY_LAYOUT=0
 if [[ "$FRESH" == 1 ]] && version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$VERSION"; then
   LEGACY_LAYOUT=1
-  ENV_PREFIX="GATEWAY_" # legacy-name: the settings names of the release this run installs
+  ENV_PREFIX="$LEGACY_ENV_PREFIX" # legacy-name: the settings names of the release this run installs
 fi
 DB_ROLE="opfield"
 DB_NAME="opfield"
 if [[ "$LEGACY_LAYOUT" == 1 ]]; then
   # legacy-name: database and role of the releases before 2.12.1
-  DB_ROLE="gateway"
-  DB_NAME="gateway"
+  DB_ROLE="$LEGACY_DATABASE"
+  DB_NAME="$LEGACY_DATABASE"
 elif [[ "$FRESH" == 0 && -f "$INSTALL_DIR/docker-compose.yml" ]] &&
-  grep -Eq 'DATABASE_URL[:=][[:space:]]*"?postgres(ql)?://gateway:' "$INSTALL_DIR/docker-compose.yml"; then
-  DB_ROLE="gateway" # legacy-name: an installation that has not moved yet
-  DB_NAME="gateway"
+  grep -Eq "DATABASE_URL[:=][[:space:]]*\"?postgres(ql)?://${LEGACY_DATABASE}:" "$INSTALL_DIR/docker-compose.yml"; then
+  DB_ROLE="$LEGACY_DATABASE" # legacy-name: an installation that has not moved yet
+  DB_NAME="$LEGACY_DATABASE"
 fi
 if [[ "$RESUME" == 1 && -z "$TRANSPORT" ]]; then
   TRANSPORT="$(env_value WEB_TLS_BOOTSTRAP_MODE)"
@@ -1350,7 +1360,7 @@ ensure_env PKI_MASTER_KEY "$(openssl rand -hex 32)"
 ensure_env SETUP_BOOTSTRAP "$([[ "$FRESH" == 1 && -z "$RESTORE_FILE" ]] && printf true || printf false)"
 ensure_env WEB_TLS_BOOTSTRAP_MODE "${TRANSPORT:-http}"
 if [[ "$LEGACY_LAYOUT" == 1 ]]; then
-  ensure_env SANDBOX_RUNNER_WORKSPACE_DIR "/var/lib/gateway/sandbox-workspaces" # legacy-name: see LEGACY_LAYOUT
+  ensure_env SANDBOX_RUNNER_WORKSPACE_DIR "${LEGACY_APP_DATA_DIR}/sandbox-workspaces" # legacy-name: see LEGACY_LAYOUT
 else
   ensure_env SANDBOX_RUNNER_WORKSPACE_DIR "/var/lib/opfield/sandbox-workspaces"
 fi
@@ -1381,189 +1391,6 @@ chmod 600 .env
 set_setting IMAGE_REF "$IMAGE_REF"
 chmod 600 .env
 
-# legacy-name: docker-compose.yml of the releases before 2.12.1, for --restore of an export one of them made.
-write_legacy_compose() {
-  cat >docker-compose.yml <<'COMPOSE'
-services:
-  app:
-    image: ${GATEWAY_IMAGE_REF}
-    restart: unless-stopped
-    stop_grace_period: 60s
-    labels:
-      com.wiolett.gateway.managed-service: app
-    env_file: .env
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      DATABASE_URL: postgres://gateway:${DB_PASSWORD}@postgres:5432/gateway
-      REDIS_URL: redis://redis:6379
-      PKI_MASTER_KEY: ${PKI_MASTER_KEY}
-      WEB_TLS_AUTO_DIR: /var/lib/gateway/tls
-      GRPC_TLS_AUTO_DIR: /var/lib/gateway/tls
-      GATEWAY_RELAY_REQUIRED: "true"
-      GATEWAY_RELAY_MANAGED: "${GATEWAY_RELAY_MANAGED:-true}"
-      GATEWAY_RELAY_TARGET: relay:9443
-      GATEWAY_RELAY_IDENTITY_DIR: /var/lib/gateway-relay
-      GATEWAY_RELAY_IMAGE_REF: ${GATEWAY_RELAY_IMAGE_REF}
-      GATEWAY_RELAY_SERVICE_NAME: relay
-      GATEWAY_RELAY_BUILD_VERSION: ${GATEWAY_RELAY_BUILD_VERSION}
-      GATEWAY_RELAY_PROTOCOL_MAJOR: ${GATEWAY_RELAY_PROTOCOL_MAJOR}
-      GATEWAY_REGISTRY_AUTH_DIR: /var/lib/gateway-registry-auth
-      SANDBOX_RUNNER_WORKSPACE_DIR: ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}
-    ports:
-      - "3000:3000"
-    expose:
-      - "9443"
-    volumes:
-      - gateway_data:/var/lib/gateway
-      - gateway_relay_identity:/var/lib/gateway-relay
-      - gateway_registry_auth:/var/lib/gateway-registry-auth
-      - ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}:${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}
-      # Intentional host trust boundary: required for signed self-update,
-      # recovery, housekeeping, and Gateway-managed local services.
-      # Run Gateway on a dedicated host/VM; a read-only bind is not safer.
-      - /var/run/docker.sock:/var/run/docker.sock
-      # The host's memory, CPUs, load and uptime for diagnostics. In an LXC the memory use comes from the
-      # LXC's cgroup and the uptime from its init, since LXCFS answers /proc for the app container.
-      - /proc/meminfo:/host/proc/meminfo:ro
-      - /proc/loadavg:/host/proc/loadavg:ro
-      - /proc/stat:/host/proc/stat:ro
-      - /proc/1/stat:/host/proc/1/stat:ro
-      - /sys/fs/cgroup:/host/cgroup:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      # Inherit the image's bounded, child-process-free health probe.
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-
-  relay:
-    image: ${GATEWAY_RELAY_IMAGE_REF}
-    entrypoint: ["/gateway-relay"]
-    restart: unless-stopped
-    labels:
-      com.wiolett.gateway.managed-service: relay
-    environment:
-      RELAY_IDENTITY_DIR: /var/lib/gateway-relay/identity
-      RELAY_STATE_DIR: /var/lib/gateway-relay/state
-      RELAY_APP_GRPC_TARGET: app:9443
-      RELAY_POOL_ID: system
-      RELAY_INSTANCE_ID: 00000000-0000-4000-8000-000000000001
-    ports:
-      - "9443:9443"
-    volumes:
-      - gateway_relay_identity:/var/lib/gateway-relay/identity:ro
-      - gateway_relay_state:/var/lib/gateway-relay/state
-    healthcheck:
-      test: ["CMD", "/gateway-relay", "healthcheck"]
-      interval: 5s
-      timeout: 3s
-      retries: 2
-      start_period: 20s
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-
-  registry:
-    image: ${GATEWAY_REGISTRY_IMAGE_REF}
-    restart: unless-stopped
-    labels:
-      com.wiolett.gateway.managed-service: registry
-    environment:
-      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
-      REGISTRY_HTTP_DEBUG_ADDR: 127.0.0.1:5001
-      REGISTRY_HTTP_SECRET: ${GATEWAY_REGISTRY_HTTP_SECRET}
-      REGISTRY_AUTH: token
-      REGISTRY_AUTH_TOKEN_REALM: ${GATEWAY_REGISTRY_TOKEN_REALM:-https://gateway.invalid/api/docker/registry/token}
-      REGISTRY_AUTH_TOKEN_SERVICE: gateway-internal-registry
-      REGISTRY_AUTH_TOKEN_ISSUER: gateway-internal-registry
-      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/gateway-registry-auth/token-cert.pem
-      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
-      REGISTRY_STORAGE_DELETE_ENABLED: "true"
-      REGISTRY_HEALTH_STORAGEDRIVER_ENABLED: "true"
-      REGISTRY_HEALTH_STORAGEDRIVER_INTERVAL: 10s
-      REGISTRY_HEALTH_STORAGEDRIVER_THRESHOLD: "3"
-    expose:
-      - "5000"
-    volumes:
-      - gateway_registry_data:/var/lib/registry
-      - gateway_registry_auth:/var/lib/gateway-registry-auth:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/debug/health >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-
-  postgres:
-    image: ${GATEWAY_POSTGRES_IMAGE_REF}
-    restart: unless-stopped
-    # A host shutdown stops every container at once. Smart shutdown (SIGTERM) lets the app finish its shutdown drain
-    # on its open connections before postgres exits; the image's default (SIGINT) cuts them at once.
-    stop_signal: SIGTERM
-    stop_grace_period: 75s
-    environment:
-      POSTGRES_DB: gateway
-      POSTGRES_USER: gateway
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gateway -d gateway"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-
-  redis:
-    image: ${GATEWAY_REDIS_IMAGE_REF}
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-
-volumes:
-  gateway_data:
-  gateway_relay_identity:
-  gateway_relay_state:
-  gateway_registry_data:
-  gateway_registry_auth:
-  postgres_data:
-  redis_data:
-COMPOSE
-}
-
 write_opfield_compose() {
   cat >docker-compose.yml <<'COMPOSE'
 name: opfield
@@ -1581,17 +1408,17 @@ services:
       DATABASE_URL: postgres://opfield:${DB_PASSWORD}@postgres:5432/opfield
       REDIS_URL: redis://redis:6379
       PKI_MASTER_KEY: ${PKI_MASTER_KEY}
-      WEB_TLS_AUTO_DIR: /var/lib/gateway/tls
-      GRPC_TLS_AUTO_DIR: /var/lib/gateway/tls
+      WEB_TLS_AUTO_DIR: /var/lib/opfield/tls
+      GRPC_TLS_AUTO_DIR: /var/lib/opfield/tls
       OPFIELD_RELAY_REQUIRED: "true"
       OPFIELD_RELAY_MANAGED: "${OPFIELD_RELAY_MANAGED:-true}"
       OPFIELD_RELAY_TARGET: relay:9443
-      OPFIELD_RELAY_IDENTITY_DIR: /var/lib/gateway-relay
+      OPFIELD_RELAY_IDENTITY_DIR: /var/lib/opfield-relay
       OPFIELD_RELAY_IMAGE_REF: ${OPFIELD_RELAY_IMAGE_REF}
       OPFIELD_RELAY_SERVICE_NAME: relay
       OPFIELD_RELAY_BUILD_VERSION: ${OPFIELD_RELAY_BUILD_VERSION}
       OPFIELD_RELAY_PROTOCOL_MAJOR: ${OPFIELD_RELAY_PROTOCOL_MAJOR}
-      OPFIELD_REGISTRY_AUTH_DIR: /var/lib/gateway-registry-auth
+      OPFIELD_REGISTRY_AUTH_DIR: /var/lib/opfield-registry-auth
       OPFIELD_REGISTRY_TOKEN_SERVICE: opfield-internal-registry
       SANDBOX_RUNNER_WORKSPACE_DIR: ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}
     ports:
@@ -1599,9 +1426,9 @@ services:
     expose:
       - "9443"
     volumes:
-      - app_data:/var/lib/gateway
-      - relay_identity:/var/lib/gateway-relay
-      - registry_auth:/var/lib/gateway-registry-auth
+      - app_data:/var/lib/opfield
+      - relay_identity:/var/lib/opfield-relay
+      - registry_auth:/var/lib/opfield-registry-auth
       - ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}:${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}
       # Intentional host trust boundary: required for signed self-update,
       # recovery, housekeeping, and Opfield-managed local services.
@@ -1638,16 +1465,16 @@ services:
     labels:
       net.opfield.managed-service: relay
     environment:
-      RELAY_IDENTITY_DIR: /var/lib/gateway-relay/identity
-      RELAY_STATE_DIR: /var/lib/gateway-relay/state
+      RELAY_IDENTITY_DIR: /var/lib/opfield-relay/identity
+      RELAY_STATE_DIR: /var/lib/opfield-relay/state
       RELAY_APP_GRPC_TARGET: app:9443
       RELAY_POOL_ID: system
       RELAY_INSTANCE_ID: 00000000-0000-4000-8000-000000000001
     ports:
       - "9443:9443"
     volumes:
-      - relay_identity:/var/lib/gateway-relay/identity:ro
-      - relay_state:/var/lib/gateway-relay/state
+      - relay_identity:/var/lib/opfield-relay/identity:ro
+      - relay_state:/var/lib/opfield-relay/state
     healthcheck:
       test: ["CMD", "/opfield-relay", "healthcheck"]
       interval: 5s
@@ -1673,7 +1500,7 @@ services:
       REGISTRY_AUTH_TOKEN_REALM: ${OPFIELD_REGISTRY_TOKEN_REALM:-https://opfield.invalid/api/docker/registry/token}
       REGISTRY_AUTH_TOKEN_SERVICE: opfield-internal-registry
       REGISTRY_AUTH_TOKEN_ISSUER: opfield-internal-registry
-      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/gateway-registry-auth/token-cert.pem
+      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/opfield-registry-auth/token-cert.pem
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
       REGISTRY_HEALTH_STORAGEDRIVER_ENABLED: "true"
@@ -1683,7 +1510,7 @@ services:
       - "5000"
     volumes:
       - registry_data:/var/lib/registry
-      - registry_auth:/var/lib/gateway-registry-auth:ro
+      - registry_auth:/var/lib/opfield-registry-auth:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/debug/health >/dev/null"]
       interval: 10s
@@ -1753,10 +1580,20 @@ if [[ "$FRESH" == 1 ]]; then
     write_legacy_compose
   else
     write_opfield_compose
-    if version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$RELAY_BUILD_VERSION"; then
-      # legacy-name: a relay image before 2.12.1 has only /gateway-relay (later ones keep it as a link).
+    if version_is_newer "$FIRST_OPFIELD_DATA_DIR_VERSION" "$VERSION"; then
+      # legacy-name: an app image before FIRST_OPFIELD_DATA_DIR_VERSION keeps its data in the legacy directories.
       tmp_compose="$(mktemp)"
-      awk '{ gsub("\"/opfield-relay\"", "\"/gateway-relay\""); print }' docker-compose.yml >"$tmp_compose"
+      sed -e "s#/var/lib/opfield-relay#${LEGACY_RELAY_IDENTITY_DIR}#g" \
+        -e "s#/var/lib/opfield-registry-auth#${LEGACY_REGISTRY_AUTH_DIR}#g" \
+        -e "s#/var/lib/opfield/tls#${LEGACY_APP_DATA_DIR}/tls#g" \
+        -e "s#:/var/lib/opfield\$#:${LEGACY_APP_DATA_DIR}#" docker-compose.yml >"$tmp_compose"
+      cat "$tmp_compose" >docker-compose.yml
+      rm -f "$tmp_compose"
+    fi
+    if version_is_newer "$FIRST_OPFIELD_LAYOUT_VERSION" "$RELAY_BUILD_VERSION"; then
+      # legacy-name: a relay image before 2.12.1 has only the legacy entrypoint (later ones keep it as a link).
+      tmp_compose="$(mktemp)"
+      awk -v legacy="\"${LEGACY_RELAY_BINARY}\"" '{ gsub("\"/opfield-relay\"", legacy); print }' docker-compose.yml >"$tmp_compose"
       cat "$tmp_compose" >docker-compose.yml
       rm -f "$tmp_compose"
     fi

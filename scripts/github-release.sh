@@ -6,12 +6,13 @@ tag=${GITHUB_REF_NAME:?GITHUB_REF_NAME is required}
 commit_sha=${GITHUB_SHA:?GITHUB_SHA is required}
 run_id=${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}
 repository=${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}
-# Primary repository, mirror and the repository signed manifests name (installs pull it): see
+# Image repository and the repository signed manifests name (installs pull it): see
 # scripts/release/image-repositories.sh.
 # shellcheck source=release/image-repositories.sh
 source scripts/release/image-repositories.sh
+# shellcheck source=legacy-compat.sh
+source scripts/legacy-compat.sh
 opfield_image="$OPFIELD_IMAGE"
-opfield_image_mirror="$OPFIELD_IMAGE_MIRROR"
 signed_image="$OPFIELD_SIGNED_IMAGE"
 source_url="https://github.com/${repository}"
 
@@ -89,23 +90,9 @@ complete_release() {
 
 docker_login() {
   test -n "${GH_TOKEN:-}" || { printf 'GH_TOKEN is required\n' >&2; exit 1; }
-  # GHCR_PUSH_TOKEN (secret): a token that can write packages in both organizations, needed once the repository lives
-  # in another organization than opfield_image or opfield_image_mirror.
+  # GHCR_PUSH_TOKEN (secret): a token that can write packages in the image repository's organization, needed while
+  # the repository lives in another organization than opfield_image.
   printf '%s' "${GHCR_PUSH_TOKEN:-$GH_TOKEN}" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-}
-
-# mirror_image <primary repository> <digest> <tag>...: copies a pushed image to the mirror repository.
-mirror_image() {
-  [[ -n "$opfield_image_mirror" ]] || return 0
-  local image=$1 digest=$2 target t
-  shift 2
-  target="${opfield_image_mirror}${image#"$opfield_image"}"
-  # skopeo keeps the manifest as it is, so the mirror tag has the signed digest. buildx imagetools create would wrap a
-  # single-platform manifest in a new index with another digest that carries no signature.
-  for t in "$@"; do
-    skopeo copy --all --preserve-digests "docker://${image}@${digest}" "docker://${target}:${t}"
-  done
-  printf 'Mirrored %s@%s to %s\n' "$image" "$digest" "$target"
 }
 
 require_signing_key() {
@@ -138,7 +125,7 @@ publish_opfield() {
   local digest
   local installers_dir=release-installers
   ./scripts/stage-installers.sh "$tag" "$installers_dir"
-  local assets=(CONTINUITY-GRANT.md gateway-image.update.json "$installers_dir"/*)
+  local assets=(CONTINUITY-GRANT.md "$LEGACY_APP_IMAGE_MANIFEST_ASSET" "$installers_dir"/*)
   prepare_release "Opfield ${tag}" "Opfield release ${tag}"
   if [[ "$release_already_published" -eq 1 ]]; then
     complete_release "${assets[@]}"
@@ -158,24 +145,21 @@ publish_opfield() {
   (
     cd packages/daemons
     go run ./shared/cmd/update-trust sign \
-      --kind gateway-image \
+      --kind opfield-image \
       --version "$tag" \
       --tag "$tag" \
       --image "$signed_image" \
       --digest "$digest" \
       --git-commit-sha "$commit_sha" \
       --git-pipeline-id "$run_id" \
-      --out ../../gateway-image.update.json
+      --out "../../${LEGACY_APP_IMAGE_MANIFEST_ASSET}"
   )
   docker tag "${opfield_image}:${tag}" "${opfield_image}:${tag#v}"
   docker push "${opfield_image}:${tag#v}"
-  local mirror_tags=("$tag" "${tag#v}")
   if [[ "$RELEASE_PRERELEASE" != "true" ]]; then
     docker tag "${opfield_image}:${tag}" "${opfield_image}:latest"
     docker push "${opfield_image}:latest"
-    mirror_tags+=(latest)
   fi
-  mirror_image "$opfield_image" "$digest" "${mirror_tags[@]}"
   complete_release "${assets[@]}"
 }
 
@@ -287,7 +271,7 @@ publish_relay() {
   local relay_version=${tag%-relay}
   local relay_image="${opfield_image}/relay"
   local secure_link_image="${opfield_image}/secure-link-connector"
-  local relay_digest secure_link_digest min_gateway_version arch
+  local relay_digest secure_link_digest min_opfield_version arch
   local assets=(relay-image.update.json checksums.txt)
 
   for arch in amd64 arm64; do
@@ -318,6 +302,7 @@ publish_relay() {
 
   docker build \
     --file packages/daemons/secure-link-connector/Dockerfile \
+    --build-arg "LEGACY_ANCHOR_LABEL=${LEGACY_SECURE_LINK_ANCHOR_LABEL}" \
     --tag "${secure_link_image}:${tag}" \
     --label "org.opencontainers.image.source=${source_url}" \
     packages/daemons
@@ -325,7 +310,7 @@ publish_relay() {
 
   relay_digest=$(<relay-image.digest)
   secure_link_digest=$(<secure-link-connector.digest)
-  min_gateway_version=$(<config/relay/min-gateway-version)
+  min_opfield_version=$(<config/relay/min-opfield-version)
   (
     cd packages/daemons
     go run ./shared/cmd/update-trust sign \
@@ -335,7 +320,7 @@ publish_relay() {
       --image "${signed_image}/relay" \
       --digest "$relay_digest" \
       --relay-protocol-major 1 \
-      --min-gateway-version "$min_gateway_version" \
+      --min-opfield-version "$min_opfield_version" \
       --secure-link-connector-image "${signed_image}/secure-link-connector@${secure_link_digest}" \
       --git-commit-sha "$commit_sha" \
       --git-pipeline-id "$run_id" \
@@ -345,24 +330,16 @@ publish_relay() {
   build_daemon_assets relay relay-supervisor relay "main"
   docker tag "${relay_image}:${tag}" "${relay_image}:${relay_version}"
   docker push "${relay_image}:${relay_version}"
-  local mirror_tags=("$tag" "$relay_version")
   if [[ "$RELEASE_PRERELEASE" != "true" ]]; then
     docker tag "${relay_image}:${tag}" "${relay_image}:latest"
     docker push "${relay_image}:latest"
-    mirror_tags+=(latest)
   fi
-  mirror_image "$relay_image" "$relay_digest" "${mirror_tags[@]}"
-  mirror_image "$secure_link_image" "$secure_link_digest" "$tag"
   if signing_enabled; then
-    local relay_also=() connector_also=() binary
-    if [[ -n "$opfield_image_mirror" ]]; then
-      relay_also=(--also "${opfield_image_mirror}/relay")
-      connector_also=(--also "${opfield_image_mirror}/secure-link-connector")
-    fi
+    local binary
     scripts/release/supply-chain.sh sign "${relay_image}@${relay_digest}" \
-      --sbom "relay-${tag}.spdx.json" "${relay_also[@]}"
+      --sbom "relay-${tag}.spdx.json"
     scripts/release/supply-chain.sh sign "${secure_link_image}@${secure_link_digest}" \
-      --sbom "secure-link-connector-${tag}.spdx.json" "${connector_also[@]}"
+      --sbom "secure-link-connector-${tag}.spdx.json"
     assets+=("relay-${tag}.spdx.json" "secure-link-connector-${tag}.spdx.json")
     for arch in amd64 arm64; do
       for binary in relay-supervisor relay-worker; do

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"maps"
 	"net/netip"
@@ -116,18 +117,18 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		if err := writeManagedRedisConfig(redisConfigPath, managedRedisConfigText(input)); err != nil {
 			return "", fmt.Errorf("write Redis managed config: %w", err)
 		}
-		containerCfg.Cmd = []string{managedRedisServerCommand(input.Image), "/run/gateway-config/redis.conf", "--dir", "/data"}
+		containerCfg.Cmd = []string{managedRedisServerCommand(input.Image), legacycompat.RunDirPrefix + "config/redis.conf", "--dir", "/data"}
 		if input.TLSEnabled {
-			containerCfg.Cmd = append(containerCfg.Cmd, "--port", "6379", "--tls-port", "6380", "--tls-cert-file", "/run/gateway-tls/cert.pem", "--tls-key-file", "/run/gateway-tls/key.pem", "--tls-ca-cert-file", "/run/gateway-tls/ca.pem", "--tls-auth-clients", "no")
+			containerCfg.Cmd = append(containerCfg.Cmd, "--port", "6379", "--tls-port", "6380", "--tls-cert-file", legacycompat.RunDirPrefix+"tls/cert.pem", "--tls-key-file", legacycompat.RunDirPrefix+"tls/key.pem", "--tls-ca-cert-file", legacycompat.RunDirPrefix+"tls/ca.pem", "--tls-auth-clients", "no")
 		}
 	}
 	if input.Type == "clickhouse" && input.ClickhouseConfig != "" {
-		if err := writeClickHouseManagedConfig(filepath.Join(record.MountPath, "gateway-managed.xml"), input.ClickhouseConfig); err != nil {
+		if err := writeClickHouseManagedConfig(filepath.Join(record.MountPath, legacycompat.ClickHouseManagedConfigFile), input.ClickhouseConfig); err != nil {
 			return "", fmt.Errorf("write ClickHouse managed config: %w", err)
 		}
 	}
 	if input.Type == "clickhouse" {
-		if err := writeClickHouseConfig(filepath.Join(record.MountPath, "00-gateway-runtime.xml"), clickHouseRuntimeConfig); err != nil {
+		if err := writeClickHouseConfig(filepath.Join(record.MountPath, legacycompat.ClickHouseRuntimeConfigFile), clickHouseRuntimeConfig); err != nil {
 			return "", fmt.Errorf("write ClickHouse runtime config: %w", err)
 		}
 		ownerConfig := clickHouseOwnerOverrideConfig(input.OwnerUsername, input.OwnerPassword)
@@ -139,33 +140,33 @@ func (m *managedDatabaseManager) createPinnedContainer(ctx context.Context, reco
 		}
 	}
 	if input.Type == "clickhouse" && input.TLSEnabled {
-		config := `<clickhouse><https_port>8443</https_port><tcp_port_secure>9440</tcp_port_secure><openSSL><server><certificateFile>/run/gateway-tls/cert.pem</certificateFile><privateKeyFile>/run/gateway-tls/key.pem</privateKeyFile></server></openSSL></clickhouse>`
-		if err := writeClickHouseConfig(filepath.Join(record.MountPath, "gateway-tls.xml"), config); err != nil {
+		config := `<clickhouse><https_port>8443</https_port><tcp_port_secure>9440</tcp_port_secure><openSSL><server><certificateFile>` + legacycompat.RunDirPrefix + `tls/cert.pem</certificateFile><privateKeyFile>` + legacycompat.RunDirPrefix + `tls/key.pem</privateKeyFile></server></openSSL></clickhouse>`
+		if err := writeClickHouseConfig(filepath.Join(record.MountPath, legacycompat.ClickHouseTLSConfigFile), config); err != nil {
 			return "", fmt.Errorf("write ClickHouse TLS config: %w", err)
 		}
 	}
 	binds := []string{dataSource + ":" + dataPath}
 	if input.Type == "redis" {
-		binds = append(binds, managedRedisConfigPath(*record, input)+":/run/gateway-config/redis.conf:ro")
+		binds = append(binds, managedRedisConfigPath(*record, input)+":"+legacycompat.RunDirPrefix+"config/redis.conf:ro")
 	}
 	if input.Type == "postgres" && input.TLSEnabled {
-		binds = append(binds, managedPostgresTLSHBAPath(*record)+":/run/gateway-config/pg_hba.conf:ro")
+		binds = append(binds, managedPostgresTLSHBAPath(*record)+":"+legacycompat.RunDirPrefix+"config/pg_hba.conf:ro")
 	}
 	if linkSocketDir != "" {
 		binds = append(binds, linkSocketDir+":"+pgLinkSocketContainerDir)
 	}
 	if input.TLSEnabled {
-		binds = append(binds, tlsDir+":/run/gateway-tls:ro")
+		binds = append(binds, tlsDir+":"+legacycompat.RunDirPrefix+"tls:ro")
 	}
 	if input.Type == "clickhouse" && input.ClickhouseConfig != "" {
-		binds = append(binds, filepath.Join(record.MountPath, "gateway-managed.xml")+":/etc/clickhouse-server/config.d/gateway-managed.xml:ro")
+		binds = append(binds, filepath.Join(record.MountPath, legacycompat.ClickHouseManagedConfigFile)+":/etc/clickhouse-server/config.d/"+legacycompat.ClickHouseManagedConfigFile+":ro")
 	}
 	if input.Type == "clickhouse" {
-		binds = append(binds, filepath.Join(record.MountPath, "00-gateway-runtime.xml")+":/etc/clickhouse-server/config.d/00-gateway-runtime.xml:ro")
+		binds = append(binds, filepath.Join(record.MountPath, legacycompat.ClickHouseRuntimeConfigFile)+":/etc/clickhouse-server/config.d/"+legacycompat.ClickHouseRuntimeConfigFile+":ro")
 		binds = append(binds, clickHouseOwnerOverridePath(*record)+":"+clickHouseOwnerOverrideContainerPath+":ro")
 	}
 	if input.Type == "clickhouse" && input.TLSEnabled {
-		binds = append(binds, filepath.Join(record.MountPath, "gateway-tls.xml")+":/etc/clickhouse-server/config.d/gateway-tls.xml:ro")
+		binds = append(binds, filepath.Join(record.MountPath, legacycompat.ClickHouseTLSConfigFile)+":/etc/clickhouse-server/config.d/"+legacycompat.ClickHouseTLSConfigFile+":ro")
 	}
 	availabilityMember := input.Type == "clickhouse" && clickHouseAvailabilitySetID(input) != ""
 	if input.Type == "clickhouse" && input.ClickhouseAvailability != nil {
@@ -346,9 +347,9 @@ func managedPostgresCommandWith(input managedDatabaseCommand, linkSocket bool) [
 	if input.TLSEnabled {
 		flags = append(flags,
 			"-c", "ssl=on",
-			"-c", "ssl_cert_file=/run/gateway-tls/cert.pem",
-			"-c", "ssl_key_file=/run/gateway-tls/key.pem",
-			"-c", "hba_file=/run/gateway-config/pg_hba.conf",
+			"-c", "ssl_cert_file="+legacycompat.RunDirPrefix+"tls/cert.pem",
+			"-c", "ssl_key_file="+legacycompat.RunDirPrefix+"tls/key.pem",
+			"-c", "hba_file="+legacycompat.RunDirPrefix+"config/pg_hba.conf",
 		)
 		if linkSocket {
 			flags = append(flags, "-c", "unix_socket_directories=/var/run/postgresql,"+pgLinkSocketContainerDir)
@@ -534,7 +535,7 @@ hostssl all all ::0/0 scram-sha-256
 `
 
 func managedPostgresTLSHBAPath(record managedDatabaseRecord) string {
-	return filepath.Join(record.MountPath, "gateway-pg_hba.conf")
+	return filepath.Join(record.MountPath, legacycompat.PostgresHBAFile)
 }
 
 func writeManagedPostgresTLSHBA(path string, linkSocket bool) error {

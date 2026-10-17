@@ -21,7 +21,7 @@ const ALL_SCOPES = [
 ];
 const everyone = { scopes: ALL_SCOPES, pkiEnabled: true };
 const redirect = (url: string, context = everyone) => {
-  const parsed = new URL(url, "https://gateway.test");
+  const parsed = new URL(url, "https://opfield.test");
   return legacyNavigationRedirect(
     { pathname: parsed.pathname, search: parsed.search, hash: parsed.hash },
     context

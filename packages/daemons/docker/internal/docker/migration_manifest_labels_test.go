@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -43,19 +44,19 @@ func migrationInspect(id, imageID string, labels map[string]string) string {
 }
 
 // A container imported from an archive and migrated once under 2.12.0 carries
-// wiolett.gateway.* labels, among them the archive image reference and the
+// pre-2.12.1 labels, among them the archive image reference and the
 // old migration id. Its manifest names every label by its Opfield key, so the
 // target, which is created with Opfield keys, captures the same manifest:
 // before and after its start is confirmed.
 func TestMigrationManifestOfPreOpfieldLabelsMatchesTheTarget(t *testing.T) {
 	imageID := "sha256:" + strings.Repeat("a", 64)
 	sourceLabels := map[string]string{
-		"wiolett.gateway.archive.image.reference": "registry.test/app:1",
-		"wiolett.gateway.migration.id":            "migration-under-2.12.0",
-		"wiolett.gateway.managed":                 "true",
-		"wiolett.gateway.availability.policy":     "p1",
-		"com.wiolett.gateway.managed-volume":      "true",
-		"org.example.team":                        "blue",
+		legacycompat.LabelPrefix + "archive.image.reference": "registry.test/app:1",
+		legacycompat.LabelPrefix + "migration.id":            "migration-under-2.12.0",
+		legacycompat.LabelPrefix + "managed":                 "true",
+		legacycompat.LabelPrefix + "availability.policy":     "p1",
+		legacycompat.ComLabelPrefix + "managed-volume":       "true",
+		"org.example.team":                                   "blue",
 	}
 	imageJSON := `{"Id":"` + imageID + `","Config":{"Env":[]}}`
 	source := labelledDockerEngine(t, true, func(request *http.Request, path string) (int, string) {
@@ -116,7 +117,7 @@ func TestMigrationManifestOfPreOpfieldLabelsMatchesTheTarget(t *testing.T) {
 		if created[migrationOwnershipLabel] != "migration-2" || created[archiveImageReferenceLabel] != "registry.test/app:1" {
 			t.Fatalf("confirmed=%v created labels %v", confirmed, created)
 		}
-		if _, ok := created["wiolett.gateway.migration.id"]; ok && created["wiolett.gateway.migration.id"] != "migration-2" {
+		if _, ok := created[legacycompat.LabelPrefix+"migration.id"]; ok && created[legacycompat.LabelPrefix+"migration.id"] != "migration-2" {
 			t.Fatalf("confirmed=%v the old migration id key keeps the 2.12.0 migration: %v", confirmed, created)
 		}
 		// A retry of the same migration finds its own target.
@@ -141,10 +142,10 @@ func TestMigrationManifestOfPreOpfieldLabelsMatchesTheTarget(t *testing.T) {
 // one the daemon changed.
 func TestUnconfirmedCreateWritesTheCurrentValueUnderTheOldKey(t *testing.T) {
 	labels := labelsForCreate(map[string]string{
-		archiveImageReferenceLabel:                "registry.test/app:2",
-		"wiolett.gateway.archive.image.reference": "registry.test/app:1",
+		archiveImageReferenceLabel:                           "registry.test/app:2",
+		legacycompat.LabelPrefix + "archive.image.reference": "registry.test/app:1",
 	}, false)
-	if labels["wiolett.gateway.archive.image.reference"] != "registry.test/app:2" || labels[archiveImageReferenceLabel] != "registry.test/app:2" {
+	if labels[legacycompat.LabelPrefix+"archive.image.reference"] != "registry.test/app:2" || labels[archiveImageReferenceLabel] != "registry.test/app:2" {
 		t.Fatalf("labels %v", labels)
 	}
 }

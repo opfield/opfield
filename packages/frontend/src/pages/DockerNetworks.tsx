@@ -58,6 +58,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useDockerStore } from "@/stores/docker";
 import { useDockerFolderStore } from "@/stores/docker-folders";
 import type { DockerFolderTreeNode, DockerNetwork, Node, NodeAppearanceColor } from "@/types";
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from "../../../backend/src/lib/legacy-compat";
 
 interface DockerNetworkListItem extends DockerNetwork {
   _nodeId: string;
@@ -74,7 +75,7 @@ const CONTROLLER_NETWORK_PREFIXES = [
   // legacy-name: networks of Availability copies, deployments and database links created before 2.12.1 — remove once every node reports none
   "gwav-",
   "gwdep-",
-  "gateway-db-",
+  LEGACY_DATABASE_LINK_NETWORK_PREFIX,
 ];
 
 function isControllerOwnedNetwork(network: DockerNetwork): boolean {

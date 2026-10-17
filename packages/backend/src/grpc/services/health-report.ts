@@ -5,8 +5,9 @@ import type {
   NodeUpdateConnectionResult,
   NodeUpdateConnectionsReport,
 } from '@/db/schema/nodes.js';
+import { LEGACY_MANAGED_STORAGE_ROOT } from '@/lib/legacy-compat.js';
 
-const managedStorageRootFilesystem = 'gateway-managed-storage-root';
+const managedStorageRootFilesystem = LEGACY_MANAGED_STORAGE_ROOT;
 
 type DecodedHealthDiskMount = {
   mountPoint: string;

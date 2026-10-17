@@ -33,25 +33,25 @@ describe('docker registry external token request parsing', () => {
   });
 
   it('accepts an Opfield API token only as the Basic password', () => {
-    expect(__testOnly.basicPassword(`Basic ${Buffer.from('gateway:gw_secret').toString('base64')}`)).toBe('gw_secret');
-    expect(__testOnly.basicPassword(`Basic ${Buffer.from('gateway:gwo_oauth').toString('base64')}`)).toBeNull();
+    expect(__testOnly.basicPassword(`Basic ${Buffer.from('opfield:gw_secret').toString('base64')}`)).toBe('gw_secret');
+    expect(__testOnly.basicPassword(`Basic ${Buffer.from('opfield:gwo_oauth').toString('base64')}`)).toBeNull();
     expect(__testOnly.basicPassword('Bearer gw_secret')).toBeNull();
   });
 
   it('parses exact repository pull/push grants and rejects delete or malformed repositories', () => {
     const valid = new URL(
-      'https://gateway.example.com/api/docker/registry/token?scope=repository:tenant/app:pull,push'
+      'https://opfield.example.com/api/docker/registry/token?scope=repository:tenant/app:pull,push'
     );
     expect(__testOnly.requestedRegistryGrants(valid)).toEqual([
       { repository: 'tenant/app', actions: ['pull', 'push'] },
     ]);
 
     const deletion = new URL(
-      'https://gateway.example.com/api/docker/registry/token?scope=repository:tenant/app:delete'
+      'https://opfield.example.com/api/docker/registry/token?scope=repository:tenant/app:delete'
     );
     expect(() => __testOnly.requestedRegistryGrants(deletion)).toThrow('Registry action scope is invalid');
 
-    const malformed = new URL('https://gateway.example.com/api/docker/registry/token?scope=repository:Tenant/App:pull');
+    const malformed = new URL('https://opfield.example.com/api/docker/registry/token?scope=repository:Tenant/App:pull');
     expect(() => __testOnly.requestedRegistryGrants(malformed)).toThrow('Registry repository scope is invalid');
   });
 
@@ -83,7 +83,7 @@ describe('docker registry external token request parsing', () => {
     const response = await app.request(
       '/registry/token?service=opfield-internal-registry&scope=repository:tenant/app:pull,push',
       {
-        headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+        headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
       }
     );
 
@@ -117,7 +117,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
 
     const response = await app.request('/registry/token?scope=repository:tenant/app:push', {
-      headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+      headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
     });
 
     expect(response.status).toBe(403);
@@ -155,7 +155,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
 
     const response = await app.request(`/registry/token?scope=repository:${repository}:pull`, {
-      headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+      headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
     });
 
     expect(response.status).toBe(403);
@@ -182,7 +182,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
     const pull = (repository: string) =>
       app.request(`/registry/token?scope=repository:${repository}:pull`, {
-        headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+        headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
       });
 
     expect((await pull('tenant/app')).status).toBe(200);
@@ -205,7 +205,7 @@ describe('docker registry external token request parsing', () => {
     app.route('/registry', dockerRegistryAuthRoutes);
 
     const response = await app.request('/registry/token?scope=repository:tenant/app:pull', {
-      headers: { Authorization: `Basic ${Buffer.from('gateway:gw_secret').toString('base64')}` },
+      headers: { Authorization: `Basic ${Buffer.from('opfield:gw_secret').toString('base64')}` },
     });
 
     expect(response.status).toBe(403);

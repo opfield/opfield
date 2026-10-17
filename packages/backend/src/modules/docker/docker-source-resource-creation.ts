@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { dockerComposeProjects, dockerDeployments } from '@/db/schema/index.js';
+import { LEGACY_PLACEHOLDER_REGISTRY_HOST } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { ComposeProjectNameSchema } from '@/modules/docker/compose/compose.schemas.js';
 import { DockerComposeService } from '@/modules/docker/compose/compose.service.js';
@@ -26,7 +27,7 @@ import { assertContainerSourceTargetNotOwned } from './docker-source-target-owne
  * source tool. Callers check the entry scope and the license entitlement.
  */
 
-const PENDING_SOURCE_IMAGE = 'gateway.invalid/pending-source-build:latest';
+const PENDING_SOURCE_IMAGE = `${LEGACY_PLACEHOLDER_REGISTRY_HOST}/pending-source-build:latest`;
 
 export const ComposeSourceProjectCreateSchema = z
   .object({

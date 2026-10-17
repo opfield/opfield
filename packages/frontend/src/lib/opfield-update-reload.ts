@@ -1,11 +1,12 @@
+import { LEGACY_STORAGE_KEY_PREFIX } from "../../../backend/src/lib/legacy-compat";
 export const OPFIELD_UPDATE_RELOAD_STORAGE_KEY = "opfield-update-reload";
 export const OPFIELD_UPDATE_RELOAD_HANDLED_KEY = "opfield-update-reload-handled";
 
 const OPFIELD_UPDATE_RELOAD_CHANNEL = "opfield-update-reload";
 // legacy-name: update reload keys and channel the 2.12.0 bundle in open tabs uses — remove once 2.12.0 is no longer an update source
-const LEGACY_UPDATE_RELOAD_STORAGE_KEY = "gateway-update-reload";
-const LEGACY_UPDATE_RELOAD_HANDLED_KEY = "gateway-update-reload-handled";
-const LEGACY_UPDATE_RELOAD_CHANNEL = "gateway-update-reload";
+const LEGACY_UPDATE_RELOAD_STORAGE_KEY = `${LEGACY_STORAGE_KEY_PREFIX}-update-reload`;
+const LEGACY_UPDATE_RELOAD_HANDLED_KEY = `${LEGACY_STORAGE_KEY_PREFIX}-update-reload-handled`;
+const LEGACY_UPDATE_RELOAD_CHANNEL = `${LEGACY_STORAGE_KEY_PREFIX}-update-reload`;
 const OPFIELD_UPDATE_RELOAD_MAX_AGE_MS = 120_000;
 let opfieldReloadNavigationStarted = false;
 

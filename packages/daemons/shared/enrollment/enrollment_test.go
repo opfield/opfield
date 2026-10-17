@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var testPeerCert = &x509.Certificate{Raw: []byte("gateway leaf certificate")}
+var testPeerCert = &x509.Certificate{Raw: []byte("opfield leaf certificate")}
 
 func testFingerprint() string {
 	sum := sha256.Sum256(testPeerCert.Raw)

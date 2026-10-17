@@ -4,6 +4,24 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
 import {
+  LEGACY_COMPOSE_MARKER,
+  LEGACY_ENV_PREFIX,
+  LEGACY_IMAGE_REPOSITORY,
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_INTERNAL_REGISTRY_ID,
+  LEGACY_MANAGED_SERVICE_LABEL,
+  LEGACY_PRODUCT_TITLE,
+  LEGACY_REGISTRY_AUTH_DIR,
+  LEGACY_REGISTRY_IMAGE,
+  LEGACY_RELAY_BINARY,
+  LEGACY_RELAY_IDENTITY_DIR,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+  LEGACY_VOLUME_RELAY_STATE,
+} from '@/lib/legacy-compat.js';
+import {
   assertEnvReferencesResolve,
   composeLoggingEligibility,
   dockerLogDefaultsEnv,
@@ -18,7 +36,7 @@ const BOUNDED = { boundedLogging: true };
 
 const OLD_COMPOSE = `services:
   app:
-    image: \${GATEWAY_IMAGE}:\${GATEWAY_VERSION}
+    image: \${${LEGACY_ENV_PREFIX}IMAGE}:\${${LEGACY_ENV_PREFIX}VERSION}
     restart: unless-stopped
     env_file: .env
     mem_limit: 1g
@@ -37,8 +55,8 @@ const OLD_COMPOSE = `services:
 const DOLLAR = '$';
 const EXPECTED_IMAGE_LINE = `image: ${DOLLAR}{OPFIELD_IMAGE_REF}`;
 const EXPECTED_SANDBOX_VOLUME =
-  `      - ${DOLLAR}{SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}:` +
-  `${DOLLAR}{SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/gateway/sandbox-workspaces}`;
+  `      - ${DOLLAR}{SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces}:` +
+  `${DOLLAR}{SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces}`;
 const BUILD_ONLY_APP_COMPOSE = `services:
   app:
     build:
@@ -54,7 +72,7 @@ describe('foundation migrator patches', () => {
   it('retains an app label immediately before the managed relay marker on repeated paid upgrades', () => {
     const source = OLD_COMPOSE.replace(
       '\n  redis:',
-      '\n  relay:\n    image: relay:old\n    labels:\n      com.wiolett.gateway.managed-service: relay\n\n  redis:'
+      `\n  relay:\n    image: relay:old\n    labels:\n      ${LEGACY_MANAGED_SERVICE_LABEL}: relay\n\n  redis:`
     );
     const first = patchCompose(source, true);
     const second = patchCompose(first, true);
@@ -123,24 +141,24 @@ describe('foundation migrator patches', () => {
     expect(patched).toContain(EXPECTED_SANDBOX_VOLUME);
     expect(patched).toContain('      # opfield-managed:end sandbox-workspace');
     expect(patched).toContain('      - /var/run/docker.sock:/var/run/docker.sock\n');
-    expect(patched).toContain('      - gateway_data:/var/lib/gateway');
+    expect(patched).toContain(`      - ${LEGACY_VOLUME_APP_DATA}:/var/lib/${LEGACY_INSTALL_DIR_NAME}`);
     expect(patched).not.toContain('wget -qO- http://127.0.0.1:3000/health');
-    expect(patched).toContain('\nvolumes:\n  gateway_data:');
+    expect(patched).toContain(`\nvolumes:\n  ${LEGACY_VOLUME_APP_DATA}:`);
     expect(patched).toContain(`  relay:\n    image: \${OPFIELD_RELAY_IMAGE_REF}`);
-    expect(patched).toContain('    entrypoint: ["/gateway-relay"]');
+    expect(patched).toContain(`    entrypoint: ["${LEGACY_RELAY_BINARY}"]`);
     expect(patched).toContain('net.opfield.managed-service: app');
-    expect(patched).toContain('gateway_relay_identity:/var/lib/gateway-relay');
-    expect(patched).toContain('gateway_relay_state:/var/lib/gateway-relay/state');
+    expect(patched).toContain(`${LEGACY_VOLUME_RELAY_IDENTITY}:${LEGACY_RELAY_IDENTITY_DIR}`);
+    expect(patched).toContain(`${LEGACY_VOLUME_RELAY_STATE}:${LEGACY_RELAY_IDENTITY_DIR}/state`);
     expect(patched).toContain('# opfield-managed:start registry-service');
     expect(patched).toContain(`  registry:\n    image: \${OPFIELD_REGISTRY_IMAGE_REF}`);
     expect(patched).toContain('net.opfield.managed-service: registry');
     expect(patched).toContain('REGISTRY_STORAGE_DELETE_ENABLED: "true"');
     expect(patched).not.toContain('REGISTRY_STORAGE_MAINTENANCE_UPLOADPURGING_');
-    expect(patched).toContain('REGISTRY_AUTH_TOKEN_SERVICE: gateway-internal-registry');
+    expect(patched).toContain(`REGISTRY_AUTH_TOKEN_SERVICE: ${LEGACY_INTERNAL_REGISTRY_ID}`);
     expect(patched).toContain('      - "5000"');
-    expect(patched).toContain('gateway_registry_data:/var/lib/registry');
-    expect(patched).toContain('gateway_registry_auth:/var/lib/gateway-registry-auth');
-    expect(patched).toContain('gateway_registry_auth:/var/lib/gateway-registry-auth:ro');
+    expect(patched).toContain(`${LEGACY_VOLUME_REGISTRY_DATA}:/var/lib/registry`);
+    expect(patched).toContain(`${LEGACY_VOLUME_REGISTRY_AUTH}:${LEGACY_REGISTRY_AUTH_DIR}`);
+    expect(patched).toContain(`${LEGACY_VOLUME_REGISTRY_AUTH}:${LEGACY_REGISTRY_AUTH_DIR}:ro`);
     expect(patched).toContain('http://127.0.0.1:5001/debug/health');
     expect(patched).not.toMatch(/(?:127\.0\.0\.1:)?5000:5000/);
     expect(patched).toContain('      relay:\n        condition: service_started');
@@ -153,11 +171,11 @@ describe('foundation migrator patches', () => {
   it('replaces legacy relay IP targets with the Compose service DNS name', () => {
     const mappingStyle = OLD_COMPOSE.replace(
       '    env_file: .env',
-      '    env_file: .env\n    environment:\n      GATEWAY_RELAY_TARGET: 172.18.0.4:9443'
+      `    env_file: .env\n    environment:\n      ${LEGACY_ENV_PREFIX}RELAY_TARGET: 172.18.0.4:9443`
     );
     const listStyle = OLD_COMPOSE.replace(
       '    env_file: .env',
-      '    env_file: .env\n    environment:\n      - GATEWAY_RELAY_TARGET=172.18.0.4:9443'
+      `    env_file: .env\n    environment:\n      - ${LEGACY_ENV_PREFIX}RELAY_TARGET=172.18.0.4:9443`
     );
 
     for (const compose of [mappingStyle, listStyle]) {
@@ -233,26 +251,26 @@ volumes:
     expect(patched).toContain('OTHER_SETTING: keep-me');
     expect(patched).toContain('\n  redis:\n');
     expect(patched).toContain('  redis_data:');
-    expect(patched).toContain('  gateway_data:');
+    expect(patched).toContain(`  ${LEGACY_VOLUME_APP_DATA}:`);
   });
 
   it('keeps an existing runtime storage mount instead of adding a managed volume', () => {
     const compose = OLD_COMPOSE.replace(
       '      - ./docker-compose.yml:/app/docker-compose.yml:ro',
-      '      - /srv/gateway-state:/var/lib/gateway\n      - ./docker-compose.yml:/app/docker-compose.yml:ro'
+      `      - /srv/opfield-state:/var/lib/${LEGACY_INSTALL_DIR_NAME}\n      - ./docker-compose.yml:/app/docker-compose.yml:ro`
     );
 
     const patched = patchCompose(compose);
 
-    expect(patched).toContain('/srv/gateway-state:/var/lib/gateway');
-    expect(patched).not.toContain('gateway_data:/var/lib/gateway');
+    expect(patched).toContain(`/srv/opfield-state:/var/lib/${LEGACY_INSTALL_DIR_NAME}`);
+    expect(patched).not.toContain(`${LEGACY_VOLUME_APP_DATA}:/var/lib/${LEGACY_INSTALL_DIR_NAME}`);
   });
 
   it('replaces an existing unmarked sandbox volume instead of duplicating it', () => {
     const compose = OLD_COMPOSE.replace(
       '      - ./docker-compose.yml:/app/docker-compose.yml:ro',
       [
-        '      - /var/lib/gateway/sandbox-workspaces:/var/lib/gateway/sandbox-workspaces',
+        `      - /var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces:/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces`,
         '      - ./docker-compose.yml:/app/docker-compose.yml:ro',
       ].join('\n')
     );
@@ -279,7 +297,7 @@ ${OLD_COMPOSE}`;
   it('refuses malformed managed blocks', () => {
     const compose = OLD_COMPOSE.replace(
       '      - ./docker-compose.yml:/app/docker-compose.yml:ro',
-      '      # gateway-managed:start sandbox-workspace\n      - ./docker-compose.yml:/app/docker-compose.yml:ro'
+      `      ${LEGACY_COMPOSE_MARKER}start sandbox-workspace\n      - ./docker-compose.yml:/app/docker-compose.yml:ro`
     );
 
     expect(() => patchCompose(compose)).toThrow('malformed sandbox workspace managed block');
@@ -429,10 +447,10 @@ ${OLD_COMPOSE}`;
   it('upserts env keys without leaving duplicates', () => {
     const patched = patchEnv('OPFIELD_VERSION=v2.4.2\nOPFIELD_VERSION=old\nOTHER=value\n', {
       OPFIELD_VERSION: 'v2.4.3',
-      OPFIELD_IMAGE_REF: 'registry/gateway:v2.4.3',
+      OPFIELD_IMAGE_REF: 'registry/opfield:v2.4.3',
     }).content;
 
-    expect(patched).toBe('OPFIELD_VERSION=v2.4.3\nOTHER=value\n\nOPFIELD_IMAGE_REF=registry/gateway:v2.4.3\n');
+    expect(patched).toBe('OPFIELD_VERSION=v2.4.3\nOTHER=value\n\nOPFIELD_IMAGE_REF=registry/opfield:v2.4.3\n');
   });
 });
 
@@ -446,12 +464,12 @@ describe('runFoundationMigrations', () => {
 
   it('adds bounded Compose logging only with json-file host defaults', async () => {
     const run = async (dockerLogDefaults?: { driver: string; logOpts: 'none' | 'set' | null }) => {
-      tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
-      await writeFile(path.join(tempDir, '.env'), 'GATEWAY_VERSION=v2.4.2\n');
+      tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
+      await writeFile(path.join(tempDir, '.env'), `${LEGACY_ENV_PREFIX}VERSION=v2.4.2\n`);
       await writeFile(path.join(tempDir, 'docker-compose.yml'), OLD_COMPOSE);
       await runFoundationMigrations({
         hostDir: tempDir,
-        relayImageRef: `registry/gateway/relay@sha256:${'a'.repeat(64)}`,
+        relayImageRef: `registry/opfield/relay@sha256:${'a'.repeat(64)}`,
         sandboxWorkspaceDir: path.join(tempDir, 'sandbox-workspaces'),
         dockerLogDefaults,
       });
@@ -468,14 +486,14 @@ describe('runFoundationMigrations', () => {
   });
 
   it('takes group and other permissions off docker-compose.yml and .env, also when nothing else changes', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
     const compose = path.join(tempDir, 'docker-compose.yml');
     const env = path.join(tempDir, '.env');
-    await writeFile(env, 'GATEWAY_VERSION=v2.4.2\n', { mode: 0o600 });
+    await writeFile(env, `${LEGACY_ENV_PREFIX}VERSION=v2.4.2\n`, { mode: 0o600 });
     await writeFile(compose, OLD_COMPOSE, { mode: 0o600 });
     const options = {
       hostDir: tempDir,
-      relayImageRef: `registry/gateway/relay@sha256:${'a'.repeat(64)}`,
+      relayImageRef: `registry/opfield/relay@sha256:${'a'.repeat(64)}`,
       sandboxWorkspaceDir: path.join(tempDir, 'sandbox-workspaces'),
     };
     await runFoundationMigrations(options);
@@ -490,10 +508,10 @@ describe('runFoundationMigrations', () => {
   });
 
   it('patches host foundation files and writes backups only when files change', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
     await writeFile(
       path.join(tempDir, '.env'),
-      'GATEWAY_VERSION=v2.4.2\nGATEWAY_RELAY_TARGET=172.18.0.4:9443\nGATEWAY_RELAY_VERSION=1\nGATEWAY_RELAY_DB_PASSWORD=legacy-secret\nRELAY_DATABASE_URL=postgres://legacy\nDATABASE_CONNECTOR_IMAGE=registry/legacy-database-connector:old\n'
+      `${LEGACY_ENV_PREFIX}VERSION=v2.4.2\n${LEGACY_ENV_PREFIX}RELAY_TARGET=172.18.0.4:9443\n${LEGACY_ENV_PREFIX}RELAY_VERSION=1\n${LEGACY_ENV_PREFIX}RELAY_DB_PASSWORD=legacy-secret\nRELAY_DATABASE_URL=postgres://legacy\nDATABASE_CONNECTOR_IMAGE=registry/legacy-database-connector:old\n`
     );
     await writeFile(path.join(tempDir, 'docker-compose.yml'), OLD_COMPOSE);
     const sandboxWorkspaceDir = path.join(tempDir, 'sandbox-workspaces');
@@ -501,21 +519,21 @@ describe('runFoundationMigrations', () => {
     const first = await runFoundationMigrations({
       hostDir: tempDir,
       targetVersion: 'v2.4.3',
-      imageRef: 'registry/gateway:v2.4.3',
-      secureLinkConnectorImage: 'registry/gateway/secure-link-connector@sha256:secure-connector',
+      imageRef: 'registry/opfield:v2.4.3',
+      secureLinkConnectorImage: 'registry/opfield/secure-link-connector@sha256:secure-connector',
       relayBuildVersion: 'v2.4.3-relay',
       relayProtocolMajor: 1,
-      relayImageRef: `registry/gateway/relay@sha256:${'a'.repeat(64)}`,
+      relayImageRef: `registry/opfield/relay@sha256:${'a'.repeat(64)}`,
       sandboxWorkspaceDir,
     });
     const second = await runFoundationMigrations({
       hostDir: tempDir,
       targetVersion: 'v2.4.3',
-      imageRef: 'registry/gateway:v2.4.3',
-      secureLinkConnectorImage: 'registry/gateway/secure-link-connector@sha256:secure-connector',
+      imageRef: 'registry/opfield:v2.4.3',
+      secureLinkConnectorImage: 'registry/opfield/secure-link-connector@sha256:secure-connector',
       relayBuildVersion: 'v2.4.3-relay',
       relayProtocolMajor: 1,
-      relayImageRef: `registry/gateway/relay@sha256:${'a'.repeat(64)}`,
+      relayImageRef: `registry/opfield/relay@sha256:${'a'.repeat(64)}`,
       sandboxWorkspaceDir,
     });
 
@@ -523,17 +541,17 @@ describe('runFoundationMigrations', () => {
     expect(first.backupDir).toContain('.opfield-foundation-backups');
     expect(second.changedFiles).toEqual([]);
     expect(second.backupDir).toBeNull();
-    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain('OPFIELD_IMAGE_REF=registry/gateway:v2.4.3');
+    expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain('OPFIELD_IMAGE_REF=registry/opfield:v2.4.3');
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).not.toContain('DATABASE_CONNECTOR_IMAGE');
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain(
-      'SECURE_LINK_CONNECTOR_IMAGE=registry/gateway/secure-link-connector@sha256:secure-connector'
+      'SECURE_LINK_CONNECTOR_IMAGE=registry/opfield/secure-link-connector@sha256:secure-connector'
     );
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain(
-      `OPFIELD_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'a'.repeat(64)}`
+      `OPFIELD_RELAY_IMAGE_REF=registry/opfield/relay@sha256:${'a'.repeat(64)}`
     );
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain('OPFIELD_RELAY_TARGET=relay:9443');
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toContain(
-      'OPFIELD_REGISTRY_IMAGE_REF=ghcr.io/the-square-labs/gateway/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8'
+      `OPFIELD_REGISTRY_IMAGE_REF=${LEGACY_REGISTRY_IMAGE}`
     );
     const firstRegistrySecret = /^OPFIELD_REGISTRY_HTTP_SECRET=(.+)$/m.exec(
       await readFile(path.join(tempDir, '.env'), 'utf8')
@@ -550,7 +568,7 @@ describe('runFoundationMigrations', () => {
       '# opfield-managed:start registry-service'
     );
     expect(await readFile(path.join(tempDir, 'docker-compose.yml'), 'utf8')).toContain(
-      'gateway_registry_data:/var/lib/registry'
+      `${LEGACY_VOLUME_REGISTRY_DATA}:/var/lib/registry`
     );
     expect(/^OPFIELD_REGISTRY_HTTP_SECRET=(.+)$/m.exec(await readFile(path.join(tempDir, '.env'), 'utf8'))?.[1]).toBe(
       firstRegistrySecret
@@ -558,83 +576,83 @@ describe('runFoundationMigrations', () => {
   });
 
   it('keeps the relay image pinned when the signed relay digest is unchanged', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
     await writeFile(
       path.join(tempDir, '.env'),
-      `GATEWAY_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'a'.repeat(64)}\nGATEWAY_RELAY_BUILD_VERSION=v2.4.3-relay\nGATEWAY_RELAY_PROTOCOL_MAJOR=1\n`
+      `${LEGACY_ENV_PREFIX}RELAY_IMAGE_REF=registry/opfield/relay@sha256:${'a'.repeat(64)}\n${LEGACY_ENV_PREFIX}RELAY_BUILD_VERSION=v2.4.3-relay\n${LEGACY_ENV_PREFIX}RELAY_PROTOCOL_MAJOR=1\n`
     );
     await writeFile(path.join(tempDir, 'docker-compose.yml'), OLD_COMPOSE);
 
     await runFoundationMigrations({
       hostDir: tempDir,
       targetVersion: 'v2.4.4',
-      imageRef: 'registry/gateway@sha256:new',
+      imageRef: 'registry/opfield@sha256:new',
       relayBuildVersion: 'v2.4.4-relay',
       relayProtocolMajor: 1,
-      relayImageRef: `registry/gateway/relay@sha256:${'a'.repeat(64)}`,
+      relayImageRef: `registry/opfield/relay@sha256:${'a'.repeat(64)}`,
     });
 
     const env = await readFile(path.join(tempDir, '.env'), 'utf8');
-    expect(env).toContain('OPFIELD_IMAGE_REF=registry/gateway@sha256:new');
-    expect(env).toContain(`OPFIELD_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'a'.repeat(64)}`);
+    expect(env).toContain('OPFIELD_IMAGE_REF=registry/opfield@sha256:new');
+    expect(env).toContain(`OPFIELD_RELAY_IMAGE_REF=registry/opfield/relay@sha256:${'a'.repeat(64)}`);
     expect(env).toContain('OPFIELD_RELAY_BUILD_VERSION=v2.4.3-relay');
     expect(env).not.toContain('OPFIELD_RELAY_BUILD_VERSION=v2.4.4-relay');
   });
 
-  it('preserves all Relay metadata when a Gateway-only update omits Relay arguments', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
-    const relayImage = `registry/gateway/relay@sha256:${'a'.repeat(64)}`;
+  it('preserves all Relay metadata when a Opfield-only update omits Relay arguments', async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
+    const relayImage = `registry/opfield/relay@sha256:${'a'.repeat(64)}`;
     await writeFile(
       path.join(tempDir, '.env'),
-      `GATEWAY_VERSION=v2.4.3\nGATEWAY_IMAGE_REF=registry/gateway@sha256:old\nGATEWAY_RELAY_IMAGE_REF=${relayImage}\nGATEWAY_RELAY_BUILD_VERSION=v2.4.3-relay\nGATEWAY_RELAY_PROTOCOL_MAJOR=1\n`
+      `${LEGACY_ENV_PREFIX}VERSION=v2.4.3\n${LEGACY_ENV_PREFIX}IMAGE_REF=registry/opfield@sha256:old\n${LEGACY_ENV_PREFIX}RELAY_IMAGE_REF=${relayImage}\n${LEGACY_ENV_PREFIX}RELAY_BUILD_VERSION=v2.4.3-relay\n${LEGACY_ENV_PREFIX}RELAY_PROTOCOL_MAJOR=1\n`
     );
     await writeFile(path.join(tempDir, 'docker-compose.yml'), OLD_COMPOSE);
 
     await runFoundationMigrations({
       hostDir: tempDir,
       targetVersion: 'v2.4.4',
-      imageRef: 'registry/gateway@sha256:new',
+      imageRef: 'registry/opfield@sha256:new',
     });
 
     const env = await readFile(path.join(tempDir, '.env'), 'utf8');
     expect(env).toContain('OPFIELD_VERSION=v2.4.4');
-    expect(env).toContain('OPFIELD_IMAGE_REF=registry/gateway@sha256:new');
+    expect(env).toContain('OPFIELD_IMAGE_REF=registry/opfield@sha256:new');
     expect(env).toContain(`OPFIELD_RELAY_IMAGE_REF=${relayImage}`);
     expect(env).toContain('OPFIELD_RELAY_BUILD_VERSION=v2.4.3-relay');
     expect(env).toContain('OPFIELD_RELAY_PROTOCOL_MAJOR=1');
   });
 
   it('advances the relay image only when the signed relay digest changes', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
     await writeFile(
       path.join(tempDir, '.env'),
-      `GATEWAY_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'a'.repeat(64)}\n`
+      `${LEGACY_ENV_PREFIX}RELAY_IMAGE_REF=registry/opfield/relay@sha256:${'a'.repeat(64)}\n`
     );
     await writeFile(path.join(tempDir, 'docker-compose.yml'), OLD_COMPOSE);
 
     await runFoundationMigrations({
       hostDir: tempDir,
-      imageRef: 'registry/gateway@sha256:new',
+      imageRef: 'registry/opfield@sha256:new',
       relayBuildVersion: 'v2.4.5-relay',
       relayProtocolMajor: 1,
-      relayImageRef: `registry/gateway/relay@sha256:${'b'.repeat(64)}`,
+      relayImageRef: `registry/opfield/relay@sha256:${'b'.repeat(64)}`,
     });
 
     const env = await readFile(path.join(tempDir, '.env'), 'utf8');
-    expect(env).toContain(`OPFIELD_RELAY_IMAGE_REF=registry/gateway/relay@sha256:${'b'.repeat(64)}`);
+    expect(env).toContain(`OPFIELD_RELAY_IMAGE_REF=registry/opfield/relay@sha256:${'b'.repeat(64)}`);
   });
 
   it('rejects an unsupported relay protocol major', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
     await writeFile(path.join(tempDir, '.env'), '');
     await writeFile(path.join(tempDir, 'docker-compose.yml'), OLD_COMPOSE);
 
     await expect(
       runFoundationMigrations({
         hostDir: tempDir,
-        imageRef: 'registry/gateway@sha256:new',
+        imageRef: 'registry/opfield@sha256:new',
         relayProtocolMajor: 2,
-        relayImageRef: `registry/gateway/relay@sha256:${'b'.repeat(64)}`,
+        relayImageRef: `registry/opfield/relay@sha256:${'b'.repeat(64)}`,
       })
     ).rejects.toThrow('does not support relay protocol major 2');
   });
@@ -642,30 +660,30 @@ describe('runFoundationMigrations', () => {
 
 /**
  * .env files as each installer generation wrote them. The update must leave every one of them with the installed
- * version in APP_VERSION: in 2.12.1 the Go installer's `APP_VERSION=${GATEWAY_VERSION}` lost its key and Opfield ran
+ * version in APP_VERSION: in 2.12.1 the Go installer's `APP_VERSION=${LEGACY_ENV_PREFIXVERSION}` lost its key and Opfield ran
  * without a version (the paid core refused it).
  */
 const INSTALLER_ENVS: Record<string, string> = {
-  // Go installer (gateway-installer, 8fbfea60a).
+  // Go installer (opfield-installer, 8fbfea60a).
   'go installer': [
-    '# Generated by gateway-installer',
-    'GATEWAY_IMAGE=ghcr.io/the-square-labs/gateway',
-    'GATEWAY_VERSION=v2.12.0',
-    'GATEWAY_IMAGE_REF=ghcr.io/the-square-labs/gateway:v2.12.0',
-    'COMPOSE_PROJECT_DIR=/opt/gateway',
+    '# Generated by opfield-installer',
+    `${LEGACY_ENV_PREFIX}IMAGE=${LEGACY_IMAGE_REPOSITORY}`,
+    `${LEGACY_ENV_PREFIX}VERSION=v2.12.0`,
+    `${LEGACY_ENV_PREFIX}IMAGE_REF=${LEGACY_IMAGE_REPOSITORY}:v2.12.0`,
+    `COMPOSE_PROJECT_DIR=/opt/${LEGACY_INSTALL_DIR_NAME}`,
     'PORT=3000',
-    'APP_VERSION=${GATEWAY_VERSION}',
-    'SANDBOX_RUNNER_WORKSPACE_DIR=/var/lib/gateway/sandbox-workspaces',
+    `APP_VERSION=\${${LEGACY_ENV_PREFIX}VERSION}`,
+    `SANDBOX_RUNNER_WORKSPACE_DIR=/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces`,
     '',
   ].join('\n'),
   // legacy-name: the .env the bash installer wrote before the Go installer, with its own header comment.
   'bash installer': [
-    '# Gateway Configuration',
-    'GATEWAY_IMAGE=ghcr.io/the-square-labs/gateway',
-    'GATEWAY_VERSION=v2.12.0',
-    'GATEWAY_IMAGE_REF=ghcr.io/the-square-labs/gateway:v2.12.0',
+    `# ${LEGACY_PRODUCT_TITLE} Configuration`,
+    `${LEGACY_ENV_PREFIX}IMAGE=${LEGACY_IMAGE_REPOSITORY}`,
+    `${LEGACY_ENV_PREFIX}VERSION=v2.12.0`,
+    `${LEGACY_ENV_PREFIX}IMAGE_REF=${LEGACY_IMAGE_REPOSITORY}:v2.12.0`,
     '# Updates',
-    'APP_VERSION=${GATEWAY_VERSION}',
+    `APP_VERSION=\${${LEGACY_ENV_PREFIX}VERSION}`,
     '',
   ].join('\n'),
   // A Go-installer .env after the 2.12.1 update renamed the key but not the reference.
@@ -673,7 +691,7 @@ const INSTALLER_ENVS: Record<string, string> = {
     'OPFIELD_IMAGE=ghcr.io/opfield/opfield',
     'OPFIELD_VERSION=v2.12.1',
     'OPFIELD_IMAGE_REF=ghcr.io/opfield/opfield:v2.12.1',
-    'APP_VERSION=${GATEWAY_VERSION}',
+    `APP_VERSION=\${${LEGACY_ENV_PREFIX}VERSION}`,
     '',
   ].join('\n'),
   // install.sh of 2.12.1: no APP_VERSION in the .env, Compose sets it.
@@ -690,32 +708,32 @@ describe('installer .env files through an update', () => {
 
   for (const [generation, env] of Object.entries(INSTALLER_ENVS)) {
     it(`keeps the installed version in APP_VERSION for a .env of the ${generation}`, async () => {
-      tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
+      tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
       await writeFile(path.join(tempDir, '.env'), env);
       await writeFile(path.join(tempDir, 'docker-compose.yml'), OLD_COMPOSE);
       await runFoundationMigrations({
         hostDir: tempDir,
-        relayImageRef: `registry/gateway/relay@sha256:${'a'.repeat(64)}`,
+        relayImageRef: `registry/opfield/relay@sha256:${'a'.repeat(64)}`,
         sandboxWorkspaceDir: path.join(tempDir, 'sandbox-workspaces'),
         targetVersion: 'v2.12.2',
         imageRef: 'ghcr.io/opfield/opfield:v2.12.2',
       });
       const migrated = await readFile(path.join(tempDir, '.env'), 'utf8');
-      expect(migrated).not.toMatch(/\$\{?GATEWAY_/);
+      expect(migrated).not.toMatch(new RegExp(String.raw`\$\{?${LEGACY_ENV_PREFIX}`));
       expect(migrated).toMatch(/^OPFIELD_VERSION=v2\.12\.2$/m);
       if (/^APP_VERSION=/m.test(env)) expect(migrated).toMatch(/^APP_VERSION=\$\{OPFIELD_VERSION\}$/m);
     });
   }
 
   it('refuses, before writing anything, a .env whose APP_VERSION would come out empty', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-foundation-migrator-test-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-foundation-migrator-test-'));
     const env = 'OPFIELD_VERSION=v2.12.1\nAPP_VERSION=${MISSING_VERSION}\n';
     await writeFile(path.join(tempDir, '.env'), env);
     await writeFile(path.join(tempDir, 'docker-compose.yml'), OLD_COMPOSE);
     await expect(
       runFoundationMigrations({
         hostDir: tempDir,
-        relayImageRef: `registry/gateway/relay@sha256:${'a'.repeat(64)}`,
+        relayImageRef: `registry/opfield/relay@sha256:${'a'.repeat(64)}`,
         sandboxWorkspaceDir: path.join(tempDir, 'sandbox-workspaces'),
         targetVersion: 'v2.12.2',
       })
@@ -723,14 +741,14 @@ describe('installer .env files through an update', () => {
     expect(await readFile(path.join(tempDir, '.env'), 'utf8')).toBe(env);
   });
 
-  it('accepts a literal or defaulted APP_VERSION and refuses a reference to an undefined GATEWAY_* key', () => {
+  it(`accepts a literal or defaulted APP_VERSION and refuses a reference to an undefined ${LEGACY_ENV_PREFIX}* key`, () => {
     expect(() => assertEnvReferencesResolve('APP_VERSION=v2.12.2\n', '')).not.toThrow();
     expect(() => assertEnvReferencesResolve('APP_VERSION=${X:-v2.12.2}\n', '')).not.toThrow();
     expect(() =>
       assertEnvReferencesResolve('APP_VERSION="${OPFIELD_VERSION}"\nOPFIELD_VERSION=v1\n', '')
     ).not.toThrow();
-    expect(() => assertEnvReferencesResolve('A=1\n', 'services:\n  app:\n    image: ${GATEWAY_IMAGE}\n')).toThrow(
-      'GATEWAY_IMAGE'
-    );
+    expect(() =>
+      assertEnvReferencesResolve('A=1\n', `services:\n  app:\n    image: \${${LEGACY_ENV_PREFIX}IMAGE}\n`)
+    ).toThrow(`${LEGACY_ENV_PREFIX}IMAGE`);
   });
 });

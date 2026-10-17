@@ -1,3 +1,4 @@
+import { LEGACY_DOCKER_SNAPSHOT_CACHE, LEGACY_READ_MODEL_CACHE } from '@/lib/legacy-compat.js';
 import { logger } from '@/lib/logger.js';
 import { DOCKER_SNAPSHOT_PREFIX } from '@/modules/docker/docker-snapshot.service.js';
 import type { RedisClient } from '@/services/cache.service.js';
@@ -5,8 +6,8 @@ import { RESOURCE_SNAPSHOT_PREFIX } from '@/services/resource-snapshot.store.js'
 
 // legacy-name: Redis cache prefixes written before 2.12.1 — remove once every install has passed 2.12.1
 const RENAMED_PREFIXES: ReadonlyArray<readonly [legacy: string, current: string]> = [
-  ['gateway:docker:snapshot:v1', DOCKER_SNAPSHOT_PREFIX],
-  ['gateway:read-model:v1', RESOURCE_SNAPSHOT_PREFIX],
+  [LEGACY_DOCKER_SNAPSHOT_CACHE, DOCKER_SNAPSHOT_PREFIX],
+  [LEGACY_READ_MODEL_CACHE, RESOURCE_SNAPSHOT_PREFIX],
 ];
 
 /** How long the copied-from keys stay, so a rolled-back update still starts with a warm cache. */

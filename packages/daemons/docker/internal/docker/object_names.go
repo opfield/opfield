@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"regexp"
 	"strings"
 	"sync"
@@ -72,30 +73,30 @@ const (
 	storageConnectorPrefix     = "opfield-storage-connector-"
 )
 
-// legacy-name: gateway-db-/gateway-storage-/gateway-link- networks and gateway-storage-connector- containers of links
+// legacy-name: legacy-prefixed link networks and storage connector containers of links
 // created before 2.12.1 or for a node without docker_opfield_names_v1 — remove once every node reports none
 const (
-	legacyDatabaseLinkNetworkPrefix  = "gateway-db-"
-	legacyStorageLinkNetworkPrefix   = "gateway-storage-"
-	legacyContainerLinkNetworkPrefix = "gateway-link-"
-	legacyStorageConnectorPrefix     = "gateway-storage-connector-"
+	legacyDatabaseLinkNetworkPrefix  = legacycompat.DatabaseLinkNetworkPrefix
+	legacyStorageLinkNetworkPrefix   = legacycompat.StorageLinkNetworkPrefix
+	legacyContainerLinkNetworkPrefix = legacycompat.ContainerLinkNetworkPrefix
+	legacyStorageConnectorPrefix     = legacycompat.StorageConnectorPrefix
 )
 
 var (
-	// legacy-name: gateway-db-* link networks (see legacyDatabaseLinkNetworkPrefix) — remove once every node reports none
-	databaseLinkNetworkPattern = regexp.MustCompile(`^(?:opfield|gateway)-db-(?:av-)?[0-9a-f]{16}$`)
-	// legacy-name: gateway-link-* link networks (see legacyContainerLinkNetworkPrefix) — remove once every node reports none
-	containerLinkNetworkPattern = regexp.MustCompile(`^(?:opfield|gateway)-link-(?:av-)?[0-9a-f]{16}$`)
+	// legacy-name: legacycompat.DatabaseLinkNetworkPrefix* link networks (see legacyDatabaseLinkNetworkPrefix) — remove once every node reports none
+	databaseLinkNetworkPattern = regexp.MustCompile(`^(?:opfield|` + legacycompat.ObjectNameFamily + `)-db-(?:av-)?[0-9a-f]{16}$`)
+	// legacy-name: legacycompat.ContainerLinkNetworkPrefix* link networks (see legacyContainerLinkNetworkPrefix) — remove once every node reports none
+	containerLinkNetworkPattern = regexp.MustCompile(`^(?:opfield|` + legacycompat.ObjectNameFamily + `)-link-(?:av-)?[0-9a-f]{16}$`)
 	// Storage link networks (16 hex) and managed storage cluster networks (the cluster id).
-	// legacy-name: gateway-storage-* networks (see legacyStorageLinkNetworkPrefix) — remove once every node reports none
-	storageBindingNetworkNamePattern = regexp.MustCompile(`^(?:opfield|gateway)-storage-(?:[0-9a-f]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$`)
+	// legacy-name: legacycompat.StorageLinkNetworkPrefix* networks (see legacyStorageLinkNetworkPrefix) — remove once every node reports none
+	storageBindingNetworkNamePattern = regexp.MustCompile(`^(?:opfield|` + legacycompat.ObjectNameFamily + `)-storage-(?:[0-9a-f]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$`)
 	// The logical networks Opfield adds to a Compose project for a managed database link and for a container link
 	// whose source is one of its services (compose-managed-bindings.ts, compose-container-links.ts); each names the
 	// link's network as external.
-	// legacy-name: gateway_db_/gateway_link_ keys of links created before 2.12.1 — remove once every node reports none
-	composeManagedDatabaseNetworkKey = regexp.MustCompile(`^(?:opfield|gateway)_db_[0-9a-f]{16}$`)
-	// legacy-name: gateway_link_ keys (see composeManagedDatabaseNetworkKey) — remove once every node reports none
-	composeContainerLinkNetworkKey = regexp.MustCompile(`^(?:opfield|gateway)_link_[0-9a-f]{16}$`)
+	// legacy-name: legacy compose link keys of links created before 2.12.1 — remove once every node reports none
+	composeManagedDatabaseNetworkKey = regexp.MustCompile(`^(?:opfield|` + legacycompat.ObjectNameFamily + `)_db_[0-9a-f]{16}$`)
+	// legacy-name: legacy compose link keys (see composeManagedDatabaseNetworkKey) — remove once every node reports none
+	composeContainerLinkNetworkKey = regexp.MustCompile(`^(?:opfield|` + legacycompat.ObjectNameFamily + `)_link_[0-9a-f]{16}$`)
 )
 
 // isDatabaseLinkNetworkName reports a managed database link network (either family, any suffix).
@@ -147,9 +148,9 @@ var opfieldSecureLinkNames = secureLinkNames{
 // legacy-name: the Secure Link connector, anchor and network of nodes that ran them before 2.12.1 — remove once every
 // node reports none
 var legacySecureLinkNames = secureLinkNames{
-	connector: "gateway-secure-link-connector",
-	anchor:    "gateway-secure-link-anchor",
-	network:   "gateway-secure-links",
+	connector: legacycompat.SecureLinkConnectorName,
+	anchor:    legacycompat.SecureLinkAnchorName,
+	network:   legacycompat.SecureLinkNetworkName,
 }
 
 // secureLinkNameFamilies are both families, Opfield first.
@@ -249,9 +250,9 @@ const legacyKeeperWitnessPrefix = "gwkw-"
 // the network of a single-node instance (<prefix><id>) carry the prefix of the record that created them.
 const managedStorageNamePrefix = "opfield-storage-"
 
-// legacy-name: gateway-storage-<id>-<member>[-<role>] containers and gateway-storage-<id> networks of managed storage
+// legacy-name: legacy-prefixed containers and networks of managed storage
 // created before 2.12.1 — remove once every node reports none
-const legacyManagedStorageNamePrefix = "gateway-storage-"
+const legacyManagedStorageNamePrefix = legacycompat.StorageLinkNetworkPrefix
 
 // managedStorageNamePrefixes are the prefixes a managed storage instance's names may carry (Opfield first).
 var managedStorageNamePrefixes = [...]string{managedStorageNamePrefix, legacyManagedStorageNamePrefix}

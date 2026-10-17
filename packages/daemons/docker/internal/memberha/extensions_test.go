@@ -264,7 +264,7 @@ func TestDetachOnlyBeforeAnyCommitAndNeverAfterHolding(t *testing.T) {
 		evidence DetachEvidence
 		setup    func(h *harness)
 	}{
-		{"gateway saw a holder", DetachEvidence{NeverHeld: false}, func(*harness) {}},
+		{"opfield saw a holder", DetachEvidence{NeverHeld: false}, func(*harness) {}},
 		{"other members seeded", DetachEvidence{NeverHeld: true, SeededMemberIDs: []string{testMemberB}}, func(*harness) {}},
 		{"a commit exists", DetachEvidence{NeverHeld: true}, func(h *harness) {
 			h.lease.committed = &CertifiedState{State: HolderState{Value: []byte("v")}}

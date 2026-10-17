@@ -12,6 +12,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase, migrationsFolder } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
 import { certificateAuthorities, permissionGroups, settings, users } from '@/db/schema/index.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { CAService } from '@/modules/pki/ca.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
@@ -124,7 +125,7 @@ describe.skipIf(!url)('configuration export round trip, on disposable PostgreSQL
         publicUrl: 'https://old.example.com',
         grpcPublicTarget: 'old.example.com:9443',
         grpcLocalIp: null,
-        composeProject: 'gateway',
+        composeProject: `${LEGACY_INSTALL_DIR_NAME}`,
       },
       includes: { registry: false, logs: false },
       commercialDir: null,

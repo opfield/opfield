@@ -23,7 +23,7 @@ const SPOOL_FILE = 'audit-spool.jsonl';
 const REPLAY_SUFFIX = '.replaying.jsonl';
 
 export function auditSpoolDir(): string {
-  return process.env.AUDIT_SPOOL_DIR || '/var/lib/gateway/audit-spool';
+  return process.env.AUDIT_SPOOL_DIR || '/var/lib/opfield/audit-spool';
 }
 
 export async function spoolAuditRow(row: SpooledAuditRow, dir = auditSpoolDir()): Promise<void> {

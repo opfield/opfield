@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net"
 	"net/http"
@@ -25,7 +26,7 @@ const (
 	// while the marker is missing, so a restarted router (Stop→Start, Docker or
 	// node restart) keeps the last config written by writeRouterConfig instead
 	// of reverting to the slot that was active when the router was created.
-	deploymentRouterConfigMarker  = "/etc/nginx/conf.d/.wiolett-gateway-router-config"
+	deploymentRouterConfigMarker  = legacycompat.DeploymentRouterMarker
 	deploymentRouterRestartPolicy = container.RestartPolicyUnlessStopped
 	// deploymentRouterResolver is Docker's embedded DNS server, reachable from
 	// every container attached to a user-defined network.
@@ -45,16 +46,16 @@ const (
 // with deploymentRouterFallbackTag. A router whose nginx rejects the config
 // gets the fallback: those lines are swapped by deploymentRouterFallbackSed.
 const (
-	deploymentRouterResolveTag  = "# gateway:resolve"
-	deploymentRouterFallbackTag = "# gateway:fallback "
+	deploymentRouterResolveTag  = legacycompat.DeploymentRouterTagPrefix + "resolve"
+	deploymentRouterFallbackTag = legacycompat.DeploymentRouterTagPrefix + "fallback "
 	// deploymentRouterConfigVersion heads every config this daemon renders; a
 	// router serving a config without it is rewritten (repairDeploymentRouter).
 	// v3: a known slot address is proxied to on every nginx version (B-26).
 	// v4: no access log on the container's stdout (B-26).
-	deploymentRouterConfigVersion = "# wiolett-gateway deployment router config v4"
+	deploymentRouterConfigVersion = legacycompat.DeploymentRouterVersion
 	// deploymentRouterSlotAddressPrefix heads the line naming the active slot's
 	// address a config was rendered with.
-	deploymentRouterSlotAddressPrefix = "# gateway:slot-address "
+	deploymentRouterSlotAddressPrefix = legacycompat.DeploymentRouterTagPrefix + "slot-address "
 	deploymentRouterFallbackSed       = "sed -e '/" + deploymentRouterResolveTag + "$/d' -e 's/^\\([[:space:]]*\\)" + deploymentRouterFallbackTag + "/\\1/'"
 )
 
@@ -720,7 +721,7 @@ func renderDeploymentNginxAt(routes []deploymentRouteConfig, activeSlot, slotAdd
 		// A 502 or 504 the router generates itself (the slot is stopped,
 		// starting or unreachable) is marked, so readiness probes and
 		// operators tell it from an answer of the app (D6).
-		b.WriteString("  error_page 502 504 = @gateway_router_unavailable;\n")
+		b.WriteString("  error_page 502 504 = " + legacycompat.DeploymentRouterUnavailable + ";\n")
 		b.WriteString("  location / {\n")
 		// Names the slot for proxy_redirect (and the config's routes); it is
 		// never resolved when the address is known.
@@ -749,7 +750,7 @@ func renderDeploymentNginxAt(routes []deploymentRouteConfig, activeSlot, slotAdd
 		b.WriteString("    proxy_set_header Upgrade $http_upgrade;\n")
 		b.WriteString("    proxy_set_header Connection $connection_upgrade;\n")
 		b.WriteString("  }\n")
-		b.WriteString("  location @gateway_router_unavailable {\n")
+		b.WriteString("  location " + legacycompat.DeploymentRouterUnavailable + " {\n")
 		fmt.Fprintf(&b, "    add_header %s upstream-unavailable always;\n", deploymentRouterUnavailableHeader)
 		b.WriteString("    return 502;\n")
 		b.WriteString("  }\n}\n")
@@ -759,7 +760,7 @@ func renderDeploymentNginxAt(routes []deploymentRouteConfig, activeSlot, slotAdd
 
 // deploymentRouterUpstreamName names the upstream of one slot port.
 func deploymentRouterUpstreamName(slot string, containerPort uint16) string {
-	return fmt.Sprintf("gateway_deployment_%s_%d", slot, containerPort)
+	return fmt.Sprintf(legacycompat.DeploymentRouterUpstreamPrefix+"%s_%d", slot, containerPort)
 }
 
 // deploymentRouterConfigCurrent reports whether a router config is one this
@@ -768,7 +769,7 @@ func deploymentRouterConfigCurrent(config string) bool {
 	return strings.HasPrefix(strings.TrimLeft(config, "\n"), deploymentRouterConfigVersion)
 }
 
-var deploymentRouterSlotAddressLine = regexp.MustCompile(`(?m)^# gateway:slot-address (\S+)$`)
+var deploymentRouterSlotAddressLine = regexp.MustCompile(`(?m)^` + legacycompat.DeploymentRouterTagPrefix + `slot-address (\S+)$`)
 
 // deploymentRouterConfigAddress is the slot address a rendered config names,
 // or "" when it names none.

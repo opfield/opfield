@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_LOGS_DATABASE } from '@/lib/legacy-compat.js';
 import { LoggingSettingsService } from './logging-settings.service.js';
 
 function serviceWithStored(stored: Record<string, unknown>) {
@@ -23,9 +24,9 @@ function serviceWithStored(stored: Record<string, unknown>) {
 const EXTERNAL = {
   mode: 'external',
   url: 'https://clickhouse.example.com:8443/',
-  username: 'gateway',
+  username: `${LEGACY_INSTALL_DIR_NAME}`,
   password: { encryptedKey: 'stored-password', encryptedDek: 'dek' },
-  database: 'gateway_logs',
+  database: LEGACY_LOGS_DATABASE,
   table: 'logs',
   requestTimeoutMs: 5000,
 };

@@ -1,6 +1,6 @@
 /**
  * Browser-facing lifecycle contract for the managed inference core. Mirrors
- * the backend `wiolett-core/v1` DTOs in
+ * the backend core contract DTOs in
  * packages/backend/src/modules/inference/core/inference-core.contract.ts.
  */
 export const INFERENCE_CORE_STATES = [

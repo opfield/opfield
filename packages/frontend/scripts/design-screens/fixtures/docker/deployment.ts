@@ -19,7 +19,7 @@ const desiredConfig = {
   image: IMAGE,
   env: {
     DJANGO_SETTINGS_MODULE: "checkout.settings.production",
-    PAYMENTS_PROVIDER: "card-gateway",
+    PAYMENTS_PROVIDER: "card-opfield",
     ORDER_API_URL: "http://api:3000",
     LOG_LEVEL: "info",
   },

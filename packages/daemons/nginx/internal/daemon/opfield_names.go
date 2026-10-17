@@ -1,7 +1,7 @@
 package daemon
 
-// Moving an ingress node from the pre-Opfield names (/etc/nginx/gateway, /run/gateway-*, $gateway_* variables,
-// 00-gateway-*.conf files, the gateway_combined log format) to the Opfield ones (internal/naming).
+// Moving an ingress node from the pre-Opfield names (nginx tree, runtime directories, variables,
+// config files, the log format; see legacycompat) to the Opfield ones (internal/naming).
 //
 // A node installed before 2.12.1 keeps the pre-Opfield names until the start of this daemon is confirmed: the launcher
 // committed the update, so it can no longer roll back to a daemon that knows only those names. Until then the daemon
@@ -14,7 +14,7 @@ package daemon
 //     it does the node keeps its names.
 //  2. The files whose content carries pre-Opfield names are read: everything under the config directory (route
 //     configs, Pages includes and previews, the daemon's own files), the files the installer keeps in
-//     /etc/nginx/gateway, the installer's default HTTP server, and nginx.conf.
+//     the legacy nginx tree, the installer's default HTTP server, and nginx.conf.
 //  3. The directories move (hostrename.Move: the old name stays as a link to the new one, so configs that name it
 //     keep working; both names are valid from here on, whatever happens next).
 //  4. The daemon switches to the Opfield names and rewrites the files: names replaced (naming.Normalize), its own
@@ -84,7 +84,7 @@ func resolveNames(cfg *config.Config, stateDir string, logger *slog.Logger) (mig
 		naming.SetLegacy(true)
 		migrationDue = true
 	}
-	// legacy-name: config files written before 2.12.1 name /etc/nginx/gateway paths — remove once every node reports none
+	// legacy-name: config files written before 2.12.1 name legacycompat.NginxDir paths — remove once every node reports none
 	cfg.Nginx.ConfigDir = naming.Path(cfg.Nginx.ConfigDir)
 	cfg.Nginx.HtpasswdDir = naming.Path(cfg.Nginx.HtpasswdDir)
 	return migrationDue

@@ -7,6 +7,7 @@ import { alerts } from '@/db/schema/alerts.js';
 import { auditLog } from '@/db/schema/audit-log.js';
 import { nodes } from '@/db/schema/nodes.js';
 import { settings } from '@/db/schema/settings.js';
+import { LEGACY_HOUSEKEEPING_PROTECTED_LABEL } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { AISandboxArtifactService } from '@/modules/ai/ai.sandbox-artifact.service.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -66,7 +67,7 @@ const logger = createChildLogger('HousekeepingService');
 const VOLUME_CLEANUP_PROTECTED_LABEL = 'opfield.housekeeping.protected';
 // legacy-name: cleanup protection label set on volumes before 2.12.1 (Docker cannot relabel a volume in place) — remove
 // once no protected volume carries it
-const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = 'gateway.housekeeping.protected';
+const LEGACY_VOLUME_CLEANUP_PROTECTED_LABEL = LEGACY_HOUSEKEEPING_PROTECTED_LABEL;
 const SYSTEM_CERTIFICATE_KEY_RETENTION_DAYS = 30;
 /** Alerts nobody dismissed are removed after this long (a renewed failure raises a fresh one). */
 const UNDISMISSED_ALERT_RETENTION_DAYS = 90;

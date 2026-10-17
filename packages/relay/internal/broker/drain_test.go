@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -39,11 +40,11 @@ func TestDrainRefusesWorkloadTunnelsAndKeepsLocalServices(t *testing.T) {
 		return &relayv1.RoutePolicy{RouteId: id, Generation: 1, SourceKind: "daemon", SourceId: "node-source", SourceCertificateSha256: sourceFingerprint, TargetEndpointId: endpointID, TrafficClass: class}
 	}
 	if _, _, err := store.Apply(&relayv1.ApplySnapshotRequest{
-		Revision: 1, GatewayInstanceId: "gateway-1",
+		Revision: 1, OpfieldInstanceId: "opfield-1",
 		PublicKeys: []*relayv1.PublicKey{{KeyId: "key-1", PublicKey: grantPublic}},
 		Endpoints: []*relayv1.EndpointPolicy{
 			{EndpointId: "endpoint-workload", Generation: 1, SubjectKind: "daemon", SubjectId: "node-target", CertificateSha256: "sha256:target"},
-			{EndpointId: "endpoint-registry", Generation: 1, SubjectKind: localServiceSubjectKind, SubjectId: config.RegistryServiceID, CertificateSha256: "local:gateway-internal-registry"},
+			{EndpointId: "endpoint-registry", Generation: 1, SubjectKind: localServiceSubjectKind, SubjectId: config.RegistryServiceID, CertificateSha256: "local:" + legacycompat.InternalRegistryServiceID},
 		},
 		Routes: []*relayv1.RoutePolicy{route("route-workload", "endpoint-workload", ""), route("route-registry", "endpoint-registry", "registry")},
 	}); err != nil {
@@ -59,7 +60,7 @@ func TestDrainRefusesWorkloadTunnelsAndKeepsLocalServices(t *testing.T) {
 	})
 	open := func(routeID string) error {
 		now := time.Now()
-		claims := grant.Claims{SchemaVersion: 1, Audience: grant.Audience, GrantID: "grant-" + routeID, GatewayInstanceID: "gateway-1", Kind: "connect", SubjectKind: "daemon", SubjectID: "node-source", CertificateSHA256: sourceFingerprint, RouteID: routeID, RouteGeneration: 1, IssuedAt: now.Unix(), NotBefore: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix()}
+		claims := grant.Claims{SchemaVersion: 1, Audience: grant.Audience, GrantID: "grant-" + routeID, InstanceClaim: legacycompat.InstanceClaim{OpfieldInstanceID: "opfield-1"}, Kind: "connect", SubjectKind: "daemon", SubjectID: "node-source", CertificateSHA256: sourceFingerprint, RouteID: routeID, RouteGeneration: 1, IssuedAt: now.Unix(), NotBefore: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix()}
 		payload, err := json.Marshal(claims)
 		if err != nil {
 			t.Fatal(err)
@@ -93,8 +94,8 @@ func TestDrainRefusesOnlyWorkloadEndpoints(t *testing.T) {
 	if !drainRefuses(&relayv1.EndpointPolicy{SubjectKind: "daemon"}) {
 		t.Fatal("a drain admitted a daemon workload endpoint")
 	}
-	if !drainRefuses(&relayv1.EndpointPolicy{SubjectKind: "gateway"}) {
-		t.Fatal("a drain admitted a Gateway-owned workload endpoint")
+	if !drainRefuses(&relayv1.EndpointPolicy{SubjectKind: legacycompat.GrantSubjectKind}) {
+		t.Fatal("a drain admitted a Opfield-owned workload endpoint")
 	}
 	if drainRefuses(&relayv1.EndpointPolicy{SubjectKind: localServiceSubjectKind, SubjectId: config.RegistryServiceID}) {
 		t.Fatal("a drain refused the built-in internal registry")

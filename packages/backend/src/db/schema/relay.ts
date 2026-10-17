@@ -223,7 +223,7 @@ export type RelayRouteResumeState = 'off' | 'enabling' | 'on' | 'rotating' | 'di
 
 export const relayPolicyState = pgTable('relay_policy_state', {
   id: varchar('id', { length: 32 }).primaryKey(),
-  gatewayInstanceId: uuid('instance_id').notNull(),
+  opfieldInstanceId: uuid('instance_id').notNull(),
   revision: bigint('revision', { mode: 'number' }).notNull().default(0),
   /**
    * The resumable relay stream (RSv1) secret every route resume key derives from, envelope-encrypted like the grant

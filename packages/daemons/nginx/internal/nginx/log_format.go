@@ -1,6 +1,7 @@
 package nginx
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"regexp"
 	"strings"
@@ -12,7 +13,7 @@ const (
 	// LogFormatName is the access log format the daemon defines in nginx.conf.
 	LogFormatName = "opfield_combined"
 	// legacy-name: log format a node defined before 2.12.1; kept while a configuration on the node uses it
-	LegacyLogFormatName = "gateway_combined"
+	LegacyLogFormatName = legacycompat.NginxVariablePrefix + "combined"
 
 	logFormatFields = ` '$remote_addr - $remote_user [$time_local] '
     '"$request" $status $body_bytes_sent '
@@ -175,9 +176,9 @@ func logFormatStatement(content, name string) (int, int) {
 // Comments the daemon and the installer wrote into nginx.conf before 2.12.1, with their Opfield wording.
 // legacy-name: nginx.conf comments of nodes installed before 2.12.1 — remove once every node reports none
 var globalConfigComments = [][2]string{
-	{"# Gateway daemon log format (auto-injected)", logFormatComment},
-	{"# Gateway Pages generated hostnames (auto-injected)", serverNamesHashComment},
-	{"# Gateway Pages generated hostnames are longer than the default bucket fits.", "# Opfield Pages generated hostnames are longer than the default bucket fits."},
+	{legacycompat.NginxLogFormatComment, logFormatComment},
+	{legacycompat.NginxPagesHostnamesComment, serverNamesHashComment},
+	{legacycompat.NginxPagesBucketComment, "# Opfield Pages generated hostnames are longer than the default bucket fits."},
 }
 
 // OpfieldGlobalConfig returns the global nginx configuration with the Opfield names: the include lines and every other

@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { LEGACY_STORAGE_KEY_PREFIX } from "../../../backend/src/lib/legacy-compat";
 
 export const APP_STATUS_STORAGE_KEY = "opfield-app-status";
 // legacy-name: app status key the 2.12.0 bundle in open tabs writes during the update — remove once 2.12.0 is no longer an update source
-export const LEGACY_APP_STATUS_STORAGE_KEY = "gateway-app-status";
+export const LEGACY_APP_STATUS_STORAGE_KEY = `${LEGACY_STORAGE_KEY_PREFIX}-app-status`;
 
 export interface OpfieldUpdateError {
   message: string;

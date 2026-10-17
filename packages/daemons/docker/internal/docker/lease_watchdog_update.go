@@ -72,13 +72,13 @@ func (b *watchdogBootstrap) updateOlder(ctx context.Context, running, daemon str
 	case "systemd":
 		candidates = []service{
 			{leasewatchdog.SystemdUnitPath, "ExecStart=" + leasewatchdog.BinaryPath + " ", "", leasewatchdog.BinaryPath, leasewatchdog.UnitName},
-			// legacy-name: gateway-lease-watchdog service the watchdog has not moved yet — remove once every node reports none
+			// legacy-name: legacycompat.LeaseWatchdogName service the watchdog has not moved yet — remove once every node reports none
 			{leasewatchdog.LegacySystemdUnitPath, "ExecStart=" + leasewatchdog.LegacyBinaryPath + " ", "", leasewatchdog.LegacyBinaryPath, leasewatchdog.LegacyUnitName},
 		}
 	case "openrc":
 		candidates = []service{
 			{leasewatchdog.OpenRCPath, `command_args="`, `"`, leasewatchdog.BinaryPath, leasewatchdog.UnitName},
-			// legacy-name: gateway-lease-watchdog service the watchdog has not moved yet — remove once every node reports none
+			// legacy-name: legacycompat.LeaseWatchdogName service the watchdog has not moved yet — remove once every node reports none
 			{leasewatchdog.LegacyOpenRCPath, `command_args="`, `"`, leasewatchdog.LegacyBinaryPath, leasewatchdog.LegacyUnitName},
 		}
 	default:

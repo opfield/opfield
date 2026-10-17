@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+	LEGACY_APP_IMAGE_MANIFEST_ASSET,
+	LEGACY_CORE_RELEASE_LINE,
+	LEGACY_INSTALLER_CHECKSUMS_ASSET,
+	LEGACY_UPDATE_NAMESPACE,
+} from "../../backend/src/lib/legacy-compat.js";
 import { handleRequest } from "./index.js";
 
 const env = {
@@ -36,7 +42,7 @@ function releasePage(releases: ReturnType<typeof release>[], next: boolean) {
 	});
 }
 
-describe("gateway update facade", () => {
+describe("update facade", () => {
 	it("serves health without contacting GitHub", async () => {
 		const fetcher = vi.fn<typeof fetch>();
 		const response = await handleRequest(
@@ -72,11 +78,10 @@ describe("gateway update facade", () => {
 			.mockResolvedValueOnce(
 				Response.json([
 					{
-						tag_name: "v2.25.0-wiolett.21",
-						name: "Inference Core v2.25.0-wiolett.21",
+						tag_name: `v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
+						name: `Inference Core v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 						body: "Core release notes",
-						html_url:
-							"https://github.com/opfield/inference-core/releases/tag/v2.25.0-wiolett.21",
+						html_url: `https://github.com/opfield/inference-core/releases/tag/v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 						published_at: "2026-08-27T00:00:00Z",
 						draft: false,
 						prerelease: false,
@@ -85,7 +90,7 @@ describe("gateway update facade", () => {
 				]),
 			);
 		const response = await handleRequest(
-			new Request("https://updates.thesqlabs.com/gateway/releases"),
+			new Request("https://updates.thesqlabs.com/opfield/releases"),
 			env,
 			fetcher,
 		);
@@ -96,7 +101,7 @@ describe("gateway update facade", () => {
 				description: "Release notes",
 			}),
 			expect.objectContaining({
-				tag_name: "v2.25.0-wiolett.21",
+				tag_name: `v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 				description: "Core release notes",
 			}),
 		]);
@@ -125,14 +130,14 @@ describe("gateway update facade", () => {
 			);
 		const response = await handleRequest(
 			new Request(
-				`https://updates.thesqlabs.com/gateway/releases?component=gateway&current=${current}`,
+				`https://updates.thesqlabs.com/opfield/releases?component=opfield&current=${current}`,
 			),
 			env,
 			fetcher,
 		);
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toMatchObject({
-			component: "gateway",
+			component: "opfield",
 			current,
 			reason,
 			target: { tag_name: target },
@@ -147,7 +152,7 @@ describe("gateway update facade", () => {
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&current=v1.1.9",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&current=v1.1.9",
 			),
 			env,
 			fetcher,
@@ -167,7 +172,7 @@ describe("gateway update facade", () => {
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&current=v1.1.9&channel=preview",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&current=v1.1.9&channel=preview",
 			),
 			env,
 			fetcher,
@@ -185,7 +190,7 @@ describe("gateway update facade", () => {
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&current=v1.1.10-rc.2&channel=preview",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&current=v1.1.10-rc.2&channel=preview",
 			),
 			env,
 			fetcher,
@@ -201,7 +206,7 @@ describe("gateway update facade", () => {
 			.mockResolvedValue(Response.json([release("v1.1.10")]));
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&current=v1.1.10-rc.2&channel=stable",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&current=v1.1.10-rc.2&channel=stable",
 			),
 			env,
 			fetcher,
@@ -217,7 +222,7 @@ describe("gateway update facade", () => {
 			.mockResolvedValue(Response.json([release("v1.2.0-rc.4-nginx")]));
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=nginx-daemon&current=v1.1.9-nginx&channel=preview",
+				"https://updates.thesqlabs.com/opfield/releases?component=nginx-daemon&current=v1.1.9-nginx&channel=preview",
 			),
 			env,
 			fetcher,
@@ -239,7 +244,7 @@ describe("gateway update facade", () => {
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=lease-watchdog&current=v1.1.10",
+				"https://updates.thesqlabs.com/opfield/releases?component=lease-watchdog&current=v1.1.10",
 			),
 			env,
 			fetcher,
@@ -259,7 +264,7 @@ describe("gateway update facade", () => {
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&channel=stable",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&channel=stable",
 			),
 			env,
 			fetcher,
@@ -288,7 +293,7 @@ describe("gateway update facade", () => {
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&current=v2.10.0&channel=stable",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&current=v2.10.0&channel=stable",
 			),
 			env,
 			fetcher,
@@ -307,7 +312,7 @@ describe("gateway update facade", () => {
 			.mockImplementation(async () => releasePage(releaseCandidatePage, true));
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&current=v2.10.1&channel=stable",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&current=v2.10.1&channel=stable",
 			),
 			env,
 			fetcher,
@@ -323,7 +328,7 @@ describe("gateway update facade", () => {
 			.mockResolvedValueOnce(new Response(null, { status: 403 }));
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&channel=stable",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&channel=stable",
 			),
 			env,
 			fetcher,
@@ -336,12 +341,12 @@ describe("gateway update facade", () => {
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(releasePage(releaseCandidatePage, true))
 			.mockResolvedValueOnce(
-				releasePage([release("v2.25.0-wiolett.21")], false),
+				releasePage([release(`v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`)], false),
 			)
 			.mockResolvedValueOnce(releasePage([release("v2.10.1")], false));
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?channel=stable",
+				"https://updates.thesqlabs.com/opfield/releases?channel=stable",
 			),
 			env,
 			fetcher,
@@ -349,7 +354,7 @@ describe("gateway update facade", () => {
 		const listed = (await response.json()) as { tag_name: string }[];
 		expect(listed.map((entry) => entry.tag_name)).toEqual([
 			"v2.10.1",
-			"v2.25.0-wiolett.21",
+			`v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 		]);
 	});
 
@@ -357,7 +362,7 @@ describe("gateway update facade", () => {
 		const fetcher = vi.fn<typeof fetch>();
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&current=v1.1.9&channel=nightly",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&current=v1.1.9&channel=nightly",
 			),
 			env,
 			fetcher,
@@ -375,7 +380,7 @@ describe("gateway update facade", () => {
 			.mockResolvedValue(Response.json([release("v2.0.0")]));
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=gateway&current=v1.9.9",
+				"https://updates.thesqlabs.com/opfield/releases?component=opfield&current=v1.9.9",
 			),
 			env,
 			fetcher,
@@ -389,36 +394,36 @@ describe("gateway update facade", () => {
 			.fn<typeof fetch>()
 			.mockResolvedValue(
 				Response.json([
-					release("v2.25.0-wiolett.21"),
-					release("v2.26.0-wiolett.1"),
+					release(`v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`),
+					release(`v2.26.0-${LEGACY_CORE_RELEASE_LINE}.1`),
 				]),
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=inference-core&current=v2.24.0-wiolett.9",
+				`https://updates.thesqlabs.com/opfield/releases?component=inference-core&current=v2.24.0-${LEGACY_CORE_RELEASE_LINE}.9`,
 			),
 			env,
 			fetcher,
 		);
 		await expect(response.json()).resolves.toMatchObject({
 			reason: "latest",
-			target: { tag_name: "v2.26.0-wiolett.1" },
+			target: { tag_name: `v2.26.0-${LEGACY_CORE_RELEASE_LINE}.1` },
 		});
 	});
 
-	it("orders thesqlabs core builds after the legacy wiolett line", async () => {
+	it("orders thesqlabs core builds after the earliest line", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()
 			.mockResolvedValue(
 				Response.json([
-					release("v2.60.0-wiolett.9"),
+					release(`v2.60.0-${LEGACY_CORE_RELEASE_LINE}.9`),
 					release("v2.60.0-thesqlabs.1"),
-					release("v2.25.0-wiolett.27"),
+					release(`v2.25.0-${LEGACY_CORE_RELEASE_LINE}.27`),
 				]),
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=inference-core&current=v2.25.0-wiolett.27",
+				`https://updates.thesqlabs.com/opfield/releases?component=inference-core&current=v2.25.0-${LEGACY_CORE_RELEASE_LINE}.27`,
 			),
 			env,
 			fetcher,
@@ -437,12 +442,12 @@ describe("gateway update facade", () => {
 					release("v2.60.6-thesqlabs.6"),
 					release("v2.61.0-opfield.1"),
 					release("v2.61.0-thesqlabs.9"),
-					release("v2.60.0-wiolett.40"),
+					release(`v2.60.0-${LEGACY_CORE_RELEASE_LINE}.40`),
 				]),
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://get.opfield.dev/gateway/releases?component=inference-core&current=v2.60.6-thesqlabs.6",
+				"https://get.opfield.dev/opfield/releases?component=inference-core&current=v2.60.6-thesqlabs.6",
 			),
 			env,
 			fetcher,
@@ -453,7 +458,7 @@ describe("gateway update facade", () => {
 		});
 		const current = await handleRequest(
 			new Request(
-				"https://get.opfield.dev/gateway/releases?component=inference-core&current=v2.61.0-opfield.1",
+				"https://get.opfield.dev/opfield/releases?component=inference-core&current=v2.61.0-opfield.1",
 			),
 			env,
 			fetcher,
@@ -479,7 +484,7 @@ describe("gateway update facade", () => {
 			`component=${component}&channel=preview`,
 		]) {
 			const response = await handleRequest(
-				new Request(`https://get.opfield.dev/gateway/releases?${query}`),
+				new Request(`https://get.opfield.dev/opfield/releases?${query}`),
 				env,
 				fetcher,
 			);
@@ -492,7 +497,7 @@ describe("gateway update facade", () => {
 		}
 		const upToDate = await handleRequest(
 			new Request(
-				`https://get.opfield.dev/gateway/releases?component=${component}&current=v2.61.0-opfield.2`,
+				`https://get.opfield.dev/opfield/releases?component=${component}&current=v2.61.0-opfield.2`,
 			),
 			env,
 			fetcher,
@@ -500,7 +505,7 @@ describe("gateway update facade", () => {
 		expect(upToDate.status).toBe(204);
 		const invalid = await handleRequest(
 			new Request(
-				`https://get.opfield.dev/gateway/releases?component=${component}&current=v2.61.0`,
+				`https://get.opfield.dev/opfield/releases?component=${component}&current=v2.61.0`,
 			),
 			env,
 			fetcher,
@@ -519,7 +524,7 @@ describe("gateway update facade", () => {
 			);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/releases?component=relay",
+				"https://updates.thesqlabs.com/opfield/releases?component=relay",
 			),
 			env,
 			fetcher,
@@ -545,7 +550,7 @@ describe("gateway update facade", () => {
 		const fetcher = vi.fn<typeof fetch>();
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/gateway/v2.9.11/../../secrets",
+				"https://updates.thesqlabs.com/opfield/opfield/v2.9.11/../../secrets",
 			),
 			env,
 			fetcher,
@@ -569,7 +574,7 @@ describe("gateway update facade", () => {
 					assets: [
 						{
 							id: 123,
-							name: "gateway-image.update.json",
+							name: `${LEGACY_APP_IMAGE_MANIFEST_ASSET}`,
 							size: 7,
 							content_type: "application/json",
 						},
@@ -593,7 +598,7 @@ describe("gateway update facade", () => {
 
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/gateway/v2.9.11/gateway-image.update.json",
+				`https://updates.thesqlabs.com/opfield/opfield/v2.9.11/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`,
 			),
 			env,
 			fetcher,
@@ -647,10 +652,14 @@ describe("gateway update facade", () => {
 					})
 				: new Response("{}"),
 		);
-		for (const host of ["get.opfield.dev", "updates.thesqlabs.com"]) {
+		for (const [host, namespace] of [
+			["get.opfield.dev", "opfield"],
+			["updates.thesqlabs.com", "opfield"],
+			["get.opfield.dev", LEGACY_UPDATE_NAMESPACE],
+		]) {
 			fetcher.mockClear();
 			const response = await handleRequest(
-				new Request(`https://${host}/gateway/license-endpoints.json`),
+				new Request(`https://${host}/${namespace}/license-endpoints.json`),
 				env,
 				fetcher,
 			);
@@ -671,7 +680,7 @@ describe("gateway update facade", () => {
 			.fn<typeof fetch>()
 			.mockResolvedValueOnce(Response.json(release("v2.12.0")));
 		const response = await handleRequest(
-			new Request("https://get.opfield.dev/gateway/license-endpoints.json"),
+			new Request("https://get.opfield.dev/opfield/license-endpoints.json"),
 			env,
 			fetcher,
 		);
@@ -699,7 +708,7 @@ describe("gateway update facade", () => {
 
 		const response = await handleRequest(
 			new Request(
-				"https://get.opfield.dev/gateway/releases/download/v2.12.0/setup-node.sh",
+				"https://get.opfield.dev/opfield/releases/download/v2.12.0/setup-node.sh",
 			),
 			env,
 			fetcher,
@@ -714,7 +723,7 @@ describe("gateway update facade", () => {
 	it.each([
 		"opfield-node-installers.sha256",
 		// legacy-name: the checksum list of releases before 2.12.1.
-		"gateway-daemon-installers.sha256",
+		`${LEGACY_INSTALLER_CHECKSUMS_ASSET}`,
 	])("serves the installer checksum list %s", async (name) => {
 		const fetcher = vi
 			.fn<typeof fetch>()
@@ -728,7 +737,7 @@ describe("gateway update facade", () => {
 
 		const response = await handleRequest(
 			new Request(
-				`https://get.opfield.dev/gateway/releases/download/v2.12.1/${name}`,
+				`https://get.opfield.dev/opfield/releases/download/v2.12.1/${name}`,
 			),
 			env,
 			fetcher,
@@ -737,9 +746,9 @@ describe("gateway update facade", () => {
 	});
 
 	it.each([
-		"https://get.opfield.dev/gateway/releases/download/v2.12.0-docker/setup-node.sh",
-		"https://get.opfield.dev/gateway/releases/download/v2.12.0/docker-compose.yml",
-		"https://get.opfield.dev/gateway/releases/latest/download/../secrets",
+		"https://get.opfield.dev/opfield/releases/download/v2.12.0-docker/setup-node.sh",
+		"https://get.opfield.dev/opfield/releases/download/v2.12.0/docker-compose.yml",
+		"https://get.opfield.dev/opfield/releases/latest/download/../secrets",
 	])("refuses installer paths outside the allowlist: %s", async (url) => {
 		const fetcher = vi.fn<typeof fetch>();
 		const response = await handleRequest(new Request(url), env, fetcher);
@@ -770,7 +779,7 @@ describe("gateway update facade", () => {
 		);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/docker-daemon/v2.9.11-docker/docker-daemon-linux-amd64",
+				"https://updates.thesqlabs.com/opfield/docker-daemon/v2.9.11-docker/docker-daemon-linux-amd64",
 				{
 					method: "HEAD",
 				},
@@ -786,11 +795,10 @@ describe("gateway update facade", () => {
 	it("reads inference core assets from the private core repository", async () => {
 		const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
 			Response.json({
-				tag_name: "v2.25.0-wiolett.21",
+				tag_name: `v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 				name: null,
 				body: null,
-				html_url:
-					"https://github.com/opfield/inference-core/releases/tag/v2.25.0-wiolett.21",
+				html_url: `https://github.com/opfield/inference-core/releases/tag/v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 				published_at: "2026-08-27T00:00:00Z",
 				draft: false,
 				prerelease: false,
@@ -806,7 +814,7 @@ describe("gateway update facade", () => {
 		);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/inference-core/v2.25.0-wiolett.21/opencodex-image.update.json",
+				`https://updates.thesqlabs.com/opfield/inference-core/v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21/opencodex-image.update.json`,
 				{ method: "HEAD" },
 			),
 			env,
@@ -814,7 +822,7 @@ describe("gateway update facade", () => {
 		);
 		expect(response.status).toBe(200);
 		expect(fetcher.mock.calls[0]?.[0]).toBe(
-			"https://api.github.com/repos/opfield/opfield-inference/releases/tags/v2.25.0-wiolett.21",
+			`https://api.github.com/repos/opfield/opfield-inference/releases/tags/v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 		);
 		const headers = new Headers(fetcher.mock.calls[0]?.[1]?.headers);
 		expect(headers.get("Authorization")).toBe("Bearer private-core-token");
@@ -847,7 +855,7 @@ describe("gateway update facade", () => {
 			"inference-core/v2.61.0-opfield.2/opencodex-image.update.json",
 		]) {
 			const response = await handleRequest(
-				new Request(`https://get.opfield.dev/gateway/${path}`, {
+				new Request(`https://get.opfield.dev/opfield/${path}`, {
 					method: "HEAD",
 				}),
 				env,
@@ -864,10 +872,10 @@ describe("gateway update facade", () => {
 		for (const path of [
 			"inference-core/v2.61.0-opfield.2/opfield-inference-image.update.json",
 			"opfield-inference/v2.61.0/opfield-inference-image.update.json",
-			"opfield-inference/v2.61.0-opfield.2/gateway-image.update.json",
+			`opfield-inference/v2.61.0-opfield.2/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`,
 		]) {
 			const refused = await handleRequest(
-				new Request(`https://get.opfield.dev/gateway/${path}`),
+				new Request(`https://get.opfield.dev/opfield/${path}`),
 				env,
 				fetcher,
 			);
@@ -892,7 +900,7 @@ describe("gateway update facade", () => {
 		);
 		const response = await handleRequest(
 			new Request(
-				"https://updates.thesqlabs.com/gateway/witness-clickhouse-keeper/v2.12.0/witness-clickhouse-keeper-25.8.28.1-linux-arm64.update.json",
+				"https://updates.thesqlabs.com/opfield/witness-clickhouse-keeper/v2.12.0/witness-clickhouse-keeper-25.8.28.1-linux-arm64.update.json",
 				{ method: "HEAD" },
 			),
 			env,
@@ -905,10 +913,10 @@ describe("gateway update facade", () => {
 		for (const path of [
 			"witness-clickhouse-keeper/v2.12.0-relay/witness-clickhouse-keeper-25.8.28.1-linux-arm64",
 			"witness-clickhouse-keeper/v2.12.0/witness-clickhouse-keeper-25.8.28.1-linux-riscv64",
-			"witness-clickhouse-keeper/v2.12.0/gateway-image.update.json",
+			`witness-clickhouse-keeper/v2.12.0/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`,
 		]) {
 			const refused = await handleRequest(
-				new Request(`https://updates.thesqlabs.com/gateway/${path}`),
+				new Request(`https://updates.thesqlabs.com/opfield/${path}`),
 				env,
 				fetcher,
 			);

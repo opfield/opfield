@@ -228,9 +228,9 @@ export const sslCertificates: SSLCertificate[] = [
   cert(
     {
       id: uuid(41211),
-      name: "gateway.example.com",
+      name: "opfield.example.com",
       type: "acme",
-      domainNames: ["gateway.example.com"],
+      domainNames: ["opfield.example.com"],
       notAfter: ahead(68, "d"),
       isSystem: true,
     },

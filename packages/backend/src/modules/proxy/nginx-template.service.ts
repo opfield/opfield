@@ -5,6 +5,11 @@ import Handlebars from 'handlebars';
 import type { DrizzleClient } from '@/db/client.js';
 import { nginxTemplates } from '@/db/schema/nginx-templates.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
+import {
+  LEGACY_INGRESS_HEALTH_NAME,
+  LEGACY_NGINX_MARK_PREFIX,
+  LEGACY_RESERVED_PATH_PREFIX,
+} from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { formatHostPort } from '@/lib/network-endpoint.js';
 import {
@@ -47,7 +52,7 @@ export const PAGES_CONFIG_SCRIPT_PATH = '/_opfield/pages/config.js';
  * The pre-Opfield path of the script, answered the same way: it is documented, and pages may load it themselves.
  * legacy-name: Pages runtime configuration path customer pages may load directly — remove once no page loads it
  */
-export const LEGACY_PAGES_CONFIG_SCRIPT_PATH = '/_gateway/pages/config.js';
+export const LEGACY_PAGES_CONFIG_SCRIPT_PATH = `${LEGACY_RESERVED_PATH_PREFIX}/pages/config.js`;
 const DEFAULT_RATE_LIMIT_RPS = 1000;
 const DEFAULT_RATE_LIMIT_BURST = 3000;
 const DEFAULT_CONNECTIONS_PER_IP = 1000;
@@ -816,14 +821,14 @@ function stripCookieRules(name: string) {
     "~^(.*?);\\s*${name}=[^;]*(.*)$" "$1$2";`;
 }
 
-// The reserved health paths (opfield and gateway) both bypass maintenance: monitors of customers probe the
+// The reserved health paths (current and legacy) both bypass maintenance: monitors of customers probe the
 // pre-Opfield one (legacy-name: remove once no customer monitor probes it).
 function maintenanceMaps(hostId: string) {
   const suffix = maintenanceAccessVariable(hostId);
   return `map "$uri:$secure_link" $gm_block_${suffix} {
     default 1;
     ~^/\\.well-known/acme-challenge/ 0;
-    ~^/\\.well-known/(?:opfield|gateway)-ingress-health: 0;
+    ~^/\\.well-known/(?:opfield-ingress-health|${LEGACY_INGRESS_HEALTH_NAME}): 0;
     ~^/\\.well-known/opfield-error: 0;
     ~^/_opfield/maintenance-access: 0;
     ~^/_opfield/maintenance-access/status: 0;
@@ -921,7 +926,7 @@ function plainMaintenanceServerGuard(hideExternalBranding: boolean, acl: string)
     # Opfield maintenance mode. Server-rewrite directives run before location
     # selection, so upstream/access/cache/rewrite behavior is never reached.
     add_header Cache-Control "no-store" always;
-    if ($uri !~ ^/\\.well-known/(acme-challenge/|(?:opfield|gateway)-ingress-health$|opfield-error$)) {
+    if ($uri !~ ^/\\.well-known/(acme-challenge/|(?:opfield-ingress-health|${LEGACY_INGRESS_HEALTH_NAME})$|opfield-error$)) {
         rewrite ^ ${MAINTENANCE_PAGE_LOCATION} last;
     }
 ${maintenancePageLocation(hideExternalBranding, false, acl)}`;
@@ -937,17 +942,20 @@ function maintenanceAccessFits(renderedConfig: string): boolean {
   return !(
     /(?:^|[\s;{}])secure_link(?:_md5|_secret)?[\s;]/m.test(renderedConfig) ||
     /\$\{?(?:secure_link|gms?_)/.test(renderedConfig) ||
-    // legacy-name: /_gateway/maintenance-access of configs written before 2.12.1 — remove once every node reports none
-    /\blocation\s*=\s*\/_(?:opfield|gateway)\/maintenance-access(?:\/status)?[\s{]/.test(renderedConfig)
+    // legacy-name: the legacy maintenance access location of configs written before 2.12.1 — remove once every node reports none
+    new RegExp(
+      String.raw`\blocation\s*=\s*(?:\/_opfield|${LEGACY_RESERVED_PATH_PREFIX.replaceAll('/', '/')})\/maintenance-access(?:\/status)?[\s{]`
+    ).test(renderedConfig)
   );
 }
 
 /** A location named like the guard's page location would be a duplicate location in nginx -t. */
 function declaresMaintenancePageLocation(renderedConfig: string): boolean {
-  // legacy-name: gateway-maintenance of configs written before 2.12.1 — remove once every node reports none
-  return /\blocation\s*(?:=\s*(?:opfield|gateway)-maintenance|@(?:opfield|gateway)-maintenance-(?:page|state))[\s{]/.test(
-    renderedConfig
-  );
+  // legacy-name: the legacy maintenance locations of configs written before 2.12.1 — remove once every node reports none
+  const prefix = `(?:opfield-|${LEGACY_NGINX_MARK_PREFIX})`;
+  return new RegExp(
+    String.raw`\blocation\s*(?:=\s*${prefix}maintenance|@${prefix}maintenance-(?:page|state))[\s{]`
+  ).test(renderedConfig);
 }
 
 const BUILTIN_TEMPLATES = [

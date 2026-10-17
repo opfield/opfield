@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import type { CommandResult } from '@/grpc/generated/types.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import {
@@ -161,16 +162,16 @@ describe('app network isolation', () => {
     const { isolation } = setup({
       detail: JSON.stringify({
         restored: [],
-        gone: ['gateway-db-fbde43'],
+        gone: [`${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43`],
         failed: [],
-        networkModeGone: 'gateway-db-fbde43',
+        networkModeGone: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43`,
         fallbackNetwork: 'bridge',
       }),
     });
     await expect(isolation.restore('n1', 'app', [endpoint])).resolves.toEqual({
       restored: [],
-      gone: ['gateway-db-fbde43'],
-      networkModeGone: 'gateway-db-fbde43',
+      gone: [`${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43`],
+      networkModeGone: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}fbde43`,
       fallbackNetwork: 'bridge',
       failed: [],
     });

@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import {
   configuredRegistryTokenService,
   DockerRegistryTokenService,
@@ -25,7 +26,7 @@ describe('DockerRegistryTokenService', () => {
       '/tmp/test-runtime/opfield-registry-auth'
     );
     expect(resolveDockerRegistryAuthDir({ NODE_ENV: 'production' }, '/tmp/test-runtime')).toBe(
-      '/var/lib/gateway-registry-auth'
+      '/var/lib/opfield-registry-auth'
     );
     expect(
       resolveDockerRegistryAuthDir(
@@ -36,14 +37,14 @@ describe('DockerRegistryTokenService', () => {
   });
 
   it('issues a Distribution-compatible RS256 token only for the allowed repository actions', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-registry-token-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-registry-token-'));
     const service = new DockerRegistryTokenService(tempDir);
     await service.initialize();
     const issued = service.issueToken({
       subject: 'builder:node-1:build-1',
       service: dockerRegistryTokenContract.service,
-      requested: [{ repository: 'gateway/source-1', actions: ['pull', 'push'] }],
-      allowed: [{ repository: 'gateway/source-1', actions: ['pull', 'push'] }],
+      requested: [{ repository: `${LEGACY_INSTALL_DIR_NAME}/source-1`, actions: ['pull', 'push'] }],
+      allowed: [{ repository: `${LEGACY_INSTALL_DIR_NAME}/source-1`, actions: ['pull', 'push'] }],
       context: { nodeId: 'node-1', buildId: 'build-1' },
       ttlSeconds: 120,
       now: new Date('2026-08-24T00:00:00.000Z'),
@@ -62,7 +63,7 @@ describe('DockerRegistryTokenService', () => {
       iss: dockerRegistryTokenContract.issuer,
       aud: dockerRegistryTokenContract.service,
       sub: 'builder:node-1:build-1',
-      access: [{ type: 'repository', name: 'gateway/source-1', actions: ['pull', 'push'] }],
+      access: [{ type: 'repository', name: `${LEGACY_INSTALL_DIR_NAME}/source-1`, actions: ['pull', 'push'] }],
       opfield: { node_id: 'node-1', build_id: 'build-1' },
     });
     expect(
@@ -81,7 +82,7 @@ describe('DockerRegistryTokenService', () => {
     await service.initialize();
     expect(new X509Certificate(service.getCertificatePem()).subject).toBe('CN=Opfield Internal Registry Token Signer');
     const claims = (token: string) => JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString('utf8'));
-    const grant = [{ repository: 'gateway/source-1', actions: ['pull' as const] }];
+    const grant = [{ repository: `${LEGACY_INSTALL_DIR_NAME}/source-1`, actions: ['pull' as const] }];
     expect(configuredRegistryTokenService({})).toBe(LEGACY_REGISTRY_TOKEN_SERVICE);
     expect(configuredRegistryTokenService({ OPFIELD_REGISTRY_TOKEN_SERVICE: REGISTRY_TOKEN_SERVICE })).toBe(
       REGISTRY_TOKEN_SERVICE
@@ -101,27 +102,27 @@ describe('DockerRegistryTokenService', () => {
   });
 
   it('denies cross-repository and cross-action escalation', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-registry-token-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-registry-token-'));
     const service = new DockerRegistryTokenService(tempDir);
     await service.initialize();
     expect(() =>
       service.issueToken({
         subject: 'runtime:node-1:deployment-1',
-        requested: [{ repository: 'gateway/source-2', actions: ['pull'] }],
-        allowed: [{ repository: 'gateway/source-1', actions: ['pull'] }],
+        requested: [{ repository: `${LEGACY_INSTALL_DIR_NAME}/source-2`, actions: ['pull'] }],
+        allowed: [{ repository: `${LEGACY_INSTALL_DIR_NAME}/source-1`, actions: ['pull'] }],
       })
     ).toThrow('not allowed');
     expect(() =>
       service.issueToken({
         subject: 'runtime:node-1:deployment-1',
-        requested: [{ repository: 'gateway/source-1', actions: ['push'] }],
-        allowed: [{ repository: 'gateway/source-1', actions: ['pull'] }],
+        requested: [{ repository: `${LEGACY_INSTALL_DIR_NAME}/source-1`, actions: ['push'] }],
+        allowed: [{ repository: `${LEGACY_INSTALL_DIR_NAME}/source-1`, actions: ['pull'] }],
       })
     ).toThrow('not allowed');
   });
 
   it('keeps the signing identity stable across service restarts', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-registry-token-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-registry-token-'));
     const first = new DockerRegistryTokenService(tempDir);
     await first.initialize();
     const certificate = first.getCertificatePem();

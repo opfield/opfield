@@ -335,7 +335,7 @@
       ]
     },
     "docker.archives": {
-      "description": ".gwca export and import in portable and registry-backed mode.",
+      "description": ".ofca export and import in portable and registry-backed mode.",
       "doc": "docs/docker-container-archives.md",
       "os": [
         "debian"
@@ -1159,14 +1159,6 @@
         "lifecycle builder dry-run",
         "lifecycle storage dry-run",
         "feature installer.dry-run",
-        "setup-node.sh --gateway",
-        "setup-node.sh --gateway-cert-sha256",
-        "setup-docker-node.sh --gateway",
-        "setup-docker-node.sh --gateway-cert-sha256",
-        "setup-monitoring-node.sh --gateway",
-        "setup-monitoring-node.sh --gateway-cert-sha256",
-        "setup-relay-node.sh --gateway",
-        "setup-relay-node.sh --gateway-cert-sha256",
         "setup-database-node.sh --opfield",
         "setup-database-node.sh --opfield-cert-sha256"
       ],
@@ -1807,7 +1799,7 @@
         "On the VM: docker-daemon runtime preflight runsc --json; create a Secure container.",
         "Switch the VM node to --user gwdock; copy the one-line command from Node Details > Secure Runtime and run it; then sudo docker-daemon runtime install runsc.",
         "On the LXC node: re-run the installer with --user gwdock --secure-runtime.",
-        "Try a Secure container with a bind mount, a GPU, a migration and a .gwca export."
+        "Try a Secure container with a bind mount, a GPU, a migration and a .ofca export."
       ],
       "expect": [
         "Preflight exits 0 healthy; the Secure container runs with runtime runsc.",
@@ -2557,7 +2549,7 @@
       ],
       "steps": [
         "Apply a Compose revision changing one service; Pull & Apply.",
-        "Export a container as portable and as registry-backed .gwca and import both on another node.",
+        "Export a container as portable and as registry-backed .ofca and import both on another node.",
         "Create a container on each node; inspect its LogConfig."
       ],
       "expect": [

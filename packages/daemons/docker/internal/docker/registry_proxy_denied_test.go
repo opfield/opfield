@@ -15,14 +15,14 @@ func TestRegistryProxyRefusesARepositoryWithoutGrant(t *testing.T) {
 	manager := &dockerRegistryProxyManager{bindings: map[string]*registryProxyBinding{
 		"own": {
 			id:         "own",
-			repository: "gateway/builds/own",
+			repository: "opfield/builds/own",
 			actions:    map[string]struct{}{"pull": {}},
 			expiresAt:  time.Now().Add(time.Second),
 		},
 	}}
 
 	recorder := httptest.NewRecorder()
-	manager.serveHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v2/gateway/builds/other/manifests/sha256:abc", nil))
+	manager.serveHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v2/opfield/builds/other/manifests/sha256:abc", nil))
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", recorder.Code)
 	}
@@ -30,13 +30,13 @@ func TestRegistryProxyRefusesARepositoryWithoutGrant(t *testing.T) {
 		Errors []struct{ Code, Message string } `json:"errors"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil || len(body.Errors) != 1 || body.Errors[0].Code != "DENIED" ||
-		!strings.Contains(body.Errors[0].Message, "no pull grant for gateway/builds/other") {
+		!strings.Contains(body.Errors[0].Message, "no pull grant for opfield/builds/other") {
 		t.Fatalf("body = %s (%v)", recorder.Body.String(), err)
 	}
 
 	// The node holds the grant, but it is about to be renewed: wait for authorization, not a refusal.
 	recorder = httptest.NewRecorder()
-	manager.serveHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v2/gateway/builds/own/manifests/sha256:abc", nil))
+	manager.serveHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v2/opfield/builds/own/manifests/sha256:abc", nil))
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expiring grant: status = %d, want 503", recorder.Code)
 	}

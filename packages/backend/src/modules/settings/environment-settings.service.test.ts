@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseLegacySettingsEnv } from '@/cli/legacy-settings-env.js';
+import { LEGACY_ENV_PREFIX } from '@/lib/legacy-compat.js';
 import {
   DEFAULT_ENVIRONMENT_SETTINGS,
   EnvironmentSettingsService,
@@ -32,7 +33,7 @@ function fakeDb(existing?: unknown) {
 describe('legacy environment settings import (runs before the pre-update snapshot)', () => {
   it('writes no row when the .env has nothing legacy', async () => {
     const { db, writes } = fakeDb();
-    const parsed = parseLegacySettingsEnv('GATEWAY_VERSION=v2.11.3\n');
+    const parsed = parseLegacySettingsEnv(`${LEGACY_ENV_PREFIX}VERSION=v2.11.3\n`);
     expect(legacyEnvironmentOverrides(parsed.environment)).toBeNull();
     await expect(new EnvironmentSettingsService(db).importLegacy(parsed.environment)).resolves.toBe(false);
     expect(writes).toEqual([]);

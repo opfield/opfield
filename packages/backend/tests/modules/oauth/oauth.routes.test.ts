@@ -53,9 +53,9 @@ function createApp() {
 
 function registerOAuthService(overrides: Partial<OAuthService> = {}) {
   container.registerInstance(OAuthService, {
-    getIssuerUrl: vi.fn().mockReturnValue('https://gateway.example.com'),
-    getApiResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api'),
-    getMcpResourceUrl: vi.fn().mockReturnValue('https://gateway.example.com/api/mcp'),
+    getIssuerUrl: vi.fn().mockReturnValue('https://opfield.example.com'),
+    getApiResourceUrl: vi.fn().mockReturnValue('https://opfield.example.com/api'),
+    getMcpResourceUrl: vi.fn().mockReturnValue('https://opfield.example.com/api/mcp'),
     registerClient: vi.fn().mockResolvedValue({
       client_id: 'goc_client',
       client_id_issued_at: 1777413600,
@@ -81,7 +81,7 @@ function registerOAuthService(overrides: Partial<OAuthService> = {}) {
       grantableScopes: ['nodes:details'],
       unavailableScopes: [],
       manualApprovalScopes: [],
-      resource: 'https://gateway.example.com/api',
+      resource: 'https://opfield.example.com/api',
       expiresAt: Date.now() + 60_000,
     }),
     exchangeToken: vi.fn().mockResolvedValue({
@@ -193,9 +193,9 @@ describe('OAuth metadata routes', () => {
     const body = (await response.json()) as JsonRecord;
 
     expect(response.status).toBe(200);
-    expect(body.authorization_endpoint).toBe('https://gateway.example.com/api/oauth/authorize');
-    expect(body.token_endpoint).toBe('https://gateway.example.com/api/oauth/token');
-    expect(body.registration_endpoint).toBe('https://gateway.example.com/api/oauth/register');
+    expect(body.authorization_endpoint).toBe('https://opfield.example.com/api/oauth/authorize');
+    expect(body.token_endpoint).toBe('https://opfield.example.com/api/oauth/token');
+    expect(body.registration_endpoint).toBe('https://opfield.example.com/api/oauth/register');
     expect(body.grant_types_supported).toEqual(['authorization_code', 'refresh_token']);
     expect(body.token_endpoint_auth_methods_supported).toEqual(['none']);
     expect(body.code_challenge_methods_supported).toEqual(['S256']);
@@ -211,8 +211,8 @@ describe('OAuth metadata routes', () => {
       const body = (await response.json()) as JsonRecord;
 
       expect(response.status).toBe(200);
-      expect(body.authorization_endpoint).toBe('https://gateway.example.com/api/oauth/authorize/api/mcp');
-      expect(body.token_endpoint).toBe('https://gateway.example.com/api/oauth/token');
+      expect(body.authorization_endpoint).toBe('https://opfield.example.com/api/oauth/authorize/api/mcp');
+      expect(body.token_endpoint).toBe('https://opfield.example.com/api/oauth/token');
       expect(body.grant_types_supported).toEqual(['authorization_code']);
       expect(body.scopes_supported).toContain('nodes:details');
       expect(body.scopes_supported).toContain('integrations:cloudflare:view');
@@ -250,7 +250,7 @@ describe('OAuth metadata routes', () => {
     const body = (await response.json()) as JsonRecord;
 
     expect(response.status).toBe(200);
-    expect(body.authorization_endpoint).toBe('https://gateway.example.com/api/oauth/authorize/api/mcp');
+    expect(body.authorization_endpoint).toBe('https://opfield.example.com/api/oauth/authorize/api/mcp');
     expect(body.grant_types_supported).toEqual(['authorization_code']);
   });
 
@@ -259,8 +259,8 @@ describe('OAuth metadata routes', () => {
     const body = (await response.json()) as JsonRecord;
 
     expect(response.status).toBe(200);
-    expect(body.resource).toBe('https://gateway.example.com/api');
-    expect(body.authorization_servers).toEqual(['https://gateway.example.com']);
+    expect(body.resource).toBe('https://opfield.example.com/api');
+    expect(body.authorization_servers).toEqual(['https://opfield.example.com']);
     expect(body.scopes_supported).toContain('nodes:details');
     expect(body.scopes_supported).not.toContain('mcp:use');
     expect(body.scopes_supported).not.toContain('ai:workspace:use');
@@ -308,10 +308,10 @@ describe('OAuth authorization route', () => {
     });
 
     expect(response.status).toBe(302);
-    expect(response.headers.get('location')).toBe('https://gateway.example.com/oauth/consent?request=request-1');
+    expect(response.headers.get('location')).toBe('https://opfield.example.com/oauth/consent?request=request-1');
     expect(createConsentRequest).toHaveBeenCalledWith(
       expect.objectContaining({ id: USER.id }),
-      expect.objectContaining({ resource: 'https://gateway.example.com/api/mcp' })
+      expect.objectContaining({ resource: 'https://opfield.example.com/api/mcp' })
     );
   });
 

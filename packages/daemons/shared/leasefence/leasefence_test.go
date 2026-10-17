@@ -115,7 +115,7 @@ func TestCgroupPathValidationAndCandidates(t *testing.T) {
 		root + "/system.slice/docker-" + testID + ".scope",
 		root + "/docker/" + testID,
 		root + "/pids/docker/" + testID,
-		root + "/custom.slice/gateway-" + testID + ".scope",
+		root + "/custom.slice/opfield-" + testID + ".scope",
 	}
 	for _, path := range valid {
 		if !ValidCgroupPath(root, testID, path) {
