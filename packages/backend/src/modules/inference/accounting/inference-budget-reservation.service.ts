@@ -136,6 +136,8 @@ export class InferenceBudgetReservationService {
     usage: InferenceBudgetUsage;
     limits: EffectiveInferenceLimits;
     isCompaction: boolean;
+    /** The source the request runs on: the monthly API budget gates only API sources, never a subscription. */
+    sourceType: 'api' | 'subscription';
     /** The request has no API price: the monthly API budget does not cap it (API usage switched off still does). */
     apiBudgetExempt?: boolean;
   }): Promise<BudgetReservation> {
@@ -143,7 +145,8 @@ export class InferenceBudgetReservationService {
     const expiresAt = new Date(now + RESERVATION_TTL_MS);
     const dimensions: InferenceBudgetDimension[] = ['credits5h', 'credits7d', 'credits30d', 'apiMonthlyMicrodollars'];
     const limits = dimensions.map((dimension) =>
-      dimension === 'apiMonthlyMicrodollars' && input.apiBudgetExempt && input.limits.apiMonthlyMicrodollars > 0
+      dimension === 'apiMonthlyMicrodollars' &&
+      (input.sourceType !== 'api' || (input.apiBudgetExempt && input.limits.apiMonthlyMicrodollars > 0))
         ? UNLIMITED_RESERVATION_LIMIT
         : reservationLimit(dimension, input.limits, input.isCompaction)
     );

@@ -464,6 +464,7 @@ export class InferenceCoreAccountingService {
         usage,
         limits,
         isCompaction: request.isCompaction,
+        sourceType: source.sourceType,
         ...(costUnknown ? { apiBudgetExempt: true } : {}),
       });
       if (source.sourceType === 'subscription') {

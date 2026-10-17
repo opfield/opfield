@@ -32,6 +32,7 @@ import {
   filterModelIdsByApiBudget,
   filterSourcesByApiUsage,
   sourceOriginMetadata,
+  sourcesWithinSpentApiBudget,
   supportsFastServiceTier,
 } from './inference-model.helpers.js';
 import type { InferenceModelInput, InferenceModelSourceInput, InferencePricingInput } from './inference-model.types.js';
@@ -458,10 +459,21 @@ export class InferenceModelService {
       throw new InferenceProtocolError(404, 'model_not_found', `Model "${publicId}" is not available`);
     }
     const full = await this.serializeModel(model);
-    return {
-      model,
-      sources: filterSourcesByApiUsage(full.sources, availability.apiUsageEnabled),
-    };
+    const sources = filterSourcesByApiUsage(full.sources, availability.apiUsageEnabled);
+    if (!availability.apiUsageEnabled) return { model, sources };
+    // A spent monthly API budget gates only API-priced sources: the request routes to the others, and is refused
+    // only when the model has none (the same refusal the reservation gives).
+    const limits = await this.budgetPolicies.effective(user.id);
+    const usage = await this.budgetPolicies.usage(user.id, limits);
+    if (usage.apiMonthlyMicrodollars < limits.apiMonthlyMicrodollars) return { model, sources };
+    const remaining = sourcesWithinSpentApiBudget(sources.filter((source) => source.enabled));
+    if (!remaining) {
+      throw new InferenceProtocolError(429, 'api_budget_exhausted', 'Inference budget exhausted', {
+        recoveryAt: usage.recoveryAt.apiMonthly.toISOString(),
+        dimension: 'monthly',
+      });
+    }
+    return { model, sources: remaining };
   }
 
   private async modelAvailabilityForUser(

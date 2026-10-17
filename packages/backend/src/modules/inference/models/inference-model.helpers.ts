@@ -87,6 +87,17 @@ export function filterSourcesByApiUsage<T extends { sourceType: string }>(
   return apiUsageEnabled ? [...sources] : sources.filter((source) => source.sourceType === 'subscription');
 }
 
+/**
+ * The sources a request may route to once the user's monthly API budget is spent: every source that is not API-priced
+ * (subscriptions, and API sources without a price, which the budget does not cap). Null when none remains.
+ */
+export function sourcesWithinSpentApiBudget<T extends { sourceType: string; priceMissing: boolean }>(
+  sources: readonly T[]
+): T[] | null {
+  const remaining = sources.filter((source) => source.sourceType !== 'api' || source.priceMissing);
+  return remaining.length ? remaining : null;
+}
+
 type TechnicalLimits = Pick<
   InferenceModelInput,
   'contextWindow' | 'maxInputTokens' | 'maxOutputTokens' | 'autoCompactTokenLimit'

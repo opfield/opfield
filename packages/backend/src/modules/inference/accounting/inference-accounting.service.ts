@@ -217,6 +217,7 @@ export class InferenceAccountingService {
           usage,
           limits,
           isCompaction: input.request.isCompaction,
+          sourceType: input.source.sourceType,
           ...(costUnknown ? { apiBudgetExempt: true } : {}),
         });
       } catch (error) {
@@ -380,6 +381,7 @@ export class InferenceAccountingService {
           usage,
           limits,
           isCompaction: false,
+          sourceType: input.source.sourceType,
           ...(costUnknown ? { apiBudgetExempt: true } : {}),
         });
       } catch (error) {
