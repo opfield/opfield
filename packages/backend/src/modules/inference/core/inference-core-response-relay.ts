@@ -1,3 +1,4 @@
+import { contentFilterStop } from '../accounting/inference-accounting.helpers.js';
 import type { InferenceCoreUsage } from './inference-core.contract.js';
 import { chatCompletionUsage } from './inference-core-chat-usage.js';
 import type { CoreModelIdRewriter } from './inference-core-model-rewrite.js';
@@ -122,7 +123,7 @@ export function relayCoreResponseBody(
           if (terminal) {
             void reader.cancel('Inference stream terminal event received').catch(() => undefined);
             enqueueHeld(controller);
-            settle(terminal);
+            settle(terminal, sseObserver.contentFiltered ? contentFilterStop() : undefined);
             controller.close();
           }
           return;
@@ -132,7 +133,10 @@ export function relayCoreResponseBody(
           controller.enqueue(failedTail());
           settle('failed', new Error('Inference core stream ended without a terminal event'));
         } else {
-          settle(terminal ?? (options.upstreamStatus < 400 ? 'completed' : 'failed'));
+          settle(
+            terminal ?? (options.upstreamStatus < 400 ? 'completed' : 'failed'),
+            sseObserver.contentFiltered ? contentFilterStop() : undefined
+          );
         }
         controller.close();
       } catch (error) {

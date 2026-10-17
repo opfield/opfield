@@ -1,7 +1,13 @@
 import { injectable } from 'tsyringe';
 import type { DrizzleClient } from '@/db/client.js';
 import { resolveLiveUser } from '@/modules/auth/live-session-user.js';
-import { latestPricingSnapshot, stringExtension, unitCharge } from '../accounting/inference-accounting.helpers.js';
+import {
+  CONTENT_FILTER_STOP_CODE,
+  contentFilterStop,
+  latestPricingSnapshot,
+  stringExtension,
+  unitCharge,
+} from '../accounting/inference-accounting.helpers.js';
 import { connectionScopedDenial } from '../accounting/inference-admission-denial.js';
 import type { InferenceCoreAccountingService } from '../accounting/inference-core-accounting.service.js';
 import { normalizeServiceTier } from '../accounting/inference-service-tier.js';
@@ -195,13 +201,21 @@ export class InferenceCoreExecutor implements InferenceExecutor {
       );
     const events = (async function* (): AsyncGenerator<InferenceStreamEvent> {
       let outcome: 'completed' | 'failed' | 'cancelled' = 'completed';
+      // A content-filter stop is recorded as such, not as the core's HTTP-mapped attempt code.
+      let contentFiltered = false;
       try {
-        yield* decodeSse(upstream.body!, parse);
+        for await (const event of decodeSse(upstream.body!, parse)) {
+          if (event.type === 'completed' && event.incompleteReason === CONTENT_FILTER_STOP_CODE) contentFiltered = true;
+          yield event;
+        }
       } catch {
         outcome = signal.aborted ? 'cancelled' : 'failed';
         throw new InferenceProtocolError(502, 'inference_core_stream_failed', 'The core stream ended unexpectedly');
       } finally {
-        await accounting.finalizeCoreRequest(requestId, outcome).catch(() => undefined);
+        await (contentFiltered
+          ? accounting.finalizeCoreRequest(requestId, outcome, contentFilterStop())
+          : accounting.finalizeCoreRequest(requestId, outcome)
+        ).catch(() => undefined);
       }
     })();
 

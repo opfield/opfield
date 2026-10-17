@@ -29,7 +29,7 @@ import {
   apiCostUnknown,
   capSubscriptionEstimateToBudget,
   capSubscriptionEstimateToCredits,
-  errorCode,
+  failedRequestErrorCode,
   hash,
   hasSpendableSubscriptionBudget,
   latestPricingSnapshot,
@@ -829,7 +829,7 @@ export class InferenceCoreAccountingService {
           status: effectiveOutcome,
           errorCode:
             effectiveOutcome === 'failed'
-              ? (refusalCode ?? failedAttempt?.errorCode ?? errorCode(error))
+              ? failedRequestErrorCode(refusalCode, failedAttempt?.errorCode, error)
               : effectiveOutcome === 'cancelled'
                 ? 'client_cancelled'
                 : null,

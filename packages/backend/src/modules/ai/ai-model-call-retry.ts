@@ -1,4 +1,5 @@
 import { createChildLogger } from '@/lib/logger.js';
+import { BUDGET_EXHAUSTED_CODES } from '@/modules/inference/accounting/inference-admission-denial.js';
 import { InferenceProtocolError } from '@/modules/inference/protocol/inference-protocol.error.js';
 import type { ModelProviderEvent } from './ai.provider-adapter.js';
 
@@ -141,6 +142,9 @@ export const CONTENT_FILTER_CODE = 'content_filter';
 /** A model call refused for the user's own budget, a rate limit, or the provider's content filter; null otherwise. */
 export function modelCallRefusal(error: unknown): 'budget' | 'rate_limit' | 'content_filter' | null {
   if (!(error instanceof InferenceProtocolError)) return null;
+  // Opfield's own refusals carry `api_budget_exhausted`, `subscription_budget_exhausted` or
+  // `provider_api_budget_exhausted` (HTTP 429, so they must be checked before the rate-limit rule).
+  if (BUDGET_EXHAUSTED_CODES.has(error.code)) return 'budget';
   // The managed core reports a budget refusal as `admission denied: budget_exceeded`, whatever its code.
   if (BUDGET_CODES.has(error.code) || /\bbudget_(?:exceeded|exhausted)\b/.test(error.message)) return 'budget';
   if (error.code === CONTENT_FILTER_CODE) return 'content_filter';
@@ -164,6 +168,7 @@ export function describeModelCallError(error: unknown): string {
   const fallback = error instanceof Error && error.message.trim() ? error.message.trim() : 'The AI request failed';
   if (!(error instanceof InferenceProtocolError)) return fallback;
   const refusal = modelCallRefusal(error);
+  if (refusal === 'budget') return describeBudgetRefusal(error);
   if (refusal) return REFUSAL_MESSAGES[refusal];
   const provider =
     typeof error.details?.provider === 'string' && error.details.provider ? error.details.provider : 'The AI provider';
@@ -177,6 +182,42 @@ export function describeModelCallError(error: unknown): string {
   if (error.code === 'provider_unavailable') return `${provider} is unavailable right now.${tried}`;
   if (error.code === 'inference_core_unavailable') return 'Opfield Inference is unavailable right now.';
   return fallback;
+}
+
+const BUDGET_WINDOW_NAMES: Record<string, string> = {
+  '5h': '5-hour',
+  '7d': '7-day',
+  '30d': '30-day',
+  monthly: 'monthly',
+};
+
+/** `2026-11-01 00:00 UTC` for an ISO time, or null when it is missing or invalid. */
+export function formatRecoveryAt(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return null;
+  return `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
+/**
+ * A budget refusal in words: which budget ran out and when it works again (`details.recoveryAt`),
+ * never "wait a moment" — the window may reset days later.
+ */
+function describeBudgetRefusal(error: InferenceProtocolError): string {
+  const recovery = formatRecoveryAt(error.details?.recoveryAt);
+  const dimension = typeof error.details?.dimension === 'string' ? error.details.dimension : null;
+  const window = dimension ? (BUDGET_WINDOW_NAMES[dimension] ?? dimension) : null;
+  const until = recovery ? ` It works again at ${recovery}.` : ' It works again when the budget window resets.';
+  if (error.code === 'provider_api_budget_exhausted') {
+    return `Every connection that serves this model has used up its monthly API budget, so the request was refused.${until} Choose another model, or ask an administrator to raise the connection's limit in Settings → Inference.`;
+  }
+  const which =
+    error.code === 'api_budget_exhausted'
+      ? 'Your monthly Opfield Inference API budget is used up'
+      : error.code === 'subscription_budget_exhausted'
+        ? `Your Opfield Inference subscription credits${window ? ` for the ${window} window` : ''} are used up`
+        : 'Your Opfield Inference budget is used up';
+  return `${which}, so the request was refused.${until} Your usage is under Inference; an administrator can raise your limit under Inference limits.`;
 }
 
 function lowerFirst(value: string): string {

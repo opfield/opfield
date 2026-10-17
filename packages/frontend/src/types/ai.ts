@@ -722,7 +722,7 @@ export type WSServerMessage =
       code: string;
       message: string;
       statusCode?: number;
-      /** Structured details, sent only for license denials. */
+      /** Structured details: a license denial, or when a refused model call works again (`retryAfterSeconds`, budget `recoveryAt` / `dimension`). */
       details?: unknown;
     }
   | {
