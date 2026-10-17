@@ -31,11 +31,11 @@ function readCall(user: User, args: Record<string, unknown>) {
 }
 
 /**
- * execute_node_console_command: one command on the node's host, run by the daemon in the agent sandbox (no container
- * runtime, an unprivileged identity; see agent_sandbox.go). A command that visibly changes Opfield-managed Docker
- * objects or daemon state (MANAGED_RESOURCE_CONSOLE_FORBIDDEN) or uses the container runtime
- * (NODE_CONSOLE_RUNTIME_UNAVAILABLE) is refused before it is sent, with the tool to use. People in the browser console
- * (a PTY, not this tool) are not affected.
+ * execute_node_console_command: one command on the node's host, run by the daemon as root (or console.user) in the
+ * agent sandbox, where the container runtime's sockets and CLIs are covered (see agent_sandbox.go). A command that
+ * visibly changes Opfield-managed Docker objects or daemon state (MANAGED_RESOURCE_CONSOLE_FORBIDDEN) or uses the
+ * container runtime (NODE_CONSOLE_RUNTIME_UNAVAILABLE) is refused before it is sent, with the tool to use. People in
+ * the browser console (a PTY, not this tool) are not affected.
  */
 export async function executeNodeConsoleCommand(
   context: NodeConsoleToolContext,

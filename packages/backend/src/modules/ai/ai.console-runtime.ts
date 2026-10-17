@@ -5,10 +5,10 @@ import { commandBaseName } from './ai.console-shell.js';
 
 /**
  * Agents' node console commands run in the daemon's agent sandbox (packages/daemons/shared/exec/agent_sandbox.go):
- * their own mount namespace and process group with the container runtime's sockets and state covered, as an
- * unprivileged identity that cannot become root again. Nothing they run reaches Docker, containerd, Podman or CRI-O,
- * however it is spelled. A command that visibly uses the runtime is refused up front, so the agent gets the tool to
- * use instead of a socket error.
+ * root (or console.user) in their own mount namespace and process group, with the container runtime's sockets and
+ * CLIs covered, so they do not reach Docker, containerd, Podman or CRI-O by accident. It is not a security boundary:
+ * root can leave the namespace on purpose. A command that visibly uses the runtime is refused up front, so the agent
+ * gets the tool to use instead of a socket error.
  */
 export const NODE_CONSOLE_RUNTIME_UNAVAILABLE = 'NODE_CONSOLE_RUNTIME_UNAVAILABLE';
 

@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	sharedexec "github.com/opfield/opfield/daemon-shared/exec"
 	"github.com/opfield/opfield/daemon-shared/handover"
 	"github.com/opfield/opfield/daemon-shared/lifecycle"
 	"github.com/opfield/opfield/daemon-shared/listenerkeep"
@@ -197,6 +198,8 @@ func dockerTimeoutProvided(configJSON string) bool {
 
 // NewDockerPlugin creates a new DockerPlugin with the given configuration.
 func NewDockerPlugin(cfg *config.Config) *DockerPlugin {
+	// Agents' console commands must not reach the Docker socket this daemon is configured with either.
+	sharedexec.AddAgentSandboxMasks(cfg.Docker.Socket)
 	return &DockerPlugin{
 		cfg:                 cfg,
 		registrationChanged: make(chan struct{}, 1),

@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -32,45 +31,52 @@ func TestAgentSandboxArgs(t *testing.T) {
 	}
 }
 
-// The sandbox runs the command as the unprivileged sandbox identity with
-// no_new_privs, so it holds no capability and cannot become root again.
-func TestAgentSandboxIdentity(t *testing.T) {
-	requireRootForSandbox(t)
-	result, err := runAgentCommand(context.Background(), []string{"sh", "-c", "id -u; id -g; grep -E '^(NoNewPrivs|CapEff):' /proc/self/status"}, nil, 4096)
-	if err != nil {
-		t.Fatalf("run: %v (%+v)", err, result)
+func TestAgentSandboxMasksRegisteredSockets(t *testing.T) {
+	dir := t.TempDir()
+	socket := filepath.Join(dir, "custom-docker.sock")
+	if err := os.WriteFile(socket, nil, 0o600); err != nil {
+		t.Fatal(err)
 	}
-	want := strconv.Itoa(AgentSandboxUID) + "\n" + strconv.Itoa(AgentSandboxGID) + "\n"
-	if !strings.HasPrefix(result.Stdout, want) {
-		t.Fatalf("identity = %q, want prefix %q", result.Stdout, want)
+	AddAgentSandboxMasks("unix://"+socket, "tcp://127.0.0.1:2375")
+	paths := agentSandboxMaskPaths()
+	found := false
+	for _, path := range paths {
+		if path == socket {
+			found = true
+		}
+		if strings.HasPrefix(path, "tcp:") {
+			t.Fatalf("a TCP address was taken as a path: %q", paths)
+		}
 	}
-	if !strings.Contains(result.Stdout, "NoNewPrivs:\t1") || !strings.Contains(result.Stdout, "CapEff:\t0000000000000000") {
-		t.Fatalf("privileges = %q", result.Stdout)
+	if !found {
+		t.Fatalf("registered socket missing from %q", paths)
 	}
 }
 
-// A runtime socket is covered however the command reaches it: by name, or
-// through a process of the node's own mount namespace.
-func TestAgentSandboxCoversRuntimeSockets(t *testing.T) {
+// Agents keep root for repairs: the command runs with the daemon's identity
+// and its capabilities.
+func TestAgentSandboxKeepsRoot(t *testing.T) {
 	requireRootForSandbox(t)
-	dir, err := os.MkdirTemp("", "agent-sandbox-")
+	result, err := runAgentCommand(context.Background(), []string{"sh", "-c", "id -u; grep -E '^CapEff:' /proc/self/status"}, nil, "", 4096)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("run: %v (%+v)", err, result)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	if err := os.Chmod(dir, 0o755); err != nil {
-		t.Fatal(err)
+	if !strings.HasPrefix(result.Stdout, "0\n") || strings.Contains(result.Stdout, "CapEff:\t0000000000000000") {
+		t.Fatalf("identity = %q, want root with capabilities", result.Stdout)
 	}
+}
+
+// A runtime socket, a runtime directory and a runtime CLI are covered in the
+// sandbox only: the node keeps them.
+func TestAgentSandboxCoversRuntime(t *testing.T) {
+	requireRootForSandbox(t)
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "docker.sock")
 	listener, listenErr := net.Listen("unix", socketPath)
 	if listenErr != nil {
 		t.Fatal(listenErr)
 	}
 	defer listener.Close()
-	// World-accessible on purpose: the cover must hold even for a socket every user may open.
-	if err := os.Chmod(socketPath, 0o666); err != nil {
-		t.Fatal(err)
-	}
 	runtimeDir := filepath.Join(dir, "containerd")
 	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -78,64 +84,77 @@ func TestAgentSandboxCoversRuntimeSockets(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(runtimeDir, "state"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	script := `test -S "$1" && echo socket; cat "$2/state" 2>/dev/null && echo; ls /proc/1/root/ >/dev/null 2>&1 && echo host-root; true`
-	argv := []string{"sh", "-c", script, "sh", socketPath, runtimeDir}
-	// Uncovered, the sandbox identity sees both: the cover, not file permissions, is what hides them below.
-	result, err := runAgentCommand(context.Background(), argv, nil, 4096)
-	if err != nil || strings.Fields(result.Stdout)[0] != "socket" || !strings.Contains(result.Stdout, "x") {
+	program := filepath.Join(dir, "ctr")
+	if err := os.WriteFile(program, []byte("#!/bin/sh\necho ran\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := `test -S "$1" && echo socket; cat "$2/state" 2>/dev/null && echo; "$3" 2>/dev/null; true`
+	argv := []string{"sh", "-c", script, "sh", socketPath, runtimeDir, program}
+	result, err := runAgentCommand(context.Background(), argv, nil, "", 4096)
+	if err != nil || strings.Join(strings.Fields(result.Stdout), " ") != "socket x ran" {
 		t.Fatalf("uncovered run = %+v %v", result, err)
 	}
-	masks := []string{socketPath, runtimeDir, filepath.Join(dir, "absent.sock")}
-	result, err = runAgentCommand(context.Background(), argv, masks, 4096)
+	masks := []string{socketPath, runtimeDir, program, filepath.Join(dir, "absent.sock")}
+	result, err = runAgentCommand(context.Background(), argv, masks, "", 4096)
 	if err != nil {
 		t.Fatalf("run: %v (%+v)", err, result)
 	}
 	if strings.TrimSpace(result.Stdout) != "" {
 		t.Fatalf("the sandbox reached %q", result.Stdout)
 	}
-	// The cover is the sandbox's own: the node still has its socket.
 	if info, err := os.Stat(socketPath); err != nil || info.Mode()&os.ModeSocket == 0 {
 		t.Fatalf("socket on the node after the sandbox: %v %v", info, err)
 	}
+	if data, err := os.ReadFile(program); err != nil || !strings.Contains(string(data), "echo ran") {
+		t.Fatalf("program on the node after the sandbox: %q %v", data, err)
+	}
 }
 
-// The command cannot signal or trace the node's processes (a container's,
-// the runtime's), still sees them for diagnostics, and what it leaves
-// running ends with it.
+// ps works (no PID namespace), and what the command leaves running ends with
+// it, also a process that left its process group.
 func TestAgentSandboxProcesses(t *testing.T) {
 	requireRootForSandbox(t)
-	pid := strconv.Itoa(os.Getpid())
-	script := "kill -0 " + pid + " 2>/dev/null && echo signalled; ls /proc/" + pid + "/root/ >/dev/null 2>&1 && echo traced; test -d /proc/" + pid + " && echo visible; sleep 30 & echo $!"
-	result, err := runAgentCommand(context.Background(), []string{"sh", "-c", script}, nil, 4096)
+	script := "ps -e >/dev/null && echo ps; setsid sleep 30 & echo $!; sleep 30 & echo $!; sleep 0.2"
+	result, err := runAgentCommand(context.Background(), []string{"sh", "-c", script}, nil, "", 4096)
 	if err != nil {
 		t.Fatalf("run: %v (%+v)", err, result)
 	}
 	lines := strings.Fields(result.Stdout)
-	if len(lines) != 2 || lines[0] != "visible" {
-		t.Fatalf("output = %q, want only visible and the background pid", result.Stdout)
+	if len(lines) != 3 || lines[0] != "ps" {
+		t.Fatalf("output = %q", result.Stdout)
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		state, err := os.ReadFile("/proc/" + lines[1] + "/stat")
-		if err != nil || strings.Contains(string(state), ") Z ") {
-			break
+	for _, pid := range lines[1:] {
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			state, err := os.ReadFile("/proc/" + pid + "/stat")
+			if err != nil || strings.Contains(string(state), ") Z ") {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("background process %s still runs after the command", pid)
+			}
+			time.Sleep(50 * time.Millisecond)
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("background process %s still runs after the command", lines[1])
-		}
-		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestAgentSandboxRunsAsConsoleUser(t *testing.T) {
+	requireRootForSandbox(t)
+	result, err := runAgentCommand(context.Background(), []string{"id", "-un"}, nil, "nobody", 4096)
+	if err != nil || strings.TrimSpace(result.Stdout) != "nobody" {
+		t.Fatalf("run as nobody = %+v %v", result, err)
 	}
 }
 
 func TestAgentSandboxReportsSetupFailure(t *testing.T) {
 	requireRootForSandbox(t)
-	_, err := runAgentCommand(context.Background(), []string{"opfield-no-such-program"}, nil, 4096)
+	_, err := runAgentCommand(context.Background(), []string{"opfield-no-such-program"}, nil, "", 4096)
 	if err == nil || !strings.Contains(err.Error(), "agent console sandbox could not start") {
 		t.Fatalf("err = %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
-	result, err := runAgentCommand(ctx, []string{"sleep", "5"}, nil, 4096)
+	result, err := runAgentCommand(ctx, []string{"sleep", "5"}, nil, "", 4096)
 	if err == nil || result.ExitCode == 0 {
 		t.Fatalf("a command past its deadline returned %+v %v", result, err)
 	}
@@ -147,8 +166,30 @@ func TestAgentSandboxRefusedWithoutRoot(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("runs only as a non-root daemon")
 	}
-	result, err := runAgentCommand(context.Background(), []string{"id", "-u"}, nil, 4096)
+	result, err := runAgentCommand(context.Background(), []string{"id", "-u"}, nil, "", 4096)
 	if err == nil || !strings.Contains(err.Error(), "needs a daemon running as root") || result.Stdout != "" {
 		t.Fatalf("non-root run = %+v %v", result, err)
+	}
+}
+
+// On a node with Docker, the masks this node gets keep every spelling away
+// from the runtime while root stays root.
+func TestAgentSandboxOnDockerNode(t *testing.T) {
+	requireRootForSandbox(t)
+	if _, err := os.Stat("/var/run/docker.sock"); err != nil {
+		t.Skip("no Docker on this host")
+	}
+	script := `id -u
+curl -s --max-time 3 --unix-socket /var/run/docker.sock http://localhost/_ping && echo api-reached
+echo ZG9ja2VyIHBzIC1x | base64 -d | sh >/dev/null 2>&1 && echo cli-reached
+ctr version >/dev/null 2>&1 && echo ctr-reached
+test -S /run/containerd/containerd.sock && echo containerd-reached
+true`
+	result, err := RunAgentCommand(context.Background(), []string{"sh", "-c", script}, "", 8192)
+	if err != nil {
+		t.Fatalf("run: %v (%+v)", err, result)
+	}
+	if strings.TrimSpace(result.Stdout) != "0" {
+		t.Fatalf("output = %q, want only uid 0", result.Stdout)
 	}
 }

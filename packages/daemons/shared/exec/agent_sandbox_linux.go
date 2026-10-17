@@ -4,16 +4,17 @@ package exec
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	osexec "os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -25,9 +26,8 @@ import (
 const agentSandboxWaitDelay = 500 * time.Millisecond
 
 // A daemon binary started with agentSandboxArg is the sandbox setup of one
-// agent command (see RunAgentCommand): it covers the runtime paths, drops to
-// the sandbox identity and executes the command. It never returns to the
-// daemon's own start-up.
+// agent command (see RunAgentCommand): it covers the runtime paths and
+// executes the command. It never returns to the daemon's own start-up.
 func init() {
 	if len(os.Args) > 1 && os.Args[1] == agentSandboxArg {
 		runAgentSandbox(os.Args[2:])
@@ -39,33 +39,38 @@ func init() {
 func AgentSandboxSupported() bool { return true }
 
 // RunAgentCommand runs an agent's one-shot console command in the sandbox
-// described in agent_sandbox.go. It needs a root daemon (namespaces and the
-// identity switch); without one, or when a runtime path cannot be covered,
-// the command does not run and the error says why.
-func RunAgentCommand(ctx context.Context, command []string, maxOutputBytes int64) (CommandResult, error) {
-	return runAgentCommand(ctx, command, agentSandboxMasks, maxOutputBytes)
+// described in agent_sandbox.go, as root or as runAsUser (console.user) when
+// one is configured. It needs a root daemon (a mount namespace); without one,
+// or when a runtime path cannot be covered, the command does not run and the
+// error says why.
+func RunAgentCommand(ctx context.Context, command []string, runAsUser string, maxOutputBytes int64) (CommandResult, error) {
+	return runAgentCommand(ctx, command, agentSandboxMaskPaths(), runAsUser, maxOutputBytes)
 }
 
-func runAgentCommand(ctx context.Context, command []string, masks []string, maxOutputBytes int64) (CommandResult, error) {
+func runAgentCommand(ctx context.Context, command, masks []string, runAsUser string, maxOutputBytes int64) (CommandResult, error) {
 	if len(command) == 0 {
 		return CommandResult{}, fmt.Errorf("command is required")
 	}
 	if maxOutputBytes <= 0 {
 		maxOutputBytes = 128 * 1024
 	}
-	args := []string{agentSandboxArg, strconv.Itoa(len(masks))}
+	if runAsUser != "" {
+		if _, err := resolveRunAsUser(runAsUser); err != nil {
+			return CommandResult{}, fmt.Errorf("cannot run as user %q: %w", runAsUser, err)
+		}
+	}
+	args := []string{agentSandboxArg, runAsUser, strconv.Itoa(len(masks))}
 	args = append(args, masks...)
 	args = append(args, "--")
 	args = append(args, command...)
 	// /proc/self/exe is this daemon's binary even after an update replaced the file.
 	cmd := osexec.CommandContext(ctx, "/proc/self/exe", args...)
-	cmd.Env = []string{"PATH=" + agentSandboxPath}
+	cmd.Env = os.Environ()
 	cmd.Dir = "/"
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		// A PID namespace would hide nothing the identity does not already
-		// keep away and would break ps, which looks for its own PID in the
-		// node's /proc; the process group lets the daemon end what the
-		// command left running.
+		// No PID namespace: ps looks for its own PID in the node's /proc and
+		// fails inside one. The process group and the mount namespace let the
+		// daemon find and end what the command left running.
 		Cloneflags: syscall.CLONE_NEWNS,
 		Setpgid:    true,
 		Pdeathsig:  syscall.SIGKILL,
@@ -81,12 +86,16 @@ func runAgentCommand(ctx context.Context, command []string, masks []string, maxO
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	// On the deadline the whole group is killed, and Wait stops waiting for
-	// output pipes a background process still holds soon after the command
-	// itself exited.
+	// The sandbox's mount namespace, read once the setup started: every process
+	// still in it when the command ends is the command's.
+	var namespace atomic.Value
+	namespace.Store("")
+	// On the deadline everything in the sandbox is killed, and Wait stops
+	// waiting for output pipes a background process still holds soon after the
+	// command itself exited.
 	cmd.Cancel = func() error {
-		killAgentSandboxGroup(cmd.Process.Pid)
-		return nil
+		killAgentSandboxProcesses(namespace.Load().(string))
+		return cmd.Process.Kill()
 	}
 	cmd.WaitDelay = agentSandboxWaitDelay
 
@@ -98,11 +107,16 @@ func runAgentCommand(ctx context.Context, command []string, masks []string, maxO
 		return CommandResult{}, fmt.Errorf("agent console sandbox could not start: %w", err)
 	}
 	statusWrite.Close()
+	if link, err := os.Readlink("/proc/" + strconv.Itoa(cmd.Process.Pid) + "/ns/mnt"); err == nil {
+		if own, err := os.Readlink("/proc/self/ns/mnt"); err == nil && own != link {
+			namespace.Store(link)
+		}
+	}
 	// EOF once the command replaced the setup (the descriptor is close-on-exec) or the setup exited.
 	status, _ := io.ReadAll(statusRead)
 	waitErr := cmd.Wait()
 	// Background processes the command started (`sleep 600 &`) end with it.
-	killAgentSandboxGroup(cmd.Process.Pid)
+	killAgentSandboxProcesses(namespace.Load().(string))
 	if errors.Is(waitErr, osexec.ErrWaitDelay) {
 		waitErr = nil
 	}
@@ -122,11 +136,12 @@ func runAgentCommand(ctx context.Context, command []string, masks []string, maxO
 	return result, waitErr
 }
 
-// killAgentSandboxGroup kills the processes left in a command's process
-// group. Only processes of the sandbox identity are touched: the group's
-// leader is reaped by then, and its number could in principle belong to
-// another group already.
-func killAgentSandboxGroup(pgid int) {
+// killAgentSandboxProcesses kills every process in the sandbox's mount
+// namespace (namespace is its /proc/<pid>/ns/mnt link; empty does nothing).
+func killAgentSandboxProcesses(namespace string) {
+	if namespace == "" {
+		return
+	}
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return
@@ -136,46 +151,81 @@ func killAgentSandboxGroup(pgid int) {
 		if err != nil {
 			continue
 		}
-		info, err := os.Stat("/proc/" + entry.Name())
-		if err != nil {
-			continue
-		}
-		if stat, ok := info.Sys().(*syscall.Stat_t); !ok || stat.Uid != AgentSandboxUID {
-			continue
-		}
-		if processGroup(pid) == pgid {
+		if link, err := os.Readlink("/proc/" + entry.Name() + "/ns/mnt"); err == nil && link == namespace {
 			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 	}
 }
 
-// processGroup reads a process's group from /proc/<pid>/stat, or -1.
-func processGroup(pid int) int {
-	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
-	if err != nil {
-		return -1
+// agentSandboxMaskPaths lists what the sandbox covers on this node: the
+// runtime sockets and directories, those the Docker and containerd
+// configuration names, the sockets daemons registered, and the runtime CLIs
+// installed.
+func agentSandboxMaskPaths() []string {
+	paths := append([]string(nil), agentSandboxMasks...)
+	paths = append(paths, registeredAgentSandboxMasks()...)
+	paths = append(paths, configuredRuntimePaths()...)
+	for _, dir := range agentSandboxProgramDirs {
+		for _, program := range agentSandboxPrograms {
+			paths = append(paths, filepath.Join(dir, program))
+		}
 	}
-	// The command name in parentheses may contain spaces; the fields after it are fixed.
-	end := strings.LastIndexByte(string(data), ')')
-	if end < 0 {
-		return -1
+	seen := map[string]bool{}
+	result := paths[:0]
+	for _, path := range paths {
+		if path == "" || seen[path] {
+			continue
+		}
+		if _, err := os.Lstat(path); err != nil {
+			continue
+		}
+		seen[path] = true
+		result = append(result, path)
 	}
-	fields := strings.Fields(string(data[end+1:]))
-	// state, ppid, pgrp
-	if len(fields) < 3 {
-		return -1
+	return result
+}
+
+// configuredRuntimePaths reads the Docker daemon's hosts and exec-root
+// (/etc/docker/daemon.json) and containerd's gRPC address
+// (/etc/containerd/config.toml).
+func configuredRuntimePaths() []string {
+	var paths []string
+	if data, err := os.ReadFile("/etc/docker/daemon.json"); err == nil {
+		var config struct {
+			Hosts    []string `json:"hosts"`
+			ExecRoot string   `json:"exec-root"`
+		}
+		if json.Unmarshal(data, &config) == nil {
+			for _, host := range config.Hosts {
+				if strings.HasPrefix(host, "unix://") {
+					paths = append(paths, strings.TrimPrefix(host, "unix://"))
+				}
+			}
+			if strings.HasPrefix(config.ExecRoot, "/") {
+				paths = append(paths, config.ExecRoot)
+			}
+		}
 	}
-	pgrp, err := strconv.Atoi(fields[2])
-	if err != nil {
-		return -1
+	if data, err := os.ReadFile("/etc/containerd/config.toml"); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			key, value, found := strings.Cut(strings.TrimSpace(line), "=")
+			if !found || strings.TrimSpace(key) != "address" {
+				continue
+			}
+			value = strings.Trim(strings.TrimSpace(value), `"'`)
+			if strings.HasPrefix(value, "/") {
+				paths = append(paths, value)
+			}
+		}
 	}
-	return pgrp
+	return paths
 }
 
 // runAgentSandbox is the setup process, started in its own mount namespace.
-// args are: the number of masks, the masks, "--", the command.
+// args are: the run-as user (may be empty), the number of masks, the masks,
+// "--", the command.
 func runAgentSandbox(args []string) {
-	// Namespace and identity calls below act on this thread; exec replaces the process from it.
+	// Mount and identity calls below act on this thread; exec replaces the process from it.
 	runtime.LockOSThread()
 	status := os.NewFile(agentSandboxStatusFD, "agent-sandbox-status")
 	fail := func(format string, values ...any) {
@@ -187,7 +237,11 @@ func runAgentSandbox(args []string) {
 	if status != nil {
 		unix.CloseOnExec(agentSandboxStatusFD)
 	}
-	masks, command, err := parseAgentSandboxArgs(args)
+	if len(args) == 0 {
+		fail("missing sandbox arguments")
+	}
+	runAsUser := args[0]
+	masks, command, err := parseAgentSandboxArgs(args[1:])
 	if err != nil {
 		fail("%v", err)
 	}
@@ -200,33 +254,36 @@ func runAgentSandbox(args []string) {
 			fail("cover %s: %v", path, err)
 		}
 	}
-	groups := agentSandboxGroups()
-	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
-		fail("set no_new_privs: %v", err)
+	env := os.Environ()
+	if runAsUser != "" {
+		target, err := resolveRunAsUser(runAsUser)
+		if err != nil {
+			fail("cannot run as user %q: %v", runAsUser, err)
+		}
+		if target.credential != nil {
+			// syscall's identity calls apply to every thread of the process.
+			if err := syscall.Setgroups([]int{}); err != nil {
+				fail("set groups: %v", err)
+			}
+			if err := syscall.Setgid(int(target.credential.Gid)); err != nil {
+				fail("set gid: %v", err)
+			}
+			if err := syscall.Setuid(int(target.credential.Uid)); err != nil {
+				fail("set uid: %v", err)
+			}
+		}
+		env = append(env, "HOME="+target.home, "USER="+runAsUser)
+		if err := os.Chdir(target.dir); err != nil {
+			fail("chdir %s: %v", target.dir, err)
+		}
 	}
-	// syscall's identity calls apply to every thread of the process.
-	if err := syscall.Setgroups(groups); err != nil {
-		fail("set groups: %v", err)
-	}
-	if err := syscall.Setgid(AgentSandboxGID); err != nil {
-		fail("set gid %d: %v", AgentSandboxGID, err)
-	}
-	if err := syscall.Setuid(AgentSandboxUID); err != nil {
-		fail("set uid %d: %v", AgentSandboxUID, err)
-	}
-	if os.Geteuid() != AgentSandboxUID || os.Getegid() != AgentSandboxGID {
-		fail("the identity did not change")
-	}
-	env := []string{"PATH=" + agentSandboxPath, "HOME=/tmp", "LANG=C.UTF-8", "USER=opfield-agent", "LOGNAME=opfield-agent"}
-	if err := os.Setenv("PATH", agentSandboxPath); err != nil {
-		fail("set PATH: %v", err)
+	if os.Getenv("PATH") == "" {
+		_ = os.Setenv("PATH", agentSandboxPath)
+		env = append(env, "PATH="+agentSandboxPath)
 	}
 	program, err := osexec.LookPath(command[0])
 	if err != nil {
 		fail("%v", err)
-	}
-	if err := os.Chdir("/"); err != nil {
-		fail("chdir /: %v", err)
 	}
 	err = syscall.Exec(program, command, env)
 	fail("run %s: %v", command[0], err)
@@ -249,8 +306,8 @@ func parseAgentSandboxArgs(args []string) (masks, command []string, err error) {
 }
 
 // maskAgentSandboxPath covers a directory with an empty read-only tmpfs and
-// anything else (a socket) with /dev/null. A path the node does not have is
-// left alone.
+// anything else (a socket, a program) with /dev/null, which cannot be
+// connected to or executed. A path the node does not have is left alone.
 func maskAgentSandboxPath(path string) error {
 	resolved, err := filepath.EvalSymlinks(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -270,24 +327,4 @@ func maskAgentSandboxPath(path string) error {
 		return unix.Mount("tmpfs", resolved, "tmpfs", unix.MS_RDONLY|unix.MS_NOSUID|unix.MS_NODEV|unix.MS_NOEXEC, "mode=000,size=4k")
 	}
 	return unix.Mount("/dev/null", resolved, "", unix.MS_BIND, "")
-}
-
-// agentSandboxGroups are the log reader groups the node has.
-func agentSandboxGroups() []int {
-	var groups []int
-	for _, name := range agentSandboxLogGroups {
-		group, err := user.LookupGroup(name)
-		if err != nil {
-			continue
-		}
-		gid, err := strconv.Atoi(group.Gid)
-		if err != nil || gid == 0 {
-			continue
-		}
-		groups = append(groups, gid)
-	}
-	if groups == nil {
-		groups = []int{}
-	}
-	return groups
 }

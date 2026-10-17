@@ -874,8 +874,9 @@ func (d *DaemonBase) installRenewedClientCert(expiresAt int64) error {
 }
 
 // handleNodeExec handles node-level console commands: the browser console's
-// PTY session (create/resize, as console.user) and agents' one-shot commands
-// (run), which always run in the agent sandbox (exec.RunAgentCommand).
+// PTY session (create/resize) and agents' one-shot commands (run), which run
+// in the agent sandbox without the container runtime (exec.RunAgentCommand).
+// Both run as console.user when it is set, as root otherwise.
 func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.OpfieldCommand, consoleUser string) *pb.CommandResult {
 	nodeExec := cmd.GetNodeExec()
 	result := &pb.CommandResult{CommandId: cmd.CommandId, Success: true}
@@ -885,7 +886,7 @@ func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.OpfieldComma
 	case "run":
 		runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		commandResult, err := exec.RunAgentCommand(runCtx, nodeExec.GetCommand(), 128*1024)
+		commandResult, err := exec.RunAgentCommand(runCtx, nodeExec.GetCommand(), consoleUser, 128*1024)
 		detailJSON, _ := json.Marshal(commandResult)
 		result.Detail = string(detailJSON)
 		if err != nil {
