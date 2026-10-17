@@ -1,3 +1,4 @@
+import { AppError } from '@/middleware/error-handler.js';
 import { isIP } from 'node:net';
 import { z } from 'zod';
 
@@ -117,3 +118,18 @@ export type CreateAccessListInput = z.infer<typeof CreateAccessListSchema>;
 export type UpdateAccessListInput = z.infer<typeof UpdateAccessListSchema>;
 export type AccessListQuery = z.infer<typeof AccessListQuerySchema>;
 export type MoveAccessListIpRuleInput = z.infer<typeof MoveAccessListIpRuleSchema>;
+
+const ACCESS_LIST_FIELDS = ['name', 'description', 'ipRules', 'basicAuthEnabled', 'basicAuthUsers'] as const;
+
+/** A field the API would drop silently (folderId: access lists have no folders) is refused and named instead. */
+export function assertAccessListFields(body: unknown): void {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return;
+  const unknown = Object.keys(body).filter((key) => !(ACCESS_LIST_FIELDS as readonly string[]).includes(key));
+  if (unknown.length === 0) return;
+  throw new AppError(
+    400,
+    'VALIDATION_ERROR',
+    `${unknown.join(', ')} ${unknown.length === 1 ? 'is not a field' : 'are not fields'} of an access list (fields: ${ACCESS_LIST_FIELDS.join(', ')}).${unknown.includes('folderId') ? ' Access lists have no folders.' : ''}`,
+    { unknownFields: unknown, fields: [...ACCESS_LIST_FIELDS] }
+  );
+}

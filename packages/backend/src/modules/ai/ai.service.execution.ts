@@ -60,6 +60,7 @@ import { redactArgsForAudit } from './ai.service.tool-helpers.js';
 import { getToolResourceId, hasToolExecutionScope, isMutatingTool } from './ai.service-helpers.js';
 import { executeSshTool, SSH_TOOL_NAMES } from './ai.ssh-tools.js';
 import { executeStorageTool, STORAGE_TOOL_NAMES } from './ai.storage-tools.js';
+import { unknownArgumentsNote } from './ai-tool-contract.js';
 import { AI_TOOLS, TOOL_STORE_INVALIDATION_MAP } from './ai.tools.js';
 import type { ToolExecutionOptions, ToolExecutionResult } from './ai.types.js';
 import { assertToolCallAllowedUnderImpersonation } from './ai-impersonation-policy.js';
@@ -351,7 +352,14 @@ export abstract class AIServiceExecution extends AIServiceRuntimeSupport {
       }
       // Folder-, node- and resource-limited callers learn where they can act instead of reading "no access",
       // and a call on a node of the wrong type learns which nodes take it.
-      const guided = await withNodeGuidance(message, toolError.code, toolName, args, executionUser.scopes);
+      const ignored = unknownArgumentsNote(toolDef, args);
+      const guided = await withNodeGuidance(
+        ignored ? `${message} ${ignored}` : message,
+        toolError.code,
+        toolName,
+        args,
+        executionUser.scopes
+      );
       return {
         error: await withLimitedAccessGuidance(guided, executionUser.scopes, accessSummaryDatabase()),
         invalidateStores: [],

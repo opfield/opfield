@@ -26,7 +26,10 @@ describe('errorHandler PostgreSQL uuid errors', () => {
     for (const error of [cause, drizzleWrapped(cause)]) {
       const res = await appThrowing(error).request('/boom');
       expect(res.status).toBe(404);
-      expect(await res.json()).toEqual({ code: 'NOT_FOUND', message: 'Resource not found' });
+      expect(await res.json()).toEqual({
+        code: 'NOT_FOUND',
+        message: 'Resource not found: "profile" is not a UUID. Pass the resource id (a UUID) from the matching list operation.',
+      });
     }
   });
 

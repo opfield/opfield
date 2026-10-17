@@ -19,6 +19,7 @@ import {
 } from './access-list.docs.js';
 import {
   AccessListQuerySchema,
+  assertAccessListFields,
   CreateAccessListSchema,
   MoveAccessListIpRuleSchema,
   UpdateAccessListSchema,
@@ -26,6 +27,7 @@ import {
 import { AccessListService } from './access-list.service.js';
 
 export const accessListRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
+
 
 accessListRoutes.use('*', authMiddleware);
 
@@ -58,6 +60,7 @@ accessListRoutes.openapi({ ...createAccessListRoute, middleware: requireScope('a
   const accessListService = container.resolve(AccessListService);
   const user = c.get('user')!;
   const body = await c.req.json();
+  assertAccessListFields(body);
   const input = CreateAccessListSchema.parse(body);
   const accessList = await accessListService.create(input, user.id);
   return c.json({ data: accessList }, 201);
@@ -71,6 +74,7 @@ accessListRoutes.openapi(
     const user = c.get('user')!;
     const id = c.req.param('id')!;
     const body = await c.req.json();
+    assertAccessListFields(body);
     const input = UpdateAccessListSchema.parse(body);
     const accessList = await accessListService.update(id, input, user.id);
     return c.json({ data: accessList });

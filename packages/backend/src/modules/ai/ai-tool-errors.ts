@@ -1,5 +1,12 @@
 import { HTTPException } from 'hono/http-exception';
-import { AppError, isInvalidUuidError, isZodError, validationErrorDetails } from '@/middleware/error-handler.js';
+import {
+  AppError,
+  HTTP_EXCEPTION_CODES,
+  invalidUuidMessage,
+  invalidUuidValue,
+  isZodError,
+  validationErrorDetails,
+} from '@/middleware/error-handler.js';
 
 /**
  * A failed tool call as the REST API reports the same failure: its error code, message and details. MCP clients
@@ -20,14 +27,6 @@ export interface ToolError {
 /** Tool helpers report a refusal as a plain error that starts with its code (`PERMISSION_DENIED: ...`). */
 const CODE_PREFIX = /^([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+):\s/;
 const DETAILS_MAX_LENGTH = 2000;
-const HTTP_EXCEPTION_CODES: Readonly<Record<number, string>> = {
-  400: 'VALIDATION_ERROR',
-  401: 'UNAUTHORIZED',
-  403: 'PERMISSION_DENIED',
-  404: 'NOT_FOUND',
-  409: 'CONFLICT',
-};
-
 export function describeToolError(err: unknown): ToolError {
   if (err instanceof AppError) {
     // A 403 already names the missing permissions in its message (AppError renders that metadata).
@@ -42,7 +41,8 @@ export function describeToolError(err: unknown): ToolError {
       expected: true,
     };
   }
-  if (isInvalidUuidError(err)) return { code: 'NOT_FOUND', message: 'Resource not found', expected: true };
+  const invalidUuid = invalidUuidValue(err);
+  if (invalidUuid !== null) return { code: 'NOT_FOUND', message: invalidUuidMessage(invalidUuid), expected: true };
   // Route middleware reused by tools (Docker resource access) refuses with an HTTPException: report it with the
   // code the REST API would give it, so a missing scope reads as PERMISSION_DENIED instead of a failure.
   if (err instanceof HTTPException) {

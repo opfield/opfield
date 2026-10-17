@@ -225,3 +225,14 @@ describe('Access list IP rule move', () => {
     expect(result.basicAuthUsers).toEqual([]);
   });
 });
+
+// rc.3 stand O-13: POST /api/access-lists dropped an unknown field (folderId) silently and created the list at the root.
+describe('access list fields over REST', () => {
+  it('names a field the API does not take instead of dropping it', async () => {
+    const { assertAccessListFields } = await import('./access-list.schemas.js');
+    expect(() => assertAccessListFields({ name: 'a', ipRules: [] })).not.toThrow();
+    expect(() => assertAccessListFields({ name: 'a', folderId: 'x' })).toThrow(
+      /folderId is not a field of an access list \(fields: name, description, ipRules, basicAuthEnabled, basicAuthUsers\)\. Access lists have no folders\./
+    );
+  });
+});
