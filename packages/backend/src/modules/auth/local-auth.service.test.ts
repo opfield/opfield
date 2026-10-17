@@ -167,6 +167,10 @@ describe('LocalAuthService.requestPasswordLink', () => {
       message: expect.stringContaining('password setup links'),
       details: { retryAfterSeconds: 300 },
     });
+    // rc.3 GO-9: the onboarding mail takes one of the three slots, and the refusal says so.
+    await expect(
+      throttled.service.requestPasswordLink(USER.email, 'password_setup', { wait: true })
+    ).rejects.toMatchObject({ message: expect.stringContaining('sent when the account was created') });
     expect(throttled.sendSecurityEmail).not.toHaveBeenCalled();
   });
 });
