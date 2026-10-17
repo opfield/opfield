@@ -102,6 +102,11 @@ const KEY_USAGE_MAP: Record<string, number> = {
   nonRepudiation: x509.KeyUsageFlags.nonRepudiation,
 };
 
+/** renewalError of an SSL certificate whose linked PKI certificate was revoked. */
+function linkedRevokedMessage(commonName: string, revokedAt: Date): string {
+  return `The PKI certificate it links (${commonName}) was revoked at ${revokedAt.toISOString()}: clients that check the CRL refuse it. Issue a new certificate and link it, or give the routes another certificate.`;
+}
+
 @injectable()
 export class CertService {
   private eventBus?: EventBusService;
@@ -552,10 +557,17 @@ export class CertService {
     if (cert.status !== 'active')
       throw new AppError(400, 'CERT_NOT_ACTIVE', 'Certificate is already revoked or expired');
 
+    const revokedAt = new Date();
     await this.db
       .update(certificates)
-      .set({ status: 'revoked', revokedAt: new Date(), revocationReason: reason, updatedAt: new Date() })
+      .set({ status: 'revoked', revokedAt, revocationReason: reason, updatedAt: revokedAt })
       .where(eq(certificates.id, id));
+    // An SSL certificate linked from this one serves the same leaf: it shows the revocation instead of staying
+    // "active" (it keeps serving until the route gets another certificate; clients that check the CRL refuse it).
+    await this.db
+      .update(sslCertificates)
+      .set({ status: 'error', renewalError: linkedRevokedMessage(cert.commonName, revokedAt), updatedAt: revokedAt })
+      .where(and(eq(sslCertificates.internalCertId, id), inArray(sslCertificates.status, ['active', 'pending'])));
 
     await this.auditService.log({
       userId,
@@ -570,6 +582,35 @@ export class CertService {
     // Every revocation path (REST, AI/MCP tools) republishes the CRL here.
     await this.caService.publishCRL(cert.caId);
     return cert.caId;
+  }
+
+  /**
+   * Routes and SSL certificates that serve this certificate. A revoke answer names them: they keep serving it until
+   * they get another certificate, and clients that check the CRL refuse it from now on.
+   */
+  async getCertificateUsage(id: string): Promise<{
+    routes: Array<{ id: string; domainNames: string[] }>;
+    sslCertificates: Array<{ id: string; name: string }>;
+  }> {
+    const linked = await this.db
+      .select({ id: sslCertificates.id, name: sslCertificates.name })
+      .from(sslCertificates)
+      .where(eq(sslCertificates.internalCertId, id));
+    const routes = await this.db
+      .select({ id: proxyHosts.id, domainNames: proxyHosts.domainNames })
+      .from(proxyHosts)
+      .where(
+        linked.length > 0
+          ? or(
+              eq(proxyHosts.internalCertificateId, id),
+              inArray(
+                proxyHosts.sslCertificateId,
+                linked.map((row) => row.id)
+              )
+            )
+          : eq(proxyHosts.internalCertificateId, id)
+      );
+    return { routes: routes.map((r) => ({ id: r.id, domainNames: r.domainNames ?? [] })), sslCertificates: linked };
   }
 
   /**
@@ -614,7 +655,12 @@ export class CertService {
           linked.length > 0 ? `${linked.length} SSL certificate(s) linked from it` : '',
         ]
           .filter(Boolean)
-          .join(' and ')}. Give those routes another certificate and delete the linked SSL certificates first.`,
+          .join(' and ')}. ${[
+          routes.length > 0 ? 'Give those routes another certificate' : '',
+          linked.length > 0 ? 'delete the linked SSL certificates' : '',
+        ]
+          .filter(Boolean)
+          .join(' and ')} first.`,
         { routes, sslCertificates: linked }
       );
     }

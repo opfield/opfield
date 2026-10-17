@@ -53,6 +53,19 @@ export class AppError extends Error {
   }
 }
 
+/** The code a thrown HTTPException answers with: what the status means, as the AI tools report it too. */
+export const HTTP_EXCEPTION_CODES: Readonly<Record<number, string>> = {
+  400: 'VALIDATION_ERROR',
+  401: 'UNAUTHORIZED',
+  403: 'PERMISSION_DENIED',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT',
+};
+
+export function httpExceptionCode(status: number): string {
+  return HTTP_EXCEPTION_CODES[status] ?? (status < 500 ? 'REQUEST_REFUSED' : 'HTTP_ERROR');
+}
+
 /**
  * PostgreSQL invalid_text_representation (22P02) for a uuid column, e.g. a
  * non-UUID path id reaching `WHERE id = $1`. Drizzle wraps the driver error,
@@ -60,17 +73,34 @@ export class AppError extends Error {
  * as the code (the wrapper's own message embeds the query text).
  */
 export function isInvalidUuidError(err: unknown): boolean {
+  return invalidUuidValue(err) !== null;
+}
+
+/** The value PostgreSQL refused as a uuid (see isInvalidUuidError), or null for any other error. */
+export function invalidUuidValue(err: unknown): string | null {
   const seen = new Set<unknown>();
   let current: unknown = err;
   while (current && typeof current === 'object' && !seen.has(current)) {
     seen.add(current);
     const { code, message, cause } = current as { code?: unknown; message?: unknown; cause?: unknown };
     if (code === '22P02' && typeof message === 'string' && /invalid input syntax for type uuid/i.test(message)) {
-      return true;
+      return /type uuid: "(.*)"$/is.exec(message)?.[1] ?? '';
     }
     current = cause;
   }
-  return false;
+  return null;
+}
+
+/**
+ * The 404 text for an id that is not a UUID: says so, instead of a bare "Resource not found" that reads as if the
+ * resource had been deleted.
+ */
+export function invalidUuidMessage(value: string | null): string {
+  if (value === null) return 'Resource not found';
+  const shown = value.length > 60 ? `${value.slice(0, 60)}...` : value;
+  return value === ''
+    ? 'Resource not found: an id is empty. Pass the resource id (a UUID) from the matching list operation.'
+    : `Resource not found: "${shown}" is not a UUID. Pass the resource id (a UUID) from the matching list operation.`;
 }
 
 /** A zod validation error, also one thrown by another copy of zod (a separately built edition module). */
@@ -161,7 +191,7 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
 
     return c.json<ApiError>(
       {
-        code: 'HTTP_ERROR',
+        code: httpExceptionCode(err.status),
         message: await withLimitedAccessPointer(c, err.status, err.message),
       },
       err.status
@@ -206,7 +236,7 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
       requestId,
       path: c.req.path,
     });
-    return c.json<ApiError>({ code: 'NOT_FOUND', message: 'Resource not found' }, 404);
+    return c.json<ApiError>({ code: 'NOT_FOUND', message: invalidUuidMessage(invalidUuidValue(err)) }, 404);
   }
 
   // A node lost while the request read from it (its control stream dropped): the node is unavailable, not Opfield.

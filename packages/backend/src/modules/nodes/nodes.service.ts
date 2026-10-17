@@ -19,6 +19,7 @@ import {
   relayEndpointAssignments,
   relayInstances,
   relayPoolUpdateSteps,
+  settings,
 } from '@/db/schema/index.js';
 import { grantCreatedResourcePermissions } from '@/lib/created-resource-permissions.js';
 import { createChildLogger } from '@/lib/logger.js';
@@ -50,9 +51,15 @@ import {
   initNodeFileUpload,
   listNodeFiles,
   moveNodeFile,
+  type PendingNodeFileUploads,
   readNodeFile,
+  sweepNodeFileUploads,
   writeNodeFile,
 } from './node-file-operations.js';
+
+/** settings key of the node file uploads in progress (node-file-operations.ts PendingNodeFileUploads). */
+const PENDING_FILE_UPLOADS_KEY = 'nodes:file_uploads:pending';
+
 import {
   getConfiguredNodeServiceAddresses,
   getEffectiveNginxIngressAddress,
@@ -131,8 +138,29 @@ export class NodesService {
     this.eventBus?.publish('node.changed', { id, action, ...extra });
   }
 
+  /** Upload sessions in settings, so a restart still removes the partial files of uploads it lost. */
+  private readonly pendingFileUploads: PendingNodeFileUploads = {
+    load: async () => {
+      const [row] = await this.db.select().from(settings).where(eq(settings.key, PENDING_FILE_UPLOADS_KEY)).limit(1);
+      return (row?.value && typeof row.value === 'object' ? row.value : {}) as Record<
+        string,
+        { nodeId: string; path: string }
+      >;
+    },
+    save: async (pending) => {
+      const now = new Date();
+      await this.db
+        .insert(settings)
+        .values({ key: PENDING_FILE_UPLOADS_KEY, value: pending, updatedAt: now })
+        .onConflictDoUpdate({ target: settings.key, set: { value: pending, updatedAt: now } });
+    },
+  };
+
   private nodeFileOperationContext() {
-    return createNodeFileOperationContext(this.nodeDispatch, this.auditService, this.eventBus);
+    return {
+      ...createNodeFileOperationContext(this.nodeDispatch, this.auditService, this.eventBus),
+      pendingUploads: this.pendingFileUploads,
+    };
   }
 
   private async validateConnectedNode(id: string) {
@@ -1116,7 +1144,12 @@ export class NodesService {
 
   async abortFileUpload(nodeId: string, uploadId: string) {
     await this.validateConnectedNode(nodeId);
-    await abortNodeFileUpload(this.nodeFileOperationContext(), nodeId, uploadId);
+    return abortNodeFileUpload(this.nodeFileOperationContext(), nodeId, uploadId);
+  }
+
+  /** Removes the partial files of abandoned and expired uploads (bootstrap-background, every few minutes). */
+  async sweepFileUploads(): Promise<number> {
+    return sweepNodeFileUploads(this.nodeFileOperationContext());
   }
 
   async createDirectory(nodeId: string, path: string, userId: string) {

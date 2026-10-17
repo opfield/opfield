@@ -17,23 +17,26 @@ export function createOpfieldAlertObserver(
 ): (observation: DiagnosticsObservation) => Promise<void> {
   let composeServices = new Set<string>();
 
-  return async ({ sample, postgres, redis, containers, jobs }) => {
+  return async ({ sample, postgres, redis, containers, jobs, hostDisk }) => {
     // First: the Postgres outage path works without the database, everything below needs it.
     await evaluator.observeOpfieldPostgres(postgres.status === 'ok', postgres.error);
     if (postgres.status !== 'ok') return;
 
-    await evaluator.evaluateOpfieldSnapshot({
-      host_cpu: sample.host.cpuPercent,
-      host_memory: sample.host.memoryUsedPercent,
-      host_disk: sample.host.diskUsedPercent,
-      process_memory: Math.round(sample.process.rssBytes / MB),
-      event_loop_delay: sample.process.eventLoopDelayP99Ms,
-      api_error_rate: sample.requests.count >= MIN_REQUESTS_FOR_ERROR_RATE ? sample.requests.errorRatePercent : null,
-      api_latency_p95: sample.requests.p95Ms,
-      postgres_latency: postgres.latencyMs,
-      postgres_pool_waiting: postgres.pool?.waiting ?? null,
-      redis_latency: redis.latencyMs,
-    });
+    await evaluator.evaluateOpfieldSnapshot(
+      {
+        host_cpu: sample.host.cpuPercent,
+        host_memory: sample.host.memoryUsedPercent,
+        host_disk: sample.host.diskUsedPercent,
+        process_memory: Math.round(sample.process.rssBytes / MB),
+        event_loop_delay: sample.process.eventLoopDelayP99Ms,
+        api_error_rate: sample.requests.count >= MIN_REQUESTS_FOR_ERROR_RATE ? sample.requests.errorRatePercent : null,
+        api_latency_p95: sample.requests.p95Ms,
+        postgres_latency: postgres.latencyMs,
+        postgres_pool_waiting: postgres.pool?.waiting ?? null,
+        redis_latency: redis.latencyMs,
+      },
+      hostDisk ? { host_disk: { disk: hostDisk } } : undefined
+    );
 
     await evaluator.observeStatefulEvent(
       'opfield',

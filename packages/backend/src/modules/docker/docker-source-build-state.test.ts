@@ -123,7 +123,19 @@ describe('state of a Git source', () => {
   it('says the target was rolled back when it runs an earlier commit than the newest build', () => {
     const older = 'f53ab3eb00'.padEnd(40, '0');
     expect(describeDockerSourceState({ ...source, deployedCommitSha: older }, [build()])).toBe(
-      'Build of commit 0d9a2ae5b1 succeeded, but the target runs the earlier commit f53ab3eb00 (rolled back). The next new commit deploys again; to deploy 0d9a2ae5b1 now, build it again with force.'
+      'Build of commit 0d9a2ae5b1 succeeded, but the target runs the earlier commit f53ab3eb00 (rolled back). The next new commit deploys again; to deploy 0d9a2ae5b1 now, roll back again (manage_docker_source rollback: it returns to the newer build without building), or build it again with force.'
+    );
+  });
+
+  // rc.3 stand R-F-1: a build that lost the restarting registry told the user to "Fix the cause".
+  it('does not blame the source for a build that lost the internal registry', () => {
+    expect(
+      describeDockerSourceState(source, [
+        build({ status: 'failed', errorCode: 'INTERNAL_REGISTRY_UNAVAILABLE', errorMessage: 'x' }),
+      ])
+    ).toMatch(/Nothing is wrong with the source: build again once the registry is ready/);
+    expect(describeDockerSourceState(source, [build({ status: 'queued', errorCode: 'BUILD_REGISTRY_RETRY' })])).toMatch(
+      /is queued again: the internal registry restarted while it pushed/
     );
   });
 });

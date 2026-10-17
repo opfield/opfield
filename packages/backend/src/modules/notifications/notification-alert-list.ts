@@ -1,11 +1,16 @@
-import { and, count, desc, eq, gte, ilike, lte, or, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, like, lte, or, type SQL, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { notificationAlertRules, notificationAlertStates } from '@/db/schema/index.js';
 import type { AlertListQuery } from './notification-alert-rule.schemas.js';
 
+/** The text with the LIKE wildcards escaped. */
+function literal(text: string): string {
+  return text.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 /** A LIKE pattern that matches the text literally. */
 function containing(text: string): string {
-  return `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  return `%${literal(text)}%`;
 }
 
 /**
@@ -19,7 +24,20 @@ export async function listFiredAlerts(db: DrizzleClient, query: AlertListQuery) 
   if (query.category) conditions.push(eq(notificationAlertRules.category, query.category));
   if (query.severity) conditions.push(eq(notificationAlertStates.severity, query.severity));
   if (query.resourceType) conditions.push(eq(notificationAlertStates.resourceType, query.resourceType));
-  if (query.resourceId) conditions.push(eq(notificationAlertStates.resourceId, query.resourceId));
+  if (query.resourceId) {
+    // A node's per-disk and per-container alerts key their state "<nodeId>:<mount or name>", a disk several nodes
+    // share keys it "disk:<id>" with the node in details, and a container alert keys it by the container's id: the
+    // node id, the full key or the resource's name all find them.
+    const id = query.resourceId;
+    conditions.push(
+      or(
+        eq(notificationAlertStates.resourceId, id),
+        like(notificationAlertStates.resourceId, `${literal(id)}:%`),
+        eq(notificationAlertStates.resourceName, id),
+        sql`${notificationAlertStates.context}->'node'->>'id' = ${id}`
+      )!
+    );
+  }
   if (query.since) conditions.push(gte(notificationAlertStates.firedAt, query.since));
   if (query.until) conditions.push(lte(notificationAlertStates.firedAt, query.until));
   if (query.search) {

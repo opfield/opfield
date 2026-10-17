@@ -183,6 +183,8 @@ export interface DiagnosticsObservation {
   redis: RedisReading;
   containers: ContainersReading;
   jobs: SchedulerJobStats[];
+  /** The disk host.diskUsedPercent was read from and what it holds; alerts name it. */
+  hostDisk?: string | null;
 }
 
 export interface LogsQuery extends LogFilter {
@@ -558,7 +560,12 @@ export class DiagnosticsService {
     this.lastSample = sample;
     await this.storeSample(sample);
     if (this.observer) {
-      await this.observer({ sample, postgres, redis, containers, jobs }).catch((error: unknown) => {
+      const hostDisk = describeFullestDisk(
+        hostOk?.disk ?? null,
+        this.hostDisks.fullest(),
+        DATA_PATHS[0] ?? process.cwd()
+      );
+      await this.observer({ sample, postgres, redis, containers, jobs, hostDisk }).catch((error: unknown) => {
         logger.warn('Opfield alert evaluation failed', { error: errorMessage(error) });
       });
     }
@@ -919,6 +926,20 @@ export class DiagnosticsService {
     }
     return { id: match.Id, name: serviceOf(match) };
   }
+}
+
+/** What the disk fullestDisk picked holds, for alert messages ("postgres: /var/lib/postgresql/data on /dev/sdb1"). */
+export function describeFullestDisk(
+  own: { usedPercent: number } | null,
+  stack: { usedPercent: number; holds: string[]; filesystem: string } | null,
+  ownDataPath: string
+): string | null {
+  if (!own && !stack) return null;
+  if (!stack || (own && stack.usedPercent <= own.usedPercent)) return `Opfield data (${ownDataPath})`;
+  const holds = stack.holds.length > 0 ? stack.holds.join(', ') : 'Opfield data';
+  return stack.filesystem && !stack.holds.some((item) => item.includes(stack.filesystem))
+    ? `${holds} on ${stack.filesystem}`
+    : holds;
 }
 
 /** The fuller of the app's own data disk and the fullest disk of the stack. */

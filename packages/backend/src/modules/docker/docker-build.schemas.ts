@@ -59,7 +59,7 @@ export const DockerSourceBindingConfigSchema = z.object({
   connectorId: z.string().uuid(),
   projectId: z.string().uuid({
     message:
-      'Expected the repository id (a UUID) from GET /sources/connectors/{connectorId}/repositories (manage_docker_source repositories), not the repository owner/name',
+      'Expected the repository id (a UUID) from GET /api/docker/sources/connectors/{connectorId}/repositories (manage_docker_source repositories), not the repository owner/name',
   }),
   branch: z.string().trim().min(1).max(500),
   dockerfilePath: RelativeBuildPathSchema.default('Dockerfile'),

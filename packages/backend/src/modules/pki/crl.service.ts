@@ -9,6 +9,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
 import type { CacheService } from '@/services/cache.service.js';
 import type { CAService } from './ca.service.js';
+import { CRL_NUMBER_OID, crlNeedsRepublish, crlSerialHex, derPositiveInteger } from './crl-encoding.js';
 
 const logger = createChildLogger('CRLService');
 
@@ -158,8 +159,9 @@ export class CRLService {
           listed.add(revoked.serialNumber);
           return true;
         });
+        // The generator writes the serial bytes as given: crlSerialHex keeps each one a positive DER INTEGER.
         const entries = revokedEntries.map((revoked) => ({
-          serialNumber: revoked.serialNumber,
+          serialNumber: crlSerialHex(revoked.serialNumber),
           revocationDate: revoked.revokedAt || new Date(),
         })) as unknown as x509.X509CrlEntry[];
 
@@ -172,11 +174,23 @@ export class CRLService {
           nextUpdate.setTime(numbered.notAfter.getTime());
         }
 
+        // RFC 5280 5.2: a conforming CRL carries its CRL Number and the issuer's key identifier.
+        const caKeyId = new x509.X509Certificate(ca.certificatePem).getExtension(
+          x509.SubjectKeyIdentifierExtension
+        )?.keyId;
+        const extensions: x509.Extension[] = [
+          new x509.Extension(CRL_NUMBER_OID, false, derPositiveInteger(numbered.crlNumber)),
+          caKeyId
+            ? new x509.AuthorityKeyIdentifierExtension(caKeyId, false)
+            : await x509.AuthorityKeyIdentifierExtension.create(caKeys.publicKey, false),
+        ];
+
         const crl = await x509.X509CrlGenerator.create({
           issuer: ca.subjectDn,
           thisUpdate,
           nextUpdate,
           entries,
+          extensions,
           signingKey: caKeys.privateKey,
           signingAlgorithm: algorithm,
         });
@@ -198,6 +212,41 @@ export class CRLService {
       logger.info('Generated CRL', { caId, entries: published.entries, crlNumber: published.crlNumber });
       return published.crlDer;
     });
+  }
+
+  /**
+   * Sign again every stored CRL an older release wrote: one that lists a serial
+   * as a negative number (CRL-checking clients then accepted those revoked
+   * certificates) or lacks the CRL Number / Authority Key Identifier
+   * extensions. Runs on startup, so an update heals every CA, system CAs and
+   * revoked CAs (their final CRL) included, without a manual step.
+   */
+  async republishOutdatedCrls(): Promise<{ republished: number; failed: number }> {
+    const stored = await this.db
+      .select({
+        id: certificateAuthorities.id,
+        status: certificateAuthorities.status,
+        lastCrlDer: certificateAuthorities.lastCrlDer,
+        notAfter: certificateAuthorities.notAfter,
+      })
+      .from(certificateAuthorities);
+    let republished = 0;
+    let failed = 0;
+    for (const ca of stored) {
+      if (!ca.lastCrlDer || ca.notAfter <= new Date() || !crlNeedsRepublish(ca.lastCrlDer)) continue;
+      try {
+        await this.generateCRL(ca.id, { allowSystem: true, allowInactive: ca.status !== 'active' });
+        republished++;
+      } catch (error) {
+        failed++;
+        logger.error('Could not sign the CRL of this CA again; it is retried on the next start', {
+          caId: ca.id,
+          error,
+        });
+      }
+    }
+    if (republished || failed) logger.info('Signed CRLs written by an older release again', { republished, failed });
+    return { republished, failed };
   }
 
   /** Run CRL generations for one CA one after another in this process. */

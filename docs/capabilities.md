@@ -176,7 +176,8 @@ Internal PKI is available on Enterprise. After the grace period existing CAs and
 - Issue TLS server, TLS client, code-signing, and email certificates.
 - Use certificate templates with custom extensions and policies.
 - Generate and publish CRLs.
-- Delete certificates that no longer work (revoked or expired) from the certificate page, `DELETE /api/certificates/{id}`, or MCP `delete_certificate` (`pki:cert:revoke`, audited as `cert.delete`). A valid certificate must be revoked first, one in use by a route or a linked SSL certificate is refused, and a revoked certificate deleted before it expires stays on its CA's CRL until then.
+- Delete certificates that no longer work (revoked or expired) from the certificate page, `DELETE /api/certificates/{id}`, or MCP `delete_certificate` (`pki:cert:revoke`, audited as `cert.delete`). A valid certificate must be revoked first, one in use by a route or a linked SSL certificate is refused, and a revoked certificate deleted before it expires stays on its CA's CRL until then. Deleting the CA ends its CRL; the MCP answer counts the revoked certificates it still listed.
+- Revoking a certificate a route serves names those routes and linked SSL certificates in the answer; a linked SSL certificate then shows status error with the reason.
 - Export certificates as PEM, PKCS#12, or JKS when the user has export scopes.
 
 Private key material is encrypted at rest with the configured `PKI_MASTER_KEY`. Export and reveal operations are controlled by explicit scopes.

@@ -54,6 +54,14 @@ describe('registry disk guard', () => {
     });
     expect(state).toMatchObject({ status: 'degraded', writable: false, storageCapacityBytes: 100_000 });
     expect(state.lastError).toContain('91% full');
+    // R-O-4: 91.99 % used reads 92 %, as df shows it, not 91 %.
+    const fuller = await registry.reportHealth({
+      healthy: true,
+      writable: true,
+      usedBytes: 1024,
+      filesystem: { totalBytes: 73_400_320, usedBytes: 67_528_294, availableBytes: 5_872_026 },
+    });
+    expect(fuller.lastError).toContain('92% full');
     await expect(registry.assertBuildAdmission()).rejects.toMatchObject({
       statusCode: 503,
       code: 'INTERNAL_REGISTRY_NOT_WRITABLE',

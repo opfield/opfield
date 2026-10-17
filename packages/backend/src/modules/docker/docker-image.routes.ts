@@ -130,7 +130,11 @@ export function registerImageRoutes(router: OpenAPIHono<AppEnv>) {
     const body = await c.req.json();
     const { imageRef, registryId, folderId, workload } = ImagePullSchema.parse(body);
     if (workload) {
-      throw new AppError(400, 'WORKLOAD_PULL_SYNC_ONLY', 'Pull an image for a workload with POST .../images/pull-sync');
+      throw new AppError(
+        400,
+        'WORKLOAD_PULL_SYNC_ONLY',
+        'Pull an image for a workload with POST /api/docker/nodes/{nodeId}/images/pull-sync'
+      );
     }
 
     // Resolve registry credentials and prefix image ref if using private registry

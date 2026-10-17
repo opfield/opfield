@@ -92,14 +92,23 @@ function describeChange(change: DockerExternalChange): string {
   }
 }
 
-/** What a change outside Opfield means for the managed container and what to do, for the audit entry and the alert. */
-export function externalChangeConsequence(action: DockerExternalChangeAction): string {
+/**
+ * What a change outside Opfield means for the managed container and what to do, for the audit entry and the alert
+ * ({{details.consequence}}). Only a Git-source container has builds that refuse it; a container created by hand under a
+ * managed name had no permissions to lose.
+ */
+export function externalChangeConsequence(action: DockerExternalChangeAction, kind = 'container'): string {
+  const source = kind === 'Git-source container';
   switch (action) {
     case 'removed':
     case 'renamed':
-      return 'Opfield no longer tracks it as before: its permissions were reset and its Git source builds refuse it.';
+      return source
+        ? 'Opfield no longer tracks it as before: its permissions were reset and its Git source builds refuse it.'
+        : 'Opfield no longer tracks it as before: its permissions were reset.';
     case 'created':
-      return 'It is a new container under a managed name: Opfield does not take it for the managed one, so it has no permissions and its Git source builds refuse it. Remove it and recreate the container in Opfield.';
+      return source
+        ? 'It is a new container under a managed name: Opfield does not take it for the managed one, so it has no Opfield permissions and the Git source that holds this name does not build into it. Remove it so the next build creates the container from the source.'
+        : 'It is a new container under a managed name: Opfield does not take it for the managed one, so it has no Opfield permissions. Remove it and recreate the container in Opfield.';
     case 'stopped':
     case 'killed':
       return 'It is not running now, and Opfield did not stop it. Start it from Opfield if it should run.';
@@ -279,7 +288,7 @@ export class DockerExternalChangeWatcher {
         image: change.image ?? null,
         changeKey,
         summary: `Container "${change.oldName || change.name}" on ${nodeName} was ${describeChange(change)} outside Opfield`,
-        consequence: externalChangeConsequence(change.action),
+        consequence: externalChangeConsequence(change.action, kind),
       },
       ...(Number.isFinite(occurredAt.getTime()) ? { occurredAt } : {}),
     });
@@ -289,7 +298,7 @@ export class DockerExternalChangeWatcher {
       id: change.containerId,
       name: change.oldName && change.action === 'renamed' ? change.oldName : change.name,
       change: change.action,
-      consequence: externalChangeConsequence(change.action),
+      consequence: externalChangeConsequence(change.action, kind),
       managedAs: kind,
     });
     logger.warn('Managed container changed outside Opfield', {

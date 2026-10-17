@@ -70,3 +70,59 @@ describe('internal registry garbage collection', () => {
     expect(log.info).not.toHaveBeenCalled();
   });
 });
+
+// rc.3 stand R-F-1: a build claimed just as an automatic collection began failed against the restarting registry
+// ("failed to fetch anonymous token ... opfield.invalid") and was never retried.
+describe('builds during a registry collection', () => {
+  it('waits for builds already using the registry before it restarts it, and no build is claimed meanwhile', async () => {
+    const order: string[] = [];
+    let busy = 2;
+    const state = { status: 'ready', maintenancePhase: 'idle', writable: true } as Record<string, unknown>;
+    const run = { id: 'run-1', status: 'running', dryRun: false, progress: {} };
+    const store = {
+      initialize: vi.fn(),
+      getState: vi.fn(async () => ({ ...state })),
+      updateState: vi.fn(async (values: object) => Object.assign(state, values)),
+      acquireLease: vi.fn(async () => ({})),
+      renewLease: vi.fn(async () => {}),
+      createRun: vi.fn(async () => run),
+      getRun: vi.fn(async () => run),
+      updateRun: vi.fn(async (_id: string, values: object) => Object.assign(run, values)),
+      listRetentionArtifacts: vi.fn(async () => []),
+      markArtifactDeleted: vi.fn(async () => {}),
+      hasActiveRegistryUsers: vi.fn(async () => {
+        order.push(`busy:${busy}`);
+        return busy-- > 0;
+      }),
+    };
+    const registry = new DockerInternalRegistryService(
+      {} as never,
+      {} as never,
+      { log: vi.fn(async () => {}) } as never,
+      store as never
+    );
+    registry.activeUsersPollMs = 1;
+    let claimable: boolean | null = null;
+    registry.setExecutor({
+      hasRepositories: async () => true,
+      storageUsedBytes: async () => 0,
+      pauseAdmissions: async () => {
+        claimable = await registry.canClaimBuilds();
+      },
+      drainUploads: async () => {
+        order.push('restart');
+      },
+      deleteManifest: async () => {},
+      enterReadOnly: async () => {},
+      collectGarbage: async () => {},
+      verifyIntegrity: async () => {},
+      restoreWrites: async () => {},
+    });
+
+    await registry.runGarbageCollection({ reason: 'builds finished' });
+
+    expect(order).toEqual(['busy:2', 'busy:1', 'busy:0', 'restart']);
+    expect(claimable).toBe(false);
+    await expect(registry.canClaimBuilds()).resolves.toBe(true);
+  });
+});

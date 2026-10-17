@@ -27,6 +27,7 @@ export class DockerBuildService {
   // biome-ignore lint/complexity/noUselessConstructor: Preserve the private factory ABI.
   constructor(_db: DrizzleClient) {}
   setEventBus(_eventBus: EventBusService): void {}
+  setClaimGuard(_guard: () => Promise<boolean>): void {}
   setAdmissionGuard(_guard: () => Promise<void>): void {}
   setLicenseGuard(_guard: () => Promise<void>): void {}
   setArtifactRollout(
@@ -154,6 +155,9 @@ export class DockerBuildService {
     } | null;
     created: boolean;
   }> {
+    return commercialModuleUnavailable();
+  }
+  async commitBuiltBefore(_sourceBindingId: string, _commitSha: string): Promise<boolean> {
     return commercialModuleUnavailable();
   }
   async hasBuildForCommit(_sourceBindingId: string, _commitSha: string): Promise<boolean> {

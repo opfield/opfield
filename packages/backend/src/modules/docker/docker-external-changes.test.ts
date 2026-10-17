@@ -42,6 +42,8 @@ describe('changes outside Opfield', () => {
   it('says what each kind of change means', () => {
     expect(managedAs(change({ containerId: '1a2b3c', action: 'stopped' }), records)).toBe('container');
     expect(externalChangeConsequence('removed')).toContain('permissions were reset');
+    expect(externalChangeConsequence('removed', 'Git-source container')).toContain('Git source builds refuse it');
+    expect(externalChangeConsequence('removed')).not.toContain('Git source');
     expect(externalChangeConsequence('created')).toContain('new container under a managed name');
     for (const action of ['stopped', 'killed', 'paused', 'unpaused', 'updated'] as const) {
       expect(externalChangeConsequence(action)).not.toContain('permissions were reset');

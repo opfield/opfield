@@ -89,10 +89,16 @@ function describeLatestBuild(source: DockerSourceStateInput, builds: DockerSourc
       const fix = reason.includes('The image was not deployed') ? '' : ` ${POLICY_FIX}`;
       return `Latest build of commit ${commit}${service} failed: the vulnerability policy rejected the image, so it was not deployed. ${withPeriod(reason)}${fix} ${deployed}`;
     }
+    if (failed.errorCode === 'INTERNAL_REGISTRY_UNAVAILABLE') {
+      return `Latest build of commit ${commit}${service} failed because the internal registry did not answer while it pushed (it restarts for garbage collection and storage switches). Nothing is wrong with the source: build again once the registry is ready (manage_docker_source build). ${deployed}`;
+    }
     const reason = failed.errorMessage ? `: ${withPeriod(failed.errorMessage)}` : '.';
     return `Latest build of commit ${commit}${service} failed (${failed.errorCode ?? 'BUILD_FAILED'})${reason} The build log has the full output (manage_docker_build logs with buildId ${failed.id}, or the build in the Builds list). Fix the cause, then build again (manage_docker_source build, or manage_docker_build retry). ${deployed}`;
   }
   if (builds.some((build) => ACTIVE.has(build.status))) {
+    if (latest.status === 'queued' && latest.errorCode === 'BUILD_REGISTRY_RETRY') {
+      return `Build of commit ${commit} is queued again: the internal registry restarted while it pushed, and it builds once the registry is ready. ${deployed}`;
+    }
     return `Build of commit ${commit} is in progress (${latest.status}). ${deployed}`;
   }
   if (builds.some((build) => build.status === 'deploying'))
@@ -108,7 +114,7 @@ function describeLatestBuild(source: DockerSourceStateInput, builds: DockerSourc
   }
   // The target runs an earlier commit although the newest build succeeded: it was rolled back.
   if (source.deployedCommitSha) {
-    return `Build of commit ${commit} succeeded, but the target runs the earlier commit ${short(source.deployedCommitSha)} (rolled back). The next new commit deploys again; to deploy ${commit} now, build it again with force.`;
+    return `Build of commit ${commit} succeeded, but the target runs the earlier commit ${short(source.deployedCommitSha)} (rolled back). The next new commit deploys again; to deploy ${commit} now, roll back again (manage_docker_source rollback: it returns to the newer build without building), or build it again with force.`;
   }
   return `Build of commit ${commit} succeeded. ${deployed}`;
 }

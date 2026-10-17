@@ -594,7 +594,7 @@ export async function assertContainerNameNotReserved(
     throw new AppError(
       409,
       'NAME_IN_USE',
-      `The container name "${name}" is reserved by a Git build source on this node. To free it, remove that source (manage_docker_source remove with containerName "${name}", or DELETE /nodes/{nodeId}/containers/${name}/source); this works also when the container itself was removed outside Opfield.`
+      `The container name "${name}" is reserved by a Git build source on this node. To free it, remove that source (manage_docker_source remove with containerName "${name}", or DELETE /api/docker/nodes/{nodeId}/containers/${name}/source); this works also when the container itself was removed outside Opfield.`
     );
   }
 }

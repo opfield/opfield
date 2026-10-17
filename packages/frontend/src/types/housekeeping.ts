@@ -57,6 +57,7 @@ export interface HousekeepingCategoryResult {
   itemsCleaned: number;
   spaceFreedBytes?: number;
   error?: string;
+  skipped?: string;
   durationMs: number;
 }
 
@@ -151,5 +152,6 @@ export interface HousekeepingDockerImageNode {
   nodeName: string;
   removableNow: { count: number; bytes: number };
   waiting: { count: number; bytes: number; nextRemovableAt: string | null };
+  danglingWaiting?: { count: number; bytes: number };
   error?: string;
 }

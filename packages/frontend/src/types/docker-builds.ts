@@ -227,7 +227,8 @@ export interface DockerBuild {
     | "generic_webhook"
     | "poll"
     | "retry"
-    | "attach";
+    | "attach"
+    | "config";
   repositoryFullPath: string;
   ref: string;
   commitSha: string;

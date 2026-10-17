@@ -54,7 +54,7 @@ export const REMOVED_CONTAINER_SOURCE_OPERATIONS = ['get', 'remove', 'secret_lis
 
 /** The advice for a Git source whose container was removed outside Opfield. */
 export function removedContainerSourceAdvice(containerName: string): string {
-  return `Container "${containerName}" no longer exists on this node (it was removed outside Opfield), but its Git source still holds the name. Remove the Git source (manage_docker_source remove, or DELETE /nodes/{nodeId}/containers/${containerName}/source) to release the name, then create the container again and attach the source to it.`;
+  return `Container "${containerName}" no longer exists on this node (it was removed outside Opfield), but its Git source still holds the name. Remove the Git source (manage_docker_source remove, or DELETE /api/docker/nodes/{nodeId}/containers/${containerName}/source) to release the name, then create the container again and attach the source to it.`;
 }
 
 /**

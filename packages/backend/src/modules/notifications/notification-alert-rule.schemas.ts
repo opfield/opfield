@@ -33,6 +33,15 @@ export const AlertRuleListQuerySchema = z.object({
 
 export type AlertRuleListQuery = z.infer<typeof AlertRuleListQuerySchema>;
 
+/** A date-time filter whose error names the expected format instead of a bare "Invalid date". */
+function alertListDate(field: string) {
+  return z.coerce.date({
+    errorMap: () => ({
+      message: `${field}: expected an ISO 8601 date-time such as 2026-10-17T00:00:00Z (or a date such as 2026-10-17)`,
+    }),
+  });
+}
+
 /**
  * Alerts that fired: what fires now (status firing, the default) and the history (resolved; kept 30 days). An event
  * rule records each occurrence resolved at once. since and until bound firedAt.
@@ -46,8 +55,8 @@ export const AlertListQuerySchema = z.object({
   severity: z.enum(['info', 'warning', 'critical']).optional(),
   resourceType: z.string().max(50).optional(),
   resourceId: z.string().max(255).optional(),
-  since: z.coerce.date().optional(),
-  until: z.coerce.date().optional(),
+  since: alertListDate('since').optional(),
+  until: alertListDate('until').optional(),
   search: z.string().max(255).optional(),
 });
 

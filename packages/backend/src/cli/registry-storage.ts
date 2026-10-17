@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import { pruneBackupDirectories, REGISTRY_STORAGE_BACKUP } from '@/foundation/backup-retention.js';
 import { patchComposeRegistryStorage, writeFileAtomic } from '@/foundation/foundation-migrator.js';
 import { FOUNDATION_BACKUPS_DIR } from '@/foundation/opfield-names.js';
 import {
@@ -66,6 +67,11 @@ async function apply(hostDir: string, backup: string): Promise<{ backup: string 
   await fs.mkdir(backupDir, { recursive: true, mode: 0o700 });
   await fs.copyFile(envPath, path.join(backupDir, '.env'));
   await fs.copyFile(composePath, path.join(backupDir, 'docker-compose.yml'));
+  // Earlier switches' backups (each with the .env of its time, S3 keys included): the newest three stay.
+  await pruneBackupDirectories(path.dirname(backupDir), (name) => REGISTRY_STORAGE_BACKUP.test(name), {
+    keep: 3,
+    maxAgeDays: 0,
+  });
   try {
     await writeFileAtomic(envPath, nextEnv);
     await writeFileAtomic(composePath, nextCompose);

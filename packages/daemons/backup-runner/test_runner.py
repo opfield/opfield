@@ -394,7 +394,13 @@ class PreflightProbeFailureTests(unittest.TestCase):
                 runner.preflight(self.config)
         self.assertEqual(str(raised.exception), f"writing a test file to the backup storage failed: {self.FULL}")
         downloaded.assert_not_called()
-        deleted.assert_called_once_with(self.destination, "run-1/.probe")
+        deleted.assert_called_once_with(self.destination, "database-backups/run-1/.probe")
+
+    def test_the_probe_stays_inside_the_policy_prefix(self):
+        config = {**self.config, "destination": {**self.destination, "prefix": "team-a/backups"}}
+        with patch.object(runner, "run", return_value="1"), patch.object(runner, "upload") as uploaded, patch.object(runner, "download", side_effect=lambda _e, _k, path: path.write_bytes(b"opfield-backup-probe")), patch.object(runner, "delete_object"):
+            runner.preflight(config)
+        self.assertEqual(uploaded.call_args.args[2], "team-a/backups/run-1/.probe")
 
     def test_a_probe_that_cannot_be_read_back_names_the_read(self):
         with patch.object(runner, "run", return_value="1"), patch.object(runner, "upload"), patch.object(runner, "download", side_effect=runner.BackupError("rclone failed: AccessDenied")), patch.object(runner, "delete_object") as deleted:

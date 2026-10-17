@@ -69,7 +69,9 @@ Use manage_node_file for node filesystem operations. This works through the node
 - upload_init: { nodeId, operation: "upload_init", path, totalBytes }
 - upload_chunk: { nodeId, operation: "upload_chunk", uploadId, offset, contentBase64 }
 - upload_complete: { nodeId, operation: "upload_complete", uploadId, path, totalBytes }
-- upload_abort: { nodeId, operation: "upload_abort", uploadId }
+- upload_abort: { nodeId, operation: "upload_abort", uploadId } answers aborted true, or aborted false for an id with no session (finished, expired, or begun before an Opfield restart).
+
+An upload session expires 30 minutes after its last chunk. Opfield removes the partial file (.opfield-upload-<id>.tmp next to the target) of an expired or abandoned upload within about 5 minutes, also after a restart.
 
 Read output is capped and returns { encoding, content, sizeBytes, returnedBytes, truncated }. Use base64 for binary files.`,
 

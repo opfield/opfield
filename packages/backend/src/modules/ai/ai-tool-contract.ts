@@ -44,7 +44,17 @@ function validateArguments(
     return { ok: false, error: 'Invalid tool arguments: expected a JSON object' };
   }
   if (!compiled.validate(argumentsValue)) {
-    return { ok: false, error: formatValidationErrors(compiled.validate.errors) };
+    // A misspelled argument usually explains the missing one ("name is required" for newName): name both.
+    const reported = new Set(
+      (compiled.validate.errors ?? [])
+        .filter((error) => error.keyword === 'additionalProperties' && error.instancePath === '')
+        .map((error) => String((error.params as Record<string, unknown>).additionalProperty))
+    );
+    const unknown = unknownToolArguments(compiled.tool, argumentsValue).filter((name) => !reported.has(name));
+    return {
+      ok: false,
+      error: formatValidationErrors(compiled.validate.errors, unknownArgumentProblems(compiled.tool, unknown)),
+    };
   }
   const operationDiscriminator = compiled.tool.operationDiscriminator;
   if (operationDiscriminator) {
@@ -59,6 +69,55 @@ function validateArguments(
     }
   }
   return { ok: true, arguments: argumentsValue };
+}
+
+/** The arguments a tool schema names at its top level, across oneOf/anyOf/allOf branches. */
+export function declaredToolArguments(tool: Pick<AIToolDefinition, 'parameters'>): string[] {
+  const names = new Set<string>();
+  const visit = (schema: unknown) => {
+    if (!schema || typeof schema !== 'object') return;
+    const node = schema as Record<string, unknown>;
+    if (node.properties && typeof node.properties === 'object') {
+      for (const name of Object.keys(node.properties)) names.add(name);
+    }
+    for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
+      if (Array.isArray(node[key])) for (const branch of node[key] as unknown[]) visit(branch);
+    }
+  };
+  visit(tool.parameters);
+  return [...names];
+}
+
+/**
+ * Top-level arguments a call sent that the tool does not take. Schemas that allow any argument
+ * (additionalProperties: true, or no properties at all) have none. A tool ignores such an argument, so a call that
+ * then fails ("SSL_CERT_NOT_FOUND" for certificateId instead of sslCertificateId) names it.
+ */
+export function unknownToolArguments(
+  tool: Pick<AIToolDefinition, 'parameters'>,
+  argumentsValue: Record<string, unknown>
+): string[] {
+  const parameters = tool.parameters as Record<string, unknown>;
+  if (parameters.additionalProperties === true) return [];
+  const declared = declaredToolArguments(tool);
+  if (declared.length === 0) return [];
+  return Object.keys(argumentsValue).filter((name) => !declared.includes(name));
+}
+
+function unknownArgumentProblems(tool: Pick<AIToolDefinition, 'parameters'>, unknown: readonly string[]): string[] {
+  if (unknown.length === 0) return [];
+  const allowed = listed(declaredToolArguments(tool));
+  return unknown.map((name) => `$/${name} is not an argument here (arguments: ${allowed})`);
+}
+
+/** The note a failed call gets when it also sent arguments the tool ignores, or null. */
+export function unknownArgumentsNote(
+  tool: Pick<AIToolDefinition, 'parameters'>,
+  argumentsValue: Record<string, unknown>
+): string | null {
+  const unknown = unknownToolArguments(tool, argumentsValue);
+  if (unknown.length === 0) return null;
+  return `The tool ignored ${unknown.map((name) => `"${name}"`).join(', ')}: not ${unknown.length === 1 ? 'an argument' : 'arguments'} of this tool (arguments: ${listed(declaredToolArguments(tool))}).`;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -81,8 +140,8 @@ function listed(values: readonly unknown[]): string {
  * The refusal of arguments that do not match the tool schema: each problem with its argument path and what is
  * expected there (the missing argument, the allowed values, the arguments the object takes), never the value sent.
  */
-function formatValidationErrors(errors: ErrorObject[] | null | undefined): string {
-  const problems = [...new Set((errors ?? []).map(describeValidationError))].sort();
+function formatValidationErrors(errors: ErrorObject[] | null | undefined, extra: readonly string[] = []): string {
+  const problems = [...new Set([...(errors ?? []).map(describeValidationError), ...extra])].sort();
   if (problems.length === 0) return 'Invalid tool arguments';
   const shown = problems.slice(0, MAX_REPORTED_ERRORS);
   const more = problems.length > shown.length ? `; ${problems.length - shown.length} more` : '';

@@ -589,8 +589,8 @@ nodesRoutes.openapi(
     const service = container.resolve(NodesService);
     const id = c.req.param('id')!;
     const uploadId = c.req.param('uploadId')!;
-    await service.abortFileUpload(id, uploadId);
-    return c.json({ success: true });
+    const { aborted } = await service.abortFileUpload(id, uploadId);
+    return c.json({ success: true, aborted });
   }
 );
 

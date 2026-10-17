@@ -41,6 +41,13 @@ const STALE_UPLOAD_MINUTES = 24 * 60;
 const STORAGE_MEASURE_INTERVAL_MS = 5 * 60_000;
 /** How soon a failed maintenance run is checked for a failure that could not be recorded. */
 const UNFINISHED_MAINTENANCE_CHECK_MS = 30_000;
+/**
+ * A collection waits at most this long for builds and Availability operations already using the registry (new builds
+ * are not claimed meanwhile): a build pushing while the registry restarts would fail. Past it the collection goes on,
+ * and a build that loses the registry is queued again.
+ */
+export const REGISTRY_ACTIVE_USERS_WAIT_MS = 10 * 60_000;
+const REGISTRY_ACTIVE_USERS_POLL_MS = 5_000;
 
 export interface DockerRegistryExternalAccessConfig {
   externalAccessEnabled: boolean;
@@ -161,7 +168,10 @@ export class DockerInternalRegistryService {
     } catch {
       healthy = false;
     }
+    const measuredBefore = this.storageMeasuredAt;
     const usedBytes = await this.storageUsedBytes(healthy);
+    // Only a backend measured by this probe is written: a cached one may predate a storage switch.
+    const measuredNow = this.storageMeasuredAt !== measuredBefore;
     return this.reportHealth({
       healthy,
       writable: healthy,
@@ -170,7 +180,7 @@ export class DockerInternalRegistryService {
       // when that disk is DEFAULT_DISK_PRESSURE_RATIO full. Unknown (and never full) on S3.
       capacityBytes: this.measuredFilesystem?.totalBytes ?? null,
       filesystem: this.measuredFilesystem,
-      storageBackend: this.measuredStorageBackend ?? undefined,
+      storageBackend: measuredNow ? (this.measuredStorageBackend ?? undefined) : undefined,
     });
   }
 
@@ -179,8 +189,13 @@ export class DockerInternalRegistryService {
    * once per STORAGE_MEASURE_INTERVAL_MS. Between measurements, and whenever measuring fails, the stored value stands.
    */
   private async storageUsedBytes(healthy: boolean): Promise<number> {
-    const known = (await this.getState()).storageUsedBytes;
-    if (!healthy || Date.now() - this.storageMeasuredAt < STORAGE_MEASURE_INTERVAL_MS) return known;
+    const state = await this.getState();
+    const known = state.storageUsedBytes;
+    // A storage switch just recorded another backend: measure now, or the probe would write the backend (and disk)
+    // measured before the switch back over it until the next interval (R-O-2: storageBackend lagged a minute).
+    const backendChanged = this.measuredStorageBackend !== null && state.storageBackend !== this.measuredStorageBackend;
+    if (!healthy || (!backendChanged && Date.now() - this.storageMeasuredAt < STORAGE_MEASURE_INTERVAL_MS))
+      return known;
     try {
       const measured = await this.executor.storageUsedBytes();
       this.storageMeasuredAt = Date.now();
@@ -486,6 +501,40 @@ export class DockerInternalRegistryService {
     }
   }
 
+  /**
+   * Waits, within REGISTRY_ACTIVE_USERS_WAIT_MS, until no build and no Availability operation uses the registry. The
+   * state already says maintenance, so no new build is admitted or claimed.
+   */
+  private async waitForRegistryUsers(owner: string): Promise<void> {
+    if (!this.store.hasActiveRegistryUsers) return;
+    const deadline = Date.now() + this.activeUsersWaitMs;
+    while (await this.store.hasActiveRegistryUsers()) {
+      if (Date.now() >= deadline) {
+        logger.warn(
+          'Registry maintenance goes on while builds still use the registry; they are queued again if they fail'
+        );
+        return;
+      }
+      await this.store.renewLease(owner, new Date(Date.now() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS));
+      await new Promise((resolve) => setTimeout(resolve, this.activeUsersPollMs));
+    }
+  }
+
+  /** How long and how often waitForRegistryUsers waits (shorter in tests). */
+  activeUsersWaitMs = REGISTRY_ACTIVE_USERS_WAIT_MS;
+  activeUsersPollMs = REGISTRY_ACTIVE_USERS_POLL_MS;
+
+  /** Whether a Build Worker may claim a queued build now: not while the registry takes no pushes. */
+  async canClaimBuilds(): Promise<boolean> {
+    try {
+      await this.assertBuildAdmission();
+      return true;
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'INTERNAL_REGISTRY_NOT_WRITABLE') return false;
+      throw error;
+    }
+  }
+
   private async runMaintenance(input: {
     owner: string;
     dryRun: boolean;
@@ -552,6 +601,7 @@ export class DockerInternalRegistryService {
 
       if (!input.dryRun) {
         await phase('pausing_admission');
+        await this.waitForRegistryUsers(input.owner);
         await this.executor.pauseAdmissions();
         await phase('draining_uploads');
         await this.executor.drainUploads();
@@ -663,7 +713,8 @@ export function registryFilesystemFill(filesystem: { usedBytes: number; availabl
 
 function registryDiskFullMessage(fill: number | null): string {
   if (fill === null) return 'Registry storage is at or above the write-admission threshold';
-  return `${REGISTRY_DISK_FULL_PREFIX} ${Math.floor(fill * 100)}% full (new builds and image pushes stop at ${Math.round(
+  // Rounded up like df, so the message names the percentage `df` shows for the same disk.
+  return `${REGISTRY_DISK_FULL_PREFIX} ${Math.ceil(fill * 100 - 1e-9)}% full (new builds and image pushes stop at ${Math.round(
     DEFAULT_DISK_PRESSURE_RATIO * 100
   )}%): free space on the Opfield host or remove old builds, then builds resume`;
 }

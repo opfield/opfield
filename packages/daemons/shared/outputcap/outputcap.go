@@ -152,10 +152,17 @@ func keepTail(path string, size, tailBytes int64) (int64, error) {
 		}
 	}
 	tmp := path + ".1.tmp"
-	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	// The kept tail gets the live log's mode (0640 for the adm group's readers), not a stricter one of its own.
+	mode := os.FileMode(0o600)
+	if info, statErr := file.Stat(); statErr == nil {
+		mode = info.Mode().Perm()
+	}
+	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return 0, err
 	}
+	// OpenFile applies the umask; set the mode itself so the copy matches.
+	_ = out.Chmod(mode)
 	kept, err := io.Copy(out, reader)
 	if closeErr := out.Close(); err == nil {
 		err = closeErr

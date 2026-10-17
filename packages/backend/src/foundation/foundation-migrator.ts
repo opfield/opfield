@@ -7,6 +7,7 @@ import {
   LEGACY_COMMERCIAL_HOST_DIR,
   type PreparedCommercialUpdate,
 } from '@/edition/prepare-update.js';
+import { FOUNDATION_MIGRATION_BACKUP, pruneBackupDirectories, REGISTRY_STORAGE_BACKUP } from './backup-retention.js';
 import {
   applyComposeVocabulary,
   type ComposeVolumeKeys,
@@ -265,6 +266,18 @@ export async function runFoundationMigrations(options: FoundationMigrationOption
       throw error;
     }
   }
+
+  // Earlier updates' migration backups: the newest three stay, older ones go after 30 days (as pre-update backups).
+  await pruneBackupDirectories(path.dirname(backupDir), (name) => FOUNDATION_MIGRATION_BACKUP.test(name), {
+    keep: 3,
+    maxAgeDays: 30,
+  });
+  // Registry storage switch backups carry the S3 keys of their time and serve only a switch in progress, which an
+  // update never runs during: the newest stays, earlier ones go once a day old.
+  await pruneBackupDirectories(path.dirname(backupDir), (name) => REGISTRY_STORAGE_BACKUP.test(name), {
+    keep: 1,
+    maxAgeDays: 1,
+  });
 
   // The installer writes both files for root only: they carry the installation's secrets. The host move of 2.12.1
   // release candidates wrote docker-compose.yml readable for everyone; every update puts the mode back.
