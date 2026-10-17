@@ -959,6 +959,7 @@
       "paths": [
         "packages/daemons/relay/**",
         "packages/daemons/shared/lifecycle/legacy_update_guard.go",
+        "packages/backend/src/modules/ai/ai.console-agent-guard.ts",
         "scripts/setup-relay-node.sh"
       ],
       "pattern": "/(?:var/lib|etc|usr/local/lib)/gateway-relay[\\w/.-]*|gateway-relay-supervisor[\\w.-]*|gateway-witness\\b|/var/lib/gateway-relay-witness|\\$\\{LEGACY_RELAY_PROGRAM_DIR\\}/gateway-relay|gateway-relay-\\*|relay_config_value gateway\\b",
