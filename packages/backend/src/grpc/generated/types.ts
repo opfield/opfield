@@ -350,7 +350,7 @@ export interface RelayStreamRelaySessions {
   legacy?: number | string;
 }
 
-/** What the reserved /.well-known/gateway-ingress-health endpoint answers on the node right now. */
+/** What the reserved ingress health endpoint answers on the node right now. */
 export interface IngressHealthReport {
   serving: boolean;
   reason: string;

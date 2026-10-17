@@ -464,7 +464,7 @@ message CoordinationFrame {
   string sender_id = 2;
   // Encoded LeaseBatch.
   bytes payload = 3;
-  // ECDSA P-256 ASN.1 signature over SHA-256("gateway-availability-lease/frame/v1" 0x00 || payload).
+  // ECDSA P-256 ASN.1 signature over SHA-256("<lease domain>/frame/v1" 0x00 || payload).
   bytes signature = 4;
   // During an identity-key rotation the sender also signs the same bytes
   // with its previous key. A frame is valid when any signature verifies
@@ -712,7 +712,7 @@ message LeaseForcedMarker {
 }
 
 // Signed by the relay policy signing key (Ed25519) over
-// "gateway-availability-lease/manifest/v1" 0x00 || payload.
+// "<lease domain>/manifest/v1" 0x00 || payload.
 message LeaseSignedBlock {
   string signing_key_id = 1;
   LeaseBlockKind kind = 2;
@@ -793,7 +793,7 @@ message LeaseQuorumSet {
 }
 
 // A14: key_id introduced by previous_key_id. The signature is Ed25519 by the
-// previous key over "gateway-availability-lease/key-rotation/v1" 0x00 ||
+// previous key over "<lease domain>/key-rotation/v1" 0x00 ||
 // be32(len(key_id)) || key_id || public_key.
 message LeasePolicyKeyRotation {
   string previous_key_id = 1;

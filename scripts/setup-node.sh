@@ -6,7 +6,7 @@ IFS=$'\n\t'
 # Installs nginx + nginx-daemon on a host and enrolls it with Opfield.
 #
 # Usage:
-#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-node.sh | \
+#   curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-node.sh | \
 #     bash -s -- --opfield opfield.example.com:9443 --token <ENROLLMENT_TOKEN> --opfield-cert-sha256 sha256:<HEX>
 #
 # Or download and run:
@@ -30,7 +30,7 @@ SUCCESS_TAG='\033[42m\033[97m'
 TITLE_TAG='\033[48;2;140;176;132m\033[30m'
 
 # ── Defaults ─────────────────────────────────────────────────────────
-# legacy-name: GATEWAY_NODE_*, GATEWAY_RELEASES_API_URL, GATEWAY_ARTIFACT_BASE_URL and GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS
+# legacy-name: pre-2.12.1 names of the
 # installer environment — customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is
 # not set (the new name wins).
 for legacy_env in GATEWAY_NODE_HOST GATEWAY_NODE_PORT GATEWAY_NODE_ADDRESS GATEWAY_NODE_TOKEN GATEWAY_NODE_CERT_SHA256 \
@@ -63,10 +63,10 @@ DRY_RUN=0
 GUIDE_ACTIVE=0
 STUB_STATUS_URL="http://127.0.0.1/nginx_status"
 INTEGRATED_STUB_STATUS_PORT="8081"
-# The Opfield nginx tree. A node installed before 2.12.1 has it at /etc/nginx/gateway; migrate_nginx_tree moves it here
-# and leaves /etc/nginx/gateway as a link to it, because configurations written for the old path still name it.
+# The Opfield nginx tree. A node installed before 2.12.1 has it at the legacy path; migrate_nginx_tree moves it
+# here and leaves the legacy path as a link to it, because configurations written for the old path still name it.
 NGINX_OPFIELD_DIR="/etc/nginx/opfield"
-# legacy-name: /etc/nginx/gateway nginx tree of nodes installed before 2.12.1 (kept as a link) — remove once every node
+# legacy-name: the legacy nginx tree of nodes installed before 2.12.1 (kept as a link) — remove once every node
 # reports none and no customer configuration names it
 NGINX_LEGACY_DIR="/etc/nginx/gateway"
 NGINX_SITES_DIR="${NGINX_OPFIELD_DIR}/conf.d"
@@ -382,7 +382,7 @@ detect_installed_nginx_mode() {
         echo "managed"
     fi
 }
-# Before anything changes: an /etc/nginx/opfield directory with files next to the /etc/nginx/gateway directory cannot be
+# Before anything changes: an /etc/nginx/opfield directory with files next to the legacy nginx directory cannot be
 # merged by the installer.
 preflight_nginx_tree() {
     [[ -d "$NGINX_LEGACY_DIR" && ! -L "$NGINX_LEGACY_DIR" && -d "$NGINX_OPFIELD_DIR" && ! -L "$NGINX_OPFIELD_DIR" ]] || return 0
@@ -409,10 +409,10 @@ NGINX_DAEMON_BIN_LINK="/usr/local/bin/nginx-daemon"
 NGINX_DAEMON_OWN_DIR="/usr/local/lib/nginx-daemon"
 NGINX_DAEMON_OWN_BINARY="${NGINX_DAEMON_OWN_DIR}/bin/nginx-daemon"
 NGINX_DAEMON_OWN_HOST_IDENTITY="/var/lib/nginx-daemon/host-identity"
-# The identity root daemons of one host share. The daemons move /var/lib/gateway to /var/lib/opfield themselves (after
-# a start their launcher confirmed) and leave /var/lib/gateway as a link to it; the installer never moves it.
+# The identity root daemons of one host share. The daemons move the legacy state root to /var/lib/opfield themselves
+# (after a start their launcher confirmed) and leave it as a link to it; the installer never moves it.
 SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
-# legacy-name: /var/lib/gateway shared host identity directory of daemons before 2.12.1 — remove once every node
+# legacy-name: the legacy shared host identity directory of daemons before 2.12.1 — remove once every node
 # reports none
 LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
 # Sockets the daemon serves to nginx and Secure Links; root creates them on demand, a run user needs them prepared.
@@ -420,7 +420,7 @@ NGINX_DAEMON_RUNTIME_DIRS=(nginx-daemon opfield-secure-links opfield-registry-li
 # An existing node whose daemon has not moved to the Opfield names yet (it writes opfield-names in its state directory
 # when it has) still uses the old directories, and a daemon running as its own user cannot create the new ones itself:
 # prepare both until its move.
-# legacy-name: gateway-* nginx-daemon runtime directories — remove once every node reports none
+# legacy-name: legacy nginx-daemon runtime directories — remove once every node reports none
 if [[ -d /var/lib/nginx-daemon && ! -e /var/lib/nginx-daemon/opfield-names ]]; then
     NGINX_DAEMON_RUNTIME_DIRS+=(gateway-secure-links gateway-registry-links gateway-ingress-health)
 fi
@@ -845,7 +845,7 @@ new_host_identity() {
 }
 
 # The shared host identity: at /var/lib/opfield when it is there (a file, or through a linked directory), else at the
-# legacy /var/lib/gateway when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
+# legacy state root when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
 # at once more after a pause: a daemon moving the directory right then must not make the host look like a new one.
 shared_host_identity_path() {
     local current="${SHARED_HOST_IDENTITY_DIR}/host-identity"
@@ -867,7 +867,7 @@ shared_host_identity_path() {
 }
 
 # On a host that ran daemons under the pre-Opfield names, a shared identity directory created at /var/lib/opfield gets
-# /var/lib/gateway as a link to it, the layout the daemons leave after they move the directory, so a daemon of an
+# the legacy state root as a link to it, the layout the daemons leave after they move the directory, so a daemon of an
 # earlier release on this host finds the same identity. A fresh host gets no old name.
 link_legacy_host_identity_dir() {
     [[ "$NGINX_HAD_LEGACY_NAMES" -eq 1 ]] || return 0
@@ -959,7 +959,7 @@ clear_config_host_identity_path() {
 # The installer removes the record before it starts the daemon, so only a session of the daemon it started counts.
 CONTROL_SESSION_SINCE="v2.11.1-rc.2"
 CONTROL_SESSION_FILE="/var/lib/nginx-daemon/control-session.json"
-# legacy-name: gateway-session.json session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
+# legacy-name: the legacy session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
 # every node reports none
 LEGACY_CONTROL_SESSION_FILE="/var/lib/nginx-daemon/gateway-session.json"
 CONTROL_SESSION_STARTED=0
@@ -1370,7 +1370,7 @@ keep_enrollment_of_used_token() {
     ENROLL_TOKEN=""
 }
 
-# The address: of a top-level section (opfield: or gateway:) of the daemon configuration, without quotes or comment.
+# The address: of a top-level section (opfield: or the pre-Opfield one) of the daemon configuration, without quotes or comment.
 config_section_address() {
     awk -v section="$2" '
         $0 ~ ("^" section ":[[:space:]]*(#.*)?$") { in_section = 1; next }
@@ -2808,13 +2808,13 @@ rename_path() {
     mv -T -- "$1" "$2" 2>/dev/null || { [[ ! -e "$2" && ! -L "$2" ]] && mv -- "$1" "$2"; }
 }
 
-# The nginx tree moves from /etc/nginx/gateway to /etc/nginx/opfield once, and /etc/nginx/gateway stays as a link to it:
+# The nginx tree moves from the legacy path to /etc/nginx/opfield once, and the legacy path stays as a link to it:
 # configurations written for the old path (by Opfield and by the operator) keep working. The move is two renames with
 # the link made first under a temporary name, so one of the two paths names the tree at every moment. A run that
 # stopped between them leaves /etc/nginx/opfield and that temporary link, which the next run renames into place; any
 # other link left under a temporary name is removed. A fresh host gets /etc/nginx/opfield only. A tree another
 # component already named the other way round
-# (/etc/nginx/opfield a link to /etc/nginx/gateway) is left as it is: both paths work.
+# (/etc/nginx/opfield a link to the legacy path) is left as it is: both paths work.
 migrate_nginx_tree() {
     local parent current legacy name stale link target
     current="$NGINX_OPFIELD_DIR"
@@ -2876,7 +2876,7 @@ preview_nginx_tree() {
 # uses the name the installed daemon binary carries (a daemon of an earlier release, a pinned --version, has only the
 # legacy one) and keeps one file of the two.
 DEFAULT_SERVER_FILE="00-opfield-default-server.conf"
-# legacy-name: 00-gateway-default-server.conf written by nginx-daemon and installers before 2.12.1 — remove once no
+# legacy-name: the legacy default server config written by nginx-daemon and installers before 2.12.1 — remove once no
 # supported nginx-daemon release writes it
 LEGACY_DEFAULT_SERVER_FILE="00-gateway-default-server.conf"
 
@@ -2936,7 +2936,7 @@ create_directories() {
     ok "Directories created"
 }
 
-# Site configurations and access lists from the directories of installers before the /etc/nginx/gateway tree (already
+# Site configurations and access lists from the directories of installers before the legacy nginx tree (already
 # legacy cleanup) go to the current tree.
 migrate_legacy_site_paths() {
     # legacy-name: /etc/nginx/http.d/gateway sites directory of early installers (already legacy cleanup) — remove once

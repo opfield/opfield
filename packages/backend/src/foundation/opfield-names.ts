@@ -14,8 +14,8 @@ export const OPFIELD_DATABASE_ROLE = 'opfield';
 export const OPFIELD_LOGS_DATABASE = 'opfield_logs';
 export const OPFIELD_CLICKHOUSE_ALIAS = 'opfield-clickhouse';
 
-// legacy-name: the layout of installations made before 2.12.1 (/opt/gateway, Compose project and database `gateway`,
-// ClickHouse database `gateway_logs`) — remove once every installation reports the Opfield layout.
+// legacy-name: the layout of installations made before 2.12.1 (legacy install directory, Compose project, database
+// and ClickHouse database; see legacy-compat.ts) — remove once every installation reports the Opfield layout.
 export const LEGACY_INSTALL_DIR_NAME = 'gateway';
 export const LEGACY_COMPOSE_PROJECT = 'gateway';
 export const LEGACY_DATABASE = 'gateway';
@@ -26,7 +26,7 @@ export const LEGACY_CLICKHOUSE_ALIAS = 'gateway-clickhouse';
 /** The first release in the Opfield layout; its relay image is the first with RELAY_BINARY. */
 export const FIRST_OPFIELD_RELEASE = 'v2.12.1-rc.3';
 export const RELAY_BINARY = '/opfield-relay';
-// legacy-name: /gateway-relay — the only binary of relay images before 2.12.1; later relay images keep it as a link,
+// legacy-name: the legacy relay binary path — the only binary of relay images before 2.12.1; later relay images keep it as a link,
 // so Compose names it until the relay image of the installation is new enough.
 export const LEGACY_RELAY_BINARY = '/gateway-relay';
 
@@ -45,37 +45,37 @@ export function withRelayBinary(line: string, binary: string): string {
 
 /** Label of the installer-managed Compose services (app, relay, registry). */
 export const MANAGED_SERVICE_LABEL = 'net.opfield.managed-service';
-// legacy-name: com.wiolett.gateway.managed-service — containers created before 2.12.1 keep it until they are
+// legacy-name: the pre-2.12.1 managed-service label — containers created before 2.12.1 keep it until they are
 // recreated (the host move recreates all of them) — remove once every installation reports the Opfield layout.
 export const LEGACY_MANAGED_SERVICE_LABEL = 'com.wiolett.gateway.managed-service';
 
 /** Labels of the local ClickHouse container the logging core manages. */
 export const MANAGED_CLICKHOUSE_LABEL = 'net.opfield.managed';
 export const MANAGED_CLICKHOUSE_OWNER_LABEL = 'net.opfield.owner';
-// legacy-name: net.wiolett.gateway.managed / net.wiolett.gateway.owner of a local ClickHouse created before 2.12.1
+// legacy-name: the pre-2.12.1 managed/owner labels of a local ClickHouse created before 2.12.1
 // (the host move recreates it with the new labels) — remove once every installation reports the Opfield layout.
 export const LEGACY_MANAGED_CLICKHOUSE_LABEL = 'net.wiolett.gateway.managed';
 export const LEGACY_MANAGED_CLICKHOUSE_OWNER_LABEL = 'net.wiolett.gateway.owner';
 
 /** Audience and issuer of internal registry tokens; the registry checks both against its own environment. */
 export const REGISTRY_TOKEN_SERVICE = 'opfield-internal-registry';
-// legacy-name: gateway-internal-registry — the registry of an installation that has not moved to the Opfield layout
+// legacy-name: the legacy internal registry name — the registry of an installation that has not moved to the Opfield layout
 // keeps checking it (the move recreates the registry with the new name) — remove once every installation reports the
 // Opfield layout.
 export const LEGACY_REGISTRY_TOKEN_SERVICE = 'gateway-internal-registry';
 
 /** Backups of .env and docker-compose.yml (and the pre-update database dump) in the install directory. */
 export const FOUNDATION_BACKUPS_DIR = '.opfield-foundation-backups';
-// legacy-name: `.gateway-foundation-backups` written by updates before 2.12.1; only pruned — remove once every
+// legacy-name: the foundation backup directory written by updates before 2.12.1; only pruned — remove once every
 // installation reports the Opfield layout.
 export const LEGACY_FOUNDATION_BACKUPS_DIR = '.gateway-foundation-backups';
 export const DATABASE_SNAPSHOT_FILE = 'opfield-db.dump';
-// legacy-name: `gateway-db.dump` snapshots of updates before 2.12.1; only pruned.
+// legacy-name: database dump snapshots of updates before 2.12.1; only pruned.
 export const LEGACY_DATABASE_SNAPSHOT_FILE = 'gateway-db.dump';
 
 /** Marker comments around the installer-managed blocks of docker-compose.yml. */
 export const MANAGED_MARKER_PREFIX = '# opfield-managed:';
-// legacy-name: `# gateway-managed:` markers of docker-compose.yml files written before 2.12.1; the migrator rewrites
+// legacy-name: the managed-block markers of docker-compose.yml files written before 2.12.1; the migrator rewrites
 // them — remove once every installation reports the Opfield layout.
 export const LEGACY_MANAGED_MARKER_PREFIX = '# gateway-managed:';
 
@@ -122,7 +122,7 @@ export function isOpfieldComposeLayout(compose: string): boolean {
   return /^name\s*:\s*["']?opfield["']?\s*(?:#.*)?$/m.test(compose.replace(/\r\n/g, '\n'));
 }
 
-/** `${GATEWAY_X}` and `$GATEWAY_X` references in a value or a compose file, under their OPFIELD_* names. */
+/** References to pre-2.12.1 variable names in a value or a compose file, under their OPFIELD_* names. */
 export function renameLegacyEnvReferences(content: string): string {
   return content.replace(/\$\{GATEWAY_([A-Z0-9_]+)/g, '${OPFIELD_$1').replace(/\$GATEWAY_([A-Z0-9_]+)/g, '$OPFIELD_$1');
 }
@@ -176,7 +176,7 @@ export function envLineKey(line: string): string | null {
   return match?.[1] ?? null;
 }
 
-/** The value of `name` in a .env file, under its OPFIELD_* name or its legacy GATEWAY_* name. */
+/** The value of `name` in a .env file, under its OPFIELD_* name or its pre-2.12.1 name. */
 export function envFileValue(content: string, suffix: string): string | null {
   const values = new Map<string, string>();
   for (const line of content.replace(/\r\n/g, '\n').split('\n')) {

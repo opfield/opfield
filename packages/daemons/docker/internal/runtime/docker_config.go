@@ -16,7 +16,7 @@ const dockerConfigBackupSuffix = ".opfield-backup"
 
 // legacyDockerConfigBackupSuffix is that copy as a pre-Opfield daemon kept it:
 // when it exists the operator's original is already kept there.
-// legacy-name: daemon.json.gateway-backup of pre-Opfield nodes — remove once every node reports none
+// legacy-name: the daemon.json backup of pre-Opfield nodes — remove once every node reports none
 const legacyDockerConfigBackupSuffix = ".gateway-backup"
 
 const runscHostNetworkArg = "--network=host"
@@ -30,7 +30,7 @@ type runscDockerRuntime struct {
 // left untouched when runsc is already registered with this path and the host
 // network argument. Otherwise only the value of runtimes.runsc is inserted or
 // replaced: every other byte of the operator's file stays as it is, and the
-// original file is copied once to daemon.json.gateway-backup first. The
+// original file is copied once to the daemon.json backup first. The
 // returned function restores the file as it was before this call.
 func writeRunscDockerConfig(path, runscPath string) (func() error, error) {
 	original, readErr := os.ReadFile(path)

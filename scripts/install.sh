@@ -17,12 +17,12 @@ REGISTRY_UPSTREAM_IMAGE_REF="docker.io/library/registry@sha256:ddf754342cfc8acc5
 POSTGRES_UPSTREAM_IMAGE_REF="docker.io/library/postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea" # 16.15-alpine
 REDIS_UPSTREAM_IMAGE_REF="docker.io/library/redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499" # 7.4.11-alpine
 DEFAULT_INSTALL_DIR="/opt/opfield"
-# legacy-name: /opt/gateway — installations made before 2.12.1 live there until their host move; an update finds
+# legacy-name: the legacy install directory — installations made before 2.12.1 live there until their host move; an update finds
 # them there. Remove once every installation reports the Opfield layout.
 LEGACY_INSTALL_DIR="/opt/gateway"
 # Present from the start of a fresh install until its setup code is shown; a re-run resumes it.
 INSTALL_PENDING_MARKER=".opfield-install-pending"
-# legacy-name: .gateway-install-pending — a fresh install of a release before 2.12.1 that stopped early.
+# legacy-name: the legacy install-pending marker — a fresh install of a release before 2.12.1 that stopped early.
 LEGACY_INSTALL_PENDING_MARKER=".gateway-install-pending"
 # The first release that runs in the Opfield layout (directory /opt/opfield, Compose project, database and role
 # `opfield`, OPFIELD_* settings). --restore installs older releases in the layout they know.
@@ -30,7 +30,7 @@ FIRST_OPFIELD_LAYOUT_VERSION="v2.12.1-rc.3"
 HOST_MOVE_CONTAINER="opfield-host-move"
 RELEASES_API_URL="${RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
 ARTIFACT_BASE_URL="${ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
-# legacy-name: GATEWAY_* installer variables — automation written for releases before 2.12.1 still sets them; the
+# legacy-name: pre-2.12.1 installer variables — automation written for releases before 2.12.1 still sets them; the
 # OPFIELD_* name wins when both are set.
 INSTALL_DIR="${OPFIELD_INSTALL_DIR:-${GATEWAY_INSTALL_DIR:-}}"
 IMAGE="${OPFIELD_IMAGE:-${GATEWAY_IMAGE:-$DEFAULT_IMAGE}}"
@@ -38,7 +38,7 @@ TRANSPORT="${OPFIELD_WEB_TRANSPORT:-${GATEWAY_WEB_TRANSPORT:-}}"
 SOURCE_DIR="${OPFIELD_SOURCE_DIR:-${GATEWAY_SOURCE_DIR:-}}"
 LOG_FILE="${OPFIELD_INSTALL_LOG_FILE:-${GATEWAY_INSTALL_LOG_FILE:-/tmp/opfield-install.log}}"
 DOCKER_DAEMON_CONFIG="${OPFIELD_DOCKER_DAEMON_CONFIG:-${GATEWAY_DOCKER_DAEMON_CONFIG:-/etc/docker/daemon.json}}"
-# OPFIELD_ for the release this run installs; GATEWAY_ when --restore installs a release before 2.12.1.
+# OPFIELD_ for the release this run installs; the legacy prefix when --restore installs a release before 2.12.1.
 ENV_PREFIX="OPFIELD_"
 DRY_RUN=0
 RELAY_BOOTSTRAP=0
@@ -651,7 +651,7 @@ env_value() {
 }
 
 # The value of OPFIELD_<suffix> in .env.
-# legacy-name: GATEWAY_<suffix> of a .env the foundation migrator has not rewritten yet (releases before 2.12.1).
+# legacy-name: pre-2.12.1 names of a .env the foundation migrator has not rewritten yet (releases before 2.12.1).
 setting_value() {
   local value
   value="$(env_value "OPFIELD_$1")"
@@ -971,7 +971,7 @@ installation_needs_host_move() {
   return 1
 }
 
-# Where the host move puts the installation: a sibling `opfield` of a `gateway` directory, otherwise where it is.
+# Where the host move puts the installation: a sibling `opfield` of the legacy directory, otherwise where it is.
 host_move_target_dir() {
   if [[ "$(basename "$INSTALL_DIR")" == gateway && ! -e "$(dirname "$INSTALL_DIR")/opfield" ]]; then
     printf '%s/opfield' "$(dirname "$INSTALL_DIR")"

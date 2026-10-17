@@ -70,7 +70,7 @@ export function buildHostingBootstrap(input: {
   const clean = input.requireCleanHost
     ? `
 # A cloned template must never inherit another Opfield host identity or certificate.
-# legacy-name: /var/lib/gateway of guests installed before 2.12.1 — remove once every node reports none
+# legacy-name: the legacy state root of guests installed before 2.12.1 — remove once every node reports none
 if [ -s /var/lib/opfield/host-identity ] || [ -s /var/lib/gateway/host-identity ]; then
   echo 'Opfield identity already exists; refusing to adopt or reinstall a cloned identity' >&2
   exit 42

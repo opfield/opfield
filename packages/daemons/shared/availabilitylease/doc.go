@@ -194,7 +194,7 @@
 // # Opfield obligations (T3, T6)
 //
 //   - Sign manifests with the relay policy key (Ed25519) over
-//     "gateway-availability-lease/manifest/v1" 0x00 || payload. The domain
+//     "<lease domain>/manifest/v1" 0x00 || payload. The domain
 //     prefix keeps these signatures apart from policy envelopes, which the
 //     same key signs over raw bytes.
 //   - Manifest: candidates in rank order with their identity keys, mode,
@@ -234,7 +234,7 @@
 // one LeaseBatch per destination. Every batch also carries the sender's lease
 // clock with its origin and an echo of the destination's clock (peer-time
 // freeze detection, D4, freeze.go); a batch without items is a clock beacon. signature is ECDSA P-256 (ASN.1) by the
-// sender's identity key over SHA-256("gateway-availability-lease/frame/v1"
+// sender's identity key over SHA-256("<lease domain>/frame/v1"
 // 0x00 || payload). LeaseBatch repeats sender, incarnation and destination
 // inside the signed payload, has a message id for deduplication, and may
 // carry LeaseSignedBlock and LeasePolicyKeyRotation entries. Items:
@@ -260,13 +260,13 @@
 //
 // The accept statement signed by acceptors is
 //
-//	"gateway-availability-lease/accept/v1" 0x00
+//	"<lease domain>/accept/v1" 0x00
 //	str(policy_id) u64(slot) u64(round) u64(incarnation) str(proposer_id)
 //	u64(epoch) u64(manifest_version) str(acceptor_id) u64(acceptor_incarnation)
 //
 // with str = 4-byte big-endian length then bytes and u64 = 8-byte big
 // endian. A rotation link is signed by the previous key over
-// "gateway-availability-lease/key-rotation/v1" 0x00 || str(key_id) ||
+// "<lease domain>/key-rotation/v1" 0x00 || str(key_id) ||
 // public_key. Accepts of stateful keys sign the v2 statement instead
 // (below); stateless keys keep exactly these bytes.
 //
@@ -280,7 +280,7 @@
 // marker. Its encoded bytes are hashed as carried and never re-encoded.
 // Propose carries the state, accepts sign
 //
-//	"gateway-availability-lease/accept/v2" 0x00 <v1 fields> u64(1) str(sha256(state))
+//	"<lease domain>/accept/v2" 0x00 <v1 fields> u64(1) str(sha256(state))
 //
 // with the hash also in LeaseAccepted.state_hash, and a commit carries the
 // state its QC certifies. A stateful manifest must be strict (the library

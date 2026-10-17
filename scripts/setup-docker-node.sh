@@ -6,7 +6,7 @@ IFS=$'\n\t'
 # Installs docker-daemon on a host and enrolls it with Opfield.
 #
 # Usage:
-#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-docker-node.sh | \
+#   curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-docker-node.sh | \
 #     sudo bash -s -- --opfield opfield.example.com:9443 --token <ENROLLMENT_TOKEN> --opfield-cert-sha256 sha256:<HEX>
 #
 # Or download and run:
@@ -30,9 +30,7 @@ ERROR_TAG='\033[48;2;96;61;43m\033[38;2;245;221;202m'
 SUCCESS_TAG='\033[42m\033[97m'
 
 # ── Defaults ─────────────────────────────────────────────────────────
-# legacy-name: GATEWAY_NODE_*, GATEWAY_DOCKER_*, GATEWAY_BUILDER_EGRESS_PROFILE, GATEWAY_DATABASE_STORAGE_ROOT,
-# GATEWAY_LEASE_WATCHDOG_VERSION, GATEWAY_RELEASES_API_URL, GATEWAY_ARTIFACT_BASE_URL,
-# GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS and GATEWAY_SETUP_NO_CLEAR installer environment — customer automation; drop
+# legacy-name: pre-2.12.1 names of the installer environment — customer automation; drop
 # with a changelog notice. Each is read when its OPFIELD_* name is not set (the new name wins).
 for legacy_env in GATEWAY_NODE_HOST GATEWAY_NODE_PORT GATEWAY_NODE_ADDRESS GATEWAY_NODE_TOKEN GATEWAY_NODE_CERT_SHA256 \
     GATEWAY_NODE_DAEMON_VERSION GATEWAY_NODE_DISABLE_CONSOLE GATEWAY_NODE_DISABLE_FILES \
@@ -70,10 +68,10 @@ DOCKER_SOCKET="unix:///var/run/docker.sock"
 DOCKER_MODE="${OPFIELD_DOCKER_MODE:-}"
 BUILDER_EGRESS_PROFILE="${OPFIELD_BUILDER_EGRESS_PROFILE:-internet}"
 # The Build Worker runtime bundle (binaries, CNI plugins). A worker installed before 2.12.1 has it at
-# /opt/gateway-builder until its daemon moves it here on a start the launcher confirmed (the old name stays a link to
+# the legacy builder directory until its daemon moves it here on a start the launcher confirmed (the old name stays a link to
 # it); until then the bundle is updated where it is, and the new name is never created next to it.
 BUILDER_RUNTIME_ROOT="/opt/opfield-builder"
-# legacy-name: /opt/gateway-builder runtime bundle of builder workers installed before 2.12.1 — remove once every node
+# legacy-name: the legacy runtime bundle directory of builder workers installed before 2.12.1 — remove once every node
 # reports none
 LEGACY_BUILDER_RUNTIME_ROOT="/opt/gateway-builder"
 if [[ -e "$LEGACY_BUILDER_RUNTIME_ROOT" && ! -L "$LEGACY_BUILDER_RUNTIME_ROOT" ]]; then
@@ -720,10 +718,10 @@ DOCKER_DAEMON_BIN_LINK="/usr/local/bin/docker-daemon"
 DOCKER_DAEMON_OWN_DIR="/usr/local/lib/docker-daemon"
 DOCKER_DAEMON_OWN_BINARY="${DOCKER_DAEMON_OWN_DIR}/bin/docker-daemon"
 DOCKER_DAEMON_OWN_HOST_IDENTITY="/var/lib/docker-daemon/host-identity"
-# The identity root daemons of one host share. The daemons move /var/lib/gateway to /var/lib/opfield themselves (after
-# a start their launcher confirmed) and leave /var/lib/gateway as a link to it; the installer never moves it.
+# The identity root daemons of one host share. The daemons move the legacy state root to /var/lib/opfield themselves
+# (after a start their launcher confirmed) and leave it as a link to it; the installer never moves it.
 SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
-# legacy-name: /var/lib/gateway shared host identity directory of daemons before 2.12.1 — remove once every node
+# legacy-name: the legacy shared host identity directory of daemons before 2.12.1 — remove once every node
 # reports none
 LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
 # Whether this host ran daemons under the pre-Opfield names before this run, read before the installer changes anything.
@@ -737,7 +735,7 @@ if [[ -e "$LEGACY_SHARED_HOST_IDENTITY_DIR" || -L "$LEGACY_SHARED_HOST_IDENTITY_
     DOCKER_HOST_HAD_LEGACY_NAMES=1
 fi
 # Whether this node ran a Build Worker under the pre-Opfield names (any of its old directories exists).
-# legacy-name: gateway-builder directories — remove once every node reports none
+# legacy-name: legacy builder directories — remove once every node reports none
 DOCKER_HAD_LEGACY_BUILDER=0
 for legacy_builder_dir in /etc/gateway-builder /usr/local/lib/gateway-builder "$LEGACY_BUILDER_RUNTIME_ROOT" /run/gateway-builder; do
     [[ ! -e "$legacy_builder_dir" && ! -L "$legacy_builder_dir" ]] || DOCKER_HAD_LEGACY_BUILDER=1
@@ -866,7 +864,7 @@ grant_daemon_paths_to_run_user() {
 # linked to it; a watchdog or daemon of an earlier release may have created the old one as the directory after a boot.
 # The installer only reads which one is there and never creates either.
 LEASE_RECORDS_DIR="/run/opfield-lease-watchdog/records"
-# legacy-name: /run/gateway-lease-watchdog lease fence directory of components before 2.12.1 — remove once every node
+# legacy-name: the legacy lease fence directory of components before 2.12.1 — remove once every node
 # reports none
 LEGACY_LEASE_RECORDS_DIR="/run/gateway-lease-watchdog/records"
 hand_lease_records_to_run_user() {
@@ -974,7 +972,7 @@ new_host_identity() {
 }
 
 # The shared host identity: at /var/lib/opfield when it is there (a file, or through a linked directory), else at the
-# legacy /var/lib/gateway when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
+# legacy state root when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
 # at once more after a pause: a daemon moving the directory right then must not make the host look like a new one.
 shared_host_identity_path() {
     local current="${SHARED_HOST_IDENTITY_DIR}/host-identity"
@@ -996,7 +994,7 @@ shared_host_identity_path() {
 }
 
 # On a host that ran daemons under the pre-Opfield names, a shared identity directory created at /var/lib/opfield gets
-# /var/lib/gateway as a link to it, the layout the daemons leave after they move the directory, so a daemon of an
+# the legacy state root as a link to it, the layout the daemons leave after they move the directory, so a daemon of an
 # earlier release on this host finds the same identity. A fresh host gets no old name.
 link_legacy_host_identity_dir() {
     [[ "$DOCKER_HOST_HAD_LEGACY_NAMES" -eq 1 ]] || return 0
@@ -1088,7 +1086,7 @@ clear_config_host_identity_path() {
 # The installer removes the record before it starts the daemon, so only a session of the daemon it started counts.
 CONTROL_SESSION_SINCE="v2.11.1-rc.2"
 CONTROL_SESSION_FILE="/var/lib/docker-daemon/control-session.json"
-# legacy-name: gateway-session.json session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
+# legacy-name: the legacy session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
 # every node reports none
 LEGACY_CONTROL_SESSION_FILE="/var/lib/docker-daemon/gateway-session.json"
 CONTROL_SESSION_STARTED=0
@@ -1850,7 +1848,7 @@ refuse_token_for_enrolled_node() {
     die "The host is already enrolled; the new node stays pending in Opfield."
 }
 
-# The address: of a top-level section (opfield: or gateway:) of the daemon configuration, without quotes or comment.
+# The address: of a top-level section (opfield: or the pre-Opfield one) of the daemon configuration, without quotes or comment.
 config_section_address() {
     awk -v section="$2" '
         $0 ~ ("^" section ":[[:space:]]*(#.*)?$") { in_section = 1; next }
@@ -2480,7 +2478,7 @@ create_directories() {
 
     if [[ "$DOCKER_MODE" == "builder" ]]; then
         local run_dir
-        # legacy-name: gateway-builder directories of builder workers installed before 2.12.1 — remove once every node
+        # legacy-name: legacy builder directories of builder workers installed before 2.12.1 — remove once every node
         # reports none
         ensure_builder_dir /etc/opfield-builder /etc/gateway-builder 700
         ensure_builder_dir /usr/local/lib/opfield-builder /usr/local/lib/gateway-builder 700
@@ -2958,10 +2956,10 @@ write_builder_profile_config() {
 # holds a set's primary role. Docker nodes and storage nodes get it.
 LEASE_WATCHDOG_BIN="/usr/local/bin/opfield-lease-watchdog"
 LEASE_WATCHDOG_UNIT="opfield-lease-watchdog"
-# A node installed before 2.12.1 runs the watchdog as gateway-lease-watchdog. The installer moves it to the Opfield
+# A node installed before 2.12.1 runs the watchdog under the legacy name. The installer moves it to the Opfield
 # service in the order the watchdog uses when it moves itself (leasewatchdog.MigrateLegacyService), so either one may do
 # it first.
-# legacy-name: gateway-lease-watchdog service and binary of nodes installed before 2.12.1 — remove once every node
+# legacy-name: the legacy watchdog service and binary of nodes installed before 2.12.1 — remove once every node
 # reports none
 LEGACY_LEASE_WATCHDOG_BIN="/usr/local/bin/gateway-lease-watchdog"
 LEGACY_LEASE_WATCHDOG_UNIT="gateway-lease-watchdog"

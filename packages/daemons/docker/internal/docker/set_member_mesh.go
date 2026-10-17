@@ -28,7 +28,7 @@ import (
 //
 // Every set gets its own internal bridge network (opfield-set-<16 hex of the set
 // id>, a /26 of the link subnet pool; a network created before 2.12.1 keeps
-// gateway-set-). The daemon listens on that network's
+// the legacy set prefix). The daemon listens on that network's
 // gateway address, one port per exposed alias, and the containers resolve each
 // alias host to that address through an ExtraHosts entry (the pattern of the
 // database host listener). Each accepted connection is carried to its alias

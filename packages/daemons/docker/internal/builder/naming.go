@@ -9,7 +9,7 @@ import (
 
 // Naming is every host name the isolated builder runtime uses: its
 // directories, systemd units, netfilter chains, bridge, containerd namespace
-// and CNI networks. Before Opfield they were gateway-builder*; a worker
+// and CNI networks. Before Opfield they had the legacy prefix; a worker
 // installed then keeps those names until its daemon's start is confirmed
 // (the launcher may still roll back to a daemon that knows only them, and two
 // runtimes on one containerd root must never run), and moves to the Opfield

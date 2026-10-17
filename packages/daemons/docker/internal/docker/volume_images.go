@@ -783,7 +783,7 @@ func volumeImageFstabMarker(record volumeImageRecord) string {
 // legacyVolumeImageFstabMarker marks the entries pre-Opfield daemons wrote.
 // Until this start is confirmed such an entry is kept as it is (a daemon the
 // launcher rolls back to knows only it); afterwards it is rewritten.
-// legacy-name: gateway-volume-image fstab entries — remove once every node reports none
+// legacy-name: legacy volume image fstab entries — remove once every node reports none
 func legacyVolumeImageFstabMarker(record volumeImageRecord) string {
 	return "# gateway-volume-image " + filepath.Base(record.ImagePath)
 }

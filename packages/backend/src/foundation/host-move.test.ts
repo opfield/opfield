@@ -558,7 +558,7 @@ async function legacyInstallation(): Promise<FakeHost> {
   return host;
 }
 
-/** A container someone ran with `docker run --network gateway_default` (Mailpit on the e2e stand). */
+/** A container someone ran with `docker run --network <legacy project>_default` (Mailpit on the e2e stand). */
 function addPinnedMailpit(host: FakeHost): void {
   host.containers.set('mail', {
     id: 'mail',

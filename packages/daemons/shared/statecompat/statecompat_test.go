@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-// oldSchemas are the gateway.v1 schemas of releases a node may be rolled back
+// oldSchemas are the legacy-package schemas of releases a node may be rolled back
 // to: v2.10.0 (embedded), v2.11.0-rc.4 (the stand's docker-daemon.previous)
 // and v2.11.0-rc.18 (the stand's docker-daemon.pre-rc18pre).
 func oldSchemas(t *testing.T) map[string]*protoregistry.Files {

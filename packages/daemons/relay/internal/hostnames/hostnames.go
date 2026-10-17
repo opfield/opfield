@@ -1,7 +1,6 @@
 // Package hostnames moves a relay node from its pre-Opfield host names
-// (/var/lib/gateway-relay-supervisor, /etc/gateway-relay-supervisor,
-// /usr/local/lib/gateway-relay, the gateway-relay-supervisor service, the
-// gateway-witness user) to its Opfield names.
+// (state, config and program directories, the supervisor service and the
+// witness user; see legacycompat) to its Opfield names.
 //
 // The move runs on a confirmed start only (lifecycle.OnStartConfirmed): the
 // launcher can no longer roll the supervisor back to a release that knows only

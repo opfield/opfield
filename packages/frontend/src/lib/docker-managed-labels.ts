@@ -4,7 +4,7 @@
  * `wiolett.gateway.<rest>`. Readers take the `net.opfield.` key first.
  */
 export const OPFIELD_LABEL_PREFIX = "net.opfield.";
-// legacy-name: wiolett.gateway.* Docker labels — remove once every node reports none
+// legacy-name: pre-2.12.1 Docker labels — remove once every node reports none
 export const LEGACY_LABEL_PREFIX = "wiolett.gateway.";
 
 type Labels = Record<string, string | undefined> | null | undefined;

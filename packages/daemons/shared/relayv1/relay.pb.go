@@ -3725,7 +3725,7 @@ type CoordinationFrame struct {
 	SenderId      string `protobuf:"bytes,2,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
 	// Encoded LeaseBatch.
 	Payload []byte `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
-	// ECDSA P-256 ASN.1 signature over SHA-256("gateway-availability-lease/frame/v1" 0x00 || payload).
+	// ECDSA P-256 ASN.1 signature over SHA-256("<lease domain>/frame/v1" 0x00 || payload).
 	Signature []byte `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
 	// During an identity-key rotation the sender also signs the same bytes
 	// with its previous key. A frame is valid when any signature verifies
@@ -5559,7 +5559,7 @@ func (x *LeaseForcedMarker) GetBase() *LeaseBallot {
 }
 
 // Signed by the relay policy signing key (Ed25519) over
-// "gateway-availability-lease/manifest/v1" 0x00 || payload.
+// "<lease domain>/manifest/v1" 0x00 || payload.
 type LeaseSignedBlock struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SigningKeyId  string                 `protobuf:"bytes,1,opt,name=signing_key_id,json=signingKeyId,proto3" json:"signing_key_id,omitempty"`
@@ -6095,7 +6095,7 @@ func (x *LeaseQuorumSet) GetVoterIds() []string {
 }
 
 // A14: key_id introduced by previous_key_id. The signature is Ed25519 by the
-// previous key over "gateway-availability-lease/key-rotation/v1" 0x00 ||
+// previous key over "<lease domain>/key-rotation/v1" 0x00 ||
 // be32(len(key_id)) || key_id || public_key.
 type LeasePolicyKeyRotation struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`

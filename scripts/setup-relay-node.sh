@@ -10,7 +10,7 @@ SERVICE_PORT="9443"
 SERVICE_PORT_GIVEN=0
 VERSION="latest"
 # Settings from the environment use OPFIELD_* names.
-# legacy-name: GATEWAY_* installer environment (each setting falls back to it) — remove once every node reports none
+# legacy-name: pre-2.12.1 installer environment (each setting falls back to it) — remove once every node reports none
 OPFIELD_ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-${GATEWAY_ARTIFACT_BASE_URL:-}}"
 RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-${GATEWAY_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}}"
 ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
@@ -35,7 +35,7 @@ RELAY_STATE_DIR=/var/lib/opfield-relay
 RELAY_PROGRAM_DIR=/usr/local/lib/opfield-relay
 RELAY_SERVICE=opfield-relay-supervisor
 RELAY_WORKER_BINARY="${RELAY_PROGRAM_DIR}/opfield-relay"
-# legacy-name: gateway-relay-* directories and service of relays installed before the Opfield names — remove once every node reports none
+# legacy-name: legacy relay directories and service of relays installed before the Opfield names — remove once every node reports none
 LEGACY_RELAY_CONFIG_DIR=/etc/gateway-relay-supervisor
 LEGACY_RELAY_STATE_DIR=/var/lib/gateway-relay-supervisor
 LEGACY_RELAY_PROGRAM_DIR=/usr/local/lib/gateway-relay
@@ -283,7 +283,7 @@ seed_host_identity_copy() {
 # In non-root mode /usr/local/bin/<daemon> is a root-owned wrapper, not the binary: the binary belongs to the service
 # user, who replaces it on update, so root must never execute it. The wrapper switches a root caller to that user.
 DAEMON_WRAPPER_MARK="# opfield-daemon-wrapper: runs the service user's binary, never as root"
-# legacy-name: gateway-daemon-wrapper mark of wrappers written before the Opfield names — remove once every node reports none
+# legacy-name: the legacy wrapper mark of wrappers written before the Opfield names — remove once every node reports none
 LEGACY_DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
 write_daemon_wrapper() {
   local command_path="$1" binary="$2" temporary
@@ -483,7 +483,7 @@ fail_supervisor_start() {
 # started counts.
 CONTROL_SESSION_SINCE="v2.11.1-rc.2"
 CONTROL_SESSION_FILE="${RELAY_STATE_DIR}/control-session.json"
-# legacy-name: gateway-session.json, the only record of supervisors before the Opfield names — remove once every node reports none
+# legacy-name: the legacy session file, the only record of supervisors before the Opfield names — remove once every node reports none
 LEGACY_CONTROL_SESSION_FILE="${RELAY_STATE_DIR}/gateway-session.json"
 CONTROL_SESSION_STARTED=0
 
@@ -824,7 +824,7 @@ relay_config_advertised_address() {
   ' "$RELAY_CONFIG" | grep .
 }
 
-# legacy-name: the move of a relay installed before the Opfield names (gateway-relay-*) — remove once every node reports none
+# legacy-name: the move of a relay installed before the Opfield names — remove once every node reports none
 # A relay installed under the pre-Opfield names, or one its supervisor moved but whose old service or links remain.
 legacy_relay_install_present() {
   local path
@@ -1113,8 +1113,8 @@ if host_feature_disabled "$RELAY_CONFIG" files; then DISABLE_FILES=1; fi
 if relay_protected_setting "$RELAY_CONFIG" enabled; then PROTECTED=1; fi
 if relay_protected_setting "$RELAY_CONFIG" allow_database_witness; then ALLOW_DATABASE_WITNESS=1; fi
 # The host identity every daemon of the host shares, in the shared state directory under the name it has now: daemons
-# move /var/lib/gateway to /var/lib/opfield themselves. The supervisor treats the Opfield path below as that default.
-# legacy-name: /var/lib/gateway until a daemon of the host moved it — remove once every node reports none
+# move the legacy state root to /var/lib/opfield themselves. The supervisor treats the Opfield path below as that default.
+# legacy-name: the legacy state root until a daemon of the host moved it — remove once every node reports none
 SHARED_HOST_IDENTITY="$(current_relay_dir /var/lib/opfield /var/lib/gateway)/host-identity"
 HOST_IDENTITY_PATH=/var/lib/opfield/host-identity
 if [[ "$RUN_USER" != "root" ]]; then

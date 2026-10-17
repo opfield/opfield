@@ -816,7 +816,7 @@ function stripCookieRules(name: string) {
     "~^(.*?);\\s*${name}=[^;]*(.*)$" "$1$2";`;
 }
 
-// The reserved health paths (opfield and gateway) both bypass maintenance: monitors of customers probe the
+// The reserved health paths (current and legacy) both bypass maintenance: monitors of customers probe the
 // pre-Opfield one (legacy-name: remove once no customer monitor probes it).
 function maintenanceMaps(hostId: string) {
   const suffix = maintenanceAccessVariable(hostId);

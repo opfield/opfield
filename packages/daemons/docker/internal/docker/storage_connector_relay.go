@@ -195,8 +195,8 @@ func storageConnectorRelayRefusal(reason string, err error) string {
 // validStorageConnectorInternalWorkload is used by the internal-workload
 // dispatcher before it creates the dedicated managed-storage connector. Opfield
 // sends OPFIELD_CONNECTOR_* with the socket directory at /run/opfield; a
-// control plane or connector of an earlier release uses the GATEWAY_CONNECTOR_*
-// names and /run/gateway, which stay valid (legacy-name below). A variable may
+// control plane or connector of an earlier release uses the pre-Opfield connector
+// names and runtime directory, which stay valid (legacy-name below). A variable may
 // come under both names when the values agree.
 func validStorageConnectorInternalWorkload(env []string, binds []string, socketHostPath string) bool {
 	mount := ""
@@ -245,7 +245,7 @@ func validStorageConnectorInternalWorkload(env []string, binds []string, socketH
 }
 
 // connectorEnvKey is the variable name of a connector environment entry
-// without its OPFIELD_CONNECTOR_ (or pre-Opfield GATEWAY_CONNECTOR_) prefix.
+// without its OPFIELD_CONNECTOR_ (or pre-Opfield) prefix.
 func connectorEnvKey(name string) (string, bool) {
 	if key, ok := strings.CutPrefix(name, "OPFIELD_CONNECTOR_"); ok && key != "" {
 		return key, true

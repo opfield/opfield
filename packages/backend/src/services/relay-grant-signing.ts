@@ -3,7 +3,7 @@ import type { KeyObject } from 'node:crypto';
 /** Relay capability: the relay accepts grants with audience `opfield-relay`. */
 export const GRANT_AUDIENCE_OPFIELD_CAPABILITY = 'grant_audience_opfield_v1';
 
-// legacy-name: `wiolett-relay` grant audience — relays before 2.12.1 accept only it; remove once every relay reports
+// legacy-name: the legacy grant audience — relays before 2.12.1 accept only it; remove once every relay reports
 // GRANT_AUDIENCE_OPFIELD_CAPABILITY.
 export type RelayGrantAudience = 'opfield-relay' | 'wiolett-relay';
 

@@ -6,7 +6,7 @@ IFS=$'\n\t'
 # Downloads and runs the appropriate setup script for a daemon type.
 #
 # Usage:
-#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-daemon.sh | \
+#   curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-daemon.sh | \
 #     sudo bash -s -- --type nginx --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<HEX>
 # ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ WARN_TAG='\033[48;2;112;97;48m\033[38;2;244;234;198m'
 ERROR_TAG='\033[48;2;96;61;43m\033[38;2;245;221;202m'
 
 # ── Defaults ────────────────────────────────────────────────────────
-# legacy-name: GATEWAY_SETUP_SCRIPT_DIR, GATEWAY_SETUP_VERSION and GATEWAY_RELEASE_DOWNLOAD_BASE installer environment —
+# legacy-name: pre-2.12.1 installer environment —
 # customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is not set (the new name wins).
 for legacy_env in GATEWAY_SETUP_SCRIPT_DIR GATEWAY_SETUP_VERSION GATEWAY_RELEASE_DOWNLOAD_BASE; do
     opfield_env="OPFIELD_${legacy_env#GATEWAY_}"

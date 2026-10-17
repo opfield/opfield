@@ -20,7 +20,7 @@ const ControlSessionFile = "control-session.json"
 
 // LegacyControlSessionFile is the same record under its pre-Opfield name, still
 // written for installers that wait on it.
-// legacy-name: gateway-session.json read by the setup-*.sh installers — remove once every installer reads control-session.json
+// legacy-name: the legacy session file read by the setup-*.sh installers — remove once every installer reads control-session.json
 const LegacyControlSessionFile = "gateway-session.json"
 
 type controlSessionRecord struct {

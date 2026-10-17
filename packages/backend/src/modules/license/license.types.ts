@@ -156,7 +156,7 @@ const SHARED_FEATURES = [
   'signed-updates',
 ] as const;
 
-// legacy-name: `gateway-inference` license feature key — the license server still signs it in place of `inference`;
+// legacy-name: the legacy inference license feature key — the license server still signs it in place of `inference`;
 // remove once the license server issues only `inference`.
 const LEGACY_FEATURE_NAMES: Readonly<Record<string, string>> = { 'gateway-inference': 'inference' };
 

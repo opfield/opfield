@@ -105,9 +105,9 @@ const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
 };
 
 // Installers an Opfield release carries (scripts/stage-installers.sh), served in GitHub's release download layout:
-// /gateway/releases/download/<tag>/<file> and /gateway/releases/latest/download/<file>. "/" and "/install.sh" are the
+// /<namespace>/releases/download/<tag>/<file> and /<namespace>/releases/latest/download/<file>. "/" and "/install.sh" are the
 // server installer of the latest stable release.
-// legacy-name: gateway-daemon-installers.sha256, the checksum list setup commands and wrappers of releases before
+// legacy-name: the legacy checksum list setup commands and wrappers of releases before
 // 2.12.1 read — remove once no served release is older than 2.12.1.
 const INSTALLER_ASSET_PATTERN =
 	/^(install\.sh|setup-(daemon|node|docker-node|database-node|storage-node|monitoring-node|relay-node)\.sh|opfield-node-installers\.sha256|gateway-daemon-installers\.sha256)$/;

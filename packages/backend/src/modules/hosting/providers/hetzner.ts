@@ -26,7 +26,7 @@ import {
 const PAGE_SIZE = 50;
 const MAX_PAGES = 100;
 const MARKER_LABEL = 'marker';
-// legacy-name: Hetzner server label "gateway-marker" — remove once every hosting resource was reconciled by 2.12.1+
+// legacy-name: the pre-2.12.1 Hetzner server label — remove once every hosting resource was reconciled by 2.12.1+
 const LEGACY_MARKER_LABEL = 'gateway-marker';
 type Json = Record<string, unknown>;
 type HAddress = { ip: string; network: string; mac?: string };

@@ -123,7 +123,7 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// UsesLegacyControlSection reports whether the file's control section is still the pre-Opfield gateway: one.
+// UsesLegacyControlSection reports whether the file's control section is still the pre-Opfield one.
 func (c *Config) UsesLegacyControlSection() bool {
 	return strings.TrimSpace(c.Opfield.Address) == "" && strings.TrimSpace(c.Control.Address) != ""
 }

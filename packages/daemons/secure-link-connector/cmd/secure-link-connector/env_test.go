@@ -14,7 +14,7 @@ func environment(values map[string]string) func(string) string {
 }
 
 // docker-daemon 2.12.1 starts the connector with OPFIELD_* settings; a
-// connector a 2.12.0 daemon created keeps its GATEWAY_* settings until it is
+// connector a 2.12.0 daemon created keeps its pre-Opfield settings until it is
 // recreated. Both start, and the new name wins when a container has both.
 func TestStorageConnectorReadsTheOpfieldAndTheLegacyNames(t *testing.T) {
 	for name, prefix := range map[string]string{"opfield": "OPFIELD_", "legacy": "GATEWAY_"} {

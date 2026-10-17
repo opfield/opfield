@@ -232,7 +232,7 @@ func removeLegacyBinary(host ServiceHost, executable string) error {
 }
 
 // moveLegacyBackup gives the backup the watchdog's self-update kept of its
-// pre-Opfield binary (gateway-lease-watchdog.previous) the Opfield name, or
+// pre-Opfield previous binary the Opfield name, or
 // removes it when the Opfield binary has a backup of its own (O-7).
 func moveLegacyBackup(host ServiceHost) error {
 	legacy := host.path(LegacyBinaryPath) + ".previous"

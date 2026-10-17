@@ -132,7 +132,7 @@ const OPFIELD_UPDATE_TARGET_GRACE_MS = 10 * 60_000;
 /** Marks the container that runs an Opfield self-update, so it is removed once it has finished. */
 const UPDATE_SIDECAR_LABEL = 'net.opfield.role';
 const UPDATE_SIDECAR_ROLE = 'opfield-update-sidecar';
-// legacy-name: gateway-update-sidecar — sidecars started by releases before 2.12.1; only cleaned up — remove once no
+// legacy-name: legacy update sidecars — started by releases before 2.12.1; only cleaned up — remove once no
 // supported update starts from a version before 2.12.1.
 const LEGACY_UPDATE_SIDECAR_ROLE = 'gateway-update-sidecar';
 /** Exited update and host move containers this process cleans up. */

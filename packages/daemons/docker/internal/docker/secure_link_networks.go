@@ -29,7 +29,7 @@ const (
 	linkNetworkCreateTries = 8
 )
 
-// legacy-name: gateway- link networks of links created before 2.12.1 or for a node without docker_opfield_names_v1 — remove once every node reports none
+// legacy-name: legacy-prefixed link networks of links created before 2.12.1 or for a node without docker_opfield_names_v1 — remove once every node reports none
 var linkNetworkNamePattern = regexp.MustCompile(`^(?:opfield|gateway)-(?:link|db|storage)-(?:av-)?[0-9a-f]{16}$`)
 
 // linkNetworkCreate serializes the subnet choice of concurrent creates.

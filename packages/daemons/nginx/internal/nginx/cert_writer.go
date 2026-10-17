@@ -234,7 +234,7 @@ const (
 )
 
 // certMetaNames are the names of a metadata file: the one of the names in effect first, then the other.
-// legacy-name: .gateway-version and .gateway-replica-generation of certificates written before 2.12.1 — remove once
+// legacy-name: the legacy version and replica generation files of certificates written before 2.12.1 — remove once
 // every node reports none
 func certMetaNames(name string) []string {
 	current := naming.File(name)

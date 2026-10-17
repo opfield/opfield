@@ -48,7 +48,7 @@ type BaseConfig struct {
 	// Control is the control plane connection in effect: the opfield: section
 	// of the config file, else its pre-Opfield gateway: section
 	// (ResolveControlSection picks it after loading).
-	// legacy-name: gateway: config section of pre-Opfield installs — remove once every node reports none
+	// legacy-name: the pre-Opfield config section of pre-Opfield installs — remove once every node reports none
 	Control ControlConfig `yaml:"gateway"`
 	// Opfield is the opfield: section as written in the file.
 	Opfield  ControlConfig `yaml:"opfield"`
@@ -130,11 +130,11 @@ func LoadBaseConfig(path string) (*BaseConfig, error) {
 
 // ControlSectionKeys are the config file keys of the control plane section:
 // the Opfield one first.
-// legacy-name: gateway: config section — remove once every node reports none
+// legacy-name: the pre-Opfield config section — remove once every node reports none
 var ControlSectionKeys = []string{"opfield", "gateway"}
 
 // ResolveControlSection makes Opfield the section in effect: opfield: when the
-// file has one with an address, else the pre-Opfield gateway: section.
+// file has one with an address, else the pre-Opfield section.
 func (c *BaseConfig) ResolveControlSection() {
 	if strings.TrimSpace(c.Opfield.Address) != "" {
 		c.Control = c.Opfield
@@ -142,7 +142,7 @@ func (c *BaseConfig) ResolveControlSection() {
 }
 
 // UsesLegacyControlSection reports whether the file's control section is still
-// the pre-Opfield gateway: one.
+// the pre-Opfield one.
 func (c *BaseConfig) UsesLegacyControlSection() bool {
 	return strings.TrimSpace(c.Opfield.Address) == "" && strings.TrimSpace(c.Control.Address) != ""
 }

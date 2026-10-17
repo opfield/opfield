@@ -63,7 +63,7 @@ function values(value: unknown): unknown[] {
 function ownedName(ownerKey: string, remoteId: string): string {
   return `opfield-fw-${createHash('sha256').update(`${ownerKey}:${remoteId}`).digest('hex').slice(0, 20)}`;
 }
-// legacy-name: DigitalOcean firewall name "gateway-fw-<hash>" — remove once every hosting resource was reconciled by 2.12.1+
+// legacy-name: the pre-2.12.1 DigitalOcean firewall name — remove once every hosting resource was reconciled by 2.12.1+
 function legacyOwnedName(ownerKey: string, remoteId: string): string {
   return `gateway-fw-${createHash('sha256').update(`${ownerKey}:${remoteId}`).digest('hex').slice(0, 20)}`;
 }

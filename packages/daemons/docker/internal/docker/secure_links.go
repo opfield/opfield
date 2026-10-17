@@ -1191,8 +1191,8 @@ func managedSecureLinkConnector(inspect container.InspectResponse, controlDirect
 
 // The connector's control directory is mounted at /run/opfield and named by
 // OPFIELD_SECURE_LINK_SOCKET. A connector image of an earlier release reads only
-// GATEWAY_SECURE_LINK_SOCKET, so new connectors get both; a connector created
-// before Opfield (mount /run/gateway, the old variable only) stays valid until it
+// the pre-Opfield socket variable, so new connectors get both; a connector created
+// before Opfield (legacy runtime mount, the old variable only) stays valid until it
 // is replaced for its own reasons (an image update).
 const (
 	secureLinkConnectorMount     = "/run/opfield"

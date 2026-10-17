@@ -34,7 +34,7 @@ const SERVICES: Record<string, string> = {
   relay: 'opfield-relay-supervisor',
 };
 
-// legacy-name: gateway-relay-supervisor unit — a relay installed before 2.12.1 keeps running under it until its next
+// legacy-name: the legacy relay supervisor unit — a relay installed before 2.12.1 keeps running under it until its next
 // start. The new unit refuses to start while the old one is enabled, and a moved relay keeps the old unit file, disabled,
 // until its cleanup; remove once every relay reports none.
 const LEGACY_SERVICES: Record<string, string> = { 'opfield-relay-supervisor': 'gateway-relay-supervisor' };

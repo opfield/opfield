@@ -8,7 +8,7 @@ export function domainRecordComment(domainId: string): string {
   return `opfield:domain:${domainId}`;
 }
 
-// legacy-name: `wiolett-gateway:domain:<id>` DNS record comment — records created before 2.12.1 carry it until the
+// legacy-name: the pre-2.12.1 DNS record comment — records created before 2.12.1 carry it until the
 // next reconcile rewrites it; remove once no Cloudflare record carries it.
 export function legacyDomainRecordComment(domainId: string): string {
   return `wiolett-gateway:domain:${domainId}`;

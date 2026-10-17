@@ -1,7 +1,7 @@
 name: License endpoints
 
 # Re-signs the license endpoints document (scripts/release/license-endpoints.mjs) on the latest stable release, which
-# the update Worker serves as /gateway/license-endpoints.json. Installations use a document only until it expires, so
+# the update Worker serves as /opfield/license-endpoints.json. Installations use a document only until it expires, so
 # this keeps it valid between releases and publishes a change to config/license-service.json on main without one.
 # Off until the repository variable LICENSE_ENDPOINTS_PUBLISH is true.
 on:

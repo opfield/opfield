@@ -155,11 +155,11 @@ export type Env = z.infer<typeof envSchema>;
 
 /** Prefix of every Opfield environment variable. */
 export const ENV_PREFIX = 'OPFIELD_';
-// legacy-name: GATEWAY_* environment names of .env and docker-compose.yml files written before 2.12.1 — remove once
+// legacy-name: the pre-2.12.1 environment names of .env and docker-compose.yml files written before 2.12.1 — remove once
 // every installation's files were rewritten by the 2.12.1 foundation migrator, which renames them to OPFIELD_*.
 export const LEGACY_ENV_PREFIX = 'GATEWAY_';
 
-/** The OPFIELD_* name of a legacy GATEWAY_* environment variable; null for any other name. */
+/** The OPFIELD_* name of a pre-2.12.1 environment variable; null for any other name. */
 export function opfieldEnvName(legacyName: string): string | null {
   if (!legacyName.startsWith(LEGACY_ENV_PREFIX) || legacyName.length === LEGACY_ENV_PREFIX.length) return null;
   return `${ENV_PREFIX}${legacyName.slice(LEGACY_ENV_PREFIX.length)}`;
@@ -189,7 +189,7 @@ export function applyVersionFallback(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv 
   return env;
 }
 
-/** The OPFIELD_<suffix> variable, or its legacy GATEWAY_<suffix> name when only that is set. */
+/** The OPFIELD_<suffix> variable, or its pre-2.12.1 name when only that is set. */
 export function readOpfieldEnv(suffix: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
   // legacy-name: GATEWAY_<suffix> — see LEGACY_ENV_PREFIX.
   return env[`${ENV_PREFIX}${suffix}`] ?? env[`${LEGACY_ENV_PREFIX}${suffix}`];

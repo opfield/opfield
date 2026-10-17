@@ -12,7 +12,7 @@ package docker
 //
 //	DOCKER_HOST=unix:///run/dbha/docker.sock go test -tags swhacontainer -run TestSeaweedFSSetContainers -v ./internal/docker/
 //
-// It needs the pinned seaweedfs-gateway image (pulled when missing).
+// It needs the pinned SeaweedFS image (pulled when missing).
 
 import (
 	"bytes"

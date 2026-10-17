@@ -177,7 +177,7 @@ export const INFERENCE_CORE_CONTEXT_HEADERS = {
   signature: 'x-opfield-signature',
 } as const;
 
-// legacy-name: x-wiolett-* core contract headers — cores released before the Opfield names read and send only these;
+// legacy-name: legacy core contract headers — cores released before the Opfield names read and send only these;
 // sent next to the new ones and accepted on callbacks until the minimum supported core reads x-opfield-*.
 export const LEGACY_INFERENCE_CORE_CONTEXT_HEADERS = {
   contract: 'x-wiolett-contract',
@@ -198,7 +198,7 @@ export const INFERENCE_CORE_CALLBACK_HEADERS = {
   signature: 'x-opfield-signature',
 } as const;
 
-// legacy-name: x-wiolett-* callback headers — see LEGACY_INFERENCE_CORE_CONTEXT_HEADERS.
+// legacy-name: legacy callback headers — see LEGACY_INFERENCE_CORE_CONTEXT_HEADERS.
 export const LEGACY_INFERENCE_CORE_CALLBACK_HEADERS = {
   contract: 'x-wiolett-contract',
   timestamp: 'x-wiolett-timestamp',

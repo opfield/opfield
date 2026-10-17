@@ -43,7 +43,7 @@ func migrationInspect(id, imageID string, labels map[string]string) string {
 }
 
 // A container imported from an archive and migrated once under 2.12.0 carries
-// wiolett.gateway.* labels, among them the archive image reference and the
+// pre-2.12.1 labels, among them the archive image reference and the
 // old migration id. Its manifest names every label by its Opfield key, so the
 // target, which is created with Opfield keys, captures the same manifest:
 // before and after its start is confirmed.

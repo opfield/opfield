@@ -6,14 +6,14 @@ import (
 	"path/filepath"
 )
 
-// The boot steps were installed as gateway-volume-images and
-// gateway-link-listeners before Opfield. The daemon installs them under their
+// The boot steps were installed under the legacy unit names
+// before Opfield. The daemon installs them under their
 // Opfield names at every start. A new unit does not run while the old one is
 // installed (a launcher rollback before the start was confirmed may bring back
 // a daemon that maintains only the old one), and the old one is removed once
 // the start is confirmed (lifecycle.OnStartConfirmed), so a node never runs a
 // boot step twice.
-// legacy-name: gateway-* boot step units of pre-Opfield daemons — remove once every node reports none
+// legacy-name: legacy boot step units of pre-Opfield daemons — remove once every node reports none
 const (
 	legacyVolumeImageBootService  = "gateway-volume-images"
 	legacyLinkListenerBootService = "gateway-link-listeners"

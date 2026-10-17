@@ -72,7 +72,7 @@ const (
 	storageConnectorPrefix     = "opfield-storage-connector-"
 )
 
-// legacy-name: gateway-db-/gateway-storage-/gateway-link- networks and gateway-storage-connector- containers of links
+// legacy-name: legacy-prefixed link networks and storage connector containers of links
 // created before 2.12.1 or for a node without docker_opfield_names_v1 — remove once every node reports none
 const (
 	legacyDatabaseLinkNetworkPrefix  = "gateway-db-"
@@ -249,7 +249,7 @@ const legacyKeeperWitnessPrefix = "gwkw-"
 // the network of a single-node instance (<prefix><id>) carry the prefix of the record that created them.
 const managedStorageNamePrefix = "opfield-storage-"
 
-// legacy-name: gateway-storage-<id>-<member>[-<role>] containers and gateway-storage-<id> networks of managed storage
+// legacy-name: legacy-prefixed containers and networks of managed storage
 // created before 2.12.1 — remove once every node reports none
 const legacyManagedStorageNamePrefix = "gateway-storage-"
 

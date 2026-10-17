@@ -41,7 +41,7 @@ export function opfieldHostImageRepositories(currentImage: string, configured: s
   return new Set([current, ...configured.map(referenceRepository), ...OFFICIAL_IMAGE_REPOSITORIES, 'gateway']);
 }
 
-// legacy-name: the app and relay images of installs from before Opfield (`…/wiolett/gateway`).
+// legacy-name: the app and relay images of installs from before Opfield (legacy repository).
 function imageFamily(image: HostImage, appRepositories: ReadonlySet<string>): 'app' | 'relay' | null {
   for (const reference of [...(image.RepoTags ?? []), ...(image.RepoDigests ?? [])]) {
     if (!reference || reference.startsWith('<none>')) continue;

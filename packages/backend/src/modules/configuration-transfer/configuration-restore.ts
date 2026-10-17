@@ -65,7 +65,7 @@ export interface RestoreAddress {
   grpcLocalIp?: string | null;
 }
 
-/** Written to gateway_data/configuration-restore/restored.json; the app applies it on its next start. */
+/** Written to configuration-restore/restored.json of the app data volume; the app applies it on its next start. */
 export interface RestoredMarker {
   restoredAt: string;
   exportCreatedAt: string;

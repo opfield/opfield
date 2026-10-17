@@ -79,7 +79,7 @@ func legacySecureLinkConnectorShape(inspect container.InspectResponse) bool {
 // validSecureLinkConnectorEnv accepts exactly the socket variables of the
 // connector's mount and the image's PATH, each once: under /run/opfield the
 // Opfield variable (the pre-Opfield one may come along with the same value),
-// under the pre-Opfield /run/gateway the pre-Opfield variable alone.
+// under the pre-Opfield runtime directory the pre-Opfield variable alone.
 func validSecureLinkConnectorEnv(values []string, binds []string, slot int) bool {
 	mount := legacySecureLinkConnectorMount
 	if len(binds) == 1 && strings.HasSuffix(binds[0], ":"+secureLinkConnectorMount) {

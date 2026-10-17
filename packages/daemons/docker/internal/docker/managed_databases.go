@@ -42,7 +42,7 @@ const clickHouseOwnerOverrideContainerPath = "/etc/clickhouse-server/users.d/zz-
 // tables. In a small managed container those logs can continuously merge until
 // they consume the whole cgroup allowance, starving both user traffic and the
 // monitoring queries. Keep the managed baseline intentionally small; a user's
-// later gateway-managed.xml may still override these defaults when needed.
+// later managed XML file may still override these defaults when needed.
 const clickHouseRuntimeConfig = `<clickhouse>
     <logger replace="replace">
         <level>warning</level>

@@ -91,7 +91,7 @@ export async function loadDockerManagedRecords(db: DrizzleClient, nodeId: string
   return records;
 }
 
-// legacy-name: wiolett.gateway.* and com.wiolett.gateway.* labels — remove once every node reports none
+// legacy-name: pre-2.12.1 labels — remove once every node reports none
 const OPFIELD_LABEL = /^(?:net\.opfield\.|wiolett\.gateway\.|net\.wiolett\.gateway\.|com\.wiolett\.gateway\.)/;
 
 /** Whether a Docker object carries an Opfield label (either namespace). */

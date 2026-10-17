@@ -71,7 +71,7 @@ prompt_choice() {
     echo "${reply:-$default}"
 }
 
-# legacy-name: GATEWAY_SETUP_VERSION, GATEWAY_RELEASE_DOWNLOAD_BASE, GATEWAY_DATABASE_STORAGE_ROOT and GATEWAY_DOCKER_MODE
+# legacy-name: pre-2.12.1 names of the variables
 # installer environment — customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is not
 # set (the new name wins).
 for legacy_env in GATEWAY_SETUP_VERSION GATEWAY_RELEASE_DOWNLOAD_BASE GATEWAY_DATABASE_STORAGE_ROOT GATEWAY_DOCKER_MODE; do
@@ -221,7 +221,7 @@ case "$OPFIELD_DOCKER_MODE" in
     databases|storage) export OPFIELD_DOCKER_MODE ;;
     *) die "Invalid restricted Docker mode '${OPFIELD_DOCKER_MODE}'" ;;
 esac
-# legacy-name: GATEWAY_DATABASE_STORAGE_ROOT and GATEWAY_DOCKER_MODE for a setup-docker-node.sh of a release before
+# legacy-name: pre-2.12.1 names of the variables for a setup-docker-node.sh of a release before
 # 2.12.1 (a pinned OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
 export GATEWAY_DATABASE_STORAGE_ROOT="$OPFIELD_DATABASE_STORAGE_ROOT" GATEWAY_DOCKER_MODE="$OPFIELD_DOCKER_MODE"
 if ! grep -Eq '^[[:space:]]*--opfield\)' "$DOCKER_SCRIPT"; then

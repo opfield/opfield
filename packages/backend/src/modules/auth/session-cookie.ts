@@ -15,7 +15,7 @@ export function getSessionCookieName(transport: SessionCookieTransport): string 
   return `opfield_session_${getInstallationCookieNamespace()}_${transport}`;
 }
 
-// legacy-name: gateway_session_* cookies — browser sessions signed in before 2.12.1 keep working; remove once those
+// legacy-name: pre-2.12.1 session cookies — browser sessions signed in before 2.12.1 keep working; remove once those
 // sessions have expired (the release after 2.12.1).
 function getLegacySessionCookieName(transport: SessionCookieTransport): string {
   return `gateway_session_${getInstallationCookieNamespace()}_${transport}`;

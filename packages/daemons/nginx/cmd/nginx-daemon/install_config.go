@@ -37,7 +37,7 @@ log_format: "json"
 
 // writeInstallConfig writes the configuration `install` enrolls with. An existing configuration (written by the
 // operator first, as the manual setup describes) is kept: only its Opfield address, token and certificate fingerprint
-// are set, in the control section the file has (opfield:, else the pre-Opfield gateway:). kept reports that case.
+// are set, in the control section the file has (opfield:, else the pre-Opfield one). kept reports that case.
 func writeInstallConfig(path, address, token, certSHA256 string) (kept bool, err error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {

@@ -139,7 +139,7 @@ func (p *NginxPlugin) releaseUnclaimedRegistryListeners() {
 }
 
 // secureLinkProxyPassPattern finds the proxy_pass a managed config marks as its Secure Link upstream, under the
-// Opfield marker or, in a config rendered for the pre-Opfield names, the gateway- one.
+// Opfield marker or, in a config rendered for the pre-Opfield names, the legacy one.
 func secureLinkProxyPassPattern(linkID string, port int) *regexp.Regexp {
 	portPattern := `[0-9]+`
 	if port > 0 {

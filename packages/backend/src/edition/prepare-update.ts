@@ -24,7 +24,7 @@ export function commercialVersionKey(version: string): string {
 
 /** Directory of the installation that holds prepared private cores; the app container mounts it read-only. */
 export const COMMERCIAL_HOST_DIR = '.opfield-commercial';
-// legacy-name: `.gateway-commercial` of installations that have not moved to the Opfield layout yet (the move renames
+// legacy-name: the commercial core directory of installations that have not moved to the Opfield layout yet (the move renames
 // it) — remove once every installation reports the Opfield layout.
 export const LEGACY_COMMERCIAL_HOST_DIR = '.gateway-commercial';
 

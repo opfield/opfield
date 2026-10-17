@@ -199,7 +199,7 @@ export interface HostMoveTarget {
   network: string;
 }
 
-/** Where an installation in `dir` moves to: a sibling `opfield` for `…/gateway`, otherwise it stays. */
+/** Where an installation in `dir` moves to: a sibling `opfield` for the legacy directory name, otherwise it stays. */
 export function hostMoveNewDir(dir: string): string {
   return path.basename(dir) === LEGACY_INSTALL_DIR_NAME ? path.join(path.dirname(dir), OPFIELD_INSTALL_DIR_NAME) : dir;
 }

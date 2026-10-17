@@ -42,7 +42,7 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
-// legacyStateSchema is the compiled gateway/v1/nginx-daemon.proto of v2.10.0,
+// legacyStateSchema is the compiled nginx-daemon.proto of v2.10.0,
 // the oldest release a node may be rolled back to. Fields were only ever
 // added since, so what it decodes every later release decodes too.
 //
@@ -62,14 +62,14 @@ var legacyFiles = sync.OnceValues(func() (*protoregistry.Files, error) {
 	return protodesc.NewFiles(set)
 })
 
-// legacy-name: the v2.10.0 schema names its package gateway.v1; the same messages are opfield.v1 now — remove once every node reports none
+// legacy-name: the v2.10.0 schema names its package with the legacy name; the same messages are opfield.v1 now — remove once every node reports none
 const (
 	currentPackage = "opfield.v1."
 	legacyPackage  = "gateway.v1."
 )
 
 // LegacyName is the name of an opfield.v1 message in the schemas of released
-// versions (gateway.v1); other names are returned as they are.
+// versions (legacy package); other names are returned as they are.
 func LegacyName(name protoreflect.FullName) protoreflect.FullName {
 	if rest, ok := strings.CutPrefix(string(name), currentPackage); ok {
 		return protoreflect.FullName(legacyPackage + rest)
@@ -78,7 +78,7 @@ func LegacyName(name protoreflect.FullName) protoreflect.FullName {
 }
 
 // LegacyDescriptor returns the v2.10.0 schema of an opfield.v1 message (its
-// gateway.v1 name in that schema). Field numbers and names are the same, so
+// legacy name in that schema). Field numbers and names are the same, so
 // only the package part of the name differs.
 func LegacyDescriptor(name protoreflect.FullName) (protoreflect.MessageDescriptor, error) {
 	files, err := legacyFiles()

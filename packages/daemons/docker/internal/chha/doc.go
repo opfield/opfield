@@ -29,7 +29,7 @@
 // listen on all addresses of its container, so its own endpoint reaches it.
 //
 // Roles. ClickHouse replicas accept writes on every replica; the primary role
-// is the settings profile "gateway_client" (every client user has it):
+// is the settings profile legacycompat.ClickHouseClientProfile (every client user has it):
 // read-only on copies, writable on the holder. The profile file is rewritten
 // only while the container is stopped (standby at rest) or by Promote, and
 // set member containers are never restarted by Docker itself.

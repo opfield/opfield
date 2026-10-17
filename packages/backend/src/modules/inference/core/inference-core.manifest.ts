@@ -23,7 +23,7 @@ const CORE_MANIFEST_SOURCES: readonly { packageName: string; fileName: string }[
   { packageName: LEGACY_INFERENCE_CORE_COMPONENT, fileName: LEGACY_INFERENCE_CORE_MANIFEST_FILE },
 ];
 
-// Release lines in the order they replaced each other: `-wiolett.N` up to 2.25.0, then `-thesqlabs.N`, and
+// Release lines in the order they replaced each other: the first line up to 2.25.0, then `-thesqlabs.N`, and
 // `-opfield.N` from the repository's move to the opfield organization. Installed versions of every line must
 // stay valid and comparable, so all three suffixes are accepted.
 export const OPENCODEX_RELEASE_LINES = ['wiolett', 'thesqlabs', 'opfield'] as const;

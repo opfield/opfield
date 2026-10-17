@@ -40,7 +40,7 @@ export interface CloudEnrollOwner {
   name?: string;
 }
 
-/** `/var/lib/gateway/cloud-enroll.json` as the portal writes it. */
+/** `cloud-enroll.json` in the app data directory, as the portal writes it. */
 export interface CloudEnrollFileContract {
   code: string;
   portalUrl?: string;

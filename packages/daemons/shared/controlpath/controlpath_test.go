@@ -55,7 +55,7 @@ func (s *recordingServer) CommandStream(stream pb.NodeControl_CommandStreamServe
 }
 
 // serve starts a server with the two services under the given package name:
-// "gateway.v1" stands for a 2.12.0 relay, which forwards no other name.
+// The legacy package stands for a 2.12.0 relay, which forwards no other name.
 func serve(t *testing.T, packageName string) (*grpc.ClientConn, *recordingServer) {
 	t.Helper()
 	listener := bufconn.Listen(1 << 20)

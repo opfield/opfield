@@ -48,7 +48,7 @@ interface PveResource {
 type PveConfig = Record<string, string | number | undefined>;
 
 const DESCRIPTION_MARKER = /Opfield hosting (gw-[a-zA-Z0-9-]+)/;
-// legacy-name: Proxmox VM description "Gateway hosting <marker>" — remove once every hosting resource was reconciled by 2.12.1+
+// legacy-name: the pre-2.12.1 Proxmox VM description — remove once every hosting resource was reconciled by 2.12.1+
 const LEGACY_DESCRIPTION_MARKER = /Gateway hosting (gw-[a-zA-Z0-9-]+)/;
 function description(marker: string): string {
   return `Opfield hosting ${marker}`;

@@ -1,5 +1,5 @@
 // Package hostrename moves the host directories of the pre-Opfield names
-// (/var/lib/gateway, /run/gateway-lease-watchdog, /etc/gateway-builder, ...)
+// (state root, lease fence, builder directories, ...; see legacycompat)
 // to their Opfield names, and resolves which of the two a component uses now.
 //
 // A move renames the old directory to the new name and leaves the old name as

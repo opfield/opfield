@@ -20,12 +20,12 @@
 # 4. Runs the base updater's own rollback() on the migrated database, checks the base (license, node
 #    creation, group scopes, Pages insert), updates again and compares effective access with step 2.
 #    A candidate with the Opfield layout (FIRST_OPFIELD_LAYOUT) runs this right after step 2, then waits for the
-#    host move (/opt/gateway -> /opt/opfield, project and database `opfield`) the settled update starts, checks
+#    host move (legacy directory -> /opt/opfield, project and database `opfield`) the settled update starts, checks
 #    the moved stack, the volumes and data it kept and the outage, and only then runs step 3: rolling back to
 #    the base after the move is not supported.
 # 5. Installs the candidate fresh with the candidate's installer and completes setup and first sign-in; the
 #    upgraded install's built-in groups must equal the fresh install's.
-# 6. With GATEWAY_E2E_LICENSE_KEY set: activates the key on the base and checks that the candidate's
+# 6. With OPFIELD_E2E_LICENSE_KEY set: activates the key on the base and checks that the candidate's
 #    private core is downloaded and loaded after the update. The key is deactivated before teardown.
 #
 # A local release feed pins the base and candidate tags; images, manifests and signatures are the real
@@ -2080,7 +2080,7 @@ update_settled() {
   [[ -n "$UPDATE_ERROR" ]]
 }
 
-# gateway_update LABEL: check-update and update through the product, timed against the probes.
+# opfield_update LABEL: check-update and update through the product, timed against the probes.
 gateway_update() {
   local label="$1" start_ms end_ms latest window sidecar
   if [[ "$LICENSE_MODE" == block && -z "$LICENSE_KEY" ]]; then

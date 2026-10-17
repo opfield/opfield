@@ -63,7 +63,7 @@ const logger = createChildLogger('SandboxRunner');
 
 /** Labels of sandbox containers: `net.opfield.sandbox` and `net.opfield.sandbox.<name>`. */
 const SANDBOX_LABEL = 'net.opfield.sandbox';
-// legacy-name: gateway.sandbox* labels of sandbox containers created before 2.12.1 (they expire with their job) —
+// legacy-name: legacy sandbox labels of sandbox containers created before 2.12.1 (they expire with their job) —
 // remove once no installation runs one
 const LEGACY_SANDBOX_LABEL = 'gateway.sandbox';
 

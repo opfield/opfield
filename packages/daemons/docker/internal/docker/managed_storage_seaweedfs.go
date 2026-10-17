@@ -442,7 +442,7 @@ func seaweedfsSecurityConfig() (string, error) {
 }
 
 // stageSeaweedFS writes the read-only runtime tree mounted at
-// /run/gateway-storage: config/{s3.json,security.toml,master.toml} and, with
+// the storage runtime directory: config/{s3.json,security.toml,master.toml} and, with
 // TLS, tls/{public.crt,private.key,ca.crt}. Every entry is owned by the runtime
 // user; files are 0400 and directories 0500.
 func (m *managedStorageManager) stageSeaweedFS(record managedStorageRecord, input managedStorageCommand) (string, error) {

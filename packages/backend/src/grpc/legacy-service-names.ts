@@ -1,7 +1,7 @@
 import type * as grpc from '@grpc/grpc-js';
 
 export const GRPC_PACKAGE_PATH_PREFIX = '/opfield.v1.';
-// legacy-name: gateway.v1 service names that 2.12.0 daemons call — remove once every node reports none
+// legacy-name: the legacy gRPC package service names that 2.12.0 daemons call — remove once every node reports none
 export const LEGACY_GRPC_PACKAGE_PATH_PREFIX = '/gateway.v1.';
 
 /**

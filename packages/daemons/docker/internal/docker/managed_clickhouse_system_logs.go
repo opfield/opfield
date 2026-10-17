@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// The runtime profile (clickHouseRuntimeConfig, 00-gateway-runtime.xml)
-// removes ClickHouse's system log tables, but a user's gateway-managed.xml
+// The runtime profile (clickHouseRuntimeConfig, the runtime XML file)
+// removes ClickHouse's system log tables, but a user's managed XML file
 // loads after it and may enable one again. ClickHouse keeps such a table
 // forever unless it has a TTL, so the daemon writes the user's fragment with
 // a TTL of clickHouseUserSystemLogDays for every system log it enables
@@ -122,7 +122,7 @@ func writeClickHouseManagedConfig(path, fragment string) error {
 	return writeClickHouseConfig(path, clickHouseFragmentWithSystemLogTTL(fragment))
 }
 
-// healClickHouseManagedConfig gives an existing gateway-managed.xml the
+// healClickHouseManagedConfig gives an existing managed XML file the
 // system log TTLs (a daemon start, after the database's disk is mounted).
 // ClickHouse applies them when it next creates the log table, at its next
 // start. Nothing is written when the file is not there or needs nothing.

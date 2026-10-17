@@ -12,7 +12,7 @@ function nonEmpty(value: unknown): boolean {
   return typeof value === 'string' && value !== '';
 }
 const SANDBOX_LABEL = 'net.opfield.sandbox';
-// legacy-name: gateway.sandbox marker of sandbox containers created before 2.12.1 — remove once no installation runs one
+// legacy-name: the legacy sandbox marker of sandbox containers created before 2.12.1 — remove once no installation runs one
 const LEGACY_SANDBOX_LABEL = 'gateway.sandbox';
 const INTERNAL_MARKERS = new Set(['secure-link-connector', 'backup-runner', 'backup-redis-stage', 'connector-cleanup']);
 

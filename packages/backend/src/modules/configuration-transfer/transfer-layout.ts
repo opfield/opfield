@@ -66,7 +66,7 @@ export const TRANSFER_VOLUMES: readonly TransferVolumeSpec[] = [
   },
 ];
 
-/** Directory of gateway_data where the setup wizard keeps an uploaded export; a restore keeps it until the end. */
+/** Directory of the app data volume where the setup wizard keeps an uploaded export; a restore keeps it until the end. */
 export const RESTORE_STAGING_DIR = 'configuration-restore';
 
 /**

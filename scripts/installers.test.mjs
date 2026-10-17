@@ -225,7 +225,7 @@ test('every installer completes a dry run for each profile, as root and with --u
 });
 
 // Protected mode is the relay machine owner's switch: --protected (or OPFIELD_RELAY_PROTECTED=1, or the legacy
-// GATEWAY_RELAY_PROTECTED=1) writes it, and the installer never turns it off. Turning it off is
+// OPFIELD_RELAY_PROTECTED=1) writes it, and the installer never turns it off. Turning it off is
 // `relay-supervisor protected off` on the machine.
 test('the relay installer writes protected mode', { skip: !linux }, () => {
   const relayArgs = [...relayCommon, '--advertise-address', 'relay.example.com'];
@@ -1865,7 +1865,7 @@ test('the nginx installer gives the nginx temp directories to a non-root run use
   }
 });
 
-// F-B5: a relay installed through a mirror (GATEWAY_ARTIFACT_BASE_URL) took its binaries from the origin named in the
+// F-B5: a relay installed through a mirror (OPFIELD_ARTIFACT_BASE_URL) took its binaries from the origin named in the
 // signed manifest. It takes them from the mirror, next to their manifests, and they must still match the signed
 // checksum. F-B4: the latest release resolves without jq, which a dry run cannot install.
 test('the relay installer downloads its binaries from the mirror and checks them against the signed manifest', { skip: !linux || spawnSync('sh', ['-c', 'command -v jq']).status !== 0 }, async () => {

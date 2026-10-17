@@ -7,7 +7,7 @@ IFS=$'\n\t'
 # No nginx or Docker required — this agent reports system metrics only.
 #
 # Usage:
-#   curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-monitoring-node.sh | \
+#   curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-monitoring-node.sh | \
 #     sudo bash -s -- --opfield opfield.example.com:9443 --token <ENROLLMENT_TOKEN> --opfield-cert-sha256 sha256:<HEX>
 # ───────────────────────────────────────────────────────────────────
 
@@ -28,8 +28,7 @@ ERROR_TAG='\033[48;2;96;61;43m\033[38;2;245;221;202m'
 SUCCESS_TAG='\033[42m\033[97m'
 
 # ── Defaults ──────────────────────────────────────────────────────
-# legacy-name: GATEWAY_NODE_*, GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS, GATEWAY_RELEASES_API_URL,
-# GATEWAY_ARTIFACT_BASE_URL and GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS installer environment — customer automation; drop
+# legacy-name: pre-2.12.1 names of the installer environment — customer automation; drop
 # with a changelog notice. Each is read when its OPFIELD_* name is not set (the new name wins).
 for legacy_env in GATEWAY_NODE_HOST GATEWAY_NODE_PORT GATEWAY_NODE_ADDRESS GATEWAY_NODE_TOKEN GATEWAY_NODE_CERT_SHA256 \
     GATEWAY_NODE_DAEMON_VERSION GATEWAY_NODE_DISABLE_CONSOLE GATEWAY_NODE_DISABLE_FILES \
@@ -224,10 +223,10 @@ MONITORING_BIN_LINK="/usr/local/bin/monitoring-daemon"
 MONITORING_OWN_DIR="/usr/local/lib/monitoring-daemon"
 MONITORING_OWN_BINARY="${MONITORING_OWN_DIR}/bin/monitoring-daemon"
 MONITORING_OWN_HOST_IDENTITY="/var/lib/monitoring-daemon/host-identity"
-# The identity root daemons of one host share. The daemons move /var/lib/gateway to /var/lib/opfield themselves (after
-# a start their launcher confirmed) and leave /var/lib/gateway as a link to it; the installer never moves it.
+# The identity root daemons of one host share. The daemons move the legacy state root to /var/lib/opfield themselves
+# (after a start their launcher confirmed) and leave it as a link to it; the installer never moves it.
 SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
-# legacy-name: /var/lib/gateway shared host identity directory of daemons before 2.12.1 — remove once every node
+# legacy-name: the legacy shared host identity directory of daemons before 2.12.1 — remove once every node
 # reports none
 LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
 
@@ -362,7 +361,7 @@ new_host_identity() {
 }
 
 # The shared host identity: at /var/lib/opfield when it is there (a file, or through a linked directory), else at the
-# legacy /var/lib/gateway when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
+# legacy state root when that has one, else a new one is created at /var/lib/opfield. With neither, both are looked
 # at once more after a pause: a daemon moving the directory right then must not make the host look like a new one.
 shared_host_identity_path() {
     local current="${SHARED_HOST_IDENTITY_DIR}/host-identity"
@@ -383,7 +382,7 @@ shared_host_identity_path() {
     echo "$current"
 }
 
-# A shared identity directory created at /var/lib/opfield gets /var/lib/gateway as a link to it, the layout the daemons
+# A shared identity directory created at /var/lib/opfield gets the legacy state root as a link to it, the layout the daemons
 # leave after they move the directory, so a daemon of an earlier release on this host finds the same identity.
 link_legacy_host_identity_dir() {
     [[ -d "$SHARED_HOST_IDENTITY_DIR" && ! -L "$SHARED_HOST_IDENTITY_DIR" ]] || return 0
@@ -457,7 +456,7 @@ clear_config_host_identity_path() {
 # The installer removes the record before it starts the daemon, so only a session of the daemon it started counts.
 CONTROL_SESSION_SINCE="v2.11.1-rc.2"
 CONTROL_SESSION_FILE="/var/lib/monitoring-daemon/control-session.json"
-# legacy-name: gateway-session.json session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
+# legacy-name: the legacy session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
 # every node reports none
 LEGACY_CONTROL_SESSION_FILE="/var/lib/monitoring-daemon/gateway-session.json"
 CONTROL_SESSION_STARTED=0
@@ -915,7 +914,7 @@ refuse_token_for_enrolled_node() {
     die "The host is already enrolled; the new node stays pending in Opfield."
 }
 
-# The address: of a top-level section (opfield: or gateway:) of the daemon configuration, without quotes or comment.
+# The address: of a top-level section (opfield: or the pre-Opfield one) of the daemon configuration, without quotes or comment.
 config_section_address() {
     awk -v section="$2" '
         $0 ~ ("^" section ":[[:space:]]*(#.*)?$") { in_section = 1; next }
