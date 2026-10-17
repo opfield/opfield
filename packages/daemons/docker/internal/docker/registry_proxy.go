@@ -309,6 +309,14 @@ func (m *dockerRegistryProxyManager) serveHTTP(response http.ResponseWriter, req
 	}
 	binding := m.bindingForRepository(repository, action)
 	if binding == nil {
+		if repository != "" && !m.grantsRepository(repository, action) {
+			// A refusal, not an outage: Opfield grants a node only the images of the workloads placed on it. The
+			// registry error body makes docker pull print "denied: ..." instead of a bare 503.
+			writeRegistryDenied(response, fmt.Sprintf(
+				"this node has no %s grant for %s: Opfield grants a node only the images of the workloads placed on it",
+				action, repository))
+			return
+		}
 		http.Error(response, "registry authorization is unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -396,6 +404,31 @@ func (m *dockerRegistryProxyManager) bindingForRepository(repository, action str
 		}
 	}
 	return nil
+}
+
+// grantsRepository reports whether the node holds a grant for the repository and action at all, also one that is
+// expiring and about to be renewed (then the request waits for authorization: 503, not a refusal).
+func (m *dockerRegistryProxyManager) grantsRepository(repository, action string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, binding := range m.bindings {
+		if binding.repository != repository {
+			continue
+		}
+		if _, allowed := binding.actions[action]; allowed {
+			return true
+		}
+	}
+	return false
+}
+
+// writeRegistryDenied answers 403 with a registry API error body (DENIED), which Docker shows to the user.
+func writeRegistryDenied(response http.ResponseWriter, message string) {
+	response.Header().Set("Content-Type", "application/json")
+	response.WriteHeader(http.StatusForbidden)
+	_ = json.NewEncoder(response).Encode(map[string]any{
+		"errors": []map[string]string{{"code": "DENIED", "message": message}},
+	})
 }
 
 func registryRequestScope(method, path string) (string, string, bool) {

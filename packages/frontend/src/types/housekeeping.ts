@@ -151,5 +151,6 @@ export interface HousekeepingDockerImageNode {
   nodeName: string;
   removableNow: { count: number; bytes: number };
   waiting: { count: number; bytes: number; nextRemovableAt: string | null };
+  danglingWaiting?: { count: number; bytes: number };
   error?: string;
 }

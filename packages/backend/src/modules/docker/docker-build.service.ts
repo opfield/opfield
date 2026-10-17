@@ -27,6 +27,7 @@ export class DockerBuildService {
   // biome-ignore lint/complexity/noUselessConstructor: Preserve the private factory ABI.
   constructor(_db: DrizzleClient) {}
   setEventBus(_eventBus: EventBusService): void {}
+  setClaimGuard(_guard: () => Promise<boolean>): void {}
   setAdmissionGuard(_guard: () => Promise<void>): void {}
   setLicenseGuard(_guard: () => Promise<void>): void {}
   setArtifactRollout(

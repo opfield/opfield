@@ -1140,6 +1140,8 @@ export async function initializeContainer(): Promise<void> {
     : null;
   if (dockerBuildRunnerService) container.registerInstance(DockerBuildRunnerService, dockerBuildRunnerService);
   dockerBuildService.setLicenseGuard(() => licensePolicyService.requireFeature('git-push-to-deploy'));
+  // Builds queued before a registry collection began wait for it instead of failing against the restarting registry.
+  dockerBuildService.setClaimGuard(() => dockerInternalRegistryService.canClaimBuilds());
   dockerBuildService.setAdmissionGuard(async () => {
     await dockerInternalRegistryService.assertBuildAdmission();
     if (!dockerBuildRunnerService) {

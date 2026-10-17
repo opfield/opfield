@@ -330,6 +330,11 @@ export interface DockerImageNodeBreakdown {
   removableNow: { count: number; bytes: number };
   /** Unused images still within their 2-minute or 12-hour wait; `nextRemovableAt` is the earliest end of one. */
   waiting: { count: number; bytes: number; nextRemovableAt: string | null };
+  /**
+   * Of `waiting`, the dangling images: Housekeeping waits 12 hours for them, while a manual prune (and its dry run)
+   * removes them at once, so the two views count them differently.
+   */
+  danglingWaiting: { count: number; bytes: number };
   /** The node did not answer: its images are not counted. */
   error?: string;
 }
@@ -1249,6 +1254,10 @@ export class HousekeepingService {
             ? { count: result.candidates.length, bytes: sum(result.candidates) }
             : { count: result.removed.length, bytes: result.freedBytes },
           waiting: { count: result.waiting.length, bytes: sum(result.waiting), nextRemovableAt },
+          danglingWaiting: {
+            count: result.waiting.filter((candidate) => candidate.repository === null).length,
+            bytes: sum(result.waiting.filter((candidate) => candidate.repository === null)),
+          },
         });
         if (dryRun) {
           // Every old image the rules remove, also those still within their minimum unused time.
@@ -1266,6 +1275,7 @@ export class HousekeepingService {
           nodeName,
           removableNow: { count: 0, bytes: 0 },
           waiting: { count: 0, bytes: 0, nextRemovableAt: null },
+          danglingWaiting: { count: 0, bytes: 0 },
           error: error instanceof Error ? error.message : String(error),
         });
       }
