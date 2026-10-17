@@ -43,6 +43,36 @@ func sweepUpdateLeftovers(dir string, now time.Time) int {
 	return removed
 }
 
+// installerBackupAge: the installer keeps the binary it replaced as <binary>.backup.<YYYYMMDD_HHMMSS> for a manual
+// rollback. Past this age the running binary has proven itself, and the copy (14-28 MB per daemon) goes.
+const installerBackupAge = 14 * 24 * time.Hour
+
+// sweepInstallerBackups removes the installer's backups of this daemon's own binary (only <binary>.backup.<stamp>
+// next to it, never another program's file) older than installerBackupAge, and returns how many.
+func sweepInstallerBackups(executable string, now time.Time) int {
+	dir, base := filepath.Dir(executable), filepath.Base(executable)
+	pattern := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `\.backup\.[0-9]{8}_[0-9]{6}$`)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	removed := 0
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() || !pattern.MatchString(entry.Name()) {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() || info.ModTime().After(now.Add(-installerBackupAge)) {
+			continue
+		}
+		if os.Remove(path) == nil {
+			removed++
+		}
+	}
+	return removed
+}
+
 func hasUpdateLeftoverPrefix(name string) bool {
 	for _, prefix := range updateLeftoverPrefixes {
 		if strings.HasPrefix(name, prefix) {

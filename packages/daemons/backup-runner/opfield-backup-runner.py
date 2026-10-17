@@ -323,7 +323,10 @@ def preflight(config):
     else:
         assert_empty_target(engine, config["restoreTarget"])
     probe = WORK / "probe"; probe.write_bytes(b"opfield-backup-probe")
-    remote = remote_key(config["destination"], f"{config['runId']}/.probe")
+    # Inside the run's own directory under the policy prefix: a key limited to the prefix can write it, and no empty
+    # <runId>/ folder shows at the bucket root (stand rc.3, housekeeping O-9).
+    owned_prefix = safe_part(config["destination"].get("prefix", "database-backups")) + "/" + config["runId"]
+    remote = remote_key(config["destination"], f"{owned_prefix}/.probe")
     with cleanup_after(lambda: delete_object(config["destination"], remote)):
         try:
             upload(config["destination"], probe, remote)

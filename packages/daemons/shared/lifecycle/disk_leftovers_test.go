@@ -122,3 +122,24 @@ func TestSweepStateLeftoversRemovesOnlyOldWriterTemporaries(t *testing.T) {
 		}
 	}
 }
+
+// rc.3 stand O-12: every installer run left <daemon>.backup.<timestamp> next to the binary forever.
+func TestSweepInstallerBackupsRemovesOnlyOldBackupsOfThisBinary(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	old := now.Add(-20 * 24 * time.Hour)
+	binary := filepath.Join(dir, "docker-daemon")
+	touchAt(t, binary, old)
+	touchAt(t, binary+".backup.20261013_110700", old)
+	touchAt(t, binary+".backup.20261016_090000", now.Add(-24*time.Hour))
+	touchAt(t, filepath.Join(dir, "nginx-daemon.backup.20261013_110800"), old)
+	touchAt(t, filepath.Join(dir, "docker-daemon.backup.manual"), old)
+	if removed := sweepInstallerBackups(binary, now); removed != 1 {
+		t.Fatalf("removed %d, want 1", removed)
+	}
+	for _, name := range []string{"docker-daemon", "docker-daemon.backup.20261016_090000", "nginx-daemon.backup.20261013_110800", "docker-daemon.backup.manual"} {
+		if _, err := os.Lstat(filepath.Join(dir, name)); err != nil {
+			t.Fatalf("%s removed: %v", name, err)
+		}
+	}
+}

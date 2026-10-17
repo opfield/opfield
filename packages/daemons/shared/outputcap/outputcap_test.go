@@ -78,3 +78,21 @@ func TestCutWithoutAKnownPathStillBoundsTheFile(t *testing.T) {
 		t.Fatal("a tail was written without a path")
 	}
 }
+
+// rc.3 stand O-10: the kept tail was created 0600 while the live log is 0640.
+func TestCutKeepsTheModeOfTheLiveLog(t *testing.T) {
+	file, path := openLog(t, os.O_WRONLY|os.O_APPEND, 1000)
+	if err := os.Chmod(path, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Cut(int(file.Fd()), path, 1000, 300); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path + ".1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o640 {
+		t.Fatalf("mode %v, want 0640", info.Mode().Perm())
+	}
+}
