@@ -101,9 +101,11 @@ export async function withVolumeUsedBytes<T extends Record<string, any>>(
   nodeId: string,
   volumes: T[]
 ): Promise<Array<T & { usedBytes: number | null }>> {
-  const metrics = await container
-    .resolve(DockerSnapshotService)
-    .getDetails<{ usedBytes?: number | null }>(nodeId, 'volume-metrics')
+  // Sizes only decorate the list: without a measurement (or the snapshot store) every volume reads null.
+  const metrics = await Promise.resolve()
+    .then(() =>
+      container.resolve(DockerSnapshotService).getDetails<{ usedBytes?: number | null }>(nodeId, 'volume-metrics')
+    )
     .catch(() => ({}) as Record<string, { data?: { usedBytes?: number | null } }>);
   return volumes.map((volume) => {
     const used = metrics[String(volume.name ?? volume.Name ?? '')]?.data?.usedBytes;
