@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'fs';
+import { createRequire } from 'module';
 import path from 'path';
 import { defineConfig } from 'vitest/config';
 
@@ -25,6 +26,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Every file gets the decorator metadata polyfill tsyringe needs, so a file of the shared project never depends on
+    // an earlier file of its worker having loaded it.
+    setupFiles: [createRequire(import.meta.url).resolve('reflect-metadata')],
     // Worker threads start faster than forked processes; the suite has no process-level state.
     pool: 'threads',
     projects: [
