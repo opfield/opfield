@@ -13,7 +13,7 @@ COPY packages/daemons/shared ./packages/daemons/shared
 COPY packages/relay ./packages/relay
 WORKDIR /src/packages/relay
 # The bundled relay reports the image's APP_VERSION, so one build serves every tag of a commit.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /gateway-relay ./cmd/opfield-relay
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /opfield-relay ./cmd/opfield-relay
 
 FROM ${NODE_IMAGE} AS base
 
@@ -53,8 +53,15 @@ RUN pnpm --filter backend build
 # ── Production image ────────────────────────────────────────────────
 FROM ${NODE_IMAGE} AS production
 
+# Installations made before 2.12.3 mount their data at the legacy-compat.sh paths: links to the Opfield directories,
+# through which Docker mounts those volumes there.
+COPY scripts/legacy-compat.sh /tmp/legacy-compat.sh
 RUN apk add --no-cache git nginx openssl xorriso tini && \
-    mkdir -p /var/lib/gateway/tls /var/lib/gateway/sandbox-workspaces && \
+    mkdir -p /var/lib/opfield/tls /var/lib/opfield/sandbox-workspaces /var/lib/opfield-relay /var/lib/opfield-registry-auth && \
+    . /tmp/legacy-compat.sh && \
+    ln -s /var/lib/opfield "$LEGACY_APP_DATA_DIR" && \
+    ln -s /var/lib/opfield-relay "$LEGACY_RELAY_IDENTITY_DIR" && \
+    ln -s /var/lib/opfield-registry-auth "$LEGACY_REGISTRY_AUTH_DIR" && \
     corepack enable && \
     corepack prepare pnpm@9.15.0 --activate
 
@@ -86,7 +93,8 @@ COPY --from=status-page-builder /app/packages/status-page/dist ./status-public
 # Pre-generic Opfield releases pass the signed app image to the relay service
 # during the first self-update, so keep a one-hop relay binary in that image.
 # legacy-name: the relay entrypoint path those releases start — remove once every install is past them
-COPY --from=relay-bridge-builder /gateway-relay /gateway-relay
+COPY --from=relay-bridge-builder /opfield-relay /opfield-relay
+RUN . /tmp/legacy-compat.sh && ln -s /opfield-relay "${LEGACY_RELAY_BINARY}" && rm /tmp/legacy-compat.sh
 COPY scripts/healthcheck.mjs /app/healthcheck.mjs
 
 ARG APP_VERSION=dev

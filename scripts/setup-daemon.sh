@@ -2,6 +2,10 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# legacy-compat: scripts/stage-installers.sh puts scripts/legacy-compat.sh in place of this line.
+# shellcheck source=legacy-compat.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"
+
 # ── Opfield Daemon Setup — Dispatcher ───────────────────────────────
 # Downloads and runs the appropriate setup script for a daemon type.
 #
@@ -25,19 +29,20 @@ ERROR_TAG='\033[48;2;96;61;43m\033[38;2;245;221;202m'
 # ── Defaults ────────────────────────────────────────────────────────
 # legacy-name: pre-2.12.1 installer environment —
 # customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is not set (the new name wins).
-for legacy_env in GATEWAY_SETUP_SCRIPT_DIR GATEWAY_SETUP_VERSION GATEWAY_RELEASE_DOWNLOAD_BASE; do
-    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+for legacy_suffix in SETUP_SCRIPT_DIR SETUP_VERSION RELEASE_DOWNLOAD_BASE; do
+    legacy_env="${LEGACY_ENV_PREFIX}${legacy_suffix}"
+    opfield_env="OPFIELD_${legacy_suffix}"
     if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
         printf -v "$opfield_env" '%s' "${!legacy_env}"
     fi
 done
-unset legacy_env opfield_env
+unset legacy_suffix legacy_env opfield_env
 DAEMON_TYPE=""
 LOCAL_SCRIPT_DIR="${OPFIELD_SETUP_SCRIPT_DIR:-}"
 # A release publishes this file with its own tag here, so the node installers come from the same release.
 INSTALLER_RELEASE=latest
 SETUP_VERSION="${OPFIELD_SETUP_VERSION:-$INSTALLER_RELEASE}"
-RELEASE_DOWNLOAD_BASE="${OPFIELD_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/gateway/releases}"
+RELEASE_DOWNLOAD_BASE="${OPFIELD_RELEASE_DOWNLOAD_BASE:-https://get.opfield.dev/opfield/releases}"
 PASSTHROUGH_ARGS=()
 
 # ── Helpers ─────────────────────────────────────────────────────────
@@ -247,10 +252,10 @@ else
     trap 'rm -rf "$TMPDIR"' EXIT
     CHECKSUMS="${TMPDIR}/opfield-node-installers.sha256"
     log "Downloading verified ${SCRIPT_NAME} from Opfield releases..."
-    # legacy-name: gateway-daemon-installers.sha256, the only checksum list of releases before 2.12.1 (a pinned
+    # legacy-name: LEGACY_INSTALLER_CHECKSUMS_ASSET, the only checksum list of releases before 2.12.1 (a pinned
     # --version) — remove once the installers no longer install such a release.
     curl -fsSL "${RELEASE_URL}/opfield-node-installers.sha256" -o "$CHECKSUMS" 2>/dev/null ||
-        curl -fsSL "${RELEASE_URL}/gateway-daemon-installers.sha256" -o "$CHECKSUMS" ||
+        curl -fsSL "${RELEASE_URL}/${LEGACY_INSTALLER_CHECKSUMS_ASSET}" -o "$CHECKSUMS" ||
         die "Failed to download installer checksums from ${RELEASE_URL}"
 
     fetch_verified() {

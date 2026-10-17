@@ -244,7 +244,7 @@ pnpm build:all
 ## Release Images
 
 Workflows `Image` and `Release` publish every image (`…/relay`, `…/secure-link-connector`, `…/backup-runner`,
-`…/seaweedfs-opfield`, the managed PostgreSQL images `…/postgres` and extension bundles `…/postgres-ext/<id>` of
+the patched SeaweedFS build, the managed PostgreSQL images `…/postgres` and extension bundles `…/postgres-ext/<id>` of
 `packages/daemons/postgres-image`, the third-party mirrors) under one repository, resolved by
 `scripts/release/image-repositories.sh`:
 

@@ -36,7 +36,7 @@
     "db:generate": "nx run backend:db:generate",
     "db:migrate": "nx run backend:db:migrate",
     "db:studio": "nx run backend:db:studio",
-    "dev:connector": "docker build --file packages/daemons/secure-link-connector/Dockerfile --tag gateway-secure-link-connector:dev packages/daemons",
+    "dev:connector": "docker build --file packages/daemons/secure-link-connector/Dockerfile --tag opfield-secure-link-connector:dev packages/daemons",
     "dev:infra": "pnpm run dev:connector && docker compose -f docker-compose.dev.yml up -d",
     "dev:infra:down": "docker compose -f docker-compose.dev.yml down",
     "graph": "nx graph"

@@ -6,7 +6,7 @@
 import { cpSync, existsSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const checkout = process.argv[2] ?? ['../opfield-skills', '../gateway-skills'].find((path) => existsSync(path)) ?? '../opfield-skills';
+const checkout = process.argv[2] ?? '../opfield-skills';
 const source = join(resolve(checkout), 'skills');
 const target = resolve('skills');
 if (!existsSync(source)) {

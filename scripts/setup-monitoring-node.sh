@@ -2,6 +2,10 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# legacy-compat: scripts/stage-installers.sh puts scripts/legacy-compat.sh in place of this line.
+# shellcheck source=legacy-compat.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"
+
 # ── Opfield Monitoring Node Setup ──────────────────────────────────
 # Installs monitoring-daemon on a host and enrolls it with Opfield.
 # No nginx or Docker required — this agent reports system metrics only.
@@ -30,16 +34,15 @@ SUCCESS_TAG='\033[42m\033[97m'
 # ── Defaults ──────────────────────────────────────────────────────
 # legacy-name: pre-2.12.1 names of the installer environment — customer automation; drop
 # with a changelog notice. Each is read when its OPFIELD_* name is not set (the new name wins).
-for legacy_env in GATEWAY_NODE_HOST GATEWAY_NODE_PORT GATEWAY_NODE_ADDRESS GATEWAY_NODE_TOKEN GATEWAY_NODE_CERT_SHA256 \
-    GATEWAY_NODE_DAEMON_VERSION GATEWAY_NODE_DISABLE_CONSOLE GATEWAY_NODE_DISABLE_FILES \
-    GATEWAY_MONITORING_ENROLLMENT_WAIT_SECONDS GATEWAY_RELEASES_API_URL GATEWAY_ARTIFACT_BASE_URL \
-    GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS; do
-    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+for legacy_suffix in NODE_HOST NODE_PORT NODE_ADDRESS NODE_TOKEN NODE_CERT_SHA256 NODE_DAEMON_VERSION \
+    NODE_DISABLE_CONSOLE NODE_DISABLE_FILES MONITORING_ENROLLMENT_WAIT_SECONDS RELEASES_API_URL ARTIFACT_BASE_URL MANUAL_LAUNCH_TIMEOUT_SECONDS; do
+    legacy_env="${LEGACY_ENV_PREFIX}${legacy_suffix}"
+    opfield_env="OPFIELD_${legacy_suffix}"
     if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
         printf -v "$opfield_env" '%s' "${!legacy_env}"
     fi
 done
-unset legacy_env opfield_env
+unset legacy_suffix legacy_env opfield_env
 OPFIELD_HOST="${OPFIELD_NODE_HOST:-}"
 OPFIELD_PORT="${OPFIELD_NODE_PORT:-9443}"
 OPFIELD_ADDR="${OPFIELD_NODE_ADDRESS:-}"
@@ -48,8 +51,8 @@ OPFIELD_CERT_SHA256="${OPFIELD_NODE_CERT_SHA256:-}"
 DAEMON_VERSION="${OPFIELD_NODE_DAEMON_VERSION:-latest}"
 DISABLE_CONSOLE="${OPFIELD_NODE_DISABLE_CONSOLE:-0}"
 DISABLE_FILES="${OPFIELD_NODE_DISABLE_FILES:-0}"
-RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
-ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
+RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-https://get.opfield.dev/opfield/releases}"
+ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/opfield}"
 RUN_USER=""
 NON_INTERACTIVE=0
 NO_LOGO=0
@@ -228,7 +231,7 @@ MONITORING_OWN_HOST_IDENTITY="/var/lib/monitoring-daemon/host-identity"
 SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
 # legacy-name: the legacy shared host identity directory of daemons before 2.12.1 — remove once every node
 # reports none
-LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
+LEGACY_SHARED_HOST_IDENTITY_DIR="$LEGACY_STATE_ROOT"
 
 # Reads an installed binary's version. A binary another user can replace is never run as root.
 daemon_binary_version() {
@@ -247,7 +250,7 @@ daemon_binary_version() {
 # user, who replaces it on update, so root must never execute it. The wrapper switches a root caller to that user.
 DAEMON_WRAPPER_MARK="# opfield-daemon-wrapper: runs the service user's binary, never as root"
 # legacy-name: wrapper marker written by installers before 2.12.1 — remove once every node reports none
-LEGACY_DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
+LEGACY_DAEMON_WRAPPER_MARK="$LEGACY_DAEMON_WRAPPER_LINE"
 write_daemon_wrapper() {
     local command_path="$1" binary="$2" temporary
     temporary=$(mktemp "$(dirname "$command_path")/.opfield-daemon-wrapper.XXXXXX") || return 1
@@ -365,7 +368,7 @@ new_host_identity() {
 # at once more after a pause: a daemon moving the directory right then must not make the host look like a new one.
 shared_host_identity_path() {
     local current="${SHARED_HOST_IDENTITY_DIR}/host-identity"
-    # legacy-name: /var/lib/gateway/host-identity of daemons before 2.12.1 — remove once every node reports none
+    # legacy-name: host-identity in the legacy state root of daemons before 2.12.1 — remove once every node reports none
     local legacy="${LEGACY_SHARED_HOST_IDENTITY_DIR}/host-identity"
     local attempt
     for attempt in 1 2; do
@@ -458,7 +461,7 @@ CONTROL_SESSION_SINCE="v2.11.1-rc.2"
 CONTROL_SESSION_FILE="/var/lib/monitoring-daemon/control-session.json"
 # legacy-name: the legacy session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
 # every node reports none
-LEGACY_CONTROL_SESSION_FILE="/var/lib/monitoring-daemon/gateway-session.json"
+LEGACY_CONTROL_SESSION_FILE="/var/lib/monitoring-daemon/${LEGACY_SESSION_FILE_NAME}"
 CONTROL_SESSION_STARTED=0
 
 forget_control_session() {
@@ -947,9 +950,9 @@ detect_existing_install() {
 
     if [[ -f "$config_path" ]]; then
         EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" opfield)
-        # legacy-name: gateway: section of /etc/monitoring-daemon/config.yaml written before 2.12.1 — remove once every
+        # legacy-name: the pre-Opfield section of /etc/monitoring-daemon/config.yaml written before 2.12.1 — remove once every
         # node reports none
-        [[ -n "$EXISTING_OPFIELD_ADDR" ]] || EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" gateway)
+        [[ -n "$EXISTING_OPFIELD_ADDR" ]] || EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" "$LEGACY_CONFIG_SECTION")
         if [[ -z "$EXISTING_OPFIELD_ADDR" ]]; then
             EXISTING_OPFIELD_ADDR=$(awk -F'"' '/^[[:space:]]*address:[[:space:]]*"/ {print $2; exit}' "$config_path")
         fi
@@ -1207,14 +1210,14 @@ OPFIELD_CERT_SHA256_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --opfield)        OPFIELD_ADDR_FLAG="$2"; shift 2 ;;
-        # legacy-name: --gateway flag — customer automation; drop with a changelog notice
-        --gateway)        LEGACY_ADDR_FLAG="$2"; shift 2 ;;
+        # legacy-name: LEGACY_ADDRESS_FLAG — customer automation; drop with a changelog notice
+        "$LEGACY_ADDRESS_FLAG") LEGACY_ADDR_FLAG="$2"; shift 2 ;;
         --host)           OPFIELD_HOST="$2"; shift 2 ;;
         --port)           OPFIELD_PORT="$2"; shift 2 ;;
         --token)          ENROLL_TOKEN="$2"; shift 2 ;;
         --opfield-cert-sha256) OPFIELD_CERT_SHA256_FLAG="$2"; shift 2 ;;
-        # legacy-name: --gateway-cert-sha256 flag — customer automation; drop with a changelog notice
-        --gateway-cert-sha256) LEGACY_CERT_SHA256_FLAG="$2"; shift 2 ;;
+        # legacy-name: LEGACY_CERT_FLAG — customer automation; drop with a changelog notice
+        "$LEGACY_CERT_FLAG") LEGACY_CERT_SHA256_FLAG="$2"; shift 2 ;;
         --version)        DAEMON_VERSION="$2"; shift 2 ;;
         --user)           RUN_USER="$2"; shift 2 ;;
         --disable-console) DISABLE_CONSOLE=1; shift ;;
@@ -1650,10 +1653,10 @@ enroll_daemon() {
 
     log "Writing config and enrolling with Opfield..."
     if ! daemon_install_takes_opfield_flags "$target"; then
-        # legacy-name: --gateway and --gateway-cert-sha256 install flags of monitoring-daemon before 2.12.1 — remove once
+        # legacy-name: the address and fingerprint install flags of monitoring-daemon before 2.12.1 — remove once
         # the installer no longer installs a monitoring-daemon release before 2.12.1
-        address_flag="--gateway"
-        cert_flag="--gateway-cert-sha256"
+        address_flag="$LEGACY_ADDRESS_FLAG"
+        cert_flag="$LEGACY_CERT_FLAG"
     fi
     if ! run_as_run_user "$target" install "$address_flag" "$OPFIELD_ADDR" --token "$ENROLL_TOKEN" "$cert_flag" "$OPFIELD_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
         die "Failed to enroll monitoring-daemon. Check ${LOG_FILE} for details."

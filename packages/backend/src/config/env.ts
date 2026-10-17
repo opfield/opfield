@@ -6,7 +6,7 @@ import {
   UPDATES_BASE_URL,
 } from './vendor-urls.js';
 
-export const DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE = 'gateway-secure-link-connector:dev';
+export const DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE = 'opfield-secure-link-connector:dev';
 export const BUILT_IN_GITHUB_OAUTH_CLIENT_ID = 'Ov23likbDL1gM8asWzfC';
 const IMMUTABLE_CONNECTOR_IMAGE_PATTERN = /^.+@sha256:[0-9a-f]{64}$/i;
 const OFFICIAL_CONNECTOR_RELEASE_TAG_PATTERN =

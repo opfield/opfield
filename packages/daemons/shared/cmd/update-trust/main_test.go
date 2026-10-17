@@ -21,15 +21,15 @@ func TestRelayManifestIncludesOnlySecureLinkConnectorImage(t *testing.T) {
 
 	out := filepath.Join(t.TempDir(), "relay-image.update.json")
 	digest := "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	secureLinkConnector := "registry.example/gateway/secure-link-connector@" + digest
+	secureLinkConnector := "registry.example/opfield/secure-link-connector@" + digest
 	sign([]string{
 		"--kind", "relay-image",
 		"--version", "v1.2.3",
 		"--tag", "v1.2.3-relay",
-		"--image", "registry.example/gateway/relay",
+		"--image", "registry.example/opfield/relay",
 		"--digest", digest,
 		"--relay-protocol-major", "1",
-		"--min-gateway-version", "v1.2.3",
+		"--min-opfield-version", "v1.2.3",
 		"--secure-link-connector-image", secureLinkConnector,
 		"--out", out,
 	})
@@ -74,7 +74,7 @@ func TestWitnessManifestIsAWitnessBinary(t *testing.T) {
 		"--version", "25.8.28.1",
 		"--arch", "arm64",
 		"--artifact-name", "witness-clickhouse-keeper-25.8.28.1-linux-arm64",
-		"--download-url", "https://updates.example/gateway/witness-clickhouse-keeper/v2.12.0/witness-clickhouse-keeper-25.8.28.1-linux-arm64",
+		"--download-url", "https://updates.example/opfield/witness-clickhouse-keeper/v2.12.0/witness-clickhouse-keeper-25.8.28.1-linux-arm64",
 		"--sha256", sha,
 		"--out", out,
 	})

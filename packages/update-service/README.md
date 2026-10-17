@@ -3,7 +3,7 @@
 Cloudflare Worker for the stable public Opfield update namespace at
 `get.opfield.dev/opfield`. The same Worker keeps serving the earlier path namespace (releases up to 2.12.2 use it) and
 the earlier host `updates.thesqlabs.com` (releases up to 2.11); all answer identically. The earlier namespace is kept
-in `src/legacy-compat.ts`.
+in `packages/backend/src/lib/legacy-compat.ts`.
 
 It exposes:
 

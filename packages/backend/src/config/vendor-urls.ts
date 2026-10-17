@@ -12,7 +12,6 @@
 export const LICENSE_SERVICE_URLS: readonly string[] = [
   'https://license.opfield.dev',
   'https://license.thesqlabs.com',
-  'https://license.wiolett.cloud',
 ];
 /** The signed list of license service addresses, served by the update Worker under every update host name. */
 export const LICENSE_ENDPOINTS_DOCUMENT = 'license-endpoints.json';

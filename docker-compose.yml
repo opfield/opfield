@@ -23,13 +23,13 @@ services:
       - GITHUB_OAUTH_CLIENT_ID
       - SETUP_BOOTSTRAP=${SETUP_BOOTSTRAP:-false}
       - WEB_TLS_BOOTSTRAP_MODE=${WEB_TLS_BOOTSTRAP_MODE:-http}
-      - WEB_TLS_AUTO_DIR=${WEB_TLS_AUTO_DIR:-/var/lib/gateway/tls}
+      - WEB_TLS_AUTO_DIR=${WEB_TLS_AUTO_DIR:-/var/lib/opfield/tls}
       - PKI_MASTER_KEY=${PKI_MASTER_KEY}
       - HEALTH_CHECK_INTERVAL_SECONDS=${HEALTH_CHECK_INTERVAL_SECONDS:-30}
       - ACME_RENEWAL_CRON=${ACME_RENEWAL_CRON:-0 3 * * *}
       - EXPIRY_CHECK_CRON=${EXPIRY_CHECK_CRON:-0 6 * * *}
       - GRPC_PORT=${GRPC_PORT:-9443}
-      - GRPC_TLS_AUTO_DIR=${GRPC_TLS_AUTO_DIR:-/var/lib/gateway/tls}
+      - GRPC_TLS_AUTO_DIR=${GRPC_TLS_AUTO_DIR:-/var/lib/opfield/tls}
       - SANDBOX_RUNNER_WORKSPACE_DIR=${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}
       - GRPC_TLS_CERT=${GRPC_TLS_CERT:-}
       - GRPC_TLS_KEY=${GRPC_TLS_KEY:-}
@@ -37,21 +37,21 @@ services:
       - OPFIELD_RELAY_REQUIRED=${OPFIELD_RELAY_REQUIRED:-true}
       - OPFIELD_RELAY_MANAGED=${OPFIELD_RELAY_MANAGED:-false}
       - OPFIELD_RELAY_TARGET=${OPFIELD_RELAY_TARGET:-relay:9443}
-      - OPFIELD_RELAY_IDENTITY_DIR=/var/lib/gateway-relay
+      - OPFIELD_RELAY_IDENTITY_DIR=/var/lib/opfield-relay
       - OPFIELD_RELAY_IMAGE_REF=${OPFIELD_RELAY_IMAGE_REF:-opfield-relay:local}
       - OPFIELD_RELAY_SERVICE_NAME=relay
       - OPFIELD_RELAY_BUILD_VERSION=${OPFIELD_RELAY_BUILD_VERSION:-dev}
       - OPFIELD_RELAY_PROTOCOL_MAJOR=${OPFIELD_RELAY_PROTOCOL_MAJOR:-1}
-      - OPFIELD_REGISTRY_AUTH_DIR=/var/lib/gateway-registry-auth
+      - OPFIELD_REGISTRY_AUTH_DIR=/var/lib/opfield-registry-auth
       - OPFIELD_REGISTRY_TOKEN_SERVICE=opfield-internal-registry
       - PUBLIC_IPV4=${PUBLIC_IPV4:-}
       - PUBLIC_IPV6=${PUBLIC_IPV6:-}
       - APP_VERSION=${OPFIELD_VERSION:-dev}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - app_data:/var/lib/gateway
-      - relay_identity:/var/lib/gateway-relay
-      - registry_auth:/var/lib/gateway-registry-auth
+      - app_data:/var/lib/opfield
+      - relay_identity:/var/lib/opfield-relay
+      - registry_auth:/var/lib/opfield-registry-auth
       # opfield-managed:start sandbox-workspace
       - ${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}:${SANDBOX_RUNNER_WORKSPACE_DIR:-/var/lib/opfield/sandbox-workspaces}
       # opfield-managed:end sandbox-workspace
@@ -81,16 +81,16 @@ services:
     labels:
       net.opfield.managed-service: relay
     environment:
-      - RELAY_IDENTITY_DIR=/var/lib/gateway-relay/identity
-      - RELAY_STATE_DIR=/var/lib/gateway-relay/state
+      - RELAY_IDENTITY_DIR=/var/lib/opfield-relay/identity
+      - RELAY_STATE_DIR=/var/lib/opfield-relay/state
       - RELAY_APP_GRPC_TARGET=app:9443
       - RELAY_POOL_ID=system
       - RELAY_INSTANCE_ID=00000000-0000-4000-8000-000000000001
     ports:
       - "9443:9443"
     volumes:
-      - relay_identity:/var/lib/gateway-relay/identity:ro
-      - relay_state:/var/lib/gateway-relay/state
+      - relay_identity:/var/lib/opfield-relay/identity:ro
+      - relay_state:/var/lib/opfield-relay/state
     healthcheck:
       test: ["CMD", "/opfield-relay", "healthcheck"]
       interval: 5s
@@ -116,7 +116,7 @@ services:
       REGISTRY_AUTH_TOKEN_REALM: ${OPFIELD_REGISTRY_TOKEN_REALM:-https://opfield.invalid/api/docker/registry/token}
       REGISTRY_AUTH_TOKEN_SERVICE: opfield-internal-registry
       REGISTRY_AUTH_TOKEN_ISSUER: opfield-internal-registry
-      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/gateway-registry-auth/token-cert.pem
+      REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE: /var/lib/opfield-registry-auth/token-cert.pem
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
       REGISTRY_HEALTH_STORAGEDRIVER_ENABLED: "true"
@@ -126,7 +126,7 @@ services:
       - "5000"
     volumes:
       - registry_data:/var/lib/registry
-      - registry_auth:/var/lib/gateway-registry-auth:ro
+      - registry_auth:/var/lib/opfield-registry-auth:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/debug/health >/dev/null"]
       interval: 10s

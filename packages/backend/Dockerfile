@@ -22,10 +22,14 @@ RUN apk add --no-cache openssl && corepack enable && corepack prepare pnpm@9.15.
 
 WORKDIR /app
 
-RUN addgroup --system --gid 1001 nodejs && \
+COPY scripts/legacy-compat.sh /tmp/legacy-compat.sh
+RUN . /tmp/legacy-compat.sh && \
+    addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs && \
-    mkdir -p /var/lib/gateway/tls && \
-    chown -R nodejs:nodejs /var/lib/gateway
+    mkdir -p /var/lib/opfield/tls && \
+    chown -R nodejs:nodejs /var/lib/opfield && \
+    ln -s /var/lib/opfield "$LEGACY_APP_DATA_DIR" && \
+    rm /tmp/legacy-compat.sh
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/backend/package.json packages/backend/

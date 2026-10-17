@@ -10,7 +10,9 @@ FROM scratch
 LABEL net.opfield.secure-link-connector.anchor="v1"
 # legacy-name: the pre-2.12.1 anchor label — remove once every node reports none.
 # docker-daemon 2.12.0 looks for this key, and the connector image Opfield pins is started by daemons of either version.
-LABEL wiolett.gateway.secure-link-connector.anchor="v1"
+# The release passes LEGACY_ANCHOR_LABEL from scripts/legacy-compat.sh; a local build carries only the Opfield label.
+ARG LEGACY_ANCHOR_LABEL=net.opfield.secure-link-connector.anchor
+LABEL ${LEGACY_ANCHOR_LABEL}="v1"
 COPY --from=build /secure-link-connector /secure-link-connector
 USER 65532:65532
 ENTRYPOINT ["/secure-link-connector"]

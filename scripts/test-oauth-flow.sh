@@ -6,7 +6,7 @@ AUTH_SERVER_URL="${AUTH_SERVER_URL:-${BASE_URL:-$RESOURCE_BASE_URL}}"
 CALLBACK_HOST="${CALLBACK_HOST:-127.0.0.1}"
 CALLBACK_PORT="${CALLBACK_PORT:-8765}"
 CALLBACK_PATH="${CALLBACK_PATH:-/callback}"
-CLIENT_NAME="${CLIENT_NAME:-Gateway OAuth CLI Test}"
+CLIENT_NAME="${CLIENT_NAME:-Opfield OAuth CLI Test}"
 SCOPES="${SCOPES:-nodes:details proxy:view}"
 RESOURCE="${RESOURCE:-$RESOURCE_BASE_URL/api}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
@@ -38,7 +38,7 @@ require_cmd node
 
 CALLBACK_URI="http://$CALLBACK_HOST:$CALLBACK_PORT$CALLBACK_PATH"
 TMP_DIR="${TMPDIR:-/tmp}"
-CODE_FILE="$(mktemp "$TMP_DIR/gateway-oauth-code.XXXXXX")"
+CODE_FILE="$(mktemp "$TMP_DIR/opfield-oauth-code.XXXXXX")"
 STATE="$(node -e "process.stdout.write(require('crypto').randomBytes(16).toString('base64url'))")"
 
 cleanup() {
@@ -188,7 +188,7 @@ echo
 
 if [ "$RESOURCE" = "$RESOURCE_BASE_URL/api" ]; then
   echo "Testing API access with GET $AUTH_SERVER_URL/api/nodes"
-  API_RESPONSE_FILE="$(mktemp "$TMP_DIR/gateway-oauth-api-response.XXXXXX")"
+  API_RESPONSE_FILE="$(mktemp "$TMP_DIR/opfield-oauth-api-response.XXXXXX")"
   API_STATUS="$(curl -sS -o "$API_RESPONSE_FILE" -w "%{http_code}" "$AUTH_SERVER_URL/api/nodes" -H "Authorization: Bearer $ACCESS_TOKEN")"
   if [ "$API_STATUS" -ge 200 ] && [ "$API_STATUS" -lt 300 ]; then
     NODE_COUNT="$(node -e "

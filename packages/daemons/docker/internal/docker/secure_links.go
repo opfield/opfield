@@ -26,7 +26,7 @@ import (
 
 const (
 	proxySecureLinkOwnerKind   = "proxy_host_secure_link"
-	developmentSecureLinkImage = "gateway-secure-link-connector:dev"
+	developmentSecureLinkImage = "opfield-secure-link-connector:dev"
 	secureLinkConnectorPathEnv = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 	secureLinkRecoveryWindow   = time.Second
 )

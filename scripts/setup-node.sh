@@ -2,6 +2,10 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# legacy-compat: scripts/stage-installers.sh puts scripts/legacy-compat.sh in place of this line.
+# shellcheck source=legacy-compat.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"
+
 # ── Opfield Nginx Node Setup ─────────────────────────────────────────
 # Installs nginx + nginx-daemon on a host and enrolls it with Opfield.
 #
@@ -33,17 +37,16 @@ TITLE_TAG='\033[48;2;140;176;132m\033[30m'
 # legacy-name: pre-2.12.1 names of the
 # installer environment — customer automation; drop with a changelog notice. Each is read when its OPFIELD_* name is
 # not set (the new name wins).
-for legacy_env in GATEWAY_NODE_HOST GATEWAY_NODE_PORT GATEWAY_NODE_ADDRESS GATEWAY_NODE_TOKEN GATEWAY_NODE_CERT_SHA256 \
-    GATEWAY_NODE_DAEMON_VERSION GATEWAY_NODE_SKIP_NGINX GATEWAY_NODE_DISABLE_CONSOLE GATEWAY_NODE_DISABLE_FILES \
-    GATEWAY_NODE_NGINX_MODE GATEWAY_NODE_APT_LOCK_RETRY_ATTEMPTS GATEWAY_NODE_APT_LOCK_RETRY_DELAY_SECONDS \
-    GATEWAY_NODE_ENROLLMENT_WAIT_SECONDS GATEWAY_RELEASES_API_URL GATEWAY_ARTIFACT_BASE_URL \
-    GATEWAY_MANUAL_LAUNCH_TIMEOUT_SECONDS; do
-    opfield_env="OPFIELD_${legacy_env#GATEWAY_}"
+for legacy_suffix in NODE_HOST NODE_PORT NODE_ADDRESS NODE_TOKEN NODE_CERT_SHA256 NODE_DAEMON_VERSION \
+    NODE_SKIP_NGINX NODE_DISABLE_CONSOLE NODE_DISABLE_FILES NODE_NGINX_MODE NODE_APT_LOCK_RETRY_ATTEMPTS NODE_APT_LOCK_RETRY_DELAY_SECONDS \
+    NODE_ENROLLMENT_WAIT_SECONDS RELEASES_API_URL ARTIFACT_BASE_URL MANUAL_LAUNCH_TIMEOUT_SECONDS; do
+    legacy_env="${LEGACY_ENV_PREFIX}${legacy_suffix}"
+    opfield_env="OPFIELD_${legacy_suffix}"
     if [[ -z "${!opfield_env:-}" && -n "${!legacy_env:-}" ]]; then
         printf -v "$opfield_env" '%s' "${!legacy_env}"
     fi
 done
-unset legacy_env opfield_env
+unset legacy_suffix legacy_env opfield_env
 OPFIELD_HOST="${OPFIELD_NODE_HOST:-}"
 OPFIELD_PORT="${OPFIELD_NODE_PORT:-9443}"
 OPFIELD_ADDR="${OPFIELD_NODE_ADDRESS:-}"
@@ -53,8 +56,8 @@ DAEMON_VERSION="${OPFIELD_NODE_DAEMON_VERSION:-latest}"
 SKIP_NGINX="${OPFIELD_NODE_SKIP_NGINX:-0}"
 DISABLE_CONSOLE="${OPFIELD_NODE_DISABLE_CONSOLE:-0}"
 DISABLE_FILES="${OPFIELD_NODE_DISABLE_FILES:-0}"
-RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-https://get.opfield.dev/gateway/releases}"
-ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/gateway}"
+RELEASES_API_URL="${OPFIELD_RELEASES_API_URL:-https://get.opfield.dev/opfield/releases}"
+ARTIFACT_BASE_URL="${OPFIELD_ARTIFACT_BASE_URL:-https://get.opfield.dev/opfield}"
 RUN_USER=""
 NGINX_MODE="${OPFIELD_NODE_NGINX_MODE:-}"
 NON_INTERACTIVE=0
@@ -68,7 +71,7 @@ INTEGRATED_STUB_STATUS_PORT="8081"
 NGINX_OPFIELD_DIR="/etc/nginx/opfield"
 # legacy-name: the legacy nginx tree of nodes installed before 2.12.1 (kept as a link) — remove once every node
 # reports none and no customer configuration names it
-NGINX_LEGACY_DIR="/etc/nginx/gateway"
+NGINX_LEGACY_DIR="$LEGACY_NGINX_DIR"
 NGINX_SITES_DIR="${NGINX_OPFIELD_DIR}/conf.d"
 NGINX_LEGACY_SITES_DIR="${NGINX_LEGACY_DIR}/conf.d"
 NGINX_HTPASSWD_DIR="${NGINX_OPFIELD_DIR}/htpasswd"
@@ -373,7 +376,7 @@ nginx_conf_has_line() {
 # directory, an integrated one adds the include of sites.include.conf.
 detect_installed_nginx_mode() {
     local global_conf="/etc/nginx/nginx.conf"
-    # legacy-name: include lines of the /etc/nginx/gateway tree written before 2.12.1 — remove once every node reports none
+    # legacy-name: include lines of the legacy nginx tree written before 2.12.1 — remove once every node reports none
     if nginx_conf_has_line "$global_conf" "include ${NGINX_OPFIELD_DIR}/sites.include.conf;" || \
         nginx_conf_has_line "$global_conf" "include ${NGINX_LEGACY_DIR}/sites.include.conf;"; then
         echo "integrate"
@@ -414,7 +417,7 @@ NGINX_DAEMON_OWN_HOST_IDENTITY="/var/lib/nginx-daemon/host-identity"
 SHARED_HOST_IDENTITY_DIR="/var/lib/opfield"
 # legacy-name: the legacy shared host identity directory of daemons before 2.12.1 — remove once every node
 # reports none
-LEGACY_SHARED_HOST_IDENTITY_DIR="/var/lib/gateway"
+LEGACY_SHARED_HOST_IDENTITY_DIR="$LEGACY_STATE_ROOT"
 # Sockets the daemon serves to nginx and Secure Links; root creates them on demand, a run user needs them prepared.
 NGINX_DAEMON_RUNTIME_DIRS=(nginx-daemon opfield-secure-links opfield-registry-links opfield-ingress-health)
 # An existing node whose daemon has not moved to the Opfield names yet (it writes opfield-names in its state directory
@@ -422,7 +425,7 @@ NGINX_DAEMON_RUNTIME_DIRS=(nginx-daemon opfield-secure-links opfield-registry-li
 # prepare both until its move.
 # legacy-name: legacy nginx-daemon runtime directories — remove once every node reports none
 if [[ -d /var/lib/nginx-daemon && ! -e /var/lib/nginx-daemon/opfield-names ]]; then
-    NGINX_DAEMON_RUNTIME_DIRS+=(gateway-secure-links gateway-registry-links gateway-ingress-health)
+    NGINX_DAEMON_RUNTIME_DIRS+=("${LEGACY_RUNTIME_DIR_PREFIX}secure-links" "${LEGACY_RUNTIME_DIR_PREFIX}registry-links" "${LEGACY_RUNTIME_DIR_PREFIX}ingress-health")
 fi
 # Whether this host ran daemons under the pre-Opfield names before this run (unmoved, or moved and left with their
 # links), read before the installer changes anything. Only such a host keeps old names: the old /run names at boot
@@ -431,10 +434,10 @@ fi
 # legacy-name: pre-Opfield daemon names on this host — remove once every node reports none
 NGINX_HAD_LEGACY_NAMES=0
 if [[ -d /var/lib/nginx-daemon && ! -e /var/lib/nginx-daemon/opfield-names ]] ||
-    [[ -e /etc/nginx/gateway || -L /etc/nginx/gateway || -e /var/lib/gateway || -L /var/lib/gateway ]] ||
-    [[ -e /run/gateway-secure-links || -L /run/gateway-secure-links ]] ||
-    [[ -e /etc/systemd/system/gateway-lease-watchdog.service || -e /etc/init.d/gateway-lease-watchdog ]] ||
-    grep -qs '^gateway:' /etc/nginx-daemon/config.yaml /etc/docker-daemon/config.yaml /etc/monitoring-daemon/config.yaml; then
+    [[ -e "$LEGACY_NGINX_DIR" || -L "$LEGACY_NGINX_DIR" || -e "$LEGACY_STATE_ROOT" || -L "$LEGACY_STATE_ROOT" ]] ||
+    [[ -e "/run/${LEGACY_RUNTIME_DIR_PREFIX}secure-links" || -L "/run/${LEGACY_RUNTIME_DIR_PREFIX}secure-links" ]] ||
+    [[ -e "/etc/systemd/system/${LEGACY_LEASE_WATCHDOG}.service" || -e "/etc/init.d/${LEGACY_LEASE_WATCHDOG}" ]] ||
+    grep -qs "^${LEGACY_CONFIG_SECTION}:" /etc/nginx-daemon/config.yaml /etc/docker-daemon/config.yaml /etc/monitoring-daemon/config.yaml; then
     NGINX_HAD_LEGACY_NAMES=1
 fi
 
@@ -455,7 +458,7 @@ daemon_binary_version() {
 # user, who replaces it on update, so root must never execute it. The wrapper switches a root caller to that user.
 DAEMON_WRAPPER_MARK="# opfield-daemon-wrapper: runs the service user's binary, never as root"
 # legacy-name: wrapper marker written by installers before 2.12.1 — remove once every node reports none
-LEGACY_DAEMON_WRAPPER_MARK="# gateway-daemon-wrapper: runs the service user's binary, never as root"
+LEGACY_DAEMON_WRAPPER_MARK="$LEGACY_DAEMON_WRAPPER_LINE"
 write_daemon_wrapper() {
     local command_path="$1" binary="$2" temporary
     temporary=$(mktemp "$(dirname "$command_path")/.opfield-daemon-wrapper.XXXXXX") || return 1
@@ -849,7 +852,7 @@ new_host_identity() {
 # at once more after a pause: a daemon moving the directory right then must not make the host look like a new one.
 shared_host_identity_path() {
     local current="${SHARED_HOST_IDENTITY_DIR}/host-identity"
-    # legacy-name: /var/lib/gateway/host-identity of daemons before 2.12.1 — remove once every node reports none
+    # legacy-name: host-identity in the legacy state root of daemons before 2.12.1 — remove once every node reports none
     local legacy="${LEGACY_SHARED_HOST_IDENTITY_DIR}/host-identity"
     local attempt
     for attempt in 1 2; do
@@ -961,7 +964,7 @@ CONTROL_SESSION_SINCE="v2.11.1-rc.2"
 CONTROL_SESSION_FILE="/var/lib/nginx-daemon/control-session.json"
 # legacy-name: the legacy session record of daemons before 2.12.1 (2.12.1 daemons write both) — remove once
 # every node reports none
-LEGACY_CONTROL_SESSION_FILE="/var/lib/nginx-daemon/gateway-session.json"
+LEGACY_CONTROL_SESSION_FILE="/var/lib/nginx-daemon/${LEGACY_SESSION_FILE_NAME}"
 CONTROL_SESSION_STARTED=0
 
 forget_control_session() {
@@ -1403,9 +1406,9 @@ detect_existing_install() {
 
     if [[ -f "$config_path" ]]; then
         EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" opfield)
-        # legacy-name: gateway: section of /etc/nginx-daemon/config.yaml written before 2.12.1 — remove once every node
+        # legacy-name: the pre-Opfield section of /etc/nginx-daemon/config.yaml written before 2.12.1 — remove once every node
         # reports none
-        [[ -n "$EXISTING_OPFIELD_ADDR" ]] || EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" gateway)
+        [[ -n "$EXISTING_OPFIELD_ADDR" ]] || EXISTING_OPFIELD_ADDR=$(config_section_address "$config_path" "$LEGACY_CONFIG_SECTION")
         if [[ -z "$EXISTING_OPFIELD_ADDR" ]]; then
             EXISTING_OPFIELD_ADDR=$(awk -F'"' '/^[[:space:]]*address:[[:space:]]*"/ {print $2; exit}' "$config_path")
         fi
@@ -1555,14 +1558,14 @@ OPFIELD_CERT_SHA256_FLAG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --opfield)        OPFIELD_ADDR_FLAG="$2"; shift 2 ;;
-        # legacy-name: --gateway flag — customer automation; drop with a changelog notice
-        --gateway)        LEGACY_ADDR_FLAG="$2"; shift 2 ;;
+        # legacy-name: LEGACY_ADDRESS_FLAG — customer automation; drop with a changelog notice
+        "$LEGACY_ADDRESS_FLAG") LEGACY_ADDR_FLAG="$2"; shift 2 ;;
         --host)           OPFIELD_HOST="$2"; shift 2 ;;
         --port)           OPFIELD_PORT="$2"; shift 2 ;;
         --token)          ENROLL_TOKEN="$2"; shift 2 ;;
         --opfield-cert-sha256) OPFIELD_CERT_SHA256_FLAG="$2"; shift 2 ;;
-        # legacy-name: --gateway-cert-sha256 flag — customer automation; drop with a changelog notice
-        --gateway-cert-sha256) LEGACY_CERT_SHA256_FLAG="$2"; shift 2 ;;
+        # legacy-name: LEGACY_CERT_FLAG — customer automation; drop with a changelog notice
+        "$LEGACY_CERT_FLAG") LEGACY_CERT_SHA256_FLAG="$2"; shift 2 ;;
         --version)        DAEMON_VERSION="$2"; shift 2 ;;
         --user)           RUN_USER="$2"; shift 2 ;;
         --skip-nginx)     SKIP_NGINX=1; shift ;;
@@ -2201,9 +2204,9 @@ ensure_http_include() {
 }
 
 remove_legacy_conf_d_sites_include() {
-    # legacy-name: conf.d/gateway-managed.conf of early installers (already legacy cleanup) — remove once every node
+    # legacy-name: the conf.d file of early installers (already legacy cleanup) — remove once every node
     # reports none
-    local legacy_file="/etc/nginx/conf.d/gateway-managed.conf"
+    local legacy_file="/etc/nginx/conf.d/${LEGACY_NGINX_MANAGED_CONF}"
     local effective_content
 
     [[ -f "$legacy_file" ]] || return 0
@@ -2223,7 +2226,7 @@ remove_legacy_conf_d_sites_include() {
 remove_direct_sites_include() {
     local global_conf="/etc/nginx/nginx.conf"
     local line="include ${NGINX_SITES_DIR}/*.conf;"
-    # legacy-name: direct include of /etc/nginx/gateway/conf.d written before 2.12.1 — remove once every node reports none
+    # legacy-name: direct include of the legacy conf.d written before 2.12.1 — remove once every node reports none
     local legacy_line="include ${NGINX_LEGACY_SITES_DIR}/*.conf;"
     local tmp_file
 
@@ -2382,9 +2385,9 @@ rename_legacy_installer_file() {
 ensure_nginx_runtime_directory_preserved() {
     has_systemd || return 0
     local dropin_file="${NGINX_SYSTEMD_DROPIN_DIR}/zz-opfield-runtime-directory.conf"
-    # legacy-name: nginx drop-in zz-gateway-runtime-directory.conf written before 2.12.1 — remove once every node
+    # legacy-name: the nginx runtime directory drop-in written before 2.12.1 — remove once every node
     # reports none
-    if rename_legacy_installer_file "${NGINX_SYSTEMD_DROPIN_DIR}/zz-gateway-runtime-directory.conf" "$dropin_file"; then
+    if rename_legacy_installer_file "${NGINX_SYSTEMD_DROPIN_DIR}/${LEGACY_NGINX_RUNTIME_DROPIN}" "$dropin_file"; then
         systemctl daemon-reload >> "$LOG_FILE" 2>&1 || die "systemd daemon-reload failed."
     fi
     [[ "$RUN_USER" != "root" ]] || return 0
@@ -2423,8 +2426,8 @@ ensure_nginx_service_limit() {
         local desired
         local effective
 
-        # legacy-name: nginx drop-in gateway-limits.conf written before 2.12.1 — remove once every node reports none
-        rename_legacy_installer_file "${dropin_dir}/gateway-limits.conf" "$dropin_file" || true
+        # legacy-name: the nginx limits drop-in written before 2.12.1 — remove once every node reports none
+        rename_legacy_installer_file "${dropin_dir}/${LEGACY_NGINX_LIMITS_DROPIN}" "$dropin_file" || true
         systemctl daemon-reload >> "$LOG_FILE" 2>&1
         effective=$(systemctl show nginx.service -p LimitNOFILE --value 2>/dev/null || true)
         if [[ "$effective" != "infinity" ]] && \
@@ -2457,7 +2460,7 @@ EOF
         local conf_file="${conf_dir}/nginx"
         local marker="# Managed by Opfield: nginx file-descriptor limit"
         # legacy-name: /etc/conf.d/nginx marker written before 2.12.1 — remove once every node reports none
-        local legacy_marker="# Managed by Gateway: nginx file-descriptor limit"
+        local legacy_marker="$LEGACY_NGINX_LIMITS_MARKER"
         local current=""
 
         mkdir -p "$conf_dir"
@@ -2678,7 +2681,7 @@ EOF
 # (errorpages.Config). Until its first start a placeholder defines them, so nginx -t passes; the daemon replaces it.
 ensure_error_pages_placeholder() {
     local file="${NGINX_SITES_DIR}/00-opfield-error-pages.conf"
-    [[ -e "$file" || -e "${NGINX_SITES_DIR}/00-gateway-error-pages.conf" ]] && return 0
+    [[ -e "$file" || -e "${NGINX_SITES_DIR}/${LEGACY_ERROR_PAGES_CONF}" ]] && return 0
     {
         echo "# Opfield error pages placeholder: the nginx-daemon replaces this file on its first start."
         local variable
@@ -2720,7 +2723,7 @@ server {
 }
 EOF
 
-    # legacy-name: integrate include lines of the /etc/nginx/gateway tree written before 2.12.1 (replaced in place) —
+    # legacy-name: integrate include lines of the legacy nginx tree written before 2.12.1 (replaced in place) —
     # remove once every node reports none
     ensure_http_include "include ${NGINX_OPFIELD_DIR}/sites.include.conf;" "include ${NGINX_LEGACY_DIR}/sites.include.conf;" || \
         die "Failed to inject Opfield sites include into /etc/nginx/nginx.conf"
@@ -2821,10 +2824,10 @@ migrate_nginx_tree() {
     legacy="$NGINX_LEGACY_DIR"
     parent=$(dirname "$current")
     name=$(basename "$current")
-    # The link that takes the place of /etc/nginx/gateway, under a temporary name until the tree has moved.
-    link="${parent}/.gateway-link.$$"
+    # The link that takes the place of the legacy tree, under a temporary name until the tree has moved.
+    link="${parent}/${LEGACY_NGINX_LINK_PREFIX}$$"
     local interrupted=""
-    for stale in "${parent}"/.gateway-link.*; do
+    for stale in "${parent}/${LEGACY_NGINX_LINK_PREFIX}"*; do
         [[ -L "$stale" ]] || continue
         # Left by a run that stopped between its two renames (the tree moved, the old name not linked yet): the link
         # finishes that move below. Any other is removed.
@@ -2858,7 +2861,7 @@ migrate_nginx_tree() {
         fi
     fi
     mkdir -p "$current"
-    # Only a tree this installer moved gets the old name as a link; a fresh host has no /etc/nginx/gateway.
+    # Only a tree this installer moved gets the old name as a link; a fresh host has no legacy tree.
     if [[ -n "$interrupted" ]]; then
         rename_path "$interrupted" "$legacy" || die "Moved ${legacy} to ${current}, but could not link ${legacy} to it; run the installer again."
         log "Finished moving ${legacy} to ${current}; ${legacy} links to it"
@@ -2878,7 +2881,7 @@ preview_nginx_tree() {
 DEFAULT_SERVER_FILE="00-opfield-default-server.conf"
 # legacy-name: the legacy default server config written by nginx-daemon and installers before 2.12.1 — remove once no
 # supported nginx-daemon release writes it
-LEGACY_DEFAULT_SERVER_FILE="00-gateway-default-server.conf"
+LEGACY_DEFAULT_SERVER_FILE="$LEGACY_NGINX_DEFAULT_SERVER_CONF"
 
 # The nginx-daemon binary the installed command runs, if any.
 installed_daemon_binary() {
@@ -2939,11 +2942,11 @@ create_directories() {
 # Site configurations and access lists from the directories of installers before the legacy nginx tree (already
 # legacy cleanup) go to the current tree.
 migrate_legacy_site_paths() {
-    # legacy-name: /etc/nginx/http.d/gateway sites directory of early installers (already legacy cleanup) — remove once
+    # legacy-name: the http.d sites directory of early installers (already legacy cleanup) — remove once
     # every node reports none
     local legacy_dirs=(
         "/etc/nginx/conf.d/sites"
-        "/etc/nginx/http.d/gateway"
+        "$LEGACY_EARLY_SITES_DIR"
     )
 
     for legacy_dir in "${legacy_dirs[@]}"; do
@@ -3170,10 +3173,10 @@ enroll_daemon() {
 
     log "Writing config and enrolling with Opfield..."
     if ! daemon_install_takes_opfield_flags "$target"; then
-        # legacy-name: --gateway and --gateway-cert-sha256 install flags of nginx-daemon before 2.12.1 — remove once the
+        # legacy-name: the address and fingerprint install flags of nginx-daemon before 2.12.1 — remove once the
         # installer no longer installs an nginx-daemon release before 2.12.1
-        address_flag="--gateway"
-        cert_flag="--gateway-cert-sha256"
+        address_flag="$LEGACY_ADDRESS_FLAG"
+        cert_flag="$LEGACY_CERT_FLAG"
     fi
     if ! run_as_run_user "$target" install "$address_flag" "$OPFIELD_ADDR" --token "$ENROLL_TOKEN" "$cert_flag" "$OPFIELD_CERT_SHA256" >> "$LOG_FILE" 2>&1; then
         die "Failed to enroll nginx-daemon. Check ${LOG_FILE} for details."
@@ -3208,11 +3211,11 @@ start_daemon() {
         openrc_runtime+=$'\n    for dir in '"${runtime_dirs}"$'; do\n        checkpath --directory --mode 0755 --owner '"${RUN_USER}:${RUN_GROUP}"$' "/run/${dir}"\n    done'
         if [[ "$NGINX_HAD_LEGACY_NAMES" -eq 1 ]]; then
             # The old names at boot, as root: directories until the daemon moved (it writes opfield-names), then links
-            # to the Opfield directories, so raw routes that still name /run/gateway-* keep working.
-            unit_runtime+=$'\n# legacy-name: /run/gateway-* of a node before its move to the Opfield names — remove once every node reports none'
-            unit_runtime+=$'\nExecStartPre=+/bin/sh -c \'for d in secure-links registry-links ingress-health; do if [ -e /var/lib/nginx-daemon/opfield-names ]; then if [ -d /run/gateway-$$d ] && [ ! -L /run/gateway-$$d ]; then rmdir /run/gateway-$$d 2>/dev/null || true; fi; [ -e /run/gateway-$$d ] || [ -L /run/gateway-$$d ] || ln -s opfield-$$d /run/gateway-$$d || true; else install -d -o '"${RUN_USER}"' -g '"${RUN_GROUP}"$' -m 0755 /run/gateway-$$d; fi; done\''
-            openrc_runtime+=$'\n    # legacy-name: /run/gateway-* of a node before its move to the Opfield names — remove once every node reports none'
-            openrc_runtime+=$'\n    for dir in secure-links registry-links ingress-health; do\n        if [ -e /var/lib/nginx-daemon/opfield-names ]; then\n            if [ -d "/run/gateway-${dir}" ] && [ ! -L "/run/gateway-${dir}" ]; then\n                rmdir "/run/gateway-${dir}" 2>/dev/null || true\n            fi\n            [ -e "/run/gateway-${dir}" ] || [ -L "/run/gateway-${dir}" ] || ln -s "opfield-${dir}" "/run/gateway-${dir}" || true\n        else\n            checkpath --directory --mode 0755 --owner '"${RUN_USER}:${RUN_GROUP}"$' "/run/gateway-${dir}"\n        fi\n    done'
+            # to the Opfield directories, so raw routes that still name the legacy directories keep working.
+            unit_runtime+=$'\n# legacy-name: the legacy runtime directories of a node before its move to the Opfield names — remove once every node reports none'
+            unit_runtime+=$'\nExecStartPre=+/bin/sh -c \'for d in secure-links registry-links ingress-health; do if [ -e /var/lib/nginx-daemon/opfield-names ]; then if [ -d '"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'$$d ] && [ ! -L '"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'$$d ]; then rmdir '"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'$$d 2>/dev/null || true; fi; [ -e '"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'$$d ] || [ -L '"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'$$d ] || ln -s opfield-$$d '"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'$$d || true; else install -d -o '"${RUN_USER}"' -g '"${RUN_GROUP}"$' -m 0755 '"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'$$d; fi; done\''
+            openrc_runtime+=$'\n    # legacy-name: the legacy runtime directories of a node before its move to the Opfield names — remove once every node reports none'
+            openrc_runtime+=$'\n    for dir in secure-links registry-links ingress-health; do\n        if [ -e /var/lib/nginx-daemon/opfield-names ]; then\n            if [ -d "'"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'${dir}" ] && [ ! -L "'"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'${dir}" ]; then\n                rmdir "'"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'${dir}" 2>/dev/null || true\n            fi\n            [ -e "'"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'${dir}" ] || [ -L "'"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'${dir}" ] || ln -s "opfield-${dir}" "'"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'${dir}" || true\n        else\n            checkpath --directory --mode 0755 --owner '"${RUN_USER}:${RUN_GROUP}"$' "'"/run/${LEGACY_RUNTIME_DIR_PREFIX}"$'${dir}"\n        fi\n    done'
         fi
     fi
     openrc_runtime+=$'\n}'

@@ -24,13 +24,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Releases promote these builds from OPFIELD_IMAGE; the mirror receives the images nodes pin directly (patched
+  # Releases promote these builds from OPFIELD_IMAGE, which also carries the images nodes pin directly (patched
   # SeaweedFS, third-party mirrors). Keep these lines identical in release.yml, which explains them.
-  OPFIELD_GHCR: ${{ vars.OPFIELD_GHCR }}
-  # legacy-name: vars.GATEWAY_IMAGE, GATEWAY_IMAGE_MIRROR (and GATEWAY_SIGNED_IMAGE), the repository variable names before
-  # 2.12.1, read while the OPFIELD_* ones are unset — remove once the owner renamed the repository variables.
-  OPFIELD_IMAGE: ${{ vars.OPFIELD_IMAGE || vars.GATEWAY_IMAGE || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/opfield/opfield' || 'ghcr.io/the-square-labs/gateway') }}
-  OPFIELD_IMAGE_MIRROR: ${{ vars.OPFIELD_IMAGE_MIRROR || vars.GATEWAY_IMAGE_MIRROR || (vars.OPFIELD_GHCR == 'true' && 'ghcr.io/the-square-labs/gateway' || '') }}
+  OPFIELD_IMAGE: ${{ vars.OPFIELD_IMAGE || 'ghcr.io/opfield/opfield' }}
   # With the repository variable SIGN_IMAGES=true every image is signed keyless (Sigstore, GitHub OIDC) and carries an
   # SPDX SBOM attestation (docs/verify-releases.md). Keep this line identical in release.yml.
   SIGN_IMAGES: ${{ vars.SIGN_IMAGES }}
@@ -185,7 +181,8 @@ jobs:
         env:
           TREE: ${{ steps.tree.outputs.hash }}
         run: |
-          if docker buildx imagetools inspect "${OPFIELD_IMAGE}/seaweedfs-gateway:tree-${TREE}" >/dev/null 2>&1; then
+          source scripts/legacy-compat.sh
+          if docker buildx imagetools inspect "${OPFIELD_IMAGE}/${LEGACY_SEAWEEDFS_REPOSITORY}:tree-${TREE}" >/dev/null 2>&1; then
             echo "built=true" >> "$GITHUB_OUTPUT"
           else
             echo "built=false" >> "$GITHUB_OUTPUT"
@@ -199,22 +196,16 @@ jobs:
         if: ${{ steps.existing.outputs.built != 'true' }}
         env:
           TREE: ${{ steps.tree.outputs.hash }}
-        run: scripts/build-seaweedfs-image.sh --push "${OPFIELD_IMAGE}/seaweedfs-gateway:tree-${TREE}"
-
-      # Nodes pull the pinned digest from the repository the docker daemon names; both carry it.
-      - name: Copy to the mirror repository
-        if: ${{ env.OPFIELD_IMAGE_MIRROR != '' }}
-        env:
-          TREE: ${{ steps.tree.outputs.hash }}
         run: |
-          docker buildx imagetools create \
-            --tag "${OPFIELD_IMAGE_MIRROR}/seaweedfs-gateway:tree-${TREE}" \
-            "${OPFIELD_IMAGE}/seaweedfs-gateway:tree-${TREE}"
+          source scripts/legacy-compat.sh
+          scripts/build-seaweedfs-image.sh --push "${OPFIELD_IMAGE}/${LEGACY_SEAWEEDFS_REPOSITORY}:tree-${TREE}"
 
       - name: Show the digest to pin
         env:
           TREE: ${{ steps.tree.outputs.hash }}
-        run: docker buildx imagetools inspect "${OPFIELD_IMAGE}/seaweedfs-gateway:tree-${TREE}" --format '{{json .Manifest}}' | jq -r '.digest'
+        run: |
+          source scripts/legacy-compat.sh
+          docker buildx imagetools inspect "${OPFIELD_IMAGE}/${LEGACY_SEAWEEDFS_REPOSITORY}:tree-${TREE}" --format '{{json .Manifest}}' | jq -r '.digest'
 
       # Also for an existing build, so the first run with SIGN_IMAGES=true signs the build nodes pin.
       - name: Install cosign and syft
@@ -226,13 +217,10 @@ jobs:
         env:
           TREE: ${{ steps.tree.outputs.hash }}
         run: |
-          image="${OPFIELD_IMAGE}/seaweedfs-gateway"
+          source scripts/legacy-compat.sh
+          image="${OPFIELD_IMAGE}/${LEGACY_SEAWEEDFS_REPOSITORY}"
           digest=$(docker buildx imagetools inspect "${image}:tree-${TREE}" --format '{{json .Manifest}}' | jq -er '.digest')
-          also=()
-          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
-            also=(--also "${OPFIELD_IMAGE_MIRROR}/seaweedfs-gateway")
-          fi
-          scripts/release/supply-chain.sh sign "${image}@${digest}" "${also[@]}"
+          scripts/release/supply-chain.sh sign "${image}@${digest}"
 
   # Opfield's managed PostgreSQL images (packages/daemons/postgres-image/image), one per catalog version of
   # packages/daemons/docker/internal/pgext/catalog/versions.json, and the downloadable extension bundles
@@ -319,11 +307,6 @@ jobs:
         run: scripts/build-postgres-image.sh --push "${OPFIELD_IMAGE}/postgres:${TAG}" "$VERSION"
 
       # Nodes pull the pinned digest from the repository versions.json names; both carry it.
-      - name: Copy to the mirror repository
-        if: ${{ env.OPFIELD_IMAGE_MIRROR != '' }}
-        env:
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: docker buildx imagetools create --tag "${OPFIELD_IMAGE_MIRROR}/postgres:${TAG}" "${OPFIELD_IMAGE}/postgres:${TAG}"
 
       - name: Show the digest to pin
         env:
@@ -344,11 +327,7 @@ jobs:
         run: |
           image="${OPFIELD_IMAGE}/postgres"
           digest=$(docker buildx imagetools inspect "${image}:${TAG}" --format '{{json .Manifest}}' | jq -er '.digest')
-          also=()
-          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
-            also=(--also "${OPFIELD_IMAGE_MIRROR}/postgres")
-          fi
-          scripts/release/supply-chain.sh sign "${image}@${digest}" "${also[@]}"
+          scripts/release/supply-chain.sh sign "${image}@${digest}"
 
   postgres-bundles:
     name: PostgreSQL bundle ${{ matrix.bundle.id }} ${{ matrix.bundle.major }}
@@ -414,12 +393,6 @@ jobs:
           PACKAGE_VERSION: ${{ steps.tag.outputs.package_version }}
         run: scripts/build-postgres-bundle.sh --push "${OPFIELD_IMAGE}/postgres-ext/${ID}:${TAG}" "$ID" "$MAJOR" "$PACKAGE_VERSION"
 
-      - name: Copy to the mirror repository
-        if: ${{ env.OPFIELD_IMAGE_MIRROR != '' }}
-        env:
-          ID: ${{ matrix.bundle.id }}
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: docker buildx imagetools create --tag "${OPFIELD_IMAGE_MIRROR}/postgres-ext/${ID}:${TAG}" "${OPFIELD_IMAGE}/postgres-ext/${ID}:${TAG}"
 
       # The pin needs the digest, each architecture's installed size (opfield-bundle.json sizeBytes) and what the
       # bundle provides.
@@ -455,11 +428,7 @@ jobs:
         run: |
           image="${OPFIELD_IMAGE}/postgres-ext/${ID}"
           digest=$(docker buildx imagetools inspect "${image}:${TAG}" --format '{{json .Manifest}}' | jq -er '.digest')
-          also=()
-          if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
-            also=(--also "${OPFIELD_IMAGE_MIRROR}/postgres-ext/${ID}")
-          fi
-          scripts/release/supply-chain.sh sign "${image}@${digest}" "${also[@]}"
+          scripts/release/supply-chain.sh sign "${image}@${digest}"
 
   mirror:
     name: Mirror third-party images
@@ -497,14 +466,7 @@ jobs:
           MIRROR_REPOSITORY: ${{ env.OPFIELD_IMAGE }}
         run: node scripts/mirror-third-party-images.mjs
 
-      # Nodes and the installer pull third-party images from the earlier repository; both carry them.
-      - name: Mirror them to the mirror repository too
-        if: ${{ env.OPFIELD_IMAGE_MIRROR != '' }}
-        env:
-          MIRROR_REPOSITORY: ${{ env.OPFIELD_IMAGE_MIRROR }}
-        run: node scripts/mirror-third-party-images.mjs
-
-  # Signs every mirrored third-party digest in both repositories and attaches an SBOM per platform. The signature
+  # Signs every mirrored third-party digest and attaches an SBOM per platform. The signature
   # says Opfield's workflow mirrored that exact digest, not that Opfield built it. Already signed digests are skipped,
   # so only the first run with SIGN_IMAGES=true (or a new pin) does real work.
   mirror-signatures:
@@ -535,9 +497,5 @@ jobs:
           for pin in "${pins[@]}"; do
             name=${pin% *}
             digest=${pin#* }
-            also=()
-            if [[ -n "$OPFIELD_IMAGE_MIRROR" ]]; then
-              also=(--also "${OPFIELD_IMAGE_MIRROR}/${name}")
-            fi
-            scripts/release/supply-chain.sh sign "${OPFIELD_IMAGE}/${name}@${digest}" "${also[@]}"
+            scripts/release/supply-chain.sh sign "${OPFIELD_IMAGE}/${name}@${digest}"
           done

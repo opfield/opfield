@@ -13,9 +13,10 @@ import { createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LEGACY_UPDATE_KEY_ID } from '../../packages/backend/src/lib/legacy-compat.ts';
 
 const KIND = 'license-endpoints';
-const KEY_ID = 'wiolett-update-v1';
+const KEY_ID = LEGACY_UPDATE_KEY_ID;
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Installations reject a document valid for longer than 400 days.
 const MAX_VALID_DAYS = 365;
