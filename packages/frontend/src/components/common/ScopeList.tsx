@@ -52,6 +52,7 @@ import {
   allResourcePages,
   appFolderOptions,
   appScopeResourceOptions,
+  buildRestrictionRows,
   canLoadScopeResource,
   type DockerResourceOption,
   type FolderFamily,
@@ -245,6 +246,16 @@ export function ScopeList({
   const needsApps =
     foldersReady &&
     (appsWanted ||
+      // App members of a selected scope's kind are listed under their app and environment.
+      scopes.some((scope) => {
+        const family = folderFamilyForScope(scope.value);
+        return (
+          !!family &&
+          APP_FOLDER_FAMILIES.has(family) &&
+          !!restrictableScopes?.includes(scope.value) &&
+          (selected.includes(scope.value) || inheritedBaseSet.has(scope.value))
+        );
+      }) ||
       selectionNeedsApps(
         scopes,
         [...selected, ...inheritedParsed.baseScopes],
@@ -973,6 +984,14 @@ function ScopeRow({
       )
     : [...baseResourceOptions];
   for (const allowedId of allowedIds ?? []) {
+    // A granted folder the tree knows is its folder row, not a resource named "folder/<id>".
+    if (
+      isFolderTarget(allowedId) &&
+      folderOptions?.some(
+        (folder) => folder.family === family && folderTarget(folder.id) === allowedId
+      )
+    )
+      continue;
     if (!resourceOptions.some((opt) => opt.id === allowedId)) {
       resourceOptions.push({ id: allowedId, label: allowedId });
     }
@@ -982,80 +1001,29 @@ function ScopeRow({
       resourceOptions.push({ id: selectedId, label: selectedId });
     }
   }
-  // Hidden app folders show only where a grant names them: they are never offered.
-  const availableFolderOptions = (folderOptions ?? []).filter(
-    (folder) =>
-      folder.family === family &&
-      (!folder.appEnvironment ||
-        combinedSelectedIds.includes(folderTarget(folder.id)) ||
-        !!allowedResourceIds?.[scope.value]?.includes(folderTarget(folder.id)))
-  );
+  const availableFolderOptions = (folderOptions ?? []).filter((folder) => folder.family === family);
   const visibleFolderOptions = allowedIds
     ? availableFolderOptions.filter((folder) => allowedIds.includes(folderTarget(folder.id)))
     : availableFolderOptions;
-  const restrictionRows: RestrictionRow[] = [];
-  if (family === "docker" || family?.startsWith("docker-")) {
-    const nodeOptions = resourceOptions.filter((option) => !option.parentId);
-    const childOptions = resourceOptions.filter((option) => !!option.parentId);
-    const renderedFolderIds = new Set<string>();
-    for (const node of nodeOptions) {
-      restrictionRows.push({ type: "resource", key: node.id, resource: node, depth: 0 });
-      const nodeChildren = childOptions.filter((option) => option.parentId === node.id);
-      for (const folder of visibleFolderOptions) {
-        const folderChildren = nodeChildren.filter((option) => option.folderId === folder.id);
-        const hasNestedChildren = nodeChildren.some((option) => {
-          const resourceFolder = option.folderId
-            ? availableFolderOptions.find((candidate) => candidate.id === option.folderId)
-            : undefined;
-          return resourceFolder?.ancestorIds.includes(folder.id);
-        });
-        if (folderChildren.length === 0 && !hasNestedChildren) continue;
-        restrictionRows.push({
-          type: "folder",
-          key: `${node.id}:${folder.id}`,
-          folder,
-          depth: 1,
-        });
-        renderedFolderIds.add(folder.id);
-        for (const resource of folderChildren) {
-          restrictionRows.push({
-            type: "resource",
-            key: resource.id,
-            resource,
-            depth: 2,
-          });
-        }
-      }
-      for (const resource of nodeChildren.filter((option) => !option.folderId)) {
-        restrictionRows.push({
-          type: "resource",
-          key: resource.id,
-          resource,
-          depth: 1,
-        });
-      }
-    }
-    for (const folder of visibleFolderOptions.filter(
-      (option) => !renderedFolderIds.has(option.id)
-    )) {
-      restrictionRows.push({ type: "folder", key: folder.id, folder, depth: 0 });
-    }
-  } else {
-    for (const folder of visibleFolderOptions) {
-      restrictionRows.push({ type: "folder", key: folder.id, folder, depth: 0 });
-      for (const resource of resourceOptions.filter((option) => option.folderId === folder.id)) {
-        restrictionRows.push({
-          type: "resource",
-          key: resource.id,
-          resource,
-          depth: 1,
-        });
-      }
-    }
-    for (const resource of resourceOptions.filter((option) => !option.folderId)) {
-      restrictionRows.push({ type: "resource", key: resource.id, resource, depth: 0 });
-    }
-  }
+  // App members sit in hidden app folders: listed under their app and environment.
+  const appFolders = (folderOptions ?? []).filter(
+    (folder) => folder.family === family && folder.appEnvironment
+  );
+  const restrictionRows = buildRestrictionRows({
+    family,
+    resourceOptions,
+    folders: visibleFolderOptions.filter((folder) => !folder.appEnvironment),
+    knownFolders: availableFolderOptions,
+    appFolders,
+    // A narrowed grantor gives an app or environment as a whole only where its grant names it.
+    canSelectAppFolder: (folder) =>
+      !allowedIds ||
+      allowedIds.includes(folderTarget(folder.id)) ||
+      combinedSelectedIds.includes(folderTarget(folder.id)),
+    isAppFolderChosen: (folder) =>
+      combinedSelectedIds.includes(folderTarget(folder.id)) ||
+      !!allowedIds?.includes(folderTarget(folder.id)),
+  });
   // Git scopes render their own connector and target rows.
   const listedRestrictionRows = gitProvider ? [] : restrictionRows;
   // Nodes and folders that hold rows below them fold, so a long container list stays short; a
@@ -1079,6 +1047,7 @@ function ScopeRow({
       return next;
     });
   const isRowChecked = (row: RestrictionRow) =>
+    row.type !== "group" &&
     combinedSelectedIds.includes(
       row.type === "folder" ? folderTarget(row.folder.id) : row.resource.id
     );
@@ -1125,7 +1094,7 @@ function ScopeRow({
     ? (gitConnectors[gitProvider]?.length ?? 0) > 0 ||
       combinedSelectedIds.length > 0 ||
       (allowedIds?.length ?? 0) > 0
-    : resourceOptions.length > 0 || visibleFolderOptions.length > 0;
+    : resourceOptions.length > 0 || restrictionRows.length > 0;
   const showRestrictions =
     isRestrictable &&
     hasRestrictionOptions &&
@@ -1359,6 +1328,21 @@ function ScopeRow({
               );
             }
 
+            if (row.type === "group") {
+              return (
+                <div
+                  key={row.key}
+                  className={cn("flex items-center gap-1", row.depth === 1 && "pl-5")}
+                >
+                  {groupToggle(row, row.label, hiddenSelected)}
+                  <span className="flex min-w-0 items-center gap-2 py-0.5 text-xs">
+                    <span>{row.label}</span>
+                    <span className="text-xs text-muted-foreground">{row.tag}</span>
+                  </span>
+                  {selectedBelow}
+                </div>
+              );
+            }
             const folder = row.folder;
             const target = folderTarget(folder.id);
             const inherited = inheritedSet.has(target);
@@ -1370,7 +1354,7 @@ function ScopeRow({
                 key={row.key}
                 className={cn("flex items-center gap-1", row.depth === 1 && "pl-5")}
               >
-                {groupToggle(row, folder.label, hiddenSelected)}
+                {groupToggle(row, row.label, hiddenSelected)}
                 <label
                   className={cn(
                     "flex min-w-0 items-center gap-2 py-0.5 text-xs",
@@ -1389,9 +1373,13 @@ function ScopeRow({
                     disabled={disabled || parentSelected || inherited || !onToggleResource}
                     className="form-checkbox"
                   />
-                  <span>{folder.label}</span>
+                  <span>{row.label}</span>
                   <span className="text-xs text-muted-foreground">
-                    {folder.appEnvironment ? "app environment" : "folder"}
+                    {folder.appEnvironment
+                      ? folder.environmentName
+                        ? "app environment"
+                        : "app"
+                      : "folder"}
                   </span>
                   {inherited && inheritedFromName && (
                     <span className="text-xs text-muted-foreground">inherited</span>

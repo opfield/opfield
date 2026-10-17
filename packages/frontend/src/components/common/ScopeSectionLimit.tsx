@@ -304,7 +304,6 @@ export function SectionPlacesPicker({
       onOpenChange={(next) => {
         setOpen(next);
         if (next) onOpen();
-        else setSearch("");
       }}
     >
       <PopoverTrigger asChild>
@@ -319,7 +318,7 @@ export function SectionPlacesPicker({
           <ChevronDown />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
+      <PopoverContent align="end" className="w-80 p-0" onExitComplete={() => setSearch("")}>
         <ScopeSearchFilter
           search={search}
           onSearchChange={setSearch}

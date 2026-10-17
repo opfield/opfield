@@ -387,8 +387,16 @@ export interface FolderOption {
   label: string;
   family: FolderFamily;
   ancestorIds: string[];
-  /** A hidden folder of an app environment ("Shop · staging"): shown for grants, never offered. */
+  /**
+   * A hidden folder of an app ("Shop · every environment") or app environment ("Shop · staging").
+   * The restriction tree lists it under its app, never among the folders.
+   */
   appEnvironment?: boolean;
+  /** The app of a hidden app folder. */
+  appId?: string;
+  appName?: string;
+  /** The environment of a hidden environment folder; unset on the app-root folder. */
+  environmentName?: string;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -530,6 +538,8 @@ export function appFolderOptions(apps: readonly AppScopeApp[]): FolderOption[] {
         family: APP_FAMILY_FOLDER_FAMILY[family],
         ancestorIds: [],
         appEnvironment: true,
+        appId: app.id,
+        appName: app.name,
       })),
       ...app.environments.flatMap((environment) =>
         (Object.entries(environment.folderIds) as [AppMemberFamily, string][]).map(
@@ -539,6 +549,9 @@ export function appFolderOptions(apps: readonly AppScopeApp[]): FolderOption[] {
             family: APP_FAMILY_FOLDER_FAMILY[family],
             ancestorIds: app.rootFolderIds?.[family] ? [app.rootFolderIds[family]!] : [],
             appEnvironment: true,
+            appId: app.id,
+            appName: app.name,
+            environmentName: environment.name,
           })
         )
       ),
@@ -589,8 +602,146 @@ export interface ParsedScopedSelections {
 }
 
 export type RestrictionRow =
-  | { type: "folder"; key: string; folder: FolderOption; depth: 0 | 1 }
+  | { type: "folder"; key: string; folder: FolderOption; depth: 0 | 1; label: string }
+  /** A place the user may not grant as a whole (an app or environment): a heading only. */
+  | { type: "group"; key: string; label: string; tag: string; depth: 0 | 1 }
   | { type: "resource"; key: string; resource: ResourceOption; depth: 0 | 1 | 2 };
+
+export interface RestrictionRowsInput {
+  family: FolderFamily | null;
+  resourceOptions: readonly ResourceOption[];
+  /** The plain folders of the family the tree lists. */
+  folders: readonly FolderOption[];
+  /** Every folder of the family the user can see (nested lookups of Docker resources). */
+  knownFolders: readonly FolderOption[];
+  /** The hidden app folders of the family (see `appFolderOptions`). */
+  appFolders: readonly FolderOption[];
+  /** Whether an app folder can be granted as a whole here; otherwise it is a heading only. */
+  canSelectAppFolder: (folder: FolderOption) => boolean;
+  /** Whether the restriction or the grantor's grant names an app folder: listed even while empty. */
+  isAppFolderChosen: (folder: FolderOption) => boolean;
+}
+
+/**
+ * The rows of a scope's restriction tree: folders with their resources, then the apps with their
+ * environments and members (App → Environment → resources), then resources in no listed folder.
+ * Docker resources hang under their node, with an app environment as one "Shop · staging" row.
+ */
+export function buildRestrictionRows({
+  family,
+  resourceOptions,
+  folders,
+  knownFolders,
+  appFolders,
+  canSelectAppFolder,
+  isAppFolderChosen,
+}: RestrictionRowsInput): RestrictionRow[] {
+  const rows: RestrictionRow[] = [];
+  const appFolderRow = (
+    folder: FolderOption,
+    key: string,
+    depth: 0 | 1,
+    label: string
+  ): RestrictionRow =>
+    canSelectAppFolder(folder)
+      ? { type: "folder", key, folder, depth, label }
+      : {
+          type: "group",
+          key,
+          label,
+          tag: folder.environmentName ? "app environment" : "app",
+          depth,
+        };
+  if (family === "docker" || family?.startsWith("docker-")) {
+    const nodeOptions = resourceOptions.filter((option) => !option.parentId);
+    const childOptions = resourceOptions.filter((option) => !!option.parentId);
+    const allKnown = [...knownFolders, ...appFolders];
+    const renderedFolderIds = new Set<string>();
+    for (const node of nodeOptions) {
+      rows.push({ type: "resource", key: node.id, resource: node, depth: 0 });
+      const nodeChildren = childOptions.filter((option) => option.parentId === node.id);
+      const nodeFolderIds = new Set<string>();
+      for (const folder of [...folders, ...appFolders]) {
+        const folderChildren = nodeChildren.filter((option) => option.folderId === folder.id);
+        const hasNestedChildren = nodeChildren.some((option) => {
+          const resourceFolder = option.folderId
+            ? allKnown.find((candidate) => candidate.id === option.folderId)
+            : undefined;
+          return resourceFolder?.ancestorIds.includes(folder.id);
+        });
+        if (folderChildren.length === 0 && !hasNestedChildren) continue;
+        const key = `${node.id}:${folder.id}`;
+        rows.push(
+          folder.appEnvironment
+            ? appFolderRow(folder, key, 1, folder.label)
+            : { type: "folder", key, folder, depth: 1, label: folder.label }
+        );
+        renderedFolderIds.add(folder.id);
+        nodeFolderIds.add(folder.id);
+        for (const resource of folderChildren) {
+          rows.push({ type: "resource", key: resource.id, resource, depth: 2 });
+        }
+      }
+      for (const resource of nodeChildren.filter(
+        (option) => !option.folderId || !nodeFolderIds.has(option.folderId)
+      )) {
+        rows.push({ type: "resource", key: resource.id, resource, depth: 1 });
+      }
+    }
+    for (const folder of folders.filter((option) => !renderedFolderIds.has(option.id))) {
+      rows.push({ type: "folder", key: folder.id, folder, depth: 0, label: folder.label });
+    }
+    for (const folder of appFolders.filter(
+      (option) => !renderedFolderIds.has(option.id) && isAppFolderChosen(option)
+    )) {
+      rows.push({ type: "folder", key: folder.id, folder, depth: 0, label: folder.label });
+    }
+    return rows;
+  }
+  const renderedFolderIds = new Set<string>();
+  for (const folder of folders) {
+    rows.push({ type: "folder", key: folder.id, folder, depth: 0, label: folder.label });
+    renderedFolderIds.add(folder.id);
+    for (const resource of resourceOptions.filter((option) => option.folderId === folder.id)) {
+      rows.push({ type: "resource", key: resource.id, resource, depth: 1 });
+    }
+  }
+  const appIds = [...new Set(appFolders.map((folder) => folder.appId ?? folder.id))];
+  for (const appId of appIds) {
+    const own = appFolders.filter((folder) => (folder.appId ?? folder.id) === appId);
+    const root = own.find((folder) => !folder.environmentName);
+    const environments = own
+      .filter((folder) => !!folder.environmentName)
+      .map((folder) => ({
+        folder,
+        members: resourceOptions.filter((option) => option.folderId === folder.id),
+      }))
+      // Like the section picker: environments holding nothing of this kind stay out unless named.
+      .filter(({ folder, members }) => members.length > 0 || isAppFolderChosen(folder));
+    if (environments.length === 0 && !(root && isAppFolderChosen(root))) continue;
+    const appName = own[0]?.appName ?? own[0]?.label ?? appId;
+    rows.push(
+      root
+        ? appFolderRow(root, root.id, 0, appName)
+        : { type: "group", key: `app:${appId}`, label: appName, tag: "app", depth: 0 }
+    );
+    if (root) renderedFolderIds.add(root.id);
+    for (const { folder, members } of environments) {
+      rows.push(appFolderRow(folder, folder.id, 1, folder.environmentName ?? folder.label));
+      renderedFolderIds.add(folder.id);
+      for (const resource of members) {
+        rows.push({ type: "resource", key: resource.id, resource, depth: 2 });
+      }
+    }
+  }
+  // Resources in no listed folder (none, or one the user cannot list) stay grantable on their own.
+  for (const resource of resourceOptions.filter(
+    (option) => !option.folderId || !renderedFolderIds.has(option.folderId)
+  )) {
+    rows.push({ type: "resource", key: resource.id, resource, depth: 0 });
+  }
+  return rows;
+}
 
 export function folderTarget(folderId: string) {
   return `${FOLDER_TARGET_PREFIX}${folderId}`;

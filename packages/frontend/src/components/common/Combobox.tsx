@@ -215,14 +215,7 @@ export function Combobox(props: (ComboboxProps & { multiple?: false }) | MultiCo
           align="start"
           sideOffset={4}
           collisionPadding={16}
-          onAnimationEnd={(event) => {
-            if (
-              event.target === event.currentTarget &&
-              event.currentTarget.dataset.state === "closed"
-            ) {
-              finishClose();
-            }
-          }}
+          onExitComplete={finishClose}
           onOpenAutoFocus={(event) => event.preventDefault()}
           onInteractOutside={(event) => {
             if (event.target instanceof Node && rootRef.current?.contains(event.target)) {
