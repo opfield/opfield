@@ -38,6 +38,12 @@ export class PageArtifactStore {
   async remove(_key: string): Promise<void> {
     return commercialModuleUnavailable();
   }
+  async removeEmptyProjectDirs(): Promise<number> {
+    return commercialModuleUnavailable();
+  }
+  async assertDiskAvailable(_incomingBytes: number): Promise<void> {
+    return commercialModuleUnavailable();
+  }
 }
 
 export function resolvePageStorageDir(
