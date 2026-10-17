@@ -94,7 +94,7 @@ function setup(overrides: Partial<ConsoleTlsDeps> & { stateDir?: string } = {}) 
     probe: async (url) => {
       if (!reachable) return null;
       const token = url.split('/').pop()!;
-      return consoleHttpResponse(`/.well-known/acme-challenge/${token}`, 'GET', DOMAIN, service.challenges).body;
+      return consoleHttpResponse(`/.well-known/acme-challenge/${token}`, 'GET', DOMAIN, service['challenges']).body;
     },
     now: () => clock.now,
     ...overrides,

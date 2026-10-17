@@ -548,7 +548,7 @@ describe('UpdateService foundation migration', () => {
     expect(sidecarCommand).toContain('net.connect(9443,"relay"');
     expect(sidecarCommand).toContain('relay_networks="$(docker inspect');
     expect(sidecarCommand).toContain('relay_public_port="$(docker port "$relay_id" 9443/tcp)"');
-    expect(sidecarCommand).toContain(`[ "$app_working_dir" = /srv/${LEGACY_INSTALL_DIR_NAME} ]`);
+    expect(sidecarCommand).toContain('[ "$app_working_dir" = /srv/opfield ]');
     expect(sidecarCommand).not.toContain(
       'if [ "$app_health" = unhealthy ] || [ "$relay_health" = unhealthy ]; then break; fi'
     );

@@ -19,14 +19,18 @@ import {
 } from './update-artifact-trust.js';
 
 const checksum = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-const daemonUrl =
-  'https://gitlab.example.com/api/v4/projects/opfield%2Fopfield/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64';
 const daemonManifest = `{
   "schemaVersion": 1,
   "keyId": "${LEGACY_UPDATE_KEY_ID}",
   "payload": "eyJraW5kIjoiZGFlbW9uLWJpbmFyeSIsInZlcnNpb24iOiJ2OS45LjkiLCJ0YWciOiJ2OS45LjktbmdpbngiLCJkYWVtb25UeXBlIjoibmdpbngiLCJhcmNoIjoiYW1kNjQiLCJhcnRpZmFjdE5hbWUiOiJuZ2lueC1kYWVtb24tbGludXgtYW1kNjQiLCJkb3dubG9hZFVybCI6Imh0dHBzOi8vZ2l0bGFiLndpb2xldHQubmV0L2FwaS92NC9wcm9qZWN0cy93aW9sZXR0JTJGZ2F0ZXdheS9wYWNrYWdlcy9nZW5lcmljL25naW54LWRhZW1vbi92OS45LjktbmdpbngvbmdpbngtZGFlbW9uLWxpbnV4LWFtZDY0Iiwic2hhMjU2IjoiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsImNyZWF0ZWRBdCI6IjIwMjYtMDUtMDJUMTQ6Mzk6MDNaIiwiZ2l0Q29tbWl0U2hhIjoidGVzdCIsImdpdFBpcGVsaW5lSWQiOiIxIn0",
   "signature": "sNy92HOZyOUMyGJkXQ1nRmTSFm3BosuaAUaInP_Svo0cWGx50jvMlnsfU64FyubGDXK4ihvpgtlcNCfqN61ABw"
 }`;
+// The signed fixture names its artifact on the self-hosted GitLab of an early release.
+const daemonUrl = (
+  JSON.parse(Buffer.from(JSON.parse(daemonManifest).payload, 'base64url').toString('utf8')) as { downloadUrl: string }
+).downloadUrl;
+const daemonPackagePrefix = daemonUrl.slice(0, daemonUrl.indexOf('packages/generic/') + 'packages/generic/'.length);
+
 const opfieldSigningKey = generateKeyPairSync('ed25519');
 const opfieldPayload = Buffer.from(
   JSON.stringify({
@@ -107,7 +111,7 @@ describe('update artifact trust', () => {
       arch: 'amd64',
       artifactName: 'nginx-daemon-linux-amd64',
       downloadUrl: daemonUrl,
-      trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'opfield/opfield'),
+      trustedPackagePrefix: daemonPackagePrefix,
     });
 
     expect(artifact.checksum).toBe(checksum);
@@ -143,7 +147,7 @@ describe('update artifact trust', () => {
         arch: 'arm64',
         artifactName: 'nginx-daemon-linux-amd64',
         downloadUrl: daemonUrl,
-        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'opfield/opfield'),
+        trustedPackagePrefix: daemonPackagePrefix,
       })
     ).toThrow(UpdateArtifactTrustError);
   });
@@ -160,7 +164,7 @@ describe('update artifact trust', () => {
         arch: 'amd64',
         artifactName: 'nginx-daemon-linux-amd64',
         downloadUrl: daemonUrl,
-        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'opfield/opfield'),
+        trustedPackagePrefix: daemonPackagePrefix,
       })
     ).toThrow(UpdateArtifactTrustError);
   });

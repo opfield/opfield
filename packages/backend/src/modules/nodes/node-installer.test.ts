@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '@/config/env.js';
+import { UPDATES_BASE_URL } from '@/config/vendor-urls.js';
 import { LEGACY_ADDRESS_FLAG, LEGACY_CERT_FLAG, LEGACY_INSTALLER_CHECKSUMS_ASSET } from '@/lib/legacy-compat.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { DaemonUpdateService } from '@/services/daemon-update.service.js';
