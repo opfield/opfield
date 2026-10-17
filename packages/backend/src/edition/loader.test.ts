@@ -3,9 +3,9 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 import { activatePreviousCommercialRelease, installCommercialRelease } from './install.js';
 import { loadCommercialPackage, sha256 } from './loader.js';
-import { LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
 const key = generateKeyPairSync('ed25519');
 const publicKey = key.publicKey.export({ type: 'spki', format: 'pem' });

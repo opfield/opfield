@@ -1,13 +1,13 @@
 import 'reflect-metadata';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container } from '@/container.js';
+import { LEGACY_LABEL_PREFIX } from '@/lib/legacy-compat.js';
 import { executeDockerTool } from '@/modules/ai/ai.docker-tools.js';
 import type { User } from '@/types.js';
 import { DockerManagementService } from './docker.service.js';
 import { duplicateContainer } from './docker-container-mutation-operations.js';
 import { getContainerEnv } from './docker-env-operations.js';
 import { DOCKER_DUPLICATE_ENV_REMOVAL_CAPABILITY } from './docker-secret-env.js';
-import { LEGACY_LABEL_PREFIX } from '@/lib/legacy-compat.js';
 
 vi.mock('@/modules/nodes/service-creation-lock.js', () => ({
   assertNodeAllowsServiceCreation: vi.fn().mockResolvedValue(undefined),
@@ -34,7 +34,10 @@ const slotInspect = () => ({
   Id: 'slot-id',
   Name: '/web-blue',
   Config: {
-    Labels: { [`${LEGACY_LABEL_PREFIX}deployment.managed`]: 'true', [`${LEGACY_LABEL_PREFIX}deployment.id`]: DEPLOYMENT_ID },
+    Labels: {
+      [`${LEGACY_LABEL_PREFIX}deployment.managed`]: 'true',
+      [`${LEGACY_LABEL_PREFIX}deployment.id`]: DEPLOYMENT_ID,
+    },
     Env: [`DATABASE_URL=${DATABASE_URL}`, `AWS_SECRET_ACCESS_KEY=${S3_SECRET}`, 'MODE=prod'],
   },
 });

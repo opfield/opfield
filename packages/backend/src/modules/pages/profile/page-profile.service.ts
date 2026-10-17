@@ -1,11 +1,11 @@
 import type { DrizzleClient } from '@/db/client.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
+import { LEGACY_PAGES_HOST_KEY } from '@/lib/legacy-compat.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { UpdatePageProfileInput } from './page-profile.schemas.js';
-import { LEGACY_PAGES_HOST_KEY } from '@/lib/legacy-compat.js';
 export interface PageProfileRuntimeAdapter {
   apply(profile: { domain: string; certificateId: string; labelTemplate: string }): Promise<void>;
   disable(profile: { domain: string }): Promise<void>;

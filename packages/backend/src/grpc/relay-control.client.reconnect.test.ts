@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import forge from 'node-forge';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { RelayControlClient } from './relay-control.client.js';
 import { loadRelayV1Proto } from './relay-proto.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 /** A CA with a server leaf for 127.0.0.1 and a client leaf, as the local relay and Opfield present them. */
 function issueIdentities() {

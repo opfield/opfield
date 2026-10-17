@@ -1321,5 +1321,5 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
   }
 }
 
-import { VmSnapshotAdapter } from './vm-snapshots.js';
 import { LEGACY_HOSTING_SEED_PREFIX, LEGACY_PRODUCT_TITLE, LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
+import { VmSnapshotAdapter } from './vm-snapshots.js';

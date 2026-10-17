@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Node } from "@/types";
+import { LEGACY_INSTALL_DIR_NAME } from "../../../backend/src/lib/legacy-compat";
 import {
   DEFAULT_HOST_ACCESS_INSTALL_OPTIONS,
   isNodeHostFeatureDisabled,
@@ -11,7 +12,6 @@ import {
   relayLegacyHostNameCount,
   withHostAccessInstallFlags,
 } from "./node-host-access";
-import { LEGACY_INSTALL_DIR_NAME } from "../../../backend/src/lib/legacy-compat";
 
 function node(type: Node["type"], capabilities: Record<string, unknown>): Node {
   return { type, capabilities } as Node;
@@ -100,8 +100,7 @@ describe("node host access", () => {
         ? { liveHealthReport: { legacyNames }, lastHealthReport: null }
         : { lastHealthReport: { legacyNames } }),
     });
-    const both =
-      `(/etc/opfield-relay/config.yaml, or /etc/${LEGACY_INSTALL_DIR_NAME}-relay-supervisor/config.yaml while the relay keeps its previous paths)`;
+    const both = `(/etc/opfield-relay/config.yaml, or /etc/${LEGACY_INSTALL_DIR_NAME}-relay-supervisor/config.yaml while the relay keeps its previous paths)`;
     expect(
       nodeHostFeatureDisabledMessage(relay({ paths: 4, services: 1, config: 1 }), "console")
     ).toContain(both);

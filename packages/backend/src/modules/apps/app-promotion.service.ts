@@ -18,6 +18,7 @@ import {
   pageTags,
   users,
 } from '@/db/schema/index.js';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -35,7 +36,6 @@ import type { AppMemberFreeze } from './app-member-freeze.js';
 import type { AppMembersReader } from './app-members.service.js';
 import { type PromotableType, type PromotionPair, pairMembers, type UnpairedMember } from './app-promotion-pairing.js';
 import type { AppActor, AppEnvironmentRow, AppsService } from './apps.service.js';
-import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('AppPromotion');
 

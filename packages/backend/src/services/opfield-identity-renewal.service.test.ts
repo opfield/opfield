@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import forge from 'node-forge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RelayIdentityActivation } from '@/grpc/relay-control.client.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import {
   OPFIELD_GRPC_CERTIFICATE_FINAL_RENEW_BEFORE_MS,
   OPFIELD_IDENTITY_RENEW_BEFORE_MS,
 } from './grpc-server-certificate.js';
 import { OpfieldIdentityRenewalService } from './opfield-identity-renewal.service.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2027, 8, 1);

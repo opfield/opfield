@@ -1,5 +1,5 @@
-import { escapeNginxReturnText, opfieldStatusPageUnavailableHtml } from '@/lib/opfield-error-pages.js';
 import { LEGACY_STATUS_PAGE_ZONE_PREFIX } from '@/lib/legacy-compat.js';
+import { escapeNginxReturnText, opfieldStatusPageUnavailableHtml } from '@/lib/opfield-error-pages.js';
 
 /**
  * Status page routes (C-2). A status page must stay up exactly when things are down, but its upstream is Opfield

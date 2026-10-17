@@ -5,6 +5,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterAll, describe, expect, it, vi } from 'vitest';
+import {
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_UPDATE_ATTEMPT_KEY,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+  LEGACY_VOLUME_RELAY_STATE,
+} from '@/lib/legacy-compat.js';
 import { OPFIELD_ACCOUNT_CLIENT_KEY } from '@/modules/auth/oidc-settings.service.js';
 import { RestoreError, singleFileTar, verifyExport } from './configuration-restore.js';
 import { withDefaultPort } from './opfield-move.service.js';
@@ -25,7 +34,6 @@ import {
   versionMismatch,
   volumePartName,
 } from './transfer-layout.js';
-import { LEGACY_INSTALL_DIR_NAME, LEGACY_UPDATE_ATTEMPT_KEY, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_REGISTRY_AUTH, LEGACY_VOLUME_REGISTRY_DATA, LEGACY_VOLUME_RELAY_IDENTITY, LEGACY_VOLUME_RELAY_STATE } from '@/lib/legacy-compat.js';
 
 const FAST_KDF = { name: 'scrypt' as const, N: 16_384, r: 8, p: 1 };
 const PASSPHRASE = 'moving day passphrase';
@@ -49,7 +57,9 @@ function manifest(overrides: Partial<ConfigurationExportManifest> = {}): Configu
     includes: { registry: false, logs: false },
     commercialDir: null,
     database: { part: DATABASE_PART, file: DATABASE_DUMP_FILE },
-    volumes: [{ key: LEGACY_VOLUME_APP_DATA, part: volumePartName(LEGACY_VOLUME_APP_DATA), root: LEGACY_VOLUME_APP_DATA }],
+    volumes: [
+      { key: LEGACY_VOLUME_APP_DATA, part: volumePartName(LEGACY_VOLUME_APP_DATA), root: LEGACY_VOLUME_APP_DATA },
+    ],
     commercial: null,
     environmentPart: ENVIRONMENT_PART,
     ...overrides,
@@ -74,7 +84,10 @@ async function exportFile(
   await writer.addJsonPart(ENVIRONMENT_PART, { PKI_MASTER_KEY: MASTER_KEY });
   await writer.addPart(DATABASE_PART, Readable.from([randomBytes(20_000)]));
   if (!options.skipVolume) {
-    await writer.addPart(options.volumePart ?? volumePartName(LEGACY_VOLUME_APP_DATA), Readable.from([randomBytes(9_000)]));
+    await writer.addPart(
+      options.volumePart ?? volumePartName(LEGACY_VOLUME_APP_DATA),
+      Readable.from([randomBytes(9_000)])
+    );
   }
   await writer.finish();
   await ended;
@@ -123,7 +136,9 @@ describe('restoring a configuration export', () => {
 
     // legacy-name: part and root names of exports made before 2.12.1 — they restore as long as such exports can.
     const earlier = manifest({
-      volumes: [{ key: LEGACY_VOLUME_APP_DATA, part: `volume/${LEGACY_VOLUME_APP_DATA}.tar`, root: LEGACY_VOLUME_APP_DATA }],
+      volumes: [
+        { key: LEGACY_VOLUME_APP_DATA, part: `volume/${LEGACY_VOLUME_APP_DATA}.tar`, root: LEGACY_VOLUME_APP_DATA },
+      ],
     });
     const path = await exportFile('earlier.opfield-export', {
       manifest: { ...earlier, ...CURRENT },
@@ -170,7 +185,9 @@ describe('restoring a configuration export', () => {
 
   it('refuses a manifest with unsafe names', async () => {
     const path = await exportFile('unsafe.opfield-export', {
-      manifest: manifest({ volumes: [{ key: LEGACY_VOLUME_APP_DATA, part: volumePartName(LEGACY_VOLUME_APP_DATA), root: '..' }] }),
+      manifest: manifest({
+        volumes: [{ key: LEGACY_VOLUME_APP_DATA, part: volumePartName(LEGACY_VOLUME_APP_DATA), root: '..' }],
+      }),
     });
     expect(await failure(() => verifyExport(path, PASSPHRASE, CURRENT))).toBe('INVALID_EXPORT');
   });
@@ -213,7 +230,10 @@ describe('configuration export layout', () => {
 
   it('writes a single-file tar that tar reads', () => {
     const path = join(work, 'marker.tar');
-    writeFileSync(path, singleFileTar(`${LEGACY_VOLUME_APP_DATA}/configuration-restore/restored.json`, Buffer.from('{"a":1}')));
+    writeFileSync(
+      path,
+      singleFileTar(`${LEGACY_VOLUME_APP_DATA}/configuration-restore/restored.json`, Buffer.from('{"a":1}'))
+    );
     const listing = execFileSync('tar', ['-tvf', path], { encoding: 'utf8' });
     expect(listing).toContain(`${LEGACY_VOLUME_APP_DATA}/configuration-restore/restored.json`);
     const content = execFileSync('tar', ['-xOf', path], { encoding: 'utf8' });
@@ -274,11 +294,15 @@ volumes:
 `;
 
   it('maps the export volume keys to the volumes of the installation it restores into', () => {
-    expect(composeVolumeName(`${LEGACY_INSTALL_DIR_NAME}`, LEGACY_VOLUME_APP_DATA, 'services: {}\n')).toBe(`${LEGACY_INSTALL_DIR_NAME}_${LEGACY_VOLUME_APP_DATA}`);
+    expect(composeVolumeName(`${LEGACY_INSTALL_DIR_NAME}`, LEGACY_VOLUME_APP_DATA, 'services: {}\n')).toBe(
+      `${LEGACY_INSTALL_DIR_NAME}_${LEGACY_VOLUME_APP_DATA}`
+    );
     expect(composeVolumeName('opfield', LEGACY_VOLUME_APP_DATA, opfieldCompose)).toBe('opfield_app_data');
     expect(composeVolumeName('opfield', LEGACY_VOLUME_RELAY_STATE, opfieldCompose)).toBe('opfield_relay_state');
     // A moved installation keeps its volumes by name.
-    expect(composeVolumeName('opfield', LEGACY_VOLUME_REGISTRY_DATA, opfieldCompose)).toBe(`${LEGACY_INSTALL_DIR_NAME}_${LEGACY_VOLUME_REGISTRY_DATA}`);
+    expect(composeVolumeName('opfield', LEGACY_VOLUME_REGISTRY_DATA, opfieldCompose)).toBe(
+      `${LEGACY_INSTALL_DIR_NAME}_${LEGACY_VOLUME_REGISTRY_DATA}`
+    );
     expect(composeVolumeKey(LEGACY_VOLUME_APP_DATA, opfieldCompose)).toBe('app_data');
     expect(composeVolumeKey(LEGACY_VOLUME_APP_DATA, null)).toBe(LEGACY_VOLUME_APP_DATA);
     expect(composeVolumeName('opfield', 'clickhouse_data', opfieldCompose)).toBe('opfield_clickhouse_data');
@@ -296,7 +320,8 @@ volumes:
       commands.push(command);
       return {
         exitCode: 0,
-        output: command[0] === 'pg_restore' && command[1] === '--list' ? `;     dbname: ${LEGACY_INSTALL_DIR_NAME}\n` : '',
+        output:
+          command[0] === 'pg_restore' && command[1] === '--list' ? `;     dbname: ${LEGACY_INSTALL_DIR_NAME}\n` : '',
       };
     });
     const docker = { execInContainer: exec, putContainerArchiveStream: vi.fn(async () => undefined) };

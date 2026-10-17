@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseLegacySettingsEnv } from '@/cli/legacy-settings-env.js';
+import { LEGACY_ENV_PREFIX } from '@/lib/legacy-compat.js';
 import {
   DEFAULT_ENVIRONMENT_SETTINGS,
   EnvironmentSettingsService,
@@ -7,7 +8,6 @@ import {
   normalizeEnvironmentSettings,
 } from './environment-settings.service.js';
 import { normalizeEnvironmentSettings as v2113ReadEnvironmentSettings } from './fixtures/v2.11.3-environment-settings.js';
-import { LEGACY_ENV_PREFIX } from '@/lib/legacy-compat.js';
 
 /** A settings table of one optional row; records what was written. */
 function fakeDb(existing?: unknown) {

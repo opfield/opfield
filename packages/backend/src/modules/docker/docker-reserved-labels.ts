@@ -1,5 +1,10 @@
+import {
+  LEGACY_COM_LABEL_PREFIX,
+  LEGACY_LABEL_PREFIX,
+  LEGACY_NET_LABEL_PREFIX,
+  LEGACY_SANDBOX_LABEL,
+} from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { LEGACY_COM_LABEL_PREFIX, LEGACY_LABEL_PREFIX, LEGACY_NET_LABEL_PREFIX, LEGACY_SANDBOX_LABEL } from '@/lib/legacy-compat.js';
 
 /**
  * Label namespaces Opfield and Docker Compose read to place, group or hide a container. A caller who

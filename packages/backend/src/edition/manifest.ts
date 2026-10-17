@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import { LEGACY_COMMERCIAL_MANIFEST_KIND } from '@/lib/legacy-compat.js';
 import { verifySignedPayload } from '@/lib/update-artifact-trust.js';
 import { COMMERCIAL_HOST_API_VERSION } from './contract.js';
-import { LEGACY_COMMERCIAL_MANIFEST_KIND } from '@/lib/legacy-compat.js';
 
 export const COMMERCIAL_MANIFEST_MAX_BYTES = 1024 * 1024;
 export const COMMERCIAL_BACKEND_MAX_BYTES = 64 * 1024 * 1024;

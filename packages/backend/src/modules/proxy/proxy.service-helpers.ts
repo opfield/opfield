@@ -1,8 +1,8 @@
 import { isIP } from 'node:net';
 import { getEnv } from '@/config/env.js';
+import { LEGACY_NGINX_RUN_PREFIX, LEGACY_NGINX_VARIABLE_PREFIX } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { PreparedTlsCertificate } from '@/services/nginx-certificate-distribution.service.js';
-import { LEGACY_NGINX_RUN_PREFIX, LEGACY_NGINX_VARIABLE_PREFIX } from '@/lib/legacy-compat.js';
 
 export type HealthCheckBodyMatchMode = 'includes' | 'exact' | 'starts_with' | 'ends_with';
 

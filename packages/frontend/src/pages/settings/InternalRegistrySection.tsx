@@ -30,8 +30,8 @@ import {
   usePlanIncludes,
 } from "@/stores/license-paywall";
 import type { DockerInternalRegistryState, Node, SSLCertificate } from "@/types";
-import { InternalRegistryStorageRows, useRegistryStorageForm } from "./InternalRegistryStorageRows";
 import { LEGACY_INTERNAL_REGISTRY_ID } from "../../../../backend/src/lib/legacy-compat";
+import { InternalRegistryStorageRows, useRegistryStorageForm } from "./InternalRegistryStorageRows";
 
 interface InternalRegistrySectionProps {
   nodesList: Node[];

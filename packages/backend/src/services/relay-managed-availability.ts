@@ -16,12 +16,12 @@ import {
   relayEndpoints,
   relayRoutes,
 } from '@/db/schema/index.js';
+import { LEGACY_LOCK_RELAY_POLICY_RECONCILIATION } from '@/lib/legacy-compat.js';
 import {
   MANAGED_AVAILABILITY_MEMBER_ENDPOINT_OWNER,
   MANAGED_AVAILABILITY_PEER_ENDPOINT_OWNER,
 } from '@/modules/docker/availability/lease/lease-policy-relays.js';
 import { setLeaseCandidates } from '@/modules/docker/availability/lease/managed-availability-lease-source.js';
-import { LEGACY_LOCK_RELAY_POLICY_RECONCILIATION } from '@/lib/legacy-compat.js';
 
 /**
  * Relay data paths of database and storage availability sets (member mesh, decision 3 of the plan).

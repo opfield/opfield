@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { relayEndpoints, relayInstancePolicyState, relayRoutes } from '@/db/schema/index.js';
 import type { RelayPolicyRouteEntry } from '@/db/schema/relay.js';
-import { RelayGrantIssuerService } from './relay-grant-issuer.service.js';
 import { LEGACY_INSTALL_DIR_NAME, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
+import { RelayGrantIssuerService } from './relay-grant-issuer.service.js';
 
 const STALE_AT = '2026-09-27T10:01:30.000Z';
 

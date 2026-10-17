@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { describeFullestDisk } from '@/modules/diagnostics/diagnostics.service.js';
 import { defaultFiredMessage, NotificationEvaluatorService } from './notification-evaluator.service.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 // rc.3 stand: a custom threshold rule fired "rc3sp-alert: app-node-2" with no metric (srcparity O-10); the open
 // "Opfield disk almost full" alert kept "86% full" while the disk reached 96 % (housekeeping O-4); the Opfield disk
@@ -101,7 +101,9 @@ describe('a firing threshold alert follows the reading', () => {
 
 describe('describeFullestDisk', () => {
   it('names the fuller disk and what it holds', () => {
-    expect(describeFullestDisk({ usedPercent: 20 }, null, `/var/lib/${LEGACY_INSTALL_DIR_NAME}`)).toBe(`Opfield data (/var/lib/${LEGACY_INSTALL_DIR_NAME})`);
+    expect(describeFullestDisk({ usedPercent: 20 }, null, `/var/lib/${LEGACY_INSTALL_DIR_NAME}`)).toBe(
+      `Opfield data (/var/lib/${LEGACY_INSTALL_DIR_NAME})`
+    );
     expect(
       describeFullestDisk(
         { usedPercent: 20 },

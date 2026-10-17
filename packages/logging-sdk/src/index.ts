@@ -20,4 +20,3 @@ export type {
   OpfieldTraceLogger,
 } from './types.js';
 export { OpfieldLoggerHook } from './types.js';
-

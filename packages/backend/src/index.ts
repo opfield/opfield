@@ -27,6 +27,7 @@ import { acceptedOperations } from '@/edition/accepted-operations.js';
 import type { CommercialEditionRuntime } from '@/edition/runtime.js';
 import { RelayControlClient } from '@/grpc/relay-control.client.js';
 import { startGrpcServer, stopGrpcServer } from '@/grpc/server.js';
+import { LEGACY_LOCK_MIGRATIONS } from '@/lib/legacy-compat.js';
 import { closeApplicationLogger, logger } from '@/lib/logger.js';
 import { AISandboxService } from '@/modules/ai/ai.sandbox.service.js';
 import { AISandboxRunnerService } from '@/modules/ai/ai.sandbox-runner.service.js';
@@ -75,7 +76,6 @@ import { SystemCAService } from '@/services/system-ca.service.js';
 import { WebIdentityService } from '@/services/web-identity.service.js';
 import { WebTransportSettingsService } from '@/services/web-transport-settings.service.js';
 import { drainWebSocketsForRestart, terminateRemainingWebSockets } from '@/services/websocket-shutdown.js';
-import { LEGACY_LOCK_MIGRATIONS } from '@/lib/legacy-compat.js';
 
 /**
  * Apply pending migrations on one dedicated connection. A session advisory lock keeps two starting instances from

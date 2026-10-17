@@ -1,8 +1,8 @@
 import { isAlwaysBlockedOutboundIp, normalizeIp } from '@/lib/ip-cidr.js';
+import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { isPubliclyRoutableIp } from '@/modules/nodes/node-service-address.js';
 import type { HostingRole } from './hosting-provider.types.js';
-import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 
 const INSTALLERS: Record<HostingRole, string> = {
   nginx: 'setup-node.sh',

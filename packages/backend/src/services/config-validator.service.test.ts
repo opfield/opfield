@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigValidatorService } from './config-validator.service.js';
 import { LEGACY_INSTALL_DIR_NAME, LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
+import { ConfigValidatorService } from './config-validator.service.js';
 
 describe('ConfigValidatorService', () => {
   const service = new ConfigValidatorService();
@@ -274,7 +274,9 @@ describe('ConfigValidatorService templates', () => {
     const rendered = `server {\n  include /var/lib/${LEGACY_INSTALL_DIR_NAME}/pages/a.conf;\n  include /etc/nginx/snippets/x.conf;\n}`;
 
     expect(
-      service.validateRenderedTemplate(rendered, { statements: [['include', `/var/lib/${LEGACY_INSTALL_DIR_NAME}/pages/a.conf`]] }).errors
+      service.validateRenderedTemplate(rendered, {
+        statements: [['include', `/var/lib/${LEGACY_INSTALL_DIR_NAME}/pages/a.conf`]],
+      }).errors
     ).toEqual(['Forbidden directive "include" found on line 3']);
     expect(
       service.validateRenderedTemplate(rendered, {

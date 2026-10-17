@@ -2,6 +2,7 @@ import { and, asc, eq, gte, lt, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { opfieldDiagnosticsSamples, settings } from '@/db/schema/index.js';
 import { LEGACY_MANAGED_SERVICE_LABEL, MANAGED_SERVICE_LABEL } from '@/foundation/opfield-names.js';
+import { LEGACY_UPDATE_ATTEMPT_KEY } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { RedisClient } from '@/services/cache.service.js';
@@ -21,7 +22,6 @@ import {
 import { type HostReading, type ProcessReading, readDisk, SystemReader } from './diagnostics-system.js';
 import type { PostgresDetails, PostgresProbe, PostgresProbeResult } from './postgres-probe.js';
 import { type RequestSummary, type RouteSummary, requestStats } from './request-stats.js';
-import { LEGACY_UPDATE_ATTEMPT_KEY } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('OpfieldDiagnostics');
 

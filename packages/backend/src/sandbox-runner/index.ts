@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { LEGACY_APP_DATA_DIR, LEGACY_SANDBOX_LABEL, LEGACY_SANDBOX_NAME_PREFIX } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type {
   SandboxRunnerDownloadArtifactParams,
@@ -58,7 +59,6 @@ import {
   measureWorkspaceUsageBytes,
   remainingWorkspaceReservationBytes,
 } from './workspace-policy.js';
-import { LEGACY_APP_DATA_DIR, LEGACY_SANDBOX_LABEL, LEGACY_SANDBOX_NAME_PREFIX } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('SandboxRunner');
 

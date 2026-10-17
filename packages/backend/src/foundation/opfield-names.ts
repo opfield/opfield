@@ -1,6 +1,24 @@
 import { ENV_PREFIX, LEGACY_ENV_PREFIX, opfieldEnvName } from '@/config/env.js';
+import {
+  LEGACY_CLICKHOUSE_CONTAINER,
+  LEGACY_COMPOSE_MARKER,
+  LEGACY_DB_DUMP,
+  LEGACY_FOUNDATION_BACKUP_DIR,
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_INTERNAL_REGISTRY_ID,
+  LEGACY_LOCAL_CLICKHOUSE_MANAGED_LABEL,
+  LEGACY_LOCAL_CLICKHOUSE_OWNER_LABEL,
+  LEGACY_LOGS_DATABASE,
+  LEGACY_MANAGED_SERVICE_LABEL,
+  LEGACY_PRODUCT_TITLE,
+  LEGACY_RELAY_BINARY,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+  LEGACY_VOLUME_RELAY_STATE,
+} from '@/lib/legacy-compat.js';
 import { compareSemver, parseSemver } from '@/lib/semver.js';
-import { LEGACY_CLICKHOUSE_CONTAINER, LEGACY_COMPOSE_MARKER, LEGACY_DB_DUMP, LEGACY_FOUNDATION_BACKUP_DIR, LEGACY_INSTALL_DIR_NAME, LEGACY_INTERNAL_REGISTRY_ID, LEGACY_LOCAL_CLICKHOUSE_MANAGED_LABEL, LEGACY_LOCAL_CLICKHOUSE_OWNER_LABEL, LEGACY_LOGS_DATABASE, LEGACY_MANAGED_SERVICE_LABEL, LEGACY_PRODUCT_TITLE, LEGACY_RELAY_BINARY, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_REGISTRY_AUTH, LEGACY_VOLUME_REGISTRY_DATA, LEGACY_VOLUME_RELAY_IDENTITY, LEGACY_VOLUME_RELAY_STATE } from '@/lib/legacy-compat.js';
 
 /**
  * Names of the Opfield app host: install directory, Compose project, database, managed-service labels and the
@@ -40,9 +58,14 @@ export function relayBinary(buildVersion: string | null | undefined): string {
 /** Points the relay entrypoint and healthcheck of docker-compose.yml lines at `binary`. */
 export function withRelayBinary(line: string, binary: string): string {
   return line
-    .replace(new RegExp(String.raw`^(\s*entrypoint:\s*\[")(?:${escapeRegExp(LEGACY_RELAY_BINARY)}|\/opfield-relay)("\]\s*)$`), `$1${binary}$2`)
     .replace(
-      new RegExp(String.raw`^(\s*test:\s*\["CMD",\s*")(?:${escapeRegExp(LEGACY_RELAY_BINARY)}|\/opfield-relay)(",\s*"healthcheck"\]\s*)$`),
+      new RegExp(String.raw`^(\s*entrypoint:\s*\[")(?:${escapeRegExp(LEGACY_RELAY_BINARY)}|\/opfield-relay)("\]\s*)$`),
+      `$1${binary}$2`
+    )
+    .replace(
+      new RegExp(
+        String.raw`^(\s*test:\s*\["CMD",\s*")(?:${escapeRegExp(LEGACY_RELAY_BINARY)}|\/opfield-relay)(",\s*"healthcheck"\]\s*)$`
+      ),
       `$1${binary}$2`
     );
 }
@@ -169,7 +192,10 @@ export function renameLegacyEnvFileKeys(content: string): string {
 export function applyComposeVocabulary(content: string): string {
   const legacyLabel = escapeRegExp(LEGACY_MANAGED_SERVICE_LABEL);
   return renameLegacyEnvReferences(content)
-    .replace(new RegExp(`^(\\s*(?:-\\s*)?["']?)${LEGACY_ENV_PREFIX}([A-Z0-9_]+)(["']?\\s*[:=])`, 'gm'), '$1OPFIELD_$2$3')
+    .replace(
+      new RegExp(`^(\\s*(?:-\\s*)?["']?)${LEGACY_ENV_PREFIX}([A-Z0-9_]+)(["']?\\s*[:=])`, 'gm'),
+      '$1OPFIELD_$2$3'
+    )
     .replace(new RegExp(`^(\\s*-\\s*["']?)${LEGACY_ENV_PREFIX}([A-Z0-9_]+)(["']?\\s*)$`, 'gm'), '$1OPFIELD_$2$3')
     .replace(new RegExp(`^(\\s*(?:-\\s*)?["']?)${legacyLabel}(["']?\\s*[:=])`, 'gm'), `$1${MANAGED_SERVICE_LABEL}$2`)
     .replaceAll(LEGACY_MANAGED_MARKER_PREFIX, MANAGED_MARKER_PREFIX)

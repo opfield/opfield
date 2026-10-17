@@ -5,8 +5,8 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { hostingRecoveryScript } from './hosting-management.service.js';
 import { LEGACY_RELAY_SUPERVISOR } from '@/lib/legacy-compat.js';
+import { hostingRecoveryScript } from './hosting-management.service.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -36,15 +36,13 @@ describe('hosting recovery script', () => {
   });
 
   it('restarts the pre-2.12.1 relay unit while it is still enabled', () => {
-    expect(run(['relay'], [LEGACY_RELAY_SUPERVISOR, 'opfield-relay-supervisor'])).toEqual([
-      LEGACY_RELAY_SUPERVISOR,
-    ]);
+    expect(run(['relay'], [LEGACY_RELAY_SUPERVISOR, 'opfield-relay-supervisor'])).toEqual([LEGACY_RELAY_SUPERVISOR]);
   });
 
   it('restarts the Opfield relay unit once the old one is disabled, even while its file is left', () => {
-    expect(
-      run(['relay'], [LEGACY_RELAY_SUPERVISOR, 'opfield-relay-supervisor'], ['opfield-relay-supervisor'])
-    ).toEqual(['opfield-relay-supervisor']);
+    expect(run(['relay'], [LEGACY_RELAY_SUPERVISOR, 'opfield-relay-supervisor'], ['opfield-relay-supervisor'])).toEqual(
+      ['opfield-relay-supervisor']
+    );
   });
 
   it('restarts the pre-2.12.1 relay unit on a relay without the Opfield unit', () => {

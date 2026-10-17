@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
+import {
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_MIN_VERSION_FIELD,
+  LEGACY_THESQLABS_UPDATES_BASE_URL,
+} from '@/lib/legacy-compat.js';
 import type { TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import { UpdateService } from './update.service.js';
-import { LEGACY_INSTALL_DIR_NAME, LEGACY_MIN_VERSION_FIELD, LEGACY_THESQLABS_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 
 const MIGRATED = {
   exitCode: 0,
-  output:
-    `{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
+  output: `{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
 };
 
 /** A Relay Pool whose run has one step left: the local relay, as the last step of every run. */

@@ -2,6 +2,12 @@ import { mkdir, readdir, rename, unlink } from 'node:fs/promises';
 import { injectable } from 'tsyringe';
 import type { Env } from '@/config/env.js';
 import type { InferenceCoreStateRow } from '@/db/schema/inference-core.js';
+import {
+  LEGACY_CORE_ENV_PREFIX,
+  LEGACY_CORE_INTERNAL_URL_KEY,
+  LEGACY_CORE_LABEL_PREFIX,
+  LEGACY_CORE_SECRETS_DIR,
+} from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { TrustedOpenCodexImageArtifact } from '@/lib/update-artifact-trust.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -39,7 +45,6 @@ import {
   type InferenceCoreOperationService,
 } from './inference-core-operation.service.js';
 import type { InferenceCoreLatestInfo, InferenceCoreStore } from './inference-core-store.js';
-import { LEGACY_CORE_ENV_PREFIX, LEGACY_CORE_INTERNAL_URL_KEY, LEGACY_CORE_LABEL_PREFIX, LEGACY_CORE_SECRETS_DIR } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('InferenceCoreRuntimeService');
 

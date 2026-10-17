@@ -62,7 +62,8 @@ export const LEGACY_CLICKHOUSE_CONTAINER = 'gateway-clickhouse';
 /** Registry token realm placeholder in docker-compose.yml written before 2.12.1. */
 export const LEGACY_REGISTRY_TOKEN_REALM = 'https://gateway.invalid/api/docker/registry/token';
 /** Registry image reference docker-compose.yml files written before 2.12 pin. */
-export const LEGACY_REGISTRY_IMAGE = 'ghcr.io/the-square-labs/gateway/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8';
+export const LEGACY_REGISTRY_IMAGE =
+  'ghcr.io/the-square-labs/gateway/registry@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8';
 /** Compose volume key of the app data in installations made before 2.12.1 and its part name in configuration exports. */
 export const LEGACY_VOLUME_APP_DATA = 'gateway_data';
 /** Compose volume key and export part name of the relay identity. */
@@ -272,4 +273,11 @@ export const LEGACY_PROVIDER_CLIENT_ID = 'gateway';
 /** Error type of the OpenAI-compatible inference API that clients match. */
 export const LEGACY_INFERENCE_ERROR_TYPE = 'gateway_error';
 /** Host names of installations set up before 2.12.1 that must never be an external SSH target. */
-export const LEGACY_INSTALLATION_HOSTNAMES = ['gateway', 'gateway-backend', 'gateway-frontend', 'gateway-daemon', 'gateway-agent', 'gateway-proxy'] as const;
+export const LEGACY_INSTALLATION_HOSTNAMES = [
+  'gateway',
+  'gateway-backend',
+  'gateway-frontend',
+  'gateway-daemon',
+  'gateway-agent',
+  'gateway-proxy',
+] as const;

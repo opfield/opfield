@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as grpc from '@grpc/grpc-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LEGACY_RELAY_METADATA_PREFIX } from '@/lib/legacy-compat.js';
 import {
   configureRelayForwardedIdentityTrust,
   extractDaemonCertificateIdentity,
@@ -8,7 +9,6 @@ import {
   normalizeCertificateSerial,
   stageRelayForwardedIdentityTrust,
 } from './auth.js';
-import { LEGACY_RELAY_METADATA_PREFIX } from '@/lib/legacy-compat.js';
 
 function makeCall(options: {
   cn?: string | null;

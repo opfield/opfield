@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { hostingFirewalls, hostingNodeBindings, hostingResources, nodes } from '@/db/schema/index.js';
+import { LEGACY_RELAY_SUPERVISOR } from '@/lib/legacy-compat.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -23,7 +24,6 @@ import type { HostingAction, HostingProviderAdapter, HostingResourceSnapshot } f
 import { isHostedNodeReady } from './hosting-readiness.js';
 import { HostingSnapshotsService } from './hosting-snapshots.service.js';
 import { reserveProxmoxQuota } from './proxmox-quota.js';
-import { LEGACY_RELAY_SUPERVISOR } from '@/lib/legacy-compat.js';
 
 const SERVICES: Record<string, string> = {
   nginx: 'nginx-daemon',

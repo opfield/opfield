@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { LoggingSettingsService } from './logging-settings.service.js';
 import { LEGACY_INSTALL_DIR_NAME, LEGACY_LOGS_DATABASE } from '@/lib/legacy-compat.js';
+import { LoggingSettingsService } from './logging-settings.service.js';
 
 function serviceWithStored(stored: Record<string, unknown>) {
   let value: Record<string, unknown> = stored;

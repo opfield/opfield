@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
+import { LEGACY_MIN_VERSION_FIELD, LEGACY_THESQLABS_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 import type { TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { RELAY_UPDATE_SKIPPED_OFFLINE, UpdateService } from './update.service.js';
-import { LEGACY_MIN_VERSION_FIELD, LEGACY_THESQLABS_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 
 const IMAGE_REF = `registry.example.com/opfield/opfield/relay@sha256:${'a'.repeat(64)}`;
 

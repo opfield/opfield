@@ -1,5 +1,5 @@
-import { createChildLogger } from '@/lib/logger.js';
 import { LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
+import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('ConfigValidatorService');
 
@@ -40,7 +40,7 @@ const OPFIELD_TEMPLATE_STATEMENTS: readonly RegExp[] = [
   /include\s+{{\s*pagesRouteIncludePath\s*}}\s*;/g,
   // legacy-name: the legacy nginx tree in templates saved before 2.12.1 — remove once every node reports none
   new RegExp(
-    String.raw`auth_basic_user_file\s+(?:\/etc\/nginx\/opfield|${LEGACY_NGINX_DIR.replaceAll('/', '\/')})\/htpasswd\/access-list-{{\s*accessList\.id\s*}}\s*;`,
+    String.raw`auth_basic_user_file\s+(?:\/etc\/nginx\/opfield|${LEGACY_NGINX_DIR.replaceAll('/', '/')})\/htpasswd\/access-list-{{\s*accessList\.id\s*}}\s*;`,
     'g'
   ),
 ];

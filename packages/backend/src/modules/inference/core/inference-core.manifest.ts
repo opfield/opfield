@@ -1,9 +1,9 @@
+import { LEGACY_CORE_RELEASE_LINE } from '@/lib/legacy-compat.js';
 import { type ReleaseRecord, releaseFileSource } from '@/lib/release-artifacts.js';
 import { compareSemver, parseSemver } from '@/lib/semver.js';
 import { type TrustedOpenCodexImageArtifact, verifyOpenCodexImageManifest } from '@/lib/update-artifact-trust.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { INFERENCE_CORE_PROTOCOL_MAJOR } from './inference-core.contract.js';
-import { LEGACY_CORE_RELEASE_LINE } from '@/lib/legacy-compat.js';
 
 /**
  * Release channel for the managed inference core (opfield-inference, built from OpenCodex). Releases are published

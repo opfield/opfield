@@ -1,19 +1,18 @@
 import { z } from 'zod';
+import { LEGACY_ENV_PREFIX, LEGACY_IMAGE_REPOSITORY } from '@/lib/legacy-compat.js';
 import {
   DEFAULT_CLOUD_PORTAL_URL,
   OFFICIAL_IMAGE_REPOSITORIES,
   OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES,
   UPDATES_BASE_URL,
 } from './vendor-urls.js';
-import { LEGACY_ENV_PREFIX, LEGACY_IMAGE_REPOSITORY } from '@/lib/legacy-compat.js';
 
 export const DEVELOPMENT_SECURE_LINK_CONNECTOR_IMAGE = 'opfield-secure-link-connector:dev';
 export const BUILT_IN_GITHUB_OAUTH_CLIENT_ID = 'Ov23likbDL1gM8asWzfC';
 const IMMUTABLE_CONNECTOR_IMAGE_PATTERN = /^.+@sha256:[0-9a-f]{64}$/i;
-const OFFICIAL_CONNECTOR_RELEASE_TAG_PATTERN =
-  new RegExp(
-    String.raw`^(?:ghcr\.io\/opfield\/opfield|${LEGACY_IMAGE_REPOSITORY.replaceAll('.', '\\.')})\/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`
-  );
+const OFFICIAL_CONNECTOR_RELEASE_TAG_PATTERN = new RegExp(
+  String.raw`^(?:ghcr\.io\/opfield\/opfield|${LEGACY_IMAGE_REPOSITORY.replaceAll('.', '\\.')})\/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`
+);
 const deploymentModeSchema = z.enum(['standard', 'demo']).default('standard');
 
 const optionalNonEmptyString = z.preprocess(

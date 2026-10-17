@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '@/config/env.js';
+import { LEGACY_ADDRESS_FLAG, LEGACY_CERT_FLAG, LEGACY_INSTALLER_CHECKSUMS_ASSET } from '@/lib/legacy-compat.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { DaemonUpdateService } from '@/services/daemon-update.service.js';
 import {
@@ -14,14 +15,13 @@ import {
   OPFIELD_FLAG_INSTALLERS,
   secureRuntimeLocalCommand,
 } from './node-installer.js';
-import { LEGACY_ADDRESS_FLAG, LEGACY_CERT_FLAG, LEGACY_INSTALLER_CHECKSUMS_ASSET, LEGACY_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 
 vi.mock('@/config/env.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/config/env.js')>()),
   getEnv: () => ({ APP_VERSION: '2.11.0', GRPC_PORT: 9443 }),
 }));
 
-const RELEASE = `${LEGACY_UPDATES_BASE_URL}/releases/download/v2.11.0`;
+const RELEASE = `${UPDATES_BASE_URL}/releases/download/v2.11.0`;
 const CERT = `sha256:${'a'.repeat(64)}`;
 
 function storageCommands(release: string | null) {

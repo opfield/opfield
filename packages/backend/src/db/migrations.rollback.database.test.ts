@@ -4,6 +4,7 @@ import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import * as schema from '@/db/schema/index.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import {
   canonicalizeScopes,
   isApiTokenScope,
@@ -14,7 +15,6 @@ import {
 import { syncPermissionGroupsAtStartup } from '@/lib/startup-scope-sync.js';
 import { resolveEffectiveUserAccess } from '@/modules/auth/live-session-user.js';
 import { disposableDatabase, migrateDatabase } from './migration-database.test-helpers.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 

@@ -2,8 +2,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppDetail, AppEnvironmentDetail } from "@/types";
-import { ImportDialog } from "./ImportDialog";
 import { LEGACY_INSTALL_DIR_NAME } from "../../../../../backend/src/lib/legacy-compat";
+import { ImportDialog } from "./ImportDialog";
 
 const api = vi.hoisted(() => ({
   listDockerContainerSnapshots: vi.fn(),
@@ -132,7 +132,9 @@ describe("ImportDialog", () => {
     expect(screen.getByRole("button", { name: "Allow" })).toBeInTheDocument();
     expect(screen.getByText("oworia/oworia-api:1")).toBeInTheDocument();
     expect(screen.getByText("oworia/jobs · 0123456789")).toBeInTheDocument();
-    expect(screen.queryByText(new RegExp(`5443|${LEGACY_INSTALL_DIR_NAME}\\/builds`))).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(new RegExp(`5443|${LEGACY_INSTALL_DIR_NAME}\\/builds`))
+    ).not.toBeInTheDocument();
     expect(screen.getByText("deployment")).toBeInTheDocument();
     expect(screen.getByText("in Billing · moves here")).toBeInTheDocument();
     expect(rowCheckbox("burnbox")).toBeDisabled();

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { LEGACY_INFERENCE_FEATURE, LEGACY_SKILL_PREFIX } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AISettingsService } from './ai.settings.service.js';
-import { LEGACY_INFERENCE_FEATURE, LEGACY_SKILL_PREFIX } from '@/lib/legacy-compat.js';
 
 export type AISkillSource = 'system' | 'user';
 

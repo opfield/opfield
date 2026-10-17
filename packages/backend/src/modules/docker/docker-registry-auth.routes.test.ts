@@ -7,7 +7,6 @@ import { TokensService } from '@/modules/tokens/tokens.service.js';
 import type { AppEnv } from '@/types.js';
 import { __testOnly, dockerRegistryAuthRoutes } from './docker-registry-auth.routes.js';
 import { DockerInternalRegistryService } from './docker-registry-internal.service.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const ORIGINAL_DEPLOYMENT_MODE = process.env.OPFIELD_DEPLOYMENT_MODE;
 

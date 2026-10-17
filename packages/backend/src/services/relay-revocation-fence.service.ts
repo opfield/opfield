@@ -9,6 +9,7 @@ import {
   relayRoutes,
 } from '@/db/schema/index.js';
 import type { RelayPolicyRouteEntry } from '@/db/schema/relay.js';
+import { LEGACY_LOCK_RELAY_REMOTE_POLICY_REVISION } from '@/lib/legacy-compat.js';
 import {
   type BuiltPolicyRoute,
   type CurrentPolicyRoute,
@@ -19,7 +20,6 @@ import {
   staleRelaysByRoute,
   trustedAcknowledgement,
 } from './relay-revocation-fence.js';
-import { LEGACY_LOCK_RELAY_REMOTE_POLICY_REVISION } from '@/lib/legacy-compat.js';
 
 /**
  * Serializes route history writes with policy snapshot builds, which hold the same lock.

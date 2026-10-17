@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { routeTransportRestartRequired, secureLinkEgressEqual } from './relay-link-routes.js';
 import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
+import { routeTransportRestartRequired, secureLinkEgressEqual } from './relay-link-routes.js';
 
 const listener = {
   networkName: `${LEGACY_DATABASE_LINK_NETWORK_PREFIX}a`,

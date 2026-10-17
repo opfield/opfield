@@ -34,6 +34,7 @@ import {
   createdResourceScopesForCreator,
 } from '@/lib/created-resource-scopes.js';
 import { expandFolderScopes } from '@/lib/folder-scopes.js';
+import { LEGACY_SYSTEM_ADMINS_GROUP } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { canManageUser, isScopeSubset } from '@/lib/permissions.js';
 import { canonicalizeInboundScopes, canonicalizeScopes, isValidInboundScope } from '@/lib/scopes.js';
@@ -57,7 +58,6 @@ import {
 } from './live-session-user.js';
 import { mfaRequiredChannel } from './mfa-events.js';
 import type { OidcSettingsService } from './oidc-settings.service.js';
-import { LEGACY_SYSTEM_ADMINS_GROUP } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('AuthService');
 

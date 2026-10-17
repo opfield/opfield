@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DockerService } from './docker.service.js';
 import { LEGACY_REGISTRY_AUTH_DIR } from '@/lib/legacy-compat.js';
+import { DockerService } from './docker.service.js';
 
 describe('managed registry garbage collection', () => {
   it('mounts the same named volumes and bind mounts in the offline collector', async () => {

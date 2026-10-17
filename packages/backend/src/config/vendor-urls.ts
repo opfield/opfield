@@ -1,4 +1,9 @@
-import { LEGACY_CORE_IMAGE_REPOSITORY, LEGACY_IMAGE_REPOSITORY, LEGACY_THESQLABS_UPDATES_BASE_URL, LEGACY_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
+import {
+  LEGACY_CORE_IMAGE_REPOSITORY,
+  LEGACY_IMAGE_REPOSITORY,
+  LEGACY_THESQLABS_UPDATES_BASE_URL,
+  LEGACY_UPDATES_BASE_URL,
+} from '@/lib/legacy-compat.js';
 /**
  * Default addresses of the vendor services every installation talks to. They live together so a rebrand moves them
  * at once; CLOUD_PORTAL_URL, RELEASES_API_URL and ARTIFACT_BASE_URL can still be overridden through the environment
@@ -10,10 +15,7 @@ import { LEGACY_CORE_IMAGE_REPOSITORY, LEGACY_IMAGE_REPOSITORY, LEGACY_THESQLABS
  * endpoints document published with the release feed (LICENSE_ENDPOINTS_DOCUMENT) can name newer ones, and
  * LICENSE_SERVICE_URL overrides them (see license-endpoints.ts).
  */
-export const LICENSE_SERVICE_URLS: readonly string[] = [
-  'https://license.opfield.dev',
-  'https://license.thesqlabs.com',
-];
+export const LICENSE_SERVICE_URLS: readonly string[] = ['https://license.opfield.dev', 'https://license.thesqlabs.com'];
 /** The signed list of license service addresses, served by the update Worker under every update host name. */
 export const LICENSE_ENDPOINTS_DOCUMENT = 'license-endpoints.json';
 export const DEFAULT_CLOUD_PORTAL_URL = 'https://account.opfield.dev';

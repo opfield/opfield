@@ -1,5 +1,5 @@
-import { PERMISSIONS_DOC } from './ai.docs.permissions.js';
 import { LEGACY_ENV_PREFIX, LEGACY_LEASE_WATCHDOG, LEGACY_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
+import { PERMISSIONS_DOC } from './ai.docs.permissions.js';
 
 export const FOUNDATION_DOCS: Record<string, string> = {
   discovery: `# Resource Discovery

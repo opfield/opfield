@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MIGRATION_0200_RETIRED_SCOPES, SCOPE_CLEANUP_MIGRATION_ADDITIONS } from '@/lib/scopes-aliases.js';
 import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
+import { MIGRATION_0200_RETIRED_SCOPES, SCOPE_CLEANUP_MIGRATION_ADDITIONS } from '@/lib/scopes-aliases.js';
 
 const MIGRATION_TAG = '0200_scope_catalog_cleanup';
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AuditLogEntry } from "@/types";
-import { formatAuditExport, getAuditDescription, getAuditResourceDisplay } from "./audit-format";
 import { LEGACY_INSTALL_DIR_NAME } from "../../../../backend/src/lib/legacy-compat";
+import { formatAuditExport, getAuditDescription, getAuditResourceDisplay } from "./audit-format";
 
 const base: AuditLogEntry = {
   id: "e1",

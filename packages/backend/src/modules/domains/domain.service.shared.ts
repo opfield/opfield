@@ -1,7 +1,7 @@
 import type { DnsRecords } from '@/db/schema/domains.js';
+import { LEGACY_DNS_RECORD_COMMENT_PREFIX } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CloudflareClient, CloudflareDnsRecordInput } from '@/modules/integrations/cloudflare-client.js';
-import { LEGACY_DNS_RECORD_COMMENT_PREFIX } from '@/lib/legacy-compat.js';
 export const logger = createChildLogger('DomainsService');
 
 /** Comment on the Cloudflare address records Opfield creates for a domain; it recovers them when their ids are lost. */

@@ -3,11 +3,11 @@ import '@/db/schema/index.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import type { domains } from '@/db/schema/domains.js';
+import { LEGACY_DNS_RECORD_COMMENT_PREFIX } from '@/lib/legacy-compat.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { IntegrationsService } from '@/modules/integrations/integrations.service.js';
 import { DomainsService } from './domain.service.js';
 import { domainRecordComment, legacyDomainRecordComment } from './domain.service.shared.js';
-import { LEGACY_DNS_RECORD_COMMENT_PREFIX } from '@/lib/legacy-compat.js';
 
 const DOMAIN_ID = '22222222-2222-4222-8222-222222222222';
 const TARGET = '203.0.113.10';

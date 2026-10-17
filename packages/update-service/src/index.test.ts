@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleRequest } from "./index.js";
 import {
 	LEGACY_APP_IMAGE_MANIFEST_ASSET,
 	LEGACY_CORE_RELEASE_LINE,
 	LEGACY_INSTALLER_CHECKSUMS_ASSET,
 	LEGACY_UPDATE_NAMESPACE,
 } from "../../backend/src/lib/legacy-compat.js";
+import { handleRequest } from "./index.js";
 
 const env = {
 	GITHUB_OWNER: "opfield",
@@ -81,8 +81,7 @@ describe("update facade", () => {
 						tag_name: `v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 						name: `Inference Core v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 						body: "Core release notes",
-						html_url:
-							`https://github.com/opfield/inference-core/releases/tag/v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
+						html_url: `https://github.com/opfield/inference-core/releases/tag/v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 						published_at: "2026-08-27T00:00:00Z",
 						draft: false,
 						prerelease: false,
@@ -799,8 +798,7 @@ describe("update facade", () => {
 				tag_name: `v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 				name: null,
 				body: null,
-				html_url:
-					`https://github.com/opfield/inference-core/releases/tag/v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
+				html_url: `https://github.com/opfield/inference-core/releases/tag/v2.25.0-${LEGACY_CORE_RELEASE_LINE}.21`,
 				published_at: "2026-08-27T00:00:00Z",
 				draft: false,
 				prerelease: false,

@@ -7,6 +7,7 @@ import { alerts } from '@/db/schema/alerts.js';
 import { auditLog } from '@/db/schema/audit-log.js';
 import { nodes } from '@/db/schema/nodes.js';
 import { settings } from '@/db/schema/settings.js';
+import { LEGACY_HOUSEKEEPING_PROTECTED_LABEL } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { AISandboxArtifactService } from '@/modules/ai/ai.sandbox-artifact.service.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -61,7 +62,6 @@ import {
 import { type OpfieldDiskUsage, OpfieldDiskUsageReader } from './opfield-disk-usage.js';
 import type { OpfieldHostDiskReader } from './opfield-host-disks.js';
 import type { SystemCertificateLifecycleService } from './system-certificate-lifecycle.service.js';
-import { LEGACY_HOUSEKEEPING_PROTECTED_LABEL } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('HousekeepingService');
 const VOLUME_CLEANUP_PROTECTED_LABEL = 'opfield.housekeeping.protected';

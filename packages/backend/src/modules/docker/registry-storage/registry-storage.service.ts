@@ -7,6 +7,7 @@ import {
   type RegistryStorageBackend,
   registryStorageFromContainerEnv,
 } from '@/foundation/registry-storage.js';
+import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -40,7 +41,6 @@ import {
   RegistryStorageRunner,
 } from './registry-storage-runner.js';
 import { RegistryS3Client } from './s3-client.js';
-import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('DockerRegistryStorageService');
 const REGISTRY_ID = LEGACY_INTERNAL_REGISTRY_ID;

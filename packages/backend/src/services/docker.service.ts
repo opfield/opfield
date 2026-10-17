@@ -5,8 +5,8 @@ import { type Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { LEGACY_MANAGED_SERVICE_LABEL, MANAGED_SERVICE_LABEL } from '@/foundation/opfield-names.js';
 import { type RegistryStorageBackend, registryStorageFromContainerEnv } from '@/foundation/registry-storage.js';
-import { createChildLogger } from '@/lib/logger.js';
 import { LEGACY_REGISTRY_GC_PREFIX } from '@/lib/legacy-compat.js';
+import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('DockerService');
 

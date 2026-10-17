@@ -9,8 +9,8 @@ import type {
   DockerSourceContainerVolume,
   Node,
 } from "@/types";
-import type { DockerDeployMode, DockerDeploySourceMode, DockerRestartPolicy } from "./types";
 import { LEGACY_INTERNAL_REGISTRY_ID } from "../../../../backend/src/lib/legacy-compat";
+import type { DockerDeployMode, DockerDeploySourceMode, DockerRestartPolicy } from "./types";
 
 interface ExecuteDockerDeployOptions {
   availableNodes: Node[];

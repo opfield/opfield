@@ -170,7 +170,10 @@ export function opfieldInternalImageKind(image: DockerImageLike): OpfieldInterna
     ) {
       return 'secure-link-connector';
     }
-    if (repository === `${LEGACY_CONNECTOR_IMAGE_PREFIX}database-connector` || isOpfieldComponentRepository(repository, 'database-connector')) {
+    if (
+      repository === `${LEGACY_CONNECTOR_IMAGE_PREFIX}database-connector` ||
+      isOpfieldComponentRepository(repository, 'database-connector')
+    ) {
       return 'database-connector';
     }
     if (repository === 'docker/compose-bin' || repository === 'docker.io/docker/compose-bin') {

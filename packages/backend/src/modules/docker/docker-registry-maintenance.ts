@@ -17,12 +17,12 @@ import {
   dockerSourceBindings,
   settings,
 } from '@/db/schema/index.js';
+import { LEGACY_INTERNAL_REGISTRY_ID, LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { DockerService } from '@/services/docker.service.js';
 import { ACTIVE_BUILD_STATUSES, WORKER_ACTIVE_BUILD_STATUSES } from './docker-build-policy.js';
 import { classifyRegistryRetentionArtifacts, type RegistryRetentionArtifact } from './docker-registry-retention.js';
 import type { DockerRegistryGrant, DockerRegistryTokenService } from './docker-registry-token.service.js';
-import { LEGACY_INTERNAL_REGISTRY_ID, LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 export {
   REGISTRY_BUILDS_KEPT_PER_CONTAINER,

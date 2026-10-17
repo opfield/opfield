@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_INFERENCE_FEATURE } from '@/lib/legacy-compat.js';
 import legacyFixture from './fixtures/entitlements-legacy.json';
 import {
   COMMUNITY_ENTITLEMENTS,
@@ -9,7 +10,6 @@ import {
   type LicensePlan,
   licensePlanEntitlementsForVersion,
 } from './license.types.js';
-import { LEGACY_INFERENCE_FEATURE } from '@/lib/legacy-compat.js';
 
 // The fixture names the feature key the license server signs (LEGACY_INFERENCE_FEATURE) by a placeholder.
 const legacy = JSON.parse(

@@ -1,10 +1,10 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { routePath } from 'hono/route';
+import { LEGACY_HEALTH_PROBE_HEADER } from '@/lib/legacy-compat.js';
 import { logger } from '@/lib/logger.js';
 import { ONE_TIME_LINK_TOKEN_PATH } from '@/lib/one-time-link-path.js';
 import { requestStats } from '@/modules/diagnostics/request-stats.js';
 import type { AppEnv } from '@/types.js';
-import { LEGACY_HEALTH_PROBE_HEADER } from '@/lib/legacy-compat.js';
 
 const DOCKER_WEBHOOK_TOKEN_PATH = /^(\/api\/webhooks\/docker\/)[^/]+(?=\/|$)/;
 

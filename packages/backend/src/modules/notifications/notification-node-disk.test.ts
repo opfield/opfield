@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { decodeHealthDiskMounts } from '@/grpc/services/health-report.js';
+import { LEGACY_MANAGED_STORAGE_ROOT } from '@/lib/legacy-compat.js';
 import { NODE_DATA_DISKS_TARGET } from './notification-catalog.js';
 import { extractMetricFromHealthReport, isNodeDataDisk } from './notification-metrics.js';
 import { defaultResolveMessage } from './notification-resolve-messages.js';
 import { buildNotificationTemplateContext, renderTemplate } from './notification-templates.js';
-import { LEGACY_MANAGED_STORAGE_ROOT } from '@/lib/legacy-compat.js';
 
 const mount = (mountPoint: string, usagePercent: number, extra: Record<string, unknown> = {}) => ({
   mountPoint,

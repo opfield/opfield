@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import {
   configuredRegistryTokenService,
   DockerRegistryTokenService,
@@ -11,7 +12,6 @@ import {
   REGISTRY_TOKEN_SERVICE,
   resolveDockerRegistryAuthDir,
 } from './docker-registry-token.service.js';
-import { LEGACY_INSTALL_DIR_NAME, LEGACY_REGISTRY_AUTH_DIR } from '@/lib/legacy-compat.js';
 
 let tempDir = '';
 
@@ -26,7 +26,7 @@ describe('DockerRegistryTokenService', () => {
       '/tmp/test-runtime/opfield-registry-auth'
     );
     expect(resolveDockerRegistryAuthDir({ NODE_ENV: 'production' }, '/tmp/test-runtime')).toBe(
-      LEGACY_REGISTRY_AUTH_DIR
+      '/var/lib/opfield-registry-auth'
     );
     expect(
       resolveDockerRegistryAuthDir(

@@ -1,4 +1,5 @@
 import { LEGACY_STORAGE_KEY_PREFIX } from "../../../backend/src/lib/legacy-compat";
+
 // Moves browser state saved under the old product name to its Opfield key. Runs once on import,
 // before any store hydrates: main.tsx and login-main.tsx import this module first.
 
@@ -15,12 +16,21 @@ const LEGACY_LOCAL_STORAGE_KEYS: ReadonlyArray<readonly [legacy: string, current
   [`${LEGACY_STORAGE_KEY_PREFIX}-pinned-storage`, "opfield-pinned-storage"],
   [`${LEGACY_STORAGE_KEY_PREFIX}-sidebar-width`, "opfield-sidebar-width"],
   [`${LEGACY_STORAGE_KEY_PREFIX}-ai-panel-width`, "opfield-ai-panel-width"],
-  [`${LEGACY_STORAGE_KEY_PREFIX}-ai-lite-expanded-project-ids`, "opfield-ai-lite-expanded-project-ids"],
-  [`${LEGACY_STORAGE_KEY_PREFIX}-database-console-split-percent`, "opfield-database-console-split-percent"],
+  [
+    `${LEGACY_STORAGE_KEY_PREFIX}-ai-lite-expanded-project-ids`,
+    "opfield-ai-lite-expanded-project-ids",
+  ],
+  [
+    `${LEGACY_STORAGE_KEY_PREFIX}-database-console-split-percent`,
+    "opfield-database-console-split-percent",
+  ],
   [`${LEGACY_STORAGE_KEY_PREFIX}:audit-log:view`, "opfield:audit-log:view"],
   [`${LEGACY_STORAGE_KEY_PREFIX}:ai:selected-model`, "opfield:ai:selected-model"],
   [`${LEGACY_STORAGE_KEY_PREFIX}:account-menu:ai-usage-open`, "opfield:account-menu:ai-usage-open"],
-  [`${LEGACY_STORAGE_KEY_PREFIX}.dockerRegistries.gitlabExpanded`, "opfield.dockerRegistries.gitlabExpanded"],
+  [
+    `${LEGACY_STORAGE_KEY_PREFIX}.dockerRegistries.gitlabExpanded`,
+    "opfield.dockerRegistries.gitlabExpanded",
+  ],
 ];
 
 // legacy-name: browser storage keys written before 2.12.1 — remove once 2.12.0 is no longer an update source
@@ -30,14 +40,20 @@ const LEGACY_LOCAL_STORAGE_PREFIXES: ReadonlyArray<readonly [legacy: string, cur
   [`${LEGACY_STORAGE_KEY_PREFIX}-ai-composer-attachments:`, "opfield-ai-composer-attachments:"],
   [`${LEGACY_STORAGE_KEY_PREFIX}-database-console-input:`, "opfield-database-console-input:"],
   [`${LEGACY_STORAGE_KEY_PREFIX}-database-console-history:`, "opfield-database-console-history:"],
-  [`${LEGACY_STORAGE_KEY_PREFIX}:finalize-setup:skip-prompt-shown:`, "opfield:finalize-setup:skip-prompt-shown:"],
+  [
+    `${LEGACY_STORAGE_KEY_PREFIX}:finalize-setup:skip-prompt-shown:`,
+    "opfield:finalize-setup:skip-prompt-shown:",
+  ],
 ];
 
 // legacy-name: browser storage keys written before 2.12.1 — remove once 2.12.0 is no longer an update source
 const LEGACY_SESSION_STORAGE_KEYS: ReadonlyArray<readonly [legacy: string, current: string]> = [
   [`${LEGACY_STORAGE_KEY_PREFIX}:setup-restore-upload`, "opfield:setup-restore-upload"],
   [`${LEGACY_STORAGE_KEY_PREFIX}:setup-restore-public-url`, "opfield:setup-restore-public-url"],
-  [`${LEGACY_STORAGE_KEY_PREFIX}:setup-restore-owner-link-claim`, "opfield:setup-restore-owner-link-claim"],
+  [
+    `${LEGACY_STORAGE_KEY_PREFIX}:setup-restore-owner-link-claim`,
+    "opfield:setup-restore-owner-link-claim",
+  ],
   [`${LEGACY_STORAGE_KEY_PREFIX}:docker-migration:owned`, "opfield:docker-migration:owned"],
 ];
 

@@ -22,10 +22,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  normalizeOfcaPortMappings,
   type OfcaImportMetadata,
   type OfcaPortMappingInput,
   ofcaPortKey,
-  normalizeOfcaPortMappings,
   readOfcaImportMetadata,
 } from "@/lib/ofca";
 import { canCreateInFolder } from "@/lib/scope-utils";

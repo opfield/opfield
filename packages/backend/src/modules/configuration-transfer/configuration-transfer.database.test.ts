@@ -12,6 +12,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase, migrationsFolder } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
 import { certificateAuthorities, permissionGroups, settings, users } from '@/db/schema/index.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import { CAService } from '@/modules/pki/ca.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
@@ -27,7 +28,6 @@ import {
   ENVIRONMENT_PART,
   portableEnvironment,
 } from './transfer-layout.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const PG_DUMP = process.env.PG_DUMP_BIN || 'pg_dump';

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import type { CommandResult } from '@/grpc/generated/types.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import {
@@ -8,7 +9,6 @@ import {
   DOCKER_NETWORK_ISOLATION_CAPABILITY,
   type IsolatedEndpoint,
 } from './app-network-isolation.js';
-import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 
 const NO_NODE = Symbol('no node');
 

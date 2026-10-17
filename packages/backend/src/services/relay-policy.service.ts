@@ -27,6 +27,14 @@ import {
 import { encodeRelayV1Message } from '@/grpc/relay-proto.js';
 import { ResumeSessionError } from '@/grpc/relay-resume.js';
 import { RelayTunnelHost, type RemotePath } from '@/grpc/tunnel-worker/host.js';
+import {
+  LEGACY_INTERNAL_REGISTRY_ID,
+  LEGACY_LOCK_RELAY_POLICY_RECONCILIATION,
+  LEGACY_MANAGED_DATABASE_OWNER_KIND,
+  LEGACY_MANAGED_STORAGE_OWNER_KIND,
+  LEGACY_RELAY_INSTANCE_CHANGED_ERROR,
+  LEGACY_RELAY_SOURCE_KIND,
+} from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -109,7 +117,6 @@ import {
 import type { RelayAssignmentRole } from './relay-topology.js';
 import { RelayTopologyService } from './relay-topology.service.js';
 import { parseRelayGrantEgressStatuses, type SecureLinkEgressStatus } from './secure-link-egress-status.js';
-import { LEGACY_INTERNAL_REGISTRY_ID, LEGACY_LOCK_RELAY_POLICY_RECONCILIATION, LEGACY_MANAGED_DATABASE_OWNER_KIND, LEGACY_MANAGED_STORAGE_OWNER_KIND, LEGACY_RELAY_INSTANCE_CHANGED_ERROR, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 
 /** The error a relay returns for a snapshot of another Opfield instance (relays before 2.12.1: LEGACY_RELAY_INSTANCE_CHANGED_ERROR). */
 const RELAY_INSTANCE_CHANGED_ERROR = 'snapshot Opfield instance changed';
@@ -423,7 +430,9 @@ function isLocalPolicyLockout(error: unknown): boolean {
   const message = errorMessage(error);
   return (
     (error as { code?: number } | null)?.code === GrpcStatus.FAILED_PRECONDITION &&
-    (message.includes('policy envelope signature is invalid') || message.includes(RELAY_INSTANCE_CHANGED_ERROR) || message.includes(LEGACY_RELAY_INSTANCE_CHANGED_ERROR))
+    (message.includes('policy envelope signature is invalid') ||
+      message.includes(RELAY_INSTANCE_CHANGED_ERROR) ||
+      message.includes(LEGACY_RELAY_INSTANCE_CHANGED_ERROR))
   );
 }
 
@@ -3301,7 +3310,11 @@ export class RelayPolicyService {
       .from(relayRoutes)
       .where(and(eq(relayRoutes.ownerKind, ownerKind), eq(relayRoutes.ownerId, ownerId)))
       .limit(1);
-    if (!route || route.sourceKind !== LEGACY_RELAY_SOURCE_KIND || route.sourceCertificateSha256 !== appCertificateFingerprint) {
+    if (
+      !route ||
+      route.sourceKind !== LEGACY_RELAY_SOURCE_KIND ||
+      route.sourceCertificateSha256 !== appCertificateFingerprint
+    ) {
       return null;
     }
     const [endpoint] = await this.db

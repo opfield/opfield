@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { InferenceCredentialPayload } from './inference-provider.types.js';
-import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
 
 const PROD_API = 'https://cloudcode-pa.googleapis.com';
 const DAILY_API = 'https://daily-cloudcode-pa.googleapis.com';

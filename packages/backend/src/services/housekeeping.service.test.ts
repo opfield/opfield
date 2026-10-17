@@ -1,8 +1,8 @@
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { settings } from '@/db/schema/settings.js';
-import { HousekeepingService } from './housekeeping.service.js';
 import { LEGACY_HOUSEKEEPING_PROTECTED_LABEL, LEGACY_IMAGE_REPOSITORY } from '@/lib/legacy-compat.js';
+import { HousekeepingService } from './housekeeping.service.js';
 
 describe('HousekeepingService system certificate cleanup', () => {
   it('cleans only obsolete unused Opfield connector images on online Docker nodes', async () => {

@@ -5,6 +5,7 @@ import type { Env } from '@/config/env.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { settings } from '@/db/schema/settings.js';
 import { type CommercialUpdateGrant, commercialVersionKey } from '@/edition/prepare-update.js';
+import { LEGACY_LICENSE_VERSION_FIELD } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import type { CryptoService } from '@/services/crypto.service.js';
@@ -38,7 +39,6 @@ import {
   type SignedLicenseState,
 } from './license-attestation.js';
 import { LicenseServiceEndpoints } from './license-endpoints.js';
-import { LEGACY_LICENSE_VERSION_FIELD } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('LicenseService');
 

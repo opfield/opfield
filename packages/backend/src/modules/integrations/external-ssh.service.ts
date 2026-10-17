@@ -5,6 +5,7 @@ import ssh2, { Client } from 'ssh2';
 import type { DrizzleClient } from '@/db/client.js';
 import { externalSshConnectors, nodes } from '@/db/schema/index.js';
 import { normalizeIp } from '@/lib/ip-cidr.js';
+import { LEGACY_INSTALLATION_HOSTNAMES } from '@/lib/legacy-compat.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { CryptoService } from '@/services/crypto.service.js';
@@ -21,7 +22,6 @@ import {
   readHostFingerprint as probeHostFingerprint,
   SSH_CONNECT_TIMEOUT_MS,
 } from './external-ssh-transport.js';
-import { LEGACY_INSTALLATION_HOSTNAMES } from '@/lib/legacy-compat.js';
 
 export { isLoopbackAddress };
 

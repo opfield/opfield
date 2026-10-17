@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { parseDfKilobytes } from '@/services/docker.service.js';
 import { collectImageReferences } from './docker-image-retention-store.js';
 import { DockerInternalRegistryService, registryFilesystemFill } from './docker-registry-internal.service.js';
 import { selectOrphanedBuildRepositories } from './docker-registry-maintenance.js';
-import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 function registryWith(state: Record<string, unknown>) {
   let current: Record<string, unknown> = {
@@ -96,7 +96,9 @@ describe('registry disk guard', () => {
 
 describe('build repositories of removed sources', () => {
   it('selects only build repositories whose source is gone, untracked and unnamed', () => {
-    const references = JSON.stringify([{ config: { image: `127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/builds/src-named@sha256:abc` } }]);
+    const references = JSON.stringify([
+      { config: { image: `127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/builds/src-named@sha256:abc` } },
+    ]);
     expect(
       selectOrphanedBuildRepositories({
         repositories: [

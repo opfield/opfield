@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { dockerComposeProjects, dockerDeployments } from '@/db/schema/index.js';
+import { LEGACY_PLACEHOLDER_REGISTRY_HOST } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { ComposeProjectNameSchema } from '@/modules/docker/compose/compose.schemas.js';
 import { DockerComposeService } from '@/modules/docker/compose/compose.service.js';
@@ -20,7 +21,6 @@ import { DockerEnvironmentService } from './docker-environment.service.js';
 import { DockerSecretService } from './docker-secret.service.js';
 import { DockerSourceService } from './docker-source.service.js';
 import { assertContainerSourceTargetNotOwned } from './docker-source-target-owner.js';
-import { LEGACY_PLACEHOLDER_REGISTRY_HOST } from '@/lib/legacy-compat.js';
 
 /**
  * Creation of Git-source workloads, shared by the REST routes and the AI/MCP

@@ -8,7 +8,15 @@ import {
   registryStorageEnvValues,
   registryStorageFromContainerEnv,
 } from '@/foundation/registry-storage.js';
-import { LEGACY_APP_DATA_DIR, LEGACY_REGISTRY_AUTH_DIR, LEGACY_RELAY_IDENTITY_DIR, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_REGISTRY_AUTH, LEGACY_VOLUME_REGISTRY_DATA, LEGACY_VOLUME_RELAY_IDENTITY, LEGACY_VOLUME_RELAY_STATE } from '@/lib/legacy-compat.js';
+import {
+  LEGACY_APP_DATA_DIR,
+  LEGACY_REGISTRY_AUTH_DIR,
+  LEGACY_RELAY_IDENTITY_DIR,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+} from '@/lib/legacy-compat.js';
 
 /**
  * What a configuration export carries and where each piece lives on a Compose installation. Shared

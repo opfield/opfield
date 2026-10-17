@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import {
   parseInternalImageReference,
   resolveDockerImageOrigins,
   withDockerImageSources,
 } from './docker-image-source.js';
-import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 const DIGEST = `sha256:${'b'.repeat(64)}`;
 const COPY_DIGEST = `sha256:${'c'.repeat(64)}`;
@@ -28,7 +28,10 @@ function fakeDb(results: unknown[][]): DrizzleClient {
 
 describe('parseInternalImageReference', () => {
   it('splits an internal reference into repository and digest', () => {
-    expect(parseInternalImageReference(BUILT)).toEqual({ repository: `${LEGACY_REGISTRY_NAMESPACE}/builds/${BINDING}`, digest: DIGEST });
+    expect(parseInternalImageReference(BUILT)).toEqual({
+      repository: `${LEGACY_REGISTRY_NAMESPACE}/builds/${BINDING}`,
+      digest: DIGEST,
+    });
     expect(parseInternalImageReference(`127.0.0.1:5443/${LEGACY_REGISTRY_NAMESPACE}/availability/abc:image`)).toEqual({
       repository: `${LEGACY_REGISTRY_NAMESPACE}/availability/abc`,
       digest: null,

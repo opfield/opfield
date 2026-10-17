@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LEGACY_INSTALL_DIR_NAME } from "../../../backend/src/lib/legacy-compat";
 import {
   deploymentImageOrigin,
   formatWorkloadSource,
@@ -6,7 +7,6 @@ import {
   shortCommitSha,
   workloadImageLabel,
 } from "./workload-image-label";
-import { LEGACY_INSTALL_DIR_NAME } from "../../../backend/src/lib/legacy-compat";
 
 const DIGEST = `sha256:${"a".repeat(64)}`;
 const BUILT = `127.0.0.1:5443/${LEGACY_INSTALL_DIR_NAME}/builds/3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f@${DIGEST}`;
@@ -63,8 +63,12 @@ describe("workloadImageLabel", () => {
 describe("internal registry images", () => {
   it("recognises the internal registry host and Opfield repositories", () => {
     expect(isInternalRegistryImage(BUILT)).toBe(true);
-    expect(isInternalRegistryImage(`${LEGACY_INSTALL_DIR_NAME}/availability/policy:mirror`)).toBe(true);
-    expect(isInternalRegistryImage(`registry.example.com/${LEGACY_INSTALL_DIR_NAME}/builds:1`)).toBe(false);
+    expect(isInternalRegistryImage(`${LEGACY_INSTALL_DIR_NAME}/availability/policy:mirror`)).toBe(
+      true
+    );
+    expect(
+      isInternalRegistryImage(`registry.example.com/${LEGACY_INSTALL_DIR_NAME}/builds:1`)
+    ).toBe(false);
     expect(isInternalRegistryImage("nginx:1.27")).toBe(false);
   });
 

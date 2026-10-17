@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { describe, expect, it } from 'vitest';
-import { type OpfieldSkill, registerMcpSkills } from './mcp-skills.js';
 import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
+import { type OpfieldSkill, registerMcpSkills } from './mcp-skills.js';
 
 function recordingServer() {
   const resources: string[] = [];

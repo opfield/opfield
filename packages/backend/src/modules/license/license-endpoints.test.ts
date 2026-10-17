@@ -1,7 +1,13 @@
 import { generateKeyPairSync, type KeyObject, sign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { LICENSE_SERVICE_URLS } from '@/config/vendor-urls.js';
+import { LICENSE_SERVICE_URLS, UPDATES_BASE_URL } from '@/config/vendor-urls.js';
+import {
+  LEGACY_APP_IMAGE_MANIFEST_KIND,
+  LEGACY_THESQLABS_UPDATES_BASE_URL,
+  LEGACY_UPDATE_KEY_ID,
+  LEGACY_UPDATES_BASE_URL,
+} from '@/lib/legacy-compat.js';
 import { LicenseService } from './license.service.js';
 import { LICENSE_PLAN_ENTITLEMENTS } from './license.types.js';
 import {
@@ -11,13 +17,13 @@ import {
   TEST_INSTALLATION_ID,
 } from './license-attestation.test-helpers.js';
 import { LicenseServiceEndpoints, verifyLicenseEndpointsDocument } from './license-endpoints.js';
-import { LEGACY_APP_IMAGE_MANIFEST_KIND, LEGACY_THESQLABS_UPDATES_BASE_URL, LEGACY_UPDATES_BASE_URL, LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = new Date('2026-10-11T12:00:00.000Z');
 const updateKeys = generateKeyPairSync('ed25519');
 const PUBLIC_KEY = updateKeys.publicKey.export({ type: 'spki', format: 'pem' }).toString();
-const DOCUMENT_URL = `${LEGACY_UPDATES_BASE_URL}/license-endpoints.json`;
+const DOCUMENT_URL = `${UPDATES_BASE_URL}/license-endpoints.json`;
+const NAMESPACE_DOCUMENT_URL = `${LEGACY_UPDATES_BASE_URL}/license-endpoints.json`;
 const LEGACY_DOCUMENT_URL = `${LEGACY_THESQLABS_UPDATES_BASE_URL}/license-endpoints.json`;
 
 /** Signs like scripts/release/license-endpoints.mjs and the update-trust tool. */
@@ -181,7 +187,7 @@ describe('LicenseServiceEndpoints', () => {
     await expect(endpoints.refresh()).resolves.toBe(true);
     const expected = ['https://license.example.net', ...LICENSE_SERVICE_URLS];
     await expect(endpoints.list()).resolves.toEqual(expected);
-    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([DOCUMENT_URL, LEGACY_DOCUMENT_URL]);
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([DOCUMENT_URL, NAMESPACE_DOCUMENT_URL, LEGACY_DOCUMENT_URL]);
 
     // A restart with the update hosts unreachable still has the stored document.
     const restarted = createEndpoints(db, documentHost({ [DOCUMENT_URL]: new TypeError('offline') }));
@@ -237,6 +243,7 @@ describe('LicenseServiceEndpoints', () => {
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
       'https://mirror.example/opfield/license-endpoints.json',
       DOCUMENT_URL,
+      NAMESPACE_DOCUMENT_URL,
       LEGACY_DOCUMENT_URL,
     ]);
   });
@@ -303,10 +310,11 @@ describe('LicenseService over several addresses', () => {
     });
 
     // The token is the installation's, not the address's: another address takes it as is.
+    down.delete(LICENSE_SERVICE_URLS[0]!);
     down.add(LICENSE_SERVICE_URLS[1]!);
     await service.checkNow();
     const [lastUrl, lastInit] = server.mock.calls.at(-1)! as unknown as [string, RequestInit];
-    expect(lastUrl).toBe(`${LICENSE_SERVICE_URLS[2]}/api/v1/installations/heartbeat`);
+    expect(lastUrl).toBe(`${LICENSE_SERVICE_URLS[0]}/api/v1/installations/heartbeat`);
     expect(JSON.parse(String(lastInit.body))).toMatchObject({ installationToken: 'WLT-GWI-TOKEN' });
   });
 

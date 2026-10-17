@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import {
+  LEGACY_CONTAINER_LINK_NETWORK_PREFIX,
+  LEGACY_DATABASE_LINK_NETWORK_PREFIX,
+  LEGACY_SECURE_LINK_NETWORK,
+  LEGACY_STORAGE_LINK_NETWORK_PREFIX,
+} from '@/lib/legacy-compat.js';
 import { isOpfieldManagedDockerNetwork, isReservedOpfieldNetworkName } from './docker-internal-networks.js';
-import { LEGACY_CONTAINER_LINK_NETWORK_PREFIX, LEGACY_DATABASE_LINK_NETWORK_PREFIX, LEGACY_SECURE_LINK_NETWORK, LEGACY_STORAGE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 
 describe("Opfield's own Docker networks", () => {
   it.each([

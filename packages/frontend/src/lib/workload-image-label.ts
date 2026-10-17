@@ -9,7 +9,10 @@ export type WorkloadImageSource = DockerImageSource;
 const SHORT_COMMIT_LENGTH = 10;
 
 /** Repositories of images Opfield pushes to its internal registry: Git builds, Availability mirrors, promotions. */
-const INTERNAL_REPOSITORY_RE = new RegExp(String.raw`^${LEGACY_REGISTRY_NAMESPACE}\/(?:builds|availability|promotion)\/`, "i");
+const INTERNAL_REPOSITORY_RE = new RegExp(
+  String.raw`^${LEGACY_REGISTRY_NAMESPACE}\/(?:builds|availability|promotion)\/`,
+  "i"
+);
 const INTERNAL_REGISTRY_HOSTS = new Set(["127.0.0.1:5443", "localhost:5443", "registry.internal"]);
 
 export function shortCommitSha(sha: string | null | undefined): string {

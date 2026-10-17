@@ -22,8 +22,8 @@ vi.mock("@/stores/license-paywall", () => ({
 vi.mock("@/stores/pinned-containers", () => ({ syncPinnedContainerMeta: vi.fn() }));
 
 import { ApiRequestError } from "@/services/api-base";
-import { loadAppCompute, loadAppNetwork, useAppLoad } from "./app-resources";
 import { LEGACY_INSTALL_DIR_NAME } from "../../../../backend/src/lib/legacy-compat";
+import { loadAppCompute, loadAppNetwork, useAppLoad } from "./app-resources";
 
 const APP = "app-1";
 const container = {

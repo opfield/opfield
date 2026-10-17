@@ -5,6 +5,20 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OFFICIAL_IMAGE_REPOSITORIES } from '@/config/vendor-urls.js';
 import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
+import {
+  LEGACY_APP_IMAGE_MANIFEST_ASSET,
+  LEGACY_APP_IMAGE_MANIFEST_KIND,
+  LEGACY_CORE_RELEASE_LINE,
+  LEGACY_DB_DUMP,
+  LEGACY_ENV_PREFIX,
+  LEGACY_FOUNDATION_BACKUP_DIR,
+  LEGACY_IMAGE_REPOSITORY,
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_MIN_VERSION_FIELD,
+  LEGACY_RELAY_MIN_VERSION_KEY,
+  LEGACY_THESQLABS_UPDATES_BASE_URL,
+  LEGACY_UPDATE_ATTEMPT_KEY,
+} from '@/lib/legacy-compat.js';
 import type { TrustedOpfieldUpdateArtifact, TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import {
   DOCKER_COMPOSE_CLI_IMAGE_REF,
@@ -19,7 +33,6 @@ import {
   selectLatestRelayRelease,
   UpdateService,
 } from './update.service.js';
-import { LEGACY_APP_IMAGE_MANIFEST_ASSET, LEGACY_APP_IMAGE_MANIFEST_KIND, LEGACY_CORE_RELEASE_LINE, LEGACY_DB_DUMP, LEGACY_ENV_PREFIX, LEGACY_FOUNDATION_BACKUP_DIR, LEGACY_IMAGE_REPOSITORY, LEGACY_INSTALL_DIR_NAME, LEGACY_MIN_VERSION_FIELD, LEGACY_RELAY_MIN_VERSION_KEY, LEGACY_THESQLABS_UPDATES_BASE_URL, LEGACY_UPDATE_ATTEMPT_KEY } from '@/lib/legacy-compat.js';
 
 describe('relayRecreateStopTimeoutSeconds', () => {
   it('stops a relay without a bounded drain after 2 s instead of waiting for Docker to kill it', () => {
@@ -87,7 +100,7 @@ describe('UpdateService release selection', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(
         expect.arrayContaining([
-          `${LEGACY_THESQLABS_UPDATES_BASE_URL}/releases?component=${LEGACY_INSTALL_DIR_NAME}&current=v2.9.15&channel=preview`,
+          `${LEGACY_THESQLABS_UPDATES_BASE_URL}/releases?component=opfield&current=v2.9.15&channel=preview`,
           `${LEGACY_THESQLABS_UPDATES_BASE_URL}/releases?component=relay&current=v2.9.12&channel=preview`,
         ])
       );
@@ -110,7 +123,7 @@ describe('UpdateService release selection', () => {
     );
 
     expect(service.getOpfieldManifestUrl('2.9.11')).toBe(
-      `${LEGACY_THESQLABS_UPDATES_BASE_URL}/${LEGACY_INSTALL_DIR_NAME}/v2.9.11/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`
+      `${LEGACY_THESQLABS_UPDATES_BASE_URL}/opfield/v2.9.11/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`
     );
     expect(service.getRelayManifestUrl('2.9.11')).toBe(
       `${LEGACY_THESQLABS_UPDATES_BASE_URL}/relay/v2.9.11-relay/relay-image.update.json`
@@ -442,7 +455,9 @@ describe('UpdateService foundation migration', () => {
         Cmd: ['sh', '-c', 'set -eu\nmkdir -p "$SANDBOX_WORKSPACE_DIR"\nchmod 700 "$SANDBOX_WORKSPACE_DIR"'],
         Env: [`SANDBOX_WORKSPACE_DIR=/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces`],
         HostConfig: expect.objectContaining({
-          Binds: [`/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces:/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces`],
+          Binds: [
+            `/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces:/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces`,
+          ],
         }),
       })
     );
@@ -481,7 +496,7 @@ describe('UpdateService foundation migration', () => {
     expect(sidecarCommand).toContain('rollback');
     expect(sidecarCommand).toContain('trap on_exit EXIT');
     expect(sidecarCommand).toContain(
-      `compose() { docker compose --project-name ${LEGACY_INSTALL_DIR_NAME} --project-directory /srv/${LEGACY_INSTALL_DIR_NAME} -f /srv/opfield/docker-compose.yml "$@"; }`
+      `compose() { docker compose --project-name ${LEGACY_INSTALL_DIR_NAME} --project-directory /srv/opfield -f /srv/opfield/docker-compose.yml "$@"; }`
     );
     expect(sidecarCommand).toContain('cp -p "$FOUNDATION_BACKUP_DIR/.env" /srv/opfield/.env');
     expect(sidecarCommand).toContain('service_exists() { compose config --services | grep -qx "$1"; }');
@@ -513,7 +528,9 @@ describe('UpdateService foundation migration', () => {
     );
     expect(rollbackBody.indexOf('pg_isready')).toBeLessThan(rollbackBody.indexOf('restore_database_snapshot'));
     expect(rollbackBody.indexOf('restore_database_snapshot')).toBeLessThan(rollbackBody.indexOf('compose up -d app'));
-    expect(sidecarCommand).toContain(`-d postgres -c 'DROP DATABASE IF EXISTS ${LEGACY_INSTALL_DIR_NAME} WITH (FORCE)'`);
+    expect(sidecarCommand).toContain(
+      `-d postgres -c 'DROP DATABASE IF EXISTS ${LEGACY_INSTALL_DIR_NAME} WITH (FORCE)'`
+    );
     expect(sidecarCommand).toContain(
       `compose exec -T postgres pg_restore --create --exit-on-error --no-password -U ${LEGACY_INSTALL_DIR_NAME} -d postgres < "$OPFIELD_DB_DUMP"`
     );
@@ -582,7 +599,13 @@ describe('UpdateService foundation migration', () => {
     const events: string[] = [];
     const poolInstances = [
       { id: 'remote', kind: 'remote', state: 'ready', faultDomainId: 'remote-host', buildVersion: 'v2.4.2' },
-      { id: 'local', kind: 'local', state: 'ready', faultDomainId: `${LEGACY_INSTALL_DIR_NAME}`, buildVersion: 'v2.4.2' },
+      {
+        id: 'local',
+        kind: 'local',
+        state: 'ready',
+        faultDomainId: `${LEGACY_INSTALL_DIR_NAME}`,
+        buildVersion: 'v2.4.2',
+      },
     ];
     const selections = [[], poolInstances];
     const selectedTables: unknown[] = [];
@@ -724,8 +747,7 @@ describe('UpdateService foundation migration', () => {
       .mockResolvedValueOnce({ exitCode: 0, output: '{"ok":true}' })
       .mockResolvedValueOnce({
         exitCode: 0,
-        output:
-          `{"ok":true,"changedFiles":["docker-compose.yml"],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
+        output: `{"ok":true,"changedFiles":["docker-compose.yml"],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
       })
       .mockResolvedValueOnce({ exitCode: 0, output: '' })
       .mockResolvedValueOnce({ exitCode: 1, output: 'bad compose' })
@@ -993,7 +1015,9 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
     const recreate = run.at('--force-recreate app');
     const ready = run.at('pg_isready');
     const drop = run.at(`-d postgres -c DROP DATABASE IF EXISTS ${LEGACY_INSTALL_DIR_NAME} WITH (FORCE)`);
-    const restore = run.at(`pg_restore --create --exit-on-error --no-password -U ${LEGACY_INSTALL_DIR_NAME} -d postgres`);
+    const restore = run.at(
+      `pg_restore --create --exit-on-error --no-password -U ${LEGACY_INSTALL_DIR_NAME} -d postgres`
+    );
     expect(recreate).toBeGreaterThan(-1);
     expect(recreate).toBeLessThan(ready);
     expect(ready).toBeLessThan(drop);
@@ -1250,8 +1274,7 @@ describe('UpdateService interrupted updates', () => {
       order.push(config.Cmd.includes('dist/cli/migrate-legacy-settings.js') ? 'legacy-settings' : config.Cmd[0]!);
       return {
         exitCode: 0,
-        output:
-          `{"ok":true,"changedFiles":[],"backupDir":null,"sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
+        output: `{"ok":true,"changedFiles":[],"backupDir":null,"sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
       };
     });
     dockerService.runDetached.mockImplementation(async () => {
@@ -1825,8 +1848,7 @@ function makeDockerService() {
     pullImageRef: vi.fn().mockResolvedValue(undefined),
     runOneShot: vi.fn().mockResolvedValue({
       exitCode: 0,
-      output:
-        `{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
+      output: `{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
     }),
     runDetached: vi.fn().mockResolvedValue('sidecar-1'),
   };

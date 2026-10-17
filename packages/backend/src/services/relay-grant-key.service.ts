@@ -3,6 +3,7 @@ import { and, eq, lte, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { relayGrantSigningKeys, relayInstances, relayPolicyState, relayPools } from '@/db/schema/index.js';
 import type { RelayInstanceCapabilities } from '@/db/schema/relay.js';
+import { LEGACY_LOCK_RELAY_POLICY_BOOTSTRAP, LEGACY_LOCK_RELAY_SIGNING_KEY_ROTATION } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import {
@@ -13,7 +14,6 @@ import {
 } from '@/modules/settings/general-settings.service.js';
 import type { CryptoService } from './crypto.service.js';
 import { bumpRelayPolicyRevision } from './relay-policy-reconciler.js';
-import { LEGACY_LOCK_RELAY_POLICY_BOOTSTRAP, LEGACY_LOCK_RELAY_SIGNING_KEY_ROTATION } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('RelayGrantKeyService');
 const POLICY_ID = 'current';

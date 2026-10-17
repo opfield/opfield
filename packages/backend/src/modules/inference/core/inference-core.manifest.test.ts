@@ -1,5 +1,6 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LEGACY_CORE_RELEASE_LINE, LEGACY_MIN_VERSION_FIELD } from '@/lib/legacy-compat.js';
 import { UPDATE_SIGNING_KEY_ID } from '@/lib/update-artifact-trust.js';
 import { INFERENCE_CORE_PROTOCOL_MAJOR } from './inference-core.contract.js';
 import {
@@ -11,7 +12,6 @@ import {
   OPENCODEX_VERSION_RE,
   parseOpenCodexVersion,
 } from './inference-core.manifest.js';
-import { LEGACY_CORE_RELEASE_LINE, LEGACY_MIN_VERSION_FIELD } from '@/lib/legacy-compat.js';
 
 describe('core release lines', () => {
   it('accepts the earliest, thesqlabs and opfield lines', () => {

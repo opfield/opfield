@@ -1,12 +1,12 @@
 // The schema barrel first: loading the proxy services alone enters the schema import cycle mid-way.
 import '@/db/schema/index.js';
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import type { ProxyHostConfig } from '@/services/nginx-config-generator.service.js';
 import { AdditionalRouteService } from './additional-route.service.js';
 import { additionalRouteAdvancedConfigErrors } from './additional-route.validation.js';
 import { NginxTemplateService } from './nginx-template.service.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const HOST = '11111111-1111-4111-8111-111111111111';
 

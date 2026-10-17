@@ -11,6 +11,7 @@ import {
   proxyAdditionalSecureLinks,
   proxyHosts,
 } from '@/db/schema/index.js';
+import { LEGACY_NGINX_VARIABLE_PREFIX } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -31,7 +32,6 @@ import {
   syncableAvailabilityMember,
 } from './proxy-secure-link-availability.js';
 import { secureLinkLoopbackAddress } from './secure-link-loopback.js';
-import { LEGACY_NGINX_VARIABLE_PREFIX } from '@/lib/legacy-compat.js';
 
 type ProxyHostRow = typeof proxyHosts.$inferSelect;
 export type ProxyAdditionalSecureLinkRow = typeof proxyAdditionalSecureLinks.$inferSelect;

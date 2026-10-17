@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { LEGACY_HOSTING_FIREWALL_PREFIX } from '@/lib/legacy-compat.js';
 import {
   firewallFingerprint,
   type HostingFirewallAdapter,
@@ -7,7 +8,6 @@ import {
 } from '../hosting-firewall.types.js';
 import { HostingProviderError, type HostingRequestOptions } from '../hosting-http.js';
 import type { HostingResourceSnapshot } from '../hosting-provider.types.js';
-import { LEGACY_HOSTING_FIREWALL_PREFIX } from '@/lib/legacy-compat.js';
 
 type Json = Record<string, unknown>;
 type Request = <T>(path: string, options?: HostingRequestOptions) => Promise<T>;

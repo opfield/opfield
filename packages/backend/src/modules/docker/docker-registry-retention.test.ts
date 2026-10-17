@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { DockerRegistryBuildRetention } from './docker-registry-build-retention.js';
 import {
   classifyRegistryRetentionArtifacts,
@@ -7,7 +8,6 @@ import {
   type RegistryRetentionPinRow,
   selectRegistryRetentionCandidates,
 } from './docker-registry-retention.js';
-import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 const digest = (n: number) => `sha256:${n.toString(16).padStart(64, '0')}`;
 const repo = (binding: string) => `${LEGACY_REGISTRY_NAMESPACE}/builds/${binding}`;

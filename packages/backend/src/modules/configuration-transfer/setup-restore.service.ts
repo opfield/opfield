@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { DOCKER_COMPOSE_CLI_IMAGE_REF } from '@/config/docker-compose-cli-image.js';
+import { LEGACY_VOLUME_APP_DATA } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { normalizeHostPortTarget, normalizePublicUrl } from '@/modules/settings/general-settings.service.js';
@@ -13,7 +14,6 @@ import { type ExportSummary, type RestoreStatus, restoreErrorMessage, verifyExpo
 import { ownerLinkClaimHash } from './owner-password-link.js';
 import { validatePassphrase } from './transfer-archive.js';
 import { composeVolumeName, currentSchemaMigration, RESTORE_STAGING_DIR } from './transfer-layout.js';
-import { LEGACY_VOLUME_APP_DATA } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('SetupRestore');
 export const SETUP_RESTORE_CHUNK_MAX_BYTES = 32 * 1024 * 1024;

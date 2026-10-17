@@ -1,8 +1,8 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { currentWitnessVersion, WITNESS_ARTIFACTS, WitnessCatalog } from './witness-catalog.js';
 import { LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
+import { currentWitnessVersion, WITNESS_ARTIFACTS, WitnessCatalog } from './witness-catalog.js';
 
 const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 const publicPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();

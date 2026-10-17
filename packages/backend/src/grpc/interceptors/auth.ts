@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { ServerDuplexStream, ServerUnaryCall } from '@grpc/grpc-js';
-import { createChildLogger } from '@/lib/logger.js';
 import { LEGACY_RELAY_METADATA_PREFIX } from '@/lib/legacy-compat.js';
+import { createChildLogger } from '@/lib/logger.js';
 
 const logger = createChildLogger('GrpcAuth');
 

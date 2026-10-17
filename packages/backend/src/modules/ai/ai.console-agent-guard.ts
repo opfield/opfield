@@ -1,5 +1,6 @@
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { LEGACY_RELAY_BINARY, LEGACY_RELAY_IDENTITY_DIR } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -21,7 +22,6 @@ import {
   NODE_CONSOLE_RUNTIME_UNAVAILABLE,
   nodeConsoleRuntimeError,
 } from './ai.console-runtime.js';
-import { LEGACY_RELAY_BINARY, LEGACY_RELAY_IDENTITY_DIR } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('ConsoleManagedGuard');
 const AUDIT_COMMAND_MAX = 500;

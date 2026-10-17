@@ -1,11 +1,11 @@
 // The schema barrel first: loading the template service alone enters the schema import cycle mid-way.
 import '@/db/schema/index.js';
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import type { ProxyHostConfig } from '@/services/nginx-config-generator.service.js';
 import { NginxTemplateService } from './nginx-template.service.js';
 import { testTemplateContent } from './nginx-template-preview.js';
-import { LEGACY_INSTALL_DIR_NAME, LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 
 // Grant cleanup on delete is covered against PostgreSQL in resource-scope-cleanup.database.test.ts.
 vi.mock('@/lib/resource-scope-cleanup.js', () => ({

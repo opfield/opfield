@@ -2,13 +2,13 @@ import { getEnv } from '@/config/env.js';
 import { INSTALLER_RELEASES_URL } from '@/config/vendor-urls.js';
 import { container } from '@/container.js';
 import { getConsoleBaseHost } from '@/lib/console-base-host.js';
+import { LEGACY_ADDRESS_FLAG, LEGACY_CERT_FLAG, LEGACY_INSTALLER_CHECKSUMS_ASSET } from '@/lib/legacy-compat.js';
 import { compareSemver, RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
 import { isCloudManaged } from '@/modules/cloud-link/cloud-link-managed-locks.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { DaemonUpdateService, daemonTypeForNodeType } from '@/services/daemon-update.service.js';
 import { RelayPoolService } from '@/services/relay-pool.service.js';
 import { DEFAULT_RELAY_SERVICE_PORT, requestedRelayServicePort } from '@/services/relay-service-endpoint.js';
-import { LEGACY_ADDRESS_FLAG, LEGACY_CERT_FLAG, LEGACY_INSTALLER_CHECKSUMS_ASSET } from '@/lib/legacy-compat.js';
 
 // The update Worker serves a release's installers in GitHub's release download layout.
 const RELEASE_DOWNLOADS = `${INSTALLER_RELEASES_URL}/download`;

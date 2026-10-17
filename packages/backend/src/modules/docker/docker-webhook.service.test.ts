@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { assertDockerMountChangeAllowed, normalizeMountDefinitionsFromConfig } from './docker-socket-mount.guard.js';
 import { DockerWebhookService } from './docker-webhook.service.js';
-import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 describe('DockerWebhookService', () => {
   it('rejects malformed bearer tokens before issuing a UUID database query', async () => {

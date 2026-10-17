@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AppIncident, AppIncidentItem } from '@/db/schema/index.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 import type { AppIncidentActions, IncidentActionOutcome } from './app-incident-actions.js';
 import { AppIncidentRunner } from './app-incident-runner.js';
 import type { IncidentTargets } from './app-incident-targets.js';
 import type { NewIncidentItem } from './app-incidents.repo.js';
 import { buildIsolationItems, summarizeIsolation } from './app-isolation.service.js';
 import { buildShutdownItems, summarizeShutdown } from './app-shutdown.service.js';
-import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 
 /** An in-memory incident store with the repo methods the runner uses. */
 function memoryRepo(incident: AppIncident, items: NewIncidentItem[]) {

@@ -17,6 +17,7 @@ import {
   relayRoutes,
 } from '@/db/schema/index.js';
 import { sameTimestamp } from '@/db/timestamp-equality.js';
+import { LEGACY_LOCK_RELAY_POOL_REBALANCE, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 import { logger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -69,7 +70,6 @@ import type { RelayTopologyService } from './relay-topology.service.js';
 import { relayWitnessHosting } from './relay-witness-hosting.js';
 import { listRelayWitnesses, type RelayWitnessListing } from './relay-witness-listing.js';
 import { isShuttingDown } from './shutdown-state.js';
-import { LEGACY_LOCK_RELAY_POOL_REBALANCE, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 
 type RelayInstanceRow = typeof relayInstances.$inferSelect;
 

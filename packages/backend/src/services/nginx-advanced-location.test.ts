@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { injectAccessListIntoAdvancedLocations } from './nginx-advanced-location.js';
 import { LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
+import { injectAccessListIntoAdvancedLocations } from './nginx-advanced-location.js';
 
 describe('injectAccessListIntoAdvancedLocations', () => {
   const directives = [

@@ -2,13 +2,16 @@ import { createHash, createPrivateKey, generateKeyPairSync, randomUUID, sign } f
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { relayInstances, relayPolicySigningKeys } from '@/db/schema/index.js';
+import {
+  LEGACY_LOCK_RELAY_POLICY_KEY_ROTATION,
+  LEGACY_LOCK_RELAY_POLICY_SIGNING_BOOTSTRAP,
+} from '@/lib/legacy-compat.js';
 import type { CryptoService } from './crypto.service.js';
 import {
   PolicyKeyRotationStallLog,
   type RotationCandidate,
   rotationParticipants,
 } from './relay-policy-key-rotation.js';
-import { LEGACY_LOCK_RELAY_POLICY_KEY_ROTATION, LEGACY_LOCK_RELAY_POLICY_SIGNING_BOOTSTRAP } from '@/lib/legacy-compat.js';
 
 const KEY_ROTATION_MS = 30 * 24 * 60 * 60 * 1000;
 const KEY_OVERLAP_MS = 30 * 60 * 1000;

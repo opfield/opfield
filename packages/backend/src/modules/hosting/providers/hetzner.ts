@@ -531,5 +531,5 @@ export class HetznerHostingAdapter implements HostingProviderAdapter {
   }
 }
 
-import { VmSnapshotAdapter } from './vm-snapshots.js';
 import { LEGACY_HOSTING_MARKER_LABEL } from '@/lib/legacy-compat.js';
+import { VmSnapshotAdapter } from './vm-snapshots.js';

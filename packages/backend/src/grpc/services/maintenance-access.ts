@@ -2,11 +2,11 @@ import * as grpc from '@grpc/grpc-js';
 import { eq } from 'drizzle-orm';
 import { container } from '@/container.js';
 import { nodes } from '@/db/schema/index.js';
+import { LEGACY_MAINTENANCE_HOST_HEADER } from '@/lib/legacy-compat.js';
 import { ProxyMaintenanceAccessService } from '@/modules/proxy/proxy-maintenance-access.service.js';
 import { extractDaemonCertificateIdentity } from '../interceptors/auth.js';
 import { matchEnrolledNodeCertificate } from '../node-certificate.js';
 import type { GrpcServerDeps } from '../server.js';
-import { LEGACY_MAINTENANCE_HOST_HEADER } from '@/lib/legacy-compat.js';
 
 async function nginxNodeId(call: grpc.ServerUnaryCall<any, any>, deps: GrpcServerDeps): Promise<string | null> {
   const identity = extractDaemonCertificateIdentity(call);

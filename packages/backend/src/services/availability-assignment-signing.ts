@@ -2,8 +2,8 @@ import { inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { relayPolicySigningKeys } from '@/db/schema/index.js';
 import type { AvailabilityPrimaryAssignment } from '@/grpc/generated/types.js';
-import type { RelayPolicySigningKeyService } from '@/services/relay-policy-signing-key.service.js';
 import { LEGACY_AVAILABILITY_MEMBER_DOMAIN } from '@/lib/legacy-compat.js';
+import type { RelayPolicySigningKeyService } from '@/services/relay-policy-signing-key.service.js';
 
 /**
  * Manual pairs' primary assignments (decision 6) are signed by Opfield with the relay policy signing key, like lease

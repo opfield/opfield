@@ -7,6 +7,14 @@ import {
   LEGACY_COMMERCIAL_HOST_DIR,
   type PreparedCommercialUpdate,
 } from '@/edition/prepare-update.js';
+import {
+  LEGACY_APP_DATA_DIR,
+  LEGACY_ENV_PREFIX,
+  LEGACY_REGISTRY_AUTH_DIR,
+  LEGACY_REGISTRY_IMAGE,
+  LEGACY_REGISTRY_TOKEN_REALM,
+  LEGACY_RELAY_IDENTITY_DIR,
+} from '@/lib/legacy-compat.js';
 import { FOUNDATION_MIGRATION_BACKUP, pruneBackupDirectories, REGISTRY_STORAGE_BACKUP } from './backup-retention.js';
 import {
   applyComposeVocabulary,
@@ -30,7 +38,6 @@ import {
   registryStorageBackendFromEnv,
   registryStorageComposeEnvironment,
 } from './registry-storage.js';
-import { LEGACY_APP_DATA_DIR, LEGACY_ENV_PREFIX, LEGACY_REGISTRY_AUTH_DIR, LEGACY_REGISTRY_IMAGE, LEGACY_REGISTRY_TOKEN_REALM, LEGACY_RELAY_IDENTITY_DIR } from '@/lib/legacy-compat.js';
 
 export const DEFAULT_SANDBOX_WORKSPACE_DIR = '/var/lib/opfield/sandbox-workspaces';
 // legacy-name: the sandbox workspace directory of installations made before 2.12.1; the host move switches a .env
@@ -44,8 +51,7 @@ const RELAY_SERVICE_END = `${MANAGED_MARKER_PREFIX}end relay-service`;
 const REGISTRY_SERVICE_START = `${MANAGED_MARKER_PREFIX}start registry-service`;
 const REGISTRY_SERVICE_END = `${MANAGED_MARKER_PREFIX}end registry-service`;
 const MANAGED_SERVICE_LABEL_PATTERN = `(?:${escapeRegExp(MANAGED_SERVICE_LABEL)}|${escapeRegExp(LEGACY_MANAGED_SERVICE_LABEL)})`;
-const DEFAULT_REGISTRY_IMAGE_REF =
-  LEGACY_REGISTRY_IMAGE;
+const DEFAULT_REGISTRY_IMAGE_REF = LEGACY_REGISTRY_IMAGE;
 /** Bounded container logs for installer-managed services; Docker keeps json-file logs forever otherwise. */
 export const COMPOSE_LOG_MAX_SIZE = '50m';
 export const COMPOSE_LOG_MAX_FILE = '3';
@@ -594,9 +600,7 @@ function patchCommercialCore(lines: string[], commercialDirName: string, appData
   const next = [...lines];
   const existing = next.findIndex(
     (line, index) =>
-      index > volumes.start &&
-      index < volumes.end &&
-      dataDirMountPattern((dirs) => dirs.app, '/commercial').test(line)
+      index > volumes.start && index < volumes.end && dataDirMountPattern((dirs) => dirs.app, '/commercial').test(line)
   );
   if (existing >= 0) next[existing] = mount;
   else next.splice(volumes.end, 0, mount);
@@ -699,7 +703,11 @@ function patchAppRuntimeStorageAndSocket(lines: string[], layout: ComposeLayout)
   const indent = ' '.repeat(refreshedVolumes.indent + 2);
   const socketLine = findDockerSocketVolume(next, refreshedVolumes.start + 1, refreshedVolumes.end);
   const insertAt = socketLine >= 0 ? socketLine + 1 : refreshedVolumes.end;
-  next = [...next.slice(0, insertAt), `${indent}- ${layout.volumes.appData}:${layout.dataDirs.app}`, ...next.slice(insertAt)];
+  next = [
+    ...next.slice(0, insertAt),
+    `${indent}- ${layout.volumes.appData}:${layout.dataDirs.app}`,
+    ...next.slice(insertAt),
+  ];
   return ensureTopLevelVolume(next, layout.volumes.appData);
 }
 

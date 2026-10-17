@@ -1,6 +1,6 @@
+import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { InferenceCredentialPayload } from './inference-provider.types.js';
-import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
 
 type Fetcher = typeof fetch;
 type JsonObject = Record<string, unknown>;

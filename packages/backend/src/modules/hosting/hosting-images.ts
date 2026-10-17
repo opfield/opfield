@@ -1,6 +1,6 @@
+import { LEGACY_HOSTING_IMAGE_PREFIX } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { HostingRole } from './hosting-provider.types.js';
-import { LEGACY_HOSTING_IMAGE_PREFIX } from '@/lib/legacy-compat.js';
 
 export interface HostingCloudImage {
   id: string;

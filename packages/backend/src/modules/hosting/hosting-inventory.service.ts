@@ -9,6 +9,7 @@ import {
 } from '@/db/schema/index.js';
 import { commandResultDataToBuffer } from '@/lib/command-result-data.js';
 import { normalizeIp } from '@/lib/ip-cidr.js';
+import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -35,7 +36,6 @@ import {
   type HostingResourceSnapshot,
 } from './hosting-provider.types.js';
 import { reserveProxmoxQuota } from './proxmox-quota.js';
-import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 
 export const HOSTING_RESOURCE_SNAPSHOT = 'hosting-resources';
 export const HOSTING_CATALOG_SNAPSHOT = 'hosting-catalog';
@@ -156,9 +156,7 @@ export class HostingInventoryService {
     } catch (error) {
       // legacy-name: host-identity in the legacy state root of daemons before 2.12.1 — remove once every node reports none
       return (
-        await this.nodeService
-          .readFile(nodeId, `${LEGACY_STATE_ROOT}/host-identity`)
-          .catch(() => Promise.reject(error))
+        await this.nodeService.readFile(nodeId, `${LEGACY_STATE_ROOT}/host-identity`).catch(() => Promise.reject(error))
       )
         .toString('utf8')
         .trim();

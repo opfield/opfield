@@ -1,3 +1,4 @@
+import { LEGACY_INGRESS_HEALTH_PATH } from '@/lib/legacy-compat.js';
 import {
   appRoute,
   createdJson,
@@ -20,7 +21,6 @@ import {
   ReorderIngressGroupSchema,
   UpdateIngressGroupSchema,
 } from './ingress-group.schemas.js';
-import { LEGACY_INGRESS_HEALTH_PATH } from '@/lib/legacy-compat.js';
 
 const TAGS = ['Ingress groups'];
 

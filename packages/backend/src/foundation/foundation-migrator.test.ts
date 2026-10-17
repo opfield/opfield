@@ -4,6 +4,24 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseDocument } from 'yaml';
 import {
+  LEGACY_COMPOSE_MARKER,
+  LEGACY_ENV_PREFIX,
+  LEGACY_IMAGE_REPOSITORY,
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_INTERNAL_REGISTRY_ID,
+  LEGACY_MANAGED_SERVICE_LABEL,
+  LEGACY_PRODUCT_TITLE,
+  LEGACY_REGISTRY_AUTH_DIR,
+  LEGACY_REGISTRY_IMAGE,
+  LEGACY_RELAY_BINARY,
+  LEGACY_RELAY_IDENTITY_DIR,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+  LEGACY_VOLUME_RELAY_STATE,
+} from '@/lib/legacy-compat.js';
+import {
   assertEnvReferencesResolve,
   composeLoggingEligibility,
   dockerLogDefaultsEnv,
@@ -13,7 +31,6 @@ import {
   patchEnv,
   runFoundationMigrations,
 } from './foundation-migrator.js';
-import { LEGACY_COMPOSE_MARKER, LEGACY_ENV_PREFIX, LEGACY_IMAGE_REPOSITORY, LEGACY_INSTALL_DIR_NAME, LEGACY_INTERNAL_REGISTRY_ID, LEGACY_MANAGED_SERVICE_LABEL, LEGACY_PRODUCT_TITLE, LEGACY_REGISTRY_AUTH_DIR, LEGACY_REGISTRY_IMAGE, LEGACY_RELAY_BINARY, LEGACY_RELAY_IDENTITY_DIR, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_REGISTRY_AUTH, LEGACY_VOLUME_REGISTRY_DATA, LEGACY_VOLUME_RELAY_IDENTITY, LEGACY_VOLUME_RELAY_STATE } from '@/lib/legacy-compat.js';
 
 const BOUNDED = { boundedLogging: true };
 
@@ -730,8 +747,8 @@ describe('installer .env files through an update', () => {
     expect(() =>
       assertEnvReferencesResolve('APP_VERSION="${OPFIELD_VERSION}"\nOPFIELD_VERSION=v1\n', '')
     ).not.toThrow();
-    expect(() => assertEnvReferencesResolve('A=1\n', `services:\n  app:\n    image: \${${LEGACY_ENV_PREFIX}IMAGE}\n`)).toThrow(
-      `${LEGACY_ENV_PREFIX}IMAGE`
-    );
+    expect(() =>
+      assertEnvReferencesResolve('A=1\n', `services:\n  app:\n    image: \${${LEGACY_ENV_PREFIX}IMAGE}\n`)
+    ).toThrow(`${LEGACY_ENV_PREFIX}IMAGE`);
   });
 });

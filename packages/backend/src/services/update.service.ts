@@ -20,6 +20,13 @@ import {
   LEGACY_DATABASE_SNAPSHOT_FILE,
   LEGACY_FOUNDATION_BACKUPS_DIR,
 } from '@/foundation/opfield-names.js';
+import {
+  LEGACY_APP_IMAGE_MANIFEST_ASSET,
+  LEGACY_LOCK_RELAY_POOL_REBALANCE,
+  LEGACY_RELAY_MIN_VERSION_KEY,
+  LEGACY_UPDATE_ATTEMPT_KEY,
+  LEGACY_UPDATE_SIDECAR_NAME,
+} from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import {
   type ReleaseFileSource,
@@ -65,7 +72,6 @@ import {
   relayStreamCounters,
   relayStreamOutcome,
 } from './relay-stream-resume.js';
-import { LEGACY_APP_IMAGE_MANIFEST_ASSET, LEGACY_LOCK_RELAY_POOL_REBALANCE, LEGACY_MIN_VERSION_FIELD, LEGACY_RELAY_MIN_VERSION_KEY, LEGACY_UPDATE_ATTEMPT_KEY, LEGACY_UPDATE_SIDECAR_NAME } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('UpdateService');
 

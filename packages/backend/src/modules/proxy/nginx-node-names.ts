@@ -1,4 +1,13 @@
-import { LEGACY_INGRESS_GENERATION_HEADER, LEGACY_INGRESS_HEALTH_HOST, LEGACY_MAINTENANCE_HEADER_PREFIX, LEGACY_NGINX_DIR, LEGACY_NGINX_MARK_PREFIX, LEGACY_NGINX_RUN_PREFIX, LEGACY_NGINX_VARIABLE_PREFIX, LEGACY_RESERVED_PATH_PREFIX } from '@/lib/legacy-compat.js';
+import {
+  LEGACY_INGRESS_GENERATION_HEADER,
+  LEGACY_INGRESS_HEALTH_HOST,
+  LEGACY_MAINTENANCE_HEADER_PREFIX,
+  LEGACY_NGINX_DIR,
+  LEGACY_NGINX_MARK_PREFIX,
+  LEGACY_NGINX_RUN_PREFIX,
+  LEGACY_NGINX_VARIABLE_PREFIX,
+  LEGACY_RESERVED_PATH_PREFIX,
+} from '@/lib/legacy-compat.js';
 /**
  * The names Opfield gives files, directories and nginx identifiers on an ingress node, and the pre-Opfield
  * names a node keeps until its nginx daemon moved it (internal/naming in the nginx daemon).

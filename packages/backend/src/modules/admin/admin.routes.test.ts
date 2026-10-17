@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { AppError, errorHandler } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { AuthService } from '@/modules/auth/auth.service.js';
@@ -33,7 +34,6 @@ import { adminRoutes, generalSettingsRollbackFields, generalSettingsRollbackPatc
 import { AdminUserFolderService } from './admin-user-folders.service.js';
 import { findCloudManagedChanges } from './cloud-managed-settings.js';
 import { findIdentityTrustChanges } from './identity-trust-settings.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = 'http://localhost/db';

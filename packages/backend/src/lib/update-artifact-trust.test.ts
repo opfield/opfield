@@ -1,6 +1,13 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
+  LEGACY_APP_IMAGE_MANIFEST_KIND,
+  LEGACY_CORE_RELEASE_LINE,
+  LEGACY_MIN_VERSION_FIELD,
+  LEGACY_UPDATE_KEY_ID,
+  LEGACY_UPDATES_BASE_URL,
+} from '@/lib/legacy-compat.js';
+import {
   isDigestPinnedImageRef,
   normalizeGitLabApiUrl,
   trustedGitLabPackagePrefix,
@@ -10,7 +17,6 @@ import {
   verifyOpfieldImageManifest,
   verifyRelayImageManifest,
 } from './update-artifact-trust.js';
-import { LEGACY_APP_IMAGE_MANIFEST_KIND, LEGACY_CORE_RELEASE_LINE, LEGACY_INSTALL_DIR_NAME, LEGACY_MIN_VERSION_FIELD, LEGACY_UPDATES_BASE_URL, LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
 const checksum = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const daemonUrl =
@@ -88,7 +94,7 @@ const opencodexManifest = JSON.stringify({
 describe('update artifact trust', () => {
   it('normalizes GitLab API base URLs for exact signed URL comparisons', () => {
     expect(normalizeGitLabApiUrl('https://gitlab.example.com/')).toBe('https://gitlab.example.com');
-    expect(trustedGitLabPackagePrefix('https://gitlab.example.com/', `${LEGACY_CORE_RELEASE_LINE}/${LEGACY_INSTALL_DIR_NAME}`)).toBe(
+    expect(trustedGitLabPackagePrefix('https://gitlab.example.com/', 'opfield/opfield')).toBe(
       'https://gitlab.example.com/api/v4/projects/opfield%2Fopfield/packages/generic/'
     );
   });
@@ -101,7 +107,7 @@ describe('update artifact trust', () => {
       arch: 'amd64',
       artifactName: 'nginx-daemon-linux-amd64',
       downloadUrl: daemonUrl,
-      trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', `${LEGACY_CORE_RELEASE_LINE}/${LEGACY_INSTALL_DIR_NAME}`),
+      trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'opfield/opfield'),
     });
 
     expect(artifact.checksum).toBe(checksum);
@@ -137,7 +143,7 @@ describe('update artifact trust', () => {
         arch: 'arm64',
         artifactName: 'nginx-daemon-linux-amd64',
         downloadUrl: daemonUrl,
-        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', `${LEGACY_CORE_RELEASE_LINE}/${LEGACY_INSTALL_DIR_NAME}`),
+        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'opfield/opfield'),
       })
     ).toThrow(UpdateArtifactTrustError);
   });
@@ -154,7 +160,7 @@ describe('update artifact trust', () => {
         arch: 'amd64',
         artifactName: 'nginx-daemon-linux-amd64',
         downloadUrl: daemonUrl,
-        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', `${LEGACY_CORE_RELEASE_LINE}/${LEGACY_INSTALL_DIR_NAME}`),
+        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'opfield/opfield'),
       })
     ).toThrow(UpdateArtifactTrustError);
   });
@@ -362,7 +368,7 @@ describe('update artifact trust', () => {
         {
           version: 'v9.9.9',
           tag: 'v9.9.9',
-          image: 'registry.example.com/opfield/opfield',
+          image: 'registry.example.com/other/opfield',
         },
         opfieldPublicKey
       )
@@ -456,7 +462,9 @@ describe('update artifact trust', () => {
     expect(artifact.coreProtocolMajor).toBe(1);
     expect(artifact.stateSchemaVersion).toBe(1);
     expect(artifact.minOpfieldVersion).toBe('v2.6.0');
-    expect(artifact.releaseNotesUrl).toBe(`https://docs.example.com/releases/opencodex-2.26.0-${LEGACY_CORE_RELEASE_LINE}.1`);
+    expect(artifact.releaseNotesUrl).toBe(
+      `https://docs.example.com/releases/opencodex-2.26.0-${LEGACY_CORE_RELEASE_LINE}.1`
+    );
   });
 
   it('rejects an OpenCodex manifest pinned to a different version', () => {

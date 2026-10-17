@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_IMAGE_PATH, LEGACY_IMAGE_REPOSITORY, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { opfieldHostImageRepositories, selectOldOpfieldHostImages } from './housekeeping-host-images.js';
-import { LEGACY_IMAGE_REPOSITORY, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const digest = (n: number) => `sha256:${String(n).repeat(64).slice(0, 64)}`;
 
@@ -21,7 +21,7 @@ describe('old Opfield images on the Opfield host', () => {
       },
       {
         Id: 'sha256:app-gitlab',
-        RepoTags: ['registry.example.com/opfield/opfield:2.9.0'],
+        RepoTags: [`registry.example.com${LEGACY_IMAGE_PATH}:2.9.0`],
         Created: 5,
         Size: 300,
       },
@@ -36,7 +36,7 @@ describe('old Opfield images on the Opfield host', () => {
       },
       {
         Id: 'sha256:relay-gitlab',
-        RepoDigests: [`registry.example.com/opfield/opfield/relay@${digest(8)}`],
+        RepoDigests: [`registry.example.com${LEGACY_IMAGE_PATH}/relay@${digest(8)}`],
         Created: 9,
         Size: 30,
       },

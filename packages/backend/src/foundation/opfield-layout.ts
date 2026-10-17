@@ -1,5 +1,6 @@
 import { parseDocument } from 'yaml';
 import { COMMERCIAL_HOST_DIR, LEGACY_COMMERCIAL_HOST_DIR } from '@/edition/prepare-update.js';
+import { LEGACY_REGISTRY_TOKEN_REALM } from '@/lib/legacy-compat.js';
 import {
   DEFAULT_SANDBOX_WORKSPACE_DIR,
   findDirectNestedBlock,
@@ -25,7 +26,6 @@ import {
   renameLegacyEnvFileKeys,
   withRelayBinary,
 } from './opfield-names.js';
-import { LEGACY_REGISTRY_TOKEN_REALM } from '@/lib/legacy-compat.js';
 
 /**
  * docker-compose.yml and .env of the Opfield layout, made from the files of an installation in the earlier layout:

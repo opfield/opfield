@@ -1,5 +1,5 @@
-import { type NginxConfigDirective, parseNginxConfig, walkNginxConfig } from './nginx-config-tree.js';
 import { LEGACY_NGINX_MARK_PREFIX, LEGACY_NGINX_VARIABLE_PREFIX } from '@/lib/legacy-compat.js';
+import { type NginxConfigDirective, parseNginxConfig, walkNginxConfig } from './nginx-config-tree.js';
 
 /**
  * Maintenance without an nginx reload, for nodes whose daemon reports proxy_maintenance_flag_v1.
@@ -39,7 +39,7 @@ const SECURE_LINK_DIRECTIVES = new Set(['secure_link', 'secure_link_md5', 'secur
  * legacy-name: legacy maintenance locations of configs rendered before 2.12.1 — remove once every node reports none
  */
 const GUARD_LOCATION = new RegExp(
-  String.raw`^[=@]?(?:opfield-|${LEGACY_NGINX_MARK_PREFIX})maintenance(?:-access|-status|-page|-state)?$`
+  `^[=@]?(?:opfield-|${LEGACY_NGINX_MARK_PREFIX})maintenance(?:-access|-status|-page|-state)?$`
 );
 
 /**
@@ -102,7 +102,9 @@ function usesReservedFeatures(directives: NginxConfigDirective[]): boolean {
       (directive.name === 'location' && directive.args.some((arg) => GUARD_LOCATION.test(arg.value))) ||
       // legacy-name: the legacy maintenance variable of configs written before 2.12.1 — remove once every node reports none
       directive.args.some((arg) =>
-        new RegExp(String.raw`\$\{?(secure_link|opfield_maintenance|${LEGACY_NGINX_VARIABLE_PREFIX}maintenance|gm_cookie_)`).test(arg.raw)
+        new RegExp(
+          String.raw`\$\{?(secure_link|opfield_maintenance|${LEGACY_NGINX_VARIABLE_PREFIX}maintenance|gm_cookie_)`
+        ).test(arg.raw)
       )
     ) {
       reserved = true;

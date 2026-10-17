@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { LEGACY_RESERVED_PATH_PREFIX } from '@/lib/legacy-compat.js';
+import { ConfigValidatorService } from '@/services/config-validator.service.js';
 
 const PATH_SEGMENT = /^[A-Za-z0-9._~-]+$/;
 const RESERVED_CANONICAL_PREFIXES = ['/_opfield', LEGACY_RESERVED_PATH_PREFIX, '/.well-known/acme-challenge'];

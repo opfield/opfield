@@ -1,6 +1,6 @@
+import { LEGACY_CORE_API_PREFIX } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { type InferenceCoreHealthIdentity, inferenceCoreHealthIdentitySchema } from './inference-core.contract.js';
-import { LEGACY_CORE_API_PREFIX } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('InferenceCoreClient');
 

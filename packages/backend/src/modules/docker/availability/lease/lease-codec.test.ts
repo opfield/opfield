@@ -1,6 +1,7 @@
 import { createHash, createPrivateKey, sign } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { decodeRelayV1Message } from '@/grpc/relay-proto.js';
+import { LEGACY_AVAILABILITY_LEASE_DOMAIN } from '@/lib/legacy-compat.js';
 import {
   compareLeaseBallots,
   decodeLeaseSignedBlock,
@@ -15,7 +16,6 @@ import {
   policyKeyFingerprint,
   signLeaseBlock,
 } from './lease-codec.js';
-import { LEGACY_AVAILABILITY_LEASE_DOMAIN } from '@/lib/legacy-compat.js';
 
 /** The Ed25519 key daemon-shared/availabilitylease derives from the same seed (cross-checked with its Go code). */
 function goldenKey(label: string) {

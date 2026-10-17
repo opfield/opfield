@@ -67,6 +67,7 @@ import type {
   DockerSourceBinding,
   DockerWebhook,
 } from "@/types";
+import { LEGACY_REGISTRY_NAMESPACE } from "../../../backend/src/lib/legacy-compat";
 import {
   DeploymentConfig,
   DeploymentOverview,
@@ -81,7 +82,6 @@ import { FilesTab } from "./docker-detail/FilesTab";
 import { buildRolloutBusyReason, type InspectData } from "./docker-detail/helpers";
 import { LogsTab } from "./docker-detail/LogsTab";
 import { MultiContainerMonitoring } from "./docker-detail/MultiContainerMonitoring";
-import { LEGACY_REGISTRY_NAMESPACE } from "../../../backend/src/lib/legacy-compat";
 
 const MIGRATION_RELOCATION_GRACE_MS = 2_000;
 

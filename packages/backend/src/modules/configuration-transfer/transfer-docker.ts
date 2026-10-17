@@ -9,9 +9,13 @@ import {
   MANAGED_CLICKHOUSE_LABEL,
   MANAGED_CLICKHOUSE_OWNER_LABEL,
 } from '@/foundation/opfield-names.js';
+import {
+  LEGACY_APP_DATA_DIR,
+  LEGACY_CONFIGURATION_TRANSFER_LABEL,
+  LEGACY_UPDATE_ATTEMPT_KEY,
+} from '@/lib/legacy-compat.js';
 import type { DockerService } from '@/services/docker.service.js';
 import { composeVolumeName, DATABASE_DUMP_FILE, type TransferVolumeKey } from './transfer-layout.js';
-import { LEGACY_APP_DATA_DIR, LEGACY_CONFIGURATION_TRANSFER_LABEL, LEGACY_UPDATE_ATTEMPT_KEY } from '@/lib/legacy-compat.js';
 
 /**
  * Docker operations of a configuration export and restore. Everything goes through the Docker API
@@ -334,7 +338,8 @@ export async function openCommercialArchive(
   appContainer: string
 ): Promise<TransferStream> {
   const source = (await docker.inspectContainerDetails(appContainer))?.Mounts?.find(
-    (mount) => mount.Destination === '/var/lib/opfield/commercial' || mount.Destination === `${LEGACY_APP_DATA_DIR}/commercial`
+    (mount) =>
+      mount.Destination === '/var/lib/opfield/commercial' || mount.Destination === `${LEGACY_APP_DATA_DIR}/commercial`
   )?.Source;
   if (!source) throw new Error('The commercial core directory is not mounted into the Opfield app');
   const helper = await createHelper(docker, installation, [`${source}:${MOUNT_BASE}/commercial:ro`]);

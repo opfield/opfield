@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container } from '@/container.js';
 import type { AppIncidentItem } from '@/db/schema/index.js';
+import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 import { ManagedDatabaseBindingService } from '@/modules/databases/managed-database-bindings.service.js';
 import { DockerManagementService } from '@/modules/docker/docker.service.js';
 import { DockerSnapshotReconciler } from '@/modules/docker/docker-snapshot-reconciler.service.js';
@@ -12,7 +13,6 @@ import {
 } from './app-incident-actions.js';
 import type { AppIncidentConsumerEnv } from './app-incident-consumer-env.js';
 import type { NetworkRestoreResult } from './app-network-isolation.js';
-import { LEGACY_DATABASE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
 
 const CONTEXT = { incidentId: 'incident-1', userId: 'user-1' };
 

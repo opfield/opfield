@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyVersionFallback } from './env.js';
 import { LEGACY_ENV_PREFIX } from '@/lib/legacy-compat.js';
+import { applyVersionFallback } from './env.js';
 
 describe('APP_VERSION fallback', () => {
   it('takes the installed version when APP_VERSION came out empty', () => {

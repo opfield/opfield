@@ -1,13 +1,13 @@
 // The schema barrel first: loading the template service alone enters the schema import cycle mid-way.
 import '@/db/schema/index.js';
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_NGINX_DIR, LEGACY_NGINX_MARK_PREFIX } from '@/lib/legacy-compat.js';
 import { ConfigValidatorService } from '@/services/config-validator.service.js';
 import { type NginxConfigDirective, parseNginxConfig } from './nginx-config-tree.js';
 import { MAINTENANCE_FLAG_CAPABILITY, MAINTENANCE_FLAG_DIR } from './nginx-maintenance-flag-guard.js';
 import { NGINX_OPFIELD_NAMES_CAPABILITY } from './nginx-node-names.js';
 import { NginxTemplateService } from './nginx-template.service.js';
 import { ProxyService } from './proxy.service.js';
-import { LEGACY_INSTALL_DIR_NAME, LEGACY_NGINX_DIR } from '@/lib/legacy-compat.js';
 
 const HOST_ID = '22222222-2222-4222-8222-222222222222';
 
@@ -128,7 +128,7 @@ describe('Maintenance mode on a node that keeps maintenance flags', () => {
     const config = enter.applyConfig.mock.calls[0]![2] as string;
     expect(config).toContain(`if (-f ${LEGACY_NGINX_DIR}/maintenance/${HOST_ID})`);
     expect(config).toContain(`set $${LEGACY_INSTALL_DIR_NAME}_maintenance 1;`);
-    expect(config).toContain('location = opfield-maintenance-access {');
+    expect(config).toContain(`location = ${LEGACY_NGINX_MARK_PREFIX}maintenance-access {`);
     expect(config).not.toMatch(/\$opfield_|opfield-maintenance|\/etc\/nginx\/opfield|X-Opfield-/);
   });
 

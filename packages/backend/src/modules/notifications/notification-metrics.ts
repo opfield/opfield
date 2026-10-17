@@ -1,10 +1,10 @@
+import { LEGACY_MANAGED_STORAGE_ROOT } from '@/lib/legacy-compat.js';
 import {
   DOCKER_ENGINE_UNAVAILABLE_METRIC,
   isPerDeviceNodeMetric,
   NODE_DATA_DISKS_TARGET,
   ROUTE_SHARE_MIN_REQUESTS,
 } from './notification-catalog.js';
-import { LEGACY_MANAGED_STORAGE_ROOT } from '@/lib/legacy-compat.js';
 
 // ── Threshold Metric Extraction ───────────────────────────────────────
 

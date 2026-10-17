@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { inferenceCoreLayout } from './inference-core-layout.js';
 import { LEGACY_INFERENCE_FEATURE, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
+import { inferenceCoreLayout } from './inference-core-layout.js';
 
 describe('inference core layout', () => {
   it('names a new core after the Compose project', () => {

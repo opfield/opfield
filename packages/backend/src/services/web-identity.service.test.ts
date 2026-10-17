@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { connect, type TLSSocket } from 'node:tls';
 import forge from 'node-forge';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WebIdentityService } from './web-identity.service.js';
 import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
+import { WebIdentityService } from './web-identity.service.js';
 
 function rsaKeys() {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });

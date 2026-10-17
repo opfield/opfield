@@ -15,9 +15,15 @@ const RELEASE_PAGE_SIZE = 100;
 // answers from what it has read.
 const RELEASE_PAGE_LIMIT = 10;
 // Path namespaces of the feed: the Opfield one, and the earlier one installed releases up to 2.12.2 request.
-const PRODUCT_NAMESPACES: ReadonlySet<string> = new Set(["opfield", LEGACY_UPDATE_NAMESPACE]);
+const PRODUCT_NAMESPACES: ReadonlySet<string> = new Set([
+	"opfield",
+	LEGACY_UPDATE_NAMESPACE,
+]);
 // Component of the app release: the Opfield name, and the earlier one installed releases up to 2.12.2 ask for.
-const APP_COMPONENTS: ReadonlySet<string> = new Set(["opfield", LEGACY_APP_UPDATE_COMPONENT]);
+const APP_COMPONENTS: ReadonlySet<string> = new Set([
+	"opfield",
+	LEGACY_APP_UPDATE_COMPONENT,
+]);
 
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -80,10 +86,16 @@ interface NextUpdateResponse {
 // Inference core release lines, oldest first (see parseReleaseVersion).
 const CORE_RELEASE_LINES = [LEGACY_CORE_RELEASE_LINE, "thesqlabs", "opfield"];
 const CORE_LINE_ALTERNATION = CORE_RELEASE_LINES.map(escapeRegExp).join("|");
-const CORE_TAG_PATTERN = new RegExp(`^v\\d+\\.\\d+\\.\\d+-(?:${CORE_LINE_ALTERNATION})\\.\\d+$`);
-const CORE_VERSION_PATTERN = new RegExp(`^(\\d+)\\.(\\d+)\\.(\\d+)-(${CORE_LINE_ALTERNATION})\\.(\\d+)$`);
+const CORE_TAG_PATTERN = new RegExp(
+	`^v\\d+\\.\\d+\\.\\d+-(?:${CORE_LINE_ALTERNATION})\\.\\d+$`,
+);
+const CORE_VERSION_PATTERN = new RegExp(
+	`^(\\d+)\\.(\\d+)\\.(\\d+)-(${CORE_LINE_ALTERNATION})\\.(\\d+)$`,
+);
 const APP_TAG_PATTERN = /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/;
-const APP_ARTIFACT_PATTERN = new RegExp(`^${escapeRegExp(LEGACY_APP_IMAGE_MANIFEST_ASSET)}$`);
+const APP_ARTIFACT_PATTERN = new RegExp(
+	`^${escapeRegExp(LEGACY_APP_IMAGE_MANIFEST_ASSET)}$`,
+);
 
 const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 	opfield: APP_TAG_PATTERN,
@@ -239,8 +251,7 @@ function parseReleaseVersion(
 ): ParsedReleaseVersion | null {
 	const clean = value.replace(/^v/, "");
 	if (isInferenceCore(component)) {
-		const match =
-			CORE_VERSION_PATTERN.exec(clean);
+		const match = CORE_VERSION_PATTERN.exec(clean);
 		if (!match) return null;
 		// Release lines replaced each other in the order of CORE_RELEASE_LINES. On the
 		// same base version every build of a later line orders after every build of an
@@ -547,7 +558,8 @@ function parseArtifactPath(
 	pathname: string,
 ): { packageName: string; tag: string; artifactName: string } | null {
 	const segments = pathname.split("/").filter(Boolean);
-	if (segments.length !== 4 || !PRODUCT_NAMESPACES.has(segments[0] ?? "")) return null;
+	if (segments.length !== 4 || !PRODUCT_NAMESPACES.has(segments[0] ?? ""))
+		return null;
 	const [, packageName, tag, artifactName] = segments.map((segment) =>
 		decodeURIComponent(segment),
 	);
@@ -801,7 +813,8 @@ export async function handleRequest(
 			"no-store",
 		);
 	const segments = pathname.split("/").filter(Boolean);
-	const namespaced = segments.length === 2 && PRODUCT_NAMESPACES.has(segments[0] ?? "");
+	const namespaced =
+		segments.length === 2 && PRODUCT_NAMESPACES.has(segments[0] ?? "");
 	if (namespaced && segments[1] === "releases")
 		return handleReleaseList(request, env, fetcher);
 	let installer: ReturnType<typeof parseInstallerPath>;

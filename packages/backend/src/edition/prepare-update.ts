@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { type Dirent, existsSync } from 'node:fs';
 import { lstat, mkdir, mkdtemp, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { LEGACY_APP_DATA_DIR, LEGACY_COMMERCIAL_DIR_NAME, LEGACY_ENV_PREFIX } from '@/lib/legacy-compat.js';
 import { installCommercialRelease } from './install.js';
 import { sha256, verifyCommercialRelease } from './loader.js';
 import { COMMERCIAL_RELEASE_ID, verifyCommercialManifest } from './manifest.js';
-import { LEGACY_APP_DATA_DIR, LEGACY_COMMERCIAL_DIR_NAME, LEGACY_ENV_PREFIX } from '@/lib/legacy-compat.js';
 
 export type CommercialUpdateGrant =
   | { edition: 'community' }

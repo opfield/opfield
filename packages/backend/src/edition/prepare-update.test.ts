@@ -4,6 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runFoundationMigrations } from '@/foundation/foundation-migrator.js';
+import {
+  LEGACY_COMMERCIAL_MANIFEST_KIND,
+  LEGACY_ENV_PREFIX,
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_UPDATE_KEY_ID,
+} from '@/lib/legacy-compat.js';
 import { loadCommercialPackage, sha256 } from './loader.js';
 import {
   type CommercialUpdateGrant,
@@ -12,7 +18,6 @@ import {
   pruneCommercialVersions,
   readPreparedCommercialUpdate,
 } from './prepare-update.js';
-import { LEGACY_COMMERCIAL_MANIFEST_KIND, LEGACY_ENV_PREFIX, LEGACY_INSTALL_DIR_NAME, LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
 
 const key = generateKeyPairSync('ed25519');
 const publicKey = key.publicKey.export({ type: 'spki', format: 'pem' });
@@ -239,7 +244,10 @@ describe('private core update preparation', () => {
     const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
     await utimes(oldStage, old, old);
     await utimes(oldDownload, old, old);
-    await writeFile(join(hostDir, '.env'), `OPFIELD_COMMERCIAL_DIR=/var/lib/${LEGACY_INSTALL_DIR_NAME}/commercial/versions/v2.12.1\n`);
+    await writeFile(
+      join(hostDir, '.env'),
+      `OPFIELD_COMMERCIAL_DIR=/var/lib/${LEGACY_INSTALL_DIR_NAME}/commercial/versions/v2.12.1\n`
+    );
 
     const removed = await pruneCommercialVersions(root, hostDir, 'v2.12.3');
 

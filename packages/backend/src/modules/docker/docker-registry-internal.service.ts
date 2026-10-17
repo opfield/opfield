@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DrizzleClient } from '@/db/client.js';
 import type { DockerRegistryMaintenancePhase } from '@/db/schema/index.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
+import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -22,7 +23,6 @@ import {
   unavailableDockerRegistryMaintenanceExecutor,
 } from './docker-registry-maintenance.js';
 import type { DockerRegistryGrant, DockerRegistryTokenService } from './docker-registry-token.service.js';
-import { LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
 
 export {
   createDockerRegistryMaintenanceExecutor,

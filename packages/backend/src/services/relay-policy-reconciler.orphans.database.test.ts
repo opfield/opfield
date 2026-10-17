@@ -14,8 +14,8 @@ import {
   relayRoutes,
   storageCopyJobs,
 } from '@/db/schema/index.js';
-import { removeOrphanedRelayState } from './relay-policy-reconciler.js';
 import { LEGACY_INSTALL_DIR_NAME, LEGACY_INTERNAL_REGISTRY_ID } from '@/lib/legacy-compat.js';
+import { removeOrphanedRelayState } from './relay-policy-reconciler.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const FINGERPRINT = `sha256:${'0'.repeat(64)}`;

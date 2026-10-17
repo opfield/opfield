@@ -12,9 +12,9 @@ import {
 } from '@/db/schema/index.js';
 import type { NodeRelayStreamReport } from '@/db/schema/nodes.js';
 import type { RelayRouteResumeState } from '@/db/schema/relay.js';
+import { LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { CryptoService } from './crypto.service.js';
-import { LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 
 /**
  * Resumable relay streams (RSv1, packages/daemons/shared/relayresume/doc.go): Opfield's part.

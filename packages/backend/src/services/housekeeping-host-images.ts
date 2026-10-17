@@ -39,7 +39,12 @@ function referenceRepository(reference: string): string {
  */
 export function opfieldHostImageRepositories(currentImage: string, configured: string[] = []): Set<string> {
   const current = referenceRepository(currentImage);
-  return new Set([current, ...configured.map(referenceRepository), ...OFFICIAL_IMAGE_REPOSITORIES, LEGACY_INSTALL_DIR_NAME]);
+  return new Set([
+    current,
+    ...configured.map(referenceRepository),
+    ...OFFICIAL_IMAGE_REPOSITORIES,
+    LEGACY_INSTALL_DIR_NAME,
+  ]);
 }
 
 // legacy-name: the app and relay images of installs from before Opfield (legacy repository).

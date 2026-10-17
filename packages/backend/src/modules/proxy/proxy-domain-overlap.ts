@@ -1,9 +1,9 @@
 import { and, eq, ne, sql } from 'drizzle-orm';
 import type { DrizzleClient, DrizzleExecutor } from '@/db/client.js';
 import { proxyHostDomains, proxyHosts } from '@/db/schema/index.js';
+import { LEGACY_GUC_PROXY_DOMAIN_CONFLICTS } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { proxyHostsServedByNode } from '@/modules/ingress-groups/ingress-nodes.js';
-import { LEGACY_GUC_PROXY_DOMAIN_CONFLICTS } from '@/lib/legacy-compat.js';
 
 /** Partial unique index on `proxy_host_domains`: one enabled host per name on a node. */
 export const PROXY_HOST_DOMAIN_UNIQUE_INDEX = 'proxy_host_domains_node_domain_unique';

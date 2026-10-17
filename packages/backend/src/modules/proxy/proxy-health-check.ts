@@ -6,6 +6,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { proxyHosts } from '@/db/schema/index.js';
 import { compactHealthHistory } from '@/lib/health-history.js';
 import { normalizeIp } from '@/lib/ip-cidr.js';
+import { LEGACY_CLICKHOUSE_CONTAINER } from '@/lib/legacy-compat.js';
 import { formatHostPort } from '@/lib/network-endpoint.js';
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import {
@@ -24,7 +25,6 @@ import { effectiveMaintenance, NOT_IN_EFFECTIVE_MAINTENANCE } from './effective-
 import type { HealthCheckBodyMatchMode } from './proxy.service-helpers.js';
 import { matchesExpectedBody } from './proxy.service-helpers.js';
 import { loadAvailabilityRouteProbeLinks, probeSecureLinkRoute } from './proxy-secure-link-health-probe.js';
-import { LEGACY_CLICKHOUSE_CONTAINER } from '@/lib/legacy-compat.js';
 
 export const PROXY_HEALTH_CHECK_TIMEOUT_MS = 10_000;
 // Same ceiling as the daemon-side Secure Link and Pages probes.

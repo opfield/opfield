@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { relayInstances, relayPoolUpdateRuns, relayPoolUpdateSteps } from '@/db/schema/index.js';
+import {
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_MIN_VERSION_FIELD,
+  LEGACY_THESQLABS_UPDATES_BASE_URL,
+} from '@/lib/legacy-compat.js';
 import type { TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js';
 import { waitForLocalRelayEvacuation } from './relay-local-takeover.js';
 import { UpdateService } from './update.service.js';
-import { LEGACY_INSTALL_DIR_NAME, LEGACY_MIN_VERSION_FIELD, LEGACY_THESQLABS_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
 
 vi.mock('./relay-local-takeover.js', () => ({
   waitForLocalRelayEvacuation: vi.fn(),
@@ -13,8 +17,7 @@ vi.mock('./relay-local-takeover.js', () => ({
 
 const MIGRATED = {
   exitCode: 0,
-  output:
-    `{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
+  output: `{"ok":true,"changedFiles":[],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/var/lib/${LEGACY_INSTALL_DIR_NAME}/sandbox-workspaces"}`,
 };
 const IN_FLIGHT = ['draining', 'updating', 'verifying', 'rolling_back'];
 

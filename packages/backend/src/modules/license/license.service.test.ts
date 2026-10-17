@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LICENSE_SERVICE_URLS } from '@/config/vendor-urls.js';
+import { LEGACY_COMMERCIAL_MANIFEST_KIND, LEGACY_LICENSE_VERSION_FIELD } from '@/lib/legacy-compat.js';
 import { LicenseServerRequestError, LicenseService } from './license.service.js';
 import {
   COMMUNITY_ENTITLEMENTS,
@@ -17,7 +18,6 @@ import {
   TEST_INSTALLATION_ID,
 } from './license-attestation.test-helpers.js';
 import { LicensePolicyService } from './license-policy.service.js';
-import { LEGACY_COMMERCIAL_MANIFEST_KIND, LEGACY_LICENSE_VERSION_FIELD } from '@/lib/legacy-compat.js';
 
 const signer = createTestLicenseSigner();
 const verifier = createTestLicenseVerifier(signer);
@@ -508,7 +508,6 @@ describe('LicenseService', () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(new Response('<html>Bad gateway</html>', { status: 502 }))
-      .mockResolvedValueOnce(new Response('{}', { status: 404 }))
       .mockImplementation(() => registerResponse());
     const service = createService(db, fetcher);
 
@@ -517,7 +516,7 @@ describe('LicenseService', () => {
     expect(fetcher.mock.calls.map(([url]) => new URL(url).origin)).toEqual(LICENSE_SERVICE_URLS);
     expect(await service.getStatus()).toMatchObject({
       registrationStatus: 'registered',
-      serverUrl: LICENSE_SERVICE_URLS[2],
+      serverUrl: LICENSE_SERVICE_URLS[1],
     });
   });
 

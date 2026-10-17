@@ -12,6 +12,12 @@ import {
   relayRoutes,
 } from '@/db/schema/index.js';
 import { decodeRelayV1Message } from '@/grpc/relay-proto.js';
+import {
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_INTERNAL_REGISTRY_ID,
+  LEGACY_MANAGED_DATABASE_OWNER_KIND,
+  LEGACY_RELAY_SOURCE_KIND,
+} from '@/lib/legacy-compat.js';
 import { logger } from '@/lib/logger.js';
 import { RelayPolicyNotAcknowledgedError } from './relay-grant-issuer.service.js';
 import {
@@ -20,7 +26,6 @@ import {
   RelayPolicyService,
 } from './relay-policy.service.js';
 import { RELAY_UNCAPPED_SESSIONS } from './relay-session-limits.js';
-import { LEGACY_INSTALL_DIR_NAME, LEGACY_INTERNAL_REGISTRY_ID, LEGACY_MANAGED_DATABASE_OWNER_KIND, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 
 function createService(
   db: unknown,
@@ -215,7 +220,12 @@ describe('RelayPolicyService route runtime', () => {
   afterEach(() => remoteHolders.mockRestore());
 
   it('allocates signed revisions above both pool and legacy/global revisions', async () => {
-    const rows = [[{ revision: 900, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` }], [{ id: 'local', poolId: 'system' }], [], []];
+    const rows = [
+      [{ revision: 900, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` }],
+      [{ id: 'local', poolId: 'system' }],
+      [],
+      [],
+    ];
     const lock = vi.fn();
     const select = () => {
       if (rows.length < 4) expect(lock).toHaveBeenCalledWith('share');
@@ -2476,7 +2486,10 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
     const set = vi.fn(() => ({ where: async () => undefined }));
     const db: any = { update: () => ({ set }) };
     const service = createService(db, { applySnapshot: vi.fn() });
-    (service as any).grantIssuer.requireState = async () => ({ revision: 40, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` });
+    (service as any).grantIssuer.requireState = async () => ({
+      revision: 40,
+      opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}`,
+    });
     const sync = vi.spyOn(service, 'syncSnapshot').mockResolvedValue(1);
     const bundles = vi
       .spyOn(service, 'syncNodeGrantBundle')
@@ -2500,7 +2513,10 @@ describe('RelayPolicyService grant issuance around the local relay', () => {
   it('treats only real restore evidence as a reason to raise the revision, by a bounded jump', async () => {
     const set = vi.fn(() => ({ where: async () => undefined }));
     const service = createService({ update: () => ({ set }) } as never, { applySnapshot: vi.fn() });
-    (service as any).grantIssuer.requireState = async () => ({ revision: 40, opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}` });
+    (service as any).grantIssuer.requireState = async () => ({
+      revision: 40,
+      opfieldInstanceId: `${LEGACY_INSTALL_DIR_NAME}`,
+    });
     vi.spyOn(service, 'syncSnapshot').mockResolvedValue(1);
     const raise = (error: string) => (service as any).raiseRevisionAboveDaemon('node-1', error);
 
@@ -2569,7 +2585,10 @@ describe('RelayPolicyService local trust reset guards', () => {
   it('tells the operator to update a local relay that cannot rebind to this Opfield', async () => {
     const reset = vi.fn();
     const service = recoveryService(reset);
-    const refusal = Object.assign(new Error(`9 FAILED_PRECONDITION: snapshot ${LEGACY_INSTALL_DIR_NAME} instance changed`), { code: 9 });
+    const refusal = Object.assign(
+      new Error(`9 FAILED_PRECONDITION: snapshot ${LEGACY_INSTALL_DIR_NAME} instance changed`),
+      { code: 9 }
+    );
     await expect(service.recoverLocalPolicyTrust(ACTIVE, health(['relay_pool_v1']), refusal)).rejects.toThrow(
       'Update the Relay Pool'
     );

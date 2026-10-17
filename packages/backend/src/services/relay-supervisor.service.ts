@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { relayInstances } from '@/db/schema/index.js';
 import type { RelayControlClient, RelayHealthResponse } from '@/grpc/relay-control.client.js';
+import { LEGACY_LOCK_RELAY_RECOVERY } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
@@ -16,7 +17,6 @@ import {
   RelayRecoverySafetyError,
 } from './relay-docker-recovery.service.js';
 import { type RelayExternalActivity, relayRecoveryWait } from './relay-recovery-decision.js';
-import { LEGACY_LOCK_RELAY_RECOVERY } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('RelaySupervisor');
 const CONTROL_STATE_KEY = 'relay:control-state';

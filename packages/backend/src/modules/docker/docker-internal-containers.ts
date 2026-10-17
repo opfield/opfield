@@ -64,5 +64,5 @@ export async function inspectUserContainer(
   return data;
 }
 
-import { AppError } from '@/middleware/error-handler.js';
 import { LEGACY_SANDBOX_LABEL } from '@/lib/legacy-compat.js';
+import { AppError } from '@/middleware/error-handler.js';

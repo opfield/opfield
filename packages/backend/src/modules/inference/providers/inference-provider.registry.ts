@@ -1,5 +1,5 @@
-import type { InferenceProviderDefinition } from './inference-provider.types.js';
 import { LEGACY_PROVIDER_CLIENT_ID } from '@/lib/legacy-compat.js';
+import type { InferenceProviderDefinition } from './inference-provider.types.js';
 
 const SUBSCRIPTION_TERMS_VERSION = 'opencodex-unofficial-connectors-2026-07';
 

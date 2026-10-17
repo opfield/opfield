@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
+import { LEGACY_EXPORT_VERSION_FIELD, LEGACY_VOLUME_APP_DATA } from '@/lib/legacy-compat.js';
 import {
   ExportArchiveError,
   ExportArchiveWriter,
@@ -9,7 +10,6 @@ import {
   readExportHeader,
   readJsonPart,
 } from './transfer-archive.js';
-import { LEGACY_EXPORT_VERSION_FIELD, LEGACY_VOLUME_APP_DATA } from '@/lib/legacy-compat.js';
 
 const FAST_KDF = { name: 'scrypt' as const, N: 16_384, r: 8, p: 1 };
 const PASSPHRASE = 'correct horse battery staple';

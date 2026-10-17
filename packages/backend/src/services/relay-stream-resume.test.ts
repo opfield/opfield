@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { relayEndpoints, relayRoutes } from '@/db/schema/index.js';
+import { LEGACY_INSTALL_DIR_NAME, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 import { RelayGrantIssuerService } from './relay-grant-issuer.service.js';
 import { LOCAL_RELAY_DRAIN_CAPABILITY } from './relay-local-takeover.js';
 import {
@@ -32,7 +33,6 @@ import {
   targetRouteResume,
   workloadLegacyStreams,
 } from './relay-stream-resume.js';
-import { LEGACY_INSTALL_DIR_NAME, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 
 interface Vectors {
   constants: { capability: string; drain_deadline_margin_ms: number; proxy_half_close_timeout_ms: number };
@@ -414,7 +414,12 @@ describe('RelayGrantIssuerService RSv1 fields', () => {
 
   it("gives Opfield's own source its route key", async () => {
     const service = issuer([
-      { table: relayRoutes, projected: false, filtered: true, rows: [{ ...route, sourceKind: LEGACY_RELAY_SOURCE_KIND }] },
+      {
+        table: relayRoutes,
+        projected: false,
+        filtered: true,
+        rows: [{ ...route, sourceKind: LEGACY_RELAY_SOURCE_KIND }],
+      },
       { table: relayEndpoints, projected: false, filtered: true, rows: [endpoint] },
     ]);
     const assignment = await service.issueOpfieldConnectAssignment('route-1', 'sha256:app');

@@ -2,7 +2,13 @@ import { verify } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LEGACY_APP_IMAGE_MANIFEST_KIND, LEGACY_CORE_RELEASE_LINE, LEGACY_MAX_VERSION_FIELD, LEGACY_MIN_VERSION_FIELD, LEGACY_UPDATE_KEY_ID } from '@/lib/legacy-compat.js';
+import {
+  LEGACY_APP_IMAGE_MANIFEST_KIND,
+  LEGACY_CORE_RELEASE_LINE,
+  LEGACY_MAX_VERSION_FIELD,
+  LEGACY_MIN_VERSION_FIELD,
+  LEGACY_UPDATE_KEY_ID,
+} from '@/lib/legacy-compat.js';
 
 /** Release lines of inference core builds, oldest first. */
 const OPENCODEX_VERSION_PATTERN = new RegExp(
@@ -215,7 +221,8 @@ export function verifyOpfieldImageManifest(
   publicKey: string | Buffer = UPDATE_SIGNING_PUBLIC_KEY_PEM
 ): TrustedOpfieldUpdateArtifact {
   const payload = verifySignedPayload<OpfieldImageManifestPayload>(signedManifest, publicKey);
-  if (payload.kind !== LEGACY_APP_IMAGE_MANIFEST_KIND) throw new UpdateArtifactTrustError(`Update manifest kind is not ${LEGACY_APP_IMAGE_MANIFEST_KIND}`);
+  if (payload.kind !== LEGACY_APP_IMAGE_MANIFEST_KIND)
+    throw new UpdateArtifactTrustError(`Update manifest kind is not ${LEGACY_APP_IMAGE_MANIFEST_KIND}`);
   if (payload.version !== expected.version) throw new UpdateArtifactTrustError('Opfield update version mismatch');
   if (payload.tag !== expected.tag) throw new UpdateArtifactTrustError('Opfield update tag mismatch');
   if (payload.image !== expected.image) throw new UpdateArtifactTrustError('Opfield update image mismatch');

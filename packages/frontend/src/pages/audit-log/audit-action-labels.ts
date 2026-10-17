@@ -1,4 +1,5 @@
 import { LEGACY_AUDIT_MOVE_PREFIX } from "../../../../backend/src/lib/legacy-compat";
+
 const AUDIT_TOKEN_ACRONYMS = new Set([
   "acme",
   "ai",

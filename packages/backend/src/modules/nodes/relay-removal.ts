@@ -6,9 +6,9 @@ import {
   relayInstances,
   relayPoolUpdateRuns,
 } from '@/db/schema/index.js';
+import { LEGACY_LOCK_RELAY_POOL_REBALANCE } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { parkedDrainedAssignmentIds } from '@/services/relay-topology.js';
-import { LEGACY_LOCK_RELAY_POOL_REBALANCE } from '@/lib/legacy-compat.js';
 
 type Instance = typeof relayInstances.$inferSelect;
 type Assignment = typeof relayEndpointAssignments.$inferSelect;

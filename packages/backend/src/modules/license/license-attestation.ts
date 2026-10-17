@@ -1,6 +1,6 @@
 import { createPublicKey, type KeyObject, randomBytes, verify } from 'node:crypto';
-import type { LicenseServerState } from './license.types.js';
 import { LEGACY_LICENSE_STATE_DOMAIN, LEGACY_LICENSE_STATE_DOMAIN_SHORT } from '@/lib/legacy-compat.js';
+import type { LicenseServerState } from './license.types.js';
 
 /**
  * Ed25519 keys that sign license states, pinned per release by key ID. To rotate,

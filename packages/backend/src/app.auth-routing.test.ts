@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { container, TOKENS } from '@/container.js';
+import { LEGACY_CORE_RELEASE_LINE } from '@/lib/legacy-compat.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { DockerSourceService } from '@/modules/docker/docker-source.service.js';
 import { DockerWebhookService } from '@/modules/docker/docker-webhook.service.js';
@@ -12,7 +13,6 @@ import { OAuthService } from '@/modules/oauth/oauth.service.js';
 import { PageDeployTokenService } from '@/modules/pages/tokens/page-deploy-token.service.js';
 import { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js';
 import { createApp } from './app.js';
-import { LEGACY_CORE_RELEASE_LINE } from '@/lib/legacy-compat.js';
 
 const validateOAuth = vi.fn(async (_token: string, options: { resource?: string }) =>
   options.resource === 'http://opfield.test/api/mcp'

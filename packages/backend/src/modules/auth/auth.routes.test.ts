@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
+import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import { auditContextMiddleware } from '@/middleware/audit-context.js';
 import { AppError, errorHandler } from '@/middleware/error-handler.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -16,7 +17,6 @@ import { LocalAuthService } from './local-auth.service.js';
 import { MfaService } from './mfa.service.js';
 import { OidcSettingsService } from './oidc-settings.service.js';
 import { PasskeyService } from './passkey.service.js';
-import { LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 process.env.DATABASE_URL ||= 'http://localhost/db';
 process.env.REDIS_URL ||= 'redis://localhost:6379';
@@ -359,7 +359,9 @@ describe('OIDC login CSRF binding', () => {
       handleCallback,
       getAuthorizationUrl: vi
         .fn()
-        .mockResolvedValue(`https://idp.example.com/authorize?client_id=${LEGACY_INSTALL_DIR_NAME}&state=state-from-login`),
+        .mockResolvedValue(
+          `https://idp.example.com/authorize?client_id=${LEGACY_INSTALL_DIR_NAME}&state=state-from-login`
+        ),
     } as unknown as AuthService);
     container.registerInstance(OidcSettingsService, {
       getRuntimeConfig: vi.fn().mockResolvedValue({ redirectUri: 'https://opfield.example.com/auth/callback' }),

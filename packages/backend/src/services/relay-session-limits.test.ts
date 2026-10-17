@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { relayEndpoints, relayRoutes } from '@/db/schema/index.js';
+import { LEGACY_MANAGED_DATABASE_OWNER_KIND } from '@/lib/legacy-compat.js';
 import { RelayGrantIssuerService } from './relay-grant-issuer.service.js';
 import { relayPolicySnapshotContent } from './relay-policy-snapshot-content.js';
 import {
@@ -11,7 +12,6 @@ import {
   RELAY_UNCAPPED_SESSIONS,
   relaySessionLimitTarget,
 } from './relay-session-limits.js';
-import { LEGACY_MANAGED_DATABASE_OWNER_KIND } from '@/lib/legacy-compat.js';
 
 const listener = {
   networkName: 'opfield-db-binding',

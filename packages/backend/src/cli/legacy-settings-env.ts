@@ -1,8 +1,8 @@
 import { parse } from 'dotenv';
+import { LEGACY_LOGS_DATABASE } from '@/lib/legacy-compat.js';
 import type { LegacyOidcEnvironment } from '@/modules/auth/oidc-settings.service.js';
 import type { LegacyLoggingEnvironment } from '@/modules/logging/logging-settings.service.js';
 import type { EnvironmentSettingsLegacyUpdate } from '@/modules/settings/environment-settings.schemas.js';
-import { LEGACY_LOGS_DATABASE } from '@/lib/legacy-compat.js';
 
 export interface LegacySettingsEnv {
   env: LegacyOidcEnvironment & LegacyLoggingEnvironment;

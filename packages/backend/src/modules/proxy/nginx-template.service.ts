@@ -5,6 +5,11 @@ import Handlebars from 'handlebars';
 import type { DrizzleClient } from '@/db/client.js';
 import { nginxTemplates } from '@/db/schema/nginx-templates.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
+import {
+  LEGACY_INGRESS_HEALTH_NAME,
+  LEGACY_NGINX_MARK_PREFIX,
+  LEGACY_RESERVED_PATH_PREFIX,
+} from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { formatHostPort } from '@/lib/network-endpoint.js';
 import {
@@ -37,7 +42,6 @@ import { toLegacyNginxNames } from './nginx-node-names.js';
 import type { CreateNginxTemplateInput, UpdateNginxTemplateInput } from './nginx-template.schemas.js';
 import { withoutReservedTemplateVariables } from './proxy-template-variables.js';
 import { withStatusPageStaleCache } from './status-page-stale-cache.js';
-import { LEGACY_INGRESS_HEALTH_NAME, LEGACY_NGINX_MARK_PREFIX, LEGACY_RESERVED_PATH_PREFIX } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('NginxTemplateService');
 
@@ -940,7 +944,7 @@ function maintenanceAccessFits(renderedConfig: string): boolean {
     /\$\{?(?:secure_link|gms?_)/.test(renderedConfig) ||
     // legacy-name: the legacy maintenance access location of configs written before 2.12.1 — remove once every node reports none
     new RegExp(
-      String.raw`\blocation\s*=\s*(?:\/_opfield|${LEGACY_RESERVED_PATH_PREFIX.replaceAll('/', '\/')})\/maintenance-access(?:\/status)?[\s{]`
+      String.raw`\blocation\s*=\s*(?:\/_opfield|${LEGACY_RESERVED_PATH_PREFIX.replaceAll('/', '/')})\/maintenance-access(?:\/status)?[\s{]`
     ).test(renderedConfig)
   );
 }
@@ -949,9 +953,9 @@ function maintenanceAccessFits(renderedConfig: string): boolean {
 function declaresMaintenancePageLocation(renderedConfig: string): boolean {
   // legacy-name: the legacy maintenance locations of configs written before 2.12.1 — remove once every node reports none
   const prefix = `(?:opfield-|${LEGACY_NGINX_MARK_PREFIX})`;
-  return new RegExp(String.raw`\blocation\s*(?:=\s*${prefix}maintenance|@${prefix}maintenance-(?:page|state))[\s{]`).test(
-    renderedConfig
-  );
+  return new RegExp(
+    String.raw`\blocation\s*(?:=\s*${prefix}maintenance|@${prefix}maintenance-(?:page|state))[\s{]`
+  ).test(renderedConfig);
 }
 
 const BUILTIN_TEMPLATES = [

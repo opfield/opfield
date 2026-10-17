@@ -5,6 +5,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
+import {
+  LEGACY_DATABASE_LINK_NETWORK_PREFIX,
+  LEGACY_INSTALL_DIR_NAME,
+  LEGACY_MANAGED_DATABASE_OWNER_KIND,
+} from '@/lib/legacy-compat.js';
 import { relayLeasePolicyIds } from '@/modules/docker/availability/lease/lease-relay-gate.js';
 import {
   memberRouteOwnerId,
@@ -14,7 +19,6 @@ import {
   releaseSetRelayPaths,
 } from './relay-managed-availability.js';
 import { completeSetGrants } from './relay-managed-availability-grants.js';
-import { LEGACY_DATABASE_LINK_NETWORK_PREFIX, LEGACY_INSTALL_DIR_NAME, LEGACY_MANAGED_DATABASE_OWNER_KIND } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 

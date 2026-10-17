@@ -1,4 +1,5 @@
 import { generateKeyPairSync, type KeyObject, sign } from 'node:crypto';
+import { LEGACY_LICENSE_STATE_DOMAIN } from '@/lib/legacy-compat.js';
 import type { LicenseServerState } from './license.types.js';
 import {
   LICENSE_ATTESTATION_KIND,
@@ -6,7 +7,6 @@ import {
   type LicenseAttestationPurpose,
   LicenseAttestationVerifier,
 } from './license-attestation.js';
-import { LEGACY_LICENSE_STATE_DOMAIN } from '@/lib/legacy-compat.js';
 
 export const TEST_INSTALLATION_ID = '11111111-1111-4111-8111-111111111111';
 

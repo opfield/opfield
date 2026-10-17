@@ -1,4 +1,10 @@
-import { LEGACY_CONTAINER_LINK_NETWORK_PREFIX, LEGACY_DATABASE_LINK_NETWORK_PREFIX, LEGACY_SECURE_LINK_NETWORK, LEGACY_STORAGE_LINK_NETWORK_PREFIX } from '@/lib/legacy-compat.js';
+import {
+  LEGACY_CONTAINER_LINK_NETWORK_PREFIX,
+  LEGACY_DATABASE_LINK_NETWORK_PREFIX,
+  LEGACY_SECURE_LINK_NETWORK,
+  LEGACY_STORAGE_LINK_NETWORK_PREFIX,
+} from '@/lib/legacy-compat.js';
+
 /**
  * Names of the Docker networks Opfield owns on a node: the Secure Link management network and the networks of managed
  * database, storage and container links (the commercial core's docker/opfield-names.ts names them).
@@ -36,14 +42,13 @@ export function isContainerLinkNetworkName(name: string): boolean {
  * (`opfield-storage-<cluster uuid>`). Mirrors the daemon's storageBindingNetworkNamePattern.
  */
 // legacy-name: legacy-prefixed storage networks (see STORAGE_NETWORK_PREFIXES) — remove once every node reports none
-export const MANAGED_STORAGE_NETWORK_PATTERN =
-  new RegExp(
-    String.raw`^(?:opfield-storage-|${LEGACY_STORAGE_LINK_NETWORK_PREFIX})(?:[0-9a-f]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$`
-  );
+export const MANAGED_STORAGE_NETWORK_PATTERN = new RegExp(
+  `^(?:opfield-storage-|${LEGACY_STORAGE_LINK_NETWORK_PREFIX})(?:[0-9a-f]{16}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$`
+);
 /** A container link network (`opfield-link-<16 hex>`): the consumer and the shared connector, nothing else. */
 // legacy-name: legacy-prefixed link networks (see CONTAINER_LINK_NETWORK_PREFIXES) — remove once every node reports none
 export const CONTAINER_LINK_NETWORK_PATTERN = new RegExp(
-  String.raw`^(?:opfield-link-|${LEGACY_CONTAINER_LINK_NETWORK_PREFIX})[0-9a-f]{16}$`
+  `^(?:opfield-link-|${LEGACY_CONTAINER_LINK_NETWORK_PREFIX})[0-9a-f]{16}$`
 );
 
 /** The node's Secure Link management network, of either family. */

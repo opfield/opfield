@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DrizzleClient } from '@/db/client.js';
 import { disposableDatabase, migrateDatabase } from '@/db/migration-database.test-helpers.js';
 import * as schema from '@/db/schema/index.js';
+import { LEGACY_ENV_PREFIX, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 import {
   DEFAULT_ENVIRONMENT_SETTINGS,
   EnvironmentSettingsService,
@@ -13,7 +14,6 @@ import { normalizeEnvironmentSettings as v2113ReadEnvironmentSettings } from '@/
 import { CryptoService } from '@/services/crypto.service.js';
 import { parseLegacySettingsEnv } from './legacy-settings-env.js';
 import { importLegacySettings } from './legacy-settings-import.js';
-import { LEGACY_ENV_PREFIX, LEGACY_INSTALL_DIR_NAME } from '@/lib/legacy-compat.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 

@@ -26,11 +26,15 @@ import {
 } from '@/db/schema/index.js';
 import { RELAY_MAX_FRAME_BYTES } from '@/grpc/relay-control.client.js';
 import {
+  LEGACY_LOCK_RELAY_POLICY_RECONCILIATION,
+  LEGACY_MANAGED_DATABASE_OWNER_KIND,
+  LEGACY_MANAGED_STORAGE_OWNER_KIND,
+} from '@/lib/legacy-compat.js';
+import {
   reconcileSetRelayPaths,
   SET_CLIENT_ENDPOINT_KIND,
   SET_WITNESS_ENDPOINT_KIND,
 } from './relay-managed-availability.js';
-import { LEGACY_LOCK_RELAY_POLICY_RECONCILIATION, LEGACY_MANAGED_DATABASE_OWNER_KIND, LEGACY_MANAGED_STORAGE_OWNER_KIND } from '@/lib/legacy-compat.js';
 
 const POLICY_ID = 'current';
 

@@ -1,5 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { LEGACY_INFERENCE_FEATURE, LEGACY_LICENSE_STATE_DOMAIN_SHORT } from '@/lib/legacy-compat.js';
 import {
   canonicalLicenseFeature,
   isCanonicalEntitlements,
@@ -17,7 +18,6 @@ import {
   signTestLicenseState,
   TEST_INSTALLATION_ID,
 } from './license-attestation.test-helpers.js';
-import { LEGACY_INFERENCE_FEATURE, LEGACY_LICENSE_STATE_DOMAIN_SHORT } from '@/lib/legacy-compat.js';
 
 /** Produced by the license server's Go signer (internal/attestation) from a fixed seed. */
 const GO_SIGNED = {

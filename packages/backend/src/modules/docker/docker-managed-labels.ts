@@ -11,6 +11,7 @@ export const OPFIELD_LABELS_CAPABILITY = 'opfield_labels_v1';
 export const OPFIELD_LABEL_PREFIX = 'net.opfield.';
 // legacy-name: pre-2.12.1 labels — remove once every node reports none
 export { LEGACY_LABEL_PREFIX };
+
 // legacy-name: pre-2.12.1 labels — remove once every node reports none
 const LEGACY_VOLUME_LABEL_PREFIX = LEGACY_COM_LABEL_PREFIX;
 const MANAGED_VOLUME_SUFFIX = 'managed-volume';

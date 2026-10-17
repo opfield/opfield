@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { RelayRegistryService } from './relay-registry.service.js';
-import { LEGACY_REGISTRY_NAMESPACE } from '@/lib/legacy-compat.js';
 
 const binding = (id: string, role: string, repository: string, actions: string[]) => ({
   id,
@@ -69,7 +69,9 @@ describe('registry binding sync while the registry takes no writes', () => {
       string,
       Array<{ bindingId: string; authorization: string }>,
     ];
-    expect(desired[0]!.authorization).toBe(`Bearer token:${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/3:pull+push`);
+    expect(desired[0]!.authorization).toBe(
+      `Bearer token:${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/3:pull+push`
+    );
   });
 });
 
@@ -77,7 +79,11 @@ describe('registry binding sync across an Opfield restart (S6)', () => {
   function hanging() {
     const db = {
       select: () => ({
-        from: () => ({ where: async () => [binding('b1', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/14`, ['pull'])] }),
+        from: () => ({
+          where: async () => [
+            binding('b1', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/14`, ['pull']),
+          ],
+        }),
       }),
       update: () => ({ set: () => ({ where: async () => undefined }) }),
     };
@@ -142,9 +148,18 @@ describe('registry binding sync across an Opfield restart (S6)', () => {
 describe('registry bindings of earlier Availability images', () => {
   it('revokes the context bindings of repositories no pinned image uses and syncs each node once', async () => {
     const rows = [
-      { ...binding('old-1', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/12`, ['pull']), nodeId: 'node-1' },
-      { ...binding('old-2', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/12`, ['pull']), nodeId: 'node-2' },
-      { ...binding('kept', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/14`, ['pull']), nodeId: 'node-2' },
+      {
+        ...binding('old-1', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/12`, ['pull']),
+        nodeId: 'node-1',
+      },
+      {
+        ...binding('old-2', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/12`, ['pull']),
+        nodeId: 'node-2',
+      },
+      {
+        ...binding('kept', 'runtime', `${LEGACY_REGISTRY_NAMESPACE}/availability/policy-1/1/14`, ['pull']),
+        nodeId: 'node-2',
+      },
     ];
     const revokedIds: unknown[] = [];
     const db = {

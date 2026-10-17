@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { Readable } from 'node:stream';
+import {
+  LEGACY_APP_DATA_DIR,
+  LEGACY_VOLUME_APP_DATA,
+  LEGACY_VOLUME_REGISTRY_AUTH,
+  LEGACY_VOLUME_REGISTRY_DATA,
+  LEGACY_VOLUME_RELAY_IDENTITY,
+} from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { issueOneTimeLink, type OneTimeLinkKind, takeOneTimeLink } from '@/lib/one-time-link.js';
 import { AppError } from '@/middleware/error-handler.js';
@@ -42,7 +49,6 @@ import {
   type TransferVolumeManifest,
   volumePartName,
 } from './transfer-layout.js';
-import { LEGACY_APP_DATA_DIR, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_REGISTRY_AUTH, LEGACY_VOLUME_REGISTRY_DATA, LEGACY_VOLUME_RELAY_IDENTITY } from '@/lib/legacy-compat.js';
 
 const logger = createChildLogger('ConfigurationExport');
 const TICKET_TTL_MS = 15 * 60 * 1000;
@@ -208,7 +214,11 @@ export class ConfigurationExportService {
         hostSpecific: HOST_SPECIFIC_VALUES,
       };
     }
-    const fileVolumes: TransferVolumeKey[] = [LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_RELAY_IDENTITY, LEGACY_VOLUME_REGISTRY_AUTH];
+    const fileVolumes: TransferVolumeKey[] = [
+      LEGACY_VOLUME_APP_DATA,
+      LEGACY_VOLUME_RELAY_IDENTITY,
+      LEGACY_VOLUME_REGISTRY_AUTH,
+    ];
     const [database, files, registryVolume, logs] = await Promise.all([
       databaseSize(this.docker, installation).catch(() => null),
       Promise.all(

@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import { commercialHostRoot } from '@/edition/prepare-update.js';
 import { patchCompose, patchComposeRegistryStorage, patchEnv } from '@/foundation/foundation-migrator.js';
 import { registryStorageBackendFromEnv } from '@/foundation/registry-storage.js';
+import { LEGACY_APP_DATA_DIR, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_RELAY_STATE } from '@/lib/legacy-compat.js';
 import { normalizeHostPortTarget, normalizePublicUrl } from '@/modules/settings/general-settings.service.js';
 import type { DockerService } from '@/services/docker.service.js';
 import {
@@ -45,7 +46,6 @@ import {
   type TransferVolumeKey,
   versionMismatch,
 } from './transfer-layout.js';
-import { LEGACY_APP_DATA_DIR, LEGACY_VOLUME_APP_DATA, LEGACY_VOLUME_RELAY_STATE } from '@/lib/legacy-compat.js';
 
 /**
  * Restores a configuration export into a fresh Compose installation of the same Opfield version. It
@@ -269,7 +269,9 @@ function validateManifest(manifest: ConfigurationExportManifest, header: ExportH
   if (
     manifest.commercialDir &&
     ![LEGACY_APP_DATA_DIR, '/var/lib/opfield'].some((root) =>
-      new RegExp(String.raw`^${root.replaceAll('/', '\/')}\/commercial\/[a-zA-Z0-9._/-]+$`).test(manifest.commercialDir ?? '')
+      new RegExp(String.raw`^${root.replaceAll('/', '/')}\/commercial\/[a-zA-Z0-9._/-]+$`).test(
+        manifest.commercialDir ?? ''
+      )
     )
   ) {
     throw invalid('commercial core directory');
@@ -605,7 +607,10 @@ async function writeMarker(
   try {
     const tar = Buffer.concat([
       directoryTarEntry(`${LEGACY_VOLUME_APP_DATA}/${RESTORE_STAGING_DIR}/`),
-      singleFileTar(`${LEGACY_VOLUME_APP_DATA}/${RESTORE_STAGING_DIR}/${RESTORED_MARKER_FILE}`, Buffer.from(JSON.stringify(marker))),
+      singleFileTar(
+        `${LEGACY_VOLUME_APP_DATA}/${RESTORE_STAGING_DIR}/${RESTORED_MARKER_FILE}`,
+        Buffer.from(JSON.stringify(marker))
+      ),
     ]);
     await docker.putContainerArchiveStream(helper, '/opfield-transfer', Readable.from([tar]));
   } finally {

@@ -12,6 +12,7 @@ import {
   relayRoutes,
 } from '@/db/schema/index.js';
 import type { SignedRelayGrant } from '@/grpc/relay-control.client.js';
+import { LEGACY_GRANT_INSTANCE_ID_KEY, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 import { leaseLaneNodeIds, leaseLaneRelays } from '@/modules/docker/availability/lease/lease-relay-lanes.js';
 import type { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import {
@@ -45,7 +46,6 @@ import {
 } from './relay-stream-resume.js';
 import { candidateTopology } from './relay-topology.js';
 import { type RelayLatencyTarget, RelayTopologyService } from './relay-topology.service.js';
-import { LEGACY_GRANT_INSTANCE_ID_KEY, LEGACY_RELAY_SOURCE_KIND } from '@/lib/legacy-compat.js';
 
 const POLICY_ID = 'current';
 
@@ -707,7 +707,11 @@ export class RelayGrantIssuerService {
 
   async issueOpfieldConnectAssignment(routeId: string, appCertificateFingerprint: string) {
     const [route] = await this.db.select().from(relayRoutes).where(eq(relayRoutes.id, routeId)).limit(1);
-    if (!route || route.sourceKind !== LEGACY_RELAY_SOURCE_KIND || route.sourceCertificateSha256 !== appCertificateFingerprint)
+    if (
+      !route ||
+      route.sourceKind !== LEGACY_RELAY_SOURCE_KIND ||
+      route.sourceCertificateSha256 !== appCertificateFingerprint
+    )
       throw new Error('Opfield relay route is unavailable');
     const [endpoint] = await this.db
       .select()
@@ -752,7 +756,13 @@ export class RelayGrantIssuerService {
   private async signGrant(
     input: Omit<
       RelayGrantClaims,
-      'schemaVersion' | 'audience' | 'grantId' | typeof LEGACY_GRANT_INSTANCE_ID_KEY | 'issuedAt' | 'notBefore' | 'expiresAt'
+      | 'schemaVersion'
+      | 'audience'
+      | 'grantId'
+      | typeof LEGACY_GRANT_INSTANCE_ID_KEY
+      | 'issuedAt'
+      | 'notBefore'
+      | 'expiresAt'
     > & {
       schemaVersion?: 1 | 2;
       /**

@@ -63,12 +63,12 @@ import type {
   Node,
   NodeAppearanceColor,
 } from "@/types";
+import { LEGACY_INTERNAL_REGISTRY_ID } from "../../../backend/src/lib/legacy-compat";
 import { filterDockerImages } from "./docker-images-filter";
 import {
   type DockerImageUsageContainer,
   normalizeDockerImageUsageContainers,
 } from "./docker-images-usage";
-import { LEGACY_INTERNAL_REGISTRY_ID } from "../../../backend/src/lib/legacy-compat";
 
 interface DockerImageListItem extends DockerImage {
   _nodeId: string;
