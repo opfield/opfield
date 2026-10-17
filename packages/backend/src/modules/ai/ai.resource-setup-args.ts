@@ -20,9 +20,18 @@ export function ensureAnyScopeBase(user: User, scopes: string[]) {
   }
 }
 
-export function requiredString(value: unknown): string {
+/** The refusal for a missing argument; with `field` it names the argument, so the caller knows what to add. */
+function missingArgument(kind: string, field?: string): AppError {
+  return new AppError(
+    400,
+    'INVALID_AI_TOOL_ARGUMENT',
+    field ? `Required ${kind} is missing: ${field}` : `Required ${kind} is missing`
+  );
+}
+
+export function requiredString(value: unknown, field?: string): string {
   const text = optionalString(value);
-  if (!text) throw new AppError(400, 'INVALID_AI_TOOL_ARGUMENT', 'Required value is missing');
+  if (!text) throw missingArgument('value', field);
   return text;
 }
 
@@ -34,19 +43,19 @@ export function optionalNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
-export function requiredNumber(value: unknown): number {
+export function requiredNumber(value: unknown, field?: string): number {
   const number = optionalNumber(value);
-  if (number === undefined) throw new AppError(400, 'INVALID_AI_TOOL_ARGUMENT', 'Required number is missing');
+  if (number === undefined) throw missingArgument('number', field);
   return number;
 }
 
-export function requiredBoolean(value: unknown): boolean {
-  if (typeof value !== 'boolean') throw new AppError(400, 'INVALID_AI_TOOL_ARGUMENT', 'Required boolean is missing');
+export function requiredBoolean(value: unknown, field?: string): boolean {
+  if (typeof value !== 'boolean') throw missingArgument('boolean', field);
   return value;
 }
 
-export function requiredValue<T>(value: T | undefined): T {
-  if (value === undefined) throw new AppError(400, 'INVALID_AI_TOOL_ARGUMENT', 'Required value is missing');
+export function requiredValue<T>(value: T | undefined, field?: string): T {
+  if (value === undefined) throw missingArgument('value', field);
   return value;
 }
 
