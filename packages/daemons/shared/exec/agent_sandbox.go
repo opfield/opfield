@@ -25,6 +25,12 @@ import (
 // agent from changing containers by mistake or by working around a refusal
 // with another spelling (curl on the API socket, ctr, a decoded payload).
 //
+// A daemon that does not run as root (an installer's --user) cannot give the
+// command root or a mount namespace of its own. It runs the command as its
+// own user, which normally cannot reach the runtime; when that user can (it is
+// in the docker group), a user namespace mapping only that user lets it cover
+// the runtime the same way. The result names the user and what is limited.
+//
 // People in the browser console get an ordinary PTY shell as before.
 
 const (
@@ -32,6 +38,14 @@ const (
 	// console commands in the sandbox; Opfield sends agent commands only to
 	// them.
 	AgentConsoleSandboxCapability = "node_console_agent_sandbox_v1"
+
+	// How an agent command ran (CommandResult.Sandbox): as root (or
+	// console.user) in the sandbox; as a non-root daemon's user in a user
+	// namespace that covers the runtime that user can reach; or as a non-root
+	// daemon's user directly, when that user cannot reach any runtime.
+	AgentSandboxRoot          = "root"
+	AgentSandboxUserNamespace = "user_namespace"
+	AgentSandboxDaemonUser    = "daemon_user"
 
 	agentSandboxArg = "__opfield_agent_console_sandbox"
 	// agentSandboxStatusFD is where the sandbox setup reports a failure; a

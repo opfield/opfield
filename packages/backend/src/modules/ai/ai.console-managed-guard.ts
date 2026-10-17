@@ -90,7 +90,9 @@ function managedContainer(ref: string, inventory: ManagedInventory): InventoryCo
       id: '',
       name: ref,
       managed: true,
-      kind: inventory.allManaged ? 'internal' : 'container',
+      // Unlisted containers (an SSH target with an Opfield Docker daemon, rc.3 GO-7) are ordinary managed containers
+      // to the hint: the Docker tools change them. Only a listed internal node's containers are Opfield's own.
+      kind: inventory.allManaged && inventory.containers !== null ? 'internal' : 'container',
       project: null,
       ports: [],
     };

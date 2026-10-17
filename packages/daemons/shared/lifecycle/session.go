@@ -884,7 +884,7 @@ func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.OpfieldComma
 
 	switch nodeExec.GetAction() {
 	case "run":
-		runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		runCtx, cancel := context.WithTimeout(ctx, agentCommandTimeout(nodeExec.GetTimeoutSeconds()))
 		defer cancel()
 		commandResult, err := exec.RunAgentCommand(runCtx, nodeExec.GetCommand(), consoleUser, 128*1024)
 		detailJSON, _ := json.Marshal(commandResult)
@@ -934,6 +934,20 @@ func handleNodeExec(ctx context.Context, mgr *exec.Manager, cmd *pb.OpfieldComma
 	}
 
 	return result
+}
+
+// Agent console commands run 30 s unless Opfield asks for another limit, up
+// to 5 minutes (package installs, long diagnostics).
+const (
+	defaultAgentCommandTimeout = 30 * time.Second
+	maxAgentCommandTimeout     = 5 * time.Minute
+)
+
+func agentCommandTimeout(seconds int32) time.Duration {
+	if seconds <= 0 {
+		return defaultAgentCommandTimeout
+	}
+	return min(time.Duration(seconds)*time.Second, maxAgentCommandTimeout)
 }
 
 func nodeConsoleSessionKey(ownerKey string) string {

@@ -258,6 +258,8 @@ export interface HealthReport {
   legacyNames?: Record<string, number>;
   /** Docker daemons: the build of the node's lease watchdog from its heartbeat; empty when none runs (field 45). */
   leaseWatchdogVersion?: string;
+  /** Daemons of 2.12.3 and later: SHA256 fingerprints of the host's SSH host keys; none from a protected relay (field 46). */
+  sshHostKeyFingerprints?: string[];
   /** Present when the daemon advertises ingress_group_v1 (field 195). */
   ingressHealth?: IngressHealthReport | null;
   /** Storage-profile docker daemons: their availability set members. */
@@ -1415,6 +1417,8 @@ export interface NodeExecCommand {
   rows: number;
   cols: number;
   sessionKey?: string;
+  /** "run": how long the command may run, 1-300 s; 0 or absent is 30 s (field 7). */
+  timeoutSeconds?: number;
 }
 
 export interface NodeFileCommand {

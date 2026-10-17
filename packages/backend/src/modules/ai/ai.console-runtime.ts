@@ -35,11 +35,33 @@ const RUNTIME_PROGRAMS = new Set([
 const RUNTIME_PATH =
   /(?:^|[^A-Za-z0-9_-])(?:docker|dockershim|containerd|podman|crio|cri-dockerd|k3s)(?:[-.][A-Za-z0-9_-]+)*\.sock\b|\/run\/(?:docker|containerd|podman|crio|k3s)(?:\/|$)|\/var\/lib\/(?:docker|containerd)(?:\/|$)/i;
 
+/**
+ * Read-only programs that only look at a path: naming the Docker data directory or a runtime socket with them is a
+ * disk or file check (df -h /var/lib/docker, ls -l /var/run/docker.sock), not a use of the runtime, and it runs
+ * harmlessly in the sandbox (rc.3 GO-5).
+ */
+const PATH_READING_PROGRAMS = new Set([
+  'df',
+  'du',
+  'findmnt',
+  'ls',
+  'stat',
+  'lsblk',
+  'readlink',
+  'realpath',
+  'file',
+  'tree',
+  'mountpoint',
+  'test',
+  '[',
+]);
+
 /** The first program of a console command that uses the container runtime, or null. */
 export function containerRuntimeCommand(commands: readonly EffectiveCommand[]): EffectiveCommand | null {
   for (const command of commands) {
     const program = commandBaseName(command.argv[0]);
     if (RUNTIME_PROGRAMS.has(program)) return command;
+    if (PATH_READING_PROGRAMS.has(program) && command.writes.length === 0) continue;
     const texts = [
       ...command.argv.map((word) => word.text),
       ...command.writes.map((word) => word.text),
@@ -60,7 +82,9 @@ export function nodeConsoleRuntimeError(command: EffectiveCommand): AppError {
       'containerd, Podman, CRI-O and their sockets), so this command cannot work there. Use the Docker tools: ' +
       'list_docker_containers, get_docker_container, get_docker_container_logs, get_docker_container_stats, ' +
       'list_docker_images, list_docker_volumes, list_docker_networks, execute_docker_container_console_command, and ' +
-      'the manage_docker_* tools for changes. A person can use the browser console of the node.',
+      'the manage_docker_* tools for changes. Disk use of the Docker data directory: df, du, findmnt and ls of it ' +
+      'work in the console, and get_node shows its mount (diskMounts, role docker_root). A person can use the ' +
+      'browser console of the node.',
     { command: shown }
   );
 }
@@ -78,6 +102,22 @@ export function consoleCommandRisky(
     patternRisky ||
     analysis.opaque.length > 0 ||
     consoleMutations(analysis.commands).length > 0 ||
-    containerRuntimeCommand(analysis.commands) !== null
+    containerRuntimeCommand(analysis.commands) !== null ||
+    analysis.commands.some(leavesOrProbesTheSandbox)
+  );
+}
+
+/**
+ * A unix socket named by a client (curl --unix-socket, socat UNIX-CONNECT, nc -U), whatever its path's spelling
+ * (rc.3 GO-6). Namespace tools (nsenter, unshare, chroot, systemd-run) are risky by pattern (ai.console-safety.ts):
+ * the analysis takes them off as wrappers.
+ */
+const UNIX_SOCKET_CLIENT = /^--unix-socket(?:=|$)|^(?:unix-connect|unix-client|unix):/i;
+const UNIX_SOCKET_FLAG_PROGRAMS = new Set(['nc', 'ncat', 'netcat', 'socat']);
+
+function leavesOrProbesTheSandbox(command: EffectiveCommand): boolean {
+  const program = commandBaseName(command.argv[0]);
+  return command.argv.some(
+    (word) => UNIX_SOCKET_CLIENT.test(word.text) || (UNIX_SOCKET_FLAG_PROGRAMS.has(program) && word.text === '-U')
   );
 }

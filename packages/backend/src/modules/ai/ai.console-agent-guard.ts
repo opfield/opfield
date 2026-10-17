@@ -24,9 +24,24 @@ import {
 
 const logger = createChildLogger('ConsoleManagedGuard');
 const AUDIT_COMMAND_MAX = 500;
-/** Paths an Opfield Docker daemon keeps on its host: their presence makes an SSH target an Opfield Docker node. */
-const OPFIELD_DOCKER_NODE_PROBE =
-  'for d in /var/lib/docker-daemon /etc/docker-daemon; do [ -e "$d" ] && echo "$d"; done; true';
+/**
+ * Paths every Opfield daemon keeps on its host (Docker, nginx, monitoring, relay and their pre-2.12.1 names): their
+ * presence makes an SSH target an Opfield node. rc.3 GF-4: only the Docker daemon's were probed, so an nginx node
+ * reached through an address it does not report took agent commands.
+ */
+const OPFIELD_NODE_DIRS = [
+  '/var/lib/docker-daemon',
+  '/etc/docker-daemon',
+  '/var/lib/nginx-daemon',
+  '/etc/nginx-daemon',
+  '/var/lib/monitoring-daemon',
+  '/etc/monitoring-daemon',
+  '/var/lib/opfield-relay',
+  '/etc/opfield-relay',
+  '/var/lib/gateway-relay',
+  '/etc/gateway-relay-supervisor',
+];
+const OPFIELD_NODE_PROBE = `for d in ${OPFIELD_NODE_DIRS.join(' ')}; do [ -e "$d" ] && echo "$d"; done; true`;
 
 /** Why an agent's console command is refused before it runs. */
 export type AgentConsoleRefusal =
@@ -145,7 +160,7 @@ async function opfieldNodeOverSsh(
   if (cached && now - cached.at < SSH_PROBE_TTL_MS) return cached.opfieldNode;
   let opfieldNode: string | null = null;
   try {
-    opfieldNode = ((await probe(OPFIELD_DOCKER_NODE_PROBE)).stdout ?? '').trim().split(/\s+/)[0] || null;
+    opfieldNode = ((await probe(OPFIELD_NODE_PROBE)).stdout ?? '').trim().split(/\s+/)[0] || null;
   } catch (error) {
     logger.debug('Opfield node probe over SSH failed', {
       connectorId,
@@ -163,10 +178,11 @@ export function clearSshProbeCache(): void {
 }
 
 /**
- * The SSH variant. A connector Opfield can map to an enrolled node is refused outright (SSH_MANAGED_TARGET_BLOCKED);
- * one it cannot map may still reach a node through an address the node does not report. SSH commands do not run in
- * the agent sandbox, so before an agent's first command the target is probed for an Opfield Docker daemon, and on one
- * every agent command is refused: such a host is an Opfield node, reached with execute_node_console_command.
+ * The SSH variant. A connector Opfield can map to an enrolled node, by the addresses the node reports or by its SSH
+ * host key (ExternalSshService), is refused outright (SSH_MANAGED_TARGET_BLOCKED); a node enrolled elsewhere, or one
+ * whose daemon does not report host keys yet, may still be reached. SSH commands do not run in the agent sandbox, so
+ * before an agent's first command the target is probed for any Opfield daemon, and on one every agent command is
+ * refused: such a host is an Opfield node, reached with execute_node_console_command.
  */
 export async function assertAgentSshCommandAllowed(input: {
   user: User;
@@ -187,7 +203,7 @@ export async function assertAgentSshCommandAllowed(input: {
   throw new AppError(
     403,
     'SSH_MANAGED_TARGET_BLOCKED',
-    `This SSH target runs an Opfield Docker daemon (${opfieldNode}), so it is an Opfield node. Agents do not run ` +
+    `This SSH target runs an Opfield daemon (${opfieldNode}), so it is an Opfield node. Agents do not run ` +
       'commands on Opfield nodes over SSH: use execute_node_console_command on the node, whose agent commands run in ' +
       'the agent sandbox, and the Docker tools for its containers. If the node is not enrolled in this Opfield, it belongs to another installation.'
   );

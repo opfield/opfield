@@ -76,6 +76,7 @@ export class ExternalSshService {
     await this.assertExternalTarget(input.host);
     if (!input.hostFingerprint.trim())
       throw new AppError(400, 'SSH_FINGERPRINT_REQUIRED', 'Approve the SSH host fingerprint first');
+    await this.assertNotNodeHostKey(input.hostFingerprint.trim());
     if (input.generatePrivateKey && input.reuseCredentialFromConnectorId) {
       throw new AppError(400, 'SSH_KEY_SOURCE_INVALID', 'Generate or reuse an SSH key, not both');
     }
@@ -310,13 +311,47 @@ export class ExternalSshService {
     }
   }
 
-  private readHostFingerprint(
+  private async readHostFingerprint(
     host: string,
     port: number,
     sock?: Parameters<Client['connect']>[0]['sock'],
     signal?: AbortSignal
   ) {
-    return probeHostFingerprint(host, port, sock, signal);
+    const hostFingerprint = await probeHostFingerprint(host, port, sock, signal);
+    await this.assertNotNodeHostKey(hostFingerprint);
+    return hostFingerprint;
+  }
+
+  /**
+   * Refuses a host whose SSH host key is one an enrolled node reports (daemons of 2.12.3 and later), whatever address
+   * reaches it: NAT, a public address the node does not report, a forward or a jump host (rc.3 GF-4). The address
+   * check (assertExternalTarget) misses those.
+   */
+  private async assertNotNodeHostKey(hostFingerprint: string): Promise<void> {
+    if (!hostFingerprint) return;
+    const rows = await this.db
+      .select({
+        id: nodes.id,
+        hostname: nodes.hostname,
+        displayName: nodes.displayName,
+        report: nodes.lastHealthReport,
+      })
+      .from(nodes);
+    const node = rows.find((row) =>
+      (
+        (row.report as { sshHostKeyFingerprints?: unknown } | null)?.sshHostKeyFingerprints as unknown[] | undefined
+      )?.includes?.(hostFingerprint)
+    );
+    if (!node) return;
+    const name = node.displayName || node.hostname;
+    throw new AppError(
+      403,
+      'SSH_MANAGED_TARGET_BLOCKED',
+      `The SSH host key ${hostFingerprint} belongs to the Opfield node ${name}, whatever address reaches it. ` +
+        'Opfield-managed nodes require their dedicated tools: execute_node_console_command on the node and the Docker ' +
+        'tools for its containers.',
+      { nodeId: node.id, nodeName: name }
+    );
   }
 
   private async get(id: string): Promise<Connector> {
@@ -472,12 +507,14 @@ export class ExternalSshService {
     }
   }
 
-  private connect(
+  private async connect(
     connector: Connector,
     sock?: Parameters<Client['connect']>[0]['sock'],
     host?: string,
     signal?: AbortSignal
   ) {
+    // A connector created before nodes reported their host keys, or before this node enrolled.
+    await this.assertNotNodeHostKey(connector.hostFingerprint);
     const secret = this.crypto.decryptString(JSON.parse(connector.encryptedSecret));
     const passphrase = connector.encryptedPassphrase
       ? this.crypto.decryptString(JSON.parse(connector.encryptedPassphrase))

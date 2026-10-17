@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -154,21 +155,61 @@ func TestAgentSandboxReportsSetupFailure(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
-	result, err := runAgentCommand(ctx, []string{"sleep", "5"}, nil, "", 4096)
-	if err == nil || result.ExitCode == 0 {
+	result, err := runAgentCommand(ctx, []string{"sh", "-c", "echo before; sleep 5"}, nil, "", 4096)
+	if err == nil || !result.TimedOut || !strings.Contains(err.Error(), "time limit") {
 		t.Fatalf("a command past its deadline returned %+v %v", result, err)
+	}
+	if strings.TrimSpace(result.Stdout) != "before" {
+		t.Fatalf("the output written before the time limit was lost: %+v", result)
 	}
 }
 
-// A daemon that does not run as root cannot build the sandbox, so agent
-// commands are refused instead of running without it.
-func TestAgentSandboxRefusedWithoutRoot(t *testing.T) {
+// A daemon that does not run as root runs agent commands as its own user,
+// says so, and keeps them away from a runtime socket that user can reach.
+func TestAgentCommandWithoutRoot(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("runs only as a non-root daemon")
 	}
-	result, err := runAgentCommand(context.Background(), []string{"id", "-u"}, nil, "", 4096)
-	if err == nil || !strings.Contains(err.Error(), "needs a daemon running as root") || result.Stdout != "" {
+	result, err := RunAgentCommand(context.Background(), []string{"id", "-u"}, "", 4096)
+	if err != nil {
 		t.Fatalf("non-root run = %+v %v", result, err)
+	}
+	if strings.TrimSpace(result.Stdout) != strconv.Itoa(os.Getuid()) || result.RunAs == "" || result.Limits == "" {
+		t.Fatalf("non-root run = %+v", result)
+	}
+	if result.Sandbox != AgentSandboxDaemonUser && result.Sandbox != AgentSandboxUserNamespace {
+		t.Fatalf("sandbox = %q", result.Sandbox)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	result, err = runDaemonUserCommand(ctx, []string{"sh", "-c", "echo before; sleep 5"}, "", 4096)
+	if err == nil || !result.TimedOut || strings.TrimSpace(result.Stdout) != "before" {
+		t.Fatalf("a daemon-user command past its deadline returned %+v %v", result, err)
+	}
+
+	// A socket this user can connect to (as if it were in the docker group).
+	dir := t.TempDir()
+	socket := filepath.Join(dir, "docker.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	if got := reachableRuntimeSockets([]string{socket, dir, filepath.Join(dir, "missing.sock")}); len(got) != 1 {
+		t.Fatalf("reachable = %q, want the one socket", got)
+	}
+	result, err = runUnprivilegedAgentCommand(context.Background(), []string{"sh", "-c", "test -S " + socket + " && echo reached; id -u; grep -E '^Cap(Eff|Amb):' /proc/self/status"}, []string{socket}, "", 4096)
+	if err != nil {
+		if !strings.Contains(err.Error(), "unprivileged user namespaces") || !strings.Contains(err.Error(), socket) {
+			t.Fatalf("refusal = %v", err)
+		}
+		t.Logf("this host has no unprivileged user namespaces: %v", err)
+		return
+	}
+	want := strconv.Itoa(os.Getuid()) + "\nCapEff:\t0000000000000000\nCapAmb:\t0000000000000000"
+	if result.Sandbox != AgentSandboxUserNamespace || strings.TrimSpace(result.Stdout) != want {
+		t.Fatalf("user-namespace run = %+v, want only the uid and no capabilities", result)
 	}
 }
 
@@ -191,5 +232,18 @@ true`
 	}
 	if strings.TrimSpace(result.Stdout) != "0" {
 		t.Fatalf("output = %q, want only uid 0", result.Stdout)
+	}
+}
+
+// explore O-2 (rc.3): systemctl had no system bus in the sandbox. The sandbox
+// covers only the container runtime, so root reaches systemd.
+func TestAgentSandboxReachesSystemd(t *testing.T) {
+	requireRootForSandbox(t)
+	if _, err := os.Stat("/run/systemd/system"); err != nil {
+		t.Skip("no systemd on this host")
+	}
+	result, err := runAgentCommand(context.Background(), []string{"systemctl", "show", "--property=Version"}, nil, "", 4096)
+	if err != nil || !strings.HasPrefix(result.Stdout, "Version=") {
+		t.Fatalf("systemctl in the sandbox = %+v %v", result, err)
 	}
 }

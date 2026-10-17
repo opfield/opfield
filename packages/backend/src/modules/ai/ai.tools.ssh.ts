@@ -14,7 +14,7 @@ export const SSH_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'ssh_execute_command',
     description:
-      'Execute one command on an external SSH connector. Use only after identifying the host and command; Opfield will apply its standard approval policy. Opfield nodes are not SSH targets; on a host that runs an Opfield Docker daemon every agent command is refused with SSH_MANAGED_TARGET_BLOCKED (use execute_node_console_command on the node and the Docker tools).',
+      'Execute one command on an external SSH connector. Use only after identifying the host and command; Opfield will apply its standard approval policy. Opfield nodes are not SSH targets, whatever address reaches them: a connector pinned to the host key of an enrolled node, or a host that runs any Opfield daemon (Docker, nginx, monitoring, relay), is refused with SSH_MANAGED_TARGET_BLOCKED (use execute_node_console_command on the node and the Docker tools).',
     parameters: {
       type: 'object',
       properties: {

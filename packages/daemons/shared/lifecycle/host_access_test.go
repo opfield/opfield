@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	pb "github.com/opfield/opfield/daemon-shared/opfieldv1"
 )
@@ -148,6 +149,22 @@ func TestConsoleUserOfTheDaemonUserOrDisabledConsoleIsNotRefused(t *testing.T) {
 		cfg := loadHostAccessTestConfig(t, extra)
 		if refusal := consoleUserRefusal(cfg); refusal != "" {
 			t.Fatalf("config %q refused: %q", extra, refusal)
+		}
+	}
+}
+
+func TestAgentCommandTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		seconds int32
+		want    time.Duration
+	}{
+		{0, 30 * time.Second},
+		{-5, 30 * time.Second},
+		{120, 120 * time.Second},
+		{3600, 5 * time.Minute},
+	} {
+		if got := agentCommandTimeout(tc.seconds); got != tc.want {
+			t.Fatalf("agentCommandTimeout(%d) = %s, want %s", tc.seconds, got, tc.want)
 		}
 	}
 }

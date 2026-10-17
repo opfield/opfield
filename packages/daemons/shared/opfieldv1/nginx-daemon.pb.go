@@ -1190,6 +1190,12 @@ type HealthReport struct {
 	// lease watchdog as its heartbeat names it (vX.Y.Z or vX.Y.Z-rc.N); empty
 	// when no watchdog runs on the node.
 	LeaseWatchdogVersion string `protobuf:"bytes,45,opt,name=lease_watchdog_version,json=leaseWatchdogVersion,proto3" json:"lease_watchdog_version,omitempty"`
+	// Daemons of 2.12.3 and later: the SHA256 fingerprints of the host's SSH
+	// host keys (/etc/ssh/ssh_host_*_key.pub, "SHA256:<base64>" as ssh-keygen
+	// prints them). Opfield refuses an agent SSH connector whose pinned host
+	// key is one of an enrolled node's, whatever address reaches it. Not sent
+	// by a protected relay.
+	SshHostKeyFingerprints []string `protobuf:"bytes,46,rep,name=ssh_host_key_fingerprints,json=sshHostKeyFingerprints,proto3" json:"ssh_host_key_fingerprints,omitempty"`
 	// Nginx daemons advertising ingress_group_v1: what the reserved endpoint
 	// /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
 	IngressHealth *IngressHealthReport `protobuf:"bytes,195,opt,name=ingress_health,json=ingressHealth,proto3" json:"ingress_health,omitempty"`
@@ -1537,6 +1543,13 @@ func (x *HealthReport) GetLeaseWatchdogVersion() string {
 		return x.LeaseWatchdogVersion
 	}
 	return ""
+}
+
+func (x *HealthReport) GetSshHostKeyFingerprints() []string {
+	if x != nil {
+		return x.SshHostKeyFingerprints
+	}
+	return nil
 }
 
 func (x *HealthReport) GetIngressHealth() *IngressHealthReport {
@@ -9218,15 +9231,18 @@ func (x *ProbePagesRouteCommand) GetTimeoutSeconds() int32 {
 }
 
 type NodeExecCommand struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Action        string                 `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"`   // "create", "resize"
-	Command       []string               `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"` // shell override (default: auto-detect)
-	Tty           bool                   `protobuf:"varint,3,opt,name=tty,proto3" json:"tty,omitempty"`
-	Rows          int32                  `protobuf:"varint,4,opt,name=rows,proto3" json:"rows,omitempty"`
-	Cols          int32                  `protobuf:"varint,5,opt,name=cols,proto3" json:"cols,omitempty"`
-	SessionKey    string                 `protobuf:"bytes,6,opt,name=session_key,json=sessionKey,proto3" json:"session_key,omitempty"` // authenticated Opfield user ID
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Action     string                 `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"`   // "create", "resize"
+	Command    []string               `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"` // shell override (default: auto-detect)
+	Tty        bool                   `protobuf:"varint,3,opt,name=tty,proto3" json:"tty,omitempty"`
+	Rows       int32                  `protobuf:"varint,4,opt,name=rows,proto3" json:"rows,omitempty"`
+	Cols       int32                  `protobuf:"varint,5,opt,name=cols,proto3" json:"cols,omitempty"`
+	SessionKey string                 `protobuf:"bytes,6,opt,name=session_key,json=sessionKey,proto3" json:"session_key,omitempty"` // authenticated Opfield user ID
+	// "run": how long the command may run, in seconds (1-300). 0 is the
+	// default of 30 s; daemons before 2.12.3 always use 30 s.
+	TimeoutSeconds int32 `protobuf:"varint,7,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *NodeExecCommand) Reset() {
@@ -9299,6 +9315,13 @@ func (x *NodeExecCommand) GetSessionKey() string {
 		return x.SessionKey
 	}
 	return ""
+}
+
+func (x *NodeExecCommand) GetTimeoutSeconds() int32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
 }
 
 type NodeFileCommand struct {
@@ -15726,7 +15749,7 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x12\x16\n" +
 	"\x06detail\x18\x04 \x01(\tR\x06detail\x12\x12\n" +
-	"\x04data\x18\x05 \x01(\fR\x04data\"\xef\x13\n" +
+	"\x04data\x18\x05 \x01(\fR\x04data\"\xaa\x14\n" +
 	"\fHealthReport\x12#\n" +
 	"\rnginx_running\x18\x01 \x01(\bR\fnginxRunning\x12!\n" +
 	"\fconfig_valid\x18\x02 \x01(\bR\vconfigValid\x120\n" +
@@ -15774,7 +15797,8 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\x12update_connections\x18* \x01(\v2#.opfield.v1.DaemonUpdateConnectionsR\x11updateConnections\x122\n" +
 	"\x15nginx_service_problem\x18+ \x01(\tR\x13nginxServiceProblem\x12L\n" +
 	"\flegacy_names\x18, \x03(\v2).opfield.v1.HealthReport.LegacyNamesEntryR\vlegacyNames\x124\n" +
-	"\x16lease_watchdog_version\x18- \x01(\tR\x14leaseWatchdogVersion\x12G\n" +
+	"\x16lease_watchdog_version\x18- \x01(\tR\x14leaseWatchdogVersion\x129\n" +
+	"\x19ssh_host_key_fingerprints\x18. \x03(\tR\x16sshHostKeyFingerprints\x12G\n" +
 	"\x0eingress_health\x18\xc3\x01 \x01(\v2\x1f.opfield.v1.IngressHealthReportR\ringressHealth\x12X\n" +
 	"\x14availability_members\x18\xc4\x01 \x03(\v2$.opfield.v1.AvailabilityMemberReportR\x13availabilityMembers\x129\n" +
 	"\n" +
@@ -16451,7 +16475,7 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\x0fexpected_status\x18\x05 \x01(\x05R\x0eexpectedStatus\x12#\n" +
 	"\rexpected_body\x18\x06 \x01(\tR\fexpectedBody\x12&\n" +
 	"\x0fbody_match_mode\x18\a \x01(\tR\rbodyMatchMode\x12'\n" +
-	"\x0ftimeout_seconds\x18\b \x01(\x05R\x0etimeoutSeconds\"\x9e\x01\n" +
+	"\x0ftimeout_seconds\x18\b \x01(\x05R\x0etimeoutSeconds\"\xc7\x01\n" +
 	"\x0fNodeExecCommand\x12\x16\n" +
 	"\x06action\x18\x01 \x01(\tR\x06action\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x12\x10\n" +
@@ -16459,7 +16483,8 @@ const file_opfield_v1_nginx_daemon_proto_rawDesc = "" +
 	"\x04rows\x18\x04 \x01(\x05R\x04rows\x12\x12\n" +
 	"\x04cols\x18\x05 \x01(\x05R\x04cols\x12\x1f\n" +
 	"\vsession_key\x18\x06 \x01(\tR\n" +
-	"sessionKey\"\x95\x01\n" +
+	"sessionKey\x12'\n" +
+	"\x0ftimeout_seconds\x18\a \x01(\x05R\x0etimeoutSeconds\"\x95\x01\n" +
 	"\x0fNodeFileCommand\x12\x16\n" +
 	"\x06action\x18\x01 \x01(\tR\x06action\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1b\n" +

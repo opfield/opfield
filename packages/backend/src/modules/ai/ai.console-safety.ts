@@ -2,7 +2,7 @@ const MAX_CONSOLE_COMMAND_ARGS = 64;
 const MAX_CONSOLE_COMMAND_ARG_BYTES = 16 * 1024;
 
 const RISKY_COMMAND_RE =
-  /(^|[;&|()`\s])(?:rm|rmdir|mv|dd|mkfs(?:\.[a-z0-9]+)?|fdisk|parted|mount|umount|chmod|chown|chattr|iptables|nft|ufw|firewall-cmd|systemctl|service|docker|podman|kill|killall|pkill|reboot|shutdown|halt|poweroff|restart)(?=$|[;&|()`\s])/i;
+  /(^|[;&|()`\s])(?:rm|rmdir|mv|dd|mkfs(?:\.[a-z0-9]+)?|fdisk|parted|mount|umount|chmod|chown|chattr|iptables|nft|ufw|firewall-cmd|systemctl|service|docker|podman|kill|killall|pkill|reboot|shutdown|halt|poweroff|restart|nsenter|unshare|chroot|pivot_root|systemd-run|machinectl)(?=$|[;&|()`\s])/i;
 
 const CATASTROPHIC_COMMAND_RE = [
   /(^|[;&|()`\s])rm\s+(?:-[a-zA-Z]*[rf][a-zA-Z]*\s+|--recursive\s+|--force\s+){1,}(?:--no-preserve-root\s+)?\/(?:\s|$|[;&|()`])/i,
@@ -25,6 +25,14 @@ export interface ConsoleCommandResult {
   stderr?: string;
   exitCode?: number;
   truncated?: boolean;
+  /** The command was stopped at its time limit; the output is what it wrote until then. */
+  timedOut?: boolean;
+  /** Agent node console commands (daemons of 2.12.3 and later): the OS user the command ran as. */
+  runAs?: string;
+  /** How it was sandboxed: root, user_namespace or daemon_user (a daemon that does not run as root). */
+  sandbox?: string;
+  /** What running without root limits, as a sentence; absent for root. */
+  limits?: string;
 }
 
 export function normalizeConsoleCommand(value: unknown): string[] {
@@ -76,6 +84,10 @@ export function parseConsoleCommandResult(detail: string | undefined): ConsoleCo
       stderr: typeof value.stderr === 'string' ? value.stderr : undefined,
       exitCode: typeof value.exitCode === 'number' ? value.exitCode : undefined,
       truncated: value.truncated === true,
+      ...(value.timedOut === true ? { timedOut: true } : {}),
+      ...(typeof value.runAs === 'string' && value.runAs ? { runAs: value.runAs } : {}),
+      ...(typeof value.sandbox === 'string' && value.sandbox ? { sandbox: value.sandbox } : {}),
+      ...(typeof value.limits === 'string' && value.limits ? { limits: value.limits } : {}),
     };
   } catch {
     return { stdout: detail };
