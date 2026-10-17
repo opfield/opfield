@@ -330,7 +330,7 @@ export interface CloudLinkActions {
   /** mail-config (managed only): the cloud email the account set up, or none; answers the transport in use. */
   mailConfig(input: CloudMailConfigInput): Promise<{ transport: 'cloud' | 'smtp' }>;
   /**
-   * inference-cloud (any linked installation): the Opfield Cloud AI add-on, or none. Answers within ~9 s with the state
+   * inference-cloud (any linked installation): the Opfield AI add-on, or none. Answers within ~9 s with the state
    * reached; slower work continues behind it and the account asks again.
    */
   inferenceCloud(input: CloudInferenceInput): Promise<CloudInferenceAnswer>;

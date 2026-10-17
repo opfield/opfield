@@ -61,7 +61,7 @@ export class AISettingsService {
     this.opfieldInferenceModelAvailable = validator;
   }
 
-  /** Whether the Opfield Cloud AI add-on runs AI Workspace directly (its URL, key and model are the account's). */
+  /** Whether the Opfield AI add-on runs AI Workspace directly (its URL, key and model are the account's). */
   setCloudConnectionResolver(resolver: (config: AIConfig) => Promise<boolean>): void {
     this.cloudConnected = resolver;
   }

@@ -276,10 +276,10 @@ export async function initializeBackgroundServices(): Promise<void> {
   container.registerInstance(CloudMail, cloudMail);
   container.resolve(CloudLinkService).setMailTransportReader(() => cloudMail.helloTransport());
   container.resolve(AuthMailService).setCloudTransport(cloudMail);
-  // The Opfield Cloud AI add-on; carries on after a restart with a setup or removal still in progress.
+  // The Opfield AI add-on; carries on after a restart with a setup or removal still in progress.
   const cloudInference = new CloudInference(db);
   container.registerInstance(CloudInference, cloudInference);
-  void cloudInference.start().catch((error) => logger.warn('Could not resume the Opfield Cloud AI add-on', { error }));
+  void cloudInference.start().catch((error) => logger.warn('Could not resume the Opfield AI add-on', { error }));
   // When the cloud link ends or switches accounts, the sign-in the cloud gave goes with it (see CloudSsoClient.detach).
   const cloudSsoClient = createCloudSsoClient();
   container.resolve(CloudLinkService).setSignInDetacher((reason) => cloudSsoClient.detach(reason));

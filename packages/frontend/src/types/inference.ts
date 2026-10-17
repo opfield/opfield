@@ -183,7 +183,7 @@ export interface InferenceProviderConnection {
   } | null;
   quota: InferenceQuotaWindow[];
   discoveredModels: InferenceDiscoveredModel[];
-  /** The Opfield Cloud AI add-on: the Opfield account manages this connection and its models. */
+  /** The Opfield AI add-on: the Opfield account manages this connection and its models. */
   cloudManaged?: boolean;
   /** Its usage as the account reports it; null while it cannot be read. */
   cloudUsage?: {

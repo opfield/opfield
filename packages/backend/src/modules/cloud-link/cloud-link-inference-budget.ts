@@ -10,11 +10,11 @@ import { EventBusService } from '@/services/event-bus.service.js';
 
 const logger = createChildLogger('CloudInference');
 
-/** The tier price an older account does not send (the smallest Opfield Cloud AI tier). */
+/** The tier price an older account does not send (the smallest Opfield AI tier). */
 const DEFAULT_TIER_MONTHLY_USD = 10;
 
 /**
- * Opfield Cloud AI models are API-priced, and a default per-user API budget of 0 hides API-priced models from
+ * Opfield AI models are API-priced, and a default per-user API budget of 0 hides API-priced models from
  * everyone. When the add-on becomes ready, a default budget of 0 (or no default limits at all) becomes the tier's
  * monthly price. A budget an administrator set is never lowered or replaced; per-user limits are not touched. Answers
  * what it raised (for the restore on removal), or null.
@@ -61,13 +61,13 @@ export async function ensureCloudDefaultApiBudget(
     resourceType: 'inference_limit_policy',
     resourceId: changed.id,
     details: {
-      reason: 'Opfield Cloud AI',
+      reason: 'Opfield AI',
       apiMonthlyMicrodollars,
       previousApiMonthlyMicrodollars: changed.created ? null : 0,
     },
   });
   publishInferenceUsageChanged(container.resolve(EventBusService), { targetUserId: null, reason: 'limits' });
-  logger.info('Opfield Cloud AI set the default monthly API budget', { usd, created: changed.created });
+  logger.info('Opfield AI set the default monthly API budget', { usd, created: changed.created });
   return { policyId: changed.id, previous: 0, value: apiMonthlyMicrodollars };
 }
 
@@ -94,11 +94,11 @@ export async function restoreCloudDefaultApiBudget(
     resourceType: 'inference_limit_policy',
     resourceId: restored.id,
     details: {
-      reason: 'Opfield Cloud AI removed',
+      reason: 'Opfield AI removed',
       apiMonthlyMicrodollars: raised.previous,
       previousApiMonthlyMicrodollars: raised.value,
     },
   });
   publishInferenceUsageChanged(container.resolve(EventBusService), { targetUserId: null, reason: 'limits' });
-  logger.info('Opfield Cloud AI restored the default monthly API budget', { apiMonthlyMicrodollars: raised.previous });
+  logger.info('Opfield AI restored the default monthly API budget', { apiMonthlyMicrodollars: raised.previous });
 }

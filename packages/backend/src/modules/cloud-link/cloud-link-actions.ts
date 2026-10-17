@@ -147,7 +147,7 @@ export function createCloudLinkActions(): CloudLinkActions {
       return container.resolve(CloudMail).configure(input);
     },
 
-    // The Opfield Cloud AI add-on: core, connection and models as an administrator would set them (CloudInference).
+    // The Opfield AI add-on: core, connection and models as an administrator would set them (CloudInference).
     async inferenceCloud(input) {
       return container.resolve(CloudInference).apply(input);
     },

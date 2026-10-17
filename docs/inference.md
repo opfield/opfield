@@ -46,12 +46,12 @@ Drag model rows to set the order returned by the management and data-plane catal
 
 There is no user-visible or administrator-managed Pool entity. Provider administration remains grouped by provider, while one logical model may include compatible sources from more than one provider or upstream model. Opfield validates every enabled source against the model's published contract and keeps failover inside one request/accounting lineage; it never switches after output has begun.
 
-### Opfield Cloud AI
+### Opfield AI
 
 Any installation connected to Opfield Cloud (managed or self-hosted) with the AI add-on (bought in the Opfield account) is set up by the account. How depends on the inference core:
 
 - **Core installed:** Opfield turns inference on, adds the provider connection **Opfield Cloud**, publishes **Opfield Swift** (`opfield-swift`) and **Opfield Heavy** (`opfield-heavy`) to everyone and sets AI Workspace to Opfield Inference with the account's default model. The connection and both models are read-only here (API and MCP answer `409 CLOUD_MANAGED`); their order can still change. The provider row shows how much of the plan is used; open it for the 5-hour and 30-day windows. Both models carry the prices the Opfield account sets, so per-user API budgets here count them; the plan in the Opfield account limits total use. When the add-on is first ready and the default monthly API budget is 0, it becomes the plan's monthly price (a budget you set is kept).
-- **No core:** Opfield does not install it. AI Workspace connects to the Opfield Cloud endpoint directly (OAI-compatible, the account's default model); its URL, key and model are read-only and Settings shows **Connected to Opfield Cloud AI**. Installing the core later moves the add-on to the core.
+- **No core:** Opfield does not install it. AI Workspace connects to the Opfield Cloud endpoint directly (OAI-compatible, the account's default model); its URL, key and model are read-only and Settings shows **Connected to Opfield AI**. Installing the core later moves the add-on to the core.
 
 AI Workspace is switched once when the add-on is enabled; later changes you make there are kept. When the add-on ends, the models and the connection are removed, or AI Workspace loses the add-on key and turns off.
 

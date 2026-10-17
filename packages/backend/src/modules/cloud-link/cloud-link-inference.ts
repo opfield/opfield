@@ -143,7 +143,7 @@ export class CloudInference {
   async start(): Promise<void> {
     container.resolve(EventBusService).subscribe(INFERENCE_CORE_CHANGED_CHANNEL, (status) => {
       void this.onCoreChanged(status).catch((error) =>
-        logger.warn('Opfield Cloud AI could not follow the inference core', { error: errorMessage(error) })
+        logger.warn('Opfield AI could not follow the inference core', { error: errorMessage(error) })
       );
     });
     const stored = await readStoredCloudInference(this.db).catch(() => null);
@@ -240,7 +240,7 @@ export class CloudInference {
     });
     this.queued = run;
     this.chain = run.catch((error) => {
-      logger.warn('Opfield Cloud AI reconciliation failed', { error: errorMessage(error) });
+      logger.warn('Opfield AI reconciliation failed', { error: errorMessage(error) });
     });
     return this.chain;
   }
@@ -284,11 +284,11 @@ export class CloudInference {
         // Workspace keeps the endpoint until core mode switches it.
         if (modeOf(stored) === 'core') {
           await this.remove().catch((error) =>
-            logger.warn('Opfield Cloud AI could not remove the core connection', { error: errorMessage(error) })
+            logger.warn('Opfield AI could not remove the core connection', { error: errorMessage(error) })
           );
         }
         await this.update({ mode, workspaceApplied: false, appliedKeyHash: null, appliedBaseUrl: null });
-        logger.info('Opfield Cloud AI changes mode', { from: modeOf(stored), to: mode });
+        logger.info('Opfield AI changes mode', { from: modeOf(stored), to: mode });
         return this.reconcile();
       }
       if (mode === 'direct') {
@@ -301,7 +301,7 @@ export class CloudInference {
           workspaceApplied: true,
           workspaceBaseUrl,
         });
-        logger.info('Opfield Cloud AI is ready in AI Workspace', { model: stored.models[0]?.publicId });
+        logger.info('Opfield AI is ready in AI Workspace', { model: stored.models[0]?.publicId });
         return;
       }
       if (!(await this.coreReady(stored))) return;
@@ -326,10 +326,10 @@ export class CloudInference {
         workspaceApplied: true,
         workspaceBaseUrl: workspaceAppliedOf(stored) ? (stored.workspaceBaseUrl ?? null) : null,
       });
-      logger.info('Opfield Cloud AI is ready', { connectionId, models: stored.models.map((model) => model.publicId) });
+      logger.info('Opfield AI is ready', { connectionId, models: stored.models.map((model) => model.publicId) });
     } catch (error) {
       const message = secret ? errorMessage(error).replaceAll(secret, '[REDACTED]') : errorMessage(error);
-      logger.warn('Opfield Cloud AI could not be set up', { error: message });
+      logger.warn('Opfield AI could not be set up', { error: message });
       await this.update({ state: 'failed', error: message.slice(0, 500) });
     }
   }
@@ -411,7 +411,7 @@ export class CloudInference {
       if (status.state === 'degraded') await runtime.repair();
       else await runtime.install();
       await this.update({ coreInstallAt: new Date().toISOString(), state: 'installing', error: null });
-      logger.info('Opfield Cloud AI installs the inference core', { from: status.state });
+      logger.info('Opfield AI installs the inference core', { from: status.state });
     }
     this.scheduleRecheck();
     return false;
@@ -548,7 +548,7 @@ export class CloudInference {
         await workspace.updateConfig({ opfieldInferenceModel: remaining[0].publicId });
       }
     }
-    logger.info('Opfield Cloud AI removed', { connectionId: connection.id, models: modelIds.length });
+    logger.info('Opfield AI removed', { connectionId: connection.id, models: modelIds.length });
   }
 
   private async firstSystemAdmin(): Promise<string> {

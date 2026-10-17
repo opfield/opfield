@@ -256,9 +256,9 @@ export async function readCloudInferenceUsage(db: DrizzleClient): Promise<CloudI
       signal: AbortSignal.timeout(USAGE_TIMEOUT_MS),
     });
     value = response.ok ? parseUsage(await response.json()) : null;
-    if (!response.ok) logger.debug('Opfield Cloud AI usage is not available', { status: response.status });
+    if (!response.ok) logger.debug('Opfield AI usage is not available', { status: response.status });
   } catch (error) {
-    logger.debug('Could not read the Opfield Cloud AI usage', {
+    logger.debug('Could not read the Opfield AI usage', {
       error: error instanceof Error ? error.message : String(error),
     });
   }

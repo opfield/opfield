@@ -75,7 +75,7 @@ interface AIConfigState {
   webSearchBaseUrl: string;
   sandboxEnabled: boolean;
   sandboxDefaultTier: "low" | "medium" | "high";
-  /** The Opfield Cloud AI add-on runs AI Workspace directly: URL, key and model are the account's. */
+  /** The Opfield AI add-on runs AI Workspace directly: URL, key and model are the account's. */
   cloudConnected?: boolean;
 }
 
@@ -1107,7 +1107,7 @@ export function AIConfigSection() {
           title="Provider"
           description={
             aiConfig.cloudConnected
-              ? "Connected to Opfield Cloud AI"
+              ? "Connected to Opfield AI"
               : aiConfig.providerType === "opfield_inference"
                 ? "Opfield Inference model used for Workspace responses"
                 : "OpenAI-compatible provider connection used for Workspace responses"

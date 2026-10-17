@@ -76,7 +76,7 @@ export async function answerCloudRequest(
     if (CLOUD_PRIVILEGED_REQUEST_TYPES.has(request.type) && !(await access.privilegedAllowed())) {
       return { id: request.id, ok: false, ...REMOTE_MANAGEMENT_OFF };
     }
-    // The add-ons the account sets on a managed installation (custom domain, cloud email, Opfield Cloud AI).
+    // The add-ons the account sets on a managed installation (custom domain, cloud email, Opfield AI).
     if (CLOUD_ADDON_REQUEST_TYPES.has(request.type)) return await answerAddonRequest(probe, request, access);
     switch (request.type) {
       case 'state':
