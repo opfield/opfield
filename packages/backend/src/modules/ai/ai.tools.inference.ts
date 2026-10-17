@@ -235,7 +235,7 @@ export const INFERENCE_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_inference_limits',
     description:
-      'Inspect or manage default and per-user inference budgets. Operations: list_policies, list_users, set_default, set_user, remove_user, reset_user (clear the user current usage windows). Disabled 5h/7d/30d windows are unlimited; an API value of 0 disables API usage.',
+      'Inspect or manage default and per-user inference budgets. Operations: list_policies, list_users, set_default, set_user, remove_user, reset_user (clear the user current usage windows). Disabled 5h/7d/30d windows are unlimited; an API value of 0 disables API usage. A window applies to a user only when the default policy enables it too: user rows return effectiveWindows and a warning for a window the default turns off.',
     parameters: {
       type: 'object',
       properties: {

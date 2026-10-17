@@ -246,6 +246,32 @@ export function errorCode(error: unknown): string {
   return error instanceof InferenceProtocolError ? error.code.slice(0, 128) : 'upstream_error';
 }
 
+/** Code of an answer the provider's content filter stopped. */
+export const CONTENT_FILTER_STOP_CODE = 'content_filter';
+
+export function contentFilterStop(): InferenceProtocolError {
+  return new InferenceProtocolError(
+    502,
+    CONTENT_FILTER_STOP_CODE,
+    "The model provider's content filter stopped the answer"
+  );
+}
+
+/**
+ * The error code of a failed request. Opfield's own refusal wins; then a content-filter stop the client saw,
+ * which the core reports only as its HTTP-mapped attempt code (`upstream_server_error`, pointing the
+ * administrator at a provider server error); then the failed attempt's code; then the error's.
+ */
+export function failedRequestErrorCode(
+  refusalCode: string | null,
+  attemptErrorCode: string | null | undefined,
+  error: unknown
+): string {
+  if (refusalCode) return refusalCode;
+  if (error instanceof InferenceProtocolError && error.code === CONTENT_FILTER_STOP_CODE) return error.code;
+  return attemptErrorCode ?? errorCode(error);
+}
+
 /** The source's current pricing snapshot, or null when it has none. */
 export async function latestPricingSnapshot(database: DrizzleExecutor, sourceId: string) {
   return (

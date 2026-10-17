@@ -16,6 +16,8 @@ export class CoreResponsesSseObserver {
 
   /** The last `usage` a Chat Completions stream reported (the core asks upstreams for it). */
   chatUsage: InferenceCoreUsage | null = null;
+  /** Set when the stream showed that the provider's content filter stopped the answer. */
+  contentFiltered = false;
 
   private buffer = new Uint8Array(0);
   private length = 0;
@@ -83,9 +85,21 @@ export class CoreResponsesSseObserver {
     // Chat Completions ends a finished stream with `[DONE]`; the other wires never send it.
     if (payload === '[DONE]') return this.wire === 'chat_completions' ? 'completed' : null;
     try {
-      const event = JSON.parse(payload) as { type?: unknown; error?: unknown; choices?: unknown; usage?: unknown };
+      const event = JSON.parse(payload) as {
+        type?: unknown;
+        error?: unknown;
+        choices?: unknown;
+        usage?: unknown;
+        response?: { incomplete_details?: { reason?: unknown } | null };
+      };
       if (this.wire === 'chat_completions') {
         this.chatUsage = chatCompletionUsage(event.usage) ?? this.chatUsage;
+        if (
+          Array.isArray(event.choices) &&
+          event.choices.some((choice) => (choice as { finish_reason?: unknown })?.finish_reason === 'content_filter')
+        ) {
+          this.contentFiltered = true;
+        }
         // The core reports a failed Chat stream as an error frame and closes without `[DONE]`.
         return event.error && typeof event.error === 'object' && event.choices === undefined ? 'failed' : null;
       }
@@ -95,6 +109,9 @@ export class CoreResponsesSseObserver {
       }
       if (event.type === 'response.completed') return 'completed';
       if (event.type === 'response.failed' || event.type === 'response.incomplete' || event.type === 'error') {
+        if (event.type === 'response.incomplete' && event.response?.incomplete_details?.reason === 'content_filter') {
+          this.contentFiltered = true;
+        }
         return 'failed';
       }
     } catch {

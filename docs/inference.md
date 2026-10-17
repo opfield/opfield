@@ -40,7 +40,7 @@ Opfield and inference core upgrades do not invalidate provider connections, infe
 7. Configure context/input/output/auto-compaction limits, modalities, and access. Subscription-backed models also have a credit multiplier; API-backed models use versioned provider/manual pricing and do not expose a subscription multiplier. A price is optional: leave the input and output prices empty to publish an API model without one (see [Models without a price](#models-without-a-price)).
 8. Configure reasoning overrides such as `ultra=max`. Efforts without an override map to the same provider name. Drag efforts into the order that clients and the AI Workspace reasoning selector should display them.
 9. Optionally set a **System prompt** for the model. **Append** keeps the harness default instructions and adds the prompt after them; **Replace** substitutes the default entirely, so a replacement must restate any tool or patch-format rules the model still needs. The prompt is published in the model catalog (`GET /models`, `system_prompt`) and applies only to harnesses that read it from there: Opfield never rewrites the `instructions` or `system` field of a client request, so other clients keep their own prompts.
-10. In **Settings > Inference > Limits**, set default limits and optional per-user overrides.
+10. In **Settings > Inference > Limits**, set default limits and optional per-user overrides. A 5-hour, 7-day or 30-day window turned off in the default limits is off for everyone (shown as "Disabled globally" on a user): a user override that turns it on is kept but does not apply. The API (`GET /api/inference/limits`, `PUT /api/inference/limits/users/{id}`) returns `effectiveWindows` and a `warnings` entry on such a user row.
 
 Drag model rows to set the order returned by the management and data-plane catalogs. AI Workspace uses the same order for its model selector and default-model fallback.
 
@@ -139,6 +139,7 @@ A budget refusal looks the same on every endpoint and every inference core versi
 - error code `subscription_budget_exhausted` (a 5-hour, 7-day or 30-day credit window), `api_budget_exhausted` (the user's monthly API budget) or `provider_api_budget_exhausted` (the connection's monthly API limit);
 - `error.details.recoveryAt`: the ISO time the budget recovers. A user budget refusal also names the window in `error.details.dimension` (`5h`, `7d`, `30d` or `monthly`);
 - a Responses WebSocket turn gets an `error` event with the same status, code and details, and a `retry-after` value under `headers`;
+- the in-app AI assistant answers the WebSocket command with `command.error` code `AI_BUDGET_EXCEEDED` (status 402), a message that says which budget ran out and the UTC time it works again, and `details.recoveryAt`, `details.dimension` and `details.retryAfterSeconds`;
 - Activity records the request as `failed` with the same error code.
 
 The published model **output limit** is the source of truth for the upstream request. Opfield signs it into the per-request context, and a core that negotiated the capability uses it as the provider output ceiling when the client sends no limit of its own. Older cores do not receive the claim and keep their built-in defaults.
@@ -174,7 +175,7 @@ Opfield supports:
 
 Compaction is accounted separately and never receives dynamic burn; a requested eligible Fast tier still receives its fixed service-tier multiplier. A retry may select another capability-compatible provider before output begins, including for continuation requests, but provider selection cannot change after output starts, preventing mixed or duplicated streams.
 
-For Responses WebSocket clients, the socket remains usable until the client, Opfield, or the managed core closes it. A failed or incomplete turn is recorded as failed instead of being finalized as a successful zero-output request. Activity stores normalized metadata and usage only; hovering a model in the administrator activity table identifies the provider account used for that request.
+For Responses WebSocket clients, the socket remains usable until the client, Opfield, or the managed core closes it. A failed or incomplete turn is recorded as failed instead of being finalized as a successful zero-output request. An answer the provider's content filter stopped is recorded with the error code `content_filter` (its tokens are still charged); a turn the managed core refused or dropped before any provider was contacted is recorded as `inference_core_unavailable`. Activity stores normalized metadata and usage only; hovering a model in the administrator activity table identifies the provider account used for that request.
 
 ## Security and privacy
 

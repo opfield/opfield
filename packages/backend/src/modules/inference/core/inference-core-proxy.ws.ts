@@ -27,7 +27,10 @@ class CoreWebSocketUpgradeError extends Error {
     super(
       statusCode === null
         ? 'Inference core rejected the WebSocket upgrade'
-        : `Inference core rejected the WebSocket upgrade with status ${statusCode}`
+        : statusCode === 426
+          ? // An inference core before 2.60.0-opfield.7 turned its WebSocket transport off after a config save.
+            'Inference core rejected the WebSocket upgrade with status 426: its WebSocket transport is off. Update the inference core, or send the request over HTTP.'
+          : `Inference core rejected the WebSocket upgrade with status ${statusCode}`
     );
     this.name = 'CoreWebSocketUpgradeError';
   }
@@ -756,15 +759,27 @@ function failTurn(
     if (error instanceof InferenceProtocolError && error === turn.lastProviderError) {
       send(ws, denialEvent(error));
     } else {
-      const message =
-        error instanceof CoreWebSocketUpgradeError
-          ? error.message
-          : 'The inference core connection ended before output';
-      sendError(ws, 502, 'inference_core_unavailable', message);
+      sendError(ws, 502, 'inference_core_unavailable', coreFailureMessage(error));
     }
     turn.terminalSent = true;
   }
-  finalizeTurn(accounting, turn, 'failed', error);
+  finalizeTurn(accounting, turn, 'failed', recordedTurnError(error));
+}
+
+function coreFailureMessage(error: unknown): string {
+  return error instanceof CoreWebSocketUpgradeError
+    ? error.message
+    : 'The inference core connection ended before output';
+}
+
+/**
+ * The error Activity records for a failed turn. A core that refused the upgrade or dropped the connection
+ * is `inference_core_unavailable`, as the client was told; recording it as `upstream_error` pointed the
+ * administrator at the provider, which was never contacted.
+ */
+export function recordedTurnError(error: unknown): unknown {
+  if (error === undefined || error instanceof InferenceProtocolError) return error;
+  return new InferenceProtocolError(502, 'inference_core_unavailable', coreFailureMessage(error));
 }
 
 function finalizeTurn(

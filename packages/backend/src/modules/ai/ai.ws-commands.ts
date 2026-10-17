@@ -139,6 +139,25 @@ export function validateWSCommand(raw: Record<string, unknown>): AppError | null
   });
 }
 
+/**
+ * When the refused call works again: `retryAfterSeconds`, plus `recoveryAt` and `dimension` of a budget refusal
+ * (a budget window may reset days later, so the client must not just retry). Never a connection's spend or limit.
+ */
+function refusalDetails(source: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  const details: Record<string, unknown> = {};
+  const retryAfterMs = source?.retryAfterMs;
+  if (typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs)) {
+    details.retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+  }
+  const recoveryAt = typeof source?.recoveryAt === 'string' ? Date.parse(source.recoveryAt) : Number.NaN;
+  if (!Number.isNaN(recoveryAt)) {
+    details.recoveryAt = new Date(recoveryAt).toISOString();
+    details.retryAfterSeconds ??= Math.max(1, Math.ceil((recoveryAt - Date.now()) / 1000));
+  }
+  if (typeof source?.dimension === 'string') details.dimension = source.dimension;
+  return Object.keys(details).length > 0 ? details : undefined;
+}
+
 export interface WSCommandFailure {
   code: string;
   statusCode: number;
@@ -157,11 +176,7 @@ export interface WSCommandFailure {
 export function wsCommandFailure(error: unknown, fallbackMessage: string): WSCommandFailure {
   const refusal = modelCallRefusal(error);
   if (refusal) {
-    const retryAfterMs = (error as { details?: Record<string, unknown> }).details?.retryAfterMs;
-    const details =
-      typeof retryAfterMs === 'number' && Number.isFinite(retryAfterMs)
-        ? { retryAfterSeconds: Math.max(1, Math.ceil(retryAfterMs / 1000)) }
-        : undefined;
+    const details = refusalDetails((error as { details?: Record<string, unknown> }).details);
     const [code, statusCode] =
       refusal === 'budget'
         ? ['AI_BUDGET_EXCEEDED', 402]

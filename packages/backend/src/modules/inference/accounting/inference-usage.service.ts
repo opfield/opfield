@@ -422,11 +422,13 @@ export class InferenceUsageService {
 
   async listPolicies() {
     const rows = await this.db.select().from(inferenceLimitPolicies).orderBy(inferenceLimitPolicies.policyType);
+    const defaultPolicy = rows.find((row) => row.policyType === 'default');
     return rows.map((row) => ({
       ...row,
       credits5h: toPublicCreditString(row.credits5h),
       credits7d: toPublicCreditString(row.credits7d),
       credits30d: toPublicCreditString(row.credits30d),
+      ...(row.policyType === 'user' ? userWindowState(row, defaultPolicy) : {}),
     }));
   }
 
@@ -535,6 +537,32 @@ function percentage(used: number, limit: number): number {
 
 function subscriptionPercentage(used: number, limit: number): number {
   return percentage(used, limit * SUBSCRIPTION_CHAT_BUDGET_FRACTION);
+}
+
+const CREDIT_WINDOWS = [
+  ['credits5hEnabled', '5-hour'],
+  ['credits7dEnabled', '7-day'],
+  ['credits30dEnabled', '30-day'],
+] as const;
+
+type CreditWindowFlags = Pick<InferenceLimitPolicyInput, (typeof CREDIT_WINDOWS)[number][0]>;
+
+/**
+ * A credit window applies to a user only when the default limits enable it too (the default is the
+ * master switch). A user override that turns on a window the default turns off is stored but does not
+ * limit the user, so the API answers which windows apply and why the others do not.
+ */
+export function userWindowState(policy: CreditWindowFlags, defaultPolicy: CreditWindowFlags | undefined) {
+  const effectiveWindows = {
+    credits5hEnabled: policy.credits5hEnabled && (defaultPolicy?.credits5hEnabled ?? true),
+    credits7dEnabled: policy.credits7dEnabled && (defaultPolicy?.credits7dEnabled ?? true),
+    credits30dEnabled: policy.credits30dEnabled && (defaultPolicy?.credits30dEnabled ?? true),
+  };
+  const warnings = CREDIT_WINDOWS.filter(([key]) => policy[key] && !effectiveWindows[key]).map(
+    ([key, name]) =>
+      `The ${name} window is off in the default limits, so it does not limit this user. Turn it on in the default limits (PUT /api/inference/limits/default with ${key}: true) to apply it.`
+  );
+  return { effectiveWindows, warnings };
 }
 
 function validatePolicy(input: InferenceLimitPolicyInput) {
