@@ -64,7 +64,7 @@ describe('manage_docker_source on a container removed outside Opfield', () => {
       });
 
     await expect(run('get')).resolves.toMatchObject({ id: 'source-1' });
-    await expect(run('remove')).resolves.toEqual({ success: true, removed: true });
+    await expect(run('remove')).resolves.toEqual({ success: true, removed: true, keptImage: null });
     expect(service.remove).toHaveBeenCalledWith({ kind: 'container', nodeId: NODE, containerName: 'shop' }, 'user-1');
   });
 

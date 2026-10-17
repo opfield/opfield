@@ -77,6 +77,8 @@ export interface AppEnv {
     user?: User;
     sessionId?: string;
     effectiveScopes?: string[];
+    /** Set by requireDockerContainerScope when a Git source route runs for a container removed outside Opfield. */
+    dockerRemovedContainerSource?: boolean;
     isTokenAuth?: boolean;
     authType?: 'session' | 'api-token' | 'oauth-token' | 'inference-token';
     /** Id of the API or OAuth token that authenticated the request. */

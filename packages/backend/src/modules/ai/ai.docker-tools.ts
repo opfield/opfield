@@ -1560,6 +1560,7 @@ async function manageDockerSource(
     throw new Error('The pending operation applies to container targets only');
   }
   let target: DockerSourceTarget;
+  let removedContainer = false;
   if (targetType === 'compose') {
     const composeProjectId = String(a.composeProjectId || '');
     if (!composeProjectId) throw new Error('composeProjectId is required');
@@ -1593,11 +1594,13 @@ async function manageDockerSource(
           ? 'docker:containers:manage'
           : 'docker:containers:edit';
     // The Git source of a container removed outside Opfield can still be read and removed (which releases the name).
-    await ensureDockerSourceContainerScope(context.dockerService, user, requiredScope, nodeId, containerName, {
-      removedContainerSource: (REMOVED_CONTAINER_SOURCE_OPERATIONS as readonly string[]).includes(operation)
-        ? 'allow'
-        : 'refuse',
-    });
+    removedContainer = (
+      await ensureDockerSourceContainerScope(context.dockerService, user, requiredScope, nodeId, containerName, {
+        removedContainerSource: (REMOVED_CONTAINER_SOURCE_OPERATIONS as readonly string[]).includes(operation)
+          ? 'allow'
+          : 'refuse',
+      })
+    ).removedContainer;
     target = { kind: 'container', nodeId, containerName };
   }
 
@@ -1651,6 +1654,9 @@ async function manageDockerSource(
     }
     case 'remove': {
       if (target.kind !== 'container') return { success: true, removed: await sourceService.remove(target, user.id) };
+      // A container removed outside Opfield runs nothing any more: its source is detached and no image is kept.
+      if (removedContainer)
+        return { success: true, removed: await sourceService.remove(target, user.id), keptImage: null };
       // The container keeps running its build: the registry keeps that build as the container's own (keptImage).
       const { detachContainerSourceKeepingImage } = await import('@/modules/docker/docker-container-kept-image.js');
       const detached = await detachContainerSourceKeepingImage(

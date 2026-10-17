@@ -156,6 +156,7 @@ export function requireDockerContainerScope(
           deny(baseScope, nodeId, removed.scopeResourceId ?? undefined);
         }
         if (options.removedContainerSource === 'refuse') throw removedContainerSourceError(identifier);
+        c.set('dockerRemovedContainerSource', true);
         await next();
         return;
       }

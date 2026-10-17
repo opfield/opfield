@@ -334,6 +334,11 @@ export function registerDockerSourceRoutes(router: OpenAPIHonoType<AppEnv>) {
     }),
     async (c) => {
       const target = containerTarget(c) as Extract<DockerSourceTarget, { kind: 'container' }>;
+      if (c.get('dockerRemovedContainerSource')) {
+        // A container removed outside Opfield runs nothing any more: its source is detached and no image is kept.
+        const removed = await container.resolve(DockerSourceService).remove(target, actorFor(c).id);
+        return c.json({ success: true, removed, keptImage: null });
+      }
       // The container keeps running its build: the registry keeps that build as the container's own (keptImage).
       const { removed, keptImage } = await detachContainerSourceKeepingImage(
         container.resolve<DrizzleClient>(TOKENS.DrizzleClient),

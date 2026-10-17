@@ -48,16 +48,17 @@ export async function ensureDockerSourceContainerScope(
   nodeId: string,
   containerName: string,
   options: { removedContainerSource?: 'allow' | 'refuse' } = {}
-): Promise<void> {
+): Promise<{ removedContainer: boolean }> {
   const pending = await container.resolve(DockerSourceService).getPendingContainer(nodeId, containerName);
   if (pending) {
     if (!hasDockerResourceScope(user.scopes, baseScope, nodeId, pending.scopeResourceId)) {
       throw new Error(`PERMISSION_DENIED: Missing required scope ${baseScope}:${nodeId}/${pending.scopeResourceId}`);
     }
-    return;
+    return { removedContainer: false };
   }
   try {
     await ensureDockerContainerScopes(dockerService, user, [baseScope], nodeId, containerName);
+    return { removedContainer: false };
   } catch (error) {
     // The Git source of a container removed outside Opfield: authorized on the removed container's identity, like
     // requireDockerContainerScope(..., { removedContainerSource }).
@@ -75,6 +76,8 @@ export async function ensureDockerSourceContainerScope(
       );
     }
     if (options.removedContainerSource === 'refuse') throw removedContainerSourceError(containerName);
+    // The container is gone: its source is authorized on the removed container's identity.
+    return { removedContainer: true };
   }
 }
 

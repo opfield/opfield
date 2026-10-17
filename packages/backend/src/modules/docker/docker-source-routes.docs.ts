@@ -103,7 +103,7 @@ function targetRoutes(target: Target) {
       summary: `Disconnect the Git source of a ${target.noun}`,
       description: `Removes the Git source binding and its Build Secrets; the workload keeps running its current image.${
         target.noun === 'container'
-          ? " The internal registry keeps the build the container runs as the container's own until the container is removed or runs another image, so a recreate or a migration can still pull it: `keptImage` names it (null when nothing was deployed)."
+          ? " The internal registry keeps the build the container runs as the container's own until the container is removed or runs another image, so a recreate or a migration can still pull it: `keptImage` names it (null when nothing was deployed, or when the container was removed outside Opfield)."
           : ''
       } For a container that exists only as a queued first source build, the reservation, its env and secrets go too. Requires ${target.edit}.`,
       request: { params },

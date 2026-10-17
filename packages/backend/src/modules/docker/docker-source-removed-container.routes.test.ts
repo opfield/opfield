@@ -75,7 +75,7 @@ describe('the Git source of a container removed outside Opfield', () => {
 
     const detached = await app(scopes).request(`/nodes/${NODE}/containers/shop/source`, { method: 'DELETE' });
     expect(detached.status).toBe(200);
-    expect(await detached.json()).toEqual({ success: true, removed: true });
+    expect(await detached.json()).toEqual({ success: true, removed: true, keptImage: null });
     expect(sources.remove).toHaveBeenCalledWith({ kind: 'container', nodeId: NODE, containerName: 'shop' }, 'user-1');
   });
 
