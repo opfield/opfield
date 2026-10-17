@@ -35,8 +35,8 @@ mkdir -p "$out"
 include_line='. "$(dirname -- "${BASH_SOURCE[0]}")/legacy-compat.sh"'
 for installer in "${installers[@]}"; do
   if grep -qxF "$include_line" "${scripts_dir}/${installer}"; then
-    awk -v line="$include_line" -v include="${scripts_dir}/legacy-compat.sh" '
-      $0 == line { while ((getline l < include) > 0) print l; close(include); next }
+    awk -v line="$include_line" -v incfile="${scripts_dir}/legacy-compat.sh" '
+      $0 == line { while ((getline l < incfile) > 0) print l; close(incfile); next }
       { print }
     ' "${scripts_dir}/${installer}" >"${out}/${installer}"
     chmod 755 "${out}/${installer}"
