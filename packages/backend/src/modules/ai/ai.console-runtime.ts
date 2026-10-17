@@ -78,8 +78,9 @@ export function nodeConsoleRuntimeError(command: EffectiveCommand): AppError {
   return new AppError(
     403,
     NODE_CONSOLE_RUNTIME_UNAVAILABLE,
-    `Refused "${shown}": agent console commands run in a sandbox without the container runtime (Docker, ` +
-      'containerd, Podman, CRI-O and their sockets), so this command cannot work there. Use the Docker tools: ' +
+    `Refused "${shown}": the agent console sandbox keeps ordinary use of the container runtime (Docker, ` +
+      'containerd, Podman, CRI-O and their sockets) out of the console. It is an accident guard, not a security ' +
+      'boundary against a determined root process, so do not look for another way in. Use the Docker tools: ' +
       'list_docker_containers, get_docker_container, get_docker_container_logs, get_docker_container_stats, ' +
       'list_docker_images, list_docker_volumes, list_docker_networks, execute_docker_container_console_command, and ' +
       'the manage_docker_* tools for changes. Disk use of the Docker data directory: df, du, findmnt and ls of it ' +

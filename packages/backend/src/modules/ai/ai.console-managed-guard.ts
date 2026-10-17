@@ -246,7 +246,8 @@ export function managedResourceConsoleError(refusal: ConsoleRefusal): AppError {
       'change Opfield-managed Docker objects (containers, Compose projects, volumes, networks, daemon state) ' +
       'through the node console or SSH: Opfield would lose track of them, and their Git-source builds, rollouts, ' +
       `links and permissions break. Use ${refusal.tool}. To read containers use list_docker_containers, ` +
-      'get_docker_container and get_docker_container_logs: agent console commands run without the container runtime.',
+      'get_docker_container and get_docker_container_logs. The agent console sandbox stops ordinary Docker use as an ' +
+      'accident guard, not a security boundary: do not look for another way to the runtime.',
     { object: refusal.object, tool: refusal.tool, verb: refusal.mutation.verb }
   );
 }
