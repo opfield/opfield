@@ -103,6 +103,11 @@ type DockerPlugin struct {
 	healthRefresh chan struct{}
 	// externalChanges keeps the container changes made outside Opfield (external_changes.go).
 	externalChanges *externalChangeLog
+	// containerSignals and containerEventsGeneration let the external change
+	// watcher tell an outside stop or kill from an exit nobody caused and
+	// from Docker stopping its own containers (external_changes.go).
+	containerSignals          containerSignals
+	containerEventsGeneration atomic.Uint64
 	// relayPenalties orders relays that failed a route's tunnel recently after the others.
 	relayPenalties relaybridge.RelayPenalties
 	// relayStability is since when each relay's transport has been up without a break: resumable streams return

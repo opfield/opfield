@@ -1,7 +1,10 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { auditLog } from '@/db/schema/index.js';
-import { DOCKER_EXTERNAL_CHANGE_AUDIT_ACTION } from './docker-external-changes.service.js';
+import {
+  DOCKER_EXTERNAL_CHANGE_AUDIT_ACTION,
+  DOCKER_EXTERNAL_IDENTITY_CHANGES,
+} from './docker-external-changes.service.js';
 
 const CHANGE_WORDS: Record<string, string> = {
   removed: 'removed',
@@ -27,6 +30,8 @@ export async function externalContainerChangeNote(
         and(
           eq(auditLog.action, DOCKER_EXTERNAL_CHANGE_AUDIT_ACTION),
           sql`${auditLog.details}->>'nodeId' = ${nodeId}`,
+          // A stop or an update outside Opfield does not make a build refuse the container; only a new identity does.
+          inArray(sql`${auditLog.details}->>'change'`, [...DOCKER_EXTERNAL_IDENTITY_CHANGES]),
           sql`(${auditLog.details}->>'name' = ${containerName} OR ${auditLog.details}->>'oldName' = ${containerName})`
         )
       )
