@@ -108,23 +108,51 @@ func (m *Manager) startupLocked(mem *member, status HolderStatus, now time.Durat
 	}
 }
 
-// retainedStepLocked keeps a retained primary serving (graceful close): its
-// deadline record is gone once the lease runtime disarmed it.
+// retainedStepLocked keeps a retained primary serving (graceful close).
+//
+// The deadline record goes first, on the first step that sees the role, even
+// while an operation of the member runs or its last observation is old: a
+// majority of every quorum set confirmed this copy retained, so no other node
+// can acquire the key, and the record is no longer renewed. Waiting for the
+// member to be idle let the watchdog kill the copy the operator asked to keep
+// when an operation (the principals of the configuration that removed the
+// other members) outlasted the lease budget (rc.3 F-A2).
 func (m *Manager) retainedStepLocked(mem *member, now time.Duration) {
+	m.disarmRetainedLocked(mem)
 	if mem.busy || !mem.fresh(now) {
 		return
-	}
-	if mem.holder.recordID != "" {
-		if err := m.deps.Watchdog.DeleteRecord(mem.holder.recordID); err == nil {
-			mem.holder.recordID, mem.holder.recordDeadline = "", 0
-			m.eventLocked(mem, Event{Kind: EventRetainedOnClose})
-		}
 	}
 	if mem.primaryRunning() {
 		m.openServingLocked(mem)
 		return
 	}
 	m.closeServingLocked(mem)
+}
+
+// disarmRetainedLocked deletes the watchdog deadline record of a retained
+// primary: the one this holder armed, or, when the daemon did not arm it in
+// this process (it started after the close), the record of the observed
+// container, looked up once.
+func (m *Manager) disarmRetainedLocked(mem *member) {
+	if mem.holder.recordID != "" {
+		if err := m.deps.Watchdog.DeleteRecord(mem.holder.recordID); err != nil {
+			m.logger.Warn("could not disarm the lease deadline of the retained primary; retrying", "set_id", mem.cfg.SetID, "error", err)
+			return
+		}
+		mem.holder.recordID, mem.holder.recordDeadline = "", 0
+		mem.retainSwept = mem.obs.container.ID
+		m.eventLocked(mem, Event{Kind: EventRetainedOnClose})
+		return
+	}
+	containerID := mem.obs.container.ID
+	if containerID == "" || mem.retainSwept == containerID {
+		return
+	}
+	if err := m.deleteRecord(containerID); err != nil {
+		m.logger.Warn("could not disarm the lease deadline of the retained primary; retrying", "set_id", mem.cfg.SetID, "error", err)
+		return
+	}
+	mem.retainSwept = containerID
 }
 
 func firstReason(values ...string) string {

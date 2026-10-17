@@ -85,10 +85,13 @@ type member struct {
 	// set's lease bootstrap committed.
 	legacy atomic.Bool
 
-	holder  holderRuntime
-	standby standbyRuntime
-	manual  manualRuntime
-	ready   bool
+	holder holderRuntime
+	// retainSwept is the container whose deadline record the retained path
+	// already removed (or found absent).
+	retainSwept string
+	standby     standbyRuntime
+	manual      manualRuntime
+	ready       bool
 	// switchover is a planned handoff the engine prepares first
 	// (SwitchoverPreparer, extensions.go).
 	switchover *stagedSwitchover
