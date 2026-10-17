@@ -287,11 +287,36 @@ Managed database instances are not generic Docker workloads. Storage nodes run O
 Pages serves immutable static Deployments owned by a Page Project. Use \`find_resource({ types: ["page_project"] })\` and \`manage_pages\` for profile, project, deployment, Tag, deploy-token, migration, pinning, retention, runtime-config, Git-source, Build Secret, and source-build operations.
 
 ## Agent recipe: publish HTML and share a link
-1. Pick or create a Project (\`manage_pages\` \`project_list\` / \`project_create\`). The Pages profile must be licensed and enabled.
+1. Pick or create a Project (\`manage_pages\` \`project_list\` / \`project_create\`). \`project_create\` needs only \`name\` and \`nodeId\`, the id of a Pages-capable ingress node (\`find_resource({ types: ["node"], query })\`, \`usedFor\` mentions Pages). The Pages profile must be licensed and enabled.
 2. Produce the site: a build folder with \`index.html\` at its root, a \`.tar.gz\` of one, or a single self-contained HTML file (it becomes \`index.html\`).
-3. Upload with the MCP-only \`upload_pages_artifact\`. From a shell, call \`link\` (with \`projectId\` and optional \`tag\`, \`format\`, expiry) and run one of the returned curl commands: \`curl --data-binary @site.tar.gz <url>\` for an archive or HTML file, or \`tar czf - -C dist . | curl --data-binary @- <url>\` to pack and stream a folder. The link is valid for 15 minutes and works once; the curl response is the finalized Deployment with its links, and an interrupted or rejected transfer leaves nothing behind (create a new link to retry). Without a shell, \`begin\` with the exact byte size and lowercase SHA-256 of the bytes you send (add \`format: "html"\` for a single HTML file; it is detected from content when omitted), ordered \`chunk\` calls of at most 1 MiB decoded base64 each at the returned upload ID and current offset, then \`finalize\`; \`cancel\` stops an unfinished upload and deletes its Deployment.
-4. The finalize result carries \`links.preview\` (the immutable Deployment preview URL). With \`tag\` set at \`link\` or \`begin\`, \`links.tag\` is the stable Tag preview URL \`https://<project hash>-<tag>.<Pages domain>\`, which follows the Tag to every later Deployment; \`links.latest\` is the same for the system \`latest\` Tag. A link still being published after about 15 seconds is returned with \`status: "pending"\`; re-check with \`deployment_links\` or \`tag_list\` instead of guessing. \`status: "unavailable"\` carries a \`reason\` (previews_disabled, profile_disabled, label_too_long, access_unsupported, ...).
+3. Upload with the MCP-only \`upload_pages_artifact\`. There is no separate activate or publish step: a successful \`finalize\` (or upload-link transfer) publishes the Deployment.
+   - With a shell: call \`link\` (with \`projectId\` and optional \`tag\`, \`format\`, expiry) and run one of the returned curl commands: \`curl --data-binary @site.tar.gz <url>\` for an archive or HTML file, or \`tar czf - -C dist . | curl --data-binary @- <url>\` to pack and stream a folder. The link is valid for 15 minutes and works once; the curl response is the finalized Deployment with its links, and an interrupted or rejected transfer leaves nothing behind (create a new link to retry).
+   - Without a shell: \`begin\`, ordered \`chunk\` calls, then \`finalize\`, as in the example below. \`cancel\` stops an unfinished upload and deletes its Deployment.
+4. The finalize result carries \`links.preview\` (the immutable Deployment preview URL). With \`tag\` set at \`link\` or \`begin\`, \`links.tag\` is the stable Tag preview URL \`https://<project hash>-<tag>.<Pages domain>\`, which follows the Tag to every later Deployment; \`links.latest\` is the same for the system \`latest\` Tag. A link still being published after about 15 seconds is returned with \`status: "pending"\`; re-check with \`deployment_links\` (with \`projectId\` and \`deploymentId\`) or \`tag_list\` instead of guessing. \`status: "unavailable"\` carries a \`reason\` (previews_disabled, profile_disabled, label_too_long, access_unsupported, ...). Report the URL Opfield returns; never build a preview host from a node address or hash yourself.
 5. Share the Tag URL for a link that stays stable across uploads; share the Deployment URL for an exact immutable version.
+
+## Example: one HTML file without a shell
+Send only the fields shown. Leave out every optional field you do not use: an empty string, \`0\` or an empty \`source\` object fails validation (\`tag: ""\`, \`expiresAt: ""\`, \`expiresInHours: 0\`).
+
+\`\`\`
+manage_pages      { "operation": "project_create", "name": "docs-site", "nodeId": "<ingress node UUID>" }
+                  -> { "id": "<project UUID>", ... }
+upload_pages_artifact { "operation": "begin", "projectId": "<project UUID>", "format": "html",
+                        "declaredSizeBytes": 66, "sha256": "<lowercase hex SHA-256 of the 66 bytes>" }
+                  -> { "deployment": { "status": "uploading", ... }, "upload": { "id": "<upload UUID>", "offset": 0 } }
+upload_pages_artifact { "operation": "chunk", "projectId": "<project UUID>", "uploadId": "<upload UUID>",
+                        "offset": 0, "contentBase64": "<base64 of the 66 bytes>" }
+                  -> { "offset": 66, "complete": true }
+upload_pages_artifact { "operation": "finalize", "projectId": "<project UUID>", "uploadId": "<upload UUID>" }
+                  -> { "deployment": { "status": "ready", ... }, "links": { "preview": { "url": "https://<slug>.<Pages domain>", "status": "ready" }, ... } }
+\`\`\`
+
+- \`begin\` takes no content; its Deployment has status \`uploading\` and serves nothing until \`finalize\` returns status \`ready\`.
+- \`declaredSizeBytes\` and \`sha256\` describe exactly the bytes the chunks send: the HTML file itself for \`format: "html"\`, the archive otherwise, every byte including a final newline. When a size and SHA-256 are given to you, they decide which bytes are right. A chunk result whose \`offset\` ends short of or past \`declaredSizeBytes\` means the bytes differ; fix them before \`finalize\`, which otherwise fails with PAGES_UPLOAD_CHECKSUM_MISMATCH (start again with \`begin\`).
+- Chunks carry at most 1 MiB decoded each, in canonical base64 without line breaks. Send the next chunk from the \`offset\` the previous one returned until \`complete\` is true.
+- \`deployment.artifactSha256\` in the finalize result is the hash of the stored archive (Opfield packs an HTML file into one), so it differs from the \`sha256\` you declared. That is expected; do not delete or re-upload the Deployment because of it.
+- \`projectId\` is required for \`link\` and \`begin\`; \`chunk\`, \`finalize\` and \`cancel\` find the upload by \`uploadId\` and accept the same \`projectId\`.
+- Add \`tag\` only for a stable Tag link (never \`latest\`, which moves to every ready Deployment by itself), and \`expiresInHours\` or \`expiresAt\` (one of them) only for a link that should stop working.
 
 ## Options
 - Expiry: \`expiresAt\` (ISO 8601, 5 minutes to 1 year ahead) or \`expiresInHours\` (1-8760) at \`link\`, \`begin\` or \`finalize\`, also on the REST deploy API. Maintenance deletes an expired Deployment with its previews and files and clears Tags that pointed at it (their Tag preview goes away). Pinned Deployments, and Deployments a custom-domain Route still serves, are not expired. A Deployment without an expiry is never expired.

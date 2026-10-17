@@ -4,25 +4,42 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'upload_pages_artifact',
     description:
-      'Publish a static site to a Page Project through authenticated MCP. Upload either a .tar.gz archive with index.html at its root or one HTML file (format "html", or detected from content), which becomes index.html. Preferred: operation "link" returns a one-time upload URL (valid 15 minutes) with ready curl commands, so a shell streams the archive, a build folder packed on the fly (`tar czf - -C dist . | curl ... --data-binary @- <url>`) or the HTML file; the curl response is the finalized Deployment with its links, and an interrupted transfer leaves nothing behind. Without a shell, use begin/chunk/finalize: declare the exact byte size and lowercase SHA-256 at begin, send ordered chunks of at most 1 MiB decoded base64, then finalize; cancel stops an unfinished upload and deletes its Deployment. Finalize returns the Deployment, its preview URL and, when a Tag was requested, the stable Tag preview URL (`<project hash>-<tag>`); a link still being published is returned with status "pending" after about 15 seconds instead of null. When the Deployment is stored but cannot be published yet (its node is offline or out of Pages storage), finalize still succeeds with links null and publication { status: "retrying", code, message }: Opfield publishes it by itself within 48 hours once that is resolved, so never upload it again. A full Opfield host disk refuses the upload at begin (PAGES_HOST_DISK_FULL, with the real fill level). Optional expiresAt or expiresInHours makes maintenance delete the Deployment, its previews and files later. Needs pages:deploy. Authentication comes from the MCP connection; never pass a token or Authorization value.',
+      'Publish a static site to a Page Project through authenticated MCP: one HTML file (format "html"; it becomes index.html) or a .tar.gz archive with index.html at its root. Send only the fields the operation uses and leave every other field out: no "", 0 or empty source object (they fail validation). ' +
+      'With a shell, operation "link" { projectId } returns a one-time upload URL (valid 15 minutes) with ready curl commands for an archive, a build folder packed on the fly (`tar czf - -C dist . | curl ... --data-binary @- <url>`) or an HTML file; the curl response is the finalized Deployment with its links, and an interrupted transfer leaves nothing behind. ' +
+      'Without a shell, three calls publish a small HTML file: ' +
+      '(1) begin { operation: "begin", projectId, format: "html", declaredSizeBytes: 66, sha256: "<lowercase hex SHA-256 of those exact 66 bytes>" } returns { deployment, upload: { id, offset } }; begin takes no content, and its Deployment (status "uploading") serves nothing until finalize. ' +
+      '(2) chunk { operation: "chunk", projectId, uploadId: upload.id, offset: 0, contentBase64: "<canonical base64 of the bytes>" } returns { offset, complete }; send further chunks (at most 1 MiB decoded each) from the returned offset until complete is true, which means offset equals declaredSizeBytes. ' +
+      '(3) finalize { operation: "finalize", projectId, uploadId } validates and publishes the Deployment and returns { deployment, links }: share links.preview.url (status "ready"); never build a preview host yourself. There is no separate activate or publish step. ' +
+      'declaredSizeBytes and sha256 cover every byte you send, including a final newline; deployment.artifactSha256 in the result is the hash of the stored archive (generated for an HTML file), so it differs from the declared sha256 and is not an error. cancel { uploadId } stops an unfinished upload and deletes its Deployment. ' +
+      'With a Tag set at link or begin, links.tag is the stable Tag preview URL (`<project hash>-<tag>`); a link still being published is returned with status "pending" after about 15 seconds instead of null. When the Deployment is stored but cannot be published yet (its node is offline or out of Pages storage), finalize still succeeds with links null and publication { status: "retrying", code, message }: Opfield publishes it by itself within 48 hours once that is resolved, so never upload it again. A full Opfield host disk refuses the upload at begin (PAGES_HOST_DISK_FULL, with the real fill level). Optional expiresAt or expiresInHours (one of them, never both) makes maintenance delete the Deployment, its previews and files later; leave both out for a Deployment that does not expire. Needs pages:deploy. Authentication comes from the MCP connection; never pass a token or Authorization value.',
     parameters: {
       type: 'object',
       properties: {
         operation: { type: 'string', enum: ['link', 'begin', 'chunk', 'finalize', 'cancel'] },
-        projectId: { type: 'string', description: 'Page Project UUID for link or begin.' },
+        projectId: {
+          type: 'string',
+          description:
+            'Page Project UUID (project_list or project_create). Required for link and begin; chunk, finalize and cancel find the upload by uploadId and accept the same projectId.',
+        },
         declaredSizeBytes: {
           type: 'number',
-          description: 'Exact uploaded size in bytes (archive or HTML file) for begin.',
+          description:
+            'begin: exact size in bytes of everything the chunks will send (the HTML file or the archive), counting a final newline.',
         },
         sha256: {
           type: 'string',
-          description: 'Lowercase SHA-256 of the complete uploaded bytes; required for begin, optional check for link.',
+          description:
+            'Lowercase hex SHA-256 of exactly those bytes (the HTML file itself for format "html"); required for begin, optional check for link.',
         },
-        idempotencyKey: { type: 'string' },
+        idempotencyKey: {
+          type: 'string',
+          description:
+            'begin: optional; repeating begin with the same key returns the same upload. Leave out when unused.',
+        },
         tag: {
           type: 'string',
           description:
-            'link or begin: optional mutable Tag to publish after finalize, for a stable preview link. Lowercase DNS label other than the reserved `latest`; new Tags are at most 50 characters so `<hash>-<tag>` fits one DNS label.',
+            'link or begin: optional mutable Tag to publish after finalize, for a stable preview link. Leave out when not needed: `latest` is reserved and moves to every ready Deployment by itself. Lowercase DNS label; new Tags are at most 50 characters so `<hash>-<tag>` fits one DNS label.',
         },
         format: {
           type: 'string',
@@ -32,14 +49,16 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
         expiresAt: {
           type: 'string',
           description:
-            'link, begin or finalize: optional ISO 8601 expiry (5 minutes to 1 year ahead). null at finalize clears it.',
+            'link, begin or finalize: optional ISO 8601 expiry (5 minutes to 1 year ahead), instead of expiresInHours. null at finalize clears it. Leave out for no expiry.',
         },
         expiresInHours: {
           type: 'number',
-          description: 'link, begin or finalize: optional lifetime in whole hours (1-8760) instead of expiresAt.',
+          description:
+            'link, begin or finalize: optional lifetime in whole hours (1-8760), instead of expiresAt. Leave out for no expiry.',
         },
         source: {
           type: 'object',
+          description: 'link or begin: optional provenance (repository, commit). Leave out when there is none.',
           properties: {
             provider: { type: 'string' },
             repository: { type: 'string' },
@@ -50,12 +69,16 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
           },
           additionalProperties: false,
         },
-        uploadId: { type: 'string', description: 'Upload UUID returned by begin, for chunk, finalize or cancel.' },
-        offset: { type: 'number', description: 'Current byte offset for chunk.' },
+        uploadId: { type: 'string', description: 'chunk, finalize or cancel: upload.id from the begin result.' },
+        offset: {
+          type: 'number',
+          description: 'chunk: 0 for the first chunk, then the offset the previous chunk returned.',
+        },
         contentBase64: {
           type: 'string',
           maxLength: 1_398_104,
-          description: 'Base64-encoded archive chunk, at most 1 MiB decoded.',
+          description:
+            'chunk only: canonical base64 (no line breaks) of the next bytes of the HTML file or archive, at most 1 MiB decoded. begin and finalize take no content.',
         },
       },
       required: ['operation'],
@@ -71,7 +94,7 @@ export const RESOURCE_SETUP_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_pages',
     description:
-      'Inspect and manage Pages profiles, Projects, Deployments, Tags, deploy tokens, runtime configuration, and Git sources. project_placement_options lists nodes a Project can be created on or migrated to; project_migrate also needs pages:create for the target node, and source_upsert needs pages:edit and pages:deploy. source_sync (Sync now; pages:deploy, like source_build) checks the branch for a new commit now and queues the automatic build only when the source builds automatically and the head changed or has no build yet; it returns { source, changed, build } and needs no integrations:<provider>:use. source_repositories lists only repositories the integrations:<provider>:use grants of the caller cover and returns { repositories, truncated } (pass search to find repositories past the listing bound); source_discover, and source_upsert that connects a source or changes its connector, repository or branch, also need integrations:<provider>:use on the repository (unqualified or limited to its connector, GitLab group, GitHub owner, or the project/repository itself); other source_upsert changes and source_build need only the Pages scopes. project_update with accessListId protects every preview host of the Project (needs pages:edit and acl:view on the list; null removes it). project_rotate_preview_hash (pages:edit) gives the Project a new preview hash and Deployment slugs and revokes every old preview link at once. deployment_delete also cancels a Deployment whose upload was never finalized. deployment_links returns the preview and Tag preview URLs of one Deployment; tag_list includes each Tag preview link. Pages must be licensed and enabled for runtime-changing operations. Artifact bytes use the MCP-only upload_pages_artifact tool or the REST resumable deploy API, not this metadata tool. To create inside an app environment, pass folderId from get_app placementFolderIds.',
+      'Inspect and manage Pages profiles, Projects, Deployments, Tags, deploy tokens, runtime configuration, and Git sources. Send only the fields the operation uses; leave the rest out (no "", 0 or empty values). To publish a site: project_create { name, nodeId } (nodeId of a Pages-capable ingress node; folderId only to place it in a folder), then upload the files with upload_pages_artifact, whose finalize result carries links.preview.url. deployment_get, deployment_links, deployment_pin and deployment_delete need projectId and deploymentId; every deployment_* and tag_* operation needs projectId. project_placement_options lists nodes a Project can be created on or migrated to; project_migrate also needs pages:create for the target node, and source_upsert needs pages:edit and pages:deploy. source_sync (Sync now; pages:deploy, like source_build) checks the branch for a new commit now and queues the automatic build only when the source builds automatically and the head changed or has no build yet; it returns { source, changed, build } and needs no integrations:<provider>:use. source_repositories lists only repositories the integrations:<provider>:use grants of the caller cover and returns { repositories, truncated } (pass search to find repositories past the listing bound); source_discover, and source_upsert that connects a source or changes its connector, repository or branch, also need integrations:<provider>:use on the repository (unqualified or limited to its connector, GitLab group, GitHub owner, or the project/repository itself); other source_upsert changes and source_build need only the Pages scopes. project_update with accessListId protects every preview host of the Project (needs pages:edit and acl:view on the list; null removes it). project_rotate_preview_hash (pages:edit) gives the Project a new preview hash and Deployment slugs and revokes every old preview link at once. deployment_delete also cancels a Deployment whose upload was never finalized. deployment_links returns the preview and Tag preview URLs of one Deployment; tag_list includes each Tag preview link. Pages must be licensed and enabled for runtime-changing operations. Artifact bytes use the MCP-only upload_pages_artifact tool or the REST resumable deploy API, not this metadata tool. To create inside an app environment, pass folderId from get_app placementFolderIds.',
     parameters: {
       type: 'object',
       properties: {

@@ -9,6 +9,44 @@
 
 Anything else fails with `PAGES_ARTIFACT_FORMAT_UNKNOWN`. A gzip body declared as `html` fails with `PAGES_ARTIFACT_NOT_HTML`.
 
+## Minimal example: one HTML file without a shell
+
+Every call below sends only the fields it needs. Leave out every optional field you do not use: `""`, `0`, or an empty `source` object fails validation.
+
+1. Create the Project on a Pages-capable ingress node:
+
+   ```json
+   { "operation": "project_create", "name": "docs-site", "nodeId": "<ingress node UUID>" }
+   ```
+
+   (`manage_pages`; the result's `id` is the `projectId`.)
+
+2. Begin with the exact size and SHA-256 of the HTML bytes. No content goes into `begin`:
+
+   ```json
+   { "operation": "begin", "projectId": "<projectId>", "format": "html", "declaredSizeBytes": 66, "sha256": "<lowercase hex SHA-256 of the 66 bytes>" }
+   ```
+
+   Result: `{ "deployment": { "status": "uploading", ... }, "upload": { "id": "<uploadId>", "offset": 0 } }`. That Deployment serves nothing yet.
+
+3. Send the bytes:
+
+   ```json
+   { "operation": "chunk", "projectId": "<projectId>", "uploadId": "<uploadId>", "offset": 0, "contentBase64": "<base64 of the 66 bytes>" }
+   ```
+
+   Result: `{ "offset": 66, "complete": true }`. An `offset` that ends short of or past `declaredSizeBytes` means the bytes differ from the declaration (often a missing or extra final newline); fix them and start again with `begin` instead of finalizing.
+
+4. Finalize. This publishes the Deployment; there is no separate activate or publish step:
+
+   ```json
+   { "operation": "finalize", "projectId": "<projectId>", "uploadId": "<uploadId>" }
+   ```
+
+   Result: `{ "deployment": { "status": "ready", ... }, "links": { "preview": { "url": "https://<slug>.<Pages domain>", "status": "ready" }, ... } }`. Report `links.preview.url`.
+
+`deployment.artifactSha256` in that result is the hash of the archive Opfield stored (it packs the HTML file into one), so it differs from the `sha256` you declared; that is expected. `projectId` is required for `link` and `begin`; `chunk`, `finalize`, and `cancel` find the upload by `uploadId` and accept the same `projectId`.
+
 ## link
 
 ```json
@@ -42,9 +80,9 @@ COPYFILE_DISABLE=1 tar czf - -C dist . | curl -sS --fail-with-body -X PUT --data
 }
 ```
 
-- Only `projectId`, `declaredSizeBytes`, and `sha256` are required.
+- Only `projectId`, `declaredSizeBytes`, and `sha256` are required; leave every other field out unless you use it. `declaredSizeBytes` and `sha256` cover every byte the chunks will send, including a final newline.
 - `tag`: optional mutable Tag published after finalize. Lowercase DNS label, never `latest`, at most 50 characters for a Tag that does not exist yet.
-- `expiresAt` (ISO 8601 with offset, 5 minutes to 1 year ahead) or `expiresInHours` (1 to 8760); both together fail with `PAGES_DEPLOYMENT_EXPIRY_AMBIGUOUS`.
+- `expiresAt` (ISO 8601 with offset, 5 minutes to 1 year ahead) or `expiresInHours` (1 to 8760); both together fail with `PAGES_DEPLOYMENT_EXPIRY_AMBIGUOUS`. Leave both out for a Deployment that does not expire.
 - `source`: optional safe provenance (`provider`, `repository`, `commitSha`, `ref`, `mergeRequest`, `actor`). Never put credentials in it.
 - `idempotencyKey`: repeating `begin` with the same key returns the same upload and its current offset, which makes a retry after a timeout safe. Reusing the key with a different Tag, size, or hash fails with `PAGES_IDEMPOTENCY_CONFLICT`.
 
@@ -84,7 +122,7 @@ Stops an upload you have not finalized, removes the bytes received so far, and d
 { "operation": "finalize", "uploadId": "<upload.id>" }
 ```
 
-Optionally pass `expiresInHours` or `expiresAt` here to override the value from `begin`; `expiresAt: null` clears it. Finalize validates the artifact, publishes the Deployment, moves the system `latest` Tag, publishes the requested Tag, and waits up to about 15 seconds for the preview links. It returns:
+Optionally pass `expiresInHours` or `expiresAt` here to override the value from `begin`; `expiresAt: null` clears it. `PAGES_UPLOAD_CHECKSUM_MISMATCH` means the bytes received do not match the `declaredSizeBytes` and `sha256` of `begin`: correct the bytes and start again with `begin`. Finalize validates the artifact, publishes the Deployment, moves the system `latest` Tag, publishes the requested Tag, and waits up to about 15 seconds for the preview links. It returns:
 
 ```json
 {
