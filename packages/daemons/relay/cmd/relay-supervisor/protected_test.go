@@ -13,7 +13,7 @@ import (
 func writeCLIConfig(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	content := "gateway:\n  address: gateway.example.com:9443\nworker:\n  advertised_addresses:\n    - relay.example.com\n"
+	content := "gateway:\n  address: opfield.example.com:9443\nworker:\n  advertised_addresses:\n    - relay.example.com\n"
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}

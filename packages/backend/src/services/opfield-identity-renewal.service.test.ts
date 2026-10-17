@@ -23,7 +23,7 @@ function certificatePem(commonName: string, expiresInMs: number): string {
   certificate.validity.notBefore = new Date(NOW - 335 * DAY);
   certificate.validity.notAfter = new Date(NOW + expiresInMs);
   certificate.setSubject([{ name: 'commonName', value: commonName }]);
-  certificate.setIssuer([{ name: 'commonName', value: 'gateway-system-ca' }]);
+  certificate.setIssuer([{ name: 'commonName', value: 'opfield-system-ca' }]);
   certificate.sign(keys.privateKey, forge.md.sha256.create());
   return forge.pki.certificateToPem(certificate);
 }
@@ -36,7 +36,7 @@ describe('OpfieldIdentityRenewalService', () => {
   let directory: string;
 
   beforeEach(() => {
-    directory = mkdtempSync(join(tmpdir(), 'gateway-identity-renewal-'));
+    directory = mkdtempSync(join(tmpdir(), 'opfield-identity-renewal-'));
   });
   afterEach(() => rmSync(directory, { recursive: true, force: true }));
 
@@ -51,7 +51,7 @@ describe('OpfieldIdentityRenewalService', () => {
       resolve: vi.fn(async () => identity()),
       refresh: vi.fn(async (options: { renewBeforeMs?: number } = {}) => {
         if (remainingMs(certPath) <= (options.renewBeforeMs ?? OPFIELD_GRPC_CERTIFICATE_FINAL_RENEW_BEFORE_MS)) {
-          writeFileSync(certPath, certificatePem('gateway-grpc', 365 * DAY));
+          writeFileSync(certPath, certificatePem('opfield-grpc', 365 * DAY));
           generation += 1;
         }
         return identity();
@@ -64,7 +64,7 @@ describe('OpfieldIdentityRenewalService', () => {
   function standalone(options: { expiresInMs: number; operatorSupplied?: boolean; pendingEnrollments?: boolean }) {
     const certPath = join(directory, 'grpc.crt');
     const keyPath = join(directory, 'grpc.key');
-    writeFileSync(certPath, certificatePem('gateway-grpc', options.expiresInMs));
+    writeFileSync(certPath, certificatePem('opfield-grpc', options.expiresInMs));
     writeFileSync(keyPath, 'key');
     let served: Buffer | null = readFileSync(certPath);
     const grpcIdentity = grpcIdentityFor(certPath, keyPath);
@@ -97,7 +97,7 @@ describe('OpfieldIdentityRenewalService', () => {
       appRelayClient: join(directory, 'app-relay-client.crt'),
       relayAppClient: join(directory, 'relay-app-client.crt'),
     };
-    writeFileSync(external.certPath, certificatePem('gateway-grpc', options.externalExpiresInMs ?? 200 * DAY));
+    writeFileSync(external.certPath, certificatePem('opfield-grpc', options.externalExpiresInMs ?? 200 * DAY));
     writeFileSync(paths.externalServer, readFileSync(external.certPath));
     writeFileSync(paths.appInternalServer, certificatePem('app', 200 * DAY));
     writeFileSync(paths.appRelayClient, certificatePem('app-relay-client', 200 * DAY));
@@ -458,7 +458,7 @@ describe('OpfieldIdentityRenewalService', () => {
       }),
     };
     const grpcPath = join(directory, 'grpc.crt');
-    writeFileSync(grpcPath, certificatePem('gateway-grpc', 200 * DAY));
+    writeFileSync(grpcPath, certificatePem('opfield-grpc', 200 * DAY));
     const service = new OpfieldIdentityRenewalService({
       env: { OPFIELD_RELAY_REQUIRED: false } as never,
       grpcIdentity: grpcIdentityFor(grpcPath, 'k'),

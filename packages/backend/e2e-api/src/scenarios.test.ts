@@ -31,7 +31,7 @@ function contextWithFlags(flags: Partial<TestContext['config']>): TestContext {
     db: {} as TestContext['db'],
     config: {
       apiUrl: 'http://localhost:3000',
-      databaseUrl: 'postgres://dev:dev@localhost:5432/gateway',
+      databaseUrl: 'postgres://dev:dev@localhost:5432/opfield',
       allowMutations: false,
       allowRuntimeMutations: false,
       allowUnhealthy: false,
@@ -55,10 +55,10 @@ describe('API e2e scenarios contract', () => {
       (scenario) => scenario.name === 'Docker container runtime mutations cover disposable container lifecycle'
     );
 
-    expect(mutationOnly?.skip?.(contextWithFlags({ allowMutations: false }))).toBe('set GATEWAY_E2E_ALLOW_MUTATIONS=1');
+    expect(mutationOnly?.skip?.(contextWithFlags({ allowMutations: false }))).toBe('set OPFIELD_E2E_ALLOW_MUTATIONS=1');
     expect(mutationOnly?.skip?.(contextWithFlags({ allowMutations: true }))).toBe(false);
     expect(runtimeMutation?.skip?.(contextWithFlags({ allowRuntimeMutations: false }))).toBe(
-      'set GATEWAY_E2E_ALLOW_RUNTIME_MUTATIONS=1'
+      'set OPFIELD_E2E_ALLOW_RUNTIME_MUTATIONS=1'
     );
     expect(runtimeMutation?.skip?.(contextWithFlags({ allowRuntimeMutations: true }))).toBe(false);
   });
@@ -72,7 +72,7 @@ describe('API e2e scenarios contract', () => {
         text: '',
         body: {
           data: [
-            { repoTags: ['localhost:5000/gateway/secure-link-connector:e2e'] },
+            { repoTags: ['localhost:5000/opfield/secure-link-connector:e2e'] },
             { repoTags: ['nginx:1.29-alpine'] },
           ],
         },

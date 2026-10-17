@@ -102,7 +102,7 @@ describe('UpdateService release selection', () => {
       makeDockerService() as never,
       {
         APP_VERSION: 'v2.9.10',
-        GITLAB_API_URL: 'https://gitlab.wiolett.net',
+        GITLAB_API_URL: 'https://gitlab.example.com',
         GITLAB_PROJECT_PATH: 'wiolett/gateway',
         ARTIFACT_BASE_URL: 'https://updates.thesqlabs.com/gateway/',
       } as never
@@ -122,7 +122,7 @@ describe('UpdateService release selection', () => {
       makeDockerService() as never,
       {
         APP_VERSION: 'v2.9.10',
-        GITLAB_API_URL: 'https://gitlab.wiolett.net',
+        GITLAB_API_URL: 'https://gitlab.example.com',
         GITLAB_PROJECT_PATH: 'wiolett/gateway',
         RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
       } as never
@@ -257,7 +257,7 @@ describe('UpdateService release selection', () => {
     const rows = [
       { key: 'update:latest_version', value: 'v2.5.0-rc.2' },
       { key: 'update:release_notes', value: 'Preview notes' },
-      { key: 'update:release_url', value: 'https://example.com/gateway-rc' },
+      { key: 'update:release_url', value: 'https://example.com/opfield-rc' },
       { key: 'update:relay:latest_version', value: 'v2.5.0-rc.3' },
       { key: 'update:relay:release_notes', value: 'Relay preview notes' },
       { key: 'update:relay:release_url', value: 'https://example.com/relay-rc' },
@@ -297,19 +297,19 @@ describe('UpdateService release selection', () => {
 
 describe('imageRepositoryFromRef', () => {
   it('removes a mutable tag after a registry port', () => {
-    expect(imageRepositoryFromRef('registry.example.com:5050/wiolett/gateway:v2.3.0')).toBe(
-      'registry.example.com:5050/wiolett/gateway'
+    expect(imageRepositoryFromRef('registry.example.com:5050/opfield/opfield:v2.3.0')).toBe(
+      'registry.example.com:5050/opfield/opfield'
     );
   });
 
   it('removes a digest from an immutable image reference', () => {
-    expect(imageRepositoryFromRef('registry.example.com/wiolett/gateway@sha256:abc')).toBe(
-      'registry.example.com/wiolett/gateway'
+    expect(imageRepositoryFromRef('registry.example.com/opfield/opfield@sha256:abc')).toBe(
+      'registry.example.com/opfield/opfield'
     );
   });
 
   it('keeps untagged image references unchanged', () => {
-    expect(imageRepositoryFromRef('registry.example.com/wiolett/gateway')).toBe('registry.example.com/wiolett/gateway');
+    expect(imageRepositoryFromRef('registry.example.com/opfield/opfield')).toBe('registry.example.com/opfield/opfield');
   });
 });
 
@@ -322,7 +322,7 @@ describe('UpdateService foundation migration', () => {
     });
     dockerService.pullImageRef.mockImplementationOnce(() => waiting);
     const service = makeUpdateService(dockerService);
-    const artifact = makeArtifact('registry.example.com/wiolett/gateway@sha256:new');
+    const artifact = makeArtifact('registry.example.com/opfield/opfield@sha256:new');
     const first = service.performUpdate('v2.4.3', artifact);
     const failed = expect(first).rejects.toThrow('download interrupted');
     await vi.waitFor(() => expect(dockerService.pullImageRef).toHaveBeenCalledOnce());
@@ -342,7 +342,7 @@ describe('UpdateService foundation migration', () => {
     await expect(
       makeUpdateService(dockerService).performUpdate(
         'v2.4.3',
-        makeArtifact('registry.example.com/wiolett/gateway@sha256:new')
+        makeArtifact('registry.example.com/opfield/opfield@sha256:new')
       )
     ).rejects.toThrow('Private core signature verification failed');
     // Backup, the failed preparation, and restoring the untouched .env.
@@ -360,7 +360,7 @@ describe('UpdateService foundation migration', () => {
     };
     dockerService.inspectSelf.mockResolvedValue({
       Config: {
-        Image: 'registry.example.com/wiolett/gateway:v2.4.2',
+        Image: 'registry.example.com/opfield/opfield:v2.4.2',
         Labels: {
           'com.docker.compose.project.working_dir': '/srv/gateway',
           'com.docker.compose.project': 'gateway',
@@ -368,7 +368,7 @@ describe('UpdateService foundation migration', () => {
       },
       HostConfig: { LogConfig: { Type: 'json-file', Config: { 'max-size': '10m', 'max-file': '5' } } },
     } as never);
-    const artifact = makeArtifact('registry.example.com/wiolett/gateway@sha256:new');
+    const artifact = makeArtifact('registry.example.com/opfield/opfield@sha256:new');
 
     await makeUpdateService(dockerService).performUpdate('v2.4.3', artifact);
 
@@ -384,7 +384,7 @@ describe('UpdateService foundation migration', () => {
   it('runs foundation migrations from the target image before validating and recreating compose', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService);
-    const artifact = makeArtifact('registry.example.com/wiolett/gateway@sha256:new');
+    const artifact = makeArtifact('registry.example.com/opfield/opfield@sha256:new');
 
     await service.performUpdate('v2.4.3', artifact);
 
@@ -690,7 +690,7 @@ describe('UpdateService foundation migration', () => {
       OPFIELD_UPDATE_IMAGE_REPOSITORIES: 'ghcr.io/the-square-labs/gateway',
     });
     const relay = makeRelayArtifact();
-    const relayImage = 'ghcr.io/untrusted/gateway/relay';
+    const relayImage = 'ghcr.io/untrusted/opfield/relay';
     relay.imageRef = `${relayImage}@${relay.digest}`;
     relay.payload.image = relayImage;
     relay.payload.imageRef = relay.imageRef;
@@ -732,13 +732,13 @@ describe('UpdateService foundation migration', () => {
     const service = makeUpdateService(dockerService);
 
     await expect(
-      service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway:v2.4.3'))
+      service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield:v2.4.3'))
     ).rejects.toThrow('Migrated docker-compose.yml failed validation');
 
     expect(dockerService.runOneShot).toHaveBeenNthCalledWith(
       6,
       expect.objectContaining({
-        Image: 'registry.example.com/wiolett/gateway:v2.4.3',
+        Image: 'registry.example.com/opfield/opfield:v2.4.3',
         Env: [expect.stringMatching(PRE_UPDATE_BACKUP_ENV)],
       })
     );
@@ -748,11 +748,11 @@ describe('UpdateService foundation migration', () => {
   it('does not propagate a legacy database connector image through the foundation migration', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService);
-    const connectorImage = 'registry.example.com/wiolett/gateway/database-connector@sha256:connector-digest';
+    const connectorImage = 'registry.example.com/opfield/opfield/database-connector@sha256:connector-digest';
 
     await service.performUpdate(
       'v2.4.3',
-      makeArtifact('registry.example.com/wiolett/gateway:v2.4.3', undefined, connectorImage)
+      makeArtifact('registry.example.com/opfield/opfield:v2.4.3', undefined, connectorImage)
     );
 
     const command = dockerService.runOneShot.mock.calls[2]?.[0]?.Cmd ?? [];
@@ -763,9 +763,9 @@ describe('UpdateService foundation migration', () => {
   it('persists the verified Secure Link connector image through the foundation migration', async () => {
     const dockerService = makeDockerService();
     const service = makeUpdateService(dockerService);
-    const connectorImage = 'registry.example.com/wiolett/gateway/secure-link-connector@sha256:connector-digest';
+    const connectorImage = 'registry.example.com/opfield/opfield/secure-link-connector@sha256:connector-digest';
 
-    await service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway:v2.4.3', connectorImage));
+    await service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield:v2.4.3', connectorImage));
 
     expect(dockerService.runOneShot).toHaveBeenNthCalledWith(
       3,
@@ -837,7 +837,7 @@ describe('UpdateService foundation migration', () => {
           '{"ok":true,"changedFiles":[".env","docker-compose.yml"],"backupDir":"/host/.opfield-foundation-backups/test","sandboxWorkspaceDir":"/srv/gateway-workspaces"}',
       });
     const service = makeUpdateService(dockerService);
-    const artifact = makeArtifact('registry.example.com/wiolett/gateway:v2.4.3');
+    const artifact = makeArtifact('registry.example.com/opfield/opfield:v2.4.3');
 
     await service.performUpdate('v2.4.3', artifact);
 
@@ -901,7 +901,7 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
       prepare?: (composeDir: string, backupDir: string) => void;
     } = {}
   ) {
-    const composeDir = mkdtempSync(join(tmpdir(), 'gateway-update-'));
+    const composeDir = mkdtempSync(join(tmpdir(), 'opfield-update-'));
     dirs.push(composeDir);
     const bin = join(composeDir, 'fake-bin');
     mkdirSync(bin);
@@ -912,7 +912,7 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
     const dockerService = makeDockerService();
     await makeUpdateService(dockerService, undefined, { COMPOSE_PROJECT_DIR: composeDir }).performUpdate(
       'v2.4.3',
-      makeArtifact('registry.example.com/wiolett/gateway@sha256:new')
+      makeArtifact('registry.example.com/opfield/opfield@sha256:new')
     );
     const sidecar = dockerService.runDetached.mock.calls[0]?.[0] as { Cmd: string[]; Env: string[] } | undefined;
     const script = sidecar?.Cmd[2];
@@ -1055,7 +1055,7 @@ echo "/dev/fake 999999999 1 $FAKE_FREE_KB 1% /"
     const dockerService = makeDockerService();
     await makeUpdateService(dockerService, undefined, {
       DATABASE_URL: 'postgres://opfield:secret@postgres:5432/opfield',
-    }).performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'));
+    }).performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'));
     const script = (dockerService.runDetached.mock.calls[0]?.[0] as { Cmd: string[] }).Cmd[2]!;
     expect(script).toContain('pg_dump --format=custom --create --no-password -U opfield -d opfield');
     expect(script).toContain("SELECT pg_database_size('opfield')");
@@ -1089,7 +1089,7 @@ describe('UpdateService orchestration gate', () => {
     vi.useFakeTimers();
     let running = 1;
     const { dockerService, service, source, events, operation } = gatedService(() => deployment(running, 1));
-    const update = service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'));
+    const update = service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'));
 
     await vi.waitFor(() => expect(operation()).toMatchObject({ status: 'waiting_for_operations' }));
     expect(source.setOrchestrationAdmissionHold).toHaveBeenCalledWith(
@@ -1130,7 +1130,7 @@ describe('UpdateService orchestration gate', () => {
     vi.useFakeTimers();
     const { dockerService, service } = gatedService(() => deployment(1));
     expect(service.proceedWithoutWaiting()).toBe(false);
-    const update = service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'));
+    const update = service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'));
 
     await vi.waitFor(() => expect(service.proceedWithoutWaiting()).toBe(true));
     await update;
@@ -1142,7 +1142,7 @@ describe('UpdateService orchestration gate', () => {
     vi.useFakeTimers();
     const expectedBy = Date.now() + 20 * 60_000;
     const { dockerService, service, operation } = gatedService(() => deployment(1, 0, expectedBy));
-    const update = service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'));
+    const update = service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'));
 
     await vi.waitFor(() => expect(operation()).toMatchObject({ waitDeadline: new Date(expectedBy).toISOString() }));
     await vi.advanceTimersByTimeAsync(15 * 60_000);
@@ -1157,7 +1157,7 @@ describe('UpdateService orchestration gate', () => {
     dockerService.runOneShot.mockResolvedValueOnce({ exitCode: 1, output: 'migration failed' });
 
     await expect(
-      service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'))
+      service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'))
     ).rejects.toThrow('migration failed');
     expect(source.setOrchestrationAdmissionHold).toHaveBeenLastCalledWith(null);
     expect(operation()).toBeNull();
@@ -1167,7 +1167,7 @@ describe('UpdateService orchestration gate', () => {
   it('does not wait for a private core that cannot report its operations', async () => {
     const { dockerService, service } = gatedService(() => null);
 
-    await service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'));
+    await service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'));
     expect(dockerService.runDetached).toHaveBeenCalledOnce();
   });
 });
@@ -1258,7 +1258,7 @@ describe('UpdateService interrupted updates', () => {
       return 'sidecar-1';
     });
 
-    await service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'), 'admin-1');
+    await service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'), 'admin-1');
 
     expect(order.slice(0, 3)).toEqual(['record:update:gateway:attempt:none', 'sh', 'legacy-settings']);
     expect(order.slice(-2)).toEqual(['sidecar', 'record:update:gateway:attempt:sidecar-1']);
@@ -1281,7 +1281,7 @@ describe('UpdateService interrupted updates', () => {
     const db = (service as unknown as { db: { delete: ReturnType<typeof vi.fn> } }).db;
 
     await expect(
-      service.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'))
+      service.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'))
     ).rejects.toThrow('migration failed');
     expect(db.delete).toHaveBeenCalledOnce();
     expect((service as unknown as { opfieldUpdateOperation: unknown }).opfieldUpdateOperation).toBeNull();
@@ -1759,7 +1759,7 @@ describe('UpdateService interrupted updates', () => {
     const gateway = makeUpdateService(dockerService);
     gateway.startRelayUpdate('v2.4.3');
     await expect(
-      gateway.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'))
+      gateway.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'))
     ).rejects.toMatchObject({ code: 'RELAY_UPDATE_IN_PROGRESS' });
     expect(dockerService.pullImageRef).not.toHaveBeenCalled();
     expect(gateway.isOpfieldUpdateInProgress()).toBe(false);
@@ -1771,7 +1771,7 @@ describe('UpdateService interrupted updates', () => {
     });
     const idleDocker = (idle as unknown as { dockerService: ReturnType<typeof makeDockerService> }).dockerService;
     idleDocker.pullImageRef.mockImplementationOnce(() => pulling);
-    const update = idle.performUpdate('v2.4.3', makeArtifact('registry.example.com/wiolett/gateway@sha256:new'));
+    const update = idle.performUpdate('v2.4.3', makeArtifact('registry.example.com/opfield/opfield@sha256:new'));
     expect(() => idle.startRelayUpdate('v2.4.3')).toThrow(
       expect.objectContaining({ code: 'OPFIELD_UPDATE_IN_PROGRESS' })
     );
@@ -1801,7 +1801,7 @@ function makeUpdateService(
       COMPOSE_PROJECT_DIR: '/srv/gateway',
       RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
       ARTIFACT_BASE_URL: 'https://updates.thesqlabs.com/gateway',
-      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/wiolett/gateway/relay@sha256:${'b'.repeat(64)}`,
+      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/opfield/opfield/relay@sha256:${'b'.repeat(64)}`,
       OPFIELD_RELAY_BUILD_VERSION: 'v2.4.2',
       OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
       ...envOverrides,
@@ -1814,7 +1814,7 @@ function makeDockerService() {
   return {
     inspectSelf: vi.fn().mockResolvedValue({
       Config: {
-        Image: 'registry.example.com/wiolett/gateway:v2.4.2',
+        Image: 'registry.example.com/opfield/opfield:v2.4.2',
         Labels: {
           'com.docker.compose.project.working_dir': '/srv/gateway',
           'com.docker.compose.project': 'gateway',
@@ -1844,7 +1844,7 @@ function makeArtifact(
       kind: 'gateway-image',
       version: 'v2.4.3',
       tag: 'v2.4.3',
-      image: 'registry.example.com/wiolett/gateway',
+      image: 'registry.example.com/opfield/opfield',
       digest: 'sha256:new',
       imageRef,
       ...(legacyDatabaseConnectorImage ? { databaseConnectorImage: legacyDatabaseConnectorImage } : {}),
@@ -1856,8 +1856,8 @@ function makeArtifact(
 }
 
 function makeRelayArtifact(): TrustedRelayUpdateArtifact {
-  const imageRef = `registry.example.com/wiolett/gateway/relay@sha256:${'a'.repeat(64)}`;
-  const secureLinkConnectorImage = `registry.example.com/wiolett/gateway/secure-link-connector@sha256:${'c'.repeat(64)}`;
+  const imageRef = `registry.example.com/opfield/opfield/relay@sha256:${'a'.repeat(64)}`;
+  const secureLinkConnectorImage = `registry.example.com/opfield/opfield/secure-link-connector@sha256:${'c'.repeat(64)}`;
   return {
     imageRef,
     digest: `sha256:${'a'.repeat(64)}`,
@@ -1870,7 +1870,7 @@ function makeRelayArtifact(): TrustedRelayUpdateArtifact {
       kind: 'relay-image',
       version: 'v2.4.3',
       tag: 'v2.4.3-relay',
-      image: 'registry.example.com/wiolett/gateway/relay',
+      image: 'registry.example.com/opfield/opfield/relay',
       digest: `sha256:${'a'.repeat(64)}`,
       imageRef,
       protocolMajor: 1,

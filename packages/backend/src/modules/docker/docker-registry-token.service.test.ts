@@ -36,7 +36,7 @@ describe('DockerRegistryTokenService', () => {
   });
 
   it('issues a Distribution-compatible RS256 token only for the allowed repository actions', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-registry-token-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-registry-token-'));
     const service = new DockerRegistryTokenService(tempDir);
     await service.initialize();
     const issued = service.issueToken({
@@ -101,7 +101,7 @@ describe('DockerRegistryTokenService', () => {
   });
 
   it('denies cross-repository and cross-action escalation', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-registry-token-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-registry-token-'));
     const service = new DockerRegistryTokenService(tempDir);
     await service.initialize();
     expect(() =>
@@ -121,7 +121,7 @@ describe('DockerRegistryTokenService', () => {
   });
 
   it('keeps the signing identity stable across service restarts', async () => {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gateway-registry-token-'));
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'opfield-registry-token-'));
     const first = new DockerRegistryTokenService(tempDir);
     await first.initialize();
     const certificate = first.getCertificatePem();

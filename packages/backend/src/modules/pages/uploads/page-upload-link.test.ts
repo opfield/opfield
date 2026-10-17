@@ -26,7 +26,7 @@ function registerServices(maxBytes = 1024) {
     }),
   } as unknown as CacheService);
   container.registerInstance(GeneralSettingsService, {
-    getPublicUrl: vi.fn().mockResolvedValue('https://gateway.example'),
+    getPublicUrl: vi.fn().mockResolvedValue('https://opfield.example'),
     getConfig: vi.fn().mockResolvedValue({ fileUploadMaxBytes: maxBytes }),
   } as unknown as GeneralSettingsService);
   container.registerInstance(PageProjectService, {

@@ -13,7 +13,7 @@ import {
 
 const checksum = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const daemonUrl =
-  'https://gitlab.wiolett.net/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64';
+  'https://gitlab.example.com/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64';
 const daemonManifest = `{
   "schemaVersion": 1,
   "keyId": "wiolett-update-v1",
@@ -26,10 +26,10 @@ const opfieldPayload = Buffer.from(
     kind: 'gateway-image',
     version: 'v9.9.9',
     tag: 'v9.9.9',
-    image: 'registry.gitlab.wiolett.net/wiolett/gateway',
+    image: 'registry.example.com/opfield/opfield',
     digest: `sha256:${checksum}`,
-    imageRef: `registry.gitlab.wiolett.net/wiolett/gateway@sha256:${checksum}`,
-    secureLinkConnectorImage: `registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector@sha256:${checksum}`,
+    imageRef: `registry.example.com/opfield/opfield@sha256:${checksum}`,
+    secureLinkConnectorImage: `registry.example.com/opfield/opfield/secure-link-connector@sha256:${checksum}`,
     createdAt: '2026-05-02T14:39:10Z',
   })
 );
@@ -45,12 +45,12 @@ const relayPayload = Buffer.from(
     kind: 'relay-image',
     version: 'v1.2.3',
     tag: 'v1.2.3-relay',
-    image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+    image: 'registry.example.com/opfield/opfield/relay',
     digest: `sha256:${checksum}`,
-    imageRef: `registry.gitlab.wiolett.net/wiolett/gateway/relay@sha256:${checksum}`,
+    imageRef: `registry.example.com/opfield/opfield/relay@sha256:${checksum}`,
     protocolMajor: 1,
     minGatewayVersion: 'v1.2.0',
-    secureLinkConnectorImage: `registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector@sha256:${checksum}`,
+    secureLinkConnectorImage: `registry.example.com/opfield/opfield/secure-link-connector@sha256:${checksum}`,
     createdAt: '2026-05-02T14:39:10Z',
   })
 );
@@ -65,14 +65,14 @@ const opencodexPayload = Buffer.from(
     kind: 'opencodex-image',
     version: '2.26.0-wiolett.1',
     tag: 'v2.26.0-wiolett.1',
-    image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
+    image: 'registry.example.com/opfield/opfield/opencodex',
     digest: `sha256:${checksum}`,
-    imageRef: `registry.gitlab.wiolett.net/wiolett/gateway/opencodex@sha256:${checksum}`,
+    imageRef: `registry.example.com/opfield/opfield/opencodex@sha256:${checksum}`,
     sizeBytes: 412345678,
     coreProtocolMajor: 1,
     stateSchemaVersion: 1,
     minGatewayVersion: 'v2.6.0',
-    releaseNotesUrl: 'https://docs.wiolett.net/releases/opencodex-2.26.0-wiolett.1',
+    releaseNotesUrl: 'https://docs.example.com/releases/opencodex-2.26.0-wiolett.1',
     buildRevision: 'cd762f832',
     createdAt: '2026-08-19T00:00:00.000Z',
   })
@@ -86,9 +86,9 @@ const opencodexManifest = JSON.stringify({
 
 describe('update artifact trust', () => {
   it('normalizes GitLab API base URLs for exact signed URL comparisons', () => {
-    expect(normalizeGitLabApiUrl('https://gitlab.wiolett.net/')).toBe('https://gitlab.wiolett.net');
-    expect(trustedGitLabPackagePrefix('https://gitlab.wiolett.net/', 'wiolett/gateway')).toBe(
-      'https://gitlab.wiolett.net/api/v4/projects/wiolett%2Fgateway/packages/generic/'
+    expect(normalizeGitLabApiUrl('https://gitlab.example.com/')).toBe('https://gitlab.example.com');
+    expect(trustedGitLabPackagePrefix('https://gitlab.example.com/', 'wiolett/gateway')).toBe(
+      'https://gitlab.example.com/api/v4/projects/wiolett%2Fgateway/packages/generic/'
     );
   });
 
@@ -100,7 +100,7 @@ describe('update artifact trust', () => {
       arch: 'amd64',
       artifactName: 'nginx-daemon-linux-amd64',
       downloadUrl: daemonUrl,
-      trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.wiolett.net', 'wiolett/gateway'),
+      trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'wiolett/gateway'),
     });
 
     expect(artifact.checksum).toBe(checksum);
@@ -136,7 +136,7 @@ describe('update artifact trust', () => {
         arch: 'arm64',
         artifactName: 'nginx-daemon-linux-amd64',
         downloadUrl: daemonUrl,
-        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.wiolett.net', 'wiolett/gateway'),
+        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'wiolett/gateway'),
       })
     ).toThrow(UpdateArtifactTrustError);
   });
@@ -153,7 +153,7 @@ describe('update artifact trust', () => {
         arch: 'amd64',
         artifactName: 'nginx-daemon-linux-amd64',
         downloadUrl: daemonUrl,
-        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.wiolett.net', 'wiolett/gateway'),
+        trustedPackagePrefix: trustedGitLabPackagePrefix('https://gitlab.example.com', 'wiolett/gateway'),
       })
     ).toThrow(UpdateArtifactTrustError);
   });
@@ -164,12 +164,12 @@ describe('update artifact trust', () => {
       {
         version: 'v9.9.9',
         tag: 'v9.9.9',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway',
+        image: 'registry.example.com/opfield/opfield',
       },
       opfieldPublicKey
     );
 
-    expect(artifact.imageRef).toBe(`registry.gitlab.wiolett.net/wiolett/gateway@sha256:${checksum}`);
+    expect(artifact.imageRef).toBe(`registry.example.com/opfield/opfield@sha256:${checksum}`);
     expect('databaseConnectorImage' in artifact).toBe(false);
     expect(artifact.secureLinkConnectorImage).toContain('/secure-link-connector@sha256:');
   });
@@ -180,7 +180,7 @@ describe('update artifact trust', () => {
       {
         version: 'v1.2.3',
         tag: 'v1.2.3-relay',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+        image: 'registry.example.com/opfield/opfield/relay',
         protocolMajor: 1,
       },
       opfieldPublicKey
@@ -200,12 +200,12 @@ describe('update artifact trust', () => {
         kind: 'relay-image',
         version: 'v2.10.0-rc.2',
         tag: 'v2.10.0-rc.2-relay',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+        image: 'registry.example.com/opfield/opfield/relay',
         digest: `sha256:${checksum}`,
-        imageRef: `registry.gitlab.wiolett.net/wiolett/gateway/relay@sha256:${checksum}`,
+        imageRef: `registry.example.com/opfield/opfield/relay@sha256:${checksum}`,
         protocolMajor: 1,
         minGatewayVersion: 'v2.10.0-rc.1',
-        secureLinkConnectorImage: `registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector@sha256:${checksum}`,
+        secureLinkConnectorImage: `registry.example.com/opfield/opfield/secure-link-connector@sha256:${checksum}`,
         createdAt: '2026-08-30T00:00:00.000Z',
       })
     );
@@ -221,7 +221,7 @@ describe('update artifact trust', () => {
       {
         version: 'v2.10.0-rc.2',
         tag: 'v2.10.0-rc.2-relay',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+        image: 'registry.example.com/opfield/opfield/relay',
         protocolMajor: 1,
       },
       opfieldPublicKey
@@ -237,12 +237,12 @@ describe('update artifact trust', () => {
         kind: 'relay-image',
         version: 'v1.2.3',
         tag: 'v1.2.3-relay',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+        image: 'registry.example.com/opfield/opfield/relay',
         digest: `sha256:${checksum}`,
-        imageRef: `registry.gitlab.wiolett.net/wiolett/gateway/relay@sha256:${checksum}`,
+        imageRef: `registry.example.com/opfield/opfield/relay@sha256:${checksum}`,
         protocolMajor: 1,
-        databaseConnectorImage: `registry.gitlab.wiolett.net/wiolett/gateway/database-connector@sha256:${checksum}`,
-        secureLinkConnectorImage: `registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector@sha256:${checksum}`,
+        databaseConnectorImage: `registry.example.com/opfield/opfield/database-connector@sha256:${checksum}`,
+        secureLinkConnectorImage: `registry.example.com/opfield/opfield/secure-link-connector@sha256:${checksum}`,
         createdAt: '2026-08-17T00:00:00.000Z',
       })
     );
@@ -258,7 +258,7 @@ describe('update artifact trust', () => {
       {
         version: 'v1.2.3',
         tag: 'v1.2.3-relay',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+        image: 'registry.example.com/opfield/opfield/relay',
         protocolMajor: 1,
       },
       opfieldPublicKey
@@ -273,12 +273,12 @@ describe('update artifact trust', () => {
         kind: 'relay-image',
         version: 'v1.2.3',
         tag: 'v1.2.3-relay',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+        image: 'registry.example.com/opfield/opfield/relay',
         digest: `sha256:${checksum}`,
-        imageRef: `registry.gitlab.wiolett.net/wiolett/gateway/relay@sha256:${checksum}`,
+        imageRef: `registry.example.com/opfield/opfield/relay@sha256:${checksum}`,
         protocolMajor: 1,
-        databaseConnectorImage: `registry.gitlab.wiolett.net/wiolett/gateway/database-connector@sha256:${checksum}`,
-        secureLinkConnectorImage: 'registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector:latest',
+        databaseConnectorImage: `registry.example.com/opfield/opfield/database-connector@sha256:${checksum}`,
+        secureLinkConnectorImage: 'registry.example.com/opfield/opfield/secure-link-connector:latest',
         createdAt: '2026-08-17T00:00:00.000Z',
       })
     );
@@ -295,7 +295,7 @@ describe('update artifact trust', () => {
         {
           version: 'v1.2.3',
           tag: 'v1.2.3-relay',
-          image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+          image: 'registry.example.com/opfield/opfield/relay',
           protocolMajor: 1,
         },
         opfieldPublicKey
@@ -309,12 +309,12 @@ describe('update artifact trust', () => {
         kind: 'relay-image',
         version: 'v1.2.3',
         tag: 'v1.2.3-relay',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+        image: 'registry.example.com/opfield/opfield/relay',
         digest: `sha256:${checksum}`,
-        imageRef: `registry.gitlab.wiolett.net/wiolett/gateway/relay@sha256:${checksum}`,
+        imageRef: `registry.example.com/opfield/opfield/relay@sha256:${checksum}`,
         protocolMajor: 1,
-        databaseConnectorImage: 'registry.gitlab.wiolett.net/wiolett/gateway/database-connector:latest',
-        secureLinkConnectorImage: `registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector@sha256:${checksum}`,
+        databaseConnectorImage: 'registry.example.com/opfield/opfield/database-connector:latest',
+        secureLinkConnectorImage: `registry.example.com/opfield/opfield/secure-link-connector@sha256:${checksum}`,
         createdAt: '2026-08-17T00:00:00.000Z',
       })
     );
@@ -331,7 +331,7 @@ describe('update artifact trust', () => {
         {
           version: 'v1.2.3',
           tag: 'v1.2.3-relay',
-          image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+          image: 'registry.example.com/opfield/opfield/relay',
           protocolMajor: 1,
         },
         opfieldPublicKey
@@ -346,7 +346,7 @@ describe('update artifact trust', () => {
         {
           version: 'v1.2.3',
           tag: 'v1.2.3-relay',
-          image: 'registry.gitlab.wiolett.net/wiolett/gateway/relay',
+          image: 'registry.example.com/opfield/opfield/relay',
           protocolMajor: 2,
         },
         opfieldPublicKey
@@ -361,7 +361,7 @@ describe('update artifact trust', () => {
         {
           version: 'v9.9.9',
           tag: 'v9.9.9',
-          image: 'registry.example.com/wiolett/gateway',
+          image: 'registry.example.com/opfield/opfield',
         },
         opfieldPublicKey
       )
@@ -369,7 +369,7 @@ describe('update artifact trust', () => {
   });
 
   it('accepts only a digest-pinned Secure Link connector image in the Opfield repository', () => {
-    const repository = 'registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector';
+    const repository = 'registry.example.com/opfield/opfield/secure-link-connector';
     expect(isDigestPinnedImageRef(`${repository}@sha256:${checksum}`, repository)).toBe(true);
     expect(isDigestPinnedImageRef(`${repository}:v2.5.0`, repository)).toBe(false);
     expect(isDigestPinnedImageRef(`registry.example.com/connector@sha256:${checksum}`, repository)).toBe(false);
@@ -381,10 +381,10 @@ describe('update artifact trust', () => {
         kind: 'gateway-image',
         version: 'v9.9.9',
         tag: 'v9.9.9',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway',
+        image: 'registry.example.com/opfield/opfield',
         digest: `sha256:${checksum}`,
-        imageRef: `registry.gitlab.wiolett.net/wiolett/gateway@sha256:${checksum}`,
-        secureLinkConnectorImage: 'registry.gitlab.wiolett.net/wiolett/gateway/secure-link-connector:latest',
+        imageRef: `registry.example.com/opfield/opfield@sha256:${checksum}`,
+        secureLinkConnectorImage: 'registry.example.com/opfield/opfield/secure-link-connector:latest',
         createdAt: '2026-08-10T00:00:00.000Z',
       })
     );
@@ -401,7 +401,7 @@ describe('update artifact trust', () => {
         {
           version: 'v9.9.9',
           tag: 'v9.9.9',
-          image: 'registry.gitlab.wiolett.net/wiolett/gateway',
+          image: 'registry.example.com/opfield/opfield',
         },
         opfieldPublicKey
       )
@@ -442,7 +442,7 @@ describe('update artifact trust', () => {
     const artifact = verifyOpenCodexImageManifest(
       opencodexManifest,
       {
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
+        image: 'registry.example.com/opfield/opfield/opencodex',
         coreProtocolMajor: 1,
       },
       opfieldPublicKey
@@ -450,12 +450,12 @@ describe('update artifact trust', () => {
 
     expect(artifact.version).toBe('2.26.0-wiolett.1');
     expect(artifact.digest).toBe(`sha256:${checksum}`);
-    expect(artifact.imageRef).toBe(`registry.gitlab.wiolett.net/wiolett/gateway/opencodex@sha256:${checksum}`);
+    expect(artifact.imageRef).toBe(`registry.example.com/opfield/opfield/opencodex@sha256:${checksum}`);
     expect(artifact.sizeBytes).toBe(412345678);
     expect(artifact.coreProtocolMajor).toBe(1);
     expect(artifact.stateSchemaVersion).toBe(1);
     expect(artifact.minOpfieldVersion).toBe('v2.6.0');
-    expect(artifact.releaseNotesUrl).toBe('https://docs.wiolett.net/releases/opencodex-2.26.0-wiolett.1');
+    expect(artifact.releaseNotesUrl).toBe('https://docs.example.com/releases/opencodex-2.26.0-wiolett.1');
   });
 
   it('rejects an OpenCodex manifest pinned to a different version', () => {
@@ -463,7 +463,7 @@ describe('update artifact trust', () => {
       verifyOpenCodexImageManifest(
         opencodexManifest,
         {
-          image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
+          image: 'registry.example.com/opfield/opfield/opencodex',
           coreProtocolMajor: 1,
           version: '2.26.0-wiolett.2',
         },
@@ -477,7 +477,7 @@ describe('update artifact trust', () => {
       verifyOpenCodexImageManifest(
         opencodexManifest,
         {
-          image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
+          image: 'registry.example.com/opfield/opfield/opencodex',
           coreProtocolMajor: 2,
         },
         opfieldPublicKey
@@ -490,7 +490,7 @@ describe('update artifact trust', () => {
       verifyOpenCodexImageManifest(
         opencodexManifest,
         {
-          image: 'registry.example.com/wiolett/opencodex',
+          image: 'registry.example.com/opfield/opencodex',
           coreProtocolMajor: 1,
         },
         opfieldPublicKey
@@ -504,9 +504,9 @@ describe('update artifact trust', () => {
         kind: 'opencodex-image',
         version: '2.26.0',
         tag: 'v2.26.0',
-        image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
+        image: 'registry.example.com/opfield/opfield/opencodex',
         digest: `sha256:${checksum}`,
-        imageRef: `registry.gitlab.wiolett.net/wiolett/gateway/opencodex@sha256:${checksum}`,
+        imageRef: `registry.example.com/opfield/opfield/opencodex@sha256:${checksum}`,
         sizeBytes: 412345678,
         coreProtocolMajor: 1,
         stateSchemaVersion: 1,
@@ -525,7 +525,7 @@ describe('update artifact trust', () => {
       verifyOpenCodexImageManifest(
         manifest,
         {
-          image: 'registry.gitlab.wiolett.net/wiolett/gateway/opencodex',
+          image: 'registry.example.com/opfield/opfield/opencodex',
           coreProtocolMajor: 1,
         },
         opfieldPublicKey

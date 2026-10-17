@@ -13,8 +13,8 @@ import { hashSecret, OAuthTokenLifecycle } from './oauth-token-lifecycle.js';
 
 const url = process.env.OPFIELD_MIGRATION_TEST_DATABASE_URL;
 const USER_ID = '33333333-3333-4333-8333-333333333333';
-const API = 'https://gateway.example.com/api';
-const MCP = 'https://gateway.example.com/api/mcp';
+const API = 'https://opfield.example.com/api';
+const MCP = 'https://opfield.example.com/api/mcp';
 const CLIENT = 'goc_claude_code';
 const OLD_MCP = '44444444-4444-4444-8444-444444444441';
 const NEW_MCP = '44444444-4444-4444-8444-444444444442';

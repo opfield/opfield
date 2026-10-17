@@ -4,10 +4,10 @@ import type { TrustedRelayUpdateArtifact } from '@/lib/update-artifact-trust.js'
 import { AppError } from '@/middleware/error-handler.js';
 import { RELAY_UPDATE_SKIPPED_OFFLINE, UpdateService } from './update.service.js';
 
-const IMAGE_REF = `registry.example.com/wiolett/gateway/relay@sha256:${'a'.repeat(64)}`;
+const IMAGE_REF = `registry.example.com/opfield/opfield/relay@sha256:${'a'.repeat(64)}`;
 
 function relayArtifact(): TrustedRelayUpdateArtifact {
-  const secureLinkConnectorImage = `registry.example.com/wiolett/gateway/secure-link-connector@sha256:${'c'.repeat(64)}`;
+  const secureLinkConnectorImage = `registry.example.com/opfield/opfield/secure-link-connector@sha256:${'c'.repeat(64)}`;
   return {
     imageRef: IMAGE_REF,
     digest: `sha256:${'a'.repeat(64)}`,
@@ -20,7 +20,7 @@ function relayArtifact(): TrustedRelayUpdateArtifact {
       kind: 'relay-image',
       version: 'v2.4.3',
       tag: 'v2.4.3-relay',
-      image: 'registry.example.com/wiolett/gateway/relay',
+      image: 'registry.example.com/opfield/opfield/relay',
       digest: `sha256:${'a'.repeat(64)}`,
       imageRef: IMAGE_REF,
       protocolMajor: 1,

@@ -339,7 +339,7 @@ func TestCanonicalExecutablePathResolvesPathNames(t *testing.T) {
 	if expected, err := filepath.EvalSymlinks(trueBinary); err == nil && resolved != filepath.Clean(expected) {
 		t.Fatalf("canonical executable = %q, want %q", resolved, filepath.Clean(expected))
 	}
-	if resolved := canonicalExecutablePath("gateway-definitely-missing-nginx-binary"); resolved != "" {
+	if resolved := canonicalExecutablePath("opfield-definitely-missing-nginx-binary"); resolved != "" {
 		t.Fatalf("unresolved executable did not fail closed: %q", resolved)
 	}
 }

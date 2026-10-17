@@ -24,7 +24,7 @@ function createRenewedCertificates() {
   caCert.serialNumber = '01';
   caCert.validity.notBefore = new Date(now - 60_000);
   caCert.validity.notAfter = new Date(now + 86_400_000);
-  caCert.setSubject([{ name: 'commonName', value: 'gateway-system-ca' }]);
+  caCert.setSubject([{ name: 'commonName', value: 'opfield-system-ca' }]);
   caCert.setIssuer(caCert.subject.attributes);
   caCert.setExtensions([
     { name: 'basicConstraints', cA: true },
@@ -76,7 +76,7 @@ describe('WebIdentityService hot reload', () => {
   });
 
   async function setup() {
-    const dir = mkdtempSync(join(tmpdir(), 'gateway-web-identity-'));
+    const dir = mkdtempSync(join(tmpdir(), 'opfield-web-identity-'));
     tempDirs.push(dir);
     const certPath = join(dir, 'web-server.crt');
     const keyPath = join(dir, 'web-server.key');
@@ -133,7 +133,7 @@ describe('WebIdentityService hot reload', () => {
   });
 
   it('never issues two web certificates at once and keeps the identity when a refresh fails', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'gateway-web-identity-'));
+    const dir = mkdtempSync(join(tmpdir(), 'opfield-web-identity-'));
     tempDirs.push(dir);
     const installedCert = join(dir, 'web-server.crt');
     const keyPath = join(dir, 'web-server.key');

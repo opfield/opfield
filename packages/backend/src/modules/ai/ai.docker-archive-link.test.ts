@@ -61,7 +61,7 @@ function registerServices(owner: User) {
     }),
   } as unknown as CacheService);
   container.registerInstance(GeneralSettingsService, {
-    getPublicUrl: vi.fn().mockResolvedValue('https://gateway.example'),
+    getPublicUrl: vi.fn().mockResolvedValue('https://opfield.example'),
   } as unknown as GeneralSettingsService);
   container.registerInstance(LicensePolicyService, {
     requireFeature: vi.fn().mockResolvedValue(undefined),

@@ -17,7 +17,7 @@ import (
 )
 
 const protectedTestConfig = `gateway:
-  address: gateway.example.com:9443
+  address: opfield.example.com:9443
 worker:
   advertised_addresses:
     - relay.example.com
@@ -205,7 +205,7 @@ func TestProtectedConfigToggleRoundTrip(t *testing.T) {
 	if !cfg.Protected.Enabled || !cfg.Protected.AllowDatabaseWitness {
 		t.Fatalf("protected mode not written: %+v", cfg.Protected)
 	}
-	if cfg.Control.Address != "gateway.example.com:9443" || cfg.Console.User != "ops" || len(cfg.Worker.AdvertisedAddresses) != 1 {
+	if cfg.Control.Address != "opfield.example.com:9443" || cfg.Console.User != "ops" || len(cfg.Worker.AdvertisedAddresses) != 1 {
 		t.Fatalf("other settings changed: %+v", cfg)
 	}
 	encoded, err := os.ReadFile(path)

@@ -40,18 +40,18 @@ describe('docker registry external token request parsing', () => {
 
   it('parses exact repository pull/push grants and rejects delete or malformed repositories', () => {
     const valid = new URL(
-      'https://gateway.example.com/api/docker/registry/token?scope=repository:tenant/app:pull,push'
+      'https://opfield.example.com/api/docker/registry/token?scope=repository:tenant/app:pull,push'
     );
     expect(__testOnly.requestedRegistryGrants(valid)).toEqual([
       { repository: 'tenant/app', actions: ['pull', 'push'] },
     ]);
 
     const deletion = new URL(
-      'https://gateway.example.com/api/docker/registry/token?scope=repository:tenant/app:delete'
+      'https://opfield.example.com/api/docker/registry/token?scope=repository:tenant/app:delete'
     );
     expect(() => __testOnly.requestedRegistryGrants(deletion)).toThrow('Registry action scope is invalid');
 
-    const malformed = new URL('https://gateway.example.com/api/docker/registry/token?scope=repository:Tenant/App:pull');
+    const malformed = new URL('https://opfield.example.com/api/docker/registry/token?scope=repository:Tenant/App:pull');
     expect(() => __testOnly.requestedRegistryGrants(malformed)).toThrow('Registry repository scope is invalid');
   });
 

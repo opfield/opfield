@@ -146,8 +146,8 @@ server {
   http2 on;
   server_name app.example.com;
 
-  ssl_certificate     /etc/gateway/tls/app.example.com/fullchain.pem;
-  ssl_certificate_key /etc/gateway/tls/app.example.com/privkey.pem;
+  ssl_certificate     /etc/opfield/tls/app.example.com/fullchain.pem;
+  ssl_certificate_key /etc/opfield/tls/app.example.com/privkey.pem;
 
   limit_req zone=route_app burst=400 nodelay;
   limit_conn route_app_conn 100;

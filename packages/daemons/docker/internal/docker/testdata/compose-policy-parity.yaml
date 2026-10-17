@@ -490,7 +490,7 @@ cases:
           labels:
             gateway.sandboxed: "true"
             wiolett.gateway: owner
-            org.example.wiolett.gateway.note: kept
+            org.example.opfield.note: kept
             net.opfield: owner
             org.example.net.opfield.note: kept
 

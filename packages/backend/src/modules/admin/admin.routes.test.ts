@@ -339,7 +339,7 @@ describe('admin user impersonation', () => {
       log: vi.fn().mockResolvedValue(true),
     } as unknown as AuditService);
     container.registerInstance(GeneralSettingsService, {
-      requirePublicUrl: vi.fn().mockResolvedValue('https://gateway.example.com'),
+      requirePublicUrl: vi.fn().mockResolvedValue('https://opfield.example.com'),
     } as unknown as GeneralSettingsService);
     container.registerInstance(NetworkSettingsService, {
       getConfig: vi.fn().mockResolvedValue({
@@ -552,7 +552,7 @@ describe('admin Opfield settings route permissions', () => {
         username: 'mailer',
         passwordLast4: '1234',
         senderName: 'Opfield',
-        senderEmail: 'gateway@example.test',
+        senderEmail: 'opfield@example.test',
         verifiedAt: '2026-08-31T00:00:00.000Z',
       }),
     } as unknown as AuthMailService);
@@ -562,7 +562,7 @@ describe('admin Opfield settings route permissions', () => {
         issuer: 'https://id.internal.example',
         clientId: 'internal-client',
         clientSecretLast4: '5678',
-        redirectUri: 'https://gateway.example/auth/callback',
+        redirectUri: 'https://opfield.example/auth/callback',
         scopes: 'openid email profile groups',
       }),
     } as unknown as OidcSettingsService);
@@ -582,7 +582,7 @@ describe('admin Opfield settings route permissions', () => {
     } as unknown as McpSettingsService);
     container.registerInstance(GeneralSettingsService, {
       getConfig: vi.fn().mockResolvedValue({
-        publicUrl: 'https://demo.goodgateway.dev',
+        publicUrl: 'https://demo.goodopfield.dev',
         updateChannel: 'preview',
         hideExternalBranding: false,
         fileUploadMaxBytes: 100,
@@ -621,7 +621,7 @@ describe('admin Opfield settings route permissions', () => {
       logging: { mode: 'disabled', url: '', username: '', passwordLast4: null },
       mcpServerEnabled: false,
       generalSettings: {
-        publicUrl: 'https://demo.goodgateway.dev',
+        publicUrl: 'https://demo.goodopfield.dev',
         grpcPublicTarget: null,
         grpcLocalIp: null,
         relayAutoRecovery: false,
@@ -1483,7 +1483,7 @@ describe('identity-trust settings require admin:system', () => {
   };
   const current = {
     smtp: async () => currentSmtp,
-    generalSettings: async () => ({ publicUrl: 'https://gateway.example.com' }),
+    generalSettings: async () => ({ publicUrl: 'https://opfield.example.com' }),
     authSettings: async () => ({ oidcRequireVerifiedEmail: true }),
   };
   const smtpInput = {
@@ -1508,7 +1508,7 @@ describe('identity-trust settings require admin:system', () => {
           oidc: {
             issuer: 'https://idp.attacker.example',
             clientId: 'gateway',
-            redirectUri: 'https://gateway.example.com/auth/callback',
+            redirectUri: 'https://opfield.example.com/auth/callback',
           },
         },
         current
@@ -1527,7 +1527,7 @@ describe('identity-trust settings require admin:system', () => {
       findIdentityTrustChanges(
         {
           smtp: { ...smtpInput, testRecipient: 'ops@example.com' },
-          generalSettings: { publicUrl: 'https://gateway.example.com/', hideExternalBranding: true },
+          generalSettings: { publicUrl: 'https://opfield.example.com/', hideExternalBranding: true },
           oidcRequireVerifiedEmail: true,
           mcpServerEnabled: false,
         },
@@ -1545,7 +1545,7 @@ describe('identity-trust settings require admin:system', () => {
     } as unknown as AuthMailService);
     container.registerInstance(AuthSettingsService, { updateConfig: vi.fn() } as unknown as AuthSettingsService);
     container.registerInstance(GeneralSettingsService, {
-      getConfig: vi.fn().mockResolvedValue({ publicUrl: 'https://gateway.example.com' }),
+      getConfig: vi.fn().mockResolvedValue({ publicUrl: 'https://opfield.example.com' }),
     } as unknown as GeneralSettingsService);
     for (const service of [McpSettingsService, NetworkSettingsService, OutboundWebhookPolicyService, GroupService]) {
       container.registerInstance(service as never, {} as never);

@@ -11,8 +11,8 @@ server {
   http2 on;
   server_name preview.example.com;
 
-  ssl_certificate     /etc/gateway/tls/preview.example.com/fullchain.pem;
-  ssl_certificate_key /etc/gateway/tls/preview.example.com/privkey.pem;
+  ssl_certificate     /etc/opfield/tls/preview.example.com/fullchain.pem;
+  ssl_certificate_key /etc/opfield/tls/preview.example.com/privkey.pem;
 
   add_header Strict-Transport-Security "max-age=63072000" always;
   add_header Content-Security-Policy "default-src 'self'" always;

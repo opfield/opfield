@@ -281,8 +281,8 @@ describe("lines and scopes", () => {
   it("names roles, places and Git targets", () => {
     const labels = {
       resource: (_type: string, id: string) => (id === "node-1/api" ? "orders-api" : undefined),
-      connector: () => "gitlab.wiolett.net",
-      gitTarget: () => "square-labs/orders",
+      connector: () => "gitlab.example.com",
+      gitTarget: () => "example-labs/orders",
     };
     expect(describeLine(canonical[2]!, labels)).toEqual({
       title: "Operator in folder orders / staging",
@@ -290,8 +290,8 @@ describe("lines and scopes", () => {
     });
     expect(describeLine(canonical[3]!, labels).title).toBe("Deployer on 3 resources");
     expect(describeLine(canonical[4]!, labels)).toEqual({
-      title: "Edit code and CI in group square-labs/orders",
-      detail: "GitLab · gitlab.wiolett.net",
+      title: "Edit code and CI in group example-labs/orders",
+      detail: "GitLab · gitlab.example.com",
     });
     expect(describeLine(canonical[6]!).title).toBe("Read code in every repository");
     expect(describeLine(canonical[6]!).detail).toBe("Every Git connector");

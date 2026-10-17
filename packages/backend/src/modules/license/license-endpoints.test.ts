@@ -268,7 +268,7 @@ describe('LicenseService over several addresses', () => {
     return new LicenseService(
       db as never,
       crypto as never,
-      { APP_URL: 'https://gateway.example.com', APP_VERSION: 'v2.12.0', ...env } as never,
+      { APP_URL: 'https://opfield.example.com', APP_VERSION: 'v2.12.0', ...env } as never,
       fetcher as never,
       undefined,
       undefined,

@@ -14,7 +14,7 @@ import { OpfieldLifecycleService } from '@/services/opfield-lifecycle.service.js
 import { createApp } from './app.js';
 
 const validateOAuth = vi.fn(async (_token: string, options: { resource?: string }) =>
-  options.resource === 'http://gateway.test/api/mcp'
+  options.resource === 'http://opfield.test/api/mcp'
     ? {
         user: { id: 'user', scopes: ['mcp:use'] },
         scopes: ['nodes:details'],
@@ -31,7 +31,7 @@ const sourceWebhook = vi.fn(async () => ({ duplicate: false }));
 
 beforeEach(() => {
   vi.stubEnv('NODE_ENV', 'test');
-  vi.stubEnv('APP_URL', 'http://gateway.test');
+  vi.stubEnv('APP_URL', 'http://opfield.test');
   vi.stubEnv('DATABASE_URL', 'http://localhost/db');
   vi.stubEnv('REDIS_URL', 'redis://localhost:6379');
   vi.stubEnv('PKI_MASTER_KEY', '0'.repeat(64));
@@ -52,10 +52,10 @@ beforeEach(() => {
   container.registerInstance(TOKENS.RedisClient, { pipeline: () => pipeline });
   container.registerInstance(OpfieldLifecycleService, { getState: () => 'running' } as OpfieldLifecycleService);
   container.registerInstance(OAuthService, {
-    getApiResourceUrl: () => 'http://gateway.test/api',
-    getMcpResourceUrl: () => 'http://gateway.test/api/mcp',
-    getIssuerUrl: () => 'http://gateway.test',
-    getProtectedResourceMetadataUrl: () => 'http://gateway.test/.well-known/oauth-protected-resource/api/mcp',
+    getApiResourceUrl: () => 'http://opfield.test/api',
+    getMcpResourceUrl: () => 'http://opfield.test/api/mcp',
+    getIssuerUrl: () => 'http://opfield.test',
+    getProtectedResourceMetadataUrl: () => 'http://opfield.test/.well-known/oauth-protected-resource/api/mcp',
     validateAccessToken: validateOAuth,
   } as unknown as OAuthService);
   container.registerInstance(McpSettingsService, {
@@ -79,17 +79,17 @@ afterEach(() => {
 describe('authentication boundaries in the complete application route graph', () => {
   it('validates MCP tokens only against the MCP resource', async () => {
     const response = await createApp().app.request('/api/mcp', {
-      headers: { host: 'gateway.test', Authorization: 'Bearer gwo_fixture' },
+      headers: { host: 'opfield.test', Authorization: 'Bearer gwo_fixture' },
     });
     expect(response.status).toBe(405);
-    expect(validateOAuth).toHaveBeenCalledExactlyOnceWith('gwo_fixture', { resource: 'http://gateway.test/api/mcp' });
+    expect(validateOAuth).toHaveBeenCalledExactlyOnceWith('gwo_fixture', { resource: 'http://opfield.test/api/mcp' });
   });
 
   it('initializes MCP through the real application with an MCP-resource token', async () => {
     const response = await createApp().app.request('/api/mcp', {
       method: 'POST',
       headers: {
-        host: 'gateway.test',
+        host: 'opfield.test',
         Authorization: 'Bearer gwo_fixture',
         Accept: 'application/json, text/event-stream',
         'Content-Type': 'application/json',
@@ -113,13 +113,13 @@ describe('authentication boundaries in the complete application route graph', ()
     expect(messages).toContainEqual(
       expect.objectContaining({ id: 1, result: expect.objectContaining({ protocolVersion: '2025-11-25' }) })
     );
-    expect(validateOAuth).toHaveBeenCalledExactlyOnceWith('gwo_fixture', { resource: 'http://gateway.test/api/mcp' });
+    expect(validateOAuth).toHaveBeenCalledExactlyOnceWith('gwo_fixture', { resource: 'http://opfield.test/api/mcp' });
   });
 
   it('lets Docker webhooks validate their URL token without a REST bearer', async () => {
     const response = await createApp().app.request('/api/webhooks/docker/fixture-token', {
       method: 'POST',
-      headers: { host: 'gateway.test' },
+      headers: { host: 'opfield.test' },
     });
     expect(response.status).toBe(404);
     expect(webhookToken).toHaveBeenCalledExactlyOnceWith('fixture-token');
@@ -133,7 +133,7 @@ describe('authentication boundaries in the complete application route graph', ()
   ])('does not register %s without the private module', async (path, token) => {
     const response = await createApp().app.request(path, {
       method: 'POST',
-      headers: { host: 'gateway.test', Authorization: `Bearer ${token}` },
+      headers: { host: 'opfield.test', Authorization: `Bearer ${token}` },
     });
     expect(response.status).toBe(404);
     expect(loggingToken).not.toHaveBeenCalled();
@@ -143,7 +143,7 @@ describe('authentication boundaries in the complete application route graph', ()
 
   it('answers private-module Console routes with COMMERCIAL_MODULE_UNAVAILABLE, to signed-in callers only', async () => {
     const anonymous = await createApp().app.request('/api/status-page/settings', {
-      headers: { host: 'gateway.test' },
+      headers: { host: 'opfield.test' },
     });
     expect(anonymous.status).toBe(401);
     validateOAuth.mockResolvedValueOnce({
@@ -154,7 +154,7 @@ describe('authentication boundaries in the complete application route graph', ()
       clientId: 'client',
     });
     const signedIn = await createApp().app.request('/api/status-page/settings', {
-      headers: { host: 'gateway.test', Authorization: 'Bearer gwo_fixture' },
+      headers: { host: 'opfield.test', Authorization: 'Bearer gwo_fixture' },
     });
     expect(signedIn.status).toBe(503);
     expect(await signedIn.json()).toMatchObject({ code: 'COMMERCIAL_MODULE_UNAVAILABLE' });
@@ -164,7 +164,7 @@ describe('authentication boundaries in the complete application route graph', ()
     const id = '11111111-1111-4111-8111-111111111111';
     const response = await createApp().app.request(`/api/webhooks/docker-source/${id}`, {
       method: 'POST',
-      headers: { host: 'gateway.test' },
+      headers: { host: 'opfield.test' },
       body: '{}',
     });
     expect(response.status).toBe(202);
@@ -192,7 +192,7 @@ describe('unknown API paths', () => {
     }
     const response = await createApp().app.request(path, {
       method,
-      headers: { host: 'gateway.test', ...(signedIn ? { Authorization: 'Bearer gwo_fixture' } : {}) },
+      headers: { host: 'opfield.test', ...(signedIn ? { Authorization: 'Bearer gwo_fixture' } : {}) },
     });
 
     expect(response.status).toBe(404);
@@ -202,10 +202,10 @@ describe('unknown API paths', () => {
 
   it('still answers the /.well-known/ documents Opfield publishes', async () => {
     const response = await createApp().app.request('/.well-known/oauth-protected-resource/api/mcp', {
-      headers: { host: 'gateway.test' },
+      headers: { host: 'opfield.test' },
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ resource: 'http://gateway.test/api/mcp' });
+    expect(await response.json()).toMatchObject({ resource: 'http://opfield.test/api/mcp' });
   });
 });

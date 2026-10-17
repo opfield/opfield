@@ -20,7 +20,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 async function host() {
-  const root = await mkdtemp(join(tmpdir(), 'gateway-core-update-'));
+  const root = await mkdtemp(join(tmpdir(), 'opfield-core-update-'));
   roots.push(root);
   return root;
 }

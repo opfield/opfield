@@ -39,7 +39,7 @@ func TestDrainRefusesWorkloadTunnelsAndKeepsLocalServices(t *testing.T) {
 		return &relayv1.RoutePolicy{RouteId: id, Generation: 1, SourceKind: "daemon", SourceId: "node-source", SourceCertificateSha256: sourceFingerprint, TargetEndpointId: endpointID, TrafficClass: class}
 	}
 	if _, _, err := store.Apply(&relayv1.ApplySnapshotRequest{
-		Revision: 1, GatewayInstanceId: "gateway-1",
+		Revision: 1, GatewayInstanceId: "opfield-1",
 		PublicKeys: []*relayv1.PublicKey{{KeyId: "key-1", PublicKey: grantPublic}},
 		Endpoints: []*relayv1.EndpointPolicy{
 			{EndpointId: "endpoint-workload", Generation: 1, SubjectKind: "daemon", SubjectId: "node-target", CertificateSha256: "sha256:target"},
@@ -59,7 +59,7 @@ func TestDrainRefusesWorkloadTunnelsAndKeepsLocalServices(t *testing.T) {
 	})
 	open := func(routeID string) error {
 		now := time.Now()
-		claims := grant.Claims{SchemaVersion: 1, Audience: grant.Audience, GrantID: "grant-" + routeID, GatewayInstanceID: "gateway-1", Kind: "connect", SubjectKind: "daemon", SubjectID: "node-source", CertificateSHA256: sourceFingerprint, RouteID: routeID, RouteGeneration: 1, IssuedAt: now.Unix(), NotBefore: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix()}
+		claims := grant.Claims{SchemaVersion: 1, Audience: grant.Audience, GrantID: "grant-" + routeID, GatewayInstanceID: "opfield-1", Kind: "connect", SubjectKind: "daemon", SubjectID: "node-source", CertificateSHA256: sourceFingerprint, RouteID: routeID, RouteGeneration: 1, IssuedAt: now.Unix(), NotBefore: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix()}
 		payload, err := json.Marshal(claims)
 		if err != nil {
 			t.Fatal(err)

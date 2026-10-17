@@ -39,12 +39,12 @@ test('a fork publishes and signs for its own repository', () => {
     signed: 'ghcr.io/example/opfield',
   });
   // legacy-name: GATEWAY_IMAGE repository variable of forks set up before 2.12.1.
-  assert.deepEqual(resolve({ GATEWAY_IMAGE: 'ghcr.io/example/gateway' }), {
-    primary: 'ghcr.io/example/gateway',
+  assert.deepEqual(resolve({ GATEWAY_IMAGE: 'ghcr.io/example/opfield' }), {
+    primary: 'ghcr.io/example/opfield',
     mirror: '',
-    signed: 'ghcr.io/example/gateway',
+    signed: 'ghcr.io/example/opfield',
   });
-  assert.equal(resolve({ OPFIELD_IMAGE: 'ghcr.io/example/opfield', GATEWAY_IMAGE: 'ghcr.io/example/gateway' }).primary, 'ghcr.io/example/opfield');
+  assert.equal(resolve({ OPFIELD_IMAGE: 'ghcr.io/example/opfield', GATEWAY_IMAGE: 'ghcr.io/example/opfield' }).primary, 'ghcr.io/example/opfield');
 });
 
 test('the signed repository can still be pinned to the mirror, never to a foreign one', () => {

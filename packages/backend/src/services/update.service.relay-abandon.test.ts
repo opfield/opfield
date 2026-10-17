@@ -58,7 +58,7 @@ function localStepPool() {
   const dockerService = {
     inspectSelf: vi.fn().mockResolvedValue({
       Config: {
-        Image: 'registry.example.com/wiolett/gateway:v2.4.2',
+        Image: 'registry.example.com/opfield/opfield:v2.4.2',
         Labels: {
           'com.docker.compose.project.working_dir': '/srv/gateway',
           'com.docker.compose.project': 'gateway',
@@ -81,7 +81,7 @@ function localStepPool() {
       APP_VERSION: 'v2.4.2',
       COMPOSE_PROJECT_DIR: '/srv/gateway',
       RELEASES_API_URL: 'https://updates.thesqlabs.com/gateway/releases',
-      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/wiolett/gateway/relay@sha256:${'b'.repeat(64)}`,
+      OPFIELD_RELAY_IMAGE_REF: `registry.example.com/opfield/opfield/relay@sha256:${'b'.repeat(64)}`,
       OPFIELD_RELAY_BUILD_VERSION: 'v2.4.2',
       OPFIELD_RELAY_PROTOCOL_MAJOR: 1,
     } as never,
@@ -100,8 +100,8 @@ function localStepPool() {
 }
 
 function relayArtifact(): TrustedRelayUpdateArtifact {
-  const imageRef = `registry.example.com/wiolett/gateway/relay@sha256:${'a'.repeat(64)}`;
-  const secureLinkConnectorImage = `registry.example.com/wiolett/gateway/secure-link-connector@sha256:${'c'.repeat(64)}`;
+  const imageRef = `registry.example.com/opfield/opfield/relay@sha256:${'a'.repeat(64)}`;
+  const secureLinkConnectorImage = `registry.example.com/opfield/opfield/secure-link-connector@sha256:${'c'.repeat(64)}`;
   return {
     imageRef,
     digest: `sha256:${'a'.repeat(64)}`,
@@ -114,7 +114,7 @@ function relayArtifact(): TrustedRelayUpdateArtifact {
       kind: 'relay-image',
       version: 'v2.4.3',
       tag: 'v2.4.3-relay',
-      image: 'registry.example.com/wiolett/gateway/relay',
+      image: 'registry.example.com/opfield/opfield/relay',
       digest: `sha256:${'a'.repeat(64)}`,
       imageRef,
       protocolMajor: 1,

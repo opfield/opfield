@@ -12,7 +12,7 @@ process.env.PKI_MASTER_KEY ||= '000000000000000000000000000000000000000000000000
 
 function registerMethods(methods: { oidc: boolean; password: boolean; emailOtp: boolean; passkeyLogin: boolean }) {
   container.registerInstance(OAuthService, {
-    getIssuerUrl: () => 'https://gateway.example.com',
+    getIssuerUrl: () => 'https://opfield.example.com',
   } as unknown as OAuthService);
   container.registerInstance(AuthSettingsService, {
     getConfig: vi.fn().mockResolvedValue({ methods }),
@@ -28,14 +28,14 @@ afterEach(() => {
 
 describe('oauthLoginRedirectUrl', () => {
   const authorizeUrl = 'http://backend:3000/api/oauth/authorize/api/mcp?client_id=client&state=abc';
-  const publicAuthorizeUrl = 'https://gateway.example.com/api/oauth/authorize/api/mcp?client_id=client&state=abc';
+  const publicAuthorizeUrl = 'https://opfield.example.com/api/oauth/authorize/api/mcp?client_id=client&state=abc';
 
   it('sends local-auth installs to the login page with a public same-origin return_to', async () => {
     registerMethods({ oidc: false, password: true, emailOtp: false, passkeyLogin: true });
 
     const url = new URL(await oauthLoginRedirectUrl(authorizeUrl));
 
-    expect(url.origin + url.pathname).toBe('https://gateway.example.com/login');
+    expect(url.origin + url.pathname).toBe('https://opfield.example.com/login');
     expect(url.searchParams.get('return_to')).toBe(publicAuthorizeUrl);
   });
 

@@ -18,7 +18,7 @@ function installDaemonBinary(source) {
 }
 
 test('the upgrade message names the installed version, not a left-behind copy', { skip: !linux }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-versions-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-versions-'));
   try {
     const target = path.join(dir, 'daemon');
     await writeFile(target, '#!/bin/sh\n', { mode: 0o755 });

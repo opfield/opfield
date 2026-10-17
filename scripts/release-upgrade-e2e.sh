@@ -62,8 +62,8 @@ Options:
   --via TAG                Stable release to update to first (Opfield, daemons, relay), then to the candidate:
                            the path a customer on --base takes through an intermediate release
   --before-candidate CMD   With --via: run CMD (bash -c) between the two hops and go on when it exits 0; the
-                           probes, the release feed and the DNS guard keep running. CMD sees GATEWAY_E2E_WORK,
-                           GATEWAY_E2E_INSTALL_DIR and GATEWAY_E2E_PROJECT (e.g. to swap test-signed builds in)
+                           probes, the release feed and the DNS guard keep running. CMD sees OPFIELD_E2E_WORK,
+                           OPFIELD_E2E_INSTALL_DIR and OPFIELD_E2E_PROJECT (e.g. to swap test-signed builds in)
   --pin HOP:COMPONENT=TAG  Pin a release feed component for one hop (HOP via or candidate; an empty TAG answers
                            204); repeatable. Unpinned components resolve on the real feed
   --skip-rollback          Skip step 4 (forced rollback with the base updater)
@@ -74,10 +74,10 @@ Options:
   -h, --help               Show this help
 
 Environment:
-  GATEWAY_E2E_LICENSE_KEY  Paid license key for step 6 (optional)
+  OPFIELD_E2E_LICENSE_KEY  Paid license key for step 6 (optional)
   GATEWAY_GITHUB_REPOSITORY  GitHub repository releases come from (default opfield/opfield; the-square-labs/gateway
                            before the repository moved)
-  GATEWAY_E2E_LICENSE_HOSTS  License service host names to block, comma-separated (default: config/license-service.json)
+  OPFIELD_E2E_LICENSE_HOSTS  License service host names to block, comma-separated (default: config/license-service.json)
 
 DNS for Docker: lines `NAME ADDRESS` in WORK/dns-overrides make the DNS guard answer NAME (and its subdomains) with
 ADDRESS; the file is read on every query, so a --before-candidate command can point release hosts at a stand mirror.
@@ -90,12 +90,12 @@ RELEASE_DOWNLOAD="https://github.com/${REPO}/releases/download"
 REAL_FEED="https://get.opfield.dev/gateway/releases"
 # Every address of the license service (config/license-service.json; --ssh passes them along): the DNS guard blocks
 # them all and check_license_guard looks every one up in the app container.
-if [[ -z "${GATEWAY_E2E_LICENSE_HOSTS:-}" && -f "${BASH_SOURCE[0]%/*}/../config/license-service.json" ]]; then
-  GATEWAY_E2E_LICENSE_HOSTS="$(python3 -c 'import json, sys, urllib.parse
+if [[ -z "${OPFIELD_E2E_LICENSE_HOSTS:-}" && -f "${BASH_SOURCE[0]%/*}/../config/license-service.json" ]]; then
+  OPFIELD_E2E_LICENSE_HOSTS="$(python3 -c 'import json, sys, urllib.parse
 print(",".join(urllib.parse.urlsplit(u).hostname for u in json.load(open(sys.argv[1]))["endpoints"]))' \
     "${BASH_SOURCE[0]%/*}/../config/license-service.json")"
 fi
-LICENSE_HOSTS="${GATEWAY_E2E_LICENSE_HOSTS:?run from a checkout (config/license-service.json) or set GATEWAY_E2E_LICENSE_HOSTS}"
+LICENSE_HOSTS="${OPFIELD_E2E_LICENSE_HOSTS:?run from a checkout (config/license-service.json) or set OPFIELD_E2E_LICENSE_HOSTS}"
 MAILPIT_IMAGE="docker.io/axllent/mailpit:v1.31.3"
 WEB_IMAGE="nginx:1.27-alpine"
 INSTALL_DIR="/opt/gateway"
@@ -163,7 +163,7 @@ LOGS_OUT=""
 KEEP=0
 CLEANUP_ONLY=""
 SSH_TARGET=""
-LICENSE_KEY="${GATEWAY_E2E_LICENSE_KEY:-}"
+LICENSE_KEY="${OPFIELD_E2E_LICENSE_KEY:-}"
 
 PHASE="0"
 PASSED=0
@@ -212,8 +212,8 @@ parse_args() {
     local self="${BASH_SOURCE[0]}"
     [[ -f "$self" ]] || { echo "--ssh needs the script as a file" >&2; exit 2; }
     {
-      [[ -n "$LICENSE_KEY" ]] && printf 'export GATEWAY_E2E_LICENSE_KEY=%q\n' "$LICENSE_KEY"
-      printf 'export GATEWAY_E2E_LICENSE_HOSTS=%q\n' "$LICENSE_HOSTS"
+      [[ -n "$LICENSE_KEY" ]] && printf 'export OPFIELD_E2E_LICENSE_KEY=%q\n' "$LICENSE_KEY"
+      printf 'export OPFIELD_E2E_LICENSE_HOSTS=%q\n' "$LICENSE_HOSTS"
       cat "$self"
     } | ssh "$SSH_TARGET" "sudo -n bash -s -- $(printf '%q ' "${remote[@]}")"
     exit $?
@@ -1667,7 +1667,7 @@ seed_secure_links() {
   api POST /api/docker/container-links "$(mkjson '{"sourceNodeId": a[0], "sourceType": "container", "sourceResourceId": "e2e-echo-client",
     "targetNodeId": a[0], "targetType": "container", "targetResourceId": "e2e-echo", "targetPort": 7000, "alias": "e2e-echo"}' "${FACT[docker_node]}")"
   if grep -q COMMERCIAL_MODULE_UNAVAILABLE "$RESP" 2>/dev/null; then
-    FACT[echo_skip]="container links need the private core (Community answers COMMERCIAL_MODULE_UNAVAILABLE); set GATEWAY_E2E_LICENSE_KEY"
+    FACT[echo_skip]="container links need the private core (Community answers COMMERCIAL_MODULE_UNAVAILABLE); set OPFIELD_E2E_LICENSE_KEY"
     skip "container link between two containers" "${FACT[echo_skip]}"
     return 0
   fi
@@ -2566,7 +2566,7 @@ run_via_hop() {
     PHASE="2b"
     say "running the --before-candidate command"
     local status=0
-    GATEWAY_E2E_WORK="$WORK" GATEWAY_E2E_INSTALL_DIR="$INSTALL_DIR" GATEWAY_E2E_PROJECT="$PROJECT" \
+    OPFIELD_E2E_WORK="$WORK" OPFIELD_E2E_INSTALL_DIR="$INSTALL_DIR" OPFIELD_E2E_PROJECT="$PROJECT" \
       bash -c "$BEFORE_CANDIDATE" </dev/null >>"$WORK/logs/before-candidate.out" 2>&1 || status=$?
     check "--before-candidate command" "exit ${status} (logs/before-candidate.out)" test "$status" = 0 || return 1
   fi
@@ -2761,7 +2761,7 @@ main() {
   fi
   if [[ -z "$LICENSE_KEY" ]]; then
     PHASE=6
-    skip "paid path" "GATEWAY_E2E_LICENSE_KEY is not set"
+    skip "paid path" "OPFIELD_E2E_LICENSE_KEY is not set"
   fi
 }
 

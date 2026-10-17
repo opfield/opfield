@@ -16,7 +16,7 @@ beforeAll(() => {
   process.env.OIDC_CLIENT_ID ||= 'test';
   process.env.OIDC_CLIENT_SECRET ||= 'test';
   process.env.OIDC_REDIRECT_URI ||= 'http://localhost/auth/callback';
-  process.env.APP_URL = 'http://gateway.test';
+  process.env.APP_URL = 'http://opfield.test';
   process.env.PKI_MASTER_KEY ||= '0000000000000000000000000000000000000000000000000000000000000000';
 });
 
@@ -30,7 +30,7 @@ describe('request body limits', () => {
     const response = await app.request(path, {
       method,
       headers: {
-        host: 'gateway.test',
+        host: 'opfield.test',
         'content-type': contentType,
         'content-length': String(Buffer.byteLength(body)),
       },
@@ -46,7 +46,7 @@ describe('request body limits', () => {
     const response = await app.request(path, {
       method,
       headers: {
-        host: 'gateway.test',
+        host: 'opfield.test',
         'content-type': 'application/json',
         'content-length': String(Buffer.byteLength(body)),
       },
@@ -162,7 +162,7 @@ describe('request body limits', () => {
       return app.request('/api/object-storage/storage-1/objects/upload?bucket=app&key=large.bin', {
         method: 'POST',
         headers: {
-          host: 'gateway.test',
+          host: 'opfield.test',
           'content-type': 'application/octet-stream',
           'content-length': String(bytes),
         },

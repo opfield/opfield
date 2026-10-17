@@ -41,7 +41,7 @@ func TestRemoteRelayRefusesBuiltinLocalServiceTunnels(t *testing.T) {
 	sourceFingerprint := fmt.Sprintf("sha256:%x", sha256.Sum256(source))
 	now := time.Now()
 	payload := &relayv1.PolicyEnvelopePayload{
-		SchemaVersion: 2, GatewayInstanceId: "gateway-1", PoolId: "system", RelayInstanceId: "relay-1",
+		SchemaVersion: 2, GatewayInstanceId: "opfield-1", PoolId: "system", RelayInstanceId: "relay-1",
 		Revision: 1, IssuedAtUnix: now.Unix(), ExpiresAtUnix: now.Add(time.Hour).Unix(),
 		GrantPublicKeys: []*relayv1.PublicKey{{KeyId: "grant-1", PublicKey: grantPublic}},
 		Endpoints: []*relayv1.EndpointPolicy{{
@@ -75,7 +75,7 @@ func TestRemoteRelayRefusesBuiltinLocalServiceTunnels(t *testing.T) {
 		return client, nil
 	})
 	claims := grant.Claims{
-		SchemaVersion: 2, Audience: grant.Audience, GrantID: "grant-registry", GatewayInstanceID: "gateway-1", Kind: "connect",
+		SchemaVersion: 2, Audience: grant.Audience, GrantID: "grant-registry", GatewayInstanceID: "opfield-1", Kind: "connect",
 		SubjectKind: "daemon", SubjectID: "node-source", CertificateSHA256: sourceFingerprint, RouteID: "route-registry", RouteGeneration: 1,
 		PoolID: "system", RelayInstanceID: "relay-1", AssignmentGeneration: 1,
 		IssuedAt: now.Unix(), NotBefore: now.Unix(), ExpiresAt: now.Add(time.Hour).Unix(),

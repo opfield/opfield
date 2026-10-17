@@ -19,7 +19,7 @@ import (
 func TestSelfUpdateRejectsMissingChecksum(t *testing.T) {
 	t.Setenv(LauncherManagedEnv, "1")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	err := SelfUpdate("https://gitlab.wiolett.net/update", "v9.9.9", "", "manifest", "nginx", logger)
+	err := SelfUpdate("https://gitlab.example.com/update", "v9.9.9", "", "manifest", "nginx", logger)
 	if err == nil {
 		t.Fatal("expected missing checksum to be rejected")
 	}
@@ -29,7 +29,7 @@ func TestSelfUpdateRejectsMissingSignedManifest(t *testing.T) {
 	t.Setenv(LauncherManagedEnv, "1")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	err := SelfUpdate(
-		"https://gitlab.wiolett.net/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64",
+		"https://gitlab.example.com/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64",
 		"v9.9.9",
 		"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		"",
@@ -45,7 +45,7 @@ func TestSelfUpdateRejectsUnsafeDirectMode(t *testing.T) {
 	t.Setenv(LauncherManagedEnv, "")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	err := SelfUpdate(
-		"https://gitlab.wiolett.net/update",
+		"https://gitlab.example.com/update",
 		"v9.9.9",
 		"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		"manifest",

@@ -38,7 +38,7 @@ export const labCluster: HostingConnector = {
     resourceIds: [],
     adoptionNodeIds: [],
     adoptionEnabled: true,
-    tokenId: "gateway@pve!provisioning",
+    tokenId: "opfield@pve!provisioning",
     clusterId: "lab",
     proxmoxHost: "pve-1",
     proxmox: {

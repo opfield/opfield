@@ -20,7 +20,7 @@ describe('old Opfield images on the Opfield host', () => {
       },
       {
         Id: 'sha256:app-gitlab',
-        RepoTags: ['registry.gitlab.wiolett.net/wiolett/gateway:2.9.0'],
+        RepoTags: ['registry.example.com/opfield/opfield:2.9.0'],
         Created: 5,
         Size: 300,
       },
@@ -35,13 +35,13 @@ describe('old Opfield images on the Opfield host', () => {
       },
       {
         Id: 'sha256:relay-gitlab',
-        RepoDigests: [`registry.gitlab.wiolett.net/wiolett/gateway/relay@${digest(8)}`],
+        RepoDigests: [`registry.example.com/opfield/opfield/relay@${digest(8)}`],
         Created: 9,
         Size: 30,
       },
       // Not Opfield's: never touched.
       { Id: 'sha256:postgres', RepoTags: ['postgres:16.15-alpine'], Created: 1, Size: 100 },
-      { Id: 'sha256:user', RepoTags: ['myorg/gateway:1'], Created: 1, Size: 100 },
+      { Id: 'sha256:user', RepoTags: ['myorg/opfield:1'], Created: 1, Size: 100 },
     ];
 
     const removable = selectOldOpfieldHostImages({

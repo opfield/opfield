@@ -799,7 +799,7 @@ describe('AuthService OIDC identity binding', () => {
       code: 'AUTH_METHOD_DISABLED',
     });
     await expect(
-      harness.service.handleCallback('https://gateway.example.com/callback?code=code&state=state', 'state')
+      harness.service.handleCallback('https://opfield.example.com/callback?code=code&state=state', 'state')
     ).rejects.toMatchObject({ statusCode: 409, code: 'AUTH_METHOD_DISABLED' });
     expect(authorizationCodeGrantMock).not.toHaveBeenCalled();
   });
@@ -1351,7 +1351,7 @@ function createAuthServiceHarness(options: {
       });
 
       return service.handleCallback(
-        'https://gateway.example.com/callback?code=code&state=state',
+        'https://opfield.example.com/callback?code=code&state=state',
         'state',
         sessionMetadata
       );

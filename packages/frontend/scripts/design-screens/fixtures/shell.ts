@@ -29,10 +29,10 @@ export const LICENSE_FEATURES = [
 ];
 
 export const systemConfig = {
-  publicUrl: "https://gateway.example.com",
+  publicUrl: "https://opfield.example.com",
   fileUploadMaxBytes: 100 * 1024 ** 2,
   fileOpenMaxBytes: 10 * 1024 ** 2,
-  grpcPublicTarget: "gateway.example.com:9443",
+  grpcPublicTarget: "opfield.example.com:9443",
   grpcLocalIp: "10.20.0.2",
   relayAutoRecovery: true,
   features: {
@@ -47,7 +47,7 @@ export const systemConfig = {
 export const aiStatus = {
   enabled: true,
   providerType: "opfield_inference" as const,
-  defaultModel: "gateway-large",
+  defaultModel: "opfield-large",
   allowUserModelSelection: true,
   allowUserReasoningEffortSelection: true,
   reasoningEfforts: ["low", "medium", "high"],
@@ -55,7 +55,7 @@ export const aiStatus = {
   supportsImages: true,
   models: [
     {
-      id: "gateway-large",
+      id: "opfield-large",
       displayName: "Opfield Large",
       supportsImages: true,
       maxContextTokens: 200_000,

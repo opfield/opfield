@@ -79,7 +79,7 @@ function createCrypto() {
 }
 
 const env = {
-  APP_URL: 'https://gateway.example.com',
+  APP_URL: 'https://opfield.example.com',
   APP_VERSION: 'v2.6.12',
 } as never;
 
@@ -127,7 +127,7 @@ const paidState = (plan: 'personal' | 'business' | 'enterprise' = 'business'): L
     entitlements: LICENSE_PLAN_ENTITLEMENTS[plan],
     activation: {
       installationId: '11111111-1111-4111-8111-111111111111',
-      installationName: 'gateway.example.com',
+      installationName: 'opfield.example.com',
       activatedAt: new Date().toISOString(),
       lastHeartbeatAt: new Date().toISOString(),
     },
@@ -454,7 +454,7 @@ describe('LicenseService', () => {
     expect(url).toBe('https://license.opfield.dev/api/v1/installations/register');
     const body = JSON.parse(request.body);
     expect(body).toMatchObject({
-      installationName: 'gateway.example.com',
+      installationName: 'opfield.example.com',
       gatewayVersion: 'v2.6.12',
       entitlementsVersion: 5,
     });

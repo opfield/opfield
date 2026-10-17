@@ -20,8 +20,8 @@ describe('Opfield browser session cookie names', () => {
     expect(httpCookie).toMatch(/^opfield_session_[a-f0-9]{12}_http$/);
     expect(httpsCookie).toMatch(/^opfield_session_[a-f0-9]{12}_https$/);
     expect(httpCookie).not.toBe(httpsCookie);
-    expect(getSessionCookieNameForUrl('http://gateway.example.test')).toBe(httpCookie);
-    expect(getSessionCookieNameForUrl('https://gateway.example.test')).toBe(httpsCookie);
+    expect(getSessionCookieNameForUrl('http://opfield.example.test')).toBe(httpCookie);
+    expect(getSessionCookieNameForUrl('https://opfield.example.test')).toBe(httpsCookie);
   });
 
   it('continues to accept the legacy cookie during upgrade', () => {

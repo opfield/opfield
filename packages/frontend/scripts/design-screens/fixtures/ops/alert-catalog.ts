@@ -213,7 +213,7 @@ export const webhookPresets: WebhookPreset[] = [
     id: "json",
     name: "JSON",
     description: "Raw alert payload as JSON",
-    urlHint: "https://example.com/hooks/gateway",
+    urlHint: "https://example.com/hooks/opfield",
     defaultHeaders: { "Content-Type": "application/json" },
     bodyTemplate: "{{json}}",
   },

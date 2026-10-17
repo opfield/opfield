@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 async function fixture(patch: Record<string, unknown> = {}, entry = code) {
-  const root = await mkdtemp(join(tmpdir(), 'gateway-edition-'));
+  const root = await mkdtemp(join(tmpdir(), 'opfield-edition-'));
   dirs.push(root);
   const files = [
     { path: 'backend/index.cjs', sha256: sha256(Buffer.from(entry)), size: Buffer.byteLength(entry) },

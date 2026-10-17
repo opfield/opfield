@@ -10,7 +10,7 @@ import { ago, ahead, uuid } from "../time";
 export const PAGES_DOMAIN = "pages.example.com";
 
 const GATEWAY_ISOLATION = {
-  gatewayHost: "gateway.example.com",
+  gatewayHost: "opfield.example.com",
   gatewayRegistrableDomain: "example.com",
 };
 

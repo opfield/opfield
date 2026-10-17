@@ -19,7 +19,7 @@ const baseStatus = (): LicenseStatusView => ({
   licenseName: null,
   licenseMetadata: {},
   installationId: 'installation-id',
-  installationName: 'gateway.example.com',
+  installationName: 'opfield.example.com',
   expiresAt: null,
   entitlementsVersion: 5,
   entitlements: LICENSE_PLAN_ENTITLEMENTS.community,

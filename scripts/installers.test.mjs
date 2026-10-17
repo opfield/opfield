@@ -133,7 +133,7 @@ let sleeper;
 
 before(async () => {
   if (!linux) return;
-  work = await mkdtemp(path.join(tmpdir(), 'gateway-installers-'));
+  work = await mkdtemp(path.join(tmpdir(), 'opfield-installers-'));
   const bin = path.join(work, 'bin');
   const copies = path.join(work, 'scripts');
   await spawnAsync('mkdir', ['-p', bin, copies]);
@@ -282,7 +282,7 @@ test('the installers take their settings from the environment', { skip: !linux }
     [
       'setup-database-node.sh',
       ['-y', ...common],
-      { GATEWAY_DATABASE_STORAGE_ROOT: '/srv/gateway-test' },
+      { GATEWAY_DATABASE_STORAGE_ROOT: '/srv/opfield-test' },
       /storage: \/srv\/gateway-test/,
     ],
     ['setup-database-node.sh', ['-y', ...common, '--storage-root', '/srv/gw-flag'], {}, /storage: \/srv\/gw-flag/],
@@ -337,13 +337,13 @@ test('the installers take their settings from the environment', { skip: !linux }
     [
       'setup-relay-node.sh',
       relayArgs,
-      { GATEWAY_RELAY_RUN_USER: nonRootUser, GATEWAY_RELAY_RUN_GROUP: 'gateway-no-such-group' },
+      { GATEWAY_RELAY_RUN_USER: nonRootUser, GATEWAY_RELAY_RUN_GROUP: 'opfield-no-such-group' },
       /does not exist; Relay installation stopped/,
     ],
     [
       'setup-relay-node.sh',
       relayArgs,
-      { GATEWAY_RELAY_RUN_USER: 'gateway-no-such-user' },
+      { GATEWAY_RELAY_RUN_USER: 'opfield-no-such-user' },
       /does not exist; Relay installation stopped/,
     ],
   ];
@@ -547,7 +547,7 @@ test('managed nginx.conf names the pid file of the distribution service', { skip
   assert.doesNotMatch(source, /^pid \/run\/nginx\.pid;$/m, 'the pid file is not hardcoded');
   assert.match(source, /^pid __NGINX_PID_FILE__;$/m);
   assert.match(source, /s\|__NGINX_PID_FILE__\|\$\(nginx_service_pid_file\)\|g/);
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-nginx-pid-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-nginx-pid-'));
   try {
     const initScript = path.join(dir, 'nginx');
     const body = shellFunction(source, 'nginx_service_pid_file').replaceAll('/etc/init.d/nginx', initScript);
@@ -582,7 +582,7 @@ test('the nginx installer keeps Pages hostnames valid and restores its files whe
   assert.ok(template, 'the managed nginx.conf template is found');
   assert.match(template[1], /^ {4}server_names_hash_bucket_size 128;$/m);
   assert.match(source, /restore_nginx_config\n\s+die "nginx config test failed/);
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-nginx-rollback-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-nginx-rollback-'));
   try {
     const conf = path.join(dir, 'nginx.conf');
     const site = path.join(dir, 'default.conf');
@@ -827,7 +827,7 @@ test('the nginx.org repository step refreshes the package lists before it instal
 // as when /etc/conf.d/nginx sets command_user, which is how docs/nodes.md prepares a non-root nginx.
 test('the secured nginx OpenRC service gives the pid directory to the user nginx runs as', { skip: !linux }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-node.sh'), 'utf8');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-nginx-openrc-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-nginx-openrc-'));
   try {
     const service = path.join(dir, 'nginx');
     const stock = [
@@ -950,7 +950,7 @@ test('the secured nginx OpenRC service gives the pid directory to the user nginx
 
 // A daemon that moves to another user says so, in both directions.
 test('every installer announces the switch of the run user from root and to root', { skip: !linux }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-run-user-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-run-user-'));
   try {
     const configs = {
       'setup-monitoring-node.sh': '/etc/monitoring-daemon',
@@ -1034,7 +1034,7 @@ test('the Docker installer refuses a host whose containers cannot get the cgroup
   for (const later of ['install_daemon', 'enroll_daemon', 'start_daemon']) {
     assert.ok(check < firstRun(later), `before ${later}`);
   }
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-cgroup-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-cgroup-'));
   try {
     const body = shellFunction(source, 'preflight_docker_cgroup_controllers').replaceAll('/sys/fs/cgroup', dir);
     const write = (name, content) => runShell(`mkdir -p '${path.dirname(path.join(dir, name))}' && printf '%s\\n' '${content}' > '${path.join(dir, name)}'`);
@@ -1089,7 +1089,7 @@ test('the Docker installer refuses a host whose containers cannot get the cgroup
 // with a piped stdout, where the read fails with EIO) answers nothing, and a default must not stand in for the answer:
 // an unreadable terminal used to read as "yes" to "Proceed?" and to the nginx upgrade from nginx.org.
 test('a terminal that cannot be read is never answered with a default', { skip: !linux }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-tty-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-tty-'));
   try {
     const answers = path.join(dir, 'answers');
     const unreadable = { missing: path.join(dir, 'no-such-tty'), 'a read error': dir };
@@ -1183,7 +1183,7 @@ test('the nginx service repair of a non-root install is planned before the promp
   assert.match(source, /dry_run_preview\(\) \{[\s\S]*Would update the nginx OpenRC service's PID lines and start nginx \(dry run\)/);
   assert.deepEqual(definedBeforeUseErrors(source), []);
 
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-nginx-migrate-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-nginx-migrate-'));
   try {
     const service = path.join(dir, 'nginx');
     const confd = path.join(dir, 'conf-nginx');
@@ -1383,7 +1383,7 @@ test('an enrolled relay re-runs without a token and keeps its identity', { skip:
 // explicit --secure-runtime fails the install, with that reason. An install that is declined or stopped after the
 // summary never exits 0 ("Installation not completed" with exit 0 left a pending node and a green script).
 test('Docker install without Secure Runtime support continues with the reason, and no installer exits 0 when incomplete', { skip: !linux }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-secure-runtime-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-secure-runtime-'));
   try {
     const source = readFileSync(path.join(scriptsDir, 'setup-docker-node.sh'), 'utf8');
     assert.doesNotMatch(source, /Continue without Secure Runtimes\?/, 'the question is gone');
@@ -1457,7 +1457,7 @@ test('Docker install without Secure Runtime support continues with the reason, a
 // A launcher that stopped but whose parent never reaps it (PID 1 of a container) stays a zombie, which kill -0 counts as
 // running: a re-run in manual mode waited 30 s, gave up and left the host without a daemon.
 test('a zombie launcher counts as stopped in every installer that stops launchers', { skip: !linux }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-zombie-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-zombie-'));
   const holder = spawn('bash', ['-c', 'trap "" TERM; sleep 120'], { stdio: 'ignore' });
   try {
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -1511,7 +1511,7 @@ test('a zombie launcher counts as stopped in every installer that stops launcher
 // user owns until just before the new process starts; the store is kept through the stop, the ownership change and the
 // start, so connections made meanwhile wait in the sockets' backlog.
 test('a switch away from a non-root user stops the daemon last and keeps its link sockets', { skip: !linux }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-switch-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-switch-'));
   try {
     const nodes = {
       'setup-docker-node.sh': { unit: 'docker-daemon', own: 'DOCKER_DAEMON_OWN_DIR=/o; DOCKER_REGISTRY_PROXY_TRUST_DIR=/t' },
@@ -1605,7 +1605,7 @@ test('a switch away from a non-root user stops the daemon last and keeps its lin
 // Every upgrade by an installer backs the previous binary (and nginx configs) up; only the newest backup is kept, so
 // re-running an installer does not pile up copies of the daemon binary on the host.
 test('an installer keeps only the newest backup of a file it replaces', { skip: !linux }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-backups-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-backups-'));
   try {
     for (const name of ['setup-docker-node.sh', 'setup-monitoring-node.sh', 'setup-node.sh']) {
       const source = readFileSync(path.join(scriptsDir, name), 'utf8');
@@ -1696,7 +1696,7 @@ test('the Docker installer restarts an installed lease watchdog after the run-us
   const firstRun = (name) => Math.min(...topLevel.filter((entry) => entry.calls.includes(name)).map((entry) => entry.line));
   assert.ok(firstRun('finish_run_user_switch') < firstRun('start_lease_watchdog'));
   assert.ok(firstRun('start_lease_watchdog') < firstRun('start_daemon'));
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-watchdog-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-watchdog-'));
   try {
     const binary = path.join(dir, 'gateway-lease-watchdog');
     await writeFile(binary, '#!/bin/sh\n', { mode: 0o755 });
@@ -1729,7 +1729,7 @@ test('the Docker installer restarts an installed lease watchdog after the run-us
 // files to the new user, never a file linked in from elsewhere; the watchdog follows the daemon's release channel.
 test('a run-user switch hands the lease watchdog records to the new daemon user', { skip: !linux || userInfo().uid !== 0 }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-docker-node.sh'), 'utf8');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-records-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-records-'));
   try {
     const records = path.join(dir, 'records');
     const outside = path.join(dir, 'outside');
@@ -1765,7 +1765,7 @@ test('a run-user switch hands the lease watchdog records to the new daemon user'
 // a re-run with the token a completed enrollment used keeps the enrollment from the start.
 test('the nginx installer keeps or restores the enrollment when its token was used', { skip: !linux }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-node.sh'), 'utf8');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-enrollment-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-enrollment-'));
   try {
     const etc = path.join(dir, 'etc');
     const lib = path.join(dir, 'lib');
@@ -1824,7 +1824,7 @@ test('the nginx installer names the apt failure', { skip: !linux }, () => {
   const result = runShell(
     [
       'set -euo pipefail',
-      'LOG_FILE=/tmp/gateway-node-test.log; APT_LOCK_RETRY_ATTEMPTS=2; APT_LOCK_RETRY_DELAY_SECONDS=0',
+      'LOG_FILE=/tmp/opfield-node-test.log; APT_LOCK_RETRY_ATTEMPTS=2; APT_LOCK_RETRY_DELAY_SECONDS=0',
       'warn() { echo "WARN $*"; }; die() { echo "ERROR $*"; exit 1; }',
       'apt-get() { echo "E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 906 (python3)"; return 100; }',
       shellFunction(source, 'apt_failed'),
@@ -1843,7 +1843,7 @@ test('the nginx installer names the apt failure', { skip: !linux }, () => {
 // daemon's user then truncated every response larger than its buffers. The installer gives them back to that user.
 test('the nginx installer gives the nginx temp directories to a non-root run user', { skip: !linux }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-node.sh'), 'utf8');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-nginx-temp-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-nginx-temp-'));
   try {
     const build = `nginx version: nginx/1.22.1\\nconfigure arguments: --prefix=${dir}/share --http-client-body-temp-path=${dir}/body --http-proxy-temp-path=${dir}/proxy --http-fastcgi-temp-path=fastcgi`;
     const paths = runShell([`nginx() { printf '%b\\n' '${build}' >&2; }`, shellFunction(source, 'nginx_temp_paths'), 'nginx_temp_paths'].join('\n'));
@@ -1870,7 +1870,7 @@ test('the nginx installer gives the nginx temp directories to a non-root run use
 // checksum. F-B4: the latest release resolves without jq, which a dry run cannot install.
 test('the relay installer downloads its binaries from the mirror and checks them against the signed manifest', { skip: !linux || spawnSync('sh', ['-c', 'command -v jq']).status !== 0 }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-relay-node.sh'), 'utf8');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-relay-mirror-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-relay-mirror-'));
   try {
     const name = 'relay-supervisor-linux-amd64';
     const tag = 'v2.11.1-relay';
@@ -1958,7 +1958,7 @@ test('the relay installer downloads its binaries from the mirror and checks them
 // the terminal shows and the detail it does not.
 test('the relay installer keeps a setup log with the terminal output and the detail', { skip: !linux }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-relay-node.sh'), 'utf8');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-relay-log-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-relay-log-'));
   try {
     const log = path.join(dir, 'relay-setup.log');
     const result = runShell(
@@ -1995,7 +1995,7 @@ test('the relay installer keeps a setup log with the terminal output and the det
 // empty /var/lib/docker-daemon). It removes every directory it created, and none it found.
 test('a refused storage preflight removes exactly the directories it created', { skip: !linux }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-docker-node.sh'), 'utf8');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-storage-preflight-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-storage-preflight-'));
   try {
     const result = runShell(
       [
@@ -2035,7 +2035,7 @@ test('a refused storage preflight removes exactly the directories it created', {
 // docker.mode and docker.database.storage_root, the keys the daemon reads, at any indentation and once.
 test('the storage profile is written once to the keys the docker-daemon reads', { skip: !linux }, async () => {
   const source = readFileSync(path.join(scriptsDir, 'setup-docker-node.sh'), 'utf8');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-storage-config-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-storage-config-'));
   const config = path.join(dir, 'config.yaml');
   const write = async (content, root = '/srv/disk2/gateway-databases') => {
     await writeFile(config, content);
@@ -2168,7 +2168,7 @@ test('a fresh monitoring install records its token, so a new token is refused af
     assert.ok(line('await_opfield_connection') > line('start_daemon'), script);
   }
   const host = path.join(work, 'host');
-  const dir = await mkdtemp(path.join(tmpdir(), 'gateway-monitoring-fresh-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'opfield-monitoring-fresh-'));
   const etc = path.join(host, 'etc/monitoring-daemon');
   const lib = path.join(host, 'var/lib/monitoring-daemon');
   const arch = spawnSync('uname', ['-m'], { encoding: 'utf8' }).stdout.trim() === 'aarch64' ? 'arm64' : 'amd64';
@@ -2186,7 +2186,7 @@ test('a fresh monitoring install records its token, so a new token is refused af
       `    printf '{"pid":%s,"ready":true}' $$ > '${lib}/launcher/child.json'`,
       `    mkdir -p '${etc}/certs' && echo PEM > '${etc}/certs/node.pem' && echo '{"node_id":"fresh-node"}' > '${lib}/state.json'`,
       `    printf '{"pid":%s,"connected_at":%s}' $$ "$(date +%s)" > '${lib}/gateway-session.json'`,
-      '    exec -a gateway-test-monitoring-stub sleep 60 ;;',
+      '    exec -a opfield-test-monitoring-stub sleep 60 ;;',
       'esac',
     ].join('\n');
     await writeFile(path.join(dir, binaryName), `${daemon}\n`);
@@ -2234,7 +2234,7 @@ test('a fresh monitoring install records its token, so a new token is refused af
     assert.equal(same.status, 0, same.output);
     assert.match(same.output, /already enrolled with this setup command's token; keeping its enrollment/);
   } finally {
-    runShell(`pkill -f 'gateway-test-monitoring-stu[b]' || true; rm -rf '${etc}' '${lib}' '${path.join(host, 'usr/local/bin/monitoring-daemon')}'*`);
+    runShell(`pkill -f 'opfield-test-monitoring-stu[b]' || true; rm -rf '${etc}' '${lib}' '${path.join(host, 'usr/local/bin/monitoring-daemon')}'*`);
     await rm(dir, { recursive: true, force: true });
   }
 });

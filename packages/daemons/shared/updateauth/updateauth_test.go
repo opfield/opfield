@@ -9,7 +9,7 @@ import (
 )
 
 const testChecksum = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-const testURL = "https://gitlab.wiolett.net/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64"
+const testURL = "https://gitlab.example.com/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64"
 const testManifest = `{
   "schemaVersion": 1,
   "keyId": "wiolett-update-v1",

@@ -43,9 +43,9 @@ export const oauthConsent: OAuthConsentPreview = {
   unavailableScopes: [],
   manualApprovalScopes: ["proxy:edit"],
   redirect: { uri: "https://ci.example.com/oauth/callback", isExternal: true },
-  resource: "https://gateway.example.com/api",
+  resource: "https://opfield.example.com/api",
   resourceInfo: {
-    resource: "https://gateway.example.com/api",
+    resource: "https://opfield.example.com/api",
     name: "Opfield API",
     description: "REST API access for CLI and external applications.",
   },

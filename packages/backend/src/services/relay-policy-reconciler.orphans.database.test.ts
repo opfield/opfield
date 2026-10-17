@@ -102,7 +102,7 @@ describe.skipIf(!url)('relay state whose owner is gone', () => {
       .returning();
     const copySourceRoute = await route('storage_backup_staging', copyJob!.id, 'copy-runner', liveEndpoint.id);
     const copyTargetRoute = await route('storage_backup_target', copyJob!.id, 'copy-runner', liveEndpoint.id);
-    const fixedOwnerRoute = await route('registry_ingress', 'gateway-registry-ingress', 'nginx-live', liveEndpoint.id);
+    const fixedOwnerRoute = await route('registry_ingress', 'opfield-registry-ingress', 'nginx-live', liveEndpoint.id);
 
     const deletedRoute = randomUUID();
     const orphanEndpoint = await endpoint('proxy_host_secure_link', deletedRoute, 'docker-orphan');

@@ -176,12 +176,12 @@ describe('managed database listener equality', () => {
   it('treats JSONB key and source ordering as semantically unchanged', () => {
     const persisted = {
       listenPort: 8123,
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       allowedSources: ['container:worker', 'container:api'],
     };
     const desired = {
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       listenPort: 8123,
       allowedSources: ['container:api', 'container:worker'],
@@ -192,7 +192,7 @@ describe('managed database listener equality', () => {
 
   it('detects a listener routing change', () => {
     const current = {
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       listenPort: 5432,
       allowedSources: ['container:api'],
@@ -738,7 +738,7 @@ describe('RelayPolicyService route runtime', () => {
     vi.spyOn(service, 'syncSnapshot').mockResolvedValue(9);
     vi.spyOn(service as any, 'syncNodeGrants').mockResolvedValue(undefined);
     const listener = {
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       listenPort: 5432,
       allowedSources: ['container:api'],
@@ -770,7 +770,7 @@ describe('RelayPolicyService route runtime', () => {
 
   describe('adopting a binding route for a new owner', () => {
     const listener = {
-      networkName: 'gateway-db-binding',
+      networkName: 'opfield-db-binding',
       listenAddress: '172.28.0.1',
       listenPort: 5432,
       allowedSources: ['deployment:api'],
@@ -1272,7 +1272,7 @@ describe('RelayPolicyService snapshots', () => {
 
   it('reads the complete snapshot in one read-only repeatable-read transaction', async () => {
     const rows = new Map<unknown, unknown[]>([
-      [relayPolicyState, [{ revision: 7, gatewayInstanceId: 'gateway-1' }]],
+      [relayPolicyState, [{ revision: 7, gatewayInstanceId: 'opfield-1' }]],
       [relayGrantSigningKeys, [{ keyId: 'key-1', publicKey: Buffer.alloc(32, 1).toString('base64') }]],
       [
         relayEndpoints,
@@ -1345,7 +1345,7 @@ describe('RelayPolicyService snapshots', () => {
     expect(applySnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         revision: '7',
-        gatewayInstanceId: 'gateway-1',
+        gatewayInstanceId: 'opfield-1',
         admissionPolicy: {
           enabled: true,
           proxyTargetPressurePercent: 70,

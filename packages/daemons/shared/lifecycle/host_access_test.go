@@ -16,7 +16,7 @@ import (
 func loadHostAccessTestConfig(t *testing.T, extra string) *BaseConfig {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	content := "gateway:\n  address: \"gateway.example.com:9443\"\n" + extra
+	content := "gateway:\n  address: \"opfield.example.com:9443\"\n" + extra
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}

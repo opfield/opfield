@@ -538,12 +538,12 @@ export const inferenceLimits: InferenceLimitPolicy[] = [
 ];
 
 const ACTIVITY: Array<[number, number, string, string, number, number, number]> = [
-  [0, 2, "gateway-large", "completed", 0.42, 18_400, 1_220],
-  [1, 6, "gateway-large", "completed", 0.31, 12_900, 840],
-  [3, 11, "gateway-small", "completed", 0.04, 3_100, 410],
-  [0, 18, "gateway-large", "failed", 0, 22_000, 0],
-  [1, 27, "gateway-large", "completed", 0.56, 24_800, 1_690],
-  [2, 41, "gateway-small", "completed", 0.03, 2_400, 300],
+  [0, 2, "opfield-large", "completed", 0.42, 18_400, 1_220],
+  [1, 6, "opfield-large", "completed", 0.31, 12_900, 840],
+  [3, 11, "opfield-small", "completed", 0.04, 3_100, 410],
+  [0, 18, "opfield-large", "failed", 0, 22_000, 0],
+  [1, 27, "opfield-large", "completed", 0.56, 24_800, 1_690],
+  [2, 41, "opfield-small", "completed", 0.03, 2_400, 300],
 ];
 
 export const inferenceActivity: InferenceActivity[] = ACTIVITY.map(
@@ -558,7 +558,7 @@ export const inferenceActivity: InferenceActivity[] = ACTIVITY.map(
       protocol: "openai",
       operation: "chat.completions",
       publicModelId: model,
-      reasoningEffort: model === "gateway-large" ? "medium" : null,
+      reasoningEffort: model === "opfield-large" ? "medium" : null,
       providerConnectionName: "Primary provider",
       providerAccountLabel: "northwind-prod",
       budgetType: "subscription",
@@ -609,12 +609,12 @@ export const aiConfig = {
   endpointMode: "chat_completions",
   supportsImages: true,
   model: "",
-  opfieldInferenceModel: "gateway-large",
+  opfieldInferenceModel: "opfield-large",
   opfieldInferenceAllowUserModelSelection: true,
   allowUserReasoningEffortSelection: true,
   opfieldInferenceModels: [
     {
-      id: "gateway-large",
+      id: "opfield-large",
       displayName: "Opfield Large",
       supportsImages: true,
       maxContextTokens: 200_000,
@@ -623,7 +623,7 @@ export const aiConfig = {
       defaultReasoningEffort: "medium",
     },
     {
-      id: "gateway-small",
+      id: "opfield-small",
       displayName: "Opfield Small",
       supportsImages: false,
       maxContextTokens: 64_000,
@@ -796,7 +796,7 @@ function modelSource(
 export const inferenceModels: InferenceModel[] = [
   {
     id: uuid(65250),
-    publicId: "gateway-large",
+    publicId: "opfield-large",
     displayName: "Opfield Large",
     sortOrder: 0,
     enabled: true,
@@ -819,7 +819,7 @@ export const inferenceModels: InferenceModel[] = [
   },
   {
     id: uuid(65251),
-    publicId: "gateway-small",
+    publicId: "opfield-small",
     displayName: "Opfield Small",
     sortOrder: 1,
     enabled: true,

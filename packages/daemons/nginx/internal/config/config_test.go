@@ -8,7 +8,7 @@ import (
 
 func TestLoadReadsHostAccessSwitches(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	content := "gateway:\n  address: \"gateway.example.com:9443\"\nconsole:\n  enabled: false\n  user: \"ops\"\nfiles:\n  enabled: false\n"
+	content := "gateway:\n  address: \"opfield.example.com:9443\"\nconsole:\n  enabled: false\n  user: \"ops\"\nfiles:\n  enabled: false\n"
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestLoadReadsHostAccessSwitches(t *testing.T) {
 
 func TestLoadKeepsHostAccessEnabledByDefault(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte("gateway:\n  address: \"gateway.example.com:9443\"\n"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("gateway:\n  address: \"opfield.example.com:9443\"\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)

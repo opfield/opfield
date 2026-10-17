@@ -127,7 +127,7 @@ describe('Maintenance mode on a node that keeps maintenance flags', () => {
     const config = enter.applyConfig.mock.calls[0]![2] as string;
     expect(config).toContain(`if (-f /etc/nginx/gateway/maintenance/${HOST_ID})`);
     expect(config).toContain('set $gateway_maintenance 1;');
-    expect(config).toContain('location = gateway-maintenance-access {');
+    expect(config).toContain('location = opfield-maintenance-access {');
     expect(config).not.toMatch(/\$opfield_|opfield-maintenance|\/etc\/nginx\/opfield|X-Opfield-/);
   });
 

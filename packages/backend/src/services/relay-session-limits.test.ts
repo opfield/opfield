@@ -13,7 +13,7 @@ import {
 } from './relay-session-limits.js';
 
 const listener = {
-  networkName: 'gateway-db-binding',
+  networkName: 'opfield-db-binding',
   listenAddress: '172.28.0.1',
   listenPort: 5432,
   allowedSources: ['deployment:mailroom'],
@@ -139,7 +139,7 @@ describe('relay session limits', () => {
 
   it('carries the limits in the relay snapshot without moving the route generation', () => {
     const content = relayPolicySnapshotContent({
-      gatewayInstanceId: 'gateway-1',
+      gatewayInstanceId: 'opfield-1',
       poolId: 'system',
       relayInstanceId: 'relay-1',
       grantKeys: [],
@@ -197,7 +197,7 @@ describe('relay session limits', () => {
       {} as never
     ) as any;
     service.requireNodeIdentity = vi.fn().mockResolvedValue({ certificateFingerprint: 'sha256:workload' });
-    service.requireState = vi.fn().mockResolvedValue({ revision: 30, gatewayInstanceId: 'gateway-1' });
+    service.requireState = vi.fn().mockResolvedValue({ revision: 30, gatewayInstanceId: 'opfield-1' });
     service.getPoolProjection = vi.fn().mockResolvedValue(
       new Map([
         ['endpoint-database', [poolRelay('endpoint-database')]],
@@ -262,7 +262,7 @@ describe('relay session limits', () => {
         trafficClass: ownerKind === 'container_link' && target?.registryFairShare ? 'registry' : 'database',
       }));
       const content = relayPolicySnapshotContent({
-        gatewayInstanceId: 'gateway-1',
+        gatewayInstanceId: 'opfield-1',
         poolId: 'system',
         relayInstanceId: 'relay-1',
         grantKeys: [],
@@ -308,7 +308,7 @@ describe('relay session limits', () => {
       {} as never
     ) as any;
     service.requireNodeIdentity = vi.fn().mockResolvedValue({ certificateFingerprint: 'sha256:workload' });
-    service.requireState = vi.fn().mockResolvedValue({ revision: 30, gatewayInstanceId: 'gateway-1' });
+    service.requireState = vi.fn().mockResolvedValue({ revision: 30, gatewayInstanceId: 'opfield-1' });
     service.getPoolProjection = vi.fn().mockResolvedValue(
       new Map([
         [

@@ -46,7 +46,7 @@ import (
 )
 
 const (
-	rhGatewayID   = "gateway-harness"
+	rhGatewayID   = "opfield-harness"
 	rhGrantKeyID  = "harness-key"
 	rhSourceNode  = "node-source"
 	rhTargetNode  = "node-target"

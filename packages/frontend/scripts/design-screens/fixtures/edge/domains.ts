@@ -79,7 +79,7 @@ function domain(seed: DomainSeed): Domain {
 export const domains: Domain[] = [
   domain({
     seed: 1,
-    domain: "gateway.example.com",
+    domain: "opfield.example.com",
     description: "Console and node enrollment endpoint",
     dnsStatus: "valid",
     node: edgeFra,
