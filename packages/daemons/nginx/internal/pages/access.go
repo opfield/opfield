@@ -119,7 +119,8 @@ func (r *Runtime) previewAccessDirectives(access *PreviewAccess) []string {
 	for _, rule := range access.IPRules {
 		lines = append(lines, "    "+rule.Type+" "+rule.Value+";")
 	}
-	if len(access.IPRules) > 0 {
+	// A list that ends in its own "deny all" needs no second one.
+	if len(access.IPRules) > 0 && lines[len(lines)-1] != "    deny all;" {
 		lines = append(lines, "    deny all;")
 	}
 	if access.BasicAuth {

@@ -93,6 +93,9 @@ type DistributionStatus = {
 };
 
 type ReplicaRow = typeof nginxCertificateReplicas.$inferSelect;
+
+/** How many generations below a replica's tombstone a removal tries when the node's generation is not recorded. */
+const REPLICA_REMOVAL_GENERATION_WINDOW = 8;
 type ReplicaChanges = Partial<typeof nginxCertificateReplicas.$inferInsert> & {
   incrementGeneration?: boolean;
   incrementRepairAttempts?: boolean;
@@ -394,6 +397,7 @@ export class NginxCertificateDistributionService {
         desiredVersion: prepared.version,
         appliedVersion: prepared.version,
         observedFingerprint: prepared.fingerprint,
+        deployedGeneration: replicaGeneration,
         cleanupAfter: null,
         lastError: null,
         lastVerifiedAt: new Date(),
@@ -516,6 +520,7 @@ export class NginxCertificateDistributionService {
         desiredVersion: prepared.version,
         appliedVersion: prepared.version,
         observedFingerprint: prepared.fingerprint,
+        deployedGeneration: replicaGeneration,
         cleanupAfter: null,
         lastError: null,
         lastVerifiedAt: new Date(),
@@ -910,13 +915,18 @@ export class NginxCertificateDistributionService {
     }
   }
 
-  async cleanupDueReplicas(): Promise<void> {
-    // A removal that failed (the node was offline) stays due: its row keeps cleanupAfter and turns `failed`, and the
-    // certificate and its key stay on the node until a later pass removes them.
+  /**
+   * Removes the certificate and key of replicas whose grace period ended (the certificate is deleted, or no route on
+   * the node uses it any more). Runs every hour, shortly after Opfield starts and when a node reconnects (nodeId).
+   * A removal that fails (the node is offline) stays due: its row keeps cleanupAfter and turns `failed`, and the
+   * certificate and its key stay on the node until a later pass removes them.
+   */
+  async cleanupDueReplicas(nodeId?: string): Promise<void> {
     const due = await this.db.query.nginxCertificateReplicas.findMany({
       where: and(
         inArray(nginxCertificateReplicas.status, ['cleanup_pending', 'failed']),
-        lte(nginxCertificateReplicas.cleanupAfter, new Date())
+        lte(nginxCertificateReplicas.cleanupAfter, new Date()),
+        nodeId ? eq(nginxCertificateReplicas.nodeId, nodeId) : undefined
       ),
     });
     for (const replica of due) {
@@ -940,13 +950,7 @@ export class NginxCertificateDistributionService {
       });
       if (!asset) continue;
       try {
-        const result = await this.nodeDispatch.removeCertificateReplica(
-          replica.nodeId,
-          daemonCertId({ type: asset.referenceType, id: asset.referenceId }),
-          replica.appliedVersion ?? '',
-          String(replica.generation)
-        );
-        if (!result.success) throw new Error(result.error || 'Certificate replica removal failed');
+        await this.removeReplicaFromNode(replica, daemonCertId({ type: asset.referenceType, id: asset.referenceId }));
         const removed = await this.db
           .delete(nginxCertificateReplicas)
           .where(
@@ -976,6 +980,46 @@ export class NginxCertificateDistributionService {
           );
       }
     }
+  }
+
+  /**
+   * Removes one replica's files from its node. The node refuses unless the replica generation and version sent are the
+   * ones it holds, so a deployment that started after the tombstone (a higher generation) is never removed. The row's
+   * generation is the tombstone's, one or more above what the node was given, so the removal names the generation the
+   * node acknowledged (deployedGeneration). Rows written before Opfield recorded it, and deploys whose answer was lost,
+   * try the generations below the tombstone, newest first: each try is still checked by the node. A certificate the
+   * node no longer has needs no removal.
+   */
+  private async removeReplicaFromNode(replica: ReplicaRow, certId: string): Promise<void> {
+    const inventory = await this.nodeDispatch.inspectCertificates(replica.nodeId, [certId]);
+    if (!inventory.success) throw new Error(inventory.error || 'Certificate inventory failed');
+    const observed = this.parseInventory(inventory.data).get(certId);
+    if (!observed) throw new Error('Certificate inventory did not list the certificate');
+    if (!observed.present) return;
+    const version = observed.version || replica.appliedVersion || '';
+    const candidates = new Set<number>();
+    if (replica.deployedGeneration && replica.deployedGeneration > 0) candidates.add(replica.deployedGeneration);
+    for (
+      let generation = replica.generation;
+      generation > 0 && generation > replica.generation - REPLICA_REMOVAL_GENERATION_WINDOW;
+      generation--
+    ) {
+      candidates.add(generation);
+    }
+    let lastError = 'Certificate replica removal failed';
+    for (const generation of candidates) {
+      const result = await this.nodeDispatch.removeCertificateReplica(
+        replica.nodeId,
+        certId,
+        version,
+        String(generation)
+      );
+      if (result.success) return;
+      lastError = result.error || lastError;
+    }
+    throw new Error(
+      `${lastError}: the node holds another version or generation of this certificate than any Opfield deployed (generations ${[...candidates].join(', ')} tried)`
+    );
   }
 
   /**
@@ -1095,6 +1139,7 @@ export class NginxCertificateDistributionService {
         desiredVersion: material.version,
         appliedVersion: material.version,
         observedFingerprint: material.fingerprint,
+        deployedGeneration: replica.generation,
         lastVerifiedAt: new Date(),
         lastError: null,
       });

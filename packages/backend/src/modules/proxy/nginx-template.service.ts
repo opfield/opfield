@@ -28,7 +28,11 @@ import {
   supportsAdditionalRoutesTemplate,
 } from './additional-route-template.js';
 import { managedSecureLinkUpstreamBody, withAvailabilityNextUpstream } from './nginx-availability-upstream.js';
-import { renderMaintenanceFlagGuard } from './nginx-maintenance-flag-guard.js';
+import {
+  MAINTENANCE_ABSENT_FILE,
+  MAINTENANCE_STATE_HOP,
+  renderMaintenanceFlagGuard,
+} from './nginx-maintenance-flag-guard.js';
 import { toLegacyNginxNames } from './nginx-node-names.js';
 import type { CreateNginxTemplateInput, UpdateNginxTemplateInput } from './nginx-template.schemas.js';
 import { withoutReservedTemplateVariables } from './proxy-template-variables.js';
@@ -413,7 +417,8 @@ function buildAccessListDirectives(accessList: ProxyHostConfig['accessList']): s
   const directives = accessList.ipRules.map(
     (rule) => `${rule.type.replace(DANGEROUS_CHARS, '')} ${rule.value.replace(DANGEROUS_CHARS, '')};`
   );
-  if (accessList.ipRules.length > 0) directives.push('deny all;');
+  // A list that ends in its own "deny all" needs no second one.
+  if (accessList.ipRules.length > 0 && directives.at(-1) !== 'deny all;') directives.push('deny all;');
   if (accessList.basicAuthEnabled) {
     directives.push('auth_basic "Restricted Access";');
     directives.push(`auth_basic_user_file ${accessListPasswordFile(accessList.id)};`);
@@ -819,6 +824,7 @@ function maintenanceMaps(hostId: string) {
     default 1;
     ~^/\\.well-known/acme-challenge/ 0;
     ~^/\\.well-known/(?:opfield|gateway)-ingress-health: 0;
+    ~^/\\.well-known/opfield-error: 0;
     ~^/_opfield/maintenance-access: 0;
     ~^/_opfield/maintenance-access/status: 0;
     ~:1$ 0;
@@ -856,11 +862,16 @@ function maintenanceAccessLocation(hostId: string, acl: string) {
     }
 
     location = /_opfield/maintenance-access/status {${acl}
+        error_page ${MAINTENANCE_STATE_HOP} = @opfield-maintenance-state;
+        try_files ${MAINTENANCE_ABSENT_FILE} =${MAINTENANCE_STATE_HOP};
+    }
+
+    location @opfield-maintenance-state {
         default_type application/json;
         add_header Cache-Control "no-store" always;
         add_header X-Content-Type-Options "nosniff" always;
         if ($request_method != GET) {
-            return 405;
+            return 405 '{"error":"Only GET is allowed"}';
         }
         return 200 '{"active":$gm_active_${suffix}}';
     }
@@ -870,7 +881,8 @@ function maintenanceAccessLocation(hostId: string, acl: string) {
 /**
  * The internal location that answers with the maintenance page. Its name is not a URI, so no request reaches it except
  * through the guard's rewrite. The page keeps the server-level add_header of the route and of the guard; default_type
- * is set here because a route may set its own on the server, where a second one fails nginx -t.
+ * is set here because a route may set its own on the server, where a second one fails nginx -t. It answers after the
+ * access phase (MAINTENANCE_ABSENT_FILE), so the access list's deny wins over the page.
  */
 const MAINTENANCE_PAGE_LOCATION = 'opfield-maintenance';
 
@@ -878,6 +890,11 @@ function maintenancePageLocation(hideExternalBranding: boolean, teamAccess: bool
   return `
     location = ${MAINTENANCE_PAGE_LOCATION} {
         internal;${acl}
+        error_page 503 @opfield-maintenance-page;
+        try_files ${MAINTENANCE_ABSENT_FILE} =503;
+    }
+
+    location @opfield-maintenance-page {
         default_type text/html;
         return 503 ${escapeNginxReturnText(opfieldMaintenanceHtml(hideExternalBranding, teamAccess))};
     }
@@ -904,7 +921,7 @@ function plainMaintenanceServerGuard(hideExternalBranding: boolean, acl: string)
     # Opfield maintenance mode. Server-rewrite directives run before location
     # selection, so upstream/access/cache/rewrite behavior is never reached.
     add_header Cache-Control "no-store" always;
-    if ($uri !~ ^/\\.well-known/(acme-challenge/|(?:opfield|gateway)-ingress-health$)) {
+    if ($uri !~ ^/\\.well-known/(acme-challenge/|(?:opfield|gateway)-ingress-health$|opfield-error$)) {
         rewrite ^ ${MAINTENANCE_PAGE_LOCATION} last;
     }
 ${maintenancePageLocation(hideExternalBranding, false, acl)}`;
@@ -928,7 +945,9 @@ function maintenanceAccessFits(renderedConfig: string): boolean {
 /** A location named like the guard's page location would be a duplicate location in nginx -t. */
 function declaresMaintenancePageLocation(renderedConfig: string): boolean {
   // legacy-name: gateway-maintenance of configs written before 2.12.1 — remove once every node reports none
-  return /\blocation\s*=\s*(?:opfield|gateway)-maintenance[\s{]/.test(renderedConfig);
+  return /\blocation\s*(?:=\s*(?:opfield|gateway)-maintenance|@(?:opfield|gateway)-maintenance-(?:page|state))[\s{]/.test(
+    renderedConfig
+  );
 }
 
 const BUILTIN_TEMPLATES = [

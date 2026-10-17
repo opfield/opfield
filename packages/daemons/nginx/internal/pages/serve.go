@@ -8,25 +8,15 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/opfield/opfield/nginx-daemon/internal/errorpages"
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
-// The console palette (packages/backend/src/lib/brand-palette.ts): paper in light, graphite in dark.
-const (
-	paperPage     = "#f3f2ef"
-	paperInk      = "#141414"
-	paperStone    = "#64635f"
-	graphitePage  = "#141414"
-	graphiteInk   = "#f3f2ef"
-	graphiteStone = "#8f8e89"
-)
-
-const pageColorVariables = ":root{--page:" + paperPage + ";--ink:" + paperInk + ";--stone:" + paperStone + "}@media(prefers-color-scheme:dark){:root{--page:" + graphitePage + ";--ink:" + graphiteInk + ";--stone:" + graphiteStone + "}}"
+// notFoundHTML is the generic Opfield 404 a preview answers a missing page with when the deployment has no 404.html.
+var notFoundHTML = errorpages.NotFoundHTML
 
 // previewAssetPattern names the static assets a preview caches for a year.
 const previewAssetPattern = `\.(?:css|js|mjs|json|png|jpe?g|gif|svg|ico|webp|avif|woff2?)$`
-
-const notFoundHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>Page not found</title><style>` + pageColorVariables + `*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--page);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:100%;max-width:560px;text-align:center}.status{color:var(--stone);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}h1{margin:16px 0 0;font-size:clamp(40px,8vw,64px);line-height:1.05;font-weight:700;letter-spacing:-.04em}p.message{margin:20px auto 0;max-width:440px;color:var(--stone);font-size:15px;line-height:1.6}.footer{margin-top:48px;color:var(--stone);font-size:12px}.footer a{color:var(--ink);text-decoration:none}.footer a:hover{text-decoration:underline}</style></head><body><main><section><div class="status">Error 404</div><h1>Page not found</h1><p class="message">The requested host or page is not available.</p></section><div class="footer">Powered by <a href="https://opfield.dev" rel="noopener noreferrer">Opfield</a></div></main></body></html>`
 
 // PreviewFallback carries the per-preview serving options: missing-path
 // handling and the optional Project access list.
@@ -153,6 +143,8 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 		// No "=": the project's own 404.html is served with the original 404 status.
 		lines = append(lines, "    error_page 404 @opfield_pages_404;")
 	}
+	// Every other page nginx answers with itself (a denied client, a refused method) is an Opfield page too.
+	lines = append(lines, r.errorPageDirectives(404)...)
 	// The runtime configuration answers under the Opfield path, which pages load, and under the pre-Opfield one, which
 	// pages written before 2.12.1 may name themselves.
 	for _, scriptPath := range []string{naming.PagesConfigScriptPath, naming.LegacyPagesConfigScriptPath} {
@@ -179,4 +171,13 @@ func (r *Runtime) previewConfig(hostname, deploymentID, certificateID, certifica
 	}
 	lines = append(lines, "    location ~* "+previewAssetPattern+" {", "        limit_except GET HEAD { deny all; }", "        expires 1y;", "        add_header Cache-Control \"public, max-age=31536000, immutable\" always;", "    }", "}")
 	return strings.Join(lines, "\n") + "\n"
+}
+
+// errorPageDirectives are the server-level lines that hand nginx's own error responses to the Opfield pages, without
+// the codes the server answers itself; none when the node does not keep the page variables (SetErrorPages).
+func (r *Runtime) errorPageDirectives(except ...int) []string {
+	if !r.errorPages {
+		return nil
+	}
+	return errorpages.ServerDirectives(except...)
 }

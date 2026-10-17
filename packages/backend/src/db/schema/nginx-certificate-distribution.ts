@@ -79,6 +79,9 @@ export const nginxCertificateReplicas = pgTable(
     observedFingerprint: varchar('observed_fingerprint', { length: 128 }),
     status: nginxCertificateReplicaStatusEnum('status').notNull().default('pending'),
     generation: integer('generation').notNull().default(0),
+    // The generation the node acknowledged with its last deploy of this replica. A tombstone raises `generation`
+    // above it; the removal names this one, the one the node holds.
+    deployedGeneration: integer('deployed_generation'),
     lastError: text('last_error'),
     // Consecutive automatic repair failures; drives retry backoff and resets
     // once the replica is ready again.

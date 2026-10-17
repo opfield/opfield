@@ -168,10 +168,35 @@ async function appendSpooledFile(file: string, uploadId: string, offset: number,
   }
 }
 
-/** Publishes a stored Deployment and returns it with its preview links, as upload finalize does. */
+/**
+ * What finalize says when the Deployment is stored but its publication failed for now (the node is offline or out of
+ * Pages storage): Page maintenance retries it until it goes live, so the upload succeeded and must not be repeated.
+ * Kept in step with the finalize route of the Pages deploy API.
+ */
+export function deferredPublication(error: unknown) {
+  const code = error instanceof AppError ? error.code : 'PAGES_PUBLICATION_FAILED';
+  const reason = error instanceof Error ? error.message : 'publication failed';
+  return {
+    status: 'retrying' as const,
+    code,
+    message: `The Deployment is stored but not published yet (${code}: ${reason}). Opfield retries the publication every 15 minutes for up to 48 hours after the upload, so it goes live by itself once that is resolved; do not upload it again.`,
+  };
+}
+
+/**
+ * Publishes a stored Deployment and returns it with its preview links, as upload finalize does. A publication that
+ * failed but stays queued for retry (the Deployment is back in `stored` with a failure code) is reported in
+ * `publication` instead of failing the upload.
+ */
 export async function publishStoredDeployment(deploymentId: string) {
   const deployments = container.resolve(PageDeploymentService);
-  await container.resolve(PagePublicationService).markDeploymentReady(deploymentId);
+  try {
+    await container.resolve(PagePublicationService).markDeploymentReady(deploymentId);
+  } catch (error) {
+    const deployment = await deployments.get(deploymentId).catch(() => null);
+    if (deployment?.status !== 'stored' || !deployment.failureCode) throw error;
+    return { deployment, links: null, publication: deferredPublication(error) };
+  }
   const links = await deployments.publicationLinks(deploymentId, { waitMs: PAGE_LINK_WAIT_MS });
   return { deployment: await deployments.get(deploymentId), links };
 }

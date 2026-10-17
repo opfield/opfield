@@ -105,6 +105,8 @@ type NginxPlugin struct {
 	maintenanceAccessSupported bool
 	// maintenanceFlagsSupported: routes enter and leave maintenance through their flag files (maintenance_flags.go).
 	maintenanceFlagsSupported bool
+	// errorPagesSupported: the node keeps the Opfield error page variables (error_pages.go).
+	errorPagesSupported bool
 	// nginx.conf defines the access log format before the includes route configs come in by.
 	accessLogFormatReady bool
 
@@ -346,6 +348,16 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 	// The shared maps of the flag-checked maintenance guard; without them Opfield keeps rendering the guard only
 	// during maintenance.
 	if p.maintenanceFlagsSupported && p.ensureMaintenanceGuardMaps(logger) {
+		configDirModified = true
+	}
+	// The Opfield pages nginx answers its own errors with; without them Opfield renders routes without error_page.
+	if p.ensureErrorPages(logger) {
+		configDirModified = true
+	}
+	if p.pagesRuntime != nil {
+		p.pagesRuntime.SetErrorPages(p.errorPagesSupported)
+	}
+	if p.errorPagesSupported && p.ensureDefaultHTTPServerErrorPages(logger) {
 		configDirModified = true
 	}
 
@@ -611,6 +623,9 @@ func (p *NginxPlugin) capabilities() []string {
 	}
 	if p.maintenanceFlagsSupported {
 		capabilities = append(capabilities, maintenanceFlagCapability)
+	}
+	if p.errorPagesSupported {
+		capabilities = append(capabilities, nginx.ErrorPagesCapability)
 	}
 	if p.pagesV1Available && p.pagesRuntime != nil {
 		capabilities = append(capabilities, "nginx_pages_v1", "nginx_pages_route_probe_v1", "nginx_pages_preview_revocation_v1", "nginx_pages_preview_access_v1", "nginx_pages_preview_client_ip_v1", pagesDeferredReloadCapability)

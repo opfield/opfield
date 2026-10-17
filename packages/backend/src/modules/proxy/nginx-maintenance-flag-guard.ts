@@ -37,7 +37,19 @@ const SECURE_LINK_DIRECTIVES = new Set(['secure_link', 'secure_link_md5', 'secur
  * The names of the guard's own locations, as `location = <name>` or `location =<name>`.
  * legacy-name: gateway-maintenance locations of configs rendered before 2.12.1 — remove once every node reports none
  */
-const GUARD_LOCATION = /^=?(?:opfield|gateway)-maintenance(?:-access|-status)?$/;
+const GUARD_LOCATION = /^[=@]?(?:opfield|gateway)-maintenance(?:-access|-status|-page|-state)?$/;
+
+/**
+ * Why the guard's locations answer through try_files and error_page instead of `return`: `return` runs in nginx's
+ * rewrite phase, before the access phase, so the allow/deny rules of the route's access list in the same location
+ * would never apply and a client the list denies would get the page (X-O-5). try_files runs after the access phase;
+ * the file it names never exists, so it ends in the given code, and the location's error_page hands the request to a
+ * named location that answers. A client the list denies gets 403 first. Named locations cannot be reached by a
+ * request URI either.
+ */
+export const MAINTENANCE_ABSENT_FILE = '/.opfield-maintenance-absent';
+/** The code that hands an allowed request of the state location to its answer (never sent to a client). */
+export const MAINTENANCE_STATE_HOP = 418;
 
 export interface MaintenanceFlagGuardInput {
   hostId: string;
@@ -47,7 +59,8 @@ export interface MaintenanceFlagGuardInput {
   pageText: string;
   /**
    * The allow/deny rules of the route's access list (maintenanceAccessListDirectives). The guard's locations carry
-   * them, so a client the access list denies gets 403 during maintenance as well, never the page or its state.
+   * them and answer after nginx's access phase (MAINTENANCE_ABSENT_FILE), so a client the access list denies gets 403
+   * during maintenance as well, never the page or its state.
    */
   accessDirectives?: readonly string[];
 }
@@ -163,6 +176,11 @@ function serverGuard(input: MaintenanceFlagGuardInput, serverHeaders: string[]):
 
     location = opfield-maintenance {
         internal;${acl}
+        error_page 503 @opfield-maintenance-page;
+        try_files ${MAINTENANCE_ABSENT_FILE} =503;
+    }
+
+    location @opfield-maintenance-page {
         default_type text/html;
         add_header Cache-Control "no-store" always;${copied}
         return 503 ${input.pageText};
@@ -183,11 +201,16 @@ function serverGuard(input: MaintenanceFlagGuardInput, serverHeaders: string[]):
 
     location = opfield-maintenance-status {
         internal;${acl}
+        error_page ${MAINTENANCE_STATE_HOP} = @opfield-maintenance-state;
+        try_files ${MAINTENANCE_ABSENT_FILE} =${MAINTENANCE_STATE_HOP};
+    }
+
+    location @opfield-maintenance-state {
         default_type application/json;
         add_header Cache-Control "no-store" always;
         add_header X-Content-Type-Options "nosniff" always;
         if ($request_method != GET) {
-            return 405;
+            return 405 '{"error":"Only GET is allowed"}';
         }
         return 200 '{"active":$opfield_maintenance_access}';
     }

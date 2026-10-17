@@ -121,7 +121,8 @@ export class NginxConfigGenerator {
       const safeValue = this.sanitizeNginxValue(rule.value);
       return `${safeType} ${safeValue};`;
     });
-    if (accessList.ipRules.length > 0) directives.push('deny all;');
+    // A list that ends in its own "deny all" needs no second one.
+    if (accessList.ipRules.length > 0 && directives.at(-1) !== 'deny all;') directives.push('deny all;');
     if (accessList.basicAuthEnabled) {
       directives.push('auth_basic "Restricted Access";');
       directives.push(

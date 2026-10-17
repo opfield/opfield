@@ -386,7 +386,8 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'delete_route',
-    description: 'Permanently delete an ingress route and its nginx configuration.',
+    description:
+      'Permanently delete an ingress route and its nginx configuration. A route whose node is offline is deleted at once; the node drops its config when it reconnects, and the certificate it used leaves the node after the 24-hour grace period.',
     parameters: {
       type: 'object',
       properties: {
@@ -602,6 +603,9 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
         },
       },
       required: ['operation'],
+      // An unknown argument (certificateId, the name delete_certificate uses) is refused with the arguments this
+      // tool takes, not answered with SSL_CERT_NOT_FOUND.
+      additionalProperties: false,
     },
     destructive: true,
     category: 'SSL Certificates',

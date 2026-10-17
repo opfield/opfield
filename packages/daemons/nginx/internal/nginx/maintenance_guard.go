@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"path/filepath"
 
+	"github.com/opfield/opfield/nginx-daemon/internal/errorpages"
 	"github.com/opfield/opfield/nginx-daemon/internal/naming"
 )
 
@@ -17,7 +18,8 @@ const maintenanceGuardFilename = "00-opfield-maintenance.conf"
 //   - $opfield_maintenance is "1" while the route that handles the request is in maintenance: the route's guard sets it
 //     when the flag file exists. Its default comes from this map, so reading it never logs an uninitialized variable.
 //   - $opfield_maintenance_route names the guard location that answers the request, empty when the route handles it:
-//     the paths the maintenance page itself needs, ACME challenges and the reserved health paths, and a request with a
+//     the paths the maintenance page itself needs, ACME challenges, the reserved health paths and the internal location
+//     of the error pages (errorpages.RequestLinePath: a 400 keeps its page), and a request with a
 //     valid access cookie.
 //   - $opfield_maintenance_cookie is the Cookie a route forwards: the request's own, without Opfield's access cookies
 //     during maintenance. Each cookie goes with the separator that joined it to its neighbours (the first rule of a map
@@ -37,6 +39,7 @@ map $uri $opfield_maintenance_target {
     ~^/\.well-known/acme-challenge/ "";
     ` + naming.IngressHealthPath + ` "";
     ` + naming.LegacyIngressHealthPath + ` "";
+    ` + errorpages.RequestLinePath + ` "";
     /_opfield/maintenance-access opfield-maintenance-access;
     /_opfield/maintenance-access/status opfield-maintenance-status;
 }

@@ -25,6 +25,7 @@ import type { RelayPoolService } from '@/services/relay-pool.service.js';
 import type { AdditionalRouteService } from './additional-route.service.js';
 import { supportsPagesRouteTemplate } from './additional-route-template.js';
 import { effectiveMaintenance } from './effective-maintenance.js';
+import { NGINX_ERROR_PAGES_CAPABILITY, withOpfieldErrorPages } from './nginx-error-pages.js';
 import { MAINTENANCE_FLAG_CAPABILITY } from './nginx-maintenance-flag-guard.js';
 import {
   NGINX_ACCESS_LOG_FORMAT_CAPABILITY,
@@ -851,6 +852,12 @@ export abstract class ProxyServiceCore {
     if (await this.nodeServesIngressHealth(host.nodeId)) result = withIngressHealthLocation(result);
     // The client address behind Cloudflare or trusted proxies, for access lists, rate limits, logs and upstreams.
     result = withClientIpDirectives(result, await routeClientIpDirectives(this.db, host));
+    // nginx's own error responses (a denied client, an unreachable upstream, a refused request) answer with the Opfield
+    // pages the node keeps (rendered per node: an older daemon lacks the page variables). The internal registry's
+    // route answers Docker clients, which read the status and the registry's own JSON errors, never a page.
+    if (!usesRegistryIngress && (await this.nodeReports(host.nodeId, NGINX_ERROR_PAGES_CAPABILITY))) {
+      result = withOpfieldErrorPages(result, hideExternalBranding);
+    }
     return this.withNodeNginxNames(host.nodeId, result);
   }
 

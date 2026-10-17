@@ -1891,6 +1891,13 @@
       "when": 1794850244000,
       "tag": "0269_changed_outside_alert_message",
       "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1794850245000,
+      "tag": "0270_nginx_replica_deployed_generation",
+      "breakpoints": true
     }
   ]
 }
