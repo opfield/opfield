@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, gt, max } from 'drizzle-orm';
 import { inject, injectable } from 'tsyringe';
 import { TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { certificateAuthorities, certificates } from '@/db/schema/index.js';
+import { certificateAuthorities, certificates, pkiRevokedSerials } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { x509 } from '@/lib/x509.js';
@@ -428,6 +428,14 @@ export class CAService {
       throw new AppError(400, 'CA_HAS_CHILDREN', 'Cannot delete CA that has child CAs');
     }
 
+    // Revoked certificates deleted before they expired stay on this CA's CRL (keptOnCrlUntil). The CRL belongs to
+    // the CA, so deleting the CA ends it and those entries with it; the answer says so.
+    const [kept] = await this.db
+      .select({ count: count(), until: max(pkiRevokedSerials.notAfter) })
+      .from(pkiRevokedSerials)
+      .where(and(eq(pkiRevokedSerials.caId, id), gt(pkiRevokedSerials.notAfter, new Date())));
+    const droppedFromCrl = Number(kept?.count ?? 0);
+
     await transactionWithScopeCleanup(this.db, (tx) =>
       tx.delete(certificateAuthorities).where(eq(certificateAuthorities.id, id))
     );
@@ -437,8 +445,18 @@ export class CAService {
       action: 'ca.delete',
       resourceType: 'ca',
       resourceId: id,
+      ...(droppedFromCrl > 0 ? { details: { droppedFromCrl, crlWouldListUntil: kept?.until ?? null } } : {}),
     });
     this.emitCa(id, 'deleted', ca.type);
+    return {
+      deleted: true as const,
+      droppedFromCrl,
+      ...(droppedFromCrl > 0
+        ? {
+            note: `The CA's CRL is gone with it, so the ${droppedFromCrl} revoked certificate(s) it still listed (until ${(kept?.until as Date).toISOString()}) are on no CRL now. Remove this CA from every trust store, or clients that still trust it accept those certificates.`,
+          }
+        : {}),
+    };
   }
 
   /**

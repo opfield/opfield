@@ -89,7 +89,15 @@ export async function executePkiCertificateTool(
       const { reason } = RevokeCertificateSchema.parse({ reason: a.reason });
       // CertService.revokeCertificate republishes the issuing CA's CRL itself.
       await context.certService.revokeCertificate(a.certificateId, reason, user.id);
-      return { success: true, message: 'Certificate revoked.' };
+      const usage = await context.certService.getCertificateUsage(a.certificateId);
+      if (usage.routes.length === 0 && usage.sslCertificates.length === 0) {
+        return { success: true, message: 'Certificate revoked.' };
+      }
+      return {
+        success: true,
+        message: `Certificate revoked. It is still served by ${usage.routes.length} route(s) and linked from ${usage.sslCertificates.length} SSL certificate(s) (stillServedBy): they keep serving it, and clients that check the CRL refuse it from now on. Issue a new certificate and give those routes it (update_route internalCertificateId, or link it as an SSL certificate).`,
+        stillServedBy: usage,
+      };
     }
     case 'delete_certificate':
       return context.certService.deleteCertificate(String(a.certificateId), user.id);

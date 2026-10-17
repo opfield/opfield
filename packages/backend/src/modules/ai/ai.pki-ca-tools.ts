@@ -71,8 +71,8 @@ export async function executePkiCaTool(
     }
     case 'delete_ca': {
       await requireCaRevokeScope(context, user, a.caId, includeSystem);
-      await context.caService.deleteCA(a.caId, user.id);
-      return { success: true };
+      const deleted = await context.caService.deleteCA(a.caId, user.id);
+      return { success: true, ...(deleted ?? {}) };
     }
     case 'manage_ca':
       return manageCa(context, user, a, includeSystem);

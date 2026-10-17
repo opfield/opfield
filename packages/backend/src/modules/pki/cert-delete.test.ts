@@ -137,3 +137,45 @@ describe('status of a deleted revoked certificate', () => {
     await expect(statusWith([])).resolves.toEqual({ status: 'unknown' });
   });
 });
+
+// rc.3 stand O-7 / explore O-11: revoking a certificate a route serves stayed silent, and an SSL certificate linked
+// from it kept status "active".
+describe('revoking a PKI certificate in use', () => {
+  function revokeSetup(linked: Array<{ id: string; name: string }>, routes: Array<{ id: string; domainNames: string[] }>) {
+    const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
+    const db = {
+      query: { certificates: { findFirst: async () => ({ ...base, status: 'active', notAfter: new Date(Date.now() + DAY) }) } },
+      select: () => ({
+        from: (table: unknown) => ({
+          where: () =>
+            Object.assign(Promise.resolve(table === sslCertificates ? linked : table === proxyHosts ? routes : []), {
+              limit: async () => [{ isSystem: false }],
+            }),
+        }),
+      }),
+      update: (table: unknown) => ({
+        set: (values: Record<string, unknown>) => ({
+          where: async () => {
+            updates.push({ table, values });
+          },
+        }),
+      }),
+    };
+    const caService = { publishCRL: vi.fn(async () => undefined) };
+    const service = new CertService(db as never, {} as never, caService as never, { log: vi.fn(async () => true) } as never);
+    return { service, updates, caService };
+  }
+
+  it('marks a linked SSL certificate as error with the reason and names what still serves it', async () => {
+    const linked = [{ id: 'ssl-1', name: 'app-ssl' }];
+    const routes = [{ id: 'route-1', domainNames: ['app.example.com'] }];
+    const { service, updates, caService } = revokeSetup(linked, routes);
+
+    await expect(service.revokeCertificate(ID, 'keyCompromise', 'user-1')).resolves.toBe('ca-1');
+    expect(caService.publishCRL).toHaveBeenCalledWith('ca-1');
+    const sslUpdate = updates.find((update) => update.table === sslCertificates);
+    expect(sslUpdate?.values).toMatchObject({ status: 'error' });
+    expect(String(sslUpdate?.values.renewalError)).toMatch(/app\.example\.com\) was revoked at .*CRL refuse it/);
+    await expect(service.getCertificateUsage(ID)).resolves.toEqual({ routes, sslCertificates: linked });
+  });
+});

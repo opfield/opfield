@@ -111,7 +111,8 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'delete_ca',
-    description: 'Permanently delete a Certificate Authority. Cannot be undone. CA must have no issued certificates.',
+    description:
+      'Permanently delete a Certificate Authority. Cannot be undone. The CA must have no certificates (delete them first) and no child CAs. Its CRL goes with it: revoked certificates deleted before they expired (keptOnCrlUntil) are then on no CRL, and the answer counts them (droppedFromCrl, note). Remove the CA from trust stores after deleting it.',
     parameters: {
       type: 'object',
       properties: {
@@ -246,7 +247,8 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'revoke_certificate',
-    description: 'Revoke a certificate. This is permanent.',
+    description:
+      'Revoke a certificate. This is permanent: the CA CRL lists it at once. A route or SSL certificate that serves it keeps serving it until it gets another certificate; the answer names them (stillServedBy.routes, stillServedBy.sslCertificates) and a linked SSL certificate turns status error with the reason in renewalError. Ask the user before revoking a certificate in use.',
     parameters: {
       type: 'object',
       properties: {
@@ -275,7 +277,7 @@ export const PKI_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'delete_certificate',
     description:
-      'Permanently delete a PKI certificate that no longer works: revoked, or past its expiry. A valid certificate is refused with CERT_STILL_VALID: revoke it first (revoke_certificate), after the user confirmed. A revoked certificate deleted before it expires stays on its CA CRL until then (keptOnCrlUntil), so deleting never makes it valid again. Refused with CERT_IN_USE while a route uses it as internalCertificateId or an SSL certificate is linked from it (details.routes, details.sslCertificates: move those first), and with SYSTEM_CERT for system certificates. Needs pki:cert:revoke on the certificate; audited as cert.delete.',
+      'Permanently delete a PKI certificate that no longer works: revoked, or past its expiry. A valid certificate is refused with CERT_STILL_VALID: revoke it first (revoke_certificate), after the user confirmed. A revoked certificate deleted before it expires stays on its CA CRL until then (keptOnCrlUntil) while the CA exists, so deleting never makes it valid again; deleting the CA ends its CRL (delete_ca). Refused with CERT_IN_USE while a route uses it as internalCertificateId or an SSL certificate is linked from it (details.routes, details.sslCertificates: move those first), and with SYSTEM_CERT for system certificates. Needs pki:cert:revoke on the certificate; audited as cert.delete.',
     parameters: {
       type: 'object',
       properties: {
