@@ -63,11 +63,11 @@ The restored copy is not linked to an Opfield account: the cloud link of the exp
 
 ## Nodes And Relays
 
-Enrolled nodes and remote relays keep their identities: the restored installation has the same System CA, so their certificates stay valid. They reconnect to the address in their daemon configuration (`opfield.address`; nodes set up before 2.12.1 may still have it under `gateway.address`).
+Enrolled nodes and remote relays keep their identities: the restored installation has the same System CA, so their certificates stay valid. They reconnect to the address in their daemon configuration (`opfield.address`; nodes set up before 2.12.1 may still have it under the section of the earlier name).
 
 - **Same address.** Point the address (DNS name or IP) at the new host. Daemons reconnect on their own.
 - **New address.** Before you shut the old installation down, open **Settings > General > Move nodes to a new address** on it and enter the new gRPC address (`host:port`, port 9443 by default). Every connected node and relay keeps it next to its current address. A daemon switches only after its current address stayed unreachable for 10 minutes and the new address presents a certificate of the same System CA, that is, once the old installation is down and the restored one answers. It then writes the new address into its configuration. Nodes that connect while the address is announced are told within a minute. The panel lists which nodes were told, which are offline and which run a daemon too old for it; update those daemons first. **Withdraw** takes the address back.
-- **Old installation gone.** Nodes that were not told keep trying the old address. Point that address at the new host, or set `opfield.address` (or `gateway.address` on a node that still has that section) in the daemon configuration on the node (`/etc/docker-daemon/config.yaml`, `/etc/nginx-daemon/config.yaml`, `/etc/monitoring-daemon/config.yaml` or `/etc/gateway-relay-supervisor/config.yaml`) and restart the daemon. The node keeps its identity; no new enrollment is needed.
+- **Old installation gone.** Nodes that were not told keep trying the old address. Point that address at the new host, or set `opfield.address` (or the address in the earlier section on a node that still has it) in the daemon configuration on the node (`/etc/docker-daemon/config.yaml`, `/etc/nginx-daemon/config.yaml`, `/etc/monitoring-daemon/config.yaml` or the relay supervisor's `config.yaml`) and restart the daemon. The node keeps its identity; no new enrollment is needed.
 
 Keep the old installation stopped once nodes have moved: two installations with the same identity must not run at the same time.
 

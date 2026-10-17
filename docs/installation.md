@@ -55,9 +55,9 @@ To install an exact release instead of the newest stable one, for example to tes
 curl -fsSL https://get.opfield.dev | bash -s -- --version v2.12.1-rc.5
 ```
 
-`get.opfield.dev` serves the installer of the newest stable release, which takes `--version` from 2.12.1 on. To install a release candidate before that, run the installer of the release itself: `curl -fsSL https://get.opfield.dev/gateway/releases/download/v2.12.1-rc.5/install.sh | bash -s -- --version v2.12.1-rc.5`.
+`get.opfield.dev` serves the installer of the newest stable release, which takes `--version` from 2.12.1 on. To install a release candidate before that, run the installer of the release itself: `curl -fsSL https://get.opfield.dev/opfield/releases/download/v2.12.1-rc.5/install.sh | bash -s -- --version v2.12.1-rc.5`.
 
-The installer puts Opfield in `/opt/opfield` (Compose project `opfield`). Supported options are `--install-dir`, `--image`, `--source-dir`, `--http`, `--https`, `--dry-run`, `--version`, and `--restore` (with `--public-url` and `--grpc-target`). `--source-dir` builds a fresh test installation from a local Opfield checkout instead of discovering and pulling a release; it cannot update an existing installation. A source build needs 8 GB RAM, or swap on a 4 GB host. `--dry-run` verifies the selected signed release and renders the planned flow without creating files, building or pulling images, or starting services. Run with `--help` for syntax. The installer has no domain, nginx, Cloudflare, OIDC, SMTP, or ClickHouse prompts. Its settings can also come from the environment (`OPFIELD_INSTALL_DIR`, `OPFIELD_IMAGE`, `OPFIELD_WEB_TRANSPORT`, `OPFIELD_INSTALL_VERSION`, `OPFIELD_RESTORE_PASSPHRASE`); the `GATEWAY_*` names of earlier releases still work.
+The installer puts Opfield in `/opt/opfield` (Compose project `opfield`). Supported options are `--install-dir`, `--image`, `--source-dir`, `--http`, `--https`, `--dry-run`, `--version`, and `--restore` (with `--public-url` and `--grpc-target`). `--source-dir` builds a fresh test installation from a local Opfield checkout instead of discovering and pulling a release; it cannot update an existing installation. A source build needs 8 GB RAM, or swap on a 4 GB host. `--dry-run` verifies the selected signed release and renders the planned flow without creating files, building or pulling images, or starting services. Run with `--help` for syntax. The installer has no domain, nginx, Cloudflare, OIDC, SMTP, or ClickHouse prompts. Its settings can also come from the environment (`OPFIELD_INSTALL_DIR`, `OPFIELD_IMAGE`, `OPFIELD_WEB_TRANSPORT`, `OPFIELD_INSTALL_VERSION`, `OPFIELD_RESTORE_PASSPHRASE`); the variable names of earlier releases still work.
 
 ## Browser Setup Wizard
 
@@ -86,7 +86,7 @@ Finish the wizard before using Opfield. The setup session and one-time code are 
 
 ## Managed Cloud Installations
 
-A managed installation bought in the Opfield account comes up ready, without the wizard. Its provisioning leaves `/var/lib/gateway/cloud-enroll.json` in the app container; on first start Opfield connects to the cloud account, activates the license key and, when the file names the account's sign-in client and owner:
+A managed installation bought in the Opfield account comes up ready, without the wizard. Its provisioning leaves `cloud-enroll.json` in the app container's data directory; on first start Opfield connects to the cloud account, activates the license key and, when the file names the account's sign-in client and owner:
 
 - sets the public URL (and, when unset, the public gRPC target to its host);
 - adds an OIDC provider named "Opfield account" with `https://account.opfield.dev` as issuer and the client created for this installation (redirect URI `<public URL>/auth/callback`);
@@ -147,21 +147,21 @@ The migration removes the old Compose ClickHouse service definition but does not
 
 ### Moving To /opt/opfield
 
-Installations made before 2.12.1 live in `/opt/gateway` under the Compose project `gateway`, with the database and role `gateway`. After the update to 2.12.1 has settled (about ten minutes after the new version became healthy), Opfield moves itself to the current layout once:
+Installations made before 2.12.1 live in the earlier install directory under the Compose project, database and role of the earlier product name. After the update to 2.12.1 has settled (about ten minutes after the new version became healthy), Opfield moves itself to the current layout once:
 
-- the directory becomes `/opt/opfield`; `/opt/gateway` stays as a link to it;
+- the directory becomes `/opt/opfield`; the earlier directory stays as a link to it;
 - the Compose project, containers (`opfield-app-1`, …) and network (`opfield_default`) get the new name;
 - the database and its role are renamed to `opfield`; settings in `.env` are named `OPFIELD_*`;
 - the managed local ClickHouse becomes `opfield-clickhouse` with the database `opfield_logs`;
-- the Docker volumes keep their names (`gateway_gateway_data`, `gateway_postgres_data`, …): `docker-compose.yml` binds them by name, so no data is copied.
+- the Docker volumes keep their names: `docker-compose.yml` binds them by name, so no data is copied.
 
 During the move Opfield is unavailable for about a minute, and Secure Links through the relay on this host stop once for a few tens of seconds while the stack is recreated. Running orchestration operations finish first. Updating with the installer does the move right after the update and prints the new directory.
 
-The move runs in the `opfield-host-move` container and records each step in `.opfield-host-move/state.json` of the install directory. After a crash or a reboot Docker starts it again and it continues where it stopped. If a step keeps failing, it undoes the steps it made and Opfield runs from `/opt/gateway` as before; it tries again later, at most three times. `docker logs opfield-host-move` shows what happened. To try again by hand:
+The move runs in the `opfield-host-move` container and records each step in `.opfield-host-move/state.json` of the install directory. After a crash or a reboot Docker starts it again and it continues where it stopped. If a step keeps failing, it undoes the steps it made and Opfield runs from the earlier directory as before; it tries again later, at most three times. `docker logs opfield-host-move` shows what happened. To try again by hand:
 
 ```bash
 docker rm opfield-host-move
-cd /opt/gateway && curl -fsSL https://get.opfield.dev | bash
+cd <earlier install directory> && curl -fsSL https://get.opfield.dev | bash
 ```
 
 Rolling back to 2.12.0 after the move is not supported. System CAs show their new names (*Opfield Node CA*, *Opfield Database CA*, *Opfield Storage CA*); their certificates are not replaced, so nodes, relays and applications that trust them keep working.
@@ -183,7 +183,7 @@ A [configuration export](configuration-transfer.md) is the supported way to move
 - the managed ClickHouse volume when local structured logging is enabled;
 - `.env`, especially `PKI_MASTER_KEY` and database credentials.
 
-The volume keys are those of `docker-compose.yml`. A fresh installation names the volumes `opfield_app_data` and so on; an installation moved from `/opt/gateway` keeps the names it had (`gateway_gateway_data`, …), which `docker-compose.yml` lists under `name:`.
+The volume keys are those of `docker-compose.yml`. A fresh installation names the volumes `opfield_app_data` and so on; an installation moved from the earlier directory keeps the volume names it had, which `docker-compose.yml` lists under `name:`.
 
 Losing `PKI_MASTER_KEY` makes encrypted OIDC, SMTP, ClickHouse, PKI, and other stored secrets unrecoverable.
 

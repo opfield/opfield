@@ -48,7 +48,7 @@ The commands below install from the latest stable release. To match an older Opf
 Universal setup command:
 
 ```bash
-curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-daemon.sh | \
+curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-daemon.sh | \
   sudo bash -s -- --type nginx --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
@@ -62,14 +62,14 @@ The wrapper downloads the daemon-specific installer from the same release, check
 Nginx node:
 
 ```bash
-curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-node.sh | \
+curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-node.sh | \
   sudo bash -s -- --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
 Docker node:
 
 ```bash
-curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-docker-node.sh | \
+curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-docker-node.sh | \
   sudo bash -s -- --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
@@ -101,7 +101,7 @@ A worker only takes builds for its platform (architecture).
 Storage node:
 
 ```bash
-curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-storage-node.sh | \
+curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-storage-node.sh | \
   sudo bash -s -- --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
@@ -110,7 +110,7 @@ See [Storage nodes, external storage and database backups](storage-and-backups.m
 Monitoring node:
 
 ```bash
-curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-monitoring-node.sh | \
+curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-monitoring-node.sh | \
   sudo bash -s -- --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT>
 ```
 
@@ -149,7 +149,7 @@ Secure Runtime requires:
 - the Docker CLI and a Docker service that the installer can restart;
 - root privileges for installation.
 
-Installation registers `runsc` in `/etc/docker/daemon.json` and restarts Docker. In an existing file only `runtimes.runsc` is added or updated; every other key and value stays exactly as written, and the original file is saved once as `/etc/docker/daemon.json.opfield-backup` before the first change (nodes set up before Opfield 2.12.1 keep their `daemon.json.gateway-backup`). A file that already registers this `runsc` is not rewritten.
+Installation registers `runsc` in `/etc/docker/daemon.json` and restarts Docker. In an existing file only `runtimes.runsc` is added or updated; every other key and value stays exactly as written, and the original file is saved once as `/etc/docker/daemon.json.opfield-backup` before the first change (nodes set up before Opfield 2.12.1 keep the backup they made then). A file that already registers this `runsc` is not rewritten.
 
 KVM is not required. A compatible LXC guest can use Secure Runtime when nested Docker, service management, and the required host capabilities are available; LXC compatibility is therefore host-configuration dependent rather than universal.
 
@@ -264,7 +264,7 @@ The nginx installer supports:
 Example:
 
 ```bash
-curl -sSL https://get.opfield.dev/gateway/releases/latest/download/setup-daemon.sh | \
+curl -sSL https://get.opfield.dev/opfield/releases/latest/download/setup-daemon.sh | \
   sudo bash -s -- --type nginx --opfield opfield.example.com:9443 --token <TOKEN> --opfield-cert-sha256 sha256:<FINGERPRINT> --nginx-mode integrate
 ```
 
@@ -503,11 +503,11 @@ Manual setup is useful for locked-down hosts or custom packaging.
 Example checksum flow:
 
 ```bash
-curl -fsSL "https://get.opfield.dev/gateway/nginx-daemon/v2.0.0-nginx/nginx-daemon-linux-amd64" \
+curl -fsSL "https://get.opfield.dev/opfield/nginx-daemon/v2.0.0-nginx/nginx-daemon-linux-amd64" \
   -o /tmp/nginx-daemon-linux-amd64
-curl -fsSL "https://get.opfield.dev/gateway/nginx-daemon/v2.0.0-nginx/checksums.txt" \
+curl -fsSL "https://get.opfield.dev/opfield/nginx-daemon/v2.0.0-nginx/checksums.txt" \
   -o /tmp/nginx-daemon-checksums.txt
-curl -fsSL "https://get.opfield.dev/gateway/nginx-daemon/v2.0.0-nginx/nginx-daemon-linux-amd64.update.json" \
+curl -fsSL "https://get.opfield.dev/opfield/nginx-daemon/v2.0.0-nginx/nginx-daemon-linux-amd64.update.json" \
   -o /tmp/nginx-daemon-linux-amd64.update.json
 
 expected=$(awk '/nginx-daemon-linux-amd64/ { print $1 }' /tmp/nginx-daemon-checksums.txt)

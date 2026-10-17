@@ -16,12 +16,12 @@ npm install @opfield/logger
 
 The package is ESM-only and ships TypeScript declarations. It expects a runtime with `fetch`; modern Node.js versions provide it globally. For older runtimes, pass a custom `fetch` implementation in the logger options.
 
-### Moving from `@sqgateway/logger`
+### Moving from the 1.x package
 
-`@opfield/logger` 2.0 is the same SDK under a new name. Replace the package and the import path; the classes and types are now named `Opfield*` (`OpfieldLogger`, `OpfieldLoggerHook`, `OpfieldLogOptions`, ...). The `Gateway*` names still work in 2.x as deprecated aliases, so a change of the import path is enough to start.
+`@opfield/logger` is the same SDK under a new name. Replace the 1.x package and the import path; the classes and types are named `Opfield*` (`OpfieldLogger`, `OpfieldLoggerHook`, `OpfieldLogOptions`, ...). 2.x still exports the 1.x names as deprecated aliases; 3.0 removes them, so move to the `Opfield*` names before updating to 3.0.
 
 ```sh
-pnpm remove @sqgateway/logger && pnpm add @opfield/logger
+pnpm add @opfield/logger   # then remove the 1.x package
 ```
 
 ## Opfield Setup

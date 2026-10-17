@@ -32,7 +32,7 @@ cosign verify ghcr.io/opfield/opfield/relay:v2.12.0-relay \
 `…/secure-link-connector:vX.Y.Z-relay` is signed the same way as the relay.
 
 Images built on `main` and pinned by digest are signed by the Image workflow: the backup runner, the patched
-SeaweedFS (`…/seaweedfs-gateway`), the managed PostgreSQL images (`…/postgres`) and extension bundles
+SeaweedFS (`…/seaweedfs-opfield`), the managed PostgreSQL images (`…/postgres`) and extension bundles
 (`…/postgres-ext/<id>`), and the mirrored third-party images (PostgreSQL, Redis, Valkey, ClickHouse, the
 Docker registry and others, listed in `config/third-party-images.json`). Accept any workflow of the repository:
 
@@ -54,13 +54,10 @@ cosign verify ghcr.io/opfield/opfield-inference:<tag> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Releases are also published with the same digests under `ghcr.io/the-square-labs/gateway`, and core releases under
-`ghcr.io/opfield/inference-core` and `ghcr.io/the-square-labs/inference-core`, the repositories earlier versions use.
-Core releases from before the rename exist only under those two. The copies carry their own signatures from the same
-workflows, so the commands above work with any of the repository names.
+Core releases are published under `ghcr.io/opfield/inference-core`.
 
 To verify the exact digest a release names, use `repository@sha256:<digest>` instead of a tag. The digest is the
-`imageRef` in the release's signed manifest, for example `gateway-image.update.json` (see below).
+`imageRef` in the release's signed manifest, for example `relay-image.update.json` (see below).
 
 ## SBOMs
 
@@ -101,13 +98,13 @@ compiled into them, `config/update-trust/update-signing-public-key.pem` (DER SHA
 openssl pkey -pubin -in update-signing-public-key.pem -outform DER | sha256sum
 ```
 
-Each release carries its manifests as `*.update.json` assets (`gateway-image.update.json`, `relay-image.update.json`,
+Each release carries its manifests as `*.update.json` assets (the app image manifest, `relay-image.update.json`,
 `<daemon>-linux-<arch>.update.json`; `opfield-inference-image.update.json` for the inference core, which also
 publishes `opencodex-image.update.json` for earlier Opfield versions). A manifest is a JSON
 envelope whose `payload` and `signature` are unpadded base64url. To check one by hand (OpenSSL 3.0 or later):
 
 ```bash
-python3 - gateway-image.update.json <<'PY'
+python3 - relay-image.update.json <<'PY'
 import base64, json, sys
 envelope = json.load(open(sys.argv[1]))
 decode = lambda value: base64.urlsafe_b64decode(value + '=' * (-len(value) % 4))
