@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -69,40 +67,36 @@ func (m *Manager) runCommand(ctx context.Context, buildID, dir string, env []str
 	command.WaitDelay = commandCancellationGrace
 	command.Dir = dir
 	command.Env = env
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		return err
-	}
-	if err := command.Start(); err != nil {
-		return err
-	}
-	var wg sync.WaitGroup
 	// The end of the output names the cause when the command fails (the failing Dockerfile step and its exit code).
 	tail := &outputTail{}
-	copyLogs := func(reader io.Reader) {
-		defer wg.Done()
-		// Redaction comes first so a line is only held back after its secrets are gone.
+	type outputStream struct {
+		redactor *streamRedactor
+		lines    *lineBuffer
+	}
+	newStream := func() *outputStream {
 		lines := newLineBuffer(maxBuildLogChunk, buildLogPartialLineDelay, func(chunk []byte) {
 			m.emitLog(buildID, chunk)
 		})
+		// Redaction comes first so a line is only held back after its secrets are gone.
 		redactor := newStreamRedactor(m.secretValues(buildID), func(chunk []byte) {
 			tail.write(chunk)
 			lines.Write(chunk)
 		})
-		buffer := make([]byte, maxBuildLogChunk)
-		_, _ = io.CopyBuffer(redactor, reader, buffer)
-		redactor.Flush()
-		lines.Flush()
+		return &outputStream{redactor: redactor, lines: lines}
 	}
-	wg.Add(2)
-	go copyLogs(stdout)
-	go copyLogs(stderr)
+	// Writers rather than pipes: Wait returns only once both streams are copied to the end (bounded by WaitDelay when
+	// a leftover child holds them), so the tail always has the last lines. Reading pipes after Wait could lose them.
+	stdout, stderr := newStream(), newStream()
+	command.Stdout = stdout.redactor
+	command.Stderr = stderr.redactor
+	if err := command.Start(); err != nil {
+		return err
+	}
 	err = command.Wait()
-	wg.Wait()
+	for _, stream := range []*outputStream{stdout, stderr} {
+		stream.redactor.Flush()
+		stream.lines.Flush()
+	}
 	return describeCommandFailure(name, err, tail.String())
 }
 
