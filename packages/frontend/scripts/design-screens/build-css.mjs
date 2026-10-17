@@ -1,5 +1,5 @@
 // Compiles the product stylesheet (src/index.css through the Tailwind Vite
-// plugin, exactly as `vite build` does) into out/gateway.css.
+// plugin, exactly as `vite build` does) into out/opfield.css.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,7 @@ const tmpDir = path.join(outDir, ".css-build");
 export async function buildCss() {
   await build({
     root: frontendRoot,
-    // Relative asset URLs, so the fonts load next to gateway.css wherever the canvas is served.
+    // Relative asset URLs, so the fonts load next to opfield.css wherever the canvas is served.
     base: "./",
     configFile: false,
     logLevel: "warn",
@@ -25,14 +25,14 @@ export async function buildCss() {
       emptyOutDir: true,
       minify: true,
       rollupOptions: {
-        input: { gateway: path.join(frontendRoot, "src/index.css") },
+        input: { opfield: path.join(frontendRoot, "src/index.css") },
         output: { assetFileNames: "[name][extname]" },
       },
     },
   });
-  const css = fs.readFileSync(path.join(tmpDir, "gateway.css"), "utf8");
+  const css = fs.readFileSync(path.join(tmpDir, "opfield.css"), "utf8");
   fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(path.join(outDir, "gateway.css"), css);
+  fs.writeFileSync(path.join(outDir, "opfield.css"), css);
   for (const file of fs.readdirSync(tmpDir)) {
     if (file.endsWith(".woff2")) fs.copyFileSync(path.join(tmpDir, file), path.join(outDir, file));
   }
@@ -42,5 +42,5 @@ export async function buildCss() {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const size = await buildCss();
-  console.log(`gateway.css: ${(size / 1024).toFixed(1)} KiB`);
+  console.log(`opfield.css: ${(size / 1024).toFixed(1)} KiB`);
 }

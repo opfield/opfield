@@ -40,11 +40,11 @@ http {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_cache shared:SSL:20m;
 
-    log_format gateway '$remote_addr - $host [$time_local] "$request" $status '
+    log_format opfield '$remote_addr - $host [$time_local] "$request" $status '
                        '$body_bytes_sent $request_time';
-    access_log /var/log/nginx/access.log gateway;
+    access_log /var/log/nginx/access.log opfield;
 
-    include /var/lib/gateway/nginx/sites/*.conf;
+    include /var/lib/opfield/nginx/sites/*.conf;
 }
 `;
 
@@ -241,7 +241,7 @@ const daemonLog = (
 });
 
 export const edgeDaemonLog = [
-  daemonLog(3_540, "info", "daemon", "connected to gateway", { relay: "relay-1", latency: "11ms" }),
+  daemonLog(3_540, "info", "daemon", "connected to opfield", { relay: "relay-1", latency: "11ms" }),
   daemonLog(3_538, "info", "config", "applied configuration", { version: "c41f9a0", routes: "9" }),
   daemonLog(2_410, "info", "certs", "certificate renewed", { domain: "grafana.example.com" }),
   daemonLog(2_409, "info", "nginx", "reloaded", { workers: "4", took: "38ms" }),

@@ -49,9 +49,9 @@ export const authSettings: AuthProvisioningSettings = {
   logging: {
     mode: "local",
     url: "http://clickhouse:8123",
-    username: "gateway",
+    username: "opfield",
     passwordLast4: "a91d",
-    database: "gateway_logs",
+    database: "opfield_logs",
     table: "events",
     requestTimeoutMs: 10_000,
   },

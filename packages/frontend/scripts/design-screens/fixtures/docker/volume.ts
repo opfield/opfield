@@ -14,7 +14,7 @@ export const webUploadsVolume: DockerVolume = {
   ...row,
   labels: {
     "com.example.backup": "nightly",
-    "wiolett.gateway.managed": "true",
+    "net.opfield.managed": "true",
   },
   options: {},
 };

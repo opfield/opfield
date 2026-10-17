@@ -74,12 +74,12 @@ http {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
 
-    log_format gateway '$remote_addr - $host [$time_local] "$request" $status $body_bytes_sent '
+    log_format opfield '$remote_addr - $host [$time_local] "$request" $status $body_bytes_sent '
                        '$request_time $upstream_response_time';
-    access_log /var/log/nginx/access.log gateway;
+    access_log /var/log/nginx/access.log opfield;
 
     include /etc/nginx/conf.d/*.conf;
-    include /var/lib/gateway/nginx/sites/*.conf;
+    include /var/lib/opfield/nginx/sites/*.conf;
 }
 `;
 

@@ -30,7 +30,7 @@ it("nodes-dialog-add-connector", async () => {
         "https://pve.example.com:8006",
         "https://pve-branch.example.com:8006"
       );
-      await fillField(user, dialog, "gateway@pve!hosting", "gateway@pve!provisioning");
+      await fillField(user, dialog, "opfield@pve!hosting", "opfield@pve!provisioning");
       await releaseAnimatedHeights(dialog);
     },
     notes: ["Step 1 of connecting a second Proxmox VE cluster from the Providers tab."],

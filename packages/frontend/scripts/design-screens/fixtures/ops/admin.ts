@@ -413,7 +413,7 @@ export const databaseConnections: DatabaseConnection[] = databases.map(
       host: `10.20.2.${10 + index}`,
       port: database.type === "redis" ? 6379 : 5432,
       databaseName: database.type === "redis" ? null : database.name.replace(/-/g, "_"),
-      username: database.type === "redis" ? null : "gateway",
+      username: database.type === "redis" ? null : "opfield",
       tlsEnabled: true,
       healthStatus: "online",
       lastHealthCheckAt: ago(15, "s"),

@@ -20,9 +20,9 @@ it("data-database-console", async () => {
     before: () => {
       installOrdersStreams();
       // The operator's last query and a short history, as the console keeps them per database.
-      localStorage.setItem(`gateway-database-console-input:${ordersDb.id}`, QUERY);
+      localStorage.setItem(`opfield-database-console-input:${ordersDb.id}`, QUERY);
       localStorage.setItem(
-        `gateway-database-console-history:${ordersDb.id}`,
+        `opfield-database-console-history:${ordersDb.id}`,
         JSON.stringify([
           { query: QUERY, executedAt: ago(4, "m") },
           { query: "select count(*) from order_items;", executedAt: ago(2, "h") },

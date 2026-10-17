@@ -172,7 +172,7 @@ export const apiTokens: ApiToken[] = [
 export const oauthAuthorizations: OAuthAuthorization[] = [
   {
     id: "auth-opfield-cli",
-    clientId: "gateway-cli",
+    clientId: "opfield-cli",
     clientName: "Opfield CLI",
     clientUri: "https://opfield.example.com/docs/cli",
     logoUri: null,

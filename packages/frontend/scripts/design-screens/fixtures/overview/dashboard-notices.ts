@@ -25,7 +25,7 @@ const recoveringRelay: DashboardRelaySnapshot = {
   relayBuildVersion: "2.11.0",
   protocolMajor: 3,
   expectedService: "relay",
-  expectedImage: "registry.example.com/gateway/relay:2.11.0",
+  expectedImage: "registry.example.com/opfield/relay:2.11.0",
   canRetry: false,
 };
 

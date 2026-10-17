@@ -1,7 +1,7 @@
 // Design screen export, end to end:
 //   1. compile the product stylesheet (Tailwind build of src/index.css),
 //   2. render every screen spec in jsdom (vitest) into out/dom/*.json,
-//   3. write the foss-design canvas `gateway` into the repository's .design folder.
+//   3. write the foss-design canvas `opfield` into the repository's .design folder.
 // Usage: pnpm design-screens:export [--only <glob>] [--skip-css]
 // View it with `design preview` (foss-design) from the repository root.
 import { spawnSync } from "node:child_process";
@@ -22,7 +22,7 @@ const only = option("--only");
 
 if (!args.includes("--skip-css")) {
   const size = await buildCss();
-  console.log(`[design-screens] gateway.css ${(size / 1024).toFixed(1)} KiB`);
+  console.log(`[design-screens] opfield.css ${(size / 1024).toFixed(1)} KiB`);
 }
 
 if (!only) fs.rmSync(path.join(here, "out/dom"), { recursive: true, force: true });
