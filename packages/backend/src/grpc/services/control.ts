@@ -36,6 +36,7 @@ import {
   managedLinkHealth,
   relayLatencyHealth,
   relayStreamHealth,
+  sshHostKeyFingerprintsHealth,
   updateConnectionsHealth,
 } from './health-report.js';
 import { leaseWatchdogVersion } from './lease-watchdog-version.js';
@@ -1316,6 +1317,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 ...relayStreamHealth(msg.healthReport.relayStreams),
                 ...updateConnectionsHealth(msg.healthReport.updateConnections),
                 ...ingressHealthFromProto((msg.healthReport as { ingressHealth?: unknown }).ingressHealth),
+                ...sshHostKeyFingerprintsHealth(msg.healthReport),
               };
 
               const connectedNode = deps.registry.getNode(activeNodeId);

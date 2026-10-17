@@ -183,6 +183,9 @@ export interface NodeHealthReport {
   // Nginx daemons with nginx_log_budget_v1: the nginx logs the daemon bounds (route logs and the default
   // access/error logs, live and rotated). Absent for older daemons.
   nginxLogs?: NodeNginxLogUsage;
+  // Daemons of 2.12.3 and later on hosts with OpenSSH host keys: their SHA256 fingerprints. An SSH connector pinned to
+  // one of them is refused, whatever address reaches the node. Absent when the host has none.
+  sshHostKeyFingerprints?: string[];
 }
 
 /** The nginx logs of one nginx node as its log budget last measured them. */

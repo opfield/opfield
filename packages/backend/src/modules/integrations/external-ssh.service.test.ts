@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { sshHostKeyFingerprintsHealth } from '@/grpc/services/health-report.js';
 import { ExternalSshService } from './external-ssh.service.js';
 
 // rc.3 GF-4: an agent reached ingress-1 over SSH through a forward on an address the node does not report; the host
@@ -47,5 +48,28 @@ describe('SSH connectors to enrolled nodes', () => {
         'SHA256:SomeOtherHost'
       )
     ).resolves.toBeUndefined();
+  });
+
+  // rc.4 NF-2: daemons sent the fingerprints, but the backend left them out of the stored report, so the check above
+  // never fired on a real node.
+  it('are refused by the host key a node sent in its health report, at an address the node does not report', async () => {
+    const stored = {
+      localIpAddresses: ['172.20.0.132'],
+      ...sshHostKeyFingerprintsHealth({
+        localIpAddresses: ['172.20.0.132'],
+        sshHostKeyFingerprints: ['SHA256:Storage2Ed25519', 'SHA256:Storage2Rsa', '', 'not-a-fingerprint'],
+      }),
+    };
+    expect(stored.sshHostKeyFingerprints).toEqual(['SHA256:Storage2Ed25519', 'SHA256:Storage2Rsa']);
+    const rows = [{ id: 'node-storage-2', hostname: 'storage-2', displayName: null, report: stored }];
+    const db = { select: () => ({ from: async () => rows }) };
+    const ssh = new ExternalSshService(db as never, {} as never);
+    await expect(ssh.create(user, input('SHA256:Storage2Rsa'))).rejects.toMatchObject({
+      statusCode: 403,
+      code: 'SSH_MANAGED_TARGET_BLOCKED',
+      details: { nodeId: 'node-storage-2', nodeName: 'storage-2' },
+    });
+    expect(sshHostKeyFingerprintsHealth({ sshHostKeyFingerprints: [] })).toEqual({});
+    expect(sshHostKeyFingerprintsHealth({})).toEqual({});
   });
 });

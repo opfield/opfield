@@ -261,3 +261,21 @@ export function dockerEngineHealth(report: unknown): { dockerEngine?: NodeDocker
     },
   };
 }
+
+/**
+ * The SHA256 fingerprints of the node's SSH host keys (HealthReport.ssh_host_key_fingerprints of daemons of 2.12.3 and
+ * later). Stored with the report so an SSH connector pinned to a node's host key is refused, whatever address reaches
+ * the node; absent when the daemon reports none.
+ */
+export function sshHostKeyFingerprintsHealth(report: unknown): { sshHostKeyFingerprints?: string[] } {
+  const raw = (report as { sshHostKeyFingerprints?: unknown } | null | undefined)?.sshHostKeyFingerprints;
+  if (!Array.isArray(raw)) return {};
+  const fingerprints = [
+    ...new Set(
+      raw.filter(
+        (value): value is string => typeof value === 'string' && value.startsWith('SHA256:') && value.length > 7
+      )
+    ),
+  ];
+  return fingerprints.length > 0 ? { sshHostKeyFingerprints: fingerprints } : {};
+}
