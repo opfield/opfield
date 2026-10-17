@@ -274,7 +274,7 @@ describe('Docker archive download links', () => {
     const { docker } = registerServices(userWith([CONTAINER_EXPORT, 'docker:containers:secrets']));
     vi.mocked(openDockerContainerArchiveExport).mockResolvedValue({
       filename: 'api.ofca',
-      stream: body(Buffer.from('gw'), Buffer.from('ca')),
+      stream: body(Buffer.from('of'), Buffer.from('ca')),
     });
     const { path, filename } = await downloadLink(docker, user, {
       kind: 'container',
