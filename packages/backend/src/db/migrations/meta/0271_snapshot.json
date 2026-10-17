@@ -1,6 +1,6 @@
 {
   "id": "aa162b49-6a2f-460c-8c66-0e5b56414e71",
-  "prevId": "7e44f838-25ce-4e23-b378-514b9592b657",
+  "prevId": "7fdab30a-6546-4f12-bb5c-ac28f2107f41",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -26442,6 +26442,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "deployed_generation": {
+          "name": "deployed_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "last_error": {
           "name": "last_error",

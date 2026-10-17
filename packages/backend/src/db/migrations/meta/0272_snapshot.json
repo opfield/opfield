@@ -26443,6 +26443,12 @@
           "notNull": true,
           "default": 0
         },
+        "deployed_generation": {
+          "name": "deployed_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "last_error": {
           "name": "last_error",
           "type": "text",
