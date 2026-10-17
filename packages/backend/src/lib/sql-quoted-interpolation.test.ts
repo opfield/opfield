@@ -49,7 +49,7 @@ function skipTemplate(source: string, start: number, onInterpolation?: (inSqlLit
   return index;
 }
 
-export function quotedSqlInterpolations(source: string): string[] {
+function quotedSqlInterpolations(source: string): string[] {
   const found: string[] = [];
   for (const match of source.matchAll(/\bsql`/g)) {
     const start = (match.index ?? 0) + match[0].length;
@@ -72,8 +72,11 @@ function sourceFiles(dir: string): string[] {
 
 describe('sql templates', () => {
   it('finds a value interpolated inside a quoted SQL literal', () => {
-    expect(quotedSqlInterpolations("sql`select hashtext('${KEY}-lock')`")).toHaveLength(1);
-    expect(quotedSqlInterpolations("sql`select hashtext(${`${KEY}-lock`}), '{}'::jsonb, ${x} = 'a'`")).toEqual([]);
+    const key = '$' + '{KEY}';
+    expect(quotedSqlInterpolations(`sql\`select hashtext('${key}-lock')\``)).toHaveLength(1);
+    expect(
+      quotedSqlInterpolations(`sql\`select hashtext($` + `{\`${key}-lock\`}), '{}'::jsonb, $` + `{x} = 'a'\``)
+    ).toEqual([]);
   });
 
   it('never interpolate a value inside a quoted SQL literal in the backend', () => {
