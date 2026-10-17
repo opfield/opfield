@@ -15,6 +15,7 @@ import { ingressHealthFromProto } from '@/modules/ingress-groups/ingress-health.
 import { daemonLogRelay } from '@/modules/monitoring/log-relay.service.js';
 import { validateRegisteredDaemonProfile } from '@/modules/nodes/node-daemon-profile.js';
 import { installerRelease, secureRuntimeLocalCommand } from '@/modules/nodes/node-installer.js';
+import { nodeReportHealthy } from '@/modules/nodes/node-service-helpers.js';
 import { NotificationEvaluatorService } from '@/modules/notifications/notification-evaluator.service.js';
 import { ProxyService } from '@/modules/proxy/proxy.service.js';
 import { backgroundWrites } from '@/services/background-writes.js';
@@ -1438,10 +1439,7 @@ export function createControlHandlers(deps: GrpcServerDeps) {
               const lastTs = lastRecordedTs.get(activeNodeId) ?? 0;
               if (nowMs - lastTs >= HEALTH_HISTORY_MIN_INTERVAL_MS) {
                 // A Docker node whose engine cannot start containers (containerd down) is degraded, not online.
-                const isHealthy =
-                  connectedNode?.type === 'nginx'
-                    ? healthData.nginxRunning && healthData.configValid
-                    : healthData.dockerEngine?.available !== false;
+                const isHealthy = nodeReportHealthy(connectedNode?.type, healthData);
                 const status = isHealthy ? 'online' : 'degraded';
 
                 try {

@@ -188,14 +188,18 @@ export class NodeRegistryService {
     return this.isNodeUpdateInProgress(nodeId);
   }
 
-  /** name: the node's display name, else its hostname (alerts name a node as the rest of Opfield does). */
-  private observeNodeState(nodeId: string, state: 'online' | 'offline', name?: string) {
+  /**
+   * name: the node's display name, else its hostname (alerts name a node as the rest of Opfield does); hostname: the
+   * node's real hostname. The alert context carries {{node.id}}, {{node.name}} and {{details.hostname}} as their names
+   * say (rc.3 O-A7: node.id was null and details.hostname held the display name).
+   */
+  private observeNodeState(nodeId: string, state: 'online' | 'offline', name?: string, hostname?: string) {
     this.evaluator
       ?.observeStatefulEvent(
         'node',
         state,
         { type: 'node', id: nodeId, name: name ?? nodeId },
-        { hostname: name },
+        { nodeId, node_name: name ?? nodeId, hostname: hostname ?? name },
         // Node Offline and Node Online only: other node states (Docker Engine unavailable) are observed by their own
         // sources and must not be cleared by every connect or report.
         NODE_CONNECTION_PATTERNS
@@ -406,7 +410,7 @@ export class NodeRegistryService {
     this.heldDisconnectAudits.delete(nodeId);
     this.awaitingLocalRelay.delete(nodeId);
     logger.info('Node registered', { nodeId, type, hostname });
-    this.observeNodeState(nodeId, 'online', registeredNode.displayName || hostname);
+    this.observeNodeState(nodeId, 'online', registeredNode.displayName || hostname, hostname);
   }
 
   async deregister(nodeId: string, commandStream?: ServerDuplexStream<DaemonMessage, OpfieldCommand>): Promise<void> {
@@ -562,7 +566,7 @@ export class NodeRegistryService {
       status: 'offline',
       hostname,
     });
-    this.observeNodeState(nodeId, 'offline', dbNode?.displayName || hostname);
+    this.observeNodeState(nodeId, 'offline', dbNode?.displayName || hostname, hostname);
   }
 
   getNode(nodeId: string): ConnectedNode | undefined {
@@ -963,7 +967,12 @@ export class NodeRegistryService {
             status: 'offline',
             hostname: dbNode.hostname,
           });
-          this.observeNodeState(dbNode.id, 'offline', dbNode.displayName || dbNode.hostname || undefined);
+          this.observeNodeState(
+            dbNode.id,
+            'offline',
+            dbNode.displayName || dbNode.hostname || undefined,
+            dbNode.hostname || undefined
+          );
         }
       }
     }
@@ -998,13 +1007,13 @@ export class NodeRegistryService {
             status: 'offline',
             hostname: node.hostname,
           });
-          this.observeNodeState(node.nodeId, 'offline', node.displayName || node.hostname);
+          this.observeNodeState(node.nodeId, 'offline', node.displayName || node.hostname, node.hostname);
           logger.warn('Marked connected node offline (missed health reports)', {
             nodeId: node.nodeId,
             elapsedMs: elapsed,
           });
         } else if (dbRow?.status === 'offline') {
-          this.observeNodeState(node.nodeId, 'offline', node.displayName || node.hostname);
+          this.observeNodeState(node.nodeId, 'offline', node.displayName || node.hostname, node.hostname);
         }
       }
     }
@@ -1020,7 +1029,12 @@ export class NodeRegistryService {
       if (this.isNodeUpdateProtected(dbNode.id, dbNode.metadata)) continue;
       if (!connectedIds.includes(dbNode.id)) {
         await this.recordOfflineStatus(dbNode.id);
-        this.observeNodeState(dbNode.id, 'offline', dbNode.displayName || dbNode.hostname || undefined);
+        this.observeNodeState(
+          dbNode.id,
+          'offline',
+          dbNode.displayName || dbNode.hostname || undefined,
+          dbNode.hostname || undefined
+        );
       }
     }
   }

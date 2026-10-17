@@ -64,6 +64,7 @@ import {
 import {
   createNodeFileOperationContext,
   isNonEmptyAddressSubset,
+  nodeHealth,
   orderedAddressesEqual,
   stripNodeHealthHistory,
 } from './node-service-helpers.js';
@@ -248,11 +249,17 @@ export class NodesService {
     // command availability; DB status can lag until stale-node cleanup runs.
     const enriched = rows.map((row) => {
       const isConnected = !!this.registry.getNode(row.id);
+      const live = this.liveStatus(row, isConnected);
       return {
         ...row,
         publicServiceAddresses: row.type === 'nginx' ? getReportedPublicNodeAddresses(row) : undefined,
         effectiveServiceAddress: getEffectiveServiceAddressForNode(row),
-        ...this.liveStatus(row, isConnected),
+        ...live,
+        health: nodeHealth(
+          row.type,
+          live.status,
+          this.registry.getNode(row.id)?.lastHealthReport ?? row.lastHealthReport
+        ),
         isConnected,
       };
     });
@@ -315,6 +322,11 @@ export class NodesService {
         lastHealthReport: connectedNode?.lastHealthReport ?? node.lastHealthReport,
       }),
       ...this.liveStatus(node, isConnected),
+      health: nodeHealth(
+        node.type,
+        this.liveStatus(node, isConnected).status,
+        connectedNode?.lastHealthReport ?? node.lastHealthReport
+      ),
       isConnected,
       liveHealthReport: connectedNode?.lastHealthReport ?? null,
       liveStatsReport: connectedNode?.lastStatsReport ?? null,
@@ -345,6 +357,11 @@ export class NodesService {
         lastHealthReport: connectedNode?.lastHealthReport ?? node.lastHealthReport,
       }),
       ...this.liveStatus(node, isConnected),
+      health: nodeHealth(
+        node.type,
+        this.liveStatus(node, isConnected).status,
+        connectedNode?.lastHealthReport ?? node.lastHealthReport
+      ),
       isConnected,
       liveHealthReport: connectedNode?.lastHealthReport ?? null,
       liveStatsReport: connectedNode?.lastStatsReport ?? null,

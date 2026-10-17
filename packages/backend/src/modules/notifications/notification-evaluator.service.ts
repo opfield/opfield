@@ -205,7 +205,7 @@ export interface MetricSnapshot {
 }
 
 /** A disk several enrolled nodes report: the key of its one alert and the names of the nodes. */
-type SharedDisk = { key: string; names: string };
+type SharedDisk = { key: string; names: string; nodeIds: string };
 /** A node that has not reported a disk for this long no longer shares it (deleted, moved, or offline). */
 const DISK_SHARER_FRESH_MS = 5 * 60_000;
 
@@ -432,7 +432,12 @@ export class NotificationEvaluatorService {
         const details: TemplateDetails =
           rule.category === 'node' && rule.metric === 'disk'
             ? shared
-              ? { details: { mount: resourceId, nodes: shared.names }, node: { id: nodeId, name: shared.names } }
+              ? {
+                  // One physical disk: the message says so, and every node that reports it is named, ids included
+                  // (node.id is the node that evaluates it; the alert's resource key is the disk, rc.3 O-A2/O-A3).
+                  details: { mount: resourceId, nodes: shared.names, nodeIds: shared.nodeIds },
+                  node: { id: nodeId, name: `${shared.names} (one shared disk)` },
+                }
               : { details: { mount: resourceId } }
             : rule.category === 'node' && rule.metric === DOCKER_ENGINE_UNAVAILABLE_METRIC
               ? { details: { problem: healthData.dockerEngine?.problem ?? 'the Docker Engine does not answer' } }
@@ -493,10 +498,12 @@ export class NotificationEvaluatorService {
       .sort(([left], [right]) => left.localeCompare(right));
     if (sharers.length <= 1 && !(await this.getActiveAlertState(rule.id, rule.category, key))) return null;
     if (sharers.length > 0 && sharers[0]![0] !== nodeId) return 'skip';
-    const names = (sharers.length > 0 ? sharers : [[nodeId, { mount: mountPoint, seenAt: now }] as const])
+    const named = sharers.length > 0 ? sharers : [[nodeId, { mount: mountPoint, seenAt: now }] as const];
+    const names = named
       .map(([id]) => this.getNodeName(id))
       .sort((left, right) => left.localeCompare(right))
       .join(', ');
+    const nodeIds = named.map(([id]) => id).join(', ');
     for (const [id, entry] of sharers) {
       const own = `${id}:${entry.mount}`;
       const state = await this.getActiveAlertState(rule.id, rule.category, own);
@@ -507,11 +514,11 @@ export class NotificationEvaluatorService {
         rule.category,
         own,
         this.getNodeName(id),
-        { details: { mount: entry.mount, nodes: names }, node: { id, name: this.getNodeName(id) } },
+        { details: { mount: entry.mount, nodes: names, nodeIds }, node: { id, name: this.getNodeName(id) } },
         { notify: false }
       );
     }
-    return { key, names };
+    return { key, names, nodeIds };
   }
 
   /**
