@@ -58,6 +58,7 @@ const AVAILABILITY_POINT_EVENTS: Array<{ eventId: string; match: (p: any) => boo
     'fenced',
     'rejoined',
     'rebuilt',
+    'seeded',
     'cancelled_sync_wait',
   ].map((event) => ({ eventId: `availability.${event}`, match: (p: any) => p.action === `availability.${event}` })),
   {

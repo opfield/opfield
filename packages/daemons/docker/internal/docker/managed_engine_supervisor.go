@@ -13,6 +13,8 @@ import (
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/events"
 	mobyclient "github.com/moby/moby/client"
+
+	"github.com/opfield/opfield/daemon-shared/leasefence"
 )
 
 // Managed database and storage engines keep their data on a loop-mounted
@@ -296,7 +298,15 @@ const (
 	// without Docker's stop or out-of-memory kill), not out of memory.
 	engineStopKilled      engineStopCause = "killed"
 	engineStopOutOfMemory engineStopCause = "outOfMemory"
+	// engineStopLeaseDeadline: the lease watchdog killed it (exit code 137,
+	// and the container's lease deadline record had passed): Opfield's own
+	// fencing of an availability member, not a foreign process.
+	engineStopLeaseDeadline engineStopCause = "leaseDeadline"
 )
+
+// engineLeaseRecords are the lease watchdog's deadline records (tests point
+// them elsewhere).
+var engineLeaseRecords = leasefence.Dir{}
 
 // engineStopLog is the supervisor's log line for an unrequested stop.
 func engineStopLog(kind string, cause engineStopCause) string {
@@ -305,6 +315,8 @@ func engineStopLog(kind string, cause engineStopCause) string {
 		return "managed " + kind + " engine was killed for memory (out of memory); starting it again"
 	case engineStopKilled:
 		return "managed " + kind + " engine was killed (SIGKILL) by another process, not out of memory; starting it again"
+	case engineStopLeaseDeadline:
+		return "managed " + kind + " engine was stopped by the lease watchdog (its availability lease deadline passed); starting it again"
 	}
 	return "managed " + kind + " engine stopped on its own; starting it again"
 }
@@ -324,7 +336,30 @@ func (p *DockerPlugin) unrequestedStopCause(ctx context.Context, message events.
 	if p.engineOOMKilled(ctx, message.Actor.ID) {
 		return engineStopOutOfMemory
 	}
+	if engineLeaseDeadlinePassed(message.Actor.ID) {
+		return engineStopLeaseDeadline
+	}
 	return engineStopKilled
+}
+
+// engineLeaseDeadlinePassed reports a SIGKILL of the lease watchdog: the
+// container has a deadline record and its deadline passed (the watchdog kills
+// exactly those and never deletes their records itself).
+func engineLeaseDeadlinePassed(containerID string) bool {
+	if containerID == "" {
+		return false
+	}
+	records, _, err := engineLeaseRecords.ReadRecords()
+	if err != nil {
+		return false
+	}
+	now := leasefence.Now()
+	for _, record := range records {
+		if record.ContainerID == containerID {
+			return record.Stale(now)
+		}
+	}
+	return false
 }
 
 // engineOOMKilled reports Docker's State.OOMKilled of the stopped container.
@@ -407,6 +442,11 @@ func newEngineStops() *engineStops {
 func (s *engineStops) observe(message events.Message) (requested, oom, died bool) {
 	attributes := message.Actor.Attributes
 	if labelValue(attributes, managedDatabaseLabel) == "" && labelValue(attributes, managedStorageLabel) == "" {
+		return false, false, false
+	}
+	if labelValue(attributes, helperContainerLabel) != "" || labelValue(attributes, pgHelperLabel) != "" {
+		// A helper of the engine (pg_basebackup seeding a new copy, pg_controldata) carries the resource's label but
+		// is no engine: it ends on its own when its work is done (rc.3 O-A6).
 		return false, false, false
 	}
 	containerID := message.Actor.ID

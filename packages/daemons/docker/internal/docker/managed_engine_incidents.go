@@ -53,7 +53,7 @@ func (e *engineIncidents) recordStop(key string, cause engineStopCause) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	now := e.now()
-	events := append(e.prune(key, now), engineIncident{at: now, oom: cause == engineStopOutOfMemory, killed: cause == engineStopKilled})
+	events := append(e.prune(key, now), engineIncident{at: now, oom: cause == engineStopOutOfMemory, killed: cause == engineStopKilled || cause == engineStopLeaseDeadline})
 	if len(events) > engineIncidentLimit {
 		events = events[len(events)-engineIncidentLimit:]
 	}

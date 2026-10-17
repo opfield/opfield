@@ -310,7 +310,7 @@ export function availabilityRouteDocs(input: AvailabilityDocsInput) {
       path: `${base}/availability/make-primary`,
       tags: [tag],
       summary: `Make a copy of a ${noun} primary`,
-      description: `${LOSS_RULES} Needs ${editScope}. ${license('existing')}`,
+      description: `${LOSS_RULES} A member whose server does not report is refused with 409 \`AVAILABILITY_MEMBER_NOT_CONNECTED\` (\`details.memberId\`, \`details.nodeId\`, \`details.lastReportedAt\`). Needs ${editScope}. ${license('existing')}`,
       request: { params, ...jsonBody(ManagedAvailabilityMakePrimarySchema) },
       responses: {
         202: {

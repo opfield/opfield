@@ -20,6 +20,37 @@ export function orderedAddressesEqual(left: readonly string[], right: readonly s
   return left.length === right.length && left.every((address, index) => address === right[index]);
 }
 
+/**
+ * Whether a node's last health report shows it working (the rule of its health history): a Docker node whose engine
+ * cannot start containers, or an nginx node whose nginx is stopped or whose configuration is invalid, is degraded.
+ */
+export function nodeReportHealthy(
+  type: string | null | undefined,
+  report:
+    | { nginxRunning?: boolean; configValid?: boolean; dockerEngine?: { available?: boolean } | null }
+    | null
+    | undefined
+): boolean {
+  if (!report) return true;
+  return type === 'nginx'
+    ? report.nginxRunning !== false && report.configValid !== false
+    : report.dockerEngine?.available !== false;
+}
+
+/**
+ * The node's health next to its connection status (rc.3 O-A1): `status` says whether the node is connected; `health`
+ * is `degraded` while a connected node reports a problem (Docker Engine cannot start containers, nginx stopped or its
+ * configuration invalid), `healthy` otherwise, and null while the node is not online.
+ */
+export function nodeHealth(
+  type: string | null | undefined,
+  status: string,
+  report: unknown
+): 'healthy' | 'degraded' | null {
+  if (status !== 'online') return null;
+  return nodeReportHealthy(type, report as Parameters<typeof nodeReportHealthy>[1]) ? 'healthy' : 'degraded';
+}
+
 export function stripNodeHealthHistory<T extends { healthHistory?: unknown }>(node: T): Omit<T, 'healthHistory'> {
   const { healthHistory: _healthHistory, ...rest } = node;
   return rest;

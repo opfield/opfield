@@ -199,6 +199,7 @@ const EVENT_LABELS: Record<string, string> = {
   rejoined: "Copy rejoined",
   rejoin_failed: "Copy could not rejoin",
   rebuilt: "Copy rebuilt",
+  seeded: "New copy seeded",
   degraded: "Degraded",
   restored: "Restored",
   no_failover: "No failover possible",
@@ -257,7 +258,7 @@ export function eventTone(action: string): BadgeVariant {
     ].includes(name)
   )
     return "warning";
-  if (["restored", "rejoined", "rebuilt", "enabled"].includes(name)) return "success";
+  if (["restored", "rejoined", "rebuilt", "seeded", "enabled"].includes(name)) return "success";
   return "secondary";
 }
 

@@ -119,6 +119,8 @@ export const ManagedPostgresConfigSchema = z.object({
 
 export const ManagedDatabaseListQuerySchema = z.object({
   nodeId: z.string().uuid().optional(),
+  /** Only the instance with exactly this name (finds a database whose create answer was lost or failed). */
+  name: z.string().trim().min(1).max(255).optional(),
   type: managedDatabaseTypeSchema.optional(),
   ...appListQueryFields,
 });

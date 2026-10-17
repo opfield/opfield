@@ -5,6 +5,7 @@ import {
   dataResponseSchema,
   IdParamSchema,
   jsonBody,
+  jsonContent,
   okJson,
   optionalJsonBody,
   pathParamSchema,
@@ -57,9 +58,15 @@ export const createManagedStorageRoute = appRoute({
   tags: [TAG],
   summary: 'Deploy a managed object storage cluster',
   description:
-    'With `availability` (several servers) the create waits until every server took its part, about 90 s at most. When a server fails, it answers 409 `AVAILABILITY_CREATE_FAILED` with the reason, but the storage exists: it stays on its first server with availability off and is never deleted for the failure (`details.kept: true`; find it in the list by name). Fix the cause, then turn availability on with `POST /{id}/availability`, or delete the storage. Past the 90 s the create answers 201 and the setup goes on by itself.',
+    'With `availability` (several servers) the create waits until every server took its part, 180 s at most. When a server fails or does not answer within the 180 s, it answers 409 `AVAILABILITY_CREATE_FAILED` with the reason, but the storage exists: it stays on its first server with availability off and is never deleted for the failure (`details.kept: true`, `details.id`, `details.name`, `details.nodeId`, `details.nodeName`). Fix the cause, then turn availability on with `POST /{id}/availability`, or delete the storage. In the rare case that a server still holds a setup step when the wait ends, it answers 202 with `status: "creating"` and `setupPending: true`: poll the get until `status` leaves `creating`; `availabilityFailure` then names a failure. A failed create is never answered 201.',
   request: jsonBody(CreateManagedStorageSchema),
-  responses: createdJson(UnknownDataResponseSchema),
+  responses: {
+    ...createdJson(UnknownDataResponseSchema),
+    202: {
+      description: 'Accepted: a server still holds a setup step (setupPending); poll the get',
+      content: jsonContent(UnknownDataResponseSchema),
+    },
+  },
 });
 
 export const getManagedStorageRoute = appRoute({

@@ -60,8 +60,13 @@ describe('a disk several enrolled nodes share alerts once (rc.2 O-1)', () => {
     expect(key).toBe('disk:disk-1');
     expect(nodeId).toBe('node-a');
     expect(mount).toBe('/');
-    expect(details.node.name).toBe('builder-1, nginx-1, relay-1');
-    expect(details.details).toEqual({ mount: '/', nodes: 'builder-1, nginx-1, relay-1' });
+    // The message says it is one disk, and every node is named with its id (rc.3 O-A2, O-A3).
+    expect(details.node.name).toBe('builder-1, nginx-1, relay-1 (one shared disk)');
+    expect(details.details).toEqual({
+      mount: '/',
+      nodes: 'builder-1, nginx-1, relay-1',
+      nodeIds: 'node-a, node-b, node-c',
+    });
   });
 
   it('keeps one alert per node for disks of different hosts and for daemons without a disk id', async () => {

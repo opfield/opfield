@@ -145,6 +145,7 @@ const AVAILABILITY_EVENTS: EventDefinition[] = [
   { id: 'availability.fenced', label: 'Server Stopped Taking Writes', defaultSeverity: 'warning' },
   { id: 'availability.rejoined', label: 'Copy Rejoined', defaultSeverity: 'info' },
   { id: 'availability.rebuilt', label: 'Copy Rebuilt', defaultSeverity: 'info' },
+  { id: 'availability.seeded', label: 'New Copy Seeded', defaultSeverity: 'info' },
   { id: 'availability.cancelled_sync_wait', label: 'Commit Wait Cancelled By Client', defaultSeverity: 'warning' },
 ];
 
@@ -416,6 +417,11 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       {
         name: '{{details.nodes}}',
         description: 'Every node that reports the disk (disk rules): nodes enrolled on one host share their disks',
+      },
+      {
+        name: '{{details.nodeIds}}',
+        description:
+          'The IDs of every node that reports the disk (disk rules). On a disk several nodes share, {{node.name}} names them all followed by "(one shared disk)", and the alert resource key is the disk (disk:<id>), not a node ID',
       },
       {
         name: '{{details.problem}}',
