@@ -237,6 +237,7 @@ async function manageManagedDatabase(user: User, args: Record<string, unknown>) 
     const rows = await service.list(
       ManagedDatabaseListQuerySchema.parse({
         nodeId: args.nodeId,
+        name: args.name,
         type: args.type,
         excludeAppMembers: args.excludeAppMembers,
         appId: args.appId,

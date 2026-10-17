@@ -13,6 +13,8 @@ const tagsSchema = z.array(z.string().trim().min(1).max(64)).max(32).optional();
 
 export const ManagedStorageListQuerySchema = z.object({
   nodeId: z.string().uuid().optional(),
+  /** Only the cluster with exactly this name (finds a storage whose create answer was lost or failed). */
+  name: z.string().trim().min(1).max(255).optional(),
   ...appListQueryFields,
 });
 
