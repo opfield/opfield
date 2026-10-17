@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net/http"
 	"net/netip"
 	"os"
@@ -37,16 +38,16 @@ const (
 	// seaweedfsUpstreamImage is listed in config/third-party-images.json, so
 	// EnsureThirdPartyImage tries the GHCR mirror before Docker Hub.
 	seaweedfsUpstreamImage = seaweedfsUpstreamRepo + "@" + seaweedfsImageDigest
-	// legacy-name: seaweedfs-gateway, the repository of the pinned build that
+	// legacy-name: legacycompat.SeaweedFSImageRepository, the repository of the pinned build that
 	// storage containers run; renamed with the next SeaweedFS pin, which
 	// recreates storage containers anyway.
 	// seaweedfsImage is the image storage containers run: Opfield's patched
 	// build of 4.47 (packages/daemons/seaweedfs-image), which the Image
-	// workflow publishes as <image repository>/seaweedfs-gateway (both
-	// ghcr.io/opfield/opfield and ghcr.io/the-square-labs/gateway once the
+	// workflow publishes as <image repository>/legacycompat.SeaweedFSImageRepository (both
+	// ghcr.io/opfield/opfield and legacycompat.ImageRepository once the
 	// opfield one is the primary), pinned here by digest. While it equals seaweedfsUpstreamImage the
 	// upstream image runs as before (mirror first, Docker Hub second).
-	seaweedfsImage = "ghcr.io/the-square-labs/gateway/seaweedfs-gateway@sha256:5fe846bd9dd3355698bbc908daaa633b49239b350cb31c11ff8f6828cca91b44"
+	seaweedfsImage = legacycompat.ImageRepository + "/" + legacycompat.SeaweedFSImageRepository + "@sha256:5fe846bd9dd3355698bbc908daaa633b49239b350cb31c11ff8f6828cca91b44"
 
 	minimumSeaweedFSMemoryBytes = 512 * 1024 * 1024
 
@@ -55,8 +56,8 @@ const (
 	seaweedfsRuntimeUID = 1000
 	seaweedfsRuntimeGID = 1000
 
-	seaweedfsRootIdentity    = "gateway-root"
-	seaweedfsContainerRoot   = "/run/gateway-storage"
+	seaweedfsRootIdentity    = legacycompat.SeaweedFSRootIdentity
+	seaweedfsContainerRoot   = legacycompat.RunDirPrefix + "storage"
 	seaweedfsReadyTimeout    = 3 * time.Minute
 	seaweedfsBucketAllowance = 256
 	mebibyte                 = 1024 * 1024

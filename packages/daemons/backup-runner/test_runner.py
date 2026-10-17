@@ -615,18 +615,19 @@ class FakeProcess:
 class StorageCopyTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
-        self.original = (runner.WORK, runner.RESULT, runner.COPY_PROGRESS, runner.CONFIG, runner.LEGACY_CONFIG, runner.SYSTEM_CA_BUNDLE)
+        self.original = (runner.WORK, runner.RESULT, runner.COPY_PROGRESS, runner.CONFIG, runner.LEGACY_CONFIG_GLOB, runner.SYSTEM_CA_BUNDLE)
         work = pathlib.Path(self.directory.name) / "work"
         work.mkdir()
         runner.WORK, runner.RESULT, runner.COPY_PROGRESS = work, work / "result.json", work / "progress.json"
         runner.CONFIG = pathlib.Path(self.directory.name) / "config.json"
-        runner.LEGACY_CONFIG = pathlib.Path(self.directory.name) / "legacy-config.json"
+        runner.LEGACY_CONFIG_GLOB = str(pathlib.Path(self.directory.name) / "earlier-backup" / "config.json").replace("earlier-backup", "*-backup")
+        (pathlib.Path(self.directory.name) / "earlier-backup").mkdir()
         system_bundle = pathlib.Path(self.directory.name) / "system.pem"
         system_bundle.write_text("SYSTEM ROOTS\n")
         runner.SYSTEM_CA_BUNDLE = str(system_bundle)
 
     def tearDown(self):
-        runner.WORK, runner.RESULT, runner.COPY_PROGRESS, runner.CONFIG, runner.LEGACY_CONFIG, runner.SYSTEM_CA_BUNDLE = self.original
+        runner.WORK, runner.RESULT, runner.COPY_PROGRESS, runner.CONFIG, runner.LEGACY_CONFIG_GLOB, runner.SYSTEM_CA_BUNDLE = self.original
         self.directory.cleanup()
 
     def write_config(self, config, mode=0o600):
@@ -659,8 +660,8 @@ class StorageCopyTests(unittest.TestCase):
             runner.load_copy_config()
 
     def test_config_falls_back_to_the_mount_of_older_daemons(self):
-        runner.LEGACY_CONFIG.write_text(runner.json.dumps(copy_config()))
-        runner.os.chmod(runner.LEGACY_CONFIG, 0o600)
+        (pathlib.Path(self.directory.name) / "earlier-backup" / "config.json").write_text(runner.json.dumps(copy_config()))
+        runner.os.chmod(pathlib.Path(self.directory.name) / "earlier-backup" / "config.json", 0o600)
         self.assertEqual(runner.load_copy_config()["buckets"], ["assets"])
         self.write_config(copy_config(buckets=["media"]))
         self.assertEqual(runner.load_copy_config()["buckets"], ["media"])

@@ -22,7 +22,7 @@ packages/daemons/docker/bin/
 packages/daemons/lease-watchdog/bin/
 packages/daemons/nginx/bin/
 packages/daemons/nginx/nginx-daemon
-packages/daemons/monitoring/bin/monitoring-daemon
+packages/daemons/monitoring/bin/
 packages/daemons/relay/bin/
 packages/daemons/shared/updateauth/update-signing-public-key.pem
 packages/relay/opfield-relay

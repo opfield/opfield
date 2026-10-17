@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ const (
 
 const clickHouseRuntimeProfileVersion = 3
 
-const clickHouseOwnerOverrideContainerPath = "/etc/clickhouse-server/users.d/zz-gateway-owner.xml"
+const clickHouseOwnerOverrideContainerPath = "/etc/clickhouse-server/users.d/" + legacycompat.ClickHouseOwnerOverrideFile
 
 // ClickHouse's upstream defaults are sized for dedicated analytics servers:
 // they create large background pools and several MergeTree-backed system log

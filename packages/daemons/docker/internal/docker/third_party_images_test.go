@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"slices"
 	"testing"
 )
@@ -8,7 +9,7 @@ import (
 const testPostgresUpstream = "docker.io/library/postgres@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a"
 
 func TestThirdPartyMirrorAcceptsTheOpfieldName(t *testing.T) {
-	oldMirror := "ghcr.io/the-square-labs/gateway/postgres@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a"
+	oldMirror := legacycompat.ImageRepository + "/postgres@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a"
 	newMirror := "ghcr.io/opfield/opfield/postgres@sha256:3a82e1f56c8f0f5616a11103ac3d47e632c3938698946a7ad26da0df1334744a"
 
 	// The pull order of the names a 2.11.4 peer sends does not change.

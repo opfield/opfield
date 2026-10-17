@@ -92,7 +92,7 @@ func launcherRunningFeatures(keeper bool) []string {
 func takeLauncherResume() (*launcherResume, error) {
 	value, ok := os.LookupEnv(launcherResumeFDEnv)
 	if !ok {
-		// legacy-name: GATEWAY_DAEMON_LAUNCHER_RESUME_FD from a pre-Opfield launcher image execing into this one — remove once every node reports none
+		// legacy-name: legacycompat.EnvPrefixDAEMON_LAUNCHER_RESUME_FD from a pre-Opfield launcher image execing into this one — remove once every node reports none
 		value, ok = os.LookupEnv(legacyLauncherResumeFDEnv)
 	}
 	_ = os.Unsetenv(launcherResumeFDEnv)

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"sort"
 	"sync"
 
@@ -15,8 +16,8 @@ import (
 // Signature domains of availabilitylease/doc.go: the wire contract the
 // Opfield signs lease blocks and rotation links with.
 const (
-	domainManifest    = "gateway-availability-lease/manifest/v1"
-	domainKeyRotation = "gateway-availability-lease/key-rotation/v1"
+	domainManifest    = legacycompat.AvailabilityLeaseDomain + "/manifest/v1"
+	domainKeyRotation = legacycompat.AvailabilityLeaseDomain + "/key-rotation/v1"
 
 	maxPendingLinks = 16
 )

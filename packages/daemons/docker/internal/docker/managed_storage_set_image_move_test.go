@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -36,7 +37,7 @@ func newSWMoveFixture(t *testing.T, running string, withMaster bool) *swMoveFixt
 	root := t.TempDir()
 	m := &managedStorageManager{root: root, logger: slog.New(slog.DiscardHandler), loops: muPlainLoops(), client: docker.client()}
 	record := managedStorageRecord{ID: swStorage, Image: running, ImagePath: filepath.Join(root, "images", swStorage+".img"),
-		MountPath: filepath.Join(root, "mounts", swStorage), NetworkName: "gateway-storage-" + swStorage, OperationID: "op-before",
+		MountPath: filepath.Join(root, "mounts", swStorage), NetworkName: legacycompat.StorageLinkNetworkPrefix + swStorage, OperationID: "op-before",
 		StorageBytes: 1 << 30, MemoryBytes: 512 << 20,
 		Set: &managedStorageSetRecord{SetID: muSet, MemberID: muMember, MemberIndex: 0}}
 	for _, dir := range []string{filepath.Dir(record.ImagePath), record.MountPath, m.seaweedfsStagingDir(record), m.seaweedfsSetDir(swStorage, 0)} {

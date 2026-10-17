@@ -156,7 +156,7 @@ func (p *DockerPlugin) leaseCreateConfig(configJSON string) string {
 	labels, _ := config["labels"].(map[string]any)
 	policyID, _ := labels[availabilityPolicyLabel].(string)
 	if policyID == "" {
-		// legacy-name: wiolett.gateway.* labels in a payload of a pre-Opfield control plane — remove once every node reports none
+		// legacy-name: legacycompat.LabelPrefix* labels in a payload of a pre-Opfield control plane — remove once every node reports none
 		policyID, _ = labels[legacyLabelKey(availabilityPolicyLabel)].(string)
 	}
 	if policyID == "" || !p.lease.runtime.LeaseMode(policyID) {

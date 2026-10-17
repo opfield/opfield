@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"testing"
 )
 
@@ -43,7 +44,7 @@ func TestDaemonStartHealsAReplacedStorageContainer(t *testing.T) {
 		record.ContainerID = recordContainer
 		return m, docker, record
 	}
-	base := "gateway-storage-33333333-3333-4333-8333-333333333333"
+	base := legacycompat.StorageLinkNetworkPrefix + "33333333-3333-4333-8333-333333333333"
 
 	t.Run("restored container under the rollback name", func(t *testing.T) {
 		m, docker, record := setup(t, map[string]*fakeMoveContainer{

@@ -2,6 +2,7 @@ package docker
 
 import (
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,7 +66,7 @@ func TestStageClickHouseAvailabilityMember(t *testing.T) {
 	// A member created with an empty Keeper state tells the holder it waits to be added (the member runtime
 	// takes it over only once its container exists), and its readiness never names a database it gets only
 	// after it joined.
-	if marker, err := os.ReadFile(filepath.Join(mount, "gateway-keeper-joining")); err != nil || strings.TrimSpace(string(marker)) != "joining" {
+	if marker, err := os.ReadFile(filepath.Join(mount, legacycompat.KeeperFilePrefix+"-joining")); err != nil || strings.TrimSpace(string(marker)) != "joining" {
 		t.Fatalf("joining marker %q %v", marker, err)
 	}
 	if command, _, _ := managedDatabaseReadinessCommand(managedDatabaseCommand{Type: "clickhouse", OwnerUsername: "o", DatabaseName: "app",
@@ -123,7 +124,7 @@ func TestClickHouseMemberCommandRules(t *testing.T) {
 		t.Fatalf("env %v", env)
 	}
 	owner := clickHouseMemberOwnerOverrideConfig("gw_owner", "secret<&>")
-	if !strings.Contains(owner, "<profile>gateway_client</profile>") || strings.Contains(owner, "<profile>default</profile>") ||
+	if !strings.Contains(owner, "<profile>"+legacycompat.ClickHouseClientProfile+"</profile>") || strings.Contains(owner, "<profile>default</profile>") ||
 		!strings.Contains(owner, "secret&lt;&amp;&gt;") {
 		t.Fatalf("owner override %s", owner)
 	}

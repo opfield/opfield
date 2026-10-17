@@ -26,6 +26,7 @@ package hostnames
 
 import (
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,10 +36,10 @@ import (
 
 // Directory pairs of a relay node.
 var (
-	StateDir   = hostrename.Pair{Old: "/var/lib/gateway-relay-supervisor", New: "/var/lib/opfield-relay"}
-	ConfigDir  = hostrename.Pair{Old: "/etc/gateway-relay-supervisor", New: "/etc/opfield-relay"}
-	ProgramDir = hostrename.Pair{Old: "/usr/local/lib/gateway-relay", New: "/usr/local/lib/opfield-relay"}
-	WitnessDir = hostrename.Pair{Old: "/var/lib/gateway-relay-witness", New: "/var/lib/opfield-relay-witness"}
+	StateDir   = hostrename.Pair{Old: legacycompat.StateRoot + "-relay-supervisor", New: "/var/lib/opfield-relay"}
+	ConfigDir  = hostrename.Pair{Old: "/etc/" + legacycompat.RelaySupervisorName, New: "/etc/opfield-relay"}
+	ProgramDir = hostrename.Pair{Old: "/usr/local/lib/" + legacycompat.RelayProgramName, New: "/usr/local/lib/opfield-relay"}
+	WitnessDir = hostrename.Pair{Old: legacycompat.StateRoot + "-relay-witness", New: "/var/lib/opfield-relay-witness"}
 )
 
 const (
@@ -46,20 +47,20 @@ const (
 
 	// ServiceName is the systemd unit (.service) and OpenRC service.
 	ServiceName = "opfield-relay-supervisor"
-	// legacy-name: gateway-relay-supervisor service — remove once every node reports none
-	LegacyServiceName = "gateway-relay-supervisor"
+	// legacy-name: legacycompat.RelaySupervisorName service — remove once every node reports none
+	LegacyServiceName = legacycompat.RelaySupervisorName
 
 	// WorkerBinaryName is the relay worker binary in ProgramDir.
 	WorkerBinaryName = "opfield-relay"
-	// legacy-name: gateway-relay worker binary — remove once every node reports none
-	LegacyWorkerBinaryName = "gateway-relay"
+	// legacy-name: legacycompat.RelayProgramName worker binary — remove once every node reports none
+	LegacyWorkerBinaryName = legacycompat.RelayProgramName
 	// RunnerName is the service's start wrapper in ProgramDir.
 	RunnerName = "run-supervisor"
 
 	// WitnessUser runs the witnesses of a root supervisor.
 	WitnessUser = "opfield-witness"
-	// legacy-name: gateway-witness user — remove once every node reports none
-	LegacyWitnessUser = "gateway-witness"
+	// legacy-name: legacycompat.WitnessUser user — remove once every node reports none
+	LegacyWitnessUser = legacycompat.WitnessUser
 
 	// LogDir holds the OpenRC service logs.
 	LogDir = "/var/log"
@@ -111,7 +112,7 @@ func (l Layout) workerBinary() string {
 	if regularFile(current) {
 		return current
 	}
-	// legacy-name: /usr/local/lib/gateway-relay/gateway-relay until the program directory moved — remove once every node reports none
+	// legacy-name: /usr/local/lib/legacycompat.RelayProgramName/legacycompat.RelayProgramName until the program directory moved — remove once every node reports none
 	if legacy := filepath.Join(l.Program.Old, LegacyWorkerBinaryName); regularFile(legacy) {
 		return legacy
 	}
@@ -139,7 +140,7 @@ func WitnessScopeNames(id string) []string {
 	}
 	return []string{
 		WitnessUser + "-" + id + ".scope",
-		// legacy-name: gateway-witness-<id>.scope of witnesses an older supervisor started — remove once every node reports none
+		// legacy-name: legacycompat.WitnessUser-<id>.scope of witnesses an older supervisor started — remove once every node reports none
 		LegacyWitnessUser + "-" + id + ".scope",
 	}
 }

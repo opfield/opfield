@@ -8,17 +8,18 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"sync"
 )
 
 // Signature domains. Every signed byte string starts with its domain and a
 // zero byte so a signature can never be replayed as another message type.
 const (
-	domainFrame       = "gateway-availability-lease/frame/v1"
-	domainAccept      = "gateway-availability-lease/accept/v1"
-	domainAcceptV2    = "gateway-availability-lease/accept/v2"
-	domainManifest    = "gateway-availability-lease/manifest/v1"
-	domainKeyRotation = "gateway-availability-lease/key-rotation/v1"
+	domainFrame       = legacycompat.AvailabilityLeaseDomain + "/frame/v1"
+	domainAccept      = legacycompat.AvailabilityLeaseDomain + "/accept/v1"
+	domainAcceptV2    = legacycompat.AvailabilityLeaseDomain + "/accept/v2"
+	domainManifest    = legacycompat.AvailabilityLeaseDomain + "/manifest/v1"
+	domainKeyRotation = legacycompat.AvailabilityLeaseDomain + "/key-rotation/v1"
 )
 
 // Signer signs with this node's identity key (ECDSA P-256, the TLS identity).

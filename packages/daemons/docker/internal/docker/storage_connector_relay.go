@@ -3,6 +3,7 @@ package docker
 import (
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ const (
 	storageConnectorSocketDirectory = "storage-connector"
 	storageConnectorSocketName      = "storage-relay.sock"
 	storageConnectorMount           = "/run/opfield"
-	legacyStorageConnectorMount     = "/run/gateway"
+	legacyStorageConnectorMount     = legacycompat.ConnectorRunDir
 	storageBindingOwnerKind         = "managed_storage_binding"
 	// managedStorageLinkCapability: the node hosts managed storage link connectors (this socket). Availability
 	// projects a workload's storage links only to Docker nodes that advertise it.
@@ -205,7 +206,7 @@ func validStorageConnectorInternalWorkload(env []string, binds []string, socketH
 		return false
 	case binds[0] == socketHostPath+":"+storageConnectorMount+":ro":
 		mount = storageConnectorMount
-	// legacy-name: /run/gateway socket mount of storage connectors before Opfield — remove once every node reports none
+	// legacy-name: legacycompat.ConnectorRunDir socket mount of storage connectors before Opfield — remove once every node reports none
 	case binds[0] == socketHostPath+":"+legacyStorageConnectorMount+":ro":
 		mount = legacyStorageConnectorMount
 	default:
@@ -250,8 +251,8 @@ func connectorEnvKey(name string) (string, bool) {
 	if key, ok := strings.CutPrefix(name, "OPFIELD_CONNECTOR_"); ok && key != "" {
 		return key, true
 	}
-	// legacy-name: GATEWAY_CONNECTOR_* environment of connectors before Opfield — remove once every node reports none
-	if key, ok := strings.CutPrefix(name, "GATEWAY_CONNECTOR_"); ok && key != "" {
+	// legacy-name: legacycompat.EnvPrefixCONNECTOR_* environment of connectors before Opfield — remove once every node reports none
+	if key, ok := strings.CutPrefix(name, legacycompat.EnvPrefix+"CONNECTOR_"); ok && key != "" {
 		return key, true
 	}
 	return "", false

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net"
@@ -164,7 +165,7 @@ func (m *managedDatabaseManager) recreateClickHouseAware(ctx context.Context, re
 	return m.recreateContainer(ctx, record, input)
 }
 
-const clickHouseInternalSecretFile = "gateway-availability-internal.secret"
+const clickHouseInternalSecretFile = legacycompat.AvailabilityFilePrefix + "-internal.secret"
 
 // stageClickHouseAvailability writes the member's availability files before
 // its container is created (standby at rest: client profile read-only) and

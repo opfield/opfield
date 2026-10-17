@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"math/big"
 	"net"
@@ -114,7 +115,7 @@ func echoUpstream(t *testing.T) (*grpc.ClientConn, func() metadata.MD, func()) {
 // caller's headers with the legacy prefix are dropped too: an Opfield that still
 // reads them for an older relay must never get them from a client.
 func TestProxyForwardsOnlyTheVerifiedDaemonIdentity(t *testing.T) {
-	for _, method := range []string{"/opfield.v1.Contract/Unary", "/gateway.v1.Contract/Unary"} {
+	for _, method := range []string{"/opfield.v1.Contract/Unary", "/" + legacycompat.GRPCPackage + ".Contract/Unary"} {
 		conn, seen, stop := echoUpstream(t)
 		handler := New(conn, func() (*grpc.ClientConn, error) { return conn, nil })
 
@@ -131,7 +132,7 @@ func TestProxyForwardsOnlyTheVerifiedDaemonIdentity(t *testing.T) {
 			forwarded.Get("x-opfield-relay-cert-serial")[0] != "2a" || len(forwarded.Get("x-opfield-relay-cert-sha256")) != 1 {
 			t.Fatalf("%s: verified identity was not injected: %v", method, forwarded)
 		}
-		for _, spoofed := range []string{"x-opfield-relay-spoofed", "x-wiolett-relay-spoofed", "x-wiolett-relay-node-id", "x-wiolett-relay-cert-serial", "x-wiolett-relay-cert-sha256"} {
+		for _, spoofed := range []string{"x-opfield-relay-spoofed", legacycompat.RelayMetadataPrefix + "spoofed", legacycompat.RelayMetadataPrefix + "node-id", legacycompat.RelayMetadataPrefix + "cert-serial", legacycompat.RelayMetadataPrefix + "cert-sha256"} {
 			if forwarded.Get(spoofed) != nil {
 				t.Fatalf("%s: client header %s reached Opfield: %v", method, spoofed, forwarded)
 			}
@@ -145,7 +146,7 @@ func TestProxyRejectsDaemonsWithoutAVerifiedCertificate(t *testing.T) {
 	defer stop()
 	handler := New(conn, func() (*grpc.ClientConn, error) { return conn, nil })
 
-	unverified := downstreamFor("/gateway.v1.NodeControl/CommandStream", []codec.Frame{{1}}, context.Background(), false)
+	unverified := downstreamFor("/"+legacycompat.GRPCPackage+".NodeControl/CommandStream", []codec.Frame{{1}}, context.Background(), false)
 	if code := status.Code(handler.Handle(nil, unverified)); code != codes.Unauthenticated {
 		t.Fatalf("unverified daemon status = %v, want Unauthenticated", code)
 	}
@@ -165,14 +166,14 @@ func TestProxyRejectsDaemonsWithoutAVerifiedCertificate(t *testing.T) {
 	// Enrollment is how a daemon gets its first certificate: it passes, under
 	// either package name, but without any identity headers, including ones the
 	// caller made up.
-	for _, method := range []string{"/opfield.v1.NodeEnrollment/Enroll", "/gateway.v1.NodeEnrollment/Enroll"} {
+	for _, method := range []string{"/opfield.v1.NodeEnrollment/Enroll", "/" + legacycompat.GRPCPackage + ".NodeEnrollment/Enroll"} {
 		enrollment := downstreamFor(method, []codec.Frame{{1}}, context.Background(), false)
 		if err := handler.Handle(nil, enrollment); err != nil {
 			t.Fatal(err)
 		}
 		forwarded := seen()
 		for key := range forwarded {
-			if strings.HasPrefix(key, "x-opfield-relay-") || strings.HasPrefix(key, "x-wiolett-relay-") {
+			if strings.HasPrefix(key, "x-opfield-relay-") || strings.HasPrefix(key, legacycompat.RelayMetadataPrefix) {
 				t.Fatalf("%s carried relay identity header %s: %v", method, key, forwarded)
 			}
 		}
@@ -212,7 +213,7 @@ func TestReloadUpstreamKeepsRunningStreamsOnPreviousConnection(t *testing.T) {
 	defer stopNext()
 	handler := New(previous, func() (*grpc.ClientConn, error) { return next, nil })
 
-	running := authenticatedDownstream("/gateway.v1.NodeControl/CommandStream", []codec.Frame{{1}}, context.Background())
+	running := authenticatedDownstream("/"+legacycompat.GRPCPackage+".NodeControl/CommandStream", []codec.Frame{{1}}, context.Background())
 	result := make(chan error, 1)
 	go func() { result <- handler.Handle(nil, running) }()
 	<-started
@@ -223,7 +224,7 @@ func TestReloadUpstreamKeepsRunningStreamsOnPreviousConnection(t *testing.T) {
 		t.Fatal("reload closed the connection a running stream still uses")
 	}
 
-	fresh := authenticatedDownstream("/gateway.v1.NodeControl/CommandStream", []codec.Frame{{2}}, context.Background())
+	fresh := authenticatedDownstream("/"+legacycompat.GRPCPackage+".NodeControl/CommandStream", []codec.Frame{{2}}, context.Background())
 	if err := handler.Handle(nil, fresh); err != nil {
 		t.Fatal(err)
 	}
@@ -277,8 +278,8 @@ func authenticatedDownstream(method string, input []codec.Frame, base context.Co
 
 func downstreamFor(method string, input []codec.Frame, base context.Context, verified bool) *downstreamStream {
 	certificate := &x509.Certificate{Subject: pkix.Name{CommonName: "node-1"}, SerialNumber: big.NewInt(42), Raw: []byte("node-certificate")}
-	ctx := metadata.NewIncomingContext(base, metadata.Pairs("x-client-metadata", "kept", "x-wiolett-relay-spoofed", "removed", "x-wiolett-relay-node-id", "spoofed-node",
-		"x-wiolett-relay-cert-serial", "spoofed", "x-wiolett-relay-cert-sha256", "spoofed",
+	ctx := metadata.NewIncomingContext(base, metadata.Pairs("x-client-metadata", "kept", legacycompat.RelayMetadataPrefix+"spoofed", "removed", legacycompat.RelayMetadataPrefix+"node-id", "spoofed-node",
+		legacycompat.RelayMetadataPrefix+"cert-serial", "spoofed", legacycompat.RelayMetadataPrefix+"cert-sha256", "spoofed",
 		"x-opfield-relay-spoofed", "removed", "X-Opfield-Relay-Node-Id", "spoofed-node", "x-opfield-relay-cert-serial", "spoofed"))
 	state := tls.ConnectionState{PeerCertificates: []*x509.Certificate{certificate}}
 	if verified {

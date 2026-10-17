@@ -3,6 +3,7 @@ package hostnames
 import (
 	"bytes"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -95,7 +96,7 @@ func run(name string, args ...string) error {
 // disabling the old one, only the old unit starts, and its supervisor finishes
 // the switch. Cleanup removes the line once the old unit is gone.
 func (l Layout) systemdGuardLine() string {
-	// legacy-name: guard on the gateway-relay-supervisor unit — remove once every node reports none
+	// legacy-name: guard on the legacycompat.RelaySupervisorName unit — remove once every node reports none
 	return "ConditionPathExists=!" + l.SystemdDir + "/multi-user.target.wants/" + LegacyServiceName + ".service"
 }
 
@@ -120,7 +121,7 @@ func (l Layout) withoutSystemdGuard(unit string) string {
 // the unit: refuse to start while the old service is still in the default
 // runlevel.
 func (l Layout) openrcGuard() string {
-	return "    # legacy-name: guard on the gateway-relay-supervisor service — remove once every node reports none\n" +
+	return "    # legacy-name: guard on the " + legacycompat.RelaySupervisorName + " service — remove once every node reports none\n" +
 		"    if [ -e " + l.RunlevelDir + "/" + LegacyServiceName + " ]; then\n" +
 		"        eerror \"" + LegacyServiceName + " still starts at boot and runs the relay supervisor\"\n" +
 		"        return 1\n" +

@@ -28,7 +28,7 @@ func TestApplyIsDurableMonotonicAndIdempotent(t *testing.T) {
 		t.Fatalf("identical apply was not idempotent: unchanged=%v err=%v", unchanged, err)
 	}
 	conflict := validSnapshot(publicKey)
-	conflict.GatewayInstanceId = "different"
+	conflict.OpfieldInstanceId = "different"
 	if _, _, err := store.Apply(conflict); err == nil {
 		t.Fatal("conflicting content at one revision was accepted")
 	}
@@ -48,7 +48,7 @@ func TestApplyIsDurableMonotonicAndIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	if reopened.Current().Revision != 2 || reopened.Current().GatewayInstanceID != "opfield-1" {
+	if reopened.Current().Revision != 2 || reopened.Current().OpfieldInstanceID != "opfield-1" {
 		t.Fatalf("persisted snapshot was not restored: %#v", reopened.Current())
 	}
 }
@@ -352,7 +352,7 @@ func TestSignedPolicyKeepsActiveAndStagingAssignmentGenerations(t *testing.T) {
 
 func validSnapshot(publicKey ed25519.PublicKey) *relayv1.ApplySnapshotRequest {
 	return &relayv1.ApplySnapshotRequest{
-		Revision: 1, GatewayInstanceId: "opfield-1",
+		Revision: 1, OpfieldInstanceId: "opfield-1",
 		PublicKeys: []*relayv1.PublicKey{{KeyId: "key-1", PublicKey: publicKey}},
 		Endpoints:  []*relayv1.EndpointPolicy{{EndpointId: "endpoint-1", Generation: 1, SubjectKind: "daemon", SubjectId: "node-target", CertificateSha256: "sha256:target"}},
 		Routes:     []*relayv1.RoutePolicy{{RouteId: "route-1", Generation: 1, SourceKind: "daemon", SourceId: "node-source", SourceCertificateSha256: "sha256:source", TargetEndpointId: "endpoint-1"}},
@@ -374,7 +374,7 @@ func signedSnapshotWithPolicyKeys(t *testing.T, privateKey ed25519.PrivateKey, k
 func signedSnapshotWithPolicyKeysForTarget(t *testing.T, privateKey ed25519.PrivateKey, keyID string, grantPublic ed25519.PublicKey, revision uint64, now time.Time, policyKeys []*relayv1.PolicySigningKey, poolID, relayInstanceID string) *relayv1.ApplySnapshotRequest {
 	t.Helper()
 	payload := &relayv1.PolicyEnvelopePayload{
-		SchemaVersion: 2, GatewayInstanceId: "opfield-1", PoolId: poolID, RelayInstanceId: relayInstanceID,
+		SchemaVersion: 2, OpfieldInstanceId: "opfield-1", PoolId: poolID, RelayInstanceId: relayInstanceID,
 		Revision: revision, IssuedAtUnix: now.Unix(), ExpiresAtUnix: now.Add(MaxPolicyLease).Unix(),
 		GrantPublicKeys: []*relayv1.PublicKey{{KeyId: "grant-1", PublicKey: grantPublic}},
 		Endpoints: []*relayv1.EndpointPolicy{{
@@ -729,8 +729,8 @@ func TestResetLocalPolicyTrustRebindsNextSnapshot(t *testing.T) {
 	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 3, now, "opfield-2")); err != nil {
 		t.Fatalf("first snapshot after a reset could not rebind the relay: %v", err)
 	}
-	if current := local.Current(); current.Revision != 3 || current.GatewayInstanceID != "opfield-2" {
-		t.Fatalf("relay did not rebind: revision=%d gateway=%s", current.Revision, current.GatewayInstanceID)
+	if current := local.Current(); current.Revision != 3 || current.OpfieldInstanceID != "opfield-2" {
+		t.Fatalf("relay did not rebind: revision=%d opfield=%s", current.Revision, current.OpfieldInstanceID)
 	}
 	if _, _, err := local.Apply(signedSnapshotForOpfield(t, newPrivate, "new", newPublic, grantPublic, 2, now, "opfield-2")); err == nil {
 		t.Fatal("an older revision was accepted after the rebind")
@@ -789,10 +789,10 @@ func TestResetLocalPolicyTrustRebindSurvivesRestart(t *testing.T) {
 	}
 }
 
-func signedSnapshotForOpfield(t *testing.T, privateKey ed25519.PrivateKey, keyID string, policyPublic, grantPublic ed25519.PublicKey, revision uint64, now time.Time, gatewayInstanceID string) *relayv1.ApplySnapshotRequest {
+func signedSnapshotForOpfield(t *testing.T, privateKey ed25519.PrivateKey, keyID string, policyPublic, grantPublic ed25519.PublicKey, revision uint64, now time.Time, opfieldInstanceID string) *relayv1.ApplySnapshotRequest {
 	t.Helper()
 	payload := &relayv1.PolicyEnvelopePayload{
-		SchemaVersion: 2, GatewayInstanceId: gatewayInstanceID, PoolId: "system", RelayInstanceId: "relay-1",
+		SchemaVersion: 2, OpfieldInstanceId: opfieldInstanceID, PoolId: "system", RelayInstanceId: "relay-1",
 		Revision: revision, IssuedAtUnix: now.Unix(), ExpiresAtUnix: now.Add(MaxPolicyLease).Unix(),
 		GrantPublicKeys:   []*relayv1.PublicKey{{KeyId: "grant-1", PublicKey: grantPublic}},
 		Capabilities:      []string{PoolCapability},

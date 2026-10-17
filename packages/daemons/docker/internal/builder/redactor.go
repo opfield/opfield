@@ -2,6 +2,7 @@ package builder
 
 import (
 	"bytes"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -89,7 +90,7 @@ func cleanupStaleSecretDirs(workspace string) error {
 		return err
 	}
 	// legacy-name: secret directories a pre-Opfield daemon left behind — remove once every node reports none
-	legacy, err := filepath.Glob(filepath.Join(workspace, ".gateway-build-secrets-*"))
+	legacy, err := filepath.Glob(filepath.Join(workspace, legacycompat.BuildSecretsGlob))
 	matches = append(matches, legacy...)
 	if err != nil {
 		return err

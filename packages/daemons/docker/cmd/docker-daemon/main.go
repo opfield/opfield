@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -264,12 +265,12 @@ func runInstall() {
 	var address, token, certSHA256, dockerSocket, mode string
 	for i := 2; i < len(os.Args)-1; i++ {
 		switch os.Args[i] {
-		// legacy-name: --gateway and --gateway-cert-sha256 used by customer automation — drop with a changelog notice
-		case "--opfield", "--gateway":
+		// legacy-name: legacycompat.AddressFlag and legacycompat.CertFlag used by customer automation — drop with a changelog notice
+		case "--opfield", legacycompat.AddressFlag:
 			address = os.Args[i+1]
 		case "--token":
 			token = os.Args[i+1]
-		case "--opfield-cert-sha256", "--gateway-cert-sha256":
+		case "--opfield-cert-sha256", legacycompat.CertFlag:
 			certSHA256 = os.Args[i+1]
 		case "--docker-socket":
 			dockerSocket = os.Args[i+1]

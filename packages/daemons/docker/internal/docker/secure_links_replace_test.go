@@ -3,6 +3,7 @@ package docker
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net"
 	"net/http"
@@ -21,8 +22,8 @@ import (
 )
 
 const (
-	replaceTestOldImage = "ghcr.io/the-square-labs/gateway/secure-link-connector@sha256:1111111111111111111111111111111111111111111111111111111111111111"
-	replaceTestNewImage = "ghcr.io/the-square-labs/gateway/secure-link-connector@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+	replaceTestOldImage = legacycompat.ImageRepository + "/secure-link-connector@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	replaceTestNewImage = legacycompat.ImageRepository + "/secure-link-connector@sha256:2222222222222222222222222222222222222222222222222222222222222222"
 	replaceTestLinkID   = "0f6c8d3e-5b1a-4c2d-9e8f-7a6b5c4d3e2f"
 )
 

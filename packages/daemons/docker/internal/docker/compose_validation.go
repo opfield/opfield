@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"regexp"
 	"strconv"
 	"strings"
@@ -635,8 +636,8 @@ func validateServiceLabels(node *yaml.Node, reservedPolicy bool) error {
 	for key := range mappingValues(node) {
 		if !reservedPolicy {
 			if strings.HasPrefix(key, "com.docker.compose.") || strings.HasPrefix(key, "net.opfield.compose.") ||
-				// legacy-name: wiolett.gateway.compose.* labels of pre-Opfield Compose projects — remove once every node reports none
-				strings.HasPrefix(key, "wiolett.gateway.compose.") {
+				// legacy-name: legacycompat.LabelPrefixcompose.* labels of pre-Opfield Compose projects — remove once every node reports none
+				strings.HasPrefix(key, legacycompat.LabelPrefix+"compose.") {
 				return fmt.Errorf("compose label %q is reserved by Docker Compose or Opfield", key)
 			}
 			continue

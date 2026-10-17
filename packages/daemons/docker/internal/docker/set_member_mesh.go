@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net"
 	"net/netip"
@@ -45,8 +46,8 @@ import (
 
 const (
 	setMeshNetworkPrefix = "opfield-set-"
-	// legacy-name: gateway-set-<hex> networks of sets that joined a node before 2.12.1 — remove once every node reports none
-	legacySetMeshNetworkPrefix = "gateway-set-"
+	// legacy-name: legacycompat.SetNetworkPrefix<hex> networks of sets that joined a node before 2.12.1 — remove once every node reports none
+	legacySetMeshNetworkPrefix = legacycompat.SetNetworkPrefix
 	setMeshNetworkLabel        = "availability-set"
 	setMeshRetry               = 5 * time.Second
 	setMeshInspectWait         = 5 * time.Second

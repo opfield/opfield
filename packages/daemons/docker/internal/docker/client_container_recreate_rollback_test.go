@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -46,7 +47,7 @@ func newFakeRecreateEngine(t *testing.T) *fakeRecreateEngine {
 			"app-net":  {"orig": "app"},
 			"bind-net": {"ep-stale": "app"},
 			// A link network the container left while it restarted still holds an endpoint of its name.
-			"gateway-db-0123456789abcdef": {"ep-left": "app"},
+			legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef": {"ep-left": "app"},
 		},
 	}
 }
@@ -229,7 +230,7 @@ func TestRecreateDeletesTheStaleEndpointsOfTheRemovedContainer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("recreate failed: %v", err)
 	}
-	if got := strings.Join(engine.deleted, ","); got != "bind-net/app,gateway-db-0123456789abcdef/app" {
+	if got := strings.Join(engine.deleted, ","); got != "bind-net/app,"+legacycompat.DatabaseLinkNetworkPrefix+"0123456789abcdef/app" {
 		t.Fatalf("stale endpoints deleted = %q, want those in bind-net and the link network", got)
 	}
 	if engine.containers["app"] != "created-1" {
@@ -260,7 +261,7 @@ func TestRecreateKeepsTheRestoredContainerWhenItCannotStart(t *testing.T) {
 // the restored original as well.
 func TestRecreateOfAContainerWhoseNetworkModeIsGoneUsesTheBridge(t *testing.T) {
 	engine := newFakeRecreateEngine(t)
-	engine.networkMode = "gateway-db-fedcba9876543210"
+	engine.networkMode = legacycompat.DatabaseLinkNetworkPrefix + "fedcba9876543210"
 	engine.attached = map[string]any{}
 	engine.endpoints = map[string]map[string]string{"app-net": {}}
 
@@ -298,14 +299,14 @@ func TestPrioritizeNetworkNamesKeepsLinkNetworksSecondary(t *testing.T) {
 		mode  string
 		want  string
 	}{
-		{[]string{"bridge", "gateway-db-0123456789abcdef"}, "bridge", "bridge"},
-		{[]string{"bridge", "gateway-db-0123456789abcdef"}, "gateway-db-0123456789abcdef", "bridge"},
-		{[]string{"app-net", "gateway-db-0123456789abcdef"}, "gateway-db-0123456789abcdef", "app-net"},
-		{[]string{"bridge", "gateway-link-0123456789abcdef", "zeta"}, "bridge", "zeta"},
+		{[]string{"bridge", legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"}, "bridge", "bridge"},
+		{[]string{"bridge", legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"}, legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef", "bridge"},
+		{[]string{"app-net", legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"}, legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef", "app-net"},
+		{[]string{"bridge", legacycompat.ContainerLinkNetworkPrefix + "0123456789abcdef", "zeta"}, "bridge", "zeta"},
 		{[]string{"alpha", "beta"}, "beta", "beta"},
 		{[]string{"bridge", "zeta"}, "bridge", "zeta"},
-		{[]string{"gateway-db-0123456789abcdef", "gateway-link-0123456789abcdef"}, "gateway-link-0123456789abcdef", "gateway-link-0123456789abcdef"},
-		{[]string{"gateway-db-0123456789abcdef"}, "bridge", "gateway-db-0123456789abcdef"},
+		{[]string{legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef", legacycompat.ContainerLinkNetworkPrefix + "0123456789abcdef"}, legacycompat.ContainerLinkNetworkPrefix + "0123456789abcdef", legacycompat.ContainerLinkNetworkPrefix + "0123456789abcdef"},
+		{[]string{legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"}, "bridge", legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"},
 	}
 	for _, tc := range cases {
 		got := prioritizeNetworkNames(append([]string(nil), tc.names...), tc.mode)
@@ -321,15 +322,15 @@ func TestRemoveNetworkDeletesOrphanedEndpoints(t *testing.T) {
 	engine := newFakeRecreateEngine(t)
 	engine.containers = map[string]string{"live": "live-id"}
 	engine.endpoints = map[string]map[string]string{
-		"gateway-db-0123456789abcdef": {"ep-stale": "gone", "removed-id": "removed"},
-		"in-use":                      {"live-id": "live", "ep-stale": "gone"},
+		legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef": {"ep-stale": "gone", "removed-id": "removed"},
+		"in-use": {"live-id": "live", "ep-stale": "gone"},
 	}
 	cli := engine.client()
 
-	if err := cli.RemoveNetwork(context.Background(), "gateway-db-0123456789abcdef"); err != nil {
+	if err := cli.RemoveNetwork(context.Background(), legacycompat.DatabaseLinkNetworkPrefix+"0123456789abcdef"); err != nil {
 		t.Fatalf("remove network with orphaned endpoints: %v", err)
 	}
-	if _, exists := engine.endpoints["gateway-db-0123456789abcdef"]; exists {
+	if _, exists := engine.endpoints[legacycompat.DatabaseLinkNetworkPrefix+"0123456789abcdef"]; exists {
 		t.Fatal("network with orphaned endpoints was not removed")
 	}
 	err := cli.RemoveNetwork(context.Background(), "in-use")

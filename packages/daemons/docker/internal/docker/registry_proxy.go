@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"math/big"
@@ -100,8 +101,8 @@ func newDockerRegistryProxyManager(plugin *DockerPlugin) (*dockerRegistryProxyMa
 	}
 	if value := strings.TrimSpace(os.Getenv("OPFIELD_DOCKER_CERTS_DIR")); value != "" {
 		manager.trustRoot = value
-		// legacy-name: GATEWAY_DOCKER_CERTS_DIR of pre-Opfield service environments — remove once every node reports none
-	} else if value := strings.TrimSpace(os.Getenv("GATEWAY_DOCKER_CERTS_DIR")); value != "" {
+		// legacy-name: legacycompat.EnvPrefixDOCKER_CERTS_DIR of pre-Opfield service environments — remove once every node reports none
+	} else if value := strings.TrimSpace(os.Getenv(legacycompat.EnvPrefix + "DOCKER_CERTS_DIR")); value != "" {
 		manager.trustRoot = value
 	}
 	if err := manager.loadOrCreateIdentity(); err != nil {
@@ -740,7 +741,7 @@ func loadOrRenewRegistryProxyIdentity(directory string, now time.Time) (*registr
 	pair, pairErr := tls.LoadX509KeyPair(paths.serverCert, paths.serverKey)
 	reason := registryProxyLeafRenewalReason(&pair, pairErr, caCert, now)
 	if reason == "" && caCert != nil && caCert.Subject.CommonName != registryProxyCAName {
-		// legacy-name: Gateway Registry Proxy CA of pre-Opfield nodes, replaced once — remove once every node reports none
+		// legacy-name: pre-Opfield registry proxy CA of pre-Opfield nodes, replaced once — remove once every node reports none
 		reason = "CA carries its pre-Opfield name"
 	}
 	if reason == "" {

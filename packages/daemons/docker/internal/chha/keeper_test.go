@@ -74,7 +74,7 @@ func TestActivationDesiredVoters(t *testing.T) {
 		t.Fatal("activation due")
 	}
 	for name, due := range map[string]bool{
-		"gateway up":     activationDue(10*time.Second, 3*time.Minute, true, nil, pairEngineConfig()),
+		"opfield up":     activationDue(10*time.Second, 3*time.Minute, true, nil, pairEngineConfig()),
 		"witness flaps":  activationDue(time.Minute, time.Minute, true, nil, pairEngineConfig()),
 		"no quorum":      activationDue(time.Minute, 3*time.Minute, false, nil, pairEngineConfig()),
 		"already active": activationDue(time.Minute, 3*time.Minute, true, act, pairEngineConfig()),

@@ -2,6 +2,7 @@ package chha
 
 import (
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"sort"
 	"time"
 
@@ -29,15 +30,15 @@ import (
 //     and this member as the only voter works, then a second restart with
 //     reconfiguration on (reconfig answers "Unimplemented" until then).
 const (
-	recoveryFile  = "gateway-availability-recovery.json"
-	joiningMarker = "gateway-keeper-joining"
+	recoveryFile  = legacycompat.AvailabilityFilePrefix + "-recovery.json"
+	joiningMarker = legacycompat.KeeperFilePrefix + "-joining"
 	// keeperRoleFile keeps the role this member's Keeper last had in its own
 	// cluster configuration (voter or learner; empty after a wipe). A manual
 	// pair's member reads it before its Keeper can answer: a learner cannot
 	// hold a diverged state that harms its peer and needs its peer's Keeper to
 	// serve at all (ClickHouse exits at startup without a ZooKeeper session),
 	// so only a voter's Keeper waits for the peer check (checkKeeperGate).
-	keeperRoleFile   = "gateway-keeper-role"
+	keeperRoleFile   = legacycompat.KeeperFilePrefix + "-role"
 	recoveryAfter    = 15 * time.Second
 	learnerOutOfStep = 30 * time.Second
 	// peerKeeperJoining is the PeerState.Engine key of a member whose Keeper

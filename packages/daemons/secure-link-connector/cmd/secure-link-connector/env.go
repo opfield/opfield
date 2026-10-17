@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"strings"
 )
@@ -8,10 +9,10 @@ import (
 // The connector's settings come from docker-daemon in OPFIELD_* variables.
 const (
 	envPrefix = "OPFIELD_"
-	// legacy-name: GATEWAY_* connector env — remove once every node reports none.
+	// legacy-name: legacycompat.EnvPrefix* connector env — remove once every node reports none.
 	// docker-daemon 2.12.0 starts the connector image Opfield pins with these
 	// names, and a running connector keeps its env until it is recreated.
-	legacyEnvPrefix = "GATEWAY_"
+	legacyEnvPrefix = legacycompat.EnvPrefix
 
 	secureLinkSocketEnv  = "SECURE_LINK_SOCKET"
 	connectorBindingEnv  = "CONNECTOR_BINDING_ID"

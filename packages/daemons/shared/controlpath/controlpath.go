@@ -14,6 +14,7 @@ package controlpath
 import (
 	"context"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"strings"
 	"sync"
@@ -30,7 +31,7 @@ const (
 	Prefix = "/opfield.v1."
 	// LegacyPrefix is the same services' path prefix in 2.12.0.
 	// legacy-name: legacy package method paths, the only ones 2.12.0 relays forward — remove once every relay reports none
-	LegacyPrefix = "/gateway.v1."
+	LegacyPrefix = "/" + legacycompat.GRPCPackage + "."
 )
 
 // LegacyMethod returns the legacy package path of an opfield.v1 method.

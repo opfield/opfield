@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -58,9 +59,9 @@ func writeInstallConfig(path, address, token, certSHA256 string) (kept bool, err
 		return false, fmt.Errorf("%s is not a YAML mapping", path)
 	}
 	sectionKey := "opfield"
-	// legacy-name: gateway: section of configs written before 2.12.1 — remove once every node reports none
-	if !hasKey(document.Content[0], "opfield") && hasKey(document.Content[0], "gateway") {
-		sectionKey = "gateway"
+	// legacy-name: pre-Opfield section of configs written before 2.12.1 — remove once every node reports none
+	if !hasKey(document.Content[0], "opfield") && hasKey(document.Content[0], legacycompat.ConfigSection) {
+		sectionKey = legacycompat.ConfigSection
 	}
 	section := mappingValue(document.Content[0], sectionKey)
 	if section.Kind != yaml.MappingNode {
@@ -105,7 +106,7 @@ func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
 		}
 	}
 	value := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str"}
-	if key == "opfield" || key == "gateway" {
+	if key == "opfield" || key == legacycompat.ConfigSection {
 		value = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	}
 	mapping.Content = append(mapping.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}, value)

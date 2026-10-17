@@ -2,6 +2,7 @@ package docker
 
 import (
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"net/netip"
 	"os"
@@ -26,7 +27,7 @@ import (
 
 const (
 	// hostListenerKeepPrefix names the database binding host listeners in the listener keeper.
-	hostListenerKeepPrefix = "gateway-db-listener/"
+	hostListenerKeepPrefix = legacycompat.ListenerHandoverPrefix
 	// keptListenerAdoptionWindow bounds how long a kept host listener whose binding could not be verified at start
 	// (dockerd slow) waits for the sync that adopts it; it queues connections meanwhile.
 	keptListenerAdoptionWindow = time.Minute

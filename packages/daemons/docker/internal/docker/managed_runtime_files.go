@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,7 +47,7 @@ func (m *managedStorageManager) missingRuntimeFiles(record managedStorageRecord)
 	member := fmt.Sprintf("%s-%d", record.ID, record.MemberIndex)
 	var names []string
 	if record.TLSEnabled {
-		names = append(names, "tls/"+member+"/public.crt", "tls/"+member+"/private.key", "tls/"+member+"/CAs/gateway-ca.crt")
+		names = append(names, "tls/"+member+"/public.crt", "tls/"+member+"/private.key", "tls/"+member+"/CAs/"+legacycompat.StorageCAFile)
 	}
 	if record.SFTPPort != 0 {
 		names = append(names, "sftp/"+member+"/host-key")

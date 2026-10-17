@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -191,11 +192,11 @@ func TestExternalChangeLogPagesAfterACursor(t *testing.T) {
 
 func TestReportedLabelsKeepOpfieldAndComposeKeys(t *testing.T) {
 	labels := reportedLabels(map[string]string{
-		"name":                       "web",
-		"net.opfield.deployment.id":  "d1",
-		"wiolett.gateway.managed":    "true",
-		"com.docker.compose.project": "shop",
-		"org.example":                "x",
+		"name":                               "web",
+		"net.opfield.deployment.id":          "d1",
+		legacycompat.LabelPrefix + "managed": "true",
+		"com.docker.compose.project":         "shop",
+		"org.example":                        "x",
 	})
 	if len(labels) != 3 || labels["org.example"] != "" || labels["com.docker.compose.project"] != "shop" {
 		t.Fatalf("labels = %v", labels)

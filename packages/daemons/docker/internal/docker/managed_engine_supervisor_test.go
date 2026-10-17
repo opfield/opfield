@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net/http"
@@ -249,7 +250,7 @@ func TestVolumeFstabEntryMountsBeforeDockerAndReplacesOlderEntry(t *testing.T) {
 	if withFstabEntry(legacyFstab, record, true) != legacyFstab {
 		t.Fatal("a pre-Opfield entry was rewritten before the start was confirmed")
 	}
-	if converted := withFstabEntry(legacyFstab, record, false); strings.Contains(converted, "gateway-volume") ||
+	if converted := withFstabEntry(legacyFstab, record, false); strings.Contains(converted, strings.TrimSpace(legacycompat.VolumeImageFstabMark)) ||
 		strings.Count(converted, volumeImageFstabMarker(record)) != 1 || !strings.Contains(converted, "x-systemd.before="+volumeImageBootService+".service") {
 		t.Fatalf("pre-Opfield entry after the confirmed start:\n%s", converted)
 	}

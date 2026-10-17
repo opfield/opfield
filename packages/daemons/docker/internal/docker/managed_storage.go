@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"net/netip"
 	"net/url"
@@ -911,14 +912,14 @@ func (m *managedStorageManager) createContainer(ctx context.Context, record *man
 		if err != nil {
 			return "", err
 		}
-		binds = append(binds, tlsDirectory+":/run/gateway-minio-certs:ro")
+		binds = append(binds, tlsDirectory+":"+legacycompat.RunDirPrefix+"minio-certs:ro")
 	}
 	if input.SFTP != nil {
 		hostKeyPath, err := m.stageSFTPHostKey(*record, input.SFTP.HostKeyPEM)
 		if err != nil {
 			return "", err
 		}
-		binds = append(binds, hostKeyPath+":/run/gateway-minio-sftp/host-key:ro")
+		binds = append(binds, hostKeyPath+":"+legacycompat.RunDirPrefix+"minio-sftp/host-key:ro")
 	}
 	hostCfg := &container.HostConfig{Binds: binds, RestartPolicy: engineRestartPolicy, Resources: container.Resources{Memory: record.MemoryBytes, MemorySwap: record.MemorySwapBytes, NanoCPUs: record.NanoCPUs}, LogConfig: container.LogConfig{Type: "json-file", Config: map[string]string{"max-size": "10m", "max-file": "3"}}}
 	if record.PublishS3 || record.PeerBindAddress != "" {
@@ -972,7 +973,7 @@ func (m *managedStorageManager) createContainer(ctx context.Context, record *man
 func minioCommand(input managedStorageCommand) []string {
 	args := []string{"server", "--address", ":9000", "--console-address", ":9001"}
 	if input.TLS != nil {
-		args = append(args, "--certs-dir", "/run/gateway-minio-certs")
+		args = append(args, "--certs-dir", legacycompat.RunDirPrefix+"minio-certs")
 	}
 	if input.FTP != nil {
 		args = append(args, "--ftp=address=:"+strconv.Itoa(int(input.FTP.Port)))
@@ -980,7 +981,7 @@ func minioCommand(input managedStorageCommand) []string {
 	}
 	if input.SFTP != nil {
 		args = append(args, "--sftp=address=:"+strconv.Itoa(int(input.SFTP.Port)))
-		args = append(args, "--sftp=ssh-private-key=/run/gateway-minio-sftp/host-key")
+		args = append(args, "--sftp=ssh-private-key="+legacycompat.RunDirPrefix+"minio-sftp/host-key")
 	}
 	if len(input.Members) == 0 {
 		return append(args, "/data")

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 
 	mobyclient "github.com/moby/moby/client"
@@ -249,7 +250,7 @@ func (m *managedDatabaseManager) triggerTLSReload(ctx context.Context, container
 		// Setting any TLS parameter rebuilds the TLS context from the current
 		// cert, key and CA files; existing connections keep working.
 		return m.runManagedDatabaseExec(ctx, containerID,
-			[]string{"redis-cli", "--no-auth-warning", "--user", "default", "-p", "6379", "CONFIG", "SET", "tls-cert-file", "/run/gateway-tls/cert.pem"},
+			[]string{"redis-cli", "--no-auth-warning", "--user", "default", "-p", "6379", "CONFIG", "SET", "tls-cert-file", legacycompat.RunDirPrefix + "tls/cert.pem"},
 			"", []string{"REDISCLI_AUTH=" + input.OwnerPassword})
 	case "clickhouse":
 		return m.runManagedDatabaseExec(ctx, containerID,

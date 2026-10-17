@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net"
 	"strings"
@@ -246,7 +247,7 @@ func TestEgressCarriesDatabaseLinkConnectionsUpToTheGrantLimit(t *testing.T) {
 		return &fakeSourceStream{first: readyFrame(), hold: hold, sent: make(chan *relayv1.TunnelFrame, 4)}
 	}}
 	assignment := connectAssignmentWithSessions(linkKindManagedDatabaseBinding, linkID, limit)
-	assignment.SecureLinkEgress = &pb.SecureLinkEgress{NetworkName: "gateway-db-0123456789abcdef", Alias: "db", ListenPort: 5432}
+	assignment.SecureLinkEgress = &pb.SecureLinkEgress{NetworkName: legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef", Alias: "db", ListenPort: 5432}
 	plugin, output := newRelayTestPlugin(t, broker, assignment)
 	plugin.egressDatabaseSlots = make(chan struct{}, egressDatabaseSessions)
 	open := func() securelink.RelayResponse {

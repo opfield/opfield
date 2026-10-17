@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 )
@@ -13,9 +14,9 @@ import (
 // exits.
 const (
 	cleanDirectoryMount = "/run/opfield-clean"
-	// legacy-name: /run/gateway-clean mount — remove once every node reports none.
+	// legacy-name: legacycompat.RunDirPrefixclean mount — remove once every node reports none.
 	// docker-daemon 2.12.0 mounts the directory there.
-	legacyCleanDirectoryMount = "/run/gateway-clean"
+	legacyCleanDirectoryMount = legacycompat.RunDirPrefix + "clean"
 )
 
 // emptyCleanDirectory removes every entry of the mounted directory. Any other

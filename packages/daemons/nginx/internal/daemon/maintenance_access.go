@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net"
 	"net/http"
@@ -36,8 +37,8 @@ func maintenanceAccessHeader(r *http.Request, name string) string {
 	if value := r.Header.Get("X-Opfield-Maintenance-" + name); value != "" {
 		return value
 	}
-	// legacy-name: X-Gateway-Maintenance-* of route configs rendered for the pre-Opfield names — remove once every node reports none
-	return r.Header.Get("X-Gateway-Maintenance-" + name)
+	// legacy-name: legacycompat.MaintenanceHeaderPrefix* of route configs rendered for the pre-Opfield names — remove once every node reports none
+	return r.Header.Get(legacycompat.MaintenanceHeaderPrefix + name)
 }
 
 type maintenanceAccessServer struct {

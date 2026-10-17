@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"time"
 
@@ -17,10 +18,10 @@ import (
 const (
 	// Audience is the audience of a grant Opfield issues to relays.
 	Audience = "opfield-relay"
-	// legacy-name: wiolett-relay grant audience — remove once every node reports none.
+	// legacy-name: legacycompat.GrantAudience grant audience — remove once every node reports none.
 	// Opfield 2.12.0 issues it, and a newer Opfield keeps issuing it while a
 	// relay of the pool does not advertise AudienceCapability.
-	LegacyAudience = "wiolett-relay"
+	LegacyAudience = legacycompat.GrantAudience
 	// AudienceCapability tells Opfield this relay accepts grants for Audience.
 	AudienceCapability = "grant_audience_opfield_v1"
 	// MaxTTL is the longest grant lifetime this relay build accepts. Opfield only
@@ -32,10 +33,10 @@ const (
 )
 
 type Claims struct {
-	SchemaVersion         uint32 `json:"schemaVersion"`
-	Audience              string `json:"audience"`
-	GrantID               string `json:"grantId"`
-	GatewayInstanceID     string `json:"gatewayInstanceId"`
+	SchemaVersion uint32 `json:"schemaVersion"`
+	Audience      string `json:"audience"`
+	GrantID       string `json:"grantId"`
+	legacycompat.InstanceClaim
 	Kind                  string `json:"kind"`
 	SubjectKind           string `json:"subjectKind"`
 	SubjectID             string `json:"subjectId"`
@@ -113,7 +114,7 @@ func (v Verifier) VerifyEnvelope(envelope *relayv1.SignedGrant, wantKind string,
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return Claims{}, fmt.Errorf("grant payload contains trailing data")
 	}
-	if (claims.SchemaVersion != 1 && claims.SchemaVersion != 2) || !acceptedAudience(claims.Audience) || claims.GrantID == "" || claims.GatewayInstanceID != snapshot.GatewayInstanceID {
+	if (claims.SchemaVersion != 1 && claims.SchemaVersion != 2) || !acceptedAudience(claims.Audience) || claims.GrantID == "" || claims.OpfieldInstanceID != snapshot.OpfieldInstanceID {
 		return Claims{}, fmt.Errorf("grant scope is invalid")
 	}
 	if claims.SchemaVersion == 1 && snapshot.Mode == relayv1.RelayMode_RELAY_MODE_REMOTE_DATA_ONLY {
@@ -128,7 +129,7 @@ func (v Verifier) VerifyEnvelope(envelope *relayv1.SignedGrant, wantKind string,
 	// Daemon certificates use their node ID as CN. Opfield service certificates
 	// deliberately use a stable service CN, so their instance ID is bound by the
 	// signed claims, policy snapshot and pinned certificate fingerprint instead.
-	if claims.SubjectKind != "gateway" && claims.SubjectID != identity.SubjectID {
+	if claims.SubjectKind != legacycompat.GrantSubjectKind && claims.SubjectID != identity.SubjectID {
 		return Claims{}, fmt.Errorf("grant subject is invalid")
 	}
 	issuedAt, notBefore, expiresAt := time.Unix(claims.IssuedAt, 0), time.Unix(claims.NotBefore, 0), time.Unix(claims.ExpiresAt, 0)

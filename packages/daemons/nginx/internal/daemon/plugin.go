@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -145,10 +146,10 @@ func secureLinkProxyPassPattern(linkID string, port int) *regexp.Regexp {
 	if port > 0 {
 		portPattern = fmt.Sprintf("%d", port)
 	}
-	// legacy-name: gateway-managed-secure-link-upstream of configs rendered for the pre-Opfield names — remove once
+	// legacy-name: the legacy managed secure link upstream marker of configs rendered for the pre-Opfield names — remove once
 	// every node reports none
 	return regexp.MustCompile(fmt.Sprintf(
-		`(?m)(#[[:space:]]*(?:opfield|gateway)-managed-secure-link-upstream[[:space:]]+%s[[:space:]]*\r?\n[[:space:]]*proxy_pass[[:space:]]+https?://)127[.]0[.]0[.]1:%s`,
+		`(?m)(#[[:space:]]*(?:opfield|`+legacycompat.ObjectNameFamily+`)-managed-secure-link-upstream[[:space:]]+%s[[:space:]]*\r?\n[[:space:]]*proxy_pass[[:space:]]+https?://)127[.]0[.]0[.]1:%s`,
 		regexp.QuoteMeta(linkID),
 		portPattern,
 	))

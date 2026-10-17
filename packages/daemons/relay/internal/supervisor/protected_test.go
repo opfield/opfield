@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,7 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const protectedTestConfig = `gateway:
+const protectedTestConfig = `opfield:
   address: opfield.example.com:9443
 worker:
   advertised_addresses:
@@ -114,7 +115,7 @@ func TestProtectedRelayAllowsOnlyRelayOperation(t *testing.T) {
 
 func localServicePolicy(t *testing.T, signed bool) []byte {
 	t.Helper()
-	endpoint := &relayv1.EndpointPolicy{EndpointId: "endpoint-registry", Generation: 1, SubjectKind: "local_service", SubjectId: "gateway-internal-registry"}
+	endpoint := &relayv1.EndpointPolicy{EndpointId: "endpoint-registry", Generation: 1, SubjectKind: "local_service", SubjectId: legacycompat.InternalRegistryServiceID}
 	request := &relayv1.ApplySnapshotRequest{}
 	if signed {
 		payload, err := proto.Marshal(&relayv1.PolicyEnvelopePayload{SchemaVersion: 2, Endpoints: []*relayv1.EndpointPolicy{endpoint}})

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net"
@@ -569,7 +570,7 @@ func TestReconcileRestoredSecureLinkPortsAtomicallyUpdatesProxyPass(t *testing.T
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 	path := manager.ConfigPath(testSecureLinkID)
-	original := "location / {\n  # gateway-managed-secure-link-upstream " + testSecureLinkID + "\n  proxy_pass https://127.0.0.1:41000;\n}\nlocation /secondary {\n  proxy_pass http://127.0.0.1:9999;\n}\n"
+	original := "location / {\n  # " + legacycompat.SecureLinkUpstreamMarker + " " + testSecureLinkID + "\n  proxy_pass https://127.0.0.1:41000;\n}\nlocation /secondary {\n  proxy_pass http://127.0.0.1:9999;\n}\n"
 	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -601,7 +602,7 @@ func TestReconcileRestoredSecureLinkPortsNeverRewritesUnmarkedRawConfig(t *testi
 	manager := nginx.NewManager(trueBinary, configDir, t.TempDir(), "")
 	plugin := &NginxPlugin{mgr: manager, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	path := manager.ConfigPath(testSecureLinkID)
-	original := []byte("location /one { proxy_pass http://127.0.0.1:9000; }\n# gateway-managed-secure-link-upstream 22222222-2222-4222-8222-222222222222\nproxy_pass http://127.0.0.1:41000;\n")
+	original := []byte("location /one { proxy_pass http://127.0.0.1:9000; }\n# " + legacycompat.SecureLinkUpstreamMarker + " 22222222-2222-4222-8222-222222222222\nproxy_pass http://127.0.0.1:41000;\n")
 	if err := os.WriteFile(path, original, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +631,7 @@ func TestReconcileRestoredSecureLinkPortsNeverRewritesUserOwnedCopiedManagedConf
 	manager := nginx.NewManager(trueBinary, configDir, t.TempDir(), "")
 	plugin := &NginxPlugin{mgr: manager, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	path := manager.ConfigPath(testSecureLinkID)
-	original := []byte("location / {\n # gateway-managed-secure-link-upstream " + testSecureLinkID + "\n proxy_pass http://127.0.0.1:41000;\n}\n")
+	original := []byte("location / {\n # " + legacycompat.SecureLinkUpstreamMarker + " " + testSecureLinkID + "\n proxy_pass http://127.0.0.1:41000;\n}\n")
 	if err := os.WriteFile(path, original, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -671,7 +672,7 @@ func TestApplyRawConfigDurablyDropsManagedRecoveryOwnershipBeforeWriting(t *test
 	result := &pb.CommandResult{Success: true}
 	handler.handleApplyConfig(&pb.ApplyConfigCommand{
 		HostId: testSecureLinkID,
-		ConfigContent: "# gateway-managed-secure-link-upstream " + testSecureLinkID +
+		ConfigContent: "# " + legacycompat.SecureLinkUpstreamMarker + " " + testSecureLinkID +
 			"\nproxy_pass http://127.0.0.1:41000;\n",
 		ConfigOwnership: configOwnershipUserOwned,
 	}, result)
@@ -708,7 +709,7 @@ func TestApplyManagedConfigClaimsRecoveryOwnershipBeforeNginxValidation(t *testi
 	result := &pb.CommandResult{Success: true}
 	handler.handleApplyConfig(&pb.ApplyConfigCommand{
 		HostId:          testSecureLinkID,
-		ConfigContent:   "# gateway-managed-secure-link-upstream " + testSecureLinkID + "\nproxy_pass http://127.0.0.1:42000;\n",
+		ConfigContent:   "# " + legacycompat.SecureLinkUpstreamMarker + " " + testSecureLinkID + "\nproxy_pass http://127.0.0.1:42000;\n",
 		ConfigOwnership: configOwnershipManagedSecureLink,
 	}, result)
 	if !result.Success {
@@ -782,7 +783,7 @@ func TestReconcileRestoredSecureLinkPortsRollsBackInvalidConfig(t *testing.T) {
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 	path := manager.ConfigPath(testSecureLinkID)
-	original := []byte("location / {\n # gateway-managed-secure-link-upstream " + testSecureLinkID + "\n proxy_pass http://127.0.0.1:41000;\n}\n")
+	original := []byte("location / {\n # " + legacycompat.SecureLinkUpstreamMarker + " " + testSecureLinkID + "\n proxy_pass http://127.0.0.1:41000;\n}\n")
 	if err := os.WriteFile(path, original, 0o600); err != nil {
 		t.Fatal(err)
 	}

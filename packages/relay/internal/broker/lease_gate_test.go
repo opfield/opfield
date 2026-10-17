@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 	"sync"
 	"testing"
@@ -115,7 +116,7 @@ func newLeaseFixture(t *testing.T) *leaseFixture {
 		return &relayv1.RoutePolicy{RouteId: id, Generation: 1, SourceKind: sourceKind, SourceId: sourceID, SourceCertificateSha256: fingerprint, TargetEndpointId: target, LeasePolicyId: leasePolicy}
 	}
 	if _, _, err := store.Apply(&relayv1.ApplySnapshotRequest{
-		Revision: 1, GatewayInstanceId: "opfield-1", PublicKeys: []*relayv1.PublicKey{{KeyId: "grant-key", PublicKey: public}},
+		Revision: 1, OpfieldInstanceId: "opfield-1", PublicKeys: []*relayv1.PublicKey{{KeyId: "grant-key", PublicKey: public}},
 		Endpoints: []*relayv1.EndpointPolicy{endpoint("lease-ep", "policy-1"), endpoint("plain-ep", "")},
 		Routes: []*relayv1.RoutePolicy{
 			route("db-route", "node", "node-a", "plain-ep", "policy-1"),
@@ -145,7 +146,7 @@ func (f *leaseFixture) endpointGrantAt(t *testing.T, endpointID string, generati
 	t.Helper()
 	now := time.Now().Unix()
 	payload, err := json.Marshal(grant.Claims{
-		SchemaVersion: 1, Audience: grant.Audience, GrantID: "grant-" + endpointID, GatewayInstanceID: "opfield-1", Kind: "endpoint",
+		SchemaVersion: 1, Audience: grant.Audience, GrantID: "grant-" + endpointID, InstanceClaim: legacycompat.InstanceClaim{OpfieldInstanceID: "opfield-1"}, Kind: "endpoint",
 		SubjectKind: "node", SubjectID: "node-a", CertificateSHA256: f.fingerprint, EndpointID: endpointID, EndpointGeneration: generation,
 		IssuedAt: now - 10, NotBefore: now - 10, ExpiresAt: now + 3600,
 	})
@@ -286,7 +287,7 @@ func (f *leaseFixture) openProxyTunnel(t *testing.T, ctx context.Context) chan e
 	t.Helper()
 	now := time.Now().Unix()
 	payload, err := json.Marshal(grant.Claims{
-		SchemaVersion: 1, Audience: grant.Audience, GrantID: "grant-proxy-route", GatewayInstanceID: "opfield-1", Kind: "connect",
+		SchemaVersion: 1, Audience: grant.Audience, GrantID: "grant-proxy-route", InstanceClaim: legacycompat.InstanceClaim{OpfieldInstanceID: "opfield-1"}, Kind: "connect",
 		SubjectKind: "nginx", SubjectID: "nginx-1", CertificateSHA256: f.fingerprint, RouteID: "proxy-route", RouteGeneration: 1,
 		IssuedAt: now - 10, NotBefore: now - 10, ExpiresAt: now + 3600,
 	})
@@ -430,7 +431,7 @@ func (f *leaseFixture) reapply(t *testing.T, revision uint64, leasePolicy string
 		return &relayv1.RoutePolicy{RouteId: id, Generation: 1, SourceKind: sourceKind, SourceId: sourceID, SourceCertificateSha256: f.fingerprint, TargetEndpointId: target, LeasePolicyId: policy}
 	}
 	if _, _, err := f.broker.store.Apply(&relayv1.ApplySnapshotRequest{
-		Revision: revision, GatewayInstanceId: "opfield-1",
+		Revision: revision, OpfieldInstanceId: "opfield-1",
 		PublicKeys: []*relayv1.PublicKey{{KeyId: "grant-key", PublicKey: f.grantKey.Public().(ed25519.PublicKey)}},
 		Endpoints:  []*relayv1.EndpointPolicy{endpoint("lease-ep", "policy-1"), endpoint("plain-ep", leasePolicy)},
 		Routes: []*relayv1.RoutePolicy{

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net"
@@ -22,7 +23,7 @@ import (
 )
 
 const (
-	testListenerNetwork  = "gateway-db-0123456789abcdef"
+	testListenerNetwork  = legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"
 	testListenerBindingA = "binding-a"
 	testListenerBindingB = "binding-b"
 )

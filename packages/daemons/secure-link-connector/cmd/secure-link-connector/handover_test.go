@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"math/big"
 	"net"
@@ -501,7 +502,7 @@ func startProcessConnector(t *testing.T, h *handoverHarness, name string) *proce
 	t.Helper()
 	c := &processConnector{name: name, dir: h.dir}
 	c.command = exec.Command(os.Args[0], "-test.run=^$")
-	c.command.Env = append(os.Environ(), runConnectorEnv+"=1", "GATEWAY_SECURE_LINK_SOCKET="+filepath.Join(h.dir, c.socketName()))
+	c.command.Env = append(os.Environ(), runConnectorEnv+"=1", legacycompat.EnvPrefix+"SECURE_LINK_SOCKET="+filepath.Join(h.dir, c.socketName()))
 	c.command.Stdout, c.command.Stderr = os.Stderr, os.Stderr
 	if err := c.command.Start(); err != nil {
 		t.Fatal(err)
@@ -788,7 +789,7 @@ func TestHandoverToAnOlderReplacementKeepsTheSessions(t *testing.T) {
 func TestHandoverRequestNamesASocketInTheControlDirectory(t *testing.T) {
 	h := newHandoverHarness(t)
 	first := startInProcessConnector(t, h, "a")
-	for _, to := range []string{"", "../x.sock", "/run/gateway/x.sock", "x", "a b.sock"} {
+	for _, to := range []string{"", "../x.sock", legacycompat.ConnectorRunDir + "/x.sock", "x", "a b.sock"} {
 		response := first.handOver(t, to)
 		if response.Error == "" {
 			t.Fatalf("handover to %q accepted: %+v", to, response)

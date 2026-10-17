@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +24,7 @@ const SystemdDropInName = "30-listener-keep.conf"
 const systemdDropIn = "# Written by the Opfield daemon: keep its listening sockets across restarts.\n" + systemdDropInBody
 
 // legacy-name: drop-in header of pre-Opfield daemons, rewritten in place (the settings are the same) — remove once every node reports none
-const legacySystemdDropIn = "# Written by the Gateway daemon: keep its listening sockets across restarts.\n" + systemdDropInBody
+const legacySystemdDropIn = legacycompat.ListenerKeepDropInHeader + systemdDropInBody
 
 const systemdDropInBody = "[Service]\n" +
 	"FileDescriptorStoreMax=4096\n" +

@@ -19,7 +19,7 @@ import (
 
 const (
 	// pgDivergedDirName holds the diverged WAL copies of a set member under
-	// its gateway-ha directory.
+	// its legacycompat.PostgresMemberDir directory.
 	pgDivergedDirName = "diverged"
 	// pgDivergedCopiesKept is how many diverged WAL copies a member keeps.
 	pgDivergedCopiesKept = 2

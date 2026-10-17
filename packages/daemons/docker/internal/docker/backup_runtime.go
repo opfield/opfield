@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"net/url"
 	"os"
@@ -1473,7 +1474,7 @@ func sanitizeBackupError(value string) string {
 func backupRunnerConfigMounts(configDir string) []mount.Mount {
 	return []mount.Mount{
 		{Type: mount.TypeBind, Source: configDir, Target: "/run/opfield-backup", ReadOnly: true},
-		// legacy-name: /run/gateway-backup of pre-2.12.1 backup runner images — remove once no supported release pins one
-		{Type: mount.TypeBind, Source: configDir, Target: "/run/gateway-backup", ReadOnly: true},
+		// legacy-name: legacycompat.RunDirPrefixbackup of pre-2.12.1 backup runner images — remove once no supported release pins one
+		{Type: mount.TypeBind, Source: configDir, Target: legacycompat.RunDirPrefix + "backup", ReadOnly: true},
 	}
 }

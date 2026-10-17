@@ -15,7 +15,7 @@ func TestInstallKeepsAnExistingConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	written := `# operator settings
-gateway:
+opfield:
   address: "old:9443"
 nginx:
   config_dir: "/etc/nginx/conf.d/sites"
@@ -36,7 +36,7 @@ log_format: "text"
 			Address    string `yaml:"address"`
 			Token      string `yaml:"token"`
 			CertSHA256 string `yaml:"cert_sha256"`
-		} `yaml:"gateway"`
+		} `yaml:"opfield"`
 		Nginx struct {
 			ConfigDir   string `yaml:"config_dir"`
 			HtpasswdDir string `yaml:"htpasswd_dir"`

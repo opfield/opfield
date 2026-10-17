@@ -321,7 +321,7 @@ func TestManualPrimarySelfFencesWithoutOpfieldAndPeerAndResumes(t *testing.T) {
 		t.Fatalf("the assigned primary must promote and serve: %v", log)
 	}
 	// Only Opfield lost: writes continue.
-	h.gateway = false
+	h.opfield = false
 	h.peer = peerWith(signed(testMemberA, 1))
 	h.step(40, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.kill") >= 0 {
@@ -520,7 +520,7 @@ func TestManualPrimarySelfFencesThirtySecondsAfterTheLastOpfieldCommand(t *testi
 	h := promotedPrimary(t)
 	lastCommand := h.clock.now
 	h.manager.deps.OpfieldContactAt = func() time.Duration { return lastCommand }
-	h.gateway = true // the session still looks up
+	h.opfield = true // the session still looks up
 	h.step(28, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.kill") >= 0 {
 		t.Fatalf("no fence before the bound: %v", log)
@@ -539,7 +539,7 @@ func TestManualPrimarySelfFencesThirtySecondsAfterTheLastOpfieldCommand(t *testi
 // still names it, and a newer one naming the copy keeps it a copy.
 func TestASelfFencedPrimaryWaitsForAConfirmedAssignment(t *testing.T) {
 	h := promotedPrimary(t)
-	h.gateway = false
+	h.opfield = false
 	h.step(35, time.Second)
 	if log := h.calls.take(); indexOf(log, "engine.kill") < 0 {
 		t.Fatalf("the isolated primary must fence: %v", log)
@@ -562,7 +562,7 @@ func TestASelfFencedPrimaryWaitsForAConfirmedAssignment(t *testing.T) {
 
 func TestASelfFencedPrimaryStaysACopyUnderANewerAssignment(t *testing.T) {
 	h := promotedPrimary(t)
-	h.gateway = false
+	h.opfield = false
 	h.step(35, time.Second)
 	h.calls.take()
 	h.manager.deps.OpfieldContactAt = func() time.Duration { return h.clock.now }

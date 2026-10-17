@@ -72,7 +72,7 @@ func newWitnessFixture(t *testing.T) *witnessFixture {
 	}
 	now := time.Now()
 	payload := &relayv1.PolicyEnvelopePayload{
-		SchemaVersion: 2, GatewayInstanceId: "opfield-1", PoolId: "system", RelayInstanceId: "relay-1",
+		SchemaVersion: 2, OpfieldInstanceId: "opfield-1", PoolId: "system", RelayInstanceId: "relay-1",
 		Revision: 1, IssuedAtUnix: now.Unix(), ExpiresAtUnix: now.Add(time.Hour).Unix(),
 		GrantPublicKeys: []*relayv1.PublicKey{{KeyId: "grant-key", PublicKey: grantPublic}},
 		Endpoints: []*relayv1.EndpointPolicy{
@@ -125,7 +125,7 @@ func (f *witnessFixture) dials() []string {
 func (f *witnessFixture) sign(t *testing.T, claims grant.Claims) *relayv1.SignedGrant {
 	t.Helper()
 	now := time.Now().Unix()
-	claims.SchemaVersion, claims.Audience, claims.GatewayInstanceID = 2, grant.Audience, "opfield-1"
+	claims.SchemaVersion, claims.Audience, claims.OpfieldInstanceID = 2, grant.Audience, "opfield-1"
 	claims.PoolID, claims.RelayInstanceID, claims.AssignmentGeneration = "system", "relay-1", 1
 	claims.IssuedAt, claims.NotBefore, claims.ExpiresAt = now-10, now-10, now+3600
 	payload, err := json.Marshal(claims)

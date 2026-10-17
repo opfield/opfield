@@ -13,10 +13,10 @@ import (
 	mobyclient "github.com/moby/moby/client"
 )
 
-// gwcaContainerManifest is intentionally an Opfield-owned whitelist. It must
+// ofcaContainerManifest is intentionally an Opfield-owned whitelist. It must
 // not grow into a serialized Docker inspect response: every field here has a
 // matching Opfield create/recreate setting and an explicit import policy.
-type gwcaContainerManifest struct {
+type ofcaContainerManifest struct {
 	SchemaVersion  int               `json:"schemaVersion"`
 	Name           string            `json:"name"`
 	Platform       string            `json:"platform,omitempty"`
@@ -29,23 +29,23 @@ type gwcaContainerManifest struct {
 	Labels         map[string]string `json:"labels,omitempty"`
 	Environment    map[string]string `json:"environment,omitempty"`
 	Secrets        map[string]string `json:"secrets,omitempty"`
-	Ports          []gwcaPortMapping `json:"ports,omitempty"`
-	Mounts         []gwcaMount       `json:"mounts,omitempty"`
-	Networks       []gwcaNetwork     `json:"networks,omitempty"`
+	Ports          []ofcaPortMapping `json:"ports,omitempty"`
+	Mounts         []ofcaMount       `json:"mounts,omitempty"`
+	Networks       []ofcaNetwork     `json:"networks,omitempty"`
 	RestartPolicy  string            `json:"restartPolicy,omitempty"`
 	MaxRetries     int               `json:"maxRetries,omitempty"`
 	StopTimeout    *int              `json:"stopTimeout,omitempty"`
-	Resources      gwcaResources     `json:"resources,omitempty"`
+	Resources      ofcaResources     `json:"resources,omitempty"`
 	Warnings       []string          `json:"warnings,omitempty"`
 }
 
-type gwcaPortMapping struct {
+type ofcaPortMapping struct {
 	ContainerPort int    `json:"containerPort"`
 	HostPort      int    `json:"hostPort"`
 	Protocol      string `json:"protocol"`
 }
 
-type gwcaMount struct {
+type ofcaMount struct {
 	Type            string            `json:"type"`
 	Source          string            `json:"source"`
 	Target          string            `json:"target"`
@@ -56,7 +56,7 @@ type gwcaMount struct {
 	RequiresMapping bool              `json:"requiresMapping,omitempty"`
 }
 
-type gwcaNetwork struct {
+type ofcaNetwork struct {
 	Name            string `json:"name"`
 	Driver          string `json:"driver,omitempty"`
 	Subnet          string `json:"subnet,omitempty"`
@@ -66,7 +66,7 @@ type gwcaNetwork struct {
 	RequiresMapping bool   `json:"requiresMapping,omitempty"`
 }
 
-type gwcaResources struct {
+type ofcaResources struct {
 	MemoryLimit int64 `json:"memoryLimit,omitempty"`
 	MemorySwap  int64 `json:"memorySwap,omitempty"`
 	NanoCPUs    int64 `json:"nanoCPUs,omitempty"`
@@ -74,12 +74,12 @@ type gwcaResources struct {
 	PidsLimit   int64 `json:"pidsLimit,omitempty"`
 }
 
-func sanitizeGwcaLabels(labels map[string]string) map[string]string {
+func sanitizeOfcaLabels(labels map[string]string) map[string]string {
 	result := cloneStringMap(labels)
 	for key := range result {
 		managed := key
 		if next := opfieldLabelKey(key); next != "" {
-			// legacy-name: wiolett.gateway.* labels of an archive from a pre-Opfield node — remove once every node reports none
+			// legacy-name: legacycompat.LabelPrefix* labels of an archive from a pre-Opfield node — remove once every node reports none
 			managed = next
 		}
 		if strings.HasPrefix(key, "com.docker.compose.") ||
@@ -92,12 +92,12 @@ func sanitizeGwcaLabels(labels map[string]string) map[string]string {
 	return result
 }
 
-// validateGwcaNetworks applies the container create network rules to the
+// validateOfcaNetworks applies the container create network rules to the
 // networks an archive manifest names, which are user input: no host
 // networking, no other container's namespace, none only as the one network,
 // and none of the networks Opfield owns on the node (Secure Links, managed
 // database and storage links), existing or to be created under that name.
-func validateGwcaNetworks(networks []gwcaNetwork) error {
+func validateOfcaNetworks(networks []ofcaNetwork) error {
 	named, isolated := 0, false
 	for _, entry := range networks {
 		if entry.Name == "" {
@@ -118,35 +118,35 @@ func validateGwcaNetworks(networks []gwcaNetwork) error {
 	return nil
 }
 
-func buildGwcaContainerManifest(
+func buildOfcaContainerManifest(
 	ctx context.Context,
 	p *DockerPlugin,
 	containerID string,
 	environment map[string]string,
 	secrets map[string]string,
-) (gwcaContainerManifest, error) {
+) (ofcaContainerManifest, error) {
 	result, err := p.client.cli.ContainerInspect(ctx, containerID, mobyclient.ContainerInspectOptions{Size: true})
 	if err != nil {
-		return gwcaContainerManifest{}, fmt.Errorf("inspect archive source container: %w", err)
+		return ofcaContainerManifest{}, fmt.Errorf("inspect archive source container: %w", err)
 	}
 	ctr := result.Container
 	if ctr.Config == nil || ctr.HostConfig == nil {
-		return gwcaContainerManifest{}, fmt.Errorf("source inspect is missing create configuration")
+		return ofcaContainerManifest{}, fmt.Errorf("source inspect is missing create configuration")
 	}
 	if ctr.Config.Labels[deploymentManagedLabel] == "true" {
-		return gwcaContainerManifest{}, fmt.Errorf("blue/green deployment containers must be managed through their deployment")
+		return ofcaContainerManifest{}, fmt.Errorf("blue/green deployment containers must be managed through their deployment")
 	}
-	if err := validateGwcaExportSupport(ctr.Config, ctr.HostConfig, ctr.Mounts); err != nil {
-		return gwcaContainerManifest{}, err
+	if err := validateOfcaExportSupport(ctr.Config, ctr.HostConfig, ctr.Mounts); err != nil {
+		return ofcaContainerManifest{}, err
 	}
 	for key := range secrets {
 		if _, duplicate := environment[key]; duplicate {
-			return gwcaContainerManifest{}, fmt.Errorf("environment and secrets contain duplicate key %q", key)
+			return ofcaContainerManifest{}, fmt.Errorf("environment and secrets contain duplicate key %q", key)
 		}
 	}
 
-	labels := sanitizeGwcaLabels(ctr.Config.Labels)
-	manifest := gwcaContainerManifest{
+	labels := sanitizeOfcaLabels(ctr.Config.Labels)
+	manifest := ofcaContainerManifest{
 		SchemaVersion:  1,
 		Name:           strings.TrimPrefix(ctr.Name, "/"),
 		Platform:       ctr.Platform,
@@ -162,7 +162,7 @@ func buildGwcaContainerManifest(
 		RestartPolicy:  string(ctr.HostConfig.RestartPolicy.Name),
 		MaxRetries:     ctr.HostConfig.RestartPolicy.MaximumRetryCount,
 		StopTimeout:    ctr.Config.StopTimeout,
-		Resources: gwcaResources{
+		Resources: ofcaResources{
 			MemoryLimit: ctr.HostConfig.Memory,
 			MemorySwap:  ctr.HostConfig.MemorySwap,
 			NanoCPUs:    ctr.HostConfig.NanoCPUs,
@@ -174,21 +174,21 @@ func buildGwcaContainerManifest(
 	for exposed, bindings := range ctr.HostConfig.PortBindings {
 		port := int(exposed.Num())
 		if port < 1 || port > 65535 {
-			return gwcaContainerManifest{}, fmt.Errorf("archive source has invalid exposed port %q", exposed)
+			return ofcaContainerManifest{}, fmt.Errorf("archive source has invalid exposed port %q", exposed)
 		}
 		protocol := string(exposed.Proto())
 		if protocol != "tcp" && protocol != "udp" {
-			return gwcaContainerManifest{}, fmt.Errorf("archive source uses unsupported port protocol %q", protocol)
+			return ofcaContainerManifest{}, fmt.Errorf("archive source uses unsupported port protocol %q", protocol)
 		}
 		for _, binding := range bindings {
 			if binding.HostIP.IsValid() && !binding.HostIP.IsUnspecified() {
-				return gwcaContainerManifest{}, fmt.Errorf("archive source binds %s to a specific host address", exposed)
+				return ofcaContainerManifest{}, fmt.Errorf("archive source binds %s to a specific host address", exposed)
 			}
 			hostPort, err := strconv.Atoi(binding.HostPort)
 			if err != nil || hostPort < 0 || hostPort > 65535 {
-				return gwcaContainerManifest{}, fmt.Errorf("archive source has invalid host port %q", binding.HostPort)
+				return ofcaContainerManifest{}, fmt.Errorf("archive source has invalid host port %q", binding.HostPort)
 			}
-			manifest.Ports = append(manifest.Ports, gwcaPortMapping{ContainerPort: port, HostPort: hostPort, Protocol: protocol})
+			manifest.Ports = append(manifest.Ports, ofcaPortMapping{ContainerPort: port, HostPort: hostPort, Protocol: protocol})
 		}
 	}
 	sort.Slice(manifest.Ports, func(i, j int) bool {
@@ -199,17 +199,17 @@ func buildGwcaContainerManifest(
 	})
 
 	for _, mount := range ctr.Mounts {
-		entry := gwcaMount{Target: mount.Destination, ReadOnly: !mount.RW}
+		entry := ofcaMount{Target: mount.Destination, ReadOnly: !mount.RW}
 		switch string(mount.Type) {
 		case "bind":
-			return gwcaContainerManifest{}, fmt.Errorf("archive source contains a host bind mount")
+			return ofcaContainerManifest{}, fmt.Errorf("archive source contains a host bind mount")
 		case "volume":
 			if mount.Name == "" {
-				return gwcaContainerManifest{}, fmt.Errorf("archive source contains an anonymous volume")
+				return ofcaContainerManifest{}, fmt.Errorf("archive source contains an anonymous volume")
 			}
 			volumeResult, inspectErr := p.client.cli.VolumeInspect(ctx, mount.Name, mobyclient.VolumeInspectOptions{})
 			if inspectErr != nil {
-				return gwcaContainerManifest{}, fmt.Errorf("inspect archive volume %q: %w", mount.Name, inspectErr)
+				return ofcaContainerManifest{}, fmt.Errorf("inspect archive volume %q: %w", mount.Name, inspectErr)
 			}
 			entry.Type = "volume"
 			entry.Source = mount.Name
@@ -218,14 +218,14 @@ func buildGwcaContainerManifest(
 			entry.CreateNew = volumeResult.Volume.Driver == "local" && len(volumeResult.Volume.Options) == 0
 			entry.RequiresMapping = !entry.CreateNew
 		default:
-			return gwcaContainerManifest{}, fmt.Errorf("archive source uses unsupported mount type %q", mount.Type)
+			return ofcaContainerManifest{}, fmt.Errorf("archive source uses unsupported mount type %q", mount.Type)
 		}
 		manifest.Mounts = append(manifest.Mounts, entry)
 	}
 
 	if ctr.NetworkSettings != nil {
 		for name := range ctr.NetworkSettings.Networks {
-			entry := gwcaNetwork{Name: name}
+			entry := ofcaNetwork{Name: name}
 			networkResult, inspectErr := p.client.cli.NetworkInspect(ctx, name, mobyclient.NetworkInspectOptions{})
 			if inspectErr == nil {
 				net := networkResult.Network
@@ -247,7 +247,7 @@ func buildGwcaContainerManifest(
 	return manifest, nil
 }
 
-func validateGwcaExportSupport(config *container.Config, host *container.HostConfig, mounts []container.MountPoint) error {
+func validateOfcaExportSupport(config *container.Config, host *container.HostConfig, mounts []container.MountPoint) error {
 	var unsupported []string
 	if config.Healthcheck != nil {
 		unsupported = append(unsupported, "healthcheck")
@@ -319,11 +319,11 @@ func valueOrZero(value *int64) int64 {
 	return *value
 }
 
-func gwcaManifestToMigration(manifest gwcaContainerManifest, imageID, imageReference, name, migrationID string) (createStoppedContainerRequest, error) {
+func ofcaManifestToMigration(manifest ofcaContainerManifest, imageID, imageReference, name, migrationID string) (createStoppedContainerRequest, error) {
 	if manifest.SchemaVersion != 1 {
 		return createStoppedContainerRequest{}, fmt.Errorf("unsupported archive container manifest")
 	}
-	if err := validateGwcaNetworks(manifest.Networks); err != nil {
+	if err := validateOfcaNetworks(manifest.Networks); err != nil {
 		return createStoppedContainerRequest{}, err
 	}
 	if strings.TrimSpace(name) == "" {
@@ -359,7 +359,7 @@ func gwcaManifestToMigration(manifest gwcaContainerManifest, imageID, imageRefer
 		WorkingDir:   manifest.WorkingDir,
 		User:         manifest.User,
 		Hostname:     manifest.Hostname,
-		Labels:       sanitizeGwcaLabels(manifest.Labels),
+		Labels:       sanitizeOfcaLabels(manifest.Labels),
 		StopTimeout:  manifest.StopTimeout,
 		ExposedPorts: make(network.PortSet),
 	}

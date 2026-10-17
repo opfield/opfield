@@ -244,7 +244,7 @@ type harness struct {
 	engine   *fakeEngine
 	gates    *fakeGates
 	manager  *Manager
-	gateway  bool
+	opfield  bool
 	peer     *PeerState
 }
 
@@ -256,7 +256,7 @@ func newHarness(t *testing.T, mode string) *harness {
 		ends:     &fakeEndpoints{calls: c},
 		lease:    &fakeLease{calls: c, hasManifest: true, manifest: ManifestInfo{PolicyID: testPolicy}},
 		engine:   &fakeEngine{calls: c, container: ContainerState{Exists: true, ID: testCID}},
-		gates:    &fakeGates{open: true}, gateway: true}
+		gates:    &fakeGates{open: true}, opfield: true}
 	store, err := NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -266,7 +266,7 @@ func newHarness(t *testing.T, mode string) *harness {
 		Logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Engine:           func(Config) (Engine, error) { return h.engine, nil },
 		Async:            func(fn func()) { h.pending = append(h.pending, fn) },
-		OpfieldConnected: func() bool { return h.gateway },
+		OpfieldConnected: func() bool { return h.opfield },
 		VerifyAssignment: func(setID string, assignment Assignment) error {
 			if setID != testSet || string(assignment.Signature) != testSignature(assignment) {
 				return errors.New("bad assignment signature")

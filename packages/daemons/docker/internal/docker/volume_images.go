@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"log/slog"
 	"maps"
 	"os"
@@ -785,7 +786,7 @@ func volumeImageFstabMarker(record volumeImageRecord) string {
 // launcher rolls back to knows only it); afterwards it is rewritten.
 // legacy-name: legacy volume image fstab entries — remove once every node reports none
 func legacyVolumeImageFstabMarker(record volumeImageRecord) string {
-	return "# gateway-volume-image " + filepath.Base(record.ImagePath)
+	return legacycompat.VolumeImageFstabMark + filepath.Base(record.ImagePath)
 }
 
 func legacyVolumeImageFstabEntryLine(record volumeImageRecord) string {
@@ -891,7 +892,7 @@ func (m *volumeImageManager) legacyFstabEntries() uint32 {
 	}
 	var count uint32
 	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "# gateway-volume-image ") {
+		if strings.HasPrefix(line, legacycompat.VolumeImageFstabMark) {
 			count++
 		}
 	}

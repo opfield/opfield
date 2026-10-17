@@ -1,12 +1,15 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
+)
 
 const (
 	RegistryServiceID = "opfield-internal-registry"
-	// legacy-name: gateway-internal-registry service id — remove once every node reports none.
+	// legacy-name: legacycompat.InternalRegistryServiceID service id — remove once every node reports none.
 	// Opfield 2.12.0 names the internal registry so in its policy snapshots.
-	LegacyRegistryServiceID = "gateway-internal-registry"
+	LegacyRegistryServiceID = legacycompat.InternalRegistryServiceID
 	RegistryServiceTarget   = "registry:5000"
 	// OpfieldRegistryCapability tells Opfield this relay serves the internal
 	// registry under RegistryServiceID as well as under the legacy id.

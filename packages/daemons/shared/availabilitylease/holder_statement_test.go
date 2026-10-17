@@ -1,6 +1,7 @@
 package availabilitylease
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 	"testing"
 	"time"
@@ -36,10 +37,10 @@ func TestVerifyHolderStatementAcceptsOnlyTheCommittedHolder(t *testing.T) {
 	if _, err := relay.VerifyHolderStatement(keyP1, domain, payload, other); err == nil || !strings.Contains(err.Error(), "committed holder") {
 		t.Fatalf("a statement of a non-holder candidate: err=%v", err)
 	}
-	if _, err := relay.VerifyHolderStatement(keyP1, "gateway-availability-lease/frame/v1", payload, signature); err == nil {
+	if _, err := relay.VerifyHolderStatement(keyP1, legacycompat.AvailabilityLeaseDomain+"/frame/v1", payload, signature); err == nil {
 		t.Fatal("a lease protocol domain was accepted")
 	}
-	if _, err := SignHolderStatement(w.nodes["d1"].signer, "gateway-availability-lease/accept/v2", payload); err == nil {
+	if _, err := SignHolderStatement(w.nodes["d1"].signer, legacycompat.AvailabilityLeaseDomain+"/accept/v2", payload); err == nil {
 		t.Fatal("signing under a lease protocol domain was allowed")
 	}
 	if _, err := relay.VerifyHolderStatement(Key{PolicyID: "unknown", Slot: 0}, domain, payload, signature); err == nil {

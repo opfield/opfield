@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"testing"
 	"time"
 
@@ -9,10 +10,10 @@ import (
 )
 
 const (
-	pgOld     = "ghcr.io/the-square-labs/gateway/postgres@sha256:1111111111111111111111111111111111111111111111111111111111111111"
-	pgMiddle  = "ghcr.io/the-square-labs/gateway/postgres@sha256:2222222222222222222222222222222222222222222222222222222222222222"
-	pgCurrent = "ghcr.io/the-square-labs/gateway/postgres@sha256:3333333333333333333333333333333333333333333333333333333333333333"
-	swOld     = "ghcr.io/the-square-labs/gateway/seaweedfs@sha256:4444444444444444444444444444444444444444444444444444444444444444"
+	pgOld     = legacycompat.ImageRepository + "/postgres@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	pgMiddle  = legacycompat.ImageRepository + "/postgres@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+	pgCurrent = legacycompat.ImageRepository + "/postgres@sha256:3333333333333333333333333333333333333333333333333333333333333333"
+	swOld     = legacycompat.ImageRepository + "/seaweedfs@sha256:4444444444444444444444444444444444444444444444444444444444444444"
 	swCurrent = "docker.io/chrislusf/seaweedfs@sha256:5555555555555555555555555555555555555555555555555555555555555555"
 )
 
@@ -27,7 +28,7 @@ func TestStorageImageSweepKeepsUsedNamedAndNewestUnused(t *testing.T) {
 		sweepImage("pg-current", pgCurrent, 3),
 		sweepImage("sw-old", swOld, 1),
 		// The same SeaweedFS digest pulled from the mirror: a storage record names its upstream reference.
-		sweepImage("sw-current", "ghcr.io/the-square-labs/gateway/seaweedfs@sha256:5555555555555555555555555555555555555555555555555555555555555555", 2),
+		sweepImage("sw-current", legacycompat.ImageRepository+"/seaweedfs@sha256:5555555555555555555555555555555555555555555555555555555555555555", 2),
 		{ID: "sha256:dangling", Created: 1},
 	}
 	// A stopped engine container still uses the oldest Postgres image.

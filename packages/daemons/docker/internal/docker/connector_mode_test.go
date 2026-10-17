@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"os"
@@ -18,21 +19,21 @@ func TestStorageConnectorConfigOfPassesValidation(t *testing.T) {
 	stateDir := t.TempDir()
 	bindingID := "5b0c3b52-5d0f-4c1c-9a59-3f8f0f4c2a11"
 	inspect := container.InspectResponse{
-		Name: "/gateway-storage-connector-" + bindingID,
+		Name: "/" + legacycompat.StorageConnectorPrefix + bindingID,
 		Config: &container.Config{
 			Image: developmentSecureLinkImage,
 			User:  "65532:65532",
 			Env: []string{
 				"PATH=/usr/bin",
-				"GATEWAY_CONNECTOR_BINDING_ID=" + bindingID,
-				"GATEWAY_CONNECTOR_SOCKET=" + legacyStorageConnectorMount + "/" + storageConnectorSocketName,
-				"GATEWAY_CONNECTOR_LISTEN=:9000",
+				legacycompat.EnvPrefix + "CONNECTOR_BINDING_ID=" + bindingID,
+				legacycompat.EnvPrefix + "CONNECTOR_SOCKET=" + legacyStorageConnectorMount + "/" + storageConnectorSocketName,
+				legacycompat.EnvPrefix + "CONNECTOR_LISTEN=:9000",
 			},
 			Labels: map[string]string{managedStorageConnectorLabel: managedStorageConnectorWorkload},
 		},
-		HostConfig: &container.HostConfig{Binds: []string{storageConnectorRelayDirectory(stateDir) + ":/run/gateway:ro"}},
+		HostConfig: &container.HostConfig{Binds: []string{storageConnectorRelayDirectory(stateDir) + ":" + legacycompat.ConnectorRunDir + ":ro"}},
 		NetworkSettings: &container.NetworkSettings{Networks: map[string]*network.EndpointSettings{
-			"gateway-storage-net": {Aliases: []string{"0123456789ab", storageBindingAlias(bindingID)}},
+			legacycompat.StorageLinkNetworkPrefix + "net": {Aliases: []string{"0123456789ab", storageBindingAlias(bindingID)}},
 		}},
 	}
 	config, err := storageConnectorConfigOf(inspect)
@@ -42,7 +43,7 @@ func TestStorageConnectorConfigOfPassesValidation(t *testing.T) {
 	if err := validateManagedStorageConnectorConfig(config, storageConnectorRelayDirectory(stateDir)); err != nil {
 		t.Fatalf("rebuilt config is rejected: %v (%+v)", err, config)
 	}
-	if config.NetworkMode != "gateway-storage-net" || len(config.NetworkAliases) != 1 || strings.Contains(strings.Join(config.Env, ","), "PATH=") {
+	if config.NetworkMode != legacycompat.StorageLinkNetworkPrefix+"net" || len(config.NetworkAliases) != 1 || strings.Contains(strings.Join(config.Env, ","), "PATH=") {
 		t.Fatalf("rebuilt config = %+v", config)
 	}
 }

@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 
@@ -48,19 +49,19 @@ var (
 		Namespace: builderContainerdNamespace, CgroupParent: "opfield-builds", DenyNetwork: "opfield-builder-deny-egress", OpenNetwork: "opfield-builder-internet",
 	}
 	// LegacyNaming is the pre-Opfield runtime.
-	// legacy-name: gateway-builder* runtime names of pre-Opfield builder workers — remove once every node reports none
+	// legacy-name: legacycompat.BuilderNamePrefix* runtime names of pre-Opfield builder workers — remove once every node reports none
 	LegacyNaming = Naming{
-		ConfigDir: "/etc/gateway-builder", OptDir: "/opt/gateway-builder", LibDir: "/usr/local/lib/gateway-builder", RunDir: "/run/gateway-builder",
-		ContainerdService: "gateway-builder-containerd.service", BuildkitService: "gateway-builder-buildkit.service", EgressService: "gateway-builder-egress.service",
-		EgressChain: "GATEWAY_BUILDER_EGRESS", HostChain: "GATEWAY_BUILDER_HOST", Bridge: "gateway-builds0",
-		Namespace: builderContainerdNamespace, CgroupParent: "gateway-builds", DenyNetwork: "gateway-builder-deny-egress", OpenNetwork: "gateway-builder-internet",
+		ConfigDir: "/etc/" + legacycompat.BuilderNamePrefix, OptDir: "/opt/" + legacycompat.BuilderNamePrefix, LibDir: "/usr/local/lib/" + legacycompat.BuilderNamePrefix, RunDir: legacycompat.RunDirPrefix + "builder",
+		ContainerdService: legacycompat.BuilderNamePrefix + "-containerd.service", BuildkitService: legacycompat.BuilderNamePrefix + "-buildkit.service", EgressService: legacycompat.BuilderNamePrefix + "-egress.service",
+		EgressChain: legacycompat.BuilderChainPrefix + "EGRESS", HostChain: legacycompat.BuilderChainPrefix + "HOST", Bridge: legacycompat.BuilderBridge,
+		Namespace: builderContainerdNamespace, CgroupParent: legacycompat.BuilderNamespace, DenyNetwork: legacycompat.BuilderNamePrefix + "-deny-egress", OpenNetwork: legacycompat.BuilderNamePrefix + "-internet",
 		Legacy: true,
 	}
 )
 
 // builderContainerdNamespace is internal to the builder's private containerd
 // (kept on purpose, see OpfieldNaming).
-const builderContainerdNamespace = "gateway-builds"
+const builderContainerdNamespace = legacycompat.BuilderNamespace
 
 // builderDirPairs are the builder's host directories under both names.
 func builderDirPairs() []hostrename.Pair {

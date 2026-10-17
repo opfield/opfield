@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -44,9 +45,9 @@ import (
 // composeLabelKeys.
 const (
 	labelPrefix = "net.opfield."
-	// legacy-name: wiolett.gateway.* and com.wiolett.gateway.managed-volume* labels — remove once every node reports none
-	legacyLabelPrefix       = "wiolett.gateway."
-	legacyVolumeLabelPrefix = "com.wiolett.gateway.managed-volume"
+	// legacy-name: legacycompat.LabelPrefix* and legacycompat.ComLabelPrefixmanaged-volume* labels — remove once every node reports none
+	legacyLabelPrefix       = legacycompat.LabelPrefix
+	legacyVolumeLabelPrefix = legacycompat.ComLabelPrefix + "managed-volume"
 )
 
 // legacyLabelKey is the pre-Opfield key of an Opfield label key ("" for any
@@ -57,7 +58,7 @@ func legacyLabelKey(key string) string {
 		return ""
 	}
 	if strings.HasPrefix(rest, "managed-volume") {
-		return "com.wiolett.gateway." + rest
+		return legacycompat.ComLabelPrefix + rest
 	}
 	return legacyLabelPrefix + rest
 }
@@ -66,7 +67,7 @@ func legacyLabelKey(key string) string {
 // other key).
 func opfieldLabelKey(key string) string {
 	if strings.HasPrefix(key, legacyVolumeLabelPrefix) {
-		return labelPrefix + strings.TrimPrefix(key, "com.wiolett.gateway.")
+		return labelPrefix + strings.TrimPrefix(key, legacycompat.ComLabelPrefix)
 	}
 	if rest, ok := strings.CutPrefix(key, legacyLabelPrefix); ok && rest != "" {
 		return labelPrefix + rest

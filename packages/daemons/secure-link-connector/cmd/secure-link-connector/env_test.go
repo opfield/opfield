@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ func environment(values map[string]string) func(string) string {
 // connector a 2.12.0 daemon created keeps its pre-Opfield settings until it is
 // recreated. Both start, and the new name wins when a container has both.
 func TestStorageConnectorReadsTheOpfieldAndTheLegacyNames(t *testing.T) {
-	for name, prefix := range map[string]string{"opfield": "OPFIELD_", "legacy": "GATEWAY_"} {
+	for name, prefix := range map[string]string{"opfield": "OPFIELD_", "legacy": legacycompat.EnvPrefix} {
 		config, storage, err := storageConnectorConfigFromEnv(environment(map[string]string{
 			prefix + "CONNECTOR_BINDING_ID": testBindingID,
 			prefix + "CONNECTOR_SOCKET":     "/run/opfield/storage.sock",
@@ -28,11 +29,11 @@ func TestStorageConnectorReadsTheOpfieldAndTheLegacyNames(t *testing.T) {
 		}
 	}
 	config, _, err := storageConnectorConfigFromEnv(environment(map[string]string{
-		"OPFIELD_CONNECTOR_BINDING_ID": testBindingID,
-		"GATEWAY_CONNECTOR_BINDING_ID": "ffffffff-ffff-4fff-bfff-ffffffffffff",
-		"OPFIELD_CONNECTOR_SOCKET":     "/run/opfield/new.sock",
-		"GATEWAY_CONNECTOR_SOCKET":     "/run/gateway/old.sock",
-		"GATEWAY_CONNECTOR_LISTEN":     storageConnectorListenAddress,
+		"OPFIELD_CONNECTOR_BINDING_ID":                  testBindingID,
+		legacycompat.EnvPrefix + "CONNECTOR_BINDING_ID": "ffffffff-ffff-4fff-bfff-ffffffffffff",
+		"OPFIELD_CONNECTOR_SOCKET":                      "/run/opfield/new.sock",
+		legacycompat.EnvPrefix + "CONNECTOR_SOCKET":     legacycompat.ConnectorRunDir + "/old.sock",
+		legacycompat.EnvPrefix + "CONNECTOR_LISTEN":     storageConnectorListenAddress,
 	}))
 	if err != nil || config.BindingID != testBindingID || config.SocketPath != "/run/opfield/new.sock" || config.Listen != storageConnectorListenAddress {
 		t.Fatalf("mixed names: config=%#v err=%v", config, err)
@@ -40,15 +41,15 @@ func TestStorageConnectorReadsTheOpfieldAndTheLegacyNames(t *testing.T) {
 	if _, storage, _ := storageConnectorConfigFromEnv(environment(nil)); storage {
 		t.Fatal("storage mode without a binding")
 	}
-	_, _, err = storageConnectorConfigFromEnv(environment(map[string]string{"GATEWAY_CONNECTOR_BINDING_ID": "not-a-uuid"}))
+	_, _, err = storageConnectorConfigFromEnv(environment(map[string]string{legacycompat.EnvPrefix + "CONNECTOR_BINDING_ID": "not-a-uuid"}))
 	if err == nil || !strings.Contains(err.Error(), "OPFIELD_CONNECTOR_BINDING_ID") {
 		t.Fatalf("error names the old variable: %v", err)
 	}
 }
 
 func TestConnectorSettingPrefersTheOpfieldName(t *testing.T) {
-	values := map[string]string{"GATEWAY_SECURE_LINK_SOCKET": " /run/gateway/control.sock "}
-	if got := connectorSetting(environment(values), secureLinkSocketEnv); got != "/run/gateway/control.sock" {
+	values := map[string]string{legacycompat.EnvPrefix + "SECURE_LINK_SOCKET": " " + legacycompat.ConnectorRunDir + "/control.sock "}
+	if got := connectorSetting(environment(values), secureLinkSocketEnv); got != legacycompat.ConnectorRunDir+"/control.sock" {
 		t.Fatalf("legacy only = %q", got)
 	}
 	values["OPFIELD_SECURE_LINK_SOCKET"] = "/run/opfield/control.sock"

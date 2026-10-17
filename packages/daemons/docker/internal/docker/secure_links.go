@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"net"
 	"os"
 	"path/filepath"
@@ -56,7 +57,7 @@ var secureLinkConnectorDrainPoll = time.Second
 var secureLinkConnectorSockets = [3]string{"secure-link.sock", "secure-link-next.sock", "secure-link-third.sock"}
 
 var immutableConnectorImagePattern = regexp.MustCompile(`^.+@sha256:[0-9a-f]{64}$`)
-var officialConnectorReleaseTagPattern = regexp.MustCompile(`^ghcr\.io/(?:opfield/opfield|the-square-labs/gateway)/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`)
+var officialConnectorReleaseTagPattern = regexp.MustCompile(`^(?:ghcr\.io/opfield/opfield|` + regexp.QuoteMeta(legacycompat.ImageRepository) + `)/secure-link-connector:v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?-relay$`)
 var proxySecureLinkIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 var errSecureLinkTargetUnavailable = errors.New("target container is unavailable")
 
@@ -1197,9 +1198,9 @@ func managedSecureLinkConnector(inspect container.InspectResponse, controlDirect
 const (
 	secureLinkConnectorMount     = "/run/opfield"
 	secureLinkConnectorSocketVar = "OPFIELD_SECURE_LINK_SOCKET"
-	// legacy-name: /run/gateway mount and GATEWAY_SECURE_LINK_SOCKET of connectors before Opfield — remove once every node reports none
-	legacySecureLinkConnectorMount     = "/run/gateway"
-	legacySecureLinkConnectorSocketVar = "GATEWAY_SECURE_LINK_SOCKET"
+	// legacy-name: legacycompat.ConnectorRunDir mount and legacycompat.EnvPrefixSECURE_LINK_SOCKET of connectors before Opfield — remove once every node reports none
+	legacySecureLinkConnectorMount     = legacycompat.ConnectorRunDir
+	legacySecureLinkConnectorSocketVar = legacycompat.EnvPrefix + "SECURE_LINK_SOCKET"
 )
 
 // connectorControlMount is the mount target of a connector's control

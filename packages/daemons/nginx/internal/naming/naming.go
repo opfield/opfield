@@ -13,6 +13,7 @@
 package naming
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 	"sync/atomic"
 )
@@ -28,10 +29,10 @@ const (
 	IngressHealthSocketDir = "/run/opfield-ingress-health"
 
 	// legacy-name: pre-Opfield directories of nodes installed before 2.12.1 — remove once every node reports none
-	LegacyEtcDir                 = "/etc/nginx/gateway"
-	LegacySecureLinkSocketDir    = "/run/gateway-secure-links"
-	LegacyRegistrySocketDir      = "/run/gateway-registry-links"
-	LegacyIngressHealthSocketDir = "/run/gateway-ingress-health"
+	LegacyEtcDir                 = legacycompat.NginxDir
+	LegacySecureLinkSocketDir    = legacycompat.RunDirPrefix + "secure-links"
+	LegacyRegistrySocketDir      = legacycompat.RunDirPrefix + "registry-links"
+	LegacyIngressHealthSocketDir = legacycompat.RunDirPrefix + "ingress-health"
 )
 
 // The reserved ingress health path. The pre-Opfield one stays answered for good: load balancers and monitors of
@@ -39,14 +40,14 @@ const (
 const (
 	IngressHealthPath = "/.well-known/opfield-ingress-health"
 	// legacy-name: health path external monitors were set up with — remove once no customer monitor probes it
-	LegacyIngressHealthPath = "/.well-known/gateway-ingress-health"
+	LegacyIngressHealthPath = "/.well-known/" + legacycompat.IngressHealthName
 )
 
 // The Pages runtime configuration script. The pre-Opfield path is documented for customer pages and stays answered.
 const (
 	PagesConfigScriptPath = "/_opfield/pages/config.js"
 	// legacy-name: Pages runtime configuration path customer pages may load directly — remove once no page loads it
-	LegacyPagesConfigScriptPath = "/_gateway/pages/config.js"
+	LegacyPagesConfigScriptPath = legacycompat.ReservedPathPrefix + "/pages/config.js"
 )
 
 // DirPair is one directory under its pre-Opfield and its Opfield name.
@@ -76,18 +77,18 @@ var pairs = [][2]string{
 	{SecureLinkSocketDir + "/", LegacySecureLinkSocketDir + "/"},
 	{RegistrySocketDir + "/", LegacyRegistrySocketDir + "/"},
 	{IngressHealthSocketDir + "/", LegacyIngressHealthSocketDir + "/"},
-	{"/_opfield/maintenance-access", "/_gateway/maintenance-access"},
-	{"opfield_maintenance", "gateway_maintenance"},
-	{"opfield-maintenance", "gateway-maintenance"},
-	{"opfield_ingress_generation", "gateway_ingress_generation"},
-	{"X-Opfield-Maintenance-", "X-Gateway-Maintenance-"},
-	{"X-Opfield-Ingress-Generation", "X-Gateway-Ingress-Generation"},
-	{"opfield-managed-secure-link-upstream", "gateway-managed-secure-link-upstream"},
-	{"opfield_pages_", "gateway_pages_"},
-	{"# opfield-pages ", "# gateway-pages "},
-	{"opfield_secure_link_", "gateway_secure_link_"},
-	{"opfield_additional_secure_link_", "gateway_additional_secure_link_"},
-	{"ingress-health.opfield.invalid", "ingress-health.gateway.invalid"},
+	{"/_opfield/maintenance-access", legacycompat.ReservedPathPrefix + "/maintenance-access"},
+	{"opfield_maintenance", legacycompat.NginxVariablePrefix + "maintenance"},
+	{"opfield-maintenance", legacycompat.NginxManagedMarkPrefix + "maintenance"},
+	{"opfield_ingress_generation", legacycompat.NginxVariablePrefix + "ingress_generation"},
+	{"X-Opfield-Maintenance-", legacycompat.MaintenanceHeaderPrefix},
+	{"X-Opfield-Ingress-Generation", legacycompat.IngressGenerationHeader},
+	{"opfield-managed-secure-link-upstream", legacycompat.NginxManagedMarkPrefix + "managed-secure-link-upstream"},
+	{"opfield_pages_", legacycompat.NginxVariablePrefix + "pages_"},
+	{"# opfield-pages ", legacycompat.NginxPagesMark},
+	{"opfield_secure_link_", legacycompat.NginxVariablePrefix + "secure_link_"},
+	{"opfield_additional_secure_link_", legacycompat.NginxVariablePrefix + "additional_secure_link_"},
+	{"ingress-health.opfield.invalid", legacycompat.IngressHealthHost},
 }
 
 var toCurrent, toLegacy = func() (*strings.Replacer, *strings.Replacer) {
@@ -176,10 +177,12 @@ func SameDir(a, b string) bool {
 // File returns the name of a file the daemon keeps (named with "opfield") in the scheme in effect.
 func File(name string) string {
 	if Legacy() {
-		return strings.Replace(name, "opfield", "gateway", 1)
+		return strings.Replace(name, "opfield", legacycompat.ObjectNameFamily, 1)
 	}
 	return name
 }
 
 // LegacyFile returns the pre-Opfield name of a file the daemon keeps.
-func LegacyFile(name string) string { return strings.Replace(name, "opfield", "gateway", 1) }
+func LegacyFile(name string) string {
+	return strings.Replace(name, "opfield", legacycompat.ObjectNameFamily, 1)
+}

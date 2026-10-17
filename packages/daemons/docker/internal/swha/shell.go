@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strconv"
 	"strings"
 )
 
 // containerConfigDir is where the member's staged configuration (security.toml
 // with the filer signing key) is mounted in every member container.
-const containerConfigDir = "/run/gateway-storage/config"
+const containerConfigDir = legacycompat.RunDirPrefix + "storage/config"
 
 // shell runs a weed shell script in the master container against the local
 // master and the member's own filer. weed shell reports a failed command on

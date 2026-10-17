@@ -25,8 +25,9 @@ import urllib.parse
 import urllib.request
 
 CONFIG = pathlib.Path("/run/opfield-backup/config.json")
-# legacy-name: config mount of Docker daemons before 2.12.1 — remove once every node reports none
-LEGACY_CONFIG = pathlib.Path("/run/gateway-backup/config.json")
+# legacy-name: Docker daemons before 2.12.1 mount the config under the earlier runtime directory name
+# (legacycompat.RunDirPrefix + "backup"); the runner finds it as the only other /run/*-backup mount.
+LEGACY_CONFIG_GLOB = "/run/*-backup/config.json"
 WORK = pathlib.Path("/work")
 RESULT = WORK / "result.json"
 STARTED_AT = time.time()
@@ -78,7 +79,10 @@ def stop_requested(_signum, _frame):
 
 def config_file():
     """The run config: the Opfield mount, else the one Docker daemons before 2.12.1 mount."""
-    return CONFIG if CONFIG.exists() or not LEGACY_CONFIG.exists() else LEGACY_CONFIG
+    if CONFIG.exists():
+        return CONFIG
+    legacy = sorted(path for path in pathlib.Path("/").glob(LEGACY_CONFIG_GLOB.lstrip("/")) if path != CONFIG)
+    return legacy[0] if legacy else CONFIG
 
 
 def load_config():

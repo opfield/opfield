@@ -3,6 +3,7 @@ package availabilitylease
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"testing"
 	"time"
 )
@@ -16,7 +17,7 @@ func TestVerifyOpfieldSignedAcceptsOnlyTrustedKeysAndOwnDomains(t *testing.T) {
 	if err := node.TrustPolicyKey("k1", public); err != nil {
 		t.Fatal(err)
 	}
-	const domain = "gateway-availability-member/primary-assignment/v1"
+	const domain = legacycompat.AvailabilityMemberDomain + "/primary-assignment/v1"
 	payload := []byte("payload")
 	signature := ed25519.Sign(private, blockMessage(domain, payload))
 	if err := node.VerifyOpfieldSigned(domain, "k1", payload, signature); err != nil {

@@ -37,7 +37,7 @@ func testConfig(t *testing.T, transport fakeTransport, replaced *bool) Config {
 		t.Fatal(err)
 	}
 	return Config{
-		ReleasesURL: "https://updates.test/gateway/releases", ArtifactBaseURL: "https://updates.test/gateway",
+		ReleasesURL: "https://updates.test/opfield/releases", ArtifactBaseURL: "https://updates.test/opfield",
 		Current: "v1.0.0", Executable: executable, HTTP: &http.Client{Transport: transport},
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Replace: func(string, string, string, string, string, string, *slog.Logger) error {
@@ -50,7 +50,7 @@ func testConfig(t *testing.T, transport fakeTransport, replaced *bool) Config {
 
 func TestNoUpdateLeavesBinaryAlone(t *testing.T) {
 	replaced := false
-	cfg := testConfig(t, fakeTransport{"https://updates.test/gateway/releases": respond(http.StatusNoContent, "")}, &replaced)
+	cfg := testConfig(t, fakeTransport{"https://updates.test/opfield/releases": respond(http.StatusNoContent, "")}, &replaced)
 	result, err := Check(context.Background(), cfg)
 	if err != nil || result.Updated || replaced {
 		t.Fatalf("result %+v err %v replaced %v", result, err, replaced)
@@ -69,8 +69,8 @@ func TestUntrustedManifestIsRejectedBeforeDownload(t *testing.T) {
 	envelope, _ := json.Marshal(updateauth.SignPayload(forged, payload))
 	replaced := false
 	cfg := testConfig(t, fakeTransport{
-		"https://updates.test/gateway/releases":        respond(http.StatusOK, `{"target":{"tag_name":"v1.0.1-watchdog"}}`),
-		"https://updates.test/gateway/lease-watchdog/": respond(http.StatusOK, string(envelope)),
+		"https://updates.test/opfield/releases":        respond(http.StatusOK, `{"target":{"tag_name":"v1.0.1-watchdog"}}`),
+		"https://updates.test/opfield/lease-watchdog/": respond(http.StatusOK, string(envelope)),
 	}, &replaced)
 	if _, err := Check(context.Background(), cfg); err == nil || replaced {
 		t.Fatalf("forged manifest must be rejected before any download, err %v replaced %v", err, replaced)
@@ -83,7 +83,7 @@ func TestUntrustedManifestIsRejectedBeforeDownload(t *testing.T) {
 func TestOtherComponentTagIsIgnored(t *testing.T) {
 	replaced := false
 	cfg := testConfig(t, fakeTransport{
-		"https://updates.test/gateway/releases": respond(http.StatusOK, `{"target":{"tag_name":"v1.0.1-docker"}}`),
+		"https://updates.test/opfield/releases": respond(http.StatusOK, `{"target":{"tag_name":"v1.0.1-docker"}}`),
 	}, &replaced)
 	result, err := Check(context.Background(), cfg)
 	if err != nil || result.Updated || replaced {

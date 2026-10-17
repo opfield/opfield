@@ -73,7 +73,7 @@ type Snapshot struct {
 	SchemaVersion       uint32
 	Mode                relayv1.RelayMode
 	Revision            uint64
-	GatewayInstanceID   string
+	OpfieldInstanceID   string
 	PoolID              string
 	RelayInstanceID     string
 	IssuedAt            time.Time
@@ -264,7 +264,7 @@ func (s *Store) ApplyStaged(request *relayv1.ApplySnapshotRequest, publish func(
 	// After a local trust reset the first snapshot from the re-pinned key is
 	// authoritative; see ResetLocalPolicyTrust.
 	if !s.rebind {
-		if current.GatewayInstanceID != "" && next.GatewayInstanceID != current.GatewayInstanceID {
+		if current.OpfieldInstanceID != "" && next.OpfieldInstanceID != current.OpfieldInstanceID {
 			return nil, false, fmt.Errorf("snapshot Opfield instance changed")
 		}
 		if next.Revision < current.Revision {
@@ -429,11 +429,11 @@ func (s *Store) normalizeLocked(request *relayv1.ApplySnapshotRequest, allowExpi
 }
 
 func (s *Store) normalizeLegacy(request *relayv1.ApplySnapshotRequest, digest [sha256.Size]byte) (*Snapshot, error) {
-	if request.Revision == 0 || request.GatewayInstanceId == "" {
+	if request.Revision == 0 || request.OpfieldInstanceId == "" {
 		return nil, fmt.Errorf("snapshot revision and Opfield instance id are required")
 	}
 	return buildSnapshot(&relayv1.PolicyEnvelopePayload{
-		SchemaVersion: 1, GatewayInstanceId: request.GatewayInstanceId, Revision: request.Revision,
+		SchemaVersion: 1, OpfieldInstanceId: request.OpfieldInstanceId, Revision: request.Revision,
 		PoolId: s.poolID, RelayInstanceId: s.instanceID,
 		GrantPublicKeys: request.PublicKeys, Endpoints: request.Endpoints, Routes: request.Routes,
 		AdmissionPolicy: request.AdmissionPolicy,
@@ -441,7 +441,7 @@ func (s *Store) normalizeLegacy(request *relayv1.ApplySnapshotRequest, digest [s
 }
 
 func (s *Store) normalizeSignedPayload(payload *relayv1.PolicyEnvelopePayload, digest [sha256.Size]byte, signer string, allowExpired bool) (*Snapshot, map[string]trustedPolicyKey, error) {
-	if payload.SchemaVersion != 2 || payload.GatewayInstanceId == "" || payload.PoolId == "" || payload.RelayInstanceId == "" || payload.Revision == 0 {
+	if payload.SchemaVersion != 2 || payload.OpfieldInstanceId == "" || payload.PoolId == "" || payload.RelayInstanceId == "" || payload.Revision == 0 {
 		return nil, nil, fmt.Errorf("policy envelope scope is invalid")
 	}
 	if payload.PoolId != s.poolID || payload.RelayInstanceId != s.instanceID {
@@ -499,7 +499,7 @@ func (s *Store) normalizeSignedPayload(payload *relayv1.PolicyEnvelopePayload, d
 func buildSnapshot(payload *relayv1.PolicyEnvelopePayload, mode relayv1.RelayMode, digest [sha256.Size]byte) (*Snapshot, error) {
 	next := &Snapshot{
 		SchemaVersion: payload.SchemaVersion, Mode: mode, Revision: payload.Revision,
-		GatewayInstanceID: payload.GatewayInstanceId, PoolID: payload.PoolId, RelayInstanceID: payload.RelayInstanceId,
+		OpfieldInstanceID: payload.OpfieldInstanceId, PoolID: payload.PoolId, RelayInstanceID: payload.RelayInstanceId,
 		Capabilities: append([]string(nil), payload.Capabilities...), PublicKeys: map[string]ed25519.PublicKey{},
 		Endpoints: map[string]*relayv1.EndpointPolicy{}, Routes: map[string]*relayv1.RoutePolicy{},
 		EndpointAssignments: map[string]*relayv1.EndpointPolicy{}, RouteAssignments: map[string]*relayv1.RoutePolicy{},

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ const dockerConfigBackupSuffix = ".opfield-backup"
 // legacyDockerConfigBackupSuffix is that copy as a pre-Opfield daemon kept it:
 // when it exists the operator's original is already kept there.
 // legacy-name: the daemon.json backup of pre-Opfield nodes — remove once every node reports none
-const legacyDockerConfigBackupSuffix = ".gateway-backup"
+const legacyDockerConfigBackupSuffix = legacycompat.DockerConfigBackupSuffix
 
 const runscHostNetworkArg = "--network=host"
 

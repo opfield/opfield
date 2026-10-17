@@ -136,7 +136,7 @@ func TestEligibleAndValuesThroughStatus(t *testing.T) {
 // standby and removes the dead witness.
 func TestHolderActivatesStandbyWhileOpfieldIsDown(t *testing.T) {
 	rt := newFakeRuntime(testConfig(memberha.ModeAutomatic, pairEngineConfig(), testMemberA, testMemberB))
-	rt.gateway = false
+	rt.opfield = false
 	received := make(chan witnessactivation.Request, 1)
 	rt.bridge = func(connection net.Conn, alias string) error {
 		defer connection.Close()

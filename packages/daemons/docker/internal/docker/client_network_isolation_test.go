@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -41,10 +42,10 @@ func newFakeIsolationEngine(t *testing.T) *fakeIsolationEngine {
 		t:           t,
 		networkMode: "app-net",
 		networks: map[string]string{
-			"app-net":                     "id-app",
-			"bridge":                      "id-bridge",
-			"gateway-db-0123456789abcdef": "id-db",
-			"zeta-net":                    "id-zeta",
+			"app-net": "id-app",
+			"bridge":  "id-bridge",
+			legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef": "id-db",
+			"zeta-net": "id-zeta",
 		},
 		attached: map[string]map[string]any{
 			"app-net": {
@@ -54,8 +55,8 @@ func newFakeIsolationEngine(t *testing.T) *fakeIsolationEngine {
 				"IPAMConfig": map[string]any{"IPv4Address": "172.20.0.5", "LinkLocalIPs": []string{"169.254.1.5"}},
 				"DriverOpts": map[string]string{"com.example.opt": "1"}, "Links": []string{"db:database"}, "GwPriority": 10,
 			},
-			"gateway-db-0123456789abcdef": {"NetworkID": "id-db", "EndpointID": "ep-2", "IPAddress": "172.21.0.3"},
-			"bridge":                      {"NetworkID": "id-bridge", "EndpointID": "ep-3", "IPAddress": "172.17.0.4"},
+			legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef": {"NetworkID": "id-db", "EndpointID": "ep-2", "IPAddress": "172.21.0.3"},
+			"bridge": {"NetworkID": "id-bridge", "EndpointID": "ep-3", "IPAddress": "172.17.0.4"},
 		},
 	}
 }
@@ -169,7 +170,7 @@ func TestIsolateContainerNetworksCollectsSettingsAndDisconnectsAll(t *testing.T)
 	for _, endpoint := range result.Endpoints {
 		names = append(names, endpoint.NetworkName)
 	}
-	if want := []string{"app-net", "bridge", "gateway-db-0123456789abcdef"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"app-net", "bridge", legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("endpoints = %v, want %v", names, want)
 	}
 	app := result.Endpoints[0]
@@ -233,12 +234,12 @@ func TestIsolateContainerNetworksAlreadyIsolatedIsEmpty(t *testing.T) {
 
 func TestIsolateContainerNetworksRollsBackPartialDisconnect(t *testing.T) {
 	engine := newFakeIsolationEngine(t)
-	engine.disconnectFails = "gateway-db-0123456789abcdef"
+	engine.disconnectFails = legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"
 	_, err := engine.client().IsolateContainerNetworks(context.Background(), "app")
 	if err == nil || !strings.Contains(err.Error(), "disconnect refused") {
 		t.Fatalf("err = %v, want the disconnect failure", err)
 	}
-	for _, name := range []string{"app-net", "bridge", "gateway-db-0123456789abcdef"} {
+	for _, name := range []string{"app-net", "bridge", legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"} {
 		if _, ok := engine.attached[name]; !ok {
 			t.Fatalf("container not attached to %s after rollback: %v", name, engine.attached)
 		}
@@ -268,7 +269,7 @@ func TestRestoreContainerNetworksConnectsWithSameSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
-	if want := []string{"app-net", "bridge", "gateway-db-0123456789abcdef"}; !reflect.DeepEqual(result.Restored, want) {
+	if want := []string{"app-net", "bridge", legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"}; !reflect.DeepEqual(result.Restored, want) {
 		t.Fatalf("restored = %v, want %v", result.Restored, want)
 	}
 	if len(result.Failed) != 0 {
@@ -336,27 +337,27 @@ func TestRestoreContainerNetworksCountsRemovedNetworksAsGone(t *testing.T) {
 // bridge network, so Docker can start it.
 func TestRestoreContainerNetworksPutsAContainerWhoseNetworkModeIsGoneOnTheBridge(t *testing.T) {
 	engine := newFakeIsolationEngine(t)
-	engine.networkMode = "gateway-db-fedcba9876543210"
+	engine.networkMode = legacycompat.DatabaseLinkNetworkPrefix + "fedcba9876543210"
 	engine.attached = map[string]map[string]any{}
-	endpoints := []IsolatedEndpoint{{NetworkID: "id-removed", NetworkName: "gateway-db-fedcba9876543210"}}
+	endpoints := []IsolatedEndpoint{{NetworkID: "id-removed", NetworkName: legacycompat.DatabaseLinkNetworkPrefix + "fedcba9876543210"}}
 	result, err := engine.client().RestoreContainerNetworks(context.Background(), "app", endpoints)
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
-	if want := []string{"gateway-db-fedcba9876543210"}; !reflect.DeepEqual(result.Gone, want) {
+	if want := []string{legacycompat.DatabaseLinkNetworkPrefix + "fedcba9876543210"}; !reflect.DeepEqual(result.Gone, want) {
 		t.Fatalf("gone = %v, want %v", result.Gone, want)
 	}
 	if len(result.Failed) != 0 || len(result.Restored) != 0 {
 		t.Fatalf("result = %+v", result)
 	}
-	if result.NetworkModeGone != "gateway-db-fedcba9876543210" || result.FallbackNetwork != "bridge" {
+	if result.NetworkModeGone != legacycompat.DatabaseLinkNetworkPrefix+"fedcba9876543210" || result.FallbackNetwork != "bridge" {
 		t.Fatalf("network mode gone = %q, fallback = %q", result.NetworkModeGone, result.FallbackNetwork)
 	}
 	if _, ok := engine.attached["bridge"]; !ok {
 		t.Fatalf("container not on the bridge network: %v", engine.attached)
 	}
 	detail, _ := json.Marshal(result)
-	for _, key := range []string{`"gone":["gateway-db-fedcba9876543210"]`, `"networkModeGone":"gateway-db-fedcba9876543210"`,
+	for _, key := range []string{`"gone":["` + legacycompat.DatabaseLinkNetworkPrefix + `fedcba9876543210"]`, `"networkModeGone":"` + legacycompat.DatabaseLinkNetworkPrefix + `fedcba9876543210"`,
 		`"fallbackNetwork":"bridge"`} {
 		if !strings.Contains(string(detail), key) {
 			t.Fatalf("detail %s lacks %s", detail, key)
@@ -368,10 +369,10 @@ func TestRestoreContainerNetworksPutsAContainerWhoseNetworkModeIsGoneOnTheBridge
 // starts a container that is on a network without looking up its network mode.
 func TestRestoreContainerNetworksKeepsRestoredNetworksWhenTheNetworkModeIsGone(t *testing.T) {
 	engine := newFakeIsolationEngine(t)
-	engine.networkMode = "gateway-db-fedcba9876543210"
+	engine.networkMode = legacycompat.DatabaseLinkNetworkPrefix + "fedcba9876543210"
 	engine.attached = map[string]map[string]any{}
 	endpoints := []IsolatedEndpoint{
-		{NetworkID: "id-removed", NetworkName: "gateway-db-fedcba9876543210"},
+		{NetworkID: "id-removed", NetworkName: legacycompat.DatabaseLinkNetworkPrefix + "fedcba9876543210"},
 		{NetworkID: "id-app", NetworkName: "app-net"},
 	}
 	result, err := engine.client().RestoreContainerNetworks(context.Background(), "app", endpoints)
@@ -379,10 +380,10 @@ func TestRestoreContainerNetworksKeepsRestoredNetworksWhenTheNetworkModeIsGone(t
 		t.Fatalf("restore: %v", err)
 	}
 	if !reflect.DeepEqual(result.Restored, []string{"app-net"}) ||
-		!reflect.DeepEqual(result.Gone, []string{"gateway-db-fedcba9876543210"}) || len(result.Failed) != 0 {
+		!reflect.DeepEqual(result.Gone, []string{legacycompat.DatabaseLinkNetworkPrefix + "fedcba9876543210"}) || len(result.Failed) != 0 {
 		t.Fatalf("result = %+v", result)
 	}
-	if result.NetworkModeGone != "gateway-db-fedcba9876543210" || result.FallbackNetwork != "" {
+	if result.NetworkModeGone != legacycompat.DatabaseLinkNetworkPrefix+"fedcba9876543210" || result.FallbackNetwork != "" {
 		t.Fatalf("network mode gone = %q, fallback = %q", result.NetworkModeGone, result.FallbackNetwork)
 	}
 	if _, ok := engine.attached["bridge"]; ok {

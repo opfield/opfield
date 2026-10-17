@@ -3,6 +3,7 @@ package pages
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -245,7 +246,7 @@ func TestBindingInspectionMatchesOnNodeWithPreOpfieldNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(content), "gateway") {
+	if !strings.Contains(string(content), legacycompat.ObjectNameFamily) {
 		t.Fatalf("route config not rendered with the pre-Opfield names: %q", content)
 	}
 	if got := r.InspectBindings(expected); !reflect.DeepEqual(got.Matches, []bool{true, true}) {

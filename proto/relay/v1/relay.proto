@@ -222,7 +222,7 @@ message AdmissionPolicy {
 
 message PolicyEnvelopePayload {
   uint32 schema_version = 1;
-  string gateway_instance_id = 2;
+  string opfield_instance_id = 2;
   string pool_id = 3;
   string relay_instance_id = 4;
   uint64 revision = 5;
@@ -249,7 +249,7 @@ message SignedPolicyEnvelope {
 
 message ApplySnapshotRequest {
   uint64 revision = 1;
-  string gateway_instance_id = 2;
+  string opfield_instance_id = 2;
   repeated PublicKey public_keys = 3;
   repeated EndpointPolicy endpoints = 4;
   repeated RoutePolicy routes = 5;
@@ -373,7 +373,7 @@ message SetDrainResponse {
 message VerifyHolderStatementRequest {
   string policy_id = 1;
   uint32 slot = 2;
-  // Must start with "gateway-availability-holder/".
+  // Must start with "legacycompat.AvailabilityHolderDomain/".
   string domain = 3;
   bytes payload = 4;
   bytes signature = 5;

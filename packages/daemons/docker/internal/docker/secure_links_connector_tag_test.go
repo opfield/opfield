@@ -1,12 +1,15 @@
 package docker
 
-import "testing"
+import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
+	"testing"
+)
 
 func TestOfficialConnectorReleaseTagAcceptsBothOrganizations(t *testing.T) {
 	for _, image := range []string{
 		"ghcr.io/opfield/opfield/secure-link-connector:v2.12.0-relay",
-		"ghcr.io/the-square-labs/gateway/secure-link-connector:v2.12.0-rc.3-relay",
-		"ghcr.io/the-square-labs/gateway/secure-link-connector:v2.11.5-relay",
+		legacycompat.ImageRepository + "/secure-link-connector:v2.12.0-rc.3-relay",
+		legacycompat.ImageRepository + "/secure-link-connector:v2.11.5-relay",
 		"ghcr.io/opfield/opfield/secure-link-connector:v2.12.0-rc.3-relay",
 	} {
 		if !officialConnectorReleaseTagPattern.MatchString(image) {

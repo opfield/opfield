@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"net/http"
@@ -75,9 +76,9 @@ const (
 func TestStorageLeftoversAreListedAndRemovedOnlyWhenOpfieldConfirms(t *testing.T) {
 	m, _, loops, _ := newTestStorageEngine(t)
 	docker := &leftoverDocker{t: t, containers: []map[string]any{
-		{"Id": "c-left", "Names": []string{"/gateway-storage-" + deletedStorage + "-0"},
+		{"Id": "c-left", "Names": []string{"/" + legacycompat.StorageLinkNetworkPrefix + deletedStorage + "-0"},
 			"Labels": map[string]string{managedStorageLabel: deletedStorage, managedStorageMemberLabel: "0"}},
-		{"Id": "c-live", "Names": []string{"/gateway-storage-" + liveStorageID + "-0"},
+		{"Id": "c-live", "Names": []string{"/" + legacycompat.StorageLinkNetworkPrefix + liveStorageID + "-0"},
 			"Labels": map[string]string{managedStorageLabel: liveStorageID, managedStorageMemberLabel: "0"}},
 	}}
 	m.client = docker.client()
@@ -116,7 +117,7 @@ func TestStorageLeftoversAreListedAndRemovedOnlyWhenOpfieldConfirms(t *testing.T
 	if zeroed := listed.Items[0]; zeroed.Record != "unreadable" || zeroed.ImageBytes != 2*testGiB || zeroed.AllocatedBytes != allocatedBytes(t, zeroedImage) {
 		t.Fatalf("zeroed record leftover %+v", zeroed)
 	}
-	if deleted := listed.Items[1]; deleted.Record != "missing" || !slices.Equal(deleted.Containers, []string{"gateway-storage-" + deletedStorage + "-0"}) {
+	if deleted := listed.Items[1]; deleted.Record != "missing" || !slices.Equal(deleted.Containers, []string{legacycompat.StorageLinkNetworkPrefix + deletedStorage + "-0"}) {
 		t.Fatalf("container leftover %+v", deleted)
 	}
 

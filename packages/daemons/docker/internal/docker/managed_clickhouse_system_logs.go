@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"os"
 	"path/filepath"
@@ -130,7 +131,7 @@ func healClickHouseManagedConfig(mountPath string) (bool, error) {
 	if strings.TrimSpace(mountPath) == "" {
 		return false, nil
 	}
-	path := filepath.Join(mountPath, "gateway-managed.xml")
+	path := filepath.Join(mountPath, legacycompat.ClickHouseManagedConfigFile)
 	current, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil

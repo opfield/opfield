@@ -139,7 +139,7 @@ func detectServiceManager() string {
 // touched.
 func (b *watchdogBootstrap) present() bool {
 	return b.heartbeatFresh() || b.exists(leasewatchdog.BinaryPath) || b.exists(leasewatchdog.SystemdUnitPath) || b.exists(leasewatchdog.OpenRCPath) ||
-		// legacy-name: gateway-lease-watchdog service of pre-Opfield nodes (the watchdog moves itself) — remove once every node reports none
+		// legacy-name: legacycompat.LeaseWatchdogName service of pre-Opfield nodes (the watchdog moves itself) — remove once every node reports none
 		b.exists(leasewatchdog.LegacyBinaryPath) || b.exists(leasewatchdog.LegacySystemdUnitPath) || b.exists(leasewatchdog.LegacyOpenRCPath)
 }
 
@@ -350,7 +350,7 @@ func (b *watchdogBootstrap) alignChannel(ctx context.Context) error {
 	}
 	data, err := b.readFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		// legacy-name: gateway-lease-watchdog service the watchdog has not moved yet — remove once every node reports none
+		// legacy-name: legacycompat.LeaseWatchdogName service the watchdog has not moved yet — remove once every node reports none
 		unit = leasewatchdog.LegacyUnitName
 		if manager == "systemd" {
 			path, prefix = leasewatchdog.LegacySystemdUnitPath, "ExecStart="+leasewatchdog.LegacyBinaryPath+" "

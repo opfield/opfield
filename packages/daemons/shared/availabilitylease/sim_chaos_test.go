@@ -39,7 +39,7 @@ func scheduleChaos(w *simWorld, topo simTopology) {
 	if w.rng.Float64() < 0.3 {
 		w.at(w.randDuration(10*time.Second, chaosEnd), func() {
 			w.gw.alive = false
-			w.tracef("gateway dies")
+			w.tracef("opfield dies")
 		})
 	}
 	w.after(5*time.Second, func() { opfieldBootstrapLoop(w) })
@@ -81,7 +81,7 @@ func opfieldBootstrapLoop(w *simWorld) {
 	}
 	if dropped {
 		w.gw.republish("p1", 1)
-		w.tracef("gateway drops bootstrap reservation")
+		w.tracef("opfield drops bootstrap reservation")
 	}
 	if len(policy.bootstrap) > 0 {
 		w.after(5*time.Second, func() { opfieldBootstrapLoop(w) })
@@ -236,7 +236,7 @@ func applyFault(w *simWorld, topo simTopology, kind faultKind) {
 				if w.gw.alive && w.gw.signIdx == len(w.gw.keys)-1 {
 					w.gw.republish("p1", 0.25)
 					w.gw.alive = false
-					w.tracef("gateway dies after rotated manifest")
+					w.tracef("opfield dies after rotated manifest")
 				}
 			})
 		}

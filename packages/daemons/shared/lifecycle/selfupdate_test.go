@@ -29,7 +29,7 @@ func TestSelfUpdateRejectsMissingSignedManifest(t *testing.T) {
 	t.Setenv(LauncherManagedEnv, "1")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	err := SelfUpdate(
-		"https://gitlab.example.com/api/v4/projects/wiolett%2Fgateway/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64",
+		"https://gitlab.example.com/api/v4/projects/opfield%2Fopfield/packages/generic/nginx-daemon/v9.9.9-nginx/nginx-daemon-linux-amd64",
 		"v9.9.9",
 		"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		"",

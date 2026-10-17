@@ -84,7 +84,7 @@ func resolveNames(cfg *config.Config, stateDir string, logger *slog.Logger) (mig
 		naming.SetLegacy(true)
 		migrationDue = true
 	}
-	// legacy-name: config files written before 2.12.1 name /etc/nginx/gateway paths — remove once every node reports none
+	// legacy-name: config files written before 2.12.1 name legacycompat.NginxDir paths — remove once every node reports none
 	cfg.Nginx.ConfigDir = naming.Path(cfg.Nginx.ConfigDir)
 	cfg.Nginx.HtpasswdDir = naming.Path(cfg.Nginx.HtpasswdDir)
 	return migrationDue

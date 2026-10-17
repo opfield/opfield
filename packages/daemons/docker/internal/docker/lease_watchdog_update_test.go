@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -51,7 +52,7 @@ func TestOlderLeaseWatchdogUpdatesAfterTheDaemonUpdate(t *testing.T) {
 		files: map[string]string{
 			leasewatchdog.LegacySystemdUnitPath: "[Service]\nExecStart=" + leasewatchdog.LegacyBinaryPath + " " + legacyArgs + "\n",
 		},
-		output: "lease-watchdog updated to v2.12.1-rc.3-watchdog; restart the gateway-lease-watchdog service\n",
+		output: "lease-watchdog updated to v2.12.1-rc.3-watchdog; restart the " + legacycompat.LeaseWatchdogName + " service\n",
 	}
 	if err := host.bootstrap("systemd").updateOlder(context.Background(), "v2.12.0", "v2.12.1-rc.3"); err != nil {
 		t.Fatal(err)

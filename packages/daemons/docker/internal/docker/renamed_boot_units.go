@@ -2,6 +2,7 @@ package docker
 
 import (
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 )
@@ -15,8 +16,8 @@ import (
 // boot step twice.
 // legacy-name: legacy boot step units of pre-Opfield daemons — remove once every node reports none
 const (
-	legacyVolumeImageBootService  = "gateway-volume-images"
-	legacyLinkListenerBootService = "gateway-link-listeners"
+	legacyVolumeImageBootService  = legacycompat.VolumeImageBootService
+	legacyLinkListenerBootService = legacycompat.LinkListenerBootService
 )
 
 // systemdLegacyGuard is the [Unit] line that keeps a new boot unit from running

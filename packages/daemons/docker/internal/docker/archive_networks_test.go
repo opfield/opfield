@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 	"testing"
 
@@ -12,36 +13,36 @@ import (
 // An imported archive names the networks its container joins. Like a direct
 // create, it may not take the host's or another container's namespace or a
 // network Opfield owns on the node; none only alone.
-func TestGwcaImportRefusesHostAndOpfieldNetworks(t *testing.T) {
-	manifest := func(names ...string) gwcaContainerManifest {
-		result := gwcaContainerManifest{SchemaVersion: 1, Name: "app"}
+func TestOfcaImportRefusesHostAndOpfieldNetworks(t *testing.T) {
+	manifest := func(names ...string) ofcaContainerManifest {
+		result := ofcaContainerManifest{SchemaVersion: 1, Name: "app"}
 		for _, name := range names {
-			result.Networks = append(result.Networks, gwcaNetwork{Name: name})
+			result.Networks = append(result.Networks, ofcaNetwork{Name: name})
 		}
 		return result
 	}
 	refused := map[string][]string{
 		"host":                             {"host"},
 		"another container's namespace":    {"container:abc"},
-		"Secure Links management network":  {"bridge", "gateway-secure-links"},
-		"managed database network":         {"gateway-db-0123456789abcdef"},
-		"managed storage network":          {"gateway-storage-0123456789abcdef"},
+		"Secure Links management network":  {"bridge", legacycompat.SecureLinkNetworkName},
+		"managed database network":         {legacycompat.DatabaseLinkNetworkPrefix + "0123456789abcdef"},
+		"managed storage network":          {legacycompat.StorageLinkNetworkPrefix + "0123456789abcdef"},
 		"none together with other network": {"none", "bridge"},
 	}
 	for name, networks := range refused {
 		t.Run(name, func(t *testing.T) {
-			if _, err := gwcaManifestToMigration(manifest(networks...), "sha256:"+strings.Repeat("a", 64), "app:1", "app", "archive-1"); err == nil {
+			if _, err := ofcaManifestToMigration(manifest(networks...), "sha256:"+strings.Repeat("a", 64), "app:1", "app", "archive-1"); err == nil {
 				t.Fatalf("archive on networks %v accepted", networks)
 			}
 			plugin := &DockerPlugin{}
 			entries := manifest(networks...)
-			if _, err := plugin.prepareGwcaNetworks(context.Background(), "archive-1", &entries); err == nil {
+			if _, err := plugin.prepareOfcaNetworks(context.Background(), "archive-1", &entries); err == nil {
 				t.Fatalf("archive networks %v prepared", networks)
 			}
 		})
 	}
 	for _, networks := range [][]string{{"bridge"}, {"app-net", "bridge"}, {"none"}} {
-		request, err := gwcaManifestToMigration(manifest(networks...), "sha256:"+strings.Repeat("a", 64), "app:1", "app", "archive-1")
+		request, err := ofcaManifestToMigration(manifest(networks...), "sha256:"+strings.Repeat("a", 64), "app:1", "app", "archive-1")
 		if err != nil {
 			t.Fatalf("archive on networks %v refused: %v", networks, err)
 		}
@@ -62,8 +63,8 @@ func TestStoppedCreateRefusesHostNamespacesAndSecureLinks(t *testing.T) {
 	}{
 		{mode: "host"},
 		{mode: "container:abc"},
-		{mode: "gateway-secure-links"},
-		{mode: "app-net", endpoints: []string{"app-net", "gateway-secure-links"}},
+		{mode: legacycompat.SecureLinkNetworkName},
+		{mode: "app-net", endpoints: []string{"app-net", legacycompat.SecureLinkNetworkName}},
 	} {
 		endpoints := map[string]*network.EndpointSettings{}
 		for _, name := range tc.endpoints {

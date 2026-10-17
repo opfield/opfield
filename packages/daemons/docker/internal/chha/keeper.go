@@ -3,6 +3,7 @@ package chha
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"sort"
 	"strconv"
 	"strings"
@@ -117,7 +118,7 @@ type activation struct {
 	AtUnixMs         int64  `json:"atUnixMs"`
 }
 
-const activationFile = "gateway-availability-keeper.json"
+const activationFile = legacycompat.AvailabilityFilePrefix + "-keeper.json"
 
 func decodeActivation(raw []byte) (*activation, error) {
 	if len(raw) == 0 {

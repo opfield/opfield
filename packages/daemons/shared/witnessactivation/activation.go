@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"regexp"
 	"strconv"
@@ -19,7 +20,7 @@ import (
 )
 
 // Domain is the holder statement domain of an activation.
-const Domain = "gateway-availability-holder/activate-witness/v1"
+const Domain = legacycompat.AvailabilityHolderDomain + "/activate-witness/v1"
 
 // MaxSkew bounds the clock difference between holder and relay.
 const MaxSkew = 5 * time.Minute

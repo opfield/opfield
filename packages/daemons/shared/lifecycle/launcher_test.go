@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"log/slog"
 	"os"
@@ -430,7 +431,7 @@ func TestLauncherRollsBackCandidateThatCrashesDuringStabilityWindow(t *testing.T
 case "$1" in
 version) echo test-daemon v2; exit 0 ;;
 esac
-printf '%s\n' '{"type":"local_ready","version":"v2"}' >"/dev/fd/$GATEWAY_DAEMON_LAUNCHER_READY_FD"
+printf '%s\n' '{"type":"local_ready","version":"v2"}' >"/dev/fd/$" + legacycompat.EnvPrefix + "DAEMON_LAUNCHER_READY_FD"
 exit 1
 `
 	if err := os.WriteFile(binary, []byte(contents), 0755); err != nil {
@@ -465,14 +466,14 @@ func writeControlAwareLauncherTestExecutable(t *testing.T, path, version string,
 	t.Helper()
 	controlLine := ""
 	if controlReady {
-		controlLine = `printf '%s\n' '{"type":"control_ready","version":"` + version + `"}' >"/dev/fd/$GATEWAY_DAEMON_LAUNCHER_READY_FD"` + "\n"
+		controlLine = `printf '%s\n' '{"type":"control_ready","version":"` + version + `"}' >"/dev/fd/$` + legacycompat.EnvPrefix + `DAEMON_LAUNCHER_READY_FD"` + "\n"
 	}
 	contents := "#!/bin/sh\n" +
 		"case \"$1\" in\n" +
 		"version) echo test-daemon " + version + "; exit 0 ;;\n" +
-		"launcher-probe) echo gateway-daemon-launcher 1; exit 0 ;;\n" +
+		"launcher-probe) echo " + legacycompat.LauncherProbe + " 1; exit 0 ;;\n" +
 		"esac\n" +
-		`printf '%s\n' '{"type":"local_ready","version":"` + version + `","awaitControl":true}' >"/dev/fd/$GATEWAY_DAEMON_LAUNCHER_READY_FD"` + "\n" +
+		`printf '%s\n' '{"type":"local_ready","version":"` + version + `","awaitControl":true}' >"/dev/fd/$` + legacycompat.EnvPrefix + `DAEMON_LAUNCHER_READY_FD"` + "\n" +
 		controlLine +
 		"trap 'exit 0' TERM INT\n" + launcherTestIdleLoop
 	if err := os.WriteFile(path, []byte(contents), 0755); err != nil {
@@ -503,7 +504,7 @@ func TestLauncherRollsBackCandidateThatNeverReachesOpfieldControl(t *testing.T) 
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("candidate without gateway control was not rolled back: version=%q err=%v", version, err)
+			t.Fatalf("candidate without opfield control was not rolled back: version=%q err=%v", version, err)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -598,7 +599,7 @@ func writeLauncherTestExecutableWithMarker(t *testing.T, path, version string, r
 	}
 	readyLine := ""
 	if ready {
-		readyLine = `if [ -n "$GATEWAY_DAEMON_LAUNCHER_READY_FD" ]; then printf '%s\n' '{"type":"local_ready","version":"` + version + `"}' >"/dev/fd/$GATEWAY_DAEMON_LAUNCHER_READY_FD"; fi`
+		readyLine = `if [ -n "$` + legacycompat.EnvPrefix + `DAEMON_LAUNCHER_READY_FD" ]; then printf '%s\n' '{"type":"local_ready","version":"` + version + `"}' >"/dev/fd/$` + legacycompat.EnvPrefix + `DAEMON_LAUNCHER_READY_FD"; fi`
 	}
 	trapLine := "trap 'exit 0' TERM INT"
 	if marker != "" {
@@ -609,7 +610,7 @@ func writeLauncherTestExecutableWithMarker(t *testing.T, path, version string, r
 		"version) echo test-daemon " + version + "; exit 0 ;;\n" +
 		"launcher-probe) " + func() string {
 		if ready {
-			return "echo gateway-daemon-launcher 1; exit 0"
+			return "echo " + legacycompat.LauncherProbe + " 1; exit 0"
 		}
 		return "exit 2"
 	}() + " ;;\n" +

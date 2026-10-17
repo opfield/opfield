@@ -155,7 +155,7 @@ func (g *simOpfield) deliver(block *pb.LeaseSignedBlock, p float64) {
 func (g *simOpfield) adopt(n *simNode, block *pb.LeaseSignedBlock) {
 	g.sendChain(n)
 	if _, err := n.node.AdoptManifest(block); err != nil {
-		g.w.fail("gateway delivery to %s: %v", n.id, err)
+		g.w.fail("opfield delivery to %s: %v", n.id, err)
 	}
 }
 
@@ -223,7 +223,7 @@ func (g *simOpfield) rotateKey(deliverP float64) {
 			g.sendChain(n)
 		}
 	}
-	g.w.tracef("gateway rotates policy key to %s", next.id)
+	g.w.tracef("opfield rotates policy key to %s", next.id)
 	index := len(g.keys) - 1
 	var poll func()
 	poll = func() {
@@ -232,7 +232,7 @@ func (g *simOpfield) rotateKey(deliverP float64) {
 		}
 		if g.keyAckedByMajority(next.id) {
 			g.signIdx = index
-			g.w.tracef("gateway signs with %s", next.id)
+			g.w.tracef("opfield signs with %s", next.id)
 			g.resign()
 			return
 		}
@@ -288,7 +288,7 @@ func (g *simOpfield) changeVoters(policyID string, next []string, deliverP float
 	p.sets, p.joint, p.jointAcked = [][]string{old, next}, true, 0
 	jointEpoch := p.epoch
 	g.deliver(g.buildManifest(p), deliverP)
-	g.w.tracef("gateway %s joint epoch %d old=%v new=%v", policyID, jointEpoch, old, next)
+	g.w.tracef("opfield %s joint epoch %d old=%v new=%v", policyID, jointEpoch, old, next)
 	var poll func()
 	poll = func() {
 		if !g.alive {
@@ -308,7 +308,7 @@ func (g *simOpfield) changeVoters(policyID string, next []string, deliverP float
 			p.epoch++
 			p.sets, p.joint = [][]string{next}, false
 			g.deliver(g.buildManifest(p), deliverP)
-			g.w.tracef("gateway %s settles epoch %d voters=%v", policyID, p.epoch, next)
+			g.w.tracef("opfield %s settles epoch %d voters=%v", policyID, p.epoch, next)
 			g.redeliverUntilAdopted(policyID, p.epoch, next, deliverP)
 			return
 		}
@@ -416,7 +416,7 @@ func (g *simOpfield) closeLease(policyID string, stale bool, deliverP float64) {
 			p.adopted[slot] = holder
 		}
 	}
-	g.w.tracef("gateway closes %s retained=%v", policyID, p.retained)
+	g.w.tracef("opfield closes %s retained=%v", policyID, p.retained)
 	g.deliver(g.buildManifest(p), deliverP)
 }
 
@@ -456,7 +456,7 @@ func (g *simOpfield) reopenLease(policyID string, deliverP float64) {
 		}
 	}
 	p.bootstrapAt = g.w.now
-	g.w.tracef("gateway reopens %s bootstrap=%v", policyID, p.bootstrap)
+	g.w.tracef("opfield reopens %s bootstrap=%v", policyID, p.bootstrap)
 	g.deliver(g.buildManifest(p), deliverP)
 	if policyID == "p1" && len(p.bootstrap) > 0 {
 		g.w.after(5*time.Second, func() { opfieldBootstrapLoop(g.w) })

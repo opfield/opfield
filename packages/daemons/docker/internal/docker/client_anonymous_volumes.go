@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"strings"
 	"time"
 
@@ -24,7 +25,7 @@ import (
 const (
 	housekeepingProtectedLabel = "opfield.housekeeping.protected"
 	// legacy-name: the protection label before the Opfield rename; kept as long as volumes may carry it.
-	legacyHousekeepingProtectedLabel = "gateway.housekeeping.protected"
+	legacyHousekeepingProtectedLabel = legacycompat.HousekeepingProtectedLabel
 
 	anonymousVolumeCleanupTimeout = 30 * time.Second
 )

@@ -1,6 +1,7 @@
 package securelink
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"testing"
@@ -115,7 +116,7 @@ func TestStateStoreKeepsFilesOlderDaemonsRead(t *testing.T) {
 	if err := store.Save(command); err != nil {
 		t.Fatal(err)
 	}
-	legacyDescriptor, err := statecompat.LegacyDescriptor("gateway.v1.SyncProxySecureLinksCommand")
+	legacyDescriptor, err := statecompat.LegacyDescriptor(legacycompat.GRPCPackage + ".SyncProxySecureLinksCommand")
 	if err != nil {
 		t.Fatal(err)
 	}

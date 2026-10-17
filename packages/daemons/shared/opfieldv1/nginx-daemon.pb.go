@@ -1197,7 +1197,7 @@ type HealthReport struct {
 	// by a protected relay.
 	SshHostKeyFingerprints []string `protobuf:"bytes,46,rep,name=ssh_host_key_fingerprints,json=sshHostKeyFingerprints,proto3" json:"ssh_host_key_fingerprints,omitempty"`
 	// Nginx daemons advertising ingress_group_v1: what the reserved endpoint
-	// /.well-known/gateway-ingress-health answers (sf-ingress range 195-199).
+	// /.well-known/legacycompat.IngressHealthName answers (sf-ingress range 195-199).
 	IngressHealth *IngressHealthReport `protobuf:"bytes,195,opt,name=ingress_health,json=ingressHealth,proto3" json:"ingress_health,omitempty"`
 	// Storage-profile docker daemons: their availability set members.
 	AvailabilityMembers []*AvailabilityMemberReport `protobuf:"bytes,196,rep,name=availability_members,json=availabilityMembers,proto3" json:"availability_members,omitempty"`
@@ -3982,7 +3982,7 @@ type OpfieldCommand_AvailabilityMember struct {
 }
 
 type OpfieldCommand_SetOpfieldNextAddress struct {
-	// Every daemon advertising gateway_next_address_v1: the address Opfield
+	// Every daemon advertising legacycompat.NextAddressCapability: the address Opfield
 	// moves to. See SetOpfieldNextAddressCommand.
 	SetOpfieldNextAddress *SetOpfieldNextAddressCommand `protobuf:"bytes,82,opt,name=set_opfield_next_address,json=setOpfieldNextAddress,proto3,oneof"`
 }
@@ -5139,7 +5139,7 @@ type AvailabilityPrimaryAssignment struct {
 	PrimaryMemberId string                 `protobuf:"bytes,2,opt,name=primary_member_id,json=primaryMemberId,proto3" json:"primary_member_id,omitempty"`
 	Generation      uint64                 `protobuf:"varint,3,opt,name=generation,proto3" json:"generation,omitempty"`
 	// Opfield signs every assignment with its relay policy signing key: Ed25519
-	// over "gateway-availability-member/primary-assignment/v1" || 0x00 ||
+	// over "legacycompat.AvailabilityMemberDomain/primary-assignment/v1" || 0x00 ||
 	// u32be(len(set_id)) || set_id || u32be(len(primary_member_id)) ||
 	// primary_member_id || u64be(generation). A member accepts an assignment,
 	// from Opfield or relayed by its peer, only with a valid signature of a key

@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,9 +18,9 @@ func writeLauncherProbeExecutable(t *testing.T, path string, features []string) 
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
 	}
-	probe := "echo gateway-daemon-launcher 1"
+	probe := "echo " + legacycompat.LauncherProbe + " 1"
 	if features != nil {
-		probe = `if [ "$2" = --features ]; then echo '{"protocol":1,"version":"v2","features":["` + strings.Join(features, `","`) + `"]}'; else echo gateway-daemon-launcher 1; fi`
+		probe = `if [ "$2" = --features ]; then echo '{"protocol":1,"version":"v2","features":["` + strings.Join(features, `","`) + `"]}'; else echo ` + legacycompat.LauncherProbe + ` 1; fi`
 	}
 	contents := "#!/bin/sh\ncase \"$1\" in\nversion) echo test-daemon v2 ;;\nlauncher-probe) " + probe + " ;;\nesac\n"
 	if err := os.WriteFile(path, []byte(contents), 0755); err != nil {

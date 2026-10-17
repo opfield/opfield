@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"io"
 	"net/http"
 	"net/url"
@@ -34,9 +35,9 @@ const (
 	// (MigrateLegacyService); while the old unit is installed (a node not
 	// migrated yet, or an older installer restored it) the new one does not
 	// start, so two watchdogs never run.
-	// legacy-name: gateway-lease-watchdog service and binary of pre-Opfield nodes — remove once every node reports none
-	LegacyBinaryPath      = "/usr/local/bin/gateway-lease-watchdog"
-	LegacyUnitName        = "gateway-lease-watchdog"
+	// legacy-name: legacycompat.LeaseWatchdogName service and binary of pre-Opfield nodes — remove once every node reports none
+	LegacyBinaryPath      = "/usr/local/bin/" + legacycompat.LeaseWatchdogName
+	LegacyUnitName        = legacycompat.LeaseWatchdogName
 	LegacySystemdUnitPath = "/etc/systemd/system/" + LegacyUnitName + ".service"
 	LegacyOpenRCPath      = "/etc/init.d/" + LegacyUnitName
 
@@ -45,8 +46,8 @@ const (
 	Component  = "lease-watchdog"
 	DaemonType = "watchdog"
 
-	DefaultReleasesURL     = "https://get.opfield.dev/gateway/releases"
-	DefaultArtifactBaseURL = "https://get.opfield.dev/gateway"
+	DefaultReleasesURL     = legacycompat.UpdateFeedBase + "/releases"
+	DefaultArtifactBaseURL = legacycompat.UpdateFeedBase
 
 	maxResponseBytes = 64 * 1024
 )

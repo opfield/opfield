@@ -64,7 +64,7 @@ func newDBLeaseFixture(t *testing.T, gated bool) *dbLeaseFixture {
 		return &relayv1.RoutePolicy{RouteId: id, Generation: 1, SourceKind: "daemon", SourceId: source, SourceCertificateSha256: f.fingerprints[source], TargetEndpointId: target}
 	}
 	if _, _, err := store.Apply(&relayv1.ApplySnapshotRequest{
-		Revision: 1, GatewayInstanceId: "opfield-1", PublicKeys: []*relayv1.PublicKey{{KeyId: "grant-key", PublicKey: public}},
+		Revision: 1, OpfieldInstanceId: "opfield-1", PublicKeys: []*relayv1.PublicKey{{KeyId: "grant-key", PublicKey: public}},
 		Endpoints: []*relayv1.EndpointPolicy{endpoint("member-a", "node-a"), endpoint("member-b", "node-b")},
 		Routes: []*relayv1.RoutePolicy{
 			route("binding-a", "app-1", "member-a"), route("binding-b", "app-1", "member-b"),
@@ -82,7 +82,7 @@ func newDBLeaseFixture(t *testing.T, gated bool) *dbLeaseFixture {
 func (f *dbLeaseFixture) sign(t *testing.T, claims grant.Claims) *relayv1.SignedGrant {
 	t.Helper()
 	now := time.Now().Unix()
-	claims.SchemaVersion, claims.Audience, claims.GatewayInstanceID = 1, grant.Audience, "opfield-1"
+	claims.SchemaVersion, claims.Audience, claims.OpfieldInstanceID = 1, grant.Audience, "opfield-1"
 	claims.IssuedAt, claims.NotBefore, claims.ExpiresAt = now-10, now-10, now+3600
 	payload, err := json.Marshal(claims)
 	if err != nil {

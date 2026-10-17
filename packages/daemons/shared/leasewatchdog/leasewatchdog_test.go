@@ -84,8 +84,8 @@ func TestReleaseResolutionAndForgedManifest(t *testing.T) {
 	_, forged, _ := ed25519.GenerateKey(rand.Reader)
 	payload, _ := json.Marshal(updateauth.DaemonManifestPayload{Kind: "daemon-binary", DaemonType: DaemonType, Tag: tag, ArtifactName: ArtifactName()})
 	envelope, _ := json.Marshal(updateauth.SignPayload(forged, payload))
-	client = &http.Client{Transport: fakeTransport{"https://u.test/gateway/lease-watchdog/": string(envelope)}}
-	if _, _, err := FetchManifest(context.Background(), client, "https://u.test/gateway", tag); err == nil {
+	client = &http.Client{Transport: fakeTransport{"https://u.test/opfield/lease-watchdog/": string(envelope)}}
+	if _, _, err := FetchManifest(context.Background(), client, "https://u.test/opfield", tag); err == nil {
 		t.Fatal("a manifest not signed by the update key must be rejected")
 	}
 }

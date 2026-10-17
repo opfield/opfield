@@ -23,11 +23,11 @@ package statecompat
 
 import (
 	"crypto/sha256"
-	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/opfield/opfield/daemon-shared/legacycompat"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,14 +45,12 @@ import (
 // legacyStateSchema is the compiled nginx-daemon.proto of v2.10.0,
 // the oldest release a node may be rolled back to. Fields were only ever
 // added since, so what it decodes every later release decodes too.
-//
-//go:embed legacy/gateway-v1-v2.10.0.binpb
-var legacyStateSchema []byte
+var legacyStateSchema = legacycompat.StateSchemaV2100
 
 // LegacyRelease names the release whose schema legacy copies follow.
 const LegacyRelease = "v2.10.0"
 
-const fullFormat = "gateway-daemon-state/v1"
+const fullFormat = legacycompat.StateFormat
 
 var legacyFiles = sync.OnceValues(func() (*protoregistry.Files, error) {
 	set := &descriptorpb.FileDescriptorSet{}
@@ -65,7 +63,7 @@ var legacyFiles = sync.OnceValues(func() (*protoregistry.Files, error) {
 // legacy-name: the v2.10.0 schema names its package with the legacy name; the same messages are opfield.v1 now — remove once every node reports none
 const (
 	currentPackage = "opfield.v1."
-	legacyPackage  = "gateway.v1."
+	legacyPackage  = legacycompat.GRPCPackage + "."
 )
 
 // LegacyName is the name of an opfield.v1 message in the schemas of released
