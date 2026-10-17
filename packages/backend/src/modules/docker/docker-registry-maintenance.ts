@@ -327,7 +327,7 @@ class DrizzleDockerRegistryMaintenanceStore implements DockerRegistryMaintenance
 
   async acquireLease(owner: string, leaseExpiresAt: Date, now: Date): Promise<RegistryState> {
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('${LEGACY_INTERNAL_REGISTRY_ID}-maintenance'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${LEGACY_INTERNAL_REGISTRY_ID}-maintenance`}))`);
       const [state] = await tx
         .select()
         .from(dockerInternalRegistryState)

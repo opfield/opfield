@@ -3436,7 +3436,7 @@ export class RelayPolicyService {
 
   private async reconcileInternalRegistryEndpoint(): Promise<string> {
     const endpoint = await this.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('${LEGACY_INTERNAL_REGISTRY_ID}-relay-endpoint'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${LEGACY_INTERNAL_REGISTRY_ID}-relay-endpoint`}))`);
       const [current] = await tx
         .select()
         .from(relayEndpoints)
