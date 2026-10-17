@@ -1884,6 +1884,13 @@
       "when": 1794850243000,
       "tag": "0268_docker_engine_unavailable_alert_rule",
       "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1794850245000,
+      "tag": "0270_nginx_replica_deployed_generation",
+      "breakpoints": true
     }
   ]
 }

@@ -932,7 +932,10 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   const proxyService = container.resolve(ProxyService);
                   await proxyService.resyncAllHostsOnNode(claimedNodeId);
                   if (supportsTlsDistribution) {
-                    await container.resolve(NginxCertificateDistributionService).reconcileIntegrity(claimedNodeId);
+                    const distribution = container.resolve(NginxCertificateDistributionService);
+                    await distribution.reconcileIntegrity(claimedNodeId);
+                    // Certificates of routes deleted while the node was away leave it now, not at the next pass.
+                    await distribution.cleanupDueReplicas(claimedNodeId);
                   }
                 } catch (err) {
                   logger.error('Full resync failed', { nodeId: claimedNodeId, error: (err as Error).message });

@@ -467,8 +467,19 @@ export async function initializeBackgroundServices(): Promise<void> {
   ).unref?.();
   scheduler.registerInterval('nginx-tls-certificate-integrity', 6 * 60 * 60 * 1000, async () => {
     await nginxCertificateDistribution.reconcileIntegrity();
-    await nginxCertificateDistribution.cleanupDueReplicas();
   });
+  // The certificates and keys of deleted routes leave the nodes once their grace period ends: every hour, a few
+  // minutes after each start (an Opfield that restarts often still runs it) and when a node reconnects (control.ts).
+  scheduler.registerInterval('nginx-tls-certificate-cleanup', 60 * 60 * 1000, () =>
+    nginxCertificateDistribution.cleanupDueReplicas()
+  );
+  setTimeout(
+    () =>
+      void nginxCertificateDistribution
+        .cleanupDueReplicas()
+        .catch((error) => logger.warn('Initial certificate replica cleanup failed', { error })),
+    5 * 60 * 1000
+  ).unref?.();
 
   const acmeRenewalJob = new ACMERenewalJob(db, sslService, alertService);
   acmeRenewalJob.setEventBus(eventBus);
