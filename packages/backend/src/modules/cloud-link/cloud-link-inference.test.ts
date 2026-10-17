@@ -26,7 +26,14 @@ vi.mock('./cloud-link-settings.js', async (importOriginal) => ({
     stored = structuredClone(value);
   },
 }));
-vi.mock('./cloud-link-inference-budget.js', () => ({ ensureCloudDefaultApiBudget: vi.fn(async () => {}) }));
+const budget = vi.hoisted(() => ({
+  raise: { policyId: 'policy-1', previous: 0, value: 9_000_000 },
+  restore: vi.fn(async () => {}),
+}));
+vi.mock('./cloud-link-inference-budget.js', () => ({
+  ensureCloudDefaultApiBudget: vi.fn(async () => budget.raise),
+  restoreCloudDefaultApiBudget: budget.restore,
+}));
 
 const BASE_URL = 'https://ai.opfield.cloud/v1';
 const KEY = 'sk-cloud-secret-1';
@@ -73,6 +80,7 @@ const handleInferenceDisabled = vi.fn(async () => {
   if (!workspaceKey) workspace.enabled = false;
 });
 const removeModel = vi.fn(async () => {});
+let published: Array<{ publicId: string; enabled: boolean }>;
 const disconnect = vi.fn(async () => {});
 let eventBus: EventBusService;
 
@@ -139,7 +147,8 @@ beforeEach(() => {
     isFeatureEnabled: async () => true,
     updateConfig: async () => ({}),
   } as never);
-  container.registerInstance(InferenceModelService, { remove: removeModel } as never);
+  published = [];
+  container.registerInstance(InferenceModelService, { remove: removeModel, listAdmin: async () => published } as never);
   container.registerInstance(InferenceProviderService, { disconnect } as never);
 });
 
@@ -250,16 +259,44 @@ describe('CloudInference core mode', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('removes the models and falls AI Workspace back when it used one of them', async () => {
+  const disableAfterReady = async (workspaceModel?: string) => {
     const connection = { id: 'conn-1', metadata: { cloudManaged: true } };
     const inference = new CloudInference(fakeDb([[connection], [{ id: 'm-1', publicId: 'opfield-swift' }]]));
     await inference.apply(enabled());
-    expect(workspace.providerType).toBe('opfield_inference');
+    expect(stored?.budgetRaised).toEqual(budget.raise);
+    if (workspaceModel) workspace.opfieldInferenceModel = workspaceModel;
+    updates.length = 0;
     await expect(inference.apply({ enabled: false })).resolves.toEqual({ state: 'removed' });
     expect(removeModel).toHaveBeenCalledWith('admin-1', 'm-1');
     expect(disconnect).toHaveBeenCalledWith('admin-1', 'conn-1');
+  };
+
+  it('moves AI Workspace to another published model when the add-on ends and others remain', async () => {
+    published = [
+      { publicId: 'opfield-swift', enabled: true },
+      { publicId: 'local-off', enabled: false },
+      { publicId: 'local-a', enabled: true },
+    ];
+    await disableAfterReady();
+    expect(handleInferenceDisabled).not.toHaveBeenCalled();
+    expect(updates).toEqual([{ opfieldInferenceModel: 'local-a' }]);
+    expect(workspace).toMatchObject({ providerType: 'opfield_inference', enabled: true });
+  });
+
+  it('falls AI Workspace back as when inference is off when no other model remains', async () => {
+    published = [{ publicId: 'opfield-swift', enabled: true }];
+    await disableAfterReady();
     expect(handleInferenceDisabled).toHaveBeenCalledTimes(1);
     expect(workspace).toMatchObject({ providerType: 'openai_compatible', enabled: false });
+  });
+
+  it('leaves AI Workspace on another model alone and restores the default budget it raised', async () => {
+    published = [{ publicId: 'local-a', enabled: true }];
+    await disableAfterReady('local-a');
+    expect(handleInferenceDisabled).not.toHaveBeenCalled();
+    expect(updates).toEqual([]);
+    expect(budget.restore).toHaveBeenCalledWith(expect.anything(), 'admin-1', budget.raise);
+    expect(stored?.budgetRaised).toBeNull();
   });
 });
 

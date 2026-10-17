@@ -58,12 +58,24 @@ export interface StoredCloudInference {
   tierMonthlyUsd?: number | null;
   /** The default API budget was checked when the add-on first became ready (once per enabling). */
   budgetChecked?: boolean;
+  /**
+   * The default API budget the add-on raised (policy, the value before, the value it set); restored on removal while
+   * it still holds that value.
+   */
+  budgetRaised?: CloudBudgetRaise | null;
   /** The mode the add-on runs in; absent in a state written before modes (then `core`). */
   mode?: CloudInferenceMode;
   /** AI Workspace was switched to the add-on since it was enabled or its mode changed (once, so later choices hold). */
   workspaceApplied?: boolean;
   /** The base URL direct mode wrote into AI Workspace; null when it wrote none. */
   workspaceBaseUrl?: string | null;
+}
+
+/** A default API budget the add-on raised; `previous` is 0 when it created the default limits. */
+export interface CloudBudgetRaise {
+  policyId: string;
+  previous: number;
+  value: number;
 }
 
 /** Usage of the add-on as the account's endpoint reports it (`GET {baseUrl}/usage`). */

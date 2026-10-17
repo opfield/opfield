@@ -34,7 +34,7 @@ import { InferenceProviderService } from '@/modules/inference/providers/inferenc
 import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { CryptoService } from '@/services/crypto.service.js';
 import { EventBusService } from '@/services/event-bus.service.js';
-import { ensureCloudDefaultApiBudget } from './cloud-link-inference-budget.js';
+import { ensureCloudDefaultApiBudget, restoreCloudDefaultApiBudget } from './cloud-link-inference-budget.js';
 import { CLOUD_ADDON_SETTING_KEYS, writeCloudSetting } from './cloud-link-settings.js';
 
 const logger = createChildLogger('CloudInference');
@@ -200,6 +200,7 @@ export class CloudInference {
           ...(stored?.mode ? { mode: stored.mode } : {}),
           workspaceApplied: stored?.enabled === true ? workspaceAppliedOf(stored) : false,
           workspaceBaseUrl: stored?.workspaceBaseUrl ?? null,
+          budgetRaised: stored?.budgetRaised ?? null,
         });
       } else if ((stored.tierMonthlyUsd ?? null) !== (input.tierMonthlyUsd ?? null)) {
         await this.update({ tierMonthlyUsd: input.tierMonthlyUsd ?? null });
@@ -261,6 +262,10 @@ export class CloudInference {
       if (!stored.enabled) {
         await this.remove();
         await this.releaseWorkspace(stored);
+        if (stored.budgetRaised) {
+          await restoreCloudDefaultApiBudget(this.db, await this.firstSystemAdmin(), stored.budgetRaised);
+          await this.update({ budgetRaised: null });
+        }
         await this.update({
           state: 'removed',
           error: null,
@@ -306,7 +311,9 @@ export class CloudInference {
       await this.publishModels(stored, connectionId, adminId);
       await this.requirePublished(stored, connectionId);
       // Ready only now: the connection read the endpoint's models and both models are published.
-      if (!stored.budgetChecked) await ensureCloudDefaultApiBudget(this.db, adminId, stored.tierMonthlyUsd);
+      const budgetRaised = stored.budgetChecked
+        ? (stored.budgetRaised ?? null)
+        : await ensureCloudDefaultApiBudget(this.db, adminId, stored.tierMonthlyUsd);
       if (!workspaceAppliedOf(stored)) await this.switchWorkspaceToCore(stored);
       await this.update({
         state: 'ready',
@@ -314,6 +321,7 @@ export class CloudInference {
         appliedKeyHash: stored.keyHash,
         appliedBaseUrl: stored.baseUrl,
         budgetChecked: true,
+        budgetRaised,
         mode: 'core',
         workspaceApplied: true,
         workspaceBaseUrl: workspaceAppliedOf(stored) ? (stored.workspaceBaseUrl ?? null) : null,
@@ -529,8 +537,17 @@ export class CloudInference {
     const models = container.resolve(InferenceModelService);
     for (const { id } of modelIds) await models.remove(adminId, id);
     await container.resolve(InferenceProviderService).disconnect(adminId, connection.id);
-    // AI Workspace on one of those models falls back as when inference is turned off.
-    if (workspaceOnRemoved) await workspace.handleInferenceDisabled();
+    // AI Workspace on one of those models moves to another published model; with none left it falls back as when
+    // inference is turned off. AI Workspace on any other model is left as it is.
+    if (workspaceOnRemoved) {
+      const removed = new Set(modelIds.map((model) => model.publicId));
+      const remaining = (await models.listAdmin()).filter((model) => model.enabled && !removed.has(model.publicId));
+      const current = (await workspace.getConfig()).opfieldInferenceModel;
+      if (!remaining.length) await workspace.handleInferenceDisabled();
+      else if (!remaining.some((model) => model.publicId === current)) {
+        await workspace.updateConfig({ opfieldInferenceModel: remaining[0].publicId });
+      }
+    }
     logger.info('Opfield Cloud AI removed', { connectionId: connection.id, models: modelIds.length });
   }
 

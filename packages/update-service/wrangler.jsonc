@@ -5,9 +5,7 @@
 	"account_id": "4bea894ec0ae206680978dfaae0cfa00",
 	"compatibility_date": "2026-08-27",
 	"workers_dev": false,
-	"routes": [
-		{ "pattern": "get.opfield.dev/*", "zone_name": "opfield.dev" }
-	],
+	"routes": [{ "pattern": "get.opfield.dev/*", "zone_name": "opfield.dev" }],
 	"vars": {
 		"GITHUB_OWNER": "opfield",
 		"GITHUB_OPFIELD_REPO": "opfield",

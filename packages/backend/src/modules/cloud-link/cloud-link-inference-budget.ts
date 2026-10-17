@@ -5,6 +5,7 @@ import { inferenceLimitPolicies } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { publishInferenceUsageChanged } from '@/modules/inference/accounting/inference-usage-events.js';
+import type { CloudBudgetRaise } from '@/modules/inference/providers/inference-cloud.js';
 import { EventBusService } from '@/services/event-bus.service.js';
 
 const logger = createChildLogger('CloudInference');
@@ -15,13 +16,14 @@ const DEFAULT_TIER_MONTHLY_USD = 10;
 /**
  * Opfield Cloud AI models are API-priced, and a default per-user API budget of 0 hides API-priced models from
  * everyone. When the add-on becomes ready, a default budget of 0 (or no default limits at all) becomes the tier's
- * monthly price. A budget an administrator set is never lowered or replaced; per-user limits are not touched.
+ * monthly price. A budget an administrator set is never lowered or replaced; per-user limits are not touched. Answers
+ * what it raised (for the restore on removal), or null.
  */
 export async function ensureCloudDefaultApiBudget(
   db: DrizzleClient,
   adminId: string,
   tierMonthlyUsd: number | null | undefined
-): Promise<void> {
+): Promise<CloudBudgetRaise | null> {
   const usd = typeof tierMonthlyUsd === 'number' && tierMonthlyUsd > 0 ? tierMonthlyUsd : DEFAULT_TIER_MONTHLY_USD;
   const apiMonthlyMicrodollars = Math.round(usd * 1_000_000);
   const [raised] = await db
@@ -52,7 +54,7 @@ export async function ensureCloudDefaultApiBudget(
       .returning({ id: inferenceLimitPolicies.id });
     changed = created ? { id: created.id, created: true } : null;
   }
-  if (!changed) return;
+  if (!changed) return null;
   await container.resolve(AuditService).log({
     userId: adminId,
     action: 'inference.limit.update',
@@ -66,4 +68,37 @@ export async function ensureCloudDefaultApiBudget(
   });
   publishInferenceUsageChanged(container.resolve(EventBusService), { targetUserId: null, reason: 'limits' });
   logger.info('Opfield Cloud AI set the default monthly API budget', { usd, created: changed.created });
+  return { policyId: changed.id, previous: 0, value: apiMonthlyMicrodollars };
+}
+
+/** The add-on ended: the default budget it raised goes back, unless an administrator changed it since. */
+export async function restoreCloudDefaultApiBudget(
+  db: DrizzleClient,
+  adminId: string,
+  raised: CloudBudgetRaise
+): Promise<void> {
+  const [restored] = await db
+    .update(inferenceLimitPolicies)
+    .set({ apiMonthlyMicrodollars: raised.previous, updatedAt: new Date() })
+    .where(
+      and(
+        eq(inferenceLimitPolicies.id, raised.policyId),
+        eq(inferenceLimitPolicies.apiMonthlyMicrodollars, raised.value)
+      )
+    )
+    .returning({ id: inferenceLimitPolicies.id });
+  if (!restored) return;
+  await container.resolve(AuditService).log({
+    userId: adminId,
+    action: 'inference.limit.update',
+    resourceType: 'inference_limit_policy',
+    resourceId: restored.id,
+    details: {
+      reason: 'Opfield Cloud AI removed',
+      apiMonthlyMicrodollars: raised.previous,
+      previousApiMonthlyMicrodollars: raised.value,
+    },
+  });
+  publishInferenceUsageChanged(container.resolve(EventBusService), { targetUserId: null, reason: 'limits' });
+  logger.info('Opfield Cloud AI restored the default monthly API budget', { apiMonthlyMicrodollars: raised.previous });
 }
