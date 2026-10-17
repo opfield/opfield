@@ -57,6 +57,7 @@ export interface HousekeepingCategoryResult {
   itemsCleaned: number;
   spaceFreedBytes?: number;
   error?: string;
+  skipped?: string;
   durationMs: number;
 }
 

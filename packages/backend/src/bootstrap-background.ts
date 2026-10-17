@@ -77,6 +77,7 @@ import { LoggingEnvironmentService } from '@/modules/logging/logging-environment
 import { LoggingMaintenanceService } from '@/modules/logging/logging-maintenance.service.js';
 import { McpSettingsService } from '@/modules/mcp/mcp-settings.service.js';
 import { NODE_MONITORING_CADENCE_MS } from '@/modules/nodes/node-monitoring.service.js';
+import { NodesService } from '@/modules/nodes/nodes.service.js';
 import { NotificationAlertRuleService } from '@/modules/notifications/notification-alert-rule.service.js';
 import { ALERT_SOURCES_INTERVAL_MS, AlertSourceMonitor } from '@/modules/notifications/notification-alert-sources.js';
 import { NotificationDeliveryService } from '@/modules/notifications/notification-delivery.service.js';
@@ -593,6 +594,10 @@ export async function initializeBackgroundServices(): Promise<void> {
   // An Opfield host disk almost full: housekeeping runs now instead of at night (at most once an hour).
   scheduler.registerInterval('housekeeping-low-disk', 60_000, async () => {
     await housekeepingService.onHostDiskUsage(diagnosticsService.hostDisks.fullest()?.usedPercent ?? null);
+  });
+  // Node file uploads nobody finished (expired, or lost with a restart): their partial files go from the nodes.
+  scheduler.registerInterval('node-file-upload-sweep', 5 * 60_000, async () => {
+    await container.resolve(NodesService).sweepFileUploads();
   });
   // No successful run for two days: retention stopped, which nobody would notice until a disk fills.
   scheduler.registerInterval('housekeeping-stale-check', 10 * 60_000, async () => {

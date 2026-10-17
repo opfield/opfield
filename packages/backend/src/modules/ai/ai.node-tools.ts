@@ -513,8 +513,15 @@ async function executeNodeFileTool(nodesService: NodesService, user: User, args:
       assertNodeFileScope(user, 'nodes:files:write', nodeId);
       const uploadId = String(args.uploadId || '');
       if (!uploadId) throw new Error('uploadId is required');
-      await nodesService.abortFileUpload(nodeId, uploadId);
-      return { success: true };
+      const { aborted } = await nodesService.abortFileUpload(nodeId, uploadId);
+      return aborted
+        ? { success: true, aborted: true }
+        : {
+            success: true,
+            aborted: false,
+            message:
+              'No upload session with this id (it finished, expired, or Opfield restarted since it began); a partial file it left on the node is removed within minutes.',
+          };
     }
     default:
       throw new Error(`Unsupported node file operation: ${operation}`);

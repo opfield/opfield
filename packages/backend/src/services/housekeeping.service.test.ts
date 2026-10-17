@@ -368,6 +368,14 @@ describe('HousekeepingService system certificate cleanup', () => {
     expect(result.categories).toEqual([
       expect.objectContaining({ category: 'Internal Registry', success: true, itemsCleaned: 2 }),
     ]);
+
+    // rc.3 stand O-5: a run while a storage switch held the registry failed the whole run.
+    runGarbageCollection.mockRejectedValueOnce(Object.assign(new Error('busy'), { code: 'REGISTRY_MAINTENANCE_BUSY' }));
+    const busy = await service.runAll('low-disk');
+    expect(busy.overallSuccess).toBe(true);
+    expect(busy.categories).toEqual([
+      expect.objectContaining({ category: 'Internal Registry', success: true, skipped: expect.stringContaining('already running') }),
+    ]);
   });
 });
 
@@ -783,5 +791,45 @@ describe('HousekeepingService nginx logs', () => {
       nodeCount: 4,
       reportingNodeCount: 2,
     });
+  });
+});
+
+// rc.3 stand housekeeping O-3: the hourly low-disk cooldown lived in memory, so every restart on a full disk ran a
+// full housekeeping again.
+describe('HousekeepingService low-disk runs', () => {
+  function withStored(storedAt: number | null) {
+    const writes: unknown[] = [];
+    const db = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue(storedAt === null ? [] : [{ value: storedAt }]) })),
+        })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn((values: unknown) => ({
+          onConflictDoUpdate: vi.fn(async () => {
+            writes.push(values);
+          }),
+        })),
+      })),
+    };
+    const service = new HousekeepingService(db as any, {} as any, {} as any, {} as any);
+    const runAll = vi.spyOn(service as any, 'runAll').mockResolvedValue({ trigger: 'low-disk' });
+    return { service, runAll, writes };
+  }
+
+  it('keeps the cooldown of a run before a restart', async () => {
+    const now = Date.parse('2026-10-17T01:42:39Z');
+    const recent = withStored(now - 150_000);
+    await expect(recent.service.onHostDiskUsage(96, now)).resolves.toBeNull();
+    expect(recent.runAll).not.toHaveBeenCalled();
+
+    const old = withStored(now - 2 * 60 * 60_000);
+    await old.service.onHostDiskUsage(96, now);
+    expect(old.runAll).toHaveBeenCalledWith('low-disk');
+    expect(old.writes).toEqual([expect.objectContaining({ key: 'housekeeping:low_disk_run_at', value: now })]);
+    // The next minute's reading inside the hour runs nothing.
+    await expect(old.service.onHostDiskUsage(96, now + 60_000)).resolves.toBeNull();
+    expect(old.runAll).toHaveBeenCalledTimes(1);
   });
 });

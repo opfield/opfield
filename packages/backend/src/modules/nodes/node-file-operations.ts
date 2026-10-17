@@ -13,10 +13,17 @@ import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 
 type NodeDispatchResult = { success: boolean; error?: string; detail?: string; data?: Buffer | Uint8Array | string };
 
+/** Upload sessions recorded outside the process, so a restart still removes the partial files they left. */
+export interface PendingNodeFileUploads {
+  load(): Promise<Record<string, { nodeId: string; path: string }>>;
+  save(pending: Record<string, { nodeId: string; path: string }>): Promise<void>;
+}
+
 export interface NodeFileOperationContext {
   nodeDispatch: NodeDispatchService;
   auditService: AuditService;
   eventBus?: EventBusService;
+  pendingUploads?: PendingNodeFileUploads;
   parseResult(result: NodeDispatchResult): any;
 }
 
@@ -53,6 +60,54 @@ function cleanupExpiredUploadSessions(context?: NodeFileOperationContext, now = 
         .catch(() => undefined);
     }
   }
+}
+
+/** Records (or with `null` forgets) an upload session in the pending list; a failure only delays the cleanup. */
+async function rememberPendingUpload(
+  context: NodeFileOperationContext,
+  uploadId: string,
+  session: { nodeId: string; path: string } | null
+): Promise<void> {
+  if (!context.pendingUploads) return;
+  try {
+    const pending = await context.pendingUploads.load();
+    if (session) pending[uploadId] = session;
+    else if (uploadId in pending) delete pending[uploadId];
+    else return;
+    await context.pendingUploads.save(pending);
+  } catch {
+    // The node's own sweep removes the partial file within a day.
+  }
+}
+
+/**
+ * Periodic cleanup (bootstrap-background): expired sessions, and sessions an earlier Opfield process started that
+ * this one no longer holds, get their partial files removed on the node now instead of waiting for the next upload to
+ * any node (rc.3 stand O-8). A node that is offline is asked again at the next pass.
+ */
+export async function sweepNodeFileUploads(context: NodeFileOperationContext, now = Date.now()): Promise<number> {
+  cleanupExpiredUploadSessions(context, now);
+  if (!context.pendingUploads) return 0;
+  let pending: Record<string, { nodeId: string; path: string }>;
+  try {
+    pending = await context.pendingUploads.load();
+  } catch {
+    return 0;
+  }
+  let removed = 0;
+  let changed = false;
+  for (const [uploadId, session] of Object.entries(pending)) {
+    if (uploadSessions.has(uploadId)) continue;
+    const result = await context.nodeDispatch
+      .sendNodeFileCommand(session.nodeId, 'upload-abort', { path: uploadId, targetPath: session.path })
+      .catch(() => null);
+    if (!result?.success) continue;
+    delete pending[uploadId];
+    changed = true;
+    removed += 1;
+  }
+  if (changed) await context.pendingUploads.save(pending).catch(() => undefined);
+  return removed;
 }
 
 function getUploadSession(context: NodeFileOperationContext, uploadId: string) {
@@ -212,6 +267,7 @@ export async function initNodeFileUpload(
     userId,
     expiresAt: Date.now() + NODE_FILE_UPLOAD_SESSION_TTL_MS,
   });
+  await rememberPendingUpload(context, uploadId, { nodeId, path });
   return { uploadId, chunkSize: DOCKER_FILE_UPLOAD_CHUNK_BYTES };
 }
 
@@ -275,6 +331,7 @@ export async function completeNodeFileUpload(
   });
   context.parseResult(result);
   uploadSessions.delete(uploadId);
+  await rememberPendingUpload(context, uploadId, null);
   await context.auditService.log({
     action: 'node.file.create',
     userId: session.userId,
@@ -285,9 +342,18 @@ export async function completeNodeFileUpload(
   publishNodeFileChanged(context, { nodeId: session.nodeId, action: 'created', path: session.path, kind: 'file' });
 }
 
-export async function abortNodeFileUpload(context: NodeFileOperationContext, nodeId: string, uploadId: string) {
+/**
+ * Cancels an upload and removes its partial file. Answers whether there was a session to cancel: an unknown id
+ * (finished, expired or started before an Opfield restart) is not an error, and its partial file goes with the
+ * periodic sweep.
+ */
+export async function abortNodeFileUpload(
+  context: NodeFileOperationContext,
+  nodeId: string,
+  uploadId: string
+): Promise<{ aborted: boolean }> {
   const session = uploadSessions.get(uploadId);
-  if (!session) return;
+  if (!session) return { aborted: false };
   assertUploadSessionScope(session, nodeId);
   uploadSessions.delete(uploadId);
   const result = await context.nodeDispatch.sendNodeFileCommand(session.nodeId, 'upload-abort', {
@@ -295,6 +361,8 @@ export async function abortNodeFileUpload(context: NodeFileOperationContext, nod
     targetPath: session.path,
   });
   context.parseResult(result);
+  await rememberPendingUpload(context, uploadId, null);
+  return { aborted: true };
 }
 
 export async function createNodeDirectory(

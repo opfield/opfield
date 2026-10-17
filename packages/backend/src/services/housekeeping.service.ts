@@ -133,6 +133,8 @@ export interface CategoryResult {
   itemsCleaned: number;
   spaceFreedBytes?: number;
   error?: string;
+  /** Why nothing was done, when that is not a failure (another run of the same work was in progress). */
+  skipped?: string;
   durationMs: number;
 }
 
@@ -229,6 +231,8 @@ export interface HousekeepingStats {
 
 const KEYS = {
   enabled: 'housekeeping:enabled',
+  /** When the last low-disk run started (ms): its hourly cooldown outlives a restart. */
+  lowDiskRunAt: 'housekeeping:low_disk_run_at',
   cron: 'housekeeping:cron',
   nginxLogsEnabled: 'housekeeping:nginx_logs:enabled',
   nginxLogsRetention: 'housekeeping:nginx_logs:retention_days',
@@ -674,7 +678,7 @@ export class HousekeepingService {
       const plan: Array<{
         name: string;
         enabled: boolean;
-        run: () => Promise<{ itemsCleaned: number; spaceFreedBytes?: number }>;
+        run: () => Promise<{ itemsCleaned: number; spaceFreedBytes?: number; skipped?: string }>;
       }> = [
         {
           name: 'Pages',
@@ -693,7 +697,18 @@ export class HousekeepingService {
                   : trigger === 'low-disk'
                     ? 'housekeeping for a full Opfield disk'
                     : 'housekeeping run by a user',
+            }).catch((error: unknown) => {
+              // A collection or storage switch already holds the registry: not a failure of this run (rc.3 stand O-5),
+              // which would otherwise keep lastSuccessAt back and raise "Housekeeping not running".
+              if ((error as { code?: string })?.code === 'REGISTRY_MAINTENANCE_BUSY') return null;
+              throw error;
             });
+            if (!run) {
+              return {
+                itemsCleaned: 0,
+                skipped: 'Internal registry maintenance (a collection or a storage switch) was already running',
+              };
+            }
             const candidateIds = Array.isArray(run.progress?.candidateArtifactIds)
               ? run.progress.candidateArtifactIds
               : [];
@@ -814,7 +829,8 @@ export class HousekeepingService {
     }
   }
 
-  private lowDiskRunAt = 0;
+  /** In memory, and in settings (KEYS.lowDiskRunAt): null until read after a start. */
+  private lowDiskRunAt: number | null = null;
 
   /**
    * Called with the fullest Opfield host disk every minute: at LOW_DISK_RUN_PERCENT or more, runs housekeeping at
@@ -823,10 +839,27 @@ export class HousekeepingService {
    */
   async onHostDiskUsage(usedPercent: number | null, now = Date.now()): Promise<HousekeepingRunResult | null> {
     if (usedPercent === null || usedPercent < LOW_DISK_RUN_PERCENT) return null;
+    // The cooldown is stored: an Opfield that restarts (or crash-loops) on a full disk does not run a full
+    // housekeeping on every start (rc.3 stand O-3).
+    this.lowDiskRunAt ??= await this.storedLowDiskRunAt();
     if (this.running || now - this.lowDiskRunAt < LOW_DISK_RUN_COOLDOWN_MS) return null;
     this.lowDiskRunAt = now;
+    await this.db
+      .insert(settings)
+      .values({ key: KEYS.lowDiskRunAt, value: now, updatedAt: new Date(now) })
+      .onConflictDoUpdate({ target: settings.key, set: { value: now, updatedAt: new Date(now) } })
+      .catch((error: unknown) => logger.warn('Could not store the low-disk housekeeping time', { error }));
     logger.warn('An Opfield host disk is almost full; running housekeeping now', { usedPercent });
     return this.runAll('low-disk');
+  }
+
+  private async storedLowDiskRunAt(): Promise<number> {
+    try {
+      const [row] = await this.db.select().from(settings).where(eq(settings.key, KEYS.lowDiskRunAt)).limit(1);
+      return typeof row?.value === 'number' && Number.isFinite(row.value) ? row.value : 0;
+    } catch {
+      return 0;
+    }
   }
 
   async getRunHistory(): Promise<HousekeepingRunResult[]> {
@@ -1789,7 +1822,7 @@ export class HousekeepingService {
 
   private async runCategory(
     name: string,
-    fn: () => Promise<{ itemsCleaned: number; spaceFreedBytes?: number }>
+    fn: () => Promise<{ itemsCleaned: number; spaceFreedBytes?: number; skipped?: string }>
   ): Promise<CategoryResult> {
     const start = Date.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -1809,6 +1842,7 @@ export class HousekeepingService {
         success: true,
         itemsCleaned: result.itemsCleaned,
         spaceFreedBytes: result.spaceFreedBytes,
+        ...(result.skipped ? { skipped: result.skipped } : {}),
         durationMs: Date.now() - start,
       };
     } catch (error) {
