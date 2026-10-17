@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { sourcesWithinSpentApiBudget } from '../models/inference-model.helpers.js';
+import { sourcesWithinBudgets } from '../models/inference-model.helpers.js';
 import type { EffectiveInferenceLimits, InferenceBudgetUsage } from './inference-budget-policy.js';
 import { InferenceBudgetReservationService } from './inference-budget-reservation.service.js';
 
@@ -24,11 +24,15 @@ const usage: InferenceBudgetUsage = {
   recoveryAt: { credits5h: recovery, credits7d: recovery, credits30d: recovery, apiMonthly: recovery },
 };
 const amounts = { credits5h: 1, credits7d: 1, credits30d: 1, apiMonthlyMicrodollars: 0 };
-/** The monthly API limit the reservation script receives (the last of the four limits). */
-const API_LIMIT_ARG = 2 + 8 + 2 + 4 + 4 + 3;
+/** The limits the reservation script receives: 5h, 7d, 30d credits, then the monthly API limit. */
+const CREDIT_LIMIT_ARGS = [20, 21, 22];
+const API_LIMIT_ARG = 23;
+/** A 5-hour subscription window of 100 credits, overspent. */
+const spentWindow = { ...limits, credits5hEnabled: true, credits5h: 100 };
+const spentUsage = { ...usage, credits5h: 140 };
 
 function reservations(answer: unknown) {
-  const redis = { eval: vi.fn(async () => answer) };
+  const redis = { eval: vi.fn(async (..._args: unknown[]) => answer) };
   return { redis, service: new InferenceBudgetReservationService(redis as never) };
 }
 
@@ -64,13 +68,51 @@ describe('monthly API budget and the source a request runs on', () => {
     expect(redis.eval.mock.calls[0]![API_LIMIT_ARG]).toBe(0);
   });
 
-  it('routes around a spent API budget only to sources it does not cap', () => {
+  it('never holds an API request to an overspent subscription window', async () => {
+    const { redis, service } = reservations([0, '0', '0', '0', '10', '0', '0', '0', '0']);
+    const reservation = await service.reserve({
+      reservationId: 'r3',
+      userId: 'u1',
+      amounts: { credits5h: 0, credits7d: 0, credits30d: 0, apiMonthlyMicrodollars: 10 },
+      usage: spentUsage,
+      limits: { ...spentWindow, apiMonthlyMicrodollars: 1_000_000_000 },
+      isCompaction: false,
+      sourceType: 'api',
+    });
+    for (const index of CREDIT_LIMIT_ARGS) expect(redis.eval.mock.calls[0]![index]).toBe(Number.MAX_SAFE_INTEGER);
+    expect(redis.eval.mock.calls[0]![API_LIMIT_ARG]).toBe(1_000_000_000);
+    await service.release(reservation);
+  });
+
+  it('keeps holding a subscription request to its credit windows', async () => {
+    const { redis, service } = reservations([1]);
+    await expect(
+      service.reserve({
+        reservationId: 'r4',
+        userId: 'u1',
+        amounts,
+        usage: spentUsage,
+        limits: spentWindow,
+        isCompaction: false,
+        sourceType: 'subscription',
+      })
+    ).rejects.toMatchObject({ status: 429, code: 'subscription_budget_exhausted' });
+    expect(redis.eval.mock.calls[0]![CREDIT_LIMIT_ARGS[0]!]).toBe(100);
+  });
+
+  it('routes around a spent budget only to the sources it does not cap', () => {
     const subscription = { id: 's', sourceType: 'subscription', priceMissing: false };
     const priced = { id: 'a', sourceType: 'api', priceMissing: false };
     const unpriced = { id: 'u', sourceType: 'api', priceMissing: true };
-    expect(sourcesWithinSpentApiBudget([subscription])).toEqual([subscription]);
-    expect(sourcesWithinSpentApiBudget([priced])).toBeNull();
-    expect(sourcesWithinSpentApiBudget([priced, subscription])).toEqual([subscription]);
-    expect(sourcesWithinSpentApiBudget([priced, unpriced])).toEqual([unpriced]);
+    const apiSpent = { api: true, subscription: false };
+    expect(sourcesWithinBudgets([subscription], apiSpent)).toEqual([subscription]);
+    expect(sourcesWithinBudgets([priced], apiSpent)).toBeNull();
+    expect(sourcesWithinBudgets([priced, subscription], apiSpent)).toEqual([subscription]);
+    expect(sourcesWithinBudgets([priced, unpriced], apiSpent)).toEqual([unpriced]);
+    const subscriptionSpent = { api: false, subscription: true };
+    expect(sourcesWithinBudgets([priced], subscriptionSpent)).toEqual([priced]);
+    expect(sourcesWithinBudgets([subscription], subscriptionSpent)).toBeNull();
+    expect(sourcesWithinBudgets([priced, subscription], subscriptionSpent)).toEqual([priced]);
+    expect(sourcesWithinBudgets([priced, subscription], { api: true, subscription: true })).toBeNull();
   });
 });

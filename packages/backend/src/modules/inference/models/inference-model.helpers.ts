@@ -88,13 +88,17 @@ export function filterSourcesByApiUsage<T extends { sourceType: string }>(
 }
 
 /**
- * The sources a request may route to once the user's monthly API budget is spent: every source that is not API-priced
- * (subscriptions, and API sources without a price, which the budget does not cap). Null when none remains.
+ * The sources a request may route to with the user's budgets as they stand: a spent monthly API budget takes out the
+ * API-priced sources (an API source without a price is not capped by it), an overspent subscription credit window
+ * the subscription sources. Null when none remains.
  */
-export function sourcesWithinSpentApiBudget<T extends { sourceType: string; priceMissing: boolean }>(
-  sources: readonly T[]
+export function sourcesWithinBudgets<T extends { sourceType: string; priceMissing: boolean }>(
+  sources: readonly T[],
+  spent: { api: boolean; subscription: boolean }
 ): T[] | null {
-  const remaining = sources.filter((source) => source.sourceType !== 'api' || source.priceMissing);
+  const remaining = sources.filter((source) =>
+    source.sourceType === 'subscription' ? !spent.subscription : source.priceMissing || !spent.api
+  );
   return remaining.length ? remaining : null;
 }
 

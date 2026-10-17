@@ -13,6 +13,11 @@ import {
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { User } from '@/types.js';
+import {
+  hasSpendableSubscriptionBudget,
+  subscriptionBudgetRecovery,
+} from '../accounting/inference-accounting.helpers.js';
+import { subscriptionBudgetExhausted } from '../accounting/inference-admission-denial.js';
 import type { InferenceBudgetPolicyService } from '../accounting/inference-budget-policy.js';
 import type { InferenceCoreBridgeService } from '../core/inference-core-bridge.service.js';
 import {
@@ -32,7 +37,7 @@ import {
   filterModelIdsByApiBudget,
   filterSourcesByApiUsage,
   sourceOriginMetadata,
-  sourcesWithinSpentApiBudget,
+  sourcesWithinBudgets,
   supportsFastServiceTier,
 } from './inference-model.helpers.js';
 import type { InferenceModelInput, InferenceModelSourceInput, InferencePricingInput } from './inference-model.types.js';
@@ -460,20 +465,27 @@ export class InferenceModelService {
     }
     const full = await this.serializeModel(model);
     const sources = filterSourcesByApiUsage(full.sources, availability.apiUsageEnabled);
-    if (!availability.apiUsageEnabled) return { model, sources };
-    // A spent monthly API budget gates only API-priced sources: the request routes to the others, and is refused
-    // only when the model has none (the same refusal the reservation gives).
+    // Each budget gates only its own kind of source: a spent monthly API budget the API-priced ones, an overspent
+    // subscription credit window the subscriptions. The request routes to what remains and is refused only when
+    // nothing does (the same refusal the reservation gives).
     const limits = await this.budgetPolicies.effective(user.id);
     const usage = await this.budgetPolicies.usage(user.id, limits);
-    if (usage.apiMonthlyMicrodollars < limits.apiMonthlyMicrodollars) return { model, sources };
-    const remaining = sourcesWithinSpentApiBudget(sources.filter((source) => source.enabled));
-    if (!remaining) {
+    const spent = {
+      api: availability.apiUsageEnabled && usage.apiMonthlyMicrodollars >= limits.apiMonthlyMicrodollars,
+      subscription: !hasSpendableSubscriptionBudget(limits, usage),
+    };
+    if (!spent.api && !spent.subscription) return { model, sources };
+    const enabled = sources.filter((source) => source.enabled);
+    const remaining = sourcesWithinBudgets(enabled, spent);
+    if (remaining) return { model, sources: remaining };
+    if (spent.api && enabled.some((source) => source.sourceType === 'api' && !source.priceMissing)) {
       throw new InferenceProtocolError(429, 'api_budget_exhausted', 'Inference budget exhausted', {
         recoveryAt: usage.recoveryAt.apiMonthly.toISOString(),
         dimension: 'monthly',
       });
     }
-    return { model, sources: remaining };
+    const recovery = subscriptionBudgetRecovery(limits, usage);
+    throw subscriptionBudgetExhausted(recovery?.recoveryAt ?? null, recovery?.dimension ?? null);
   }
 
   private async modelAvailabilityForUser(

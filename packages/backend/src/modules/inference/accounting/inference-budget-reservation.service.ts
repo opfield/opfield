@@ -136,7 +136,10 @@ export class InferenceBudgetReservationService {
     usage: InferenceBudgetUsage;
     limits: EffectiveInferenceLimits;
     isCompaction: boolean;
-    /** The source the request runs on: the monthly API budget gates only API sources, never a subscription. */
+    /**
+     * The source the request runs on: the monthly API budget gates only API sources, and the subscription credit
+     * windows only subscription sources.
+     */
     sourceType: 'api' | 'subscription';
     /** The request has no API price: the monthly API budget does not cap it (API usage switched off still does). */
     apiBudgetExempt?: boolean;
@@ -144,12 +147,16 @@ export class InferenceBudgetReservationService {
     const now = Date.now();
     const expiresAt = new Date(now + RESERVATION_TTL_MS);
     const dimensions: InferenceBudgetDimension[] = ['credits5h', 'credits7d', 'credits30d', 'apiMonthlyMicrodollars'];
-    const limits = dimensions.map((dimension) =>
-      dimension === 'apiMonthlyMicrodollars' &&
-      (input.sourceType !== 'api' || (input.apiBudgetExempt && input.limits.apiMonthlyMicrodollars > 0))
+    const limits = dimensions.map((dimension) => {
+      if (dimension !== 'apiMonthlyMicrodollars') {
+        return input.sourceType === 'api'
+          ? UNLIMITED_RESERVATION_LIMIT
+          : reservationLimit(dimension, input.limits, input.isCompaction);
+      }
+      return input.sourceType !== 'api' || (input.apiBudgetExempt && input.limits.apiMonthlyMicrodollars > 0)
         ? UNLIMITED_RESERVATION_LIMIT
-        : reservationLimit(dimension, input.limits, input.isCompaction)
-    );
+        : reservationLimit(dimension, input.limits, input.isCompaction);
+    });
     let result: unknown;
     try {
       result = await this.redis.eval(
