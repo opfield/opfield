@@ -50,6 +50,9 @@ const (
 	StepVerifyingRuntime   InstallStep = "verifying_runtime"
 	runtimeSmokeRuns                   = 6
 	runtimeSmokeImage                  = "busybox:1.36"
+	// RuntimeSmokeLabel marks the daemon's own Secure Runtime smoke containers, so they never count as changes
+	// made outside Opfield.
+	RuntimeSmokeLabel = "net.opfield.runtime-smoke"
 )
 
 type Status struct {
@@ -373,6 +376,7 @@ func (m *Manager) verifyDockerRuntime(ctx context.Context) error {
 			"run",
 			"--rm",
 			"--runtime=runsc",
+			"--label", RuntimeSmokeLabel+"=1",
 			runtimeSmokeImage,
 			"sleep",
 			"1",

@@ -388,6 +388,9 @@ func eventTime(message events.Message) time.Time {
 
 // observeExternalChange judges one container event once the request behind it
 // had time to finish.
+// runtimeSmokeLabel is runtime.RuntimeSmokeLabel (not imported here to keep the packages independent).
+const runtimeSmokeLabel = "net.opfield.runtime-smoke"
+
 func (p *DockerPlugin) observeExternalChange(message events.Message) {
 	if p.externalChanges == nil || p.client == nil || p.client.ownOps == nil {
 		return
@@ -422,6 +425,9 @@ func (p *DockerPlugin) observeExternalChange(message events.Message) {
 		return
 	}
 	attributes := message.Actor.Attributes
+	if attributes[runtimeSmokeLabel] != "" {
+		return // the daemon's own Secure Runtime smoke test
+	}
 	change := externalContainerChange{
 		At:          at.UTC(),
 		Action:      action,
