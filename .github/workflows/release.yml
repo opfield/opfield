@@ -68,13 +68,13 @@ jobs:
       # Workers that serve it report service opfield-updates on /health.
       - name: Require an update Worker that serves the installer checksum list
         run: |
-          health=$(curl -fsS --retry 3 --max-time 30 https://updates.thesqlabs.com/health || true)
+          health=$(curl -fsS --retry 3 --max-time 30 https://get.opfield.dev/opfield/health || true)
           if ! grep -q '"service":"opfield-updates"' <<<"$health"; then
             echo '::error::Deploy packages/update-service (pnpm --filter @opfield/update-service deploy) before this release: the update Worker does not serve opfield-node-installers.sha256' >&2
             exit 1
           fi
           # Releases from 2.12.3 read the feed under the /opfield namespace.
-          if ! curl -fsS --retry 3 --max-time 30 -o /dev/null https://updates.thesqlabs.com/opfield/releases; then
+          if ! curl -fsS --retry 3 --max-time 30 -o /dev/null https://get.opfield.dev/opfield/releases; then
             echo '::error::Deploy packages/update-service before this release: the update Worker does not serve /opfield/releases' >&2
             exit 1
           fi

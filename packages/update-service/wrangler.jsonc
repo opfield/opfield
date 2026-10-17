@@ -2,16 +2,12 @@
 	"$schema": "../../node_modules/wrangler/config-schema.json",
 	"name": "opfield-updates",
 	"main": "src/index.ts",
-	"account_id": "22dece7280b0afbe29b9ce6c79161b85",
+	"account_id": "4bea894ec0ae206680978dfaae0cfa00",
 	"compatibility_date": "2026-08-27",
 	"workers_dev": false,
 	"routes": [
-		{
-			"pattern": "updates.thesqlabs.com",
-			"custom_domain": true
-		}
-		// get.opfield.dev lives in another Cloudflare account, so a route there can't target this Worker; a small proxy
-		// Worker in that account forwards get.opfield.dev to this host with the same paths.
+		{ "pattern": "get.opfield.dev/opfield/*", "zone_name": "opfield.dev" },
+		{ "pattern": "get.opfield.dev/gateway/*", "zone_name": "opfield.dev" }
 	],
 	"vars": {
 		"GITHUB_OWNER": "opfield",

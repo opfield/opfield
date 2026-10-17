@@ -806,7 +806,7 @@ export async function handleRequest(
 		return jsonResponse({ error: "method_not_allowed" }, 405);
 	}
 	const pathname = new URL(request.url).pathname;
-	if (pathname === "/health")
+	if (pathname === "/health" || pathname === "/opfield/health")
 		return jsonResponse(
 			{ ok: true, service: "opfield-updates" },
 			200,
