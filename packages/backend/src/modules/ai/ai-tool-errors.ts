@@ -79,3 +79,21 @@ export function formatToolError(error: ToolError): string {
   if (!details) return message;
   return `${message}${/[.!?]$/.test(message) ? '' : '.'} Details: ${details}`;
 }
+
+/**
+ * write_file changes an existing file only; the daemon refuses a new path with a bare "file is not writable", which
+ * left an agent guessing. The refusal names create_file.
+ */
+export async function withWriteFileHint<T>(write: Promise<T>): Promise<T> {
+  try {
+    return await write;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/file is not writable/i.test(message)) throw error;
+    throw new AppError(
+      409,
+      'FILE_NOT_WRITABLE',
+      `${message.replace(/^[A-Z_]+:\s*/, '')}. write_file changes an existing regular file you may write; to make a new file use create_file (with content).`
+    );
+  }
+}

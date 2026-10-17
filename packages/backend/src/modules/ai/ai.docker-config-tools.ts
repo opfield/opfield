@@ -31,6 +31,7 @@ import {
   presentFileContent,
   requiredToolString,
 } from './ai.docker-tool-access.js';
+import { withWriteFileHint } from './ai-tool-errors.js';
 
 const FileWriteToolSchema = z.object({
   path: FileBrowseSchema.shape.path,
@@ -316,7 +317,7 @@ async function manageContainerFiles(
     }
     case 'write_file': {
       const input = FileWriteToolSchema.parse({ path: args.path, content: decodeFileContent(args) });
-      await dockerService.writeFile(nodeId, containerId, input.path, input.content, user.id);
+      await withWriteFileHint(dockerService.writeFile(nodeId, containerId, input.path, input.content, user.id));
       return { success: true };
     }
     case 'create_file': {

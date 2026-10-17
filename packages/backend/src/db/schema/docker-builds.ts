@@ -24,7 +24,10 @@ import { users } from './users.js';
 
 export type DockerSourceTargetKind = 'container' | 'deployment' | 'compose_project' | 'pages_project';
 export type PagesBuildPackageManager = 'npm' | 'pnpm' | 'yarn';
-/** Why a build was queued; `attach`: the source was attached, or its repository or branch changed, and builds its head. */
+/**
+ * Why a build was queued; `attach`: the source was attached, or its repository or branch changed, and builds its head;
+ * `config`: the source's build settings or Build Secrets changed, and the commit it built already builds again.
+ */
 export type DockerBuildTrigger =
   | 'manual'
   | 'gitlab_push'
@@ -32,7 +35,8 @@ export type DockerBuildTrigger =
   | 'generic_webhook'
   | 'poll'
   | 'retry'
-  | 'attach';
+  | 'attach'
+  | 'config';
 export type DockerBuildStatus =
   | 'queued'
   | 'claimed'

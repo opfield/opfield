@@ -156,6 +156,9 @@ export class DockerBuildService {
   }> {
     return commercialModuleUnavailable();
   }
+  async commitBuiltBefore(_sourceBindingId: string, _commitSha: string): Promise<boolean> {
+    return commercialModuleUnavailable();
+  }
   async hasBuildForCommit(_sourceBindingId: string, _commitSha: string): Promise<boolean> {
     return commercialModuleUnavailable();
   }

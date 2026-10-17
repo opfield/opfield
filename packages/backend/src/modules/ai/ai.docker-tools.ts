@@ -135,6 +135,7 @@ import {
   dockerVolumeMatchesSearch,
   hasRegistryHost,
 } from './ai.service-helpers.js';
+import { withWriteFileHint } from './ai-tool-errors.js';
 
 type SavedDockerSource = Awaited<ReturnType<DockerSourceServiceType['get']>>;
 
@@ -1300,7 +1301,7 @@ async function manageDockerVolumeFiles(
     }
     case 'write_file': {
       const { path } = FileBrowseSchema.parse({ path: a.path });
-      await service.writeVolumeFile(nodeId, name, path, decodeFileContent(args), user.id);
+      await withWriteFileHint(service.writeVolumeFile(nodeId, name, path, decodeFileContent(args), user.id));
       return { success: true };
     }
     case 'create_file': {
