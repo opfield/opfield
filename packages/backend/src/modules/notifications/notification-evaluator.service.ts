@@ -1538,7 +1538,10 @@ export class NotificationEvaluatorService {
     const event = this.buildFiredEvent(rule, rule.category, resourceKey, resourceName, details);
     const labels = alertStateLabels(resourceName, event.message);
     if (labels.message === (state.message ?? null)) return;
-    const previous = (state.context && typeof state.context === 'object' ? state.context : {}) as Record<string, unknown>;
+    const previous = (state.context && typeof state.context === 'object' ? state.context : {}) as Record<
+      string,
+      unknown
+    >;
     await this.db
       .update(notificationAlertStates)
       .set({

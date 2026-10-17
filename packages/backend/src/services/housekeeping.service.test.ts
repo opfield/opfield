@@ -374,7 +374,11 @@ describe('HousekeepingService system certificate cleanup', () => {
     const busy = await service.runAll('low-disk');
     expect(busy.overallSuccess).toBe(true);
     expect(busy.categories).toEqual([
-      expect.objectContaining({ category: 'Internal Registry', success: true, skipped: expect.stringContaining('already running') }),
+      expect.objectContaining({
+        category: 'Internal Registry',
+        success: true,
+        skipped: expect.stringContaining('already running'),
+      }),
     ]);
   });
 });

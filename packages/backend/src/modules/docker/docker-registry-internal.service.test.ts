@@ -95,7 +95,12 @@ describe('builds during a registry collection', () => {
         return busy-- > 0;
       }),
     };
-    const registry = new DockerInternalRegistryService({} as never, {} as never, { log: vi.fn(async () => {}) } as never, store as never);
+    const registry = new DockerInternalRegistryService(
+      {} as never,
+      {} as never,
+      { log: vi.fn(async () => {}) } as never,
+      store as never
+    );
     registry.activeUsersPollMs = 1;
     let claimable: boolean | null = null;
     registry.setExecutor({

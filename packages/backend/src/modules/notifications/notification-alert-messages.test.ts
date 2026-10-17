@@ -63,7 +63,10 @@ describe('a firing threshold alert follows the reading', () => {
 
   it('rewrites the message of the open alert, naming the disk, without firing again', async () => {
     const t = setup({ id: 's1', message: 'The disk is 86% full.', context: { folded: null } });
-    await t.service.evaluateOpfieldSnapshot({ host_disk: 96 }, { host_disk: { disk: 'postgres: /var/lib/postgresql/data' } });
+    await t.service.evaluateOpfieldSnapshot(
+      { host_disk: 96 },
+      { host_disk: { disk: 'postgres: /var/lib/postgresql/data' } }
+    );
     expect(t.fireAlert).not.toHaveBeenCalled();
     expect(t.updates).toHaveLength(1);
     expect(t.updates[0]?.message).toBe('The disk is 96% full (postgres: /var/lib/postgresql/data).');
@@ -78,13 +81,19 @@ describe('a firing threshold alert follows the reading', () => {
 
   it('fires with the disk in the details when nothing is open', async () => {
     const t = setup(null);
-    await t.service.evaluateOpfieldSnapshot({ host_disk: 91 }, { host_disk: { disk: 'Opfield data (/var/lib/gateway)' } });
+    await t.service.evaluateOpfieldSnapshot(
+      { host_disk: 91 },
+      { host_disk: { disk: 'Opfield data (/var/lib/gateway)' } }
+    );
     expect(t.fireAlert).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'rule-1' }),
       'opfield',
       'opfield',
       'Opfield',
-      expect.objectContaining({ details: { disk: 'Opfield data (/var/lib/gateway)' }, metric: expect.objectContaining({ value: 91 }) })
+      expect.objectContaining({
+        details: { disk: 'Opfield data (/var/lib/gateway)' },
+        metric: expect.objectContaining({ value: 91 }),
+      })
     );
   });
 });

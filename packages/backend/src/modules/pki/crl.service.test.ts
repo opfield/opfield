@@ -7,8 +7,8 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { certificateAuthorities, pkiRevokedSerials } from '@/db/schema/index.js';
 import { x509 } from '@/lib/x509.js';
-import { crlNeedsRepublish, crlSerialHex, derPositiveInteger } from './crl-encoding.js';
 import { CRLService } from './crl.service.js';
+import { crlNeedsRepublish, crlSerialHex, derPositiveInteger } from './crl-encoding.js';
 
 // F-1 (rc.3 stand): the CRL wrote every serial whose first byte is 0x80 or more as a negative INTEGER, so
 // `openssl verify -crl_check` accepted about half of all revoked certificates, deleted ones (tombstones) too.

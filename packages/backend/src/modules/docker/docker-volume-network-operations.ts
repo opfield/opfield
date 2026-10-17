@@ -657,7 +657,14 @@ export async function createVolume(
   // The daemon answers a create with no body: say what was created instead of a bare null.
   return data && typeof data === 'object'
     ? data
-    : { name: config.name, nodeId, storageKind, capacityBytes: config.capacityBytes ?? null, managed: true, created: true };
+    : {
+        name: config.name,
+        nodeId,
+        storageKind,
+        capacityBytes: config.capacityBytes ?? null,
+        managed: true,
+        created: true,
+      };
 }
 
 export async function removeVolume(

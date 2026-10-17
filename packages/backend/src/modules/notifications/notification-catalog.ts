@@ -781,7 +781,8 @@ export const ALERT_CATEGORIES: CategoryDefinition[] = [
       { name: '{{details.last_success_at}}', description: 'Last successful housekeeping run (housekeeping.stale)' },
       {
         name: '{{details.disk}}',
-        description: 'The disk that is full and what it holds, such as "postgres: /var/lib/postgresql/data" (host_disk)',
+        description:
+          'The disk that is full and what it holds, such as "postgres: /var/lib/postgresql/data" (host_disk)',
       },
       { name: '{{details.targets}}', description: 'Hosts Opfield could not reach (outbound.unavailable)' },
     ],

@@ -60,10 +60,10 @@ import { redactArgsForAudit } from './ai.service.tool-helpers.js';
 import { getToolResourceId, hasToolExecutionScope, isMutatingTool } from './ai.service-helpers.js';
 import { executeSshTool, SSH_TOOL_NAMES } from './ai.ssh-tools.js';
 import { executeStorageTool, STORAGE_TOOL_NAMES } from './ai.storage-tools.js';
-import { unknownArgumentsNote } from './ai-tool-contract.js';
 import { AI_TOOLS, TOOL_STORE_INVALIDATION_MAP } from './ai.tools.js';
 import type { ToolExecutionOptions, ToolExecutionResult } from './ai.types.js';
 import { assertToolCallAllowedUnderImpersonation } from './ai-impersonation-policy.js';
+import { unknownArgumentsNote } from './ai-tool-contract.js';
 import { describeToolError, formatToolError } from './ai-tool-errors.js';
 import {
   publishToolStoreInvalidation,

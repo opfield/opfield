@@ -194,7 +194,8 @@ export class DockerInternalRegistryService {
     // A storage switch just recorded another backend: measure now, or the probe would write the backend (and disk)
     // measured before the switch back over it until the next interval (R-O-2: storageBackend lagged a minute).
     const backendChanged = this.measuredStorageBackend !== null && state.storageBackend !== this.measuredStorageBackend;
-    if (!healthy || (!backendChanged && Date.now() - this.storageMeasuredAt < STORAGE_MEASURE_INTERVAL_MS)) return known;
+    if (!healthy || (!backendChanged && Date.now() - this.storageMeasuredAt < STORAGE_MEASURE_INTERVAL_MS))
+      return known;
     try {
       const measured = await this.executor.storageUsedBytes();
       this.storageMeasuredAt = Date.now();
@@ -509,7 +510,9 @@ export class DockerInternalRegistryService {
     const deadline = Date.now() + this.activeUsersWaitMs;
     while (await this.store.hasActiveRegistryUsers()) {
       if (Date.now() >= deadline) {
-        logger.warn('Registry maintenance goes on while builds still use the registry; they are queued again if they fail');
+        logger.warn(
+          'Registry maintenance goes on while builds still use the registry; they are queued again if they fail'
+        );
         return;
       }
       await this.store.renewLease(owner, new Date(Date.now() + DEFAULT_REGISTRY_MAINTENANCE_LEASE_MS));

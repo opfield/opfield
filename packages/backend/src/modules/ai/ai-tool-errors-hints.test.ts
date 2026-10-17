@@ -10,7 +10,8 @@ describe('write_file refusals', () => {
       withWriteFileHint(Promise.reject(new AppError(502, 'DISPATCH_ERROR', 'file is not writable: /blob.txt')))
     ).rejects.toMatchObject({
       code: 'FILE_NOT_WRITABLE',
-      message: 'file is not writable: /blob.txt. write_file changes an existing regular file you may write; to make a new file use create_file (with content).',
+      message:
+        'file is not writable: /blob.txt. write_file changes an existing regular file you may write; to make a new file use create_file (with content).',
     });
   });
 

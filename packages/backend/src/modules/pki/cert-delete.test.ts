@@ -141,10 +141,15 @@ describe('status of a deleted revoked certificate', () => {
 // rc.3 stand O-7 / explore O-11: revoking a certificate a route serves stayed silent, and an SSL certificate linked
 // from it kept status "active".
 describe('revoking a PKI certificate in use', () => {
-  function revokeSetup(linked: Array<{ id: string; name: string }>, routes: Array<{ id: string; domainNames: string[] }>) {
+  function revokeSetup(
+    linked: Array<{ id: string; name: string }>,
+    routes: Array<{ id: string; domainNames: string[] }>
+  ) {
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
     const db = {
-      query: { certificates: { findFirst: async () => ({ ...base, status: 'active', notAfter: new Date(Date.now() + DAY) }) } },
+      query: {
+        certificates: { findFirst: async () => ({ ...base, status: 'active', notAfter: new Date(Date.now() + DAY) }) },
+      },
       select: () => ({
         from: (table: unknown) => ({
           where: () =>
@@ -162,7 +167,12 @@ describe('revoking a PKI certificate in use', () => {
       }),
     };
     const caService = { publishCRL: vi.fn(async () => undefined) };
-    const service = new CertService(db as never, {} as never, caService as never, { log: vi.fn(async () => true) } as never);
+    const service = new CertService(
+      db as never,
+      {} as never,
+      caService as never,
+      { log: vi.fn(async () => true) } as never
+    );
     return { service, updates, caService };
   }
 

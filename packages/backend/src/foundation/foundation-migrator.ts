@@ -1,4 +1,3 @@
-import { FOUNDATION_MIGRATION_BACKUP, pruneBackupDirectories, REGISTRY_STORAGE_BACKUP } from './backup-retention.js';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -8,6 +7,7 @@ import {
   LEGACY_COMMERCIAL_HOST_DIR,
   type PreparedCommercialUpdate,
 } from '@/edition/prepare-update.js';
+import { FOUNDATION_MIGRATION_BACKUP, pruneBackupDirectories, REGISTRY_STORAGE_BACKUP } from './backup-retention.js';
 import {
   applyComposeVocabulary,
   type ComposeVolumeKeys,

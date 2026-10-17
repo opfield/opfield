@@ -26,7 +26,10 @@ describe('backup retention', () => {
   it('keeps the newest three registry storage backups and nothing else of that kind', async () => {
     const names = [1, 2, 3, 4, 5].map((n) => `registry-storage-2026-10-1${n}T01-00-00-000Z`);
     const dir = await backups([...names, 'pre-update-2026-10-01T00-00-00-000Z']);
-    const removed = await pruneBackupDirectories(dir, (name) => REGISTRY_STORAGE_BACKUP.test(name), { keep: 3, maxAgeDays: 0 });
+    const removed = await pruneBackupDirectories(dir, (name) => REGISTRY_STORAGE_BACKUP.test(name), {
+      keep: 3,
+      maxAgeDays: 0,
+    });
     expect(removed.sort()).toEqual(names.slice(0, 2));
     expect((await readdir(dir)).sort()).toEqual([...names.slice(2), 'pre-update-2026-10-01T00-00-00-000Z'].sort());
   });
@@ -34,14 +37,18 @@ describe('backup retention', () => {
   it('removes older migration backups only past their age', async () => {
     const names = [1, 2, 3, 4].map((n) => `2026-09-0${n}T10-00-00-000Z`);
     const fresh = await backups(names, 5);
-    expect(await pruneBackupDirectories(fresh, (name) => FOUNDATION_MIGRATION_BACKUP.test(name), { keep: 3, maxAgeDays: 30 })).toEqual([]);
+    expect(
+      await pruneBackupDirectories(fresh, (name) => FOUNDATION_MIGRATION_BACKUP.test(name), { keep: 3, maxAgeDays: 30 })
+    ).toEqual([]);
     const old = await backups(names, 40);
-    expect(await pruneBackupDirectories(old, (name) => FOUNDATION_MIGRATION_BACKUP.test(name), { keep: 3, maxAgeDays: 30 })).toEqual([
-      names[0],
-    ]);
+    expect(
+      await pruneBackupDirectories(old, (name) => FOUNDATION_MIGRATION_BACKUP.test(name), { keep: 3, maxAgeDays: 30 })
+    ).toEqual([names[0]]);
   });
 
   it('does nothing when the directory is missing', async () => {
-    await expect(pruneBackupDirectories('/nonexistent/backups', () => true, { keep: 0, maxAgeDays: 0 })).resolves.toEqual([]);
+    await expect(
+      pruneBackupDirectories('/nonexistent/backups', () => true, { keep: 0, maxAgeDays: 0 })
+    ).resolves.toEqual([]);
   });
 });

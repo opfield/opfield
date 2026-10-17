@@ -193,7 +193,8 @@ export const GITLAB_AI_TOOLS: AIToolDefinition[] = [
         ref: { type: 'string', description: 'Branch, tag or commit SHA to start from; default branch when omitted.' },
         fromRef: {
           type: 'string',
-          description: 'The same as ref, under the name github_create_branch and git_create_branch use; ref wins when both are given.',
+          description:
+            'The same as ref, under the name github_create_branch and git_create_branch use; ref wins when both are given.',
         },
       },
       required: ['connectorId', 'project', 'branch'],

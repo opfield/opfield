@@ -560,7 +560,11 @@ export class DiagnosticsService {
     this.lastSample = sample;
     await this.storeSample(sample);
     if (this.observer) {
-      const hostDisk = describeFullestDisk(hostOk?.disk ?? null, this.hostDisks.fullest(), DATA_PATHS[0] ?? process.cwd());
+      const hostDisk = describeFullestDisk(
+        hostOk?.disk ?? null,
+        this.hostDisks.fullest(),
+        DATA_PATHS[0] ?? process.cwd()
+      );
       await this.observer({ sample, postgres, redis, containers, jobs, hostDisk }).catch((error: unknown) => {
         logger.warn('Opfield alert evaluation failed', { error: errorMessage(error) });
       });

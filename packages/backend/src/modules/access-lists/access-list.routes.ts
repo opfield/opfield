@@ -28,7 +28,6 @@ import { AccessListService } from './access-list.service.js';
 
 export const accessListRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
-
 accessListRoutes.use('*', authMiddleware);
 
 // List access lists

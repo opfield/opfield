@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { patchComposeRegistryStorage, writeFileAtomic } from '@/foundation/foundation-migrator.js';
 import { pruneBackupDirectories, REGISTRY_STORAGE_BACKUP } from '@/foundation/backup-retention.js';
+import { patchComposeRegistryStorage, writeFileAtomic } from '@/foundation/foundation-migrator.js';
 import { FOUNDATION_BACKUPS_DIR } from '@/foundation/opfield-names.js';
 import {
   applyRegistryStorageEnv,

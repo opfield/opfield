@@ -130,7 +130,9 @@ describe('state of a Git source', () => {
   // rc.3 stand R-F-1: a build that lost the restarting registry told the user to "Fix the cause".
   it('does not blame the source for a build that lost the internal registry', () => {
     expect(
-      describeDockerSourceState(source, [build({ status: 'failed', errorCode: 'INTERNAL_REGISTRY_UNAVAILABLE', errorMessage: 'x' })])
+      describeDockerSourceState(source, [
+        build({ status: 'failed', errorCode: 'INTERNAL_REGISTRY_UNAVAILABLE', errorMessage: 'x' }),
+      ])
     ).toMatch(/Nothing is wrong with the source: build again once the registry is ready/);
     expect(describeDockerSourceState(source, [build({ status: 'queued', errorCode: 'BUILD_REGISTRY_RETRY' })])).toMatch(
       /is queued again: the internal registry restarted while it pushed/

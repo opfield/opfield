@@ -9,7 +9,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { getEnvironmentSettingsSnapshot } from '@/modules/settings/environment-settings.service.js';
 import type { CacheService } from '@/services/cache.service.js';
 import type { CAService } from './ca.service.js';
-import { crlNeedsRepublish, crlSerialHex, derPositiveInteger, CRL_NUMBER_OID } from './crl-encoding.js';
+import { CRL_NUMBER_OID, crlNeedsRepublish, crlSerialHex, derPositiveInteger } from './crl-encoding.js';
 
 const logger = createChildLogger('CRLService');
 
@@ -175,7 +175,9 @@ export class CRLService {
         }
 
         // RFC 5280 5.2: a conforming CRL carries its CRL Number and the issuer's key identifier.
-        const caKeyId = new x509.X509Certificate(ca.certificatePem).getExtension(x509.SubjectKeyIdentifierExtension)?.keyId;
+        const caKeyId = new x509.X509Certificate(ca.certificatePem).getExtension(
+          x509.SubjectKeyIdentifierExtension
+        )?.keyId;
         const extensions: x509.Extension[] = [
           new x509.Extension(CRL_NUMBER_OID, false, derPositiveInteger(numbered.crlNumber)),
           caKeyId
@@ -237,7 +239,10 @@ export class CRLService {
         republished++;
       } catch (error) {
         failed++;
-        logger.error('Could not sign the CRL of this CA again; it is retried on the next start', { caId: ca.id, error });
+        logger.error('Could not sign the CRL of this CA again; it is retried on the next start', {
+          caId: ca.id,
+          error,
+        });
       }
     }
     if (republished || failed) logger.info('Signed CRLs written by an older release again', { republished, failed });
