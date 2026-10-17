@@ -8,7 +8,7 @@ import { z } from 'zod';
  * both repositories.
  */
 // Wire value shared with the separately released inference core (frozen fixtures in both repositories): kept on
-// purpose and listed in config/legacy-brand-allowlist.json; it changes only with a core release that accepts both.
+// purpose; it changes only with a core release that accepts both.
 export const OPFIELD_CORE_CONTRACT_ID = 'wiolett-core/v1';
 export const INFERENCE_CORE_PROTOCOL_MAJOR = 1;
 export const INFERENCE_CORE_STATE_SCHEMA_VERSION = 1;

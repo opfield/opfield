@@ -63,8 +63,7 @@ version as `<image repository>/postgres:<version>-tree-<tree hash of image/>` an
 `<image repository>/postgres-ext/<id>:<version>-pg<major>-<debian>-tree-<tree hash of bundle/>`, for amd64 and arm64,
 skips tags that exist, copies them to the mirror repository, signs them like the other images and prints the digests
 (and each bundle's installed size per architecture). Publishing needs the owner's approval. The pin is a following
-commit: `image` of each version in `versions.json` and the entries of `bundles.json` from the printed values (a
-reference under the legacy repository name needs a `config/legacy-brand-allowlist.json` entry), and the controller
+commit: `image` of each version in `versions.json` and the entries of `bundles.json` from the printed values, and the controller
 catalog's default image of each version becomes `image` with `base` still accepted. Until then databases run the
 official images, contrib extensions work, and baked and bundle extensions report that they need an image update or are
 unavailable.
