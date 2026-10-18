@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NodeRegistryService } from '@/services/node-registry.service.js';
-import { NotificationEvaluatorService } from './notification-evaluator.service.js';
+import { NotificationEvaluatorService, outageStart } from './notification-evaluator.service.js';
 
 const T0 = Date.UTC(2026, 9, 18, 17, 0);
 const NODE = '22222222-2222-4222-8222-222222222222';
@@ -128,6 +128,23 @@ describe('Container Stopped rule', () => {
     }
     expect(fired).toHaveBeenCalledTimes(1);
     expect((fired.mock.calls[0] as unknown[])[0]).toMatchObject({ id: 'rule-stopped' });
+  });
+
+  // Stand 2.12.6-rc.2, O-9: the resolve message counted from the firing ("running again after 1m 35s") instead of from
+  // the stop (3m 43s).
+  it('records when the container stopped, so the resolve message counts the whole stop', async () => {
+    await report('running');
+    await vi.advanceTimersByTimeAsync(30_000);
+    const stoppedAt = Date.now();
+    for (let elapsed = 0; elapsed <= 60_000; elapsed += 30_000) {
+      await report('exited');
+      await vi.advanceTimersByTimeAsync(30_000);
+    }
+    expect(fired).toHaveBeenCalledTimes(1);
+    const details = (fired.mock.calls[0] as unknown[])[4] as { details: Record<string, unknown> };
+    expect(details.details.outage_since).toBe(new Date(stoppedAt).toISOString());
+    const firedAt = new Date(stoppedAt + 60_000);
+    expect(outageStart(details, firedAt)).toEqual(new Date(stoppedAt));
   });
 
   it('does not fire for a container that keeps running', async () => {

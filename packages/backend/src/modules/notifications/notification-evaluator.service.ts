@@ -1954,6 +1954,7 @@ export class NotificationEvaluatorService {
 
       if (active) {
         const durationMs = (rule.durationSeconds ?? 0) * 1000;
+        let stateSince: number | null = null;
         if (durationMs > 0 && this.redis) {
           const evaluation = await this.evaluateRatioWindow(
             rule.id,
@@ -1963,6 +1964,7 @@ export class NotificationEvaluatorService {
             'breach'
           );
           if (!evaluation?.hasCoverage || !evaluation.thresholdMet) continue;
+          stateSince = evaluation.targetSince;
         } else if (durationMs > 0 && !this.redis) {
           continue;
         }
@@ -1970,12 +1972,18 @@ export class NotificationEvaluatorService {
         if (existingState) continue;
         if (recovery && !(await this.takeArmedRecovery(rule.id, resource.id))) continue;
 
+        // A state alert fires once its fire window is covered, after the state began: the resolve message counts how
+        // long the resource was in the state from when it began, not from the firing (stand 2.12.6-rc.2, O-9).
+        const since =
+          stateSince != null && stateSince < Date.now() && typeof context.outage_since !== 'string'
+            ? { outage_since: new Date(stateSince).toISOString() }
+            : {};
         await this.fireAlert(
           rule,
           resource.type,
           resource.id,
           resource.name ?? resource.id,
-          this.getEventTemplateDetails(context, rule.eventPattern, currentState, resource.id)
+          this.getEventTemplateDetails({ ...context, ...since }, rule.eventPattern, currentState, resource.id)
         );
         continue;
       }
