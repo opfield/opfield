@@ -20,6 +20,12 @@ import {
 import { createClientUuid } from "@/lib/client-id";
 import { formatHostingAmount } from "@/lib/hosting-money";
 import { nodeTypeLabel } from "@/lib/node-appearance";
+import {
+  DEFAULT_RELAY_PORT,
+  parseRelayPort,
+  relayEndpointLabel,
+  relayPortError,
+} from "@/lib/relay-port";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
 import { ApiRequestError } from "@/services/api-base";
@@ -146,6 +152,9 @@ export function HostingNodeWizard({
   const [disk, setDisk] = useState("20");
   const [ip, setIp] = useState("");
   const [relay, setRelay] = useState("");
+  const [relayPort, setRelayPort] = useState(String(DEFAULT_RELAY_PORT));
+  const relayServicePort = parseRelayPort(relayPort);
+  const relayPortProblem = relayPortError(relayPort);
   const [ssh, setSsh] = useState("");
   const [step, setStep] = useState<"role" | "resources" | "review">("role");
   const [busy, setBusy] = useState(false);
@@ -198,6 +207,7 @@ export function HostingNodeWizard({
     setDisplayName(initialName);
     setIp("");
     setRelay("");
+    setRelayPort(String(DEFAULT_RELAY_PORT));
     draft.current = null;
     setLocation("");
     setSize("");
@@ -316,7 +326,9 @@ export function HostingNodeWizard({
             ...(ip ? { ipAddress: ip } : {}),
           }
         : {}),
-      ...(relay ? { relayAddress: relay } : {}),
+      ...(relay
+        ? { relayAddress: relay, relayServicePort: relayServicePort ?? DEFAULT_RELAY_PORT }
+        : {}),
       ...(price ? { confirmedPrice: { amount: price.amount, currency: price.currency } } : {}),
       ...(existingResource
         ? { existingResourceId: existingResource.id, ...(ssh ? { sshConnectorId: ssh } : {}) }
@@ -378,7 +390,7 @@ export function HostingNodeWizard({
       !hostnameError &&
       displayName.trim().length > 0 &&
       displayName.trim().length <= 255 &&
-      (role !== "relay" || relay.trim()) &&
+      (role !== "relay" || (relay.trim() && relayServicePort !== null)) &&
       connector?.enabled &&
       (existingResource || connector.capabilities?.create) &&
       (existingResource || catalog?.images.some((item) => imageSupportsRole(item, role)))
@@ -392,7 +404,7 @@ export function HostingNodeWizard({
       displayName.trim().length <= 255 &&
       (existingResource ||
         (location && selectedSize && roleImages.some((item) => item.id === image))) &&
-      (role !== "relay" || relay.trim()) &&
+      (role !== "relay" || (relay.trim() && relayServicePort !== null)) &&
       (!pve ||
         existingResource ||
         ([cpu, memory, disk].every(
@@ -577,6 +589,32 @@ export function HostingNodeWizard({
                 />
                 <p className="text-xs text-muted-foreground">
                   Reachable address advertised to participating nodes.
+                </p>
+              </div>
+            )}
+            {role === "relay" && (
+              <div className="space-y-1.5">
+                <label htmlFor="hosting-relay-port" className="text-sm font-medium">
+                  Relay Port
+                </label>
+                <Input
+                  id="hosting-relay-port"
+                  aria-label="Relay port"
+                  value={relayPort}
+                  onChange={(event) => setRelayPort(event.target.value)}
+                  inputMode="numeric"
+                  placeholder={String(DEFAULT_RELAY_PORT)}
+                  aria-invalid={!!relayPortProblem}
+                  aria-describedby="hosting-relay-port-help"
+                />
+                <p
+                  id="hosting-relay-port-help"
+                  className={
+                    relayPortProblem ? "text-xs text-destructive" : "text-xs text-muted-foreground"
+                  }
+                >
+                  {relayPortProblem ??
+                    "TCP port the relay listens on. It must be reachable from participating nodes."}
                 </p>
               </div>
             )}
@@ -802,6 +840,13 @@ export function HostingNodeWizard({
             <SettingsControlRow title="Hostname" controlsClassName="text-right">
               <span className="text-sm text-muted-foreground">{name}</span>
             </SettingsControlRow>
+            {role === "relay" && relayServicePort !== null && (
+              <SettingsControlRow title="Relay endpoint" controlsClassName="text-right">
+                <span className="text-sm text-muted-foreground">
+                  {relayEndpointLabel(relay.trim(), relayServicePort)}
+                </span>
+              </SettingsControlRow>
+            )}
             <SettingsControlRow title="Account" controlsClassName="text-right">
               <span className="text-sm text-muted-foreground">{connector?.name ?? selected}</span>
             </SettingsControlRow>

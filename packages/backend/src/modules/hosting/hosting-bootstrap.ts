@@ -2,6 +2,7 @@ import { isAlwaysBlockedOutboundIp, normalizeIp } from '@/lib/ip-cidr.js';
 import { LEGACY_STATE_ROOT } from '@/lib/legacy-compat.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { isPubliclyRoutableIp } from '@/modules/nodes/node-service-address.js';
+import { DEFAULT_RELAY_SERVICE_PORT } from '@/services/relay-service-endpoint.js';
 import type { HostingRole } from './hosting-provider.types.js';
 
 const INSTALLERS: Record<HostingRole, string> = {
@@ -38,6 +39,8 @@ export function buildHostingBootstrap(input: {
   token: string;
   certificateFingerprint: string;
   relayAddress?: string;
+  /** The relay port; the installer's default (9443) when omitted. */
+  relayServicePort?: number;
   requireCleanHost?: boolean;
   operationMarker?: string;
   expectedOperationMarker?: string;
@@ -67,6 +70,11 @@ export function buildHostingBootstrap(input: {
     if (!input.relayAddress)
       throw new AppError(400, 'HOSTING_RELAY_ADDRESS_REQUIRED', 'Relay advertised address is required');
     args.push('--advertise-address', input.relayAddress);
+    if (input.relayServicePort !== undefined && input.relayServicePort !== DEFAULT_RELAY_SERVICE_PORT) {
+      if (!Number.isInteger(input.relayServicePort) || input.relayServicePort < 1 || input.relayServicePort > 65535)
+        throw new AppError(400, 'HOSTING_BOOTSTRAP_INVALID', 'Invalid relay port');
+      args.push('--service-port', String(input.relayServicePort));
+    }
   }
   const clean = input.requireCleanHost
     ? `

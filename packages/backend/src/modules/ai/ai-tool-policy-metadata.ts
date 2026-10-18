@@ -170,7 +170,14 @@ const OPERATION_POLICIES: Record<string, Record<string, AIToolOperationPolicy>> 
   manage_relay_pool: operationPolicies({
     read: ['get', 'local_policy_trust_status'],
     update: ['reenroll_instance', 'set_witness_hosting'],
-    execute: ['retry_recovery', 'rebalance', 'drain_instance', 'resume_instance', 'renew_certificate'],
+    execute: [
+      'retry_recovery',
+      'rebalance',
+      'drain_instance',
+      'resume_instance',
+      'renew_certificate',
+      'set_service_port',
+    ],
     destructive: ['force_disconnect_instance'],
   }),
   manage_docker_registry: operationPolicies({

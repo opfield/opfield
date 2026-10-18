@@ -84,6 +84,13 @@ const inputSchema = {
       'provision on Proxmox with a static IP pool: an address from the pool; omitted takes the next free one.'
     ),
     relayAddress: text('provision with role relay: the address participating hosts use to reach the relay.'),
+    relayServicePort: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 65535,
+      description:
+        'provision with role relay: the TCP port the relay listens on (default 9443); it must be open and forwarded to the VM.',
+    },
     confirmedPrice: priceSchema,
     existingResourceId: text(
       'provision: install the node on this existing unbound VM (an id from adoption_candidates resources) instead of ordering one.'

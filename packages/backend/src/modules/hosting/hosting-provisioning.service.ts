@@ -270,12 +270,14 @@ export class HostingProvisioningService {
       if (input.sshConnectorId) assertHostingScope(user.scopes, 'integrations:ssh:use');
     }
     const relayAddress = input.role === 'relay' ? input.relayAddress : undefined;
+    const relayServicePort = relayAddress ? input.relayServicePort : undefined;
     const nodeInput = CreateNodeSchema.parse({
       type: input.role,
       hostname: input.name,
       displayName: input.displayName ?? input.name,
       folderId: input.folderId ?? null,
       ...(relayAddress ? { serviceAddresses: [relayAddress] } : {}),
+      ...(relayServicePort ? { servicePort: relayServicePort } : {}),
     });
     const reserved = await this.operations.reserve(
       {
@@ -339,6 +341,7 @@ export class HostingProvisioningService {
           token: created.enrollmentToken,
           certificateFingerprint: created.opfieldCertSha256,
           relayAddress,
+          relayServicePort,
           requireCleanHost: !existing,
           operationMarker: `gw-${operationId}`,
         });
@@ -499,6 +502,7 @@ export class HostingProvisioningService {
           certificateFingerprint,
           token: token.token,
           relayAddress: previous.relayAddress,
+          relayServicePort: previous.role === 'relay' ? previous.relayServicePort : undefined,
           operationMarker: marker,
           expectedOperationMarker: marker,
         });
@@ -735,7 +739,7 @@ export class HostingProvisioningService {
   private async relayPortAnswers(row: HostingOperationRow): Promise<boolean> {
     const request = acceptedProvisionInput(row.request);
     if (request.role !== 'relay' || !request.relayAddress) return true;
-    const endpoint = relayEndpoint(request.relayAddress, DEFAULT_RELAY_SERVICE_PORT);
+    const endpoint = relayEndpoint(request.relayAddress, request.relayServicePort ?? DEFAULT_RELAY_SERVICE_PORT);
     if (await tcpAnswers(endpoint.host, endpoint.port, RELAY_PORT_PROBE_TIMEOUT_MS)) {
       if (row.errorCode === 'HOSTING_RELAY_PORT_UNREACHABLE')
         await this.operations.update(row, { errorCode: null, errorMessage: null });
@@ -1407,6 +1411,7 @@ export class HostingProvisioningService {
       certificateFingerprint: await this.nodeService.getOpfieldEnrollmentCertificateFingerprint(),
       token: await rotateSshInstallToken(this.db, row.nodeId!),
       relayAddress: input.role === 'relay' ? input.relayAddress : undefined,
+      relayServicePort: input.role === 'relay' ? input.relayServicePort : undefined,
       requireCleanHost: true,
       operationMarker: `gw-${row.id}`,
     });

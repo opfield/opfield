@@ -69,6 +69,19 @@ export function withSystemApi<TBase extends ApiClientBaseConstructor>(Base: TBas
       );
     }
 
+    /** Moves a remote relay to another TCP port: it drains, restarts on the port and reports the new endpoint. */
+    async setRelayInstanceServicePort(
+      instanceId: string,
+      servicePort: number
+    ): Promise<DashboardRelaySnapshot> {
+      return this.unwrapData(
+        this.request<{ data: DashboardRelaySnapshot }>(
+          `/system/relay/instances/${instanceId}/service-port`,
+          { method: "POST", body: JSON.stringify({ servicePort }) }
+        )
+      );
+    }
+
     async forceDisconnectRelayInstance(instanceId: string): Promise<DashboardRelaySnapshot> {
       return this.unwrapData(
         this.request<{ data: DashboardRelaySnapshot }>(

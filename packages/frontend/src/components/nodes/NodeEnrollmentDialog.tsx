@@ -37,8 +37,15 @@ import {
   DEFAULT_HOST_ACCESS_INSTALL_OPTIONS,
   withHostAccessInstallFlags,
 } from "@/lib/node-host-access";
+import {
+  DEFAULT_RELAY_PORT,
+  parseRelayPort,
+  RELAY_ENDPOINT_IN_USE,
+  relayPortError,
+} from "@/lib/relay-port";
 import { canCreateInFolder } from "@/lib/scope-utils";
 import { api } from "@/services/api";
+import { ApiRequestError } from "@/services/api-base";
 import { useAuthStore } from "@/stores/auth";
 import { handleLicenseApiError } from "@/stores/license-paywall";
 import { useResourceFolderStore } from "@/stores/resource-folders";
@@ -81,17 +88,6 @@ export const NODE_ENROLLMENT_TYPES: Array<{
     description: "Adds a physical host to the Secure Link Relay Pool.",
   },
 ];
-
-/** The port the relay installer binds unless it is given another one. */
-const DEFAULT_RELAY_PORT = 9443;
-
-/** A relay port typed into the form, or null while it is not a TCP port. */
-function parseRelayPort(value: string): number | null {
-  const trimmed = value.trim();
-  if (!/^\d{1,5}$/.test(trimmed)) return null;
-  const port = Number(trimmed);
-  return port >= 1 && port <= 65535 ? port : null;
-}
 
 function canonicalEnrollmentType(type: NodeType): NodeType {
   return type === "databases" ? "storage" : type;
@@ -145,6 +141,8 @@ export function NodeEnrollmentDialog({
   const [folderId, setFolderId] = useState("");
   const [relayAddress, setRelayAddress] = useState("");
   const [relayPort, setRelayPort] = useState(String(DEFAULT_RELAY_PORT));
+  // The address and port another relay already uses, as the server reported it on the last create.
+  const [relayEndpointInUse, setRelayEndpointInUse] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   useEffect(() => {
     if (open) setCreating(false);
@@ -177,6 +175,7 @@ export function NodeEnrollmentDialog({
     setFolderId("");
     setRelayAddress("");
     setRelayPort(String(DEFAULT_RELAY_PORT));
+    setRelayEndpointInUse(null);
     void fetchFolders("node");
   }, [fetchFolders, initialMode, initialType, open]);
 
@@ -244,10 +243,12 @@ export function NodeEnrollmentDialog({
     NODE_ENROLLMENT_TYPES.find((candidate) => candidate.value === type) ??
     NODE_ENROLLMENT_TYPES[0]!;
   const relayServicePort = parseRelayPort(relayPort);
+  const relayPortProblem = relayPortError(relayPort) ?? relayEndpointInUse;
   const canCreate =
     canCreateInFolder(user?.scopes ?? [], "nodes:create", folderId || null) &&
     displayName.trim().length > 0 &&
-    (type !== "relay" || (relayAddress.trim().length > 0 && relayServicePort !== null));
+    (type !== "relay" ||
+      (relayAddress.trim().length > 0 && relayServicePort !== null && !relayEndpointInUse));
   const modeLocked = creating || hostingModeLocked;
 
   const createNode = async () => {
@@ -282,7 +283,9 @@ export function NodeEnrollmentDialog({
       onNodeCreated?.(response.node);
       onOpenChange(false);
     } catch (error) {
-      if (!handleLicenseApiError(error, "Managed nodes")) {
+      if (error instanceof ApiRequestError && error.code === RELAY_ENDPOINT_IN_USE) {
+        setRelayEndpointInUse(error.message);
+      } else if (!handleLicenseApiError(error, "Managed nodes")) {
         toastApiError(error, "Failed to create node");
       }
       setCreating(false);
@@ -456,7 +459,10 @@ export function NodeEnrollmentDialog({
                           <label className="text-sm font-medium">Relay Address</label>
                           <Input
                             value={relayAddress}
-                            onChange={(event) => setRelayAddress(event.target.value)}
+                            onChange={(event) => {
+                              setRelayAddress(event.target.value);
+                              setRelayEndpointInUse(null);
+                            }}
                             placeholder="relay.example.com"
                           />
                           <p className="text-xs text-muted-foreground">
@@ -466,16 +472,31 @@ export function NodeEnrollmentDialog({
                       )}
                       {type === "relay" && (
                         <div className="space-y-1.5">
-                          <label className="text-sm font-medium">Relay Port</label>
+                          <label htmlFor="relay-port" className="text-sm font-medium">
+                            Relay Port
+                          </label>
                           <Input
+                            id="relay-port"
                             value={relayPort}
-                            onChange={(event) => setRelayPort(event.target.value)}
+                            onChange={(event) => {
+                              setRelayPort(event.target.value);
+                              setRelayEndpointInUse(null);
+                            }}
                             inputMode="numeric"
                             placeholder={String(DEFAULT_RELAY_PORT)}
+                            aria-invalid={!!relayPortProblem}
+                            aria-describedby="relay-port-help"
                           />
-                          <p className="text-xs text-muted-foreground">
-                            TCP port the relay listens on. It must be reachable from participating
-                            nodes.
+                          <p
+                            id="relay-port-help"
+                            className={
+                              relayPortProblem
+                                ? "text-xs text-destructive"
+                                : "text-xs text-muted-foreground"
+                            }
+                          >
+                            {relayPortProblem ??
+                              "TCP port the relay listens on. It must be reachable from participating nodes."}
                           </p>
                         </div>
                       )}

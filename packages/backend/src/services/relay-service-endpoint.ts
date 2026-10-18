@@ -3,6 +3,9 @@ import { isValidNodeServiceAddress } from '@/modules/nodes/node-service-address.
 /** The relay worker's default service port: the relay installer binds it unless given --service-port. */
 export const DEFAULT_RELAY_SERVICE_PORT = 9443;
 
+/** Advertised by relay supervisors that move their worker to another TCP port (SetRelayServicePortCommand). */
+export const RELAY_SERVICE_PORT_CAPABILITY = 'relay_service_port_v1';
+
 const MAX_ADVERTISED_ADDRESSES = 10;
 
 export function isRelayServicePort(value: unknown): value is number {

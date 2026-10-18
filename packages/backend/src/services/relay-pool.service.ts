@@ -32,6 +32,7 @@ import { NODE_PROTECTED_CAPABILITY } from './node-host-access.js';
 import type { NodeRegistryService } from './node-registry.service.js';
 import { pruneEndedAssignmentGenerations } from './relay-assignment-history.js';
 import type { RelayCertificateRenewalService, RelayCertificateStatus } from './relay-certificate-renewal.service.js';
+import { assertRelayEndpointFree } from './relay-endpoint-in-use.js';
 import { localRelayTakeoverBlocker, setLocalRelayUpdateDrain } from './relay-local-takeover.js';
 import { loadOfflineLeaseMemberWarnings, type OfflineLeaseMemberWarning } from './relay-offline-lease-members.js';
 import type { RelayPolicyService, RelayPolicyTrustStatus } from './relay-policy.service.js';
@@ -44,6 +45,7 @@ import {
 } from './relay-pool-errors.js';
 import { describeRelayRevocation } from './relay-revocation-fence.js';
 import { loadRelayRouteHistories, RelayRevocationFenceService } from './relay-revocation-fence.service.js';
+import { isRelayServicePort, RELAY_SERVICE_PORT_CAPABILITY } from './relay-service-endpoint.js';
 import {
   drainDeadline,
   MANUAL_DRAIN_TIMEOUT_MS,
@@ -228,6 +230,46 @@ function reconnectingState(instance: RelayInstanceRow): RelayInstanceRow['state'
   if (instance.manualDrainStartedAt) return 'draining';
   const reported = instance.health?.admissionState;
   return reported === 'draining' ? 'draining' : reported === 'ready' ? 'ready' : instance.state;
+}
+
+const RELAY_SERVICE_PORT_UPDATE_REQUIRED =
+  'Update the relay first: this relay version cannot change its port. Update the Relay Pool, then change the port.';
+
+/** Why Opfield cannot move a relay to another port, whatever its connection; null when it can. */
+function relayServicePortChangeBlocker(
+  instance: Pick<RelayInstanceRow, 'kind' | 'nodeId' | 'capabilities'>
+): { code: string; message: string } | null {
+  if (instance.kind === 'local') {
+    return {
+      code: 'LOCAL_RELAY_SERVICE_PORT_UNSUPPORTED',
+      message:
+        'The local relay shares its port with the Opfield gRPC endpoint every node connects to; it is set in the Opfield installation',
+    };
+  }
+  if (!instance.nodeId) return { code: 'RELAY_INSTANCE_UNENROLLED', message: 'Relay instance is not enrolled' };
+  const features = instance.capabilities?.features ?? [];
+  if (features.includes(NODE_PROTECTED_CAPABILITY)) {
+    return {
+      code: 'RELAY_PROTECTED',
+      message:
+        'This relay runs in protected mode: change its port on the relay host with setup-relay-node.sh --service-port',
+    };
+  }
+  if (!features.includes(RELAY_SERVICE_PORT_CAPABILITY)) {
+    return { code: 'RELAY_UPDATE_REQUIRED', message: RELAY_SERVICE_PORT_UPDATE_REQUIRED };
+  }
+  return null;
+}
+
+/** What the relay list offers for Change port. */
+function relayServicePortChangeState(
+  instance: Pick<RelayInstanceRow, 'kind' | 'nodeId' | 'capabilities'>
+): 'available' | 'update_required' | 'protected' | 'unsupported' {
+  const blocker = relayServicePortChangeBlocker(instance);
+  if (!blocker) return 'available';
+  if (blocker.code === 'RELAY_UPDATE_REQUIRED') return 'update_required';
+  if (blocker.code === 'RELAY_PROTECTED') return 'protected';
+  return 'unsupported';
 }
 
 export class RelayPoolService {
@@ -733,6 +775,100 @@ export class RelayPoolService {
     if (!this.certificateRenewal)
       throw new AppError(409, 'RELAY_CERTIFICATE_RENEWAL_UNAVAILABLE', 'Relay certificate renewal is not configured');
     return this.certificateRenewal.renewInstanceCertificate(instanceId, userId);
+  }
+
+  /**
+   * Moves a remote relay to another TCP port. Opfield drains it (unless an operator drain already holds it), has its
+   * supervisor restart the worker on the port over the control stream, records the endpoint daemons dial, and returns
+   * the relay to the pool. The supervisor moves the worker back to its previous port when it does not become ready on
+   * the new one; the error then says why, and the relay returns to the pool on the port it had.
+   */
+  async changeInstanceServicePort(instanceId: string, servicePort: number, userId: string | null) {
+    if (!isRelayServicePort(servicePort)) {
+      throw new AppError(400, 'RELAY_SERVICE_PORT_INVALID', 'Enter a port from 1 to 65535.');
+    }
+    return this.withDrainAction(instanceId, () => this.moveInstanceServicePort(instanceId, servicePort, userId));
+  }
+
+  private async moveInstanceServicePort(instanceId: string, servicePort: number, userId: string | null) {
+    const [instance] = await this.db.select().from(relayInstances).where(eq(relayInstances.id, instanceId)).limit(1);
+    if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
+    const blocker = relayServicePortChangeBlocker(instance);
+    if (blocker) throw new AppError(409, blocker.code, blocker.message);
+    const nodeId = instance.nodeId!;
+    if (!this.policy.isRemoteInstanceConnected(nodeId)) {
+      throw new AppError(409, 'RELAY_NOT_CONNECTED', 'The relay is not connected. Try again once it reconnects.');
+    }
+    if (await this.isHeldByUnfinishedUpdate(instance.id)) {
+      throw new AppError(
+        409,
+        'RELAY_HELD_BY_UPDATE',
+        'A Relay Pool update holds this relay; change its port after the update finished'
+      );
+    }
+    if (!['ready', 'draining'].includes(instance.state)) {
+      throw new AppError(409, 'RELAY_INSTANCE_NOT_READY', 'Change the port of a relay that is ready or draining');
+    }
+    if (servicePort === instance.servicePort) return;
+    await assertRelayEndpointFree(this.db, instance.advertisedAddresses, servicePort, {
+      instanceId: instance.id,
+      nodeId,
+    });
+    // An operator drain stays as it is; a drain taken here ends with the change.
+    const drainedHere = !instance.manualDrainStartedAt;
+    if (drainedHere) await this.setInstanceDrain(instance.id, userId, true, true);
+    let failure: string | null = null;
+    try {
+      const result = await this.policy.setRemoteInstanceServicePort(nodeId, servicePort);
+      if (!result) failure = RELAY_SERVICE_PORT_UPDATE_REQUIRED;
+      else if (!result.success) failure = result.error || result.detail || 'The relay refused the port change';
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error);
+    }
+    if (!failure) {
+      // The supervisor confirmed the worker serves on the port; its next status report says the same, so the endpoint
+      // is recorded now and daemons get bundles that dial it. A report that arrived first recorded it already.
+      await this.db.transaction(async (tx) => {
+        const moved = await tx
+          .update(relayInstances)
+          .set({ servicePort, updatedAt: new Date() })
+          .where(and(eq(relayInstances.id, instance.id), ne(relayInstances.servicePort, servicePort)))
+          .returning({ id: relayInstances.id });
+        if (moved.length) await bumpRelayPolicyRevision(tx);
+      });
+    }
+    await this.audit.log({
+      userId,
+      action: failure ? 'relay.instance.service_port.change_failed' : 'relay.instance.service_port.change',
+      resourceType: 'relay_instance',
+      resourceId: instance.id,
+      details: {
+        previousServicePort: instance.servicePort,
+        servicePort,
+        advertisedAddresses: instance.advertisedAddresses,
+        ...(failure ? { error: failure.slice(0, 1000) } : {}),
+      },
+    });
+    if (!failure) {
+      void this.policy.refreshAllNodeGrantsIfDue(true).catch((error) =>
+        logger.warn('Relay port changed; daemon grant bundles follow on the next refresh', {
+          instanceId: instance.id,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      );
+    }
+    if (drainedHere) {
+      try {
+        await this.setInstanceDrain(instance.id, userId, false, true);
+      } catch (error) {
+        logger.warn('Relay port change finished; the relay stays drained until it is resumed', {
+          instanceId: instance.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    this.events.publish('system.relay.health.changed', { poolId: instance.poolId, instanceId: instance.id });
+    if (failure) throw new AppError(409, 'RELAY_SERVICE_PORT_CHANGE_FAILED', failure);
   }
 
   private async reconcileOnce(): Promise<void> {
@@ -1517,6 +1653,8 @@ export class RelayPoolService {
           removableAfter: instance.kind === 'remote' ? relayRemovableAfter(instance) : null,
           /** Its machine owner turned protected mode on in the relay's local config (no host access from Opfield). */
           protected: instance.capabilities?.features?.includes(NODE_PROTECTED_CAPABILITY) === true,
+          /** Whether Change port is offered: `update_required` for a relay that does not know the command yet. */
+          servicePortChange: relayServicePortChangeState(instance),
           policyTrust: policyTrust.get(instance.id) ?? null,
           certificate: certificates.get(instance.id) ?? null,
           /** Revoked routes this relay has not applied; `stale` once past the deadline. */

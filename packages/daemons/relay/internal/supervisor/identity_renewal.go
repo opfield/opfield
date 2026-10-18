@@ -554,7 +554,7 @@ func (m *workerManager) servedServerFingerprint(ctx context.Context, serverName 
 	}}
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	conn, err := dialer.DialContext(dialCtx, "tcp", fmt.Sprintf("127.0.0.1:%d", m.cfg.ServicePort))
+	conn, err := dialer.DialContext(dialCtx, "tcp", fmt.Sprintf("127.0.0.1:%d", m.servicePort()))
 	if err != nil {
 		return "", err
 	}

@@ -160,6 +160,19 @@ systemRoutes.patch('/relay/instances/:instanceId', requireScope('admin:system'),
   return c.json({ data: instance });
 });
 
+// Moves a remote relay to another TCP port: drained, restarted on the port by its supervisor, back in the pool.
+systemRoutes.post('/relay/instances/:instanceId/service-port', requireScope('admin:system'), async (c) => {
+  const user = c.get('user')!;
+  const instanceId = z.string().uuid().parse(c.req.param('instanceId'));
+  const body = z
+    .object({ servicePort: z.number().int().min(1).max(65535) })
+    .strict()
+    .parse(await c.req.json());
+  const pool = container.resolve(RelayPoolService);
+  await pool.changeInstanceServicePort(instanceId, body.servicePort, user.id);
+  return c.json({ data: await pool.getSnapshot() });
+});
+
 // Re-enrollment token for an enrolled remote relay; the relay installer run with it repairs the relay.
 systemRoutes.post('/relay/instances/:instanceId/reenroll', requireScope('admin:system'), async (c) => {
   // The single-use enrollment token outlives the impersonation session.

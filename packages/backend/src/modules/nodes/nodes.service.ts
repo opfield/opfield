@@ -37,7 +37,9 @@ import type { EventBusService } from '@/services/event-bus.service.js';
 import type { GrpcIdentityService } from '@/services/grpc-identity.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
 import type { NodeRegistryService } from '@/services/node-registry.service.js';
+import { assertRelayEndpointFree } from '@/services/relay-endpoint-in-use.js';
 import { bumpRelayPolicyRevision } from '@/services/relay-policy-reconciler.js';
+import { DEFAULT_RELAY_SERVICE_PORT } from '@/services/relay-service-endpoint.js';
 import { parkedDrainedAssignmentIds } from '@/services/relay-topology.js';
 import type { SystemCertificateLifecycleService } from '@/services/system-certificate-lifecycle.service.js';
 import { createNodeEnrollmentToken, nodeEnrollmentTokenExpiresAt } from './node-enrollment-token.js';
@@ -416,6 +418,14 @@ export class NodesService {
     transaction?: DrizzleTransaction,
     options: { enrollmentTokenTtlMs?: number } = {}
   ) {
+    // Two relays cannot listen on one address and port: refuse it before a token or an installer exists.
+    if (input.type === 'relay' && input.serviceAddresses?.length) {
+      await assertRelayEndpointFree(
+        transaction ?? this.db,
+        input.serviceAddresses,
+        input.servicePort ?? DEFAULT_RELAY_SERVICE_PORT
+      );
+    }
     // Generate enrollment token
     const enrollmentToken = createNodeEnrollmentToken();
     const tokenHash = await bcrypt.hash(enrollmentToken.token, 10);

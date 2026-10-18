@@ -19,6 +19,7 @@ import { opfieldKeptVolumeNames } from './docker-kept-volumes.js';
 import { assertNodeAgentConsoleSandbox, assertNodeHostFeatureEnabled } from './node-host-access.js';
 import type { DispatchedCommand, NodeRegistryService } from './node-registry.service.js';
 import type { RelayGrantAssignment, RelayGrantBundle } from './relay-policy.service.js';
+import { RELAY_SERVICE_PORT_CAPABILITY } from './relay-service-endpoint.js';
 
 /**
  * A grant assignment as the daemon gets it: every field the issuer sets travels (the lease target and group of set
@@ -748,6 +749,17 @@ export class NodeDispatchService {
   ): Promise<CommandResult> {
     await this.assertRelaySupervisorNode(nodeId);
     return this.registry.sendCommand(nodeId, { setRelayDrain: { enabled, forceDisconnect } }, timeoutMs);
+  }
+
+  /**
+   * Moves a remote relay's worker to another TCP port; null when the relay is not connected or its supervisor does not
+   * know the command (an older relay). The supervisor waits up to 20 s for the worker on the new port and as long again
+   * on the previous one when it moves back.
+   */
+  async setRelayServicePort(nodeId: string, servicePort: number, timeoutMs = 55_000): Promise<CommandResult | null> {
+    if (!this.registry.hasCapability(nodeId, RELAY_SERVICE_PORT_CAPABILITY)) return null;
+    await this.assertRelaySupervisorNode(nodeId);
+    return this.registry.sendCommand(nodeId, { setRelayServicePort: { servicePort } }, timeoutMs);
   }
 
   /**

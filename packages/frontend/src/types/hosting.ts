@@ -299,6 +299,8 @@ export interface HostingProvisionInput {
   diskGb?: number;
   ipAddress?: string;
   relayAddress?: string;
+  /** Relay nodes only: the TCP port the relay listens on (9443 when omitted). */
+  relayServicePort?: number;
   confirmedPrice?: { amount: string; currency: string };
   existingResourceId?: string;
   sshConnectorId?: string;

@@ -83,7 +83,7 @@ func main() {
 	} else if reenrollment != nil {
 		logger.Warn("configuration carries an enrollment token; re-enrolling this relay with Opfield")
 	}
-	daemon, err := lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, supervisor.New(cfg), logger)
+	daemon, err := lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, supervisor.New(cfg).WithConfigPath(supervisorConfigPath), logger)
 	if err != nil {
 		restoreIdentity(reenrollment, logger)
 		logger.Error("initialize relay supervisor", "error", err)
@@ -99,7 +99,7 @@ func main() {
 		if completeInterruptedEnrollment(cfg, configPath, logger) != nil {
 			os.Exit(1)
 		}
-		daemon, err = lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, supervisor.New(cfg), logger)
+		daemon, err = lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, supervisor.New(cfg).WithConfigPath(supervisorConfigPath), logger)
 		if err == nil {
 			err = daemon.Run(ctx)
 		}
@@ -116,7 +116,7 @@ func main() {
 			}
 		}
 		cfg.Control.Token = ""
-		daemon, err = lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, supervisor.New(cfg), logger)
+		daemon, err = lifecycle.NewDaemonBase(&cfg.BaseConfig, configPath, supervisor.New(cfg).WithConfigPath(supervisorConfigPath), logger)
 		if err == nil {
 			err = daemon.Run(ctx)
 		}

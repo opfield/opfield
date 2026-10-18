@@ -574,6 +574,9 @@ message OpfieldCommand {
     // Every daemon advertising legacycompat.NextAddressCapability: the address Opfield
     // moves to. See SetOpfieldNextAddressCommand.
     SetOpfieldNextAddressCommand set_opfield_next_address = 82;
+    // Relay supervisor only (relay_service_port_v1): move the relay worker to
+    // another TCP port. See SetRelayServicePortCommand.
+    SetRelayServicePortCommand set_relay_service_port = 83;
     // Nginx daemons advertising nginx_log_budget_v1: how long rotated nginx
     // logs are kept (Housekeeping "Nginx Logs"; disk-logs range 210-214).
     ConfigureNginxLogsCommand configure_nginx_logs = 210;
@@ -831,6 +834,19 @@ message SyncRelayPolicyCommand {
 message SetRelayDrainCommand {
   bool enabled = 1;
   bool force_disconnect = 2;
+}
+
+// Moves the relay worker to another TCP port. The supervisor checks that the
+// port can be bound, writes it to worker.service_port in its config file,
+// restarts the worker on it and waits until the worker is ready there. A
+// worker that does not become ready on the new port is moved back: the
+// previous port is written back, the worker restarted on it, and the command
+// fails with the reason. Its runtime status reports the port it listens on
+// afterwards. A supervisor in protected mode refuses it (it never writes its
+// config file for Opfield). On success CommandResult.detail is
+// "service_port=<new> previous_service_port=<old>".
+message SetRelayServicePortCommand {
+  uint32 service_port = 1;
 }
 
 message UpdateRelayWorkerCommand {

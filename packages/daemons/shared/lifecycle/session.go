@@ -523,7 +523,7 @@ func runSession(ctx context.Context, conn *grpc.ClientConn, d *DaemonBase) error
 				return result
 			})
 			continue
-		case *pb.OpfieldCommand_RenewRelayIdentity, *pb.OpfieldCommand_UpdateRelayWorker:
+		case *pb.OpfieldCommand_RenewRelayIdentity, *pb.OpfieldCommand_UpdateRelayWorker, *pb.OpfieldCommand_SetRelayServicePort:
 			// Relay supervisor work that takes tens of seconds. Handled off the
 			// receive loop, so policy pushes and drains for the relay are not
 			// queued behind it until they time out.

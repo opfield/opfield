@@ -445,6 +445,8 @@ export interface OpfieldCommand {
   updateRelayWorker?: UpdateRelayWorkerCommand;
   renewRelayIdentity?: RenewRelayIdentityCommand;
   getRelayRouteRuntime?: GetRelayRouteRuntimeCommand;
+  /** Relay supervisor only (relay_service_port_v1): move the relay worker to another TCP port. */
+  setRelayServicePort?: SetRelayServicePortCommand;
   /** Relay supervisor only (relay_witness_v1): the full desired set of witness processes. */
   applyWitnesses?: ApplyWitnessesCommand;
   /** Storage-profile docker daemons (managed_availability_member_v1): this node's member of an availability set. */
@@ -542,6 +544,15 @@ export interface SyncRelayPolicyCommand {
 export interface SetRelayDrainCommand {
   enabled: boolean;
   forceDisconnect: boolean;
+}
+
+/**
+ * Moves a relay worker to another TCP port. The supervisor writes it to its config file, restarts the worker on it and
+ * moves it back to the previous port when it does not become ready there. Success detail:
+ * "service_port=<new> previous_service_port=<old>".
+ */
+export interface SetRelayServicePortCommand {
+  servicePort: number;
 }
 
 export interface UpdateRelayWorkerCommand {

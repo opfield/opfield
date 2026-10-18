@@ -498,7 +498,7 @@ export class RelayPolicyService {
     NodeDispatchService,
     'sendRelayGrantBundle' | 'sendRelayPolicy' | 'setRelayDrain' | 'probeRelayCandidate' | 'isNodeConnected'
   > &
-    Partial<Pick<NodeDispatchService, 'getRelayRouteRuntime'>>;
+    Partial<Pick<NodeDispatchService, 'getRelayRouteRuntime' | 'setRelayServicePort'>>;
   private lastGrantRefreshAt = 0;
   private lastGrantRefreshRevision = 0;
   /** Daemons whose last grant refresh failed: retried alone until the next full refresh is due. */
@@ -804,7 +804,7 @@ export class RelayPolicyService {
       NodeDispatchService,
       'sendRelayGrantBundle' | 'sendRelayPolicy' | 'setRelayDrain' | 'probeRelayCandidate' | 'isNodeConnected'
     > &
-      Partial<Pick<NodeDispatchService, 'getRelayRouteRuntime'>>
+      Partial<Pick<NodeDispatchService, 'getRelayRouteRuntime' | 'setRelayServicePort'>>
   ): void {
     this.dispatch = dispatch;
   }
@@ -1069,6 +1069,18 @@ export class RelayPolicyService {
     if (!this.dispatch) throw new Error('Relay node dispatch is not configured');
     const result = await this.dispatch.setRelayDrain(nodeId, enabled, forceDisconnect);
     if (!result.success) throw new Error(result.error || 'Remote relay drain command failed');
+  }
+
+  /**
+   * Moves a remote relay's worker to another TCP port over its supervisor's control stream. Null when the supervisor
+   * does not know the command (an older relay) or is not connected.
+   */
+  async setRemoteInstanceServicePort(
+    nodeId: string,
+    servicePort: number
+  ): Promise<Awaited<ReturnType<NodeDispatchService['setRelayServicePort']>>> {
+    if (!this.dispatch?.setRelayServicePort) throw new Error('Relay node dispatch is not configured');
+    return this.dispatch.setRelayServicePort(nodeId, servicePort);
   }
 
   /** The local relay's drain, which only a Relay Pool update takes while another relay carries its workloads. */

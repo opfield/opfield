@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,10 +39,34 @@ type workerManager struct {
 	updateMu sync.Mutex
 	// replaceBinary installs a verified worker binary at the destination.
 	replaceBinary func(downloadURL, targetVersion, checksum, signedManifest, daemonType, destination string, logger *slog.Logger) error
+	// checkPort tells whether the worker could listen on a port.
+	checkPort func(port int) error
 }
 
 func newWorkerManager(cfg config.WorkerConfig, enrollmentStateDir string) *workerManager {
-	return &workerManager{cfg: cfg, enrollmentStateDir: enrollmentStateDir, replaceBinary: lifecycle.ReplaceBinaryAtPath}
+	return &workerManager{
+		cfg: cfg, enrollmentStateDir: enrollmentStateDir,
+		replaceBinary: lifecycle.ReplaceBinaryAtPath, checkPort: canListenOn,
+	}
+}
+
+// servicePort is the TCP port the worker listens on, or listens on from its
+// next start.
+func (m *workerManager) servicePort() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cfg.ServicePort
+}
+
+// canListenOn binds the port the way the worker does (all IPv4 addresses) and
+// releases it at once: a port in use, or a privileged port without the
+// capability to bind it, fails here before the worker is moved.
+func canListenOn(port int) error {
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	if err != nil {
+		return err
+	}
+	return listener.Close()
 }
 
 // keepRunning starts a worker that is not running, except while an update or
@@ -316,6 +341,59 @@ func (m *workerManager) waitReadyVersion(ctx context.Context, targetVersion stri
 		}
 	}
 	return fmt.Errorf("worker did not become ready before deadline: %w", lastErr)
+}
+
+// changeServicePort moves the worker to port. persist writes a port to the
+// supervisor config file, so the port survives a supervisor restart. The
+// worker is restarted on the new port and must become ready there within
+// readyTimeout; otherwise the previous port is written back and the worker
+// restarted on it, and the error says why the new port failed.
+func (m *workerManager) changeServicePort(ctx context.Context, port int, persist func(port int) error, readyTimeout time.Duration) (string, error) {
+	if port < 1 || port > 65535 {
+		return "", fmt.Errorf("relay port %d is not a TCP port from 1 to 65535", port)
+	}
+	m.updateMu.Lock()
+	defer m.updateMu.Unlock()
+	previous := m.servicePort()
+	if port == previous {
+		return fmt.Sprintf("service_port=%d previous_service_port=%d", port, previous), nil
+	}
+	if m.checkPort != nil {
+		if err := m.checkPort(port); err != nil {
+			return "", fmt.Errorf("the relay cannot listen on port %d on its host: %w", port, err)
+		}
+	}
+	if err := persist(port); err != nil {
+		return "", fmt.Errorf("write relay port %d to the relay configuration: %w", port, err)
+	}
+	m.shutdown()
+	m.setServicePort(port)
+	readyErr := m.waitReadyVersion(ctx, "", readyTimeout)
+	if readyErr == nil {
+		return fmt.Sprintf("service_port=%d previous_service_port=%d", port, previous), nil
+	}
+	// Back to the port the worker served on: the relay keeps its place in the
+	// pool instead of staying down on a port it cannot serve.
+	m.shutdown()
+	m.setServicePort(previous)
+	var rollbackProblems []error
+	if err := persist(previous); err != nil {
+		rollbackProblems = append(rollbackProblems, fmt.Errorf("write relay port %d back: %w", previous, err))
+	}
+	if err := m.waitReadyVersion(ctx, "", readyTimeout); err != nil {
+		rollbackProblems = append(rollbackProblems, fmt.Errorf("relay worker on port %d: %w", previous, err))
+	}
+	if len(rollbackProblems) > 0 {
+		return "", fmt.Errorf("the relay worker did not become ready on port %d (%v), and moving it back to port %d failed: %w",
+			port, readyErr, previous, errors.Join(rollbackProblems...))
+	}
+	return "", fmt.Errorf("the relay worker did not become ready on port %d (%v); it is back on port %d", port, readyErr, previous)
+}
+
+func (m *workerManager) setServicePort(port int) {
+	m.mu.Lock()
+	m.cfg.ServicePort = port
+	m.mu.Unlock()
 }
 
 func (m *workerManager) shutdown() {

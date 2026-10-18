@@ -15,6 +15,20 @@ import (
 // and the file's owner and mode. The relay supervisor reads it on its next
 // start.
 func SetProtected(path string, enabled, allowDatabaseWitness bool) error {
+	return rewriteConfig(path, func(root *yaml.Node) {
+		section := mappingValue(root, "protected")
+		if section.Kind != yaml.MappingNode {
+			*section = yaml.Node{Kind: yaml.MappingNode}
+		}
+		setBool(section, "enabled", enabled)
+		setBool(section, "allow_database_witness", allowDatabaseWitness)
+	})
+}
+
+// rewriteConfig applies edit to the top-level mapping of the config file at
+// path and writes it back, keeping every other setting, the comments, and the
+// file's owner and mode.
+func rewriteConfig(path string, edit func(root *yaml.Node)) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return fmt.Errorf("read config: %w", err)
@@ -36,12 +50,7 @@ func SetProtected(path string, enabled, allowDatabaseWitness bool) error {
 	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 || document.Content[0].Kind != yaml.MappingNode {
 		return fmt.Errorf("config %s is not a YAML mapping", path)
 	}
-	section := mappingValue(document.Content[0], "protected")
-	if section.Kind != yaml.MappingNode {
-		*section = yaml.Node{Kind: yaml.MappingNode}
-	}
-	setBool(section, "enabled", enabled)
-	setBool(section, "allow_database_witness", allowDatabaseWitness)
+	edit(document.Content[0])
 	var out bytes.Buffer
 	encoder := yaml.NewEncoder(&out)
 	encoder.SetIndent(2)

@@ -19,15 +19,25 @@ import (
 
 const (
 	relayPoolCapability = "relay_pool_v1"
+	// RelayServicePortCapability: the supervisor moves its worker to another
+	// TCP port on SetRelayServicePortCommand.
+	RelayServicePortCapability = "relay_service_port_v1"
+	// servicePortReadyTimeout is how long the worker has to become ready on a
+	// new port, and again on the previous one when it is moved back.
+	servicePortReadyTimeout = 20 * time.Second
 )
 
 type Plugin struct {
-	cfg     *config.Config
-	logger  *slog.Logger
-	worker  *workerManager
-	mu      sync.RWMutex
-	last    *pb.RelayRuntimeStatus
-	started bool
+	cfg *config.Config
+	// configPath resolves the config file a port change is written to, at the
+	// time of the change: a root relay may move its directories to their
+	// Opfield names while it runs.
+	configPath func() string
+	logger     *slog.Logger
+	worker     *workerManager
+	mu         sync.RWMutex
+	last       *pb.RelayRuntimeStatus
+	started    bool
 	// lastAdminSync throttles the admin client certificate check.
 	lastAdminSync time.Time
 	// witnesses runs the witness processes this relay hosts.
@@ -36,6 +46,13 @@ type Plugin struct {
 
 func New(cfg *config.Config) *Plugin {
 	return &Plugin{cfg: cfg, worker: newWorkerManager(cfg.Worker, cfg.StateDir)}
+}
+
+// WithConfigPath tells the plugin where its config file is; a port change
+// is written there.
+func (p *Plugin) WithConfigPath(resolve func() string) *Plugin {
+	p.configPath = resolve
+	return p
 }
 
 func (p *Plugin) Type() string { return "relay" }
@@ -138,7 +155,7 @@ func (p *Plugin) BuildRegisterMessage(nodeID string) *pb.RegisterMessage {
 		NodeId: nodeID, Hostname: hostname, DaemonVersion: lifecycle.Version,
 		CpuModel: cpuModel, CpuCores: int32(cpuCores), Architecture: sysmetrics.GetArchitecture(),
 		KernelVersion: sysmetrics.GetKernelVersion(), DaemonType: "relay",
-		Capabilities: append([]string{relayPoolCapability, relayRouteRuntimeCapability, RelayWitnessCapability}, p.protectedRegistrationCapabilities()...),
+		Capabilities: append([]string{relayPoolCapability, relayRouteRuntimeCapability, RelayWitnessCapability, RelayServicePortCapability}, p.protectedRegistrationCapabilities()...),
 	}
 	if state != nil {
 		register.HostIdentityId = state.HostIdentityID
@@ -215,6 +232,8 @@ func (p *Plugin) HandleCommand(command *pb.OpfieldCommand) *pb.CommandResult {
 			p.startWitnesses()
 		}
 		result.Detail, err = p.witnesses.Apply(payload.ApplyWitnesses)
+	case *pb.OpfieldCommand_SetRelayServicePort:
+		result.Detail, err = p.changeServicePort(context.Background(), int(payload.SetRelayServicePort.GetServicePort()))
 	case *pb.OpfieldCommand_SetDaemonLogStream:
 		stream.SetDaemonLogStreaming(payload.SetDaemonLogStream.Enabled, payload.SetDaemonLogStream.MinLevel)
 	default:
@@ -304,8 +323,8 @@ func (p *Plugin) syncAdminClientIfDue(ctx context.Context) {
 func (p *Plugin) collectRuntime(ctx context.Context) *pb.RelayRuntimeStatus {
 	state, _ := loadEnrollmentState(p.cfg.StateDir)
 	status := &pb.RelayRuntimeStatus{
-		State: "joining", Capabilities: append([]string{relayPoolCapability, RelayWitnessCapability}, p.protectedCapabilities()...),
-		AdvertisedAddresses: append([]string(nil), p.cfg.Worker.AdvertisedAddresses...), ServicePort: uint32(p.cfg.Worker.ServicePort),
+		State: "joining", Capabilities: append([]string{relayPoolCapability, RelayWitnessCapability, RelayServicePortCapability}, p.protectedCapabilities()...),
+		AdvertisedAddresses: append([]string(nil), p.cfg.Worker.AdvertisedAddresses...), ServicePort: uint32(p.worker.servicePort()),
 	}
 	p.fillWitnessStatus(status)
 	if state != nil {
@@ -336,7 +355,7 @@ func (p *Plugin) collectRuntime(ctx context.Context) *pb.RelayRuntimeStatus {
 	}
 	status.BuildVersion = health.GetBuildVersion()
 	status.ProtocolMajor = health.GetProtocolMajor()
-	status.Capabilities = append(append(append([]string(nil), health.GetCapabilities()...), RelayWitnessCapability), p.protectedCapabilities()...)
+	status.Capabilities = append(append(append([]string(nil), health.GetCapabilities()...), RelayWitnessCapability, RelayServicePortCapability), p.protectedCapabilities()...)
 	status.AppliedPolicyRevision = health.GetAppliedRevision()
 	status.PolicyExpiresAtUnix = health.GetPolicyExpiresAtUnix()
 	status.RegisteredEndpoints = health.GetRegisteredEndpoints()
@@ -366,6 +385,31 @@ func (p *Plugin) collectRuntime(ctx context.Context) *pb.RelayRuntimeStatus {
 		status.State = "synchronizing"
 	}
 	return status
+}
+
+// changeServicePort moves the worker to another TCP port on Opfield's
+// command and keeps it in the config file. Protected mode refuses it: the
+// owner of the machine sets the port there (setup-relay-node.sh
+// --service-port), and Opfield never writes the config file of a protected
+// relay.
+func (p *Plugin) changeServicePort(ctx context.Context, port int) (string, error) {
+	if p.cfg.Protected.Enabled {
+		return "", fmt.Errorf("this relay runs in protected mode: change its port on the relay host with setup-relay-node.sh --service-port")
+	}
+	if p.configPath == nil || p.configPath() == "" {
+		return "", fmt.Errorf("the relay supervisor does not know its config file")
+	}
+	detail, err := p.worker.changeServicePort(ctx, port, func(port int) error {
+		return config.SetWorkerServicePort(p.configPath(), port)
+	}, servicePortReadyTimeout)
+	if p.logger != nil {
+		if err != nil {
+			p.logger.Warn("relay port change failed", "service_port", port, "error", err)
+		} else {
+			p.logger.Info("relay worker listens on a new port", "detail", detail)
+		}
+	}
+	return detail, err
 }
 
 // HasPendingEnrollment reports a received but not fully persisted enrollment.

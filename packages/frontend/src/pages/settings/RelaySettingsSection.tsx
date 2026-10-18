@@ -27,6 +27,7 @@ import { HostAccessInstallOptions } from "@/components/nodes/HostAccessInstallOp
 import { NodeEnrollmentDialog } from "@/components/nodes/NodeEnrollmentDialog";
 import { ProtectedNodeBadge } from "@/components/nodes/ProtectedNodeBadge";
 import { UnreleasedInstallerNote } from "@/components/nodes/UnreleasedInstallerNote";
+import { RelayPortDialog } from "@/components/relays/RelayPortDialog";
 import { WitnessHostingToggle } from "@/components/relays/WitnessHostingToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ import {
   DEFAULT_HOST_ACCESS_INSTALL_OPTIONS,
   withHostAccessInstallFlags,
 } from "@/lib/node-host-access";
+import { relayEndpointLabel } from "@/lib/relay-port";
 import { relayRemovalWaitNote } from "@/lib/relay-removal";
 import { activeRelayUpdateStep, relayStatusBadge } from "@/lib/relay-update-step";
 import { formatBytes, formatDateTime } from "@/lib/utils";
@@ -80,11 +82,6 @@ const UNFINISHED_RELAY_UPDATE_STATES = new Set([
 function percent(value: number, total: number) {
   if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) return 0;
   return Math.max(0, Math.min(100, (value / total) * 100));
-}
-
-/** Where daemons dial a relay: an address with the relay's service port, IPv6 in brackets. */
-function relayEndpointLabel(address: string, port: number): string {
-  return `${address.includes(":") && !address.startsWith("[") ? `[${address}]` : address}:${port}`;
 }
 
 function metric(value: unknown): number {
@@ -229,6 +226,7 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
   // pool action stays disabled while one runs, the started one shows progress.
   const [poolAction, setPoolAction] = useState<string | null>(null);
   const [enrollOpen, setEnrollOpen] = useState(false);
+  const [portChange, setPortChange] = useState<DashboardRelayInstance | null>(null);
   const [abandoningUpdate, setAbandoningUpdate] = useState(false);
   const [reenrollment, setReenrollment] = useState<RelayReenrollment | null>(null);
   const shownReenrollment = useRetainedDialogValue(reenrollment, reenrollment !== null);
@@ -462,6 +460,19 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
       setHostAccess(DEFAULT_HOST_ACCESS_INSTALL_OPTIONS);
     } catch (error) {
       toastApiError(error, "Failed to create a re-enrollment token");
+    } finally {
+      setPoolAction(null);
+    }
+  };
+
+  const changePort = async (instance: DashboardRelayInstance, port: number) => {
+    setPoolAction(`port:${instance.id}`);
+    try {
+      recordStatus(await api.setRelayInstanceServicePort(instance.id, port));
+      toast.success(`${instance.displayName} is moving to port ${port}`);
+    } catch (error) {
+      toastApiError(error, "Failed to change the relay port");
+      throw error;
     } finally {
       setPoolAction(null);
     }
@@ -720,6 +731,21 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
                 Re-enroll
               </Button>
             )}
+            {["ready", "draining"].includes(row.state) &&
+              !activeRelayUpdateStep(row, rolloutActive) &&
+              (row.servicePortChange === "available" ||
+                row.servicePortChange === "update_required") && (
+                <Button
+                  variant="outline"
+                  pending={poolAction === `port:${row.id}`}
+                  disabled={
+                    !canEdit || poolAction !== null || row.servicePortChange !== "available"
+                  }
+                  onClick={() => setPortChange(row)}
+                >
+                  {row.servicePortChange === "available" ? "Change port" : "Update the relay first"}
+                </Button>
+              )}
             {!activeRelayUpdateStep(row, rolloutActive) && (
               <Button
                 variant="outline"
@@ -1286,6 +1312,14 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
           );
         })}
       </OneTimeSecretDialog>
+
+      <RelayPortDialog
+        relay={portChange}
+        instances={instances}
+        // close-reset-ok: the dialog shows the relay it retains (useRetainedDialogValue) while it closes
+        onOpenChange={(open) => !open && setPortChange(null)}
+        onSubmit={changePort}
+      />
 
       <NodeEnrollmentDialog
         open={enrollOpen}

@@ -396,6 +396,14 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
         if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
         return instance;
       }
+      case 'set_service_port': {
+        // POST /system/relay/instances/{id}/service-port { servicePort }: drain, restart on the port, back in the pool.
+        const instanceId = z.string().uuid().parse(a.instanceId);
+        const servicePort = z.number().int().min(1).max(65535).parse(a.servicePort);
+        const relayPool = container.resolve(RelayPoolService);
+        await relayPool.changeInstanceServicePort(instanceId, servicePort, user.id);
+        return relayPool.getSnapshot();
+      }
       case 'renew_certificate': {
         // POST /system/relay/instances/{id}/renew-certificate: renew the relay's certificates now.
         const instanceId = z.string().uuid().parse(a.instanceId);

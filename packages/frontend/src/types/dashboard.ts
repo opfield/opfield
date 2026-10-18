@@ -208,6 +208,11 @@ export interface DashboardRelayInstance {
   reconnecting?: boolean;
   /** Its machine owner turned protected mode on: no console, files, commands or host diagnostics from Opfield. */
   protected?: boolean;
+  /**
+   * Change port: `available`; `update_required` for a relay version without the command; `protected` (the owner sets
+   * the port on the host); `unsupported` for the local relay.
+   */
+  servicePortChange?: "available" | "update_required" | "protected" | "unsupported";
   /** Whether availability witnesses may run here (admin flag and the relay's local state). */
   witnessHosting?: RelayWitnessHosting;
   /** The admin flag alone (newer backends). */

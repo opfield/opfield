@@ -278,6 +278,8 @@ export const HostingProvisionSchema = z
       .refine((ip) => !!normalizeIp(ip), 'Invalid interface address')
       .optional(),
     relayAddress: z.string().trim().min(1).max(255).optional(),
+    /** Relay nodes only: the TCP port the relay listens on (9443 when omitted). */
+    relayServicePort: z.number().int().min(1).max(65535).optional(),
     confirmedPrice: confirmedHostingPrice.optional(),
     /** Existing-resource installation is a separate explicit operation, never implicit adoption. */
     existingResourceId: z.string().uuid().optional(),

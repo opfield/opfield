@@ -76,7 +76,7 @@ DigitalOcean plain distributions must have a recognized public slug and matching
 
 The policy applies when catalog snapshots are built, when cached catalogs are served (including older Redis data), at request admission before node/intent creation, and again before provider order dispatch. The wizard requires explicit role support and honors image location, architecture and size restrictions. These filters do not hide provider inventory from automatic adoption or alter existing Opfield nodes.
 
-Relay uses the same admitted image policy as the other roles. Released installers prepare their own command-line prerequisites. Existing-resource installation and previously dispatched operations retain their own lifecycle and are not treated as new VM orders.
+Relay uses the same admitted image policy as the other roles. A relay VM takes its advertised address and its **Relay Port** (`relayServicePort`, TCP 9443 by default); the review step shows the resulting relay endpoint. Opfield does not open that port in the provider: allow it in the provider firewall, in the managed VM firewall when it is on, and in any port forward in front of the VM. The operation finishes once the relay answers on that port. Released installers prepare their own command-line prerequisites. Existing-resource installation and previously dispatched operations retain their own lifecycle and are not treated as new VM orders.
 
 ## Automatic adoption
 
