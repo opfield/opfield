@@ -163,3 +163,18 @@ func sameDirectory(a, b string) bool {
 	second, err := os.Stat(b)
 	return err == nil && os.SameFile(first, second)
 }
+
+// unknownHostsAnswered reports whether the node's managed default servers answer every hostname no server block
+// names: the HTTPS catch-all (handshake rejected) and the installer's HTTP default server answering 404. An operator's
+// own default server (integrate mode) may serve something else, so then revoked previews keep their denial vhosts.
+func (p *NginxPlugin) unknownHostsAnswered() bool {
+	if _, err := os.Stat(nginx.DefaultServerConfigPath(p.cfg.Nginx.ConfigDir)); err != nil {
+		return false
+	}
+	content, err := nginx.ReadFile(nginx.DefaultHTTPServerPath(p.cfg.Nginx.GlobalConfig))
+	if err != nil || content == nil {
+		return false
+	}
+	text := string(content)
+	return strings.Contains(text, "listen 80 default_server;") && strings.Contains(text, "return 404")
+}

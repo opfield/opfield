@@ -56,6 +56,21 @@ type Runtime struct {
 	scheduleReload func(batch bool)
 	// errorPages: see SetErrorPages.
 	errorPages bool
+	// unknownHostsAnswered: see SetUnknownHostsAnswered.
+	unknownHostsAnswered func() bool
+}
+
+// SetUnknownHostsAnswered tells the runtime how to learn whether the node's managed default servers answer every
+// hostname no server block names (the HTTPS catch-all rejecting the handshake and the HTTP default server answering
+// 404). While they do, a revoked preview needs no denial vhost of its own: removing its server block cannot let the
+// hostname reach another preview or a tag route, so RemovePreview deletes it and Sweep removes the denial vhosts
+// older revocations left.
+func (r *Runtime) SetUnknownHostsAnswered(answered func() bool) {
+	r.unknownHostsAnswered = answered
+}
+
+func (r *Runtime) answersUnknownHosts() bool {
+	return r.unknownHostsAnswered != nil && r.unknownHostsAnswered()
 }
 
 // SetErrorPages tells the runtime the node keeps the page variables of errorpages.Config, so the server blocks it
@@ -399,7 +414,11 @@ func (r *Runtime) RemovePreview(hostname string) error {
 	if !validHostname(hostname) {
 		return errors.New("invalid preview hostname")
 	}
-	// Keep an explicit denial vhost: deleting the server block lets this Host
+	// The managed default servers answer the hostname once its server block is gone: nothing to leave behind.
+	if r.answersUnknownHosts() {
+		return r.applyConfig(r.previewConfigPath(hostname), nil)
+	}
+	// Otherwise keep an explicit denial vhost: deleting the server block lets this Host
 	// fall through to another preview or a tag route acting as nginx's default.
 	// The tombstone references neither artifacts nor certificates, survives
 	// restarts, and is atomically replaced by MaterializePreview on re-enable.

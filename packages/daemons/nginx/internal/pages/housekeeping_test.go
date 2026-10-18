@@ -360,3 +360,73 @@ func TestReleaseExtractionKeepsTheNodeReserve(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRevocationLeavesNoDenialVhostWhereTheDefaultServersAnswer(t *testing.T) {
+	r, nginx := newRuntime(t)
+	answered := true
+	r.SetUnknownHostsAnswered(func() bool { return answered })
+	stageRelease(t, r)
+	host := "revoked.pages.example"
+	if err := r.MaterializePreview(profileID, deploymentID, host, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	reloads := nginx.reloadCalls
+	if err := r.RemovePreview(host); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(r.previewConfigPath(host)); !os.IsNotExist(err) {
+		t.Fatalf("revoked preview left a file: %v", err)
+	}
+	if nginx.reloadCalls != reloads+1 {
+		t.Fatalf("revocation reloaded nginx %d times", nginx.reloadCalls-reloads)
+	}
+	// Repeated revocations (the reconcile) change nothing.
+	if err := r.RemovePreview(host); err != nil || nginx.reloadCalls != reloads+1 {
+		t.Fatalf("repeated revocation: %v, reloads %d", err, nginx.reloadCalls-reloads)
+	}
+	// A preview published again comes back as before.
+	if err := r.MaterializePreview(profileID, deploymentID, host, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if content, err := os.ReadFile(r.previewConfigPath(host)); err != nil || isRevokedPreview(content) {
+		t.Fatalf("re-published preview: %v", err)
+	}
+	// Without the managed default servers the denial vhost stays.
+	answered = false
+	if err := r.RemovePreview(host); err != nil {
+		t.Fatal(err)
+	}
+	if content, err := os.ReadFile(r.previewConfigPath(host)); err != nil || !isRevokedPreview(content) {
+		t.Fatalf("denial vhost missing without the default servers: %v", err)
+	}
+}
+
+func TestSweepRemovesEveryDenialVhostWhereTheDefaultServersAnswer(t *testing.T) {
+	r, _ := newRuntime(t)
+	answered := false
+	r.SetUnknownHostsAnswered(func() bool { return answered })
+	stageRelease(t, r)
+	for _, hostname := range []string{"recent.pages.example", "live.pages.example"} {
+		if err := r.MaterializePreview(profileID, deploymentID, hostname, "", ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Left by a revocation before the node had both default servers (or by an older daemon).
+	if err := r.RemovePreview("recent.pages.example"); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := r.Sweep(time.Now(), true); err != nil || result.RevokedPreviews != 0 {
+		t.Fatalf("a recent denial vhost went without the default servers: %#v, %v", result, err)
+	}
+	answered = true
+	result, err := r.Sweep(time.Now(), true)
+	if err != nil || result.RevokedPreviews != 1 {
+		t.Fatalf("result %#v, %v", result, err)
+	}
+	if _, err := os.Lstat(r.previewConfigPath("recent.pages.example")); !os.IsNotExist(err) {
+		t.Fatal("denial vhost kept")
+	}
+	if _, err := os.Lstat(r.previewConfigPath("live.pages.example")); err != nil {
+		t.Fatalf("live preview removed: %v", err)
+	}
+}

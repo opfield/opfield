@@ -63,7 +63,8 @@ func (s SweepResult) Total() int {
 
 // Sweep removes what Pages commands leave behind on the node: abandoned uploads, extraction stages and temporary
 // files of a crash, runtime-config generations that are neither active nor the rollback target, and, when
-// expireRevokedPreviews is set, revoked-preview denial vhosts older than 30 days. The caller serializes it with
+// expireRevokedPreviews is set, revoked-preview denial vhosts older than 30 days (all of them while the managed default
+// servers answer unknown hostnames, SetUnknownHostsAnswered). The caller serializes it with
 // every Pages command. Errors of one entry do not stop the others; the first one is returned.
 func (r *Runtime) Sweep(now time.Time, expireRevokedPreviews bool) (SweepResult, error) {
 	result := SweepResult{}
@@ -78,7 +79,12 @@ func (r *Runtime) Sweep(now time.Time, expireRevokedPreviews bool) (SweepResult,
 	result.TemporaryFiles += temps
 	errs = append(errs, err)
 	if expireRevokedPreviews {
-		result.RevokedPreviews, err = r.expireRevokedPreviews(now)
+		// Where the managed default servers answer every unknown hostname a denial vhost guards nothing: all go now.
+		retention := revokedPreviewRetention
+		if r.answersUnknownHosts() {
+			retention = 0
+		}
+		result.RevokedPreviews, err = r.expireRevokedPreviews(now, retention)
 		errs = append(errs, err)
 	}
 	return result, errors.Join(errs...)
@@ -304,9 +310,9 @@ func runtimeConfigCurrentGeneration(bindingDir string) (uint64, bool) {
 	return generation, true
 }
 
-// expireRevokedPreviews removes revoked-preview denial vhosts older than revokedPreviewRetention in one change:
-// written together, tested once and loaded with one reload; a failed test puts every file back.
-func (r *Runtime) expireRevokedPreviews(now time.Time) (int, error) {
+// expireRevokedPreviews removes revoked-preview denial vhosts older than retention in one change: written together,
+// tested once and loaded with one reload; a failed test puts every file back.
+func (r *Runtime) expireRevokedPreviews(now time.Time, retention time.Duration) (int, error) {
 	paths, err := filepath.Glob(filepath.Join(r.configDir, "pages-preview-*.conf"))
 	if err != nil {
 		return 0, err
@@ -314,7 +320,7 @@ func (r *Runtime) expireRevokedPreviews(now time.Time) (int, error) {
 	expired := map[string][]byte{}
 	for _, path := range paths {
 		info, err := os.Lstat(path)
-		if err != nil || !info.Mode().IsRegular() || info.ModTime().After(now.Add(-revokedPreviewRetention)) {
+		if err != nil || !info.Mode().IsRegular() || info.ModTime().After(now.Add(-retention)) {
 			continue
 		}
 		content, err := os.ReadFile(path)

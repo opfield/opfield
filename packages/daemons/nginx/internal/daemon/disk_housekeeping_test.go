@@ -10,6 +10,7 @@ import (
 
 	sharedstate "github.com/opfield/opfield/daemon-shared/state"
 	"github.com/opfield/opfield/nginx-daemon/internal/config"
+	"github.com/opfield/opfield/nginx-daemon/internal/nginx"
 )
 
 func TestRemoveOrphanedHostCachesKeepsServedAndRecentHosts(t *testing.T) {
@@ -79,5 +80,37 @@ func TestHostCacheRootsAddsNginxPrivateTmpOnlyWhenItDiffers(t *testing.T) {
 	// This process shares the test's /tmp, so its namespace adds nothing.
 	if roots := hostCacheRoots(os.Getpid()); len(roots) != 1 {
 		t.Fatalf("roots for a shared /tmp = %v", roots)
+	}
+}
+
+func TestUnknownHostsAnsweredNeedsBothManagedDefaultServers(t *testing.T) {
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, "conf.d")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	global := filepath.Join(dir, "nginx.conf")
+	plugin := &NginxPlugin{cfg: &config.Config{Nginx: config.NginxConfig{ConfigDir: configDir, GlobalConfig: global}}}
+	if plugin.unknownHostsAnswered() {
+		t.Fatal("answered without any default server")
+	}
+	if _, err := nginx.EnsureDefaultServer(configDir); err != nil {
+		t.Fatal(err)
+	}
+	if plugin.unknownHostsAnswered() {
+		t.Fatal("answered without the HTTP default server")
+	}
+	httpDefault := nginx.DefaultHTTPServerPath(global)
+	if err := os.WriteFile(httpDefault, []byte("server {\n    listen 80 default_server;\n    location / {\n        proxy_pass http://127.0.0.1:8080;\n    }\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if plugin.unknownHostsAnswered() {
+		t.Fatal("an operator's own HTTP default server counted")
+	}
+	if err := os.WriteFile(httpDefault, []byte("server {\n    listen 80 default_server;\n    location / {\n        return 404;\n    }\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !plugin.unknownHostsAnswered() {
+		t.Fatal("managed default servers not recognised")
 	}
 }

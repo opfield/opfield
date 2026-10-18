@@ -310,6 +310,7 @@ func (p *NginxPlugin) Init(baseCfg *lifecycle.BaseConfig, logger *slog.Logger) e
 		// nginx workers must reach the releases through the daemon's state
 		// directory, which state writes create owner-only (N-22).
 		p.pagesRuntime.SetReaderAccess(baseCfg.StateDir, p.secureLinks.socketOwnerUID)
+		p.pagesRuntime.SetUnknownHostsAnswered(p.unknownHostsAnswered)
 		if err := p.pagesRuntime.RepairTraversal(); err != nil {
 			logger.Warn("nginx workers may not reach Opfield Pages releases; Pages deliveries stay not ready until they can", "error", err)
 		}
