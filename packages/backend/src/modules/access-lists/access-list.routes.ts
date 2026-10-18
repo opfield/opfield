@@ -70,7 +70,7 @@ accessListRoutes.openapi({ ...createAccessListRoute, middleware: requireScopeBas
   const accessListService = container.resolve(AccessListService);
   const user = c.get('user')!;
   const body = await c.req.json();
-  assertAccessListFields(body);
+  assertAccessListFields(body, { create: true });
   const input = CreateAccessListSchema.parse(body);
   // Broad acl:create creates anywhere; `acl:create:folder/<id>` in that folder only.
   await container.resolve(AccessListFolderService).assertCreateFolder(c.get('effectiveScopes') ?? [], input.folderId);

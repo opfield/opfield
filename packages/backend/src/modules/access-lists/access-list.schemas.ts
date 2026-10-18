@@ -125,15 +125,19 @@ export type MoveAccessListIpRuleInput = z.infer<typeof MoveAccessListIpRuleSchem
 
 const ACCESS_LIST_FIELDS = ['name', 'description', 'ipRules', 'basicAuthEnabled', 'basicAuthUsers'] as const;
 
-/** A field the API would drop silently (folderId: access lists have no folders) is refused and named instead. */
-export function assertAccessListFields(body: unknown): void {
+/**
+ * A field the API would drop silently is refused and named instead. `folderId` is a create field (the destination
+ * folder); an existing list changes folder through POST /api/access-lists/folders/move-access-lists.
+ */
+export function assertAccessListFields(body: unknown, { create = false }: { create?: boolean } = {}): void {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return;
-  const unknown = Object.keys(body).filter((key) => !(ACCESS_LIST_FIELDS as readonly string[]).includes(key));
+  const fields: readonly string[] = create ? [...ACCESS_LIST_FIELDS, 'folderId'] : ACCESS_LIST_FIELDS;
+  const unknown = Object.keys(body).filter((key) => !fields.includes(key));
   if (unknown.length === 0) return;
   throw new AppError(
     400,
     'VALIDATION_ERROR',
-    `${unknown.join(', ')} ${unknown.length === 1 ? 'is not a field' : 'are not fields'} of an access list (fields: ${ACCESS_LIST_FIELDS.join(', ')}).${unknown.includes('folderId') ? ' Access lists have no folders.' : ''}`,
-    { unknownFields: unknown, fields: [...ACCESS_LIST_FIELDS] }
+    `${unknown.join(', ')} ${unknown.length === 1 ? 'is not a field' : 'are not fields'} of ${create ? 'a new' : 'an'} access list (fields: ${fields.join(', ')}).${unknown.includes('folderId') ? ' Move an access list to another folder with POST /api/access-lists/folders/move-access-lists.' : ''}`,
+    { unknownFields: unknown, fields: [...fields] }
   );
 }
