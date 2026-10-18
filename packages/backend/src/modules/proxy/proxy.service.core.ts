@@ -541,9 +541,7 @@ export abstract class ProxyServiceCore {
           'Recreate the Route to change its Pages target type'
         );
       }
-      if (input.nodeId && input.nodeId !== existing.nodeId && !normalized.allowPagesNodeMove) {
-        throw new AppError(409, 'PAGES_ROUTE_MIGRATION_REQUIRED', 'Move this Pages Route through ingress migration');
-      }
+      // A node move of a Pages route stages its binding on the new node (updateProxyHost, stageNodeMigration).
       return {};
     }
     if (effectiveKind === 'manual') {
@@ -743,10 +741,13 @@ export abstract class ProxyServiceCore {
     if (host.upstreamKind === 'pages' && !this.pageRoutes) {
       throw new AppError(503, 'PAGES_ROUTE_UNAVAILABLE', 'Pages Route service is unavailable');
     }
-    const pagesRouteConfig = host.upstreamKind === 'pages' ? await this.pageRoutes!.getRenderConfig(host.id) : null;
-    const pagesRouteIncludePath = pagesRouteConfig
-      ? (pagesRouteIncludePathOverride ?? pagesRouteConfig.includePath)
-      : undefined;
+    // A Pages route staged for a node move renders the target node's config while its target is still staging: only
+    // with the include path its staging recorded (the override), never a stale one.
+    const pagesRouteConfig =
+      host.upstreamKind === 'pages'
+        ? await this.pageRoutes!.getRenderConfig(host.id, { stagedIncludePath: pagesRouteIncludePathOverride })
+        : null;
+    const pagesRouteIncludePath = pagesRouteConfig?.includePath;
     const registryAuthRealm = usesRegistryIngress
       ? new URL('/api/docker/registry/token', await this.generalSettings!.requirePublicUrl()).href
       : undefined;

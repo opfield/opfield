@@ -6,6 +6,7 @@ import { confirm } from "@/components/common/ConfirmDialog";
 import { ContentLoading } from "@/components/common/ContentLoading";
 import { DetailRow } from "@/components/common/DetailRow";
 import { EmptyState } from "@/components/common/EmptyState";
+import { Notice } from "@/components/common/Notice";
 import { PanelShell } from "@/components/common/PanelShell";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { SettingsControlRow } from "@/components/common/SettingsControlRow";
@@ -34,6 +35,7 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
 import { proxyHostRoute } from "@/lib/resource-routes";
 import { api } from "@/services/api";
+import { ApiRequestError } from "@/services/api-base";
 import { useAuthStore } from "@/stores/auth";
 import type {
   Domain,
@@ -350,6 +352,13 @@ export function DomainDetailDialog({
       }
     } catch (err) {
       toastApiError(err, "Ingress migration failed");
+      // Something changed since the preview: show what blocks the move now.
+      if (err instanceof ApiRequestError && err.code === "DOMAIN_INGRESS_MIGRATION_BLOCKED") {
+        await api
+          .previewDomainIngressMigration(domain.id, ingressMigrationTargetNodeId)
+          .then(setIngressMigrationImpact)
+          .catch(() => undefined);
+      }
     } finally {
       setIsMigratingIngress(false);
     }
@@ -360,12 +369,17 @@ export function DomainDetailDialog({
     (node) => node.id === ingressMigrationTargetNodeId
   );
   const ingressMigrationDnsBlocked = Boolean(
-    ingressMigrationImpact?.status === "ready" &&
+    (ingressMigrationImpact?.status === "ready" || ingressMigrationImpact?.status === "blocked") &&
       ingressMigrationImpact.requiresExternalDnsBeforeMove &&
       ingressMigrationImpact.domains.some(
         (item) => item.dnsProvider === "external" && item.dnsStatus !== "valid"
       )
   );
+  // External DNS has its own panel below; every other issue is listed before Start.
+  const ingressMigrationIssues = (ingressMigrationImpact?.issues ?? []).filter(
+    (issue) => issue.code !== "DOMAIN_INGRESS_EXTERNAL_DNS_NOT_READY"
+  );
+  const ingressMigrationBlocked = ingressMigrationImpact?.status === "blocked";
   const currentAddress = domain
     ? [...(domain.dnsRecords?.a ?? []), ...(domain.dnsRecords?.aaaa ?? [])].join(", ") ||
       "No address record"
@@ -785,6 +799,20 @@ export function DomainDetailDialog({
               </PanelShell>
             ) : null}
 
+            {ingressMigrationIssues.length > 0 ? (
+              <div className="space-y-2">
+                {ingressMigrationIssues.map((issue) => (
+                  <Notice
+                    key={`${issue.severity}-${issue.code}-${issue.resourceId}-${issue.message}`}
+                    tone={issue.severity === "blocker" ? "destructive" : "warning"}
+                    title={issue.message}
+                  >
+                    {issue.fix}
+                  </Notice>
+                ))}
+              </div>
+            ) : null}
+
             {ingressMigrationImpact?.domains.some((item) => item.dnsProvider === "external") ? (
               <PanelShell title="External DNS">
                 {ingressMigrationImpact.domains
@@ -824,7 +852,9 @@ export function DomainDetailDialog({
             </Button>
             <Button
               onClick={handleMigrateIngress}
-              disabled={!ingressMigrationImpact || ingressMigrationDnsBlocked}
+              disabled={
+                !ingressMigrationImpact || ingressMigrationDnsBlocked || ingressMigrationBlocked
+              }
               pending={isMigratingIngress || isLoadingIngressMigration}
             >
               <Truck className="h-4 w-4" />

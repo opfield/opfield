@@ -119,8 +119,19 @@ export interface DomainNginxNodeOptions {
   unconfiguredNginxNodes: number;
 }
 
+/** Something an ingress migration runs into before anything moves; a blocker stops it, `fix` clears it. */
+export interface IngressMoveIssue {
+  severity: "blocker" | "warning";
+  code: string;
+  message: string;
+  fix: string;
+  resourceType: "domain" | "route" | "pages_project" | "node" | "app_environment";
+  resourceId: string;
+}
+
 export interface DomainIngressMigrationImpact {
-  status: "ready" | "waiting_dns" | "cleanup_pending" | "completed";
+  /** blocked: the preview found blockers (issues); the move cannot start until they are cleared. */
+  status: "ready" | "blocked" | "waiting_dns" | "cleanup_pending" | "completed";
   sourceNode: DomainNginxNode & { effectiveAddress: string };
   targetNode: DomainNginxNode & { effectiveAddress: string };
   domains: Array<{
@@ -137,6 +148,8 @@ export interface DomainIngressMigrationImpact {
   }>;
   targetIps: string[];
   requiresExternalDnsBeforeMove: boolean;
+  /** Blockers and warnings of the move (preview only; empty once a move started). */
+  issues?: IngressMoveIssue[];
 }
 
 export type ResolveCloudflareMigrationRequest =

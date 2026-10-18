@@ -154,7 +154,7 @@ function safeError(error: unknown): string {
     .slice(0, 500);
 }
 
-function nodeHasDistributionCapability(capabilities: unknown): boolean {
+export function nodeHasDistributionCapability(capabilities: unknown): boolean {
   const value = capabilities as Record<string, unknown> | null | undefined;
   const reported = value?.capabilities;
   return Array.isArray(reported) && reported.includes(NGINX_CERTIFICATE_DISTRIBUTION_CAPABILITY);

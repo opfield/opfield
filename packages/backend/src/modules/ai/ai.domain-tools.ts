@@ -157,7 +157,7 @@ async function manageDomain(context: DomainToolContext, user: User, a: Record<st
     context.ensureToolScopeForResource(user, 'domains:edit', domainId);
     const input = DomainIngressMigrationSchema.parse({ targetNodeId: a.targetNodeId });
     return a.operation === 'preview_ingress_migration'
-      ? context.domainsService.previewIngressMigration(domainId, input)
+      ? context.domainsService.previewIngressMigration(domainId, input, user.scopes)
       : context.domainsService.migrateIngress(domainId, input, user.id, user.scopes);
   }
   if (a.operation === 'issue_certificate') {

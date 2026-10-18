@@ -207,6 +207,8 @@ export const previewDomainIngressMigrationRoute = appRoute({
   path: '/{id}/ingress-migration/preview',
   tags: ['Domains'],
   summary: 'Preview a domain ingress migration',
+  description:
+    'Lists the domains and routes that move and every issue the move would run into, before anything moves. status is blocked while issues holds a blocker (severity blocker; each has code, message, fix, resourceType and resourceId): the app environment of a route does not allow the target node, the target node is offline or locked for new services, a route has additional Secure Links, TLS or Pages cannot be delivered to the target, a Pages route is not ready, an enabled route on the target already serves a moved name, external DNS does not point at the target yet, or the caller lacks a permission. Warnings (severity warning) describe what stays behind, such as a Pages project whose previews stay on the source node. ready: POST /{id}/ingress-migration starts the move and refuses with 409 DOMAIN_INGRESS_MIGRATION_BLOCKED (details.blockers) while a blocker is left. waiting_dns and cleanup_pending: a started move waits for DNS or for the source cleanup.',
   request: { params: IdParamSchema, ...jsonBody(DomainIngressMigrationSchema) },
   responses: okJson(UnknownDataResponseSchema),
 });

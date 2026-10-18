@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { domainFolders } from '@/db/schema/domain-folders.js';
 import { domains } from '@/db/schema/domains.js';
 import { ingressGroups } from '@/db/schema/ingress-groups.js';
+import { nodes } from '@/db/schema/nodes.js';
 import { pageWildcardProfiles } from '@/db/schema/pages.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
 import { sslCertificates } from '@/db/schema/ssl-certificates.js';
@@ -14,6 +15,7 @@ import { AppError } from '@/middleware/error-handler.js';
 import { appMemberFolderCondition, withAppMembers } from '@/modules/apps/app-membership.js';
 import { ingressGroupMemberRows } from '@/modules/ingress-groups/ingress-nodes.js';
 import type { CloudflareDnsRecordInput } from '@/modules/integrations/cloudflare-client.js';
+import { type IngressMoveIssue, ingressMoveBlockers } from '@/modules/proxy/ingress-move-issues.js';
 import { getRegisteredDomainCandidates } from '@/modules/proxy/proxy-domain-node.js';
 import { assertNoProxyDomainOverlap } from '@/modules/proxy/proxy-domain-overlap.js';
 import { probeDnsRecords } from './dns.utils.js';
@@ -138,7 +140,12 @@ export class DomainsService extends DomainsServiceIngressGroups {
     };
   }
 
-  async previewIngressMigration(id: string, input: DomainIngressMigrationInput) {
+  /**
+   * What an ingress migration of the domain to input.targetNodeId moves, and every issue it would run into before
+   * anything moves: status 'blocked' with the blockers (each with its fix) while any is left, 'ready' otherwise.
+   * Warnings describe what stays behind. actorScopes adds the permission checks of the caller.
+   */
+  async previewIngressMigration(id: string, input: DomainIngressMigrationInput, actorScopes?: string[]) {
     const impact = await this.buildIngressMigrationImpact(id, input.targetNodeId);
     const preview = this.serializeIngressMigrationImpact(impact, impact.pending ? 'waiting_dns' : 'ready');
     if (impact.pending) return preview;
@@ -154,8 +161,11 @@ export class DomainsService extends DomainsServiceIngressGroups {
         )
       );
     }
+    const issues = await this.ingressMigrationIssues(impact, { actorScopes, externalDnsStatuses: targetStatuses });
     return {
       ...preview,
+      status: ingressMoveBlockers(issues).length > 0 ? ('blocked' as const) : ('ready' as const),
+      issues,
       domains: preview.domains.map((domain) => ({
         ...domain,
         dnsStatus: targetStatuses.get(domain.id) ?? domain.dnsStatus,
@@ -189,6 +199,18 @@ export class DomainsService extends DomainsServiceIngressGroups {
       }
     }
     if (impact.pending) return this.completeIngressMigration(impact, userId);
+    // Everything the preview reports is refused here before anything moves (external DNS keeps its own error below).
+    const blockers = ingressMoveBlockers(await this.ingressMigrationIssues(impact, { actorScopes }));
+    if (blockers.length > 0) {
+      throw new AppError(
+        409,
+        'DOMAIN_INGRESS_MIGRATION_BLOCKED',
+        `The move to ${impact.targetNode.displayName || impact.targetNode.hostname} is blocked: ${blockers
+          .map((blocker) => `${blocker.message} (${blocker.fix})`)
+          .join('; ')}`,
+        { blockers }
+      );
+    }
     await this.assertIngressTargetServesNoMovedName(impact);
 
     if (impact.proxyHosts.some((host) => host.upstreamKind !== 'manual')) {
@@ -240,7 +262,6 @@ export class DomainsService extends DomainsServiceIngressGroups {
           skipDomainNodeValidation: true,
           preserveFormerNodeConfig: true,
           allowSystemNodeMove: true,
-          allowPagesNodeMove: host.upstreamKind === 'pages',
         });
         movedHostIds.push(host.id);
       }
@@ -1113,7 +1134,152 @@ export class DomainsService extends DomainsServiceIngressGroups {
       })),
       targetIps: this.getAllowedIngressAddresses(impact.targetNode),
       requiresExternalDnsBeforeMove: impact.proxyHosts.some((host) => host.upstreamKind !== 'manual'),
+      issues: [] as IngressMoveIssue[],
     };
+  }
+
+  /**
+   * Every blocker and warning of moving the impact's domains and routes to its target node, each with its fix: the
+   * caller's permissions (actorScopes), names the target already serves, each route's move (proxyService
+   * nodeMoveIssues: app environment, node lock, Secure Links, TLS, Pages, Additional Routes), the Pages previews of a
+   * moved Pages domain, and external DNS that must point at the target first (externalDnsStatuses).
+   */
+  protected async ingressMigrationIssues(
+    impact: Awaited<ReturnType<DomainsService['buildIngressMigrationImpact']>>,
+    options: {
+      actorScopes?: string[];
+      externalDnsStatuses?: Map<string, 'valid' | 'invalid' | 'pending' | 'unknown'>;
+    } = {}
+  ): Promise<IngressMoveIssue[]> {
+    const issues: IngressMoveIssue[] = [];
+    const target = impact.targetNode;
+    const targetName = target.displayName || target.hostname;
+    const movingHosts = impact.proxyHosts.filter((host) => host.nodeId !== target.id);
+    if (options.actorScopes) {
+      try {
+        assertDomainIngressMoveAccess(options.actorScopes, target.id, impact.proxyHosts);
+      } catch (error) {
+        if (!(error instanceof AppError)) throw error;
+        issues.push({
+          severity: 'blocker',
+          code: error.code ?? 'FORBIDDEN',
+          message: error.message,
+          fix: `Ask an administrator for proxy:create on ${targetName} and proxy:edit on every route of the domain`,
+          resourceType: 'domain',
+          resourceId: impact.root.id,
+        });
+      }
+      if (!options.actorScopes.includes('admin:system') && movingHosts.length > 0) {
+        const [systemHost] = await this.db
+          .select({ id: proxyHosts.id, domainNames: proxyHosts.domainNames })
+          .from(proxyHosts)
+          .where(
+            and(
+              inArray(
+                proxyHosts.id,
+                movingHosts.map((host) => host.id)
+              ),
+              eq(proxyHosts.isSystem, true)
+            )
+          )
+          .limit(1);
+        if (systemHost) {
+          issues.push({
+            severity: 'blocker',
+            code: 'FORBIDDEN',
+            message: `Route ${systemHost.domainNames[0] ?? systemHost.id} is a system route; moving it requires admin:system`,
+            fix: 'Ask an administrator with admin:system to move this domain',
+            resourceType: 'route',
+            resourceId: systemHost.id,
+          });
+        }
+      }
+    }
+    for (const conflict of await this.ingressTargetConflicts(impact)) {
+      const details = (conflict.details ?? {}) as { proxyHostId?: string; domains?: string[] };
+      issues.push({
+        severity: 'blocker',
+        code: conflict.code ?? 'DOMAIN_INGRESS_TARGET_DOMAIN_CONFLICT',
+        message: conflict.message,
+        fix: `Disable or delete the route on ${targetName} that serves ${details.domains?.join(', ') || 'these names'}, then preview again`,
+        resourceType: 'route',
+        resourceId: details.proxyHostId ?? impact.root.id,
+      });
+    }
+    if (this.proxyService) {
+      issues.push(
+        ...(await this.proxyService.nodeMoveIssues(
+          movingHosts.map((host) => host.id),
+          target.id
+        ))
+      );
+    }
+    issues.push(...(await this.pagesPreviewMoveIssues(impact)));
+    if (options.externalDnsStatuses && impact.proxyHosts.some((host) => host.upstreamKind !== 'manual')) {
+      for (const domain of impact.domains.filter((candidate) => candidate.dnsProvider !== 'cloudflare')) {
+        if (options.externalDnsStatuses.get(domain.id) === 'valid') continue;
+        issues.push({
+          severity: 'blocker',
+          code: 'DOMAIN_INGRESS_EXTERNAL_DNS_NOT_READY',
+          message: `External DNS of ${domain.domain} does not point at ${targetName} yet`,
+          fix: `Point the A/AAAA records of ${domain.domain} to ${this.getAllowedIngressAddresses(target).join(', ')} at its DNS provider, then preview again`,
+          resourceType: 'domain',
+          resourceId: domain.id,
+        });
+      }
+    }
+    return issues;
+  }
+
+  /** The Pages previews follow a moved Pages wildcard domain (migrateDomainIngress): the target must serve them. */
+  private async pagesPreviewMoveIssues(
+    impact: Awaited<ReturnType<DomainsService['buildIngressMigrationImpact']>>
+  ): Promise<IngressMoveIssue[]> {
+    const domainIds = impact.domains.map((domain) => domain.id);
+    if (domainIds.length === 0) return [];
+    const [profile] = await this.db
+      .select({
+        domainId: pageWildcardProfiles.domainId,
+        nodeId: pageWildcardProfiles.nodeId,
+        certificateId: pageWildcardProfiles.certificateId,
+      })
+      .from(pageWildcardProfiles)
+      .where(and(eq(pageWildcardProfiles.enabled, true), inArray(pageWildcardProfiles.domainId, domainIds)))
+      .limit(1);
+    if (!profile?.domainId || profile.nodeId === impact.targetNode.id) return [];
+    const targetName = impact.targetNode.displayName || impact.targetNode.hostname;
+    const issues: IngressMoveIssue[] = [];
+    if (!profile.certificateId) {
+      issues.push({
+        severity: 'blocker',
+        code: 'PAGES_PROFILE_INVALID',
+        message: 'The Pages preview domain moves with this domain, but the Pages profile has no wildcard certificate',
+        fix: 'Select the wildcard certificate in Settings > Pages, then preview again',
+        resourceType: 'domain',
+        resourceId: profile.domainId,
+      });
+    }
+    const [node] = await this.db
+      .select({ capabilities: nodes.capabilities })
+      .from(nodes)
+      .where(eq(nodes.id, impact.targetNode.id))
+      .limit(1);
+    const reported = (node?.capabilities as Record<string, unknown> | null | undefined)?.capabilities;
+    if (
+      !Array.isArray(reported) ||
+      !reported.includes('nginx_pages_v1') ||
+      !reported.includes('nginx_pages_config_v1')
+    ) {
+      issues.push({
+        severity: 'blocker',
+        code: 'PAGES_DAEMON_UPDATE_REQUIRED',
+        message: `The Pages preview domain moves with this domain, but ${targetName} cannot serve Pages yet`,
+        fix: `Update the Nginx daemon of ${targetName} (Nodes > ${targetName} > Update, or manage_system_updates update_daemon), then preview again`,
+        resourceType: 'node',
+        resourceId: impact.targetNode.id,
+      });
+    }
+    return issues;
   }
 
   protected async refreshExternalMigrationDns(row: typeof domains.$inferSelect) {
@@ -1238,6 +1404,15 @@ export class DomainsService extends DomainsServiceIngressGroups {
   private async assertIngressTargetServesNoMovedName(
     impact: Awaited<ReturnType<DomainsService['buildIngressMigrationImpact']>>
   ) {
+    const [conflict] = await this.ingressTargetConflicts(impact);
+    if (conflict) throw conflict;
+  }
+
+  /** One DOMAIN_INGRESS_TARGET_DOMAIN_CONFLICT per enabled moving route whose names an enabled target route serves. */
+  private async ingressTargetConflicts(
+    impact: Awaited<ReturnType<DomainsService['buildIngressMigrationImpact']>>
+  ): Promise<AppError[]> {
+    const conflicts: AppError[] = [];
     for (const host of impact.proxyHosts) {
       if (!host.enabled || host.nodeId === impact.targetNode.id) continue;
       try {
@@ -1247,19 +1422,22 @@ export class DomainsService extends DomainsServiceIngressGroups {
         const conflict = (error.details ?? {}) as { proxyHostId?: string; domains?: string[] };
         const domainList = conflict.domains?.length ? conflict.domains.join(', ') : host.domainNames.join(', ');
         const targetName = impact.targetNode.displayName || impact.targetNode.hostname;
-        throw new AppError(
-          409,
-          'DOMAIN_INGRESS_TARGET_DOMAIN_CONFLICT',
-          `Route ${host.domainNames[0] ?? host.id} cannot move to ${targetName}: an enabled route there already serves ${domainList}`,
-          {
-            proxyHostId: host.id,
-            conflictingProxyHostId: conflict.proxyHostId ?? null,
-            targetNodeId: impact.targetNode.id,
-            domains: conflict.domains ?? [],
-          }
+        conflicts.push(
+          new AppError(
+            409,
+            'DOMAIN_INGRESS_TARGET_DOMAIN_CONFLICT',
+            `Route ${host.domainNames[0] ?? host.id} cannot move to ${targetName}: an enabled route there already serves ${domainList}`,
+            {
+              proxyHostId: host.id,
+              conflictingProxyHostId: conflict.proxyHostId ?? null,
+              targetNodeId: impact.targetNode.id,
+              domains: conflict.domains ?? [],
+            }
+          )
         );
       }
     }
+    return conflicts;
   }
 
   protected async rollbackIngressMigration(
@@ -1284,7 +1462,6 @@ export class DomainsService extends DomainsServiceIngressGroups {
         await this.proxyService?.updateProxyHost(hostId, { nodeId: impact.sourceNode.id }, userId, {
           skipDomainNodeValidation: true,
           allowSystemNodeMove: true,
-          allowPagesNodeMove: true,
           // Back to where it served before: a duplicate there is recorded, not refused.
           restoringPriorState: true,
         });

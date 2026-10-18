@@ -11,6 +11,7 @@ import { requireRoutableIngressGroup } from '@/modules/ingress-groups/ingress-gr
 import { assertNodeAllowsServiceCreation } from '@/modules/nodes/service-creation-lock.js';
 import type { PageRouteNodeMigration } from '@/modules/pages/routes/page-route.service.js';
 import type { AdditionalRouteNodeMigration } from './additional-route.service.js';
+import type { IngressMoveIssue } from './ingress-move-issues.js';
 import type { CreateProxyHostInput, CreateProxyHostRequest, UpdateProxyHostInput } from './proxy.schemas.js';
 import {
   assertSslPrerequisites,
@@ -32,6 +33,7 @@ import {
 } from './proxy-domain-overlap.js';
 import { proxyHostLockKey, proxyNodeLockKey, withProxyLocks } from './proxy-host-lock.js';
 import { IngressDeliveryError } from './proxy-ingress-delivery.js';
+import { collectNodeMoveIssues } from './proxy-node-move-issues.js';
 import { attachDockerUpstreamDisplay } from './proxy-upstream-display.js';
 import { clientIpUpdateFields, normalizeClientIpOptions } from './route-client-ip.js';
 import { rawConfigForWrite } from './route-client-ip-runtime.js';
@@ -140,6 +142,23 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
 
   setAppFreezeGuard(guard: ProxyAppFreezeGuard) {
     this.appFreeze = guard;
+  }
+
+  /**
+   * What a move of these routes to targetNodeId would be refused for, or leave behind, before anything moves (an
+   * ingress migration previews and checks it first). See collectNodeMoveIssues.
+   */
+  async nodeMoveIssues(hostIds: readonly string[], targetNodeId: string): Promise<IngressMoveIssue[]> {
+    return collectNodeMoveIssues(
+      {
+        db: this.db,
+        isNodeConnected: (nodeId) => this.nodeDispatch.isNodeConnected(nodeId),
+        secureLinks: this.secureLinks,
+        pageRoutes: this.pageRoutes,
+      },
+      hostIds,
+      targetNodeId
+    );
   }
 
   /**
@@ -777,6 +796,8 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       await assertRegisteredDomainsUseTarget(this.db, input.domainNames ?? existing.domainNames, {
         nodeId: effectiveNodeId,
         ingressGroupId: existing.ingressGroupId,
+      }).catch((error) => {
+        throw nodeMoveNeedsIngressMigration(error, existing.nodeId, input.nodeId);
       });
     }
     const servingNodeIds = existing.ingressGroupId ? await this.ingressNodesOf(existing) : [effectiveNodeId];
@@ -890,7 +911,7 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
 
     // 3. Regenerate nginx config
     try {
-      if (existing.upstreamKind === 'pages' && updated.nodeId !== existing.nodeId && options.allowPagesNodeMove) {
+      if (existing.upstreamKind === 'pages' && nodeChanged) {
         if (!existing.nodeId || !updated.nodeId || !this.pageRoutes) {
           throw new AppError(503, 'PAGES_ROUTE_UNAVAILABLE', 'Pages Route migration is unavailable');
         }
@@ -988,6 +1009,23 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
       if (formerDockerNodeId) await this.secureLinks?.reconcileTargetNode(formerDockerNodeId);
       if (pageNodeMigration) await this.pageRoutes?.commitNodeMigration(pageNodeMigration);
       if (additionalRouteMigration) await this.additionalRoutes?.commitNodeMigration(additionalRouteMigration);
+      // A route moved on its own retires its former node now; an ingress migration does it once DNS moved
+      // (cleanupMigratedHostSource). A Pages binding left on an unreachable node is swept after it reconnects.
+      if (pageNodeMigration && existing.nodeId && !options.preserveFormerNodeConfig) {
+        const sourceNodeId = existing.nodeId;
+        await this.pageRoutes
+          ?.cleanupMigratedSource(id, sourceNodeId, this.nodeDispatch.isNodeConnected(sourceNodeId))
+          .catch((cleanupError) =>
+            logger.warn(
+              'The former node keeps the Pages binding of a moved route until the next Pages reconciliation',
+              {
+                hostId: id,
+                nodeId: sourceNodeId,
+                cleanupError,
+              }
+            )
+          );
+      }
     } catch (error) {
       let failure = error;
       if (additionalRouteMigration) {
@@ -1187,4 +1225,31 @@ export abstract class ProxyServiceMutations extends ProxyServicePlacement {
   // -----------------------------------------------------------------------
   // Delete
   // -----------------------------------------------------------------------
+}
+
+/**
+ * A node move of a route whose registered domain stays on the route's current node: the domain moves first, and its
+ * ingress migration moves every route of the domain with it. Other mismatches keep their own message.
+ */
+function nodeMoveNeedsIngressMigration(
+  error: unknown,
+  currentNodeId: string | null,
+  requestedNodeId?: string
+): unknown {
+  if (
+    !(error instanceof AppError) ||
+    error.code !== 'DOMAIN_NGINX_NODE_MISMATCH' ||
+    !requestedNodeId ||
+    requestedNodeId === currentNodeId
+  ) {
+    return error;
+  }
+  const details = (error.details ?? {}) as { domain?: string; domainNginxNodeId?: string | null };
+  if (!details.domain || details.domainNginxNodeId !== currentNodeId) return error;
+  return new AppError(
+    409,
+    'DOMAIN_NGINX_NODE_MISMATCH',
+    `The registered domain ${details.domain} is served by this route's current node: move the domain with Move ingress (Domains > ${details.domain} > Move ingress, or manage_domain migrate_ingress), which moves this route and the domain's other routes with it`,
+    { ...details, proxyHostNodeId: requestedNodeId }
+  );
 }

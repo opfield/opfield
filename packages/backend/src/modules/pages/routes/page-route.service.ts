@@ -1,6 +1,7 @@
 import type { DrizzleClient } from '@/db/client.js';
 import { commercialModuleUnavailable } from '@/edition/unavailable.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import type { IngressMoveIssue } from '@/modules/proxy/ingress-move-issues.js';
 import type { CreateProxyHostInput } from '@/modules/proxy/proxy.schemas.js';
 import type { PageNodeRuntimeService } from '../runtime/page-node-runtime.service.js';
 import type {
@@ -50,7 +51,11 @@ export class PageRouteService {
   ): Promise<void> {
     return commercialModuleUnavailable();
   }
-  async getRenderConfig(_proxyHostId: string): Promise<{
+  /** A route staged for a node move renders only for the include path its staging recorded (stagedIncludePath). */
+  async getRenderConfig(
+    _proxyHostId: string,
+    _options?: { stagedIncludePath?: string }
+  ): Promise<{
     includePath: string;
     spaFallback: boolean;
     fallbackUrl: string | null;
@@ -58,6 +63,14 @@ export class PageRouteService {
     return commercialModuleUnavailable();
   }
   async getIncludePath(_proxyHostId: string): Promise<string> {
+    return commercialModuleUnavailable();
+  }
+  /** What would stop or follow a move of this Pages route to another node, each with the action that clears it. */
+  async migrationIssues(
+    _proxyHostId: string,
+    _sourceNodeId: string | null,
+    _targetNodeId: string
+  ): Promise<IngressMoveIssue[]> {
     return commercialModuleUnavailable();
   }
   async getTarget(_proxyHostId: string): Promise<{

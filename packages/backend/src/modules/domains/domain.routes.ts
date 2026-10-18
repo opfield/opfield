@@ -417,7 +417,9 @@ domainRoutes.openapi(
     const input = DomainIngressMigrationSchema.parse(await c.req.json());
     const domainsService = container.resolve(DomainsService);
     try {
-      return c.json({ data: await domainsService.previewIngressMigration(c.req.param('id')!, input) });
+      return c.json({
+        data: await domainsService.previewIngressMigration(c.req.param('id')!, input, c.get('effectiveScopes') || []),
+      });
     } catch (err) {
       if (err instanceof AppError) {
         return c.json({ code: err.code, message: err.message, details: err.details }, err.statusCode as never);

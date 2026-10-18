@@ -14,7 +14,6 @@ export type ProxyValidationOptions = {
   skipDomainNodeValidation?: boolean;
   preserveFormerNodeConfig?: boolean;
   allowSystemNodeMove?: boolean;
-  allowPagesNodeMove?: boolean;
   /**
    * The write puts a host back where it was (an ingress migration's rollback): a name another enabled host took
    * meanwhile is recorded as a legacy conflict instead of refused, so the database follows what nginx serves.
