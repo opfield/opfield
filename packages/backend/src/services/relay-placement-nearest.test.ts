@@ -223,7 +223,9 @@ describe('A Relay Pool update places by distance (stand rc.7, F-3)', () => {
   it('still holds back a relay that failed outside a drain', () => {
     const t = pool({});
     const start = Date.now();
-    // Gone past its disconnect grace, not drained.
+    // It served (a relay that joined while Opfield runs and never served is placed at once when ready)...
+    t.holdBack([relay('relay-local'), relay('relay-uk'), relay('relay-nl')], start - 1_000);
+    // ...then went past its disconnect grace, not drained.
     const gone = relay('relay-uk', { state: 'offline', lastSeenAt: new Date(start - 10 * 60_000) });
     t.holdBack([relay('relay-local'), gone, relay('relay-nl')], start);
     expect([...t.holdBack([relay('relay-local'), relay('relay-uk'), relay('relay-nl')], start + 1_000)]).toEqual([

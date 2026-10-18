@@ -486,3 +486,61 @@ describe('Candidate topology', () => {
     expect(candidateTopology('fallback')).toEqual({ role: 'standby', endpointRttMicros: 0 });
   });
 });
+
+describe('Relay port change placement (stand 2.12.6-rc.1, O-6)', () => {
+  type View = { holdBack: Set<string> };
+  function viewer() {
+    const service = new RelayPoolService(
+      {} as never,
+      {} as never,
+      { publish: () => undefined } as never,
+      {} as never,
+      {} as never
+    );
+    const internals = service as unknown as {
+      drainedForUpdate: Map<string, number>;
+      placementView(instances: RelayInstanceRow[], failing: ReadonlySet<string>, now: number): View;
+    };
+    return {
+      internals,
+      view: (instances: RelayInstanceRow[], at: number) => internals.placementView(instances, new Set(), at),
+    };
+  }
+
+  it('places a relay that joined while Opfield runs as soon as it is ready, so standbys go to it, not to a far relay', () => {
+    const { view } = viewer();
+    const joinedAt = new Date(Date.now() + 1_000);
+    // The new relay joins, then serves; the near relay that carried standbys drains for its port change.
+    view([relay('relay-local'), relay('relay-nl'), relay('relay-uk', { state: 'joining', createdAt: joinedAt })], NOW);
+    const instances = [
+      relay('relay-local'),
+      relay('relay-nl'),
+      relay('relay-uk', { createdAt: joinedAt }),
+      relay('relay-near', { state: 'draining' }),
+    ];
+    const { holdBack } = view(instances, NOW + 60_000);
+    expect(holdBack.size).toBe(0);
+    const chosen = chooseRelayAssignments(
+      'endpoint-1',
+      instances,
+      2,
+      path,
+      [
+        { relayInstanceId: 'relay-local', role: 'primary' },
+        { relayInstanceId: 'relay-near', role: 'fallback' },
+      ],
+      holdBack
+    );
+    expect(chosen.map(({ instance, role }) => [instance.id, role])).toEqual([
+      ['relay-local', 'primary'],
+      ['relay-uk', 'fallback'],
+    ]);
+  });
+
+  it('gives a relay whose port changed its roles back at once: its restart is planned, not a failure', () => {
+    const { view, internals } = viewer();
+    internals.drainedForUpdate.set('relay-uk', NOW);
+    view([relay('relay-local'), relay('relay-nl'), relay('relay-uk', { state: 'offline' })], NOW);
+    expect(view([relay('relay-local'), relay('relay-nl'), relay('relay-uk')], NOW + 20_000).holdBack.size).toBe(0);
+  });
+});

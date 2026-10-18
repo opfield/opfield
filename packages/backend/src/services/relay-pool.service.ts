@@ -303,6 +303,8 @@ export class RelayPoolService {
   private readonly plannedRoles = new Map<string, Array<{ relayInstanceId: string; role: string }>>();
   /** When placement last saw each relay not serving; a relay ready again since is held back for a while. */
   private readonly notServingAt = new Map<string, number>();
+  /** Relays seen serving by this process: only those are held back when they come back (placementView). */
+  private readonly servedOnce = new Set<string>();
   /**
    * Relays a Relay Pool update drained, and when: their restart is planned, so they are not held back once the update
    * resumes them (see placementView).
@@ -568,12 +570,20 @@ export class RelayPoolService {
         this.servingAgainAt.delete(id);
       }
     }
+    const serving = ({ id, state }: RelayInstanceRow) => state === 'ready' && !failing.has(id);
     for (const instance of instances) {
+      if (serving(instance)) this.servedOnce.add(instance.id);
+      // Only a relay that served before comes back: one that joins the pool while Opfield runs is placed as soon as
+      // it is ready, like the relays Opfield found ready at start (stand 2.12.6-rc.1, O-6: a relay added a minute
+      // earlier was held back, so a drained relay's standbys went to a far relay instead).
+      const servedBefore =
+        this.servedOnce.has(instance.id) || !instance.createdAt || instance.createdAt.getTime() < this.startedAt;
+      if (!servedBefore) continue;
       if ((instance.state !== 'ready' && !grace.has(instance.id) && !planned(instance)) || failing.has(instance.id)) {
         this.notServingAt.set(instance.id, now);
       }
     }
-    const serving = ({ id, state }: RelayInstanceRow) => state === 'ready' && !failing.has(id);
+    for (const id of this.servedOnce) if (!known.has(id)) this.servedOnce.delete(id);
     const holdBack = new Set(
       instances.filter((instance) => serving(instance) && this.notServingAt.has(instance.id)).map(({ id }) => id)
     );
@@ -814,8 +824,11 @@ export class RelayPoolService {
       instanceId: instance.id,
       nodeId,
     });
-    // An operator drain stays as it is; a drain taken here ends with the change.
+    // An operator drain stays as it is; a drain taken here ends with the change. Either way the worker restart is
+    // planned, like an update's: the relay is not judged failed while it restarts, and once resumed it takes its
+    // roles back at once instead of being held back as a relay that came back (stand 2.12.6-rc.1, O-6).
     const drainedHere = !instance.manualDrainStartedAt;
+    this.drainedForUpdate.set(instance.id, Date.now());
     if (drainedHere) await this.setInstanceDrain(instance.id, userId, true, true);
     let failure: string | null = null;
     try {
