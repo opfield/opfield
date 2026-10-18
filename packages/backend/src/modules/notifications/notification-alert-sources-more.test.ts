@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import {
+  beginPlannedPortChange,
+  endPlannedPortChange,
+  recordedRelayState,
+} from '@/services/relay-planned-port-changes.js';
 import { AlertSourceMonitor } from './notification-alert-sources.js';
 import { CATEGORY_MAP, catalogMismatch } from './notification-catalog.js';
 import { extractMetricFromDatabaseSnapshot } from './notification-metrics.js';
@@ -86,6 +91,48 @@ describe('relay pool', () => {
       ready: 1,
       total: 2,
     });
+  });
+});
+
+// Stand 2.12.6-rc.2, O-10: a relay restarting for a planned port move reports offline; no alert may fire for it.
+describe('relay pool alerts around a planned port move', () => {
+  async function observeAfterReport(reported: 'offline' | 'error') {
+    const { evaluator, observed } = evaluatorFor('relay_pool');
+    // control.ts records the reported state through recordedRelayState; the alert source reads what was recorded.
+    const db = fakeDb(
+      [
+        { id: 'r1', poolId: 'system', name: 'relay-a', state: 'ready', health: null },
+        {
+          id: 'r2',
+          poolId: 'system',
+          name: 'relay-b',
+          state: recordedRelayState('r2', reported),
+          health: { lastError: 'connection refused' },
+        },
+      ],
+      []
+    );
+    await new AlertSourceMonitor({ db, evaluator: evaluator as never, ...base }).relayPool();
+    return (id: string, pattern: string) => observed.find((o) => o.id === id && o.pattern === pattern)?.state;
+  }
+
+  it('fires neither relay offline nor pool degraded while the relay restarts for its port move', async () => {
+    beginPlannedPortChange('r2');
+    try {
+      for (const reported of ['offline', 'error'] as const) {
+        const state = await observeAfterReport(reported);
+        expect(state('r2', 'member.offline')).toBe('member.online');
+        expect(state('pool:system', 'pool.degraded')).toBe('pool.healthy');
+      }
+    } finally {
+      endPlannedPortChange('r2');
+    }
+  });
+
+  it('fires both when the relay goes offline outside a port move', async () => {
+    const state = await observeAfterReport('offline');
+    expect(state('r2', 'member.offline')).toBe('member.offline');
+    expect(state('pool:system', 'pool.degraded')).toBe('pool.degraded');
   });
 });
 

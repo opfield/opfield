@@ -17,3 +17,8 @@ export function endPlannedPortChange(instanceId: string): void {
 export function inPlannedPortChange(instanceId: string): boolean {
   return running.has(instanceId);
 }
+
+/** The state Opfield records for a relay's runtime report: draining while its planned port change runs. */
+export function recordedRelayState<State extends string>(instanceId: string, reported: State): State | 'draining' {
+  return running.has(instanceId) ? 'draining' : reported;
+}
