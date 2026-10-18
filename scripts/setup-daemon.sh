@@ -252,10 +252,7 @@ else
     trap 'rm -rf "$TMPDIR"' EXIT
     CHECKSUMS="${TMPDIR}/opfield-node-installers.sha256"
     log "Downloading verified ${SCRIPT_NAME} from Opfield releases..."
-    # legacy-name: LEGACY_INSTALLER_CHECKSUMS_ASSET, the only checksum list of releases before 2.12.1 (a pinned
-    # --version) — remove once the installers no longer install such a release.
-    curl -fsSL "${RELEASE_URL}/opfield-node-installers.sha256" -o "$CHECKSUMS" 2>/dev/null ||
-        curl -fsSL "${RELEASE_URL}/${LEGACY_INSTALLER_CHECKSUMS_ASSET}" -o "$CHECKSUMS" ||
+    curl -fsSL "${RELEASE_URL}/opfield-node-installers.sha256" -o "$CHECKSUMS" ||
         die "Failed to download installer checksums from ${RELEASE_URL}"
 
     fetch_verified() {

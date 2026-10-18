@@ -22,8 +22,8 @@ export const DEFAULT_CLOUD_PORTAL_URL = 'https://account.opfield.dev';
 /** Release feed and artifact host (the update Worker): `${UPDATES_BASE_URL}/releases`, `/<package>/<tag>/<file>`. */
 export const UPDATES_BASE_URL = 'https://get.opfield.dev/opfield';
 /**
- * Earlier names of the same update Worker: the namespace installs up to 2.12.2 read and signed manifests name as the
- * artifact host, and the host installs up to 2.11.5 read. They stay served forever, so an artifact URL under any of
+ * Earlier names of the same update Worker: the namespace lease watchdogs poll and signed manifests name as the
+ * artifact host, and the host manifests signed before the get.opfield.dev move name. An artifact URL under any of
  * them is accepted for the same path.
  */
 export const LEGACY_UPDATES_BASE_URLS: readonly string[] = [LEGACY_UPDATES_BASE_URL, LEGACY_THESQLABS_UPDATES_BASE_URL];

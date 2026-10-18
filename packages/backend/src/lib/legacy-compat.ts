@@ -5,14 +5,12 @@
  * running. Pure constants only (no imports): the update Worker, the frontend bundle and node scripts load this file too.
  */
 
-/** Update feed path namespace installed releases up to 2.12.2 request; signed downloadUrls of daemon manifests name it. */
+/** Update feed path namespace lease watchdogs on Docker nodes poll; signed downloadUrls of daemon manifests name it. */
 export const LEGACY_UPDATE_NAMESPACE = 'gateway';
 /** Release feed base signed daemon, relay and witness manifests name as downloadUrl; installed backends check it. */
 export const LEGACY_UPDATES_BASE_URL = 'https://get.opfield.dev/gateway';
 /** Release feed base daemon manifests signed before the get.opfield.dev move name. */
 export const LEGACY_THESQLABS_UPDATES_BASE_URL = 'https://updates.thesqlabs.com/gateway';
-/** App component of the update feed, asked for by releases up to 2.12.2. */
-export const LEGACY_APP_UPDATE_COMPONENT = 'gateway';
 /** Release asset of the signed app image manifest; the updater of every installed release downloads it by this name. */
 export const LEGACY_APP_IMAGE_MANIFEST_ASSET = 'gateway-image.update.json';
 /** Kind of the signed app image manifest, verified by the updater of every installed release. */
@@ -21,7 +19,7 @@ export const LEGACY_APP_IMAGE_MANIFEST_KIND = 'gateway-image';
 export const LEGACY_MIN_VERSION_FIELD = 'minGatewayVersion';
 /** Manifest field with the maximum app version (core manifests), read by installed releases. */
 export const LEGACY_MAX_VERSION_FIELD = 'maxGatewayVersion';
-/** Installer checksum list that setup commands and wrappers of releases before 2.12.1 download. */
+/** Only installer checksum list of releases before 2.12.1; read from such a release for a relay pool still on it. */
 export const LEGACY_INSTALLER_CHECKSUMS_ASSET = 'gateway-daemon-installers.sha256';
 /** First release line of inference core builds (vX.Y.Z-<line>.N), still served and ordered. */
 export const LEGACY_CORE_RELEASE_LINE = 'wiolett';

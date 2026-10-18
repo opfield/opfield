@@ -202,10 +202,7 @@ else
     fi
     DOWNLOADED_DOCKER_SCRIPT=$(mktemp /tmp/opfield-setup-docker.XXXXXX)
     checksums=$(mktemp /tmp/opfield-setup-checksums.XXXXXX)
-    # legacy-name: LEGACY_INSTALLER_CHECKSUMS_ASSET, the only checksum list of releases before 2.12.1 (a pinned
-    # OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
-    curl -fsSL "${release_url}/opfield-node-installers.sha256" -o "$checksums" 2>/dev/null ||
-        curl -fsSL "${release_url}/${LEGACY_INSTALLER_CHECKSUMS_ASSET}" -o "$checksums" ||
+    curl -fsSL "${release_url}/opfield-node-installers.sha256" -o "$checksums" ||
         die "Could not download installer checksums."
     curl -fsSL "${release_url}/setup-docker-node.sh" -o "$DOWNLOADED_DOCKER_SCRIPT" ||
         die "Could not download setup-docker-node.sh."

@@ -32,10 +32,7 @@ else
 fi
 stage=$(mktemp -d /tmp/opfield-setup-storage.XXXXXX)
 trap 'rm -rf "$stage"' EXIT
-# legacy-name: the legacy checksum list, the only checksum list of releases before 2.12.1 (a pinned
-# OPFIELD_SETUP_VERSION) — remove once the installers no longer install such a release
-curl -fsSL "$release_url/opfield-node-installers.sha256" -o "$stage/checksums" 2>/dev/null ||
-    curl -fsSL "$release_url/${LEGACY_INSTALLER_CHECKSUMS_ASSET}" -o "$stage/checksums"
+curl -fsSL "$release_url/opfield-node-installers.sha256" -o "$stage/checksums"
 curl -fsSL "$release_url/setup-database-node.sh" -o "$stage/setup-database-node.sh"
 expected=$(awk '$2 == "setup-database-node.sh" { print $1 }' "$stage/checksums")
 if command -v sha256sum >/dev/null; then

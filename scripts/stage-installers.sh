@@ -53,8 +53,3 @@ for wrapper in "${wrappers[@]}"; do
   fi
 done
 (cd "$out" && sha256sum "${installers[@]}") > "${out}/opfield-node-installers.sha256"
-# legacy-name: the legacy checksum list, the same list under the name setup commands and wrappers of releases
-# before 2.12.1 read (a wrapper of 2.12.0 pinned to this release with --version) — remove once no supported release reads it.
-# shellcheck source=legacy-compat.sh
-. "${scripts_dir}/legacy-compat.sh"
-cp "${out}/opfield-node-installers.sha256" "${out}/${LEGACY_INSTALLER_CHECKSUMS_ASSET}"

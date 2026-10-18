@@ -15,7 +15,7 @@ const (
 	MaxVersionField = "maxGatewayVersion"
 	// UpdateKeyID: key id of update manifests and the license endpoints document, checked by installed releases.
 	UpdateKeyID = "wiolett-update-v1"
-	// UpdateFeedBase: release feed base installs up to 2.12.2 are pinned to and signed downloadUrls name.
+	// UpdateFeedBase: release feed base lease watchdogs poll and signed downloadUrls name.
 	UpdateFeedBase = "https://get.opfield.dev/gateway"
 	// GRPCPackage: protobuf package of released daemons and relays: state schemas, service paths 2.12.0 daemons call and 2.12.0 relays forward.
 	GRPCPackage = "gateway.v1"

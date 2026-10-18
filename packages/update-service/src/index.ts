@@ -1,6 +1,5 @@
 import {
 	LEGACY_APP_IMAGE_MANIFEST_ASSET,
-	LEGACY_APP_UPDATE_COMPONENT,
 	LEGACY_CORE_RELEASE_LINE,
 	LEGACY_INSTALLER_CHECKSUMS_ASSET,
 	LEGACY_UPDATE_NAMESPACE,
@@ -14,16 +13,14 @@ const RELEASE_PAGE_SIZE = 100;
 // GitHub lists releases newest first; a search that is still unsettled after this many pages
 // answers from what it has read.
 const RELEASE_PAGE_LIMIT = 10;
-// Path namespaces of the feed: the Opfield one, and the earlier one installed releases up to 2.12.2 request.
+// Path namespaces of the feed: the Opfield one, and the earlier one that lease watchdogs on Docker nodes poll and
+// that signed daemon, relay and witness manifests name as their downloadUrl.
 const PRODUCT_NAMESPACES: ReadonlySet<string> = new Set([
 	"opfield",
 	LEGACY_UPDATE_NAMESPACE,
 ]);
-// Component of the app release: the Opfield name, and the earlier one installed releases up to 2.12.2 ask for.
-const APP_COMPONENTS: ReadonlySet<string> = new Set([
-	"opfield",
-	LEGACY_APP_UPDATE_COMPONENT,
-]);
+// Component and artifact package of the app release.
+const APP_COMPONENT = "opfield";
 
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -98,8 +95,7 @@ const APP_ARTIFACT_PATTERN = new RegExp(
 );
 
 const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
-	opfield: APP_TAG_PATTERN,
-	[LEGACY_APP_UPDATE_COMPONENT]: APP_TAG_PATTERN,
+	[APP_COMPONENT]: APP_TAG_PATTERN,
 	relay: /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-relay$/,
 	"nginx-daemon": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-nginx$/,
 	"docker-daemon": /^v\d+\.\d+\.\d+(?:-rc\.\d+)?-docker$/,
@@ -116,8 +112,7 @@ const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {
 };
 
 const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
-	opfield: APP_ARTIFACT_PATTERN,
-	[LEGACY_APP_UPDATE_COMPONENT]: APP_ARTIFACT_PATTERN,
+	[APP_COMPONENT]: APP_ARTIFACT_PATTERN,
 	relay: /^relay-image\.update\.json$/,
 	"nginx-daemon":
 		/^(nginx-daemon-linux-(amd64|arm64)(\.update\.json)?|checksums\.txt)$/,
@@ -140,8 +135,8 @@ const ARTIFACT_PATTERNS: Readonly<Record<string, RegExp>> = {
 // Installers an Opfield release carries (scripts/stage-installers.sh), served in GitHub's release download layout:
 // /<namespace>/releases/download/<tag>/<file> and /<namespace>/releases/latest/download/<file>. "/" and "/install.sh" are the
 // server installer of the latest stable release.
-// legacy-name: the legacy checksum list setup commands and wrappers of releases before
-// 2.12.1 read — remove once no served release is older than 2.12.1.
+// legacy-name: the checksum list of releases before 2.12.1, which Opfield downloads from such a release for the relay
+// installer of a relay pool still on it — remove once every relay pool runs 2.12.1 or later.
 const INSTALLER_ASSET_PATTERN = new RegExp(
 	`^(install\\.sh|setup-(daemon|node|docker-node|database-node|storage-node|monitoring-node|relay-node)\\.sh|opfield-node-installers\\.sha256|${escapeRegExp(LEGACY_INSTALLER_CHECKSUMS_ASSET)})$`,
 );
@@ -266,7 +261,7 @@ function parseReleaseVersion(
 		};
 	}
 	const suffix =
-		APP_COMPONENTS.has(component) || component === "witness-clickhouse-keeper"
+		component === APP_COMPONENT || component === "witness-clickhouse-keeper"
 			? ""
 			: component === "relay" || component === "relay-supervisor"
 				? "-relay"

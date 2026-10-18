@@ -1,9 +1,10 @@
 # Opfield update service
 
 Cloudflare Worker for the stable public Opfield update namespace at
-`get.opfield.dev/opfield`. The same Worker keeps serving the earlier path namespace (releases up to 2.12.2 use it) and
-the earlier host `updates.thesqlabs.com` (releases up to 2.11); all answer identically. The earlier namespace is kept
-in `packages/backend/src/lib/legacy-compat.ts`.
+`get.opfield.dev/opfield`. The same Worker keeps serving the earlier path namespace, which lease watchdogs on Docker
+nodes poll and which signed daemon, relay and witness manifests name as their download URL; both answer identically.
+The earlier namespace is kept in `packages/backend/src/lib/legacy-compat.ts`. The app answers only under the
+`opfield` component and package.
 
 It exposes:
 
@@ -14,7 +15,8 @@ It exposes:
 - `GET|HEAD /opfield/<package>/<tag>/<artifact>` for allow-listed signed Opfield artifacts
 - `GET|HEAD /opfield/releases/download/<tag>/<installer>` and `/opfield/releases/latest/download/<installer>`: the
   installers an Opfield release carries (`install.sh`, `setup-*.sh`, `opfield-node-installers.sha256`; releases before 2.12.1 carry
-  the earlier checksum list instead, and later ones carry it too), in GitHub's release download layout
+  the earlier checksum list instead, which Opfield reads for a relay pool still on such a release), in GitHub's release
+  download layout
 - `GET|HEAD /` and `/install.sh`: `install.sh` of the latest stable release (cached for 5 minutes)
 - `GET|HEAD /opfield/license-endpoints.json`: the signed list of license service addresses
   (`scripts/release/license-endpoints.mjs`), an asset of the latest stable release (cached for 5 minutes)

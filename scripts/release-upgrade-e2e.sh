@@ -875,15 +875,11 @@ check_license_guard() {
 }
 
 feed_pin() {
-  python3 - "$LEGACY_APP_UPDATE_COMPONENT" "$WORK/feed-state.json" "$@" <<'PY'
+  python3 - "$WORK/feed-state.json" "$@" <<'PY'
 import json, sys
-legacy, path, channel, pins = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
+path, channel, pins = sys.argv[1], sys.argv[2], sys.argv[3:]
 with open(path, 'w') as f:
-    pins = dict(p.split('=', 1) for p in pins)
-    # The base asks for the app under the component name of its release (LEGACY_APP_UPDATE_COMPONENT before 2.12.3).
-    if 'opfield' in pins:
-        pins.setdefault(legacy, pins['opfield'])
-    json.dump({'channel': channel, 'pins': pins}, f)
+    json.dump({'channel': channel, 'pins': dict(p.split('=', 1) for p in pins)}, f)
 PY
   say "release feed: ${1} channel, pinned: ${*:2}"
 }

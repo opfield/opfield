@@ -546,6 +546,27 @@ describe("update facade", () => {
 		expect(fetcher).not.toHaveBeenCalled();
 	});
 
+	it("answers the app only under the opfield component and package", async () => {
+		const fetcher = vi.fn<typeof fetch>();
+		const component = await handleRequest(
+			new Request(
+				`https://get.opfield.dev/${LEGACY_UPDATE_NAMESPACE}/releases?component=${LEGACY_UPDATE_NAMESPACE}`,
+			),
+			env,
+			fetcher,
+		);
+		expect(component.status).toBe(400);
+		const artifact = await handleRequest(
+			new Request(
+				`https://get.opfield.dev/opfield/${LEGACY_UPDATE_NAMESPACE}/v2.12.5/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`,
+			),
+			env,
+			fetcher,
+		);
+		expect(artifact.status).toBe(404);
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
 	it("rejects paths outside the release contract without upstream access", async () => {
 		const fetcher = vi.fn<typeof fetch>();
 		const response = await handleRequest(
