@@ -276,8 +276,17 @@ Managed services продолжают работать. Existing nginx configs �
 |------|-------|-----|----------------------|
 | ![Community](docs/assets/license/opfield-community-24.png)<br>Community | $0 | $0 | Ядро платформы, AI Workspace и Opfield Inference для своей инфраструктуры и других сценариев, не конкурирующих с Opfield; до 25 managed nodes, 3 пользователей и 1 custom permission group; read-only discovery, inventory, monitoring и logs Compose-проектов. Pages, databases, storage, GitLab integration, а также Scenarios, Plan Mode и sandboxes AI Workspace недоступны. |
 | ![Personal](docs/assets/license/opfield-personal-24.png)<br>Personal | $29 | $290 | Неограниченные plan quotas для managed nodes/users/groups, deployment и lifecycle management Compose-проектов, import/export архивов контейнеров, blue/green deployments, cross-node migration, managed databases и external database connections с бэкапами, storage connections и managed SeaweedFS object storage, GitLab integration, Scenarios, Plan Mode и sandboxes AI Workspace, публичные status pages, Pages static-site hosting и registry discovery. Multi-node Workload Availability доступна с Business и выше. |
-| ![Business](docs/assets/license/opfield-business-24.png)<br>Business | $189 | $1,890 | Возможности Personal (включая Compose management и Pages), а также Git push-to-deploy для containers, blue/green deployments, Compose Projects и Pages с изолированными Build Workers и build vulnerability policy, опциональный внешний доступ к private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding, доступную multi-node Workload Availability (HA), а также расширенное сканирование безопасности, автомасштабирование по метрикам и same-node multi-instance после выпуска. |
+| ![Business](docs/assets/license/opfield-business-24.png)<br>Business | $189 | $1,890 | Возможности Personal (включая Compose management и Pages), а также Git push-to-deploy для containers, blue/green deployments, Compose Projects и Pages с изолированными Build Workers и build vulnerability policy, опциональный внешний доступ к private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding и multi-node Workload Availability (HA). |
 | ![Enterprise](docs/assets/license/opfield-enterprise-24.png)<br>Enterprise | По запросу | По запросу | Возможности Business (включая Pages), а также Internal PKI, SIEM export, выделенный технический контакт и сопровождение развёртывания и миграции. |
+
+В тарифах указано только то, что уже работает. Запланировано (версия — цель, а не обещание):
+
+| Запланировано | Цель | Тарифы |
+|---------------|------|--------|
+| Общий CLI Opfield | 2.13 | Все тарифы |
+| Bastion / SSH management daemon | 2.14 | Business, Enterprise |
+| Расширенное сканирование уязвимостей и безопасности | Не задана | Business, Enterprise |
+| Автомасштабирование по метрикам и same-node replicas | Не задана | Business, Enterprise |
 
 Эти лимиты Community и возможности выше, которым теперь нужен Personal или выше, действуют с 2.11; в 2.10 Community допускал 100 managed nodes, 10 пользователей и 5 custom permission groups. Лимиты проверяются только при создании, поэтому установка, которая уже превышает их, сохраняет существующие ноды, пользователей и группы, но не может добавить новые, пока остаётся на лимите или выше.
 

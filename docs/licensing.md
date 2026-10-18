@@ -42,7 +42,7 @@ Entitlements schema version 5 is current. It adds storage connections, external 
 | Folder- and Resource-Scoped Role-Based Access Control | Ready | ✅ | ✅ | ✅ | ✅ |
 | Audit Log | Ready | ✅ | ✅ | ✅ | ✅ |
 | REST API, OAuth, and MCP Automation | Ready | ✅ | ✅ | ✅ | ✅ |
-| General Opfield CLI | Expected in 2.13 | ✅ | ✅ | ✅ | ✅ |
+| General Opfield CLI | Planned, target 2.13 | ✅ | ✅ | ✅ | ✅ |
 | AI Workspace Chat | Ready, opt-in | ✅ | ✅ | ✅ | ✅ |
 | Opfield Inference | Ready, opt-in | ✅ | ✅ | ✅ | ✅ |
 | Automated Installation and Signed Updates | Ready | ✅ | ✅ | ✅ | ✅ |
@@ -74,20 +74,20 @@ Entitlements schema version 5 is current. It adds storage connections, external 
 | Git Build Vulnerability Scanning and Admission Policy | Ready | — | — | ✅ | ✅ |
 | Structured Logging | Ready, opt-in | — | — | ✅ | ✅ |
 | Audit Log Export | Ready | — | — | ✅ | ✅ |
-| Bastion / SSH Management Daemon | Expected in 2.14 | — | — | ✅ | ✅ |
-| Broader Workload Vulnerability and Security Scanning | In development | — | — | ✅ | ✅ |
-| Metric Autoscaling | In development | — | — | ✅ | ✅ |
-| Multiple Instances of One Workload on One Machine | In development | — | — | ✅ | ✅ |
+| Bastion / SSH Management Daemon | Planned, target 2.14 | — | — | ✅ | ✅ |
+| Broader Workload Vulnerability and Security Scanning | Planned | — | — | ✅ | ✅ |
+| Metric Autoscaling | Planned | — | — | ✅ | ✅ |
+| Multiple Instances of One Workload on One Machine | Planned | — | — | ✅ | ✅ |
 | Guided Onboarding and Configuration Review | Plan benefit | — | — | ✅ | ✅ |
 | Internal PKI | Ready | — | — | — | ✅ |
 | SIEM Audit Export | Ready, opt-in | — | — | — | ✅ |
-| OIDC Group Mapping and SCIM Provisioning | In development | — | — | — | ✅ |
+| OIDC Group Mapping and SCIM Provisioning | Planned | — | — | — | ✅ |
 | Dedicated Technical Contact | Plan benefit | — | — | — | ✅ |
 | Assisted Deployment and Migration | Plan benefit | — | — | — | ✅ |
 
-`In development` and `Expected in 2.x` identify future product availability separately from plan entitlement. A checkmark on such a row means the feature is intended to be included in that plan when released. Target versions are roadmap estimates, not currently available features.
+`Planned` rows are not available yet. A checkmark on such a row shows the plan the work is planned for; a target version is a target, not a promise.
 
-Workload Availability (HA) is available for mount-free Containers, Deployments, and whole Compose Projects on Business and Enterprise: 2–32 serving placements in Replicated mode or one serving placement with replacement in Failover mode. Once every node and relay of a workload runs 2.11, failover runs in the data plane (lease mode) and keeps working while Opfield is down; a license change never takes a policy out of lease mode (see [Data-Plane Failover](capabilities.md#data-plane-failover-lease-mode)). Ingress groups, which serve Routes, Pages Routes, and Domains from several nginx nodes, use the same Business and Enterprise entitlement; existing groups keep serving without it (see [Ingress Groups](capabilities.md#ingress-groups)). This is not HA for the Opfield control plane, registry storage, or shared volumes; metric autoscaling and same-node replicas remain in development.
+Workload Availability (HA) is available for mount-free Containers, Deployments, and whole Compose Projects on Business and Enterprise: 2–32 serving placements in Replicated mode or one serving placement with replacement in Failover mode. Once every node and relay of a workload runs 2.11, failover runs in the data plane (lease mode) and keeps working while Opfield is down; a license change never takes a policy out of lease mode (see [Data-Plane Failover](capabilities.md#data-plane-failover-lease-mode)). Ingress groups, which serve Routes, Pages Routes, and Domains from several nginx nodes, use the same Business and Enterprise entitlement; existing groups keep serving without it (see [Ingress Groups](capabilities.md#ingress-groups)). This is not HA for the Opfield control plane, registry storage, or shared volumes; metric autoscaling and same-node replicas are planned.
 
 Runtime enforcement applies only to features marked ready. Community limits are enforced when creating a managed node, non-deleted user, or custom permission group; existing records are never deleted by a plan change. Storage-node enrollment is available on every plan, while creating a managed database requires Personal or higher.
 

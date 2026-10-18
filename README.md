@@ -271,8 +271,17 @@ Every official release also carries the [Product Continuity Grant](CONTINUITY-GR
 |------|---------|--------|-----------------|
 | ![Community](docs/assets/license/opfield-community-24.png)<br>Community | $0 | $0 | Core platform, AI Workspace, and Opfield Inference for internal and other noncompeting use; up to 25 managed nodes, 3 users, and 1 custom permission group; read-only Compose discovery, inventory, monitoring, and logs. Pages, databases, storage, GitLab integration, and AI Workspace Scenarios, Plan Mode, and sandboxes unavailable. |
 | ![Personal](docs/assets/license/opfield-personal-24.png)<br>Personal | $29 | $290 | Unlimited managed-node/user/group plan quotas, Compose deployment and lifecycle management, container archive import/export, blue/green deployments, cross-node migration, managed databases and external database connections with backups, storage connections and managed SeaweedFS object storage, GitLab integration, AI Workspace Scenarios, Plan Mode, and sandboxes, public status pages, Pages static-site hosting, and registry discovery. Multi-node Workload Availability requires Business or Enterprise. |
-| ![Business](docs/assets/license/opfield-business-24.png)<br>Business | $189 | $1,890 | Personal (including Compose management and Pages) plus Git push-to-deploy for containers, blue/green deployments, Compose Projects, and Pages with isolated Build Workers and build vulnerability policy, optional external access to the private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding, multi-node Workload Availability (HA), and broader security scanning, metric autoscaling, and same-node replicas when released. |
+| ![Business](docs/assets/license/opfield-business-24.png)<br>Business | $189 | $1,890 | Personal (including Compose management and Pages) plus Git push-to-deploy for containers, blue/green deployments, Compose Projects, and Pages with isolated Build Workers and build vulnerability policy, optional external access to the private internal registry, Docker Secure Runtime, structured logging, audit export, guided onboarding, and multi-node Workload Availability (HA). |
 | ![Enterprise](docs/assets/license/opfield-enterprise-24.png)<br>Enterprise | On request | On request | Business (including Pages) plus Internal PKI, SIEM export, a dedicated technical contact, and assisted deployment and migration. |
+
+Plans list only what ships today. Planned work, where a version is a target and not a promise:
+
+| Planned | Target | Plans |
+|---------|--------|-------|
+| General Opfield CLI | 2.13 | All plans |
+| Bastion / SSH management daemon | 2.14 | Business, Enterprise |
+| Broader workload vulnerability and security scanning | Not set | Business, Enterprise |
+| Metric autoscaling and same-node replicas | Not set | Business, Enterprise |
 
 These Community limits, and the features above that now need Personal or higher, apply from 2.11; 2.10 Community allowed 100 managed nodes, 10 users, and 5 custom permission groups. Plan limits are checked only when something is created, so an installation already above them keeps its existing nodes, users, and groups but cannot add more while it stays at or above a limit.
 
