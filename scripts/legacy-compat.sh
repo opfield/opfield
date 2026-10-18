@@ -5,9 +5,8 @@
 # installer in place of the line that sources it. Each line says what reads it. Do not change a value.
 
 # Release assets and the update feed
-LEGACY_APP_IMAGE_MANIFEST_ASSET=gateway-image.update.json # signed app manifest the updater of every installed release downloads
+LEGACY_APP_IMAGE_MANIFEST_ASSET=gateway-image.update.json # app manifest name of releases before 2.12.6, published next to opfield-image.update.json; remove after every install runs v2.12.6
 LEGACY_APP_IMAGE_MANIFEST_KIND=gateway-image # kind inside that manifest, verified by installed releases and install.sh
-LEGACY_UPDATE_NAMESPACE=gateway # feed path namespace lease watchdogs poll and signed downloadUrls name (installed releases check them)
 LEGACY_UPDATE_KEY_ID=wiolett-update-v1 # key id of signed update manifests, checked by setup-relay-node.sh and installed releases
 LEGACY_MIN_VERSION_FIELD=minGatewayVersion # relay manifest field with the minimum app version (install.sh, installed releases)
 

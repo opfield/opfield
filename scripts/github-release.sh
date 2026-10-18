@@ -125,7 +125,9 @@ publish_opfield() {
   local digest
   local installers_dir=release-installers
   ./scripts/stage-installers.sh "$tag" "$installers_dir"
-  local assets=(CONTINUITY-GRANT.md "$LEGACY_APP_IMAGE_MANIFEST_ASSET" "$installers_dir"/*)
+  # legacy-name: LEGACY_APP_IMAGE_MANIFEST_ASSET, the same manifest under the name updaters before 2.12.6 download —
+  # remove after every install runs v2.12.6
+  local assets=(CONTINUITY-GRANT.md opfield-image.update.json "$LEGACY_APP_IMAGE_MANIFEST_ASSET" "$installers_dir"/*)
   prepare_release "Opfield ${tag}" "Opfield release ${tag}"
   if [[ "$release_already_published" -eq 1 ]]; then
     complete_release "${assets[@]}"
@@ -152,8 +154,9 @@ publish_opfield() {
       --digest "$digest" \
       --git-commit-sha "$commit_sha" \
       --git-pipeline-id "$run_id" \
-      --out "../../${LEGACY_APP_IMAGE_MANIFEST_ASSET}"
+      --out ../../opfield-image.update.json
   )
+  cp opfield-image.update.json "$LEGACY_APP_IMAGE_MANIFEST_ASSET"
   docker tag "${opfield_image}:${tag}" "${opfield_image}:${tag#v}"
   docker push "${opfield_image}:${tag#v}"
   if [[ "$RELEASE_PRERELEASE" != "true" ]]; then

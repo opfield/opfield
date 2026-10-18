@@ -33,7 +33,7 @@ test('a fork publishes and signs for its own repository', () => {
 
 test('signed daemon, relay and witness manifests name their artifact on get.opfield.dev', () => {
   const source = readFileSync(path.join(root, 'scripts/release/manifest-download-base.sh'), 'utf8');
-  assert.match(source, /^MANIFEST_DOWNLOAD_BASE_URL="https:\/\/get\.opfield\.dev\/\$\{LEGACY_UPDATE_NAMESPACE\}"$/m);
+  assert.match(source, /^MANIFEST_DOWNLOAD_BASE_URL="https:\/\/get\.opfield\.dev\/opfield"$/m);
   for (const script of ['scripts/github-release.sh', 'scripts/release/witness-artifacts.sh']) {
     const text = readFileSync(path.join(root, script), 'utf8');
     assert.match(text, /manifest-download-base\.sh/, `${script} sources the manifest host`);

@@ -1,5 +1,8 @@
 import { LEGACY_UPDATES_BASE_URLS, UPDATES_BASE_URL } from '@/config/vendor-urls.js';
 
+/** Release asset of the signed app image manifest. */
+export const OPFIELD_IMAGE_MANIFEST_ASSET = 'opfield-image.update.json';
+
 export interface ReleaseRecord {
   tag_name: string;
   description?: unknown;

@@ -71,6 +71,8 @@ func migrateSystemd(ctx context.Context, host ServiceHost, executable, fallbackA
 		return NothingToMigrate, err
 	}
 	args := serviceArgs(string(content), "ExecStart="+LegacyBinaryPath+" ", "", fallbackArgs)
+	// legacy-name: the earlier feed namespace in the old service's arguments — remove after every install runs v2.12.6
+	args, _ = argsWithCurrentFeed(args)
 	if err := installBinary(executable, host.path(BinaryPath)); err != nil {
 		return NothingToMigrate, err
 	}
@@ -125,6 +127,8 @@ func migrateOpenRC(ctx context.Context, host ServiceHost, executable, fallbackAr
 		return NothingToMigrate, err
 	}
 	args := serviceArgs(string(content), `command_args="`, `"`, fallbackArgs)
+	// legacy-name: the earlier feed namespace in the old service's arguments — remove after every install runs v2.12.6
+	args, _ = argsWithCurrentFeed(args)
 	if err := installBinary(executable, host.path(BinaryPath)); err != nil {
 		return NothingToMigrate, err
 	}

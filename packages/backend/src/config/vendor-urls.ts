@@ -22,11 +22,25 @@ export const DEFAULT_CLOUD_PORTAL_URL = 'https://account.opfield.dev';
 /** Release feed and artifact host (the update Worker): `${UPDATES_BASE_URL}/releases`, `/<package>/<tag>/<file>`. */
 export const UPDATES_BASE_URL = 'https://get.opfield.dev/opfield';
 /**
- * Earlier names of the same update Worker: the namespace lease watchdogs poll and signed manifests name as the
- * artifact host, and the host manifests signed before the get.opfield.dev move name. An artifact URL under any of
- * them is accepted for the same path.
+ * Earlier names of the same update Worker that daemon manifests signed before 2.12.6 name as the artifact host. An
+ * artifact URL under any of them is accepted for the same path.
  */
+// legacy-name: artifact hosts of manifests signed before 2.12.6 — remove after every install runs v2.12.6
 export const LEGACY_UPDATES_BASE_URLS: readonly string[] = [LEGACY_UPDATES_BASE_URL, LEGACY_THESQLABS_UPDATES_BASE_URL];
+
+/**
+ * RELEASES_API_URL or ARTIFACT_BASE_URL with the earlier feed namespace replaced by the Opfield one (the same Worker
+ * answers both); any other address, a mirror, is kept.
+ */
+// legacy-name: LEGACY_UPDATES_BASE_URL in the settings of an install set up with it — remove after every install runs v2.12.6
+export function currentUpdatesUrl(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (trimmed === LEGACY_UPDATES_BASE_URL || trimmed.startsWith(`${LEGACY_UPDATES_BASE_URL}/`)) {
+    return `${UPDATES_BASE_URL}${trimmed.slice(LEGACY_UPDATES_BASE_URL.length)}`;
+  }
+  return value;
+}
 /** Node installers of a release, GitHub release download layout: `/download/<tag>/<file>`, `/latest/download/<file>`. */
 export const INSTALLER_RELEASES_URL = `${UPDATES_BASE_URL}/releases`;
 /**

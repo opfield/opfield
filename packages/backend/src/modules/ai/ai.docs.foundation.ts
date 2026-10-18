@@ -1,4 +1,5 @@
-import { LEGACY_ENV_PREFIX, LEGACY_LEASE_WATCHDOG, LEGACY_UPDATES_BASE_URL } from '@/lib/legacy-compat.js';
+import { INSTALLER_RELEASES_URL } from '@/config/vendor-urls.js';
+import { LEGACY_ENV_PREFIX, LEGACY_LEASE_WATCHDOG } from '@/lib/legacy-compat.js';
 import { PERMISSIONS_DOC } from './ai.docs.permissions.js';
 
 export const FOUNDATION_DOCS: Record<string, string> = {
@@ -491,8 +492,8 @@ The UI shows ready-to-copy commands, one per enrollment target, with curl or wge
 
 \`\`\`bash
 cd "$(mktemp -d)" && \\
-curl -fsSL -o setup-node.sh ${LEGACY_UPDATES_BASE_URL}/releases/download/<opfield-version>/setup-node.sh && \\
-curl -fsSL -o opfield-node-installers.sha256 ${LEGACY_UPDATES_BASE_URL}/releases/download/<opfield-version>/opfield-node-installers.sha256 && \\
+curl -fsSL -o setup-node.sh ${INSTALLER_RELEASES_URL}/download/<opfield-version>/setup-node.sh && \\
+curl -fsSL -o opfield-node-installers.sha256 ${INSTALLER_RELEASES_URL}/download/<opfield-version>/opfield-node-installers.sha256 && \\
 grep ' setup-node.sh$' opfield-node-installers.sha256 | sha256sum -c - && \\
 sudo bash setup-node.sh \\
   --opfield <opfield-host>:9443 --token <enrollment-token> --opfield-cert-sha256 sha256:<opfield-cert-fingerprint> --version <opfield-version>

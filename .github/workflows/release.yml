@@ -224,8 +224,11 @@ jobs:
               --digest "$DIGEST" \
               --git-commit-sha "$SHA" \
               --git-pipeline-id "$GITHUB_RUN_ID" \
-              --out "../../${LEGACY_APP_IMAGE_MANIFEST_ASSET}"
+              --out ../../opfield-image.update.json
           )
+          # legacy-name: the same manifest under the name updaters before 2.12.6 download — remove after every install
+          # runs v2.12.6
+          cp opfield-image.update.json "$LEGACY_APP_IMAGE_MANIFEST_ASSET"
 
       # Witness process binaries (a Keeper voter relays run for availability sets) ship with the
       # Opfield release, signed as kind witness-binary; relays fetch them through the update Worker.
@@ -272,7 +275,7 @@ jobs:
           installers_dir="${RUNNER_TEMP}/installers"
           scripts/stage-installers.sh "$GITHUB_REF_NAME" "$installers_dir"
           source scripts/legacy-compat.sh
-          assets=(CONTINUITY-GRANT.md "$LEGACY_APP_IMAGE_MANIFEST_ASSET" "$installers_dir"/* "${RUNNER_TEMP}/witness-artifacts"/*)
+          assets=(CONTINUITY-GRANT.md opfield-image.update.json "$LEGACY_APP_IMAGE_MANIFEST_ASSET" "$installers_dir"/* "${RUNNER_TEMP}/witness-artifacts"/*)
           license_endpoints="${RUNNER_TEMP}/license-endpoints/license-endpoints.json"
           if [[ -f "$license_endpoints" ]]; then
             assets+=("$license_endpoints")

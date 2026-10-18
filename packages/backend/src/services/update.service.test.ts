@@ -123,11 +123,41 @@ describe('UpdateService release selection', () => {
     );
 
     expect(service.getOpfieldManifestUrl('2.9.11')).toBe(
-      `${LEGACY_THESQLABS_UPDATES_BASE_URL}/opfield/v2.9.11/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`
+      `${LEGACY_THESQLABS_UPDATES_BASE_URL}/opfield/v2.9.11/opfield-image.update.json`
     );
     expect(service.getRelayManifestUrl('2.9.11')).toBe(
       `${LEGACY_THESQLABS_UPDATES_BASE_URL}/relay/v2.9.11-relay/relay-image.update.json`
     );
+  });
+
+  it('reads the app manifest under its Opfield name first and under the earlier name for older releases', async () => {
+    const base = 'https://get.example/opfield';
+    const fetchMock = vi.fn(async (input: string | URL) =>
+      String(input).endsWith(`/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`)
+        ? new Response('{}', { status: 200 })
+        : new Response('missing', { status: 404 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const service = new UpdateService(
+        {} as never,
+        makeDockerService() as never,
+        {
+          APP_VERSION: 'v2.12.5',
+          ARTIFACT_BASE_URL: base,
+        } as never
+      );
+
+      await expect(service.prepareOpfieldUpdate('v2.12.5')).rejects.toMatchObject({
+        code: 'UNTRUSTED_UPDATE_ARTIFACT',
+      });
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+        `${base}/opfield/v2.12.5/opfield-image.update.json`,
+        `${base}/opfield/v2.12.5/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`,
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('reads GitHub-style release notes from the update facade', async () => {

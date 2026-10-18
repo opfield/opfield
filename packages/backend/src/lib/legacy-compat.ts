@@ -5,13 +5,13 @@
  * running. Pure constants only (no imports): the update Worker, the frontend bundle and node scripts load this file too.
  */
 
-/** Update feed path namespace lease watchdogs on Docker nodes poll; signed downloadUrls of daemon manifests name it. */
+/** Feed namespace of releases before 2.12.6 (feed, signed downloadUrls); remove after every install runs v2.12.6. */
 export const LEGACY_UPDATE_NAMESPACE = 'gateway';
-/** Release feed base signed daemon, relay and witness manifests name as downloadUrl; installed backends check it. */
+/** Artifact base of daemon manifests signed before 2.12.6; remove after every install runs v2.12.6. */
 export const LEGACY_UPDATES_BASE_URL = 'https://get.opfield.dev/gateway';
-/** Release feed base daemon manifests signed before the get.opfield.dev move name. */
+/** Artifact base of manifests signed before the get.opfield.dev move; remove after every install runs v2.12.6. */
 export const LEGACY_THESQLABS_UPDATES_BASE_URL = 'https://updates.thesqlabs.com/gateway';
-/** Release asset of the signed app image manifest; the updater of every installed release downloads it by this name. */
+/** App manifest name of releases before 2.12.6, also published from 2.12.6; remove after every install runs v2.12.6. */
 export const LEGACY_APP_IMAGE_MANIFEST_ASSET = 'gateway-image.update.json';
 /** Kind of the signed app image manifest, verified by the updater of every installed release. */
 export const LEGACY_APP_IMAGE_MANIFEST_KIND = 'gateway-image';

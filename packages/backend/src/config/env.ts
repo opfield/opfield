@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { LEGACY_ENV_PREFIX, LEGACY_IMAGE_REPOSITORY } from '@/lib/legacy-compat.js';
 import {
+  currentUpdatesUrl,
   DEFAULT_CLOUD_PORTAL_URL,
   OFFICIAL_IMAGE_REPOSITORIES,
   OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES,
@@ -69,8 +70,8 @@ const envSchema = z.object({
   COMPOSE_PROJECT_DIR: z.string().optional(),
 
   // Updates
-  RELEASES_API_URL: z.string().url().default(`${UPDATES_BASE_URL}/releases`),
-  ARTIFACT_BASE_URL: z.string().url().default(UPDATES_BASE_URL),
+  RELEASES_API_URL: z.preprocess(currentUpdatesUrl, z.string().url().default(`${UPDATES_BASE_URL}/releases`)),
+  ARTIFACT_BASE_URL: z.preprocess(currentUpdatesUrl, z.string().url().default(UPDATES_BASE_URL)),
   // Signed update images are accepted from the installation's own repository and these (comma-separated).
   OPFIELD_UPDATE_IMAGE_REPOSITORIES: z.string().default(OFFICIAL_IMAGE_REPOSITORIES.join(',')),
   INFERENCE_CORE_UPDATE_IMAGE_REPOSITORIES: z.string().default(OFFICIAL_INFERENCE_CORE_IMAGE_REPOSITORIES.join(',')),

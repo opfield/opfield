@@ -320,6 +320,15 @@ func migrateLegacyService(ctx context.Context, logger *slog.Logger) {
 	case result == leasewatchdog.RemovedLegacy:
 		logger.Info("removed the pre-Opfield lease watchdog service", "service", leasewatchdog.LegacyUnitName)
 	}
+	if err != nil || result == leasewatchdog.SwitchingOver {
+		return
+	}
+	// legacy-name: the earlier feed namespace in the service's arguments — remove after every install runs v2.12.6
+	if moved, err := leasewatchdog.MoveServiceToCurrentFeed(ctx, host); err != nil {
+		logger.Warn("lease watchdog service keeps the earlier release feed address; retried on the next start", "error", err)
+	} else if moved {
+		logger.Info("lease watchdog service now reads the Opfield release feed", "url", leasewatchdog.DefaultReleasesURL)
+	}
 }
 
 // detachServiceSwitch runs the switch-over step outside this process's

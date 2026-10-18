@@ -13,8 +13,9 @@ const RELEASE_PAGE_SIZE = 100;
 // GitHub lists releases newest first; a search that is still unsettled after this many pages
 // answers from what it has read.
 const RELEASE_PAGE_LIMIT = 10;
-// Path namespaces of the feed: the Opfield one, and the earlier one that lease watchdogs on Docker nodes poll and
-// that signed daemon, relay and witness manifests name as their downloadUrl.
+// Path namespaces of the feed: the Opfield one, and the earlier one releases before 2.12.6 read (lease watchdog
+// services, signed downloadUrls of daemon, relay and witness manifests).
+// legacy-name: LEGACY_UPDATE_NAMESPACE — remove after every install runs v2.12.6
 const PRODUCT_NAMESPACES: ReadonlySet<string> = new Set([
 	"opfield",
 	LEGACY_UPDATE_NAMESPACE,
@@ -90,8 +91,10 @@ const CORE_VERSION_PATTERN = new RegExp(
 	`^(\\d+)\\.(\\d+)\\.(\\d+)-(${CORE_LINE_ALTERNATION})\\.(\\d+)$`,
 );
 const APP_TAG_PATTERN = /^v\d+\.\d+\.\d+(?:-rc\.\d+)?$/;
+// The signed app manifest, and the same file under the name releases before 2.12.6 download.
+// legacy-name: LEGACY_APP_IMAGE_MANIFEST_ASSET — remove after every install runs v2.12.6
 const APP_ARTIFACT_PATTERN = new RegExp(
-	`^${escapeRegExp(LEGACY_APP_IMAGE_MANIFEST_ASSET)}$`,
+	`^(opfield-image\\.update\\.json|${escapeRegExp(LEGACY_APP_IMAGE_MANIFEST_ASSET)})$`,
 );
 
 const TAG_PATTERNS: Readonly<Record<string, RegExp>> = {

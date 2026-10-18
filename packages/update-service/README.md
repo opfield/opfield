@@ -1,10 +1,11 @@
 # Opfield update service
 
 Cloudflare Worker for the stable public Opfield update namespace at
-`get.opfield.dev/opfield`. The same Worker keeps serving the earlier path namespace, which lease watchdogs on Docker
-nodes poll and which signed daemon, relay and witness manifests name as their download URL; both answer identically.
-The earlier namespace is kept in `packages/backend/src/lib/legacy-compat.ts`. The app answers only under the
-`opfield` component and package.
+`get.opfield.dev/opfield`. The same Worker keeps serving the earlier path namespace, which releases before 2.12.6 read
+(lease watchdog services, signed download URLs of daemon, relay and witness manifests); both answer identically. The
+earlier namespace is kept in `packages/backend/src/lib/legacy-compat.ts` until every install runs 2.12.6. The app answers
+only under the `opfield` component and package; its signed manifest is `opfield-image.update.json`, and releases also
+carry it under the earlier name that releases before 2.12.6 download.
 
 It exposes:
 

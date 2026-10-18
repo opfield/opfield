@@ -46,8 +46,11 @@ const (
 	Component  = "lease-watchdog"
 	DaemonType = "watchdog"
 
-	DefaultReleasesURL     = legacycompat.UpdateFeedBase + "/releases"
-	DefaultArtifactBaseURL = legacycompat.UpdateFeedBase
+	// FeedBase is the path namespace of the Opfield release feed on the update
+	// service.
+	FeedBase               = "https://get.opfield.dev/opfield"
+	DefaultReleasesURL     = FeedBase + "/releases"
+	DefaultArtifactBaseURL = FeedBase
 
 	maxResponseBytes = 64 * 1024
 )
@@ -56,7 +59,7 @@ const (
 // docker daemon's.
 func RunArgs(recordsOwner, releasesURL, artifactBaseURL, channel string) string {
 	return fmt.Sprintf("run --records-owner %s --auto-update --releases-url %s --artifact-base-url %s --channel %s",
-		recordsOwner, releasesURL, artifactBaseURL, channel)
+		recordsOwner, CurrentFeedURL(releasesURL), CurrentFeedURL(artifactBaseURL), channel)
 }
 
 // SystemdUnit is the installer's systemd unit for binary and args.
@@ -125,7 +128,7 @@ func ArtifactName() string {
 // stable line.
 func NextTag(ctx context.Context, client *http.Client, releasesURL, channel, current string) (string, error) {
 	channel = orDefault(channel, "stable")
-	endpoint, err := url.Parse(orDefault(releasesURL, DefaultReleasesURL))
+	endpoint, err := url.Parse(CurrentFeedURL(orDefault(releasesURL, DefaultReleasesURL)))
 	if err != nil {
 		return "", err
 	}
@@ -226,7 +229,7 @@ func (v releaseVersion) newerThan(other releaseVersion) bool {
 // installed unless it verifies and names this component's artifact.
 func FetchManifest(ctx context.Context, client *http.Client, artifactBaseURL, tag string) (string, *updateauth.DaemonManifestPayload, error) {
 	artifact := ArtifactName()
-	base := strings.TrimRight(orDefault(artifactBaseURL, DefaultArtifactBaseURL), "/")
+	base := strings.TrimRight(CurrentFeedURL(orDefault(artifactBaseURL, DefaultArtifactBaseURL)), "/")
 	manifestURL := fmt.Sprintf("%s/%s/%s/%s.update.json", base, Component, url.PathEscape(tag), artifact)
 	body, status, err := get(ctx, client, manifestURL)
 	if err != nil {

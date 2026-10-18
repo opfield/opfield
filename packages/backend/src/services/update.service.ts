@@ -29,6 +29,7 @@ import {
 } from '@/lib/legacy-compat.js';
 import { createChildLogger } from '@/lib/logger.js';
 import {
+  OPFIELD_IMAGE_MANIFEST_ASSET,
   type ReleaseFileSource,
   type ReleaseRecord,
   releaseFileSource,
@@ -726,8 +727,15 @@ export class UpdateService {
     const selfInfo = await this.dockerService.inspectSelf();
     const currentImage = imageRepositoryFromRef(selfInfo.Config.Image);
     const signedManifest = await this.fetchSignedManifest(
-      this.getManifestSource('opfield', tag, LEGACY_APP_IMAGE_MANIFEST_ASSET),
+      this.getManifestSource('opfield', tag, OPFIELD_IMAGE_MANIFEST_ASSET),
       'Opfield'
+    ).catch((error: unknown) =>
+      // legacy-name: LEGACY_APP_IMAGE_MANIFEST_ASSET, the only name of the manifest of releases before 2.12.6 — remove
+      // after every install runs v2.12.6
+      this.fetchSignedManifest(
+        this.getManifestSource('opfield', tag, LEGACY_APP_IMAGE_MANIFEST_ASSET),
+        'Opfield'
+      ).catch(() => Promise.reject(error))
     );
     let artifact: TrustedOpfieldUpdateArtifact | null = null;
     let verificationError: unknown;
@@ -2613,7 +2621,7 @@ backup="$FOUNDATION_BACKUP_DIR"
 
   getOpfieldManifestUrl(version: string): string {
     const tag = normalizeVersionTag(version);
-    return this.getManifestSource('opfield', tag, LEGACY_APP_IMAGE_MANIFEST_ASSET).url;
+    return this.getManifestSource('opfield', tag, OPFIELD_IMAGE_MANIFEST_ASSET).url;
   }
 
   getRelayManifestUrl(version: string): string {

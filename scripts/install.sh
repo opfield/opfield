@@ -514,13 +514,16 @@ verify_signed_release() {
   local payload signature kind manifest_version tag image digest image_ref secure_connector_image_ref secure_connector_image secure_connector_digest
 
   tmp_dir="$(mktemp -d)"
-  manifest_file="${tmp_dir}/${LEGACY_APP_IMAGE_MANIFEST_ASSET}"
+  manifest_file="${tmp_dir}/opfield-image.update.json"
   payload_file="${tmp_dir}/payload.json"
   signature_file="${tmp_dir}/signature.bin"
   key_file="${tmp_dir}/update-signing-public-key.pem"
 
   info "Verifying signed release manifest for ${version}"
-  if ! download_release_artifact opfield "$version" "$LEGACY_APP_IMAGE_MANIFEST_ASSET" "$manifest_file"; then
+  # legacy-name: LEGACY_APP_IMAGE_MANIFEST_ASSET, the only name of the manifest of releases before 2.12.6 (a pinned
+  # --version) — remove after every install runs v2.12.6
+  if ! download_release_artifact opfield "$version" opfield-image.update.json "$manifest_file" &&
+    ! download_release_artifact opfield "$version" "$LEGACY_APP_IMAGE_MANIFEST_ASSET" "$manifest_file"; then
     rm -rf "$tmp_dir"
     die "Could not download the signed release manifest. Check ${LOG_FILE} for details."
   fi

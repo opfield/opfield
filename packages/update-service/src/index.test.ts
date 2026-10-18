@@ -580,54 +580,57 @@ describe("update facade", () => {
 		expect(fetcher).not.toHaveBeenCalled();
 	});
 
-	it("streams a release asset and does not forward GitHub authorization to the signed redirect", async () => {
-		const fetcher = vi
-			.fn<typeof fetch>()
-			.mockResolvedValueOnce(
-				Response.json({
-					tag_name: "v2.9.11",
-					name: null,
-					body: null,
-					html_url: "https://github.com/opfield/opfield/releases/tag/v2.9.11",
-					published_at: "2026-08-27T00:00:00Z",
-					draft: false,
-					prerelease: false,
-					assets: [
-						{
-							id: 123,
-							name: `${LEGACY_APP_IMAGE_MANIFEST_ASSET}`,
-							size: 7,
-							content_type: "application/json",
+	it("streams the app manifest under either name and does not forward GitHub authorization to the signed redirect", async () => {
+		for (const asset of [
+			"opfield-image.update.json",
+			LEGACY_APP_IMAGE_MANIFEST_ASSET,
+		]) {
+			const fetcher = vi
+				.fn<typeof fetch>()
+				.mockResolvedValueOnce(
+					Response.json({
+						tag_name: "v2.9.11",
+						name: null,
+						body: null,
+						html_url: "https://github.com/opfield/opfield/releases/tag/v2.9.11",
+						published_at: "2026-08-27T00:00:00Z",
+						draft: false,
+						prerelease: false,
+						assets: [
+							{
+								id: 123,
+								name: asset,
+								size: 7,
+								content_type: "application/json",
+							},
+						],
+					}),
+				)
+				.mockResolvedValueOnce(
+					new Response(null, {
+						status: 302,
+						headers: {
+							Location:
+								"https://release-assets.githubusercontent.com/signed-download",
 						},
-					],
-				}),
-			)
-			.mockResolvedValueOnce(
-				new Response(null, {
-					status: 302,
-					headers: {
-						Location:
-							"https://release-assets.githubusercontent.com/signed-download",
-					},
-				}),
-			)
-			.mockResolvedValueOnce(
-				new Response("payload", {
-					headers: { "Content-Type": "application/json" },
-				}),
-			);
+					}),
+				)
+				.mockResolvedValueOnce(
+					new Response("payload", {
+						headers: { "Content-Type": "application/json" },
+					}),
+				);
 
-		const response = await handleRequest(
-			new Request(
-				`https://updates.thesqlabs.com/opfield/opfield/v2.9.11/${LEGACY_APP_IMAGE_MANIFEST_ASSET}`,
-			),
-			env,
-			fetcher,
-		);
-		expect(response.status).toBe(200);
-		await expect(response.text()).resolves.toBe("payload");
-		const redirectHeaders = new Headers(fetcher.mock.calls[2]?.[1]?.headers);
-		expect(redirectHeaders.has("Authorization")).toBe(false);
+			const response = await handleRequest(
+				new Request(`https://get.opfield.dev/opfield/opfield/v2.9.11/${asset}`),
+				env,
+				fetcher,
+			);
+			expect(response.status).toBe(200);
+			await expect(response.text()).resolves.toBe("payload");
+			const redirectHeaders = new Headers(fetcher.mock.calls[2]?.[1]?.headers);
+			expect(redirectHeaders.has("Authorization")).toBe(false);
+		}
 	});
 
 	it("serves the latest stable server installer at the root with a short cache", async () => {
