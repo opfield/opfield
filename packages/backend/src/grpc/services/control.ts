@@ -11,6 +11,7 @@ import { isMinorCompatible } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { DockerRuntimeStatusSchema } from '@/modules/docker/docker.schemas.js';
 import { DockerBuildService } from '@/modules/docker/docker-build.service.js';
+import { DomainsService } from '@/modules/domains/domain.service.js';
 import { ingressHealthFromProto } from '@/modules/ingress-groups/ingress-health.js';
 import { daemonLogRelay } from '@/modules/monitoring/log-relay.service.js';
 import { validateRegisteredDaemonProfile } from '@/modules/nodes/node-daemon-profile.js';
@@ -942,6 +943,21 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   }
                 } catch (err) {
                   logger.error('Full resync failed', { nodeId: claimedNodeId, error: (err as Error).message });
+                }
+              });
+            }
+            // A domain moved away while this node was offline finishes its move now: the routes it still serves for
+            // that domain leave it (the move stayed cleanup_pending until it could reach the node).
+            if (nodeType === 'nginx') {
+              setImmediate(async () => {
+                try {
+                  if (!isClaimedStreamCurrent(claimedNodeId)) return;
+                  await container.resolve(DomainsService).resumeIngressSourceCleanup(claimedNodeId);
+                } catch (err) {
+                  logger.warn('Pending ingress migration cleanup after reconnect failed', {
+                    nodeId: claimedNodeId,
+                    error: (err as Error).message,
+                  });
                 }
               });
             }

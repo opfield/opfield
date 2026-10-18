@@ -1300,9 +1300,52 @@ export class DomainsService extends DomainsServiceIngressGroups {
     return updated;
   }
 
+  /**
+   * Finishes the ingress moves whose source cleanup waited for this node (it was offline when the move completed, so
+   * it kept the moved routes' configs): called when the node connects again. Removes the routes from it and ends each
+   * move as a second Move ingress would; a move that is still not clean stays cleanup_pending for the next reconnect.
+   * Idempotent, and one run per move at a time. Returns how many moves completed.
+   */
+  async resumeIngressSourceCleanup(nodeId: string): Promise<number> {
+    const rows = await this.db
+      .select({ id: domains.id, migrationId: domains.ingressMigrationId, nginxNodeId: domains.nginxNodeId })
+      .from(domains)
+      .where(
+        and(eq(domains.ingressMigrationSourceNodeId, nodeId), eq(domains.ingressMigrationStatus, 'cleanup_pending'))
+      );
+    const moves = new Map<string, { id: string; nginxNodeId: string }>();
+    for (const row of rows) {
+      if (row.migrationId && row.nginxNodeId && !moves.has(row.migrationId)) {
+        moves.set(row.migrationId, { id: row.id, nginxNodeId: row.nginxNodeId });
+      }
+    }
+    let completed = 0;
+    for (const [migrationId, root] of moves) {
+      if (this.ingressCleanupsRunning.has(migrationId)) continue;
+      this.ingressCleanupsRunning.add(migrationId);
+      try {
+        const impact = await this.buildIngressMigrationImpact(root.id, root.nginxNodeId);
+        if (!impact.pending || impact.migrationId !== migrationId) continue;
+        const result = await this.completeIngressMigration(impact, null);
+        if (result.status === 'completed') completed += 1;
+      } catch (error) {
+        logger.warn('Ingress migration source cleanup will retry when the node connects again', {
+          migrationId,
+          sourceNodeId: nodeId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        this.ingressCleanupsRunning.delete(migrationId);
+      }
+    }
+    return completed;
+  }
+
+  private readonly ingressCleanupsRunning = new Set<string>();
+
   protected async completeIngressMigration(
     impact: Awaited<ReturnType<DomainsService['buildIngressMigrationImpact']>>,
-    userId: string
+    userId: string | null
   ) {
     if (!this.proxyService || !impact.migrationId) {
       throw new AppError(409, 'DOMAIN_INGRESS_MIGRATION_NOT_PENDING', 'No ingress migration is waiting to complete');
