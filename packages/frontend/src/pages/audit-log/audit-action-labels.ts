@@ -304,6 +304,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "domain.ingress_group_join": "Added domain to an ingress group",
   "domain.ingress_group_leave": "Removed domain from an ingress group",
   "domain.ingress_migrate": "Moved domain to another ingress",
+  "domain.ingress_migration.rolled_back": "Rolled back a failed domain ingress move",
   "domain.move_to_folder": "Moved domain to a folder",
   "domain.nginx_node.assign": "Assigned domain to an ingress node",
   "domain.update": "Updated domain",

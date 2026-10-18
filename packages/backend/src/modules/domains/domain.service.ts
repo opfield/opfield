@@ -1490,6 +1490,8 @@ export class DomainsService extends DomainsServiceIngressGroups {
     message: string
   ) {
     const domainIds = impact.domains.map((domain) => domain.id);
+    const restoredHostIds = [...movedHostIds].reverse();
+    let rollbackError: string | null = null;
     try {
       await this.db
         .update(domains)
@@ -1501,7 +1503,7 @@ export class DomainsService extends DomainsServiceIngressGroups {
         })
         .where(inArray(domains.id, domainIds));
 
-      for (const hostId of movedHostIds.reverse()) {
+      for (const hostId of restoredHostIds) {
         await this.proxyService?.updateProxyHost(hostId, { nodeId: impact.sourceNode.id }, userId, {
           skipDomainNodeValidation: true,
           allowSystemNodeMove: true,
@@ -1538,15 +1540,37 @@ export class DomainsService extends DomainsServiceIngressGroups {
           updatedAt: new Date(),
         })
         .where(inArray(domains.id, domainIds));
-    } catch (rollbackError) {
-      logger.error('Domain ingress migration rollback failed', {
-        domainId: impact.root.id,
-        error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
-      });
+    } catch (error) {
+      rollbackError = error instanceof Error ? error.message : String(error);
+      logger.error('Domain ingress migration rollback failed', { domainId: impact.root.id, error: rollbackError });
       await this.db
         .update(domains)
         .set({ ingressMigrationStatus: 'failed', ingressMigrationError: message, updatedAt: new Date() })
         .where(inArray(domains.id, domainIds));
     }
+    // The failed move leaves its own record: why it failed and whether everything went back to the source.
+    await this.auditService
+      .log({
+        userId,
+        action: 'domain.ingress_migration.rolled_back',
+        resourceType: 'domain',
+        resourceId: impact.root.id,
+        details: {
+          reason: message,
+          sourceNodeId: impact.sourceNode.id,
+          targetNodeId: impact.targetNode.id,
+          domainIds,
+          proxyHostIds: impact.proxyHosts.map((host) => host.id),
+          restoredProxyHostIds: restoredHostIds,
+          rolledBack: rollbackError === null,
+          ...(rollbackError ? { rollbackError } : {}),
+        },
+      })
+      .catch((error) =>
+        logger.warn('The rolled-back ingress migration could not be audited', {
+          domainId: impact.root.id,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      );
   }
 }
