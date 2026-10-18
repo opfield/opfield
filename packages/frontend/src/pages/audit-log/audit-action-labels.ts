@@ -515,6 +515,8 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "relay.instance.reenrollment_token.issue": "Issued relay re-enrolment token",
   "relay.instance.resume": "Resumed relay",
   "relay.instance.service_endpoint.change": "Changed relay service endpoint",
+  "relay.instance.service_port.change": "Changed relay port",
+  "relay.instance.service_port.change_failed": "Relay port change failed",
   "relay.instance.witness_hosting_allowed": "Allowed witness hosting on relay",
   "relay.instance.witness_hosting_disallowed": "Stopped witness hosting on relay",
   "relay.policy_trust.reset": "Reset relay policy trust",
