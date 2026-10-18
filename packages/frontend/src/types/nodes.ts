@@ -1,4 +1,5 @@
 import { effectiveNodeStatus } from "@/lib/dashboard-attention";
+import { isOpfieldVersionNewer } from "@/lib/opfield-update-reload";
 
 export type NodeType =
   | "nginx"
@@ -422,6 +423,16 @@ export function getNodeUpdateLastError(
 ): { message: string; at: string | null } | null {
   const metadata = nodeUpdateMetadata(node);
   if (isNodeUpdating(node) || typeof metadata.updateLastError !== "string") return null;
+  // The node runs the release that failed (updated since by other means): the failure is history.
+  const target = metadata.updateLastErrorTargetVersion;
+  if (
+    typeof target === "string" &&
+    node.daemonVersion &&
+    (target.replace(/^v/, "") === node.daemonVersion.replace(/^v/, "") ||
+      isOpfieldVersionNewer(node.daemonVersion, target))
+  ) {
+    return null;
+  }
   return {
     message: metadata.updateLastError,
     at: typeof metadata.updateLastErrorAt === "string" ? metadata.updateLastErrorAt : null,

@@ -7,6 +7,7 @@ import {
   DaemonUpdateService,
   LAUNCHER_CANDIDATE_TRIAL_LIMIT_MS,
   lastUpdateConnectionsToRecord,
+  nodeUpdateFailure,
 } from './daemon-update.service.js';
 import type { NodeLongTask } from './node-long-tasks.js';
 
@@ -626,5 +627,59 @@ describe('daemon update reconnect deadline', () => {
     expect(Date.parse(String(node.metadata.updateDeadlineAt)) - Date.now()).toBeGreaterThan(
       LAUNCHER_CANDIDATE_TRIAL_LIMIT_MS + 30_000
     );
+  });
+});
+
+describe('a failed daemon update stays visible and is not repeated at once', () => {
+  const DOWNLOAD_FAILURE =
+    'download binary: Get "https://get.opfield.dev/opfield/docker-daemon/v2.12.1-docker/docker-daemon-linux-amd64": dial tcp 172.67.129.110:443: i/o timeout';
+
+  it('keeps why and for which release, lists it with the node, and refuses the same release for a minute', async () => {
+    const { deps, node, service, sendUpdateDaemonCommand } = harness();
+    sendUpdateDaemonCommand.mockImplementationOnce(async () => ({
+      accepted: Promise.resolve(),
+      result: Promise.resolve({ success: false, error: DOWNLOAD_FAILURE, detail: '', commandId: '' }) as never,
+    }));
+    await dispatchNodeDaemonUpdate(NODE_ID, deps);
+    await vi.waitFor(() => expect(node.metadata.updateLastError).toBe(DOWNLOAD_FAILURE));
+    expect(node.metadata.updateLastErrorTargetVersion).toBe('v2.12.1');
+    expect(node.metadata.updateInProgress).toBeUndefined();
+
+    const docker = (await service.getCachedStatus()).find((status) => status.daemonType === 'docker');
+    expect(docker?.nodes[0]?.lastUpdateError).toMatchObject({
+      message: DOWNLOAD_FAILURE,
+      targetVersion: 'v2.12.1',
+      at: expect.any(String),
+    });
+
+    await expect(dispatchNodeDaemonUpdate(NODE_ID, deps)).rejects.toMatchObject({
+      code: 'DAEMON_UPDATE_RETRY_TOO_SOON',
+      message: expect.stringContaining('i/o timeout'),
+    });
+    expect(sendUpdateDaemonCommand).toHaveBeenCalledTimes(1);
+
+    node.metadata.updateLastErrorAt = new Date(Date.now() - 61_000).toISOString();
+    await dispatchNodeDaemonUpdate(NODE_ID, deps);
+    expect(sendUpdateDaemonCommand).toHaveBeenCalledTimes(2);
+    // A new attempt clears the old reason.
+    expect(node.metadata.updateLastError).toBeUndefined();
+    expect(node.metadata.updateLastErrorTargetVersion).toBeUndefined();
+  });
+
+  it('forgets a failure once the node runs that release, and shows none while an update runs', () => {
+    const failed = {
+      updateLastError: 'x',
+      updateLastErrorAt: '2026-10-18T20:58:01.762Z',
+      updateLastErrorTargetVersion: 'v2.12.6',
+    };
+    expect(nodeUpdateFailure(failed, 'v2.12.3')).toEqual({
+      message: 'x',
+      at: '2026-10-18T20:58:01.762Z',
+      targetVersion: 'v2.12.6',
+    });
+    expect(nodeUpdateFailure(failed, 'v2.12.6')).toBeNull();
+    expect(nodeUpdateFailure({ ...failed, updateInProgress: true }, 'v2.12.3')).toBeNull();
+    // Records from before 2.12.7 carry no release: shown until the next update.
+    expect(nodeUpdateFailure({ updateLastError: 'x' }, 'v2.12.6')).toMatchObject({ targetVersion: null });
   });
 });

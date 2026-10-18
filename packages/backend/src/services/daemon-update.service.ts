@@ -72,6 +72,54 @@ const NODE_UPDATE_METADATA_KEYS = [
   'updateFromHandover',
 ] as const;
 
+/** Why the last update of a node did not complete, when, and the release it was going to (metadata). */
+const NODE_UPDATE_ERROR_METADATA_KEYS = [
+  'updateLastError',
+  'updateLastErrorAt',
+  'updateLastErrorTargetVersion',
+] as const;
+
+/**
+ * A failed update of a node to a release is not sent again to the same release this soon after (an agent or a script
+ * retrying at once would only fail again, for example on a node that cannot reach the download host).
+ */
+export const DAEMON_UPDATE_RETRY_BACKOFF_MS = 60_000;
+
+/** Why the last daemon update of a node did not complete, while no newer update runs (metadata.updateLastError*). */
+export interface NodeUpdateFailure {
+  message: string;
+  at: string | null;
+  /** The release the failed update was going to (absent on records older than 2.12.7). */
+  targetVersion: string | null;
+}
+
+/** The node's last update failure, or null while an update runs or after it reached the release that failed. */
+export function nodeUpdateFailure(
+  metadata: Record<string, unknown> | null | undefined,
+  currentVersion?: string | null
+): NodeUpdateFailure | null {
+  if (!metadata || metadata.updateInProgress === true || typeof metadata.updateLastError !== 'string') return null;
+  const targetVersion =
+    typeof metadata.updateLastErrorTargetVersion === 'string' && metadata.updateLastErrorTargetVersion
+      ? metadata.updateLastErrorTargetVersion
+      : null;
+  // Updated since by other means (a reinstall, a later update): the failure is history.
+  if (
+    targetVersion &&
+    currentVersion &&
+    parseSemver(currentVersion) !== null &&
+    parseSemver(targetVersion) !== null &&
+    !isNewerVersion(targetVersion, currentVersion)
+  ) {
+    return null;
+  }
+  return {
+    message: metadata.updateLastError,
+    at: typeof metadata.updateLastErrorAt === 'string' ? metadata.updateLastErrorAt : null,
+    targetVersion,
+  };
+}
+
 /** The capability of a daemon that hands its connections over to the next process when it is updated. */
 export const DAEMON_STREAM_HANDOVER_CAPABILITY = 'daemon_stream_handover_v1';
 
@@ -398,6 +446,8 @@ export interface DaemonNodeUpdateStatus {
   currentVersion: string;
   updateAvailable: boolean;
   arch?: string;
+  /** Why the last update of the node failed (for example a download it could not make), and when; null otherwise. */
+  lastUpdateError: NodeUpdateFailure | null;
 }
 
 export interface DaemonUpdateStatus {
@@ -556,6 +606,7 @@ export class DaemonUpdateService {
             currentVersion,
             updateAvailable,
             arch: (caps.architecture as string) ?? undefined,
+            lastUpdateError: nodeUpdateFailure(n.metadata as Record<string, unknown> | null, n.daemonVersion),
           };
         });
 
@@ -748,8 +799,7 @@ export class DaemonUpdateService {
         : phase === NODE_UPDATE_WAITING_PHASE
           ? NODE_UPDATE_QUEUE_TIMEOUT_MS
           : NODE_UPDATE_EXECUTION_TIMEOUT_MS;
-    delete metadata.updateLastError;
-    delete metadata.updateLastErrorAt;
+    for (const key of NODE_UPDATE_ERROR_METADATA_KEYS) delete metadata[key];
     for (const key of NODE_UPDATE_METADATA_KEYS) delete metadata[key];
     metadata.updateInProgress = true;
     metadata.updateTargetVersion = targetVersion;
@@ -926,9 +976,12 @@ export class DaemonUpdateService {
       if (connections) lastUpdate.connections = connections;
       metadata.lastUpdate = lastUpdate;
     }
+    const failedTargetVersion = typeof metadata.updateTargetVersion === 'string' ? metadata.updateTargetVersion : null;
     for (const key of NODE_UPDATE_METADATA_KEYS) delete metadata[key];
     metadata.updateLastError = error;
     metadata.updateLastErrorAt = new Date().toISOString();
+    if (failedTargetVersion) metadata.updateLastErrorTargetVersion = failedTargetVersion;
+    else delete metadata.updateLastErrorTargetVersion;
     const updated = await this.db
       .update(nodes)
       .set({ metadata, updatedAt: new Date() })
@@ -1353,13 +1406,15 @@ export class DaemonUpdateService {
   }
 
   /** Keeps why an update that is no longer running could not start again (for example after an Opfield restart). */
-  async recordNodeUpdateError(nodeId: string, error: string): Promise<void> {
+  async recordNodeUpdateError(nodeId: string, error: string, targetVersion?: string): Promise<void> {
     const [node] = await this.db.select({ metadata: nodes.metadata }).from(nodes).where(eq(nodes.id, nodeId)).limit(1);
     if (!node) return;
     const metadata = { ...((node.metadata ?? {}) as Record<string, unknown>) };
     if (metadata.updateInProgress === true) return;
     metadata.updateLastError = error;
     metadata.updateLastErrorAt = new Date().toISOString();
+    if (targetVersion) metadata.updateLastErrorTargetVersion = targetVersion;
+    else delete metadata.updateLastErrorTargetVersion;
     await this.db
       .update(nodes)
       .set({ metadata, updatedAt: new Date() })

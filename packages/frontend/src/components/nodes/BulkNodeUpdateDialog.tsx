@@ -15,7 +15,7 @@ import { toastApiError } from "@/lib/api-error-toast";
 import { daemonTypeForNode, isDaemonUpdateAvailable, nodeTypeLabel } from "@/lib/node-appearance";
 import { api } from "@/services/api";
 import { useDaemonUpdatesStore } from "@/stores/daemon-updates";
-import { isNodeUpdateQueued, isNodeUpdating, type Node } from "@/types";
+import { getNodeUpdateLastError, isNodeUpdateQueued, isNodeUpdating, type Node } from "@/types";
 
 interface Candidate {
   node: Node;
@@ -52,6 +52,12 @@ export function nodeUpdateCandidates(
         : null;
     return [{ node, targetVersion, blockedReason }];
   });
+}
+
+/** The reason the node's last update failed, so a retry is a decision and not a blind repeat. */
+function lastErrorSummary(node: Node): string {
+  const lastError = getNodeUpdateLastError(node);
+  return lastError ? ` · Last update failed: ${lastError.message}` : "";
 }
 
 /** The candidate list; the dialog opens once it is known. */
@@ -100,7 +106,7 @@ function CandidateList({
           label={node.displayName || node.hostname}
           description={`${nodeTypeLabel(node.type)} · ${node.daemonVersion ?? "unknown"} → ${targetVersion}${
             blockedReason ? ` · ${blockedReason}` : ""
-          }`}
+          }${lastErrorSummary(node)}`}
         />
       ))}
     </div>

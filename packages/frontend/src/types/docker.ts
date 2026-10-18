@@ -715,6 +715,8 @@ export interface DaemonNodeUpdateStatus {
   currentVersion: string;
   updateAvailable: boolean;
   arch?: string;
+  /** Why the last update of the node failed and when (for example a download the node could not make). */
+  lastUpdateError?: { message: string; at: string | null; targetVersion: string | null } | null;
 }
 
 export interface DaemonUpdateStatus {

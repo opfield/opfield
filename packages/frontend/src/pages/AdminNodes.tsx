@@ -69,7 +69,7 @@ import { nodeSupportsServiceCreationLock } from "@/lib/node-service-lock";
 import { confirmAndDeleteNode } from "@/lib/remove-node";
 import { nodeRoute } from "@/lib/resource-routes";
 import { canCreateInFolder } from "@/lib/scope-utils";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { api } from "@/services/api";
 import { accessContextKey, useAuthStore } from "@/stores/auth";
 import { useDaemonUpdatesStore } from "@/stores/daemon-updates";
@@ -417,13 +417,19 @@ export function AdminNodes() {
             isDaemonUpdateAvailable(node.daemonVersion, typeStatus?.latestVersion)
           ) {
             const lastError = getNodeUpdateLastError(node);
-            return (
+            // A failed update stays visible until the node runs the release: the node may look healthy otherwise
+            // (it serves, but cannot reach the download host, for example).
+            return lastError ? (
               <Badge
-                variant="warning-solid"
-                title={lastError ? `Last update failed: ${lastError.message}` : undefined}
+                variant="destructive"
+                title={`Update to ${typeStatus?.latestVersion} failed${
+                  lastError.at ? ` at ${formatDateTime(lastError.at)}` : ""
+                }: ${lastError.message}`}
               >
-                {typeStatus?.latestVersion}
+                Update failed
               </Badge>
+            ) : (
+              <Badge variant="warning-solid">{typeStatus?.latestVersion}</Badge>
             );
           }
           return <Badge variant={STATUS_BADGE[eStatus] || "secondary"}>{eStatus}</Badge>;

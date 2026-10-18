@@ -7,11 +7,13 @@ import { isNewerVersion, parseSemver } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AvailabilityMembersService, NodeUpdatePostponedError } from './availability-members.service.js';
 import {
+  DAEMON_UPDATE_RETRY_BACKOFF_MS,
   type DaemonUpdateService,
   daemonTypeForNodeType,
   NODE_UPDATE_TASK_WAIT_PHASE,
   NODE_UPDATE_TASK_WAIT_TIMEOUT_MS,
   NODE_UPDATE_WAITING_PHASE,
+  nodeUpdateFailure,
 } from './daemon-update.service.js';
 import type { LeaseUpdateBlocker } from './daemon-update-lease-gate.js';
 import type { DaemonUpdateRollout } from './daemon-update-rollout.service.js';
@@ -241,6 +243,25 @@ export async function dispatchNodeDaemonUpdate(
       409,
       'NO_UPDATE_AVAILABLE',
       `The node already runs ${node.daemonVersion}, which is not older than ${release.version}`
+    );
+  }
+
+  // A failed update is not sent again to the same release at once: it would fail the same way (no egress to the
+  // download host, a full disk) and only repeat the restart preparations. The reason stays on the node meanwhile.
+  const failure = nodeUpdateFailure(metadata, node.daemonVersion);
+  const failedAt = failure?.at ? Date.parse(failure.at) : Number.NaN;
+  if (
+    failure &&
+    failure.targetVersion === release.version &&
+    Number.isFinite(failedAt) &&
+    Date.now() - failedAt < DAEMON_UPDATE_RETRY_BACKOFF_MS
+  ) {
+    const retryAt = new Date(failedAt + DAEMON_UPDATE_RETRY_BACKOFF_MS);
+    throw new AppError(
+      409,
+      'DAEMON_UPDATE_RETRY_TOO_SOON',
+      `The update to ${release.version} failed ${Math.max(1, Math.round((Date.now() - failedAt) / 1000))} s ago: ${failure.message}. Fix the cause, then retry after ${retryAt.toISOString()}`,
+      { lastUpdateError: failure, retryAt: retryAt.toISOString() }
     );
   }
 

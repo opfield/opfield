@@ -320,7 +320,7 @@ export const CONTROL_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_system_updates',
     description:
-      'Read or manage Opfield, Relay Pool, and daemon updates. Operations: get_opfield_status, check_opfield, get_opfield_release_notes, list_opfield_release_notes (every release between the current and the available version), perform_opfield_update, proceed_opfield_update (stop waiting for running operations), acknowledge_opfield_update_failure, perform_relay_update, abandon_relay_update (end a stuck or paused Relay Pool update), list_daemon_updates, check_daemon_updates, update_daemon (waits up to 30 minutes for long tasks running on the node, then for its lease peers, unless now is true). Mutating operations require explicit approval unless the user bypass mode allows it.',
+      'Read or manage Opfield, Relay Pool, and daemon updates. Operations: get_opfield_status, check_opfield, get_opfield_release_notes, list_opfield_release_notes (every release between the current and the available version), perform_opfield_update, proceed_opfield_update (stop waiting for running operations), acknowledge_opfield_update_failure, perform_relay_update, abandon_relay_update (end a stuck or paused Relay Pool update), list_daemon_updates (each node with lastUpdateError when its last update failed), check_daemon_updates, update_daemon (refused for a minute after the same release failed on the node; waits up to 30 minutes for long tasks running on the node, then for its lease peers, unless now is true). Mutating operations require explicit approval unless the user bypass mode allows it.',
     parameters: {
       type: 'object',
       properties: {
