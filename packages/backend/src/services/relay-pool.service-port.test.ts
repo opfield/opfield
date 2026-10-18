@@ -13,6 +13,14 @@ const { RelayPoolService } = await import('./relay-pool.service.js');
 
 const nodeId = '11111111-1111-4111-8111-111111111111';
 
+type Internals = {
+  setInstanceDrain(...args: unknown[]): Promise<void>;
+  isHeldByUnfinishedUpdate(id: string): Promise<boolean>;
+  waitForStreamsToLeave(id: string, timeoutMs: number): Promise<boolean>;
+  forceDisconnectDrainingInstance(...args: unknown[]): Promise<void>;
+  drainedForUpdate: Map<string, number>;
+};
+
 function relay(overrides: Record<string, unknown> = {}) {
   const instance = {
     id: 'relay-1',
@@ -26,10 +34,13 @@ function relay(overrides: Record<string, unknown> = {}) {
     capabilities: { protocolMajor: 1, features: ['relay_pool_v1', 'relay_service_port_v1'] },
     ...overrides,
   };
+  // Every step in the order it ran.
+  const steps: string[] = [];
   const written: Array<Record<string, unknown>> = [];
   const update = () => ({
     set: (values: Record<string, unknown>) => {
       written.push(values);
+      steps.push(`record ${values.servicePort}`);
       return { where: () => ({ returning: async () => [{ id: 'relay-1' }] }) };
     },
   });
@@ -39,24 +50,35 @@ function relay(overrides: Record<string, unknown> = {}) {
   };
   const policy = {
     isRemoteInstanceConnected: vi.fn(() => true),
-    setRemoteInstanceServicePort: vi.fn(async () => ({
-      commandId: 'c',
-      success: true,
-      detail: 'service_port=10443 previous_service_port=9443',
-      error: '',
-    })),
-    refreshAllNodeGrantsIfDue: vi.fn(async () => undefined),
+    setRemoteInstanceServicePort: vi.fn(async (_node: string, port: number) => {
+      steps.push(`restart on ${port}`);
+      return { commandId: 'c', success: true, detail: `service_port=${port} previous_service_port=9443`, error: '' };
+    }),
+    refreshAllNodeGrantsIfDue: vi.fn(async () => {
+      steps.push('grants');
+    }),
   };
   const audit = { log: vi.fn(async () => undefined) };
   const events = { publish: vi.fn() };
   const service = new RelayPoolService(db as never, policy as never, events as never, audit as never, {} as never);
-  const internals = service as unknown as {
-    setInstanceDrain(id: string, userId: string | null, enabled: boolean, manual: boolean): Promise<void>;
-    isHeldByUnfinishedUpdate(id: string): Promise<boolean>;
-  };
-  const drain = vi.spyOn(internals, 'setInstanceDrain').mockResolvedValue(undefined);
+  const internals = service as unknown as Internals;
+  const drain = vi.spyOn(internals, 'setInstanceDrain').mockImplementation(async (...args: unknown[]) => {
+    steps.push(args[2] ? 'drain' : 'resume');
+  });
   vi.spyOn(internals, 'isHeldByUnfinishedUpdate').mockResolvedValue(false);
-  return { service, policy, audit, written, drain };
+  vi.spyOn(service, 'settleForUpdate').mockImplementation(async () => {
+    steps.push('settle');
+  });
+  const streamsLeave = vi.spyOn(internals, 'waitForStreamsToLeave').mockImplementation(async () => {
+    steps.push('streams left');
+    return true;
+  });
+  const forceDisconnect = vi.spyOn(internals, 'forceDisconnectDrainingInstance').mockImplementation(async () => {
+    steps.push('disconnect the rest');
+  });
+  const snapshotOf = () =>
+    (service as unknown as { portChangeView(id: string): Record<string, unknown> | null }).portChangeView('relay-1');
+  return { service, internals, policy, audit, written, drain, steps, streamsLeave, forceDisconnect, snapshotOf };
 }
 
 describe('Change port of a remote relay', () => {
@@ -65,34 +87,70 @@ describe('Change port of a remote relay', () => {
     bumpRevision.mockClear();
   });
 
-  it('drains the relay, moves it, records the endpoint and returns it to the pool', async () => {
-    const { service, policy, audit, written, drain } = relay();
+  // Stand 2.12.6-rc.1, O-1: the worker restarted right after the drain began and cut a request.
+  it('restarts the relay only after its streams left, and publishes the endpoint before it takes roles again', async () => {
+    const { service, policy, audit, written, drain, steps, internals, snapshotOf } = relay();
 
-    await service.changeInstanceServicePort('relay-1', 10443, 'admin-1');
+    const { done } = await service.changeInstanceServicePort('relay-1', 10443, 'admin-1');
+    await done;
 
     expect(endpointFree).toHaveBeenCalledWith(expect.anything(), ['relay-fra.example.com'], 10443, {
       instanceId: 'relay-1',
       nodeId,
     });
-    expect(drain.mock.calls).toEqual([
-      ['relay-1', 'admin-1', true, true],
-      ['relay-1', 'admin-1', false, true],
+    expect(steps).toEqual([
+      'settle',
+      'drain',
+      'streams left',
+      'settle',
+      'restart on 10443',
+      'record 10443',
+      'grants',
+      'resume',
     ]);
+    // Drained like an update (a planned restart) with the operator drain's grace, and resumed the same way.
+    expect(drain.mock.calls).toEqual([
+      ['relay-1', 'admin-1', true, false, 'manual'],
+      ['relay-1', 'admin-1', false, false],
+    ]);
+    expect(internals.drainedForUpdate.has('relay-1')).toBe(true);
     expect(policy.setRemoteInstanceServicePort).toHaveBeenCalledWith(nodeId, 10443);
     expect(written).toEqual([expect.objectContaining({ servicePort: 10443 })]);
     expect(bumpRevision).toHaveBeenCalledTimes(1);
-    expect(policy.refreshAllNodeGrantsIfDue).toHaveBeenCalledWith(true);
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'relay.instance.service_port.change',
         details: expect.objectContaining({ previousServicePort: 9443, servicePort: 10443 }),
       })
     );
+    expect(snapshotOf()).toBeNull();
   });
 
-  it('keeps the old endpoint and says why when the relay moved back', async () => {
-    const { service, policy, audit, written, drain } = relay();
-    const reason = 'the relay worker did not become ready on port 10443 (connection refused); it is back on port 9443';
+  it('disconnects what is left after the drain grace before the restart, as a drain does', async () => {
+    const { service, steps, streamsLeave, forceDisconnect } = relay();
+    streamsLeave.mockImplementationOnce(async () => {
+      steps.push('grace ended');
+      return false;
+    });
+
+    await (await service.changeInstanceServicePort('relay-1', 10443, 'admin-1')).done;
+
+    expect(steps.slice(0, 6)).toEqual([
+      'settle',
+      'drain',
+      'grace ended',
+      'disconnect the rest',
+      'streams left',
+      'settle',
+    ]);
+    expect(forceDisconnect).toHaveBeenCalledWith('relay-1', 'admin-1', true, 'relay_port_change_drain_grace_ended');
+    expect(steps).toContain('restart on 10443');
+  });
+
+  it('keeps the old endpoint and shows the relay reason when the relay moved back', async () => {
+    const { service, policy, audit, written, drain, snapshotOf } = relay();
+    const reason =
+      'the relay could not serve on port 10443: listen tcp 0.0.0.0:10443: bind: address already in use; it is back on port 9443';
     policy.setRemoteInstanceServicePort.mockResolvedValue({
       commandId: 'c',
       success: false,
@@ -100,23 +158,47 @@ describe('Change port of a remote relay', () => {
       error: reason,
     });
 
-    await expect(service.changeInstanceServicePort('relay-1', 10443, 'admin-1')).rejects.toMatchObject({
-      statusCode: 409,
-      code: 'RELAY_SERVICE_PORT_CHANGE_FAILED',
-      message: reason,
-    });
+    await (await service.changeInstanceServicePort('relay-1', 10443, 'admin-1')).done;
+
     expect(written).toEqual([]);
     expect(bumpRevision).not.toHaveBeenCalled();
-    expect(drain).toHaveBeenLastCalledWith('relay-1', 'admin-1', false, true);
+    expect(drain).toHaveBeenLastCalledWith('relay-1', 'admin-1', false, false);
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'relay.instance.service_port.change_failed' })
     );
+    expect(snapshotOf()).toMatchObject({
+      state: 'failed',
+      servicePort: 10443,
+      previousServicePort: 9443,
+      error: reason,
+    });
+  });
+
+  it('returns once the change began and shows it running', async () => {
+    const { service, policy, snapshotOf } = relay();
+    let release!: () => void;
+    policy.setRemoteInstanceServicePort.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ commandId: 'c', success: true, detail: '', error: '' });
+        })
+    );
+
+    const { done } = await service.changeInstanceServicePort('relay-1', 10443, 'admin-1');
+    await vi.waitFor(() => expect(snapshotOf()).toMatchObject({ state: 'moving', servicePort: 10443 }));
+    // A second change of the same relay waits for none: it is refused while this one runs.
+    await expect(service.changeInstanceServicePort('relay-1', 10543, 'admin-1')).rejects.toMatchObject({
+      code: 'RELAY_DRAIN_IN_PROGRESS',
+    });
+    release();
+    await done;
+    expect(snapshotOf()).toBeNull();
   });
 
   it('leaves an operator drain in place', async () => {
     const { service, drain } = relay({ state: 'draining', manualDrainStartedAt: new Date() });
 
-    await service.changeInstanceServicePort('relay-1', 10443, 'admin-1');
+    await (await service.changeInstanceServicePort('relay-1', 10443, 'admin-1')).done;
 
     expect(drain).not.toHaveBeenCalled();
   });

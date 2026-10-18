@@ -160,7 +160,8 @@ systemRoutes.patch('/relay/instances/:instanceId', requireScope('admin:system'),
   return c.json({ data: instance });
 });
 
-// Moves a remote relay to another TCP port: drained, restarted on the port by its supervisor, back in the pool.
+// Moves a remote relay to another TCP port in the background: its streams leave, its supervisor restarts it on the
+// port, it returns to the pool. 202 once it began; the relay's portChange follows it (a failure stays there).
 systemRoutes.post('/relay/instances/:instanceId/service-port', requireScope('admin:system'), async (c) => {
   const user = c.get('user')!;
   const instanceId = z.string().uuid().parse(c.req.param('instanceId'));
@@ -170,7 +171,7 @@ systemRoutes.post('/relay/instances/:instanceId/service-port', requireScope('adm
     .parse(await c.req.json());
   const pool = container.resolve(RelayPoolService);
   await pool.changeInstanceServicePort(instanceId, body.servicePort, user.id);
-  return c.json({ data: await pool.getSnapshot() });
+  return c.json({ data: await pool.getSnapshot() }, 202);
 });
 
 // Re-enrollment token for an enrolled remote relay; the relay installer run with it repairs the relay.

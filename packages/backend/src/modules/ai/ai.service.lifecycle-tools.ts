@@ -397,7 +397,7 @@ export class AIServiceLifecycleTools extends AIServiceAdministrationTools {
         return instance;
       }
       case 'set_service_port': {
-        // POST /system/relay/instances/{id}/service-port { servicePort }: drain, restart on the port, back in the pool.
+        // POST /system/relay/instances/{id}/service-port { servicePort }: starts the change; portChange follows it.
         const instanceId = z.string().uuid().parse(a.instanceId);
         const servicePort = z.number().int().min(1).max(65535).parse(a.servicePort);
         const relayPool = container.resolve(RelayPoolService);

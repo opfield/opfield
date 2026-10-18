@@ -595,6 +595,18 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
             {row.updateStep?.error && (
               <div className="text-xs text-muted-foreground">Update: {row.updateStep.error}</div>
             )}
+            {row.portChange && row.portChange.state !== "failed" && (
+              <div className="text-xs text-muted-foreground">
+                {row.portChange.state === "draining"
+                  ? `Moving to port ${row.portChange.servicePort}: streams move to other relays`
+                  : `Moving to port ${row.portChange.servicePort}: restarting on it`}
+              </div>
+            )}
+            {row.portChange?.state === "failed" && (
+              <p role="alert" className="max-w-md break-words text-xs text-destructive">
+                Port change to {row.portChange.servicePort} failed: {row.portChange.error}
+              </p>
+            )}
             {row.policyTrust && (
               <p
                 role={row.policyTrust.state === "recovered" ? undefined : "alert"}
@@ -739,7 +751,10 @@ export function RelaySettingsSection({ canEdit }: { canEdit: boolean }) {
                   variant="outline"
                   pending={poolAction === `port:${row.id}`}
                   disabled={
-                    !canEdit || poolAction !== null || row.servicePortChange !== "available"
+                    !canEdit ||
+                    poolAction !== null ||
+                    row.servicePortChange !== "available" ||
+                    (row.portChange != null && row.portChange.state !== "failed")
                   }
                   onClick={() => setPortChange(row)}
                 >

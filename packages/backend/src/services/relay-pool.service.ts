@@ -33,7 +33,7 @@ import type { NodeRegistryService } from './node-registry.service.js';
 import { pruneEndedAssignmentGenerations } from './relay-assignment-history.js';
 import type { RelayCertificateRenewalService, RelayCertificateStatus } from './relay-certificate-renewal.service.js';
 import { assertRelayEndpointFree } from './relay-endpoint-in-use.js';
-import { localRelayTakeoverBlocker, setLocalRelayUpdateDrain } from './relay-local-takeover.js';
+import { drainingTunnels, localRelayTakeoverBlocker, setLocalRelayUpdateDrain } from './relay-local-takeover.js';
 import { loadOfflineLeaseMemberWarnings, type OfflineLeaseMemberWarning } from './relay-offline-lease-members.js';
 import type { RelayPolicyService, RelayPolicyTrustStatus } from './relay-policy.service.js';
 import { bumpRelayPolicyRevision } from './relay-policy-reconciler.js';
@@ -235,6 +235,22 @@ function reconnectingState(instance: RelayInstanceRow): RelayInstanceRow['state'
 const RELAY_SERVICE_PORT_UPDATE_REQUIRED =
   'Update the relay first: this relay version cannot change its port. Update the Relay Pool, then change the port.';
 
+/** A relay's port change: draining (its streams leave), moving (its worker restarts on the port) or failed. */
+export interface RelayServicePortChange {
+  state: 'draining' | 'moving' | 'failed';
+  servicePort: number;
+  previousServicePort: number;
+  /** Why it failed: the relay's own reason, and that it is back on its previous port. */
+  error: string | null;
+  /** When the current state began. */
+  at: string;
+}
+
+const PORT_CHANGE_DRAIN_POLL_MS = 2_000;
+/** After the disconnect at the end of the grace, how long the streams get to report gone before the restart. */
+const PORT_CHANGE_FORCED_DRAIN_SETTLE_MS = 15_000;
+const PORT_CHANGE_FAILURE_VISIBLE_MS = 60 * 60_000;
+
 /** Why Opfield cannot move a relay to another port, whatever its connection; null when it can. */
 function relayServicePortChangeBlocker(
   instance: Pick<RelayInstanceRow, 'kind' | 'nodeId' | 'capabilities'>
@@ -303,6 +319,8 @@ export class RelayPoolService {
   private readonly plannedRoles = new Map<string, Array<{ relayInstanceId: string; role: string }>>();
   /** When placement last saw each relay not serving; a relay ready again since is held back for a while. */
   private readonly notServingAt = new Map<string, number>();
+  /** Port changes running, and the last failed one of each relay (changeInstanceServicePort). */
+  private readonly portChanges = new Map<string, RelayServicePortChange>();
   /** Relays seen serving by this process: only those are held back when they come back (placementView). */
   private readonly servedOnce = new Set<string>();
   /**
@@ -788,25 +806,62 @@ export class RelayPoolService {
   }
 
   /**
-   * Moves a remote relay to another TCP port. Opfield drains it (unless an operator drain already holds it), has its
-   * supervisor restart the worker on the port over the control stream, records the endpoint daemons dial, and returns
-   * the relay to the pool. The supervisor moves the worker back to its previous port when it does not become ready on
-   * the new one; the error then says why, and the relay returns to the pool on the port it had.
+   * Moves a remote relay to another TCP port, in the background like a Relay Pool update moves a relay. The checks
+   * run first and refuse the change at once; then the call returns and `portChange` in the snapshot follows it:
+   *
+   * 1. Placement in flight finishes; the relay is drained as a planned restart (an operator drain stays as it is),
+   *    so it is never judged failed meanwhile and takes its roles back at once afterwards.
+   * 2. Its streams leave first: resumable ones move to other relays, and the change waits until the relay reports
+   *    none, up to the operator drain grace; what is left after it is disconnected as a drain does (resumable
+   *    streams still move, raw ones end). Placement settles again, so nothing is assigned to the relay any more.
+   * 3. Only then the supervisor restarts the worker on the port. It moves the worker back to its previous port when
+   *    it does not become ready on the new one, and says why.
+   * 4. The endpoint is recorded and daemons get grant bundles that dial it before the relay returns to the pool.
+   *
+   * `done` settles when the change ended (a failure is recorded in `portChange`, never thrown).
    */
-  async changeInstanceServicePort(instanceId: string, servicePort: number, userId: string | null) {
+  async changeInstanceServicePort(
+    instanceId: string,
+    servicePort: number,
+    userId: string | null
+  ): Promise<{ done: Promise<void> }> {
     if (!isRelayServicePort(servicePort)) {
       throw new AppError(400, 'RELAY_SERVICE_PORT_INVALID', 'Enter a port from 1 to 65535.');
     }
-    return this.withDrainAction(instanceId, () => this.moveInstanceServicePort(instanceId, servicePort, userId));
+    let accept!: () => void;
+    let refuse!: (error: unknown) => void;
+    const accepted = new Promise<void>((resolve, reject) => {
+      accept = resolve;
+      refuse = reject;
+    });
+    const done = this.withDrainAction(instanceId, async () => {
+      let instance: RelayInstanceRow | null;
+      try {
+        instance = await this.servicePortChangeTarget(instanceId, servicePort);
+      } catch (error) {
+        refuse(error);
+        return;
+      }
+      accept();
+      if (instance) await this.moveInstanceServicePort(instance, servicePort, userId);
+    });
+    // Another drain action of the relay refuses the change (RELAY_DRAIN_IN_PROGRESS) before it began.
+    done.catch(refuse);
+    await accepted;
+    return {
+      done: done.catch((error) => {
+        logger.warn('Relay port change ended unexpectedly', { instanceId, error: relayPoolErrorMessage(error) });
+      }),
+    };
   }
 
-  private async moveInstanceServicePort(instanceId: string, servicePort: number, userId: string | null) {
+  /** The relay to move after every check that refuses a port change at once; null when it has the port already. */
+  private async servicePortChangeTarget(instanceId: string, servicePort: number): Promise<RelayInstanceRow | null> {
     const [instance] = await this.db.select().from(relayInstances).where(eq(relayInstances.id, instanceId)).limit(1);
     if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
     const blocker = relayServicePortChangeBlocker(instance);
     if (blocker) throw new AppError(409, blocker.code, blocker.message);
-    const nodeId = instance.nodeId!;
-    if (!this.policy.isRemoteInstanceConnected(nodeId)) {
+    if (!this.policy.isRemoteInstanceConnected(instance.nodeId!)) {
       throw new AppError(409, 'RELAY_NOT_CONNECTED', 'The relay is not connected. Try again once it reconnects.');
     }
     if (await this.isHeldByUnfinishedUpdate(instance.id)) {
@@ -819,69 +874,144 @@ export class RelayPoolService {
     if (!['ready', 'draining'].includes(instance.state)) {
       throw new AppError(409, 'RELAY_INSTANCE_NOT_READY', 'Change the port of a relay that is ready or draining');
     }
-    if (servicePort === instance.servicePort) return;
+    if (servicePort === instance.servicePort) return null;
     await assertRelayEndpointFree(this.db, instance.advertisedAddresses, servicePort, {
       instanceId: instance.id,
-      nodeId,
+      nodeId: instance.nodeId,
     });
+    return instance;
+  }
+
+  private async moveInstanceServicePort(instance: RelayInstanceRow, servicePort: number, userId: string | null) {
+    const nodeId = instance.nodeId!;
+    const track = (state: RelayServicePortChange['state'], error: string | null = null) => {
+      this.portChanges.set(instance.id, {
+        state,
+        servicePort,
+        previousServicePort: instance.servicePort,
+        error,
+        at: new Date().toISOString(),
+      });
+      this.events.publish('system.relay.health.changed', { poolId: instance.poolId, instanceId: instance.id });
+    };
+    track('draining');
     // An operator drain stays as it is; a drain taken here ends with the change. Either way the worker restart is
     // planned, like an update's: the relay is not judged failed while it restarts, and once resumed it takes its
     // roles back at once instead of being held back as a relay that came back (stand 2.12.6-rc.1, O-6).
     const drainedHere = !instance.manualDrainStartedAt;
     this.drainedForUpdate.set(instance.id, Date.now());
-    if (drainedHere) await this.setInstanceDrain(instance.id, userId, true, true);
     let failure: string | null = null;
+    let drained = false;
     try {
+      await this.settleForUpdate();
+      if (drainedHere) {
+        await this.setInstanceDrain(instance.id, userId, true, false, 'manual');
+        drained = true;
+      }
+      // Stand 2.12.6-rc.1, O-1: the worker restarted right after the drain began and cut a request.
+      await this.handOffStreams(instance.id, userId);
+      await this.settleForUpdate();
+      track('moving');
       const result = await this.policy.setRemoteInstanceServicePort(nodeId, servicePort);
       if (!result) failure = RELAY_SERVICE_PORT_UPDATE_REQUIRED;
       else if (!result.success) failure = result.error || result.detail || 'The relay refused the port change';
     } catch (error) {
-      failure = error instanceof Error ? error.message : String(error);
+      failure = relayPoolErrorMessage(error);
     }
     if (!failure) {
-      // The supervisor confirmed the worker serves on the port; its next status report says the same, so the endpoint
-      // is recorded now and daemons get bundles that dial it. A report that arrived first recorded it already.
-      await this.db.transaction(async (tx) => {
-        const moved = await tx
-          .update(relayInstances)
-          .set({ servicePort, updatedAt: new Date() })
-          .where(and(eq(relayInstances.id, instance.id), ne(relayInstances.servicePort, servicePort)))
-          .returning({ id: relayInstances.id });
-        if (moved.length) await bumpRelayPolicyRevision(tx);
-      });
-    }
-    await this.audit.log({
-      userId,
-      action: failure ? 'relay.instance.service_port.change_failed' : 'relay.instance.service_port.change',
-      resourceType: 'relay_instance',
-      resourceId: instance.id,
-      details: {
-        previousServicePort: instance.servicePort,
-        servicePort,
-        advertisedAddresses: instance.advertisedAddresses,
-        ...(failure ? { error: failure.slice(0, 1000) } : {}),
-      },
-    });
-    if (!failure) {
-      void this.policy.refreshAllNodeGrantsIfDue(true).catch((error) =>
-        logger.warn('Relay port changed; daemon grant bundles follow on the next refresh', {
-          instanceId: instance.id,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      );
-    }
-    if (drainedHere) {
       try {
-        await this.setInstanceDrain(instance.id, userId, false, true);
+        // The supervisor confirmed the worker serves on the port; its next status report says the same, so the
+        // endpoint is recorded now. A report that arrived first recorded it already.
+        await this.db.transaction(async (tx) => {
+          const moved = await tx
+            .update(relayInstances)
+            .set({ servicePort, updatedAt: new Date() })
+            .where(and(eq(relayInstances.id, instance.id), ne(relayInstances.servicePort, servicePort)))
+            .returning({ id: relayInstances.id });
+          if (moved.length) await bumpRelayPolicyRevision(tx);
+        });
+        // Daemons dial the new port before the relay takes roles again.
+        await this.policy.refreshAllNodeGrantsIfDue(true).catch((error) =>
+          logger.warn('Relay port changed; daemon grant bundles follow on the next refresh', {
+            instanceId: instance.id,
+            error: relayPoolErrorMessage(error),
+          })
+        );
       } catch (error) {
-        logger.warn('Relay port change finished; the relay stays drained until it is resumed', {
+        failure = `The relay serves on port ${servicePort}, but Opfield could not record it: ${relayPoolErrorMessage(error)}`;
+      }
+    }
+    await this.audit
+      .log({
+        userId,
+        action: failure ? 'relay.instance.service_port.change_failed' : 'relay.instance.service_port.change',
+        resourceType: 'relay_instance',
+        resourceId: instance.id,
+        details: {
+          previousServicePort: instance.servicePort,
+          servicePort,
+          advertisedAddresses: instance.advertisedAddresses,
+          ...(failure ? { error: failure.slice(0, 1000) } : {}),
+        },
+      })
+      .catch(() => undefined);
+    if (drained) {
+      try {
+        await this.setInstanceDrain(instance.id, userId, false, false);
+      } catch (error) {
+        // The drain is an update-style drain without an update: the reconciler resumes it once the relay answers.
+        logger.warn('Relay port change finished; the relay is resumed once it answers', {
           instanceId: instance.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: relayPoolErrorMessage(error),
         });
       }
     }
-    this.events.publish('system.relay.health.changed', { poolId: instance.poolId, instanceId: instance.id });
-    if (failure) throw new AppError(409, 'RELAY_SERVICE_PORT_CHANGE_FAILED', failure);
+    if (failure) track('failed', failure);
+    else {
+      this.portChanges.delete(instance.id);
+      this.events.publish('system.relay.health.changed', { poolId: instance.poolId, instanceId: instance.id });
+    }
+  }
+
+  /**
+   * Waits until the drained relay carries no stream, as a Relay Pool update does before it restarts a worker, up to
+   * the operator drain grace (short when every stream through it can move by itself). What is left then is
+   * disconnected like at the end of a drain: resumable streams move to another relay, raw ones end.
+   */
+  private async handOffStreams(instanceId: string, userId: string | null): Promise<void> {
+    const graceMs = await relayDrainGraceMs(this.db, instanceId, 'manual', this.legacyStreams(instanceId));
+    if (await this.waitForStreamsToLeave(instanceId, graceMs)) return;
+    await this.forceDisconnectDrainingInstance(instanceId, userId, true, 'relay_port_change_drain_grace_ended');
+    await this.waitForStreamsToLeave(instanceId, PORT_CHANGE_FORCED_DRAIN_SETTLE_MS);
+  }
+
+  /** True once a report sent after the call says the relay carries no stream; false at the deadline. */
+  private async waitForStreamsToLeave(instanceId: string, timeoutMs: number): Promise<boolean> {
+    const since = Date.now();
+    const deadline = since + timeoutMs;
+    for (;;) {
+      const [instance] = await this.db
+        .select({ health: relayInstances.health, lastSeenAt: relayInstances.lastSeenAt })
+        .from(relayInstances)
+        .where(eq(relayInstances.id, instanceId))
+        .limit(1);
+      if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
+      const fresh = (instance.lastSeenAt?.getTime() ?? 0) > since;
+      if (fresh && drainingTunnels(instance.health) === 0) return true;
+      if (Date.now() >= deadline) return false;
+      await new Promise((resolve) => setTimeout(resolve, PORT_CHANGE_DRAIN_POLL_MS).unref?.());
+    }
+  }
+
+  /** The port change of a relay as the relay list shows it; a failure stays visible for an hour. */
+  private portChangeView(instanceId: string, now = Date.now()): RelayServicePortChange | null {
+    const change = this.portChanges.get(instanceId);
+    if (!change) return null;
+    if (change.state === 'failed' && now - Date.parse(change.at) > PORT_CHANGE_FAILURE_VISIBLE_MS) {
+      this.portChanges.delete(instanceId);
+      return null;
+    }
+    return change;
   }
 
   private async reconcileOnce(): Promise<void> {
@@ -1668,6 +1798,8 @@ export class RelayPoolService {
           protected: instance.capabilities?.features?.includes(NODE_PROTECTED_CAPABILITY) === true,
           /** Whether Change port is offered: `update_required` for a relay that does not know the command yet. */
           servicePortChange: relayServicePortChangeState(instance),
+          /** The port change running on this relay, or the last one that failed (shown for an hour). */
+          portChange: this.portChangeView(instance.id),
           policyTrust: policyTrust.get(instance.id) ?? null,
           certificate: certificates.get(instance.id) ?? null,
           /** Revoked routes this relay has not applied; `stale` once past the deadline. */
@@ -2367,7 +2499,14 @@ export class RelayPoolService {
     );
   }
 
-  private async setInstanceDrain(instanceId: string, userId: string | null, enabled: boolean, manual: boolean) {
+  /** `graceKind`: whose drain grace applies (a port change takes the operator drain's, though it drains like an update). */
+  private async setInstanceDrain(
+    instanceId: string,
+    userId: string | null,
+    enabled: boolean,
+    manual: boolean,
+    graceKind: 'manual' | 'update' = manual ? 'manual' : 'update'
+  ) {
     const [instance] = await this.db.select().from(relayInstances).where(eq(relayInstances.id, instanceId)).limit(1);
     if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
     // A drain is planned: its relay is not held back once resumed (placementView).
@@ -2406,7 +2545,7 @@ export class RelayPoolService {
     const deadlineAt = enabled
       ? drainDeadline(
           instance,
-          await relayDrainGraceMs(this.db, instance.id, manual ? 'manual' : 'update', this.legacyStreams(instance.id))
+          await relayDrainGraceMs(this.db, instance.id, graceKind, this.legacyStreams(instance.id))
         )
       : null;
     // Persist user intent before remote I/O so a crash or failed delivery cannot
@@ -2506,7 +2645,12 @@ export class RelayPoolService {
     );
   }
 
-  private async forceDisconnectDrainingInstance(instanceId: string, userId: string | null, update: boolean) {
+  private async forceDisconnectDrainingInstance(
+    instanceId: string,
+    userId: string | null,
+    update: boolean,
+    reason: string | null = update ? 'relay_pool_update_drain_grace_ended' : null
+  ) {
     const [instance] = await this.db.select().from(relayInstances).where(eq(relayInstances.id, instanceId)).limit(1);
     if (!instance) throw new AppError(404, 'RELAY_INSTANCE_NOT_FOUND', 'Relay instance not found');
     // The local relay drains only during a Relay Pool update; its streams can be ended early like a remote relay's.
@@ -2539,7 +2683,7 @@ export class RelayPoolService {
       details: {
         activeTunnels: instance.health?.activeTunnels ?? 0,
         ...(split.reporting ? { resumableStreams: split.resumable, legacyStreams: split.legacy } : {}),
-        ...(update ? { reason: 'relay_pool_update_drain_grace_ended' } : {}),
+        ...(reason ? { reason } : {}),
       },
     });
     this.events.publish('system.relay.health.changed', {

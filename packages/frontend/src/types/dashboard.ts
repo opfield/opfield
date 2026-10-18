@@ -213,6 +213,14 @@ export interface DashboardRelayInstance {
    * the port on the host); `unsupported` for the local relay.
    */
   servicePortChange?: "available" | "update_required" | "protected" | "unsupported";
+  /** The port change running on the relay, or the last one that failed (with the relay's reason). */
+  portChange?: {
+    state: "draining" | "moving" | "failed";
+    servicePort: number;
+    previousServicePort: number;
+    error: string | null;
+    at: string;
+  } | null;
   /** Whether availability witnesses may run here (admin flag and the relay's local state). */
   witnessHosting?: RelayWitnessHosting;
   /** The admin flag alone (newer backends). */
