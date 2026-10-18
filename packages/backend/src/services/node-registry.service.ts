@@ -218,25 +218,37 @@ export class NodeRegistryService {
     if (!normalizedState) return;
 
     const resourceId = name || id;
-    const observedPatterns =
-      normalizedState === 'started' || normalizedState === 'removed' ? ['stopped', 'exited'] : [normalizedState];
+    // Docker reports a stopped container as exited: it is stopped as well as exited, whoever stopped it. Observing
+    // only "exited" left the Container Stopped rules with the single sample of the stop action, so they never covered
+    // their window and never fired (stand 2.12.6-rc.1, O-4).
+    const observations: Array<[string, string[]]> =
+      normalizedState === 'started' || normalizedState === 'removed'
+        ? [[normalizedState, ['stopped', 'exited']]]
+        : normalizedState === 'exited'
+          ? [
+              ['stopped', ['stopped']],
+              ['exited', ['exited']],
+            ]
+          : [[normalizedState, [normalizedState]]];
 
-    this.evaluator
-      ?.observeStatefulEvent(
-        'container',
-        normalizedState,
-        { type: 'container', id: resourceId, name: name ?? id },
-        { nodeId, containerId: id, state },
-        observedPatterns
-      )
-      .catch((error) => {
-        logger.debug('Docker container stateful event observation failed', {
-          nodeId,
-          containerId: id,
-          state,
-          error: error instanceof Error ? error.message : String(error),
+    for (const [currentState, observedPatterns] of observations) {
+      this.evaluator
+        ?.observeStatefulEvent(
+          'container',
+          currentState,
+          { type: 'container', id: resourceId, name: name ?? id },
+          { nodeId, containerId: id, state },
+          observedPatterns
+        )
+        .catch((error) => {
+          logger.debug('Docker container stateful event observation failed', {
+            nodeId,
+            containerId: id,
+            state,
+            error: error instanceof Error ? error.message : String(error),
+          });
         });
-      });
+    }
   }
 
   private normalizeDockerContainerState(state?: string): 'started' | 'stopped' | 'exited' | 'removed' | null {
