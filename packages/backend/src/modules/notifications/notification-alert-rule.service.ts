@@ -1,11 +1,12 @@
-import { count, eq, ilike, inArray, isNull, max, type SQL } from 'drizzle-orm';
+import { count, desc, eq, ilike, inArray, isNull, max, type SQL } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
-import { notificationAlertRules, notificationWebhooks } from '@/db/schema/index.js';
+import { notificationAlertRuleFolders, notificationAlertRules, notificationWebhooks } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { buildWhere } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
+import { folderListOrder, folderTreeOrder } from '@/modules/resource-folders/resource-folder-order.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import {
   type AlertRuleListQuery,
@@ -65,11 +66,13 @@ export class NotificationAlertRuleService {
     const total = totalResult?.count ?? 0;
 
     const offset = (query.page - 1) * query.limit;
+    // The order of the alert list: the built-in group, the folders as the tree shows them, then ungrouped rules.
+    const folderIds = await folderTreeOrder(this.db, notificationAlertRuleFolders);
     const rows = await this.db
       .select()
       .from(notificationAlertRules)
       .where(where)
-      .orderBy(notificationAlertRules.createdAt)
+      .orderBy(desc(notificationAlertRules.isBuiltin), ...folderListOrder(folderIds, notificationAlertRules))
       .limit(query.limit)
       .offset(offset);
 

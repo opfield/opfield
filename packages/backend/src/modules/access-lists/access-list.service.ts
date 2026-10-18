@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs';
-import { and, count, desc, eq, ilike, inArray, isNull, max } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray, isNull, max } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import type { BasicAuthUser, IPRule } from '@/db/schema/access-lists.js';
-import { accessLists, nodes, pageProjects } from '@/db/schema/index.js';
+import { accessListFolders, accessLists, nodes, pageProjects } from '@/db/schema/index.js';
 import { proxyHosts } from '@/db/schema/proxy-hosts.js';
 import { createChildLogger } from '@/lib/logger.js';
 import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
@@ -12,6 +12,7 @@ import type { AuditService } from '@/modules/audit/audit.service.js';
 import { resolveIngressNodes, resolveIngressNodesForMany } from '@/modules/ingress-groups/ingress-nodes.js';
 import type { NginxTemplateService } from '@/modules/proxy/nginx-template.service.js';
 import { accessListLockKey, runOutsideProxyLocks, withProxyLocks } from '@/modules/proxy/proxy-host-lock.js';
+import { folderListOrder, folderTreeOrder } from '@/modules/resource-folders/resource-folder-order.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NginxCertificateDistributionService } from '@/services/nginx-certificate-distribution.service.js';
 import type { NginxConfigGenerator } from '@/services/nginx-config-generator.service.js';
@@ -471,14 +472,17 @@ export class AccessListService {
     }
 
     const where = buildWhere(conditions);
+    // The order of the access list page: the folders as the tree shows them, then ungrouped lists.
+    const folderIds = await folderTreeOrder(this.db, accessListFolders);
 
     const [entries, [{ count: totalCount }]] = await Promise.all([
-      this.db.query.accessLists.findMany({
-        where: where ? () => where : undefined,
-        orderBy: [desc(accessLists.createdAt)],
-        limit: query.limit,
-        offset: (query.page - 1) * query.limit,
-      }),
+      this.db
+        .select()
+        .from(accessLists)
+        .where(where)
+        .orderBy(...folderListOrder(folderIds, accessLists))
+        .limit(query.limit)
+        .offset((query.page - 1) * query.limit),
       this.db.select({ count: count() }).from(accessLists).where(where),
     ]);
 

@@ -161,4 +161,64 @@ describe.skipIf(!url)('Alert rule, webhook and access list folders on disposable
     await folders.deleteFolder(team.id, userId);
     expect((await q('select folder_id from access_lists where id = $1', [inside.id])).rows[0].folder_id).toBe(null);
   });
+  it('lists rules, webhooks and access lists in folder-tree order, then sortOrder, ungrouped last', async () => {
+    // Folders: First (sortOrder 0) with a subfolder Nested, then Second (sortOrder 1).
+    const ruleFolders = new NotificationAlertRuleFolderService(db, audit);
+    const rules = new NotificationAlertRuleService(db, audit);
+    const second = await ruleFolders.createFolder({ name: 'Second' }, userId);
+    const first = await ruleFolders.createFolder({ name: 'First' }, userId);
+    await ruleFolders.reorderFolders({
+      items: [
+        { id: first.id, sortOrder: 0 },
+        { id: second.id, sortOrder: 1 },
+      ],
+    });
+    const nested = await ruleFolders.createFolder({ name: 'Nested', parentId: first.id }, userId);
+    const ungrouped = await rules.create(ruleInput('Ungrouped'), userId);
+    const inSecond = await rules.create(ruleInput('In second'), userId);
+    await ruleFolders.moveResourcesToFolder({ ids: [inSecond.id], folderId: second.id }, userId);
+    const inNested = await rules.create(ruleInput('In nested', nested.id), userId);
+    const firstB = await rules.create(ruleInput('First B', first.id), userId);
+    const firstA = await rules.create(ruleInput('First A', first.id), userId);
+    await ruleFolders.reorderResources({
+      items: [
+        { id: firstA.id, sortOrder: 0 },
+        { id: firstB.id, sortOrder: 1 },
+      ],
+    });
+    const ids = [ungrouped, inSecond, inNested, firstB, firstA].map((rule) => rule.id);
+    const listed = (await rules.list({ page: 1, limit: 100 }, { allowedIds: ids })).data.map((rule) => rule.id);
+    expect(listed).toEqual([firstA.id, firstB.id, inNested.id, inSecond.id, ungrouped.id]);
+    // Built-in rules come first, as their group does in the list.
+    const all = (await rules.list({ page: 1, limit: 100 })).data;
+    expect(all[0]!.isBuiltin).toBe(true);
+    expect(all.findIndex((rule) => !rule.isBuiltin)).toBe(all.filter((rule) => rule.isBuiltin).length);
+
+    const webhookFolders = new NotificationWebhookFolderService(db, audit);
+    const webhooks = new NotificationWebhookService(db, audit, {} as never);
+    const hookFolder = await webhookFolders.createFolder({ name: 'Hooks' }, userId);
+    const looseHook = await webhooks.create(
+      CreateWebhookSchema.parse({ name: 'Loose', url: 'https://hooks.example.test/l' }),
+      userId
+    );
+    const folderHook = await webhooks.create(
+      CreateWebhookSchema.parse({ name: 'Foldered', url: 'https://hooks.example.test/f', folderId: hookFolder.id }),
+      userId
+    );
+    const hookIds = (await webhooks.list({ page: 1, limit: 100 }, { allowedIds: [looseHook.id, folderHook.id] })).data;
+    expect(hookIds.map((hook) => hook.id)).toEqual([folderHook.id, looseHook.id]);
+
+    const listFolders = new AccessListFolderService(db, audit);
+    const lists = new AccessListService(db, {} as never, {} as never, audit, {} as never, {} as never);
+    const listFolder = await listFolders.createFolder({ name: 'Partners' }, userId);
+    const looseList = await lists.create(CreateAccessListSchema.parse({ name: 'Loose' }), userId);
+    const folderList = await lists.create(
+      CreateAccessListSchema.parse({ name: 'Partner', folderId: listFolder.id }),
+      userId
+    );
+    const listIds = (await lists.list({ page: 1, limit: 100 }, { allowedIds: [looseList.id, folderList.id] })).data.map(
+      (list) => list.id
+    );
+    expect(listIds).toEqual([folderList.id, looseList.id]);
+  });
 });

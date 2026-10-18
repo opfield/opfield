@@ -761,7 +761,7 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_access_lists',
     description:
-      'List IP access control and basic authentication lists. Each carries folderId (null: ungrouped) and sortOrder; list_resource_folders with access_lists names the folders, manage_resource_folder moves lists between them.',
+      'List IP access control and basic authentication lists. Each carries folderId (null: ungrouped) and sortOrder, in the order of the access list page (folders in tree order, then ungrouped); list_resource_folders with access_lists names the folders, manage_resource_folder moves lists between them.',
     parameters: {
       type: 'object',
       properties: {
