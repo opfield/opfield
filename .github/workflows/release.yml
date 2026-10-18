@@ -251,9 +251,9 @@ jobs:
         env:
           RELEASE_PRERELEASE: ${{ steps.tag.outputs.prerelease }}
         run: |
-          git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)' > release-notes.md
+          git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents)' | awk '/^[[:space:]]*$/ || /^(- |  )/ { print; next } { print "- " $0 }' > release-notes.md
           if ! grep -q '[^[:space:]]' release-notes.md; then
-            printf 'Opfield release %s\n' "$GITHUB_REF_NAME" > release-notes.md
+            printf -- '- Maintenance release.\n' > release-notes.md
           fi
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             test "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" = true

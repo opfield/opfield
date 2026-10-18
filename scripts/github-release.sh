@@ -31,11 +31,17 @@ if [[ "$RELEASE_KIND" == "opfield" && "$RELEASE_PRERELEASE" != "true" ]]; then
   latest_args=(--latest)
 fi
 
+# Release notes: the tag message, one "- " line per change, and for a component a link to the Opfield release it ships
+# with, so every release on GitHub reads the same way.
 write_release_notes() {
-  local fallback=$1
-  git for-each-ref "refs/tags/${tag}" --format='%(contents)' > "$release_notes_file"
+  local fallback=$1 app_tag
+  git for-each-ref "refs/tags/${tag}" --format='%(contents)' | awk '/^[[:space:]]*$/ || /^(- |  )/ { print; next } { print "- " $0 }' > "$release_notes_file"
   if ! grep -q '[^[:space:]]' "$release_notes_file"; then
-    printf '%s\n' "$fallback" > "$release_notes_file"
+    printf -- '- %s\n' "$fallback" > "$release_notes_file"
+  fi
+  if [[ "$RELEASE_KIND" != "opfield" ]]; then
+    app_tag=${tag%-*}
+    printf '\nPart of [Opfield %s](https://github.com/opfield/opfield/releases/tag/%s).\n' "$app_tag" "$app_tag" >> "$release_notes_file"
   fi
 }
 
@@ -253,7 +259,7 @@ publish_daemon() {
   for arch in amd64 arm64; do
     assets+=("${daemon_name}-linux-${arch}" "${daemon_name}-linux-${arch}.update.json")
   done
-  prepare_release "${daemon_label} ${tag}" "${daemon_label} release ${tag}"
+  prepare_release "${daemon_label} ${tag%-"$daemon_suffix"}" "Released with Opfield ${tag%-"$daemon_suffix"}."
   if [[ "$release_already_published" -eq 1 ]]; then
     complete_release "${assets[@]}"
     return
@@ -285,7 +291,7 @@ publish_relay() {
       "relay-worker-linux-${arch}.update.json"
     )
   done
-  prepare_release "Opfield Relay ${tag}" "Opfield Relay release ${tag}"
+  prepare_release "Opfield Relay ${relay_version}" "Released with Opfield ${relay_version}."
   if [[ "$release_already_published" -eq 1 ]]; then
     complete_release "${assets[@]}"
     return
@@ -359,14 +365,14 @@ if [[ "$RELEASE_KIND" == "opfield" ]]; then
 elif [[ "$RELEASE_COMPONENT" == "relay" ]]; then
   publish_relay
 elif [[ "$RELEASE_COMPONENT" == "nginx" ]]; then
-  publish_daemon nginx nginx-daemon nginx "Nginx Daemon" github.com/opfield/opfield/nginx-daemon/internal/daemon
+  publish_daemon nginx nginx-daemon nginx "Opfield Nginx Daemon" github.com/opfield/opfield/nginx-daemon/internal/daemon
 elif [[ "$RELEASE_COMPONENT" == "docker" ]]; then
-  publish_daemon docker docker-daemon docker "Docker Daemon" main
+  publish_daemon docker docker-daemon docker "Opfield Docker Daemon" main
 elif [[ "$RELEASE_COMPONENT" == "monitoring" ]]; then
-  publish_daemon monitoring monitoring-daemon monitoring "Monitoring Daemon" main
+  publish_daemon monitoring monitoring-daemon monitoring "Opfield Monitoring Daemon" main
 elif [[ "$RELEASE_COMPONENT" == "watchdog" ]]; then
   # The lease watchdog is released independently of docker-daemon (A12.5).
-  publish_daemon lease-watchdog lease-watchdog watchdog "Lease Watchdog" main
+  publish_daemon lease-watchdog lease-watchdog watchdog "Opfield Lease Watchdog" main
 else
   printf 'Tag %s is not a supported Opfield release tag\n' "$tag" >&2
   exit 1
