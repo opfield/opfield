@@ -39,6 +39,9 @@ export const FOLDER_FAMILY_LABELS: Record<FolderFamily, string> = {
   "logging-environments": "Logging environments",
   "logging-schemas": "Logging schemas",
   apps: "Apps",
+  "notification-alert-rules": "Alert rules",
+  "notification-webhooks": "Notification webhooks",
+  "access-lists": "Access lists",
 };
 
 const APP_MEMBER_NOUNS: Record<AppMemberFamily, [string, string]> = {

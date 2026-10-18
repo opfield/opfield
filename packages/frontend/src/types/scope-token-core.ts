@@ -340,6 +340,12 @@ export const CORE_TOKEN_SCOPES = [
     desc: "Delete access control lists",
     group: "Access Control",
   },
+  {
+    value: "acl:folders:manage",
+    label: "Manage Access List Folders",
+    desc: "Organize access lists into folders",
+    group: "Access Control",
+  },
   // Nodes
   { value: "nodes:details", label: "View Nodes", desc: "View managed nodes", group: "Nodes" },
   { value: "nodes:create", label: "Create Nodes", desc: "Enroll new nodes", group: "Nodes" },

@@ -7,6 +7,10 @@ import { DatabaseFolderService } from '@/modules/databases/database-folders.serv
 import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
 import { LoggingEnvironmentFolderService } from '@/modules/logging/logging-environment-folders.service.js';
 import { LoggingSchemaFolderService } from '@/modules/logging/logging-schema-folders.service.js';
+import {
+  NotificationAlertRuleFolderService,
+  NotificationWebhookFolderService,
+} from '@/modules/notifications/notification-folders.service.js';
 import { ObjectStorageFolderService } from '@/modules/object-storage/object-storage-folders.service.js';
 import { PageProjectFolderService } from '@/modules/pages/page-project-folder.service.js';
 import { PageProfileService } from '@/modules/pages/profile/page-profile.service.js';
@@ -28,6 +32,16 @@ const FAMILIES = [
     service: LoggingEnvironmentFolderService,
   },
   { resourceType: 'logging_schemas', manageScope: 'logs:schemas:folders:manage', service: LoggingSchemaFolderService },
+  {
+    resourceType: 'notification_alert_rules',
+    manageScope: 'notifications:alerts:folders:manage',
+    service: NotificationAlertRuleFolderService,
+  },
+  {
+    resourceType: 'notification_webhooks',
+    manageScope: 'notifications:webhooks:folders:manage',
+    service: NotificationWebhookFolderService,
+  },
 ] as const;
 
 function setup(family: (typeof FAMILIES)[number]) {

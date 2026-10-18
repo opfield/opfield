@@ -2,6 +2,8 @@ import type {
   AlertCategoryDef,
   AlertRule,
   NotificationWebhook,
+  ResourceFolder,
+  ResourceFolderTreeNode,
   SiemAuthType,
   SiemDelivery,
   SiemDeliveryStatus,
@@ -10,6 +12,14 @@ import type {
   WebhookPreset,
 } from "@/types";
 import type { ApiClientBaseConstructor } from "./api-mixins";
+
+/** Folder routes of the alert rule and webhook lists, with the segment of their move and reorder routes. */
+const NOTIFICATION_FOLDER_ROUTES = {
+  rules: { base: "/notifications/alert-rules/folders", segment: "rules" },
+  webhooks: { base: "/notifications/webhooks/folders", segment: "webhooks" },
+} as const;
+
+type NotificationFolderList = keyof typeof NOTIFICATION_FOLDER_ROUTES;
 
 export function withNotificationApi<TBase extends ApiClientBaseConstructor>(Base: TBase) {
   return class NotificationApiClient extends Base {
@@ -21,6 +31,7 @@ export function withNotificationApi<TBase extends ApiClientBaseConstructor>(Base
       type?: string;
       enabled?: boolean;
       search?: string;
+      folderId?: string;
     }): Promise<{
       data: AlertRule[];
       total: number;
@@ -34,8 +45,89 @@ export function withNotificationApi<TBase extends ApiClientBaseConstructor>(Base
       if (params?.type) query.set("type", params.type);
       if (params?.enabled !== undefined) query.set("enabled", String(params.enabled));
       if (params?.search) query.set("search", params.search);
+      if (params?.folderId) query.set("folderId", params.folderId);
       const qs = query.toString();
       return this.request(`/notifications/alert-rules${qs ? `?${qs}` : ""}`);
+    }
+
+    /** Every alert rule the caller may view (the list route pages at 100). */
+    async listAllAlertRules(): Promise<AlertRule[]> {
+      const rules: AlertRule[] = [];
+      for (let page = 1; ; page++) {
+        const result = await this.listAlertRules({ page, limit: 100 });
+        rules.push(...(result.data ?? []));
+        if (page >= (result.totalPages ?? 1)) return rules;
+      }
+    }
+
+    // ── Alert rule and webhook folders ──────────────────────────────
+
+    async listNotificationFolders(list: NotificationFolderList): Promise<ResourceFolderTreeNode[]> {
+      return this.unwrapData(
+        this.request<{ data: ResourceFolderTreeNode[] }>(NOTIFICATION_FOLDER_ROUTES[list].base)
+      );
+    }
+
+    async createNotificationFolder(
+      list: NotificationFolderList,
+      data: { name: string; parentId?: string }
+    ): Promise<ResourceFolder> {
+      return this.unwrapData(
+        this.request<{ data: ResourceFolder }>(NOTIFICATION_FOLDER_ROUTES[list].base, {
+          method: "POST",
+          body: JSON.stringify(data),
+        })
+      );
+    }
+
+    async updateNotificationFolder(
+      list: NotificationFolderList,
+      id: string,
+      data: { name: string }
+    ): Promise<ResourceFolder> {
+      return this.unwrapData(
+        this.request<{ data: ResourceFolder }>(`${NOTIFICATION_FOLDER_ROUTES[list].base}/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(data),
+        })
+      );
+    }
+
+    async deleteNotificationFolder(list: NotificationFolderList, id: string): Promise<void> {
+      await this.request(`${NOTIFICATION_FOLDER_ROUTES[list].base}/${id}`, { method: "DELETE" });
+    }
+
+    async reorderNotificationFolders(
+      list: NotificationFolderList,
+      items: { id: string; sortOrder: number }[]
+    ): Promise<void> {
+      await this.request(`${NOTIFICATION_FOLDER_ROUTES[list].base}/reorder`, {
+        method: "PUT",
+        body: JSON.stringify({ items }),
+      });
+    }
+
+    async moveToNotificationFolder(
+      list: NotificationFolderList,
+      ids: string[],
+      folderId: string | null
+    ): Promise<void> {
+      const route = NOTIFICATION_FOLDER_ROUTES[list];
+      await this.request(`${route.base}/move-${route.segment}`, {
+        method: "POST",
+        body: JSON.stringify({ ids, folderId }),
+      });
+    }
+
+    async reorderInNotificationFolder(
+      list: NotificationFolderList,
+      items: { id: string; sortOrder: number }[]
+    ): Promise<void> {
+      const route = NOTIFICATION_FOLDER_ROUTES[list];
+      await this.request(`${route.base}/reorder-${route.segment}`, {
+        method: "PUT",
+        body: JSON.stringify({ items }),
+      });
     }
 
     /** What a relay_pool or docker_availability rule can be scoped to (they have no list of their own). */
@@ -87,6 +179,7 @@ export function withNotificationApi<TBase extends ApiClientBaseConstructor>(Base
       limit?: number;
       enabled?: boolean;
       search?: string;
+      folderId?: string;
     }): Promise<{
       data: NotificationWebhook[];
       total: number;
@@ -99,8 +192,19 @@ export function withNotificationApi<TBase extends ApiClientBaseConstructor>(Base
       if (params?.limit) query.set("limit", String(params.limit));
       if (params?.enabled !== undefined) query.set("enabled", String(params.enabled));
       if (params?.search) query.set("search", params.search);
+      if (params?.folderId) query.set("folderId", params.folderId);
       const qs = query.toString();
       return this.request(`/notifications/webhooks${qs ? `?${qs}` : ""}`);
+    }
+
+    /** Every webhook the caller may view (the list route pages at 100). */
+    async listAllWebhooks(): Promise<NotificationWebhook[]> {
+      const webhooks: NotificationWebhook[] = [];
+      for (let page = 1; ; page++) {
+        const result = await this.listWebhooks({ page, limit: 100 });
+        webhooks.push(...(result.data ?? []));
+        if (page >= (result.totalPages ?? 1)) return webhooks;
+      }
     }
 
     async getWebhookPresets(): Promise<WebhookPreset[]> {

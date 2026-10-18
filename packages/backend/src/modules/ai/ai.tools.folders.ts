@@ -31,7 +31,7 @@ export const FOLDER_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'manage_resource_folder',
     description:
-      'Create, update, move, delete, reorder, or assign foldered Opfield resources. Use the resource-specific ids and resourceType (pages = Page Projects, apps = folders of the Apps list holding apps, storage = storage connections, pki_cas = internal CAs: only root CAs move and their intermediates follow, pki_certificates = internal PKI certificates, pki_templates and nginx_templates = custom templates; built-ins never move).',
+      'Create, update, move, delete, reorder, or assign foldered Opfield resources. Use the resource-specific ids and resourceType (pages = Page Projects, apps = folders of the Apps list holding apps, storage = storage connections, pki_cas = internal CAs: only root CAs move and their intermediates follow, pki_certificates = internal PKI certificates, pki_templates and nginx_templates = custom templates, notification_alert_rules = alert rules, notification_webhooks = notification webhooks, access_lists = access lists; built-in templates and built-in alert rules never move).',
     parameters: {
       type: 'object',
       properties: {

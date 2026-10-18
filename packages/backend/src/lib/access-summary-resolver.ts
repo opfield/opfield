@@ -2,6 +2,7 @@ import { inArray } from 'drizzle-orm';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import {
+  accessListFolders,
   accessLists,
   adminUserFolders,
   appEnvironments,
@@ -26,6 +27,10 @@ import {
   nginxTemplateFolders,
   nodeFolders,
   nodes,
+  notificationAlertRuleFolders,
+  notificationAlertRules,
+  notificationWebhookFolders,
+  notificationWebhooks,
   objectStorageConnections,
   objectStorageFolders,
   pageProjectFolders,
@@ -234,6 +239,9 @@ const FOLDER_TABLES: Record<AccessFolderResourceType, any> = {
   nginx_templates: nginxTemplateFolders,
   logging_environments: loggingEnvironmentFolders,
   logging_schemas: loggingSchemaFolders,
+  notification_alert_rules: notificationAlertRuleFolders,
+  notification_webhooks: notificationWebhookFolders,
+  access_lists: accessListFolders,
   admin_users: adminUserFolders,
   permission_groups: permissionGroupFolders,
   routes: proxyHostFolders,
@@ -390,6 +398,22 @@ async function resourceNames(db: Db, areaId: string, targets: GrantTargetSummary
         db,
         loggingSchemas,
         { id: loggingSchemas.id, name: loggingSchemas.name },
+        ids,
+        (row) => row.name
+      );
+    case 'notification_alert_rules':
+      return namesById(
+        db,
+        notificationAlertRules,
+        { id: notificationAlertRules.id, name: notificationAlertRules.name },
+        ids,
+        (row) => row.name
+      );
+    case 'notification_webhooks':
+      return namesById(
+        db,
+        notificationWebhooks,
+        { id: notificationWebhooks.id, name: notificationWebhooks.name },
         ids,
         (row) => row.name
       );

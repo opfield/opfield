@@ -2,6 +2,7 @@ import { inArray } from 'drizzle-orm';
 import { container } from '@/container.js';
 import type { DrizzleClient, DrizzleExecutor, DrizzleTransaction } from '@/db/client.js';
 import {
+  accessListFolders,
   accessLists,
   adminUserFolders,
   appEnvironments,
@@ -28,6 +29,10 @@ import {
   nginxTemplates,
   nodeFolders,
   nodes,
+  notificationAlertRuleFolders,
+  notificationAlertRules,
+  notificationWebhookFolders,
+  notificationWebhooks,
   objectStorageConnections,
   objectStorageFolders,
   pageProjectFolders,
@@ -76,6 +81,9 @@ const kindTables = (): Record<ScopeResourceKind, readonly any[]> => ({
     pkiTemplateFolders,
     nginxTemplateFolders,
     appFolders,
+    notificationAlertRuleFolders,
+    notificationWebhookFolders,
+    accessListFolders,
   ],
   proxyHost: [proxyHosts],
   proxyTemplate: [nginxTemplates],
@@ -89,6 +97,8 @@ const kindTables = (): Record<ScopeResourceKind, readonly any[]> => ({
   objectStorageConnection: [objectStorageConnections],
   loggingEnvironment: [loggingEnvironments],
   loggingSchema: [loggingSchemas],
+  notificationAlertRule: [notificationAlertRules],
+  notificationWebhook: [notificationWebhooks],
   // Deleted users keep their row (they can be restored), so grants naming them stay.
   user: [users],
   group: [permissionGroups],

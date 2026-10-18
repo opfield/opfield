@@ -94,6 +94,7 @@ export const ALL_SCOPES = [
   'acl:create',
   'acl:edit',
   'acl:delete',
+  'acl:folders:manage',
   // ── Nodes ────────────────────────────────────────────────────────
   'nodes:details',
   'nodes:create',
@@ -278,8 +279,10 @@ export const ALL_SCOPES = [
   // ── Notifications ────────────────────────────────────────────────
   'notifications:alerts:view',
   'notifications:alerts:manage',
+  'notifications:alerts:folders:manage',
   'notifications:webhooks:view',
   'notifications:webhooks:manage',
+  'notifications:webhooks:folders:manage',
   // ── External Logging ─────────────────────────────────────────────
   'logs:environments:view',
   'logs:environments:create',

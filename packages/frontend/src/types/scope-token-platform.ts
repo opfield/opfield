@@ -58,6 +58,12 @@ export const PLATFORM_TOKEN_SCOPES = [
     group: "Notifications",
   },
   {
+    value: "notifications:alerts:folders:manage",
+    label: "Manage Alert Rule Folders",
+    desc: "Organize custom alert rules into folders",
+    group: "Notifications",
+  },
+  {
     value: "notifications:webhooks:view",
     label: "View Webhooks",
     desc: "View notification webhooks and their delivery attempts",
@@ -67,6 +73,12 @@ export const PLATFORM_TOKEN_SCOPES = [
     value: "notifications:webhooks:manage",
     label: "Manage Webhooks",
     desc: "Create, edit, test, and delete notification webhooks",
+    group: "Notifications",
+  },
+  {
+    value: "notifications:webhooks:folders:manage",
+    label: "Manage Webhook Folders",
+    desc: "Organize notification webhooks into folders",
     group: "Notifications",
   },
   // Status Page

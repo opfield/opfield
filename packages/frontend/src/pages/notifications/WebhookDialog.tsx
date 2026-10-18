@@ -1,9 +1,14 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Minus, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { ContentLoading } from "@/components/common/ContentLoading";
+import {
+  CreateFolderSelect,
+  getCreateFolderChoices,
+  isCreateFolderAllowed,
+} from "@/components/common/CreateFolderSelect";
 import { PanelShell } from "@/components/common/PanelShell";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +30,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
+import { useResourceFolderStore } from "@/stores/resource-folders";
 import type { NotificationWebhook, WebhookPreset } from "@/types";
 import {
   TemplateCheatsheetLink,
@@ -38,13 +45,29 @@ export function WebhookDialog({
   onOpenChange,
   webhook,
   onSaved,
+  defaultFolderId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   webhook: NotificationWebhook | null;
   onSaved: () => void;
+  /** Folder a new webhook starts in (the picker keeps it when the caller may create there). */
+  defaultFolderId?: string;
 }) {
   const isEdit = !!webhook;
+  const scopes = useAuthStore((state) => state.user?.scopes);
+  const [folderId, setFolderId] = useState("");
+  const folders = useResourceFolderStore((state) => state.foldersByType["notification-webhook"]);
+  const foldersLoading = useResourceFolderStore(
+    (state) => state.loadingByType["notification-webhook"]
+  );
+  const fetchFolders = useResourceFolderStore((state) => state.fetchFolders);
+  // Same destination rule as the create route: notifications:webhooks:manage broadly or on the folder.
+  const folderChoices = useMemo(
+    () => getCreateFolderChoices(scopes ?? [], "notifications:webhooks:manage", folders ?? []),
+    [folders, scopes]
+  );
+  const destinationAllowed = isEdit || isCreateFolderAllowed(folderChoices, folderId);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (open) setSaving(false);
@@ -69,6 +92,8 @@ export function WebhookDialog({
     if (!open) return;
     setStep(1);
     setName(webhook?.name ?? "");
+    setFolderId(defaultFolderId ?? "");
+    if (!webhook) void fetchFolders("notification-webhook");
     setUrl(webhook?.url ?? "");
     setMethod(webhook?.method ?? "POST");
     setPreset(webhook?.templatePreset ?? "json");
@@ -82,7 +107,7 @@ export function WebhookDialog({
       .then(setPresets)
       .catch(() => {})
       .finally(() => setPresetsLoaded(true));
-  }, [open, webhook]);
+  }, [open, webhook, defaultFolderId, fetchFolders]);
 
   const applyPreset = (id: string) => {
     setPreset(id);
@@ -139,6 +164,8 @@ export function WebhookDialog({
         toast.success("Webhook updated");
       } else {
         data.enabled = true;
+        // The folder is chosen on create; moving a webhook later happens in the list.
+        data.folderId = folderId || null;
         await api.createWebhook(data);
         toast.success("Webhook created");
       }
@@ -197,6 +224,20 @@ export function WebhookDialog({
                   </Select>
                 </div>
               </div>
+              {!isEdit && (
+                <div className="space-y-1.5">
+                  <label htmlFor="webhook-folder" className="text-sm font-medium">
+                    Folder
+                  </label>
+                  <CreateFolderSelect
+                    id="webhook-folder"
+                    choices={folderChoices}
+                    value={folderId}
+                    onChange={setFolderId}
+                    loading={foldersLoading}
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">URL</label>
                 <Input
@@ -312,6 +353,7 @@ export function WebhookDialog({
                   }
                   setStep(2);
                 }}
+                disabled={!destinationAllowed}
               >
                 Next <ArrowRight />
               </Button>

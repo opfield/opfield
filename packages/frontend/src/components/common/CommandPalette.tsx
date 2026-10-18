@@ -609,7 +609,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/notifications/alerts",
         icon: Bell,
         parentId: "notifications",
-        visible: hasAnyScope("notifications:alerts:view", "notifications:alerts:manage"),
+        visible: globalAccess.hasScopedAccess("notifications:alerts:view"),
       },
       {
         id: "notifications-webhooks",
@@ -617,7 +617,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/notifications/webhooks",
         icon: Webhook,
         parentId: "notifications",
-        visible: hasAnyScope("notifications:webhooks:view", "notifications:webhooks:manage"),
+        visible: globalAccess.hasScopedAccess("notifications:webhooks:view"),
       },
       {
         id: "notifications-deliveries",
@@ -625,7 +625,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         href: "/notifications/deliveries",
         icon: ScrollText,
         parentId: "notifications",
-        visible: hasAnyScope("notifications:webhooks:view", "notifications:webhooks:manage"),
+        visible: globalAccess.hasScopedAccess("notifications:webhooks:view"),
       },
       {
         id: "status-services",

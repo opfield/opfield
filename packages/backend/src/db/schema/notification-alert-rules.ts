@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   doublePrecision,
   index,
@@ -10,6 +11,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { notificationAlertRuleFolders } from './notification-folders.js';
 
 export const notificationAlertRules = pgTable(
   'notification_alert_rules',
@@ -51,6 +53,11 @@ export const notificationAlertRules = pgTable(
     cooldownSeconds: integer('cooldown_seconds').notNull().default(900),
 
     isBuiltin: boolean('is_builtin').notNull().default(false),
+    // Custom rules only; built-in rules stay in the read-only built-in group. Null: ungrouped.
+    folderId: uuid('folder_id').references((): AnyPgColumn => notificationAlertRuleFolders.id, {
+      onDelete: 'set null',
+    }),
+    sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -59,5 +66,6 @@ export const notificationAlertRules = pgTable(
     typeIdx: index('notif_alert_rules_type_idx').on(table.type),
     categoryIdx: index('notif_alert_rules_category_idx').on(table.category),
     builtinIdx: index('notif_alert_rules_builtin_idx').on(table.isBuiltin),
+    folderIdx: index('notif_alert_rules_folder_idx').on(table.folderId),
   })
 );

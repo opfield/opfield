@@ -16,6 +16,9 @@ export type AccessFolderResourceType =
   | 'nginx_templates'
   | 'logging_environments'
   | 'logging_schemas'
+  | 'notification_alert_rules'
+  | 'notification_webhooks'
+  | 'access_lists'
   | 'admin_users'
   | 'permission_groups'
   | 'routes'
@@ -156,7 +159,15 @@ export const ACCESS_AREAS: readonly AccessAreaDefinition[] = [
     folderResourceType: 'routes',
     createHint: 'pass folderId (and nodeId) to create_route',
   },
-  { id: 'access_lists', title: 'Access lists', action: prefixed('acl:'), viewScope: 'acl:view' },
+  {
+    id: 'access_lists',
+    title: 'Access lists',
+    action: prefixed('acl:'),
+    viewScope: 'acl:view',
+    createScope: 'acl:create',
+    folderResourceType: 'access_lists',
+    createHint: 'pass folderId to create_access_list',
+  },
   {
     id: 'domains',
     title: 'Domains',
@@ -293,6 +304,24 @@ export const ACCESS_AREAS: readonly AccessAreaDefinition[] = [
       'pass the hosting account as input.connectorId (and a node folder as input.folderId) to manage_hosting provision',
   },
   { id: 'integrations', title: 'Integrations (Git, SSH, Cloudflare)', action: prefixed('integrations:') },
+  {
+    id: 'notification_alert_rules',
+    title: 'Alert rules',
+    action: prefixed('notifications:alerts:'),
+    viewScope: 'notifications:alerts:view',
+    createScope: 'notifications:alerts:manage',
+    folderResourceType: 'notification_alert_rules',
+    createHint: 'pass folderId to create_alert_rule',
+  },
+  {
+    id: 'notification_webhooks',
+    title: 'Notification webhooks',
+    action: prefixed('notifications:webhooks:'),
+    viewScope: 'notifications:webhooks:view',
+    createScope: 'notifications:webhooks:manage',
+    folderResourceType: 'notification_webhooks',
+    createHint: 'pass folderId to create_webhook',
+  },
   { id: 'notifications', title: 'Notifications', action: prefixed('notifications:') },
   { id: 'status_page', title: 'Status page', action: prefixed('status-page:'), viewScope: 'status-page:view' },
   {

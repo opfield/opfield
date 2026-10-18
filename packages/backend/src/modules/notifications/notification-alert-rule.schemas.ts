@@ -29,6 +29,8 @@ export const AlertRuleListQuerySchema = z.object({
   category: alertCategorySchema.optional(),
   enabled: z.coerce.boolean().optional(),
   search: z.string().optional(),
+  /** Only the rules in this folder (not its subfolders). */
+  folderId: z.string().uuid().optional(),
 });
 
 export type AlertRuleListQuery = z.infer<typeof AlertRuleListQuerySchema>;
@@ -97,6 +99,9 @@ export const CreateAlertRuleSchema = z
 
     // Cooldown
     cooldownSeconds: z.number().int().min(0).default(900),
+
+    /** Destination folder (null or omitted: ungrouped); needs notifications:alerts:manage there. */
+    folderId: z.string().uuid().nullable().optional(),
   })
   .refine(
     (data) => {

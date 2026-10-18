@@ -16,8 +16,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, GripVertical, Minus, Plus } from "lucide-react";
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
+import {
+  CreateFolderSelect,
+  getCreateFolderChoices,
+  isCreateFolderAllowed,
+} from "@/components/common/CreateFolderSelect";
 import { PanelShell } from "@/components/common/PanelShell";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +36,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { SegmentedChoice, type SegmentedChoiceOption } from "@/components/ui/segmented-choice";
 import { Switch } from "@/components/ui/switch";
+import { useAuthStore } from "@/stores/auth";
+import { useResourceFolderStore } from "@/stores/resource-folders";
 import type { AccessList, IPRule } from "@/types";
 import { type IPRuleInput, useAccessListForm } from "./access-list-form";
 import { type AccessListIpRuleWarning, analyzeAccessListIpRules } from "./ip-rule-analysis";
@@ -77,6 +84,19 @@ export function AccessListDialog({
 }: AccessListDialogProps) {
   const form = useAccessListForm({ open, accessList, onOpenChange, onSaved });
   const id = useId();
+  const scopes = useAuthStore((state) => state.user?.scopes);
+  const folders = useResourceFolderStore((state) => state.foldersByType["access-list"]);
+  const foldersLoading = useResourceFolderStore((state) => state.loadingByType["access-list"]);
+  const fetchFolders = useResourceFolderStore((state) => state.fetchFolders);
+  // Same destination rule as the create route: acl:create broadly or on the folder.
+  const folderChoices = useMemo(
+    () => getCreateFolderChoices(scopes ?? [], "acl:create", folders ?? []),
+    [folders, scopes]
+  );
+  const destinationAllowed = form.isEdit || isCreateFolderAllowed(folderChoices, form.folderId);
+  useEffect(() => {
+    if (open && !accessList) void fetchFolders("access-list");
+  }, [accessList, fetchFolders, open]);
   const storedUsernames = new Set((accessList?.basicAuthUsers ?? []).map((user) => user.username));
   const ruleWarnings = useMemo(() => {
     const byIndex = new Map<number, AccessListIpRuleWarning>();
@@ -122,6 +142,20 @@ export function AccessListDialog({
                   placeholder="e.g., Office Only"
                 />
               </div>
+              {!form.isEdit && (
+                <div className="space-y-1.5">
+                  <label htmlFor={`${id}-folder`} className="text-sm font-medium">
+                    Folder
+                  </label>
+                  <CreateFolderSelect
+                    id={`${id}-folder`}
+                    choices={folderChoices}
+                    value={form.folderId}
+                    onChange={form.setFolderId}
+                    loading={foldersLoading}
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label htmlFor={`${id}-description`} className="text-sm font-medium">
                   Description
@@ -251,7 +285,7 @@ export function AccessListDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={form.save} pending={form.isSaving}>
+          <Button onClick={form.save} pending={form.isSaving} disabled={!destinationAllowed}>
             {form.isEdit ? "Update" : "Create"}
           </Button>
         </DialogFooter>

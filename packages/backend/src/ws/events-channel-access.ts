@@ -87,7 +87,7 @@ export function requiredScopeFor(channel: string): string | null {
   if (channel.startsWith('ssl.cert')) return 'ssl:cert:view';
   if (channel === 'cert.changed' || channel === 'cert.folder.changed') return 'pki:cert:view';
   if (channel === 'ca.changed' || channel === 'ca.folder.changed') return 'pki:ca:view';
-  if (channel === 'access-list.changed') return 'acl:view';
+  if (channel === 'access-list.changed' || channel === 'access-list.folder.changed') return 'acl:view';
   if (channel === 'node.slug.changed') return 'nodes:details';
   if (channel === 'node.changed' || channel === 'node.folder.changed') return 'nodes:details';
   if (channel === 'ingress_group.changed') return 'ingress:groups:view';
@@ -97,8 +97,10 @@ export function requiredScopeFor(channel: string): string | null {
   if (channel === 'audit.changed') return 'admin:audit';
   if (channel === 'siem.destination.changed' || channel === 'siem.delivery.changed') return 'audit:siem:view';
   if (channel === 'group.changed') return 'admin:groups';
-  if (channel === 'notification.alert-rule.changed') return 'notifications:alerts:view';
-  if (channel === 'notification.webhook.changed') return 'notifications:webhooks:view';
+  if (channel === 'notification.alert-rule.changed' || channel === 'notification.alert-rule.folder.changed')
+    return 'notifications:alerts:view';
+  if (channel === 'notification.webhook.changed' || channel === 'notification.webhook.folder.changed')
+    return 'notifications:webhooks:view';
   if (channel === INFERENCE_CATALOG_CHANGED_CHANNEL) return 'feat:ai:use';
   if (channel === 'integration.connector.changed') return 'integrations:gitlab:view';
   if (channel === INFERENCE_USAGE_CHANGED_CHANNEL) return 'feat:ai:use';
@@ -275,14 +277,28 @@ export function hasChannelAccess(scopes: string[], channel: string): boolean {
   if (channel === 'node.changed') {
     return hasScopeBase(scopes, 'nodes:details') || hasAnyDockerNodeRouteAccess(scopes);
   }
-  if (channel === 'notification.alert-rule.changed') {
-    return hasScope(scopes, 'notifications:alerts:view') || hasScope(scopes, 'notifications:alerts:manage');
+  // Rule, webhook and fired-alert events name one rule or webhook: events.ws.ts delivers each only to callers who may
+  // view it (broadly, on the item, or through its folder).
+  if (channel === 'notification.alert-rule.changed' || channel.startsWith('alert.')) {
+    return hasScopeBase(scopes, 'notifications:alerts:view');
   }
   if (channel === 'notification.webhook.changed') {
-    return hasScope(scopes, 'notifications:webhooks:view') || hasScope(scopes, 'notifications:webhooks:manage');
+    return hasScopeBase(scopes, 'notifications:webhooks:view');
   }
-  if (channel.startsWith('alert.')) {
-    return hasScope(scopes, 'notifications:alerts:view') || hasScope(scopes, 'notifications:alerts:manage');
+  // Folder layout events carry only the action and folder id; lists apply the grants.
+  if (channel === 'access-list.folder.changed') {
+    return hasScopeBase(scopes, 'acl:view') || hasScopeBase(scopes, 'acl:folders:manage');
+  }
+  if (channel === 'notification.alert-rule.folder.changed') {
+    return (
+      hasScopeBase(scopes, 'notifications:alerts:view') || hasScopeBase(scopes, 'notifications:alerts:folders:manage')
+    );
+  }
+  if (channel === 'notification.webhook.folder.changed') {
+    return (
+      hasScopeBase(scopes, 'notifications:webhooks:view') ||
+      hasScopeBase(scopes, 'notifications:webhooks:folders:manage')
+    );
   }
   if (channel === INFERENCE_CATALOG_CHANGED_CHANNEL) {
     return (

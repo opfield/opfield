@@ -5,6 +5,8 @@ export const WebhookListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   enabled: z.coerce.boolean().optional(),
   search: z.string().optional(),
+  /** Only the webhooks in this folder (not its subfolders). */
+  folderId: z.string().uuid().optional(),
 });
 
 export type WebhookListQuery = z.infer<typeof WebhookListQuerySchema>;
@@ -19,6 +21,8 @@ export const CreateWebhookSchema = z.object({
   templatePreset: z.string().max(50).nullable().optional(),
   bodyTemplate: z.string().max(65536).optional(),
   headers: z.record(z.string(), z.string()).default({}),
+  /** Destination folder (null or omitted: ungrouped); needs notifications:webhooks:manage there. */
+  folderId: z.string().uuid().nullable().optional(),
 });
 
 export type CreateWebhookInput = z.infer<typeof CreateWebhookSchema>;

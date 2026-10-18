@@ -43,6 +43,9 @@ const VIEW_SCOPE: Record<StoredFolderType, string> = {
   "admin-group": "admin:groups",
   "pages-project": "pages:view",
   app: "apps:view",
+  "notification-alert-rule": "notifications:alerts:view",
+  "notification-webhook": "notifications:webhooks:view",
+  "access-list": "acl:view",
 };
 
 /** Folder management scope of each list (a folder grant manages that folder's subfolders), then broad alternatives. */
@@ -62,6 +65,9 @@ const MANAGE_SCOPES: Record<StoredFolderType, string[]> = {
   "admin-group": ["admin:groups:folders:manage", "admin:system"],
   "pages-project": ["pages:folders:manage"],
   app: ["apps:folders:manage"],
+  "notification-alert-rule": ["notifications:alerts:folders:manage"],
+  "notification-webhook": ["notifications:webhooks:folders:manage"],
+  "access-list": ["acl:folders:manage"],
 };
 
 /**

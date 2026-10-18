@@ -258,7 +258,8 @@ Access lists provide IP-based access control and HTTP basic authentication for i
 - Htpasswd files are deployed to nginx nodes via daemon
 
 ## Tool Argument Shapes
-- create_access_list accepts allowIps and denyIps as string arrays plus basicAuthUsers.
+- create_access_list accepts allowIps and denyIps as string arrays plus basicAuthUsers, and folderId for the destination access list folder (acl:create there is enough; omitted creates at the top level).
+- Access lists live in folders like other resource lists (folderId, sortOrder): list_resource_folders and manage_resource_folder with resourceType access_lists (folder changes need acl:folders:manage; moving a list also needs acl:edit on it and on the destination). acl:view, acl:edit and acl:delete also take a folder (\`<scope>:folder/<folderId>\`), covering every list in it and its subfolders.
 - manage_access_list({ operation: "update", accessListId, ... }) accepts ipRules as ordered { type, value } objects (the whole list, in order) and basicAuthUsers as { username, password } objects.
 - manage_access_list({ operation: "move_rule", accessListId, fromIndex, toIndex }) moves one IP rule (0-based positions; the rules between shift by one) against the stored list, so it cannot overwrite a concurrent edit of the other rules. REST: POST /api/access-lists/:id/ip-rules/move.
 - Use basicAuthEnabled to turn HTTP basic auth on or off. If it is enabled, provide at least one basic auth user.

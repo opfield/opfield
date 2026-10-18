@@ -102,6 +102,7 @@ describe('generated scope implications', () => {
       'pages:folders:manage',
       'proxy:templates:folders:manage',
       'ssl:cert:folders:manage',
+      'acl:folders:manage',
       'nodes:folders:manage',
       'apps:folders:manage',
       'admin:users',
@@ -130,6 +131,8 @@ describe('generated scope implications', () => {
       'docker:registries:internal:pull',
       'docker:registries:internal:push',
       'databases:folders:manage',
+      'notifications:alerts:folders:manage',
+      'notifications:webhooks:folders:manage',
       'logs:environments:folders:manage',
       'logs:schemas:folders:manage',
     ]);

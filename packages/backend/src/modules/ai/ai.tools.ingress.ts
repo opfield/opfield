@@ -760,11 +760,13 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
   // ── Access Lists ──
   {
     name: 'list_access_lists',
-    description: 'List IP access control and basic authentication lists.',
+    description:
+      'List IP access control and basic authentication lists. Each carries folderId (null: ungrouped) and sortOrder; list_resource_folders with access_lists names the folders, manage_resource_folder moves lists between them.',
     parameters: {
       type: 'object',
       properties: {
         search: { type: 'string' },
+        folderId: { type: 'string', description: 'Only the access lists in this folder (not its subfolders)' },
         page: { type: 'number' },
         limit: { type: 'number' },
       },
@@ -806,6 +808,11 @@ export const INGRESS_AI_TOOLS: AIToolDefinition[] = [
             required: ['username', 'password'],
           },
           description: 'Basic auth users (requires basicAuthEnabled)',
+        },
+        folderId: {
+          type: ['string', 'null'],
+          description:
+            'Destination access list folder UUID (list_resource_folders access_lists); omitted or null: ungrouped. acl:create on that folder is enough to create there.',
         },
       },
       required: ['name'],

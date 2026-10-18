@@ -147,6 +147,9 @@ const folderLookupPermissions: Partial<Record<FolderFamily, string>> = {
   "docker-image": "docker:images:view",
   "docker-compose": "docker:compose:view",
   apps: "apps:view",
+  "notification-alert-rules": "notifications:alerts:view",
+  "notification-webhooks": "notifications:webhooks:view",
+  "access-lists": "acl:view",
 };
 
 export async function allResourcePages<T>(
@@ -266,6 +269,55 @@ export async function loadScopeResourceCatalog(
         .catch((error) => {
           reportScopeLoadError("nginx templates", error);
           catalog["nginx-templates"] = [];
+        })
+    );
+  if (families.has("notification-alert-rules"))
+    loads.push(
+      api
+        .listAllAlertRules()
+        .then((rules) => {
+          // Built-in rules are never in a folder, but can still be granted one by one.
+          catalog["notification-alert-rules"] = rules.map((rule) => ({
+            id: rule.id,
+            label: rule.name,
+            folderId: rule.folderId,
+          }));
+        })
+        .catch((error) => {
+          reportScopeLoadError("alert rules", error);
+          catalog["notification-alert-rules"] = [];
+        })
+    );
+  if (families.has("access-lists"))
+    loads.push(
+      api
+        .listAllAccessLists()
+        .then((lists) => {
+          catalog["access-lists"] = lists.map((list) => ({
+            id: list.id,
+            label: list.name,
+            folderId: list.folderId,
+          }));
+        })
+        .catch((error) => {
+          reportScopeLoadError("access lists", error);
+          catalog["access-lists"] = [];
+        })
+    );
+  if (families.has("notification-webhooks"))
+    loads.push(
+      api
+        .listAllWebhooks()
+        .then((webhooks) => {
+          catalog["notification-webhooks"] = webhooks.map((webhook) => ({
+            id: webhook.id,
+            label: webhook.name,
+            folderId: webhook.folderId,
+          }));
+        })
+        .catch((error) => {
+          reportScopeLoadError("notification webhooks", error);
+          catalog["notification-webhooks"] = [];
         })
     );
   if (families.has("ssl"))
@@ -579,7 +631,10 @@ export type FolderFamily =
   | "storage"
   | "logging-environments"
   | "logging-schemas"
-  | "apps";
+  | "apps"
+  | "notification-alert-rules"
+  | "notification-webhooks"
+  | "access-lists";
 
 interface FolderTreeLike {
   id: string;
@@ -776,6 +831,9 @@ export function folderFamilyForScope(scope: string): FolderFamily | null {
   if (scope.startsWith("logs:schemas:")) return "logging-schemas";
   if (isLoggingEnvironmentScope(scope)) return "logging-environments";
   if (scope.startsWith(APP_SCOPE_PREFIX)) return "apps";
+  if (scope.startsWith("notifications:alerts:")) return "notification-alert-rules";
+  if (scope.startsWith("notifications:webhooks:")) return "notification-webhooks";
+  if (scope.startsWith("acl:")) return "access-lists";
   return null;
 }
 
@@ -872,6 +930,12 @@ export async function loadFolderFamily(family: FolderFamily): Promise<FolderOpti
       return flattenFolderTree(await load(api.listNginxTemplateFolders()), family);
     case "apps":
       return flattenFolderTree(await load(api.listAppFolders()), family);
+    case "notification-alert-rules":
+      return flattenFolderTree(await load(api.listNotificationFolders("rules")), family);
+    case "notification-webhooks":
+      return flattenFolderTree(await load(api.listNotificationFolders("webhooks")), family);
+    case "access-lists":
+      return flattenFolderTree(await load(api.listAccessListFolders()), family);
   }
 }
 
@@ -1136,5 +1200,12 @@ export function getResourceLabel(scope: string): string {
     return "Restrict to CA folders or individual CAs (leave unchecked for all):";
   if (folderFamilyForScope(scope) === "pki-certificates")
     return "Restrict to certificate folders or specific CAs (leave unchecked for all):";
+  if (scope.startsWith("notifications:alerts:"))
+    return "Restrict to alert rule folders or individual alert rules (leave unchecked for all):";
+  if (scope.startsWith("notifications:webhooks:"))
+    return "Restrict to webhook folders or individual webhooks (leave unchecked for all):";
+  if (scope === "acl:create") return "Restrict to access list folders (leave unchecked for all):";
+  if (scope.startsWith("acl:"))
+    return "Restrict to access list folders or individual access lists (leave unchecked for all):";
   return "Restrict to specific CAs (leave unchecked for all):";
 }

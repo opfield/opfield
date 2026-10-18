@@ -782,16 +782,83 @@ export function withPagesDomainsApi<TBase extends ApiClientBaseConstructor>(Base
       page?: number;
       limit?: number;
       search?: string;
+      folderId?: string;
     }): Promise<PaginatedResponse<AccessList>> {
       const searchParams = new URLSearchParams();
       if (params?.page) searchParams.set("page", params.page.toString());
       if (params?.limit) searchParams.set("limit", params.limit.toString());
       if (params?.search) searchParams.set("search", params.search);
+      if (params?.folderId) searchParams.set("folderId", params.folderId);
 
       const query = searchParams.toString();
       return this.request<PaginatedResponse<AccessList>>(
         `/access-lists${query ? `?${query}` : ""}`
       );
+    }
+
+    /** Every access list the caller may view (the list route pages at 100). */
+    async listAllAccessLists(): Promise<AccessList[]> {
+      const lists: AccessList[] = [];
+      for (let page = 1; ; page++) {
+        const result = await this.listAccessLists({ page, limit: 100 });
+        lists.push(...(result.data ?? []));
+        if (page >= (result.pagination?.totalPages ?? 1)) return lists;
+      }
+    }
+
+    async listAccessListFolders(): Promise<import("@/types").ResourceFolderTreeNode[]> {
+      return this.unwrapData(
+        this.request<{ data: import("@/types").ResourceFolderTreeNode[] }>("/access-lists/folders")
+      );
+    }
+
+    async createAccessListFolder(data: {
+      name: string;
+      parentId?: string;
+    }): Promise<import("@/types").ResourceFolder> {
+      return this.unwrapData(
+        this.request<{ data: import("@/types").ResourceFolder }>("/access-lists/folders", {
+          method: "POST",
+          body: JSON.stringify(data),
+        })
+      );
+    }
+
+    async updateAccessListFolder(
+      id: string,
+      data: { name: string }
+    ): Promise<import("@/types").ResourceFolder> {
+      return this.unwrapData(
+        this.request<{ data: import("@/types").ResourceFolder }>(`/access-lists/folders/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(data),
+        })
+      );
+    }
+
+    async deleteAccessListFolder(id: string): Promise<void> {
+      await this.request(`/access-lists/folders/${id}`, { method: "DELETE" });
+    }
+
+    async reorderAccessListFolders(items: { id: string; sortOrder: number }[]): Promise<void> {
+      await this.request("/access-lists/folders/reorder", {
+        method: "PUT",
+        body: JSON.stringify({ items }),
+      });
+    }
+
+    async moveAccessListsToFolder(ids: string[], folderId: string | null): Promise<void> {
+      await this.request("/access-lists/folders/move-access-lists", {
+        method: "POST",
+        body: JSON.stringify({ ids, folderId }),
+      });
+    }
+
+    async reorderAccessLists(items: { id: string; sortOrder: number }[]): Promise<void> {
+      await this.request("/access-lists/folders/reorder-access-lists", {
+        method: "PUT",
+        body: JSON.stringify({ items }),
+      });
     }
 
     async getAccessList(id: string): Promise<AccessList> {

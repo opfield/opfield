@@ -2,7 +2,8 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
-import { authMiddleware, requireAnyScope } from '@/modules/auth/auth.middleware.js';
+import { getResourceScopedIds, hasScope } from '@/lib/permissions.js';
+import { authMiddleware, requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
 import { listFiredAlertsRoute } from './notification.docs.js';
 import { listFiredAlerts } from './notification-alert-list.js';
@@ -16,10 +17,17 @@ alertRoutes.use('*', authMiddleware);
 alertRoutes.openapi(
   {
     ...listFiredAlertsRoute,
-    middleware: requireAnyScope('notifications:alerts:view', 'notifications:alerts:manage'),
+    middleware: requireScopeBase('notifications:alerts:view'),
   },
   async (c) => {
     const query = AlertListQuerySchema.parse(c.req.query());
-    return c.json(await listFiredAlerts(container.resolve<DrizzleClient>(TOKENS.DrizzleClient), query));
+    const scopes = c.get('effectiveScopes') ?? [];
+    return c.json(
+      await listFiredAlerts(container.resolve<DrizzleClient>(TOKENS.DrizzleClient), query, {
+        allowedRuleIds: hasScope(scopes, 'notifications:alerts:view')
+          ? undefined
+          : getResourceScopedIds(scopes, 'notifications:alerts:view'),
+      })
+    );
   }
 );

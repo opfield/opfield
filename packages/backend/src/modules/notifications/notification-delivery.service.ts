@@ -23,11 +23,29 @@ interface DeliveryListQuery {
   eventType?: string;
 }
 
+/** Payloads and the full URL: for every delivery, or per webhook (manage granted on some webhooks or folders only). */
+type RevealOption = boolean | ((webhookId: string | null) => boolean);
+
+function reveals(option: RevealOption | undefined, webhookId: string | null): boolean {
+  return typeof option === 'function' ? option(webhookId) : !!option;
+}
+
+/** Deliveries of the allowed webhooks only (a caller without broad webhook view). */
+function allowedWebhookCondition(allowedWebhookIds: readonly string[] | undefined): SQL | null {
+  if (!allowedWebhookIds) return null;
+  return allowedWebhookIds.length > 0 ? inArray(notificationDeliveryLog.webhookId, [...allowedWebhookIds]) : sql`false`;
+}
+
 export class NotificationDeliveryService {
   constructor(private db: DrizzleClient) {}
 
-  async list(query: DeliveryListQuery, options: { revealSensitive?: boolean } = {}) {
+  async list(
+    query: DeliveryListQuery,
+    options: { revealSensitive?: RevealOption; allowedWebhookIds?: readonly string[] } = {}
+  ) {
     const conditions: SQL[] = [];
+    const allowed = allowedWebhookCondition(options.allowedWebhookIds);
+    if (allowed) conditions.push(allowed);
 
     if (query.webhookId) {
       conditions.push(eq(notificationDeliveryLog.webhookId, query.webhookId));
@@ -80,15 +98,16 @@ export class NotificationDeliveryService {
       data: rows.map((row) => {
         const request = bodyPreview(row.requestBody);
         const response = bodyPreview(row.responseBody);
+        const reveal = reveals(options.revealSensitive, row.webhookId);
         return {
           ...row,
-          requestUrl: options.revealSensitive ? row.requestUrl : redactWebhookUrl(row.requestUrl),
+          requestUrl: reveal ? row.requestUrl : redactWebhookUrl(row.requestUrl),
           requestBody: undefined,
           responseBody: undefined,
-          requestBodyPreview: options.revealSensitive ? request.preview : null,
-          requestBodyTruncated: options.revealSensitive ? request.truncated : false,
-          responseBodyPreview: options.revealSensitive ? response.preview : null,
-          responseBodyTruncated: options.revealSensitive ? response.truncated : false,
+          requestBodyPreview: reveal ? request.preview : null,
+          requestBodyTruncated: reveal ? request.truncated : false,
+          responseBodyPreview: reveal ? response.preview : null,
+          responseBodyTruncated: reveal ? response.truncated : false,
         };
       }),
       total,
@@ -98,14 +117,19 @@ export class NotificationDeliveryService {
     };
   }
 
-  async getById(id: string, options: { revealSensitive?: boolean } = {}) {
+  /** `canView`: whether the caller may see a delivery of this webhook (null: the webhook was deleted). */
+  async getById(
+    id: string,
+    options: { revealSensitive?: RevealOption; canView?: (webhookId: string | null) => boolean } = {}
+  ) {
     const [row] = await this.db
       .select()
       .from(notificationDeliveryLog)
       .where(eq(notificationDeliveryLog.id, id))
       .limit(1);
     if (!row) return null;
-    if (options.revealSensitive) return row;
+    if (options.canView && !options.canView(row.webhookId)) return null;
+    if (reveals(options.revealSensitive, row.webhookId)) return row;
     return {
       ...row,
       requestUrl: redactWebhookUrl(row.requestUrl),
@@ -162,8 +186,10 @@ export class NotificationDeliveryService {
   }
 
   /** Delivery stats for UI dashboard */
-  async getStats(webhookId?: string) {
+  async getStats(webhookId?: string, options: { allowedWebhookIds?: readonly string[] } = {}) {
     const conditions: SQL[] = [];
+    const allowed = allowedWebhookCondition(options.allowedWebhookIds);
+    if (allowed) conditions.push(allowed);
     if (webhookId) {
       conditions.push(eq(notificationDeliveryLog.webhookId, webhookId));
     }

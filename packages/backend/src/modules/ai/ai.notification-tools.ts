@@ -1,6 +1,6 @@
 import { container, TOKENS } from '@/container.js';
 import type { DrizzleClient } from '@/db/client.js';
-import { hasScope } from '@/lib/permissions.js';
+import { getResourceScopedIds, hasScope, hasScopeBase } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import {
   CreateSiemDestinationSchema,
@@ -22,6 +22,10 @@ import {
   UpdateAlertRuleSchema,
 } from '@/modules/notifications/notification-alert-rule.schemas.js';
 import { DeliveryListQuerySchema } from '@/modules/notifications/notification-delivery.schemas.js';
+import {
+  NotificationAlertRuleFolderService,
+  NotificationWebhookFolderService,
+} from '@/modules/notifications/notification-folders.service.js';
 import {
   ALERT_RESOURCE_CATEGORIES,
   type AlertResourceCategory,
@@ -81,18 +85,28 @@ export interface NotificationToolContext {
   generalSettingsService?: import('@/modules/settings/general-settings.service.js').GeneralSettingsService;
 }
 
-/** Same reveal rules as the webhook and delivery routes. */
-function canRevealWebhookSecrets(user: User): boolean {
-  return hasScope(user.scopes, 'notifications:webhooks:manage');
+/** Same reveal rules as the webhook and delivery routes: URL, headers and payloads need manage on the webhook. */
+function canRevealWebhookSecrets(user: User) {
+  return (webhookId: string | null) =>
+    hasScope(user.scopes, 'notifications:webhooks:manage') ||
+    (!!webhookId && hasScope(user.scopes, `notifications:webhooks:manage:${webhookId}`));
 }
 
-function canRevealDeliveryPayloads(user: User): boolean {
-  return hasScope(user.scopes, 'notifications:webhooks:manage');
+/** Rules, webhooks and deliveries a caller without broad view may see: those granted one by one or by folder. */
+function visibleIds(user: User, viewScope: string): string[] | undefined {
+  return hasScope(user.scopes, viewScope) ? undefined : getResourceScopedIds(user.scopes, viewScope);
 }
 
+/** Any grant of the scopes (broad, on an item or on a folder): catalogs that name no rule or webhook. */
 function requireAnyScope(user: User, scopes: string[]): void {
-  if (!scopes.some((scope) => hasScope(user.scopes, scope))) {
+  if (!scopes.some((scope) => hasScopeBase(user.scopes, scope))) {
     throw new AppError(403, 'FORBIDDEN', `Missing required scope: one of ${scopes.join(', ')}`);
+  }
+}
+
+function requireItemScope(user: User, scope: string, id: string): void {
+  if (!hasScope(user.scopes, `${scope}:${id}`)) {
+    throw new AppError(403, 'FORBIDDEN', `Missing required scope: ${scope}:${id}`);
   }
 }
 
@@ -129,7 +143,9 @@ export async function executeNotificationTool(
           category: a.category,
           enabled: a.enabled,
           search: a.search,
-        })
+          folderId: a.folderId,
+        }),
+        { allowedIds: visibleIds(user, 'notifications:alerts:view') }
       );
     case 'list_alerts':
       return listFiredAlerts(
@@ -148,10 +164,12 @@ export async function executeNotificationTool(
             until: a.until,
             search: a.search,
           })
-        )
+        ),
+        { allowedRuleIds: visibleIds(user, 'notifications:alerts:view') }
       );
     case 'get_alert_rule':
       if (!context.notifRuleService) return { error: 'Notification service not available' };
+      requireItemScope(user, 'notifications:alerts:view', requiredId(a.ruleId, 'ruleId'));
       return context.notifRuleService.getById(a.ruleId);
     case 'create_alert_rule': {
       if (!context.notifRuleService) return { error: 'Notification service not available' };
@@ -176,8 +194,11 @@ export async function executeNotificationTool(
           webhookIds: a.webhookIds,
           cooldownSeconds: a.cooldownSeconds,
           enabled: a.enabled ?? true,
+          folderId: a.folderId,
         })
       );
+      // Mirrors POST /alert-rules: broad manage, or manage on the destination folder.
+      await container.resolve(NotificationAlertRuleFolderService).assertCreateFolder(user.scopes, input.folderId);
       return createAlertRuleWithEffects(context.notifRuleService, input, user.scopes, user.id);
     }
     case 'update_alert_rule': {
@@ -218,28 +239,31 @@ export async function executeNotificationTool(
           limit: agentPageLimit(a.limit),
           enabled: a.enabled,
           search: a.search,
+          folderId: a.folderId,
         }),
-        { revealHeaders: reveal, revealUrl: reveal }
+        { revealHeaders: reveal, revealUrl: reveal, allowedIds: visibleIds(user, 'notifications:webhooks:view') }
       );
     }
-    case 'create_webhook':
+    case 'create_webhook': {
       if (!context.notifWebhookService) return { error: 'Notification service not available' };
-      return context.notifWebhookService.create(
-        CreateWebhookSchema.parse(
-          definedFields({
-            name: a.name,
-            url: a.url,
-            method: a.method,
-            enabled: a.enabled,
-            templatePreset: a.templatePreset,
-            bodyTemplate: a.bodyTemplate,
-            signingSecret: a.signingSecret,
-            signingHeader: a.signingHeader,
-            headers: a.headers,
-          })
-        ),
-        user.id
+      const input = CreateWebhookSchema.parse(
+        definedFields({
+          name: a.name,
+          url: a.url,
+          method: a.method,
+          enabled: a.enabled,
+          templatePreset: a.templatePreset,
+          bodyTemplate: a.bodyTemplate,
+          signingSecret: a.signingSecret,
+          signingHeader: a.signingHeader,
+          headers: a.headers,
+          folderId: a.folderId,
+        })
       );
+      // Mirrors POST /webhooks: broad manage, or manage on the destination folder.
+      await container.resolve(NotificationWebhookFolderService).assertCreateFolder(user.scopes, input.folderId);
+      return context.notifWebhookService.create(input, user.id);
+    }
     case 'update_webhook':
       if (!context.notifWebhookService) return { error: 'Notification service not available' };
       return context.notifWebhookService.update(
@@ -279,11 +303,16 @@ export async function executeNotificationTool(
           status: a.status,
           eventType: a.eventType,
         }),
-        { revealSensitive: canRevealDeliveryPayloads(user) }
+        {
+          revealSensitive: canRevealWebhookSecrets(user),
+          allowedWebhookIds: visibleIds(user, 'notifications:webhooks:view'),
+        }
       );
     case 'get_delivery_stats':
       if (!context.notifDeliveryService) return { error: 'Notification service not available' };
-      return context.notifDeliveryService.getStats(a.webhookId);
+      return context.notifDeliveryService.getStats(a.webhookId, {
+        allowedWebhookIds: visibleIds(user, 'notifications:webhooks:view'),
+      });
     case 'manage_notifications':
       return manageNotifications(context, user, a);
     case 'list_siem_destinations':
@@ -376,13 +405,11 @@ async function manageNotifications(context: NotificationToolContext, user: User,
       requireAnyScope(user, ['notifications:webhooks:view', 'notifications:webhooks:manage']);
       return TEMPLATE_PRESETS;
     case 'webhook_get': {
-      requireAnyScope(user, ['notifications:webhooks:view', 'notifications:webhooks:manage']);
+      const webhookId = requiredId(a.webhookId, 'webhookId');
+      requireItemScope(user, 'notifications:webhooks:view', webhookId);
       if (!context.notifWebhookService) return { error: 'Notification service not available' };
       const reveal = canRevealWebhookSecrets(user);
-      return context.notifWebhookService.getById(requiredId(a.webhookId, 'webhookId'), {
-        revealHeaders: reveal,
-        revealUrl: reveal,
-      });
+      return context.notifWebhookService.getById(webhookId, { revealHeaders: reveal, revealUrl: reveal });
     }
     case 'webhook_preview': {
       requireAnyScope(user, ['notifications:webhooks:manage']);
@@ -396,8 +423,10 @@ async function manageNotifications(context: NotificationToolContext, user: User,
     case 'delivery_get': {
       requireAnyScope(user, ['notifications:webhooks:view', 'notifications:webhooks:manage']);
       if (!context.notifDeliveryService) return { error: 'Notification service not available' };
+      const allowed = visibleIds(user, 'notifications:webhooks:view');
       const delivery = await context.notifDeliveryService.getById(requiredId(a.deliveryId, 'deliveryId'), {
-        revealSensitive: canRevealDeliveryPayloads(user),
+        revealSensitive: canRevealWebhookSecrets(user),
+        canView: (webhookId) => !allowed || (!!webhookId && allowed.includes(webhookId)),
       });
       if (!delivery) throw new AppError(404, 'DELIVERY_NOT_FOUND', 'Not found');
       return delivery;

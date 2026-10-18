@@ -18,6 +18,8 @@ export type ScopeResourceKind =
   | 'objectStorageConnection'
   | 'loggingEnvironment'
   | 'loggingSchema'
+  | 'notificationAlertRule'
+  | 'notificationWebhook'
   | 'user'
   | 'group'
   | 'hostingResource'
@@ -42,6 +44,7 @@ const CREATION_BASES_WITHOUT_TARGET = new Set([
   'storage:create',
   'logs:environments:create',
   'logs:schemas:create',
+  'acl:create',
 ]);
 
 /** What a bare `<base>:<id>` qualifier names, or null when the base does not say. */
@@ -66,6 +69,8 @@ function bareTargetKinds(base: string): readonly ScopeResourceKind[] | null {
   if (base.startsWith('databases:')) return ['databaseConnection'];
   if (base.startsWith('storage:')) return ['objectStorageConnection'];
   if (base.startsWith('logs:schemas:')) return ['loggingSchema'];
+  if (base.startsWith('notifications:alerts:')) return ['notificationAlertRule'];
+  if (base.startsWith('notifications:webhooks:')) return ['notificationWebhook'];
   if (base.startsWith('logs:')) return ['loggingEnvironment'];
   if (base === 'admin:users' || base === 'admin:users:impersonate') return ['user'];
   if (base === 'admin:groups') return ['group'];

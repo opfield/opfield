@@ -53,6 +53,9 @@ const RESOURCE_TYPES: ResourceFolderType[] = [
   "admin-group",
   "pages-project",
   "app",
+  "notification-alert-rule",
+  "notification-webhook",
+  "access-list",
 ];
 const EXPANDED_STORAGE_KEY = "resource-folder-expanded";
 
@@ -299,6 +302,12 @@ function folderBasePath(type: ResourceFolderType): string {
       return "/pages/folders";
     case "app":
       return "/apps/folders";
+    case "notification-alert-rule":
+      return "/notifications/alert-rules/folders";
+    case "notification-webhook":
+      return "/notifications/webhooks/folders";
+    case "access-list":
+      return "/access-lists/folders";
   }
 }
 
@@ -335,6 +344,12 @@ function listFolders(type: ResourceFolderType): Promise<ResourceFolderTreeNode[]
       return api.listPageProjectFolders();
     case "app":
       return api.listAppFolders();
+    case "notification-alert-rule":
+      return api.listNotificationFolders("rules");
+    case "notification-webhook":
+      return api.listNotificationFolders("webhooks");
+    case "access-list":
+      return api.listAccessListFolders();
   }
 }
 
@@ -375,6 +390,12 @@ function createFolderByType(
       return api.createPageProjectFolder(data);
     case "app":
       return api.createAppFolder(data);
+    case "notification-alert-rule":
+      return api.createNotificationFolder("rules", data);
+    case "notification-webhook":
+      return api.createNotificationFolder("webhooks", data);
+    case "access-list":
+      return api.createAccessListFolder(data);
   }
 }
 
@@ -416,6 +437,12 @@ function updateFolderByType(
       return api.updatePageProjectFolder(id, data);
     case "app":
       return api.updateAppFolder(id, data);
+    case "notification-alert-rule":
+      return api.updateNotificationFolder("rules", id, data);
+    case "notification-webhook":
+      return api.updateNotificationFolder("webhooks", id, data);
+    case "access-list":
+      return api.updateAccessListFolder(id, data);
   }
 }
 
@@ -453,6 +480,12 @@ function deleteFolderByType(type: ResourceFolderType, id: string): Promise<void>
       return api.deletePageProjectFolder(id);
     case "app":
       return api.deleteAppFolder(id);
+    case "notification-alert-rule":
+      return api.deleteNotificationFolder("rules", id);
+    case "notification-webhook":
+      return api.deleteNotificationFolder("webhooks", id);
+    case "access-list":
+      return api.deleteAccessListFolder(id);
   }
 }
 
@@ -493,6 +526,12 @@ function reorderFoldersByType(
       return api.reorderPageProjectFolders(items);
     case "app":
       return api.reorderAppFolders(items);
+    case "notification-alert-rule":
+      return api.reorderNotificationFolders("rules", items);
+    case "notification-webhook":
+      return api.reorderNotificationFolders("webhooks", items);
+    case "access-list":
+      return api.reorderAccessListFolders(items);
   }
 }
 
@@ -534,6 +573,12 @@ function moveResourcesToFolderByType(
       return api.movePageProjectsToFolder(ids, folderId);
     case "app":
       return api.moveAppsToFolder(ids, folderId);
+    case "notification-alert-rule":
+      return api.moveToNotificationFolder("rules", ids, folderId);
+    case "notification-webhook":
+      return api.moveToNotificationFolder("webhooks", ids, folderId);
+    case "access-list":
+      return api.moveAccessListsToFolder(ids, folderId);
   }
 }
 
@@ -574,6 +619,12 @@ function reorderResourcesByType(
       return api.reorderPageProjects(items);
     case "app":
       return api.reorderApps(items);
+    case "notification-alert-rule":
+      return api.reorderInNotificationFolder("rules", items);
+    case "notification-webhook":
+      return api.reorderInNotificationFolder("webhooks", items);
+    case "access-list":
+      return api.reorderAccessLists(items);
   }
 }
 function isSnapshotType(type: ResourceFolderType): type is `hosting-snapshot:${string}` {

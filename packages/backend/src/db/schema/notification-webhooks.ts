@@ -1,4 +1,16 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import {
+  type AnyPgColumn,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+import { notificationWebhookFolders } from './notification-folders.js';
 
 export const notificationWebhooks = pgTable(
   'notification_webhooks',
@@ -26,10 +38,15 @@ export const notificationWebhooks = pgTable(
     deliveryLeaseUntil: timestamp('delivery_lease_until', { withTimezone: true }),
     deliveryLeaseToken: uuid('delivery_lease_token'),
 
+    // Null: ungrouped.
+    folderId: uuid('folder_id').references((): AnyPgColumn => notificationWebhookFolders.id, { onDelete: 'set null' }),
+    sortOrder: integer('sort_order').notNull().default(0),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
     enabledIdx: index('notif_webhooks_enabled_idx').on(table.enabled),
+    folderIdx: index('notif_webhooks_folder_idx').on(table.folderId),
   })
 );

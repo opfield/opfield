@@ -826,14 +826,12 @@ function StorageDetailGuard() {
 
 export function NotificationsPageGuard() {
   const hasAnyScope = useAuthStore((s) => s.hasAnyScope);
+  const hasScopedAccess = useAuthStore((s) => s.hasScopedAccess);
   const siemEnabled = useSystemConfigStore((s) => s.config.features.siemEnabled);
 
-  const hasCoreNotificationAccess = hasAnyScope(
-    "notifications:alerts:view",
-    "notifications:alerts:manage",
-    "notifications:webhooks:view",
-    "notifications:webhooks:manage"
-  );
+  // Rules and webhooks can be granted broadly, one by one, or by folder.
+  const hasCoreNotificationAccess =
+    hasScopedAccess("notifications:alerts:view") || hasScopedAccess("notifications:webhooks:view");
   const canAccessNotifications =
     hasCoreNotificationAccess ||
     (siemEnabled && hasAnyScope("audit:siem:view", "audit:siem:manage"));
@@ -1029,6 +1027,10 @@ export function RealtimeBridge() {
       [auth.hasScopedAccess("proxy:templates:view"), "nginx.template.changed"],
       [auth.hasScopedAccess("acl:view"), "access-list.changed"],
       [
+        auth.hasScopedAccess("acl:view") || auth.hasScopedAccess("acl:folders:manage"),
+        "access-list.folder.changed",
+      ],
+      [
         auth.hasScopedAccess("nodes:details") || auth.hasScope("nodes:folders:manage"),
         "node.folder.changed",
       ],
@@ -1063,13 +1065,17 @@ export function RealtimeBridge() {
       [canViewLoggingHealth(auth.user?.scopes ?? []), "logging.health.changed"],
       [auth.hasScope("housekeeping:view"), "system.relay.health.changed"],
       [auth.hasScope("status-page:view"), "status-page.changed"],
+      [auth.hasScopedAccess("notifications:alerts:view"), "notification.alert-rule.changed"],
       [
-        auth.hasAnyScope("notifications:alerts:view", "notifications:alerts:manage"),
-        "notification.alert-rule.changed",
+        auth.hasScopedAccess("notifications:alerts:view") ||
+          auth.hasScopedAccess("notifications:alerts:folders:manage"),
+        "notification.alert-rule.folder.changed",
       ],
+      [auth.hasScopedAccess("notifications:webhooks:view"), "notification.webhook.changed"],
       [
-        auth.hasAnyScope("notifications:webhooks:view", "notifications:webhooks:manage"),
-        "notification.webhook.changed",
+        auth.hasScopedAccess("notifications:webhooks:view") ||
+          auth.hasScopedAccess("notifications:webhooks:folders:manage"),
+        "notification.webhook.folder.changed",
       ],
       [auth.hasScopedAccess("admin:users"), "user.changed"],
       [auth.hasScopedAccess("admin:groups"), "group.changed"],

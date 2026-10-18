@@ -310,10 +310,11 @@ export async function findResource(deps: ResourceSearchDeps, user: User, args: R
       })
     );
   }
-  if (typeWanted('notification_rule') && hasScope(user.scopes, 'notifications:alerts:view')) {
+  // The list tools return only the rules and webhooks the caller may view (broadly, one by one or by folder).
+  if (typeWanted('notification_rule') && hasScopeBase(user.scopes, 'notifications:alerts:view')) {
     searchTasks.push(() => collect('notification_rule', 'list_alert_rules', {}));
   }
-  if (typeWanted('notification_webhook') && hasScope(user.scopes, 'notifications:webhooks:view')) {
+  if (typeWanted('notification_webhook') && hasScopeBase(user.scopes, 'notifications:webhooks:view')) {
     searchTasks.push(() => collect('notification_webhook', 'list_webhooks', {}));
   }
 

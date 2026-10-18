@@ -1,10 +1,10 @@
 import { MoreVertical, Pencil, Send, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type SyntheticEvent, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
-import { useContentLoading } from "@/components/common/reveal-gate";
-import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
+import { FolderedResourceList } from "@/components/common/FolderedResourceList";
+import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,63 +15,78 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
-import { useInitialLoading } from "@/hooks/use-initial-loading";
+import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { api } from "@/services/api";
+import { useAuthStore } from "@/stores/auth";
 import type { NotificationWebhook } from "@/types";
 import { WebhookDialog } from "./WebhookDialog";
+
+const stopRowEvent = (event: SyntheticEvent) => event.stopPropagation();
 
 // ── Webhooks Tab ────────────────────────────────────────────────────
 
 export function WebhooksTab({
   canRead,
-  canManage,
   openCreateToken,
+  onCreateFolderRef,
 }: {
   canRead: boolean;
-  canManage: boolean;
   openCreateToken: number;
+  /** Receives the list's "Add Folder" action for the page header. */
+  onCreateFolderRef?: (fn: () => void) => void;
 }) {
+  const hasScope = useAuthStore((state) => state.hasScope);
+  const scopes = useAuthStore((state) => state.user?.scopes);
+  // Creating needs notifications:webhooks:manage broadly or on a destination folder.
+  const canCreate = hasCreationDestination(scopes ?? [], "notifications:webhooks:manage");
+  const canManageFolders = useCanManageSomeFolders("notifications:webhooks:folders:manage");
   const [webhooks, setWebhooks] = useState<NotificationWebhook[]>(() =>
     canRead ? (api.getCached<NotificationWebhook[]>("notifications:webhooks") ?? []) : []
   );
   const [isLoading, setIsLoading] = useState(
     () => canRead && api.getCached<NotificationWebhook[]>("notifications:webhooks") === undefined
   );
-  const initialLoading = useInitialLoading(isLoading);
+  const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingWh, setEditingWh] = useState<NotificationWebhook | null>(null);
   const lastHandledCreateToken = useRef(openCreateToken);
 
-  const load = useCallback(
-    async (options?: { showLoading?: boolean }) => {
-      if (!canRead) {
-        setWebhooks([]);
-        setIsLoading(false);
-        return;
-      }
-      if (options?.showLoading !== false) setIsLoading(true);
-      try {
-        const data = (await api.listWebhooks({ limit: 100 })).data;
-        api.setCache("notifications:webhooks", data);
-        setWebhooks(data);
-      } catch {
-        toast.error("Failed to load webhooks");
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [canRead]
-  );
+  const load = useCallback(async () => {
+    if (!canRead) {
+      setWebhooks([]);
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const data = await api.listAllWebhooks();
+      api.setCache("notifications:webhooks", data);
+      setWebhooks(data);
+    } catch {
+      toast.error("Failed to load webhooks");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [canRead]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   useRealtime("notification.webhook.changed", () => {
-    load({ showLoading: false });
+    load();
   });
+
+  // Deleting a folder moves its webhooks to ungrouped.
+  useRealtime("notification.webhook.folder.changed", () => {
+    load();
+  });
+
+  // Mirrors the webhook routes: manage on the webhook (broadly, on it, or on its folder) edits, tests and deletes it.
+  const canManageWebhook = (webhook: NotificationWebhook) =>
+    hasScope(`notifications:webhooks:manage:${webhook.id}`);
 
   const toggle = async (wh: NotificationWebhook) => {
     const nextEnabled = !wh.enabled;
@@ -136,23 +151,31 @@ export function WebhooksTab({
   }, []);
 
   useEffect(() => {
-    if (openCreateToken > lastHandledCreateToken.current && canManage) {
+    if (openCreateToken > lastHandledCreateToken.current) {
       lastHandledCreateToken.current = openCreateToken;
       openCreate();
     }
-  }, [canManage, openCreate, openCreateToken]);
+  }, [openCreate, openCreateToken]);
 
-  const visibleWebhooks = canRead ? webhooks : [];
-  const columns: SimpleTableColumn<NotificationWebhook>[] = [
+  const query = search.trim().toLowerCase();
+  const visibleWebhooks = (canRead ? webhooks : []).filter(
+    (webhook) =>
+      !query ||
+      [webhook.name, webhook.url, webhook.templatePreset ?? ""].some((value) =>
+        value.toLowerCase().includes(query)
+      )
+  );
+
+  const columns: ResourceListColumn<NotificationWebhook>[] = [
     {
       id: "name",
-      header: "Name",
-      render: (webhook) => <span className="text-sm font-medium">{webhook.name}</span>,
+      label: "Name",
+      renderCell: (webhook) => <span className="truncate text-sm font-medium">{webhook.name}</span>,
     },
     {
       id: "url",
-      header: "URL",
-      render: (webhook) => (
+      label: "URL",
+      renderCell: (webhook) => (
         <span title={webhook.url} className="block min-w-0 truncate text-sm text-muted-foreground">
           {webhook.url}
         </span>
@@ -160,15 +183,17 @@ export function WebhooksTab({
     },
     {
       id: "method",
-      header: "Method",
+      label: "Method",
       align: "right",
-      render: (webhook) => <Badge variant="secondary">{webhook.method}</Badge>,
+      width: "6rem",
+      renderCell: (webhook) => <Badge variant="secondary">{webhook.method}</Badge>,
     },
     {
       id: "preset",
-      header: "Preset",
+      label: "Preset",
       align: "right",
-      render: (webhook) =>
+      width: "7rem",
+      renderCell: (webhook) =>
         webhook.templatePreset ? (
           <Badge variant="secondary">{webhook.templatePreset}</Badge>
         ) : (
@@ -177,31 +202,29 @@ export function WebhooksTab({
     },
     {
       id: "active",
-      header: "Active",
+      label: "Active",
       align: "right",
-      className: "w-20",
-      cellClassName: "w-20",
-      render: (webhook) => (
-        <div onClick={(event) => event.stopPropagation()}>
+      width: "5rem",
+      renderCell: (webhook) => (
+        <div className="flex justify-end" onClick={stopRowEvent} onPointerDown={stopRowEvent}>
           <Switch
             checked={webhook.enabled}
             onChange={() => {
-              if (canManage) toggle(webhook);
+              if (canManageWebhook(webhook)) toggle(webhook);
             }}
-            disabled={!canManage}
+            disabled={!canManageWebhook(webhook)}
           />
         </div>
       ),
     },
     {
       id: "actions",
-      header: "Actions",
+      label: "Actions",
       align: "right",
-      className: "w-24",
-      cellClassName: "w-24",
-      render: (webhook) =>
-        canManage ? (
-          <div onClick={(event) => event.stopPropagation()}>
+      width: "5rem",
+      renderCell: (webhook) =>
+        canManageWebhook(webhook) ? (
+          <div className="flex justify-end" onClick={stopRowEvent} onPointerDown={stopRowEvent}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label={`Actions for ${webhook.name}`}>
@@ -226,34 +249,49 @@ export function WebhooksTab({
     },
   ];
 
-  useContentLoading(initialLoading && visibleWebhooks.length === 0);
+  if (!canRead) return null;
 
   return (
-    <div className="space-y-4">
-      {initialLoading && visibleWebhooks.length === 0 ? null : visibleWebhooks.length > 0 ? (
-        <div className="border border-border bg-card">
-          <SimpleTable
-            columns={columns}
-            rows={visibleWebhooks}
-            getRowKey={(webhook) => webhook.id}
-            loading={isLoading}
-            loadingMessage="Loading webhooks"
-            onRowClick={canManage ? openEdit : undefined}
+    <>
+      <FolderedResourceList<NotificationWebhook>
+        resourceType="notification-webhook"
+        realtimeChannel="notification.webhook.folder.changed"
+        resources={visibleWebhooks}
+        columns={columns}
+        search={{
+          placeholder: "Search webhooks...",
+          search,
+          onSearchChange: setSearch,
+          hasActiveFilters: search !== "",
+          onReset: () => setSearch(""),
+        }}
+        loading={isLoading}
+        loadingLabel="Loading webhooks..."
+        emptyState={
+          <EmptyState
+            message="No webhooks configured."
+            actionLabel={canCreate ? "Create a webhook" : undefined}
+            onAction={canCreate ? openCreate : undefined}
+            hasActiveFilters={search !== ""}
+            onReset={() => setSearch("")}
           />
-        </div>
-      ) : (
-        <EmptyState
-          message="No webhooks configured."
-          actionLabel={canManage ? "Create a webhook" : undefined}
-          onAction={canManage ? openCreate : undefined}
-        />
-      )}
+        }
+        canManageFolders={canManageFolders}
+        canViewItem={() => true}
+        canReorganizeItem={(webhook) => canManageFolders && canManageWebhook(webhook)}
+        getResourceLabel={(webhook) => webhook.name}
+        onItemClick={(webhook) => {
+          if (canManageWebhook(webhook)) openEdit(webhook);
+        }}
+        onRefresh={load}
+        onCreateFolderRef={onCreateFolderRef}
+      />
       <WebhookDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         webhook={editingWh}
         onSaved={load}
       />
-    </div>
+    </>
   );
 }

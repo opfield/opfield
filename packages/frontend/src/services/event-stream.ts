@@ -223,7 +223,10 @@ class EventStream {
         } else if (msg.channel === "nginx.template.changed") {
           api.invalidateCache("req:/api/nginx-templates");
           api.invalidateCache("nginx-templates:list");
-        } else if (msg.channel === "access-list.changed") {
+        } else if (
+          msg.channel === "access-list.changed" ||
+          msg.channel === "access-list.folder.changed"
+        ) {
           api.invalidateCache("req:/api/access-lists");
           api.invalidateCache("access-lists:list");
         } else if (msg.channel === "user.changed") {
@@ -250,9 +253,15 @@ class EventStream {
           api.invalidateCache("settings:ssh-connectors");
           api.invalidateCache("req:/api/docker/registries");
           api.invalidateCache("settings:docker-registries");
-        } else if (msg.channel === "notification.alert-rule.changed") {
+        } else if (
+          msg.channel === "notification.alert-rule.changed" ||
+          msg.channel === "notification.alert-rule.folder.changed"
+        ) {
           invalidate("req:/api/notifications/alert-rules", "notifications:alerts");
-        } else if (msg.channel === "notification.webhook.changed") {
+        } else if (
+          msg.channel === "notification.webhook.changed" ||
+          msg.channel === "notification.webhook.folder.changed"
+        ) {
           invalidate("req:/api/notifications/webhooks", "notifications:webhooks");
         } else if (msg.channel === "siem.destination.changed") {
           api.invalidateCache("req:/api/audit/siem/destinations");

@@ -377,6 +377,9 @@ export interface AccessList {
   ipRules: IPRule[];
   basicAuthEnabled: boolean;
   basicAuthUsers: BasicAuthUser[];
+  /** Access list folder; null is ungrouped. */
+  folderId?: string | null;
+  sortOrder?: number;
   createdAt: string;
   updatedAt: string;
   usageCount?: number;
@@ -509,4 +512,6 @@ export interface CreateAccessListRequest {
   ipRules: IPRule[];
   basicAuthEnabled?: boolean;
   basicAuthUsers?: { username: string; password: string }[];
+  /** Destination folder on create (null: ungrouped). */
+  folderId?: string | null;
 }

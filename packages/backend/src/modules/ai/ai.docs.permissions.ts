@@ -90,10 +90,11 @@ Every resource-qualified Pages scope uses the Page Project ID, including Deploym
 ### Access Control Lists
 | Scope | Description |
 |-------|-------------|
-| acl:view | List access lists and view their details (resource-scopable) |
-| acl:create | Create access lists |
+| acl:view | List access lists and view their details (resource-scopable: a list or an access list folder) |
+| acl:create | Create access lists (broadly or in an access list folder) |
 | acl:edit | Edit access lists (resource-scopable) |
 | acl:delete | Delete access lists (resource-scopable) |
+| acl:folders:manage | Manage access list folders and placement of access lists |
 
 ### Nodes
 | Scope | Description |
@@ -326,10 +327,12 @@ Backups, restores, retention and history deletion also need storage:credentials:
 ### Notifications
 | Scope | Description |
 |-------|-------------|
-| notifications:alerts:view | List and view alert rules |
-| notifications:alerts:manage | Create, edit, and delete alert rules |
-| notifications:webhooks:view | List and view notification webhooks and their delivery log |
-| notifications:webhooks:manage | Create, edit, test, and delete webhooks; reveals webhook URLs, headers, and delivery payloads |
+| notifications:alerts:view | List and view alert rules and their fired alerts (resource-scopable: a rule or an alert rule folder) |
+| notifications:alerts:manage | Create, edit, and delete alert rules (resource-scopable; on a folder it also creates there) |
+| notifications:alerts:folders:manage | Manage alert rule folders and placement of custom rules |
+| notifications:webhooks:view | List and view notification webhooks and their delivery log (resource-scopable: a webhook or a webhook folder) |
+| notifications:webhooks:manage | Create, edit, test, and delete webhooks; reveals webhook URLs, headers, and delivery payloads (resource-scopable; on a folder it also creates there) |
+| notifications:webhooks:folders:manage | Manage notification webhook folders and placement of webhooks |
 
 ### Git Integrations
 Every Git provider (\`<p>\` = gitlab, github, git) uses the same verbs.

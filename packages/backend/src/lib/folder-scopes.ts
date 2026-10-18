@@ -1,6 +1,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
+  accessListFolders,
+  accessLists,
   adminUserFolders,
   appFolders,
   apps,
@@ -29,6 +31,10 @@ import {
   nginxTemplates,
   nodeFolders,
   nodes,
+  notificationAlertRuleFolders,
+  notificationAlertRules,
+  notificationWebhookFolders,
+  notificationWebhooks,
   objectStorageConnections,
   objectStorageFolders,
   pageProjectFolders,
@@ -362,6 +368,9 @@ function familyForBaseScope(baseScope: string) {
     baseScope.startsWith('docker:images:')
   )
     return 'docker';
+  if (baseScope.startsWith('acl:')) return 'access-lists';
+  if (baseScope.startsWith('notifications:alerts:')) return 'notification-alert-rules';
+  if (baseScope.startsWith('notifications:webhooks:')) return 'notification-webhooks';
   if (baseScope.startsWith('storage:')) return 'storage';
   if (baseScope.startsWith('databases:')) return 'databases';
   if (baseScope.startsWith('logs:schemas:')) return 'logging-schemas';
@@ -511,6 +520,19 @@ export async function expandFolderScopes(db: DrizzleClient, scopes: readonly str
     expandSimpleFamily(db, byFamily.get('databases') ?? [], databaseConnectionFolders, databaseConnections),
     expandSimpleFamily(db, byFamily.get('logging-environments') ?? [], loggingEnvironmentFolders, loggingEnvironments),
     expandSimpleFamily(db, byFamily.get('logging-schemas') ?? [], loggingSchemaFolders, loggingSchemas),
+    expandSimpleFamily(
+      db,
+      byFamily.get('notification-alert-rules') ?? [],
+      notificationAlertRuleFolders,
+      notificationAlertRules
+    ),
+    expandSimpleFamily(
+      db,
+      byFamily.get('notification-webhooks') ?? [],
+      notificationWebhookFolders,
+      notificationWebhooks
+    ),
+    expandSimpleFamily(db, byFamily.get('access-lists') ?? [], accessListFolders, accessLists),
   ]);
 
   return canonicalizeScopes([...canonical, ...nodeScopes, ...expanded.flat()]);

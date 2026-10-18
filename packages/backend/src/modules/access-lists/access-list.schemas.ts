@@ -64,6 +64,8 @@ export const CreateAccessListSchema = z
     ipRules: z.array(IPRuleSchema).default([]),
     basicAuthEnabled: z.boolean().default(false),
     basicAuthUsers: z.array(BasicAuthUserInputSchema).default([]),
+    /** Destination folder (null or omitted: ungrouped); needs acl:create there. */
+    folderId: z.string().uuid().nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.basicAuthEnabled && data.basicAuthUsers.length === 0) {
@@ -108,6 +110,8 @@ export const AccessListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().max(255).optional(),
+  /** Only the access lists in this folder (not its subfolders). */
+  folderId: z.string().uuid().optional(),
 });
 
 // ---------------------------------------------------------------------------

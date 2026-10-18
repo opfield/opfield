@@ -1,14 +1,14 @@
-import { MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { FolderPlus, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { type SyntheticEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { confirm } from "@/components/common/ConfirmDialog";
-import { ContentLoading } from "@/components/common/ContentLoading";
 import { EmptyState } from "@/components/common/EmptyState";
+import { FolderedResourceList } from "@/components/common/FolderedResourceList";
 import { HubTabPanel, HubTabs } from "@/components/common/HubTabs";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
+import type { ResourceListColumn } from "@/components/common/ResourceListLayout";
 import { ResponsiveHeaderActions } from "@/components/common/ResponsiveHeaderActions";
-import { SimpleTable, type SimpleTableColumn } from "@/components/common/SimpleTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,31 +18,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useInitialLoading } from "@/hooks/use-initial-loading";
+import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useRealtime } from "@/hooks/use-realtime";
 import { toastApiError } from "@/lib/api-error-toast";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import type { AccessList } from "@/types";
 import { AccessListDialog } from "./access-lists/AccessListDialog";
 
+const stopRowEvent = (event: SyntheticEvent) => event.stopPropagation();
+
 export function AccessLists() {
-  const { hasScope } = useAuthStore();
-  const canCreateAccessList = hasScope("acl:create");
-  const canEditAccessList = (id: string) => hasScope("acl:edit") || hasScope(`acl:edit:${id}`);
-  const canDeleteAccessList = (id: string) =>
-    hasScope("acl:delete") || hasScope(`acl:delete:${id}`);
+  const { hasScope, user } = useAuthStore();
+  // Creating needs acl:create broadly or on a destination folder.
+  const canCreateAccessList = hasCreationDestination(user?.scopes ?? [], "acl:create");
+  const canEditAccessList = (id: string) => hasScope(`acl:edit:${id}`);
+  const canDeleteAccessList = (id: string) => hasScope(`acl:delete:${id}`);
+  const canManageFolders = useCanManageSomeFolders("acl:folders:manage");
   const cachedAccessLists = api.getCached<{ data: AccessList[] }>("access-lists:list");
   const [accessLists, setAccessLists] = useState<AccessList[]>(cachedAccessLists?.data ?? []);
   const [isLoading, setIsLoading] = useState(!cachedAccessLists);
-  const initialLoading = useInitialLoading(isLoading);
+  const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AccessList | null>(null);
+  const [createFolderAction, setCreateFolderAction] = useState<(() => void) | null>(null);
+  const receiveCreateFolder = useCallback((fn: () => void) => setCreateFolderAction(() => fn), []);
 
   const loadAccessLists = useCallback(async () => {
     try {
-      const res = await api.listAccessLists();
-      setAccessLists(res.data || []);
+      setAccessLists(await api.listAllAccessLists());
     } catch {
       toast.error("Failed to load access lists");
     } finally {
@@ -55,6 +60,11 @@ export function AccessLists() {
   }, [loadAccessLists]);
 
   useRealtime("access-list.changed", () => {
+    loadAccessLists();
+  });
+
+  // Deleting a folder moves its access lists to ungrouped.
+  useRealtime("access-list.folder.changed", () => {
     loadAccessLists();
   });
 
@@ -84,19 +94,23 @@ export function AccessLists() {
     }
   };
 
-  const accessListColumns: SimpleTableColumn<AccessList>[] = [
+  const query = search.trim().toLowerCase();
+  const visibleAccessLists = query
+    ? accessLists.filter((al) =>
+        [al.name, al.description].some((value) => value?.toLowerCase().includes(query))
+      )
+    : accessLists;
+
+  const accessListColumns: ResourceListColumn<AccessList>[] = [
     {
       id: "name",
-      header: "Name",
-      render: (al) => <p className="text-sm font-medium">{al.name}</p>,
+      label: "Name",
+      renderCell: (al) => <p className="truncate text-sm font-medium">{al.name}</p>,
     },
     {
       id: "description",
-      header: "Description",
-      // max-w-0: the description takes the free width of the table and ends in an ellipsis
-      // instead of widening it.
-      cellClassName: "max-w-0",
-      render: (al) => (
+      label: "Description",
+      renderCell: (al) => (
         <p className="truncate text-sm text-muted-foreground" title={al.description || undefined}>
           {al.description || "—"}
         </p>
@@ -104,9 +118,10 @@ export function AccessLists() {
     },
     {
       id: "ip-rules",
-      header: "IP Rules",
+      label: "IP Rules",
       align: "right",
-      render: (al) => (
+      width: "7rem",
+      renderCell: (al) => (
         <Badge variant="secondary" className="gap-1">
           <span>{(al.ipRules || []).length}</span>
           <span>rules</span>
@@ -115,9 +130,10 @@ export function AccessLists() {
     },
     {
       id: "auth-users",
-      header: "Auth Users",
+      label: "Auth Users",
       align: "right",
-      render: (al) => (
+      width: "8rem",
+      renderCell: (al) => (
         <Badge variant={al.basicAuthEnabled ? "secondary" : "outline"} className="gap-1">
           {al.basicAuthEnabled ? (
             <>
@@ -132,9 +148,10 @@ export function AccessLists() {
     },
     {
       id: "usage",
-      header: "Usage",
+      label: "Usage",
       align: "right",
-      render: (al) => (
+      width: "7rem",
+      renderCell: (al) => (
         <Badge variant="secondary" className="gap-1">
           <span>{al.usageCount ?? 0}</span>
           <span>{al.usageCount === 1 ? "route" : "routes"}</span>
@@ -143,13 +160,12 @@ export function AccessLists() {
     },
     {
       id: "actions",
-      header: "Actions",
+      label: "Actions",
       align: "right",
-      className: "w-24",
-      cellClassName: "w-24",
-      render: (al) =>
+      width: "5rem",
+      renderCell: (al) =>
         canEditAccessList(al.id) || canDeleteAccessList(al.id) ? (
-          <div onClick={(event) => event.stopPropagation()}>
+          <div className="flex justify-end" onClick={stopRowEvent} onPointerDown={stopRowEvent}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Access list actions">
@@ -186,47 +202,79 @@ export function AccessLists() {
         title="Access Lists"
         description="Manage IP rules and basic authentication"
         actions={
-          canCreateAccessList ? (
+          canCreateAccessList || (canManageFolders && createFolderAction) ? (
             <ResponsiveHeaderActions
               actions={[
-                {
-                  label: "Add Access List",
-                  icon: <Plus className="h-4 w-4" />,
-                  onClick: openCreate,
-                },
+                ...(canManageFolders && createFolderAction
+                  ? [
+                      {
+                        label: "Add Folder",
+                        icon: <FolderPlus className="h-4 w-4" />,
+                        onClick: createFolderAction,
+                      },
+                    ]
+                  : []),
+                ...(canCreateAccessList
+                  ? [
+                      {
+                        label: "Add Access List",
+                        icon: <Plus className="h-4 w-4" />,
+                        onClick: openCreate,
+                      },
+                    ]
+                  : []),
               ]}
             >
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" />
-                Add Access List
-              </Button>
+              {canManageFolders && createFolderAction && (
+                <Button variant="outline" onClick={() => createFolderAction()}>
+                  <FolderPlus className="h-4 w-4" />
+                  Add Folder
+                </Button>
+              )}
+              {canCreateAccessList && (
+                <Button onClick={openCreate}>
+                  <Plus className="h-4 w-4" />
+                  Add Access List
+                </Button>
+              )}
             </ResponsiveHeaderActions>
           ) : null
         }
       />
       <HubTabs />
       <HubTabPanel className="space-y-4">
-        {/* Table */}
-        <ContentLoading loading={initialLoading && accessLists.length === 0} />
-        {initialLoading && accessLists.length === 0 ? null : accessLists.length > 0 ? (
-          <div className="border border-border bg-card">
-            <SimpleTable
-              columns={accessListColumns}
-              rows={accessLists}
-              getRowKey={(al) => al.id}
-              loading={isLoading}
-              loadingMessage="Loading access lists"
-              onRowClick={(accessList) => {
-                if (canEditAccessList(accessList.id)) openEdit(accessList);
-              }}
+        <FolderedResourceList<AccessList>
+          resourceType="access-list"
+          realtimeChannel="access-list.folder.changed"
+          resources={visibleAccessLists}
+          columns={accessListColumns}
+          search={{
+            placeholder: "Search access lists...",
+            search,
+            onSearchChange: setSearch,
+            hasActiveFilters: search !== "",
+            onReset: () => setSearch(""),
+          }}
+          loading={isLoading}
+          loadingLabel="Loading access lists..."
+          emptyState={
+            <EmptyState
+              message="No access lists."
+              {...(canCreateAccessList ? { actionLabel: "Create one", onAction: openCreate } : {})}
+              hasActiveFilters={search !== ""}
+              onReset={() => setSearch("")}
             />
-          </div>
-        ) : (
-          <EmptyState
-            message="No access lists."
-            {...(canCreateAccessList ? { actionLabel: "Create one", onAction: openCreate } : {})}
-          />
-        )}
+          }
+          canManageFolders={canManageFolders}
+          canViewItem={() => true}
+          canReorganizeItem={(al) => canManageFolders && canEditAccessList(al.id)}
+          getResourceLabel={(al) => al.name}
+          onItemClick={(accessList) => {
+            if (canEditAccessList(accessList.id)) openEdit(accessList);
+          }}
+          onRefresh={loadAccessLists}
+          onCreateFolderRef={receiveCreateFolder}
+        />
 
         <AccessListDialog
           open={dialogOpen}

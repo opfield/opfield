@@ -1,5 +1,6 @@
 import { container } from '@/container.js';
 import { getResourceScopedIds } from '@/lib/permissions.js';
+import { AccessListFolderService } from '@/modules/access-lists/access-list-folders.service.js';
 import { AdminUserFolderService } from '@/modules/admin/admin-user-folders.service.js';
 import { APP_SCOPES } from '@/modules/apps/app-access.js';
 import { AppListFolderService } from '@/modules/apps/app-list-folders.service.js';
@@ -10,6 +11,10 @@ import type { LicenseFeature } from '@/modules/license/license-policy.service.js
 import { LoggingEnvironmentFolderService } from '@/modules/logging/logging-environment-folders.service.js';
 import { LoggingSchemaFolderService } from '@/modules/logging/logging-schema-folders.service.js';
 import { NodeFolderService } from '@/modules/nodes/node-folders.service.js';
+import {
+  NotificationAlertRuleFolderService,
+  NotificationWebhookFolderService,
+} from '@/modules/notifications/notification-folders.service.js';
 import { ObjectStorageFolderService } from '@/modules/object-storage/object-storage-folders.service.js';
 import { visiblePageProjectIds } from '@/modules/pages/page-project-access.js';
 import { PageProjectFolderService } from '@/modules/pages/page-project-folder.service.js';
@@ -224,6 +229,37 @@ export function genericFolderConfig(resourceType: GenericFolderResourceType): Ge
         resourceMoveScope: 'proxy:templates:manage',
         createScope: 'proxy:templates:manage',
         reorderItemScope: 'proxy:templates:manage',
+      };
+    case 'notification_alert_rules':
+      return {
+        service: container.resolve(NotificationAlertRuleFolderService),
+        viewScope: 'notifications:alerts:view',
+        manageScope: 'notifications:alerts:folders:manage',
+        moveEditScope: 'notifications:alerts:manage',
+        resourceMoveScope: 'notifications:alerts:manage',
+        createScope: 'notifications:alerts:manage',
+        reorderItemScope: 'notifications:alerts:manage',
+      };
+    case 'notification_webhooks':
+      return {
+        service: container.resolve(NotificationWebhookFolderService),
+        viewScope: 'notifications:webhooks:view',
+        manageScope: 'notifications:webhooks:folders:manage',
+        moveEditScope: 'notifications:webhooks:manage',
+        resourceMoveScope: 'notifications:webhooks:manage',
+        createScope: 'notifications:webhooks:manage',
+        reorderItemScope: 'notifications:webhooks:manage',
+      };
+    case 'access_lists':
+      return {
+        service: container.resolve(AccessListFolderService),
+        viewScope: 'acl:view',
+        manageScope: 'acl:folders:manage',
+        listScopes: ['acl:create'],
+        moveEditScope: 'acl:edit',
+        resourceMoveScope: 'acl:edit',
+        createScope: 'acl:create',
+        reorderItemScope: 'acl:edit',
       };
   }
 }

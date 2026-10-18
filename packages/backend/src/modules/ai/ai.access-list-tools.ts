@@ -1,9 +1,11 @@
+import { container } from '@/container.js';
 import {
   CreateAccessListSchema,
   MoveAccessListIpRuleSchema,
   UpdateAccessListSchema,
 } from '@/modules/access-lists/access-list.schemas.js';
 import type { AccessListService } from '@/modules/access-lists/access-list.service.js';
+import { AccessListFolderService } from '@/modules/access-lists/access-list-folders.service.js';
 import type { User } from '@/types.js';
 import { agentPage, agentPageLimit, allowedResourceIdsForScopes } from './ai.service-helpers.js';
 
@@ -34,24 +36,27 @@ export async function executeAccessListTool(
           search: a.search,
           page: agentPage(a.page),
           limit: agentPageLimit(a.limit),
+          folderId: typeof a.folderId === 'string' && a.folderId ? a.folderId : undefined,
         },
         { allowedIds: allowedResourceIdsForScopes(user.scopes, 'acl:view') }
       );
-    case 'create_access_list':
-      return context.accessListService.create(
-        CreateAccessListSchema.parse({
-          name: a.name,
-          description: a.description,
-          ipRules: [
-            ...(Array.isArray(a.ipRules) ? a.ipRules : []),
-            ...(a.allowIps || []).map((value: string) => ({ value, type: 'allow' })),
-            ...(a.denyIps || []).map((value: string) => ({ value, type: 'deny' })),
-          ],
-          basicAuthEnabled: a.basicAuthEnabled ?? !!a.basicAuthUsers?.length,
-          basicAuthUsers: a.basicAuthUsers || [],
-        }),
-        user.id
-      );
+    case 'create_access_list': {
+      const input = CreateAccessListSchema.parse({
+        name: a.name,
+        description: a.description,
+        ipRules: [
+          ...(Array.isArray(a.ipRules) ? a.ipRules : []),
+          ...(a.allowIps || []).map((value: string) => ({ value, type: 'allow' })),
+          ...(a.denyIps || []).map((value: string) => ({ value, type: 'deny' })),
+        ],
+        basicAuthEnabled: a.basicAuthEnabled ?? !!a.basicAuthUsers?.length,
+        basicAuthUsers: a.basicAuthUsers || [],
+        folderId: a.folderId ?? undefined,
+      });
+      // Mirrors POST /access-lists: broad acl:create, or acl:create on the destination folder.
+      await container.resolve(AccessListFolderService).assertCreateFolder(user.scopes, input.folderId);
+      return context.accessListService.create(input, user.id);
+    }
     case 'delete_access_list':
       await context.accessListService.delete(a.accessListId, user.id);
       return { success: true };

@@ -49,6 +49,9 @@ const STANDALONE_SCOPES = new Set<string>([
   'databases:folders:manage',
   'logs:environments:folders:manage',
   'logs:schemas:folders:manage',
+  'notifications:alerts:folders:manage',
+  'notifications:webhooks:folders:manage',
+  'acl:folders:manage',
   // Picks a stateful node as a backup runner; it does not make the node itself visible.
   'nodes:backups:execute',
   // A browser maintenance code for testing a Route in maintenance; it does not reveal Route config.

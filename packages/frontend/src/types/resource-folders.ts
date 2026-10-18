@@ -14,7 +14,10 @@ export type ResourceFolderType =
   | "admin-user"
   | "admin-group"
   | "pages-project"
-  | "app";
+  | "app"
+  | "notification-alert-rule"
+  | "notification-webhook"
+  | "access-list";
 
 export interface ResourceFolder {
   id: string;

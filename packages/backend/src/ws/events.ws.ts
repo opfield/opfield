@@ -319,6 +319,21 @@ function canReceiveChannelPayload(scopes: string[], channel: string, payload: un
     }
     return hasScope(scopes, 'pages:view') || hasScope(scopes, `pages:view:${projectId}`);
   }
+  if (channel === 'notification.alert-rule.changed' || channel.startsWith('alert.')) {
+    const event = payload as { id?: unknown; ruleId?: unknown } | undefined;
+    const ruleId = channel.startsWith('alert.') ? event?.ruleId : event?.id;
+    return (
+      hasScope(scopes, 'notifications:alerts:view') ||
+      (typeof ruleId === 'string' && hasScope(scopes, `notifications:alerts:view:${ruleId}`))
+    );
+  }
+  if (channel === 'notification.webhook.changed') {
+    const webhookId = (payload as { id?: unknown } | undefined)?.id;
+    return (
+      hasScope(scopes, 'notifications:webhooks:view') ||
+      (typeof webhookId === 'string' && hasScope(scopes, `notifications:webhooks:view:${webhookId}`))
+    );
+  }
   if (channel === 'logging.logs.ingested') {
     const environmentId = (payload as { environmentId?: string } | undefined)?.environmentId;
     return hasScope(scopes, 'logs:read') || !!(environmentId && hasScope(scopes, `logs:read:${environmentId}`));

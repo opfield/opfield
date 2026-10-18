@@ -1,7 +1,8 @@
-import { count, eq, ilike, inArray, type SQL, sql } from 'drizzle-orm';
+import { count, eq, ilike, inArray, isNull, max, type SQL, sql } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { notificationAlertRules, notificationWebhooks } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { buildWhere } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -11,10 +12,17 @@ import type { CreateWebhookInput, UpdateWebhookInput, WebhookListQuery } from '.
 
 const logger = createChildLogger('WebhookService');
 
+/** Reveal for every webhook, or per webhook (manage granted on some webhooks or folders only). */
+type RevealOption = boolean | ((webhookId: string) => boolean);
+
 type WebhookViewOptions = {
-  revealHeaders?: boolean;
-  revealUrl?: boolean;
+  revealHeaders?: RevealOption;
+  revealUrl?: RevealOption;
 };
+
+function reveals(option: RevealOption | undefined, webhookId: string): boolean {
+  return typeof option === 'function' ? option(webhookId) : !!option;
+}
 
 export function redactWebhookHeaders(headers: unknown): unknown {
   if (!headers || typeof headers !== 'object' || Array.isArray(headers)) return headers;
@@ -47,8 +55,18 @@ export class NotificationWebhookService {
     this.eventBus?.publish('notification.webhook.changed', { id, action });
   }
 
-  async list(query: WebhookListQuery, options: WebhookViewOptions = {}) {
+  /** `allowedIds`: the webhooks a caller without broad view may list (granted one by one or through their folder). */
+  async list(query: WebhookListQuery, options: WebhookViewOptions & { allowedIds?: readonly string[] } = {}) {
     const conditions: SQL[] = [];
+    if (options.allowedIds) {
+      if (options.allowedIds.length === 0) {
+        return { data: [], total: 0, page: query.page, limit: query.limit, totalPages: 0 };
+      }
+      conditions.push(inArray(notificationWebhooks.id, [...options.allowedIds]));
+    }
+    if (query.folderId) {
+      conditions.push(eq(notificationWebhooks.folderId, query.folderId));
+    }
 
     if (query.search) {
       conditions.push(ilike(notificationWebhooks.name, `%${query.search}%`));
@@ -72,9 +90,9 @@ export class NotificationWebhookService {
 
     const data = rows.map((r) => ({
       ...r,
-      url: options.revealUrl ? r.url : redactWebhookUrl(r.url),
+      url: reveals(options.revealUrl, r.id) ? r.url : redactWebhookUrl(r.url),
       signingSecret: r.signingSecret ? '********' : null,
-      headers: options.revealHeaders ? r.headers : redactWebhookHeaders(r.headers),
+      headers: reveals(options.revealHeaders, r.id) ? r.headers : redactWebhookHeaders(r.headers),
     }));
 
     return {
@@ -91,9 +109,9 @@ export class NotificationWebhookService {
     if (!webhook) throw new AppError(404, 'NOT_FOUND', 'Webhook not found');
     return {
       ...webhook,
-      url: options.revealUrl ? webhook.url : redactWebhookUrl(webhook.url),
+      url: reveals(options.revealUrl, webhook.id) ? webhook.url : redactWebhookUrl(webhook.url),
       signingSecret: webhook.signingSecret ? '********' : null,
-      headers: options.revealHeaders ? webhook.headers : redactWebhookHeaders(webhook.headers),
+      headers: reveals(options.revealHeaders, webhook.id) ? webhook.headers : redactWebhookHeaders(webhook.headers),
     };
   }
 
@@ -117,9 +135,12 @@ export class NotificationWebhookService {
       encryptedSecret = JSON.stringify(enc);
     }
 
+    const folderId = input.folderId ?? null;
     const [webhook] = await this.db
       .insert(notificationWebhooks)
       .values({
+        folderId,
+        sortOrder: await this.nextSortOrder(folderId),
         name: input.name,
         url: input.url,
         method: input.method,
@@ -138,12 +159,21 @@ export class NotificationWebhookService {
       resourceType: 'notification_webhook',
       resourceId: webhook.id,
       // Webhook URLs routinely embed bearer tokens (Slack, Discord, Telegram); audit only the redacted form.
-      details: { name: input.name, url: redactWebhookUrl(input.url) },
+      details: { name: input.name, url: redactWebhookUrl(input.url), folderId },
     });
 
     logger.info('Webhook created', { id: webhook.id, name: input.name });
     this.emitWebhook(webhook.id, 'created');
     return { ...webhook, signingSecret: webhook.signingSecret ? '********' : null };
+  }
+
+  /** A new webhook goes to the end of its folder (or of the ungrouped webhooks). */
+  private async nextSortOrder(folderId: string | null): Promise<number> {
+    const [row] = await this.db
+      .select({ last: max(notificationWebhooks.sortOrder) })
+      .from(notificationWebhooks)
+      .where(folderId ? eq(notificationWebhooks.folderId, folderId) : isNull(notificationWebhooks.folderId));
+    return row?.last == null ? 0 : row.last + 1;
   }
 
   async update(id: string, input: UpdateWebhookInput, userId: string) {
@@ -187,7 +217,8 @@ export class NotificationWebhookService {
 
   async delete(id: string, userId: string) {
     const existing = await this.getById(id);
-    await this.db.transaction(async (tx) => {
+    // Grants naming the webhook go with it.
+    await transactionWithScopeCleanup(this.db, async (tx) => {
       await tx.delete(notificationWebhooks).where(eq(notificationWebhooks.id, id));
       // Alert rules stop naming the deleted webhook (a rule only takes ids of existing webhooks).
       await tx

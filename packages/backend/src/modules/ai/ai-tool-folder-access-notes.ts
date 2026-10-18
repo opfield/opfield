@@ -36,6 +36,11 @@ export const FOLDER_ACCESS_LIST_TOOLS: ReadonlySet<string> = new Set([
   'manage_managed_storage',
   'manage_pages',
   'manage_logging',
+  'list_alert_rules',
+  'list_alerts',
+  'list_webhooks',
+  'list_webhook_deliveries',
+  'list_access_lists',
 ]);
 
 /** Tools that create a resource in a folder or on a node. */
@@ -60,6 +65,9 @@ export const FOLDER_ACCESS_CREATE_TOOLS: ReadonlySet<string> = new Set([
   'manage_logging',
   'create_node',
   'manage_proxy_template',
+  'create_alert_rule',
+  'create_webhook',
+  'create_access_list',
 ]);
 
 function withFolderIdParameterNote(parameters: Record<string, unknown>): Record<string, unknown> {

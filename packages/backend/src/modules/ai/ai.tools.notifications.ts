@@ -5,7 +5,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_alert_rules',
     description:
-      'List notification alert rules. Returns id, name, enabled, type (threshold/event), category, severity, metric, operator, thresholdValue, eventPattern, resourceIds, webhookIds, cooldownSeconds. Categories include hosting VM/account, node, container, build, compose, proxy (routes: health events and request metrics such as the 5xx share), pages, opfield (the Opfield host, backend process, Postgres, Redis, stack containers and background jobs, plus relay and license), logging, integration, certificate, security, managed database types, managed_storage, app (app environment health, kill switch, shutdown, maintenance, 5xx share over its routes), backup (failed or missed scheduled backups), domain (DNS not pointing to Opfield), pki (internal CA and certificate expiry), inference (provider connections and the inference core), relay_pool (relays, the pool, its updates), and docker_availability (failover, failback, degraded or unavailable workloads). Creating or editing a rule needs view of what it watches. Use manage_notifications alert_categories for each category metrics, events, and template variables.',
+      'List notification alert rules. Returns id, name, enabled, type (threshold/event), category, severity, metric, operator, thresholdValue, eventPattern, resourceIds, webhookIds, cooldownSeconds. Categories include hosting VM/account, node, container, build, compose, proxy (routes: health events and request metrics such as the 5xx share), pages, opfield (the Opfield host, backend process, Postgres, Redis, stack containers and background jobs, plus relay and license), logging, integration, certificate, security, managed database types, managed_storage, app (app environment health, kill switch, shutdown, maintenance, 5xx share over its routes), backup (failed or missed scheduled backups), domain (DNS not pointing to Opfield), pki (internal CA and certificate expiry), inference (provider connections and the inference core), relay_pool (relays, the pool, its updates), and docker_availability (failover, failback, degraded or unavailable workloads). Creating or editing a rule needs view of what it watches. Use manage_notifications alert_categories for each category metrics, events, and template variables. Each rule carries folderId (null: ungrouped) and sortOrder; built-in rules (isBuiltin) never have a folder. list_resource_folders with notification_alert_rules names the folders, manage_resource_folder moves rules between them.',
     parameters: {
       type: 'object',
       properties: {
@@ -17,6 +17,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         type: { type: 'string', enum: ['threshold', 'event'] },
         enabled: { type: 'boolean', description: 'Filter by enabled/disabled' },
         search: { type: 'string', description: 'Search by rule name' },
+        folderId: { type: 'string', description: 'Only the rules in this alert rule folder (not its subfolders)' },
         page: { type: 'number' },
         limit: { type: 'number', description: 'Items per page (default 50, max 100)' },
       },
@@ -142,6 +143,11 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
         webhookIds: { type: 'array', items: { type: 'string' }, description: 'Webhook IDs to deliver to' },
         cooldownSeconds: { type: 'number', description: 'Cooldown between repeated firings (default 900)' },
         enabled: { type: 'boolean', description: 'Whether the rule is active (default true)' },
+        folderId: {
+          type: ['string', 'null'],
+          description:
+            'Destination alert rule folder UUID (list_resource_folders notification_alert_rules); omitted or null: ungrouped. notifications:alerts:manage on that folder is enough to create there.',
+        },
       },
       required: ['name', 'type', 'category', 'severity', 'webhookIds'],
     },
@@ -206,12 +212,13 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
   {
     name: 'list_webhooks',
     description:
-      'List notification webhooks. Returns id, name, url, method, enabled, templatePreset, headers. URL and headers are revealed only with notifications:webhooks:manage.',
+      'List notification webhooks. Returns id, name, url, method, enabled, templatePreset, headers, folderId (null: ungrouped) and sortOrder. URL and headers are revealed only with notifications:webhooks:manage on the webhook. list_resource_folders with notification_webhooks names the folders, manage_resource_folder moves webhooks between them.',
     parameters: {
       type: 'object',
       properties: {
         search: { type: 'string' },
         enabled: { type: 'boolean' },
+        folderId: { type: 'string', description: 'Only the webhooks in this webhook folder (not its subfolders)' },
         page: { type: 'number' },
         limit: { type: 'number', description: 'Items per page (default 50, max 100)' },
       },
@@ -245,6 +252,11 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
           description: 'Extra HTTP headers sent with each delivery',
         },
         enabled: { type: 'boolean', description: 'Default true' },
+        folderId: {
+          type: ['string', 'null'],
+          description:
+            'Destination webhook folder UUID (list_resource_folders notification_webhooks); omitted or null: ungrouped. notifications:webhooks:manage on that folder is enough to create there.',
+        },
       },
       required: ['name', 'url'],
     },

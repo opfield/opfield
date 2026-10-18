@@ -25,6 +25,7 @@ import { RelayTunnelHost } from '@/grpc/tunnel-worker/host.js';
 import { createChildLogger, logger } from '@/lib/logger.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { AccessListService } from '@/modules/access-lists/access-list.service.js';
+import { AccessListFolderService } from '@/modules/access-lists/access-list-folders.service.js';
 import { AdminUserFolderService } from '@/modules/admin/admin-user-folders.service.js';
 import { AISandboxService } from '@/modules/ai/ai.sandbox.service.js';
 import { AISandboxArtifactService } from '@/modules/ai/ai.sandbox-artifact.service.js';
@@ -216,6 +217,10 @@ import { NodesService } from '@/modules/nodes/nodes.service.js';
 import { NotificationAlertRuleService } from '@/modules/notifications/notification-alert-rule.service.js';
 import { NotificationDeliveryService } from '@/modules/notifications/notification-delivery.service.js';
 import { NotificationDispatcherService } from '@/modules/notifications/notification-dispatcher.service.js';
+import {
+  NotificationAlertRuleFolderService,
+  NotificationWebhookFolderService,
+} from '@/modules/notifications/notification-folders.service.js';
 import { NotificationWebhookService } from '@/modules/notifications/notification-webhook.service.js';
 import { OAuthService } from '@/modules/oauth/oauth.service.js';
 import { ObjectStorageService } from '@/modules/object-storage/object-storage.service.js';
@@ -1892,6 +1897,15 @@ export async function initializeContainer(): Promise<void> {
   const nginxTemplateFolderService = new NginxTemplateFolderService(db, auditService);
   nginxTemplateFolderService.setEventBus(eventBus);
   container.registerInstance(NginxTemplateFolderService, nginxTemplateFolderService);
+  const notificationAlertRuleFolderService = new NotificationAlertRuleFolderService(db, auditService);
+  notificationAlertRuleFolderService.setEventBus(eventBus);
+  container.registerInstance(NotificationAlertRuleFolderService, notificationAlertRuleFolderService);
+  const notificationWebhookFolderService = new NotificationWebhookFolderService(db, auditService);
+  notificationWebhookFolderService.setEventBus(eventBus);
+  container.registerInstance(NotificationWebhookFolderService, notificationWebhookFolderService);
+  const accessListFolderService = new AccessListFolderService(db, auditService);
+  accessListFolderService.setEventBus(eventBus);
+  container.registerInstance(AccessListFolderService, accessListFolderService);
   const appListFolderService = new AppListFolderService(db, auditService);
   appListFolderService.setEventBus(eventBus);
   container.registerInstance(AppListFolderService, appListFolderService);

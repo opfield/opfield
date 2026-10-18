@@ -47,6 +47,33 @@ describe('folder-scoped permissions', () => {
     ]);
   });
 
+  it.each([
+    'notifications:alerts',
+    'notifications:webhooks',
+  ])('expands %s folder grants to the rules or webhooks inside; manage there also creates there', async (family) => {
+    const select = vi.fn((fields: Record<string, unknown>) => ({
+      from: vi.fn(() =>
+        'parentId' in fields
+          ? Promise.resolve([
+              { id: 'folder-1', parentId: null },
+              { id: 'folder-2', parentId: 'folder-1' },
+            ])
+          : { where: vi.fn().mockResolvedValue([{ id: 'item-1', folderId: 'folder-2' }]) }
+      ),
+    }));
+    const scopes = await expandFolderScopes({ select } as never, [`${family}:manage:folder/folder-1`]);
+    expect(scopes).toEqual([
+      `${family}:manage:folder/folder-1`,
+      `${family}:manage:folder/folder-2`,
+      `${family}:manage:item-1`,
+    ]);
+    // Manage implies view of the same items; neither reaches the top level or other items.
+    expect(getResourceScopedIds(scopes, `${family}:view`)).toEqual(['item-1']);
+    expect(hasScopeForCreation(scopes, `${family}:manage`, 'folder-2')).toBe(true);
+    expect(hasScopeForCreation(scopes, `${family}:manage`, null)).toBe(false);
+    expect(isScopeSubset([`${family}:view:item-2`], scopes)).toBe(false);
+  });
+
   it('creation expands destination subfolders without creating existing-resource grants', async () => {
     const select = vi.fn((fields: Record<string, unknown>) => ({
       from: vi.fn(() =>
@@ -138,6 +165,8 @@ describe('folder-scoped permissions', () => {
     'pages:folders:manage',
     'logs:environments:folders:manage',
     'logs:schemas:folders:manage',
+    'notifications:alerts:folders:manage',
+    'notifications:webhooks:folders:manage',
   ])('expands a %s folder grant to the folder and its subfolders only', async (base) => {
     const folderRows = [
       { id: 'folder-1', parentId: null },

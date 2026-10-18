@@ -1,5 +1,5 @@
-import { Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FolderPlus, Plus } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { LiteModeBackButton } from "@/components/common/LiteModeBackButton";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -9,7 +9,9 @@ import { LicenseFeatureBoundary } from "@/components/license/LicenseFeatureBound
 import { LicensePlanBadge } from "@/components/license/LicensePlanBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCanManageSomeFolders } from "@/hooks/use-folder-access";
 import { useSiemAvailable } from "@/hooks/use-plan-gated-features";
+import { hasCreationDestination } from "@/lib/creation-folders";
 import { AlertsTab } from "@/pages/notifications/AlertsTab";
 import { DELIVERY_PAGE_SIZE, DeliveryLogTab } from "@/pages/notifications/DeliveryLogTab";
 import {
@@ -38,19 +40,33 @@ export function Notifications() {
   const { tab: tabParam } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { hasAnyScope } = useAuthStore();
+  const { hasAnyScope, hasScopedAccess, user } = useAuthStore();
   const siemEnabled = useSiemAvailable();
   const siemSwitchedOn = useSystemConfigStore((state) => state.config.features.siemEnabled);
-  // Same scopes as the notification routes: *:view to read, *:manage to change (manage implies view).
-  const canReadAlerts = hasAnyScope("notifications:alerts:view", "notifications:alerts:manage");
+  // Same scopes as the notification routes: *:view to read, *:manage to change (manage implies view). Both are
+  // held broadly, on single rules or webhooks, or on their folders; the lists show what the grants cover.
+  const canReadAlerts = hasScopedAccess("notifications:alerts:view");
   const canAccessAlerts = canReadAlerts;
-  const canReadWebhooks = hasAnyScope(
-    "notifications:webhooks:view",
+  const canReadWebhooks = hasScopedAccess("notifications:webhooks:view");
+  // Creating needs manage broadly or on a destination folder.
+  const canManageAlerts = hasCreationDestination(user?.scopes ?? [], "notifications:alerts:manage");
+  const canAccessWebhooks = canReadWebhooks;
+  const canManageWebhooks = hasCreationDestination(
+    user?.scopes ?? [],
     "notifications:webhooks:manage"
   );
-  const canManageAlerts = hasAnyScope("notifications:alerts:manage");
-  const canAccessWebhooks = canReadWebhooks;
-  const canManageWebhooks = hasAnyScope("notifications:webhooks:manage");
+  const canManageAlertFolders = useCanManageSomeFolders("notifications:alerts:folders:manage");
+  const canManageWebhookFolders = useCanManageSomeFolders("notifications:webhooks:folders:manage");
+  const [createAlertFolder, setCreateAlertFolder] = useState<(() => void) | null>(null);
+  const [createWebhookFolder, setCreateWebhookFolder] = useState<(() => void) | null>(null);
+  const receiveAlertFolderAction = useCallback(
+    (fn: () => void) => setCreateAlertFolder(() => fn),
+    []
+  );
+  const receiveWebhookFolderAction = useCallback(
+    (fn: () => void) => setCreateWebhookFolder(() => fn),
+    []
+  );
   // Delivery history belongs to webhooks.
   const canViewDeliveries = canReadWebhooks;
   const canViewSiem = siemEnabled && hasAnyScope("audit:siem:view", "audit:siem:manage");
@@ -82,14 +98,14 @@ export function Notifications() {
   useEffect(() => {
     if (canReadAlerts) {
       api
-        .listAlertRules({ limit: 100 })
-        .then((result) => api.setCache("notifications:alerts", result.data ?? []))
+        .listAllAlertRules()
+        .then((rules) => api.setCache("notifications:alerts", rules))
         .catch(() => {});
     }
     if (canReadWebhooks) {
       api
-        .listWebhooks({ limit: 100 })
-        .then((result) => api.setCache("notifications:webhooks", result.data ?? []))
+        .listAllWebhooks()
+        .then((webhooks) => api.setCache("notifications:webhooks", webhooks))
         .catch(() => {});
     }
     if (canViewDeliveries) {
@@ -116,15 +132,47 @@ export function Notifications() {
     }
   }, [canReadAlerts, canReadWebhooks, canViewDeliveries, canViewSiem]);
 
+  // The folder action of the open list, when the caller may manage its folders.
+  const createFolderAction =
+    activeTab === "alerts" && canManageAlertFolders
+      ? createAlertFolder
+      : activeTab === "webhooks" && canManageWebhookFolders
+        ? createWebhookFolder
+        : null;
+  const folderButton = createFolderAction ? (
+    <Button variant="outline" onClick={() => createFolderAction()}>
+      <FolderPlus className="h-4 w-4" />
+      Add Folder
+    </Button>
+  ) : null;
+  const folderActions = createFolderAction
+    ? [
+        {
+          label: "Add Folder",
+          icon: <FolderPlus className="h-4 w-4" />,
+          onClick: createFolderAction,
+        },
+      ]
+    : [];
   const headerAction =
-    activeTab === "alerts" && canManageAlerts ? (
-      <Button onClick={() => setOpenCreateAlertToken((v) => v + 1)}>
-        <Plus /> New Alert
-      </Button>
-    ) : activeTab === "webhooks" && canManageWebhooks ? (
-      <Button onClick={() => setOpenCreateWebhookToken((v) => v + 1)}>
-        <Plus /> New Webhook
-      </Button>
+    activeTab === "alerts" && (canManageAlerts || folderButton) ? (
+      <>
+        {folderButton}
+        {canManageAlerts && (
+          <Button onClick={() => setOpenCreateAlertToken((v) => v + 1)}>
+            <Plus /> New Alert
+          </Button>
+        )}
+      </>
+    ) : activeTab === "webhooks" && (canManageWebhooks || folderButton) ? (
+      <>
+        {folderButton}
+        {canManageWebhooks && (
+          <Button onClick={() => setOpenCreateWebhookToken((v) => v + 1)}>
+            <Plus /> New Webhook
+          </Button>
+        )}
+      </>
     ) : activeTab === "deliveries" && canViewDeliveries ? (
       <Button variant="outline" onClick={() => setRefreshDeliveriesToken((v) => v + 1)}>
         Refresh
@@ -144,21 +192,31 @@ export function Notifications() {
       </Button>
     ) : null;
   const headerActions =
-    activeTab === "alerts" && canManageAlerts
+    activeTab === "alerts"
       ? [
-          {
-            label: "New Alert",
-            icon: <Plus className="h-4 w-4" />,
-            onClick: () => setOpenCreateAlertToken((v) => v + 1),
-          },
+          ...folderActions,
+          ...(canManageAlerts
+            ? [
+                {
+                  label: "New Alert",
+                  icon: <Plus className="h-4 w-4" />,
+                  onClick: () => setOpenCreateAlertToken((v) => v + 1),
+                },
+              ]
+            : []),
         ]
-      : activeTab === "webhooks" && canManageWebhooks
+      : activeTab === "webhooks"
         ? [
-            {
-              label: "New Webhook",
-              icon: <Plus className="h-4 w-4" />,
-              onClick: () => setOpenCreateWebhookToken((v) => v + 1),
-            },
+            ...folderActions,
+            ...(canManageWebhooks
+              ? [
+                  {
+                    label: "New Webhook",
+                    icon: <Plus className="h-4 w-4" />,
+                    onClick: () => setOpenCreateWebhookToken((v) => v + 1),
+                  },
+                ]
+              : []),
           ]
         : activeTab === "deliveries" && canViewDeliveries
           ? [
@@ -244,18 +302,18 @@ export function Notifications() {
             {canAccessAlerts && (
               <TabsContent value="alerts" className="mt-4">
                 <AlertsTab
-                  canManage={canManageAlerts}
                   canRead={canReadAlerts}
                   openCreateToken={openCreateAlertToken}
+                  onCreateFolderRef={receiveAlertFolderAction}
                 />
               </TabsContent>
             )}
             {canAccessWebhooks && (
               <TabsContent value="webhooks" className="mt-4">
                 <WebhooksTab
-                  canManage={canManageWebhooks}
                   canRead={canReadWebhooks}
                   openCreateToken={openCreateWebhookToken}
+                  onCreateFolderRef={receiveWebhookFolderAction}
                 />
               </TabsContent>
             )}

@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { and, count, desc, eq, ilike, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, isNull, max } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import type { BasicAuthUser, IPRule } from '@/db/schema/access-lists.js';
 import { accessLists, nodes, pageProjects } from '@/db/schema/index.js';
@@ -90,10 +90,17 @@ export class AccessListService {
     // 1. Hash basic auth passwords before storing
     const hashedUsers = input.basicAuthUsers.length > 0 ? await this.hashPasswords(input.basicAuthUsers) : [];
 
-    // 2. Insert into DB
+    // 2. Insert into DB, at the end of its folder (or of the ungrouped lists)
+    const folderId = input.folderId ?? null;
+    const [last] = await this.db
+      .select({ sortOrder: max(accessLists.sortOrder) })
+      .from(accessLists)
+      .where(folderId ? eq(accessLists.folderId, folderId) : isNull(accessLists.folderId));
     const [accessList] = await this.db
       .insert(accessLists)
       .values({
+        folderId,
+        sortOrder: last?.sortOrder == null ? 0 : last.sortOrder + 1,
         name: input.name,
         description: input.description?.trim() || null,
         ipRules: input.ipRules,
@@ -114,7 +121,7 @@ export class AccessListService {
       action: 'access_list.create',
       resourceType: 'access_list',
       resourceId: accessList.id,
-      details: { name: accessList.name },
+      details: { name: accessList.name, folderId },
     });
 
     logger.info('Created access list', { id: accessList.id, name: accessList.name });
@@ -458,6 +465,9 @@ export class AccessListService {
 
     if (query.search) {
       conditions.push(ilike(accessLists.name, `%${escapeLike(query.search)}%`));
+    }
+    if (query.folderId) {
+      conditions.push(eq(accessLists.folderId, query.folderId));
     }
 
     const where = buildWhere(conditions);

@@ -1,3 +1,4 @@
+export * from './access-list-folders.js';
 export * from './access-lists.js';
 export * from './admin-user-folders.js';
 export * from './ai-conversation-folders.js';
@@ -64,6 +65,7 @@ export * from './nodes.js';
 export * from './notification-alert-rules.js';
 export * from './notification-alert-states.js';
 export * from './notification-delivery-log.js';
+export * from './notification-folders.js';
 export * from './notification-webhooks.js';
 export * from './oauth.js';
 export * from './object-storage.js';

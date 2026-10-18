@@ -118,3 +118,24 @@ export const appFolderRouteDocs = resourceFolderRouteDocs({
   plural: 'apps',
   segment: 'apps',
 });
+
+export const notificationAlertRuleFolderRouteDocs = resourceFolderRouteDocs({
+  tag: 'Notifications',
+  noun: 'alert rule',
+  plural: 'alert rules',
+  segment: 'rules',
+});
+
+export const notificationWebhookFolderRouteDocs = resourceFolderRouteDocs({
+  tag: 'Notifications',
+  noun: 'notification webhook',
+  plural: 'notification webhooks',
+  segment: 'webhooks',
+});
+
+export const accessListFolderRouteDocs = resourceFolderRouteDocs({
+  tag: 'Access Lists',
+  noun: 'access list',
+  plural: 'access lists',
+  segment: 'access-lists',
+});

@@ -58,6 +58,8 @@ export function useAccessListForm({
   onSaved: () => void | Promise<void>;
 }) {
   const [name, setName] = useState("");
+  /** Destination folder of a new list ("" is ungrouped); a list moves between folders in the list. */
+  const [folderId, setFolderId] = useState("");
   const [description, setDescription] = useState("");
   const [ipRules, setIpRules] = useState<IPRuleInput[]>([]);
   const [basicAuthEnabled, setBasicAuthEnabled] = useState(false);
@@ -67,6 +69,7 @@ export function useAccessListForm({
   useEffect(() => {
     if (!open) return;
     setName(accessList?.name ?? "");
+    setFolderId("");
     setDescription(accessList?.description || "");
     setIpRules((accessList?.ipRules || []).map((rule) => ({ ...rule, _key: nextRowKey("ip") })));
     setBasicAuthEnabled(accessList?.basicAuthEnabled ?? false);
@@ -141,6 +144,7 @@ export function useAccessListForm({
           .map(({ _key: _discarded, ...rule }) => rule),
         basicAuthEnabled,
         basicAuthUsers: nextBasicAuthUsers,
+        ...(accessList ? {} : { folderId: folderId || null }),
       };
 
       if (accessList) {
@@ -163,6 +167,8 @@ export function useAccessListForm({
     isEdit: accessList !== null,
     name,
     setName,
+    folderId,
+    setFolderId,
     description,
     setDescription,
     ipRules,

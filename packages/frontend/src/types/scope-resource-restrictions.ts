@@ -17,6 +17,7 @@ export const FOLDER_CREATION_SCOPES = [
   "docker:volumes:create",
   "docker:images:pull",
   "apps:create",
+  "acl:create",
 ] as const;
 
 /**
@@ -66,6 +67,9 @@ export const FOLDER_MANAGE_SCOPES = [
   "logs:environments:folders:manage",
   "logs:schemas:folders:manage",
   "apps:folders:manage",
+  "notifications:alerts:folders:manage",
+  "notifications:webhooks:folders:manage",
+  "acl:folders:manage",
 ] as const;
 
 export const RESOURCE_SCOPABLE_SCOPES = [
@@ -209,6 +213,10 @@ export const RESOURCE_SCOPABLE_SCOPES = [
   "logs:schemas:edit",
   "logs:schemas:delete",
   "logs:read",
+  "notifications:alerts:view",
+  "notifications:alerts:manage",
+  "notifications:webhooks:view",
+  "notifications:webhooks:manage",
   ...FOLDER_MANAGE_SCOPES,
 ] as const;
 
@@ -240,6 +248,9 @@ export const FOLDER_SCOPABLE_SCOPES = [
   "pki:cert:deploy",
   "proxy:templates:view",
   "proxy:templates:manage",
+  "acl:view",
+  "acl:edit",
+  "acl:delete",
   "domains:view",
   "domains:edit",
   "domains:delete",
@@ -327,5 +338,9 @@ export const FOLDER_SCOPABLE_SCOPES = [
   "logs:schemas:edit",
   "logs:schemas:delete",
   "logs:read",
+  "notifications:alerts:view",
+  "notifications:alerts:manage",
+  "notifications:webhooks:view",
+  "notifications:webhooks:manage",
   ...FOLDER_MANAGE_SCOPES,
 ] as const;

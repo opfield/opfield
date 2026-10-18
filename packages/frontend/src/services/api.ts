@@ -310,18 +310,14 @@ class ApiClient extends withAppsApi(
       cache("settings:gitlab-connectors", () => this.listGitLabConnectors())
     );
     add(
-      auth.hasAnyScope("notifications:alerts:view", "notifications:alerts:manage"),
+      auth.hasScopedAccess("notifications:alerts:view"),
       "notification-alerts",
-      cache("notifications:alerts", () =>
-        this.listAlertRules({ limit: 100 }).then((result) => result.data ?? [])
-      )
+      cache("notifications:alerts", () => this.listAllAlertRules())
     );
     add(
-      auth.hasAnyScope("notifications:webhooks:view", "notifications:webhooks:manage"),
+      auth.hasScopedAccess("notifications:webhooks:view"),
       "notification-webhooks",
-      cache("notifications:webhooks", () =>
-        this.listWebhooks({ limit: 100 }).then((result) => result.data ?? [])
-      )
+      cache("notifications:webhooks", () => this.listAllWebhooks())
     );
     add(
       auth.hasScope("feat:ai:configure"),

@@ -155,12 +155,14 @@ describe('canonical scope definitions', () => {
     // A: never-enforced SSL scopes are gone.
     expect(ALL_SCOPES).not.toContain('ssl:cert:revoke');
     expect(ALL_SCOPES).not.toContain('ssl:cert:export');
-    // B: one view and one manage scope per notification area.
+    // B: one view and one manage scope per notification area (plus folder management of each).
     expect(ALL_SCOPES.filter((scope) => scope.startsWith('notifications:'))).toEqual([
       'notifications:alerts:view',
       'notifications:alerts:manage',
+      'notifications:alerts:folders:manage',
       'notifications:webhooks:view',
       'notifications:webhooks:manage',
+      'notifications:webhooks:folders:manage',
     ]);
     // C, D, I: logging catch-all and container config are removed; Docker folders are one scope.
     expect(ALL_SCOPES).not.toContain('logs:manage');

@@ -364,8 +364,9 @@ export function canAccessNavigationItem(
     case "nodes":
       return hasScopeBase(scopes, "nodes:details") || scopeMatches(scopes, "nodes:folders:manage");
     case "notifications":
+      // Rules and webhooks can be granted broadly, one by one, or by folder.
       return (
-        hasAnyScope(scopes, NOTIFICATION_CORE_SCOPES) ||
+        NOTIFICATION_CORE_SCOPES.some((scope) => hasScopeBase(scopes, scope)) ||
         (context.siemEnabled && hasAnyScope(scopes, SIEM_NOTIFICATION_SCOPES))
       );
     case "status-page":

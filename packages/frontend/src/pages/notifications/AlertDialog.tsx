@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnimatedSwitch, CONTENT_SWITCH_ANIMATION } from "@/components/common/AnimatedSwitch";
 import { ContentLoading } from "@/components/common/ContentLoading";
+import {
+  CreateFolderSelect,
+  getCreateFolderChoices,
+  isCreateFolderAllowed,
+} from "@/components/common/CreateFolderSelect";
 import { ScopeList } from "@/components/common/ScopeList";
 import {
   ScopeSearchFilter,
@@ -32,6 +37,7 @@ import { toastApiError } from "@/lib/api-error-toast";
 import { api } from "@/services/api";
 import { useAuthStore } from "@/stores/auth";
 import { type LicenseFeature, planIncludes } from "@/stores/license-paywall";
+import { useResourceFolderStore } from "@/stores/resource-folders";
 import {
   type AlertCategoryDef,
   type AlertRule,
@@ -123,14 +129,29 @@ export function AlertDialog({
   onOpenChange,
   rule,
   onSaved,
+  defaultFolderId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   rule: AlertRule | null;
   onSaved: () => void;
+  /** Folder a new rule starts in (the picker keeps it when the caller may create there). */
+  defaultFolderId?: string;
 }) {
   const isEdit = !!rule;
   const hasScope = useAuthStore((state) => state.hasScope);
+  const scopes = useAuthStore((state) => state.user?.scopes);
+  const [folderId, setFolderId] = useState("");
+  const folders = useResourceFolderStore((state) => state.foldersByType["notification-alert-rule"]);
+  const foldersLoading = useResourceFolderStore(
+    (state) => state.loadingByType["notification-alert-rule"]
+  );
+  const fetchFolders = useResourceFolderStore((state) => state.fetchFolders);
+  // Same destination rule as the create route: notifications:alerts:manage broadly or on the folder.
+  const folderChoices = useMemo(
+    () => getCreateFolderChoices(scopes ?? [], "notifications:alerts:manage", folders ?? []),
+    [folders, scopes]
+  );
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -190,6 +211,8 @@ export function AlertDialog({
     catInitRef.current = false;
     setStep(1);
     setName(rule?.name ?? "");
+    setFolderId(defaultFolderId ?? "");
+    if (!rule) void fetchFolders("notification-alert-rule");
     setCategory(rule?.category ?? "node");
     setType(rule?.type ?? "threshold");
     setSeverity(rule?.severity ?? "warning");
@@ -239,11 +262,11 @@ export function AlertDialog({
       .catch(() => {})
       .finally(() => setCategoriesLoading(false));
     api
-      .listWebhooks({ limit: 100 })
-      .then((r) => setWebhooks(r.data))
+      .listAllWebhooks()
+      .then(setWebhooks)
       .catch(() => {})
       .finally(() => setWebhooksLoading(false));
-  }, [open, rule, hasScope]);
+  }, [open, rule, hasScope, defaultFolderId, fetchFolders]);
 
   const loadAvailableResources = useCallback(async () => {
     const loadToken = ++resourceLoadTokenRef.current;
@@ -723,6 +746,7 @@ export function AlertDialog({
 
   const canProceedFromStep1 = () => {
     if (!name.trim()) return false;
+    if (!isEdit && !isCreateFolderAllowed(folderChoices, folderId)) return false;
     if (type === "threshold" && (!metric || !thresholdValue)) return false;
     if (type === "event" && !eventPattern) return false;
     return true;
@@ -789,6 +813,8 @@ export function AlertDialog({
         webhookIds: selectedWebhookIds,
         resourceIds: scoped ? resourceIds : [],
         enabled: rule?.enabled ?? true,
+        // The folder is chosen on create; moving a rule later happens in the list.
+        ...(!isEdit ? { folderId: folderId || null } : {}),
       };
       if (type === "threshold") {
         data.metric = metric;
@@ -883,6 +909,21 @@ export function AlertDialog({
                   </Select>
                 </div>
               </div>
+
+              {!isEdit && (
+                <div className="space-y-1.5">
+                  <label htmlFor="alert-rule-folder" className="text-sm font-medium">
+                    Folder
+                  </label>
+                  <CreateFolderSelect
+                    id="alert-rule-folder"
+                    choices={folderChoices}
+                    value={folderId}
+                    onChange={setFolderId}
+                    loading={foldersLoading}
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">

@@ -2,12 +2,9 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { container } from '@/container.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope } from '@/lib/permissions.js';
-import {
-  authMiddleware,
-  requireScope,
-  requireScopeBase,
-  requireScopeForResource,
-} from '@/modules/auth/auth.middleware.js';
+import { authMiddleware, requireScopeBase, requireScopeForResource } from '@/modules/auth/auth.middleware.js';
+import { accessListFolderRouteDocs } from '@/modules/resource-folders/resource-folder.docs.js';
+import { registerResourceFolderRoutes } from '@/modules/resource-folders/resource-folder.routes.js';
 import type { AppEnv } from '@/types.js';
 import {
   createAccessListRoute,
@@ -25,10 +22,24 @@ import {
   UpdateAccessListSchema,
 } from './access-list.schemas.js';
 import { AccessListService } from './access-list.service.js';
+import { AccessListFolderService } from './access-list-folders.service.js';
 
 export const accessListRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
 accessListRoutes.use('*', authMiddleware);
+
+// Folders of access lists, registered before the `/{id}` routes. acl:view, acl:edit and acl:delete take a list
+// (`<scope>:<id>`) or a folder (`<scope>:folder/<id>`); acl:create takes a destination folder. Placing a list needs
+// acl:edit on it and on the destination.
+registerResourceFolderRoutes(accessListRoutes, {
+  docs: accessListFolderRouteDocs,
+  service: () => container.resolve(AccessListFolderService),
+  manageScope: 'acl:folders:manage',
+  viewScope: 'acl:view',
+  listScopes: ['acl:create'],
+  folderGrantScopes: ['acl:view', 'acl:create', 'acl:edit', 'acl:delete'],
+  placementScope: 'acl:edit',
+});
 
 // List access lists
 accessListRoutes.openapi({ ...listAccessListsRoute, middleware: requireScopeBase('acl:view') }, async (c) => {
@@ -55,12 +66,14 @@ accessListRoutes.openapi(
 );
 
 // Create access list
-accessListRoutes.openapi({ ...createAccessListRoute, middleware: requireScope('acl:create') }, async (c) => {
+accessListRoutes.openapi({ ...createAccessListRoute, middleware: requireScopeBase('acl:create') }, async (c) => {
   const accessListService = container.resolve(AccessListService);
   const user = c.get('user')!;
   const body = await c.req.json();
   assertAccessListFields(body);
   const input = CreateAccessListSchema.parse(body);
+  // Broad acl:create creates anywhere; `acl:create:folder/<id>` in that folder only.
+  await container.resolve(AccessListFolderService).assertCreateFolder(c.get('effectiveScopes') ?? [], input.folderId);
   const accessList = await accessListService.create(input, user.id);
   return c.json({ data: accessList }, 201);
 });

@@ -47,6 +47,9 @@ export interface AlertRule {
   webhookIds: string[];
   cooldownSeconds: number;
   isBuiltin: boolean;
+  /** Alert rule folder; null is ungrouped. Built-in rules never have one. */
+  folderId?: string | null;
+  sortOrder?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,6 +65,9 @@ export interface NotificationWebhook {
   templatePreset: string | null;
   bodyTemplate: string | null;
   headers: Record<string, string>;
+  /** Webhook folder; null is ungrouped. */
+  folderId?: string | null;
+  sortOrder?: number;
   createdAt: string;
   updatedAt: string;
 }

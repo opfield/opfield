@@ -1,7 +1,8 @@
-import { count, eq, ilike, inArray, type SQL } from 'drizzle-orm';
+import { count, eq, ilike, inArray, isNull, max, type SQL } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import { notificationAlertRules, notificationWebhooks } from '@/db/schema/index.js';
 import { createChildLogger } from '@/lib/logger.js';
+import { transactionWithScopeCleanup } from '@/lib/resource-scope-cleanup.js';
 import { buildWhere } from '@/lib/utils.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
@@ -33,8 +34,18 @@ export class NotificationAlertRuleService {
     this.eventBus?.publish('notification.alert-rule.changed', { id, action });
   }
 
-  async list(query: AlertRuleListQuery) {
+  /** `allowedIds`: the rules a caller without broad view may list (granted one by one or through their folder). */
+  async list(query: AlertRuleListQuery, options: { allowedIds?: readonly string[] } = {}) {
     const conditions: SQL[] = [];
+    if (options.allowedIds) {
+      if (options.allowedIds.length === 0) {
+        return { data: [], total: 0, page: query.page, limit: query.limit, totalPages: 0 };
+      }
+      conditions.push(inArray(notificationAlertRules.id, [...options.allowedIds]));
+    }
+    if (query.folderId) {
+      conditions.push(eq(notificationAlertRules.folderId, query.folderId));
+    }
 
     if (query.search) {
       conditions.push(ilike(notificationAlertRules.name, `%${query.search}%`));
@@ -112,9 +123,12 @@ export class NotificationAlertRuleService {
     if (isOnceADayAlertRule(input)) input = { ...input, ...ONCE_A_DAY_ALERT_WINDOWS };
     this.assertInCatalog(input);
     await this.assertWebhooksExist(input.webhookIds);
+    const folderId = input.folderId ?? null;
     const [rule] = await this.db
       .insert(notificationAlertRules)
       .values({
+        folderId,
+        sortOrder: await this.nextSortOrder(folderId),
         name: input.name,
         enabled: input.enabled,
         type: input.type,
@@ -142,12 +156,21 @@ export class NotificationAlertRuleService {
       action: 'notification_rule_created',
       resourceType: 'notification_alert_rule',
       resourceId: rule.id,
-      details: { name: input.name, type: input.type, category: input.category },
+      details: { name: input.name, type: input.type, category: input.category, folderId },
     });
 
     logger.info('Alert rule created', { id: rule.id, name: input.name, type: input.type, category: input.category });
     this.emitRule(rule.id, 'created');
     return rule;
+  }
+
+  /** A new rule goes to the end of its folder (or of the ungrouped rules). */
+  private async nextSortOrder(folderId: string | null): Promise<number> {
+    const [row] = await this.db
+      .select({ last: max(notificationAlertRules.sortOrder) })
+      .from(notificationAlertRules)
+      .where(folderId ? eq(notificationAlertRules.folderId, folderId) : isNull(notificationAlertRules.folderId));
+    return row?.last == null ? 0 : row.last + 1;
   }
 
   async update(id: string, input: UpdateAlertRuleInput, userId: string) {
@@ -213,7 +236,10 @@ export class NotificationAlertRuleService {
 
   async delete(id: string, userId: string) {
     const existing = await this.getById(id);
-    await this.db.delete(notificationAlertRules).where(eq(notificationAlertRules.id, id));
+    // Grants naming the rule go with it.
+    await transactionWithScopeCleanup(this.db, (tx) =>
+      tx.delete(notificationAlertRules).where(eq(notificationAlertRules.id, id))
+    );
 
     await this.auditService.log({
       userId,
