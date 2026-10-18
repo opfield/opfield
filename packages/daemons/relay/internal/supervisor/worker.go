@@ -6,12 +6,14 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -46,6 +48,57 @@ type workerManager struct {
 	// tried, and Opfield must not hand daemons that one before the worker is
 	// ready on it.
 	servingPort int
+	// lastExit is how the last worker process ended (exit and output tail).
+	lastExit *workerExit
+}
+
+// workerExit is a worker process that ended, with the end of its output: the
+// worker logs why it could not start (a port it cannot bind) before it exits.
+type workerExit struct {
+	err    error
+	output string
+}
+
+// tailBuffer keeps the last bytes written to it.
+type tailBuffer struct {
+	mu    sync.Mutex
+	limit int
+	data  []byte
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.data = append(b.data, p...)
+	if len(b.data) > b.limit {
+		b.data = append([]byte(nil), b.data[len(b.data)-b.limit:]...)
+	}
+	return len(p), nil
+}
+
+func (b *tailBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.data)
+}
+
+// reason is the worker's own last error line ("relay failed" error=...), or
+// its last output line, or how it exited.
+func (e *workerExit) reason() string {
+	lines := strings.Split(strings.TrimSpace(e.output), "\n")
+	for index := len(lines) - 1; index >= 0; index-- {
+		line := strings.TrimSpace(lines[index])
+		if at := strings.Index(line, "error="); at >= 0 && strings.Contains(line, "relay failed") {
+			return strings.Trim(line[at+len("error="):], `"`)
+		}
+	}
+	if last := strings.TrimSpace(lines[len(lines)-1]); last != "" {
+		return last
+	}
+	if e.err != nil {
+		return "the relay worker exited: " + e.err.Error()
+	}
+	return "the relay worker exited"
 }
 
 func newWorkerManager(cfg config.WorkerConfig, enrollmentStateDir string) *workerManager {
@@ -110,8 +163,12 @@ func (m *workerManager) ensureRunning() error {
 		return fmt.Errorf("relay worker binary: %w", err)
 	}
 	cmd := exec.Command(m.cfg.BinaryPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	output := &tailBuffer{limit: 4096}
+	cmd.Stdout = io.MultiWriter(os.Stdout, output)
+	cmd.Stderr = io.MultiWriter(os.Stderr, output)
+	// The output goes through pipes now: a process the worker left behind may
+	// hold them open, and Wait must still return once the worker exited.
+	cmd.WaitDelay = 2 * time.Second
 	cmd.Env = append(os.Environ(),
 		"RELAY_MODE=remote",
 		"RELAY_POOL_ID="+state.PoolID,
@@ -142,6 +199,7 @@ func (m *workerManager) ensureRunning() error {
 			if err != nil {
 				m.lastError = err.Error()
 			}
+			m.lastExit = &workerExit{err: err, output: output.String()}
 		}
 		m.mu.Unlock()
 		if conn != nil {
@@ -363,7 +421,9 @@ func (m *workerManager) waitReadyVersion(ctx context.Context, targetVersion stri
 // supervisor config file, so the port survives a supervisor restart. The
 // worker is restarted on the new port and must become ready there within
 // readyTimeout; otherwise the previous port is written back and the worker
-// restarted on it, and the error says why the new port failed. The runtime
+// restarted on it, and the error says why the new port failed: the worker's
+// own error when it exited (a port taken in between), or that nothing answers
+// on the port while the worker runs (a firewall dropping it). The runtime
 // status keeps reporting the previous port until the worker is ready on the
 // new one.
 func (m *workerManager) changeServicePort(ctx context.Context, port int, persist func(port int) error, readyTimeout time.Duration) (string, error) {
@@ -386,6 +446,7 @@ func (m *workerManager) changeServicePort(ctx context.Context, port int, persist
 	}
 	m.shutdown()
 	m.setServicePort(port)
+	m.forgetExit()
 	readyErr := m.waitReadyVersion(ctx, "", readyTimeout)
 	if readyErr == nil {
 		m.mu.Lock()
@@ -393,22 +454,53 @@ func (m *workerManager) changeServicePort(ctx context.Context, port int, persist
 		m.mu.Unlock()
 		return fmt.Sprintf("service_port=%d previous_service_port=%d", port, previous), nil
 	}
+	cause := m.startFailure(port, readyErr)
 	// Back to the port the worker served on: the relay keeps its place in the
 	// pool instead of staying down on a port it cannot serve.
 	m.shutdown()
 	m.setServicePort(previous)
+	m.forgetExit()
 	var rollbackProblems []error
 	if err := persist(previous); err != nil {
 		rollbackProblems = append(rollbackProblems, fmt.Errorf("write relay port %d back: %w", previous, err))
 	}
 	if err := m.waitReadyVersion(ctx, "", readyTimeout); err != nil {
-		rollbackProblems = append(rollbackProblems, fmt.Errorf("relay worker on port %d: %w", previous, err))
+		rollbackProblems = append(rollbackProblems, fmt.Errorf("relay worker on port %d: %s", previous, m.startFailure(previous, err)))
 	}
 	if len(rollbackProblems) > 0 {
-		return "", fmt.Errorf("the relay worker did not become ready on port %d (%v), and moving it back to port %d failed: %w",
-			port, readyErr, previous, errors.Join(rollbackProblems...))
+		return "", fmt.Errorf("the relay could not serve on port %d: %s; moving it back to port %d failed: %w",
+			port, cause, previous, errors.Join(rollbackProblems...))
 	}
-	return "", fmt.Errorf("the relay worker did not become ready on port %d (%v); it is back on port %d", port, readyErr, previous)
+	return "", fmt.Errorf("the relay could not serve on port %d: %s; it is back on port %d", port, cause, previous)
+}
+
+func (m *workerManager) forgetExit() {
+	m.mu.Lock()
+	m.lastExit = nil
+	m.mu.Unlock()
+}
+
+// startFailure says why a worker started on port did not become ready: its
+// own error when it exited, nothing answering on the port while it runs, or
+// the readiness error.
+func (m *workerManager) startFailure(port int, readyErr error) string {
+	m.mu.Lock()
+	exited := m.lastExit
+	running := m.process != nil
+	m.mu.Unlock()
+	if exited != nil && !running {
+		return exited.reason()
+	}
+	if exited != nil && exited.err != nil {
+		// Restarted after it exited: its exit says more than the new start.
+		return exited.reason()
+	}
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 2*time.Second)
+	if err != nil {
+		return fmt.Sprintf("nothing answers on port %d on the relay host while the worker runs (%v); check the host firewall", port, err)
+	}
+	_ = conn.Close()
+	return fmt.Sprintf("the relay worker did not become ready: %v", readyErr)
 }
 
 func (m *workerManager) setServicePort(port int) {

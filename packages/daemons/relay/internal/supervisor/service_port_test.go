@@ -89,6 +89,10 @@ func newServicePortHarness(t *testing.T, servingPorts ...int) *servicePortHarnes
 	binaryPath := filepath.Join(dir, "relay-worker")
 	script := fmt.Sprintf(`#!/bin/sh
 echo "$RELAY_PORT" >> '%[1]s/started'
+if [ "$(cat '%[1]s/taken' 2>/dev/null)" = "$RELAY_PORT" ]; then
+  echo "2026/10/18 17:29:30 ERROR relay failed error=\"listen tcp 0.0.0.0:$RELAY_PORT: bind: address already in use\"" >&2
+  exit 1
+fi
 trap 'rm -f "%[1]s/running"; kill "$child" 2>/dev/null; exit 0' TERM
 printf '%%s' "$RELAY_PORT" > '%[1]s/running.tmp' && mv '%[1]s/running.tmp' '%[1]s/running'
 sleep 60 &
@@ -171,7 +175,8 @@ func TestServicePortChangeMovesBackWhenTheWorkerDoesNotComeUp(t *testing.T) {
 	h := newServicePortHarness(t, oldPort)
 
 	_, err := h.worker.changeServicePort(context.Background(), deadPort, h.persist, time.Second)
-	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("it is back on port %d", oldPort)) {
+	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("it is back on port %d", oldPort)) ||
+		!strings.Contains(err.Error(), fmt.Sprintf("nothing answers on port %d", deadPort)) {
 		t.Fatalf("port change error = %v, want the move back to port %d", err, oldPort)
 	}
 	if got := h.worker.servicePort(); got != oldPort {
@@ -185,6 +190,23 @@ func TestServicePortChangeMovesBackWhenTheWorkerDoesNotComeUp(t *testing.T) {
 	}
 	if _, err := h.worker.health(context.Background()); err != nil {
 		t.Fatalf("worker back on the previous port does not answer: %v", err)
+	}
+}
+
+// The worker's own error is the reason, not the readiness check that saw the
+// connection close (stand 2.12.6-rc.1, O-2).
+func TestServicePortChangeReportsWhyTheWorkerExited(t *testing.T) {
+	oldPort, takenPort := freePort(t), freePort(t)
+	h := newServicePortHarness(t, oldPort)
+	if err := os.WriteFile(filepath.Join(h.dir, "taken"), []byte(strconv.Itoa(takenPort)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := h.worker.changeServicePort(context.Background(), takenPort, h.persist, time.Second)
+	want := fmt.Sprintf("the relay could not serve on port %d: listen tcp 0.0.0.0:%d: bind: address already in use; it is back on port %d",
+		takenPort, takenPort, oldPort)
+	if err == nil || err.Error() != want {
+		t.Fatalf("port change error = %v, want %q", err, want)
 	}
 }
 
