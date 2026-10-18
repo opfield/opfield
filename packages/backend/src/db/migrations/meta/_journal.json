@@ -1919,6 +1919,13 @@
       "when": 1794850248000,
       "tag": "0273_notification_and_access_list_folders",
       "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
+      "when": 1794850249000,
+      "tag": "0274_container_rule_scope_by_name",
+      "breakpoints": true
     }
   ]
 }

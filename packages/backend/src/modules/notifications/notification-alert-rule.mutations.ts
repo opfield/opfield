@@ -5,6 +5,7 @@ import { hasScopeForResource } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { CreateAlertRuleInput, UpdateAlertRuleInput } from './notification-alert-rule.schemas.js';
 import type { NotificationAlertRuleService } from './notification-alert-rule.service.js';
+import { containerScopeByName } from './notification-container-scope.js';
 import { NotificationEvaluatorService } from './notification-evaluator.service.js';
 import { assertAlertRuleAccess } from './notification-rule-access.js';
 
@@ -90,6 +91,9 @@ export async function createAlertRuleWithEffects(
   scopes: string[],
   userId: string
 ) {
+  if (input.category === 'container' && input.resourceIds.length > 0) {
+    input = { ...input, resourceIds: await containerScopeByName(database(), input.resourceIds) };
+  }
   await assertAlertRuleAccess(database, scopes, input);
   assertWebhooksVisible(scopes, input.webhookIds);
   const rule = await service.create(input, userId);
@@ -107,6 +111,9 @@ export async function updateAlertRuleWithEffects(
   userId: string
 ) {
   const previous = await service.getById(id);
+  if (previous.category === 'container' && input.resourceIds?.length) {
+    input = { ...input, resourceIds: await containerScopeByName(database(), input.resourceIds) };
+  }
   await assertAlertRuleAccess(database, scopes, { ...previous, ...input });
   assertWebhooksVisible(scopes, input.webhookIds, previous.webhookIds);
   const update = () => service.update(id, input, userId);

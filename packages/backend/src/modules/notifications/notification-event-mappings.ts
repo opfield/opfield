@@ -112,6 +112,17 @@ function managedStorageResource(p: any): { type: string; id: string; name?: stri
   return { type: 'managed_storage', id: p.id ?? p.managedStorageClusterId, name: p.name };
 }
 
+/** A container event's resource: keyed by the container name (its stable identity), the runtime id only without one. */
+export function containerResource(p: any): { type: string; id: string; name?: string } {
+  const name = typeof p.name === 'string' && p.name ? p.name : undefined;
+  return { type: 'container', id: name ?? p.id, name: name ?? p.id };
+}
+
+/** The node and the runtime container id ({{resource.id}}) of a container event. */
+function containerData(p: any): Record<string, unknown> {
+  return { nodeId: p.nodeId, ...(typeof p.id === 'string' && p.id ? { containerId: p.id } : {}) };
+}
+
 export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
   'hosting.vm.observed': [
     {
@@ -684,27 +695,31 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       },
     },
   ],
+  // Container events are keyed by the container name, the identity a rule is scoped by (the alert dialog stores names,
+  // health and metric states use them, and a recreated container keeps it). The runtime id changes with every
+  // recreate; it travels as containerId ({{resource.id}}). Stand 2.12.6-rc.2, O-8: started never fired for a rule
+  // scoped in the console, because the action events were keyed by the runtime id.
   'docker.container.changed': [
     {
       category: 'container',
       eventId: 'started',
       match: (p) => p.action === 'started',
-      extractResource: (p) => ({ type: 'container', id: p.id, name: p.name }),
-      extractData: (p) => ({ nodeId: p.nodeId }),
+      extractResource: containerResource,
+      extractData: containerData,
     },
     {
       category: 'container',
       eventId: 'stopped',
       match: (p) => p.action === 'stopped',
-      extractResource: (p) => ({ type: 'container', id: p.id, name: p.name }),
-      extractData: (p) => ({ nodeId: p.nodeId }),
+      extractResource: containerResource,
+      extractData: containerData,
     },
     {
       category: 'container',
       eventId: 'exited',
       match: (p) => p.action === 'killed',
-      extractResource: (p) => ({ type: 'container', id: p.id, name: p.name }),
-      extractData: (p) => ({ nodeId: p.nodeId }),
+      extractResource: containerResource,
+      extractData: containerData,
     },
   ],
   'docker.container.external_change': [
@@ -712,9 +727,9 @@ export const EVENT_BUS_MAPPINGS: Record<string, EventMapping[]> = {
       category: 'container',
       eventId: 'changed_outside',
       match: (p) => typeof p.id === 'string' && typeof p.name === 'string',
-      extractResource: (p) => ({ type: 'container', id: p.id, name: p.name }),
+      extractResource: containerResource,
       extractData: (p) => ({
-        nodeId: p.nodeId,
+        ...containerData(p),
         node_name: p.nodeName,
         change: p.change,
         consequence: p.consequence,

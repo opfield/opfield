@@ -296,7 +296,7 @@ Each alert rule defines:
 - **Type**: threshold (metric breaches a value) or event (something happens)
 - **Threshold fields** (for threshold type): metric, metricTarget (optional sub-target: for node disk "@data" is every data disk of the node except Opfield disk images, each alerting on its own, or a mount point such as "/"; omitted is every reported mount), operator (>, >=, <, <=), thresholdValue, durationSeconds (fire observation window), fireThresholdPercent (percent of probes in that window that must breach), resolveAfterSeconds (resolve observation window, default 60s), resolveThresholdPercent (percent of probes in that window that must be clear)
 - **Event fields** (for event type): eventPattern, one of the category's events (offline, stopped, health.offline, etc.). Events with supportsThreshold are states: they fire after durationSeconds in the state and resolve after resolveAfterSeconds out of it.
-- **Scope**: resourceIds — specific resources of the category (empty = all): node, route, certificate, database or domain ids, container names, app or app environment ids (an app id covers all its environments), database ids for backup rules
+- **Scope**: resourceIds — specific resources of the category (empty = all): node, route, certificate, database or domain ids, container names (every container event is keyed by the name; a runtime container id is stored as its container's name), app or app environment ids (an app id covers all its environments), database ids for backup rules
 - **Severity**: info, warning, critical
 - **Webhooks**: webhookIds — which webhooks receive notifications from this rule
 - **Message template**: Handlebars template rendered with event-specific variables

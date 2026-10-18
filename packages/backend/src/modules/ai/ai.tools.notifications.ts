@@ -129,7 +129,7 @@ export const NOTIFICATION_AI_TOOLS: AIToolDefinition[] = [
           type: 'array',
           items: { type: 'string' },
           description:
-            'Scope to specific resources of the category (empty = all): node, route, certificate, database or domain ids, container names, app or app environment ids, database ids for backup rules',
+            'Scope to specific resources of the category (empty = all): node, route, certificate, database or domain ids, container names (a runtime container id is stored as the name of its container, which survives a recreate), app or app environment ids, database ids for backup rules',
         },
         messageTemplate: {
           type: 'string',
