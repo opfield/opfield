@@ -16,6 +16,7 @@ import { HelpCircle } from "lucide-react";
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { AnimatedHeight } from "@/components/common/AnimatedHeight";
 import { ReferenceTable } from "@/components/common/ReferenceTable";
+import { CODE_EDITOR_FOCUS_CLASS } from "@/components/ui/code-editor";
 import {
   Dialog,
   DialogContent,
@@ -133,7 +134,8 @@ const cmTheme = EditorView.theme({
   },
   ".cm-selectionBackground": { backgroundColor: "var(--color-accent)" },
   "&.cm-focused .cm-selectionBackground": { backgroundColor: "var(--color-accent)" },
-  "&.cm-focused": { outline: "1px solid var(--color-ring)", outlineOffset: "-1px" },
+  // The focus ring belongs to the editor box (the container), like other inputs.
+  "&.cm-focused": { outline: "none" },
   ".cm-line": { padding: "0 12px" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--color-foreground)" },
   ".cm-hbs-var": { color: "var(--color-hue-violet) !important", fontWeight: "600" },
@@ -329,7 +331,8 @@ export const TemplateEditor = React.forwardRef<
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden border border-input bg-background"
+      // The editor fills the box, so a click anywhere in it places the cursor.
+      className={`flex flex-col overflow-hidden border border-input bg-background [&>.cm-editor]:flex-1 ${CODE_EDITOR_FOCUS_CLASS} focus-within:-outline-offset-2`}
       style={{ minHeight }}
     />
   );

@@ -443,12 +443,23 @@ const EDITOR_FONT_SIZE_PX = 13;
 const EDITOR_LINE_HEIGHT = 1.4;
 const EDITOR_CONTENT_PADDING_PX = 8;
 
+/**
+ * Focus indicator of an editable code editor, drawn on its container like the ring of other inputs (a 1px ring inside
+ * the border). An outline, not the inputs' inset box-shadow: the editor's own background would paint over that.
+ * CodeMirror's outline on the focused editor element is switched off in the themes, so nothing inside the box draws one.
+ */
+export const CODE_EDITOR_FOCUS_CLASS =
+  "focus-within:outline focus-within:outline-1 focus-within:outline-ring";
+
 const editorTheme = EditorView.theme({
   "&": {
     backgroundColor: "var(--color-background)",
     color: "var(--color-foreground)",
     fontSize: `${EDITOR_FONT_SIZE_PX}px`,
     height: "100%",
+  },
+  "&.cm-focused": {
+    outline: "none",
   },
   // The font goes on the scroller: CodeMirror's base theme sets `monospace` there, which
   // would override a font set on the editor root.
@@ -716,7 +727,7 @@ export function CodeEditor({
       ref={containerRef}
       // A fixed height wins: `flex-1` would let a flex parent stretch the editor to all its lines.
       // "100%" still fills its parent.
-      className={`${bordered ? "border border-border" : ""} overflow-hidden ${height && height !== "100%" ? "flex-none" : "flex-1 min-h-0"} ${className}`}
+      className={`${bordered ? "border border-border" : ""} overflow-hidden ${height && height !== "100%" ? "flex-none" : "flex-1 min-h-0"} ${readOnly ? "" : `${CODE_EDITOR_FOCUS_CLASS} ${bordered ? "focus-within:-outline-offset-2" : "focus-within:-outline-offset-1"}`} ${className}`}
       style={{
         minHeight: height ? undefined : minHeight,
         ...(height ? { height } : {}),
