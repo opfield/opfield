@@ -46,6 +46,7 @@ export function relayStatusBadge(
     | "updateStep"
     | "policyTrust"
     | "health"
+    | "portChange"
   >,
   rolloutActive: boolean,
   now = Date.now()
@@ -62,6 +63,15 @@ export function relayStatusBadge(
     // A relay in a rollout drains, restarts and rejoins: the step, not each passing state or the
     // connection error of its restart.
     return { label: `updating · ${step}`, variant: "warning", unreachable, showLastError: false };
+  }
+  if (instance.portChange && instance.portChange.state !== "failed") {
+    // A planned port change drains the relay and restarts it: the change, not offline while the worker restarts.
+    return {
+      label: `changing port · ${instance.portChange.state === "draining" ? "draining" : "restarting"}`,
+      variant: "warning",
+      unreachable: false,
+      showLastError: false,
+    };
   }
   const variant =
     instance.state === "ready" && !policyExpired && !unreachable

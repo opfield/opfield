@@ -10,6 +10,7 @@ vi.mock('./relay-policy-reconciler.js', async (original) => ({
 }));
 
 const { RelayPoolService } = await import('./relay-pool.service.js');
+const { inPlannedPortChange } = await import('./relay-planned-port-changes.js');
 
 const nodeId = '11111111-1111-4111-8111-111111111111';
 
@@ -124,6 +125,24 @@ describe('Change port of a remote relay', () => {
       })
     );
     expect(snapshotOf()).toBeNull();
+  });
+
+  // Stand 2.12.6-rc.2, O-10: the relay's reports during the restart must not list it offline.
+  it('marks the change planned from the drain until the resume', async () => {
+    const { service, policy, drain } = relay();
+    const planned: Record<string, boolean> = {};
+    policy.setRemoteInstanceServicePort.mockImplementation(async () => {
+      planned.restart = inPlannedPortChange('relay-1');
+      return { commandId: 'c', success: true, detail: '', error: '' };
+    });
+    drain.mockImplementation(async (...args: unknown[]) => {
+      planned[args[2] ? 'drain' : 'resume'] = inPlannedPortChange('relay-1');
+    });
+
+    await (await service.changeInstanceServicePort('relay-1', 10443, 'admin-1')).done;
+
+    expect(planned).toEqual({ drain: true, restart: true, resume: false });
+    expect(inPlannedPortChange('relay-1')).toBe(false);
   });
 
   it('disconnects what is left after the drain grace before the restart, as a drain does', async () => {

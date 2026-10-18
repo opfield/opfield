@@ -35,6 +35,7 @@ import type { RelayCertificateRenewalService, RelayCertificateStatus } from './r
 import { assertRelayEndpointFree } from './relay-endpoint-in-use.js';
 import { drainingTunnels, localRelayTakeoverBlocker, setLocalRelayUpdateDrain } from './relay-local-takeover.js';
 import { loadOfflineLeaseMemberWarnings, type OfflineLeaseMemberWarning } from './relay-offline-lease-members.js';
+import { beginPlannedPortChange, endPlannedPortChange } from './relay-planned-port-changes.js';
 import type { RelayPolicyService, RelayPolicyTrustStatus } from './relay-policy.service.js';
 import { bumpRelayPolicyRevision } from './relay-policy-reconciler.js';
 import {
@@ -883,7 +884,6 @@ export class RelayPoolService {
   }
 
   private async moveInstanceServicePort(instance: RelayInstanceRow, servicePort: number, userId: string | null) {
-    const nodeId = instance.nodeId!;
     const track = (state: RelayServicePortChange['state'], error: string | null = null) => {
       this.portChanges.set(instance.id, {
         state,
@@ -895,6 +895,21 @@ export class RelayPoolService {
       this.events.publish('system.relay.health.changed', { poolId: instance.poolId, instanceId: instance.id });
     };
     track('draining');
+    beginPlannedPortChange(instance.id);
+    try {
+      await this.runPlannedPortChange(instance, servicePort, userId, track);
+    } finally {
+      endPlannedPortChange(instance.id);
+    }
+  }
+
+  private async runPlannedPortChange(
+    instance: RelayInstanceRow,
+    servicePort: number,
+    userId: string | null,
+    track: (state: RelayServicePortChange['state'], error?: string | null) => void
+  ) {
+    const nodeId = instance.nodeId!;
     // An operator drain stays as it is; a drain taken here ends with the change. Either way the worker restart is
     // planned, like an update's: the relay is not judged failed while it restarts, and once resumed it takes its
     // roles back at once instead of being held back as a relay that came back (stand 2.12.6-rc.1, O-6).
@@ -955,6 +970,8 @@ export class RelayPoolService {
         },
       })
       .catch(() => undefined);
+    // From here its reports count again: the resume below makes it ready, and so does its next report.
+    endPlannedPortChange(instance.id);
     if (drained) {
       try {
         await this.setInstanceDrain(instance.id, userId, false, false);

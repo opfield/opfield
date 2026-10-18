@@ -72,4 +72,40 @@ describe("relayStatusBadge", () => {
       });
     }
   });
+
+  // Stand 2.12.6-rc.2, O-10: a planned port move showed the relay as offline.
+  it("shows a running port change instead of offline, and a failed one as the real state", () => {
+    const change = {
+      servicePort: 9543,
+      previousServicePort: 9443,
+      error: null,
+      at: "2026-10-18T18:47:50Z",
+    };
+    const restarting = relay({
+      state: "offline",
+      health: { lastError: RESTART_ERROR },
+      portChange: { ...change, state: "moving" },
+    });
+    expect(relayStatusBadge(restarting, false)).toEqual({
+      label: "changing port · restarting",
+      variant: "warning",
+      unreachable: false,
+      showLastError: false,
+    });
+    expect(
+      relayStatusBadge(
+        relay({ state: "draining", portChange: { ...change, state: "draining" } }),
+        false
+      ).label
+    ).toBe("changing port · draining");
+    expect(
+      relayStatusBadge(
+        relay({
+          state: "ready",
+          portChange: { ...change, state: "failed", error: "bind: address already in use" },
+        }),
+        false
+      ).label
+    ).toBe("ready");
+  });
 });

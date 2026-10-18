@@ -23,6 +23,7 @@ import { NginxCertificateDistributionService } from '@/services/nginx-certificat
 import { MANAGED_AVAILABILITY_MEMBER_CAPABILITY } from '@/services/node-dispatch.service.js';
 import { nodeHostAccessFlags } from '@/services/node-host-access.js';
 import { NODE_CONNECTION_PATTERNS } from '@/services/node-registry.service.js';
+import { inPlannedPortChange } from '@/services/relay-planned-port-changes.js';
 import { bumpRelayPolicyRevision } from '@/services/relay-policy-reconciler.js';
 import { reportedPolicySigningKeyIds } from '@/services/relay-policy-signing-key.service.js';
 import { servedRelayServiceEndpoint } from '@/services/relay-service-endpoint.js';
@@ -983,8 +984,10 @@ export function createControlHandlers(deps: GrpcServerDeps) {
               // Only a relay that serves moves them: daemons never get a port a worker is still trying (a port
               // change that may roll back, a worker that cannot bind).
               const serviceEndpoint = servedRelayServiceEndpoint(instance, runtime, nextState);
+              // A relay whose port change runs restarts on purpose while drained: it stays draining, never offline.
+              const plannedPortChange = inPlannedPortChange(instance.id);
               const runtimeStateChanged =
-                instance.state !== nextState ||
+                instance.state !== (plannedPortChange ? 'draining' : nextState) ||
                 Number(instance.appliedPolicyRevision || 0) !== appliedPolicyRevision ||
                 serviceEndpoint !== null;
               // A report that raced the stream's replacement must not overwrite the state the
@@ -996,8 +999,9 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                   .update(relayInstances)
                   .set({
                     // Runtime restarts must not silently resume a manually drained member.
-                    state:
-                      nextState === 'ready'
+                    state: plannedPortChange
+                      ? 'draining'
+                      : nextState === 'ready'
                         ? sql`case when ${relayInstances.manualDrainStartedAt} is not null then 'draining'::relay_instance_state else 'ready'::relay_instance_state end`
                         : nextState,
                     buildVersion: runtime.buildVersion || null,
