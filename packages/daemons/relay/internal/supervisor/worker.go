@@ -41,13 +41,29 @@ type workerManager struct {
 	replaceBinary func(downloadURL, targetVersion, checksum, signedManifest, daemonType, destination string, logger *slog.Logger) error
 	// checkPort tells whether the worker could listen on a port.
 	checkPort func(port int) error
+	// servingPort is the port the worker last served on, which the runtime
+	// status reports: during a port change cfg.ServicePort is the port being
+	// tried, and Opfield must not hand daemons that one before the worker is
+	// ready on it.
+	servingPort int
 }
 
 func newWorkerManager(cfg config.WorkerConfig, enrollmentStateDir string) *workerManager {
 	return &workerManager{
-		cfg: cfg, enrollmentStateDir: enrollmentStateDir,
+		cfg: cfg, enrollmentStateDir: enrollmentStateDir, servingPort: cfg.ServicePort,
 		replaceBinary: lifecycle.ReplaceBinaryAtPath, checkPort: canListenOn,
 	}
+}
+
+// reportedServicePort is the port daemons are to dial: the one the worker
+// serves on, not a port a change is still trying.
+func (m *workerManager) reportedServicePort() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.servingPort == 0 {
+		return m.cfg.ServicePort
+	}
+	return m.servingPort
 }
 
 // servicePort is the TCP port the worker listens on, or listens on from its
@@ -347,7 +363,9 @@ func (m *workerManager) waitReadyVersion(ctx context.Context, targetVersion stri
 // supervisor config file, so the port survives a supervisor restart. The
 // worker is restarted on the new port and must become ready there within
 // readyTimeout; otherwise the previous port is written back and the worker
-// restarted on it, and the error says why the new port failed.
+// restarted on it, and the error says why the new port failed. The runtime
+// status keeps reporting the previous port until the worker is ready on the
+// new one.
 func (m *workerManager) changeServicePort(ctx context.Context, port int, persist func(port int) error, readyTimeout time.Duration) (string, error) {
 	if port < 1 || port > 65535 {
 		return "", fmt.Errorf("relay port %d is not a TCP port from 1 to 65535", port)
@@ -370,6 +388,9 @@ func (m *workerManager) changeServicePort(ctx context.Context, port int, persist
 	m.setServicePort(port)
 	readyErr := m.waitReadyVersion(ctx, "", readyTimeout)
 	if readyErr == nil {
+		m.mu.Lock()
+		m.servingPort = port
+		m.mu.Unlock()
 		return fmt.Sprintf("service_port=%d previous_service_port=%d", port, previous), nil
 	}
 	// Back to the port the worker served on: the relay keeps its place in the

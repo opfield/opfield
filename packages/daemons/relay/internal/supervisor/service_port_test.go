@@ -148,8 +148,8 @@ func TestServicePortChangeRestartsTheWorkerOnTheNewPort(t *testing.T) {
 	if want := fmt.Sprintf("service_port=%d previous_service_port=%d", newPort, oldPort); detail != want {
 		t.Fatalf("detail = %q, want %q", detail, want)
 	}
-	if got := h.worker.servicePort(); got != newPort {
-		t.Fatalf("worker port = %d, want %d", got, newPort)
+	if got := h.worker.servicePort(); got != newPort || h.worker.reportedServicePort() != newPort {
+		t.Fatalf("worker port = %d (reported %d), want %d", got, h.worker.reportedServicePort(), newPort)
 	}
 	if fmt.Sprint(h.persisted) != fmt.Sprint([]int{newPort}) {
 		t.Fatalf("persisted ports = %v, want only the new one", h.persisted)
@@ -185,6 +185,35 @@ func TestServicePortChangeMovesBackWhenTheWorkerDoesNotComeUp(t *testing.T) {
 	}
 	if _, err := h.worker.health(context.Background()); err != nil {
 		t.Fatalf("worker back on the previous port does not answer: %v", err)
+	}
+}
+
+// Opfield follows the port the status reports; it must not see the port being
+// tried before the worker is ready there (stand 2.12.6-rc.1, O-3).
+func TestServicePortChangeReportsThePreviousPortUntilTheNewOneServes(t *testing.T) {
+	oldPort, deadPort := freePort(t), freePort(t)
+	h := newServicePortHarness(t, oldPort)
+	done := make(chan error, 1)
+	go func() {
+		_, err := h.worker.changeServicePort(context.Background(), deadPort, h.persist, time.Second)
+		done <- err
+	}()
+	for {
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Fatal("the change to a port where nothing serves succeeded")
+			}
+			if got := h.worker.reportedServicePort(); got != oldPort {
+				t.Fatalf("reported port after the move back = %d, want %d", got, oldPort)
+			}
+			return
+		default:
+		}
+		if got := h.worker.reportedServicePort(); got != oldPort {
+			t.Fatalf("reported port during the change = %d, want the serving %d", got, oldPort)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 

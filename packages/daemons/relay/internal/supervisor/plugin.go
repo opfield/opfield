@@ -324,7 +324,7 @@ func (p *Plugin) collectRuntime(ctx context.Context) *pb.RelayRuntimeStatus {
 	state, _ := loadEnrollmentState(p.cfg.StateDir)
 	status := &pb.RelayRuntimeStatus{
 		State: "joining", Capabilities: append([]string{relayPoolCapability, RelayWitnessCapability, RelayServicePortCapability}, p.protectedCapabilities()...),
-		AdvertisedAddresses: append([]string(nil), p.cfg.Worker.AdvertisedAddresses...), ServicePort: uint32(p.worker.servicePort()),
+		AdvertisedAddresses: append([]string(nil), p.cfg.Worker.AdvertisedAddresses...), ServicePort: uint32(p.worker.reportedServicePort()),
 	}
 	p.fillWitnessStatus(status)
 	if state != nil {

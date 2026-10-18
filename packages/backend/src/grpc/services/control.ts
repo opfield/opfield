@@ -25,7 +25,7 @@ import { nodeHostAccessFlags } from '@/services/node-host-access.js';
 import { NODE_CONNECTION_PATTERNS } from '@/services/node-registry.service.js';
 import { bumpRelayPolicyRevision } from '@/services/relay-policy-reconciler.js';
 import { reportedPolicySigningKeyIds } from '@/services/relay-policy-signing-key.service.js';
-import { reportedRelayServiceEndpoint } from '@/services/relay-service-endpoint.js';
+import { servedRelayServiceEndpoint } from '@/services/relay-service-endpoint.js';
 import type { DaemonMessage, OpfieldCommand } from '../generated/types.js';
 import { extractDaemonCertificateIdentity, normalizeCertificateSerial } from '../interceptors/auth.js';
 import { matchEnrolledNodeCertificate, promotePendingNodeCertificate } from '../node-certificate.js';
@@ -980,7 +980,9 @@ export function createControlHandlers(deps: GrpcServerDeps) {
                 Number.isSafeInteger(reportedRevision) && reportedRevision > 0 ? reportedRevision : 0;
               // The worker's port (and the addresses its installer advertised) are what daemons dial; a relay
               // installed with another --service-port than it was created with, or installed again, moves them.
-              const serviceEndpoint = reportedRelayServiceEndpoint(instance, runtime);
+              // Only a relay that serves moves them: daemons never get a port a worker is still trying (a port
+              // change that may roll back, a worker that cannot bind).
+              const serviceEndpoint = servedRelayServiceEndpoint(instance, runtime, nextState);
               const runtimeStateChanged =
                 instance.state !== nextState ||
                 Number(instance.appliedPolicyRevision || 0) !== appliedPolicyRevision ||

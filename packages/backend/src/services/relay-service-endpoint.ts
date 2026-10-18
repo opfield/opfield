@@ -55,3 +55,17 @@ export function reportedRelayServiceEndpoint(
   if (servicePort === current.servicePort && !addressesChanged) return null;
   return { servicePort, advertisedAddresses };
 }
+
+/**
+ * The endpoint a relay's runtime status moves it to, only once the relay serves there (ready or draining): a worker
+ * still trying a port (a port change that may roll back, a worker that cannot bind) reports no state that serves, and
+ * daemons must not be handed that port. Null when the endpoint stays.
+ */
+export function servedRelayServiceEndpoint(
+  current: { servicePort: number; advertisedAddresses: readonly string[] },
+  report: { servicePort?: number | null; advertisedAddresses?: readonly string[] | null },
+  state: string
+): RelayServiceEndpoint | null {
+  if (state !== 'ready' && state !== 'draining') return null;
+  return reportedRelayServiceEndpoint(current, report);
+}
