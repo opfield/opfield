@@ -5,15 +5,7 @@
  * Docker internally and report `capabilities.daemonType: "docker"`, which does not make them Docker nodes.
  */
 
-export type NodeRoleType =
-  | 'nginx'
-  | 'bastion'
-  | 'monitoring'
-  | 'docker'
-  | 'builder'
-  | 'databases'
-  | 'storage'
-  | 'relay';
+export type NodeRoleType = 'nginx' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay';
 
 const NODE_ROLES: Readonly<Record<NodeRoleType, string>> = {
   docker:
@@ -28,7 +20,6 @@ const NODE_ROLES: Readonly<Record<NodeRoleType, string>> = {
     'Git builds into the internal registry (list_docker_builds, manage_docker_build). Docker tools do not accept it.',
   relay: 'Relay Pool member for Secure Links (manage_relay_pool). Docker tools do not accept it.',
   monitoring: 'Host metrics, console and files only (get_node, manage_node_file). Docker tools do not accept it.',
-  bastion: 'Host console and files only (get_node, manage_node_file). Docker tools do not accept it.',
 };
 
 /** The one-line role of a node type, or null for an unknown type. */

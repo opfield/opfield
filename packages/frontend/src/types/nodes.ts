@@ -3,7 +3,6 @@ import { isOpfieldVersionNewer } from "@/lib/opfield-update-reload";
 
 export type NodeType =
   | "nginx"
-  | "bastion"
   | "monitoring"
   | "docker"
   | "builder"

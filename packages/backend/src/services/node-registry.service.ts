@@ -61,7 +61,7 @@ function closeStream(stream: { end?: () => void; destroy?: () => void } | null |
 export interface ConnectedNode {
   connectionId: string;
   nodeId: string;
-  type: 'nginx' | 'bastion' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay';
+  type: 'nginx' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay';
   hostname: string;
   /** The name an operator gave the node (rename); null or absent: the hostname names it. */
   displayName?: string | null;
@@ -354,7 +354,7 @@ export class NodeRegistryService {
 
   async register(
     nodeId: string,
-    type: 'nginx' | 'bastion' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay',
+    type: 'nginx' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay',
     hostname: string,
     configVersionHash: string,
     commandStream: ServerDuplexStream<DaemonMessage, OpfieldCommand>,
@@ -704,9 +704,7 @@ export class NodeRegistryService {
     return Array.from(this.nodes.values());
   }
 
-  getNodesByType(
-    type: 'nginx' | 'bastion' | 'monitoring' | 'docker' | 'databases' | 'storage' | 'relay'
-  ): ConnectedNode[] {
+  getNodesByType(type: 'nginx' | 'monitoring' | 'docker' | 'databases' | 'storage' | 'relay'): ConnectedNode[] {
     return this.getAllNodes().filter((n) => n.type === type);
   }
 

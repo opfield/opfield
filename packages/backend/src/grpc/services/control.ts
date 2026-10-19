@@ -603,7 +603,6 @@ export function createControlHandlers(deps: GrpcServerDeps) {
             }
             const nodeType = node.type as
               | 'nginx'
-              | 'bastion'
               | 'monitoring'
               | 'docker'
               | 'builder'

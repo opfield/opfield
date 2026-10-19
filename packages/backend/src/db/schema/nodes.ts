@@ -15,7 +15,6 @@ import { nodeFolders } from './node-folders.js';
 
 export const nodeTypeEnum = pgEnum('node_type', [
   'nginx',
-  'bastion',
   'monitoring',
   'docker',
   'builder',

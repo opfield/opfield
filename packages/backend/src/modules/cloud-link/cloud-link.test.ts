@@ -194,7 +194,7 @@ describe('cloud link', () => {
       ok: true,
       data: { kind: 'storage' },
     });
-    await expect(ask(probe, { id: 'n3', type: 'node-token', params: { kind: 'bastion' } })).resolves.toMatchObject({
+    await expect(ask(probe, { id: 'n3', type: 'node-token', params: { kind: 'mainframe' } })).resolves.toMatchObject({
       ok: false,
     });
     await expect(ask(probe, { id: 'n4', type: 'node-token', params: { kind: 'relay' } })).resolves.toMatchObject({

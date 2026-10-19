@@ -56,7 +56,7 @@ const DOCKER_NODE_DISCOVERY_SCOPES = [
   'docker:networks:edit',
 ] as const;
 
-type NodeListType = 'nginx' | 'bastion' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay';
+type NodeListType = 'nginx' | 'monitoring' | 'docker' | 'builder' | 'databases' | 'storage' | 'relay';
 
 /** Creation scopes that let a creator discover the nodes of one type as a destination. */
 function creationBasesForNodeType(type: NodeListType | undefined): readonly string[] {

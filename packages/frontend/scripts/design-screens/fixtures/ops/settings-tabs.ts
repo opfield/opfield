@@ -404,8 +404,8 @@ export const gitConnectors: GitConnector[] = [
 export const sshConnectors: ExternalSshConnector[] = [
   {
     id: uuid(65160),
-    name: "Build bastion",
-    host: "bastion.example.com",
+    name: "Build jump host",
+    host: "jump.example.com",
     port: 22,
     username: "opfield",
     authMethod: "private_key",

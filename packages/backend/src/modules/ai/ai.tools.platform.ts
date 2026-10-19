@@ -13,7 +13,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
         search: { type: 'string', description: 'Search by hostname' },
         type: {
           type: 'string',
-          enum: ['nginx', 'monitoring', 'docker', 'builder', 'databases', 'storage', 'relay', 'bastion'],
+          enum: ['nginx', 'monitoring', 'docker', 'builder', 'databases', 'storage', 'relay'],
           description: 'Filter by node type',
         },
         status: { type: 'string', enum: ['pending', 'online', 'offline'], description: 'Filter by status' },
@@ -81,8 +81,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
         type: {
           type: 'string',
           enum: ['nginx', 'monitoring', 'docker', 'builder', 'databases', 'storage', 'relay'],
-          description:
-            'Node type (default: nginx). databases is the legacy database-only profile; prefer storage. Bastion nodes are not available.',
+          description: 'Node type (default: nginx). databases is the legacy database-only profile; prefer storage.',
         },
         displayName: { type: 'string', description: 'Optional display name' },
         folderId: {

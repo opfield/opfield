@@ -383,7 +383,7 @@ export function ExternalSshConnectorDialog({
               if (isTarget) setForm((current) => ({ ...current, name: value }));
               else setJumpForm((current) => ({ ...current, name: value }));
             }}
-            placeholder={isTarget ? "Production server" : "Bastion server"}
+            placeholder={isTarget ? "Production server" : "Jump host"}
             autoFocus
           />
         </SettingsControlRow>
@@ -392,7 +392,7 @@ export function ExternalSshConnectorDialog({
             <Input
               value={activeForm.host}
               onChange={(event) => patchConnection(purpose, { host: event.target.value })}
-              placeholder={isTarget ? "server.example.com" : "bastion.example.com"}
+              placeholder={isTarget ? "server.example.com" : "jump.example.com"}
             />
             <Input
               type="number"

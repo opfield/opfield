@@ -71,9 +71,6 @@ describe("node host access", () => {
     expect(nodeHostFeatureDisabledMessage(node("docker", {}), "console")).toBe(
       "The host console is disabled in this node's daemon configuration. To enable it, set console.enabled: true in the daemon config (/etc/docker-daemon/config.yaml) on the node and restart the daemon."
     );
-    expect(nodeHostFeatureDisabledMessage(node("bastion", {}), "files")).toContain(
-      "set files.enabled: true in the daemon config file on the node"
-    );
   });
 
   it("names the config file a relay of its version reads", () => {
