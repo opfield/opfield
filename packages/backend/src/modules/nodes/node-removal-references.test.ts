@@ -2,7 +2,6 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 import {
   backupRuns,
-  dockerMigrations,
   pageDeploymentReplicas,
   pageIngressMigrations,
   pageProjects,
@@ -40,7 +39,6 @@ describe('prepareNodeRemoval', () => {
 
     expect(deleted).toContain(pageDeploymentReplicas);
     expect(deleted).toContain(pageIngressMigrations);
-    expect(deleted).toContain(dockerMigrations);
     expect(updated).toEqual([pageProjects, pageProjects]);
   });
 
