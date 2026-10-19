@@ -11,6 +11,7 @@ import {
   OPERATION_HISTORY_KEEP_PER_OWNER,
   purgeExpiredOAuthGrants,
   RETENTION_DELETE_BATCH,
+  REVOKED_PAGE_REPLICA_GRACE_MS,
 } from './operation-history-retention.js';
 
 const dialect = new PgDialect();
@@ -53,6 +54,22 @@ describe('operation history retention', () => {
     );
     expect(lease.params).toContainEqual(EXPIRED_OPERATION_LEASE_GRACE_MS);
     expect(lease.params).not.toContainEqual(new Date(now.getTime() - EXPIRED_OPERATION_LEASE_GRACE_MS));
+  });
+
+  it('removes revoked Pages replicas older than a day by the database clock, without counting them as history', async () => {
+    const { db, statements } = executingDb((query) =>
+      query.sql.startsWith('DELETE FROM "page_deployment_replicas"') ? { rowCount: 14 } : undefined
+    );
+
+    const result = await cleanOperationHistory(db as never, 90, now);
+
+    expect(result.removed['revoked page deployment replicas']).toBe(14);
+    expect(result.total).toBe(0);
+    const replicas = statements.find((query) => query.sql.startsWith('DELETE FROM "page_deployment_replicas"'))!;
+    expect(compact(replicas.sql)).toContain(
+      `WHERE "id" IN (SELECT "id" FROM "page_deployment_replicas" WHERE "status" = 'revoked' AND "updated_at" < statement_timestamp() - ($1::double precision * interval '1 millisecond')`
+    );
+    expect(replicas.params).toContainEqual(REVOKED_PAGE_REPLICA_GRACE_MS);
   });
 
   it('deletes each kind of finished history in batches', async () => {

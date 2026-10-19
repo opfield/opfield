@@ -100,9 +100,8 @@ export const backupRuns = pgTable(
     }),
     stagingBucket: text('staging_bucket'),
     timezone: text('timezone').notNull(),
-    executorNodeId: uuid('executor_node_id')
-      .notNull()
-      .references(() => nodes.id, { onDelete: 'restrict' }),
+    // Finished history outlives its executor node: the reference is cleared when the node is deleted.
+    executorNodeId: uuid('executor_node_id').references(() => nodes.id, { onDelete: 'set null' }),
     direction: text('direction').$type<BackupDirection>().notNull(),
     engine: text('engine').$type<BackupEngine>().notNull(),
     status: text('status').$type<BackupRunStatus>().notNull().default('queued'),

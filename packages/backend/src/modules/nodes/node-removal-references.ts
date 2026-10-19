@@ -127,8 +127,10 @@ export const NODE_REFERENCE_BLOCKERS: NodeReferenceBlocker[] = [
   {
     code: 'NODE_HAS_BACKUPS',
     table: backupRuns,
-    where: (id) => eq(backupRuns.executorNodeId, id),
-    message: (n) => `Cannot delete a node that executed ${n} backup run(s). Delete those runs from history first.`,
+    // Finished runs stay as history and lose the executor reference (ON DELETE SET NULL).
+    where: (id) => and(eq(backupRuns.executorNodeId, id), inArray(backupRuns.status, ['queued', 'running'])),
+    message: (n) =>
+      `Cannot delete a node that is executing ${n} backup run(s). Wait for them to finish or cancel them.`,
   },
   {
     code: 'NODE_HAS_PROXY_UPSTREAMS',

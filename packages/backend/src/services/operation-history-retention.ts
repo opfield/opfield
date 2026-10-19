@@ -18,6 +18,8 @@ const OAUTH_REVOKED_ACCESS_GRACE_MS = 7 * DAY_MS;
 export const OAUTH_UNUSED_CLIENT_DAYS = 30;
 /** An expired operation lease holds nothing; its row is kept this long for troubleshooting. */
 export const EXPIRED_OPERATION_LEASE_GRACE_MS = 60 * 60 * 1000;
+/** A revoked Pages deployment replica (an ingress migration revokes the source node's) is dead delivery state; kept this long. */
+export const REVOKED_PAGE_REPLICA_GRACE_MS = DAY_MS;
 
 const FINISHED_BUILD = sql`('succeeded', 'failed', 'cancelled', 'superseded')`;
 
@@ -394,8 +396,25 @@ function expiredOperationLeases(): KeyedTarget {
   };
 }
 
+/**
+ * Pages deployment replicas revoked more than the grace period ago, by the database clock. Nothing else removes
+ * them once the node they were delivered to is no longer the target.
+ */
+function revokedPageReplicas(): KeyedTarget {
+  return {
+    name: 'revoked page deployment replicas',
+    table: 'page_deployment_replicas',
+    key: 'id',
+    where: sql`"status" = 'revoked' AND "updated_at" < statement_timestamp() - (${REVOKED_PAGE_REPLICA_GRACE_MS}::double precision * interval '1 millisecond')`,
+  };
+}
+
 /** Names in `removed` that are detail, not history rows. */
-const NOT_HISTORY = new Set(['docker build log chunks', 'expired operation leases']);
+const NOT_HISTORY = new Set([
+  'docker build log chunks',
+  'expired operation leases',
+  'revoked page deployment replicas',
+]);
 
 /**
  * Remove finished operation history older than the retention period, in
@@ -412,6 +431,8 @@ export async function cleanOperationHistory(db: Executor, retentionDays: number,
   for (const target of operationTargets(cutoff)) removed[target.name] = await deleteInBatches(db, target);
   const leases = expiredOperationLeases();
   removed[leases.name] = await deleteInBatches(db, leases);
+  const replicas = revokedPageReplicas();
+  removed[replicas.name] = await deleteInBatches(db, replicas);
   // Log chunks and lease rows are counted as detail, not as history rows.
   const total = Object.entries(removed)
     .filter(([name]) => !NOT_HISTORY.has(name))

@@ -53,7 +53,8 @@ export interface BackupRun {
   stagingStorageConnectionId: string | null;
   stagingBucket: string | null;
   timezone: string;
-  executorNodeId: string;
+  /** Null once the executor node was deleted; the run stays in history. */
+  executorNodeId: string | null;
   direction: "backup" | "restore";
   engine: BackupEngine;
   status: BackupRunStatus;

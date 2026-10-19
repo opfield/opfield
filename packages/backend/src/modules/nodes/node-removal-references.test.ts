@@ -1,5 +1,7 @@
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  backupRuns,
   dockerMigrations,
   pageDeploymentReplicas,
   pageIngressMigrations,
@@ -57,6 +59,14 @@ describe('prepareNodeRemoval', () => {
     const { tx } = fakeTx(new Map([[pageWildcardProfiles, 1]]));
 
     await expect(prepareNodeRemoval(tx, 'node-1')).rejects.toMatchObject({ code: 'NODE_HAS_PAGE_WILDCARD_PROFILE' });
+  });
+
+  it('blocks only on active backup runs; finished runs keep their history and lose the executor', () => {
+    const blocker = NODE_REFERENCE_BLOCKERS.find((entry) => entry.table === backupRuns)!;
+    const query = new PgDialect().sqlToQuery(blocker.where('node-1')!);
+
+    expect(query.sql).toContain('"backup_runs"."status" in ($2, $3)');
+    expect(query.params).toEqual(['node-1', 'queued', 'running']);
   });
 
   it('gives every blocker a readable message, never a SQL error', () => {
