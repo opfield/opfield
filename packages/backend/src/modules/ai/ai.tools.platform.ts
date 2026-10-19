@@ -82,7 +82,7 @@ export const PLATFORM_AI_TOOLS: AIToolDefinition[] = [
           type: 'string',
           enum: ['nginx', 'monitoring', 'docker', 'builder', 'databases', 'storage', 'relay'],
           description:
-            'Node type (default: nginx). databases is the legacy database-only profile; prefer storage. Bastion nodes are not available yet.',
+            'Node type (default: nginx). databases is the legacy database-only profile; prefer storage. Bastion nodes are not available.',
         },
         displayName: { type: 'string', description: 'Optional display name' },
         folderId: {

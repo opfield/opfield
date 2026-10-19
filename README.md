@@ -279,8 +279,7 @@ Plans list only what ships today. Planned work, where a version is a target and 
 | Planned | Target | Plans |
 |---------|--------|-------|
 | General Opfield CLI | 2.13 | All plans |
-| Bastion / SSH management daemon | 2.14 | Business, Enterprise |
-| Broader workload vulnerability and security scanning | Not set | Business, Enterprise |
+| Broader workload vulnerability and security scanning | 2.14 | Business, Enterprise |
 | Metric autoscaling and same-node replicas | Not set | Business, Enterprise |
 
 These Community limits, and the features above that now need Personal or higher, apply from 2.11; 2.10 Community allowed 100 managed nodes, 10 users, and 5 custom permission groups. Plan limits are checked only when something is created, so an installation already above them keeps its existing nodes, users, and groups but cannot add more while it stays at or above a limit.

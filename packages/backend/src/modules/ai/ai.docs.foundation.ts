@@ -525,7 +525,7 @@ The node status changes from **pending** to **online** in the Nodes list once th
 - manage_node: update (display name, color, service addresses, builder settings), regenerate_enrollment_token (a node that never enrolled), health_history, monitoring_history, daemon_logs, and nginx_logs.
 - manage_hosting: the VM behind a hosted node (node_get shows its account, power state and available actions; topic hosting).
 - manage_docker_runtime: preflight or install the gVisor Secure Runtime on a Docker node (install restarts Docker on that node; nodes:manage on the node).
-- create_node takes type nginx, docker, builder, storage, databases (legacy), monitoring, or relay. Bastion nodes are not available yet (expected in 2.14) and are refused.
+- create_node takes type nginx, docker, builder, storage, databases (legacy), monitoring, or relay. Bastion nodes are not available and are refused.
 
 ### Alternative: Manual installation
 If you cannot use the setup script, you can install manually. Storage and database nodes are the stateful exceptions: they use the restricted docker-daemon profiles and require the verified storage preflight.

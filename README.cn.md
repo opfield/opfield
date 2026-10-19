@@ -284,8 +284,7 @@ Opfield 源代码依据 [PolyForm Perimeter License 1.0.1](LICENSE.md) 发布。
 | 计划 | 目标版本 | 套餐 |
 |------|----------|------|
 | 通用 Opfield CLI | 2.13 | 所有套餐 |
-| Bastion / SSH 管理守护进程 | 2.14 | Business、Enterprise |
-| 更广泛的工作负载漏洞与安全扫描 | 未定 | Business、Enterprise |
+| 更广泛的工作负载漏洞与安全扫描 | 2.14 | Business、Enterprise |
 | 基于指标的自动扩缩容和同节点副本 | 未定 | Business、Enterprise |
 
 上述 Community 限制以及现在需要 Personal 及以上计划的功能自 2.11 起生效；2.10 的 Community 允许 100 个 managed nodes、10 个用户和 5 个 custom permission groups。计划限制只在创建时检查，因此已经超出限制的实例会保留现有节点、用户和组，但在仍处于或超过限制时无法再添加。

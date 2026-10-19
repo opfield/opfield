@@ -74,8 +74,7 @@ Entitlements schema version 5 is current. It adds storage connections, external 
 | Git Build Vulnerability Scanning and Admission Policy | Ready | — | — | ✅ | ✅ |
 | Structured Logging | Ready, opt-in | — | — | ✅ | ✅ |
 | Audit Log Export | Ready | — | — | ✅ | ✅ |
-| Bastion / SSH Management Daemon | Planned, target 2.14 | — | — | ✅ | ✅ |
-| Broader Workload Vulnerability and Security Scanning | Planned | — | — | ✅ | ✅ |
+| Broader Workload Vulnerability and Security Scanning | Planned, target 2.14 | — | — | ✅ | ✅ |
 | Metric Autoscaling | Planned | — | — | ✅ | ✅ |
 | Multiple Instances of One Workload on One Machine | Planned | — | — | ✅ | ✅ |
 | Guided Onboarding and Configuration Review | Plan benefit | — | — | ✅ | ✅ |

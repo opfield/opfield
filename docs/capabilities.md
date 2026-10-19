@@ -312,9 +312,9 @@ After the license grace period, everything that runs keeps running: failover, fe
 
 API: `/api/databases/managed/{id}/availability` and `/api/managed-storage/{id}/availability` (preflight, turn on, settings, members, failover order, make-primary, rebuild, events, turn off); scope: the resource's edit scope (`databases:edit`, `storage:edit`), view scope for reads. MCP: the availability operations of `manage_managed_database` and `manage_managed_storage`, and `set_witness_hosting` of `manage_relay_pool`.
 
-## Planned Host Access And CLI
+## Planned CLI
 
-The general Opfield CLI for terminal and CI/CD control is **expected in 2.13** on every plan. It is distinct from the existing Opfield Inference client CLI. The Bastion / SSH management daemon for controlled host access is **expected in 2.14** on Business and Enterprise. These are roadmap estimates, not currently available capabilities.
+The general Opfield CLI for terminal and CI/CD control is **expected in 2.13** on every plan. It is distinct from the existing Opfield Inference client CLI. This is a roadmap estimate, not a currently available capability.
 
 The future [plugin system](plugins.md) is unfinished Opfield core infrastructure, not a plan-specific feature. Its tentative timing is no earlier than 2.20 and may change.
 
@@ -428,7 +428,7 @@ Lease frames between nodes travel only through relays. Every Docker node of a le
 
 ## Vulnerability And Security Scanning
 
-Git build vulnerability scanning and admission policy are available on Business and Enterprise. Each Git source sets the lowest blocking severity and a scope: **All packages**, **Application packages** (OS packages are report-only), **Fixable only — application packages**, or **Fixable only — all packages** (only findings with a released fix block a deployment). Broader workload vulnerability and security scanning remains **In development**, with no target version assigned yet.
+Git build vulnerability scanning and admission policy are available on Business and Enterprise. Each Git source sets the lowest blocking severity and a scope: **All packages**, **Application packages** (OS packages are report-only), **Fixable only — application packages**, or **Fixable only — all packages** (only findings with a released fix block a deployment). Broader workload vulnerability and security scanning is **expected in 2.14** on Business and Enterprise.
 
 ## Opfield Inference
 
