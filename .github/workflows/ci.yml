@@ -162,6 +162,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The runner's own PostgreSQL client follows the runner image, and a newer major writes dumps PostgreSQL 16
+      # rejects (transaction_timeout); the dump and restore suites use the client of the service container instead.
+      - name: PostgreSQL 16 client tools
+        run: |
+          for tool in pg_dump pg_restore; do
+            printf '#!/bin/sh\nexec docker exec -i %s %s "$@"\n' '${{ job.services.postgres.id }}' "$tool" > "$RUNNER_TEMP/$tool"
+            chmod +x "$RUNNER_TEMP/$tool"
+          done
+          echo "PG_DUMP_BIN=$RUNNER_TEMP/pg_dump" >> "$GITHUB_ENV"
+          echo "PG_RESTORE_BIN=$RUNNER_TEMP/pg_restore" >> "$GITHUB_ENV"
+
       # Every test file reading the URL, so a new or renamed suite runs without editing this step.
       - name: Opt-in PostgreSQL suites
         working-directory: packages/backend
