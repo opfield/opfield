@@ -58,6 +58,7 @@ import {
   sweepNodeFileUploads,
   writeNodeFile,
 } from './node-file-operations.js';
+import { mapNodeForeignKeyViolation, prepareNodeRemoval } from './node-removal-references.js';
 
 /** settings key of the node file uploads in progress (node-file-operations.ts PendingNodeFileUploads). */
 const PENDING_FILE_UPLOADS_KEY = 'nodes:file_uploads:pending';
@@ -1026,6 +1027,7 @@ export class NodesService {
           { hostingOperationId: racingHostingOperation.id, action: racingHostingOperation.action }
         );
       }
+      await prepareNodeRemoval(tx, id);
       if (lockedNode.status === 'pending') {
         // Remove is local-only. Fence installation workers and keep the provider
         // request identity for audit; do not cancel or destroy anything upstream.
@@ -1085,6 +1087,8 @@ export class NodesService {
         await bumpRelayPolicyRevision(tx);
       }
       await tx.delete(nodes).where(eq(nodes.id, id));
+    }).catch((error: unknown) => {
+      throw mapNodeForeignKeyViolation(error);
     });
     // A retry-install reservation locks the same node row, so it either commits
     // before the final check above or sees the deleted node. End only after commit:
