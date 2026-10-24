@@ -17,6 +17,14 @@ export function dockerDaemonUserError(message: string): AppError | null {
       `${port ? `Host port ${port}` : 'A host port of this container'} is already in use on this node. Choose another host port, or stop the container that uses it.`
     );
   }
+  const network = /network with name (\S+) already exists/i.exec(message)?.[1];
+  if (network) {
+    return new AppError(
+      409,
+      'NAME_IN_USE',
+      `A network named "${network}" already exists on this node. Choose another name, or use the existing network.`
+    );
+  }
   if (/no such container/i.test(message)) return new AppError(404, 'CONTAINER_NOT_FOUND', message);
   const image = /no such image: (\S+)/i.exec(message)?.[1];
   if (image || /no such image/i.test(message)) {

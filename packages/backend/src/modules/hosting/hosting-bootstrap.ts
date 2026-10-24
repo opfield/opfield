@@ -27,6 +27,42 @@ const INSTALLER_SHA256: Record<string, string> = {
   'setup-relay-node.sh': '5b2c4505e01969489acee9b4e98966fc003b611460b0a29733833376d32d7ff5',
 };
 
+/** Written by a reportResult bootstrap when it ends; read through the guest agent (root-only, 0600). */
+export const HOSTING_INSTALL_RESULT_FILE = '/var/lib/opfield/hosting-install.result';
+const HOSTING_INSTALL_LOG_FILE = '/var/lib/opfield/hosting-install.log';
+
+export interface HostingInstallResult {
+  marker: string;
+  exitCode: number;
+  output: string[];
+}
+
+export function parseHostingInstallResult(content: string): HostingInstallResult | null {
+  const lines = content.split('\n');
+  const marker = lines[0]?.match(/^marker=(gw-[0-9a-f-]{36})$/)?.[1];
+  const exit = lines[1]?.match(/^exit=(\d{1,3})$/)?.[1];
+  if (!marker || exit === undefined) return null;
+  return { marker, exitCode: Number(exit), output: lines.slice(2).filter((line) => line.trim()) };
+}
+
+/** The installer's own error lines, readable and bounded, for the operation's error message. */
+export function hostingInstallFailureMessage(result: HostingInstallResult): string {
+  const clean = result.output.map((line) =>
+    line
+      .replace(/[^\x20-\x7e]/g, '')
+      .replace(/^\s*(ERROR|WARN|INFO|OK)\s+/, '')
+      .trim()
+  );
+  const errors = result.output
+    .map((line, index) => (/^\s*ERROR\b/.test(line) ? clean[index] : ''))
+    .filter((line) => line && !/^Daemon log:/.test(line) && !/^Installation completed with errors/.test(line));
+  const detail = (errors.length ? errors.slice(0, 2) : clean.filter(Boolean).slice(-1))
+    .join(' ')
+    .slice(0, 400)
+    .replace(/[.\s]+$/, '');
+  return `The node installer failed on the VM (exit ${result.exitCode})${detail ? `: ${detail}` : ''}. Fix the cause, then retry installation on this VM.`;
+}
+
 export function shellArgument(value: string): string {
   if (value.includes('\0') || /[\r\n]/.test(value))
     throw new AppError(400, 'HOSTING_BOOTSTRAP_INVALID', 'Invalid bootstrap argument');
@@ -45,6 +81,12 @@ export function buildHostingBootstrap(input: {
   operationMarker?: string;
   expectedOperationMarker?: string;
   waitForCloudInit?: boolean;
+  /**
+   * Cloud-init runs the installer and nobody waits for it: write its exit status and last output lines to
+   * HOSTING_INSTALL_RESULT_FILE, which Opfield reads through the guest agent, so a failed installation ends at once with
+   * the installer's error instead of at the bootstrap deadline. Requires operationMarker.
+   */
+  reportResult?: boolean;
 }): string {
   if (!INSTALLERS[input.role]) throw new AppError(400, 'HOSTING_ROLE_UNSUPPORTED', 'Unsupported node role');
   if (!input.opfieldAddress || !/^sha256:[a-f0-9]{64}$/i.test(input.certificateFingerprint))
@@ -92,6 +134,25 @@ fi
     )
   )
     throw new AppError(400, 'HOSTING_BOOTSTRAP_INVALID', 'Invalid hosting operation marker');
+  if (input.reportResult && !input.operationMarker)
+    throw new AppError(400, 'HOSTING_BOOTSTRAP_INVALID', 'An installation result needs its operation marker');
+  const report = input.reportResult
+    ? `set -o pipefail
+# The result names this operation, so a stale file from another attempt is never taken for this one's.
+rm -f ${HOSTING_INSTALL_RESULT_FILE} ${HOSTING_INSTALL_LOG_FILE}
+report_install_result() {
+  { printf 'marker=%s\\n' ${shellArgument(input.operationMarker!)}; printf 'exit=%s\\n' "$1"
+    tail -n 30 ${HOSTING_INSTALL_LOG_FILE} 2>/dev/null | sed -e 's/\\x1b\\[[0-9;]*m//g' | grep -v 'Token:' | cut -c1-300 || true
+  } > ${HOSTING_INSTALL_RESULT_FILE}.tmp 2>/dev/null || true
+  # SELinux confines the guest agent (Fedora): it may read its own temporary files, not var_lib_t.
+  if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then chcon -t virt_qemu_ga_tmp_t ${HOSTING_INSTALL_RESULT_FILE}.tmp 2>/dev/null || true; fi
+  mv -f ${HOSTING_INSTALL_RESULT_FILE}.tmp ${HOSTING_INSTALL_RESULT_FILE} 2>/dev/null || true
+}
+trap 'report_install_result $?' EXIT
+# The bootstrap's own refusals (exit 42-48) go to the log the result is taken from; the installer's output is teed there.
+exec 2>>${HOSTING_INSTALL_LOG_FILE}
+`
+    : '';
   return `#!/bin/bash
 set -eu
 umask 077
@@ -99,7 +160,7 @@ mkdir -p /var/lib/opfield
 # The lock also fences a timed-out installer that is still running inside the guest.
 exec 9>/var/lib/opfield/hosting-install.lock
 flock -n 9 || { echo 'An Opfield hosting installer is already running' >&2; exit 44; }
-${
+${report}${
   input.waitForCloudInit
     ? `# QGA and SSH come up before cloud-init finishes package/network setup. Never race its package manager.
 if command -v cloud-init >/dev/null 2>&1; then
@@ -136,7 +197,11 @@ printf '%s\\n' ${shellArgument(input.operationMarker)} > /var/lib/opfield/hostin
     : ''
 }
 installer_dir=$(mktemp -d)
-trap 'rm -f "$installer_dir"/setup-*.sh; rmdir "$installer_dir"' EXIT
+${
+  input.reportResult
+    ? `trap 'status=$?; rm -f "$installer_dir"/setup-*.sh; rmdir "$installer_dir"; report_install_result "$status"' EXIT`
+    : `trap 'rm -f "$installer_dir"/setup-*.sh; rmdir "$installer_dir"' EXIT`
+}
 fetch_installer() {
 local installer="$installer_dir/$1" expected="$2"
 if command -v curl >/dev/null 2>&1; then
@@ -154,7 +219,11 @@ ${input.role === 'databases' || input.role === 'storage' ? `fetch_installer 'set
 ${input.role === 'storage' ? `fetch_installer 'setup-database-node.sh' '${INSTALLER_SHA256['setup-database-node.sh']}'` : ''}
 fetch_installer '${INSTALLERS[input.role]}' '${INSTALLER_SHA256[INSTALLERS[input.role]]}'
 installer="$installer_dir/${INSTALLERS[input.role]}"
-bash "$installer" ${args.map(shellArgument).join(' ')}
+${
+  input.reportResult
+    ? `bash "$installer" ${args.map(shellArgument).join(' ')} 2>&1 | tee -a ${HOSTING_INSTALL_LOG_FILE}`
+    : `bash "$installer" ${args.map(shellArgument).join(' ')}`
+}
 `;
 }
 

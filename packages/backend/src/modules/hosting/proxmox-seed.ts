@@ -18,6 +18,26 @@ export async function assertProxmoxSeedRuntime() {
     );
   }
 }
+/**
+ * Runs what the guest agent executes. On SELinux images (Fedora) the agent is confined (virt_qemu_ga_t): a plain
+ * shell it starts may not install packages, write /etc or manage services. This file carries the type the agent may
+ * run unconfined through (virt_qemu_ga_unconfined_exec_t, with virt_qemu_ga_run_unconfined on), as root runs it on
+ * Debian and Ubuntu. Elsewhere it is a plain bash.
+ */
+export const GUEST_RUN_PATH = '/usr/local/libexec/opfield-guest-run';
+const GUEST_RUN_POLICY_PATH = '/usr/local/libexec/opfield-guest-run.cil';
+const GUEST_RUN_POLICY = `(filecon "${GUEST_RUN_PATH}" file (system_u object_r virt_qemu_ga_unconfined_exec_t ((s0) (s0))))\n`;
+/**
+ * Lets the confined guest agent of an SELinux image read the installation result and host identity (non-security
+ * files) and run installers and daemon restarts unconfined through GUEST_RUN_PATH. The VM's hypervisor already has
+ * this reach on Debian and Ubuntu, where the agent is not confined at all. Nothing changes on hosts without SELinux.
+ */
+export const SELINUX_GUEST_AGENT_COMMAND = [
+  'if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then',
+  'setsebool -P virt_qemu_ga_read_nonsecurity_files=1 virt_qemu_ga_run_unconfined=1 || echo "Could not let the guest agent read files and run unconfined" >&2;',
+  `{ semodule -i ${GUEST_RUN_POLICY_PATH} && restorecon ${GUEST_RUN_PATH}; } || chcon -t virt_qemu_ga_unconfined_exec_t ${GUEST_RUN_PATH} || echo "Could not label ${GUEST_RUN_PATH}" >&2;`,
+  'fi',
+].join(' ');
 export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
   if (!/^gw-[a-f0-9-]{36}$/.test(input.marker) || !/^([a-f0-9]{2}:){5}[a-f0-9]{2}$/i.test(mac))
     throw new AppError(400, 'HOSTING_SEED_INVALID', 'Invalid bootstrap identity');
@@ -58,6 +78,13 @@ export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
       packages: ['bash', 'curl', 'ca-certificates', 'qemu-guest-agent', 'jq', 'openssl', 'coreutils', 'util-linux'],
       write_files: [
         {
+          path: GUEST_RUN_PATH,
+          permissions: '0700',
+          owner: 'root:root',
+          content: '#!/bin/bash\nexec /bin/bash "$@"\n',
+        },
+        { path: GUEST_RUN_POLICY_PATH, permissions: '0600', owner: 'root:root', content: GUEST_RUN_POLICY },
+        {
           path: '/var/lib/opfield-hosting-bootstrap.sh',
           permissions: '0700',
           owner: 'root:root',
@@ -65,6 +92,10 @@ export function proxmoxSeedFiles(input: HostingCreateRequest, mac: string) {
         },
       ],
       runcmd: [
+        // SELinux images (Fedora) confine the guest agent: it may not read most files or run commands unconfined.
+        // Proxmox then could not read the install result or host identity, nor run installs and daemon restarts the
+        // way it does on Debian and Ubuntu, where the agent is unconfined. Grant the agent that same reach.
+        ['sh', '-c', SELINUX_GUEST_AGENT_COMMAND],
         [
           'sh',
           '-c',

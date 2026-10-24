@@ -1,6 +1,6 @@
 import { and, count, eq, inArray, notInArray, or, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import type { DrizzleTransaction } from '@/db/client.js';
+import type { DrizzleExecutor, DrizzleTransaction } from '@/db/client.js';
 import {
   backupPolicies,
   backupRuns,
@@ -8,21 +8,33 @@ import {
   containerLinks,
   dockerAvailabilityPlacements,
   dockerAvailabilityPolicies,
+  dockerDeployments,
+  dockerMigrations,
+  domains,
+  ingressGroupMembers,
   managedAvailabilityMembers,
   managedAvailabilityWitnesses,
   managedDatabaseBindingPlacements,
   managedDatabaseBindings,
+  managedDatabaseInstances,
   managedStorageBindings,
   managedStorageClusterMembers,
   managedStorageClusters,
+  nodes,
   pageDeploymentReplicas,
   pageIngressMigrations,
   pageProjects,
   pageWildcardProfiles,
   proxyAdditionalRoutes,
   proxyAdditionalSecureLinks,
+  proxyHosts,
+  relayEndpointAssignmentGenerations,
+  relayEndpointAssignments,
+  relayInstances,
 } from '@/db/schema/index.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { parkedDrainedAssignmentIds } from '@/services/relay-topology.js';
+import { relayRemovableAfter } from './relay-removal.js';
 
 /**
  * Tables whose foreign keys to nodes.id restrict deletion and are real, user-visible ownership (not stale delivery
@@ -227,11 +239,7 @@ export const NODE_REMOVAL_CLEANED_REFERENCES: ReadonlyArray<{ table: string; col
  * migration pointers of projects whose migration is no longer running.
  */
 export async function prepareNodeRemoval(tx: DrizzleTransaction, nodeId: string): Promise<void> {
-  for (const blocker of NODE_REFERENCE_BLOCKERS) {
-    const [row] = await tx.select({ count: count() }).from(blocker.table).where(blocker.where(nodeId));
-    const total = Number(row?.count ?? 0);
-    if (total > 0) throw new AppError(409, blocker.code, blocker.message(total), { count: total });
-  }
+  await assertNoNodeReferenceBlockers(tx, nodeId);
 
   await tx.delete(pageDeploymentReplicas).where(eq(pageDeploymentReplicas.nodeId, nodeId));
   await tx
@@ -245,6 +253,195 @@ export async function prepareNodeRemoval(tx: DrizzleTransaction, nodeId: string)
     .update(pageProjects)
     .set({ migrationTargetNodeId: null })
     .where(eq(pageProjects.migrationTargetNodeId, nodeId));
+}
+
+/** The typed 409 of the first NODE_REFERENCE_BLOCKERS entry that still points at the node. */
+export async function assertNoNodeReferenceBlockers(executor: DrizzleExecutor, nodeId: string): Promise<void> {
+  for (const blocker of NODE_REFERENCE_BLOCKERS) {
+    const [row] = await executor.select({ count: count() }).from(blocker.table).where(blocker.where(nodeId));
+    const total = Number(row?.count ?? 0);
+    if (total > 0) throw new AppError(409, blocker.code, blocker.message(total), { count: total });
+  }
+}
+
+/**
+ * Read-only preflight of removing a node whose server is about to be destroyed (hosting delete): the typed 409 that
+ * NodesService.remove would answer, checked while the server still runs, so nothing is destroyed that leaves a node
+ * record behind which can no longer be removed. Routes are not cascaded here: they are moved or deleted first.
+ * A relay must be drained (no assignments, no tunnels) while it is still connected: once its server is gone it is
+ * offline, and an offline relay may only be removed after its signed policy expired.
+ */
+export async function assertNodeRemovableBeforeDestroy(executor: DrizzleExecutor, nodeId: string): Promise<void> {
+  const [node] = await executor
+    .select({ id: nodes.id, type: nodes.type, status: nodes.status, certificateSerial: nodes.certificateSerial })
+    .from(nodes)
+    .where(eq(nodes.id, nodeId))
+    .limit(1);
+  if (!node) return;
+  const [hosts] = await executor.select({ count: count() }).from(proxyHosts).where(eq(proxyHosts.nodeId, nodeId));
+  if (Number(hosts?.count ?? 0) > 0)
+    throw new AppError(
+      409,
+      'NODE_HAS_HOSTS',
+      `Cannot delete this server: its node serves ${Number(hosts!.count)} route(s). Move them to another node or delete them first.`,
+      { proxyHostCount: Number(hosts!.count) }
+    );
+  const [upstreams] = await executor
+    .select({ count: count() })
+    .from(proxyHosts)
+    .leftJoin(dockerDeployments, eq(proxyHosts.dockerDeploymentId, dockerDeployments.id))
+    .where(or(eq(proxyHosts.dockerNodeId, nodeId), eq(dockerDeployments.nodeId, nodeId)));
+  if (Number(upstreams?.count ?? 0) > 0)
+    throw new AppError(
+      409,
+      'NODE_HAS_PROXY_UPSTREAMS',
+      `Cannot delete node with ${Number(upstreams!.count)} linked proxy upstream(s). Change or delete them first.`
+    );
+  const [databases] = await executor
+    .select({ count: count() })
+    .from(managedDatabaseInstances)
+    .where(eq(managedDatabaseInstances.nodeId, nodeId));
+  if (Number(databases?.count ?? 0) > 0)
+    throw new AppError(
+      409,
+      'NODE_HAS_MANAGED_DATABASES',
+      `Cannot delete node with ${Number(databases!.count)} managed database(s). Reassign or delete them first.`
+    );
+  const [migration] = await executor
+    .select({ id: dockerMigrations.id })
+    .from(dockerMigrations)
+    .where(
+      and(
+        or(eq(dockerMigrations.sourceNodeId, nodeId), eq(dockerMigrations.targetNodeId, nodeId)),
+        inArray(dockerMigrations.status, ['pending', 'running', 'waiting', 'cancelling'])
+      )
+    )
+    .limit(1);
+  if (migration)
+    throw new AppError(
+      409,
+      'NODE_HAS_RUNNING_MIGRATION',
+      'Cannot delete a node while a Docker migration from or to it runs. Wait for it to finish or cancel it first.',
+      { migrationId: migration.id }
+    );
+  const [domain] = await executor
+    .select({ id: domains.id })
+    .from(domains)
+    .where(eq(domains.nginxNodeId, nodeId))
+    .limit(1);
+  if (domain)
+    throw new AppError(409, 'NODE_HAS_DOMAINS', 'Cannot delete a node with assigned domains. Reassign them first.');
+  const [membership] = await executor
+    .select({ groupId: ingressGroupMembers.groupId })
+    .from(ingressGroupMembers)
+    .where(eq(ingressGroupMembers.nodeId, nodeId))
+    .limit(1);
+  if (membership)
+    throw new AppError(409, 'NODE_IN_INGRESS_GROUP', 'Remove this node from its ingress group first', {
+      ingressGroupIds: [membership.groupId],
+    });
+  await assertNoNodeReferenceBlockers(executor, nodeId);
+  if (node.type !== 'relay' || (node.status === 'pending' && !node.certificateSerial)) return;
+  const [relay] = await executor.select().from(relayInstances).where(eq(relayInstances.nodeId, nodeId)).limit(1);
+  if (!relay) return;
+  if (relay.state === 'offline') {
+    const removableAfter = relayRemovableAfter(relay);
+    if (!removableAfter || removableAfter.getTime() > Date.now())
+      throw new AppError(
+        409,
+        'RELAY_OFFLINE_REMOVAL_UNSAFE',
+        removableAfter
+          ? `The relay is offline and can be removed after ${removableAfter.toISOString()}, once its signed policy expired; its server is not deleted before that`
+          : 'The relay is offline and has no expiring policy; bring it back online and drain it before deleting its server',
+        { removableAfter: removableAfter?.toISOString() ?? null }
+      );
+    return;
+  }
+  const live = await executor
+    .select({
+      id: relayEndpointAssignments.id,
+      assignmentGenerationId: relayEndpointAssignments.assignmentGenerationId,
+      state: relayEndpointAssignmentGenerations.state,
+    })
+    .from(relayEndpointAssignments)
+    .innerJoin(
+      relayEndpointAssignmentGenerations,
+      eq(relayEndpointAssignments.assignmentGenerationId, relayEndpointAssignmentGenerations.id)
+    )
+    .where(
+      and(
+        eq(relayEndpointAssignments.relayInstanceId, relay.id),
+        inArray(relayEndpointAssignmentGenerations.state, ['active', 'staging', 'draining'])
+      )
+    );
+  const generationIds = [...new Set(live.map(({ assignmentGenerationId }) => assignmentGenerationId))];
+  const parked =
+    relay.state === 'draining' && generationIds.length
+      ? parkedDrainedAssignmentIds(
+          relay,
+          await executor
+            .select({
+              id: relayEndpointAssignments.id,
+              assignmentGenerationId: relayEndpointAssignments.assignmentGenerationId,
+              relayInstanceId: relayEndpointAssignments.relayInstanceId,
+            })
+            .from(relayEndpointAssignments)
+            .where(inArray(relayEndpointAssignments.assignmentGenerationId, generationIds)),
+          live.map(({ assignmentGenerationId, state }) => ({ id: assignmentGenerationId, state }))
+        )
+      : new Set<string>();
+  if (live.some(({ id }) => !parked.has(id)))
+    throw new AppError(
+      409,
+      'RELAY_INSTANCE_ASSIGNED',
+      'Drain the relay and let its workloads move to other relays before deleting its server'
+    );
+  if (!['draining', 'error'].includes(relay.state))
+    throw new AppError(409, 'RELAY_INSTANCE_NOT_DRAINED', 'Drain the relay before deleting its server');
+  if ((relay.health?.activeTunnels ?? 0) > 0)
+    throw new AppError(
+      409,
+      'RELAY_INSTANCE_HAS_ACTIVE_TUNNELS',
+      'The relay still carries tunnels; wait for the drain to finish'
+    );
+}
+
+/**
+ * Container links the user already deleted (desired state `deleted`) whose every node is in `nodeIds`: nodes whose
+ * server the provider confirmed destroyed. What their deletion still waited for was cleanup on those servers, which no
+ * longer exist, so the rows go (placements cascade). A link with any node outside the set keeps its cleanup there.
+ * Returns the removed link IDs.
+ */
+export async function purgeDeletedContainerLinksOfDestroyedNodes(
+  tx: DrizzleTransaction,
+  nodeIds: string[]
+): Promise<string[]> {
+  if (!nodeIds.length) return [];
+  const destroyed = new Set(nodeIds);
+  const candidates = await tx
+    .select({
+      id: containerLinks.id,
+      sourceNodeId: containerLinks.sourceNodeId,
+      targetNodeId: containerLinks.targetNodeId,
+    })
+    .from(containerLinks)
+    .where(
+      and(
+        eq(containerLinks.desiredState, 'deleted'),
+        or(inArray(containerLinks.sourceNodeId, nodeIds), inArray(containerLinks.targetNodeId, nodeIds))
+      )
+    );
+  const ids = candidates
+    .filter((link) => destroyed.has(link.sourceNodeId) && destroyed.has(link.targetNodeId))
+    .map((link) => link.id);
+  if (!ids.length) return [];
+  const elsewhere = await tx
+    .select({ linkId: containerLinkPlacements.linkId })
+    .from(containerLinkPlacements)
+    .where(and(inArray(containerLinkPlacements.linkId, ids), notInArray(containerLinkPlacements.nodeId, nodeIds)));
+  const purge = ids.filter((id) => !elsewhere.some((placement) => placement.linkId === id));
+  if (purge.length) await tx.delete(containerLinks).where(inArray(containerLinks.id, purge));
+  return purge;
 }
 
 interface PostgresErrorLike {

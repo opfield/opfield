@@ -425,7 +425,10 @@ export function SettingsTab({
             />
           </SettingsControlRow>
         </PanelShell>
-        <ClientIpPanel host={host} canManage={canManage} onUpdated={onHostUpdated} />
+        {/* Full row: as a third card it wrapped under WebSocket and left a hole beside it. */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <ClientIpPanel host={host} canManage={canManage} onUpdated={onHostUpdated} />
+        </div>
       </div>
 
       {host.type === "proxy" && (

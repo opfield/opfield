@@ -41,6 +41,7 @@ async function connectedNode(options: { answering?: boolean } = {}) {
   const docker = {
     inspectContainer: reads,
     getContainerTransition: () => undefined,
+    busyWhileTransitioning: (_nodeId: string, _name: string, error: unknown) => error,
     updateContainer: vi.fn(),
     updateContainerEnv: vi.fn(),
     recreateWithConfig: vi.fn(),

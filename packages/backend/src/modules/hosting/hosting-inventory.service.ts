@@ -35,7 +35,7 @@ import {
   type HostingProviderAdapter,
   type HostingResourceSnapshot,
 } from './hosting-provider.types.js';
-import { reserveProxmoxQuota } from './proxmox-quota.js';
+import { reserveProxmoxQuota, withoutProxmoxLimits } from './proxmox-quota.js';
 
 export const HOSTING_RESOURCE_SNAPSHOT = 'hosting-resources';
 export const HOSTING_CATALOG_SNAPSHOT = 'hosting-catalog';
@@ -435,7 +435,12 @@ export class HostingInventoryService {
         .where(and(eq(hostingOperations.nodeId, nodeId), inArray(hostingOperations.action, ['create', 'install'])))
         .orderBy(desc(hostingOperations.createdAt))
         .limit(1);
-      if (!pending) return null;
+      if (!pending) {
+        // Not hosted: null for a node of this installation, 404 for an id no node has.
+        const [node] = await this.db.select({ id: nodes.id }).from(nodes).where(eq(nodes.id, nodeId)).limit(1);
+        if (!node) throw new AppError(404, 'NOT_FOUND', 'Node not found');
+        return null;
+      }
       awaitingBinding = true;
       pendingNodeOperation = { action: pending.operation.action, phase: pending.operation.phase };
       if (!pending.resource)
@@ -1003,7 +1008,8 @@ export class HostingInventoryService {
         if (
           !currentConnector?.enabled ||
           currentConnector.updatedAt.getTime() !== connector.updatedAt.getTime() ||
-          JSON.stringify(this.connectors.settings(currentConnector)) !== JSON.stringify(settings)
+          JSON.stringify(withoutProxmoxLimits(this.connectors.settings(currentConnector))) !==
+            JSON.stringify(withoutProxmoxLimits(settings))
         )
           return;
         const owner = await this.connectors.owner(currentConnector);

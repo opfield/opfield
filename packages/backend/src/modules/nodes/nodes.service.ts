@@ -438,30 +438,33 @@ export class NodesService {
         fallback: 'node',
         reserved: ['file', 'console'],
         constraint: 'nodes_slug_unique',
-        write: async (slug) => {
-          const [created] = await executor
-            .insert(nodes)
-            .values({
-              type: input.type,
-              hostname: input.hostname,
-              displayName: input.displayName,
-              folderId: input.folderId ?? null,
-              slug,
-              enrollmentTokenSelector: enrollmentToken.selector,
-              enrollmentTokenHash: tokenHash,
-              enrollmentTokenExpiresAt,
-              status: 'pending',
-              serviceAddresses: input.type === 'relay' ? input.serviceAddresses : [],
-              // Lets the creator, and only the creator, re-issue the enrollment token with nodes:create alone.
-              // A relay keeps the port it was created with until enrollment records it on its relay instance.
-              metadata: {
-                createdById: userId,
-                ...(input.type === 'relay' && input.servicePort ? { relayServicePort: input.servicePort } : {}),
-              },
-            })
-            .returning();
-          return created;
-        },
+        // A savepoint per attempt: the executor is the quota (or hosting) transaction, and a slug collision
+        // must not abort it before the suffixed retry.
+        write: (slug) =>
+          executor.transaction(async (savepoint) => {
+            const [created] = await savepoint
+              .insert(nodes)
+              .values({
+                type: input.type,
+                hostname: input.hostname,
+                displayName: input.displayName,
+                folderId: input.folderId ?? null,
+                slug,
+                enrollmentTokenSelector: enrollmentToken.selector,
+                enrollmentTokenHash: tokenHash,
+                enrollmentTokenExpiresAt,
+                status: 'pending',
+                serviceAddresses: input.type === 'relay' ? input.serviceAddresses : [],
+                // Lets the creator, and only the creator, re-issue the enrollment token with nodes:create alone.
+                // A relay keeps the port it was created with until enrollment records it on its relay instance.
+                metadata: {
+                  createdById: userId,
+                  ...(input.type === 'relay' && input.servicePort ? { relayServicePort: input.servicePort } : {}),
+                },
+              })
+              .returning();
+            return created;
+          }),
       });
     const quota = requireConfiguredLicenseQuota(this.licenseQuota);
     const countNodes = async (tx: DrizzleTransaction) => {
@@ -1010,9 +1013,11 @@ export class NodesService {
         .select({ resourceId: hostingNodeBindings.resourceId })
         .from(hostingNodeBindings)
         .where(eq(hostingNodeBindings.nodeId, id));
+      // The node goes away: firewall changes on its VM do not hold the deletion back.
       await lockHostingFirewalls(
         tx,
-        firewallBindings.map((binding) => binding.resourceId)
+        firewallBindings.map((binding) => binding.resourceId),
+        { deleting: true }
       );
       const [racingHostingOperation] = await tx
         .select({ id: hostingOperations.id, action: hostingOperations.action })

@@ -8,7 +8,8 @@ export function navigationAttentionForItem(
     itemId !== "nodes" &&
     itemId !== "proxy-hosts" &&
     itemId !== "docker" &&
-    itemId !== "status-page"
+    itemId !== "status-page" &&
+    itemId !== "apps"
   ) {
     return null;
   }
@@ -26,6 +27,9 @@ export function navigationAttentionLabel(
     return severity === "critical"
       ? "The status page has a critical incident"
       : "The status page has an active incident";
+  }
+  if (itemId === "apps") {
+    return severity === "critical" ? "Some apps are failing" : "Some apps are degraded";
   }
   if (itemId === "proxy-hosts") {
     return severity === "critical" ? "Some routes are offline" : "Some routes are degraded";

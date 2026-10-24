@@ -57,6 +57,7 @@ beforeEach(() => {
   } as never);
   container.registerInstance(DockerManagementService, {
     inspectContainer: vi.fn().mockRejectedValue(new AppError(404, 'CONTAINER_NOT_FOUND', 'Container not found')),
+    busyWhileTransitioning: (_nodeId: string, _name: string, error: unknown) => error,
   } as never);
 });
 

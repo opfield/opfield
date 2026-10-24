@@ -1,7 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { authMiddleware } from '@/modules/auth/auth.middleware.js';
 import type { AppEnv } from '@/types.js';
-import { commercialModuleUnavailable } from './unavailable.js';
+import { commercialModuleUnavailableHandler } from './unavailable.js';
 
 /**
  * Console and API prefixes only the commercial module serves. Mounted only while the module is
@@ -27,4 +27,4 @@ export const COMMERCIAL_ONLY_ROUTE_PREFIXES = [
 
 export const commercialUnavailableRoutes = new OpenAPIHono<AppEnv>();
 commercialUnavailableRoutes.use('*', authMiddleware);
-commercialUnavailableRoutes.all('*', () => commercialModuleUnavailable());
+commercialUnavailableRoutes.all('*', commercialModuleUnavailableHandler);

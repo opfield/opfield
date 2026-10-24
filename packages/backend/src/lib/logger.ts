@@ -1,4 +1,5 @@
 import winston from 'winston';
+import { redactQueryError, redactQueryErrorsDeep } from './query-error-redaction.js';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
@@ -32,6 +33,26 @@ export const serializeMetadataErrors = winston.format((info) => {
   return info;
 });
 
+/** Values bound to credential-like columns of a failed query never reach a log line (lib/query-error-redaction.ts). */
+export const redactFailedQueryParams = winston.format((info) => {
+  // logger.error(error) logs the error itself: its message and stack are not enumerable keys.
+  if (info instanceof Error) {
+    const redacted = redactQueryError(info);
+    if (redacted !== info) {
+      info.message = redacted.message;
+      info.stack = redacted.stack;
+      if ('params' in redacted) (info as { params?: unknown }).params = redacted.params;
+    }
+  }
+  for (const key of Object.keys(info)) {
+    if (key === 'level') continue;
+    const value = info[key];
+    const redacted = redactQueryErrorsDeep(value);
+    if (redacted !== value) info[key] = redacted;
+  }
+  return info;
+});
+
 const logFormat = printf(({ level, message, timestamp, stack, ...metadata }) => {
   let msg = `${timestamp} [${level}]: ${message}`;
 
@@ -47,6 +68,7 @@ const logFormat = printf(({ level, message, timestamp, stack, ...metadata }) => 
 });
 
 const developmentFormat = combine(
+  redactFailedQueryParams(),
   // Before colorize(): it rewrites `level` with colour codes.
   serializeMetadataErrors(),
   colorize(),
@@ -56,6 +78,7 @@ const developmentFormat = combine(
 );
 
 const productionFormat = combine(
+  redactFailedQueryParams(),
   timestamp(),
   errors({ stack: true }),
   serializeMetadataErrors(),

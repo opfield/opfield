@@ -364,6 +364,7 @@ export interface DashboardBootstrap {
     "proxy-hosts": NavigationAttentionSeverity | null;
     docker: NavigationAttentionSeverity | null;
     "status-page": NavigationAttentionSeverity | null;
+    apps?: NavigationAttentionSeverity | null;
   };
 }
 

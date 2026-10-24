@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import type { DrizzleClient } from '@/db/client.js';
 import {
   dockerAvailabilityPlacements,
@@ -83,6 +83,12 @@ const PROXY_SECURE_LINK_PROBE_ATTEMPTS = 6;
 const PROXY_SECURE_LINK_PROBE_RETRY_MS = 500;
 const NGINX_SECURE_LINK_SOCKET_ONLY_CAPABILITY = 'nginx_secure_link_socket_only_v1';
 const logger = createChildLogger('ProxySecureLinkService');
+
+/** The daemon's refusal to detach its connector from a network the connector already left. */
+const STALE_CONNECTOR_DETACH =
+  /detach secure-link connector from ([^\s:]+): .*?container (\S+) is not connected to (?:the )?network/i;
+/** Networks re-attached for one secure-link set at most. */
+const STALE_CONNECTOR_DETACH_MAX = 16;
 const DOCKER_UPSTREAM_KINDS = ['docker_container', 'docker_deployment'] as const;
 
 /** One source (a single-node route) is passed as before; a group route passes every member. */
@@ -165,11 +171,24 @@ function isNetworkReselection(before: ProxyAdditionalSecureLinkRow, after: Proxy
   );
 }
 
+/**
+ * A container event after which the container may run again: started, restarted, recreated, a state change the
+ * daemon reported (a restart policy's restart included), or the end of an Opfield operation on it.
+ */
+function containerMayRunAgain(event: { action?: unknown; transition?: unknown; state?: unknown }): boolean {
+  const action = typeof event.action === 'string' ? event.action : '';
+  if (action === 'transitioning') return event.transition === null;
+  if (action === 'updated') return event.state === undefined || event.state === 'running';
+  return action === 'started' || action === 'restarted' || action === 'recreated';
+}
+
 export class ProxySecureLinkService {
   private eventBus?: EventBusService;
   private readonly targetNodeSyncs = new Map<string, Promise<void>>();
   private readonly sourceNodeSyncs = new Map<string, Promise<void>>();
   private readonly linkOperations = new Map<string, Promise<unknown>>();
+  /** Containers whose unbound links a resync is checking now (node and name): their next events coalesce into it. */
+  private readonly unboundTargetResyncs = new Set<string>();
   private containerLinkTargets?: ContainerLinkTargetProvider;
 
   constructor(
@@ -182,6 +201,70 @@ export class ProxySecureLinkService {
 
   setEventBus(eventBus: EventBusService): void {
     this.eventBus = eventBus;
+    // A link whose target did not run when its node was synced (stopped, restarting, between a recreate and its
+    // start, as a database or storage link's recreate leaves it) is left out of the node's connector with its error
+    // recorded, and the daemon forgets it. Once a container of that name runs again its node is synced, so the link
+    // binds the container that has the name now.
+    eventBus.subscribe?.('docker.container.changed', (payload) => {
+      const event = payload as {
+        nodeId?: unknown;
+        name?: unknown;
+        containerName?: unknown;
+        action?: unknown;
+        transition?: unknown;
+        state?: unknown;
+      } | null;
+      if (typeof event?.nodeId !== 'string' || !containerMayRunAgain(event)) return;
+      const name = typeof event.name === 'string' ? event.name : event.containerName;
+      const containerName = typeof name === 'string' ? name.replace(/^\/+/, '') : '';
+      if (containerName) this.resyncUnboundTargets(event.nodeId, containerName);
+    });
+  }
+
+  /** Syncs a node again when a link to the container left its connector (its error says why): the link binds now. */
+  private resyncUnboundTargets(nodeId: string, containerName: string): void {
+    const key = `${nodeId}\u0000${containerName}`;
+    if (this.unboundTargetResyncs.has(key)) return;
+    this.unboundTargetResyncs.add(key);
+    void (async () => {
+      try {
+        if (await this.hasUnboundTarget(nodeId, containerName)) await this.syncTargetNode(nodeId);
+      } finally {
+        this.unboundTargetResyncs.delete(key);
+      }
+    })().catch((error) =>
+      logger.warn('A Secure Link whose target runs again was not bound yet; its next event retries it', {
+        nodeId,
+        containerName,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+  }
+
+  private async hasUnboundTarget(nodeId: string, containerName: string): Promise<boolean> {
+    const host = await this.db.query.proxyHosts.findFirst({
+      where: and(
+        eq(proxyHosts.dockerNodeId, nodeId),
+        eq(proxyHosts.secureLinkTargetContainer, containerName),
+        ne(proxyHosts.secureLinkGeneration, 0),
+        ne(proxyHosts.secureLinkStatus, 'cleanup_pending'),
+        isNotNull(proxyHosts.secureLinkLastError)
+      ),
+      columns: { id: true },
+    });
+    if (host) return true;
+    const additional = (this.db.query as any).proxyAdditionalSecureLinks
+      ? await (this.db.query as any).proxyAdditionalSecureLinks.findFirst({
+          where: and(
+            eq(proxyAdditionalSecureLinks.dockerNodeId, nodeId),
+            eq(proxyAdditionalSecureLinks.targetContainer, containerName),
+            inArray(proxyAdditionalSecureLinks.status, ['provisioning', 'active']),
+            isNotNull(proxyAdditionalSecureLinks.lastError)
+          ),
+          columns: { id: true },
+        })
+      : null;
+    return Boolean(additional);
   }
 
   async updateConnectorImage(connectorImage: string): Promise<void> {
@@ -1735,7 +1818,9 @@ export class ProxySecureLinkService {
     if (!cutoverCommitted && host.secureLinkStatus === 'cutover_ready' && !changed) return host;
     const activeUpdate = cutoverCommitted && (changed || host.secureLinkStatus === 'updating');
     if (cutoverCommitted && host.secureLinkStatus === 'active' && !changed) {
-      if (!force && !moved) return host;
+      // A link with an error (left out of its node's connector while its target did not run, a failed probe) is
+      // synced and probed again by a save as well, not only by a forced reconciliation.
+      if (!force && !moved && !host.secureLinkLastError) return host;
       try {
         // A moved link is re-pointed in place: the target node gets its binding first, then the relay endpoint
         // moves to it (the former node's grant is withdrawn), and the source listener and Nginx config stay as
@@ -2483,6 +2568,45 @@ export class ProxySecureLinkService {
     }
   }
 
+  /**
+   * Sends a target node its secure-link set. The daemon detaches its connector from every network it no longer
+   * serves and refused the whole set when the connector had already left one ("container … is not connected to the
+   * network …": a link network whose endpoints a binding or link removal detached, managed-database-network-removal.ts),
+   * so a binding delete answered 500 and the node's links failed closed until its daemon restarted. Released daemons
+   * keep that bookkeeping: the connector is attached to the network again, which lets the daemon's own detach succeed,
+   * and the set is sent again (once per network).
+   */
+  private async sendTargetSecureLinks(
+    nodeId: string,
+    bindings: Parameters<NodeDispatchService['sendProxySecureLinks']>[1]
+  ): Promise<Awaited<ReturnType<NodeDispatchService['sendProxySecureLinks']>>> {
+    const reattached = new Set<string>();
+    for (;;) {
+      const result = await this.dispatch.sendProxySecureLinks(nodeId, bindings);
+      if (result.success) return result;
+      const stale = STALE_CONNECTOR_DETACH.exec(result.error ?? '');
+      if (!stale || reattached.has(stale[1]!) || reattached.size >= STALE_CONNECTOR_DETACH_MAX) return result;
+      const [, networkName, containerId] = stale as unknown as [string, string, string];
+      reattached.add(networkName);
+      const connected = await this.dispatch.sendDockerNetworkCommand(nodeId, 'connect', {
+        networkId: networkName,
+        containerId,
+      });
+      if (!connected.success && !/already exists|already connected/i.test(connected.error ?? '')) {
+        logger.warn('Secure-link connector could not be attached again to a network it had left', {
+          nodeId,
+          networkName,
+          error: connected.error,
+        });
+        return result;
+      }
+      logger.info('Secure-link connector had already left a network; attached it again for the daemon to detach', {
+        nodeId,
+        networkName,
+      });
+    }
+  }
+
   private async syncTargetNodeLocked(nodeId: string, excludedNetwork?: string, requiredLinkId?: string): Promise<void> {
     for (let attempt = 0; attempt < 2; attempt++) {
       const hosts = await this.db.query.proxyHosts.findMany({
@@ -2540,7 +2664,7 @@ export class ProxySecureLinkService {
       ].flatMap((binding) => releasedNetworkBinding(binding, excludedNetwork));
       const additionalIds = new Set(additional.map((binding: ProxyAdditionalSecureLinkRow) => binding.id));
       let appliedBindings = targetBindings;
-      let result = await this.dispatch.sendProxySecureLinks(nodeId, appliedBindings);
+      let result = await this.sendTargetSecureLinks(nodeId, appliedBindings);
       const unavailable = new Map<string, string>();
       for (;;) {
         while (!result.success) {
@@ -2557,7 +2681,7 @@ export class ProxySecureLinkService {
             unresolved.reason.startsWith('target container is not attached to the selected network');
           if (!detached) unavailable.set(unresolved.linkId, message);
           appliedBindings = nextBindings;
-          result = await this.dispatch.sendProxySecureLinks(nodeId, appliedBindings);
+          result = await this.sendTargetSecureLinks(nodeId, appliedBindings);
         }
         if (!excludedNetwork) break;
         // A link without a recorded network may resolve onto the released network: only those leave as well.
@@ -2569,7 +2693,7 @@ export class ProxySecureLinkService {
         const nextBindings = appliedBindings.filter((binding) => !onReleased.has(binding.linkId));
         if (nextBindings.length === appliedBindings.length) break;
         appliedBindings = nextBindings;
-        result = await this.dispatch.sendProxySecureLinks(nodeId, appliedBindings);
+        result = await this.sendTargetSecureLinks(nodeId, appliedBindings);
       }
       await this.recordUnavailableTargets(
         new Map([...unavailable].filter(([linkId]) => !containerLinkIds.has(linkId))),
@@ -2635,7 +2759,7 @@ export class ProxySecureLinkService {
           if (attempt === 0) continue;
           throw new Error('Proxy secure-link desired state changed during network reconciliation');
         }
-        result = await this.dispatch.sendProxySecureLinks(nodeId, reconciledBindings);
+        result = await this.sendTargetSecureLinks(nodeId, reconciledBindings);
         if (!result.success) throw new Error(result.error || 'Docker daemon rejected reconciled secure-link bindings');
         statuses = this.parseBindings(result.detail);
       }

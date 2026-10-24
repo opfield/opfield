@@ -70,6 +70,8 @@ export function parseNodeCommandResult(result: { success: boolean; error?: strin
     if (/no such file or directory/i.test(result.error ?? '')) {
       throw new AppError(404, 'NODE_FILE_NOT_FOUND', `The path does not exist on the node: ${result.error}`);
     }
+    const fileError = nodeFileRequestError(result.error ?? '');
+    if (fileError) throw fileError;
     throw new AppError(502, 'DISPATCH_ERROR', result.error || 'Command failed on daemon');
   }
   try {
@@ -77,4 +79,28 @@ export function parseNodeCommandResult(result: { success: boolean; error?: strin
   } catch {
     return result.detail;
   }
+}
+
+/**
+ * The daemon's refusal of a file request that is wrong for the path it names (a directory read as a file, a move onto an
+ * existing path): the request's error, answered 4xx, not a daemon failure (502). The daemon's words stay in the message.
+ */
+function nodeFileRequestError(error: string): AppError | null {
+  if (/target path already exists/i.test(error)) {
+    return new AppError(409, 'NODE_FILE_EXISTS', `The target path already exists on the node: ${error}`);
+  }
+  if (/parent directory does not exist/i.test(error)) {
+    return new AppError(404, 'NODE_FILE_NOT_FOUND', `The path does not exist on the node: ${error}`);
+  }
+  if (/(?:file|parent directory) is not writable/i.test(error)) {
+    return new AppError(403, 'NODE_FILE_PERMISSION_DENIED', `The node's daemon cannot write this path: ${error}`);
+  }
+  if (
+    /not a regular\/readable file|not a directory|is a directory|path must be absolute|path must not contain|cannot modify root directory|source and target paths are the same|cannot move directory into itself|upload size mismatch|must not be negative|upload id is required|invalid upload id/i.test(
+      error
+    )
+  ) {
+    return new AppError(400, 'NODE_FILE_INVALID_PATH', error);
+  }
+  return null;
 }

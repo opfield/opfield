@@ -40,4 +40,19 @@ describe('emptyJsonBodyMiddleware', () => {
     const invalid = await app.request('/stop', { method: 'POST', headers: json, body: '{"timeout":"x"}' });
     expect(invalid.status).toBe(400);
   });
+
+  it('answers 400 for a malformed body a route reads itself (not an unhandled 500)', async () => {
+    const app = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
+    app.onError(errorHandler);
+    app.use('*', emptyJsonBodyMiddleware);
+    app.post('/plain', async (c) => c.json({ body: await c.req.json() }));
+    app.post('/lenient', async (c) => c.json({ body: await c.req.json().catch(() => ({ fallback: true })) }));
+    const malformed = await app.request('/plain', { method: 'POST', headers: json, body: '{"mx": ' });
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toMatchObject({ message: 'Malformed JSON in request body' });
+    const ok = await app.request('/plain', { method: 'POST', headers: json, body: '{"mx":1}' });
+    expect(await ok.json()).toEqual({ body: { mx: 1 } });
+    const lenient = await app.request('/lenient', { method: 'POST', headers: json, body: '{' });
+    expect(await lenient.json()).toEqual({ body: { fallback: true } });
+  });
 });

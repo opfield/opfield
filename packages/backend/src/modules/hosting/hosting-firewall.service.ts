@@ -92,7 +92,11 @@ export class HostingFirewallService {
   private async forNode(nodeId: string, user: User, edit = false) {
     assertHostingScope(user.scopes, 'nodes:details', nodeId);
     const [binding] = await this.db.select().from(hostingNodeBindings).where(eq(hostingNodeBindings.nodeId, nodeId));
-    if (!binding) fail('This node is not bound to a provider VM');
+    if (!binding) {
+      const [node] = await this.db.select({ id: nodes.id }).from(nodes).where(eq(nodes.id, nodeId)).limit(1);
+      if (!node) throw new AppError(404, 'NOT_FOUND', 'Node not found');
+      fail('This node is not bound to a provider VM');
+    }
     return this.target(binding.resourceId, user, edit);
   }
 

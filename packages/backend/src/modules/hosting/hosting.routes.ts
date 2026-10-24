@@ -98,11 +98,17 @@ hostingIntegrationRoutes.get('/:id/operations', async (c) =>
 hostingIntegrationRoutes.get('/:id/account-summary', async (c) =>
   c.json(await container.resolve(HostingInventoryService).accountSummary(id(c.req.param('id')), actor(c)))
 );
+/**
+ * 410 for the retired hosting finance and payment APIs. Not an operation of its own: the MCP/REST coverage check
+ * (mcp-rest-coverage-check.ts) skips it.
+ */
+export function retiredHostingFinanceHandler(c: Context) {
+  return c.json({ error: 'Hosting finance pages and payment actions have been removed.' }, 410);
+}
+
 // Explicit tombstones keep retired APIs out of the application's SPA fallback.
 for (const path of ['/:id/finance', '/:id/invoices/:invoiceId', '/:id/topup']) {
-  hostingIntegrationRoutes.all(path, (c) =>
-    c.json({ error: 'Hosting finance pages and payment actions have been removed.' }, 410)
-  );
+  hostingIntegrationRoutes.all(path, retiredHostingFinanceHandler);
 }
 
 export const hostingRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });

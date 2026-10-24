@@ -185,6 +185,7 @@ export class HostingSnapshotsService {
   }
   private async target(resourceId: string, user: User, action?: HostingSnapshotAction) {
     const [resource] = await this.db.select().from(hostingResources).where(eq(hostingResources.id, resourceId));
+    if (!resource) throw new AppError(404, 'HOSTING_RESOURCE_NOT_FOUND', 'Hosting resource not found');
     if (
       !resource?.connectorId ||
       resource.missingSince ||

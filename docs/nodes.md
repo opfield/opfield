@@ -274,6 +274,8 @@ In both modes the daemon installs a managed HTTPS default server (`listen 443 ss
 
 Opfield routes require nginx `1.25.1` or newer. On a fresh host, the installer always uses the nginx.org stable package. When it detects an older existing nginx, it asks before upgrading it; declining stops the installation before Opfield changes the nginx configuration or enrolls the daemon. Non-interactive installation refuses an unsupported existing nginx because it cannot ask for that approval.
 
+On hosts with SELinux (Fedora, RHEL and their rebuilds) SELinux stays enforcing. The installer adds a small policy module, `opfield-nginx`, and turns on the boolean `httpd_can_network_connect`, so the confined nginx can reach route upstreams on any port, connect to the daemon's Secure Link, registry and health sockets in `/run` (labeled `httpd_var_run_t`), and listen on any port a route uses. Without them, routes to containers answer 502 while static Pages still work. The module is kept in `/usr/local/share/nginx-daemon/selinux/`; `semodule -r opfield-nginx` removes it.
+
 ## Enrollment Flow
 
 On first start, the daemon:

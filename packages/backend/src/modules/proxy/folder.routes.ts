@@ -4,7 +4,7 @@ import { getFolderScopedIds } from '@/lib/folder-scopes.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope, hasScopeBase, hasScopeForCreation } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
-import { authMiddleware, requireScope, requireScopeBase } from '@/modules/auth/auth.middleware.js';
+import { authMiddleware, requireScopeBase } from '@/modules/auth/auth.middleware.js';
 import {
   assertFolderManage,
   assertFolderManageForFolder,
@@ -13,7 +13,6 @@ import {
 } from '@/modules/resource-folders/resource-folder-access.js';
 import type { AppEnv } from '@/types.js';
 import {
-  cloneProxyFolderRoute,
   createProxyFolderRoute,
   deleteProxyFolderRoute,
   groupedProxyHostsRoute,
@@ -244,10 +243,4 @@ folderRoutes.openapi({ ...deleteProxyFolderRoute, middleware: requireScopeBase('
   await assertFolderManageForFolder(folderService, c.get('effectiveScopes') || [], 'proxy:folders:manage', id);
   await folderService.deleteFolder(id, user.id);
   return c.body(null, 204);
-});
-
-// Clone folder's proxy host
-folderRoutes.openapi({ ...cloneProxyFolderRoute, middleware: requireScope('proxy:folders:manage') }, async (_c) => {
-  // Placeholder for future clone functionality
-  throw new AppError(501, 'NOT_IMPLEMENTED', 'Not implemented');
 });

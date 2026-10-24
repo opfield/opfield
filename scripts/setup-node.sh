@@ -3219,6 +3219,11 @@ start_daemon() {
         fi
     fi
     openrc_runtime+=$'\n}'
+    if [[ "$RUN_USER" == "root" ]] && selinux_enabled; then
+        # systemd creates the socket directories with their SELinux label (httpd_var_run_t, configure_nginx_selinux);
+        # one the root daemon made itself would be var_run_t, which nginx may not connect through.
+        unit_runtime=$'\nRuntimeDirectory=nginx-daemon opfield-secure-links opfield-registry-links opfield-ingress-health\nRuntimeDirectoryMode=0755\nRuntimeDirectoryPreserve=yes'
+    fi
 
     if has_systemd; then
         # Write systemd unit with user/group support
@@ -3282,6 +3287,55 @@ UNIT
     ok "nginx-daemon started"
 }
 
+# SELinux (Fedora, RHEL and their rebuilds) loaded, enforcing or permissive. Permissive hosts get the same policy so they
+# keep working once switched to enforcing.
+selinux_enabled() {
+    command_exists selinuxenabled && selinuxenabled
+}
+
+# On an SELinux host nginx runs confined (httpd_t). By default it may not connect to upstreams on arbitrary ports, not
+# reach the daemon's Secure Link, registry and health sockets, and not listen on ports outside the http set, so routes to
+# containers answered 502 while static Pages worked. This keeps SELinux enforcing and grants nginx exactly that:
+# - httpd_can_network_connect: TCP upstreams on any port;
+# - the daemon's socket directories are labeled httpd_var_run_t (sockets created in them inherit it);
+# - nginx may connect to sockets served by unconfined system services (the daemon), only where it may also write the
+#   socket file, which is these directories;
+# - nginx may bind any port a route listens on.
+NGINX_SELINUX_MODULE=opfield-nginx
+configure_nginx_selinux() {
+    selinux_enabled || return 0
+    command_exists semodule || die "SELinux is enabled but semodule (policycoreutils) is missing; install policycoreutils and run the installer again."
+    command_exists setsebool || die "SELinux is enabled but setsebool (policycoreutils) is missing; install policycoreutils and run the installer again."
+    local module_dir=/usr/local/share/nginx-daemon/selinux module_file dir
+    module_file="${module_dir}/${NGINX_SELINUX_MODULE}.cil"
+    install -d -m 0755 "$module_dir" || die "Could not create ${module_dir}."
+    cat > "${module_file}.new" <<'CIL' || die "Could not write the nginx SELinux policy."
+(filecon "/run/nginx-daemon(/.*)?" any (system_u object_r httpd_var_run_t ((s0) (s0))))
+(filecon "/run/opfield-secure-links(/.*)?" any (system_u object_r httpd_var_run_t ((s0) (s0))))
+(filecon "/run/opfield-registry-links(/.*)?" any (system_u object_r httpd_var_run_t ((s0) (s0))))
+(filecon "/run/opfield-ingress-health(/.*)?" any (system_u object_r httpd_var_run_t ((s0) (s0))))
+(allow httpd_t unconfined_service_t (unix_stream_socket (connectto)))
+(allow httpd_t port_type (tcp_socket (name_bind)))
+(allow httpd_t port_type (udp_socket (name_bind)))
+CIL
+    if [[ -f "$module_file" ]] && cmp -s "${module_file}.new" "$module_file" \
+        && semodule -l 2>/dev/null | awk '{print $1}' | grep -qx "$NGINX_SELINUX_MODULE"; then
+        rm -f "${module_file}.new"
+    else
+        log "Installing the SELinux policy for nginx upstreams and Opfield sockets..."
+        mv -f "${module_file}.new" "$module_file"
+        semodule -i "$module_file" >> "$LOG_FILE" 2>&1 || die "Could not install the SELinux policy module ${NGINX_SELINUX_MODULE} (see ${LOG_FILE})."
+    fi
+    if [[ "$(getsebool httpd_can_network_connect 2>/dev/null | awk '{print $NF}')" != "on" ]]; then
+        setsebool -P httpd_can_network_connect 1 >> "$LOG_FILE" 2>&1 || die "Could not enable the SELinux boolean httpd_can_network_connect."
+    fi
+    # Directories and sockets that already exist (a re-run) take the new label; new ones get it from systemd or inherit it.
+    for dir in nginx-daemon opfield-secure-links opfield-registry-links opfield-ingress-health; do
+        [[ ! -d "/run/${dir}" ]] || restorecon -R "/run/${dir}" >> "$LOG_FILE" 2>&1 || true
+    done
+    ok "SELinux policy in place: nginx may reach its upstreams and the Opfield sockets"
+}
+
 # A dry run stops here, once every function it uses is defined.
 if [[ "$DRY_RUN" -eq 1 ]]; then
     dry_run_preview
@@ -3291,6 +3345,7 @@ fi
 # ── Run ──────────────────────────────────────────────────────────────
 prepare_run_user_switch
 install_nginx
+configure_nginx_selinux
 create_directories
 migrate_legacy_site_paths
 configure_nginx

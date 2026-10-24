@@ -17,6 +17,9 @@ describe('Docker daemon refusals caused by the request', () => {
       statusCode: 409,
       code: 'DISK_IMAGE_VOLUMES_UNSUPPORTED',
     });
+    expect(
+      dockerDaemonUserError('Error response from daemon: network with name mx-d2-smn6r already exists')
+    ).toMatchObject({ statusCode: 409, code: 'NAME_IN_USE', message: expect.stringContaining('"mx-d2-smn6r"') });
     // The daemon's words stay where callers match them.
     expect(dockerDaemonUserError('Error response from daemon: No such container: api')).toMatchObject({
       statusCode: 404,

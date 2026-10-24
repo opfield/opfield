@@ -24,7 +24,10 @@ export async function assertComposeChildMutationAllowed(nodeId: string, containe
   ) {
     return;
   }
-  const detail = await container.resolve(DockerManagementService).inspectContainer(nodeId, containerId);
+  const docker = container.resolve(DockerManagementService);
+  const detail = await docker.inspectContainer(nodeId, containerId).catch((error: unknown) => {
+    throw docker.busyWhileTransitioning(nodeId, containerId, error);
+  });
   const labels = labelsFor(detail);
   const projectName = labels['com.docker.compose.project']?.trim();
   if (!projectName) return;

@@ -181,6 +181,30 @@ export class DockerSnapshotReconciler {
   }
 
   /**
+   * Reads a volume or network list (and the changed volume's cached inspect) back from its node now. A create or
+   * remove calls it before it answers, so a read right after the answer sees the result: a created volume was 404
+   * until the queued refresh ran, a removed network stayed listed. A removed volume's cached details are dropped. A
+   * failed read is left to the refresh the change event queued.
+   */
+  async readBackNow(
+    nodeId: string,
+    kind: Extract<DockerSnapshotKind, 'volumes' | 'networks'>,
+    change?: { volume: string; removed?: boolean }
+  ): Promise<void> {
+    try {
+      if (change?.removed) await this.snapshots.deleteDetails(nodeId, 'volume-detail', [change.volume]);
+      await this.refreshNow(nodeId, kind);
+      if (change && !change.removed) await this.refreshNow(nodeId, 'volume-detail', change.volume);
+    } catch (error) {
+      logger.debug('Docker resource read-back failed', {
+        nodeId,
+        kind,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
    * Reads a container back from its node now: the container list and its cached inspect under each of `keys` (the
    * request's reference and the name). A lifecycle request calls it before it answers, so a read right after the
    * answer sees the new state. A failed read is left to the refresh the container's event queued.

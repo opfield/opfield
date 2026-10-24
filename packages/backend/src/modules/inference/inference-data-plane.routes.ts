@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import { container } from '@/container.js';
 import type { AppEnv } from '@/types.js';
 import { InferenceUsageService } from './accounting/inference-usage.service.js';
@@ -70,4 +71,7 @@ for (const { path, operation } of PROXY_PATHS) {
   inferenceDataPlaneRoutes.post(path, (c) => container.resolve(InferenceCoreProxyService).proxy(c, operation));
 }
 
-inferenceDataPlaneRoutes.all('*', (c) => inferenceErrorResponse(c, 404, 'not_found', 'Inference endpoint not found'));
+/** The data plane's own 404 for paths it does not serve; not an operation (mcp-rest-coverage-fallbacks.ts). */
+export const inferenceEndpointNotFoundHandler = (c: Context<AppEnv>) =>
+  inferenceErrorResponse(c, 404, 'not_found', 'Inference endpoint not found');
+inferenceDataPlaneRoutes.all('*', inferenceEndpointNotFoundHandler);

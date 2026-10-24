@@ -25,7 +25,8 @@ const DockerFilePathSchema = z
   .string()
   .min(1)
   .refine((path) => path.startsWith('/'), 'Path must be absolute')
-  .refine((path) => !path.split('/').includes('..'), "Path must not contain '..'");
+  .refine((path) => !path.split('/').includes('..'), "Path must not contain '..'")
+  .describe('Absolute path: starts with "/" and has no ".." segment');
 
 export const DockerGpuSelectionSchema = z
   .object({
@@ -402,6 +403,11 @@ export const LogQuerySchema = z.object({
 // File browse
 export const FileBrowseSchema = z.object({
   path: DockerFilePathSchema.default('/'),
+});
+
+/** A request about one file or one path to change: the path is required (a missing one is not the root). */
+export const FilePathSchema = z.object({
+  path: DockerFilePathSchema,
 });
 
 // File write

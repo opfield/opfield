@@ -100,6 +100,7 @@ import { inferenceManagementRoutes } from '@/modules/inference/inference.routes.
 import { inferenceAuthMiddleware } from '@/modules/inference/inference-auth.middleware.js';
 import { inferenceDataPlaneRoutes } from '@/modules/inference/inference-data-plane.routes.js';
 import { ingressGroupRoutes } from '@/modules/ingress-groups/ingress-group.routes.js';
+import { documentHostingRoutes } from '@/modules/integrations/hosting-api.docs.js';
 import { integrationsRoutes } from '@/modules/integrations/integrations.routes.js';
 import { licenseRoutes } from '@/modules/license/license.routes.js';
 import { loggingRouteRuntime } from '@/modules/logging/logging-route-runtime.js';
@@ -474,6 +475,13 @@ export interface OpfieldAppRuntime {
   wss: NodeWebSocket['wss'];
 }
 
+/**
+ * The JSON 404 for an API, auth or /.well-known/ path no route serves. Not an operation of its own: the MCP/REST
+ * coverage check (mcp-rest-coverage-check.ts) skips it.
+ */
+export const unknownApiPathHandler = (c: Context<AppEnv>) =>
+  c.json<ApiError>({ code: 'NOT_FOUND', message: `No API endpoint at ${c.req.method} ${c.req.path}` }, 404);
+
 export function createApp(): OpfieldAppRuntime {
   const app = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
@@ -507,6 +515,13 @@ export function createApp(): OpfieldAppRuntime {
   app.use('*', loggerMiddleware);
   app.use('*', securityHeadersMiddleware);
   app.use('*', emptyJsonBodyMiddleware);
+  // Every event stream passes reverse proxies (nginx, the Root Ingress) unbuffered: a small first event (an empty
+  // monitoring history) otherwise waits in the proxy buffer and the page never leaves its loading state.
+  app.use('*', async (c, next) => {
+    await next();
+    if (c.res.headers.get('content-type')?.startsWith('text/event-stream'))
+      c.res.headers.set('X-Accel-Buffering', 'no');
+  });
   app.use('*', async (c, next) => {
     const requestHost = normalizeRequestHost(c.req.header('host'));
     const publicUrl = await getCanonicalPublicUrl();
@@ -882,6 +897,8 @@ export function createApp(): OpfieldAppRuntime {
   app.route('/api/ui', uiBootstrapRoutes);
   app.route('/api/housekeeping', housekeepingRoutes);
   app.route('/api/settings/environment', environmentSettingsRoutes);
+  // The hosting routes are plain routes: their operations reach the OpenAPI document from hosting-api.docs.ts.
+  documentHostingRoutes(hostingIntegrationRoutes, hostingRoutes);
   app.route('/api/integrations/hosting', hostingIntegrationRoutes);
   app.route('/api/hosting', hostingRoutes);
   app.route('/api/integrations', integrationsRoutes);
@@ -1165,13 +1182,11 @@ export function createApp(): OpfieldAppRuntime {
   );
 
   // Every API and auth route is registered above: an unknown path there is a JSON 404, never the SPA below.
-  const unknownApiPath = (c: Context<AppEnv>) =>
-    c.json<ApiError>({ code: 'NOT_FOUND', message: `No API endpoint at ${c.req.method} ${c.req.path}` }, 404);
-  app.all('/api/*', unknownApiPath);
-  app.all('/auth/*', unknownApiPath);
+  app.all('/api/*', unknownApiPathHandler);
+  app.all('/auth/*', unknownApiPathHandler);
   // The same for /.well-known/: clients probe there (OAuth discovery, the removed companion endpoints) and must get a
   // 404 for a document Opfield does not publish, not the Console page with 200.
-  app.all('/.well-known/*', unknownApiPath);
+  app.all('/.well-known/*', unknownApiPathHandler);
 
   // In production, serve the frontend SPA
   const statusPublicDir = resolve(process.cwd(), 'status-public');

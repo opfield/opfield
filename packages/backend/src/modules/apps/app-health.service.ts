@@ -31,6 +31,8 @@ import { certificateMemberHealths } from './app-certificate-health.js';
 import {
   assessEnvironment,
   CERT_WARNING_DAYS,
+  CRASH_LOOP_RESTARTS,
+  CRASH_LOOP_WINDOW_MS,
   type MemberAssessment,
   type MemberHealth,
   type MemberSignal,
@@ -118,10 +120,18 @@ export function containerState(
   state: string | null | undefined,
   check: string | null | undefined,
   runtime: ContainerRuntimeState = {},
-  recentRestarts: number | null = null
+  recentRestarts: number | null = null,
+  loopRestarts: number | null = null
 ): MemberAssessment {
   const current = String(state ?? '').toLowerCase();
   if (current === 'running') {
+    // Restarted by Docker again and again: running between its crashes, but in a restart loop.
+    if (loopRestarts !== null && loopRestarts >= CRASH_LOOP_RESTARTS) {
+      return {
+        health: 'failing',
+        reason: `In a restart loop: ${loopRestarts} restarts in the last ${CRASH_LOOP_WINDOW_MS / 60_000} minutes`,
+      };
+    }
     if (check === 'unknown') return { health: 'none', neutral: 'starting' };
     const fromCheck = healthFromStatus(check);
     if (fromCheck === 'failing') return { health: 'failing', reason: 'Its health check fails' };
@@ -163,7 +173,8 @@ export function deploymentState(
   status: string | null | undefined,
   check: string | null | undefined,
   slot?: ContainerRuntimeState | null,
-  recentRestarts: number | null = null
+  recentRestarts: number | null = null,
+  loopRestarts: number | null = null
 ): MemberAssessment {
   switch (status) {
     case 'stopped':
@@ -171,7 +182,7 @@ export function deploymentState(
     case 'deleting':
       return { health: 'none' };
     case 'ready':
-      return containerState(slot?.state || 'running', check, slot ?? {}, recentRestarts);
+      return containerState(slot?.state || 'running', check, slot ?? {}, recentRestarts, loopRestarts);
     case 'creating':
     case 'deploying':
     case 'switching':
@@ -262,9 +273,13 @@ function numberOf(value: unknown): number | null {
 }
 
 /** Restarts of a workload within the last REPEATED_RESTARTS_WINDOW_MS from its samples (a new runtime counts from 0). */
-export function recentRestartsOf(samples: readonly WorkloadSample[], now = Date.now()): number | null {
+export function recentRestartsOf(
+  samples: readonly WorkloadSample[],
+  now = Date.now(),
+  windowMs = REPEATED_RESTARTS_WINDOW_MS
+): number | null {
   const recent = samples
-    .filter((sample) => sample.at >= now - REPEATED_RESTARTS_WINDOW_MS && sample.restartCount !== null)
+    .filter((sample) => sample.at >= now - windowMs && sample.restartCount !== null)
     .sort((left, right) => left.at - right.at);
   if (recent.length === 0) return null;
   let total = 0;
@@ -694,6 +709,8 @@ export class AppHealthService implements AppHealthProvider {
       [...managedDatabases, ...managedStorages].filter((row) => row.id).map((row) => [row.id!, row.updatedAt])
     );
     const restartsOf = (member: AppMember) => recentRestartsOf(restartSamples[workloads.indexOf(member)] ?? [], now);
+    const loopRestartsOf = (member: AppMember) =>
+      recentRestartsOf(restartSamples[workloads.indexOf(member)] ?? [], now, CRASH_LOOP_WINDOW_MS);
     // A node offline past NODE_UNREACHABLE_AFTER_MS: what its last snapshot said is no longer the member's state.
     const unreachable = new Set(
       nodeRows
@@ -788,7 +805,7 @@ export class AppHealthService implements AppHealthProvider {
             runtimeName: slot?.containerName ?? null,
             runtimeId: stats?.id ?? null,
             hasHealthCheck: checkRow !== undefined,
-            ...deploymentState(row?.status, checkRow?.healthStatus, stats, restartsOf(member)),
+            ...deploymentState(row?.status, checkRow?.healthStatus, stats, restartsOf(member), loopRestartsOf(member)),
             cpuPercent: stats?.cpuPercent ?? null,
             memoryBytes: stats?.memoryBytes ?? null,
             memoryLimitBytes: stats?.memoryLimitBytes ?? null,
@@ -804,7 +821,7 @@ export class AppHealthService implements AppHealthProvider {
             runtimeName: member.id,
             runtimeId: stats?.id ?? null,
             hasHealthCheck: checkRow !== undefined,
-            ...containerState(stats?.state, checkRow?.healthStatus, stats, restartsOf(member)),
+            ...containerState(stats?.state, checkRow?.healthStatus, stats, restartsOf(member), loopRestartsOf(member)),
             cpuPercent: stats?.cpuPercent ?? null,
             memoryBytes: stats?.memoryBytes ?? null,
             memoryLimitBytes: stats?.memoryLimitBytes ?? null,

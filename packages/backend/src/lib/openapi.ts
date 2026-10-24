@@ -199,6 +199,21 @@ export const createdJson = (schema: z.ZodTypeAny = UnknownDataResponseSchema) =>
   },
 });
 
+/**
+ * A `text/event-stream` answer. The stream stays open until the client disconnects: it never completes on its own, so
+ * a client must read events as they arrive instead of waiting for the end of the body.
+ */
+export const eventStreamResponse = (description: string) => ({
+  200: {
+    description,
+    content: {
+      'text/event-stream': {
+        schema: z.string().openapi({ description: 'Server-sent events (`event:` and `data:` lines, JSON data)' }),
+      },
+    },
+  },
+});
+
 export const noContent = {
   204: {
     description: 'No content',
@@ -612,4 +627,5 @@ export const tags = [
   { name: 'Monitoring', description: 'Dashboard, health, log, and nginx monitoring' },
   { name: 'Setup', description: 'Initial setup and bootstrap operations' },
   { name: 'Notifications', description: 'Notification webhooks and alert rules' },
+  { name: 'Hosting', description: 'Hosting connectors, ordered servers and their operations' },
 ];

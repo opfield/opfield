@@ -27,6 +27,44 @@ const dimensions = [
   ['diskGb', 'maxDiskGb'],
 ] as const;
 
+const LIMIT_KEYS = dimensions.map(([, key]) => key);
+
+/** Settings without the Proxmox resource limits: limits are policy read at reservation, not connection identity. */
+export function withoutProxmoxLimits<T extends { proxmox?: HostingProxmoxProfile | null }>(settings: T): T {
+  if (!settings.proxmox) return settings;
+  const proxmox = Object.fromEntries(
+    Object.entries(settings.proxmox).filter(([key]) => !(LIMIT_KEYS as readonly string[]).includes(key))
+  ) as HostingProxmoxProfile;
+  return { ...settings, proxmox };
+}
+
+/**
+ * Managed resources the provider confirmed destroyed: absent from the inventory (missingSince) after a delete of this
+ * exact incarnation reported providerDeleted. The delete operation may still be waiting to remove the node records
+ * (phase unknown): the VM is gone either way and holds no allocation.
+ */
+export function confirmedDeletedResourceIds(
+  resources: Pick<Resource, 'id' | 'missingSince' | 'incarnation'>[],
+  operations: Pick<Operation, 'action' | 'phase' | 'resourceId' | 'result'>[]
+): Set<string> {
+  const deleted = new Set<string>();
+  for (const resource of resources) {
+    if (!resource.missingSince || !resource.incarnation) continue;
+    if (
+      operations.some(
+        (operation) =>
+          operation.action === 'delete' &&
+          operation.phase !== 'failed' &&
+          operation.resourceId === resource.id &&
+          operation.result?.providerDeleted === true &&
+          operation.result.deletedIncarnation === resource.incarnation
+      )
+    )
+      deleted.add(resource.id);
+  }
+  return deleted;
+}
+
 export function assertProxmoxQuota(
   profile: HostingProxmoxProfile,
   resources: Resource[],
@@ -34,6 +72,7 @@ export function assertProxmoxQuota(
   candidate: Vector,
   resizingId?: string
 ) {
+  const deleted = confirmedDeletedResourceIds(resources, operations);
   for (const [dimension, limitKey] of dimensions) {
     const limit = profile[limitKey];
     if (limit === undefined) continue;
@@ -41,18 +80,7 @@ export function assertProxmoxQuota(
     for (const resource of resources) {
       // Discovery is inventory, not an allocation managed by this connector.
       if (resource.origin === 'discovered') continue;
-      const deleted =
-        resource.missingSince &&
-        resource.incarnation &&
-        operations.some(
-          (operation) =>
-            operation.action === 'delete' &&
-            operation.phase === 'ready' &&
-            operation.resourceId === resource.id &&
-            operation.result?.providerDeleted === true &&
-            operation.result.deletedIncarnation === resource.incarnation
-        );
-      if (deleted) continue;
+      if (deleted.has(resource.id)) continue;
       const value = resource.snapshot[dimension];
       allocations.set(resource.id, typeof value === 'number' && Number.isFinite(value) ? value : null);
     }
@@ -63,6 +91,8 @@ export function assertProxmoxQuota(
         (operation.phase === 'failed' && (operation.action === 'install' || !operation.dispatchStartedAt))
       )
         continue;
+      // A create or resize of a VM the provider has since destroyed holds nothing, whatever phase it ended in.
+      if (operation.resourceId && deleted.has(operation.resourceId)) continue;
       const value = operation.request[dimension];
       if (typeof value !== 'number') continue;
       const key =

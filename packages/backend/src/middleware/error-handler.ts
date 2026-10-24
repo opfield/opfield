@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
 import { logger } from '@/lib/logger.js';
 import { isNodeConnectionError } from '@/lib/node-connection-error.js';
+import { redactQueryError } from '@/lib/query-error-redaction.js';
 import { InferenceProtocolError } from '@/modules/inference/protocol/inference-protocol.error.js';
 import type { AppEnv } from '@/types.js';
 
@@ -251,16 +252,18 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
     );
   }
 
+  // A failed query's message carries its bound values: credential-like ones are redacted (lib/query-error-redaction.ts).
+  const safeError = redactQueryError(err);
   logger.error('Unhandled error', {
     requestId,
     error:
-      err instanceof Error
+      safeError instanceof Error
         ? {
-            name: err.name,
-            message: err.message,
-            stack: err.stack,
+            name: safeError.name,
+            message: safeError.message,
+            stack: safeError.stack,
           }
-        : err,
+        : safeError,
   });
 
   const isProduction = process.env.NODE_ENV === 'production';
@@ -268,7 +271,11 @@ export const errorHandler: ErrorHandler<AppEnv> = async (err, c) => {
   return c.json<ApiError>(
     {
       code: 'INTERNAL_ERROR',
-      message: isProduction ? 'An unexpected error occurred' : err instanceof Error ? err.message : 'Unknown error',
+      message: isProduction
+        ? 'An unexpected error occurred'
+        : safeError instanceof Error
+          ? safeError.message
+          : 'Unknown error',
     },
     500
   );

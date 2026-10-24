@@ -21,6 +21,7 @@ import {
 import {
   FileBrowseSchema,
   FileMoveSchema,
+  FilePathSchema,
   FileUploadChunkQuerySchema,
   FileUploadCompleteSchema,
   FileUploadInitSchema,
@@ -111,7 +112,7 @@ nodesRoutes.use('*', authMiddleware);
 const NODE_FILE_LIST_MAX = 1000;
 
 async function parseFileContentRequest(c: Parameters<Parameters<OpenAPIHono<AppEnv>['openapi']>[1]>[0]) {
-  const path = FileBrowseSchema.parse(c.req.query()).path;
+  const path = FilePathSchema.parse(c.req.query()).path;
   const content = Buffer.from(await c.req.arrayBuffer());
   return { path, content };
 }
@@ -510,7 +511,7 @@ nodesRoutes.openapi(
   async (c) => {
     const service = container.resolve(NodesService);
     const id = c.req.param('id')!;
-    const { path } = FileBrowseSchema.parse(c.req.query());
+    const { path } = FilePathSchema.parse(c.req.query());
     const data = await service.readFile(id, path, c.get('user')!.id);
     return new Response(new Uint8Array(data), {
       status: 200,
@@ -600,7 +601,7 @@ nodesRoutes.openapi(
     const service = container.resolve(NodesService);
     const id = c.req.param('id')!;
     const user = c.get('user')!;
-    const { path } = FileBrowseSchema.parse(await c.req.json());
+    const { path } = FilePathSchema.parse(await c.req.json());
     await service.createDirectory(id, path, user.id);
     return c.json({ success: true });
   }
@@ -612,7 +613,7 @@ nodesRoutes.openapi(
     const service = container.resolve(NodesService);
     const id = c.req.param('id')!;
     const user = c.get('user')!;
-    const { path } = FileBrowseSchema.parse(c.req.query());
+    const { path } = FilePathSchema.parse(c.req.query());
     await service.deleteFile(id, path, user.id);
     return c.json({ success: true });
   }

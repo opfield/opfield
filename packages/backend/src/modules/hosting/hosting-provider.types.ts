@@ -216,6 +216,8 @@ export interface HostingProviderOperation {
   resourceId?: string;
   status: 'pending' | 'running' | 'succeeded' | 'failed' | 'unknown' | 'awaiting_payment';
   error?: string;
+  /** The failed task ended before it changed anything, for a reason that clears by itself (a lock wait timed out). */
+  transient?: boolean;
   invoiceId?: string;
   preparationStage?: 'image' | 'seed' | 'disk' | 'boot' | 'firewall' | 'network' | 'start';
 }
@@ -305,6 +307,8 @@ export interface HostingProviderAdapter {
   ): Promise<void>;
   bootstrap?(resource: HostingResourceSnapshot, script: string): Promise<HostingProviderOperation>;
   guestIdentity?(resource: HostingResourceSnapshot): Promise<string | null>;
+  /** The result a reportResult bootstrap left in the guest, read through the guest agent; null while there is none. */
+  installResult?(resource: HostingResourceSnapshot): Promise<string | null>;
 }
 
 export function hostingCapabilities(

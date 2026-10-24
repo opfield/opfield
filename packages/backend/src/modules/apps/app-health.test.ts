@@ -134,6 +134,11 @@ describe('member states beyond running and exited', () => {
     expect(deploymentState('ready', 'unknown', { state: 'running' })).toMatchObject({ neutral: 'starting' });
     expect(containerState('running', 'online', {}, 3)).toMatchObject({ health: 'degraded' });
     expect(containerState('running', 'online', {}, 2).health).toBe('healthy');
+    // Restarted by Docker 3 times within 10 minutes (a process that crashes 20 s after each start): a restart loop.
+    expect(containerState('running', null, {}, 3, 3)).toMatchObject({ health: 'failing' });
+    expect(containerState('running', 'unknown', {}, 3, 3)).toMatchObject({ health: 'failing' });
+    expect(deploymentState('ready', null, { state: 'running' }, 4, 4)).toMatchObject({ health: 'failing' });
+    expect(containerState('running', null, {}, 3, 2)).toMatchObject({ health: 'degraded' });
     const samples = [0, 1, 2, 3].map((index) => ({
       at: now - (40 - index * 10) * minute,
       healthy: true,

@@ -40,6 +40,8 @@ export const createObjectStorageConnectionRoute = appRoute({
   path: '/',
   tags: [TAG],
   summary: 'Create an object storage connection',
+  description:
+    'Required by provider (400 VALIDATION_ERROR otherwise): an S3 provider (aws and every other S3-compatible one) needs config.region, config.accessKeyId and config.secretAccessKey; ftp and ftps need config.host and config.username (an empty password is allowed for anonymous servers); sftp needs config.host, config.username, config.hostKeyFingerprint (SHA256:...) and config.password or config.privateKey.',
   request: jsonBody(CreateObjectStorageConnectionSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });

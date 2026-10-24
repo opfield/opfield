@@ -143,9 +143,10 @@ export function requireDockerContainerScope(
               }
             : undefined
         );
-      } catch (error) {
+      } catch (caught) {
+        const error = service.busyWhileTransitioning(nodeId, identifier, caught);
         const removed =
-          options.removedContainerSource && isMissingContainerError(error)
+          error === caught && options.removedContainerSource && isMissingContainerError(error)
             ? await findRemovedContainerSource(nodeId, identifier)
             : null;
         if (!removed) throw error;

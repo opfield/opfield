@@ -9,16 +9,12 @@ import { RELEASE_VERSION_PATTERN } from '@/lib/semver.js';
 import { AppError } from '@/middleware/error-handler.js';
 import { assertNotImpersonating, authMiddleware, requireScope } from '@/modules/auth/auth.middleware.js';
 import { readStatusPageUpstream } from '@/modules/cloud-link/cloud-link-status-page-upstream.js';
-import { entitlementsIncludeFeature } from '@/modules/license/license-features.js';
-import { LicensePolicyService } from '@/modules/license/license-policy.service.js';
-import { LoggingFeatureService } from '@/modules/logging/logging-feature.service.js';
 import {
   browserHostOpfield,
   managedConsoleHostOpfield,
   relayReenrollmentInstallation,
 } from '@/modules/nodes/node-installer.js';
 import { NodesService } from '@/modules/nodes/nodes.service.js';
-import { GeneralSettingsService } from '@/modules/settings/general-settings.service.js';
 import { dispatchNodeDaemonUpdate } from '@/services/daemon-node-update.js';
 import { DaemonUpdateService } from '@/services/daemon-update.service.js';
 import { DaemonUpdateRollout } from '@/services/daemon-update-rollout.service.js';
@@ -37,18 +33,22 @@ import {
   performRelayUpdateRoute,
   performSystemUpdateRoute,
   proceedSystemUpdateRoute,
+  relayPoolRouteDocs,
   releaseNotesForVersionRoute,
   releaseNotesRoute,
   systemConfigRoute,
   systemVersionRoute,
   updateDaemonRoute,
 } from './system.docs.js';
+import { readSystemConfigView } from './system-config-view.js';
 
 const logger = createChildLogger('SystemRoutes');
 
 export const systemRoutes = new OpenAPIHono<AppEnv>({ defaultHook: openApiValidationHook });
 
 systemRoutes.use('*', authMiddleware);
+// The relay pool routes below are plain routes; their operations are documented in system.docs.ts.
+for (const route of relayPoolRouteDocs) systemRoutes.openAPIRegistry.registerPath(route);
 
 function requireUpdateScope(c: any) {
   if (!hasScope(c.get('effectiveScopes') || [], 'admin:update')) {
@@ -65,32 +65,7 @@ systemRoutes.openapi(systemVersionRoute, async (c) => {
 });
 
 systemRoutes.openapi(systemConfigRoute, async (c) => {
-  const service = container.resolve(GeneralSettingsService);
-  const loggingFeature = container.resolve(LoggingFeatureService);
-  const [config, license] = await Promise.all([
-    service.getConfig(),
-    container.resolve(LicensePolicyService).getSummary(),
-  ]);
-  const canViewOpfieldSettings = hasScope(c.get('effectiveScopes') || [], 'settings:opfield:view');
-  return c.json({
-    data: {
-      fileUploadMaxBytes: config.fileUploadMaxBytes,
-      fileOpenMaxBytes: config.fileOpenMaxBytes,
-      grpcPublicTarget: canViewOpfieldSettings ? config.grpcPublicTarget : null,
-      grpcLocalIp: canViewOpfieldSettings ? config.grpcLocalIp : null,
-      relayAutoRecovery: canViewOpfieldSettings ? config.relayAutoRecovery : false,
-      ...(canViewOpfieldSettings ? { relay: config.relay } : {}),
-      features: {
-        ...config.features,
-        // The switches default to on; a plan without the feature reports them off.
-        pkiEnabled:
-          config.features.pkiEnabled && entitlementsIncludeFeature(license.entitlements.features, 'internal-pki'),
-        siemEnabled:
-          config.features.siemEnabled && entitlementsIncludeFeature(license.entitlements.features, 'siem-export'),
-        loggingEnabled: loggingFeature.isEnabled(),
-      },
-    },
-  });
+  return c.json({ data: await readSystemConfigView(c.get('effectiveScopes') || []) });
 });
 
 // The status page upstream as it is in use, for the read-only field of a managed cloud installation.

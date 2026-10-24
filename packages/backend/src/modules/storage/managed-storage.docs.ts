@@ -209,6 +209,8 @@ export const listManagedStorageBindingsRoute = appRoute({
   path: '/{id}/bindings',
   tags: [TAG],
   summary: 'List managed object storage bindings',
+  description:
+    "observedState says whether the link reached the workload's runtime: active once the running workload carries it (for a container: the link network and every link variable in its environment, checked on the container), target_applied while it is saved but not run yet (never started, stopped, or its rollout pending), preparing or error otherwise. A link saved while its workload's node was offline stays creating (lastError says so) and is set up when the node reconnects.",
   request: { params: IdParamSchema },
   responses: okJson(UnknownListResponseSchema),
 });

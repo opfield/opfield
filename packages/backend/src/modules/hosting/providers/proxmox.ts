@@ -1,6 +1,7 @@
 import { X509Certificate } from 'node:crypto';
 import { isAlwaysBlockedOutboundIp, normalizeIp } from '@/lib/ip-cidr.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { HOSTING_INSTALL_RESULT_FILE } from '../hosting-bootstrap.js';
 import {
   type HostingHttp,
   HostingHttpClient,
@@ -28,7 +29,7 @@ import {
   type HostingResourceSnapshot,
   hostingCapabilities,
 } from '../hosting-provider.types.js';
-import { assertProxmoxSeedRuntime, buildProxmoxSeed } from '../proxmox-seed.js';
+import { assertProxmoxSeedRuntime, buildProxmoxSeed, GUEST_RUN_PATH } from '../proxmox-seed.js';
 import { ProxmoxFirewallAdapter } from './proxmox-firewall.js';
 
 interface PveResource {
@@ -96,6 +97,25 @@ interface PveNetwork {
   active?: number;
 }
 const part = encodeURIComponent;
+/**
+ * A lock wait that timed out ("can't lock file '/var/lock/...' - got timeout") ends the task before it changed the VM
+ * or the storage: Proxmox takes the config and storage locks first. Parallel tasks on one host hit it.
+ */
+const PROXMOX_LOCK_TIMEOUT = /can't lock file .* got timeout|got timeout.*lock|unable to (?:get|acquire) lock/i;
+export function proxmoxTaskFailure(
+  exitstatus: string | undefined
+): Pick<HostingProviderOperation, 'error' | 'transient'> {
+  // exitstatus carries the task's last error line; keep it readable and bounded.
+  const detail = (exitstatus ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/[^\x20-\x7e]/g, '')
+    .trim()
+    .slice(0, 300);
+  return {
+    error: detail ? `Proxmox task failed: ${detail}` : 'Proxmox task failed without an error message',
+    ...(PROXMOX_LOCK_TIMEOUT.test(detail) ? { transient: true } : {}),
+  };
+}
 const mb = (value: number | undefined) => (value === undefined ? null : Math.round(value / 1024 ** 2));
 const gb = (value: number | undefined) => (value === undefined ? null : Math.round(value / 1024 ** 3));
 
@@ -1266,6 +1286,7 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
     const status = await this.request<{ status: string; exitstatus?: string }>(
       `/nodes/${part(node)}/tasks/${part(id)}/status`
     );
+    const failed = status.status === 'stopped' && status.exitstatus !== 'OK';
     return {
       id,
       resourceId,
@@ -1277,10 +1298,7 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
             : status.exitstatus === 'OK'
               ? 'succeeded'
               : 'failed',
-      error:
-        status.status === 'stopped' && status.exitstatus !== 'OK'
-          ? 'Proxmox task failed; inspect its task log'
-          : undefined,
+      ...(failed ? proxmoxTaskFailure(status.exitstatus) : {}),
     };
   }
 
@@ -1303,6 +1321,21 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
     return null;
   }
 
+  async installResult(resource: HostingResourceSnapshot): Promise<string | null> {
+    if (resource.kind !== 'vm' || !resource.capabilities.guestIdentity.available || resource.powerState !== 'running')
+      return null;
+    try {
+      const data = await this.request<{ content: string }>(`${this.base(resource)}/agent/file-read`, {
+        query: { file: HOSTING_INSTALL_RESULT_FILE },
+      });
+      return typeof data.content === 'string' ? data.content.slice(0, 16384) : null;
+    } catch (error) {
+      // No file yet, or the guest agent is not up: the installer is still running or never started.
+      if (error instanceof HostingProviderError) return null;
+      throw error;
+    }
+  }
+
   async bootstrap(resource: HostingResourceSnapshot, script: string): Promise<HostingProviderOperation> {
     if (resource.kind !== 'vm' || !resource.capabilities.bootstrap.available)
       throw new AppError(409, 'HOSTING_GUEST_AGENT_REQUIRED', 'QEMU Guest Agent is required');
@@ -1310,7 +1343,15 @@ export class ProxmoxHostingAdapter implements HostingProviderAdapter {
       throw new AppError(400, 'HOSTING_BOOTSTRAP_TOO_LARGE', 'Bootstrap script is too large');
     const data = await this.request<{ pid: number }>(`${this.base(resource)}/agent/exec`, {
       method: 'POST',
-      body: { command: ['/bin/bash', '-s'], 'input-data': script },
+      // Through the guest-run wrapper when the VM has it (Opfield-created; unconfined on SELinux images), else bash.
+      body: {
+        command: [
+          '/bin/sh',
+          '-c',
+          `if [ -x ${GUEST_RUN_PATH} ]; then exec ${GUEST_RUN_PATH} -s; fi; exec /bin/bash -s`,
+        ],
+        'input-data': script,
+      },
     });
     if (!Number.isInteger(data.pid)) return { id: null, resourceId: resource.remoteId, status: 'unknown' };
     return {

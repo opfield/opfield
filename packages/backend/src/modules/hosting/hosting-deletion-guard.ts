@@ -14,6 +14,8 @@ import { computeEffectiveUserAccess } from '@/modules/auth/live-session-user.js'
 import type { HostingConnectorRow } from './hosting-connectors.service.js';
 import type { HostingOperationRow } from './hosting-operations.service.js';
 import { assertHostingResourceAction, assertHostingScope } from './hosting-permissions.js';
+import type { HostingSettings } from './hosting-provider.types.js';
+import { withoutProxmoxLimits } from './proxmox-quota.js';
 
 export interface HostingDeletionTarget {
   operation: HostingOperationRow;
@@ -72,7 +74,9 @@ export async function lockHostingDeletion(
     connector.updatedAt.getTime() !== target.connector.updatedAt.getTime() ||
     connector.encryptedToken !== target.connector.encryptedToken ||
     connector.baseUrl !== target.connector.baseUrl ||
-    JSON.stringify(connector.settings) !== JSON.stringify(target.connector.settings)
+    // A resource limit change (it keeps updatedAt) does not change which VM or account is deleted.
+    JSON.stringify(withoutProxmoxLimits(connector.settings as HostingSettings)) !==
+      JSON.stringify(withoutProxmoxLimits(target.connector.settings as HostingSettings))
   )
     throw new AppError(409, 'HOSTING_RESOURCE_IDENTITY_CONFLICT', 'The hosting connection changed during deletion');
   const [resource] = await tx

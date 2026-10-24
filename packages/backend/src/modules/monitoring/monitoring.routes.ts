@@ -6,6 +6,7 @@ import type { DrizzleClient } from '@/db/client.js';
 import { nodes, proxyHosts } from '@/db/schema/index.js';
 import { openApiValidationHook } from '@/lib/openapi.js';
 import { getResourceScopedIds, hasScope, hasScopeBase } from '@/lib/permissions.js';
+import { AppsService } from '@/modules/apps/apps.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { authMiddleware, requireScopeForResource } from '@/modules/auth/auth.middleware.js';
 import { AuthSettingsService } from '@/modules/auth/auth.settings.service.js';
@@ -67,6 +68,7 @@ import {
 } from './monitoring.docs.js';
 import { MonitoringService } from './monitoring.service.js';
 import {
+  appNavigationAttention,
   healthNavigationAttention,
   nodeNavigationAttention,
   statusPageNavigationAttention,
@@ -450,6 +452,13 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
           // Optional indicator: a failing read must not take the dashboard down.
           .catch(() => [])
       : Promise.resolve([]);
+  // The Apps list badge of each visible app (its production environment); the list applies the caller's visibility.
+  const appNavigationHealthPromise = container
+    .resolve(AppsService)
+    .list(scopes)
+    .then((rows) => rows.map((app) => app.health))
+    // Optional indicator: a failing read must not take the dashboard down.
+    .catch(() => []);
   const dockerNavigationHealthPromise = hasScopeBase(scopes, 'docker:containers:view')
     ? container
         .resolve(DockerHealthCheckService)
@@ -708,6 +717,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     license,
     statusPageIncidents,
     unpricedInference,
+    appNavigationHealth,
   ] = await Promise.all([
     statsPromise,
     healthPromise,
@@ -734,6 +744,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
     licensePromise,
     statusPageIncidentsPromise,
     unpricedInferencePromise,
+    appNavigationHealthPromise,
   ]);
   const now = Date.now();
   const nodeCardIds = nodeResponse.data
@@ -962,6 +973,7 @@ monitoringRoutes.openapi(dashboardBootstrapRoute, async (c) => {
         ),
         docker: healthNavigationAttention(dockerNavigationHealth),
         'status-page': statusPageNavigationAttention(statusPageIncidents),
+        apps: appNavigationAttention(appNavigationHealth),
       },
     },
   });

@@ -25,7 +25,12 @@ import { DEFAULT_RELAY_SERVICE_PORT } from '@/services/relay-service-endpoint.js
 import type { ResourceSnapshotStore } from '@/services/resource-snapshot.store.js';
 import type { User } from '@/types.js';
 import { type HostingProvisionInput, HostingProvisionSchema } from './hosting.schemas.js';
-import { buildHostingBootstrap, validateHostingOpfieldAddress } from './hosting-bootstrap.js';
+import {
+  buildHostingBootstrap,
+  hostingInstallFailureMessage,
+  parseHostingInstallResult,
+  validateHostingOpfieldAddress,
+} from './hosting-bootstrap.js';
 import type { HostingConnectorRow, HostingConnectorsService } from './hosting-connectors.service.js';
 import { compareHostingDecimal } from './hosting-decimal.js';
 import { HostingProviderError } from './hosting-http.js';
@@ -36,6 +41,7 @@ import {
   type HostingOperationRow,
   type HostingOperationsService,
   publicHostingOperation,
+  transientTaskRetry,
 } from './hosting-operations.service.js';
 import { assertHostingScope } from './hosting-permissions.js';
 import type {
@@ -344,6 +350,8 @@ export class HostingProvisioningService {
           relayServicePort,
           requireCleanHost: !existing,
           operationMarker: `gw-${operationId}`,
+          // Cloud-init runs this installer unobserved; Opfield reads its result through the guest agent.
+          reportResult: connector.provider === 'proxmox' && !existing && Boolean(proxmoxProfile?.imageStorage),
         });
         const payload: BootstrapPayload = {
           script,
@@ -1117,7 +1125,31 @@ export class HostingProvisioningService {
         return;
       }
     }
-    if (!resource) return;
+    if (!resource) {
+      // The provider create task itself failed and no VM exists: retry a lock timeout, otherwise fail with its error.
+      if (
+        connector.provider === 'proxmox' &&
+        row.action === 'create' &&
+        !row.resourceId &&
+        row.providerOperation?.id &&
+        !row.providerOperation.preparationStage
+      ) {
+        const task = await adapter.operation(row.providerOperation.id, row.providerOperation.resourceId);
+        if (task.status !== 'failed') return;
+        const retried = transientTaskRetry(row, task);
+        if (retried) {
+          await this.operations.update(row, { ...retried, phase: 'pending' });
+          return;
+        }
+        // A failed create task with no VM reserved nothing at the provider: release its quota and VM ID.
+        row = await this.operations.update(row, { dispatchStartedAt: null });
+        await this.sshInstall.finish(adapter, row, 'failed', undefined, {
+          code: 'HOSTING_PROVIDER_TASK_FAILED',
+          message: `${task.error ?? 'Provider task failed'}. No VM was created.`,
+        });
+      }
+      return;
+    }
     if (!row.resourceId) {
       const tracked = await this.trackResource(row, connector, resource);
       if (row.action === 'create')
@@ -1201,6 +1233,14 @@ export class HostingProvisioningService {
       const completedStage = row.providerOperation.preparationStage;
       const task = await adapter.operation(row.providerOperation.id, resource.remoteId);
       if (task.status === 'failed') {
+        // A preparation step that timed out waiting for a host lock changed nothing: send the same step again.
+        if (completedStage && row.action === 'create') {
+          const retried = transientTaskRetry(row, task);
+          if (retried) {
+            await this.operations.update(row, { ...retried, phase: 'provisioning' });
+            return;
+          }
+        }
         await this.sshInstall.finish(
           adapter,
           row,
@@ -1260,7 +1300,25 @@ export class HostingProvisioningService {
     }
     if (row.phase === 'installing') {
       if (this.cloudInitOwnsInstallation(row, connector)) {
-        if (await this.enrollmentObserved(row)) await this.operations.update(row, { phase: 'enrolling' });
+        if (await this.enrollmentObserved(row)) {
+          await this.operations.update(row, { phase: 'enrolling' });
+          return;
+        }
+        // An installer that failed ends the operation with its own error; one that never reports ends at the
+        // bootstrap deadline (bootstrapExpiresAt, checked above on every pass).
+        const content = adapter.installResult ? await adapter.installResult(resource) : null;
+        const result = content ? parseHostingInstallResult(content) : null;
+        if (result && result.marker === `gw-${row.id}` && result.exitCode !== 0) {
+          if (row.nodeId)
+            await this.db
+              .update(nodes)
+              .set({ enrollmentTokenHash: null, enrollmentTokenSelector: null })
+              .where(and(eq(nodes.id, row.nodeId), eq(nodes.status, 'pending')));
+          await this.sshInstall.finish(adapter, row, 'failed', undefined, {
+            code: 'HOSTING_INSTALL_FAILED',
+            message: hostingInstallFailureMessage(result),
+          });
+        }
         return;
       }
       // Installer completion is not proof that the daemon has contacted Opfield.

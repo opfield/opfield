@@ -3,6 +3,7 @@ import {
   appRoute,
   createdJson,
   dataResponseSchema,
+  eventStreamResponse,
   IdParamSchema,
   jsonBody,
   okJson,
@@ -13,6 +14,7 @@ import {
 import {
   FileBrowseSchema,
   FileMoveSchema,
+  FilePathSchema,
   FileUploadChunkQuerySchema,
   FileUploadCompleteSchema,
   FileUploadInitSchema,
@@ -103,6 +105,9 @@ const CreateNodeResponseSchema = dataResponseSchema(
       }),
   })
 );
+
+const EVENT_STREAM_NOTE =
+  'The answer is a server-sent event stream (`text/event-stream`) that stays open until the client disconnects; it never completes on its own.';
 
 const LogQuerySchema = z.object({
   level: z.string().optional().openapi({ example: 'info,warn,error' }),
@@ -238,7 +243,7 @@ export const readNodeFileRoute = appRoute({
   path: '/{id}/files/read',
   tags: ['Nodes'],
   summary: 'Read node file',
-  request: { params: IdParamSchema, query: FileBrowseSchema },
+  request: { params: IdParamSchema, query: FilePathSchema },
   responses: okJson(z.any()),
 });
 
@@ -247,7 +252,7 @@ export const writeNodeFileRoute = appRoute({
   path: '/{id}/files/write',
   tags: ['Nodes'],
   summary: 'Write node file',
-  request: { params: IdParamSchema, query: FileBrowseSchema },
+  request: { params: IdParamSchema, query: FilePathSchema },
   responses: successJson,
 });
 
@@ -256,8 +261,18 @@ export const createNodeFileRoute = appRoute({
   path: '/{id}/files/create',
   tags: ['Nodes'],
   summary: 'Create or overwrite node file',
-  request: { params: IdParamSchema, query: FileBrowseSchema },
+  request: { params: IdParamSchema, query: FilePathSchema },
   responses: successJson,
+});
+
+const NodeFileUploadSessionSchema = z.object({
+  uploadId: z.string().uuid().describe('Pass it to the chunk, complete and abort requests'),
+  chunkSize: z.number().int().describe('Bytes per chunk the upload expects'),
+});
+
+const NodeFileUploadProgressSchema = z.object({
+  receivedBytes: z.number().int(),
+  totalBytes: z.number().int(),
 });
 
 export const initNodeFileUploadRoute = appRoute({
@@ -265,8 +280,10 @@ export const initNodeFileUploadRoute = appRoute({
   path: '/{id}/files/uploads',
   tags: ['Nodes'],
   summary: 'Initialize node file upload',
+  description:
+    'Starts a chunked upload to an absolute `path` on the node. Send the chunks in order to `.../uploads/{uploadId}/chunks?offset=`, then complete it.',
   request: { params: IdParamSchema, ...jsonBody(FileUploadInitSchema) },
-  responses: okJson(UnknownDataResponseSchema),
+  responses: okJson(dataResponseSchema(NodeFileUploadSessionSchema)),
 });
 
 export const uploadNodeFileChunkRoute = appRoute({
@@ -275,7 +292,7 @@ export const uploadNodeFileChunkRoute = appRoute({
   tags: ['Nodes'],
   summary: 'Upload node file chunk',
   request: { params: IdParamSchema.merge(UploadIdParamSchema), query: FileUploadChunkQuerySchema },
-  responses: okJson(UnknownDataResponseSchema),
+  responses: okJson(dataResponseSchema(NodeFileUploadProgressSchema)),
 });
 
 export const completeNodeFileUploadRoute = appRoute({
@@ -301,7 +318,7 @@ export const createNodeDirectoryRoute = appRoute({
   path: '/{id}/files/directory',
   tags: ['Nodes'],
   summary: 'Create node directory',
-  request: { params: IdParamSchema, ...jsonBody(FileBrowseSchema) },
+  request: { params: IdParamSchema, ...jsonBody(FilePathSchema) },
   responses: successJson,
 });
 
@@ -310,7 +327,7 @@ export const deleteNodeFileRoute = appRoute({
   path: '/{id}/files',
   tags: ['Nodes'],
   summary: 'Delete node file or directory',
-  request: { params: IdParamSchema, query: FileBrowseSchema },
+  request: { params: IdParamSchema, query: FilePathSchema },
   responses: successJson,
 });
 
@@ -405,8 +422,9 @@ export const nodeMonitoringStreamRoute = appRoute({
   path: '/{id}/monitoring/stream',
   tags: ['Nodes'],
   summary: 'Stream node monitoring snapshots over SSE',
+  description: `${EVENT_STREAM_NOTE} Each \`snapshot\` event carries the node's current monitoring data.`,
   request: { params: IdParamSchema, query: MonitoringStreamQuerySchema },
-  responses: { 200: { description: 'Server-sent event stream' } },
+  responses: eventStreamResponse('Server-sent event stream of monitoring snapshots'),
 });
 
 export const nodeDaemonLogsRoute = appRoute({
@@ -414,8 +432,9 @@ export const nodeDaemonLogsRoute = appRoute({
   path: '/{id}/logs',
   tags: ['Nodes'],
   summary: 'Stream daemon logs for a node',
+  description: `${EVENT_STREAM_NOTE} It opens with a \`connected\` event (\`historyCount\`), then sends up to 300 buffered entries and every new entry as \`log\` events, and a \`ping\` every 30 s.`,
   request: { params: IdParamSchema, query: LogQuerySchema },
-  responses: { 200: { description: 'Server-sent event stream' } },
+  responses: eventStreamResponse('Server-sent event stream of daemon log entries'),
 });
 
 export const nodeNginxLogsRoute = appRoute({
@@ -429,5 +448,6 @@ export const nodeNginxLogsRoute = appRoute({
       hostId: z.string().optional(),
     }),
   },
-  responses: { 200: { description: 'Server-sent event stream' } },
+  description: `${EVENT_STREAM_NOTE} It sends the buffered nginx access and error log entries, then every new one.`,
+  responses: eventStreamResponse('Server-sent event stream of nginx log entries'),
 });

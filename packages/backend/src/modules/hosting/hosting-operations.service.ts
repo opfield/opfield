@@ -5,6 +5,7 @@ import { hostingFirewalls, hostingOperations, integrationConnectors, nodes } fro
 import { AppError } from '@/middleware/error-handler.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { User } from '@/types.js';
+import { acquireHostingFirewallLock } from './hosting-firewall-lock.js';
 import { assertHostingScope } from './hosting-permissions.js';
 import type { HostingOperationAction, HostingOperationPhase } from './hosting-provider.types.js';
 
@@ -58,6 +59,28 @@ export function publicHostingOperation(row: HostingOperationRow) {
     completedAt: row.completedAt,
     // Only service-authored public results are permitted. Credentials/provider dumps never enter result.
     result: row.result,
+  };
+}
+
+/** How often one operation sends a provider step again after it failed on a transient provider condition. */
+export const HOSTING_TRANSIENT_TASK_RETRIES = 3;
+
+/**
+ * The patch that sends the same provider step again after its task failed for a transient reason (a Proxmox lock wait
+ * timed out before the task changed anything), or null when the failure is final or the retries are used up. The
+ * caller sets the phase that re-dispatches the step; the same VM and request are reused, nothing new is ordered.
+ */
+export function transientTaskRetry(
+  row: Pick<HostingOperationRow, 'result'>,
+  task: { transient?: boolean; error?: string }
+): OperationPatch | null {
+  if (!task.transient) return null;
+  const retries = Number(row.result?.transientTaskRetries ?? 0);
+  if (!Number.isInteger(retries) || retries >= HOSTING_TRANSIENT_TASK_RETRIES) return null;
+  return {
+    providerOperation: null,
+    dispatchStartedAt: null,
+    result: { ...row.result, transientTaskRetries: retries + 1, lastTransientTaskError: task.error ?? null },
   };
 }
 
@@ -165,16 +188,14 @@ export class HostingOperationsService {
         .limit(1);
       if (sameIntent) return { operation: sameIntent, created: false };
       if (input.resourceId) {
-        const lock = await tx.execute<{ acquired: boolean }>(
-          sql`SELECT pg_try_advisory_xact_lock(hashtext(${`hosting-firewall:${input.resourceId}`})) AS acquired`
-        );
-        if (!lock.rows[0]?.acquired)
-          throw new AppError(409, 'HOSTING_FIREWALL_BUSY', 'Firewall is synchronizing; try again shortly');
+        // Waits out a firewall synchronization in progress (the periodic observation holds the lock for seconds).
+        await acquireHostingFirewallLock(tx, input.resourceId);
         const [firewall] = await tx
           .select()
           .from(hostingFirewalls)
           .where(eq(hostingFirewalls.resourceId, input.resourceId));
-        if (firewall?.status === 'pending' || firewall?.status === 'applying')
+        // A VM being deleted does not wait for firewall changes on it: the firewall worker finds it gone.
+        if (input.action !== 'delete' && (firewall?.status === 'pending' || firewall?.status === 'applying'))
           throw new AppError(
             409,
             'HOSTING_FIREWALL_BUSY',

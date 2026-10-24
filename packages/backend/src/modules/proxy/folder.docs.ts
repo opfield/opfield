@@ -90,11 +90,3 @@ export const deleteProxyFolderRoute = appRoute({
   request: { params: IdParamSchema },
   responses: successJson,
 });
-export const cloneProxyFolderRoute = appRoute({
-  method: 'post',
-  path: '/{id}/clone',
-  tags: ['Route Folders'],
-  summary: 'Clone a route folder',
-  request: { params: IdParamSchema },
-  responses: createdJson(UnknownDataResponseSchema),
-});

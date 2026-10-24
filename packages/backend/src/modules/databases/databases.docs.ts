@@ -306,6 +306,8 @@ export const listManagedDatabaseBindingsRoute = appRoute({
   path: '/managed/{id}/bindings',
   tags: ['Databases'],
   summary: 'List managed database bindings',
+  description:
+    "observedState says whether the link reached the workload's runtime: active once the running workload carries it (for a container: the link network and every link variable in its environment, checked on the container), target_applied while it is saved but not run yet (never started, stopped, or its rollout pending), preparing or error otherwise.",
   request: { params: IdParamSchema },
   responses: okJson(UnknownDataResponseSchema),
 });

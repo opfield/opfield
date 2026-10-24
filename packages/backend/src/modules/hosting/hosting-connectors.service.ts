@@ -29,6 +29,7 @@ import {
   isHostingProvider,
 } from './hosting-provider.types.js';
 import { parseIpv4Range, parseVmidRange } from './proxmox-pool.js';
+import { withoutProxmoxLimits } from './proxmox-quota.js';
 
 export type HostingAdapterFactory = (connection: HostingConnection) => HostingProviderAdapter;
 export type HostingConnectorRow = typeof integrationConnectors.$inferSelect;
@@ -82,6 +83,23 @@ function discoverySettings(
     return HostingSettingsSchema.parse(settings);
   }
   return HostingSettingsSchema.parse(merged);
+}
+
+function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as Partial<T>;
+}
+
+/** Key order and absent, null or empty-list members do not make two settings objects different. */
+function canonicalSettings(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalSettings);
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, nested]) => nested !== undefined && nested !== null && !(Array.isArray(nested) && !nested.length))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, nested]) => [key, canonicalSettings(nested)])
+    );
+  return value;
 }
 
 function sameDiscoveryTrust(left: HostingSettings, right: HostingSettings): boolean {
@@ -375,6 +393,7 @@ export class HostingConnectorsService {
     const settings = normalizedSettings(input.settings, input.provider);
     assertHostingAdoptionAuthority(user.scopes, settings);
     const previousSettings = this.settings(previous);
+    if (this.onlyLimitsChange(previous, input, settings)) return this.updateLimits(previous, input, settings, user);
     const canReuseSavedToken =
       !input.token && input.baseUrl === previous.baseUrl && sameDiscoveryTrust(settings, previousSettings);
     if (!input.token && !canReuseSavedToken)
@@ -435,11 +454,15 @@ export class HostingConnectorsService {
         .from(hostingOperations)
         .where(and(eq(hostingOperations.connectorId, id), notInArray(hostingOperations.phase, ['ready', 'failed'])))
         .limit(1);
+      // Running operations hold this connection: their next steps go to its endpoint with its token, into its pool,
+      // network and storage, and a destroy verifies the account it was ordered from. Resource limits and the name are
+      // not part of that and are saved at any time (onlyLimitsChange).
       if (active.length)
         throw new AppError(
           409,
           'HOSTING_OPERATION_ACTIVE',
-          'Wait for the current hosting operation before changing connection settings'
+          'Wait for the current hosting operations before changing the endpoint, token, TLS trust, placement or network. Resource limits and the name can be changed at any time.',
+          { operationId: active[0]!.id }
         );
       const duplicate = await tx
         .select({ id: integrationConnectors.id })
@@ -493,6 +516,78 @@ export class HostingConnectorsService {
     if (input.enabled) await this.initializeInventory?.(id);
     this.changed(id);
     return this.safe(await this.get(id, user));
+  }
+
+  /**
+   * Whether this update changes nothing but the Proxmox resource limits (and the display name): same provider,
+   * endpoint, token, enabled state and every other setting.
+   */
+  private onlyLimitsChange(
+    previous: HostingConnectorRow,
+    input: UpdateHostingConnectorInput,
+    settings: HostingSettings
+  ): boolean {
+    if (previous.provider !== 'proxmox' || input.baseUrl !== previous.baseUrl || input.enabled !== previous.enabled)
+      return false;
+    if (input.token && input.token !== this.crypto.decryptString(JSON.parse(previous.encryptedToken!))) return false;
+    const {
+      ownerId: _owner,
+      authority: _authority,
+      proxmoxAllocationAuthority: _allocation,
+      accountName: _account,
+      ...stored
+    } = this.settings(previous);
+    return (
+      JSON.stringify(canonicalSettings(withoutProxmoxLimits(stored))) ===
+      JSON.stringify(canonicalSettings(withoutProxmoxLimits(settings)))
+    );
+  }
+
+  /**
+   * Limits are read under the pool lock at each reservation, so they change without testing the connection and while
+   * operations run. updatedAt stays: it marks connection changes that running operations fence on.
+   */
+  private async updateLimits(
+    previous: HostingConnectorRow,
+    input: UpdateHostingConnectorInput,
+    settings: HostingSettings,
+    user: User
+  ) {
+    const limits = {
+      maxCpu: settings.proxmox?.maxCpu,
+      maxMemoryMb: settings.proxmox?.maxMemoryMb,
+      maxDiskGb: settings.proxmox?.maxDiskGb,
+    };
+    await this.db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(integrationConnectors)
+        .where(eq(integrationConnectors.id, previous.id))
+        .for('update');
+      if (!locked) throw new AppError(404, 'HOSTING_CONNECTOR_NOT_FOUND', 'Hosting integration not found');
+      if (
+        locked.updatedAt.getTime() !== previous.updatedAt.getTime() ||
+        JSON.stringify(withoutProxmoxLimits(this.settings(locked))) !==
+          JSON.stringify(withoutProxmoxLimits(this.settings(previous)))
+      )
+        throw new AppError(409, 'HOSTING_CONNECTOR_CHANGED', 'The integration changed meanwhile; reload and try again');
+      const stored = this.settings(locked);
+      const proxmox = { ...withoutProxmoxLimits(stored).proxmox!, ...stripUndefined(limits) };
+      await tx
+        .update(integrationConnectors)
+        .set({ name: input.name, settings: { ...stored, proxmox } as StoredHostingSettings })
+        .where(eq(integrationConnectors.id, previous.id));
+    });
+    await this.audit.log({
+      userId: user.id,
+      action: 'hosting.connector.update',
+      resourceType: 'integration-connector',
+      resourceId: previous.id,
+      details: { limits },
+    });
+    await this.invalidateSnapshot?.(previous.id);
+    this.changed(previous.id);
+    return this.safe(await this.get(previous.id, user));
   }
 
   async test(id: string, user: User) {

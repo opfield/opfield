@@ -138,3 +138,139 @@ export const updateDaemonRoute = appRoute({
   },
   responses: okJson(UnknownDataResponseSchema),
 });
+
+// ─── Relay pool (served by plain routes in system.routes.ts; documented here) ───────────────────────────────
+
+const RelayInstanceParamSchema = pathParamSchema('instanceId');
+const RelayConfirmSchema = z.object({ confirm: z.literal(true).describe('Must be true') });
+const RELAY_ADMIN = 'Needs admin:system.';
+const RELAY_POOL_ANSWER = 'Answers the relay pool snapshot after the change (the same data as GET /system/relay).';
+
+export const getRelayPoolRoute = appRoute({
+  method: 'get',
+  path: '/relay',
+  tags: ['System'],
+  summary: 'Get the relay pool',
+  description:
+    'The local relay supervisor state and, when the relay pool runs, every relay instance with its health, drain state, streams, port change and certificate. Needs settings:opfield:view.',
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const retryRelayRecoveryRoute = appRoute({
+  method: 'post',
+  path: '/relay/recovery',
+  tags: ['System'],
+  summary: 'Retry the local relay recovery',
+  description: `Starts the local relay's recovery again after it stopped. ${RELAY_ADMIN}`,
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const rebalanceRelayPoolRoute = appRoute({
+  method: 'post',
+  path: '/relay/rebalance',
+  tags: ['System'],
+  summary: 'Rebalance streams across the relay pool',
+  description: `Stages moving streams to the relays they belong on. 202 while a move is staging, 200 when nothing had to move. ${RELAY_ADMIN}`,
+  responses: {
+    ...okJson(UnknownDataResponseSchema),
+    202: {
+      description: 'A rebalance is staging',
+      content: { 'application/json': { schema: UnknownDataResponseSchema } },
+    },
+  },
+});
+
+export const drainRelayInstanceRoute = appRoute({
+  method: 'post',
+  path: '/relay/instances/{instanceId}/drain',
+  tags: ['System'],
+  summary: 'Drain a relay instance',
+  description: `New streams avoid the relay and its streams move to the others. ${RELAY_POOL_ANSWER} ${RELAY_ADMIN}`,
+  request: { params: RelayInstanceParamSchema, ...jsonBody(RelayConfirmSchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const resumeRelayInstanceRoute = appRoute({
+  method: 'post',
+  path: '/relay/instances/{instanceId}/resume',
+  tags: ['System'],
+  summary: 'Resume a drained relay instance',
+  description: `The relay takes new streams again. ${RELAY_POOL_ANSWER} ${RELAY_ADMIN}`,
+  request: { params: RelayInstanceParamSchema },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const forceDisconnectRelayInstanceRoute = appRoute({
+  method: 'post',
+  path: '/relay/instances/{instanceId}/force-disconnect',
+  tags: ['System'],
+  summary: 'Force-disconnect a relay instance',
+  description: `Cuts the relay's streams at once (they reconnect through other relays). ${RELAY_POOL_ANSWER} ${RELAY_ADMIN}`,
+  request: { params: RelayInstanceParamSchema, ...jsonBody(RelayConfirmSchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const updateRelayInstanceRoute = appRoute({
+  method: 'patch',
+  path: '/relay/instances/{instanceId}',
+  tags: ['System'],
+  summary: 'Change relay instance settings',
+  description: `Whether availability witnesses (database and storage sets) may run on this relay. Answers the relay instance. ${RELAY_ADMIN}`,
+  request: {
+    params: RelayInstanceParamSchema,
+    ...jsonBody(z.object({ witnessHostingAllowed: z.boolean() }).strict()),
+  },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const changeRelayServicePortRoute = appRoute({
+  method: 'post',
+  path: '/relay/instances/{instanceId}/service-port',
+  tags: ['System'],
+  summary: 'Move a remote relay to another TCP port',
+  description: `Runs in the background: the relay's streams leave, its supervisor restarts it on the port and it returns to the pool. 202 once it began; the instance's portChange follows it (a failure stays there). ${RELAY_ADMIN}`,
+  request: {
+    params: RelayInstanceParamSchema,
+    ...jsonBody(z.object({ servicePort: z.number().int().min(1).max(65535) }).strict()),
+  },
+  responses: {
+    202: {
+      description: 'The port change began',
+      content: { 'application/json': { schema: UnknownDataResponseSchema } },
+    },
+  },
+});
+
+export const reenrollRelayInstanceRoute = appRoute({
+  method: 'post',
+  path: '/relay/instances/{instanceId}/reenroll',
+  tags: ['System'],
+  summary: 'Issue a re-enrollment token for a remote relay',
+  description: `A single-use token and the installer command that repairs an enrolled remote relay. Refused while impersonating. ${RELAY_ADMIN}`,
+  request: { params: RelayInstanceParamSchema, ...jsonBody(RelayConfirmSchema) },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+export const renewRelayCertificateRoute = appRoute({
+  method: 'post',
+  path: '/relay/instances/{instanceId}/renew-certificate',
+  tags: ['System'],
+  summary: "Renew a remote relay's server certificate now",
+  description: `Instead of waiting for the hourly check. ${RELAY_POOL_ANSWER} ${RELAY_ADMIN}`,
+  request: { params: RelayInstanceParamSchema },
+  responses: okJson(UnknownDataResponseSchema),
+});
+
+/** The relay pool operations, for the OpenAPI document only: plain routes serve them. */
+export const relayPoolRouteDocs = [
+  getRelayPoolRoute,
+  retryRelayRecoveryRoute,
+  rebalanceRelayPoolRoute,
+  drainRelayInstanceRoute,
+  resumeRelayInstanceRoute,
+  forceDisconnectRelayInstanceRoute,
+  updateRelayInstanceRoute,
+  changeRelayServicePortRoute,
+  reenrollRelayInstanceRoute,
+  renewRelayCertificateRoute,
+];

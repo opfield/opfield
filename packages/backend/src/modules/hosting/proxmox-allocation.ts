@@ -4,6 +4,7 @@ import { hostingOperations, hostingResources, integrationConnectors } from '@/db
 import { AppError } from '@/middleware/error-handler.js';
 import type { HostingProxmoxProfile } from './hosting-provider.types.js';
 import { parseIpv4Range, parseVmidRange } from './proxmox-pool.js';
+import { confirmedDeletedResourceIds } from './proxmox-quota.js';
 
 type CandidateOperation = {
   action: string;
@@ -98,30 +99,19 @@ export async function allocateProxmoxPool(
     for (const address of resource.snapshot.addresses) reservedIps.add(address.ip);
   }
   const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
-  const confirmedDeleted = new Set(
-    operations
-      .filter(
-        (operation) =>
-          operation.action === 'delete' &&
-          operation.phase === 'ready' &&
-          operation.resourceId &&
-          operation.result?.providerDeleted === true &&
-          typeof operation.result.deletedIncarnation === 'string'
-      )
-      .map((operation) => `${operation.resourceId}:${operation.result!.deletedIncarnation}`)
-  );
+  const confirmedDeleted = new Set([
+    ...confirmedDeletedResourceIds(resources, operations),
+    ...confirmedDeletedResourceIds(
+      resources.map((resource) => ({ ...resource, incarnation: resource.snapshot.incarnation ?? null })),
+      operations
+    ),
+  ]);
   for (const operation of operations) {
     if (operation.action !== 'create') continue;
     const vmid = acceptedNumber(operation.request, 'vmid');
     const ip = acceptedString(operation.request, 'ipAddress');
     const resource = operation.resourceId ? resourceById.get(operation.resourceId) : undefined;
-    if (
-      resource?.missingSince &&
-      [resource.incarnation, resource.snapshot.incarnation].some(
-        (incarnation) => !!incarnation && confirmedDeleted.has(`${resource.id}:${incarnation}`)
-      )
-    )
-      continue;
+    if (resource && confirmedDeleted.has(resource.id)) continue;
     // Failed requests that never crossed the provider dispatch boundary did not reserve an external identity.
     if (operation.phase === 'failed' && !operation.dispatchStartedAt) continue;
     if (vmid !== undefined) reservedVmids.add(vmid);

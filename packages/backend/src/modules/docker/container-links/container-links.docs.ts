@@ -29,7 +29,7 @@ export const createContainerLinkRoute = appRoute({
   tags: [TAG],
   summary: 'Link a workload to one port of another workload',
   description:
-    'The consumer reaches the target as alias:targetPort on its own internal link network; the target needs no published port and no route, and cannot reach the consumer. Without environment names a container or deployment joins the link without a restart (a Compose service gets a new revision); with them the consumer is recreated once. Both Docker nodes need a daemon with secure_link_egress_v1. Needs docker:containers:edit on the consumer (docker:compose:manage for a Compose service), docker:containers:environment when environment names are set, and docker:containers:link on the target (docker:compose:manage for a Compose service).',
+    'The consumer reaches the target as alias:targetPort on its own internal link network; the target needs no published port and no route, and cannot reach the consumer. Without environment names a container or deployment joins the link without a restart (a Compose service gets a new revision); with them the consumer is recreated once. Both Docker nodes need a daemon with secure_link_egress_v1. Needs docker:containers:edit on the consumer (docker:compose:manage for a Compose service), docker:containers:environment when environment names are set, and docker:containers:link on the target (docker:compose:manage for a Compose service). A node of the link that is offline (a reboot, an update) does not fail the request: the link is saved with status waiting and a lastError that says so, and is set up when the node reconnects.',
   request: { ...jsonBody(CreateContainerLinkSchema) },
   responses: createdJson(UnknownDataResponseSchema),
 });

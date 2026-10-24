@@ -59,6 +59,8 @@ export const createNotificationAlertRuleRoute = appRoute({
   path: '/',
   tags: ['Notifications'],
   summary: 'Create a notification alert rule',
+  description:
+    'Required by type (400 VALIDATION_ERROR otherwise): type threshold needs metric, operator and thresholdValue (a hosting_account threshold: metric balance or monthly_expenses and a three-letter currency in metricTarget); type event needs eventPattern.',
   request: jsonBody(CreateAlertRuleSchema),
   responses: createdJson(UnknownDataResponseSchema),
 });

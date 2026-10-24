@@ -44,9 +44,16 @@ export const CreateContainerLinkSchema = z.object({
 export type CreateContainerLinkInput = z.infer<typeof CreateContainerLinkSchema>;
 
 export const ListContainerLinksQuerySchema = z.object({
-  nodeId: z.string().uuid(),
-  type: ContainerLinkWorkloadTypeSchema,
-  resourceId: z.string().trim().min(1).max(255),
+  nodeId: z.string().uuid().describe('Docker node of the workload'),
+  type: ContainerLinkWorkloadTypeSchema.describe('Kind of the workload whose links are listed'),
+  resourceId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .describe(
+      'The workload: a container name, a deployment id, or `<composeProjectId>:<serviceName>` for a Compose service'
+    ),
   /** `outgoing`: links the workload starts (its consumer side). `incoming`: links that reach it. */
   direction: z.enum(['outgoing', 'incoming']).default('outgoing'),
 });

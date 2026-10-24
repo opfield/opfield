@@ -34,7 +34,7 @@ import { DockerSnapshotReconciler } from './docker-snapshot-reconciler.service.j
 import { compactVolumeListItem, matchesVolumeSearch } from './docker-volume.routes.js';
 
 const MAX_ITEMS = 1000;
-const RefreshSchema = z
+export const DockerSnapshotRefreshSchema = z
   .object({
     nodeId: z.string().uuid().optional(),
     resource: z.enum([...DOCKER_SNAPSHOT_KINDS, 'container-detail', 'volume-detail', 'volume-metrics']).optional(),
@@ -204,50 +204,60 @@ export function registerDockerSnapshotRoutes(router: OpenAPIHono<AppEnv>) {
   router.get('/networks', (c) => aggregate(c, 'networks'));
 
   router.post('/snapshots/refresh', async (c) => {
-    const input = RefreshSchema.parse(await c.req.json());
-    const snapshots = container.resolve(DockerSnapshotService);
-    const scopes = c.get('effectiveScopes') || [];
-    const resource = (input.resource ?? input.kind)!;
-    const reconciler = container.resolve(DockerSnapshotReconciler);
-    if (input.nodeId) {
-      await snapshots.assertDockerNode(input.nodeId);
-      const hasChildAccess = dockerScopedNodeIds(scopes, [VIEW_SCOPE[resource]]).includes(input.nodeId);
-      if (!TokensService.hasScope(scopes, `${VIEW_SCOPE[resource]}:${input.nodeId}`) && !hasChildAccess) {
-        throw new AppError(403, 'FORBIDDEN', 'Missing required Docker node access scope', {
-          requiredScope: `${VIEW_SCOPE[resource]}:${input.nodeId}`,
-        });
-      }
-      if (resource === 'container-detail' && !(await canRefreshContainerDetail(scopes, input.nodeId, input.key!))) {
-        throw new AppError(403, 'FORBIDDEN', 'Missing docker:containers:view permission for the requested container');
-      }
-      if (
-        (resource === 'volume-detail' || resource === 'volume-metrics') &&
-        !canRefreshVolumeDetail(scopes, input.nodeId, input.key!)
-      ) {
-        throw new AppError(403, 'FORBIDDEN', 'Missing docker:volumes:view permission for the requested volume');
-      }
-      reconciler.enqueue({ nodeId: input.nodeId, kind: resource, key: input.key }, { urgent: true });
-      return c.json({ accepted: true, nodeCount: 1 }, 202);
-    }
-    const listKind: DockerSnapshotKind =
-      resource === 'container-detail'
-        ? 'containers'
-        : resource === 'volume-detail' || resource === 'volume-metrics'
-          ? 'volumes'
-          : resource;
-    const visibleNodes = await snapshots.listVisibleNodes(listKind, scopes);
-    for (const node of visibleNodes) {
-      if (resource === 'container-detail' && !(await canRefreshContainerDetail(scopes, node.id, input.key!))) {
-        continue;
-      }
-      if (
-        (resource === 'volume-detail' || resource === 'volume-metrics') &&
-        !canRefreshVolumeDetail(scopes, node.id, input.key!)
-      ) {
-        continue;
-      }
-      reconciler.enqueue({ nodeId: node.id, kind: resource, key: input.key }, { urgent: true });
-    }
-    return c.json({ accepted: true, nodeCount: visibleNodes.length }, 202);
+    const input = DockerSnapshotRefreshSchema.parse(await c.req.json());
+    return c.json(await refreshDockerSnapshots(c.get('effectiveScopes') || [], input), 202);
   });
+}
+
+/**
+ * POST /docker/snapshots/refresh and manage_docker_container refresh_snapshot: queue an urgent re-read of the
+ * Docker snapshot cache for one node (needs the resource's view scope there) or for every node the caller sees.
+ */
+export async function refreshDockerSnapshots(
+  scopes: string[],
+  input: z.infer<typeof DockerSnapshotRefreshSchema>
+): Promise<{ accepted: true; nodeCount: number }> {
+  const snapshots = container.resolve(DockerSnapshotService);
+  const resource = (input.resource ?? input.kind)!;
+  const reconciler = container.resolve(DockerSnapshotReconciler);
+  if (input.nodeId) {
+    await snapshots.assertDockerNode(input.nodeId);
+    const hasChildAccess = dockerScopedNodeIds(scopes, [VIEW_SCOPE[resource]]).includes(input.nodeId);
+    if (!TokensService.hasScope(scopes, `${VIEW_SCOPE[resource]}:${input.nodeId}`) && !hasChildAccess) {
+      throw new AppError(403, 'FORBIDDEN', 'Missing required Docker node access scope', {
+        requiredScope: `${VIEW_SCOPE[resource]}:${input.nodeId}`,
+      });
+    }
+    if (resource === 'container-detail' && !(await canRefreshContainerDetail(scopes, input.nodeId, input.key!))) {
+      throw new AppError(403, 'FORBIDDEN', 'Missing docker:containers:view permission for the requested container');
+    }
+    if (
+      (resource === 'volume-detail' || resource === 'volume-metrics') &&
+      !canRefreshVolumeDetail(scopes, input.nodeId, input.key!)
+    ) {
+      throw new AppError(403, 'FORBIDDEN', 'Missing docker:volumes:view permission for the requested volume');
+    }
+    reconciler.enqueue({ nodeId: input.nodeId, kind: resource, key: input.key }, { urgent: true });
+    return { accepted: true, nodeCount: 1 };
+  }
+  const listKind: DockerSnapshotKind =
+    resource === 'container-detail'
+      ? 'containers'
+      : resource === 'volume-detail' || resource === 'volume-metrics'
+        ? 'volumes'
+        : resource;
+  const visibleNodes = await snapshots.listVisibleNodes(listKind, scopes);
+  for (const node of visibleNodes) {
+    if (resource === 'container-detail' && !(await canRefreshContainerDetail(scopes, node.id, input.key!))) {
+      continue;
+    }
+    if (
+      (resource === 'volume-detail' || resource === 'volume-metrics') &&
+      !canRefreshVolumeDetail(scopes, node.id, input.key!)
+    ) {
+      continue;
+    }
+    reconciler.enqueue({ nodeId: node.id, kind: resource, key: input.key }, { urgent: true });
+  }
+  return { accepted: true, nodeCount: visibleNodes.length };
 }

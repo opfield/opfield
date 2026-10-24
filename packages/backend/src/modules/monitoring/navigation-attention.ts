@@ -15,6 +15,13 @@ export function nodeNavigationAttention(offlineCount: number, hasPendingUpdates:
   return null;
 }
 
+/** Apps list health: a failing app is red, a degraded one yellow (unknown and healthy add nothing). */
+export function appNavigationAttention(health: readonly unknown[]): NavigationAttentionSeverity {
+  if (health.includes('failing')) return 'critical';
+  if (health.includes('degraded')) return 'warning';
+  return null;
+}
+
 /** Active status page incidents: a critical one is red, any other active one is yellow. */
 export function statusPageNavigationAttention(
   incidents: Array<{ status?: unknown; severity?: unknown }>

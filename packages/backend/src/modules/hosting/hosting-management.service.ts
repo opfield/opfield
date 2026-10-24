@@ -1,11 +1,15 @@
 import { eq } from 'drizzle-orm';
-import type { DrizzleClient } from '@/db/client.js';
+import type { DrizzleClient, DrizzleTransaction } from '@/db/client.js';
 import { hostingFirewalls, hostingNodeBindings, hostingResources, nodes } from '@/db/schema/index.js';
 import { LEGACY_RELAY_SUPERVISOR } from '@/lib/legacy-compat.js';
 import { hasScope } from '@/lib/permissions.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { AuditService } from '@/modules/audit/audit.service.js';
 import type { AuthService } from '@/modules/auth/auth.service.js';
+import {
+  assertNodeRemovableBeforeDestroy,
+  purgeDeletedContainerLinksOfDestroyedNodes,
+} from '@/modules/nodes/node-removal-references.js';
 import type { NodesService } from '@/modules/nodes/nodes.service.js';
 import type { EventBusService } from '@/services/event-bus.service.js';
 import type { NodeDispatchService } from '@/services/node-dispatch.service.js';
@@ -13,12 +17,17 @@ import type { ResourceSnapshotStore } from '@/services/resource-snapshot.store.j
 import type { User } from '@/types.js';
 import { type HostingActionInput, HostingActionSchema } from './hosting.schemas.js';
 import { shellArgument } from './hosting-bootstrap.js';
-import type { HostingConnectorsService } from './hosting-connectors.service.js';
+import type { HostingConnectorRow, HostingConnectorsService } from './hosting-connectors.service.js';
 import { compareHostingDecimal } from './hosting-decimal.js';
 import { lockHostingDeletion, unenrolledHostingNodeIds } from './hosting-deletion-guard.js';
 import { HostingProviderError } from './hosting-http.js';
 import { withKnownLocation } from './hosting-location.js';
-import { type HostingOperationsService, publicHostingOperation } from './hosting-operations.service.js';
+import {
+  type HostingOperationRow,
+  type HostingOperationsService,
+  publicHostingOperation,
+  transientTaskRetry,
+} from './hosting-operations.service.js';
 import { assertHostingResourceAction } from './hosting-permissions.js';
 import type { HostingAction, HostingProviderAdapter, HostingResourceSnapshot } from './hosting-provider.types.js';
 import { isHostedNodeReady } from './hosting-readiness.js';
@@ -104,6 +113,19 @@ export function proxmoxResizeFinished(resource: HostingResourceSnapshot, input: 
     (input.memoryMb === undefined || resource.memoryMb === input.memoryMb) &&
     (input.diskGb === undefined || resource.diskGb === input.diskGb)
   );
+}
+
+/** The nodes a delete still has to remove: those reserved with it, minus the ones it already removed. */
+function destroyNodeIds(row: HostingOperationRow, bound: { nodeId: string }[]): string[] {
+  const planned = Array.isArray(row.result?.destroyNodeIds)
+    ? row.result.destroyNodeIds.filter((id): id is string => typeof id === 'string')
+    : bound.map((binding) => binding.nodeId);
+  const removed = new Set(
+    Array.isArray(row.result?.removedNodeIds)
+      ? row.result.removedNodeIds.filter((id): id is string => typeof id === 'string')
+      : []
+  );
+  return planned.filter((id) => !removed.has(id));
 }
 
 export class HostingManagementService {
@@ -214,6 +236,9 @@ export class HostingManagementService {
       request: { ...input },
     });
     if (replay) return this.operations.get(replay.id, user);
+    // Refuse before anything is destroyed when a node of this VM cannot be removed afterwards (typed 409).
+    if (input.action === 'delete')
+      for (const binding of bound) await assertNodeRemovableBeforeDestroy(this.db, binding.nodeId);
     await this.validateResize(this.connectors.adapter(connector), resource.snapshot, input);
     const reserved = await this.operations.reserve(
       {
@@ -270,6 +295,70 @@ export class HostingManagementService {
       });
     this.connectors.changed(connector.id);
     return publicHostingOperation(reserved.operation);
+  }
+
+  /**
+   * Removes the Opfield nodes of a VM being destroyed (bound nodes, and nodes of its failed installations that never
+   * enrolled), each under the deletion locks. A node that is already gone is skipped; every removed node is recorded in
+   * result.removedNodeIds, so later passes neither look for it nor need permissions on it. Throws the node removal's
+   * typed error when a node cannot be removed.
+   */
+  private async removeVmNodes(
+    row: HostingOperationRow,
+    connector: HostingConnectorRow,
+    resource: typeof hostingResources.$inferSelect,
+    bound: { nodeId: string }[],
+    actor: User,
+    nodeIds: string[]
+  ): Promise<HostingOperationRow> {
+    const unenrolled = Array.isArray(row.result?.destroyUnenrolledNodeIds)
+      ? row.result.destroyUnenrolledNodeIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    for (const nodeId of nodeIds) {
+      const target = { operation: { ...row }, connector, resource, nodeIds };
+      const [node] = await this.db
+        .select({
+          status: nodes.status,
+          certificateFingerprint: nodes.certificateFingerprint,
+          hostIdentityId: nodes.hostIdentityId,
+        })
+        .from(nodes)
+        .where(eq(nodes.id, nodeId));
+      const isBound = bound.some((binding) => binding.nodeId === nodeId);
+      if (!isBound && unenrolled.includes(nodeId)) {
+        // Already removed, or it enrolled after all: then it is no longer a leftover of this VM.
+        if (!node || node.status !== 'pending' || node.certificateFingerprint || node.hostIdentityId) continue;
+        await this.removeNode(row, nodeId, actor, (tx) => lockHostingDeletion(tx, target, nodeId, true));
+      } else if (!isBound) {
+        if (node)
+          throw new AppError(
+            409,
+            'HOSTING_NODE_BINDING_CHANGED',
+            'A node binding changed during destruction; refusing to remove the detached node'
+          );
+        continue;
+      } else {
+        await this.removeNode(row, nodeId, actor, (tx) => lockHostingDeletion(tx, target, nodeId));
+      }
+      const removed = Array.isArray(row.result?.removedNodeIds) ? row.result.removedNodeIds : [];
+      row = await this.operations.update(row, {
+        result: { ...row.result, removedNodeIds: [...new Set([...removed, nodeId])] },
+      });
+    }
+    return row;
+  }
+
+  private async removeNode(
+    row: HostingOperationRow,
+    nodeId: string,
+    actor: User,
+    guard: (tx: DrizzleTransaction) => Promise<void>
+  ) {
+    try {
+      await this.nodeService.remove(nodeId, actor.id, { hostingDelete: { operationId: row.id, guard } });
+    } catch (error) {
+      if (!(error instanceof AppError && error.code === 'NOT_FOUND')) throw error;
+    }
   }
 
   async reconcileDue() {
@@ -333,9 +422,7 @@ export class HostingManagementService {
               current.resource.snapshot.incarnation !== input.expectedIncarnation
             )
               throw new AppError(409, 'HOSTING_RESOURCE_IDENTITY_CONFLICT', 'The deletion target changed');
-            const nodeIds = Array.isArray(row.result?.destroyNodeIds)
-              ? row.result.destroyNodeIds.filter((id): id is string => typeof id === 'string')
-              : bound.map((binding) => binding.nodeId);
+            const nodeIds = destroyNodeIds(row, bound);
             assertHostingResourceAction(currentActor.scopes, resource.id, 'delete', nodeIds);
             if (adapter.firewall?.cleanup) {
               const cleanup = row.result?.firewallCleanup as
@@ -377,52 +464,42 @@ export class HostingManagementService {
                 }
               }
             }
-            const target = { operation: { ...row }, connector, resource, nodeIds };
-            const unenrolled = Array.isArray(row.result?.destroyUnenrolledNodeIds)
-              ? row.result.destroyUnenrolledNodeIds.filter((id): id is string => typeof id === 'string')
-              : [];
-            for (const nodeId of nodeIds) {
-              if (!current.bound.some((binding) => binding.nodeId === nodeId) && unenrolled.includes(nodeId)) {
-                const [node] = await this.db
-                  .select({
-                    status: nodes.status,
-                    certificateFingerprint: nodes.certificateFingerprint,
-                    hostIdentityId: nodes.hostIdentityId,
-                  })
-                  .from(nodes)
-                  .where(eq(nodes.id, nodeId));
-                // Already removed, or it enrolled after all: then it is no longer a leftover of this VM.
-                if (!node || node.status !== 'pending' || node.certificateFingerprint || node.hostIdentityId) continue;
-                try {
-                  await this.nodeService.remove(nodeId, currentActor.id, {
-                    hostingDelete: {
-                      operationId: row.id,
-                      guard: (tx) => lockHostingDeletion(tx, target, nodeId, true),
-                    },
-                  });
-                } catch (error) {
-                  if (!(error instanceof AppError && error.code === 'NOT_FOUND')) throw error;
-                }
-                continue;
-              }
-              if (!current.bound.some((binding) => binding.nodeId === nodeId)) {
-                const [existing] = await this.db.select({ id: nodes.id }).from(nodes).where(eq(nodes.id, nodeId));
-                if (existing)
-                  throw new AppError(
-                    409,
-                    'HOSTING_NODE_BINDING_CHANGED',
-                    'A node binding changed during destruction; refusing to remove the detached node'
-                  );
-                continue;
-              }
-              try {
-                await this.nodeService.remove(nodeId, currentActor.id, {
-                  hostingDelete: { operationId: row.id, guard: (tx) => lockHostingDeletion(tx, target, nodeId) },
-                });
-              } catch (error) {
-                if (!(error instanceof AppError && error.code === 'NOT_FOUND')) throw error;
-              }
+            // The provider confirmed this exact VM gone: record it before the node records are removed, so the
+            // connector's quota and pool stop counting it even while a node removal still waits (phase unknown).
+            if (row.result?.providerDeleted !== true) {
+              await this.db
+                .update(hostingResources)
+                .set({ missingSince: resource.missingSince ?? new Date() })
+                .where(eq(hostingResources.id, resource.id));
+              row = await this.operations.update(row, {
+                result: { ...row.result, providerDeleted: true, deletedIncarnation: input.expectedIncarnation },
+              });
             }
+            // Links the user already deleted that only waited for cleanup on this VM's (now destroyed) nodes.
+            if (current.bound.length) {
+              const target = { operation: { ...row }, connector, resource, nodeIds };
+              const purged = await this.db.transaction(async (tx) => {
+                for (const binding of current.bound) await lockHostingDeletion(tx, target, binding.nodeId);
+                return purgeDeletedContainerLinksOfDestroyedNodes(
+                  tx,
+                  current.bound.map((binding) => binding.nodeId)
+                );
+              });
+              if (purged.length)
+                row = await this.operations.update(row, {
+                  result: {
+                    ...row.result,
+                    purgedContainerLinkIds: [
+                      ...new Set([
+                        ...(Array.isArray(row.result?.purgedContainerLinkIds) ? row.result.purgedContainerLinkIds : []),
+                        ...purged,
+                      ]),
+                    ],
+                  },
+                });
+            }
+            row = await this.removeVmNodes(row, connector, resource, current.bound, currentActor, nodeIds);
+            const target = { operation: { ...row }, connector, resource, nodeIds: destroyNodeIds(row, current.bound) };
             await this.db.transaction(async (tx) => {
               await lockHostingDeletion(tx, target);
               await tx
@@ -455,6 +532,11 @@ export class HostingManagementService {
         if (input.action === 'delete' && row.result?.destroyStage === 'stopping') {
           if (row.providerOperation?.id) {
             const stop = await adapter.operation(row.providerOperation.id, resource.remoteId);
+            const retriedStop = stop.status === 'failed' ? transientTaskRetry(row, stop) : null;
+            if (retriedStop) {
+              row = await this.operations.update(row, { ...retriedStop, phase: 'pending' });
+              continue;
+            }
             if (stop.status === 'failed') {
               await this.operations.finish(row, 'failed', undefined, {
                 code: 'HOSTING_STOP_FAILED',
@@ -541,6 +623,10 @@ export class HostingManagementService {
                 'HOSTING_STOP_UNAVAILABLE',
                 live.capabilities.shutdown.reason ?? 'VM shutdown permission is required before destruction'
               );
+            // Remove the VM's node records first, while the server still runs: a node that cannot be removed (typed
+            // 409: routes, links, Pages, an undrained relay, ...) fails this operation with nothing destroyed. After
+            // the destroy the node would be offline, and some removals (a relay) are then refused for days.
+            row = await this.removeVmNodes(row, connector, resource, bound, actor, destroyNodeIds(row, bound));
             row = await this.operations.update(row, {
               result: {
                 ...row.result,
@@ -582,6 +668,15 @@ export class HostingManagementService {
         let taskSucceeded = row.providerOperation?.status === 'succeeded';
         if (row.providerOperation?.id && !taskSucceeded) {
           const task = await adapter.operation(row.providerOperation.id, resource.remoteId);
+          // A power or destroy task that timed out waiting for a host lock did nothing: send it again.
+          const retried =
+            task.status === 'failed' && ['start', 'shutdown', 'reboot', 'delete'].includes(input.action)
+              ? transientTaskRetry(row, task)
+              : null;
+          if (retried) {
+            row = await this.operations.update(row, { ...retried, phase: 'pending' });
+            continue;
+          }
           if (task.status === 'failed') {
             await this.operations.finish(row, 'failed', undefined, {
               code: 'HOSTING_PROVIDER_TASK_FAILED',

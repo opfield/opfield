@@ -200,6 +200,18 @@ export const DOCKER_VOLUME_SIZES_CAPABILITY = 'docker_volume_sizes_v1';
 /** Measuring walks every volume on the node. */
 const VOLUME_SIZES_TIMEOUT_MS = 5 * 60_000;
 
+/** A container id is shortened to Docker's 12 characters; a name is kept as it is. */
+function shortContainerReference(containerId: string): string {
+  return /^[0-9a-f]{13,64}$/i.test(containerId) ? containerId.slice(0, 12) : containerId;
+}
+
+/** See DockerSnapshotReconciler.readBackNow. */
+export type DockerSnapshotReadBack = (
+  nodeId: string,
+  kind: 'volumes' | 'networks',
+  change?: { volume: string; removed?: boolean }
+) => Promise<void>;
+
 export class DockerManagementService {
   private static readonly LONG_DOCKER_OPERATION_TIMEOUT_MS = 600000; // 10 minutes
 
@@ -211,6 +223,7 @@ export class DockerManagementService {
   private containerTransitions = new DockerContainerTransitions();
 
   private taskService?: DockerTaskService;
+  private snapshotReadBack?: DockerSnapshotReadBack;
   private environmentService?: DockerEnvironmentService;
   private runtimeSettingsService?: DockerRuntimeSettingsService;
   private secretService?: DockerSecretService;
@@ -272,6 +285,15 @@ export class DockerManagementService {
     private nodeDispatch: NodeDispatchService,
     private nodeRegistry: NodeRegistryService
   ) {}
+
+  /** Reads a changed volume or network list back into the snapshots before a create or remove answers. */
+  setSnapshotReadBack(readBack: DockerSnapshotReadBack): void {
+    this.snapshotReadBack = readBack;
+  }
+
+  protected async readBackSnapshot(...args: Parameters<DockerSnapshotReadBack>): Promise<void> {
+    await this.snapshotReadBack?.(...args);
+  }
 
   setTaskService(taskService: DockerTaskService) {
     this.taskService = taskService;
@@ -780,13 +802,33 @@ export class DockerManagementService {
     return this.getTransition(nodeId, name);
   }
 
+  /**
+   * A recreate (or update) removes the old container before it creates the new one under the same name: a request
+   * that inspects the container in between got 404 CONTAINER_NOT_FOUND, as if the container were gone. While a
+   * transition holds the name, that answer is 409 CONTAINER_BUSY; any other error is returned as it is.
+   */
+  busyWhileTransitioning(nodeId: string, identifier: string, error: unknown): unknown {
+    const transition = this.getTransition(nodeId, identifier);
+    if (!transition) return error;
+    const missing =
+      (error as { code?: unknown } | null)?.code === 'CONTAINER_NOT_FOUND' ||
+      /(?:no such container|container not found)/i.test(error instanceof Error ? error.message : String(error ?? ''));
+    if (!missing) return error;
+    return new AppError(409, 'CONTAINER_BUSY', `Container "${identifier}" is currently ${transition}`, {
+      name: identifier,
+    });
+  }
+
   private async resolveContainerName(nodeId: string, containerId: string): Promise<string> {
     try {
       const result = await this.nodeDispatch.sendDockerContainerCommand(nodeId, 'inspect', { containerId });
       const data = this.parseResult(result);
-      return (data?.Name ?? '').replace(/^\//, '') || containerId.slice(0, 12);
+      return (data?.Name ?? '').replace(/^\//, '') || shortContainerReference(containerId);
     } catch {
-      return containerId.slice(0, 12);
+      // Between a recreate's removal of the old container and the creation of the new one no container carries the
+      // name, while the recreate holds the transition under it. A name must stay whole, so a restart (or any other
+      // lifecycle request) that arrives then answers 409 CONTAINER_BUSY instead of the daemon's "No such container".
+      return shortContainerReference(containerId);
     }
   }
 
@@ -2176,7 +2218,9 @@ export class DockerManagementService {
       return commercialModuleUnavailable();
     }
     await this.validateDockerNode(nodeId);
-    return createDockerVolume(this.volumeNetworkOperationContext(), nodeId, config, userId);
+    const created = await createDockerVolume(this.volumeNetworkOperationContext(), nodeId, config, userId);
+    await this.readBackSnapshot(nodeId, 'volumes', { volume: config.name });
+    return created;
   }
 
   async resizeVolume(_nodeId: string, _name: string, _capacityBytes: number, _userId: string): Promise<void> {
@@ -2352,6 +2396,7 @@ export class DockerManagementService {
     // that the user volume list hides. Housekeeping uses removeOrphanedAnonymousVolume.
     await assertDockerUserVolumeVisible(this.volumeNetworkOperationContext(), nodeId, name);
     await removeDockerVolume(this.volumeNetworkOperationContext(), nodeId, name, force, userId);
+    await this.readBackSnapshot(nodeId, 'volumes', { volume: name, removed: true });
   }
 
   /**
@@ -2468,12 +2513,15 @@ export class DockerManagementService {
   ) {
     await this.validateDockerNode(nodeId);
     await this.folderService?.assertResourceDestination('network', config.folderId);
-    return createDockerNetwork(this.volumeNetworkOperationContext(), nodeId, config, userId);
+    const created = await createDockerNetwork(this.volumeNetworkOperationContext(), nodeId, config, userId);
+    await this.readBackSnapshot(nodeId, 'networks');
+    return created;
   }
 
   async removeNetwork(nodeId: string, networkId: string, userId: string) {
     await this.validateDockerNode(nodeId);
     await removeDockerNetwork(this.volumeNetworkOperationContext(), nodeId, networkId, userId);
+    await this.readBackSnapshot(nodeId, 'networks');
   }
 
   async connectContainerToNetwork(nodeId: string, networkId: string, containerId: string, userId: string) {
